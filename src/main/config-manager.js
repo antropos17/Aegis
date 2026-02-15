@@ -1,0 +1,164 @@
+/**
+ * @file config-manager.js
+ * @module main/config-manager
+ * @description Settings persistence, custom sensitive-pattern compilation,
+ *   permission defaults, and agent tracking helpers.
+ * @requires fs
+ * @requires path
+ * @requires electron
+ * @requires ../shared/constants
+ * @author AEGIS Contributors
+ * @license MIT
+ * @version 0.1.0
+ */
+
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const { app } = require('electron');
+const { PERMISSION_CATEGORIES } = require('../shared/constants');
+
+const SETTINGS_PATH = path.join(app.getPath('userData'), 'settings.json');
+
+const DEFAULT_SETTINGS = {
+  scanIntervalSec: 10,
+  notificationsEnabled: true,
+  customSensitivePatterns: [],
+  startMinimized: false,
+  autoStartWithWindows: false,
+  anthropicApiKey: '',
+  darkMode: false,
+  agentPermissions: {},
+  seenAgents: [],
+};
+
+let settings = { ...DEFAULT_SETTINGS };
+let customSensitiveRules = [];
+let _knownAgentNames = [];
+let _applyCallback = null;
+
+/**
+ * Initialise the config manager with known agent names and an apply callback.
+ * @param {{ knownAgentNames: string[], applyCallback: Function }} opts
+ * @returns {void}
+ * @since v0.1.0
+ */
+function init(opts) {
+  _knownAgentNames = opts.knownAgentNames || [];
+  _applyCallback = opts.applyCallback || null;
+}
+
+/**
+ * Build RegExp rules from user-defined custom sensitive patterns.
+ * @returns {void}
+ * @since v0.1.0
+ */
+function buildCustomRules() {
+  customSensitiveRules = [];
+  for (const p of settings.customSensitivePatterns) {
+    try {
+      customSensitiveRules.push({ pattern: new RegExp(p, 'i'), reason: `Custom: ${p}` });
+    } catch (_) {}
+  }
+}
+
+/**
+ * Load settings from disk, merging with defaults.
+ * @returns {void}
+ * @since v0.1.0
+ */
+function loadSettings() {
+  try {
+    if (fs.existsSync(SETTINGS_PATH)) {
+      const raw = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'));
+      settings = { ...DEFAULT_SETTINGS, ...raw };
+    }
+  } catch (_) {
+    settings = { ...DEFAULT_SETTINGS };
+  }
+  buildCustomRules();
+}
+
+/**
+ * Persist updated settings to disk.
+ * @param {Object} newSettings - Partial settings object merged with defaults
+ * @returns {void}
+ * @since v0.1.0
+ */
+function saveSettings(newSettings) {
+  settings = { ...DEFAULT_SETTINGS, ...newSettings };
+  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+  buildCustomRules();
+}
+
+/**
+ * Re-apply settings (restart scan intervals via callback).
+ * @returns {void}
+ * @since v0.1.0
+ */
+function applySettings() {
+  if (_applyCallback) _applyCallback();
+}
+
+/**
+ * Return default permission map for an agent (monitor for known, block for unknown).
+ * @param {string} agentName
+ * @returns {Object.<string, string>} category-to-state map
+ * @since v0.1.0
+ */
+function getDefaultPermissions(agentName) {
+  const state = _knownAgentNames.includes(agentName) ? 'monitor' : 'block';
+  const perms = {};
+  for (const cat of PERMISSION_CATEGORIES) perms[cat] = state;
+  return perms;
+}
+
+/**
+ * Return saved or default permissions for an agent.
+ * @param {string} agentName
+ * @returns {Object.<string, string>} category-to-state map
+ * @since v0.1.0
+ */
+function getAgentPermissions(agentName) {
+  const saved = settings.agentPermissions[agentName];
+  if (saved) return saved;
+  return getDefaultPermissions(agentName);
+}
+
+/**
+ * Record a newly-seen agent and persist its default permissions.
+ * @param {string} agentName
+ * @returns {void}
+ * @since v0.1.0
+ */
+function trackSeenAgent(agentName) {
+  if (!settings.seenAgents.includes(agentName)) {
+    settings.seenAgents.push(agentName);
+    if (!settings.agentPermissions[agentName]) {
+      settings.agentPermissions[agentName] = getDefaultPermissions(agentName);
+    }
+    try {
+      fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+    } catch (_) {}
+  }
+}
+
+/** @returns {Object} Current settings snapshot */
+function getSettings() { return settings; }
+
+/** @returns {Array} Current custom sensitive rules */
+function getCustomSensitiveRules() { return customSensitiveRules; }
+
+module.exports = {
+  init,
+  loadSettings,
+  saveSettings,
+  applySettings,
+  getDefaultPermissions,
+  getAgentPermissions,
+  trackSeenAgent,
+  getSettings,
+  getCustomSensitiveRules,
+  SETTINGS_PATH,
+};

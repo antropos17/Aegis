@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'">
+  <title>AEGIS</title>
+  <link rel="stylesheet" href="../styles/variables.css">
+  <link rel="stylesheet" href="../styles/base.css">
+  <link rel="stylesheet" href="../styles/radar.css">
+  <link rel="stylesheet" href="../styles/panels.css">
+  <link rel="stylesheet" href="../styles/components.css">
+  <link rel="stylesheet" href="../styles/settings.css">
+  <link rel="stylesheet" href="../styles/tabs.css">
+  <link rel="stylesheet" href="../styles/responsive.css">
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <span class="logo-shield"></span>
+      <h1>AEGIS</h1>
+    </div>
+    <div class="header-pills">
+      <span id="scan-status" class="pulse">MONITORING</span>
+      <span class="header-pill pill-shield" id="pill-shield"><span id="shield-score">100</span><span class="pill-label">% PROTECTED</span></span>
+      <span class="header-pill pill-streak" id="pill-streak"><span id="streak-count">0</span><span class="pill-label">d STREAK</span></span>
+      <span class="header-pill pill-agents" id="pill-agents"><span id="stat-agents">0</span><span class="pill-label"> AGENTS</span></span>
+      <span class="header-pill pill-files" id="pill-files"><span id="stat-files">0</span><span class="pill-label"> FILES</span></span>
+      <span id="last-scan"></span>
+      <button id="theme-toggle" class="btn-theme" title="Toggle dark mode">&#9728;&#65039;</button>
+      <button id="settings-btn" class="btn-gear" title="Settings">&#9881;</button>
+    </div>
+  </header>
+
+  <nav class="tab-bar">
+    <button class="tab-pill active" data-tab="shield">&#128737;&#65039; SHIELD</button>
+    <button class="tab-pill" data-tab="activity">&#128203; ACTIVITY</button>
+    <button class="tab-pill" data-tab="rules">&#9881;&#65039; RULES</button>
+    <button class="tab-pill" data-tab="reports">&#128202; REPORTS</button>
+  </nav>
+
+  <main>
+    <!-- SHIELD TAB -->
+    <div id="tab-shield" class="tab-view active">
+    <!-- TOP ROW: Left + Right columns -->
+    <div class="main-top">
+      <!-- LEFT COLUMN: Radar + Activity -->
+      <div class="col-left">
+        <section id="radar-section">
+          <div class="radar-monitor">
+            <canvas id="radar-canvas" width="400" height="400"></canvas>
+          </div>
+          <div class="radar-meta">
+            <span class="radar-threat-pill threat-text-green" id="radar-threat-val">CLEAR</span>
+            <span class="radar-uptime-pill">
+              <span id="stat-uptime" class="radar-uptime-value">00:00:00</span>
+              <span class="radar-uptime-label">UPTIME</span>
+            </span>
+            <span class="radar-alert-pill" id="stat-sensitive-wrap">
+              <span id="stat-sensitive">0</span> ALERTS
+            </span>
+          </div>
+        </section>
+
+        <section id="activity-panel">
+          <div class="activity-header">
+            <h2>AI Agent Activity</h2>
+            <div class="activity-controls">
+              <span id="sensitive-count" class="sensitive-badge">0 SENSITIVE</span>
+              <button id="clear-feed" class="btn-action btn-clear" title="Clear feed">CLEAR</button>
+            </div>
+          </div>
+          <div id="activity-feed">
+            <div class="empty-state">Waiting for AI agent file access events...</div>
+          </div>
+          <button id="show-more-feed" class="btn-show-more" style="display:none">Show more activity...</button>
+        </section>
+      </div>
+
+      <!-- RIGHT COLUMN: Agents -->
+      <div class="col-right">
+        <section id="agents-panel">
+          <h2>Detected AI Agents</h2>
+          <div id="agents-list">
+            <div class="empty-state">&#x1F6E1; No AI agents detected. Shield is clear.</div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- BOTTOM BAR: Network + Other -->
+    <div class="col-bottom">
+      <section id="network-panel">
+        <div class="network-header">
+          <h2>Network Activity</h2>
+          <span id="network-count" class="network-count-badge">0 connections</span>
+        </div>
+        <div id="network-list" class="network-list">
+          <div class="empty-state">Scanning network connections...</div>
+        </div>
+      </section>
+
+      <section id="other-agents-panel" class="other-panel collapsed">
+        <div class="other-panel-header">
+          <h2>Other Agent Processes</h2>
+          <span id="other-agent-count" class="other-count-badge">0</span>
+          <button id="other-toggle" class="btn-action btn-toggle">SHOW</button>
+        </div>
+        <div id="other-panel-content" class="other-panel-content">
+          <div id="other-agents-list">
+            <div class="empty-state">No other agent processes detected</div>
+          </div>
+          <div class="other-feed-header">
+            <span class="other-feed-label">Activity</span>
+            <span id="other-sensitive-count" class="sensitive-badge other-sensitive-badge">0 SENSITIVE</span>
+          </div>
+          <div id="other-activity-feed" class="other-feed">
+            <div class="empty-state">No activity from other agent processes</div>
+          </div>
+        </div>
+      </section>
+    </div>
+    </div><!-- /tab-shield -->
+
+    <!-- ACTIVITY TAB -->
+    <div id="tab-activity" class="tab-view">
+      <div class="activity-filter-bar">
+        <select id="filter-agent"><option value="">All Agents</option></select>
+        <select id="filter-severity">
+          <option value="">All Severity</option>
+          <option value="sensitive">Sensitive</option>
+          <option value="config">Config</option>
+          <option value="normal">Normal</option>
+        </select>
+        <select id="filter-filetype">
+          <option value="">All Types</option>
+          <option value="js">JavaScript</option>
+          <option value="json">JSON/Config</option>
+          <option value="env">Env/Keys</option>
+          <option value="py">Python</option>
+          <option value="other">Other</option>
+        </select>
+        <button id="clear-filters" class="btn-action btn-clear">CLEAR FILTERS</button>
+      </div>
+      <div id="full-activity-feed" class="full-activity-feed">
+        <div class="empty-state">Switch to Activity tab to see all events...</div>
+      </div>
+    </div>
+
+    <!-- RULES TAB -->
+    <div id="tab-rules" class="tab-view">
+      <div class="rules-container">
+        <div class="rules-header">
+          <h2>Agent Permissions</h2>
+          <span class="perm-legend">
+            <span class="perm-legend-dot dot-allow"></span>Allow
+            <span class="perm-legend-dot dot-monitor"></span>Monitor
+            <span class="perm-legend-dot dot-block"></span>Block
+          </span>
+        </div>
+        <div class="rules-presets">
+          <span class="rules-presets-label">PRESETS:</span>
+          <button class="btn-preset" data-preset="paranoid" onclick="applyPreset('paranoid')">PARANOID</button>
+          <button class="btn-preset" data-preset="strict" onclick="applyPreset('strict')">STRICT</button>
+          <button class="btn-preset active" data-preset="balanced" onclick="applyPreset('balanced')">BALANCED</button>
+          <button class="btn-preset" data-preset="developer" onclick="applyPreset('developer')">DEVELOPER</button>
+        </div>
+        <div id="rules-perm-grid" class="perm-grid-container"></div>
+        <div class="rules-actions">
+          <button id="rules-save" class="btn-action" style="background:var(--accent);color:#fff;font-weight:700">SAVE CHANGES</button>
+          <button id="rules-reset" class="btn-action btn-clear">RESET TO DEFAULTS</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORTS TAB -->
+    <div id="tab-reports" class="tab-view">
+      <div class="reports-container">
+        <div class="reports-stats-grid">
+          <div class="report-stat-card">
+            <div class="report-stat-value" id="report-files">0</div>
+            <div class="report-stat-label">FILES ACCESSED</div>
+          </div>
+          <div class="report-stat-card">
+            <div class="report-stat-value" id="report-sensitive" style="color:var(--red)">0</div>
+            <div class="report-stat-label">SENSITIVE ALERTS</div>
+          </div>
+          <div class="report-stat-card">
+            <div class="report-stat-value" id="report-agents">0</div>
+            <div class="report-stat-label">AGENTS DETECTED</div>
+          </div>
+          <div class="report-stat-card">
+            <div class="report-stat-value" id="report-network">0</div>
+            <div class="report-stat-label">NETWORK CONNECTIONS</div>
+          </div>
+        </div>
+
+        <div class="reports-section-title">Export Data</div>
+        <div class="reports-export-grid">
+          <button id="export-log" class="btn-action" title="Export log as JSON">EXPORT JSON</button>
+          <button id="export-csv" class="btn-action" title="Export log as CSV">EXPORT CSV</button>
+          <button id="generate-report" class="btn-action btn-report" title="Generate HTML report">GENERATE REPORT</button>
+        </div>
+
+        <div class="reports-section-title">Agent Breakdown</div>
+        <div id="reports-table-wrap" class="reports-table-wrap"></div>
+      </div>
+    </div>
+  </main>
+
+  <footer id="status-bar">
+    <span class="footer-version">AEGIS v0.1.0-alpha</span>
+    <span class="status-items">
+      <span class="status-item">
+        <span class="status-label">CPU</span>
+        <span id="footer-cpu" class="status-value">—</span>
+      </span>
+      <span class="status-item">
+        <span class="status-label">MEM</span>
+        <span id="footer-mem" class="status-value">— MB</span>
+      </span>
+      <span class="status-item">
+        <span class="status-label">HEAP</span>
+        <span id="footer-heap" class="status-value">— MB</span>
+      </span>
+      <span class="status-item">
+        <span class="status-label">SCAN</span>
+        <span id="footer-interval" class="status-value">—s</span>
+      </span>
+    </span>
+  </footer>
+
+  <!-- Settings overlay -->
+  <div id="settings-overlay" class="settings-overlay hidden">
+    <div class="settings-panel">
+      <div class="settings-header">
+        <h2>Settings</h2>
+        <button id="settings-close" class="btn-settings-close">&times;</button>
+      </div>
+
+      <div class="settings-section-title">Monitoring</div>
+
+      <div class="settings-group">
+        <label class="settings-label">Scan Interval</label>
+        <div class="settings-row">
+          <input type="range" id="setting-interval" min="5" max="60" value="3" class="settings-slider">
+          <span id="setting-interval-val" class="settings-slider-val">3s</span>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <label class="settings-label">
+          <input type="checkbox" id="setting-notifications" checked>
+          Enable desktop notifications
+        </label>
+      </div>
+
+      <div class="settings-section-title">Alerts</div>
+
+      <div class="settings-group">
+        <label class="settings-label">Custom Sensitive Patterns</label>
+        <div class="settings-patterns">
+          <div id="patterns-list" class="patterns-list"></div>
+          <div class="patterns-add-row">
+            <input type="text" id="pattern-input" class="settings-input" placeholder="Regex pattern, e.g. backup\.zip$">
+            <button id="pattern-add" class="btn-action btn-pattern-add">ADD</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section-title">System</div>
+
+      <div class="settings-group">
+        <label class="settings-label">Anthropic API Key</label>
+        <input type="password" id="setting-api-key" class="settings-input" placeholder="sk-ant-...">
+      </div>
+
+      <div class="settings-group">
+        <label class="settings-label">
+          <input type="checkbox" id="setting-start-minimized">
+          Start minimized to tray
+        </label>
+      </div>
+
+      <div class="settings-group">
+        <label class="settings-label">
+          <input type="checkbox" id="setting-auto-start">
+          Auto-start with Windows
+        </label>
+      </div>
+
+      <div class="settings-actions">
+        <button id="settings-save" class="btn-action">SAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analysis modal -->
+  <div id="analysis-overlay" class="settings-overlay hidden">
+    <div class="analysis-panel">
+      <div class="settings-header">
+        <h2 id="analysis-title">AI Risk Analysis</h2>
+        <button id="analysis-close" class="btn-settings-close">&times;</button>
+      </div>
+      <div id="analysis-content" class="analysis-content">...</div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="state.js"></script>
+  <script src="helpers.js"></script>
+  <script src="theme.js"></script>
+  <script src="risk-scoring.js"></script>
+  <script src="radar-state.js"></script>
+  <script src="radar-draw.js"></script>
+  <script src="radar-engine.js"></script>
+  <script src="permissions.js"></script>
+  <script src="agent-panel.js"></script>
+  <script src="agent-render.js"></script>
+  <script src="activity-feed.js"></script>
+  <script src="network-panel.js"></script>
+  <script src="reports.js"></script>
+  <script src="settings.js"></script>
+  <script src="analysis.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

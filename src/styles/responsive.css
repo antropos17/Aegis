@@ -1,0 +1,70 @@
+/* ── Responsive ── */
+
+/* Short windows / 1366x768 laptops */
+@media (max-height: 700px) {
+  main { padding: 4px 14px 10px; gap: 10px; }
+  h2 { font-size: 12px; margin-bottom: 6px; }
+  .radar-monitor { width: 260px; height: 260px; margin: 16px auto; }
+  #radar-canvas { width: 260px; height: 260px; }
+  #activity-panel { min-height: 100px; }
+  .network-list { max-height: 120px; }
+}
+
+/* Medium -- stack columns vertically */
+@media (max-width: 1000px) {
+  main { padding: 8px 14px; gap: 10px; }
+  .main-top { flex-direction: column; flex: unset; overflow: visible; }
+  .col-left { width: 100%; overflow-y: visible; flex-shrink: unset; }
+  .col-right { width: 100%; flex-shrink: unset; }
+  .col-bottom { flex-direction: column; max-height: none; }
+  #agents-panel { max-height: 300px; }
+  .radar-monitor { width: min(280px, 50vw); height: min(280px, 50vw); }
+  .agent-left { flex: 1 1 100%; }
+  .agent-center { flex: 1 1 auto; }
+  .activity-header { flex-direction: column; align-items: flex-start; }
+  .activity-controls { flex-wrap: wrap; gap: 6px; }
+  .net-row { grid-template-columns: 80px 100px 40px 1fr 70px; }
+  .baseline-grid { grid-template-columns: repeat(2, 1fr); }
+  .baseline-details { grid-template-columns: 1fr; }
+  .reports-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .perm-grid-container { overflow-x: auto; }
+}
+
+/* Narrow -- compact everything */
+@media (max-width: 700px) {
+  header { padding: 8px 12px; }
+  h1 { font-size: 15px; }
+  .header-pills { gap: 4px; }
+  .header-pill { padding: 2px 7px; font-size: 9px; }
+  .pill-label { display: none; }
+  .pulse { font-size: 8px; padding: 2px 7px; }
+  #last-scan { display: none; }
+  .tab-bar { gap: 4px; padding: 6px 12px; }
+  .tab-pill { padding: 6px 12px; font-size: 9px; letter-spacing: 1px; border-radius: 10px; }
+  main { padding: 6px 10px; gap: 8px; }
+  .radar-monitor { width: min(220px, 60vw); height: min(220px, 60vw); margin: 4px auto; }
+  .radar-meta { gap: 6px; padding: 4px 0; }
+  .radar-meta span { font-size: 8px; padding: 2px 6px; }
+  section { padding: 10px; }
+  #agents-panel { padding: 10px; }
+  #network-panel { padding: 10px; }
+  .agent-card { padding: 8px 10px; }
+  .agent-process { display: none; }
+  .net-domain { display: none; }
+  .net-pid { display: none; }
+  .feed-entry { font-size: 10px; padding: 3px 6px; }
+  .status-items { gap: 6px; }
+  #status-bar { padding: 4px 10px; }
+  .status-item { padding: 2px 5px; font-size: 9px; }
+  .status-label { font-size: 7px; }
+  .footer-version { font-size: 8px; }
+  .activity-filter-bar { gap: 4px; }
+  .activity-filter-bar select { padding: 4px 8px; font-size: 10px; }
+  .reports-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .report-stat-card { padding: 10px 8px; }
+  .report-stat-value { font-size: 18px; }
+  .report-stat-label { font-size: 8px; }
+  .reports-export-grid { flex-direction: column; }
+  .rules-container { padding: 10px; }
+  .settings-panel { width: 95vw; max-width: 95vw; }
+}

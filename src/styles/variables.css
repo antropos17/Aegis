@@ -1,0 +1,55 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@600;700;800&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap');
+
+:root {
+  --bg: #E2E6EE;
+  --bg-card: #E2E6EE;
+  --bg-inset: #D6DBE4;
+  --shadow-dark: rgba(150,160,175,0.4);
+  --shadow-dark-strong: rgba(150,160,175,0.55);
+  --shadow-dark-subtle: rgba(150,160,175,0.22);
+  --shadow-light: rgba(255,255,255,0.85);
+  --shadow-light-strong: rgba(255,255,255,0.95);
+  --shadow-light-subtle: rgba(255,255,255,0.6);
+  --text: #2D3748;
+  --text-mid: #4A5568;
+  --text-dim: #6B7280;
+  --text-muted: #9CA3AF;
+  --accent: #4ECDC4;
+  --accent-hover: #3BB8B0;
+  --gold: #F0B775;
+  --green: #43B581;
+  --orange: #E8913A;
+  --red: #DC3545;
+  --blue: #5B8DEF;
+  --border: rgba(140,155,175,0.12);
+}
+
+body.dark {
+  --bg: #181B22;
+  --bg-card: #1F232B;
+  --bg-inset: #14171D;
+  --shadow-dark: rgba(0,0,0,0.5);
+  --shadow-dark-strong: rgba(0,0,0,0.7);
+  --shadow-dark-subtle: rgba(0,0,0,0.35);
+  --shadow-light: rgba(50,55,65,0.25);
+  --shadow-light-strong: rgba(50,55,65,0.4);
+  --shadow-light-subtle: rgba(50,55,65,0.12);
+  --text: #E0E4EA;
+  --text-mid: #B0B8C4;
+  --text-dim: #8896A6;
+  --text-muted: #5A6370;
+  --accent: #4ECDC4;
+  --accent-hover: #5ED8D0;
+  --gold: #F0B775;
+  --green: #43B581;
+  --orange: #E8913A;
+  --red: #DC3545;
+  --blue: #5B8DEF;
+  --border: rgba(255,255,255,0.05);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}

@@ -1,0 +1,15 @@
+{
+  "name": "aegis",
+  "version": "0.1.0",
+  "description": "AI agent activity monitor for Windows",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0"
+  }
+}
