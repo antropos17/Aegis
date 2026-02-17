@@ -11,6 +11,7 @@
 
 ## Completed Steps
 - Step 3: Tab navigation + basic layout (TabBar.svelte, 4 tab placeholders, App.svelte wiring)
+- Step 4: Header + Footer (Header.svelte, Footer.svelte, ipc.js resourceUsage store, App.svelte layout)
 
 ## Next
-- Step 4 (TBD)
+- Step 5 (TBD)

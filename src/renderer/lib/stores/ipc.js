@@ -5,6 +5,7 @@ export const events = writable([]);
 export const stats = writable({});
 export const network = writable([]);
 export const anomalies = writable({});
+export const resourceUsage = writable({});
 
 if (window.aegis) {
   window.aegis.onScanResults((data) => agents.set(data || []));
@@ -12,4 +13,9 @@ if (window.aegis) {
   window.aegis.onStatsUpdate((data) => stats.set(data));
   window.aegis.onNetworkUpdate((data) => network.set(data));
   window.aegis.onAnomalyScores((data) => anomalies.set(data));
+  window.aegis.onResourceUsage((data) => resourceUsage.set(data));
+
+  // Fetch initial data
+  window.aegis.getStats().then((data) => stats.set(data));
+  window.aegis.getResourceUsage().then((data) => resourceUsage.set(data));
 }

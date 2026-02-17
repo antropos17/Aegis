@@ -1,5 +1,6 @@
 <script>
-  import { agents } from './lib/stores/ipc.js';
+  import Header from './lib/components/Header.svelte';
+  import Footer from './lib/components/Footer.svelte';
   import TabBar from './lib/components/TabBar.svelte';
   import ShieldTab from './lib/components/ShieldTab.svelte';
   import ActivityTab from './lib/components/ActivityTab.svelte';
@@ -9,12 +10,12 @@
   let activeTab = $state('shield');
 </script>
 
+<Header />
+
 <div class="app-shell">
-  <header class="app-header">
-    <h1 class="app-title">AEGIS</h1>
+  <nav class="app-nav">
     <TabBar bind:activeTab />
-    <span class="agent-count">{$agents.length} agents</span>
-  </header>
+  </nav>
 
   <main class="app-content">
     {#if activeTab === 'shield'}
@@ -29,6 +30,8 @@
   </main>
 </div>
 
+<Footer />
+
 <style>
   :global(body) {
     margin: 0;
@@ -41,35 +44,18 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    padding-top: 48px;
+    padding-bottom: 32px;
   }
 
-  .app-header {
+  .app-nav {
     display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 12px 20px;
-    background: var(--surface-1, #141416);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  }
-
-  .app-title {
-    font-family: 'Outfit', system-ui, sans-serif;
-    font-size: 1.125rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    margin: 0;
-    color: var(--text, #e8e6e2);
-  }
-
-  .agent-count {
-    margin-left: auto;
-    font-size: 0.8rem;
-    opacity: 0.5;
-    font-variant-numeric: tabular-nums;
+    justify-content: center;
+    padding: 12px 20px 0;
   }
 
   .app-content {
     flex: 1;
-    padding: 20px;
+    padding: 16px 20px;
   }
 </style>

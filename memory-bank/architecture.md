@@ -21,7 +21,9 @@
 - src/renderer/app.html — Vite entry point
 - src/renderer/main.js — Svelte mount
 - src/renderer/App.svelte — root component
-- src/renderer/lib/stores/ipc.js — IPC bridge as Svelte stores (agents, events, stats, network, anomalies)
+- src/renderer/lib/stores/ipc.js — IPC bridge as Svelte stores (agents, events, stats, network, anomalies, resourceUsage)
+- src/renderer/lib/components/Header.svelte — fixed top bar: shield score, agents, files, uptime pills
+- src/renderer/lib/components/Footer.svelte — fixed bottom bar: CPU, memory, heap, scan interval
 - src/renderer/lib/components/TabBar.svelte — 4-tab pill navigation (Shield/Activity/Rules/Reports)
 - src/renderer/lib/components/ShieldTab.svelte — placeholder
 - src/renderer/lib/components/ActivityTab.svelte — placeholder
