@@ -62,7 +62,7 @@ function renderStats(stats) {
   // Sensitive count is displayed in the alert pill; radar glow is driven by risk score in renderAgents
 
   // Update shield score (100% = no sensitive, decreases with each sensitive access)
-  const shieldScore = Math.max(0, 100 - aiTotalSensitive * 3);
+  const shieldScore = Math.max(0, Math.round(100 - Math.log2(1 + aiTotalSensitive) * 8));
   shieldScoreEl.textContent = shieldScore;
 
   // Update alerts pill color

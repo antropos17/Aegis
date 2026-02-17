@@ -75,6 +75,17 @@
 .feed-entry.config-access .feed-file { color: var(--red); font-weight: 600; }
 .feed-entry.config-access .feed-action { color: var(--red); }
 
+/* ── Self-access entries (agent accessing own config — expected) ── */
+.feed-entry.self-access { background: rgba(122,138,158, 0.04); }
+.feed-entry.self-access:hover { background: rgba(122,138,158, 0.06); }
+.feed-entry.self-access .feed-file { color: var(--text-dim); }
+.feed-entry.self-access .feed-action { color: var(--text-dim); }
+.self-access-tag {
+  color: var(--text-dim); font-weight: 600; font-size: 10px; letter-spacing: 0.5px;
+  flex-shrink: 0; white-space: nowrap; background: var(--surface-3);
+  padding: 1px 6px; border-radius: var(--radius-pill);
+}
+
 /* ── Anomaly badges + feed entries ── */
 .anomaly-tag {
   color: #fff; font-weight: 600; font-size: 10px; letter-spacing: 0.5px;

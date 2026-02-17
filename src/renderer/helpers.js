@@ -118,10 +118,8 @@ function showToast(msg, type) {
  * @since 0.1.0
  */
 function isConfigFile(filePath) {
-  return /\.(json|yaml|yml|toml|ini|cfg|conf|config|xml|properties)$/i.test(filePath) ||
-         /[\\\/]\.[a-z][a-z0-9]*rc$/i.test(filePath) ||
-         /[\\\/]\.gitconfig$/i.test(filePath) ||
-         /[\\\/]\.npmrc$/i.test(filePath);
+  return /[\\\/]\.[a-z][a-z0-9]*rc$/i.test(filePath) ||
+         /[\\\/]\.(gitconfig|npmrc|editorconfig)$/i.test(filePath);
 }
 
 /**

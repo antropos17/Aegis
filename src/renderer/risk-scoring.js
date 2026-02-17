@@ -74,14 +74,13 @@ function getRiskScore(agentName, fileCounts, sensitiveCounts, sshAwsCounts, conf
   const netConns = netConnectionCounts[agentName] || 0;
   const unknownDomains = netUnknownDomainCounts[agentName] || 0;
 
-  // File access contributes minimally — cap at 10 points to avoid bulk temp files inflating risk
-  const fileContrib = Math.min(10, decayed.files * 0.1);
-  const rawScore =
-    decayed.sensitive * 10 +
-    decayed.config * 5 +
-    netConns * 3 +
-    unknownDomains * 15 +
-    fileContrib;
+  // Diminishing returns — each additional event contributes less
+  const sensitiveContrib = Math.min(40, decayed.sensitive * 5 * (1 / (1 + decayed.sensitive * 0.1)));
+  const configContrib = Math.min(5, decayed.config * 2);
+  const netContrib = netConns * 2;
+  const unknownDomainContrib = Math.min(20, unknownDomains * 8);
+  const fileContrib = Math.min(5, decayed.files * 0.05);
+  const rawScore = sensitiveContrib + configContrib + netContrib + unknownDomainContrib + fileContrib;
 
   const multiplier = getStatusMultiplier(agentName);
   return Math.min(100, Math.round(rawScore * multiplier));
@@ -94,9 +93,9 @@ function getRiskScore(agentName, fileCounts, sensitiveCounts, sshAwsCounts, conf
  * @since 0.1.0
  */
 function getRiskColor(score) {
-  if (score >= 76) return 'red';
-  if (score >= 51) return 'orange';
-  if (score >= 26) return 'yellow';
+  if (score >= 80) return 'red';
+  if (score >= 55) return 'orange';
+  if (score >= 30) return 'yellow';
   return 'green';
 }
 
@@ -107,9 +106,9 @@ function getRiskColor(score) {
  * @since 0.1.0
  */
 function getRiskLabel(score) {
-  if (score >= 76) return 'CRITICAL';
-  if (score >= 51) return 'HIGH';
-  if (score >= 26) return 'MEDIUM';
+  if (score >= 80) return 'CRITICAL';
+  if (score >= 55) return 'HIGH';
+  if (score >= 30) return 'MEDIUM';
   return 'LOW';
 }
 
@@ -125,7 +124,7 @@ function getRiskLabel(score) {
  */
 function getTrustScore(agentName, riskScore) {
   const baseTrust = getDefaultTrust(agentName);
-  return Math.max(0, Math.min(100, Math.round(baseTrust - riskScore * 0.8)));
+  return Math.max(0, Math.min(100, Math.round(baseTrust - riskScore * 0.5)));
 }
 
 /**

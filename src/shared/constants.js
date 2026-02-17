@@ -85,6 +85,32 @@ const AGENT_CONFIG_PATHS = [
 ];
 
 /**
+ * @type {Object<string, RegExp>} Map of agent name keywords to their own config directory patterns.
+ * Used for self-access exemption: an agent accessing its OWN config is expected, not a threat.
+ * @since 0.3.0
+ */
+const AGENT_SELF_CONFIG = {
+  'claude':     /[\\\/]\.claude([\\\/]|\.json$)/i,
+  'copilot':    /[\\\/](\.copilot[\\\/]|\.config[\\\/]github-copilot[\\\/])/i,
+  'cursor':     /[\\\/](\.cursor[\\\/]|\.cursorrules$)/i,
+  'codeium':    /[\\\/]\.codeium[\\\/]/i,
+  'continue':   /[\\\/]\.continue[\\\/]/i,
+  'tabnine':    /[\\\/](\.tabnine[\\\/]|\.config[\\\/]TabNine[\\\/])/i,
+  'aider':      /[\\\/](\.config[\\\/]aider[\\\/]|\.aider\.conf\.yml$)/i,
+  'supermaven': /[\\\/]\.supermaven[\\\/]/i,
+  'codex':      /[\\\/]\.codex[\\\/]/i,
+  'warp':       /[\\\/]\.warp[\\\/]/i,
+  'gemini':     /[\\\/]\.gemini[\\\/]/i,
+  'mentat':     /[\\\/]\.mentat[\\\/]/i,
+  'metagpt':    /[\\\/]\.metagpt[\\\/]/i,
+  'composio':   /[\\\/]\.composio[\\\/]/i,
+  'semgrep':    /[\\\/]\.semgrep[\\\/]/i,
+  'goose':      /[\\\/]\.config[\\\/]goose[\\\/]/i,
+  'zed':        /[\\\/]\.config[\\\/]zed[\\\/]/i,
+  'jetbrains':  /[\\\/]\.config[\\\/]JetBrains[\\\/]/i,
+};
+
+/**
  * @typedef {Object} SensitiveRule
  * @property {RegExp} pattern - Regex tested against file paths
  * @property {string} reason  - Human-readable classification label
@@ -174,6 +200,7 @@ module.exports = {
   EDITOR_HOSTS,
   IGNORE_PATTERNS,
   AGENT_CONFIG_PATHS,
+  AGENT_SELF_CONFIG,
   SENSITIVE_RULES,
   PERMISSION_CATEGORIES,
 };

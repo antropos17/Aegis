@@ -19,7 +19,7 @@ const path = require('path');
 const os = require('os');
 const chokidar = require('chokidar');
 const { execFile } = require('child_process');
-const { SENSITIVE_RULES, IGNORE_PATTERNS, AGENT_CONFIG_PATHS } = require('../shared/constants');
+const { SENSITIVE_RULES, IGNORE_PATTERNS, AGENT_CONFIG_PATHS, AGENT_SELF_CONFIG } = require('../shared/constants');
 
 const watcherDebounce = new Map();
 let _state = null;
@@ -44,6 +44,21 @@ function classifySensitive(filePath) {
 /** @param {string} filePath @returns {boolean} @since v0.1.0 */
 function shouldIgnore(filePath) { return IGNORE_PATTERNS.some(p => p.test(filePath)); }
 
+/**
+ * Check if a file access is an agent accessing its OWN config directory (expected, not a threat).
+ * @param {string} agentName - Agent display name (e.g. "Claude Code").
+ * @param {string} filePath - File path being accessed.
+ * @returns {boolean} True if this is a self-access.
+ * @since v0.3.0
+ */
+function isSelfAccess(agentName, filePath) {
+  const agentLower = agentName.toLowerCase();
+  for (const [keyword, pattern] of Object.entries(AGENT_SELF_CONFIG)) {
+    if (agentLower.includes(keyword) && pattern.test(filePath)) return true;
+  }
+  return false;
+}
+
 function bindWatcherEvents(watcher) {
   watcher.on('add', (p) => handleWatcherEvent('created', p));
   watcher.on('change', (p) => handleWatcherEvent('modified', p));
@@ -63,7 +78,8 @@ function handleWatcherEvent(action, filePath) {
   const reason = classifySensitive(filePath);
   const aiAgents = _state.getLatestAiAgents();
   const agent = aiAgents.length > 0 ? aiAgents[0] : agents[0];
-  const event = { agent: agent.agent, pid: agent.pid, file: filePath, sensitive: reason !== null, reason: reason || '', action, timestamp: now, category: agent.category || 'other' };
+  const selfAccess = reason !== null && isSelfAccess(agent.agent, filePath);
+  const event = { agent: agent.agent, pid: agent.pid, file: filePath, sensitive: reason !== null && !selfAccess, selfAccess, reason: reason || '', action, timestamp: now, category: agent.category || 'other' };
   _state.activityLog.push(event);
   _state.recordFileAccess(event.agent, filePath, event.sensitive, event.reason);
   if (_state.onFileEvent) _state.onFileEvent(event);
@@ -113,7 +129,8 @@ function scanFileHandles(agent) {
           if (shouldIgnore(f) || known.has(f)) continue;
           known.add(f);
           const reason = classifySensitive(f);
-          const event = { agent: agent.agent, pid, file: f, sensitive: reason !== null, reason: reason || '', action: 'accessed', timestamp: Date.now(), category: agent.category || 'other' };
+          const selfAccess = reason !== null && isSelfAccess(agent.agent, f);
+          const event = { agent: agent.agent, pid, file: f, sensitive: reason !== null && !selfAccess, selfAccess, reason: reason || '', action: 'accessed', timestamp: Date.now(), category: agent.category || 'other' };
           newAccess.push(event);
           _state.activityLog.push(event);
           _state.recordFileAccess(agent.agent, f, event.sensitive, event.reason);

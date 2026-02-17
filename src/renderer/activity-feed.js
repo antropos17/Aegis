@@ -2,15 +2,32 @@
 
 // ═══ ACTIVITY FEED ═══
 
+// ── Event deduplication (30-second window) ──
+const recentEventKeys = new Map();
+
+/** @param {Object} ev @returns {boolean} True if duplicate within 30s window. @since v0.3.0 */
+function isDuplicateEvent(ev) {
+  const key = `${ev.agent}|${ev.file}|${ev.action}`;
+  const now = Date.now();
+  const prev = recentEventKeys.get(key);
+  if (prev && now - prev < 30000) return true;
+  recentEventKeys.set(key, now);
+  if (recentEventKeys.size > 500) {
+    for (const [k, t] of recentEventKeys) { if (now - t > 30000) recentEventKeys.delete(k); }
+  }
+  return false;
+}
+
 /** Create a DOM element for a single feed entry. @param {Object} ev @returns {HTMLDivElement} */
 function createFeedEntry(ev) {
   const entry = document.createElement('div');
   const isDenied = ev._denied;
-  const isConfigAccess = !isDenied && ev.sensitive && ev.reason && ev.reason.startsWith('AI agent config');
-  entry.className = isDenied ? 'feed-entry denied' : isConfigAccess ? 'feed-entry config-access' : ev.sensitive ? 'feed-entry sensitive' : 'feed-entry';
+  const isSelf = ev.selfAccess;
+  const isConfigAccess = !isDenied && !isSelf && ev.sensitive && ev.reason && ev.reason.startsWith('AI agent config');
+  entry.className = isDenied ? 'feed-entry denied' : isSelf ? 'feed-entry self-access' : isConfigAccess ? 'feed-entry config-access' : ev.sensitive ? 'feed-entry sensitive' : 'feed-entry';
   if (selectedAgent && ev.agent !== selectedAgent) entry.classList.add('filter-hidden');
   const timeStr = formatTime(new Date(ev.timestamp));
-  const sevClass = isDenied ? 'sev-sensitive' : getSeverityClass(ev);
+  const sevClass = isDenied ? 'sev-sensitive' : isSelf ? 'sev-normal' : getSeverityClass(ev);
   const action = isDenied ? 'DENIED' : (ev.action || 'accessed');
   let html = `<span class="feed-severity-dot ${sevClass}"></span>`;
   html += `<span class="feed-type-icon">${getFileTypeIcon(ev.file)}</span>`;
@@ -19,6 +36,7 @@ function createFeedEntry(ev) {
   html += `<span class="feed-action action-${isDenied ? 'deleted' : action}">${action}:</span>`;
   html += `<span class="feed-file" title="${escapeHtml(ev.file)}">${escapeHtml(shortenPath(ev.file))}</span>`;
   if (isDenied) html += `<span class="denied-tag">BLOCKED</span>`;
+  else if (isSelf) html += `<span class="self-access-tag">SELF</span>`;
   else if (isConfigAccess) html += `<span class="config-access-tag">&#128272; CONFIG ACCESS</span>`;
   else if (ev.sensitive) html += `<span class="sensitive-tag">&#9888; ${escapeHtml(ev.reason)}</span>`;
   entry.innerHTML = html;
@@ -45,6 +63,7 @@ function createAnomalyFeedEntry(w) {
 function addFeedEntries(events) {
   if (events.length === 0) return;
   for (const ev of events) {
+    if (isDuplicateEvent(ev)) continue;
     allActivityEvents.push(ev);
     if (!agentActivityBins[ev.agent]) agentActivityBins[ev.agent] = new Array(30).fill(0);
     agentActivityBins[ev.agent][29]++;
