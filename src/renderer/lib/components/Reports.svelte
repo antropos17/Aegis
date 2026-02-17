@@ -9,13 +9,13 @@
     return Math.round(sum / list.length);
   });
 
-  let uptime = $derived($stats.uptime || 0);
+  let uptimeMs = $derived($stats.uptimeMs || 0);
 
   let uptimeStr = $derived.by(() => {
-    const s = uptime;
-    if (!s) return '0m';
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
+    if (!uptimeMs) return '0m';
+    const totalSec = Math.floor(uptimeMs / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   });
 
@@ -38,7 +38,7 @@
 
   <div class="stat-cards">
     <div class="stat-card">
-      <span class="stat-value">{$events.flat().length}</span>
+      <span class="stat-value">{$events.length}</span>
       <span class="stat-label">Total Events</span>
     </div>
     <div class="stat-card">

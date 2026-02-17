@@ -12,10 +12,10 @@
     if (!open || loaded || !window.aegis) return;
     window.aegis.getSettings().then((s) => {
       if (!s) return;
-      scanInterval = s.scanInterval ?? 10;
-      notifications = s.notifications ?? true;
+      scanInterval = s.scanIntervalSec ?? 10;
+      notifications = s.notificationsEnabled ?? true;
       apiKey = s.anthropicApiKey ?? '';
-      customPatterns = (s.customPatterns || []).join('\n');
+      customPatterns = (s.customSensitivePatterns || []).join('\n');
       loaded = true;
     }).catch(() => {});
   });
@@ -27,9 +27,13 @@
   async function save() {
     if (!window.aegis) return;
     const patterns = customPatterns.split('\n').map(l => l.trim()).filter(Boolean);
+    const current = await window.aegis.getSettings();
     await window.aegis.saveSettings({
-      scanInterval, notifications,
-      anthropicApiKey: apiKey.trim(), customPatterns: patterns,
+      ...current,
+      scanIntervalSec: scanInterval,
+      notificationsEnabled: notifications,
+      anthropicApiKey: apiKey.trim(),
+      customSensitivePatterns: patterns,
     });
     close();
   }

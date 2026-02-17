@@ -19,6 +19,7 @@
   --md-sys-color-tertiary: #4a7a5a;
   --md-sys-color-error: #c87a7a;
   --md-sys-color-on-error: #1a0000;
+  --md-sys-color-error-container: rgba(200, 122, 122, 0.15);
   --md-sys-color-scrim: rgba(0, 0, 0, 0.6);
 
   /* ── Typography scale ── */
@@ -58,5 +59,6 @@
   --md-sys-color-tertiary: #3a6a4a;
   --md-sys-color-error: #b05050;
   --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: rgba(176, 80, 80, 0.12);
   --md-sys-color-scrim: rgba(0, 0, 0, 0.5);
 }
