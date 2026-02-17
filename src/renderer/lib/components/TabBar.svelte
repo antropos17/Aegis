@@ -10,7 +10,7 @@
 </script>
 
 <nav class="tab-bar">
-  {#each tabs as tab}
+  {#each tabs as tab (tab.id)}
     <button
       class="tab-pill"
       class:active={activeTab === tab.id}
@@ -41,7 +41,8 @@
     font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
-    transition: background 0.2s, color 0.2s;
+    transition: background var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard),
+      color var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
     opacity: 0.6;
   }
 

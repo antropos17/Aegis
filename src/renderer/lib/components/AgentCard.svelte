@@ -10,7 +10,7 @@
     : 'var(--md-sys-color-error)'
   );
 
-  let sessionDuration = $derived(() => {
+  let sessionDuration = $derived.by(() => {
     if (!agent.sessionStart) return null;
     const ms = Date.now() - agent.sessionStart;
     const mins = Math.floor(ms / 60000);
@@ -38,7 +38,7 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <article class="agent-card" class:expanded onclick={toggle}>
   <div class="agent-header">
     <div class="agent-info">
@@ -70,10 +70,10 @@
       </div>
     {/if}
 
-    {#if sessionDuration()}
+    {#if sessionDuration}
       <div class="detail-row">
         <span class="detail-label">Session</span>
-        <span class="detail-value">{sessionDuration()}</span>
+        <span class="detail-value">{sessionDuration}</span>
       </div>
     {/if}
 

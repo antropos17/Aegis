@@ -116,14 +116,14 @@
   }
 
   .pill-warn {
-    border-color: rgba(200, 168, 78, 0.3);
+    border-color: color-mix(in srgb, var(--md-sys-color-secondary) 30%, transparent);
   }
   .pill-warn .pill-value {
     color: var(--md-sys-color-secondary);
   }
 
   .pill-danger {
-    border-color: rgba(200, 122, 122, 0.3);
+    border-color: color-mix(in srgb, var(--md-sys-color-error) 30%, transparent);
   }
   .pill-danger .pill-value {
     color: var(--md-sys-color-error);
