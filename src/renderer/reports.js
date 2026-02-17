@@ -118,6 +118,7 @@ function updateReportStats() {
   // Network count from current network data
   const netCount = networkList.querySelectorAll('.net-row').length;
   reportNetworkEl.textContent = netCount;
+  refreshAuditStats();
   renderReportsTable();
 }
 
@@ -182,6 +183,46 @@ function renderReportsTable() {
   html += '</tbody></table>';
   wrap.innerHTML = html;
 }
+
+// ═══ AUDIT LOG ═══
+
+const auditSinceEl = document.getElementById('audit-since');
+const auditTodayEl = document.getElementById('audit-today');
+const auditTotalFilesEl = document.getElementById('audit-total-files');
+const auditViewBtn = document.getElementById('audit-view-logs');
+const auditExportBtn = document.getElementById('audit-export-all');
+
+/**
+ * Refresh audit log statistics in the Reports tab.
+ * @returns {void}
+ * @since v0.2.0
+ */
+function refreshAuditStats() {
+  window.aegis.getAuditStats().then(stats => {
+    auditSinceEl.textContent = stats.recordingSince || 'today';
+    auditTodayEl.textContent = stats.todayEntries;
+    auditTotalFilesEl.textContent = stats.totalFiles;
+  }).catch(() => {});
+}
+
+auditViewBtn.addEventListener('click', () => {
+  window.aegis.openAuditLogDir().catch(() => showToast('Failed to open audit logs', 'error'));
+});
+
+auditExportBtn.addEventListener('click', async () => {
+  auditExportBtn.disabled = true;
+  auditExportBtn.textContent = 'EXPORTING...';
+  try {
+    const result = await window.aegis.exportFullAudit();
+    if (result.success) {
+      showToast(`Exported ${result.count} audit entries`, 'success');
+    }
+  } catch (err) {
+    showToast('Export failed', 'error');
+  }
+  auditExportBtn.disabled = false;
+  auditExportBtn.textContent = 'EXPORT FULL AUDIT';
+});
 
 // ═══ AI THREAT ANALYSIS ═══
 

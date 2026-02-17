@@ -61,6 +61,13 @@
           </div>
         </section>
 
+        <section id="timeline-section" class="timeline-section">
+          <div id="timeline-strip" class="timeline-strip">
+            <div id="timeline-dots" class="timeline-dots"></div>
+            <div id="timeline-tooltip" class="timeline-tooltip"></div>
+          </div>
+        </section>
+
         <section id="activity-panel">
           <div class="activity-header">
             <h2>AI Agent Activity</h2>
@@ -251,6 +258,19 @@
 
         <div class="reports-section-title">Agent Breakdown</div>
         <div id="reports-table-wrap" class="reports-table-wrap"></div>
+
+        <div class="reports-section-title">Audit Log</div>
+        <div id="audit-log-wrap" class="audit-log-wrap">
+          <div class="audit-stats" id="audit-stats">
+            <span class="audit-stat">Recording since: <strong id="audit-since">—</strong></span>
+            <span class="audit-stat">Today: <strong id="audit-today">0</strong> entries</span>
+            <span class="audit-stat">Log files: <strong id="audit-total-files">0</strong></span>
+          </div>
+          <div class="audit-actions">
+            <button id="audit-view-logs" class="btn-action">VIEW AUDIT LOGS</button>
+            <button id="audit-export-all" class="btn-action btn-report">EXPORT FULL AUDIT</button>
+          </div>
+        </div>
 
         <div class="reports-section-title">AI Threat Analysis</div>
         <div id="threat-analysis-wrap" class="threat-analysis-wrap">
@@ -445,6 +465,7 @@
   <script src="agent-render.js"></script>
   <script src="activity-feed.js"></script>
   <script src="network-panel.js"></script>
+  <script src="timeline.js"></script>
   <script src="reports.js"></script>
   <script src="settings.js"></script>
   <script src="analysis.js"></script>

@@ -23,12 +23,14 @@ const net = require('./network-monitor');
 const exp = require('./exports');
 const ai  = require('./ai-analysis');
 const ti  = require('./tray-icon');
+const aud = require('./audit-logger');
 
 let mainWindow = null, scanInterval = null, fileScanInterval = null;
 let latestAgents = [], latestAiAgents = [], latestOtherAgents = [];
 let isQuitting = false, monitoringPaused = false;
 const watchers = [];
 let latestNetConnections = [], otherPanelExpanded = false;
+let previousAgentPids = new Map();
 
 /** @returns {Object} @since v0.1.0 */
 function getResourceUsage() { const m = process.memoryUsage(), c = process.cpuUsage(); return { memMB: Math.round(m.rss/1024/1024), heapMB: Math.round(m.heapUsed/1024/1024), cpuUser: c.user, cpuSystem: c.system }; }
@@ -62,7 +64,7 @@ function sendToWin(ch, data) { if (mainWindow && !mainWindow.isDestroyed()) main
 function doNetScan() {
   if (net.isNetworkScanRunning() || latestAgents.length === 0) return;
   net.setNetworkScanRunning(true);
-  net.scanNetworkConnections(latestAgents).then(c => { latestNetConnections = c; for (const x of c) bl.recordNetworkEndpoint(x.agent, x.remoteIp, x.remotePort); sendToWin('network-update', c); }).catch(() => {}).finally(() => net.setNetworkScanRunning(false));
+  net.scanNetworkConnections(latestAgents).then(c => { latestNetConnections = c; for (const x of c) { bl.recordNetworkEndpoint(x.agent, x.remoteIp, x.remotePort); aud.log('network-connection', { agent: x.agent, action: x.state, path: `${x.remoteIp}:${x.remotePort}`, severity: x.flagged ? 'high' : 'normal', extra: { domain: x.domain, flagged: x.flagged } }); } sendToWin('network-update', c); }).catch(() => {}).finally(() => net.setNetworkScanRunning(false));
 }
 
 /** @returns {void} @since v0.1.0 */
@@ -71,9 +73,13 @@ function startScanIntervals() {
   scanInterval = setInterval(async () => {
     try {
       const r = await sc.scanProcesses(); latestAgents = r.agents; latestAiAgents = latestAgents.filter(a => a.category === 'ai'); latestOtherAgents = latestAgents.filter(a => a.category === 'other');
+      const curPids = new Map(); for (const a of latestAgents) curPids.set(a.pid, a.agent);
+      for (const [pid, name] of curPids) { if (!previousAgentPids.has(pid)) aud.log('agent-enter', { agent: name, action: 'started', path: '', severity: 'normal', extra: { pid } }); }
+      for (const [pid, name] of previousAgentPids) { if (!curPids.has(pid)) aud.log('agent-exit', { agent: name, action: 'exited', path: '', severity: 'normal', extra: { pid } }); }
+      previousAgentPids = curPids;
       fw.pruneKnownHandles(latestAgents); await sc.enrichWithParentChains(latestAgents); sc.annotateHostApps(latestAgents);
       sendToWin('scan-results', latestAgents); sendToWin('stats-update', getStats()); sendToWin('resource-usage', getResourceUsage()); ti.updateTrayIcon();
-      const d = bl.checkDeviations(); if (d.length > 0) sendToWin('baseline-warnings', d);
+      const d = bl.checkDeviations(); if (d.length > 0) { sendToWin('baseline-warnings', d); for (const w of d) aud.log('anomaly-alert', { agent: w.agent, action: w.type, path: '', severity: 'high', extra: { message: w.message, anomalyScore: w.anomalyScore } }); }
       const anomalyScores = {}; for (const a of latestAgents) anomalyScores[a.agent] = bl.calculateAnomalyScore(a.agent); sendToWin('anomaly-scores', anomalyScores);
       if (r.changed) doNetScan();
     } catch (_) {}
@@ -81,14 +87,14 @@ function startScanIntervals() {
   startScanIntervals._nr = setInterval(doNetScan, 30000);
   fileScanInterval = setInterval(async () => {
     if (latestAgents.length === 0) return;
-    try { const ev = await fw.scanAllFileHandles(latestAgents); if (ev.length > 0) { sendToWin('file-access', ev); ti.notifySensitive(ev.filter(e => e.sensitive && e.category === 'ai')); } sendToWin('stats-update', getStats()); ti.updateTrayIcon(); } catch (_) {}
+    try { const ev = await fw.scanAllFileHandles(latestAgents); if (ev.length > 0) { sendToWin('file-access', ev); ti.notifySensitive(ev.filter(e => e.sensitive && e.category === 'ai')); for (const e of ev) { const at = (e.reason && e.reason.startsWith('AI agent config')) ? 'config-access' : 'file-access'; aud.log(at, { agent: e.agent, action: e.action, path: e.file, severity: e.sensitive ? 'sensitive' : 'normal' }); } } sendToWin('stats-update', getStats()); ti.updateTrayIcon(); } catch (_) {}
   }, Math.max(ms * 3, 30000));
 }
 
 // ── Module wiring ──
 cfg.init({ knownAgentNames: sc.AI_AGENTS.map(a => a.name), applyCallback: () => { stopScanIntervals(); if (!monitoringPaused) startScanIntervals(); } });
 sc.init({ trackSeenAgent: cfg.trackSeenAgent });
-fw.init({ getCustomRules: cfg.getCustomSensitiveRules, getLatestAgents: () => latestAgents, getLatestAiAgents: () => latestAiAgents, isMonitoringPaused: () => monitoringPaused, activityLog: sc.activityLog, knownHandles: sc.knownHandles, watchers, recordFileAccess: bl.recordFileAccess, onFileEvent: (ev) => { sendToWin('file-access', [ev]); if (ev.sensitive && ev.category === 'ai') ti.notifySensitive([ev]); sendToWin('stats-update', getStats()); ti.updateTrayIcon(); }, isOtherPanelExpanded: () => otherPanelExpanded });
+fw.init({ getCustomRules: cfg.getCustomSensitiveRules, getLatestAgents: () => latestAgents, getLatestAiAgents: () => latestAiAgents, isMonitoringPaused: () => monitoringPaused, activityLog: sc.activityLog, knownHandles: sc.knownHandles, watchers, recordFileAccess: bl.recordFileAccess, onFileEvent: (ev) => { sendToWin('file-access', [ev]); if (ev.sensitive && ev.category === 'ai') ti.notifySensitive([ev]); sendToWin('stats-update', getStats()); ti.updateTrayIcon(); const auditType = (ev.reason && ev.reason.startsWith('AI agent config')) ? 'config-access' : 'file-access'; aud.log(auditType, { agent: ev.agent, action: ev.action, path: ev.file, severity: ev.sensitive ? 'sensitive' : 'normal' }); }, isOtherPanelExpanded: () => otherPanelExpanded });
 exp.init({ activityLog: sc.activityLog, getLatestNetConnections: () => latestNetConnections, monitoringStarted: sc.monitoringStarted, getMainWindow: () => mainWindow, getStats });
 ai.init({ getSettings: cfg.getSettings, activityLog: sc.activityLog, getLatestAgents: () => latestAgents, getLatestNetConnections: () => latestNetConnections, getAnomalyScores: () => { const scores = {}; for (const a of latestAgents) scores[a.agent] = bl.calculateAnomalyScore(a.agent); return scores; } });
 ti.init({ tray: null, currentTrayColor: 'green', lastNotificationTime: 0, getActivityLog: () => sc.activityLog, getSettings: cfg.getSettings, isMonitoringPaused: () => monitoringPaused, setMonitoringPaused: (v) => { monitoringPaused = v; }, stopScanIntervals, startScanIntervals, getMainWindow: () => mainWindow, setIsQuitting: (v) => { isQuitting = v; }, appQuit: () => app.quit() });
@@ -136,6 +142,18 @@ function registerIpc() {
     } catch (e) { return { success: false, error: e.message }; }
   });
 
+  // ── Audit log IPC handlers ──
+  ipcMain.handle('get-audit-stats', () => aud.getStats());
+  ipcMain.handle('open-audit-log-dir', () => { const { shell } = require('electron'); shell.openPath(aud.getLogDir()); return { success: true }; });
+  ipcMain.handle('export-full-audit', async () => {
+    const { dialog } = require('electron');
+    const all = aud.exportAll();
+    const { filePath } = await dialog.showSaveDialog(mainWindow, { title: 'Export Full Audit Log', defaultPath: `aegis-full-audit-${new Date().toISOString().slice(0, 10)}.json`, filters: [{ name: 'JSON', extensions: ['json'] }] });
+    if (!filePath) return { success: false };
+    fs.writeFileSync(filePath, JSON.stringify(all, null, 2));
+    return { success: true, path: filePath, count: all.length };
+  });
+
   // ── Process control IPC handlers ──
   ipcMain.handle('kill-process', (_e, pid) => {
     return new Promise((resolve) => {
@@ -174,11 +192,11 @@ if (!gotLock) { app.quit(); } else { app.on('second-instance', () => { if (mainW
 // ── Lifecycle ──
 app.whenReady().then(() => {
   if (!gotLock) return;
-  cfg.loadSettings(); bl.loadBaselines(); createWindow(); ti.createTray(); registerIpc(); fw.setupFileWatchers();
+  cfg.loadSettings(); bl.loadBaselines(); aud.init({ userDataPath: app.getPath('userData') }); createWindow(); ti.createTray(); registerIpc(); fw.setupFileWatchers();
   setTimeout(async () => { try { const r = await sc.scanProcesses(); latestAgents = r.agents; latestAiAgents = latestAgents.filter(a => a.category === 'ai'); latestOtherAgents = latestAgents.filter(a => a.category === 'other'); await sc.enrichWithParentChains(latestAgents); sc.annotateHostApps(latestAgents); sendToWin('scan-results', latestAgents); sendToWin('stats-update', getStats()); sendToWin('resource-usage', getResourceUsage()); ti.updateTrayIcon(); } catch (_) {} }, 3000);
   setTimeout(async () => { try { if (latestAgents.length > 0) { const ev = await fw.scanAllFileHandles(latestAgents); if (ev.length > 0) { sendToWin('file-access', ev); ti.notifySensitive(ev.filter(e => e.sensitive && e.category === 'ai')); } sendToWin('stats-update', getStats()); ti.updateTrayIcon(); } } catch (_) {} }, 5000);
   setTimeout(() => { doNetScan(); if (!monitoringPaused) startScanIntervals(); }, 8000);
 });
-app.on('before-quit', () => { bl.finalizeSession(); isQuitting = true; if (ti._state && ti._state.tray) { ti._state.tray.destroy(); ti._state.tray = null; } });
+app.on('before-quit', () => { aud.shutdown(); bl.finalizeSession(); isQuitting = true; if (ti._state && ti._state.tray) { ti._state.tray.destroy(); ti._state.tray = null; } });
 app.on('window-all-closed', () => {});
 app.on('quit', () => { stopScanIntervals(); watchers.forEach(w => w.close()); });
