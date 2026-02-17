@@ -30,6 +30,7 @@
 .tab-pill:hover {
   color: var(--text-mid);
   background: rgba(255,255,255, 0.04);
+  transform: translateY(-1px);
 }
 .tab-pill.active {
   color: #fff;

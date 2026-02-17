@@ -1,20 +1,31 @@
 /* ── Settings overlay ── */
 
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes modalSlideIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 .settings-overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5);
-  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   z-index: 500; display: flex; align-items: center; justify-content: center;
-  animation: fadeIn 0.15s ease;
+  animation: overlayFadeIn 0.2s ease;
 }
 .settings-overlay.hidden { display: none; }
 
 .settings-panel {
-  background: rgba(10,10,14,0.85);
+  background: rgba(20,20,22, 0.95);
   backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
   border-radius: var(--radius-lg); width: 560px;
   max-height: 80vh; overflow-y: auto; padding: 20px 24px;
-  border: var(--glass-border); box-shadow: var(--glass-shadow), var(--glass-highlight);
+  border: 1px solid rgba(255,255,255, 0.08);
+  box-shadow: 0 24px 80px rgba(0,0,0, 0.5), var(--glass-highlight);
+  animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .settings-header {
@@ -135,12 +146,16 @@
 }
 
 /* ── Agent expanded section (tabbed: baseline + permissions) ── */
+@keyframes expandContent {
+  from { max-height: 0; opacity: 0; }
+  to   { max-height: 500px; opacity: 1; }
+}
 .agent-expanded-section {
   margin-top: 8px; padding: 0;
   background: var(--surface-2);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border-radius: var(--radius-lg);
-  animation: fadeIn 0.15s ease; overflow: hidden;
+  animation: expandContent 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden;
   border: var(--glass-border);
 }
 .agent-tab-bar { display: flex; gap: 0; }

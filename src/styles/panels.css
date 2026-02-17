@@ -20,7 +20,7 @@
   box-shadow: var(--glass-highlight);
   transition: all 0.3s var(--ease-glass); cursor: pointer; user-select: none; overflow: hidden;
 }
-.agent-card:hover { border-color: rgba(255,255,255,0.15); }
+.agent-card:hover { border-color: rgba(255,255,255,0.12); transform: translateY(-1px); box-shadow: var(--glass-highlight), 0 4px 16px rgba(0,0,0,0.25); }
 .agent-card.selected { background: var(--surface-2); border-color: var(--accent-border); }
 
 .agent-card-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

@@ -23,9 +23,13 @@
   border: var(--glass-border); padding: 4px;
   display: flex; flex-direction: column; gap: 0;
 }
+@keyframes feedEntryIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
 .feed-entry {
   font-size: 11px; line-height: 1.6; padding: 10px 14px;
-  display: flex; gap: 8px; align-items: baseline; animation: fadeIn 0.15s ease;
+  display: flex; gap: 8px; align-items: baseline; animation: feedEntryIn 0.25s ease;
   border-radius: 8px; border: 1px solid transparent;
   background: rgba(255,255,255, 0.02);
   transition: all 0.2s ease; margin-bottom: 2px;
@@ -35,7 +39,16 @@
 .feed-entry.sensitive { background: var(--red-light); }
 .feed-entry.sensitive:hover { background: rgba(200,122,122,.12); }
 .feed-time { color: var(--text-dim); flex-shrink: 0; font-size: 11px; }
-.feed-agent { color: var(--accent); font-weight: 600; flex-shrink: 0; }
+.feed-agent {
+  color: var(--accent); font-weight: 600; flex-shrink: 0;
+  position: relative;
+}
+.feed-agent::after {
+  content: ''; position: absolute; bottom: -1px; left: 0;
+  width: 0; height: 1px; background: var(--accent);
+  transition: width 0.25s var(--ease-glass);
+}
+.feed-entry:hover .feed-agent::after { width: 100%; }
 .feed-action { color: var(--text-dim); flex-shrink: 0; }
 .feed-action.action-created { color: var(--green); }
 .feed-action.action-modified { color: var(--gold); }

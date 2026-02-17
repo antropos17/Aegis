@@ -8,7 +8,7 @@
   transition: all 0.3s var(--ease-glass);
   font-family: inherit;
 }
-.btn-action:hover { border-color: rgba(255,255,255,0.15); color: var(--accent-hover); }
+.btn-action:hover { border-color: rgba(255,255,255,0.15); color: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
 .btn-action:disabled { opacity: 0.4; cursor: default; }
 .btn-action:disabled:hover { border-color: rgba(255,255,255,0.06); color: var(--accent); }
 .btn-clear { color: var(--text-dim); }

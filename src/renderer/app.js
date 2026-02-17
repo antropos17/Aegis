@@ -154,6 +154,34 @@ function updateFooterInterval() {
   });
 }
 
+// ═══ ALERT TOAST ═══
+
+/** Active alert toast element, if any. @type {HTMLElement|null} */
+let _alertToast = null;
+
+/**
+ * Show a sensitive file alert toast in the bottom-right corner.
+ * Auto-removes after 5 seconds.
+ * @param {string} agent - Agent name.
+ * @param {string} file - File path accessed.
+ * @param {string} [reason] - Sensitivity reason.
+ */
+function showAlertToast(agent, file, reason) {
+  // Remove previous toast if still visible
+  if (_alertToast && _alertToast.parentNode) _alertToast.parentNode.removeChild(_alertToast);
+
+  const el = document.createElement('div');
+  el.className = 'alert-toast';
+  const shortFile = file ? file.split(/[/\\]/).slice(-2).join('/') : '';
+  el.innerHTML = `<div class="alert-toast-title">SENSITIVE ACCESS</div>`
+    + `<div class="alert-toast-body"><strong>${escapeHtml(agent)}</strong> accessed <strong>${escapeHtml(shortFile)}</strong>`
+    + (reason ? ` &mdash; ${escapeHtml(reason)}` : '') + `</div>`;
+  document.body.appendChild(el);
+  _alertToast = el;
+
+  setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 5000);
+}
+
 // ═══ INIT ═══
 
 // Load agent database from main process
@@ -169,7 +197,17 @@ window.aegis.getStats().then(renderStats);
 window.aegis.getResourceUsage().then(renderResourceUsage);
 updateFooterInterval();
 window.aegis.onScanResults(renderAgents);
-window.aegis.onFileAccess((events) => { addFeedEntries(events); addTimelineFileEvents(events); });
+window.aegis.onFileAccess((events) => {
+  addFeedEntries(events);
+  addTimelineFileEvents(events);
+  // Show alert toast for high-severity sensitive file access
+  for (const ev of events) {
+    if (ev.sensitive && ev.severity && (ev.severity === 'high' || ev.severity === 'critical')) {
+      showAlertToast(ev.agent, ev.file, ev.reason);
+      break; // one toast per batch
+    }
+  }
+});
 window.aegis.onStatsUpdate(renderStats);
 window.aegis.onNetworkUpdate((conns) => { renderNetworkConnections(conns); addTimelineNetworkEvents(conns); });
 window.aegis.onResourceUsage(renderResourceUsage);

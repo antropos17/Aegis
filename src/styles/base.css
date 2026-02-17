@@ -16,6 +16,20 @@ body::before {
 /* ── Selection ── */
 ::selection { background: var(--accent); color: #fff; }
 
+/* ── Focus-visible for accessibility ── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button:focus-visible, [role="button"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 /* ── Header ── */
 header {
   display: flex; align-items: center; justify-content: space-between;
@@ -50,7 +64,7 @@ h1 {
   white-space: nowrap; color: var(--text-dim);
   transition: all 0.3s var(--ease-glass);
 }
-.header-pill:hover { border-color: rgba(255,255,255,0.15); }
+.header-pill:hover { border-color: rgba(255,255,255,0.15); transform: scale(1.02); }
 .pill-shield { color: var(--green); border-color: var(--accent-border); }
 .pill-streak { color: var(--gold); }
 .pill-agents { color: var(--accent); border-color: var(--accent-border); }
@@ -108,6 +122,25 @@ h2 {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ── Card slide-in on load ── */
+@keyframes cardSlideIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+#radar-section,
+#agents-panel,
+#activity-panel,
+#network-panel,
+.other-panel,
+.section-card {
+  animation: cardSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+#radar-section    { animation-delay: 0.05s; }
+#agents-panel     { animation-delay: 0.10s; }
+#activity-panel   { animation-delay: 0.15s; }
+#network-panel    { animation-delay: 0.20s; }
+.other-panel      { animation-delay: 0.25s; }
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -150,7 +183,7 @@ h2 {
   transition: all 0.3s var(--ease-glass); padding: 0; line-height: 1;
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
-.btn-gear:hover { color: var(--accent); border-color: rgba(255,255,255,0.15); }
+.btn-gear:hover { color: var(--accent); border-color: rgba(255,255,255,0.15); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
 .btn-theme {
   background: rgba(255,255,255,0.03); border: 1px solid var(--border);
   font-size: 14px; width: 32px; height: 32px; border-radius: 50%;
@@ -158,14 +191,20 @@ h2 {
   transition: all 0.3s var(--ease-glass); padding: 0; line-height: 1;
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
-.btn-theme:hover { border-color: rgba(255,255,255,0.15); }
+.btn-theme:hover { border-color: rgba(255,255,255,0.15); transform: translateY(-1px); }
 
 /* ── Theme transitions ── */
 main, section, .agent-card, .other-agent-card, .feed-entry, .net-row, .toast, footer {
   transition: all 0.3s var(--ease-glass);
 }
 
-/* ── Toast notification ── */
+/* ── GPU-accelerated elements ── */
+.feed-entry, .agent-card, .other-agent-card, .header-pill, .tab-pill, .btn-action, .alert-toast {
+  will-change: transform, opacity;
+}
+#radar-canvas { will-change: contents; }
+
+/* ── Toast notification (center) ── */
 .toast {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
   padding: 10px 24px; border-radius: var(--radius-pill);
@@ -180,3 +219,33 @@ main, section, .agent-card, .other-agent-card, .feed-entry, .net-row, .toast, fo
 .toast.success { color: var(--green); }
 .toast.error { color: var(--red); }
 .toast.warn { color: var(--gold); }
+
+/* ── Sensitive alert toast (bottom-right) ── */
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes toastFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; transform: translateX(20px); }
+}
+.alert-toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: rgba(20,20,22, 0.95);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255, 0.08);
+  border-left: 3px solid var(--red);
+  border-radius: 10px;
+  padding: 14px 20px;
+  max-width: 360px;
+  font-size: 12px; line-height: 1.5; color: var(--text);
+  box-shadow: 0 8px 32px rgba(0,0,0, 0.5);
+  z-index: 10000;
+  animation: toastSlideIn 0.3s var(--ease-glass), toastFadeOut 0.3s var(--ease-glass) 4.7s forwards;
+  pointer-events: auto;
+}
+.alert-toast-title {
+  font-family: var(--font-display); font-size: 11px; font-weight: 700;
+  letter-spacing: 1px; color: var(--red); margin-bottom: 4px;
+}
+.alert-toast-body { color: var(--text-mid); font-size: 11px; }
