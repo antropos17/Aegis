@@ -9,7 +9,10 @@ export const resourceUsage = writable({});
 
 if (window.aegis) {
   window.aegis.onScanResults((data) => agents.set(data || []));
-  window.aegis.onFileAccess((data) => events.update(arr => [...arr.slice(-499), data]));
+  window.aegis.onFileAccess((data) => {
+    const batch = Array.isArray(data) ? data : [data];
+    events.update(arr => [...arr.slice(-499), ...batch]);
+  });
   window.aegis.onStatsUpdate((data) => stats.set(data));
   window.aegis.onNetworkUpdate((data) => network.set(data));
   window.aegis.onAnomalyScores((data) => anomalies.set(data));
