@@ -57,17 +57,17 @@
   </div>
 
   <div class="footer-item">
-    <span class="footer-label">MEM</span>
+    <span class="footer-label">memory</span>
     <span class="footer-value {memClass(memMB)}">{memMB}{typeof memMB === 'number' ? ' MB' : ''}</span>
   </div>
 
   <div class="footer-item">
-    <span class="footer-label">HEAP</span>
+    <span class="footer-label">heap</span>
     <span class="footer-value">{heapMB}{typeof heapMB === 'number' ? ' MB' : ''}</span>
   </div>
 
   <div class="footer-item">
-    <span class="footer-label">SCAN</span>
+    <span class="footer-label">interval</span>
     <span class="footer-value">{scanInterval}{typeof scanInterval === 'number' ? 's' : ''}</span>
   </div>
 </footer>
@@ -84,11 +84,10 @@
     justify-content: center;
     gap: 20px;
     padding: 6px 20px;
-    background: rgba(20, 20, 22, 0.82);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    font-size: 0.7rem;
+    background: var(--md-sys-color-surface-container-low);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--md-sys-color-outline);
   }
 
   .footer-item {
@@ -98,22 +97,22 @@
   }
 
   .footer-label {
-    opacity: 0.4;
-    font-weight: 500;
-    letter-spacing: 0.04em;
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
   }
 
   .footer-value {
+    font: var(--md-sys-typescale-label-medium);
     font-family: 'DM Mono', monospace;
     font-variant-numeric: tabular-nums;
-    color: var(--text, #e8e6e2);
+    color: var(--md-sys-color-on-surface);
   }
 
   .footer-value.warn {
-    color: #ed8936;
+    color: var(--md-sys-color-secondary);
   }
 
   .footer-value.high {
-    color: #e53e3e;
+    color: var(--md-sys-color-error);
   }
 </style>

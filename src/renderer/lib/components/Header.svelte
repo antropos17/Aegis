@@ -35,22 +35,22 @@
   <div class="header-pills">
     <div class="pill" class:pill-warn={typeof shieldScore === 'number' && shieldScore < 70}
          class:pill-danger={typeof shieldScore === 'number' && shieldScore < 40}>
-      <span class="pill-label">Shield</span>
+      <span class="pill-label">shield</span>
       <span class="pill-value">{shieldScore}</span>
     </div>
 
     <div class="pill">
-      <span class="pill-label">Agents</span>
+      <span class="pill-label">{agentCount === 1 ? 'agent' : 'agents'}</span>
       <span class="pill-value">{agentCount}</span>
     </div>
 
     <div class="pill">
-      <span class="pill-label">Files</span>
+      <span class="pill-label">files</span>
       <span class="pill-value">{filesMonitored}</span>
     </div>
 
     <div class="pill">
-      <span class="pill-label">Uptime</span>
+      <span class="pill-label">uptime</span>
       <span class="pill-value mono">{formatUptime(uptimeMs)}</span>
     </div>
   </div>
@@ -67,18 +67,16 @@
     align-items: center;
     gap: 16px;
     padding: 10px 20px;
-    background: rgba(20, 20, 22, 0.82);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--md-sys-color-surface-container-low);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--md-sys-color-outline);
   }
 
   .header-brand {
-    font-family: 'Outfit', system-ui, sans-serif;
-    font-size: 1.125rem;
-    font-weight: 700;
+    font: var(--md-sys-typescale-title-medium);
     letter-spacing: 0.08em;
-    color: var(--text, #e8e6e2);
+    color: var(--md-sys-color-on-surface);
     margin-right: 8px;
     flex-shrink: 0;
   }
@@ -94,43 +92,40 @@
     align-items: center;
     gap: 6px;
     padding: 4px 12px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 20px;
-    font-size: 0.75rem;
-    color: var(--text, #e8e6e2);
+    background: var(--md-sys-color-surface-container);
+    border: 1px solid var(--md-sys-color-outline);
+    border-radius: var(--md-sys-shape-corner-full);
+    color: var(--md-sys-color-on-surface);
     white-space: nowrap;
   }
 
   .pill-label {
-    opacity: 0.5;
-    font-weight: 500;
-    text-transform: uppercase;
-    font-size: 0.625rem;
-    letter-spacing: 0.04em;
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
   }
 
   .pill-value {
+    font: var(--md-sys-typescale-label-medium);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
 
   .pill-value.mono {
     font-family: 'DM Mono', monospace;
-    font-size: 0.7rem;
+    font-size: 11px;
   }
 
   .pill-warn {
-    border-color: rgba(237, 137, 54, 0.3);
+    border-color: rgba(200, 168, 78, 0.3);
   }
   .pill-warn .pill-value {
-    color: #ed8936;
+    color: var(--md-sys-color-secondary);
   }
 
   .pill-danger {
-    border-color: rgba(229, 62, 62, 0.3);
+    border-color: rgba(200, 122, 122, 0.3);
   }
   .pill-danger .pill-value {
-    color: #e53e3e;
+    color: var(--md-sys-color-error);
   }
 </style>

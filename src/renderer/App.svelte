@@ -35,9 +35,9 @@
 <style>
   :global(body) {
     margin: 0;
-    background: var(--bg, #0c0c0e);
-    color: var(--text, #e8e6e2);
-    font-family: 'DM Sans', system-ui, sans-serif;
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-medium);
   }
 
   .app-shell {

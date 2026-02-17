@@ -1,0 +1,39 @@
+/* ═══ M3 DESIGN TOKENS — AEGIS DARK THEME ═══ */
+
+:root {
+  /* ── Color roles (tonal palette) ── */
+  --md-sys-color-surface: #0c0c0e;
+  --md-sys-color-surface-container-low: #141416;
+  --md-sys-color-surface-container: #1a1a1e;
+  --md-sys-color-surface-container-high: #222226;
+  --md-sys-color-surface-container-highest: #2a2a2e;
+  --md-sys-color-on-surface: #e8e6e2;
+  --md-sys-color-on-surface-variant: #a09890;
+  --md-sys-color-outline: rgba(255, 255, 255, 0.08);
+  --md-sys-color-outline-variant: rgba(255, 255, 255, 0.04);
+  --md-sys-color-primary: #7a8a9e;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #2a3a4e;
+  --md-sys-color-secondary: #c8a84e;
+  --md-sys-color-tertiary: #4a7a5a;
+  --md-sys-color-error: #c87a7a;
+  --md-sys-color-on-error: #1a0000;
+
+  /* ── Typography scale ── */
+  --md-sys-typescale-display-large: 600 32px/40px 'Outfit', sans-serif;
+  --md-sys-typescale-headline-medium: 600 20px/28px 'Outfit', sans-serif;
+  --md-sys-typescale-title-medium: 600 14px/20px 'Outfit', sans-serif;
+  --md-sys-typescale-body-medium: 400 13px/20px 'DM Sans', sans-serif;
+  --md-sys-typescale-label-medium: 500 11px/16px 'DM Sans', sans-serif;
+
+  /* ── Shape ── */
+  --md-sys-shape-corner-small: 8px;
+  --md-sys-shape-corner-medium: 12px;
+  --md-sys-shape-corner-large: 16px;
+  --md-sys-shape-corner-full: 100px;
+
+  /* ── Motion ── */
+  --md-sys-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --md-sys-motion-duration-short: 150ms;
+  --md-sys-motion-duration-medium: 300ms;
+}
