@@ -127,7 +127,67 @@
   color: var(--red); font-size: 12px; font-weight: 600; padding: 16px;
   text-align: center; background: var(--red-light); border-radius: var(--radius);
 }
-.threat-results { display: flex; flex-direction: column; gap: 12px; }
+.threat-results { display: flex; flex-direction: column; gap: 10px; }
+
+/* ── Structured AI analysis blocks ── */
+.ta-hero {
+  padding: 16px 20px; border-radius: var(--radius-lg);
+  display: flex; flex-direction: column; gap: 4px;
+  animation: cardSlideIn 0.3s var(--ease-glass);
+}
+.ta-hero-rating {
+  font-family: var(--font-display); font-size: 22px; font-weight: 700;
+  letter-spacing: 3px;
+}
+.ta-hero-label {
+  font-family: var(--font-display); font-size: 9px; font-weight: 600;
+  letter-spacing: 2px; color: var(--text-faint);
+}
+.ta-hero-reason {
+  font-size: 12px; color: var(--text-mid); margin-top: 4px; line-height: 1.5;
+}
+
+.ta-block {
+  padding: 14px 18px; border-radius: var(--radius);
+  background: var(--surface-2); border: var(--glass-border);
+  animation: cardSlideIn 0.35s var(--ease-glass);
+}
+.ta-block-accent { border-left: 2px solid var(--accent); }
+.ta-block-header {
+  font-family: var(--font-display); font-size: 9px; font-weight: 700;
+  letter-spacing: 2px; color: var(--text-faint); margin-bottom: 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+.ta-block-icon { font-size: 12px; color: var(--text-dim); }
+.ta-block-body { font-size: 12px; line-height: 1.7; color: var(--text); }
+
+.ta-list {
+  margin: 4px 0 0; padding-left: 16px; list-style: none;
+}
+.ta-list li {
+  position: relative; padding: 4px 0 4px 12px; margin: 2px 0;
+  font-size: 12px; line-height: 1.6; color: var(--text-mid);
+}
+.ta-list li::before {
+  content: ''; position: absolute; left: 0; top: 11px;
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--text-faint);
+}
+.ta-list li.ta-finding-critical::before { background: var(--red); box-shadow: 0 0 4px rgba(200,122,122,0.4); }
+.ta-list li.ta-finding-warn::before { background: var(--gold); box-shadow: 0 0 4px rgba(200,168,78,0.3); }
+.ta-list li.ta-finding-safe::before { background: var(--green); }
+.ta-list li.ta-finding-critical { color: var(--red); }
+.ta-list li.ta-finding-warn { color: var(--gold); }
+
+.ta-list-actions { counter-reset: ta-step; }
+.ta-list-actions li { padding-left: 20px; }
+.ta-list-actions li::before {
+  content: counter(ta-step); counter-increment: ta-step;
+  width: auto; height: auto; border-radius: var(--radius);
+  background: var(--accent-light); color: var(--accent);
+  font-family: var(--font-display); font-size: 9px; font-weight: 700;
+  padding: 1px 5px; top: 6px;
+}
 .threat-rating-card {
   display: flex; align-items: center; gap: 12px; padding: 12px 16px;
   background: var(--surface-2); border-radius: var(--radius);

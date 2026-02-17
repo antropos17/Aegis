@@ -38,14 +38,14 @@ function updateRadarGlow(riskScore) {
 
 /** @type {Array<{id: string, label: string, icon: string, color: string, orbitRadius: number, speed: number}>} */
 const ORBITAL_NODES = [
-  { id: 'ssh',     label: 'SSH',     icon: '\uD83D\uDD11', color: '#e8b84e', orbitRadius: 0.65, speed: 0.3 },
-  { id: 'browser', label: 'BROWSER', icon: '\uD83C\uDF10', color: '#4ea8e8', orbitRadius: 0.70, speed: 0.25 },
-  { id: 'env',     label: 'ENV',     icon: '\uD83D\uDCC4', color: '#7ae84e', orbitRadius: 0.60, speed: 0.35 },
-  { id: 'aws',     label: 'AWS',     icon: '\u2601',       color: '#e8724e', orbitRadius: 0.75, speed: 0.2 },
-  { id: 'git',     label: 'GIT',     icon: '\uD83D\uDD00', color: '#b44ee8', orbitRadius: 0.55, speed: 0.4 },
-  { id: 'docker',  label: 'DOCKER',  icon: '\uD83D\uDC33', color: '#4ec8e8', orbitRadius: 0.80, speed: 0.15 },
-  { id: 'npm',     label: 'NPM',     icon: '\uD83D\uDCE6', color: '#e84e7a', orbitRadius: 0.50, speed: 0.45 },
-  { id: 'kube',    label: 'KUBE',    icon: '\u2699',       color: '#8e9eae', orbitRadius: 0.85, speed: 0.1 },
+  { id: 'ssh',     label: 'SSH',     icon: '\u2387', color: '#a89878', orbitRadius: 0.65, speed: 0.3 },
+  { id: 'browser', label: 'WEB',     icon: '\u25CE', color: '#7898a8', orbitRadius: 0.70, speed: 0.25 },
+  { id: 'env',     label: 'ENV',     icon: '\u2261', color: '#88a878', orbitRadius: 0.60, speed: 0.35 },
+  { id: 'aws',     label: 'CLOUD',   icon: '\u2601', color: '#a88868', orbitRadius: 0.75, speed: 0.2 },
+  { id: 'git',     label: 'GIT',     icon: '\u2442', color: '#9878a8', orbitRadius: 0.55, speed: 0.4 },
+  { id: 'docker',  label: 'DOCKER',  icon: '\u2338', color: '#78a0a8', orbitRadius: 0.80, speed: 0.15 },
+  { id: 'npm',     label: 'PKG',     icon: '\u29C9', color: '#a87888', orbitRadius: 0.50, speed: 0.45 },
+  { id: 'kube',    label: 'KUBE',    icon: '\u2699', color: '#8898a8', orbitRadius: 0.85, speed: 0.1 },
 ];
 
 /** Map sensitive reasons to node IDs for lightning targeting. */

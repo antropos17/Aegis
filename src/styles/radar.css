@@ -6,7 +6,9 @@
 }
 
 .radar-monitor {
-  position: relative; width: min(280px, 34vh); height: min(280px, 34vh);
+  position: relative;
+  width: min(340px, 38vh, 90vw);
+  height: min(340px, 38vh, 90vw);
   max-width: 100%; margin: 4px auto; flex-shrink: 0; aspect-ratio: 1;
 }
 
