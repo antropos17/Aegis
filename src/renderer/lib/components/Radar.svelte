@@ -169,7 +169,7 @@
     --radar-sweep-rgb: 78, 205, 196;
     aspect-ratio: 1 / 1;
     width: 100%;
-    background: var(--md-sys-color-surface-container);
+    background: transparent;
     border-radius: var(--md-sys-shape-corner-medium);
     overflow: hidden;
   }
