@@ -9,8 +9,8 @@
 - Step 1: Vite + Svelte init (vite.config.js, app.html, main.js, App.svelte)
 - Step 2: IPC bridge as Svelte stores (src/renderer/lib/stores/ipc.js)
 
-## In Progress
-- Testing Step 2
+## Completed Steps
+- Step 3: Tab navigation + basic layout (TabBar.svelte, 4 tab placeholders, App.svelte wiring)
 
 ## Next
-- Step 3 (TBD)
+- Step 4 (TBD)

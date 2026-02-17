@@ -22,6 +22,11 @@
 - src/renderer/main.js — Svelte mount
 - src/renderer/App.svelte — root component
 - src/renderer/lib/stores/ipc.js — IPC bridge as Svelte stores (agents, events, stats, network, anomalies)
+- src/renderer/lib/components/TabBar.svelte — 4-tab pill navigation (Shield/Activity/Rules/Reports)
+- src/renderer/lib/components/ShieldTab.svelte — placeholder
+- src/renderer/lib/components/ActivityTab.svelte — placeholder
+- src/renderer/lib/components/RulesTab.svelte — placeholder
+- src/renderer/lib/components/ReportsTab.svelte — placeholder
 
 ## Shared (src/shared/)
 - constants.js — sensitive rules, ignore patterns
