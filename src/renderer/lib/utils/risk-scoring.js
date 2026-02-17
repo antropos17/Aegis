@@ -23,24 +23,31 @@ export function getTimeDecayWeight(timestampMs) {
 
 /**
  * Calculate risk score for an agent (0–100).
- * Uses logarithmic curve for sensitive files to avoid instant 100.
- * - Base: log2(1 + sensitiveFiles) * 8, capped at 40
- * - Network: unknownDomains * 12, capped at 30
- * - Anomaly: anomalyScore * 0.3, capped at 30
- * @param {{ sensitiveFiles: number, unknownDomains: number, anomalyScore: number }} agent
+ * Diminishing returns for sensitive files, separate SSH/AWS signal,
+ * capped contributions per factor to prevent instant-100.
+ * @param {{ sensitiveFiles: number, configFiles: number, sshAwsFiles: number, networkCount: number, unknownDomains: number, fileCount: number }} agent
  * @returns {number} Risk score 0–100
  * @since 0.2.0
  */
 export function calculateRiskScore(agent) {
   const sensitive = agent.sensitiveFiles || 0;
+  const config = agent.configFiles || 0;
+  const sshAws = agent.sshAwsFiles || 0;
+  const netConns = agent.networkCount || 0;
   const unknown = agent.unknownDomains || 0;
-  const anomaly = agent.anomalyScore || 0;
+  const files = agent.fileCount || 0;
 
-  const base = Math.min(40, Math.log2(1 + sensitive) * 8);
-  const net = Math.min(30, unknown * 12);
-  const anom = Math.min(30, anomaly * 0.3);
+  const sensitiveContrib = Math.min(40, sensitive * 5 * (1 / (1 + sensitive * 0.1)));
+  const configContrib = Math.min(5, config * 0.5);
+  const netContrib = Math.min(10, netConns * 0.5);
+  const unknownDomainContrib = Math.min(20, unknown * 8);
+  const fileContrib = Math.min(5, files * 0.02);
+  const sshAwsContrib = Math.min(20, sshAws * 5);
 
-  return Math.min(100, Math.round(base + net + anom));
+  return Math.min(100, Math.round(
+    sensitiveContrib + configContrib + netContrib +
+    unknownDomainContrib + fileContrib + sshAwsContrib
+  ));
 }
 
 // ═══ TRUST GRADE ═══

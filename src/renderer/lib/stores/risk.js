@@ -22,18 +22,30 @@ export const enrichedAgents = derived(
     return $agents.map(raw => {
       const name = raw.agent;
 
-      // ── Sensitive file count with time decay ──
+      // ── Event counting: self-access exemption + 30s dedup ──
       let sensitiveFiles = 0;
+      let configFiles = 0;
+      let sshAwsFiles = 0;
       let fileCount = 0;
+      const seen = new Map(); // file → last timestamp (dedup)
+
       for (const ev of allEvents) {
         if (ev.agent !== name) continue;
-        fileCount++;
-        if (ev.sensitive) {
-          sensitiveFiles += getTimeDecayWeight(ev.timestamp);
+        if (ev.selfAccess) continue;
+        // Dedup: same file within 30s counts once
+        if (ev.file) {
+          const prev = seen.get(ev.file);
+          if (prev && ev.timestamp - prev < 30000) continue;
+          seen.set(ev.file, ev.timestamp);
         }
+        const w = getTimeDecayWeight(ev.timestamp);
+        fileCount += w;
+        if (ev.sensitive) sensitiveFiles += w;
+        if (ev.reason?.startsWith('AI agent config')) configFiles += w;
+        if (/SSH|AWS/i.test(ev.reason)) sshAwsFiles += w;
       }
 
-      // ── Flagged (unknown) domains for this agent ──
+      // ── Network counts ──
       let unknownDomains = 0;
       let networkCount = 0;
       for (const conn of $network) {
@@ -43,7 +55,10 @@ export const enrichedAgents = derived(
       }
 
       const anomalyScore = $anomalies[name] || 0;
-      const riskScore = calculateRiskScore({ sensitiveFiles, unknownDomains, anomalyScore });
+      const riskScore = calculateRiskScore({
+        sensitiveFiles, configFiles, sshAwsFiles,
+        networkCount, unknownDomains, fileCount,
+      });
       const trustGrade = getTrustGrade(riskScore);
 
       return {
