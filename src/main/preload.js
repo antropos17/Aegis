@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('aegis', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
   analyzeAgent: (name) => ipcRenderer.invoke('analyze-agent', name),
+  analyzeSession: () => ipcRenderer.invoke('analyze-session'),
+  openThreatReport: (html) => ipcRenderer.invoke('open-threat-report', html),
   getAgentBaseline: (name) => ipcRenderer.invoke('get-agent-baseline', name),
   getAllPermissions: () => ipcRenderer.invoke('get-all-permissions'),
   getAgentPermissions: (name) => ipcRenderer.invoke('get-agent-permissions', name),

@@ -250,3 +250,55 @@
 }
 .process-exiting { animation: process-exit 600ms ease-in forwards; pointer-events: none; }
 .process-entering { animation: process-enter 400ms ease-out; }
+
+/* ── Threat analysis (Reports tab) ── */
+.threat-analysis-wrap {
+  margin-top: 16px; padding: 16px; background: var(--bg-card); border-radius: 14px;
+  box-shadow: 5px 5px 12px var(--shadow-dark), -5px -5px 12px var(--shadow-light);
+}
+.threat-loading {
+  display: flex; align-items: center; gap: 12px; justify-content: center;
+  padding: 24px; color: var(--accent); font-size: 12px; font-weight: 600;
+  letter-spacing: 1px; animation: analysis-pulse 1.5s ease-in-out infinite;
+}
+.threat-spinner {
+  width: 18px; height: 18px; border: 2px solid var(--bg-inset);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: threat-spin 0.8s linear infinite;
+}
+@keyframes threat-spin { to { transform: rotate(360deg); } }
+.threat-error {
+  color: var(--red); font-size: 12px; font-weight: 600; padding: 16px;
+  text-align: center; background: rgba(229, 62, 62, 0.08); border-radius: 10px;
+}
+.threat-results { display: flex; flex-direction: column; gap: 12px; }
+.threat-rating-card {
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  background: var(--bg-inset); border-radius: 12px;
+  box-shadow: inset 3px 3px 6px var(--shadow-dark-subtle), inset -3px -3px 6px var(--shadow-light-subtle);
+}
+.threat-rating-badge {
+  font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 800;
+  letter-spacing: 2px; padding: 6px 16px; border-radius: 10px; color: #fff;
+}
+.threat-rating-badge.threat-green  { background: var(--green); }
+.threat-rating-badge.threat-yellow { background: var(--orange); }
+.threat-rating-badge.threat-orange { background: var(--orange); }
+.threat-rating-badge.threat-red    { background: var(--red); }
+.threat-rating-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 2px; color: var(--text-dim);
+}
+.threat-card {
+  padding: 12px 16px; background: var(--bg-inset); border-radius: 12px;
+  box-shadow: inset 3px 3px 6px var(--shadow-dark-subtle), inset -3px -3px 6px var(--shadow-light-subtle);
+}
+.threat-card-title {
+  font-size: 10px; font-weight: 700; letter-spacing: 2px; color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.threat-card-text { font-size: 12px; line-height: 1.6; color: var(--text); }
+.threat-list {
+  margin: 4px 0 0 0; padding-left: 18px; font-size: 12px;
+  line-height: 1.6; color: var(--text-mid);
+}
+.threat-list li { margin: 2px 0; }
