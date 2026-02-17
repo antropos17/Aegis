@@ -26,17 +26,17 @@
     display: flex;
     gap: 6px;
     padding: 6px;
-    background: var(--bg, #0c0c0e);
-    border-radius: 12px;
+    background: var(--md-sys-color-surface);
+    border-radius: var(--md-sys-shape-corner-medium);
     width: fit-content;
   }
 
   .tab-pill {
     padding: 8px 20px;
     border: none;
-    border-radius: 8px;
+    border-radius: var(--md-sys-shape-corner-small);
     background: transparent;
-    color: var(--text, #e8e6e2);
+    color: var(--md-sys-color-on-surface);
     font-family: inherit;
     font-size: 0.875rem;
     font-weight: 500;
@@ -47,12 +47,12 @@
 
   .tab-pill:hover {
     opacity: 0.85;
-    background: var(--surface-1, #141416);
+    background: var(--md-sys-color-surface-container-low);
   }
 
   .tab-pill.active {
-    background: var(--accent, #7a8a9e);
-    color: var(--bg, #0c0c0e);
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-surface);
     opacity: 1;
     font-weight: 600;
   }
