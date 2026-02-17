@@ -49,7 +49,11 @@ function getStats() {
 function createWindow() {
   const s = cfg.getSettings();
   mainWindow = new BrowserWindow({ width: 1050, height: 800, minWidth: 820, minHeight: 560, title: 'AEGIS', backgroundColor: '#050507', webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false } });
-  mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+  if (!app.isPackaged) {
+    mainWindow.loadURL('http://localhost:5174/app.html');
+  } else {
+    mainWindow.loadFile(path.join(__dirname, '..', '..', 'dist', 'renderer', 'app.html'));
+  }
   mainWindow.setMenuBarVisibility(false);
   if (s.startMinimized) mainWindow.hide();
   mainWindow.on('close', (e) => { if (!isQuitting) { e.preventDefault(); mainWindow.hide(); } });

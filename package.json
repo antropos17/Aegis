@@ -4,10 +4,15 @@
   "description": "AI agent activity monitor for Windows",
   "main": "src/main/main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "dev": "vite",
+    "build": "vite build"
   },
   "devDependencies": {
-    "electron": "^33.0.0"
+    "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "electron": "^33.0.0",
+    "svelte": "^5.51.2",
+    "vite": "^7.3.1"
   },
   "dependencies": {
     "chokidar": "^3.6.0"
