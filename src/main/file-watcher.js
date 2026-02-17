@@ -65,7 +65,7 @@ function handleWatcherEvent(action, filePath) {
   const agent = aiAgents.length > 0 ? aiAgents[0] : agents[0];
   const event = { agent: agent.agent, pid: agent.pid, file: filePath, sensitive: reason !== null, reason: reason || '', action, timestamp: now, category: agent.category || 'other' };
   _state.activityLog.push(event);
-  _state.recordFileAccess(event.agent, filePath, event.sensitive);
+  _state.recordFileAccess(event.agent, filePath, event.sensitive, event.reason);
   if (_state.onFileEvent) _state.onFileEvent(event);
 }
 
@@ -116,7 +116,7 @@ function scanFileHandles(agent) {
           const event = { agent: agent.agent, pid, file: f, sensitive: reason !== null, reason: reason || '', action: 'accessed', timestamp: Date.now(), category: agent.category || 'other' };
           newAccess.push(event);
           _state.activityLog.push(event);
-          _state.recordFileAccess(agent.agent, f, event.sensitive);
+          _state.recordFileAccess(agent.agent, f, event.sensitive, event.reason);
         }
         resolve(newAccess);
       } catch (_) { resolve([]); }

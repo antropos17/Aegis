@@ -137,6 +137,8 @@ let selectedAgent = null;
 let expandedAgent = null;
 const activeWarnings = {};
 const expandedAgentTab = {};
+/** Per-agent anomaly scores (0-100) from main process. @type {Object<string, number>} */
+const agentAnomalyScores = {};
 
 // ── Permissions cache (persisted via IPC) ──
 const PERM_CATEGORIES = ['filesystem', 'sensitive', 'network', 'terminal', 'clipboard', 'screen'];

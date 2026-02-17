@@ -25,6 +25,22 @@ function createFeedEntry(ev) {
   return entry;
 }
 
+/** Create a DOM element for an anomaly alert feed entry. @param {Object} w - Warning object @returns {HTMLDivElement} */
+function createAnomalyFeedEntry(w) {
+  const entry = document.createElement('div');
+  entry.className = 'feed-entry anomaly';
+  const timeStr = formatTime(new Date());
+  let html = `<span class="feed-severity-dot sev-config"></span>`;
+  html += `<span class="feed-type-icon">\u26A0\uFE0F</span>`;
+  html += `<span class="feed-time">[${timeStr}]</span>`;
+  html += `<span class="feed-agent">${escapeHtml(w.agent)}</span>`;
+  html += `<span class="feed-action action-modified">anomaly:</span>`;
+  html += `<span class="feed-file">${escapeHtml(w.message)}</span>`;
+  html += `<span class="anomaly-tag">${escapeHtml(formatAnomalyReason(w))}</span>`;
+  entry.innerHTML = html;
+  return entry;
+}
+
 /** Process file-access events into AI/other feeds, enforce permissions, trigger radar. @param {Object[]} events */
 function addFeedEntries(events) {
   if (events.length === 0) return;

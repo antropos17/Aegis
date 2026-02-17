@@ -17,6 +17,11 @@ function renderAgentCard(a, countsMap, sensitiveMap, sshAwsMap, configCounts, ca
   const isSelected = selectedAgent === a.agent;
   const warns = activeWarnings[a.agent];
   const warnBadge = warns && warns.length > 0 ? `<span class="baseline-warn-badge">\u26A0 ${warns.length}</span>` : '';
+  const anomalyScore = agentAnomalyScores[a.agent] || 0;
+  const anomalyColor = getAnomalyColor(anomalyScore);
+  const anomalyTooltipLines = (warns || []).map(w => w.message);
+  const anomalyTooltip = anomalyTooltipLines.length > 0 ? anomalyTooltipLines.join('&#10;') : 'No anomalies detected';
+  const anomalyBadge = anomalyScore > 0 ? `<span class="anomaly-badge anomaly-${anomalyColor}" title="${escapeHtml(anomalyTooltip)}">${anomalyScore}</span>` : '';
   const isExpanded = expandedAgent === a.agent;
   const chain = a.parentChain || [];
   const chainHtml = chain.length > 0 ? `<div class="agent-parent-chain">\u21B3 Launched by: ${chain.map(p => escapeHtml(p)).join(' \u2192 ')}</div>` : '';
@@ -56,7 +61,7 @@ function renderAgentCard(a, countsMap, sensitiveMap, sshAwsMap, configCounts, ca
       <div class="agent-right">
         <span class="agent-pid">PID ${a.pid}${pidExtra}</span>
         <span class="agent-status-pill">${a.status}</span>
-        <span class="risk-badge risk-${riskColor}">${riskScore}</span>
+        <span class="risk-badge risk-${riskColor}">${riskScore}</span>${anomalyBadge}
         ${sensitiveLabel}<span class="${countClass}">${countLabel}</span>
       </div>
     </div>

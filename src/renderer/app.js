@@ -167,6 +167,14 @@ window.aegis.onBaselineWarnings((warnings) => {
     if (!activeWarnings[w.agent].some(existing => existing.message === w.message)) {
       activeWarnings[w.agent].push(w);
       showToast(w.message, 'warn');
+      // Add anomaly entry to AI feed
+      if (!aiFeedHasEntries) { activityFeed.innerHTML = ''; aiFeedHasEntries = true; }
+      activityFeed.appendChild(createAnomalyFeedEntry(w));
+      activityFeed.scrollTop = activityFeed.scrollHeight;
     }
   }
+});
+window.aegis.onAnomalyScores((scores) => {
+  Object.keys(agentAnomalyScores).forEach(k => delete agentAnomalyScores[k]);
+  Object.assign(agentAnomalyScores, scores);
 });

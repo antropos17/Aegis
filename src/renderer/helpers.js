@@ -175,6 +175,37 @@ function getSeverityClass(ev) {
 }
 
 /**
+ * Get a color name for an anomaly score.
+ * @param {number} score - Anomaly score 0-100.
+ * @returns {string} Color name: 'green', 'yellow', 'orange', or 'red'.
+ * @since 0.2.0
+ */
+function getAnomalyColor(score) {
+  if (score >= 60) return 'red';
+  if (score >= 35) return 'orange';
+  if (score >= 15) return 'yellow';
+  return 'green';
+}
+
+/**
+ * Format an anomaly warning type into a human-readable label.
+ * @param {Object} warning - Warning object with type property.
+ * @returns {string} Formatted label, e.g. "File Volume Spike".
+ * @since 0.2.0
+ */
+function formatAnomalyReason(warning) {
+  const typeLabels = {
+    'files': 'File Volume Spike',
+    'sensitive': 'Sensitive Access Spike',
+    'new-sensitive': 'New Sensitive Category',
+    'network': 'New Network Endpoint',
+    'directories': 'New Directory Access',
+    'timing': 'Unusual Timing',
+  };
+  return typeLabels[warning.type] || warning.type;
+}
+
+/**
  * Shorten a file path to just the last two path segments.
  * @param {string} filePath - Full file path.
  * @returns {string} Shortened path, e.g. ".../folder/file.txt".

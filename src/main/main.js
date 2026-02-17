@@ -74,6 +74,7 @@ function startScanIntervals() {
       fw.pruneKnownHandles(latestAgents); await sc.enrichWithParentChains(latestAgents); sc.annotateHostApps(latestAgents);
       sendToWin('scan-results', latestAgents); sendToWin('stats-update', getStats()); sendToWin('resource-usage', getResourceUsage()); ti.updateTrayIcon();
       const d = bl.checkDeviations(); if (d.length > 0) sendToWin('baseline-warnings', d);
+      const anomalyScores = {}; for (const a of latestAgents) anomalyScores[a.agent] = bl.calculateAnomalyScore(a.agent); sendToWin('anomaly-scores', anomalyScores);
       if (r.changed) doNetScan();
     } catch (_) {}
   }, ms);

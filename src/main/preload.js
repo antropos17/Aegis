@@ -47,6 +47,9 @@ contextBridge.exposeInMainWorld('aegis', {
   onBaselineWarnings: (cb) => {
     ipcRenderer.on('baseline-warnings', (_e, data) => cb(data));
   },
+  onAnomalyScores: (cb) => {
+    ipcRenderer.on('anomaly-scores', (_e, data) => cb(data));
+  },
   getAgentDatabase: () => ipcRenderer.invoke('get-agent-database'),
   captureScreenshot: () => ipcRenderer.invoke('capture-screenshot'),
   getProjectDir: () => ipcRenderer.invoke('get-project-dir'),
