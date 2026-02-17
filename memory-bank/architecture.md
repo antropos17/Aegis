@@ -35,7 +35,8 @@
 - src/renderer/lib/components/ShieldTab.svelte — column layout: top-row (Radar 60% + AgentPanel 40%), Timeline full-width below, stacks vertically <768px
 - src/renderer/lib/components/FeedFilters.svelte — filter bar: agent dropdown (from enrichedAgents), severity pills (all/critical/high/medium/low), type pills (all/file/network), $bindable state
 - src/renderer/lib/components/ActivityFeed.svelte — scrollable event list: unified file events + network connections, severity classification (critical/_denied, high/sensitive, medium/deleted, low/normal), newest-first, 200 event cap
-- src/renderer/lib/components/ActivityTab.svelte — layout: FeedFilters on top, ActivityFeed below (flex column)
+- src/renderer/lib/components/NetworkPanel.svelte — network connections list: agent/domain/port/state/classification badge, filter by agent + classification pills, sort by agent/domain/class, 3-tier classify (safe/unknown/flagged)
+- src/renderer/lib/components/ActivityTab.svelte — Feed/Network toggle pills, shows FeedFilters+ActivityFeed or NetworkPanel
 - src/renderer/lib/components/RulesTab.svelte — placeholder
 - src/renderer/lib/components/ReportsTab.svelte — placeholder
 

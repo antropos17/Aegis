@@ -25,5 +25,7 @@
 
 - Step 10: Timeline (Timeline.svelte — SVG horizontal bar, last 100 events as 4px color-coded dots on time axis, severity colors matching ActivityFeed, hover tooltip via <title>, responsive via bind:clientWidth; ShieldTab.svelte — added top-row wrapper for radar+agents, Timeline full-width below)
 
+- Step 11: Network panel (NetworkPanel.svelte — network connections list with agent/domain/port/state/classification badge, filter by agent dropdown + classification pills (all/safe/unknown/flagged) with counts, sort by agent/domain/classification, 3-tier classification: safe=known domain, unknown=resolved but unrecognized, flagged=unresolvable IP; ActivityTab.svelte — Feed/Network toggle pills, shows FeedFilters+ActivityFeed or NetworkPanel)
+
 ## Next
-- Step 11 (TBD)
+- Step 12 (TBD)
