@@ -71,7 +71,10 @@
 
   .sub-toggle {
     display: flex; gap: 4px; padding: 3px; align-self: flex-start;
-    background: var(--md-sys-color-surface-container);
+    background: var(--md-sys-color-surface-container-low);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-full);
   }
 
@@ -80,14 +83,15 @@
     padding: 6px 16px; border: none;
     border-radius: var(--md-sys-shape-corner-full);
     background: transparent; color: var(--md-sys-color-on-surface-variant); cursor: pointer;
-    transition: all var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    transition: all 0.3s var(--ease-glass);
   }
 
-  .sub-btn:hover { color: var(--md-sys-color-on-surface); }
+  .sub-btn:hover { color: var(--md-sys-color-on-surface); background: rgba(255, 255, 255, 0.04); }
 
   .sub-btn.active {
-    background: var(--md-sys-color-primary-container);
-    color: var(--md-sys-color-on-surface);
+    background: var(--md-sys-color-primary);
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(122, 138, 158, 0.3);
   }
 
   .rules-section { display: flex; flex-direction: column; gap: 10px; }
@@ -101,15 +105,17 @@
   .reset-btn {
     font: var(--md-sys-typescale-label-medium); font-weight: 600;
     padding: 6px 14px; background: transparent;
-    border: 1px solid var(--md-sys-color-outline);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--md-sys-shape-corner-full);
     color: var(--md-sys-color-on-surface-variant); cursor: pointer;
-    transition: all var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: all 0.3s var(--ease-glass);
   }
 
   .reset-btn:hover {
-    background: var(--md-sys-color-surface-container-high);
+    background: rgba(255, 255, 255, 0.04);
     color: var(--md-sys-color-on-surface);
-    border-color: var(--md-sys-color-on-surface-variant);
+    border-color: rgba(255, 255, 255, 0.15);
   }
 </style>

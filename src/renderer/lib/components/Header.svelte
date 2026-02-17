@@ -97,10 +97,10 @@
     align-items: center;
     gap: 16px;
     padding: 10px 20px;
-    background: var(--md-sys-color-surface-container-low);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-bottom: 1px solid var(--md-sys-color-outline);
+    background: rgba(5, 5, 7, 0.8);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-bottom: var(--glass-border);
   }
 
   .header-brand {
@@ -123,10 +123,13 @@
     gap: 6px;
     padding: 4px 12px;
     background: var(--md-sys-color-surface-container);
-    border: 1px solid var(--md-sys-color-outline);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--md-sys-shape-corner-full);
     color: var(--md-sys-color-on-surface);
     white-space: nowrap;
+    transition: all 0.3s var(--ease-glass);
   }
 
   .pill-label {
@@ -164,12 +167,12 @@
     background: transparent; border: 1px solid transparent;
     border-radius: var(--md-sys-shape-corner-small);
     color: var(--md-sys-color-on-surface-variant);
-    transition: all var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    transition: all 0.3s var(--ease-glass);
     display: flex; align-items: center; justify-content: center;
   }
   .icon-btn:hover {
     color: var(--md-sys-color-on-surface);
     background: var(--md-sys-color-surface-container);
-    border-color: var(--md-sys-color-outline);
+    border-color: rgba(255, 255, 255, 0.15);
   }
 </style>

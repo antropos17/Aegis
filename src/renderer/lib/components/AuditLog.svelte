@@ -77,7 +77,11 @@
   .audit-card {
     display: flex; flex-direction: column; gap: 4px;
     padding: 14px 20px;
-    background: var(--md-sys-color-surface-container);
+    background: var(--md-sys-color-surface-container-low);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: var(--glass-border);
+    box-shadow: var(--glass-shadow), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
     flex: 1; min-width: 140px;
   }
@@ -99,15 +103,17 @@
     font: var(--md-sys-typescale-label-medium); font-weight: 600;
     padding: 7px 18px;
     background: transparent;
-    border: 1px solid var(--md-sys-color-outline);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--md-sys-shape-corner-full);
     color: var(--md-sys-color-on-surface-variant); cursor: pointer;
-    transition: all var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: all 0.3s var(--ease-glass);
   }
 
   .audit-btn:hover {
-    background: var(--md-sys-color-surface-container-high);
+    background: rgba(255, 255, 255, 0.04);
     color: var(--md-sys-color-on-surface);
-    border-color: var(--md-sys-color-on-surface-variant);
+    border-color: rgba(255, 255, 255, 0.15);
   }
 </style>

@@ -84,10 +84,10 @@
     justify-content: center;
     gap: 20px;
     padding: 6px 20px;
-    background: var(--md-sys-color-surface-container-low);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid var(--md-sys-color-outline);
+    background: rgba(5, 5, 7, 0.8);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-top: var(--glass-border);
   }
 
   .footer-item {

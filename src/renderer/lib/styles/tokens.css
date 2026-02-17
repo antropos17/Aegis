@@ -1,16 +1,16 @@
 /* ═══ M3 DESIGN TOKENS — AEGIS ═══ */
 
-/* ── Dark theme (default) ── */
+/* ── Dark theme (default) — Glassmorphism ── */
 :root {
   /* ── Color roles (tonal palette) ── */
-  --md-sys-color-surface: #0c0c0e;
-  --md-sys-color-surface-container-low: #141416;
-  --md-sys-color-surface-container: #1a1a1e;
-  --md-sys-color-surface-container-high: #222226;
-  --md-sys-color-surface-container-highest: #2a2a2e;
+  --md-sys-color-surface: #050507;
+  --md-sys-color-surface-container-low: rgba(255, 255, 255, 0.03);
+  --md-sys-color-surface-container: rgba(255, 255, 255, 0.05);
+  --md-sys-color-surface-container-high: rgba(255, 255, 255, 0.07);
+  --md-sys-color-surface-container-highest: rgba(255, 255, 255, 0.10);
   --md-sys-color-on-surface: #e8e6e2;
   --md-sys-color-on-surface-variant: #a09890;
-  --md-sys-color-outline: rgba(255, 255, 255, 0.08);
+  --md-sys-color-outline: rgba(255, 255, 255, 0.06);
   --md-sys-color-outline-variant: rgba(255, 255, 255, 0.04);
   --md-sys-color-primary: #7a8a9e;
   --md-sys-color-on-primary: #ffffff;
@@ -21,6 +21,13 @@
   --md-sys-color-on-error: #1a0000;
   --md-sys-color-error-container: rgba(200, 122, 122, 0.15);
   --md-sys-color-scrim: rgba(0, 0, 0, 0.6);
+
+  /* ── Glass tokens ── */
+  --glass-blur: 20px;
+  --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --ease-glass: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* ── Typography scale ── */
   --md-sys-typescale-display-large: 600 32px/40px 'Outfit', sans-serif;

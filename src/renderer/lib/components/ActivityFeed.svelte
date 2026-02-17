@@ -108,13 +108,16 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 7px 14px;
-    border-bottom: 1px solid var(--md-sys-color-outline-variant);
-    transition: background var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
   }
 
   .feed-entry:hover {
-    background: var(--md-sys-color-surface-container-low);
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.06);
   }
 
   .feed-dot {
@@ -192,5 +195,6 @@
     border-radius: var(--md-sys-shape-corner-full);
     color: var(--md-sys-color-surface);
     flex-shrink: 0;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
   }
 </style>

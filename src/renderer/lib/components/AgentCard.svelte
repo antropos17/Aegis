@@ -101,19 +101,22 @@
 
 <style>
   .agent-card {
-    background: var(--md-sys-color-surface-container);
-    border: 1px solid var(--md-sys-color-outline);
+    background: var(--md-sys-color-surface-container-low);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: var(--glass-border);
+    box-shadow: var(--glass-shadow), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
     padding: 12px 14px;
     display: flex;
     flex-direction: column;
     gap: 8px;
     cursor: pointer;
-    transition: border-color var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    transition: all 0.3s var(--ease-glass);
   }
 
   .agent-card:hover {
-    border-color: var(--md-sys-color-on-surface-variant);
+    border-color: rgba(255, 255, 255, 0.15);
   }
 
   .agent-header {
@@ -243,7 +246,7 @@
     border: none;
     border-radius: var(--md-sys-shape-corner-full);
     cursor: pointer;
-    transition: opacity var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    transition: all 0.3s var(--ease-glass);
   }
 
   .action-btn:hover { opacity: 0.8; }
