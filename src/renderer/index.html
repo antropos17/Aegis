@@ -150,7 +150,7 @@
         <button id="clear-filters" class="btn-action btn-clear">CLEAR FILTERS</button>
       </div>
       <div id="full-activity-feed" class="full-activity-feed">
-        <div class="empty-state">Switch to Activity tab to see all events...</div>
+        <div class="empty-state">No activity events recorded yet</div>
       </div>
     </div>
 
@@ -167,10 +167,10 @@
         </div>
         <div class="rules-presets">
           <span class="rules-presets-label">PRESETS:</span>
-          <button class="btn-preset" data-preset="paranoid" onclick="applyPreset('paranoid')">PARANOID</button>
-          <button class="btn-preset" data-preset="strict" onclick="applyPreset('strict')">STRICT</button>
-          <button class="btn-preset active" data-preset="balanced" onclick="applyPreset('balanced')">BALANCED</button>
-          <button class="btn-preset" data-preset="developer" onclick="applyPreset('developer')">DEVELOPER</button>
+          <button class="btn-preset" data-preset="paranoid">PARANOID</button>
+          <button class="btn-preset" data-preset="strict">STRICT</button>
+          <button class="btn-preset active" data-preset="balanced">BALANCED</button>
+          <button class="btn-preset" data-preset="developer">DEVELOPER</button>
         </div>
         <div id="rules-perm-grid" class="perm-grid-container"></div>
         <div class="rules-actions">
@@ -317,7 +317,7 @@
       <div class="settings-group">
         <label class="settings-label">Scan Interval</label>
         <div class="settings-row">
-          <input type="range" id="setting-interval" min="5" max="60" value="3" class="settings-slider">
+          <input type="range" id="setting-interval" min="3" max="60" value="3" class="settings-slider">
           <span id="setting-interval-val" class="settings-slider-val">3s</span>
         </div>
       </div>

@@ -25,6 +25,9 @@ const PROTECTION_PRESETS = {
 function applyPreset(presetName) {
   const preset = PROTECTION_PRESETS[presetName];
   if (!preset) return;
+  document.querySelectorAll('.btn-preset').forEach(b =>
+    b.classList.toggle('active', b.dataset.preset === presetName)
+  );
   for (const agentName of seenAgentsList) {
     if (!cachedPermissions[agentName]) cachedPermissions[agentName] = {};
     for (const cat of PERM_CATEGORIES) {
@@ -175,4 +178,9 @@ document.getElementById('rules-reset').addEventListener('click', async () => {
   } catch (_) {
     showToast('Failed to reset permissions', 'error');
   }
+});
+
+// ── Preset button event listeners ──
+document.querySelectorAll('.btn-preset').forEach(btn => {
+  btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
 });

@@ -18,7 +18,7 @@
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 20px;
 }
-.settings-header h2 { margin-bottom: 0; color: var(--text); font-size: 16px; letter-spacing: .5px; }
+.settings-header h2 { margin-bottom: 0; color: var(--text); font-size: 16px; letter-spacing: .5px; text-transform: none; }
 
 .btn-settings-close {
   background: transparent; border: 1px solid var(--border); color: var(--text-dim);

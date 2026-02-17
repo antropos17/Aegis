@@ -64,41 +64,6 @@ function renderPatterns() {
   });
 }
 
-/** Render per-agent permissions grid in settings panel. @returns {void} */
-function renderSettingsPermissions() {
-  const permGrid = document.getElementById('perm-grid');
-  if (!permGrid) return;
-  if (seenAgentsList.length === 0) {
-    permGrid.innerHTML = '<div class="empty-state" style="padding:10px;font-size:11px">No agents detected yet</div>';
-    return;
-  }
-  let html = `<div class="perm-grid-header"><span>AGENT</span>${PERM_CATEGORIES.map(c => `<span>${PERM_SHORT[c]}</span>`).join('')}</div>`;
-  for (const agentName of seenAgentsList) {
-    if (!cachedPermissions[agentName]) {
-      cachedPermissions[agentName] = {};
-      for (const cat of PERM_CATEGORIES) cachedPermissions[agentName][cat] = 'monitor';
-    }
-    const perms = cachedPermissions[agentName];
-    html += `<div class="perm-grid-row"><span class="perm-grid-agent">${escapeHtml(agentName)}</span>`;
-    for (const cat of PERM_CATEGORIES) {
-      const state = perms[cat] || 'monitor';
-      const label = state === 'allow' ? 'A' : state === 'monitor' ? 'M' : 'B';
-      html += `<button class="perm-tristate perm-state-${state}" data-agent="${escapeHtml(agentName)}" data-cat="${cat}">${label}</button>`;
-    }
-    html += `</div>`;
-  }
-  permGrid.innerHTML = html;
-  permGrid.querySelectorAll('.perm-tristate').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const next = PERM_CYCLE[cachedPermissions[btn.dataset.agent][btn.dataset.cat] || 'monitor'];
-      cachedPermissions[btn.dataset.agent][btn.dataset.cat] = next;
-      btn.textContent = next === 'allow' ? 'A' : next === 'monitor' ? 'M' : 'B';
-      btn.className = `perm-tristate perm-state-${next}`;
-    });
-  });
-}
-
 // ── Settings event handlers ──
 settingsBtn.addEventListener('click', openSettings);
 settingsClose.addEventListener('click', closeSettings);
