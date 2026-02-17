@@ -169,6 +169,54 @@
           <button id="rules-save" class="btn-action" style="background:var(--accent);color:#fff;font-weight:700">SAVE CHANGES</button>
           <button id="rules-reset" class="btn-action btn-clear">RESET TO DEFAULTS</button>
         </div>
+
+        <!-- Agent Database Manager -->
+        <div class="agentdb-divider"></div>
+        <div class="agentdb-section">
+          <div class="agentdb-header">
+            <h2>Agent Database</h2>
+            <div class="agentdb-header-actions">
+              <button id="agentdb-add" class="btn-action" style="background:var(--accent);color:#fff;font-weight:700">+ ADD AGENT</button>
+              <button id="agentdb-import" class="btn-action">IMPORT</button>
+              <button id="agentdb-export" class="btn-action">EXPORT</button>
+            </div>
+          </div>
+          <div class="agentdb-filters">
+            <input type="text" id="agentdb-search" class="settings-input agentdb-search-input" placeholder="Search agents...">
+            <select id="agentdb-filter-category" class="agentdb-select">
+              <option value="">All Categories</option>
+            </select>
+            <select id="agentdb-filter-risk" class="agentdb-select">
+              <option value="">All Risk</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+            <select id="agentdb-filter-vendor" class="agentdb-select">
+              <option value="">All Vendors</option>
+            </select>
+          </div>
+          <div class="agentdb-table-wrap">
+            <table class="agentdb-table" id="agentdb-table">
+              <thead>
+                <tr>
+                  <th class="agentdb-th-icon"></th>
+                  <th>NAME</th>
+                  <th>VENDOR</th>
+                  <th>CATEGORY</th>
+                  <th>TRUST</th>
+                  <th>RISK</th>
+                  <th>STATUS</th>
+                  <th>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody id="agentdb-tbody"></tbody>
+            </table>
+          </div>
+          <div class="agentdb-footer">
+            <span id="agentdb-count" class="agentdb-count">0 agents</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -305,6 +353,77 @@
     </div>
   </div>
 
+  <!-- Agent Database Add/Edit modal -->
+  <div id="agentdb-modal" class="settings-overlay hidden">
+    <div class="settings-panel" style="width:500px">
+      <div class="settings-header">
+        <h2 id="agentdb-modal-title">Add Custom Agent</h2>
+        <button id="agentdb-modal-close" class="btn-settings-close">&times;</button>
+      </div>
+      <div class="agentdb-form">
+        <div class="settings-group">
+          <label class="settings-label">Display Name *</label>
+          <input type="text" id="agentdb-f-name" class="settings-input" placeholder="e.g. My Custom Agent">
+        </div>
+        <div class="settings-group">
+          <label class="settings-label">Process Names (comma-separated) *</label>
+          <input type="text" id="agentdb-f-patterns" class="settings-input" placeholder="e.g. myagent.exe, myagent">
+        </div>
+        <div class="agentdb-form-row">
+          <div class="settings-group" style="flex:1">
+            <label class="settings-label">Vendor</label>
+            <input type="text" id="agentdb-f-vendor" class="settings-input" placeholder="e.g. My Company">
+          </div>
+          <div class="settings-group" style="flex:1">
+            <label class="settings-label">Category</label>
+            <select id="agentdb-f-category" class="agentdb-select agentdb-form-select">
+              <option value="coding-assistant">Coding Assistant</option>
+              <option value="ai-ide">AI IDE</option>
+              <option value="cli-tool">CLI Tool</option>
+              <option value="autonomous-agent">Autonomous Agent</option>
+              <option value="desktop-agent">Desktop Agent</option>
+              <option value="browser-agent">Browser Agent</option>
+              <option value="agent-framework">Agent Framework</option>
+              <option value="security-devops">Security/DevOps</option>
+              <option value="ide-extension">IDE Extension</option>
+            </select>
+          </div>
+        </div>
+        <div class="agentdb-form-row">
+          <div class="settings-group" style="flex:1">
+            <label class="settings-label">Default Trust (0-100)</label>
+            <input type="number" id="agentdb-f-trust" class="settings-input" min="0" max="100" value="50">
+          </div>
+          <div class="settings-group" style="flex:1">
+            <label class="settings-label">Risk Profile</label>
+            <select id="agentdb-f-risk" class="agentdb-select agentdb-form-select">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-group">
+          <label class="settings-label">Known Domains (comma-separated)</label>
+          <input type="text" id="agentdb-f-domains" class="settings-input" placeholder="e.g. api.example.com, example.com">
+        </div>
+        <div class="settings-group">
+          <label class="settings-label">Description</label>
+          <input type="text" id="agentdb-f-desc" class="settings-input" placeholder="Short description">
+        </div>
+        <div class="settings-group">
+          <label class="settings-label">Website</label>
+          <input type="text" id="agentdb-f-website" class="settings-input" placeholder="https://example.com">
+        </div>
+        <input type="hidden" id="agentdb-f-id">
+        <input type="hidden" id="agentdb-f-builtin" value="false">
+        <div class="settings-actions">
+          <button id="agentdb-modal-save" class="btn-action" style="background:var(--accent);color:#fff;font-weight:700">SAVE AGENT</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
   <script src="state.js"></script>
@@ -315,6 +434,7 @@
   <script src="radar-draw.js"></script>
   <script src="radar-engine.js"></script>
   <script src="permissions.js"></script>
+  <script src="agent-database-ui.js"></script>
   <script src="agent-panel.js"></script>
   <script src="agent-render.js"></script>
   <script src="activity-feed.js"></script>

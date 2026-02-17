@@ -22,16 +22,26 @@ function renderAgentCard(a, countsMap, sensitiveMap, sshAwsMap, configCounts, ca
   const chainHtml = chain.length > 0 ? `<div class="agent-parent-chain">\u21B3 Launched by: ${chain.map(p => escapeHtml(p)).join(' \u2192 ')}</div>` : '';
   const dbEntry = agentDbMap[a.agent];
   const agentIcon = dbEntry ? dbEntry.icon : '';
+  const pids = a.pids || [{ pid: a.pid, process: a.process }];
+  const pidExtra = pids.length > 1 ? ` +${pids.length - 1}` : '';
+  const processCountBadge = pids.length > 1 ? `<span class="agent-process-count">${pids.length} processes</span>` : '';
+  const displayName = a.displayLabel || a.agent;
   const lastSeenTime = agentLastSeen[a.agent];
   const firstSeenTime = agentFirstSeen[a.agent];
   const lastSeenStr = lastSeenTime ? formatTime(lastSeenTime) : '--:--:--';
   const sessionDurStr = firstSeenTime ? formatDuration(Date.now() - firstSeenTime.getTime()) : '--';
-  const activeTab = expandedAgentTab[a.agent] || 'baseline';
+  const activeTab = expandedAgentTab[a.agent] || 'processes';
+  const tabDefs = [
+    { key: 'processes', label: 'PROCESSES' },
+    { key: 'files', label: 'FILES' },
+    { key: 'network', label: 'NETWORK' },
+    { key: 'baseline', label: 'BASELINE' },
+    { key: 'permissions', label: 'PERMISSIONS' },
+  ];
   const expandedHtml = isExpanded
     ? `<div class="agent-expanded-section" data-agent="${escapeHtml(a.agent)}">
         <div class="agent-tab-bar">
-          <button class="agent-tab${activeTab === 'baseline' ? ' active' : ''}" data-tab="baseline" data-agent="${escapeHtml(a.agent)}">BASELINE</button>
-          <button class="agent-tab${activeTab === 'permissions' ? ' active' : ''}" data-tab="permissions" data-agent="${escapeHtml(a.agent)}">PERMISSIONS</button>
+          ${tabDefs.map(t => `<button class="agent-tab${activeTab === t.key ? ' active' : ''}" data-tab="${t.key}" data-agent="${escapeHtml(a.agent)}">${t.label}</button>`).join('')}
         </div>
         <div class="agent-tab-content" data-agent="${escapeHtml(a.agent)}"></div>
       </div>` : '';
@@ -40,11 +50,11 @@ function renderAgentCard(a, countsMap, sensitiveMap, sshAwsMap, configCounts, ca
       <div class="agent-left">
         <div class="agent-indicator"></div>
         ${agentIcon ? `<span class="agent-icon">${agentIcon}</span>` : ''}
-        <span class="agent-name">${escapeHtml(a.agent)}</span>${warnBadge}
+        <span class="agent-name">${escapeHtml(displayName)}</span>${warnBadge}${processCountBadge}
         <span class="agent-process">${escapeHtml(a.process)}</span>
       </div>
       <div class="agent-right">
-        <span class="agent-pid">PID ${a.pid}</span>
+        <span class="agent-pid">PID ${a.pid}${pidExtra}</span>
         <span class="agent-status-pill">${a.status}</span>
         <span class="risk-badge risk-${riskColor}">${riskScore}</span>
         ${sensitiveLabel}<span class="${countClass}">${countLabel}</span>
@@ -104,16 +114,116 @@ function renderBaselineSection(container, agentName, data) {
   </div>`;
 }
 
-/** Load active tab content (baseline or permissions) for an expanded agent card. @param {string} agentName @returns {Promise<void>} */
+/** Load active tab content for an expanded agent card. @param {string} agentName @returns {Promise<void>} */
 async function loadTabContent(agentName) {
   const container = document.querySelector(`.agent-tab-content[data-agent="${agentName}"]`);
   if (!container) return;
-  const tab = expandedAgentTab[agentName] || 'baseline';
+  const tab = expandedAgentTab[agentName] || 'processes';
   if (tab === 'permissions') { renderPermissionsTab(container, agentName); return; }
+  if (tab === 'processes') { renderProcessesTab(container, agentName); return; }
+  if (tab === 'files') { renderFilesTab(container, agentName); return; }
+  if (tab === 'network') { renderNetworkTab(container, agentName); return; }
   container.innerHTML = '<div class="baseline-maturity-note">Loading baseline...</div>';
   try {
     const data = await window.aegis.getAgentBaseline(agentName);
     const c2 = document.querySelector(`.agent-tab-content[data-agent="${agentName}"]`);
     if (c2) renderBaselineSection(c2, agentName, data);
   } catch (_) {}
+}
+
+// ═══ NEW TAB RENDERERS ═══
+
+/** Render the PROCESSES tab — lists all PIDs with kill/suspend buttons. @param {HTMLElement} container @param {string} agentName */
+function renderProcessesTab(container, agentName) {
+  const pids = agentPidGroups[agentName] || [];
+  if (pids.length === 0) {
+    container.innerHTML = '<div class="baseline-maturity-note">No process data available.</div>';
+    return;
+  }
+  container.innerHTML = `<div class="process-list">${pids.map(p =>
+    `<div class="process-row" data-pid="${p.pid}">
+      <span class="process-name">${escapeHtml(p.process)}</span>
+      <span class="process-pid">PID ${p.pid}</span>
+      <button class="btn-process-action btn-suspend" data-pid="${p.pid}" title="Suspend process">SUSPEND</button>
+      <button class="btn-process-action btn-kill" data-pid="${p.pid}" title="Kill process">KILL</button>
+    </div>`
+  ).join('')}</div>`;
+
+  container.querySelectorAll('.btn-kill').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const pid = Number(btn.dataset.pid);
+      const row = btn.closest('.process-row');
+      try {
+        const result = await window.aegis.killProcess(pid);
+        if (result.success) {
+          row.style.opacity = '0.3';
+          row.style.pointerEvents = 'none';
+          showToast(`PID ${pid} terminated`, 'warn');
+        } else {
+          showToast(`Failed to kill PID ${pid}: ${result.error}`, 'error');
+        }
+      } catch (err) { showToast(`Kill failed: ${err.message}`, 'error'); }
+    });
+  });
+
+  container.querySelectorAll('.btn-suspend').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const pid = Number(btn.dataset.pid);
+      const isSuspended = btn.textContent === 'RESUME';
+      try {
+        const result = isSuspended
+          ? await window.aegis.resumeProcess(pid)
+          : await window.aegis.suspendProcess(pid);
+        if (result.success) {
+          btn.textContent = isSuspended ? 'SUSPEND' : 'RESUME';
+          btn.classList.toggle('btn-suspend', isSuspended);
+          btn.classList.toggle('btn-resume', !isSuspended);
+          showToast(`PID ${pid} ${isSuspended ? 'resumed' : 'suspended'}`, 'warn');
+        } else {
+          showToast(`Failed: ${result.error}`, 'error');
+        }
+      } catch (err) { showToast(`Action failed: ${err.message}`, 'error'); }
+    });
+  });
+}
+
+/** Render the FILES tab — shows per-agent file history. @param {HTMLElement} container @param {string} agentName */
+function renderFilesTab(container, agentName) {
+  const events = allActivityEvents.filter(e => e.agent === agentName).slice(-50).reverse();
+  if (events.length === 0) {
+    container.innerHTML = '<div class="baseline-maturity-note">No file activity recorded for this agent.</div>';
+    return;
+  }
+  container.innerHTML = `<div class="agent-file-list">${events.map(e => {
+    const time = e.time ? formatTime(new Date(e.time)) : '--:--';
+    const sensitiveTag = e.sensitive ? '<span class="sensitive-tag">SENSITIVE</span>' : '';
+    return `<div class="agent-file-row${e.sensitive ? ' sensitive' : ''}">
+      <span class="feed-time">${time}</span>
+      <span class="feed-action action-${(e.action || '').toLowerCase()}">${escapeHtml(e.action || 'access')}</span>
+      <span class="feed-file">${escapeHtml(e.file || e.path || '')}</span>
+      ${sensitiveTag}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/** Render the NETWORK tab — shows per-agent connections. @param {HTMLElement} container @param {string} agentName */
+function renderNetworkTab(container, agentName) {
+  const conns = latestNetworkConnections.filter(c => c.agent === agentName);
+  if (conns.length === 0) {
+    container.innerHTML = '<div class="baseline-maturity-note">No active network connections for this agent.</div>';
+    return;
+  }
+  container.innerHTML = `<div class="agent-net-list">${conns.map(c => {
+    const domainText = c.domain || 'unknown';
+    const safe = isDomainSafe(c.domain);
+    const domainClass = c.flagged ? 'domain-suspicious' : (!c.domain ? 'domain-unknown' : (safe ? 'domain-safe' : 'domain-unknown'));
+    return `<div class="agent-net-row">
+      <span class="net-ip">${escapeHtml(c.remoteIp)}</span>
+      <span class="net-port">:${c.remotePort}</span>
+      <span class="net-domain ${domainClass}">${escapeHtml(domainText)}</span>
+      <span class="net-state ${c.state.toLowerCase().replace(/[^a-z]/g, '')}">${escapeHtml(c.state)}</span>
+    </div>`;
+  }).join('')}</div>`;
 }

@@ -48,6 +48,7 @@ function isDomainSafe(domain) {
  * @since v0.1.0
  */
 function renderNetworkConnections(connections) {
+  latestNetworkConnections = connections;
   // Update per-agent connection counts for risk scoring
   Object.keys(netConnectionCounts).forEach(k => { netConnectionCounts[k] = 0; });
   Object.keys(netUnknownDomainCounts).forEach(k => { netUnknownDomainCounts[k] = 0; });

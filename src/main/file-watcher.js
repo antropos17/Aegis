@@ -19,7 +19,7 @@ const path = require('path');
 const os = require('os');
 const chokidar = require('chokidar');
 const { execFile } = require('child_process');
-const { SENSITIVE_RULES, IGNORE_PATTERNS } = require('../shared/constants');
+const { SENSITIVE_RULES, IGNORE_PATTERNS, AGENT_CONFIG_PATHS } = require('../shared/constants');
 
 const watcherDebounce = new Map();
 let _state = null;
@@ -75,6 +75,13 @@ function setupFileWatchers() {
   const sensitiveDirs = ['.ssh', '.aws', '.gnupg', '.kube', '.docker', '.azure'].map(d => path.join(homeDir, d)).filter(d => fs.existsSync(d));
   const projectDir = path.join(__dirname, '..', '..');
   if (sensitiveDirs.length > 0) { const w = chokidar.watch(sensitiveDirs, { persistent: true, ignoreInitial: true, usePolling: false }); bindWatcherEvents(w); _state.watchers.push(w); }
+  // AI agent config directories (Hudson Rock threat vector — critical)
+  const sensitiveDirNames = new Set(['.ssh', '.aws', '.gnupg', '.kube', '.docker', '.azure']);
+  const agentConfigDirs = AGENT_CONFIG_PATHS
+    .filter(d => !sensitiveDirNames.has(d))
+    .map(d => path.join(homeDir, d))
+    .filter(d => fs.existsSync(d));
+  if (agentConfigDirs.length > 0) { const cw = chokidar.watch(agentConfigDirs, { persistent: true, ignoreInitial: true, usePolling: false }); bindWatcherEvents(cw); _state.watchers.push(cw); }
   const pw = chokidar.watch(projectDir, { persistent: true, ignoreInitial: true, ignored: [/(node_modules|\.git|dist|out)[\\\/]/, /package-lock\.json$/], usePolling: false });
   bindWatcherEvents(pw); _state.watchers.push(pw);
   const ew = chokidar.watch(path.join(homeDir, '.env*'), { persistent: true, ignoreInitial: true, depth: 0, usePolling: false });

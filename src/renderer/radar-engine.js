@@ -108,9 +108,12 @@ let radarDprSet = false;
 
 /** Main radar animation frame callback. Draws all layers and advances state. @since 0.1.0 */
 function renderRadar() {
+  requestAnimationFrame(renderRadar);
   const now = Date.now(), canvas = radarCanvas, ctx = radarCtx;
+  if (!canvas || !ctx) return;
   const dpr = window.devicePixelRatio || 1;
   const dW = canvas.clientWidth, dH = canvas.clientHeight;
+  if (dW <= 0 || dH <= 0) return;
   if (!radarDprSet || canvas.width !== dW * dpr || canvas.height !== dH * dpr) {
     canvas.width = dW * dpr; canvas.height = dH * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); radarDprSet = true;
@@ -133,7 +136,6 @@ function renderRadar() {
     orbit.angle += orbit.speed;
     if (orbit.angle > Math.PI * 2) orbit.angle -= Math.PI * 2;
   }
-  requestAnimationFrame(renderRadar);
 }
 
 /** Sync radar orbit state with detected agents. Adds new, removes departed.

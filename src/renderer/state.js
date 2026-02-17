@@ -188,3 +188,9 @@ let highestRiskScore = 0;
 
 /** Store all events for full activity feed (ACTIVITY tab + REPORTS). @type {Object[]} */
 const allActivityEvents = [];
+
+/** Grouped PID data per agent — populated each render cycle. @type {Object<string, {pid: number, process: string}[]>} */
+const agentPidGroups = {};
+
+/** Latest network connections — stored from network-update events. @type {Object[]} */
+let latestNetworkConnections = [];

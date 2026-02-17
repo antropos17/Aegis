@@ -23,7 +23,7 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-pill').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tab-view').forEach(v => v.classList.toggle('active', v.id === `tab-${tab}`));
   if (tab === 'activity') { renderFullActivityFeed(); populateAgentFilter(); }
-  if (tab === 'rules') { renderRulesPermissions(); }
+  if (tab === 'rules') { renderRulesPermissions(); renderAgentDatabase(); }
   if (tab === 'reports') { updateReportStats(); renderReportsTable(); }
 }
 

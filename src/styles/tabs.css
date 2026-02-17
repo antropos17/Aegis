@@ -122,3 +122,103 @@
 .perm-card-desc { font-size: 9px; color: var(--text-muted); display: block; }
 #perm-reset-defaults { margin-top: 10px; color: var(--text-dim); font-size: 9px; }
 #perm-reset-defaults:hover { color: var(--red); }
+
+/* ── Agent Database Manager (rules tab) ── */
+.agentdb-divider {
+  height: 1px; margin: 24px 0 20px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+}
+.agentdb-section { margin-top: 0; }
+.agentdb-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px; flex-wrap: wrap; gap: 8px;
+}
+.agentdb-header h2 { margin-bottom: 0; }
+.agentdb-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.agentdb-filters {
+  display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center;
+}
+.agentdb-search-input { flex: 1; min-width: 160px; }
+.agentdb-select {
+  font-family: 'DM Sans', sans-serif; font-size: 11px; padding: 6px 12px;
+  border: none; border-radius: 12px; background: var(--bg-card); color: var(--text-mid);
+  box-shadow: inset 3px 3px 6px var(--shadow-dark-subtle), inset -3px -3px 6px var(--shadow-light-subtle);
+  outline: none; cursor: pointer; appearance: auto;
+}
+.agentdb-form-select { width: 100%; }
+.agentdb-table-wrap {
+  background: var(--bg-inset); border-radius: 14px; padding: 4px;
+  max-height: 420px; overflow-y: auto;
+  box-shadow: inset 3px 3px 6px var(--shadow-dark-subtle), inset -3px -3px 6px var(--shadow-light-subtle);
+}
+.agentdb-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.agentdb-table thead { position: sticky; top: 0; z-index: 1; }
+.agentdb-table th {
+  text-align: left; padding: 8px 10px;
+  font-family: 'Plus Jakarta Sans', sans-serif; font-size: 9px; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted);
+  background: var(--bg-inset); border-bottom: 1px solid var(--border);
+}
+.agentdb-th-icon { width: 32px; }
+.agentdb-table td {
+  padding: 6px 10px; color: var(--text-mid); font-family: 'DM Sans', sans-serif;
+  vertical-align: middle;
+}
+.agentdb-table tr:nth-child(even) { background: rgba(140, 155, 175, 0.06); }
+.agentdb-table tr:hover td { background: rgba(140, 155, 175, 0.12); }
+.agentdb-table tr.agentdb-detected td { background: rgba(67, 181, 129, 0.08); }
+.agentdb-table tr.agentdb-detected:hover td { background: rgba(67, 181, 129, 0.15); }
+.agentdb-icon-cell { font-size: 16px; text-align: center; }
+.agentdb-name { font-weight: 600; color: var(--text); }
+.agentdb-name-custom {
+  font-size: 8px; font-weight: 700; letter-spacing: 0.5px;
+  color: var(--accent); background: rgba(78, 205, 196, 0.12);
+  padding: 1px 5px; border-radius: 6px; margin-left: 4px; vertical-align: middle;
+}
+.agentdb-category {
+  font-size: 9px; font-weight: 600; letter-spacing: 0.5px;
+  padding: 2px 8px; border-radius: 8px; white-space: nowrap;
+  background: rgba(140, 155, 175, 0.1); color: var(--text-dim);
+}
+.agentdb-trust {
+  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 600;
+}
+.agentdb-trust.trust-high { color: var(--green); }
+.agentdb-trust.trust-mid  { color: var(--orange); }
+.agentdb-trust.trust-low  { color: var(--red); }
+.agentdb-risk {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.5px;
+  padding: 2px 8px; border-radius: 8px; text-transform: uppercase; white-space: nowrap;
+}
+.agentdb-risk.risk-low    { color: var(--green); background: rgba(56, 161, 105, 0.1); }
+.agentdb-risk.risk-medium { color: var(--orange); background: rgba(237, 137, 54, 0.1); }
+.agentdb-risk.risk-high   { color: var(--red); background: rgba(229, 62, 62, 0.1); }
+.agentdb-status {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.5px;
+  padding: 2px 8px; border-radius: 8px; white-space: nowrap;
+}
+.agentdb-status.status-detected {
+  color: #fff; background: var(--green);
+  box-shadow: 0 0 6px rgba(56, 161, 105, 0.3);
+}
+.agentdb-status.status-not-detected { color: var(--text-muted); background: rgba(140, 155, 175, 0.1); }
+.agentdb-actions { display: flex; gap: 4px; }
+.agentdb-btn-edit, .agentdb-btn-delete {
+  font-family: 'DM Sans', sans-serif; font-size: 8px; font-weight: 700;
+  letter-spacing: 0.5px; padding: 3px 8px; border: none; border-radius: 8px;
+  cursor: pointer; transition: all 200ms ease-out; background: var(--bg-card);
+  box-shadow: 2px 2px 4px var(--shadow-dark), -2px -2px 4px var(--shadow-light-subtle);
+}
+.agentdb-btn-edit { color: var(--accent); }
+.agentdb-btn-edit:hover { transform: translateY(-1px); box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); }
+.agentdb-btn-delete { color: var(--red); }
+.agentdb-btn-delete:hover { transform: translateY(-1px); background: rgba(220, 53, 69, 0.06); box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); }
+.agentdb-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 4px 0; margin-top: 8px;
+}
+.agentdb-count {
+  font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-muted);
+}
+.agentdb-form-row { display: flex; gap: 12px; }
+.agentdb-form-row .settings-group { margin-bottom: 12px; }

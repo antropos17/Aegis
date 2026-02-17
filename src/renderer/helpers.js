@@ -125,6 +125,17 @@ function isConfigFile(filePath) {
 }
 
 /**
+ * Check whether a file path is inside an AI agent configuration directory.
+ * Mirrors AGENT_CONFIG_PATHS from constants.js for renderer use.
+ * @param {string} filePath - File path to test.
+ * @returns {boolean} True if the path is in a known agent config directory.
+ * @since 0.2.0
+ */
+function isAgentConfigPath(filePath) {
+  return /[\\\/](?:\.claude[\\\/]|\.claude\.json$|\.copilot[\\\/]|\.cursor[\\\/]|\.cursorrules$|\.codeium[\\\/]|\.continue[\\\/]|\.tabnine[\\\/]|\.openclaw[\\\/]|\.supermaven[\\\/]|\.codex[\\\/]|\.warp[\\\/]|\.gemini[\\\/]|\.aish[\\\/]|\.mentat[\\\/]|\.tabby-client[\\\/]|\.metagpt[\\\/]|\.composio[\\\/]|\.semgrep[\\\/]|\.aider\.conf\.yml$|\.config[\\\/](?:TabNine|github-copilot|aider|JetBrains|goose|shell_gpt|Claude|zed|configstore)[\\\/])/i.test(filePath);
+}
+
+/**
  * Get an emoji icon for a file based on its extension or path.
  * @param {string} filePath - File path to inspect.
  * @returns {string} Emoji character representing the file type.
@@ -145,6 +156,7 @@ function getFileTypeIcon(filePath) {
   if (/[\\\/]\.ssh[\\\/]/i.test(filePath)) return '\uD83D\uDD11';
   if (/[\\\/]\.aws[\\\/]/i.test(filePath)) return '\u2601';
   if (/[\\\/]\.env/i.test(filePath)) return '\uD83D\uDD12';
+  if (isAgentConfigPath(filePath)) return '\uD83D\uDD10';
   return map[ext] || '\uD83D\uDCC1';
 }
 

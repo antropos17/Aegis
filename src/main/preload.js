@@ -50,4 +50,11 @@ contextBridge.exposeInMainWorld('aegis', {
   getAgentDatabase: () => ipcRenderer.invoke('get-agent-database'),
   captureScreenshot: () => ipcRenderer.invoke('capture-screenshot'),
   getProjectDir: () => ipcRenderer.invoke('get-project-dir'),
+  killProcess: (pid) => ipcRenderer.invoke('kill-process', pid),
+  suspendProcess: (pid) => ipcRenderer.invoke('suspend-process', pid),
+  resumeProcess: (pid) => ipcRenderer.invoke('resume-process', pid),
+  getCustomAgents: () => ipcRenderer.invoke('get-custom-agents'),
+  saveCustomAgents: (agents) => ipcRenderer.invoke('save-custom-agents', agents),
+  exportAgentDatabase: () => ipcRenderer.invoke('export-agent-database'),
+  importAgentDatabase: () => ipcRenderer.invoke('import-agent-database'),
 });

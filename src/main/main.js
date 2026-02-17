@@ -14,6 +14,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { execFile } = require('child_process');
 const cfg = require('./config-manager');
 const bl  = require('./baselines');
 const sc  = require('./process-scanner');
@@ -35,7 +36,9 @@ function getResourceUsage() { const m = process.memoryUsage(), c = process.cpuUs
 /** @returns {Object} @since v0.1.0 */
 function getStats() {
   const l = sc.activityLog, ts = l.filter(e => e.sensitive).length;
-  return { totalFiles: l.length, totalSensitive: ts, aiSensitive: l.filter(e => e.sensitive && e.category === 'ai').length, uptimeMs: Date.now() - sc.monitoringStarted, monitoringStarted: sc.monitoringStarted, peakAgents: sc.peakAgents, currentAgents: latestAgents.length, aiAgentCount: latestAiAgents.length, otherAgentCount: latestOtherAgents.length, uniqueAgents: Array.from(sc.uniqueAgentNames) };
+  const uniqueAi = new Set(latestAiAgents.map(a => a.agent)).size;
+  const uniqueOther = new Set(latestOtherAgents.map(a => a.agent)).size;
+  return { totalFiles: l.length, totalSensitive: ts, aiSensitive: l.filter(e => e.sensitive && e.category === 'ai').length, uptimeMs: Date.now() - sc.monitoringStarted, monitoringStarted: sc.monitoringStarted, peakAgents: sc.peakAgents, currentAgents: latestAgents.length, aiAgentCount: uniqueAi, otherAgentCount: uniqueOther, uniqueAgents: Array.from(sc.uniqueAgentNames) };
 }
 
 /** @returns {void} @since v0.1.0 */
@@ -68,7 +71,7 @@ function startScanIntervals() {
   scanInterval = setInterval(async () => {
     try {
       const r = await sc.scanProcesses(); latestAgents = r.agents; latestAiAgents = latestAgents.filter(a => a.category === 'ai'); latestOtherAgents = latestAgents.filter(a => a.category === 'other');
-      fw.pruneKnownHandles(latestAgents); await sc.enrichWithParentChains(latestAgents);
+      fw.pruneKnownHandles(latestAgents); await sc.enrichWithParentChains(latestAgents); sc.annotateHostApps(latestAgents);
       sendToWin('scan-results', latestAgents); sendToWin('stats-update', getStats()); sendToWin('resource-usage', getResourceUsage()); ti.updateTrayIcon();
       const d = bl.checkDeviations(); if (d.length > 0) sendToWin('baseline-warnings', d);
       if (r.changed) doNetScan();
@@ -91,7 +94,7 @@ ti.init({ tray: null, currentTrayColor: 'green', lastNotificationTime: 0, getAct
 
 /** @returns {void} @since v0.1.0 */
 function registerIpc() {
-  ipcMain.handle('scan-processes', async () => { const r = await sc.scanProcesses(); await sc.enrichWithParentChains(r.agents); return r.agents; });
+  ipcMain.handle('scan-processes', async () => { const r = await sc.scanProcesses(); await sc.enrichWithParentChains(r.agents); sc.annotateHostApps(r.agents); return r.agents; });
   ipcMain.handle('get-stats', () => getStats());
   ipcMain.handle('get-resource-usage', () => getResourceUsage());
   ipcMain.handle('export-log', () => exp.exportLog());
@@ -109,6 +112,56 @@ function registerIpc() {
   ipcMain.handle('capture-screenshot', async () => { if (!mainWindow) return { success: false }; const img = await mainWindow.webContents.capturePage(); const p = path.join(__dirname, '..', '..', 'screenshot_electron.png'); fs.writeFileSync(p, img.toPNG()); return { success: true, path: p, width: img.getSize().width, height: img.getSize().height }; });
   ipcMain.handle('get-agent-database', () => sc.agentDb);
   ipcMain.handle('get-project-dir', () => path.join(__dirname, '..', '..'));
+  ipcMain.handle('get-custom-agents', () => cfg.getCustomAgents());
+  ipcMain.handle('save-custom-agents', (_e, agents) => { cfg.saveCustomAgents(agents); return { success: true }; });
+  ipcMain.handle('export-agent-database', async () => {
+    const { dialog } = require('electron');
+    const merged = { ...sc.agentDb, customAgents: cfg.getCustomAgents() };
+    const { filePath } = await dialog.showSaveDialog(mainWindow, { title: 'Export Agent Database', defaultPath: 'aegis-agents.json', filters: [{ name: 'JSON', extensions: ['json'] }] });
+    if (!filePath) return { success: false };
+    fs.writeFileSync(filePath, JSON.stringify(merged, null, 2));
+    return { success: true, path: filePath };
+  });
+  ipcMain.handle('import-agent-database', async () => {
+    const { dialog } = require('electron');
+    const { filePaths } = await dialog.showOpenDialog(mainWindow, { title: 'Import Agent Database', filters: [{ name: 'JSON', extensions: ['json'] }], properties: ['openFile'] });
+    if (!filePaths || filePaths.length === 0) return { success: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'));
+      const imported = raw.customAgents || raw.agents || [];
+      return { success: true, agents: imported };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  // ── Process control IPC handlers ──
+  ipcMain.handle('kill-process', (_e, pid) => {
+    return new Promise((resolve) => {
+      execFile('taskkill', ['/PID', String(pid), '/F'], (err) => {
+        if (err) resolve({ success: false, error: err.message });
+        else resolve({ success: true });
+      });
+    });
+  });
+
+  ipcMain.handle('suspend-process', (_e, pid) => {
+    const psScript = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class Ntdll{[DllImport("ntdll.dll")]public static extern int NtSuspendProcess(IntPtr h);}' -PassThru | Out-Null;$h=(Get-Process -Id ${Number(pid)}).Handle;[Ntdll]::NtSuspendProcess($h)`;
+    return new Promise((resolve) => {
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psScript], { timeout: 5000 }, (err) => {
+        if (err) resolve({ success: false, error: err.message });
+        else resolve({ success: true });
+      });
+    });
+  });
+
+  ipcMain.handle('resume-process', (_e, pid) => {
+    const psScript = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class Ntdll2{[DllImport("ntdll.dll")]public static extern int NtResumeProcess(IntPtr h);}' -PassThru | Out-Null;$h=(Get-Process -Id ${Number(pid)}).Handle;[Ntdll2]::NtResumeProcess($h)`;
+    return new Promise((resolve) => {
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psScript], { timeout: 5000 }, (err) => {
+        if (err) resolve({ success: false, error: err.message });
+        else resolve({ success: true });
+      });
+    });
+  });
 }
 
 // ── Single instance lock ──
@@ -119,7 +172,7 @@ if (!gotLock) { app.quit(); } else { app.on('second-instance', () => { if (mainW
 app.whenReady().then(() => {
   if (!gotLock) return;
   cfg.loadSettings(); bl.loadBaselines(); createWindow(); ti.createTray(); registerIpc(); fw.setupFileWatchers();
-  setTimeout(async () => { try { const r = await sc.scanProcesses(); latestAgents = r.agents; latestAiAgents = latestAgents.filter(a => a.category === 'ai'); latestOtherAgents = latestAgents.filter(a => a.category === 'other'); await sc.enrichWithParentChains(latestAgents); sendToWin('scan-results', latestAgents); sendToWin('stats-update', getStats()); sendToWin('resource-usage', getResourceUsage()); ti.updateTrayIcon(); } catch (_) {} }, 3000);
+  setTimeout(async () => { try { const r = await sc.scanProcesses(); latestAgents = r.agents; latestAiAgents = latestAgents.filter(a => a.category === 'ai'); latestOtherAgents = latestAgents.filter(a => a.category === 'other'); await sc.enrichWithParentChains(latestAgents); sc.annotateHostApps(latestAgents); sendToWin('scan-results', latestAgents); sendToWin('stats-update', getStats()); sendToWin('resource-usage', getResourceUsage()); ti.updateTrayIcon(); } catch (_) {} }, 3000);
   setTimeout(async () => { try { if (latestAgents.length > 0) { const ev = await fw.scanAllFileHandles(latestAgents); if (ev.length > 0) { sendToWin('file-access', ev); ti.notifySensitive(ev.filter(e => e.sensitive && e.category === 'ai')); } sendToWin('stats-update', getStats()); ti.updateTrayIcon(); } } catch (_) {} }, 5000);
   setTimeout(() => { doNetScan(); if (!monitoringPaused) startScanIntervals(); }, 8000);
 });

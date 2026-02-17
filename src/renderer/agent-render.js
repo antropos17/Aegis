@@ -2,12 +2,48 @@
 
 // ═══ AGENT LIST RENDERING + EVENT HANDLERS ═══
 
+/**
+ * Group a flat PID-per-entry array by agent name.
+ * @param {Object[]} agents - Flat array with one entry per PID.
+ * @returns {Object[]} Grouped array with pids[] on each entry.
+ * @since v0.2.0
+ */
+function groupAgents(agents) {
+  const map = new Map();
+  for (const a of agents) {
+    if (!map.has(a.agent)) {
+      map.set(a.agent, {
+        agent: a.agent,
+        displayLabel: a.displayLabel || a.agent,
+        process: a.process,
+        pid: a.pid,
+        status: a.status,
+        category: a.category,
+        parentChain: a.parentChain || [],
+        pids: [{ pid: a.pid, process: a.process }],
+      });
+    } else {
+      const g = map.get(a.agent);
+      g.pids.push({ pid: a.pid, process: a.process });
+      // Prefer entry with a parent chain as the primary
+      if (a.parentChain && a.parentChain.length > 0 && g.parentChain.length === 0) {
+        g.parentChain = a.parentChain;
+        g.pid = a.pid;
+        g.process = a.process;
+      }
+      if (a.displayLabel) g.displayLabel = a.displayLabel;
+    }
+  }
+  return Array.from(map.values());
+}
+
 /** Render all detected agents, attach handlers, update radar glow. @param {Object[]} agents */
 function renderAgents(agents) {
   lastScanEl.textContent = `Last scan: ${formatTime(new Date())}`;
   updateRadarAgents(agents);
-  const aiAgents = agents.filter(a => a.category === 'ai');
-  const otherAgents = agents.filter(a => a.category === 'other');
+  if (typeof updateDetectedForDb === 'function') updateDetectedForDb(agents);
+
+  // Per-PID tracking for enter/exit detection (flat array)
   const currentPidMap = new Map();
   for (const a of agents) currentPidMap.set(a.pid, { agent: a.agent, category: a.category });
   let enteringPids = new Set();
@@ -23,21 +59,41 @@ function renderAgents(agents) {
     if (!agentFirstSeen[a.agent]) agentFirstSeen[a.agent] = new Date();
     if (!agentActivityBins[a.agent]) agentActivityBins[a.agent] = new Array(30).fill(0);
   }
+
+  // Group agents by name for rendering
+  const aiFlat = agents.filter(a => a.category === 'ai');
+  const otherFlat = agents.filter(a => a.category === 'other');
+  const aiGrouped = groupAgents(aiFlat);
+  const otherGrouped = groupAgents(otherFlat);
+
+  // Populate agentPidGroups for tab renderers
+  Object.keys(agentPidGroups).forEach(k => delete agentPidGroups[k]);
+  for (const g of [...aiGrouped, ...otherGrouped]) {
+    agentPidGroups[g.agent] = g.pids;
+  }
+
+  // Sort AI agents by risk score descending
+  aiGrouped.sort((a, b) => {
+    const ra = getRiskScore(a.agent, aiFileCounts, aiSensitiveCounts, aiSshAwsCounts, aiConfigCounts);
+    const rb = getRiskScore(b.agent, aiFileCounts, aiSensitiveCounts, aiSshAwsCounts, aiConfigCounts);
+    return rb - ra;
+  });
+
   highestRiskScore = 0;
-  if (aiAgents.length === 0) {
+  if (aiGrouped.length === 0) {
     agentsList.innerHTML = '<div class="empty-state">\uD83D\uDEE1 No AI agents detected. Shield is clear.</div>';
   } else {
-    agentsList.innerHTML = aiAgents.map(a => {
+    agentsList.innerHTML = aiGrouped.map(a => {
       const rs = getRiskScore(a.agent, aiFileCounts, aiSensitiveCounts, aiSshAwsCounts, aiConfigCounts);
       if (rs > highestRiskScore) highestRiskScore = rs;
       return renderAgentCard(a, aiFileCounts, aiSensitiveCounts, aiSshAwsCounts, aiConfigCounts, 'agent-card');
     }).join('');
   }
   updateRadarGlow(highestRiskScore);
-  if (otherAgents.length === 0) {
+  if (otherGrouped.length === 0) {
     otherAgentsList.innerHTML = '<div class="empty-state">No other agent processes detected</div>';
   } else {
-    otherAgentsList.innerHTML = otherAgents.map(a =>
+    otherAgentsList.innerHTML = otherGrouped.map(a =>
       renderAgentCard(a, otherFileCounts, otherSensitiveCounts, otherSshAwsCounts, otherConfigCounts, 'other-agent-card')
     ).join('');
   }
@@ -97,8 +153,8 @@ function renderAgents(agents) {
       loadTabContent(tabBtn.dataset.agent);
     });
   });
-  otherAgentCountEl.textContent = otherAgents.length;
-  otherPanel.style.display = (otherAgents.length === 0 && !otherFeedHasEntries) ? 'none' : '';
+  otherAgentCountEl.textContent = otherGrouped.length;
+  otherPanel.style.display = (otherGrouped.length === 0 && !otherFeedHasEntries) ? 'none' : '';
   document.querySelectorAll('.agent-sparkline').forEach(canvas => {
     const bins = agentActivityBins[canvas.dataset.sparklineAgent];
     if (bins) {

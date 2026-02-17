@@ -31,6 +31,7 @@ const DEFAULT_SETTINGS = {
   darkMode: false,
   agentPermissions: {},
   seenAgents: [],
+  customAgents: [],
 };
 
 let settings = { ...DEFAULT_SETTINGS };
@@ -150,6 +151,26 @@ function getSettings() { return settings; }
 /** @returns {Array} Current custom sensitive rules */
 function getCustomSensitiveRules() { return customSensitiveRules; }
 
+/**
+ * Return the user's custom agents array.
+ * @returns {Array} Custom agent objects
+ * @since v0.2.0
+ */
+function getCustomAgents() { return settings.customAgents || []; }
+
+/**
+ * Replace the custom agents array and persist.
+ * @param {Array} agents - Full custom agents array
+ * @returns {void}
+ * @since v0.2.0
+ */
+function saveCustomAgents(agents) {
+  settings.customAgents = agents;
+  try {
+    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+  } catch (_) {}
+}
+
 module.exports = {
   init,
   loadSettings,
@@ -160,5 +181,7 @@ module.exports = {
   trackSeenAgent,
   getSettings,
   getCustomSensitiveRules,
+  getCustomAgents,
+  saveCustomAgents,
   SETTINGS_PATH,
 };

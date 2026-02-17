@@ -47,6 +47,11 @@
 }
 
 .agent-process { color: var(--text-dim); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-process-count {
+  font-size: 9px; font-weight: 700; color: var(--accent); letter-spacing: 0.5px;
+  background: rgba(78, 205, 196, 0.12); padding: 1px 7px; border-radius: 16px;
+  white-space: nowrap; flex-shrink: 0;
+}
 .agent-pid { font-size: 11px; color: var(--accent); white-space: nowrap; }
 
 .agent-status-pill {

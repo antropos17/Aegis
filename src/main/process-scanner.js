@@ -17,12 +17,15 @@
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
-const { IGNORE_PROCESS_PATTERNS } = require('../shared/constants');
+const { IGNORE_PROCESS_PATTERNS, EDITOR_HOSTS } = require('../shared/constants');
 
 const agentDb = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8')
 );
 const AI_AGENTS = agentDb.agents.map(a => ({ name: a.displayName, patterns: a.names }));
+
+/** Set of editor host process names (lowercased) for fast lookup */
+const EDITOR_HOST_SET = new Set(EDITOR_HOSTS.map(h => h.toLowerCase()));
 
 let lastProcessPidSet = '';
 const parentChainCache = new Map();
@@ -118,8 +121,10 @@ function getParentChains(pids) {
 
 /**
  * Scan running processes via tasklist and match against AI_AGENTS.
+ * Editor hosts (VS Code etc.) are skipped themselves, but their child
+ * processes are scanned — matched children get parentEditor set.
  * @returns {Promise<{agents: Array, changed: boolean}>}
- * @since v0.1.0
+ * @since v0.2.0
  */
 function scanProcesses() {
   return new Promise((resolve, reject) => {
@@ -132,16 +137,20 @@ function scanProcesses() {
         if (!match) continue;
         const procName = match[1].toLowerCase();
         const pid = parseInt(match[2], 10);
-        let matched = false;
+        // Skip hardware/driver noise (substring match)
+        if (IGNORE_PROCESS_PATTERNS.some(p => procName.includes(p))) {
+          continue;
+        }
+        // Skip editor hosts — they are NOT agents (handled after parent-chain enrichment)
+        if (EDITOR_HOST_SET.has(procName)) {
+          continue;
+        }
+        // Exact match only: process name must equal a known agent pattern
         for (const agent of AI_AGENTS) {
-          if (agent.patterns.some(p => procName.includes(p))) {
+          if (agent.patterns.some(p => procName === p.toLowerCase())) {
             detected.push({ agent: agent.name, process: match[1], pid, status: 'running', category: 'ai' });
-            matched = true;
             break;
           }
-        }
-        if (!matched && IGNORE_PROCESS_PATTERNS.some(p => procName.includes(p))) {
-          continue;
         }
       }
       const seen = new Set();
@@ -178,6 +187,52 @@ async function enrichWithParentChains(agents) {
   }
 }
 
+/** Map editor host exe names to human-readable labels */
+const EDITOR_LABELS = {
+  'code.exe': 'VS Code',
+  'code': 'VS Code',
+  'code - insiders.exe': 'VS Code Insiders',
+  'idea64.exe': 'IntelliJ IDEA',
+  'idea': 'IntelliJ IDEA',
+  'webstorm64.exe': 'WebStorm',
+  'webstorm': 'WebStorm',
+  'pycharm64.exe': 'PyCharm',
+  'pycharm': 'PyCharm',
+  'goland64.exe': 'GoLand',
+  'goland': 'GoLand',
+  'rider64.exe': 'Rider',
+  'rider': 'Rider',
+  'phpstorm64.exe': 'PhpStorm',
+  'phpstorm': 'PhpStorm',
+  'rubymine64.exe': 'RubyMine',
+  'rubymine': 'RubyMine',
+  'clion64.exe': 'CLion',
+  'clion': 'CLion',
+  'datagrip64.exe': 'DataGrip',
+  'datagrip': 'DataGrip',
+};
+
+/**
+ * Annotate agents whose parentChain includes an editor host.
+ * Sets displayLabel = "AgentName (via EditorName)" and parentEditor field.
+ * @param {Array} agents
+ * @returns {void}
+ * @since v0.2.0
+ */
+function annotateHostApps(agents) {
+  for (const a of agents) {
+    if (!a.parentChain || a.parentChain.length === 0) continue;
+    for (const p of a.parentChain) {
+      const label = EDITOR_LABELS[p.toLowerCase()];
+      if (label) {
+        a.parentEditor = label;
+        a.displayLabel = `${a.agent} (via ${label})`;
+        break;
+      }
+    }
+  }
+}
+
 module.exports = {
   AI_AGENTS,
   agentDb,
@@ -185,6 +240,7 @@ module.exports = {
   scanProcesses,
   getParentChains,
   enrichWithParentChains,
+  annotateHostApps,
   knownHandles,
   activityLog,
   monitoringStarted,

@@ -6,7 +6,8 @@
 function createFeedEntry(ev) {
   const entry = document.createElement('div');
   const isDenied = ev._denied;
-  entry.className = isDenied ? 'feed-entry denied' : ev.sensitive ? 'feed-entry sensitive' : 'feed-entry';
+  const isConfigAccess = !isDenied && ev.sensitive && ev.reason && ev.reason.startsWith('AI agent config');
+  entry.className = isDenied ? 'feed-entry denied' : isConfigAccess ? 'feed-entry config-access' : ev.sensitive ? 'feed-entry sensitive' : 'feed-entry';
   if (selectedAgent && ev.agent !== selectedAgent) entry.classList.add('filter-hidden');
   const timeStr = formatTime(new Date(ev.timestamp));
   const sevClass = isDenied ? 'sev-sensitive' : getSeverityClass(ev);
@@ -18,6 +19,7 @@ function createFeedEntry(ev) {
   html += `<span class="feed-action action-${isDenied ? 'deleted' : action}">${action}:</span>`;
   html += `<span class="feed-file" title="${escapeHtml(ev.file)}">${escapeHtml(shortenPath(ev.file))}</span>`;
   if (isDenied) html += `<span class="denied-tag">BLOCKED</span>`;
+  else if (isConfigAccess) html += `<span class="config-access-tag">&#128272; CONFIG ACCESS</span>`;
   else if (ev.sensitive) html += `<span class="sensitive-tag">&#9888; ${escapeHtml(ev.reason)}</span>`;
   entry.innerHTML = html;
   return entry;

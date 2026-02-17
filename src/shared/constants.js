@@ -19,6 +19,21 @@ const IGNORE_PROCESS_PATTERNS = [
   'nahimic', 'msi', 'gigabyte',
 ];
 
+/** @type {string[]} Editor/IDE host processes — not agents, but scan their children for AI extensions */
+const EDITOR_HOSTS = [
+  'code.exe', 'code',           // VS Code
+  'code - insiders.exe',        // VS Code Insiders
+  'idea64.exe', 'idea',         // IntelliJ IDEA
+  'webstorm64.exe', 'webstorm', // WebStorm
+  'pycharm64.exe', 'pycharm',   // PyCharm
+  'goland64.exe', 'goland',     // GoLand
+  'rider64.exe', 'rider',       // Rider
+  'phpstorm64.exe', 'phpstorm', // PhpStorm
+  'rubymine64.exe', 'rubymine', // RubyMine
+  'clion64.exe', 'clion',       // CLion
+  'datagrip64.exe', 'datagrip', // DataGrip
+];
+
 /** @type {RegExp[]} File-path patterns treated as system noise and silently skipped */
 const IGNORE_PATTERNS = [
   /^C:\\Windows\\/i,
@@ -32,13 +47,84 @@ const IGNORE_PATTERNS = [
 ];
 
 /**
+ * @type {string[]} AI agent config directories relative to home dir.
+ * Monitored as critical targets — infostealers target these for API keys,
+ * session tokens, and MCP server configs (ref: Hudson Rock, Feb 2026).
+ * @since 0.2.0
+ */
+const AGENT_CONFIG_PATHS = [
+  // Explicit high-priority targets
+  '.claude',
+  '.cursor',
+  '.continue',
+  '.copilot',
+  '.codeium',
+  '.tabnine',
+  '.openclaw',
+  '.aws',                     // Already monitored as credential dir
+  '.config/github-copilot',
+  '.config/aider',
+  // Pulled from agent-database.json configPaths
+  '.config/TabNine',
+  '.supermaven',
+  '.config/JetBrains',
+  '.codex',
+  '.config/goose',
+  '.warp',
+  '.gemini',
+  '.config/shell_gpt',
+  '.aish',
+  '.mentat',
+  '.tabby-client',
+  '.metagpt',
+  '.config/Claude',
+  '.composio',
+  '.semgrep',
+  '.config/zed',
+  '.config/configstore',
+];
+
+/**
  * @typedef {Object} SensitiveRule
  * @property {RegExp} pattern - Regex tested against file paths
  * @property {string} reason  - Human-readable classification label
+ * @property {string} [category] - Rule category (e.g. 'agent-config')
+ * @property {string} [severity] - Severity level (e.g. 'critical')
  */
 
 /** @type {SensitiveRule[]} Rules that classify a file path as sensitive */
 const SENSITIVE_RULES = [
+  // ── AI Agent Config Files — critical targets (Hudson Rock, Feb 2026) ──
+  { pattern: /[\\\/]\.claude[\\\/]/i, reason: 'AI agent config — Claude Code', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.claude\.json$/i, reason: 'AI agent config — Claude Code', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.copilot[\\\/]/i, reason: 'AI agent config — GitHub Copilot', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.cursor[\\\/]/i, reason: 'AI agent config — Cursor', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.cursorrules$/i, reason: 'AI agent config — Cursor', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.codeium[\\\/]/i, reason: 'AI agent config — Codeium', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.continue[\\\/]/i, reason: 'AI agent config — Continue', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.tabnine[\\\/]/i, reason: 'AI agent config — Tabnine', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.config[\\\/]TabNine[\\\/]/i, reason: 'AI agent config — Tabnine', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.config[\\\/]github-copilot[\\\/]/i, reason: 'AI agent config — GitHub Copilot', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.config[\\\/]aider[\\\/]/i, reason: 'AI agent config — Aider', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.aider\.conf\.yml$/i, reason: 'AI agent config — Aider', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.openclaw[\\\/]/i, reason: 'AI agent config — OpenClaw', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.supermaven[\\\/]/i, reason: 'AI agent config — Supermaven', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.config[\\\/]JetBrains[\\\/]/i, reason: 'AI agent config — JetBrains AI', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.codex[\\\/]/i, reason: 'AI agent config — OpenAI Codex', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.config[\\\/]goose[\\\/]/i, reason: 'AI agent config — Goose', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.warp[\\\/]/i, reason: 'AI agent config — Warp', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.gemini[\\\/]/i, reason: 'AI agent config — Gemini', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.config[\\\/]shell_gpt[\\\/]/i, reason: 'AI agent config — ShellGPT', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.aish[\\\/]/i, reason: 'AI agent config — AIsh', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.mentat[\\\/]/i, reason: 'AI agent config — Mentat', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.tabby-client[\\\/]/i, reason: 'AI agent config — Tabby', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.metagpt[\\\/]/i, reason: 'AI agent config — MetaGPT', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.config[\\\/]Claude[\\\/]/i, reason: 'AI agent config — Claude Desktop', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.composio[\\\/]/i, reason: 'AI agent config — Composio', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.semgrep[\\\/]/i, reason: 'AI agent config — Semgrep', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.config[\\\/]zed[\\\/]/i, reason: 'AI agent config — Zed', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.config[\\\/]configstore[\\\/]/i, reason: 'AI agent config — Config Store', category: 'agent-config', severity: 'critical' },
+  // ── Environment variables ──
   { pattern: /[\\\/]\.env$/i,              reason: 'Environment variables' },
   { pattern: /[\\\/]\.env\.local$/i,       reason: 'Environment variables' },
   { pattern: /[\\\/]\.env\.production$/i,  reason: 'Environment variables' },
@@ -85,7 +171,9 @@ const PERMISSION_CATEGORIES = ['filesystem', 'sensitive', 'network', 'terminal',
 
 module.exports = {
   IGNORE_PROCESS_PATTERNS,
+  EDITOR_HOSTS,
   IGNORE_PATTERNS,
+  AGENT_CONFIG_PATHS,
   SENSITIVE_RULES,
   PERMISSION_CATEGORIES,
 };
