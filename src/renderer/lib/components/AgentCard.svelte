@@ -1,15 +1,45 @@
 <script>
-  /** @type {{ agent: { name: string, pid: number, riskScore: number, trustGrade: string, parentChain: string, sessionStart: number } }} */
+  /** @type {{ agent: { name: string, pid: number, riskScore: number, trustGrade: string, parentChain: string, sessionStart: number, fileCount: number, networkCount: number } }} */
   let { agent } = $props();
+
+  let expanded = $state(false);
 
   let gradeColor = $derived(
     ['A+', 'A', 'B'].includes(agent.trustGrade) ? 'var(--md-sys-color-tertiary)'
     : agent.trustGrade === 'C' ? 'var(--md-sys-color-secondary)'
     : 'var(--md-sys-color-error)'
   );
+
+  let sessionDuration = $derived(() => {
+    if (!agent.sessionStart) return null;
+    const ms = Date.now() - agent.sessionStart;
+    const mins = Math.floor(ms / 60000);
+    const hrs = Math.floor(mins / 60);
+    const rem = mins % 60;
+    return hrs > 0 ? `${hrs}h ${rem}m` : `${rem}m`;
+  });
+
+  function toggle() { expanded = !expanded; }
+
+  async function kill(e) {
+    e.stopPropagation();
+    if (window.aegis) await window.aegis.killProcess(agent.pid);
+  }
+
+  async function suspend(e) {
+    e.stopPropagation();
+    if (window.aegis) await window.aegis.suspendProcess(agent.pid);
+  }
+
+  async function resume(e) {
+    e.stopPropagation();
+    if (window.aegis) await window.aegis.resumeProcess(agent.pid);
+  }
 </script>
 
-<article class="agent-card">
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<article class="agent-card" class:expanded onclick={toggle}>
   <div class="agent-header">
     <div class="agent-info">
       <span class="agent-name">{agent.name}</span>
@@ -19,10 +49,6 @@
       {agent.trustGrade}
     </span>
   </div>
-
-  {#if agent.parentChain}
-    <span class="parent-chain">{agent.parentChain}</span>
-  {/if}
 
   <div class="trust-bar-row">
     <span class="trust-label">Risk</span>
@@ -35,6 +61,42 @@
     </div>
     <span class="risk-value">{agent.riskScore}</span>
   </div>
+
+  <div class="expand-body">
+    {#if agent.parentChain}
+      <div class="detail-row">
+        <span class="detail-label">Parent</span>
+        <span class="detail-value">{agent.parentChain}</span>
+      </div>
+    {/if}
+
+    {#if sessionDuration()}
+      <div class="detail-row">
+        <span class="detail-label">Session</span>
+        <span class="detail-value">{sessionDuration()}</span>
+      </div>
+    {/if}
+
+    {#if agent.fileCount != null}
+      <div class="detail-row">
+        <span class="detail-label">Files</span>
+        <span class="detail-value">{agent.fileCount}</span>
+      </div>
+    {/if}
+
+    {#if agent.networkCount != null}
+      <div class="detail-row">
+        <span class="detail-label">Network</span>
+        <span class="detail-value">{agent.networkCount}</span>
+      </div>
+    {/if}
+
+    <div class="actions">
+      <button class="action-btn kill" onclick={kill}>Kill</button>
+      <button class="action-btn suspend" onclick={suspend}>Suspend</button>
+      <button class="action-btn resume" onclick={resume}>Resume</button>
+    </div>
+  </div>
 </article>
 
 <style>
@@ -46,6 +108,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    cursor: pointer;
     transition: border-color var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
   }
 
@@ -90,12 +153,6 @@
     letter-spacing: 0.5px;
   }
 
-  .parent-chain {
-    font: var(--md-sys-typescale-label-medium);
-    color: var(--md-sys-color-on-surface-variant);
-    font-style: italic;
-  }
-
   .trust-bar-row {
     display: flex;
     align-items: center;
@@ -130,5 +187,79 @@
     width: 24px;
     text-align: right;
     flex-shrink: 0;
+  }
+
+  /* ── Expand / collapse ── */
+  .expand-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition:
+      max-height var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-standard),
+      opacity var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-standard);
+  }
+
+  .agent-card.expanded .expand-body {
+    max-height: 200px;
+    opacity: 1;
+  }
+
+  .detail-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .detail-label {
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    flex-shrink: 0;
+    width: 52px;
+  }
+
+  .detail-value {
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ── Action buttons ── */
+  .actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .action-btn {
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 600;
+    padding: 4px 12px;
+    border: none;
+    border-radius: var(--md-sys-shape-corner-full);
+    cursor: pointer;
+    transition: opacity var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+  }
+
+  .action-btn:hover { opacity: 0.8; }
+
+  .action-btn.kill {
+    background: var(--md-sys-color-error);
+    color: var(--md-sys-color-on-error);
+  }
+
+  .action-btn.suspend {
+    background: var(--md-sys-color-secondary);
+    color: var(--md-sys-color-surface);
+  }
+
+  .action-btn.resume {
+    background: var(--md-sys-color-tertiary);
+    color: var(--md-sys-color-surface);
   }
 </style>
