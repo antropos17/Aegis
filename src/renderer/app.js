@@ -156,9 +156,9 @@ window.aegis.getStats().then(renderStats);
 window.aegis.getResourceUsage().then(renderResourceUsage);
 updateFooterInterval();
 window.aegis.onScanResults(renderAgents);
-window.aegis.onFileAccess(addFeedEntries);
+window.aegis.onFileAccess((events) => { addFeedEntries(events); addTimelineFileEvents(events); });
 window.aegis.onStatsUpdate(renderStats);
-window.aegis.onNetworkUpdate(renderNetworkConnections);
+window.aegis.onNetworkUpdate((conns) => { renderNetworkConnections(conns); addTimelineNetworkEvents(conns); });
 window.aegis.onResourceUsage(renderResourceUsage);
 window.aegis.onBaselineWarnings((warnings) => {
   for (const w of warnings) {
@@ -171,6 +171,7 @@ window.aegis.onBaselineWarnings((warnings) => {
       if (!aiFeedHasEntries) { activityFeed.innerHTML = ''; aiFeedHasEntries = true; }
       activityFeed.appendChild(createAnomalyFeedEntry(w));
       activityFeed.scrollTop = activityFeed.scrollHeight;
+      addTimelineAnomalyEvent(w);
     }
   }
 });

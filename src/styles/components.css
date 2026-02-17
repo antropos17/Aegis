@@ -302,3 +302,60 @@
   line-height: 1.6; color: var(--text-mid);
 }
 .threat-list li { margin: 2px 0; }
+
+/* ── Session timeline (SHIELD tab) ── */
+.timeline-section {
+  margin: 8px 0; flex-shrink: 0;
+}
+.timeline-strip {
+  position: relative; height: 52px; overflow-x: auto; overflow-y: hidden;
+  background: var(--bg-inset); border-radius: 12px; padding: 8px 12px;
+  box-shadow: inset 3px 3px 6px var(--shadow-dark-subtle), inset -3px -3px 6px var(--shadow-light-subtle);
+  scrollbar-width: thin; scrollbar-color: var(--text-muted) transparent;
+}
+.timeline-strip::-webkit-scrollbar { height: 4px; }
+.timeline-strip::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 2px; }
+.timeline-dots {
+  display: flex; align-items: center; gap: 4px; height: 100%;
+  min-width: max-content; padding-right: 8px;
+}
+.tl-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  transition: transform 150ms ease-out; cursor: pointer;
+}
+.tl-dot:hover { transform: scale(1.8); }
+.tl-dot-lg { width: 10px; height: 10px; }
+.tl-normal  { background: var(--green); box-shadow: 0 0 3px rgba(56, 161, 105, 0.4); }
+.tl-medium  { background: var(--blue); box-shadow: 0 0 4px rgba(66, 153, 225, 0.4); }
+.tl-high    { background: var(--orange); box-shadow: 0 0 5px rgba(237, 137, 54, 0.5); }
+.tl-critical { background: var(--red); box-shadow: 0 0 6px rgba(229, 62, 62, 0.6); animation: tl-pulse 1.5s ease-in-out infinite; }
+@keyframes tl-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.timeline-tooltip {
+  position: absolute; bottom: 42px; left: 0;
+  background: var(--bg-card); border-radius: 10px; padding: 8px 12px;
+  font-size: 11px; line-height: 1.5; pointer-events: none;
+  opacity: 0; transition: opacity 150ms ease-out; min-width: 160px; max-width: 240px;
+  box-shadow: 5px 5px 12px var(--shadow-dark), -5px -5px 12px var(--shadow-light);
+  z-index: 10;
+}
+.timeline-tooltip.visible { opacity: 1; }
+.tl-tip-time { color: var(--text-muted); font-family: 'DM Mono', monospace; font-size: 10px; }
+.tl-tip-agent { color: var(--accent); font-weight: 600; }
+.tl-tip-detail { color: var(--text-mid); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-tip-severity { font-weight: 600; font-size: 10px; letter-spacing: 0.5px; }
+.tl-tip-normal  { color: var(--green); }
+.tl-tip-medium  { color: var(--blue); }
+.tl-tip-high    { color: var(--orange); }
+.tl-tip-critical { color: var(--red); }
+
+/* ── Audit log section (Reports tab) ── */
+.audit-log-wrap {
+  margin-top: 8px; padding: 14px 16px; background: var(--bg-card); border-radius: 14px;
+  box-shadow: 5px 5px 12px var(--shadow-dark), -5px -5px 12px var(--shadow-light);
+}
+.audit-stats {
+  display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 10px;
+  font-size: 11px; color: var(--text-mid);
+}
+.audit-stat strong { color: var(--accent); font-weight: 700; }
+.audit-actions { display: flex; gap: 8px; }
