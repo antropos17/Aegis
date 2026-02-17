@@ -17,5 +17,7 @@
 
 - Step 6: Agent card expand tabs (AgentCard.svelte — expanded state, session duration, parent chain, file/network counts, Kill/Suspend/Resume action buttons, max-height collapse animation)
 
+- Step 7: Risk scoring module (risk-scoring.js utility with calculateRiskScore + getTrustGrade + getTimeDecayWeight, risk.js derived store with enrichedAgents, AgentPanel + Header wired to enrichedAgents, shield score = 100 - avg risk)
+
 ## Next
-- Step 7 (TBD)
+- Step 8 (TBD)

@@ -27,7 +27,9 @@
 - src/renderer/lib/components/Footer.svelte — fixed bottom bar: CPU, memory, heap, scan interval (M3 tokens)
 - src/renderer/lib/components/TabBar.svelte — 4-tab pill navigation (Shield/Activity/Rules/Reports)
 - src/renderer/lib/components/AgentCard.svelte — individual agent card: name, PID, trust grade badge, risk score, trust bar, parent chain
-- src/renderer/lib/components/AgentPanel.svelte — scrollable agent list from agents store, empty state
+- src/renderer/lib/utils/risk-scoring.js — calculateRiskScore (log2 curve), getTrustGrade, getTimeDecayWeight
+- src/renderer/lib/stores/risk.js — enrichedAgents derived store (agents + events + anomalies + network → riskScore, trustGrade)
+- src/renderer/lib/components/AgentPanel.svelte — scrollable agent list from enrichedAgents store, empty state
 - src/renderer/lib/components/ShieldTab.svelte — AgentPanel (full width, radar comes later)
 - src/renderer/lib/components/ActivityTab.svelte — placeholder
 - src/renderer/lib/components/RulesTab.svelte — placeholder

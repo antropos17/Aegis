@@ -1,5 +1,6 @@
 <script>
-  import { agents, stats } from '../stores/ipc.js';
+  import { stats } from '../stores/ipc.js';
+  import { enrichedAgents } from '../stores/risk.js';
 
   const appStart = Date.now();
   let uptimeMs = $state(0);
@@ -10,14 +11,13 @@
   });
 
   let shieldScore = $derived.by(() => {
-    const list = $agents;
+    const list = $enrichedAgents;
     if (!list.length) return '--';
-    let totalSensitive = 0;
-    for (const a of list) totalSensitive += (a.sensitiveCount || 0);
-    return Math.max(0, Math.round(100 - Math.log2(1 + totalSensitive) * 8));
+    const avg = list.reduce((sum, a) => sum + a.riskScore, 0) / list.length;
+    return Math.max(0, Math.round(100 - avg));
   });
 
-  let agentCount = $derived($agents.length);
+  let agentCount = $derived($enrichedAgents.length);
   let filesMonitored = $derived($stats.totalFiles ?? '--');
 
   function formatUptime(ms) {
