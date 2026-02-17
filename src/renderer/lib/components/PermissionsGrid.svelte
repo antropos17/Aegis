@@ -106,7 +106,10 @@
 <style>
   .grid-wrapper {
     background: var(--md-sys-color-surface-container-low);
-    border: 1px solid var(--md-sys-color-outline);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: var(--glass-border);
+    box-shadow: var(--glass-shadow), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium); overflow: hidden;
   }
   .grid-header { padding: 12px 14px; border-bottom: 1px solid var(--md-sys-color-outline); }
@@ -147,10 +150,10 @@
   .state-btn {
     font: var(--md-sys-typescale-label-medium); font-weight: 700;
     width: 36px; height: 28px;
-    border: 1px solid var(--md-sys-color-outline);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--md-sys-shape-corner-small);
     background: transparent; color: var(--md-sys-color-on-surface-variant); cursor: pointer;
-    transition: all var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    transition: all 0.3s var(--ease-glass);
   }
   .state-btn:hover {
     background: var(--md-sys-color-surface-container-highest);

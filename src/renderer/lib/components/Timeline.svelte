@@ -74,8 +74,11 @@
   .timeline {
     width: 100%;
     height: 40px;
-    background: var(--md-sys-color-surface-container);
-    border: 1px solid var(--md-sys-color-outline);
+    background: var(--md-sys-color-surface-container-low);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: var(--glass-border);
+    box-shadow: var(--glass-shadow), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-small);
     overflow: hidden;
   }

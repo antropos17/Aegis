@@ -97,6 +97,10 @@
   @keyframes fade-in { from { opacity: 0; } }
   .modal {
     background: var(--md-sys-color-surface-container-high);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: var(--glass-border);
+    box-shadow: var(--glass-shadow), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-large);
     padding: 24px; min-width: 380px; max-width: 460px; width: 90vw;
     animation: scale-in var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-standard);

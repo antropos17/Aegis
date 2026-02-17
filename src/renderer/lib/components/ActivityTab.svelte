@@ -44,8 +44,10 @@
     display: flex;
     gap: 4px;
     padding: 3px;
-    background: var(--md-sys-color-surface-container);
-    border: 1px solid var(--md-sys-color-outline);
+    background: var(--md-sys-color-surface-container-low);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-full);
     width: fit-content;
   }
@@ -59,15 +61,17 @@
     background: transparent;
     color: var(--md-sys-color-on-surface-variant);
     cursor: pointer;
-    transition: all var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    transition: all 0.3s var(--ease-glass);
   }
 
   .toggle-pill:hover {
     color: var(--md-sys-color-on-surface);
+    background: rgba(255, 255, 255, 0.04);
   }
 
   .toggle-pill.active {
-    background: var(--md-sys-color-primary-container);
-    color: var(--md-sys-color-on-surface);
+    background: var(--md-sys-color-primary);
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(122, 138, 158, 0.3);
   }
 </style>

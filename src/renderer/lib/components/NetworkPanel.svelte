@@ -89,8 +89,11 @@
   .net-filters {
     display: flex; align-items: center; gap: 16px;
     padding: 10px 14px; flex-wrap: wrap;
-    background: var(--md-sys-color-surface-container);
-    border: 1px solid var(--md-sys-color-outline);
+    background: var(--md-sys-color-surface-container-low);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: var(--glass-border);
+    box-shadow: var(--glass-shadow), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
   }
   .agent-select, .sort-select {
@@ -117,15 +120,18 @@
   .pill {
     font: var(--md-sys-typescale-label-medium); font-weight: 600;
     padding: 4px 10px;
-    border: 1px solid var(--md-sys-color-outline);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--md-sys-shape-corner-full);
     background: transparent; color: var(--md-sys-color-on-surface-variant);
     cursor: pointer; text-transform: capitalize;
-    transition: all var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: all 0.3s var(--ease-glass);
   }
   .pill:hover {
-    background: var(--md-sys-color-surface-container-high);
+    background: rgba(255, 255, 255, 0.04);
     color: var(--md-sys-color-on-surface);
+    border-color: rgba(255, 255, 255, 0.15);
   }
   .pill.active {
     background: var(--md-sys-color-primary-container);
@@ -152,11 +158,13 @@
   }
   .net-row {
     display: flex; align-items: center; gap: 10px;
-    padding: 7px 14px;
-    border-bottom: 1px solid var(--md-sys-color-outline-variant);
-    transition: background var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
   }
-  .net-row:hover { background: var(--md-sys-color-surface-container-low); }
+  .net-row:hover { background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.06); }
   .net-agent {
     font: var(--md-sys-typescale-label-medium); font-weight: 600;
     color: var(--md-sys-color-on-surface);

@@ -121,8 +121,11 @@
   }
   .db-scroll {
     overflow: auto; max-height: 420px;
-    border: 1px solid var(--md-sys-color-outline);
+    border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-medium);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--glass-shadow);
   }
   .db-table { width: 100%; border-collapse: collapse; }
   .db-table thead { position: sticky; top: 0; z-index: 1; }

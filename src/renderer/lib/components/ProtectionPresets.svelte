@@ -45,16 +45,19 @@
     align-items: center;
     gap: 4px;
     padding: 10px 8px;
-    background: var(--md-sys-color-surface-container);
-    border: 1px solid var(--md-sys-color-outline);
+    background: var(--md-sys-color-surface-container-low);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: var(--glass-border);
+    box-shadow: var(--glass-shadow), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
     cursor: pointer;
-    transition: all var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    transition: all 0.3s var(--ease-glass);
   }
 
   .preset-btn:hover {
     background: var(--md-sys-color-surface-container-high);
-    border-color: var(--md-sys-color-on-surface-variant);
+    border-color: rgba(255, 255, 255, 0.15);
   }
 
   .preset-btn.active {

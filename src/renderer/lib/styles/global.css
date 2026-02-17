@@ -21,6 +21,18 @@ body {
   color: var(--md-sys-color-on-surface);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(122, 138, 158, 0.04), transparent 70%),
+    radial-gradient(ellipse at 80% 80%, rgba(74, 122, 90, 0.02), transparent 60%);
 }
 
 /* ── Selection ── */
@@ -31,8 +43,8 @@ body {
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar {
-  width: 3px;
-  height: 3px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -41,7 +53,11 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: var(--md-sys-color-surface-container-highest);
-  border-radius: var(--md-sys-shape-corner-full);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--md-sys-color-on-surface-variant);
 }
 
 /* ── Focus ── */

@@ -150,12 +150,14 @@
   .crud-btn {
     font: var(--md-sys-typescale-label-medium); font-weight: 600;
     padding: 7px 14px; background: var(--md-sys-color-surface-container);
-    border: 1px solid var(--md-sys-color-outline);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--md-sys-shape-corner-small);
     color: var(--md-sys-color-on-surface-variant); cursor: pointer;
-    transition: all var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: all 0.3s var(--ease-glass);
   }
-  .crud-btn:hover { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); }
+  .crud-btn:hover { background: rgba(255, 255, 255, 0.04); color: var(--md-sys-color-on-surface); border-color: rgba(255, 255, 255, 0.15); }
   .crud-btn.primary { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-surface); border-color: var(--md-sys-color-primary); }
   .crud-btn.danger { background: var(--md-sys-color-error); color: var(--md-sys-color-on-error); border-color: var(--md-sys-color-error); }
   .overlay {
@@ -165,6 +167,10 @@
   }
   .modal {
     background: var(--md-sys-color-surface-container-high);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: var(--glass-border);
+    box-shadow: var(--glass-shadow), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-large);
     padding: 24px; min-width: 360px; max-width: 460px;
   }
