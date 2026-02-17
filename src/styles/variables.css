@@ -1,12 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Outfit:wght@400;500;600;700;800&display=swap');
 
 :root {
-  /* ── Surfaces ── */
-  --bg: #0c0c0e;
-  --surface-1: #141416;
-  --surface-2: #1a1a1e;
-  --surface-3: #222226;
-  --surface-4: #2c2c32;
+  /* ── Surfaces (glassmorphism) ── */
+  --bg: #050507;
+  --surface-1: rgba(255,255,255, 0.03);
+  --surface-2: rgba(255,255,255, 0.05);
+  --surface-3: rgba(255,255,255, 0.07);
+  --surface-4: rgba(255,255,255, 0.10);
 
   /* ── Typography ── */
   --text: #e8e6e2;
@@ -31,13 +31,22 @@
   --red-light: rgba(200,122,122,.08);
 
   /* ── Borders ── */
-  --border: rgba(255,255,255,.04);
-  --border-hover: rgba(255,255,255,.08);
+  --border: rgba(255,255,255,.06);
+  --border-hover: rgba(255,255,255,.12);
+
+  /* ── Glass ── */
+  --glass-blur: 20px;
+  --glass-border: 1px solid rgba(255,255,255, 0.08);
+  --glass-shadow: 0 8px 32px rgba(0,0,0, 0.4);
+  --glass-highlight: inset 0 1px 0 rgba(255,255,255, 0.06);
 
   /* ── Radii ── */
   --radius: 8px;
   --radius-lg: 12px;
   --radius-pill: 100px;
+
+  /* ── Transition ── */
+  --ease-glass: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* ── Aliases (backwards compat with JS template strings) ── */
   --bg-card: var(--surface-1);
@@ -49,11 +58,11 @@
 
 /* Dark class — identical to default (dark-first design) */
 body.dark {
-  --bg: #0c0c0e;
-  --surface-1: #141416;
-  --surface-2: #1a1a1e;
-  --surface-3: #222226;
-  --surface-4: #2c2c32;
+  --bg: #050507;
+  --surface-1: rgba(255,255,255, 0.03);
+  --surface-2: rgba(255,255,255, 0.05);
+  --surface-3: rgba(255,255,255, 0.07);
+  --surface-4: rgba(255,255,255, 0.10);
 }
 
 * {

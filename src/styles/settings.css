@@ -2,16 +2,19 @@
 
 .settings-overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.6); backdrop-filter: blur(12px);
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   z-index: 500; display: flex; align-items: center; justify-content: center;
   animation: fadeIn 0.15s ease;
 }
 .settings-overlay.hidden { display: none; }
 
 .settings-panel {
-  background: var(--surface-1); border-radius: var(--radius-lg); width: 560px;
+  background: rgba(10,10,14,0.85);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  border-radius: var(--radius-lg); width: 560px;
   max-height: 80vh; overflow-y: auto; padding: 20px 24px;
-  border: 1px solid var(--border);
+  border: var(--glass-border); box-shadow: var(--glass-shadow), var(--glass-highlight);
 }
 
 .settings-header {
@@ -21,10 +24,10 @@
 .settings-header h2 { margin-bottom: 0; color: var(--text); font-size: 16px; letter-spacing: .5px; text-transform: none; }
 
 .btn-settings-close {
-  background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+  background: rgba(255,255,255,0.03); border: 1px solid var(--border); color: var(--text-dim);
   font-size: 16px; width: 32px; height: 32px; border-radius: 50%;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
-  padding: 0; line-height: 1; transition: all 0.15s ease;
+  padding: 0; line-height: 1; transition: all 0.3s var(--ease-glass);
 }
 .btn-settings-close:hover { color: var(--red); border-color: rgba(200,122,122,.15); }
 
@@ -41,7 +44,7 @@
 
 .settings-row {
   display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--radius);
-  background: var(--surface-2); border: 1px solid var(--border);
+  background: var(--surface-2); border: var(--glass-border);
 }
 
 .settings-slider { flex: 1; accent-color: var(--accent); height: 4px; }
@@ -56,22 +59,23 @@
 .pattern-item {
   display: flex; align-items: center; gap: 6px; padding: 5px 10px;
   background: var(--surface-2); border-radius: var(--radius-pill); font-size: 11px;
-  color: var(--text-mid); border: 1px solid var(--border);
+  color: var(--text-mid); border: var(--glass-border);
 }
 .pattern-item .btn-pattern-remove {
   margin-left: auto; background: transparent; border: none; color: var(--text-dim);
   font-size: 14px; cursor: pointer; padding: 0 2px; line-height: 1;
-  transition: color 0.15s ease;
+  transition: color 0.3s var(--ease-glass);
 }
 .pattern-item .btn-pattern-remove:hover { color: var(--red); }
 
 .patterns-add-row { display: flex; gap: 6px; }
 
 .settings-input {
-  flex: 1; background: var(--surface-2); border: 1px solid var(--border);
+  flex: 1; background: var(--surface-2);
+  border: 1px solid rgba(255,255,255,0.06);
   border-radius: var(--radius-pill);
   padding: 7px 14px; color: var(--text); font-family: inherit; font-size: 11px;
-  outline: none; transition: border-color 0.15s ease;
+  outline: none; transition: border-color 0.3s var(--ease-glass);
 }
 .settings-input:focus { border-color: var(--accent-border); }
 .settings-input::placeholder { color: var(--text-faint); }
@@ -86,7 +90,7 @@
 #settings-save {
   background: var(--accent); color: #fff; font-weight: 600; letter-spacing: .3px;
   padding: 8px 20px; border-radius: var(--radius-pill); border: none;
-  transition: all 0.15s ease; cursor: pointer;
+  transition: all 0.3s var(--ease-glass); cursor: pointer;
 }
 #settings-save:hover { background: var(--accent-hover); }
 
@@ -99,8 +103,9 @@
 /* ── Baseline grid ── */
 .baseline-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
 .baseline-stat {
-  text-align: center; padding: 8px 6px; background: var(--surface-2); border-radius: var(--radius);
-  border: 1px solid var(--border);
+  text-align: center; padding: 8px 6px;
+  background: var(--surface-2); border-radius: var(--radius);
+  border: var(--glass-border);
 }
 .baseline-stat-value {
   font-family: var(--font-display); font-size: 18px; font-weight: 700;
@@ -119,7 +124,7 @@
 .baseline-detail-item {
   font-size: 10px; color: var(--text-mid); padding: 3px 8px;
   background: var(--surface-2); border-radius: var(--radius); white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis; border: 1px solid var(--border);
+  overflow: hidden; text-overflow: ellipsis; border: var(--glass-border);
 }
 
 /* ── Baseline warnings ── */
@@ -131,8 +136,12 @@
 
 /* ── Agent expanded section (tabbed: baseline + permissions) ── */
 .agent-expanded-section {
-  margin-top: 8px; padding: 0; background: var(--surface-2); border-radius: var(--radius-lg);
-  animation: fadeIn 0.15s ease; overflow: hidden; border: 1px solid var(--border);
+  margin-top: 8px; padding: 0;
+  background: var(--surface-2);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--radius-lg);
+  animation: fadeIn 0.15s ease; overflow: hidden;
+  border: var(--glass-border);
 }
 .agent-tab-bar { display: flex; gap: 0; }
 .agent-tab {
@@ -140,7 +149,7 @@
   letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-faint);
   background: transparent; border: none; border-bottom: 2px solid transparent;
   padding: 8px 16px; cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: color 0.3s var(--ease-glass), border-color 0.3s var(--ease-glass);
 }
 .agent-tab:hover { color: var(--text-dim); }
 .agent-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
@@ -153,13 +162,13 @@
 .perm-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
 .perm-toggle-slider {
   position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-  background: var(--surface-3); border-radius: 9px; transition: all 0.15s ease;
+  background: var(--surface-3); border-radius: 9px; transition: all 0.3s var(--ease-glass);
   border: 1px solid var(--border);
 }
 .perm-toggle-slider::before {
   content: ''; position: absolute; width: 14px; height: 14px; left: 1px; bottom: 1px;
   background: var(--text-faint); border-radius: 50%;
-  transition: transform 0.15s ease, background 0.15s ease;
+  transition: transform 0.3s var(--ease-glass), background 0.3s var(--ease-glass);
 }
 .perm-toggle input:checked + .perm-toggle-slider { background: var(--accent-light); border-color: var(--accent-border); }
 .perm-toggle input:checked + .perm-toggle-slider::before { transform: translateX(18px); background: var(--accent); }
@@ -172,8 +181,11 @@
 }
 
 .agent-baseline-section {
-  margin-top: 8px; padding: 12px 16px; background: var(--surface-2); border-radius: var(--radius-lg);
-  animation: fadeIn 0.15s ease; border: 1px solid var(--border);
+  margin-top: 8px; padding: 12px 16px;
+  background: var(--surface-2);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--radius-lg);
+  animation: fadeIn 0.15s ease; border: var(--glass-border);
 }
 .baseline-maturity-note {
   font-size: 11px; color: var(--text-dim); text-align: center;

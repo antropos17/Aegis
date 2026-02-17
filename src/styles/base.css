@@ -4,6 +4,13 @@ body {
   background: var(--bg); color: var(--text);
   height: 100vh; display: flex; flex-direction: column; overflow: hidden;
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  position: relative;
+}
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(122,138,158,0.04), transparent 70%),
+    radial-gradient(ellipse at 80% 80%, rgba(74,122,90,0.02), transparent 60%);
 }
 
 /* ── Selection ── */
@@ -13,9 +20,10 @@ body {
 header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 16px; height: 48px; min-width: 0;
-  background: rgba(12,12,14,.96); backdrop-filter: blur(20px);
-  flex-shrink: 0; z-index: 10; border-bottom: 1px solid var(--border);
-  overflow: hidden;
+  background: rgba(5,5,7,0.8);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  flex-shrink: 0; z-index: 10; border-bottom: var(--glass-border);
+  overflow: hidden; position: relative;
 }
 .logo { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .logo-shield {
@@ -36,9 +44,13 @@ h1 {
 .header-pill {
   font-family: var(--font-body); font-size: 11px; font-weight: 500;
   padding: 4px 12px; border-radius: var(--radius-pill);
-  background: transparent; border: 1px solid var(--border);
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.06);
   white-space: nowrap; color: var(--text-dim);
+  transition: all 0.3s var(--ease-glass);
 }
+.header-pill:hover { border-color: rgba(255,255,255,0.15); }
 .pill-shield { color: var(--green); border-color: var(--accent-border); }
 .pill-streak { color: var(--gold); }
 .pill-agents { color: var(--accent); border-color: var(--accent-border); }
@@ -64,6 +76,7 @@ h1 {
 main {
   flex: 1; padding: 10px 16px; overflow: hidden;
   display: flex; flex-direction: column; gap: 12px; min-height: 0;
+  position: relative; z-index: 1;
 }
 #tab-shield { overflow-y: auto; overflow-x: hidden; }
 .main-top { display: flex; gap: 12px; flex: 1; min-height: 0; }
@@ -84,7 +97,9 @@ h2 {
 }
 .section-card {
   background: var(--surface-1); border-radius: var(--radius-lg);
-  border: 1px solid var(--border); padding: 16px;
+  backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: var(--glass-border); padding: 16px;
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
 }
 .empty-state { text-align: center; padding: 20px; color: var(--text-dim); font-size: 13px; }
 .filter-hidden { display: none !important; }
@@ -102,8 +117,11 @@ h2 {
 /* ── Status bar footer ── */
 #status-bar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 6px 20px; background: rgba(12,12,14,.96); backdrop-filter: blur(20px);
-  flex-shrink: 0; z-index: 10; border-top: 1px solid var(--border);
+  padding: 6px 20px;
+  background: rgba(5,5,7,0.8);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  flex-shrink: 0; z-index: 10; border-top: var(--glass-border);
+  position: relative;
 }
 .footer-version {
   font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500;
@@ -113,7 +131,9 @@ h2 {
 .status-item {
   display: flex; align-items: center; gap: 5px; padding: 2px 10px;
   border-radius: var(--radius-pill); border: 1px solid var(--border);
+  transition: border-color 0.3s var(--ease-glass);
 }
+.status-item:hover { border-color: var(--border-hover); }
 .status-label {
   font-size: 9px; font-weight: 600; letter-spacing: 1.5px;
   text-transform: uppercase; color: var(--text-faint);
@@ -124,23 +144,25 @@ h2 {
 
 /* ── Gear + Theme buttons ── */
 .btn-gear {
-  background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+  background: rgba(255,255,255,0.03); border: 1px solid var(--border); color: var(--text-dim);
   font-size: 16px; width: 32px; height: 32px; border-radius: 50%;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: all 0.15s ease; padding: 0; line-height: 1;
+  transition: all 0.3s var(--ease-glass); padding: 0; line-height: 1;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
-.btn-gear:hover { color: var(--accent); border-color: var(--border-hover); }
+.btn-gear:hover { color: var(--accent); border-color: rgba(255,255,255,0.15); }
 .btn-theme {
-  background: transparent; border: 1px solid var(--border);
+  background: rgba(255,255,255,0.03); border: 1px solid var(--border);
   font-size: 14px; width: 32px; height: 32px; border-radius: 50%;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: all 0.15s ease; padding: 0; line-height: 1;
+  transition: all 0.3s var(--ease-glass); padding: 0; line-height: 1;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
-.btn-theme:hover { border-color: var(--border-hover); }
+.btn-theme:hover { border-color: rgba(255,255,255,0.15); }
 
 /* ── Theme transitions ── */
 main, section, .agent-card, .other-agent-card, .feed-entry, .net-row, .toast, footer {
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: all 0.3s var(--ease-glass);
 }
 
 /* ── Toast notification ── */
@@ -148,9 +170,11 @@ main, section, .agent-card, .other-agent-card, .feed-entry, .net-row, .toast, fo
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
   padding: 10px 24px; border-radius: var(--radius-pill);
   font-size: 12px; font-weight: 600; letter-spacing: 0.3px;
-  background: var(--surface-2); color: var(--text);
-  border: 1px solid var(--border);
-  z-index: 1000; transition: opacity 0.15s ease, transform 0.15s ease;
+  background: rgba(255,255,255,0.05); color: var(--text);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  z-index: 1000; transition: opacity 0.3s var(--ease-glass), transform 0.3s var(--ease-glass);
 }
 .toast.hidden { opacity: 0; transform: translateX(-50%) translateY(10px); pointer-events: none; }
 .toast.success { color: var(--green); }
