@@ -1,23 +1,35 @@
 <script>
   import Radar from './Radar.svelte';
   import AgentPanel from './AgentPanel.svelte';
+  import Timeline from './Timeline.svelte';
 </script>
 
 <div class="shield-tab">
-  <div class="radar-col">
-    <Radar />
+  <div class="top-row">
+    <div class="radar-col">
+      <Radar />
+    </div>
+    <div class="agents-col">
+      <AgentPanel />
+    </div>
   </div>
-  <div class="agents-col">
-    <AgentPanel />
-  </div>
+  <Timeline />
 </div>
 
 <style>
   .shield-tab {
     display: flex;
+    flex-direction: column;
     gap: 16px;
     padding: 16px;
     height: 100%;
+    min-height: 0;
+  }
+
+  .top-row {
+    display: flex;
+    gap: 16px;
+    flex: 1;
     min-height: 0;
   }
 
@@ -36,7 +48,7 @@
   }
 
   @media (max-width: 768px) {
-    .shield-tab {
+    .top-row {
       flex-direction: column;
     }
 
