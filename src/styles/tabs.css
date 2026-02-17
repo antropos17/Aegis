@@ -1,25 +1,90 @@
 /* ── Tab bar ── */
 .tab-bar {
-  display: flex; gap: 8px; padding: 8px 16px;
-  background: var(--bg); flex-shrink: 0;
-  position: relative; z-index: 1;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  margin: 8px 16px;
+  background: rgba(255,255,255, 0.03);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255, 0.06);
+  width: fit-content;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 .tab-pill {
-  padding: 8px 20px;
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: var(--radius-pill);
-  font-family: var(--font-display); font-size: 10px; font-weight: 700;
-  letter-spacing: 1.5px; color: var(--text-dim); cursor: pointer;
-  background: rgba(255,255,255,0.03);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  transition: all 0.3s var(--ease-glass);
+  padding: 10px 24px;
+  border: none;
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  background: transparent;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
 }
-.tab-pill:hover { color: var(--accent); border-color: rgba(255,255,255,0.15); }
+.tab-pill:hover {
+  color: var(--text-mid);
+  background: rgba(255,255,255, 0.04);
+}
 .tab-pill.active {
-  color: #fff; background: var(--accent); border-color: var(--accent);
+  color: #fff;
+  background: var(--accent);
+  box-shadow: 0 2px 12px rgba(122,138,158, 0.3);
 }
+
+/* ── Hamburger menu ── */
+.hamburger {
+  display: none;
+  background: rgba(255,255,255, 0.03);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255, 0.06);
+  border-radius: 10px;
+  color: var(--text-dim);
+  font-size: 20px;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  margin: 8px 16px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+.hamburger:hover {
+  color: var(--text-mid);
+  background: rgba(255,255,255, 0.06);
+}
+
+/* ── Tab views ── */
 .tab-view { display: none; flex: 1; flex-direction: column; min-height: 0; }
-.tab-view.active { display: flex; }
+.tab-view.active {
+  display: flex;
+  animation: tabFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Shield tab grid ── */
+#tab-shield.active {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  grid-template-rows: auto auto 1fr auto auto;
+  gap: 12px;
+  padding: 12px 16px;
+  overflow-y: auto;
+}
+#radar-section { grid-column: 1; grid-row: 1; }
+#timeline-section { grid-column: 1 / -1; grid-row: 2; }
+#activity-panel { grid-column: 1; grid-row: 3; }
+#agents-panel { grid-column: 2; grid-row: 1 / 4; }
+#network-panel { grid-column: 1 / -1; grid-row: 4; }
+#other-agents-panel { grid-column: 1 / -1; grid-row: 5; }
+
+@keyframes tabFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 /* ── ACTIVITY tab ── */
 .activity-filter-bar {
