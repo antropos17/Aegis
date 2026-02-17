@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [svelte()],
@@ -9,7 +10,7 @@ export default defineConfig({
     outDir: '../../dist/renderer',
     emptyOutDir: true,
     rollupOptions: {
-      input: 'app.html'
+      input: resolve(__dirname, 'src/renderer/app.html')
     }
   }
 });
