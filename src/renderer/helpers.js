@@ -57,7 +57,7 @@ function drawSparkline(canvas, bins, color) {
     if (val === 0) continue;
     const barH = Math.max(2, (val / maxVal) * h);
     const x = i * (barW + gap);
-    ctx.fillStyle = color || 'rgba(78, 205, 196, 0.7)';
+    ctx.fillStyle = color || 'rgba(122, 138, 158, 0.7)';
     ctx.fillRect(x, h - barH, barW, barH);
   }
 }

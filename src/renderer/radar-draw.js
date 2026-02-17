@@ -5,15 +5,15 @@
  * @since 0.1.0
  */
 
-/** Draw the radar background with pearl gradient, concentric rings, and crosshairs.
+/** Draw the radar background with gradient, concentric rings, and crosshairs.
  * @param {CanvasRenderingContext2D} ctx @param {number} cx @param {number} cy @param {number} r
  * @since 0.1.0 */
 function drawRadarBackground(ctx, cx, cy, r) {
   const dark = isDark();
   const grad = ctx.createRadialGradient(cx - r * 0.15, cy - r * 0.15, r * 0.1, cx, cy, r);
-  grad.addColorStop(0, dark ? '#252930' : '#EEF1F6');
-  grad.addColorStop(0.5, dark ? '#1C1F25' : '#E2E6EE');
-  grad.addColorStop(1, dark ? '#14171C' : '#D0D6E0');
+  grad.addColorStop(0, dark ? '#1a1a1e' : '#EEF1F6');
+  grad.addColorStop(0.5, dark ? '#141416' : '#E2E6EE');
+  grad.addColorStop(1, dark ? '#0c0c0e' : '#D0D6E0');
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fillStyle = grad;
@@ -23,12 +23,12 @@ function drawRadarBackground(ctx, cx, cy, r) {
   for (const frac of ringRadii) {
     ctx.beginPath();
     ctx.arc(cx, cy, r * frac, 0, Math.PI * 2);
-    ctx.strokeStyle = dark ? 'rgba(255,255,255,0.15)' : 'rgba(120, 140, 165, 0.45)';
+    ctx.strokeStyle = dark ? 'rgba(255,255,255,0.06)' : 'rgba(120, 140, 165, 0.45)';
     ctx.lineWidth = frac === 1.0 ? 1.5 : 1;
     ctx.stroke();
   }
 
-  ctx.strokeStyle = dark ? 'rgba(255,255,255,0.07)' : 'rgba(120, 140, 165, 0.2)';
+  ctx.strokeStyle = dark ? 'rgba(255,255,255,0.03)' : 'rgba(120, 140, 165, 0.2)';
   ctx.lineWidth = 0.5;
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
@@ -55,7 +55,7 @@ function drawSweepArm(ctx, cx, cy, r, angle) {
     ctx.moveTo(cx, cy);
     ctx.arc(cx, cy, r * 0.95, a0, a1);
     ctx.closePath();
-    ctx.fillStyle = `rgba(78, 205, 196, ${alpha})`;
+    ctx.fillStyle = `rgba(122, 138, 158, ${alpha})`;
     ctx.fill();
   }
 
@@ -64,8 +64,8 @@ function drawSweepArm(ctx, cx, cy, r, angle) {
     cx + Math.cos(angle) * r * 0.95,
     cy + Math.sin(angle) * r * 0.95
   );
-  lineGrad.addColorStop(0, 'rgba(78, 205, 196, 0.9)');
-  lineGrad.addColorStop(1, 'rgba(78, 205, 196, 0.15)');
+  lineGrad.addColorStop(0, 'rgba(122, 138, 158, 0.9)');
+  lineGrad.addColorStop(1, 'rgba(122, 138, 158, 0.15)');
   ctx.beginPath();
   ctx.moveTo(cx, cy);
   ctx.lineTo(cx + Math.cos(angle) * r * 0.95, cy + Math.sin(angle) * r * 0.95);
@@ -77,7 +77,7 @@ function drawSweepArm(ctx, cx, cy, r, angle) {
   const tipY = cy + Math.sin(angle) * r * 0.93;
   ctx.beginPath();
   ctx.arc(tipX, tipY, 3.5, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(78, 205, 196, 0.85)';
+  ctx.fillStyle = 'rgba(122, 138, 158, 0.85)';
   ctx.fill();
 }
 
@@ -91,7 +91,7 @@ function drawCenterCore(ctx, cx, cy, r, threatLevel, threatLabel) {
 
   const glowGrad = ctx.createRadialGradient(cx, cy, coreR * 0.3, cx, cy, coreR * 3);
   glowGrad.addColorStop(0, colors.glow);
-  glowGrad.addColorStop(0.5, colors.glow.replace(/[\d.]+\)$/, '0.12)'));
+  glowGrad.addColorStop(0.5, colors.glow.replace(/[\d.]+\)$/, '0.08)'));
   glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.beginPath();
   ctx.arc(cx, cy, coreR * 3, 0, Math.PI * 2);
@@ -107,7 +107,7 @@ function drawCenterCore(ctx, cx, cy, r, threatLevel, threatLabel) {
   ctx.fillStyle = coreGrad;
   ctx.fill();
 
-  ctx.font = '800 11px "Plus Jakarta Sans", sans-serif';
+  ctx.font = '800 11px "Outfit", sans-serif';
   ctx.fillStyle = '#fff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -140,25 +140,19 @@ function drawSystemNodes(ctx, cx, cy, r, now) {
       }
     }
 
-    // Drop shadow
-    ctx.beginPath();
-    ctx.arc(nx + 1, ny + 1, nodeSize, 0, Math.PI * 2);
-    ctx.fillStyle = dark ? 'rgba(0,0,0,0.3)' : 'rgba(140,155,175,0.3)';
-    ctx.fill();
-
-    // Node background with pearl gradient
+    // Node background
     ctx.beginPath();
     ctx.arc(nx, ny, nodeSize, 0, Math.PI * 2);
     const nodeFill = ctx.createRadialGradient(nx - 4, ny - 4, 2, nx, ny, nodeSize);
-    nodeFill.addColorStop(0, dark ? '#32373F' : '#F5F7FA');
-    nodeFill.addColorStop(1, dark ? '#1E2228' : '#D8DEE8');
+    nodeFill.addColorStop(0, dark ? '#222226' : '#F5F7FA');
+    nodeFill.addColorStop(1, dark ? '#141416' : '#D8DEE8');
     ctx.fillStyle = nodeFill;
     ctx.fill();
 
     // Border ring
     ctx.beginPath();
     ctx.arc(nx, ny, nodeSize, 0, Math.PI * 2);
-    ctx.strokeStyle = dark ? 'rgba(255,255,255,0.1)' : 'rgba(140,155,175,0.25)';
+    ctx.strokeStyle = dark ? 'rgba(255,255,255,0.06)' : 'rgba(140,155,175,0.25)';
     ctx.lineWidth = 0.5;
     ctx.stroke();
 
@@ -167,13 +161,13 @@ function drawSystemNodes(ctx, cx, cy, r, now) {
       const pulseRing = nodeSize + 8 * (1 - pulseIntensity);
       ctx.beginPath();
       ctx.arc(nx, ny, pulseRing, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(78, 205, 196, ${pulseIntensity * 0.7})`;
+      ctx.strokeStyle = `rgba(122, 138, 158, ${pulseIntensity * 0.7})`;
       ctx.lineWidth = 2;
       ctx.stroke();
       const pulseR2 = nodeSize + 16 * (1 - pulseIntensity);
       ctx.beginPath();
       ctx.arc(nx, ny, pulseR2, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(78, 205, 196, ${pulseIntensity * 0.3})`;
+      ctx.strokeStyle = `rgba(122, 138, 158, ${pulseIntensity * 0.3})`;
       ctx.lineWidth = 1;
       ctx.stroke();
     }
@@ -182,12 +176,12 @@ function drawSystemNodes(ctx, cx, cy, r, now) {
     ctx.font = '16px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = dark ? '#C0C8D4' : '#3D4852';
+    ctx.fillStyle = dark ? '#8896A6' : '#3D4852';
     ctx.fillText(node.icon, nx, ny);
 
     // Label below
     ctx.font = '600 8px "DM Sans", sans-serif';
-    ctx.fillStyle = dark ? '#8896A6' : '#5A6577';
+    ctx.fillStyle = dark ? '#5a6070' : '#5A6577';
     ctx.fillText(node.label, nx, ny + nodeSize + 10);
   }
 }

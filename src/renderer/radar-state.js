@@ -75,9 +75,9 @@ const radarState = {
 };
 
 const THREAT_COLORS = {
-  green:  { core: 'rgba(78, 205, 196, 0.85)',  glow: 'rgba(78, 205, 196, 0.25)' },
-  yellow: { core: 'rgba(240, 183, 117, 0.85)', glow: 'rgba(240, 183, 117, 0.25)' },
-  red:    { core: 'rgba(220, 53, 69, 0.85)',   glow: 'rgba(220, 53, 69, 0.25)' },
+  green:  { core: 'rgba(74, 122, 90, 0.85)',  glow: 'rgba(74, 122, 90, 0.15)' },
+  yellow: { core: 'rgba(200, 168, 78, 0.85)', glow: 'rgba(200, 168, 78, 0.15)' },
+  red:    { core: 'rgba(200, 122, 122, 0.85)', glow: 'rgba(200, 122, 122, 0.15)' },
 };
 
 const AGENT_COLORS = [

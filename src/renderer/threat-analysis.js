@@ -71,7 +71,7 @@ function generateThreatReport(analysis) {
   const totalNet = networkList.querySelectorAll('.net-row').length;
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>AEGIS Threat Analysis Report</title>
 <style>body{font-family:'Segoe UI',sans-serif;background:#0a0e17;color:#E0E5EC;margin:0;padding:24px}
-h1{color:#4ECDC4;font-size:28px;margin-bottom:4px}.meta{color:#8896A6;font-size:12px;margin-bottom:20px}
+h1{color:#7a8a9e;font-size:28px;margin-bottom:4px}.meta{color:#8896A6;font-size:12px;margin-bottom:20px}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
 .stat{text-align:center;padding:12px;background:#12162b;border-radius:8px}
 .stat-val{font-size:24px;font-weight:700}.stat-label{font-size:10px;color:#8896A6;letter-spacing:1px}
@@ -83,10 +83,10 @@ ul{margin:8px 0;padding-left:20px}li{margin:4px 0;color:#c8d0da}
 @media print{body{background:#fff;color:#222}.section,.stat{background:#f5f5f5;border:1px solid #ddd}h1{color:#2a9d8f}.rating{border:2px solid ${rc}}}</style></head>
 <body><h1>AEGIS Threat Analysis Report</h1><div class="meta">Generated: ${now}</div>
 <div class="stats">
-<div class="stat"><div class="stat-val" style="color:#4ECDC4">${totalFiles}</div><div class="stat-label">FILES ACCESSED</div></div>
-<div class="stat"><div class="stat-val" style="color:#E53E3E">${totalSensitive}</div><div class="stat-label">SENSITIVE ALERTS</div></div>
-<div class="stat"><div class="stat-val" style="color:#4ECDC4">${totalAgents}</div><div class="stat-label">AGENTS DETECTED</div></div>
-<div class="stat"><div class="stat-val" style="color:#4299E1">${totalNet}</div><div class="stat-label">NETWORK CONNECTIONS</div></div>
+<div class="stat"><div class="stat-val" style="color:#7a8a9e">${totalFiles}</div><div class="stat-label">FILES ACCESSED</div></div>
+<div class="stat"><div class="stat-val" style="color:#c87a7a">${totalSensitive}</div><div class="stat-label">SENSITIVE ALERTS</div></div>
+<div class="stat"><div class="stat-val" style="color:#7a8a9e">${totalAgents}</div><div class="stat-label">AGENTS DETECTED</div></div>
+<div class="stat"><div class="stat-val" style="color:#7a8a9e">${totalNet}</div><div class="stat-label">NETWORK CONNECTIONS</div></div>
 </div>
 <div class="section"><div class="section-title">THREAT LEVEL</div><span class="rating">${analysis.riskRating || 'UNKNOWN'}</span></div>
 <div class="section"><div class="section-title">EXECUTIVE SUMMARY</div><p>${(analysis.summary || '').replace(/\n/g, '<br>')}</p></div>

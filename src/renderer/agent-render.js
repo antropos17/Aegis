@@ -159,7 +159,7 @@ function renderAgents(agents) {
     const bins = agentActivityBins[canvas.dataset.sparklineAgent];
     if (bins) {
       const dbEntry = agentDbMap[canvas.dataset.sparklineAgent];
-      drawSparkline(canvas, bins, dbEntry ? dbEntry.color : 'rgba(78, 205, 196, 0.7)');
+      drawSparkline(canvas, bins, dbEntry ? dbEntry.color : 'rgba(122, 138, 158, 0.7)');
     }
   });
 }

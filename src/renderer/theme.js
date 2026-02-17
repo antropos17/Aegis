@@ -31,5 +31,5 @@ themeToggle.addEventListener('click', async () => {
   await window.aegis.saveSettings(s);
 });
 
-// Load dark mode preference on init
-window.aegis.getSettings().then(s => { if (s.darkMode) applyTheme(true); });
+// Default to dark mode; only switch to light if explicitly set to false
+window.aegis.getSettings().then(s => { if (s.darkMode !== false) applyTheme(true); });

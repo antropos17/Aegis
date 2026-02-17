@@ -40,7 +40,7 @@
   .pulse { font-size: 8px; padding: 2px 7px; }
   #last-scan { display: none; }
   .tab-bar { gap: 4px; padding: 6px 12px; }
-  .tab-pill { padding: 6px 12px; font-size: 9px; letter-spacing: 1px; border-radius: 10px; }
+  .tab-pill { padding: 6px 12px; font-size: 9px; letter-spacing: 1px; }
   main { padding: 6px 10px; gap: 8px; }
   .radar-monitor { width: min(220px, 60vw); height: min(220px, 60vw); margin: 4px auto; }
   .radar-meta { gap: 6px; padding: 4px 0; }

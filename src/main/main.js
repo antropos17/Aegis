@@ -48,7 +48,7 @@ function getStats() {
 /** @returns {void} @since v0.1.0 */
 function createWindow() {
   const s = cfg.getSettings();
-  mainWindow = new BrowserWindow({ width: 1050, height: 800, title: 'AEGIS', backgroundColor: '#E0E5EC', webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false } });
+  mainWindow = new BrowserWindow({ width: 1050, height: 800, title: 'AEGIS', backgroundColor: '#0c0c0e', webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false } });
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   mainWindow.setMenuBarVisibility(false);
   if (s.startMinimized) mainWindow.hide();
