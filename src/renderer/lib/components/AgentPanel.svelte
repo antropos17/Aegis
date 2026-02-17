@@ -1,16 +1,16 @@
 <script>
-  import { agents } from '../stores/ipc.js';
+  import { enrichedAgents } from '../stores/risk.js';
   import AgentCard from './AgentCard.svelte';
 </script>
 
 <section class="agent-panel">
-  {#if $agents.length === 0}
+  {#if $enrichedAgents.length === 0}
     <div class="empty-state">
       <span>No AI agents detected</span>
     </div>
   {:else}
     <div class="agent-list">
-      {#each $agents as agent (agent.pid)}
+      {#each $enrichedAgents as agent (agent.pid)}
         <AgentCard {agent} />
       {/each}
     </div>
