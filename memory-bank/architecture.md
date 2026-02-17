@@ -31,7 +31,8 @@
 - src/renderer/lib/stores/risk.js — enrichedAgents derived store (agents + events + anomalies + network → riskScore, trustGrade)
 - src/renderer/lib/components/AgentPanel.svelte — scrollable agent list from enrichedAgents store, empty state
 - src/renderer/lib/components/Radar.svelte — canvas radar: concentric rings, sweep arm (4s rotation), agent dots by riskScore, glow, AEGIS center label, responsive
-- src/renderer/lib/components/ShieldTab.svelte — two-column layout: Radar (60%) + AgentPanel (40%), stacks vertically <768px
+- src/renderer/lib/components/Timeline.svelte — SVG timeline: last 100 events as 4px color-coded dots on horizontal time axis, severity colors, hover tooltips, responsive
+- src/renderer/lib/components/ShieldTab.svelte — column layout: top-row (Radar 60% + AgentPanel 40%), Timeline full-width below, stacks vertically <768px
 - src/renderer/lib/components/FeedFilters.svelte — filter bar: agent dropdown (from enrichedAgents), severity pills (all/critical/high/medium/low), type pills (all/file/network), $bindable state
 - src/renderer/lib/components/ActivityFeed.svelte — scrollable event list: unified file events + network connections, severity classification (critical/_denied, high/sensitive, medium/deleted, low/normal), newest-first, 200 event cap
 - src/renderer/lib/components/ActivityTab.svelte — layout: FeedFilters on top, ActivityFeed below (flex column)

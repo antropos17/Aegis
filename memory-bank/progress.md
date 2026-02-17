@@ -23,5 +23,7 @@
 
 - Step 9: Activity feed (FeedFilters.svelte — agent dropdown + severity pills + type pills with $bindable; ActivityFeed.svelte — unified file+network event list, severity classification, newest-first, 200 event cap, severity dot + time + agent + type badge + path + reason + severity badge; ActivityTab.svelte — filters bar on top, scrollable feed below)
 
+- Step 10: Timeline (Timeline.svelte — SVG horizontal bar, last 100 events as 4px color-coded dots on time axis, severity colors matching ActivityFeed, hover tooltip via <title>, responsive via bind:clientWidth; ShieldTab.svelte — added top-row wrapper for radar+agents, Timeline full-width below)
+
 ## Next
-- Step 10 (TBD)
+- Step 11 (TBD)
