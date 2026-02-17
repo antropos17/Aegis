@@ -1,119 +1,151 @@
 # AEGIS Architecture
 
+## Mission
+
+AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level observability of AI agent behavior without kernel drivers. When AI is embedded in operating systems, browsers, and applications, oversight must not belong to those same companies. AEGIS provides independent, open-source, privacy-first monitoring that runs entirely on the user's machine.
+
 ## System Overview
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                        ELECTRON APP                              │
-│                                                                  │
-│  ┌─────────────────────────┐    ┌─────────────────────────────┐  │
-│  │     MAIN PROCESS        │    │     RENDERER PROCESS        │  │
-│  │                         │    │                             │  │
-│  │  process-scanner.js ────┼──► │  state.js (global state)   │  │
-│  │  file-watcher.js ───────┼──► │  risk-scoring.js           │  │
-│  │  network-monitor.js ────┼──► │  radar-*.js (canvas)       │  │
-│  │  baselines.js ──────────┼──► │  agent-panel.js            │  │
-│  │  ai-analysis.js ────────┼──► │  activity-feed.js          │  │
-│  │  audit-logger.js ───────┤    │  timeline.js               │  │
-│  │  config-manager.js      │    │  network-panel.js          │  │
-│  │  exports.js             │    │  reports.js                │  │
-│  │  tray-icon.js           │    │  settings.js               │  │
-│  │                         │    │  permissions.js            │  │
-│  │         main.js         │    │  app.js (orchestrator)     │  │
-│  │      (orchestrator)     │    │                             │  │
-│  └────────────┬────────────┘    └──────────────┬──────────────┘  │
-│               │          preload.js            │                 │
-│               └──────── (IPC bridge) ──────────┘                 │
-│                    contextBridge API                              │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          ELECTRON APP                                   │
+│                                                                         │
+│  ┌──────────────────────────────┐     ┌──────────────────────────────┐  │
+│  │       MAIN PROCESS           │     │      RENDERER PROCESS        │  │
+│  │                              │     │                              │  │
+│  │  ┌────────────────────────┐  │     │  ┌────────────────────────┐  │  │
+│  │  │  OBSERVABILITY LAYER   │  │     │  │   VISUALIZATION LAYER  │  │  │
+│  │  │                        │  │     │  │                        │  │  │
+│  │  │  process-scanner.js    │──┼──►  │  │  radar-*.js (canvas)   │  │  │
+│  │  │  file-watcher.js       │──┼──►  │  │  timeline.js           │  │  │
+│  │  │  network-monitor.js    │──┼──►  │  │  activity-feed.js      │  │  │
+│  │  │  baselines.js          │──┼──►  │  │  agent-panel.js        │  │  │
+│  │  │  ai-analysis.js        │──┼──►  │  │  network-panel.js      │  │  │
+│  │  │  audit-logger.js       │  │     │  │  reports.js             │  │  │
+│  │  └────────────────────────┘  │     │  └────────────────────────┘  │  │
+│  │                              │     │                              │  │
+│  │  ┌────────────────────────┐  │     │  ┌────────────────────────┐  │  │
+│  │  │  INFRASTRUCTURE        │  │     │  │   INTELLIGENCE LAYER   │  │  │
+│  │  │                        │  │     │  │                        │  │  │
+│  │  │  config-manager.js     │  │     │  │  risk-scoring.js       │  │  │
+│  │  │  exports.js            │  │     │  │  permissions.js        │  │  │
+│  │  │  tray-icon.js          │  │     │  │  state.js + helpers.js │  │  │
+│  │  └────────────────────────┘  │     │  └────────────────────────┘  │  │
+│  │                              │     │                              │  │
+│  │          main.js             │     │         app.js               │  │
+│  │       (orchestrator)         │     │      (orchestrator)          │  │
+│  └───────────────┬──────────────┘     └──────────────┬───────────────┘  │
+│                  │          preload.js                │                  │
+│                  └─────── (IPC bridge) ───────────────┘                  │
+│                     contextBridge API (20+ channels)                     │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+                    ┌───────────────────────────┐
+                    │     LOCAL STORAGE          │
+                    │                           │
+                    │  settings.json            │
+                    │  baselines.json           │
+                    │  audit-logs/*.json (JSONL) │
+                    └───────────────────────────┘
 ```
 
-## Main Process Modules
+## Observability Layers
 
-### main.js — Orchestrator
-Wires all sub-modules via `init()` dependency injection. Registers IPC handlers. Manages three scan intervals (process, file, network) with staggered startup (3s, 5s, 8s). Handles single-instance lock, tray lifecycle, and baseline finalization on quit.
+### What's Covered Now
 
-### process-scanner.js — Agent Detection
-Loads 88 agent signatures from `agent-database.json`. Scans via `tasklist /FO CSV /NH`. Pattern-matches process names against known signatures. Resolves parent process chains via PowerShell with 60s TTL cache. Deduplicates by PID. Detects host apps (e.g., "Copilot inside VS Code").
+#### 1. Process Intelligence — `process-scanner.js`
+- **What it sees:** All running processes matched against 88 agent signatures
+- **How:** `tasklist /FO CSV /NH` on Windows, pattern matching against known process names
+- **Depth:** Parent-child process tree resolution via PowerShell (60s TTL cache), IDE host app detection (e.g., "Copilot inside VS Code"), PID tracking for enter/exit events
+- **Coverage:** ~95% of known AI agents. Unknown agents detected via wildcard patterns.
 
-### file-watcher.js — File Monitoring
-Two monitoring approaches running in parallel:
-1. **chokidar watchers** on sensitive directories (`.ssh`, `.aws`, `.gnupg`, `.kube`, `.docker`, `.azure`, `.env*`, agent config dirs, project dir)
-2. **Handle-based scanning** via PowerShell (`handle64.exe` or `Get-Process` fallback) for per-process file access
+#### 2. File & Data Access — `file-watcher.js` + `constants.js`
+- **What it sees:** File create/modify/delete in sensitive directories, per-process file handles
+- **How:** chokidar watchers on `.ssh`, `.aws`, `.gnupg`, `.kube`, `.docker`, `.azure`, `.env*`, 27 agent config directories, project directory. PowerShell handle scanning (`handle64.exe` or `Get-Process` fallback).
+- **Depth:** 70+ sensitive file patterns with severity classification. AI agent config directory protection (Hudson Rock threat vector). 2-second debounce per path.
+- **Limitation:** chokidar cannot attribute events to specific processes. Handle scanning provides per-process attribution but runs on a timer.
 
-Classifies files against 70+ sensitive patterns from `constants.js`. 2-second debounce per path.
+#### 3. Network Intelligence — `network-monitor.js`
+- **What it sees:** All outbound TCP connections for detected agent PIDs
+- **How:** `Get-NetTCPConnection` via PowerShell, filtered by PID. Reverse DNS with 5-minute cache.
+- **Depth:** Domain classification against 50+ known-safe vendor patterns (from agent database). Unknown domains flagged. Connection state tracking.
+- **Limitation:** Cannot inspect encrypted traffic. Sees endpoints but not payload.
 
-### network-monitor.js — Network Scanning
-`Get-NetTCPConnection` via PowerShell, filtered to agent PIDs. Reverse DNS with 5-minute cache. Domain classification against 50+ known-safe patterns (vendor domains from agent database). Connections flagged when domain is unknown.
+#### 4. Risk Engine — `risk-scoring.js` + `baselines.js`
+- **What it computes:** Per-agent risk scores (0-100+), trust grades (A+ through F), anomaly scores (0-100)
+- **Risk formula:** `sensitive×10 + config×5 + network×3 + unknownDomain×15 + min(files×0.1, 10)` with trust multiplier and time decay
+- **Anomaly scoring:** 5 weighted factors — file volume (30pts), sensitive spike (25pts), new sensitive categories (20pts), new network endpoints (15pts), unusual timing (10pts)
+- **Baselines:** Rolling averages over 10 sessions, persisted to `baselines.json`
 
-### baselines.js — Anomaly Detection
-Per-agent session tracking: files, sensitive count, directories, endpoints, sensitive reasons, active hours. Rolling averages over 10 sessions. Anomaly scoring (0-100) with 5 weighted factors:
-- File volume vs baseline (30 points)
-- Sensitive file spike (25 points)
-- New sensitive categories (20 points)
-- New network endpoints (15 points)
-- Unusual timing (10 points)
+#### 5. AI Analysis — `ai-analysis.js`
+- **What it provides:** Structured threat assessment with executive summary, findings, risk rating, recommendations
+- **How:** Anthropic Messages API (`claude-sonnet-4-5-20250929`) with session data context
+- **Modes:** Per-agent analysis and full-session analysis
+- **Privacy:** Only triggered when user explicitly clicks the button. No background API calls.
 
-### ai-analysis.js — AI Threat Assessment
-Two analysis modes:
-1. **Per-agent** — File counts, sensitive details, network connections, parent chain
-2. **Full session** — All agents, anomaly scores, config accesses, network summary
+#### 6. Audit Trail — `audit-logger.js`
+- **What it logs:** 7 event types — file-access, network-connection, anomaly-alert, permission-deny, agent-enter, agent-exit, config-access
+- **Format:** Append-only JSONL. Each entry: `{timestamp, type, agent, action, path, severity, riskScore, details}`
+- **Rotation:** New file per day (`aegis-audit-YYYY-MM-DD.json`), auto-delete after 30 days
+- **Performance:** Buffered writes — flush every 5 seconds or at 50 events
 
-Both use Anthropic Messages API (`claude-sonnet-4-5-20250929`) with structured prompts.
+#### 7. Resource Analytics
+- **What it shows:** AEGIS's own CPU usage, memory (RSS), heap usage, scan interval
+- **Where:** Footer status bar, updated every scan cycle
 
-### audit-logger.js — Persistent Audit Trail
-Append-only JSONL logs at `userData/audit-logs/aegis-audit-YYYY-MM-DD.json`. Seven event types: file-access, network-connection, anomaly-alert, permission-deny, agent-enter, agent-exit, config-access. Buffered writes (flush every 5s or 50 events). 30-day retention with auto-cleanup.
+### What's NOT Covered Yet (Blind Spots → Future Work)
 
-### config-manager.js — Settings Persistence
-`settings.json` in Electron userData. Stores scan interval, notification preferences, API key, custom sensitive patterns, per-agent permissions, seen agents list.
+| Blind Spot | Description | Planned Approach |
+|---|---|---|
+| **UI Awareness** | Cannot see what AI agents display or interact with in UI | Accessibility API monitoring (no screen capture) |
+| **Container/VM Detection** | Docker, WSL, local LLM processes not specifically tracked | Process pattern matching for containers + GPU monitoring |
+| **Sandbox Containment** | Monitor-only — cannot isolate or restrict agents | Job Objects (Windows), AppContainer, Linux namespaces |
+| **GPU Monitoring** | Cannot detect local inference processes | GPU utilization APIs, process GPU memory tracking |
+| **Deep Packet Inspection** | Sees TCP endpoints but not encrypted payloads | TLS interception proxy with user consent |
+| **Syscall Monitoring** | No kernel-level visibility into system calls | Windows Minifilter, macOS Endpoint Security, Linux eBPF |
+| **Memory Inspection** | Cannot inspect agent process memory | ReadProcessMemory API, `/proc/[pid]/mem` |
+| **Cross-device Correlation** | Single-machine visibility only | Local network discovery + shared audit format |
+| **Mac/Linux Support** | Process scanning is Windows-only | `ps aux`, `fanotify`, `ss`/`lsof` implementations |
 
-### exports.js — Report Generation
-Three export formats: JSON (timestamped activity log), CSV (flat format), HTML (styled dashboard report with charts). All use Electron save dialogs.
-
-### tray-icon.js — System Tray
-Procedural 16x16 PNG shield icon (no external assets). Color-coded by threat level. Context menu for show/pause/quit. Native notifications for sensitive access.
-
-## Renderer Architecture
-
-### Script Load Order
-Scripts are loaded via `<script>` tags in dependency order:
-
-```
-1. state.js          → DOM refs, global state, permissions cache
-2. helpers.js        → Formatting, sparklines, toast, file-type detection
-3. theme.js          → Dark/light toggle
-4. risk-scoring.js   → Time-decay risk engine, trust grades
-5. radar-state.js    → Radar constants, node definitions
-6. radar-draw.js     → Canvas background, rings, sweep arm, nodes
-7. radar-engine.js   → Agent orbits, connection lines, animation loop
-8. permissions.js    → Protection presets, tri-state controls
-9. agent-database-ui.js → Agent database manager UI
-10. agent-panel.js   → Agent card HTML rendering
-11. agent-render.js  → Agent list, click handlers, radar sync
-12. activity-feed.js → Feed entries, permission enforcement
-13. network-panel.js → Network connection rendering
-14. timeline.js      → Session event timeline
-15. reports.js       → Activity filters, reports table, audit UI
-16. settings.js      → Settings panel, export handlers
-17. analysis.js      → Analysis modal
-18. app.js           → Tab navigation, IPC listeners, init
-```
-
-All functions and variables are global (no module system). Load order matters.
-
-### Risk Scoring Formula
+## Module Dependency Diagram
 
 ```
-score = (sensitive * 10) + (config * 5) + (network * 3) + (unknownDomain * 15) + min(files * 0.1, 10)
+agent-database.json
+        │
+        ▼
+process-scanner.js ◄──── config-manager.js
+        │                       │
+        ├──► file-watcher.js ◄──┘
+        │         │
+        ├──► network-monitor.js
+        │         │
+        ▼         ▼
+   baselines.js ◄─┘
+        │
+        ├──► ai-analysis.js
+        │
+        ▼
+  audit-logger.js
 
-multiplier = trustedAgent ? 0.5 : 1.0
-timeDecay  = recent(1.0) | >1hr(0.5) | >24hr(0.1)
-
-finalScore = score * multiplier * timeDecay
-trustScore = baseTrust - riskScore * 0.8   // Graded A+ through F
+        │
+        ▼
+     main.js (wires everything, manages intervals)
+        │
+        ▼ IPC via preload.js
+        │
+     app.js (renderer orchestrator)
+        │
+        ├──► risk-scoring.js
+        ├──► radar-*.js
+        ├──► timeline.js
+        ├──► activity-feed.js
+        ├──► agent-panel.js / agent-render.js
+        ├──► network-panel.js
+        ├──► reports.js
+        ├──► permissions.js
+        └──► settings.js
 ```
-
-Files inside the project working directory are excluded from scoring.
 
 ## Data Flow
 
@@ -121,51 +153,76 @@ Files inside the project working directory are excluded from scoring.
 Process Scan (every Ns)
     │
     ├──► Agent list ──► Renderer (scan-results)
-    │                   ├──► Radar visualization
-    │                   ├──► Agent cards
-    │                   └──► Risk scoring
+    │                   ├──► Radar visualization (agent orbits)
+    │                   ├──► Agent cards (trust bars, sparklines)
+    │                   ├──► Risk scoring (time-decay weighted)
+    │                   └──► Agent enter/exit → Audit log
     │
     ├──► File Handle Scan (every 3Ns)
     │    └──► File events ──► Renderer (file-access)
-    │                        ├──► Activity feed
-    │                        ├──► Timeline
-    │                        └──► Stats update
+    │         │               ├──► Activity feed
+    │         │               ├──► Session timeline
+    │         │               └──► Stats update
+    │         └──► Audit log (file-access / config-access)
     │
     ├──► Network Scan (every 30s + on agent change)
     │    └──► Connections ──► Renderer (network-update)
-    │                        ├──► Network panel
-    │                        └──► Timeline
+    │         │               ├──► Network panel
+    │         │               └──► Session timeline
+    │         └──► Audit log (network-connection)
     │
     ├──► Baseline Check
     │    └──► Deviations ──► Renderer (baseline-warnings)
-    │                       ├──► Toast notifications
-    │                       ├──► Anomaly feed entries
-    │                       └──► Timeline
+    │         │               ├──► Toast notifications
+    │         │               ├──► Anomaly feed entries
+    │         │               └──► Session timeline
+    │         └──► Audit log (anomaly-alert)
     │
     └──► Anomaly Scores ──► Renderer (anomaly-scores)
                             └──► Agent card badges
-
-All events ──► Audit Logger ──► Daily JSONL files
 ```
 
 ## IPC Channel Reference
 
 ### Invoke (Renderer → Main → Response)
 
+| Channel | Module | Purpose |
+|---|---|---|
+| `scan-processes` | process-scanner | Trigger manual process scan |
+| `get-stats` | main | File counts, agent counts, uptime |
+| `get-resource-usage` | main | CPU, memory, heap metrics |
+| `get-settings` | config-manager | Read settings |
+| `save-settings` | config-manager | Persist settings + restart watchers |
+| `get-all-permissions` | config-manager | Full permission map + seen agents |
+| `get-agent-permissions` | config-manager | Per-agent permission state |
+| `save-agent-permissions` | config-manager | Persist permission map |
+| `reset-permissions-to-defaults` | config-manager | Reset all permissions |
+| `get-agent-baseline` | baselines | Per-agent session history + averages |
+| `analyze-agent` | ai-analysis | Per-agent AI threat analysis |
+| `analyze-session` | ai-analysis | Full session AI threat analysis |
+| `open-threat-report` | main | Write HTML to temp + open in browser |
+| `get-audit-stats` | audit-logger | Audit log statistics |
+| `open-audit-log-dir` | audit-logger | Open audit directory in explorer |
+| `export-full-audit` | audit-logger | Export all logs to single JSON |
+| `export-log` | exports | JSON save dialog |
+| `export-csv` | exports | CSV save dialog |
+| `generate-report` | exports | HTML report → open in browser |
+| `get-agent-database` | process-scanner | Full agent signature database |
+| `get-project-dir` | main | Project root path |
+| `get-custom-agents` | config-manager | User-defined agent list |
+| `save-custom-agents` | config-manager | Persist custom agents |
+| `export-agent-database` | main | Export agents to JSON file |
+| `import-agent-database` | main | Import agents from JSON file |
+| `capture-screenshot` | main | Capture window as PNG |
+| `kill-process` | main | Terminate process by PID |
+| `suspend-process` | main | Suspend process via NtSuspendProcess |
+| `resume-process` | main | Resume process via NtResumeProcess |
+
+### Send (Renderer → Main, no response)
+
 | Channel | Purpose |
 |---|---|
-| `scan-processes` | Trigger manual process scan |
-| `get-stats` | File counts, agent counts, uptime |
-| `get-resource-usage` | CPU, memory, heap metrics |
-| `get-settings` / `save-settings` | Settings CRUD |
-| `get-all-permissions` / `save-agent-permissions` | Permission map |
-| `get-agent-baseline` | Per-agent behavioral baseline |
-| `analyze-agent` / `analyze-session` | AI threat analysis |
-| `get-audit-stats` / `export-full-audit` | Audit log operations |
-| `open-audit-log-dir` | Open audit directory in explorer |
-| `export-log` / `export-csv` / `generate-report` | Data export |
-| `get-agent-database` | Full agent signature database |
-| `kill-process` / `suspend-process` / `resume-process` | Process control |
+| `other-panel-expanded` | Toggle other-agent file scanning |
 
 ### Push (Main → Renderer)
 
@@ -177,26 +234,47 @@ All events ──► Audit Logger ──► Daily JSONL files
 | `network-update` | Network connections |
 | `resource-usage` | CPU/memory metrics |
 | `baseline-warnings` | Behavioral deviations |
-| `anomaly-scores` | Per-agent anomaly scores |
-| `monitoring-paused` | Pause/resume state |
+| `anomaly-scores` | Per-agent anomaly scores (0-100) |
+| `monitoring-paused` | Pause/resume state from tray |
 
 ## Extension Points
 
-### Adding a New Monitoring Source
-1. Create module in `src/main/` with `init()` pattern
-2. Wire in `main.js` with dependency injection
-3. Add IPC handler in `registerIpc()` if renderer needs data
-4. Add bridge method in `preload.js`
-5. Create renderer component to display data
-
 ### Adding a New Agent Signature
-Add entry to `agent-database.json` with process patterns, known domains, config paths, and trust/risk metadata. The process scanner, network monitor, and file watcher all consume this database.
+Edit `agent-database.json` — add entry with `processPatterns`, `knownDomains`, `configPaths`, and trust/risk metadata. The process scanner, network monitor, and file watcher all consume this database automatically.
 
-### Adding a New Sensitive File Rule
-Add pattern to `SENSITIVE_RULES` in `src/shared/constants.js` with `pattern` (regex), `reason` (display string), optional `category` and `severity` fields.
+### Adding New Sensitive File Rules
+Edit `src/shared/constants.js` — add to `SENSITIVE_RULES` array:
+```javascript
+{ pattern: /my-pattern/i, reason: 'Display reason', category: 'my-cat', severity: 'critical' }
+```
+
+### Adding a New Monitoring Module
+1. Create `src/main/new-module.js` with `init(state)` pattern
+2. Wire in `main.js` via dependency injection
+3. Add IPC handler in `registerIpc()` if renderer needs access
+4. Add bridge method in `preload.js`
+5. Add audit logging via `aud.log(type, details)`
+
+### Adding a New UI Panel
+1. Create `src/renderer/new-panel.js` with rendering functions
+2. Add HTML container in `index.html`
+3. Add `<script>` tag in correct load order
+4. Wire data via IPC listener in `app.js`
+5. Add CSS in appropriate stylesheet
 
 ### Adding Platform Support
 The main process modules abstract OS-specific operations:
-- `process-scanner.js` — Replace `tasklist` command with `ps aux` for Unix
+- `process-scanner.js` — Replace `tasklist` with `ps aux` for Unix
 - `file-watcher.js` — chokidar is cross-platform; handle scanning needs `lsof` fallback
 - `network-monitor.js` — Replace `Get-NetTCPConnection` with `ss` or `lsof -i`
+
+## Privacy Architecture
+
+AEGIS is designed with privacy as a core architectural constraint:
+
+- **All data stays local.** Settings, baselines, and audit logs are stored in Electron's userData directory. Nothing leaves the machine unless the user explicitly exports it.
+- **No telemetry.** AEGIS does not phone home. No analytics, no crash reporting, no usage tracking.
+- **No cloud sync.** There is no account system, no server, no cloud backend.
+- **AI analysis is opt-in.** Calls to the Anthropic API happen only when the user explicitly clicks "Run AI Threat Analysis." The API key is user-provided and stored locally.
+- **Audit logs are metadata-only.** File paths and agent names are logged. File contents are never read, stored, or transmitted.
+- **Open-source transparency.** Every line of monitoring, scoring, and analysis logic is visible in the source code. There are no hidden behaviors.
