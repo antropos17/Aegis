@@ -108,9 +108,9 @@
   flex: 1; overflow-y: auto;
   background: var(--surface-2);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  border-radius: var(--radius);
-  padding: 6px; border: var(--glass-border);
-  display: flex; flex-direction: column; gap: 1px;
+  border-radius: var(--radius-lg);
+  padding: 8px; border: var(--glass-border);
+  display: flex; flex-direction: column; gap: 4px;
 }
 
 /* ── RULES tab ── */
@@ -182,10 +182,19 @@
   border: var(--glass-border);
 }
 .reports-table-wrap {
-  background: var(--surface-2);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  background: var(--surface-1);
+  backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: var(--radius-lg); padding: 8px;
   overflow-x: auto; border: var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  margin-bottom: 24px;
+}
+
+/* ── Rules separator ── */
+.rules-separator {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255, 0.06), transparent);
+  margin: 24px 0;
 }
 .reports-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .reports-table th {
@@ -271,8 +280,8 @@
 
 /* ── Agent Database Manager (rules tab) ── */
 .agentdb-divider {
-  height: 1px; margin: 28px 0 24px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  height: 1px; margin: 24px 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
 }
 .agentdb-section { margin-top: 0; }
 .agentdb-header {
