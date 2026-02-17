@@ -18,6 +18,10 @@
 ## Renderer (src/renderer/) — МИГРИРУЕМ НА SVELTE
 - Старые файлы: 20 JS + 1 HTML + 9 CSS (будут удалены после миграции)
 - Новые: Svelte компоненты + Vite build
+- src/renderer/app.html — Vite entry point
+- src/renderer/main.js — Svelte mount
+- src/renderer/App.svelte — root component
+- src/renderer/lib/stores/ipc.js — IPC bridge as Svelte stores (agents, events, stats, network, anomalies)
 
 ## Shared (src/shared/)
 - constants.js — sensitive rules, ignore patterns

@@ -5,8 +5,12 @@
 - UI audit: found 7 bugs (UTF-8, XSS, dead code, etc.)
 - Risk scoring fixes identified (7 issues)
 
+## Completed Steps
+- Step 1: Vite + Svelte init (vite.config.js, app.html, main.js, App.svelte)
+- Step 2: IPC bridge as Svelte stores (src/renderer/lib/stores/ipc.js)
+
 ## In Progress
-- Svelte migration setup
+- Testing Step 2
 
 ## Next
-- Step 1 of Svelte implementation plan
+- Step 3 (TBD)
