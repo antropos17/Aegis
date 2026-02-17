@@ -6,11 +6,19 @@
   import ActivityTab from './lib/components/ActivityTab.svelte';
   import RulesTab from './lib/components/RulesTab.svelte';
   import ReportsTab from './lib/components/ReportsTab.svelte';
+  import Settings from './lib/components/Settings.svelte';
+  import { theme } from './lib/stores/theme.js';
 
   let activeTab = $state('shield');
+  let settingsOpen = $state(false);
+
+  $effect(() => {
+    document.documentElement.dataset.theme = $theme;
+  });
 </script>
 
-<Header />
+<Header onSettingsClick={() => { settingsOpen = true; }} />
+<Settings bind:open={settingsOpen} />
 
 <div class="app-shell">
   <nav class="app-nav">
@@ -33,13 +41,6 @@
 <Footer />
 
 <style>
-  :global(body) {
-    margin: 0;
-    background: var(--md-sys-color-surface);
-    color: var(--md-sys-color-on-surface);
-    font: var(--md-sys-typescale-body-medium);
-  }
-
   .app-shell {
     min-height: 100vh;
     display: flex;

@@ -160,7 +160,7 @@
   .crud-btn.danger { background: var(--md-sys-color-error); color: var(--md-sys-color-on-error); border-color: var(--md-sys-color-error); }
   .overlay {
     position: fixed; inset: 0; z-index: 100;
-    background: rgba(0,0,0,0.6);
+    background: var(--md-sys-color-scrim);
     display: flex; align-items: center; justify-content: center;
   }
   .modal {

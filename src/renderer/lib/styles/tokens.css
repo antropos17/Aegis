@@ -1,5 +1,6 @@
-/* ═══ M3 DESIGN TOKENS — AEGIS DARK THEME ═══ */
+/* ═══ M3 DESIGN TOKENS — AEGIS ═══ */
 
+/* ── Dark theme (default) ── */
 :root {
   /* ── Color roles (tonal palette) ── */
   --md-sys-color-surface: #0c0c0e;
@@ -18,6 +19,7 @@
   --md-sys-color-tertiary: #4a7a5a;
   --md-sys-color-error: #c87a7a;
   --md-sys-color-on-error: #1a0000;
+  --md-sys-color-scrim: rgba(0, 0, 0, 0.6);
 
   /* ── Typography scale ── */
   --md-sys-typescale-display-large: 600 32px/40px 'Outfit', sans-serif;
@@ -36,4 +38,25 @@
   --md-sys-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --md-sys-motion-duration-short: 150ms;
   --md-sys-motion-duration-medium: 300ms;
+}
+
+/* ── Light theme ── */
+[data-theme="light"] {
+  --md-sys-color-surface: #f8f8fa;
+  --md-sys-color-surface-container-low: #f0f0f2;
+  --md-sys-color-surface-container: #e8e8ea;
+  --md-sys-color-surface-container-high: #e0e0e2;
+  --md-sys-color-surface-container-highest: #d8d8da;
+  --md-sys-color-on-surface: #1a1a1e;
+  --md-sys-color-on-surface-variant: #68625c;
+  --md-sys-color-outline: rgba(0, 0, 0, 0.08);
+  --md-sys-color-outline-variant: rgba(0, 0, 0, 0.04);
+  --md-sys-color-primary: #5a6a7e;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #c8d4e4;
+  --md-sys-color-secondary: #a08830;
+  --md-sys-color-tertiary: #3a6a4a;
+  --md-sys-color-error: #b05050;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-scrim: rgba(0, 0, 0, 0.5);
 }
