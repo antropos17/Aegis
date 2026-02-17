@@ -2,19 +2,25 @@
 
 #agents-panel {
   flex: 1; display: flex; flex-direction: column;
-  background: var(--surface-1); border-radius: var(--radius-lg); padding: 16px;
-  border: 1px solid var(--border); min-height: 0; max-height: 100%; overflow: hidden;
+  background: var(--surface-1);
+  backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-radius: var(--radius-lg); padding: 16px;
+  border: var(--glass-border); box-shadow: var(--glass-shadow), var(--glass-highlight);
+  min-height: 0; max-height: 100%; overflow: hidden;
 }
 #agents-panel h2 { flex-shrink: 0; }
 #agents-list { display: flex; flex-direction: column; gap: 6px; flex: 1; overflow-y: auto; min-height: 0; }
 
 .agent-card {
   display: flex; flex-direction: column; gap: 6px; padding: 12px 14px;
-  background: var(--surface-1); border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  transition: all 0.15s ease; cursor: pointer; user-select: none; overflow: hidden;
+  background: var(--surface-1);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--radius-lg);
+  border: var(--glass-border);
+  box-shadow: var(--glass-highlight);
+  transition: all 0.3s var(--ease-glass); cursor: pointer; user-select: none; overflow: hidden;
 }
-.agent-card:hover { border-color: var(--border-hover); }
+.agent-card:hover { border-color: rgba(255,255,255,0.15); }
 .agent-card.selected { background: var(--surface-2); border-color: var(--accent-border); }
 
 .agent-card-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -78,8 +84,11 @@
 
 /* ── Network Activity panel ── */
 #network-panel {
-  flex: 1; background: var(--surface-1); border-radius: var(--radius-lg); padding: 16px;
-  border: 1px solid var(--border); min-width: 0; overflow: hidden;
+  flex: 1; padding: 16px; min-width: 0; overflow: hidden;
+  background: var(--surface-1);
+  backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-radius: var(--radius-lg);
+  border: var(--glass-border); box-shadow: var(--glass-shadow), var(--glass-highlight);
 }
 .network-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .network-header h2 { margin-bottom: 0; }
@@ -97,10 +106,13 @@
 
 .net-row {
   display: grid; grid-template-columns: 100px 120px 50px 1fr 80px; gap: 8px;
-  align-items: center; padding: 7px 12px; background: var(--surface-2); border-radius: var(--radius);
+  align-items: center; padding: 7px 12px;
+  background: var(--surface-2); border-radius: var(--radius);
   border: 1px solid transparent;
   min-width: 0; overflow: hidden; font-size: 11px; animation: fadeIn 0.15s ease;
+  transition: all 0.3s var(--ease-glass);
 }
+.net-row:hover { border-color: rgba(255,255,255,0.08); }
 .net-row.flagged { background: var(--gold-light); border-color: rgba(200,168,78,.08); }
 .net-agent { color: var(--accent); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .net-ip { color: var(--text-mid); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -120,8 +132,11 @@
 
 /* ── Other Agent Processes panel ── */
 .other-panel {
-  flex: 1; background: var(--surface-1); border-radius: var(--radius-lg); padding: 16px;
-  border: 1px solid var(--border); min-width: 0; overflow: hidden;
+  flex: 1; padding: 16px; min-width: 0; overflow: hidden;
+  background: var(--surface-1);
+  backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-radius: var(--radius-lg);
+  border: var(--glass-border); box-shadow: var(--glass-shadow), var(--glass-highlight);
 }
 .other-panel-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .other-panel-header h2 { margin-bottom: 0; color: var(--text-dim); }
@@ -134,9 +149,9 @@
   margin-left: auto; font-size: 9px; font-weight: 600; letter-spacing: .3px;
   padding: 4px 12px; color: var(--text-dim); background: transparent;
   border: 1px solid var(--border); border-radius: var(--radius-pill);
-  cursor: pointer; font-family: inherit; transition: all 0.15s ease;
+  cursor: pointer; font-family: inherit; transition: all 0.3s var(--ease-glass);
 }
-.btn-toggle:hover { color: var(--text-mid); border-color: var(--border-hover); }
+.btn-toggle:hover { color: var(--text-mid); border-color: rgba(255,255,255,0.15); }
 
 .other-panel-content { display: flex; flex-direction: column; gap: 8px; }
 .other-panel.collapsed .other-panel-content { display: none; }
@@ -147,11 +162,13 @@
 
 .other-agent-card {
   display: flex; flex-direction: column; gap: 4px; padding: 12px 14px;
-  background: var(--surface-1); border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  transition: all 0.15s ease; cursor: pointer; user-select: none;
+  background: var(--surface-1);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--radius-lg); border: var(--glass-border);
+  box-shadow: var(--glass-highlight);
+  transition: all 0.3s var(--ease-glass); cursor: pointer; user-select: none;
 }
-.other-agent-card:hover { border-color: var(--border-hover); }
+.other-agent-card:hover { border-color: rgba(255,255,255,0.15); }
 .other-agent-card.selected { background: var(--surface-2); border-color: var(--accent-border); }
 .other-agent-card .agent-parent-chain { color: var(--text-faint); }
 .other-agent-card .agent-indicator { background: var(--text-faint); box-shadow: none; }
@@ -162,9 +179,11 @@
 .other-agent-card .agent-file-count { background: var(--text-faint); color: #fff; }
 
 .other-feed {
-  max-height: 150px; overflow-y: auto; background: var(--surface-2);
+  max-height: 150px; overflow-y: auto;
+  background: var(--surface-2);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border-radius: var(--radius-lg); padding: 8px;
-  border: 1px solid var(--border);
+  border: var(--glass-border);
   display: flex; flex-direction: column; gap: 2px;
 }
 .other-feed .feed-entry { opacity: 0.7; }
