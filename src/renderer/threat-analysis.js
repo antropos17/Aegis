@@ -14,7 +14,7 @@ const threatAnalysisResults = document.getElementById('threat-analysis-results')
 threatAnalysisBtn.addEventListener('click', async () => {
   threatAnalysisBtn.disabled = true;
   threatAnalysisBtn.textContent = 'ANALYZING...';
-  threatAnalysisResults.innerHTML = '<div class="threat-loading"><div class="threat-spinner"></div>Running AI threat analysis via Anthropic API...</div>';
+  threatAnalysisResults.innerHTML = '<div class="threat-loading"><div class="threat-spinner"></div>Running AI threat analysis...</div>';
   try {
     const result = await window.aegis.analyzeSession();
     if (result.success) {
@@ -32,23 +32,65 @@ threatAnalysisBtn.addEventListener('click', async () => {
 });
 
 /**
- * Render AI threat analysis results into the reports tab.
- * @param {Object} result - Analysis result with summary, findings, riskRating, recommendations.
- * @returns {void}
- * @since v0.2.0
+ * Render AI threat analysis results into structured glass blocks.
+ * @param {Object} result - Analysis result with summary, findings, riskRating, riskJustification, recommendations.
  */
 function renderThreatAnalysis(result) {
-  const ratingColors = { 'CLEAR': 'green', 'LOW': 'green', 'MEDIUM': 'yellow', 'HIGH': 'orange', 'CRITICAL': 'red' };
-  const ratingColor = ratingColors[result.riskRating] || 'yellow';
+  const ratingColors = {
+    'CLEAR': { bg: 'var(--green-light)', border: 'var(--green)', text: 'var(--green)', glow: 'rgba(74,122,90,0.15)' },
+    'LOW': { bg: 'var(--green-light)', border: 'var(--green)', text: 'var(--green)', glow: 'rgba(74,122,90,0.15)' },
+    'MEDIUM': { bg: 'var(--gold-light)', border: 'var(--gold)', text: 'var(--gold)', glow: 'rgba(200,168,78,0.15)' },
+    'HIGH': { bg: 'rgba(200,140,78,0.08)', border: 'var(--gold)', text: 'var(--gold)', glow: 'rgba(200,140,78,0.2)' },
+    'CRITICAL': { bg: 'var(--red-light)', border: 'var(--red)', text: 'var(--red)', glow: 'rgba(200,122,122,0.2)' },
+  };
+  const rc = ratingColors[result.riskRating] || ratingColors['MEDIUM'];
+  const rating = escapeHtml(result.riskRating || 'UNKNOWN');
+
   let html = '<div class="threat-results">';
-  html += `<div class="threat-rating-card"><span class="threat-rating-badge threat-${ratingColor}">${escapeHtml(result.riskRating || 'UNKNOWN')}</span><span class="threat-rating-label">THREAT LEVEL</span></div>`;
-  html += `<div class="threat-card"><div class="threat-card-title">EXECUTIVE SUMMARY</div><div class="threat-card-text">${escapeHtml(result.summary || 'No summary available')}</div></div>`;
+
+  // ── Risk Level Hero Block ──
+  html += `<div class="ta-hero" style="background:${rc.bg};border-left:3px solid ${rc.border};box-shadow:0 0 20px ${rc.glow}">`;
+  html += `<div class="ta-hero-rating" style="color:${rc.text}">${rating}</div>`;
+  html += `<div class="ta-hero-label">THREAT ASSESSMENT</div>`;
+  if (result.riskJustification) {
+    html += `<div class="ta-hero-reason">${escapeHtml(result.riskJustification)}</div>`;
+  }
+  html += '</div>';
+
+  // ── Summary Block ──
+  html += '<div class="ta-block">';
+  html += '<div class="ta-block-header"><span class="ta-block-icon">\u2261</span>SUMMARY</div>';
+  html += `<div class="ta-block-body">${escapeHtml(result.summary || 'No summary available')}</div>`;
+  html += '</div>';
+
+  // ── Findings Block ──
   if (result.findings && result.findings.length > 0) {
-    html += `<div class="threat-card"><div class="threat-card-title">FINDINGS</div><ul class="threat-list">${result.findings.map(f => `<li>${escapeHtml(f)}</li>`).join('')}</ul></div>`;
+    html += '<div class="ta-block">';
+    html += '<div class="ta-block-header"><span class="ta-block-icon">\u2022</span>FINDINGS</div>';
+    html += '<div class="ta-block-body"><ul class="ta-list">';
+    for (const f of result.findings) {
+      // Color-code findings by keywords
+      let cls = '';
+      const fl = f.toLowerCase();
+      if (fl.includes('critical') || fl.includes('danger') || fl.includes('malicious')) cls = 'ta-finding-critical';
+      else if (fl.includes('sensitive') || fl.includes('suspicious') || fl.includes('warning')) cls = 'ta-finding-warn';
+      else if (fl.includes('normal') || fl.includes('expected') || fl.includes('safe')) cls = 'ta-finding-safe';
+      html += `<li class="${cls}">${escapeHtml(f)}</li>`;
+    }
+    html += '</ul></div></div>';
   }
+
+  // ── Recommendations Block ──
   if (result.recommendations && result.recommendations.length > 0) {
-    html += `<div class="threat-card"><div class="threat-card-title">RECOMMENDED ACTIONS</div><ul class="threat-list">${result.recommendations.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul></div>`;
+    html += '<div class="ta-block ta-block-accent">';
+    html += '<div class="ta-block-header"><span class="ta-block-icon">\u2192</span>RECOMMENDED ACTIONS</div>';
+    html += '<div class="ta-block-body"><ol class="ta-list ta-list-actions">';
+    for (const r of result.recommendations) {
+      html += `<li>${escapeHtml(r)}</li>`;
+    }
+    html += '</ol></div></div>';
   }
+
   html += '<button id="threat-print-report" class="btn-action btn-report" style="margin-top:12px">GENERATE PRINTABLE REPORT</button>';
   html += '</div>';
   threatAnalysisResults.innerHTML = html;
@@ -58,8 +100,6 @@ function renderThreatAnalysis(result) {
 /**
  * Generate and open a printable HTML threat report.
  * @param {Object} analysis - Analysis result object.
- * @returns {void}
- * @since v0.2.0
  */
 function generateThreatReport(analysis) {
   const now = new Date().toLocaleString();

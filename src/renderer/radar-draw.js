@@ -129,17 +129,17 @@ function drawCoreSphere(ctx, cx, cy, r, time) {
   if (agent) {
     const db = typeof agentDbMap !== 'undefined' ? agentDbMap[agent] : null;
     const icon = (db && db.icon) || agent.charAt(0).toUpperCase();
-    ctx.font = `${Math.round(coreR * 0.7)}px sans-serif`;
+    ctx.font = `500 ${Math.round(coreR * 0.6)}px "Space Grotesk", "DM Sans", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.fillText(icon, cx, cy);
   } else {
-    // Default shield icon
-    ctx.font = `800 ${Math.round(coreR * 0.55)}px "Outfit", sans-serif`;
+    // Default threat label
+    ctx.font = `600 ${Math.round(coreR * 0.45)}px "Space Grotesk", "DM Sans", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.fillText(radarState.threatLabel, cx, cy);
   }
 }
@@ -164,7 +164,7 @@ function getPlanetPos(cx, cy, r, node) {
 }
 
 /**
- * Draw orbital planets. Use layer param for z-ordering.
+ * Draw orbital planets with liquid glass matte effect. Use layer param for z-ordering.
  * @param {CanvasRenderingContext2D} ctx
  * @param {number} cx @param {number} cy @param {number} r
  * @param {number} time
@@ -172,6 +172,10 @@ function getPlanetPos(cx, cy, r, node) {
  */
 function drawOrbitalPlanets(ctx, cx, cy, r, time, layer) {
   const t = time * 0.001;
+  // Responsive planet radius: scales with canvas size
+  const planetR = Math.max(6, Math.min(14, r * 0.055));
+  const fontSize = Math.max(7, Math.min(12, r * 0.045));
+  const labelSize = Math.max(6, Math.min(9, r * 0.03));
 
   for (const node of ORBITAL_NODES) {
     const { px, py } = getPlanetPos(cx, cy, r, node);
@@ -179,9 +183,10 @@ function drawOrbitalPlanets(ctx, cx, cy, r, time, layer) {
     if (layer === 'back' && !isBehind) continue;
     if (layer === 'front' && isBehind) continue;
 
-    const planetR = 13;
-    // Depth-based alpha: planets behind are dimmer
-    const depthAlpha = isBehind ? 0.6 : 1.0;
+    // Depth-based dimming
+    const depthAlpha = isBehind ? 0.5 : 1.0;
+    const depthScale = isBehind ? 0.85 : 1.0;
+    const pR = planetR * depthScale;
 
     // Check if this planet was recently hit by lightning
     let hitPulse = 0;
@@ -194,53 +199,71 @@ function drawOrbitalPlanets(ctx, cx, cy, r, time, layer) {
       }
     }
 
-    // Glow behind planet
-    const glowR = planetR + 8 + hitPulse * 12;
-    const glowGrad = ctx.createRadialGradient(px, py, planetR * 0.3, px, py, glowR);
-    const glowAlpha = (0.12 + hitPulse * 0.25) * depthAlpha;
-    glowGrad.addColorStop(0, colorAlpha(node.color, glowAlpha));
+    // Outer shimmer ring (thin, pulsing)
+    const shimmerAlpha = (0.06 + hitPulse * 0.2 + Math.sin(t * 1.5 + node.speed * 10) * 0.02) * depthAlpha;
+    ctx.beginPath();
+    ctx.arc(px, py, pR + 2 + hitPulse * 6, 0, Math.PI * 2);
+    ctx.strokeStyle = colorAlpha(node.color, shimmerAlpha);
+    ctx.lineWidth = 0.5 + hitPulse * 1.5;
+    ctx.stroke();
+
+    // Soft glow halo (very subtle)
+    const glowR = pR + 5 + hitPulse * 10;
+    const glowGrad = ctx.createRadialGradient(px, py, pR * 0.5, px, py, glowR);
+    glowGrad.addColorStop(0, colorAlpha(node.color, (0.06 + hitPulse * 0.15) * depthAlpha));
     glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.beginPath();
     ctx.arc(px, py, glowR, 0, Math.PI * 2);
     ctx.fillStyle = glowGrad;
     ctx.fill();
 
-    // Planet body
+    // Planet body — liquid glass matte: translucent with frosted inner surface
     const bodyGrad = ctx.createRadialGradient(
-      px - planetR * 0.3, py - planetR * 0.3, planetR * 0.1,
-      px, py, planetR
+      px - pR * 0.2, py - pR * 0.25, pR * 0.05,
+      px + pR * 0.1, py + pR * 0.1, pR
     );
-    bodyGrad.addColorStop(0, colorAlpha(node.color, 0.95 * depthAlpha));
-    bodyGrad.addColorStop(1, colorAlpha(node.color, 0.55 * depthAlpha));
+    // Matte: low alpha, soft transitions, desaturated feel
+    bodyGrad.addColorStop(0, colorAlpha(node.color, 0.25 * depthAlpha));
+    bodyGrad.addColorStop(0.4, colorAlpha(node.color, 0.18 * depthAlpha));
+    bodyGrad.addColorStop(0.8, colorAlpha(node.color, 0.10 * depthAlpha));
+    bodyGrad.addColorStop(1, colorAlpha(node.color, 0.05 * depthAlpha));
     ctx.beginPath();
-    ctx.arc(px, py, planetR, 0, Math.PI * 2);
+    ctx.arc(px, py, pR, 0, Math.PI * 2);
     ctx.fillStyle = bodyGrad;
     ctx.fill();
 
-    // Specular highlight on planet
-    const specG = ctx.createRadialGradient(
-      px - planetR * 0.3, py - planetR * 0.3, 0,
-      px - planetR * 0.3, py - planetR * 0.3, planetR * 0.5
+    // Frosted glass inner highlight (top-left crescent)
+    const frostGrad = ctx.createRadialGradient(
+      px - pR * 0.35, py - pR * 0.35, 0,
+      px - pR * 0.15, py - pR * 0.15, pR * 0.7
     );
-    specG.addColorStop(0, `rgba(255,255,255,${0.35 * depthAlpha})`);
-    specG.addColorStop(1, 'rgba(255,255,255,0)');
+    frostGrad.addColorStop(0, `rgba(255,255,255,${0.12 * depthAlpha})`);
+    frostGrad.addColorStop(0.5, `rgba(255,255,255,${0.04 * depthAlpha})`);
+    frostGrad.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.beginPath();
-    ctx.arc(px, py, planetR, 0, Math.PI * 2);
-    ctx.fillStyle = specG;
+    ctx.arc(px, py, pR, 0, Math.PI * 2);
+    ctx.fillStyle = frostGrad;
     ctx.fill();
 
-    // Icon
-    ctx.font = '14px sans-serif';
+    // Thin border ring (liquid glass edge)
+    ctx.beginPath();
+    ctx.arc(px, py, pR, 0, Math.PI * 2);
+    ctx.strokeStyle = colorAlpha(node.color, (0.15 + hitPulse * 0.3) * depthAlpha);
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+
+    // Icon — monochrome, uniform style
+    ctx.font = `300 ${Math.round(fontSize)}px "Space Grotesk", "DM Sans", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = `rgba(255,255,255,${0.9 * depthAlpha})`;
+    ctx.fillStyle = `rgba(200,205,215,${0.7 * depthAlpha})`;
     ctx.fillText(node.icon, px, py);
 
-    // Label below
-    ctx.font = '600 8px "DM Sans", sans-serif';
-    ctx.fillStyle = `rgba(160,170,185,${0.7 * depthAlpha})`;
+    // Label below — subtle
+    ctx.font = `500 ${Math.round(labelSize)}px "Space Grotesk", "DM Sans", sans-serif`;
+    ctx.fillStyle = `rgba(140,148,160,${0.5 * depthAlpha})`;
     ctx.textAlign = 'center';
-    ctx.fillText(node.label, px, py + planetR + 11);
+    ctx.fillText(node.label, px, py + pR + Math.max(8, pR * 0.7));
   }
 }
 

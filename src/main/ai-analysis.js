@@ -65,9 +65,9 @@ function analyzeAgentActivity(agentName) {
       netList !== '  (none)' ? `Connection details:\n${netList}` : '',
     ].filter(Boolean).join('\n');
     const body = JSON.stringify({
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
-      system: 'You are a cybersecurity analyst reviewing AI agent activity on a Windows workstation. Provide a concise, plain-English risk assessment. Structure your response as: 1) Summary (1-2 sentences), 2) Key findings (bullet points), 3) Risk level (Low/Medium/High/Critical with brief justification), 4) Recommendations (1-3 actionable items). Be direct and specific. Do not use markdown headers — use plain text with simple formatting.',
+      system: 'You are AEGIS, a cybersecurity analyst reviewing AI agent activity on a Windows workstation. Respond with valid JSON only (no markdown, no code fences). Use this exact structure: {"summary":"1-2 sentence executive summary","findings":["finding 1","finding 2","finding 3"],"riskLevel":"LOW|MEDIUM|HIGH|CRITICAL","riskJustification":"brief reason for the rating","recommendations":["action 1","action 2"]}. Be concise, specific, and direct.',
       messages: [{ role: 'user', content: userMessage }],
     });
     const req = https.request({
@@ -87,7 +87,13 @@ function analyzeAgentActivity(agentName) {
         try {
           const parsed = JSON.parse(data);
           if (parsed.content && parsed.content[0] && parsed.content[0].text) {
-            resolve({ success: true, analysis: parsed.content[0].text });
+            const text = parsed.content[0].text.trim();
+            try {
+              const result = JSON.parse(text);
+              resolve({ success: true, analysis: text, structured: result });
+            } catch (_) {
+              resolve({ success: true, analysis: text });
+            }
           } else if (parsed.error) {
             resolve({ success: false, error: parsed.error.message || 'API error' });
           } else {
@@ -167,9 +173,9 @@ function analyzeSessionActivity() {
     ].join('\n');
 
     const body = JSON.stringify({
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 2048,
-      system: 'You are AEGIS, an AI security analyst monitoring AI agents on a user\'s workstation. Analyze the monitoring session data and respond with valid JSON only (no markdown, no code fences). Use this exact structure: {"summary":"executive threat summary in 2-3 sentences","findings":["finding 1","finding 2"],"riskRating":"CLEAR|LOW|MEDIUM|HIGH|CRITICAL","recommendations":["action 1","action 2"]}. Be specific about which agents and which files are concerning.',
+      system: 'You are AEGIS, an AI security analyst monitoring AI agents on a user\'s workstation. Analyze the monitoring session data and respond with valid JSON only (no markdown, no code fences). Use this exact structure: {"summary":"executive threat summary in 2-3 sentences","findings":["finding 1","finding 2"],"riskRating":"CLEAR|LOW|MEDIUM|HIGH|CRITICAL","riskJustification":"brief reason for the rating","recommendations":["action 1","action 2"]}. Be specific about which agents and which files are concerning.',
       messages: [{ role: 'user', content: userMessage }],
     });
 

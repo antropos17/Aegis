@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Outfit:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 
 :root {
   /* ── Surfaces (glassmorphism) ── */
@@ -14,7 +14,7 @@
   --text-dim: #68625c;
   --text-faint: #484440;
   --font-body: 'DM Sans', system-ui, sans-serif;
-  --font-display: 'Outfit', system-ui, sans-serif;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
 
   /* ── Accent ── */
   --accent: #7a8a9e;
