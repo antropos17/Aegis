@@ -21,14 +21,19 @@
   #agents-panel { max-height: 200px; }
 }
 
-/* Medium — stack columns vertically */
+/* Medium — stack to single column grid */
 @media (max-width: 1000px) {
   main { padding: 8px 14px; gap: 10px; }
-  .main-top { flex-direction: column; flex: unset; overflow: visible; }
-  .col-left { width: 100%; overflow-y: visible; flex-shrink: unset; }
-  .col-right { width: 100%; flex-shrink: unset; }
-  .col-bottom { flex-direction: column; max-height: none; }
-  #agents-panel { max-height: 300px; }
+  #tab-shield.active {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto auto auto auto;
+  }
+  #radar-section { grid-column: 1; grid-row: 1; }
+  #timeline-section { grid-column: 1; grid-row: 2; }
+  #agents-panel { grid-column: 1; grid-row: 3; max-height: 300px; }
+  #activity-panel { grid-column: 1; grid-row: 4; }
+  #network-panel { grid-column: 1; grid-row: 5; }
+  #other-agents-panel { grid-column: 1; grid-row: 6; }
   .radar-monitor { width: min(280px, 50vw); height: min(280px, 50vw); }
   .agent-left { flex: 1 1 100%; }
   .agent-center { flex: 1 1 auto; }
@@ -45,7 +50,7 @@
   .pill-label { display: none; }
   .pulse { font-size: 9px; padding: 3px 8px; }
   #last-scan { display: none; }
-  .tab-pill { padding: 6px 14px; font-size: 10px; letter-spacing: 1px; }
+  .tab-pill { padding: 8px 16px; font-size: 11px; }
 
   /* Compact footer */
   .status-items { gap: 8px; }
@@ -55,4 +60,25 @@
 
   /* Settings / modals */
   .settings-panel { width: 90vw; max-width: 90vw; }
+}
+
+/* Mobile — hamburger menu */
+@media (max-width: 768px) {
+  .hamburger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tab-bar {
+    display: none;
+    flex-direction: column;
+    margin: 0 16px 8px;
+    width: auto;
+  }
+  .tab-bar.open { display: flex; }
+  .tab-pill {
+    width: 100%;
+    text-align: center;
+    padding: 12px 16px;
+  }
 }

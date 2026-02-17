@@ -28,8 +28,21 @@ function switchTab(tab) {
 }
 
 document.querySelectorAll('.tab-pill').forEach(btn => {
-  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  btn.addEventListener('click', () => {
+    switchTab(btn.dataset.tab);
+    // Close hamburger dropdown on mobile
+    document.querySelector('.tab-bar').classList.remove('open');
+  });
 });
+
+// ═══ HAMBURGER MENU ═══
+
+const hamburgerBtn = document.getElementById('hamburger-btn');
+if (hamburgerBtn) {
+  hamburgerBtn.addEventListener('click', () => {
+    document.querySelector('.tab-bar').classList.toggle('open');
+  });
+}
 
 // ═══ STATS RENDERING ═══
 

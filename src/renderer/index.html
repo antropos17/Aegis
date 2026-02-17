@@ -32,6 +32,7 @@
     </div>
   </header>
 
+  <button class="hamburger" id="hamburger-btn">&#9776;</button>
   <nav class="tab-bar">
     <button class="tab-pill active" data-tab="shield">&#128737;&#65039; SHIELD</button>
     <button class="tab-pill" data-tab="activity">&#128203; ACTIVITY</button>
@@ -42,10 +43,6 @@
   <main>
     <!-- SHIELD TAB -->
     <div id="tab-shield" class="tab-view active">
-    <!-- TOP ROW: Left + Right columns -->
-    <div class="main-top">
-      <!-- LEFT COLUMN: Radar + Activity -->
-      <div class="col-left">
         <section id="radar-section">
           <div class="radar-monitor">
             <canvas id="radar-canvas" width="400" height="400"></canvas>
@@ -82,21 +79,14 @@
           </div>
           <button id="show-more-feed" class="btn-show-more" style="display:none">Show more activity...</button>
         </section>
-      </div>
 
-      <!-- RIGHT COLUMN: Agents -->
-      <div class="col-right">
         <section id="agents-panel">
           <h2>Detected AI Agents</h2>
           <div id="agents-list">
             <div class="empty-state">&#x1F6E1; No AI agents detected. Shield is clear.</div>
           </div>
         </section>
-      </div>
-    </div>
 
-    <!-- BOTTOM BAR: Network + Other -->
-    <div class="col-bottom">
       <section id="network-panel">
         <div class="network-header">
           <h2>Network Activity</h2>
@@ -126,7 +116,6 @@
           </div>
         </div>
       </section>
-    </div>
     </div><!-- /tab-shield -->
 
     <!-- ACTIVITY TAB -->
