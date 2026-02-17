@@ -1,10 +1,14 @@
-<div class="tab-placeholder">
-  <h2>Shield Tab</h2>
+<script>
+  import AgentPanel from './AgentPanel.svelte';
+</script>
+
+<div class="shield-tab">
+  <AgentPanel />
 </div>
 
 <style>
-  .tab-placeholder {
-    padding: 24px;
-    color: var(--text, #e8e6e2);
+  .shield-tab {
+    padding: 16px;
+    height: 100%;
   }
 </style>

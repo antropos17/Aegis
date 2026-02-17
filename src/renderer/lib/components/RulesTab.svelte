@@ -5,6 +5,6 @@
 <style>
   .tab-placeholder {
     padding: 24px;
-    color: var(--text, #e8e6e2);
+    color: var(--md-sys-color-on-surface);
   }
 </style>
