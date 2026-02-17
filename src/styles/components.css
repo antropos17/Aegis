@@ -1,20 +1,4 @@
-/* ── Activity feed panel ── */
-#activity-panel {
-  flex: 1; display: flex; flex-direction: column; min-height: 80px;
-  background: var(--bg-card); border-radius: 14px; padding: 16px;
-  box-shadow: 5px 5px 12px var(--shadow-dark), -5px -5px 12px var(--shadow-light);
-  overflow: hidden;
-}
-.activity-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 10px; flex-wrap: wrap; gap: 8px;
-}
-.activity-header h2 { margin-bottom: 0; }
-.activity-controls { display: flex; align-items: center; gap: 8px; }
-.sensitive-badge {
-  font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--red);
-  background: rgba(220, 53, 69, 0.1); padding: 3px 10px; border-radius: 16px;
-}
+/* ── Action buttons ── */
 .btn-action {
   font-size: 10px; font-weight: 600; letter-spacing: 1px; color: var(--accent);
   background: var(--bg-card); border: none; padding: 6px 14px; border-radius: 16px;
@@ -29,62 +13,6 @@
 .btn-action:disabled:hover { transform: none; box-shadow: 4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light); }
 .btn-clear { color: var(--text-dim); }
 .btn-clear:hover { color: var(--red); }
-#activity-feed {
-  flex: 1; overflow-y: auto; background: var(--bg-inset); border-radius: 10px; padding: 6px;
-  box-shadow: inset 3px 3px 6px var(--shadow-dark-subtle), inset -3px -3px 6px var(--shadow-light-subtle);
-  display: flex; flex-direction: column; gap: 1px;
-}
-.feed-entry {
-  font-size: 11px; line-height: 1.6; padding: 4px 10px; border-radius: 8px;
-  display: flex; gap: 8px; align-items: baseline; animation: fadeIn 0.3s ease-out;
-}
-.feed-entry:hover { background: rgba(140, 155, 175, 0.2); }
-.feed-entry.sensitive { background: rgba(220, 53, 69, 0.07); }
-.feed-entry.sensitive:hover { background: rgba(220, 53, 69, 0.12); }
-.feed-time { color: var(--text-muted); flex-shrink: 0; }
-.feed-agent { color: var(--accent); font-weight: 600; flex-shrink: 0; }
-.feed-action { color: var(--text-dim); flex-shrink: 0; }
-.feed-action.action-created { color: var(--green); }
-.feed-action.action-modified { color: var(--orange); }
-.feed-action.action-deleted { color: var(--red); }
-.feed-file { color: var(--text-mid); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-.feed-entry.sensitive .feed-file { color: var(--red); font-weight: 600; }
-.feed-entry.sensitive .feed-action { color: var(--red); }
-.sensitive-tag {
-  color: var(--red); font-weight: 700; font-size: 10px; letter-spacing: 0.5px;
-  flex-shrink: 0; white-space: nowrap; background: rgba(220, 53, 69, 0.1);
-  padding: 1px 6px; border-radius: 8px;
-}
-.config-access-tag {
-  color: #fff; font-weight: 700; font-size: 10px; letter-spacing: 0.5px;
-  flex-shrink: 0; white-space: nowrap; background: var(--red);
-  padding: 1px 6px; border-radius: 8px;
-  animation: config-pulse 2s ease-in-out infinite;
-}
-@keyframes config-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
-.feed-entry.config-access { background: rgba(220, 53, 69, 0.12); }
-.feed-entry.config-access:hover { background: rgba(220, 53, 69, 0.18); }
-.feed-entry.config-access .feed-file { color: var(--red); font-weight: 700; }
-.feed-entry.config-access .feed-action { color: var(--red); }
-
-/* ── Anomaly badges + feed entries ── */
-.anomaly-tag {
-  color: #fff; font-weight: 700; font-size: 10px; letter-spacing: 0.5px;
-  flex-shrink: 0; white-space: nowrap; background: var(--orange);
-  padding: 1px 6px; border-radius: 8px;
-}
-.feed-entry.anomaly { background: rgba(237, 137, 54, 0.12); }
-.feed-entry.anomaly:hover { background: rgba(237, 137, 54, 0.18); }
-.feed-entry.anomaly .feed-file { color: var(--orange); }
-.feed-entry.anomaly .feed-action { color: var(--orange); }
-.anomaly-badge {
-  font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 600;
-  padding: 1px 5px; border-radius: 8px; margin-left: 4px; cursor: help;
-}
-.anomaly-badge.anomaly-green { color: var(--green); background: rgba(56, 161, 105, 0.15); }
-.anomaly-badge.anomaly-yellow { color: var(--orange); background: rgba(237, 137, 54, 0.15); }
-.anomaly-badge.anomaly-orange { color: var(--orange); background: rgba(237, 137, 54, 0.25); }
-.anomaly-badge.anomaly-red { color: var(--red); background: rgba(229, 62, 62, 0.2); }
 
 /* ── Trust score bar + agent actions ── */
 .agent-trust-row { display: flex; align-items: center; gap: 8px; margin-top: 2px; padding: 0 2px; }
@@ -118,15 +46,6 @@
 .btn-agent-action.action-sandbox { color: var(--orange); }
 .btn-agent-action.action-block   { color: var(--red); }
 .btn-agent-action.action-trust   { color: var(--green); }
-
-/* ── Severity dots ── */
-.feed-severity-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 1px; }
-.feed-severity-dot.sev-sensitive { background: #DC3545; box-shadow: 0 0 4px rgba(220, 53, 69, 0.5); }
-.feed-severity-dot.sev-config    { background: #E8913A; box-shadow: 0 0 4px rgba(232, 145, 58, 0.4); }
-.feed-severity-dot.sev-normal    { background: #43B581; box-shadow: 0 0 4px rgba(67, 181, 129, 0.3); }
-.feed-type-icon { font-size: 11px; flex-shrink: 0; opacity: 0.7; }
-.feed-entry:nth-child(even) { background: rgba(140, 155, 175, 0.08); }
-.feed-entry.sensitive:nth-child(even) { background: rgba(220, 53, 69, 0.09); }
 
 /* ── Show more button ── */
 .btn-show-more {
@@ -250,112 +169,3 @@
 }
 .process-exiting { animation: process-exit 600ms ease-in forwards; pointer-events: none; }
 .process-entering { animation: process-enter 400ms ease-out; }
-
-/* ── Threat analysis (Reports tab) ── */
-.threat-analysis-wrap {
-  margin-top: 16px; padding: 16px; background: var(--bg-card); border-radius: 14px;
-  box-shadow: 5px 5px 12px var(--shadow-dark), -5px -5px 12px var(--shadow-light);
-}
-.threat-loading {
-  display: flex; align-items: center; gap: 12px; justify-content: center;
-  padding: 24px; color: var(--accent); font-size: 12px; font-weight: 600;
-  letter-spacing: 1px; animation: analysis-pulse 1.5s ease-in-out infinite;
-}
-.threat-spinner {
-  width: 18px; height: 18px; border: 2px solid var(--bg-inset);
-  border-top-color: var(--accent); border-radius: 50%;
-  animation: threat-spin 0.8s linear infinite;
-}
-@keyframes threat-spin { to { transform: rotate(360deg); } }
-.threat-error {
-  color: var(--red); font-size: 12px; font-weight: 600; padding: 16px;
-  text-align: center; background: rgba(229, 62, 62, 0.08); border-radius: 10px;
-}
-.threat-results { display: flex; flex-direction: column; gap: 12px; }
-.threat-rating-card {
-  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
-  background: var(--bg-inset); border-radius: 12px;
-  box-shadow: inset 3px 3px 6px var(--shadow-dark-subtle), inset -3px -3px 6px var(--shadow-light-subtle);
-}
-.threat-rating-badge {
-  font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 800;
-  letter-spacing: 2px; padding: 6px 16px; border-radius: 10px; color: #fff;
-}
-.threat-rating-badge.threat-green  { background: var(--green); }
-.threat-rating-badge.threat-yellow { background: var(--orange); }
-.threat-rating-badge.threat-orange { background: var(--orange); }
-.threat-rating-badge.threat-red    { background: var(--red); }
-.threat-rating-label {
-  font-size: 10px; font-weight: 700; letter-spacing: 2px; color: var(--text-dim);
-}
-.threat-card {
-  padding: 12px 16px; background: var(--bg-inset); border-radius: 12px;
-  box-shadow: inset 3px 3px 6px var(--shadow-dark-subtle), inset -3px -3px 6px var(--shadow-light-subtle);
-}
-.threat-card-title {
-  font-size: 10px; font-weight: 700; letter-spacing: 2px; color: var(--text-dim);
-  margin-bottom: 6px;
-}
-.threat-card-text { font-size: 12px; line-height: 1.6; color: var(--text); }
-.threat-list {
-  margin: 4px 0 0 0; padding-left: 18px; font-size: 12px;
-  line-height: 1.6; color: var(--text-mid);
-}
-.threat-list li { margin: 2px 0; }
-
-/* ── Session timeline (SHIELD tab) ── */
-.timeline-section {
-  margin: 8px 0; flex-shrink: 0;
-}
-.timeline-strip {
-  position: relative; height: 52px; overflow-x: auto; overflow-y: hidden;
-  background: var(--bg-inset); border-radius: 12px; padding: 8px 12px;
-  box-shadow: inset 3px 3px 6px var(--shadow-dark-subtle), inset -3px -3px 6px var(--shadow-light-subtle);
-  scrollbar-width: thin; scrollbar-color: var(--text-muted) transparent;
-}
-.timeline-strip::-webkit-scrollbar { height: 4px; }
-.timeline-strip::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 2px; }
-.timeline-dots {
-  display: flex; align-items: center; gap: 4px; height: 100%;
-  min-width: max-content; padding-right: 8px;
-}
-.tl-dot {
-  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-  transition: transform 150ms ease-out; cursor: pointer;
-}
-.tl-dot:hover { transform: scale(1.8); }
-.tl-dot-lg { width: 10px; height: 10px; }
-.tl-normal  { background: var(--green); box-shadow: 0 0 3px rgba(56, 161, 105, 0.4); }
-.tl-medium  { background: var(--blue); box-shadow: 0 0 4px rgba(66, 153, 225, 0.4); }
-.tl-high    { background: var(--orange); box-shadow: 0 0 5px rgba(237, 137, 54, 0.5); }
-.tl-critical { background: var(--red); box-shadow: 0 0 6px rgba(229, 62, 62, 0.6); animation: tl-pulse 1.5s ease-in-out infinite; }
-@keyframes tl-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-.timeline-tooltip {
-  position: absolute; bottom: 42px; left: 0;
-  background: var(--bg-card); border-radius: 10px; padding: 8px 12px;
-  font-size: 11px; line-height: 1.5; pointer-events: none;
-  opacity: 0; transition: opacity 150ms ease-out; min-width: 160px; max-width: 240px;
-  box-shadow: 5px 5px 12px var(--shadow-dark), -5px -5px 12px var(--shadow-light);
-  z-index: 10;
-}
-.timeline-tooltip.visible { opacity: 1; }
-.tl-tip-time { color: var(--text-muted); font-family: 'DM Mono', monospace; font-size: 10px; }
-.tl-tip-agent { color: var(--accent); font-weight: 600; }
-.tl-tip-detail { color: var(--text-mid); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tl-tip-severity { font-weight: 600; font-size: 10px; letter-spacing: 0.5px; }
-.tl-tip-normal  { color: var(--green); }
-.tl-tip-medium  { color: var(--blue); }
-.tl-tip-high    { color: var(--orange); }
-.tl-tip-critical { color: var(--red); }
-
-/* ── Audit log section (Reports tab) ── */
-.audit-log-wrap {
-  margin-top: 8px; padding: 14px 16px; background: var(--bg-card); border-radius: 14px;
-  box-shadow: 5px 5px 12px var(--shadow-dark), -5px -5px 12px var(--shadow-light);
-}
-.audit-stats {
-  display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 10px;
-  font-size: 11px; color: var(--text-mid);
-}
-.audit-stat strong { color: var(--accent); font-weight: 700; }
-.audit-actions { display: flex; gap: 8px; }

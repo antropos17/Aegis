@@ -11,7 +11,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('aegis', {
-  scanProcesses: () => ipcRenderer.invoke('scan-processes'),
   getStats: () => ipcRenderer.invoke('get-stats'),
   getResourceUsage: () => ipcRenderer.invoke('get-resource-usage'),
   setOtherPanelExpanded: (v) => ipcRenderer.send('other-panel-expanded', v),
@@ -53,7 +52,6 @@ contextBridge.exposeInMainWorld('aegis', {
     ipcRenderer.on('anomaly-scores', (_e, data) => cb(data));
   },
   getAgentDatabase: () => ipcRenderer.invoke('get-agent-database'),
-  captureScreenshot: () => ipcRenderer.invoke('capture-screenshot'),
   getProjectDir: () => ipcRenderer.invoke('get-project-dir'),
   killProcess: (pid) => ipcRenderer.invoke('kill-process', pid),
   suspendProcess: (pid) => ipcRenderer.invoke('suspend-process', pid),
