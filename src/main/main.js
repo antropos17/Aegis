@@ -90,7 +90,7 @@ cfg.init({ knownAgentNames: sc.AI_AGENTS.map(a => a.name), applyCallback: () => 
 sc.init({ trackSeenAgent: cfg.trackSeenAgent });
 fw.init({ getCustomRules: cfg.getCustomSensitiveRules, getLatestAgents: () => latestAgents, getLatestAiAgents: () => latestAiAgents, isMonitoringPaused: () => monitoringPaused, activityLog: sc.activityLog, knownHandles: sc.knownHandles, watchers, recordFileAccess: bl.recordFileAccess, onFileEvent: (ev) => { sendToWin('file-access', [ev]); if (ev.sensitive && ev.category === 'ai') ti.notifySensitive([ev]); sendToWin('stats-update', getStats()); ti.updateTrayIcon(); }, isOtherPanelExpanded: () => otherPanelExpanded });
 exp.init({ activityLog: sc.activityLog, getLatestNetConnections: () => latestNetConnections, monitoringStarted: sc.monitoringStarted, getMainWindow: () => mainWindow, getStats });
-ai.init({ getSettings: cfg.getSettings, activityLog: sc.activityLog, getLatestAgents: () => latestAgents, getLatestNetConnections: () => latestNetConnections });
+ai.init({ getSettings: cfg.getSettings, activityLog: sc.activityLog, getLatestAgents: () => latestAgents, getLatestNetConnections: () => latestNetConnections, getAnomalyScores: () => { const scores = {}; for (const a of latestAgents) scores[a.agent] = bl.calculateAnomalyScore(a.agent); return scores; } });
 ti.init({ tray: null, currentTrayColor: 'green', lastNotificationTime: 0, getActivityLog: () => sc.activityLog, getSettings: cfg.getSettings, isMonitoringPaused: () => monitoringPaused, setMonitoringPaused: (v) => { monitoringPaused = v; }, stopScanIntervals, startScanIntervals, getMainWindow: () => mainWindow, setIsQuitting: (v) => { isQuitting = v; }, appQuit: () => app.quit() });
 
 /** @returns {void} @since v0.1.0 */
@@ -105,6 +105,8 @@ function registerIpc() {
   ipcMain.handle('save-settings', (_e, ns) => { cfg.saveSettings(ns); cfg.applySettings(); return { success: true }; });
   ipcMain.on('other-panel-expanded', (_e, v) => { otherPanelExpanded = v; });
   ipcMain.handle('analyze-agent', async (_e, n) => !cfg.getSettings().anthropicApiKey ? { success: false, error: 'Set your Anthropic API key in Settings' } : ai.analyzeAgentActivity(n));
+  ipcMain.handle('analyze-session', async () => !cfg.getSettings().anthropicApiKey ? { success: false, error: 'Set your Anthropic API key in Settings' } : ai.analyzeSessionActivity());
+  ipcMain.handle('open-threat-report', async (_e, html) => { const { shell } = require('electron'); const fp = path.join(app.getPath('temp'), `aegis-threat-report-${Date.now()}.html`); fs.writeFileSync(fp, html); shell.openExternal('file://' + fp.replace(/\\/g, '/')); return { success: true, path: fp }; });
   ipcMain.handle('get-agent-baseline', (_e, n) => { const b = bl.getBaselines().agents[n], sd = bl.getSessionData()[n]; return { sessionCount: b ? b.sessionCount : 0, averages: b ? b.averages : { filesPerSession: 0, sensitivePerSession: 0, typicalDirectories: [], knownEndpoints: [] }, currentSession: sd ? { totalFiles: sd.files.size, sensitiveCount: sd.sensitiveCount, directoryCount: sd.directories.size, endpointCount: sd.endpoints.size } : { totalFiles: 0, sensitiveCount: 0, directoryCount: 0, endpointCount: 0 } }; });
   ipcMain.handle('get-all-permissions', () => { const s = cfg.getSettings(); return { permissions: s.agentPermissions, seenAgents: s.seenAgents }; });
   ipcMain.handle('get-agent-permissions', (_e, n) => cfg.getAgentPermissions(n));
