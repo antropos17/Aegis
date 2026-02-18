@@ -63,4 +63,6 @@ contextBridge.exposeInMainWorld('aegis', {
   getAuditStats: () => ipcRenderer.invoke('get-audit-stats'),
   openAuditLogDir: () => ipcRenderer.invoke('open-audit-log-dir'),
   exportFullAudit: () => ipcRenderer.invoke('export-full-audit'),
+  exportConfig: () => ipcRenderer.invoke('export-config'),
+  importConfig: () => ipcRenderer.invoke('import-config'),
 });

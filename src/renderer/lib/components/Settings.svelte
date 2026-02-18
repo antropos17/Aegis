@@ -80,6 +80,10 @@
           <textarea rows="4" bind:value={customPatterns} placeholder="e.g. \.secret$&#10;passwords\.txt"></textarea>
         </label>
       </div>
+      <div class="config-actions">
+        <button class="btn" onclick={() => window.aegis?.exportConfig()}>Export Config</button>
+        <button class="btn" onclick={async () => { const r = await window.aegis?.importConfig(); if (r?.success) { loaded = false; } }}>Import Config</button>
+      </div>
       <div class="modal-actions">
         <button class="btn" onclick={close}>Cancel</button>
         <button class="btn primary" onclick={save}>Save</button>
@@ -147,6 +151,7 @@
   }
   .toggle-vis:hover { color: var(--md-sys-color-on-surface); }
 
+  .config-actions { display: flex; gap: 8px; margin-bottom: 16px; border-top: 1px solid var(--md-sys-color-outline-variant); padding-top: 16px; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
   .btn {
     font: var(--md-sys-typescale-label-medium); font-weight: 600; padding: 8px 16px; cursor: pointer;

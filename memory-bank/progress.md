@@ -67,6 +67,8 @@
 
 ## Phase 6
 - [x] Step 1: Git push to GitHub
+- [x] Step 2: README update for v0.2.0-alpha (badges, .env.example in Quick Start)
+- [x] Step 3: Settings modal completeness (added Export Config / Import Config buttons, IPC handlers in main.js + preload.js)
 
 ## Status
 UX redesign complete. 10 steps. Pushed to GitHub (main branch + v0.2.0-alpha tag).

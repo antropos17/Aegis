@@ -163,6 +163,10 @@ function registerIpc() {
     return { success: true, path: filePath, count: all.length };
   });
 
+  // ── Config export/import ──
+  ipcMain.handle('export-config', async () => { const { dialog } = require('electron'); const s = cfg.getSettings(); const { filePath } = await dialog.showSaveDialog(mainWindow, { title: 'Export Config', defaultPath: 'aegis-config.json', filters: [{ name: 'JSON', extensions: ['json'] }] }); if (!filePath) return { success: false }; fs.writeFileSync(filePath, JSON.stringify(s, null, 2)); return { success: true, path: filePath }; });
+  ipcMain.handle('import-config', async () => { const { dialog } = require('electron'); const { filePaths } = await dialog.showOpenDialog(mainWindow, { title: 'Import Config', filters: [{ name: 'JSON', extensions: ['json'] }], properties: ['openFile'] }); if (!filePaths || filePaths.length === 0) return { success: false }; try { const raw = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8')); cfg.saveSettings(raw); cfg.applySettings(); return { success: true }; } catch (e) { return { success: false, error: e.message }; } });
+
   // ── Process control IPC handlers ──
   ipcMain.handle('kill-process', (_e, pid) => {
     return new Promise((resolve) => {
