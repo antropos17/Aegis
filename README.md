@@ -1,5 +1,10 @@
 # AEGIS — Independent AI Oversight Layer
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Electron](https://img.shields.io/badge/Electron-33-47848F?logo=electron&logoColor=white)](https://electronjs.org)
+[![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte&logoColor=white)](https://svelte.dev)
+[![Version](https://img.shields.io/badge/version-0.2.0--alpha-blue)]()
+
 > When AI is embedded in your OS, browser, and apps — oversight must be independent.
 
 **The first open-source tool that monitors what AI agents do on your computer.**
@@ -63,6 +68,7 @@ Every existing AI security company is enterprise B2B ($10K+/year): Lasso Securit
 ```bash
 git clone https://github.com/antropos17/Aegis.git
 cd Aegis
+cp .env.example .env  # add your Anthropic API key (optional)
 npm install
 npm run build
 npm start
