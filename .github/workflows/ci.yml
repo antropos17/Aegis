@@ -29,4 +29,5 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - run: npx eslint src/renderer --ext .svelte,.js --no-eslintrc --rule '{"no-unused-vars": "warn", "no-console": "warn"}' || true
+      - name: Lint
+        run: npx eslint src/renderer --ext .svelte,.js --no-eslintrc --rule "no-unused-vars:1" --rule "no-console:1" || true
