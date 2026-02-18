@@ -1,7 +1,8 @@
 # AEGIS Architecture
 
 ## Main Process (src/main/) — CommonJS
-- main.js — orchestrator, IPC handlers, lifecycle
+- main.js — orchestrator, scan intervals, lifecycle
+- ipc-handlers.js — all IPC handlers (28 invoke + 1 listener)
 - preload.js — IPC bridge (window.aegis via contextBridge)
 - process-scanner.js — AI agent detection (tasklist + pattern matching)
 - process-utils.js — parent chain resolution + editor annotation

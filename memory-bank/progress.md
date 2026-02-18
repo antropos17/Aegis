@@ -95,5 +95,10 @@
 
 - [x] Step 34: Cleaned all fake/placeholder values for public launch (SECURITY.md: GitHub Security Advisories link replacing fake email, version 0.2.x; CONTRIBUTING.md: real repo URL, Svelte 5 + Vite description, glassmorphism CSS; README.md: 95 agents badge + all text refs, author line fixed; .env: replaced SECRET_KEY=test123 with ANTHROPIC_API_KEY placeholder)
 
+- [x] Step 35: Updated ARCHITECTURE.md to match Svelte codebase (ASCII diagram: Svelte component names, risk formula: log2-based, Container/VM: 7 agents detected, 88→95 agent signatures, UI Panel extension points: Svelte workflow)
+
+## Simplify Passes
+- main.js: extracted 28 IPC handlers → ipc-handlers.js (217 lines). main.js 226→256 lines (readable names, expanded one-liners, logAuditForFile helper deduped). Both slightly over 200 soft limit but properly separated by concern.
+
 ## Status
 Phase 6 in progress. 95 agents in database. All docs cleaned for public GitHub launch.
