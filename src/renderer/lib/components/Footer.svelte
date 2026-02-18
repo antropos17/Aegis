@@ -1,5 +1,5 @@
 <script>
-  import { stats, resourceUsage } from '../stores/ipc.js';
+  import { resourceUsage } from '../stores/ipc.js';
 
   let lastCpuUser = 0;
   let lastCpuSystem = 0;

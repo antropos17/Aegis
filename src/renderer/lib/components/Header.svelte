@@ -17,11 +17,14 @@
   let agentCount = $derived($enrichedAgents.length);
   let filesMonitored = $derived($stats.totalFiles ?? '--');
 
-  let scoreClass = $derived(
-    typeof shieldScore === 'number'
-      ? shieldScore < 40 ? 'danger' : shieldScore < 70 ? 'warn' : ''
-      : ''
-  );
+  function getScoreClass(score) {
+    if (typeof score !== 'number') return '';
+    if (score < 40) return 'danger';
+    if (score < 70) return 'warn';
+    return '';
+  }
+
+  let scoreClass = $derived(getScoreClass(shieldScore));
 </script>
 
 <header class="header">
