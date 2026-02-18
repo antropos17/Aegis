@@ -4,6 +4,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)]()
 [![Electron](https://img.shields.io/badge/Electron-33-47848F?logo=electron&logoColor=white)](https://electronjs.org)
 [![Agents](https://img.shields.io/badge/Agents-88-4ECDC4)]()
+[![Download](https://img.shields.io/github/downloads/antropos17/Aegis/total?style=flat-square&label=downloads&color=4a9eff)](https://github.com/antropos17/Aegis/releases/latest)
 
 **Independent AI Oversight Layer — monitors what AI agents do on your computer.**
 
@@ -14,6 +15,14 @@
 AI agents now have deep access to your machine — reading files, scanning codebases, executing commands, and making outbound network connections. Every existing AI security tool is enterprise B2B and monitors what humans send *to* AI. None of them monitor what AI agents do *on local machines*.
 
 AEGIS is an independent, open-source monitoring layer that watches AI agent behavior in real time. It doesn't belong to any AI vendor. All data stays local. No telemetry, no cloud sync, no tracking.
+
+## Download
+
+**Windows** — [AEGIS Setup 0.2.0-alpha.exe](https://github.com/antropos17/Aegis/releases/latest) (~82 MB)
+
+No Node.js required. Download, install, run.
+
+> Mac and Linux support planned.
 
 ## What It Monitors
 
