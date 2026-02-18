@@ -9,6 +9,8 @@ Thumbs.db
 *.ps1
 cdp_*.js
 .claude/
+.mcp.json
+memory-bank/
 aegis-log-*.json
 screenshot_test.png
 screenshot_electron.png
