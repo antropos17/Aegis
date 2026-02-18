@@ -53,6 +53,16 @@
 - tabs.css — tab bar, tab pills, agent DB table
 - responsive.css — media queries
 
+## Root Files
+- package.json — dependencies + scripts
+- CLAUDE.md — AI assistant instructions
+- README.md — public launch docs
+- CONTRIBUTING.md — development setup + code standards
+- SECURITY.md — vulnerability reporting + 90-day disclosure
+- ARCHITECTURE.md — system design + observability layers
+- CODE_OF_CONDUCT.md — community standards + enforcement
+- .gitignore — dist/, out/, .env, node_modules/, *.log, .DS_Store
+
 ## Key Patterns
 - Main process: CommonJS (require/module.exports) with init() dependency injection
 - Renderer: global functions via script tags in load order, no imports/exports
