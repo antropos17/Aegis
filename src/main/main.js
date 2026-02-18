@@ -49,6 +49,16 @@ function getStats() {
 function createWindow() {
   const s = cfg.getSettings();
   mainWindow = new BrowserWindow({ width: 1200, height: 800, minWidth: 900, minHeight: 600, title: 'AEGIS', backgroundColor: '#050507', webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false } });
+  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; connect-src 'self' https://api.anthropic.com"
+        ]
+      }
+    });
+  });
   const distPath = path.join(__dirname, '..', '..', 'dist', 'renderer', 'app.html');
   if (!app.isPackaged) {
     mainWindow.loadURL('http://localhost:5174/app.html').catch(() => {

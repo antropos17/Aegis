@@ -14,7 +14,10 @@ if (window.aegis) {
     events.update(arr => [...arr.slice(-499), ...batch]);
   });
   window.aegis.onStatsUpdate((data) => stats.set(data));
-  window.aegis.onNetworkUpdate((data) => network.set(data));
+  window.aegis.onNetworkUpdate((data) => {
+    const arr = Array.isArray(data) ? data : [];
+    network.set(arr.length > 500 ? arr.slice(-500) : arr);
+  });
   window.aegis.onAnomalyScores((data) => anomalies.set(data));
   window.aegis.onResourceUsage((data) => resourceUsage.set(data));
 
