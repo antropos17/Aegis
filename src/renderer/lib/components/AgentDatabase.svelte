@@ -130,7 +130,7 @@
     -webkit-backdrop-filter: blur(var(--glass-blur));
     box-shadow: var(--glass-shadow);
   }
-  .db-table { width: 100%; border-collapse: collapse; }
+  .db-table { width: 100%; border-collapse: separate; border-spacing: 0; }
   .db-table thead { position: sticky; top: 0; z-index: 1; }
   .db-table th {
     font: var(--md-sys-typescale-label-medium); font-weight: 600;

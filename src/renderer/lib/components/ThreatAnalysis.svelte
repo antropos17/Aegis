@@ -9,6 +9,29 @@
   let selectedAgent = $state('');
   let mode = $state('session');
 
+  function normalizeResult(res) {
+    let obj = res.structured || null;
+    // If no structured data, try to parse the analysis text
+    if (!obj && res.analysis) {
+      try {
+        const clean = res.analysis.replace(/^```(?:json)?\s*|\s*```$/g, '').trim();
+        obj = JSON.parse(clean);
+      } catch (_) {
+        return { summary: res.analysis, findings: [], riskRating: 'UNKNOWN', riskJustification: '', recommendations: [] };
+      }
+    }
+    // Session mode returns fields directly on res
+    if (!obj && res.summary) obj = res;
+    if (!obj) return { summary: 'No analysis available', findings: [], riskRating: 'UNKNOWN', riskJustification: '', recommendations: [] };
+    return {
+      summary: obj.summary || '',
+      findings: obj.findings || [],
+      riskRating: obj.riskRating || obj.riskLevel || 'UNKNOWN',
+      riskJustification: obj.riskJustification || '',
+      recommendations: obj.recommendations || [],
+    };
+  }
+
   async function runAnalysis() {
     if (!window.aegis) return;
     loading = true;
@@ -19,7 +42,7 @@
         ? await window.aegis.analyzeSession()
         : await window.aegis.analyzeAgent(selectedAgent);
       if (res.success) {
-        result = mode === 'session' ? res : (res.structured || res);
+        result = normalizeResult(res);
       } else {
         error = res.error || 'Analysis failed';
       }
