@@ -82,6 +82,12 @@ const AGENT_CONFIG_PATHS = [
   '.semgrep',
   '.config/zed',
   '.config/configstore',
+  // Container / VM / Local LLM config paths
+  '.ollama',
+  '.jan',
+  '.cache/lm-studio',
+  '.cache/gpt4all',
+  '.docker',
 ];
 
 /**
@@ -108,6 +114,12 @@ const AGENT_SELF_CONFIG = {
   'goose':      /[\\\/]\.config[\\\/]goose[\\\/]/i,
   'zed':        /[\\\/]\.config[\\\/]zed[\\\/]/i,
   'jetbrains':  /[\\\/]\.config[\\\/]JetBrains[\\\/]/i,
+  // Container / VM / Local LLM self-config
+  'docker':     /[\\\/]\.docker[\\\/]/i,
+  'ollama':     /[\\\/]\.ollama[\\\/]/i,
+  'lm studio':  /[\\\/](lm-studio[\\\/]|\.cache[\\\/]lm-studio[\\\/])/i,
+  'gpt4all':    /[\\\/]\.cache[\\\/]gpt4all[\\\/]/i,
+  'jan':        /[\\\/]\.jan[\\\/]/i,
 };
 
 /**
@@ -150,6 +162,12 @@ const SENSITIVE_RULES = [
   { pattern: /[\\\/]\.semgrep[\\\/]/i, reason: 'AI agent config — Semgrep', category: 'agent-config', severity: 'critical' },
   { pattern: /[\\\/]\.config[\\\/]zed[\\\/]/i, reason: 'AI agent config — Zed', category: 'agent-config', severity: 'critical' },
   { pattern: /[\\\/]\.config[\\\/]configstore[\\\/]/i, reason: 'AI agent config — Config Store', category: 'agent-config', severity: 'critical' },
+  // ── Container / VM / Local LLM configs ──
+  { pattern: /[\\\/]\.ollama[\\\/]/i, reason: 'Local LLM config — Ollama', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.jan[\\\/]/i, reason: 'Local LLM config — Jan', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]lm-studio[\\\/]/i, reason: 'Local LLM config — LM Studio', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.cache[\\\/]lm-studio[\\\/]/i, reason: 'Local LLM config — LM Studio', category: 'agent-config', severity: 'critical' },
+  { pattern: /[\\\/]\.cache[\\\/]gpt4all[\\\/]/i, reason: 'Local LLM config — GPT4All', category: 'agent-config', severity: 'critical' },
   // ── Environment variables ──
   { pattern: /[\\\/]\.env$/i,              reason: 'Environment variables' },
   { pattern: /[\\\/]\.env\.local$/i,       reason: 'Environment variables' },
