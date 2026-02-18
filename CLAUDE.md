@@ -39,7 +39,7 @@ Consumer desktop app that monitors AI agents (Claude Code, Copilot, Cursor, Manu
 - **File handle scanning:** PowerShell `handle64.exe` or `Get-Process` fallback
 - **Network scanning:** PowerShell `Get-NetTCPConnection` + DNS reverse lookup
 - **Config storage:** JSON files at Electron `userData` directory (`settings.json`, `baselines.json`)
-- **Agent database:** `src/shared/agent-database.json` (88 agents with metadata)
+- **Agent database:** `src/shared/agent-database.json` (95 agents with metadata)
 - **Fonts:** Plus Jakarta Sans (headings) + DM Sans (body) + DM Mono (code/data)
 - **No frameworks:** No React, no Tailwind, no webpack. Pure vanilla for zero dependencies.
 
@@ -92,7 +92,7 @@ AEGIS/
 │   │   └── app.js                         # Renderer orchestrator + IPC wiring (181 lines)
 │   ├── shared/
 │   │   ├── constants.js                   # Sensitive rules, ignore patterns (179 lines)
-│   │   └── agent-database.json            # 88 agent signatures (1,510 lines)
+│   │   └── agent-database.json            # 95 agent signatures (1,510 lines)
 │   └── styles/                            # 9 CSS files (neumorphic design)
 │       ├── variables.css                  # CSS custom properties, theme tokens (55 lines)
 │       ├── base.css                       # Body, header, footer, layout (159 lines)
@@ -127,7 +127,7 @@ Total: **~7,100 lines** across **44 source files** (JS/CSS/HTML). Plus 1,510 lin
 - Tracks seen agents and persists their permission state
 
 **process-scanner.js** — Agent detection (101 lines)
-- Loads 88 agent signatures from `src/shared/agent-database.json`
+- Loads 95 agent signatures from `src/shared/agent-database.json`
 - Scans via `tasklist /FO CSV /NH` on Windows
 - Pattern matching: process name against known agent patterns
 - Deduplication by PID, change detection for triggering network rescans
@@ -224,7 +224,7 @@ Trust score: `baseTrust - riskScore × 0.8`, graded A+ through F.
 
 ## Known AI Agent Signatures
 
-88 agents loaded from `src/shared/agent-database.json`:
+95 agents loaded from `src/shared/agent-database.json`:
 - **Coding assistants:** Claude Code, GitHub Copilot, OpenAI Codex, Cursor AI, Windsurf, Tabnine, Amazon Q, Sourcegraph Cody, Replit AI, JetBrains AI, Aider
 - **Autonomous agents:** Devin, Manus AI, OpenHands, SWE-Agent, AutoGPT, BabyAGI, CrewAI, AgentGPT
 - **Desktop/browser agents:** Anthropic Computer Use, Google Gemini, Apple Intelligence, Microsoft Copilot (OS), Opera Aria, Perplexity
@@ -269,7 +269,7 @@ Defined in `src/shared/constants.js` — 70+ patterns:
 - [x] Agent cards with sparklines, session duration, parent chain, expand tabs
 - [x] Protection presets (Paranoid/Strict/Balanced/Developer)
 - [x] Per-agent permissions (6 categories x tri-state allow/monitor/block)
-- [x] Agent Database Manager (88 agents, custom add/edit/delete, import/export)
+- [x] Agent Database Manager (95 agents, custom add/edit/delete, import/export)
 - [x] Process control (Kill/Suspend/Resume per agent)
 - [x] Export reports (JSON/CSV/HTML with save dialogs)
 - [x] System tray with procedural shield icon + native notifications
