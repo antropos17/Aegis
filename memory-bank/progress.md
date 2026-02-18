@@ -78,6 +78,8 @@
 - [x] Step 24: Security hardening — CSP header via session webRequest hook in main.js createWindow(), network connections store capped at 500 in ipc.js
 - [x] Step 26: electron-builder config for Windows NSIS installer (devDep added, build/dist scripts, build config in package.json, assets/ folder + .gitignore, existing "build" renamed to "build:renderer")
 - [x] Step 27: AEGIS shield icon for Windows installer (icon.svg blue gradient shield with "A", sharp converts to 256x256 PNG, copied as .ico for electron-builder, scripts/make-icon.js)
+- [x] Step 28: Verified electron-builder NSIS packaging (fixed icon.ico→icon.png in build config — .ico had invalid headers; `npm run dist` produces `AEGIS Setup 0.2.0-alpha.exe` at ~82MB; dist/ in .gitignore)
+- [x] Step 29: GitHub Release v0.2.0-alpha created with installer upload (https://github.com/antropos17/Aegis/releases/tag/v0.2.0-alpha — tag moved to HEAD at 1679e8e, AEGIS Setup 0.2.0-alpha.exe ~82MB uploaded, prerelease flag set)
 
 ## Status
 Phase 6 in progress. 95 agents in database. README polished for public GitHub launch.
