@@ -44,6 +44,7 @@
     overflow: hidden;
     display: flex;
     align-items: flex-start;
+    justify-content: center;
   }
 
   .agents-area {
