@@ -1,16 +1,32 @@
 <script>
   import { enrichedAgents } from '../stores/risk.js';
   import AgentCard from './AgentCard.svelte';
+
+  let grouped = $derived.by(() => {
+    const map = new Map();
+    for (const a of $enrichedAgents) {
+      if (!map.has(a.name)) {
+        map.set(a.name, { ...a, pids: [] });
+      }
+      const g = map.get(a.name);
+      g.pids.push({ pid: a.pid, process: a.process });
+      if (a.riskScore > g.riskScore) {
+        g.riskScore = a.riskScore;
+        g.trustGrade = a.trustGrade;
+      }
+    }
+    return [...map.values()];
+  });
 </script>
 
 <section class="agent-panel">
-  {#if $enrichedAgents.length === 0}
+  {#if grouped.length === 0}
     <div class="empty-state">
       <span>No AI agents detected</span>
     </div>
   {:else}
     <div class="agent-list">
-      {#each $enrichedAgents as agent (agent.pid)}
+      {#each grouped as agent (agent.name)}
         <AgentCard {agent} />
       {/each}
     </div>
