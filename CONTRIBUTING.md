@@ -5,7 +5,7 @@ AEGIS is building an independent AI oversight layer — a tool that monitors wha
 ## Development Setup
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/AEGIS.git
+git clone https://github.com/antropos17/Aegis.git
 cd AEGIS
 npm install
 npm start
@@ -26,7 +26,7 @@ Requires Node.js 18+ and Windows 10/11 for full monitoring functionality. The El
 
 ### General Rules
 
-- **Vanilla JS only** — no React, no TypeScript, no build tools. All renderer code runs via `<script>` tags in load order. This is intentional: zero framework dependencies for auditability and transparency.
+- **Svelte 5 + Vite for renderer** — component-based architecture with `$state`/`$derived`/`$effect` runes. Main process remains CommonJS.
 - **CommonJS in main process** — `require`/`module.exports` with `init()` dependency injection pattern. Each module receives only the state it needs.
 - **JSDoc headers on all exported functions** — `@param`, `@returns`, `@since` tags required. Include `@file`, `@module`, `@description` at top of every file.
 - **200 line soft limit per file** — split into focused, single-responsibility modules when exceeding.
@@ -45,7 +45,7 @@ Requires Node.js 18+ and Windows 10/11 for full monitoring functionality. The El
 
 - 8 files split by concern: `variables.css`, `base.css`, `radar.css`, `panels.css`, `components.css`, `settings.css`, `tabs.css`, `responsive.css`
 - Always use CSS custom properties from `variables.css` — never hardcode colors
-- Neumorphic shadow pattern: `box-shadow: Xpx Xpx Ypx var(--shadow-dark), -Xpx -Xpx Ypx var(--shadow-light)`
+- Glassmorphism pattern with `backdrop-filter` blur and M3 design tokens
 - Both light and dark mode must work — test with the theme toggle
 
 ## How to Add a New Agent
