@@ -38,6 +38,7 @@
     height: 100%;
     overflow-y: auto;
     padding: 4px;
+    min-width: 280px;
   }
 
   .agent-list {

@@ -68,16 +68,16 @@
     gap: 8px;
   }
 
-  @media (max-width: 768px) {
+  @media (max-width: 960px) {
     .shield-layout {
       grid-template-columns: 1fr;
-      grid-template-rows: auto auto 32px 1fr;
+      grid-template-rows: 380px auto 32px 1fr;
     }
 
     .agents-area {
       grid-column: 1;
       grid-row: 2;
-      max-height: 240px;
+      max-height: 200px;
     }
 
     .timeline-area {
