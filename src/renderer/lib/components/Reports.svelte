@@ -1,5 +1,5 @@
 <script>
-  import { events, stats } from '../stores/ipc.js';
+  import { events } from '../stores/ipc.js';
   import { enrichedAgents } from '../stores/risk.js';
 
   let avgRisk = $derived.by(() => {
@@ -7,16 +7,6 @@
     if (!list.length) return 0;
     const sum = list.reduce((acc, a) => acc + (a.riskScore || 0), 0);
     return Math.round(sum / list.length);
-  });
-
-  let uptimeMs = $derived($stats.uptimeMs || 0);
-
-  let uptimeStr = $derived.by(() => {
-    if (!uptimeMs) return '0m';
-    const totalSec = Math.floor(uptimeMs / 1000);
-    const h = Math.floor(totalSec / 3600);
-    const m = Math.floor((totalSec % 3600) / 60);
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
   });
 
   let topAgents = $derived.by(() => {
