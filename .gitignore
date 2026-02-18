@@ -16,3 +16,10 @@ screenshot_test.png
 screenshot_electron.png
 assets/
 *.exe
+
+# Internal dev files — not for public repo
+CLAUDE.md
+_env
+_gitignore
+AEGIS-CONTEXT-*.md
+AEGIS-PERSONA-VAULT.md
