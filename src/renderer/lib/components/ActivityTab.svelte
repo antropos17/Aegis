@@ -1,12 +1,14 @@
 <script>
   import FeedFilters from './FeedFilters.svelte';
   import ActivityFeed from './ActivityFeed.svelte';
+  import GroupedFeed from './GroupedFeed.svelte';
   import NetworkPanel from './NetworkPanel.svelte';
 
   let view = $state('feed');
   let agentFilter = $state('all');
   let severityFilter = $state('all');
   let typeFilter = $state('all');
+  let groupByAgent = $state(true);
 </script>
 
 <div class="activity-tab">
@@ -24,8 +26,12 @@
   </div>
 
   {#if view === 'feed'}
-    <FeedFilters bind:agentFilter bind:severityFilter bind:typeFilter />
-    <ActivityFeed {agentFilter} {severityFilter} {typeFilter} />
+    <FeedFilters bind:agentFilter bind:severityFilter bind:typeFilter bind:groupByAgent />
+    {#if groupByAgent}
+      <GroupedFeed {agentFilter} {severityFilter} {typeFilter} />
+    {:else}
+      <ActivityFeed {agentFilter} {severityFilter} {typeFilter} />
+    {/if}
   {:else}
     <NetworkPanel />
   {/if}
