@@ -11,6 +11,20 @@
 
 ![AEGIS Dashboard](screenshot.png)
 
+### Screenshots
+
+| Activity Feed | AI Threat Analysis |
+|---|---|
+| ![Activity Feed](screenshots/activity-feed.png) | ![Threat Analysis](screenshots/threat-analysis.png) |
+
+| Agent Database | Protection Presets |
+|---|---|
+| ![Agent Database](screenshots/agent-database.png) | ![Protection Presets](screenshots/protection-presets.png) |
+
+| Settings |
+|---|
+| ![Settings](screenshots/settings.png) |
+
 ## Why AEGIS?
 
 AI agents now have deep access to your machine — reading files, scanning codebases, executing commands, and making outbound network connections. Every existing AI security tool is enterprise B2B and monitors what humans send *to* AI. None of them monitor what AI agents do *on local machines*.
