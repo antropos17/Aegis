@@ -128,4 +128,4 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 **Ruslan Mukhametshin** — Seneca Polytechnic, Toronto
 
-Built by Ruslan Abbasov. Seneca Polytechnic, Toronto. MIT License.
+Built by Ruslan Murtuzaliyev. Seneca Polytechnic, Toronto. MIT License.
