@@ -21,9 +21,14 @@
 ## Общее поведение
 11. Добавляет фичи которые не просили (hamburger menus, анимации, responsive)
 12. Забывает обновить exports.js при добавлении нового IPC channel
-13. Пишет React паттерны (useState, useEffect) вместо Svelte ($state, $derived)
+13. Пишет React/Svelte паттерны вместо vanilla JS — renderer использует глобальные функции через script tags, НЕ фреймворки
 14. Создаёт мёртвый код — функции которые нигде не вызываются
 15. Double-encodes UTF-8 — вместо – (en dash)
+
+## Документация
+16. Оставляет устаревшие ссылки на Svelte/Vite в README и architecture.md после перехода на vanilla JS
+17. Описывает Project Structure с файлами которых нет (App.svelte, lib/components/, lib/stores/)
+18. Не синхронизирует количество агентов между README badges, CLAUDE.md и agent-database.json
 
 ## Правило
 НИКОГДА не меняй то, что я не просил менять. Делай ТОЛЬКО то что написано в промте.

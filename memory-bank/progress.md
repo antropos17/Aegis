@@ -70,6 +70,7 @@
 - [x] Step 2: README update for v0.2.0-alpha (badges, .env.example in Quick Start)
 - [x] Step 3: Settings modal completeness (added Export Config / Import Config buttons, IPC handlers in main.js + preload.js)
 - [x] Step 4: Container/VM Detection (7 new agents: Docker Desktop, WSL, Ollama, LM Studio, LocalAI, GPT4All, Jan; 2 new categories: container-runtime, local-llm; 88→95 agents; config paths + self-config + sensitive rules in constants.js)
+- [x] Step 5: Polish README for public launch (restructured sections: badges→pitch→monitors→features→quick start→data flow→agent database→roadmap→author; removed all Svelte/Vite references; removed startup pitch tone; verified CONTRIBUTING.md "Vanilla JS only" and SECURITY.md contact email)
 
 ## Status
-Phase 6 in progress. 95 agents in database.
+Phase 6 in progress. 95 agents in database. README polished for public GitHub launch.
