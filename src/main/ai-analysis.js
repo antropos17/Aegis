@@ -17,6 +17,28 @@ const https = require('https');
 let _state = null;
 
 /**
+ * Try to extract valid JSON from an API response that may contain
+ * markdown fences, preamble text, or trailing explanations.
+ * @param {string} text - raw API response text
+ * @returns {Object|null} parsed JSON or null
+ */
+function extractJSON(text) {
+  const trimmed = text.trim();
+  // 1. Direct parse
+  try { return JSON.parse(trimmed); } catch (_) { /* continue */ }
+  // 2. Strip markdown code fences
+  const stripped = trimmed.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+  try { return JSON.parse(stripped); } catch (_) { /* continue */ }
+  // 3. Extract first {...} block
+  const first = stripped.indexOf('{');
+  const last = stripped.lastIndexOf('}');
+  if (first !== -1 && last > first) {
+    try { return JSON.parse(stripped.slice(first, last + 1)); } catch (_) { /* continue */ }
+  }
+  return null;
+}
+
+/**
  * Initialise with shared state references.
  * @param {Object} state
  * @param {Function} state.getSettings - returns current settings object
@@ -88,12 +110,10 @@ function analyzeAgentActivity(agentName) {
           const parsed = JSON.parse(data);
           if (parsed.content && parsed.content[0] && parsed.content[0].text) {
             const text = parsed.content[0].text.trim();
-            try {
-              const result = JSON.parse(text);
-              resolve({ success: true, analysis: text, structured: result });
-            } catch (_) {
-              resolve({ success: true, analysis: text });
-            }
+            const result = extractJSON(text);
+            resolve(result
+              ? { success: true, analysis: text, structured: result }
+              : { success: true, analysis: text });
           } else if (parsed.error) {
             resolve({ success: false, error: parsed.error.message || 'API error' });
           } else {
@@ -190,10 +210,10 @@ function analyzeSessionActivity() {
           const parsed = JSON.parse(data);
           if (parsed.content && parsed.content[0] && parsed.content[0].text) {
             const text = parsed.content[0].text.trim();
-            try {
-              const result = JSON.parse(text);
-              resolve({ success: true, summary: result.summary, findings: result.findings || [], riskRating: result.riskRating || 'UNKNOWN', recommendations: result.recommendations || [] });
-            } catch (_) {
+            const result = extractJSON(text);
+            if (result) {
+              resolve({ success: true, summary: result.summary, findings: result.findings || [], riskRating: result.riskRating || 'UNKNOWN', riskJustification: result.riskJustification || '', recommendations: result.recommendations || [] });
+            } else {
               resolve({ success: true, summary: text, findings: [], riskRating: 'UNKNOWN', recommendations: [] });
             }
           } else if (parsed.error) {
