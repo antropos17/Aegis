@@ -83,6 +83,8 @@
 
 ## Bug Fixes
 - [x] Black screen in packaged .exe: Two root causes — (1) strict CSP header blocked script loading under file:// protocol, relaxed to permissive for debug; (2) dist/renderer/**/* missing from electron-builder files array, Vite output was never packaged into asar archive
+- [x] Radar cut off on left side: .radar-area missing justify-content:center (ShieldTab.svelte)
+- [x] Light theme radar invisible: hardcoded rgba(255,255,255,...) replaced with CSS custom properties (--radar-line-rgb, --radar-label-rgb, --radar-sweep-rgb) that flip to dark values on [data-theme="light"] (Radar.svelte)
 
 ## Status
 Phase 6 in progress. 95 agents in database. README polished for public GitHub launch.
