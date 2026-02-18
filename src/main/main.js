@@ -50,7 +50,7 @@ function getStats() {
 }
 
 function sendToRenderer(channel, data) {
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data);
+  try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data); } catch (_) {}
 }
 
 // ═══ WINDOW ═══
