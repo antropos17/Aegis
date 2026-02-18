@@ -29,7 +29,7 @@
   // ═══ DRAWING ═══
 
   function drawBackground(cx, cy, r) {
-    ctx.strokeStyle = `rgba(${lineRgb}, 0.06)`;
+    ctx.strokeStyle = `rgba(${lineRgb}, 0.12)`;
     ctx.lineWidth = 1;
     for (const frac of [0.33, 0.66, 1.0]) {
       ctx.beginPath();
@@ -37,7 +37,7 @@
       ctx.stroke();
     }
 
-    ctx.strokeStyle = `rgba(${lineRgb}, 0.04)`;
+    ctx.strokeStyle = `rgba(${lineRgb}, 0.08)`;
     ctx.beginPath();
     ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy);
     ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r);
@@ -48,8 +48,8 @@
     const trailLen = Math.PI * 0.4;
     const trailGrad = ctx.createConicGradient(angle - trailLen, cx, cy);
     trailGrad.addColorStop(0, `rgba(${sweepRgb},0)`);
-    trailGrad.addColorStop(0.8, `rgba(${sweepRgb},0.04)`);
-    trailGrad.addColorStop(1, `rgba(${sweepRgb},0.08)`);
+    trailGrad.addColorStop(0.8, `rgba(${sweepRgb},0.12)`);
+    trailGrad.addColorStop(1, `rgba(${sweepRgb},0.3)`);
 
     ctx.beginPath();
     ctx.moveTo(cx, cy);
@@ -62,7 +62,7 @@
     const ey = cy + Math.sin(angle) * r;
     const lineGrad = ctx.createLinearGradient(cx, cy, ex, ey);
     lineGrad.addColorStop(0, `rgba(${sweepRgb},0)`);
-    lineGrad.addColorStop(1, `rgba(${sweepRgb},0.35)`);
+    lineGrad.addColorStop(1, `rgba(${sweepRgb},0.5)`);
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.lineTo(ex, ey);
@@ -118,7 +118,7 @@
     ctx.font = "600 11px 'Outfit', sans-serif";
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = `rgba(${labelRgb}, 0.4)`;
+    ctx.fillStyle = `rgba(${labelRgb}, 0.6)`;
     ctx.fillText('AEGIS', cx, cy);
   }
 
