@@ -26,6 +26,8 @@ let isQuitting = false, monitoringPaused = false;
 let latestNetConnections = [], otherPanelExpanded = false;
 let previousAgentPids = new Map();
 const fileWatchers = [];
+// Event dedup — same agent + same file within 30s → suppress, track count
+const eventDedupMap = new Map();
 
 /** @returns {Object} Process memory and CPU usage @since v0.1.0 */
 function getResourceUsage() {
@@ -67,9 +69,9 @@ function createWindow() {
       'Content-Security-Policy': ["default-src * 'unsafe-inline' 'unsafe-eval' data: blob:"]
     }});
   });
-  const distPath = path.join(__dirname, '..', '..', 'dist', 'renderer', 'app.html');
+  const distPath = path.join(__dirname, '..', '..', 'dist', 'renderer', 'index.html');
   if (!app.isPackaged) {
-    mainWindow.loadURL('http://localhost:5174/app.html').catch(() => mainWindow.loadFile(distPath));
+    mainWindow.loadURL('http://localhost:5174/').catch(() => mainWindow.loadFile(distPath));
   } else {
     mainWindow.loadFile(distPath);
   }
@@ -99,6 +101,27 @@ function doNetworkScan() {
     }
     sendToRenderer('network-update', connections);
   }).catch(() => {}).finally(() => network.setNetworkScanRunning(false));
+}
+
+/**
+ * Dedup file events: same agent + same file within 30s → suppress.
+ * Returns the event (with repeatCount) if it should be sent, or null to skip.
+ * @param {Object} ev @returns {Object|null} @since v0.3.0
+ */
+function dedupFileEvent(ev) {
+  const key = `${ev.agent}|${ev.file}`;
+  const now = Date.now();
+  const prev = eventDedupMap.get(key);
+  if (prev && (now - prev.lastSent) < 30000) {
+    prev.count++;
+    return null;
+  }
+  ev.repeatCount = prev ? prev.count : 1;
+  eventDedupMap.set(key, { lastSent: now, count: 1 });
+  if (eventDedupMap.size > 500) {
+    for (const [k, v] of eventDedupMap) { if (now - v.lastSent > 60000) eventDedupMap.delete(k); }
+  }
+  return ev;
 }
 
 function logAuditForFile(ev) {
@@ -150,7 +173,8 @@ function startScanIntervals() {
   fileScanInterval = setInterval(async () => {
     if (latestAgents.length === 0) return;
     try {
-      const events = await watcher.scanAllFileHandles(latestAgents);
+      const rawEvents = await watcher.scanAllFileHandles(latestAgents);
+      const events = rawEvents.map(dedupFileEvent).filter(Boolean);
       if (events.length > 0) {
         sendToRenderer('file-access', events);
         tray.notifySensitive(events.filter(e => e.sensitive && e.category === 'ai'));
@@ -174,11 +198,13 @@ watcher.init({
   activityLog: scanner.activityLog, knownHandles: scanner.knownHandles, watchers: fileWatchers,
   recordFileAccess: baselines.recordFileAccess,
   onFileEvent: (ev) => {
-    sendToRenderer('file-access', [ev]);
-    if (ev.sensitive && ev.category === 'ai') tray.notifySensitive([ev]);
+    const deduped = dedupFileEvent(ev);
+    if (!deduped) return;
+    sendToRenderer('file-access', [deduped]);
+    if (deduped.sensitive && deduped.category === 'ai') tray.notifySensitive([deduped]);
     sendToRenderer('stats-update', getStats());
     tray.updateTrayIcon();
-    logAuditForFile(ev);
+    logAuditForFile(deduped);
   },
   isOtherPanelExpanded: () => otherPanelExpanded
 });
@@ -236,7 +262,8 @@ app.whenReady().then(() => {
   setTimeout(async () => {
     try {
       if (latestAgents.length === 0) return;
-      const events = await watcher.scanAllFileHandles(latestAgents);
+      const rawEvents = await watcher.scanAllFileHandles(latestAgents);
+      const events = rawEvents.map(dedupFileEvent).filter(Boolean);
       if (events.length > 0) {
         sendToRenderer('file-access', events);
         tray.notifySensitive(events.filter(e => e.sensitive && e.category === 'ai'));

@@ -1525,23 +1525,6 @@
       "riskProfile": "medium"
     },
     {
-      "id": "wsl",
-      "names": ["wsl.exe", "wslhost.exe", "wslservice.exe"],
-      "displayName": "WSL",
-      "vendor": "Microsoft",
-      "category": "container-runtime",
-      "icon": "\ud83d\udda5\ufe0f",
-      "color": "#FFA500",
-      "defaultTrust": 70,
-      "website": "https://learn.microsoft.com/en-us/windows/wsl/",
-      "description": "Windows Subsystem for Linux — can host AI agents and local LLMs invisibly",
-      "knownDomains": [],
-      "knownPorts": [],
-      "configPaths": [],
-      "parentEditors": [],
-      "riskProfile": "medium"
-    },
-    {
       "id": "ollama",
       "names": ["ollama.exe", "ollama", "ollama_llama_server.exe", "ollama_llama_server"],
       "displayName": "Ollama",

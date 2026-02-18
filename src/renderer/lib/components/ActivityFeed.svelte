@@ -92,6 +92,9 @@
         <span class="feed-agent">{ev.agent}</span>
         <span class="feed-action">{ev.action || ev._type}</span>
         <span class="feed-path" title={ev.file}>{shortenPath(ev.file)}</span>
+        {#if ev.repeatCount > 1}
+          <span class="feed-repeat">&times;{ev.repeatCount}</span>
+        {/if}
         {#if label}
           <span class="feed-badge {badgeClass(sev)}">{label}</span>
         {/if}
@@ -191,5 +194,14 @@
   .badge-config {
     background: rgba(200, 168, 78, 0.12);
     color: var(--md-sys-color-secondary);
+  }
+
+  .feed-repeat {
+    font-size: 9px;
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+    color: var(--md-sys-color-on-surface-variant);
+    opacity: 0.7;
+    flex-shrink: 0;
   }
 </style>
