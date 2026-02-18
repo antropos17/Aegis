@@ -16,7 +16,7 @@
     "copyright": "Copyright © 2026 Ruslan",
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.png"
     },
     "nsis": {
       "oneClick": true,
