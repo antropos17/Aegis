@@ -37,7 +37,7 @@
       ctx.stroke();
     }
 
-    ctx.strokeStyle = `rgba(${lineRgb}, 0.08)`;
+    ctx.strokeStyle = `rgba(${lineRgb}, 0.09)`;
     ctx.beginPath();
     ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy);
     ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r);
@@ -95,7 +95,7 @@
 
       ctx.save();
       ctx.shadowColor = color;
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = 16;
       ctx.beginPath();
       ctx.arc(x, y, 6, 0, Math.PI * 2);
       ctx.fillStyle = color;
@@ -118,7 +118,7 @@
     ctx.font = "600 11px 'Outfit', sans-serif";
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = `rgba(${labelRgb}, 0.6)`;
+    ctx.fillStyle = `rgba(${labelRgb}, 0.7)`;
     ctx.fillText('AEGIS', cx, cy);
   }
 
