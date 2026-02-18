@@ -1,225 +1,256 @@
 /**
  * @file main.js
- * @module main/main
- * @description Electron main-process orchestrator. Wires sub-modules, registers
- *   IPC handlers, manages scan intervals, and controls app lifecycle.
- * @requires electron
- * @requires path
- * @requires fs
- * @author AEGIS Contributors
- * @license MIT
- * @version 0.1.0
+ * @description Electron main-process orchestrator. Wires sub-modules, manages
+ *   scan intervals, and controls app lifecycle.
+ * @since v0.1.0
  */
 'use strict';
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const path = require('path');
-const fs = require('fs');
-const { execFile } = require('child_process');
-const cfg = require('./config-manager');
-const bl  = require('./baselines');
-const ad  = require('./anomaly-detector');
-const sc  = require('./process-scanner');
-const pu  = require('./process-utils');
-const fw  = require('./file-watcher');
-const net = require('./network-monitor');
-const exp = require('./exports');
-const ai  = require('./ai-analysis');
-const ti  = require('./tray-icon');
-const aud = require('./audit-logger');
+const config   = require('./config-manager');
+const baselines = require('./baselines');
+const anomaly  = require('./anomaly-detector');
+const scanner  = require('./process-scanner');
+const procUtil = require('./process-utils');
+const watcher  = require('./file-watcher');
+const network  = require('./network-monitor');
+const exporter = require('./exports');
+const analysis = require('./ai-analysis');
+const tray     = require('./tray-icon');
+const audit    = require('./audit-logger');
+const ipc      = require('./ipc-handlers');
 
 let mainWindow = null, scanInterval = null, fileScanInterval = null;
 let latestAgents = [], latestAiAgents = [], latestOtherAgents = [];
 let isQuitting = false, monitoringPaused = false;
-const watchers = [];
 let latestNetConnections = [], otherPanelExpanded = false;
 let previousAgentPids = new Map();
+const fileWatchers = [];
 
-/** @returns {Object} @since v0.1.0 */
-function getResourceUsage() { const m = process.memoryUsage(), c = process.cpuUsage(); return { memMB: Math.round(m.rss/1024/1024), heapMB: Math.round(m.heapUsed/1024/1024), cpuUser: c.user, cpuSystem: c.system }; }
-
-/** @returns {Object} @since v0.1.0 */
-function getStats() {
-  const l = sc.activityLog, ts = l.filter(e => e.sensitive).length;
-  const uniqueAi = new Set(latestAiAgents.map(a => a.agent)).size;
-  const uniqueOther = new Set(latestOtherAgents.map(a => a.agent)).size;
-  return { totalFiles: l.length, totalSensitive: ts, aiSensitive: l.filter(e => e.sensitive && e.category === 'ai').length, uptimeMs: Date.now() - sc.monitoringStarted, monitoringStarted: sc.monitoringStarted, peakAgents: sc.peakAgents, currentAgents: latestAgents.length, aiAgentCount: uniqueAi, otherAgentCount: uniqueOther, uniqueAgents: Array.from(sc.uniqueAgentNames) };
+/** @returns {Object} Process memory and CPU usage @since v0.1.0 */
+function getResourceUsage() {
+  const mem = process.memoryUsage(), cpu = process.cpuUsage();
+  return { memMB: Math.round(mem.rss / 1024 / 1024), heapMB: Math.round(mem.heapUsed / 1024 / 1024), cpuUser: cpu.user, cpuSystem: cpu.system };
 }
 
-/** @returns {void} @since v0.1.0 */
+/** @returns {Object} Monitoring statistics @since v0.1.0 */
+function getStats() {
+  const log = scanner.activityLog;
+  return {
+    totalFiles: log.length,
+    totalSensitive: log.filter(e => e.sensitive).length,
+    aiSensitive: log.filter(e => e.sensitive && e.category === 'ai').length,
+    uptimeMs: Date.now() - scanner.monitoringStarted,
+    monitoringStarted: scanner.monitoringStarted,
+    peakAgents: scanner.peakAgents, currentAgents: latestAgents.length,
+    aiAgentCount: new Set(latestAiAgents.map(a => a.agent)).size,
+    otherAgentCount: new Set(latestOtherAgents.map(a => a.agent)).size,
+    uniqueAgents: Array.from(scanner.uniqueAgentNames)
+  };
+}
+
+function sendToRenderer(channel, data) {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data);
+}
+
+// ═══ WINDOW ═══
+
 function createWindow() {
-  const s = cfg.getSettings();
-  mainWindow = new BrowserWindow({ width: 1200, height: 800, minWidth: 900, minHeight: 600, title: 'AEGIS', backgroundColor: '#050507', webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false } });
-  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': [
-          "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:"
-        ]
-      }
-    });
+  const settings = config.getSettings();
+  mainWindow = new BrowserWindow({
+    width: 1200, height: 800, minWidth: 900, minHeight: 600,
+    title: 'AEGIS', backgroundColor: '#050507',
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false }
+  });
+  mainWindow.webContents.session.webRequest.onHeadersReceived((details, cb) => {
+    cb({ responseHeaders: { ...details.responseHeaders,
+      'Content-Security-Policy': ["default-src * 'unsafe-inline' 'unsafe-eval' data: blob:"]
+    }});
   });
   const distPath = path.join(__dirname, '..', '..', 'dist', 'renderer', 'app.html');
   if (!app.isPackaged) {
-    mainWindow.loadURL('http://localhost:5174/app.html').catch(() => {
-      mainWindow.loadFile(distPath);
-    });
+    mainWindow.loadURL('http://localhost:5174/app.html').catch(() => mainWindow.loadFile(distPath));
   } else {
     mainWindow.loadFile(distPath);
   }
   mainWindow.setMenuBarVisibility(false);
-  if (s.startMinimized) mainWindow.hide();
+  if (settings.startMinimized) mainWindow.hide();
   mainWindow.on('close', (e) => { if (!isQuitting) { e.preventDefault(); mainWindow.hide(); } });
 }
 
-/** @returns {void} @since v0.1.0 */
+// ═══ SCANNING ═══
+
 function stopScanIntervals() {
   if (scanInterval) { clearInterval(scanInterval); scanInterval = null; }
   if (fileScanInterval) { clearInterval(fileScanInterval); fileScanInterval = null; }
-  if (startScanIntervals._nr) { clearInterval(startScanIntervals._nr); startScanIntervals._nr = null; }
+  if (startScanIntervals._netInterval) { clearInterval(startScanIntervals._netInterval); startScanIntervals._netInterval = null; }
 }
 
-function sendToWin(ch, data) { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(ch, data); }
-function doNetScan() {
-  if (net.isNetworkScanRunning() || latestAgents.length === 0) return;
-  net.setNetworkScanRunning(true);
-  net.scanNetworkConnections(latestAgents).then(c => { latestNetConnections = c; for (const x of c) { bl.recordNetworkEndpoint(x.agent, x.remoteIp, x.remotePort); aud.log('network-connection', { agent: x.agent, action: x.state, path: `${x.remoteIp}:${x.remotePort}`, severity: x.flagged ? 'high' : 'normal', extra: { domain: x.domain, flagged: x.flagged } }); } sendToWin('network-update', c); }).catch(() => {}).finally(() => net.setNetworkScanRunning(false));
+function doNetworkScan() {
+  if (network.isNetworkScanRunning() || latestAgents.length === 0) return;
+  network.setNetworkScanRunning(true);
+  network.scanNetworkConnections(latestAgents).then(connections => {
+    latestNetConnections = connections;
+    for (const conn of connections) {
+      baselines.recordNetworkEndpoint(conn.agent, conn.remoteIp, conn.remotePort);
+      audit.log('network-connection', { agent: conn.agent, action: conn.state,
+        path: `${conn.remoteIp}:${conn.remotePort}`, severity: conn.flagged ? 'high' : 'normal',
+        extra: { domain: conn.domain, flagged: conn.flagged } });
+    }
+    sendToRenderer('network-update', connections);
+  }).catch(() => {}).finally(() => network.setNetworkScanRunning(false));
 }
 
-/** @returns {void} @since v0.1.0 */
+function logAuditForFile(ev) {
+  const type = (ev.reason && ev.reason.startsWith('AI agent config')) ? 'config-access' : 'file-access';
+  audit.log(type, { agent: ev.agent, action: ev.action, path: ev.file, severity: ev.sensitive ? 'sensitive' : 'normal' });
+}
+
 function startScanIntervals() {
-  const ms = (cfg.getSettings().scanIntervalSec || 10) * 1000;
+  const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
   scanInterval = setInterval(async () => {
     try {
-      const r = await sc.scanProcesses(); latestAgents = r.agents; latestAiAgents = latestAgents.filter(a => a.category === 'ai'); latestOtherAgents = latestAgents.filter(a => a.category === 'other');
-      const curPids = new Map(); for (const a of latestAgents) curPids.set(a.pid, a.agent);
-      for (const [pid, name] of curPids) { if (!previousAgentPids.has(pid)) aud.log('agent-enter', { agent: name, action: 'started', path: '', severity: 'normal', extra: { pid } }); }
-      for (const [pid, name] of previousAgentPids) { if (!curPids.has(pid)) aud.log('agent-exit', { agent: name, action: 'exited', path: '', severity: 'normal', extra: { pid } }); }
+      const result = await scanner.scanProcesses();
+      latestAgents = result.agents;
+      latestAiAgents = latestAgents.filter(a => a.category === 'ai');
+      latestOtherAgents = latestAgents.filter(a => a.category === 'other');
+      // Agent enter/exit tracking
+      const curPids = new Map();
+      for (const a of latestAgents) curPids.set(a.pid, a.agent);
+      for (const [pid, name] of curPids) {
+        if (!previousAgentPids.has(pid))
+          audit.log('agent-enter', { agent: name, action: 'started', path: '', severity: 'normal', extra: { pid } });
+      }
+      for (const [pid, name] of previousAgentPids) {
+        if (!curPids.has(pid))
+          audit.log('agent-exit', { agent: name, action: 'exited', path: '', severity: 'normal', extra: { pid } });
+      }
       previousAgentPids = curPids;
-      fw.pruneKnownHandles(latestAgents); await pu.enrichWithParentChains(latestAgents); pu.annotateHostApps(latestAgents);
-      sendToWin('scan-results', latestAgents); sendToWin('stats-update', getStats()); sendToWin('resource-usage', getResourceUsage()); ti.updateTrayIcon();
-      const d = ad.checkDeviations(); if (d.length > 0) { sendToWin('baseline-warnings', d); for (const w of d) aud.log('anomaly-alert', { agent: w.agent, action: w.type, path: '', severity: 'high', extra: { message: w.message, anomalyScore: w.anomalyScore } }); }
-      const anomalyScores = {}; for (const a of latestAgents) anomalyScores[a.agent] = ad.calculateAnomalyScore(a.agent); sendToWin('anomaly-scores', anomalyScores);
-      if (r.changed) doNetScan();
+      watcher.pruneKnownHandles(latestAgents);
+      await procUtil.enrichWithParentChains(latestAgents);
+      procUtil.annotateHostApps(latestAgents);
+      sendToRenderer('scan-results', latestAgents);
+      sendToRenderer('stats-update', getStats());
+      sendToRenderer('resource-usage', getResourceUsage());
+      tray.updateTrayIcon();
+      const deviations = anomaly.checkDeviations();
+      if (deviations.length > 0) {
+        sendToRenderer('baseline-warnings', deviations);
+        for (const d of deviations)
+          audit.log('anomaly-alert', { agent: d.agent, action: d.type, path: '', severity: 'high',
+            extra: { message: d.message, anomalyScore: d.anomalyScore } });
+      }
+      const scores = {};
+      for (const a of latestAgents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent);
+      sendToRenderer('anomaly-scores', scores);
+      if (result.changed) doNetworkScan();
     } catch (_) {}
   }, ms);
-  startScanIntervals._nr = setInterval(doNetScan, 30000);
+  startScanIntervals._netInterval = setInterval(doNetworkScan, 30000);
   fileScanInterval = setInterval(async () => {
     if (latestAgents.length === 0) return;
-    try { const ev = await fw.scanAllFileHandles(latestAgents); if (ev.length > 0) { sendToWin('file-access', ev); ti.notifySensitive(ev.filter(e => e.sensitive && e.category === 'ai')); for (const e of ev) { const at = (e.reason && e.reason.startsWith('AI agent config')) ? 'config-access' : 'file-access'; aud.log(at, { agent: e.agent, action: e.action, path: e.file, severity: e.sensitive ? 'sensitive' : 'normal' }); } } sendToWin('stats-update', getStats()); ti.updateTrayIcon(); } catch (_) {}
+    try {
+      const events = await watcher.scanAllFileHandles(latestAgents);
+      if (events.length > 0) {
+        sendToRenderer('file-access', events);
+        tray.notifySensitive(events.filter(e => e.sensitive && e.category === 'ai'));
+        for (const ev of events) logAuditForFile(ev);
+      }
+      sendToRenderer('stats-update', getStats());
+      tray.updateTrayIcon();
+    } catch (_) {}
   }, Math.max(ms * 3, 30000));
 }
 
-// ── Module wiring ──
-cfg.init({ knownAgentNames: sc.AI_AGENTS.map(a => a.name), applyCallback: () => { stopScanIntervals(); if (!monitoringPaused) startScanIntervals(); } });
-sc.init({ trackSeenAgent: cfg.trackSeenAgent });
-fw.init({ getCustomRules: cfg.getCustomSensitiveRules, getLatestAgents: () => latestAgents, getLatestAiAgents: () => latestAiAgents, isMonitoringPaused: () => monitoringPaused, activityLog: sc.activityLog, knownHandles: sc.knownHandles, watchers, recordFileAccess: bl.recordFileAccess, onFileEvent: (ev) => { sendToWin('file-access', [ev]); if (ev.sensitive && ev.category === 'ai') ti.notifySensitive([ev]); sendToWin('stats-update', getStats()); ti.updateTrayIcon(); const auditType = (ev.reason && ev.reason.startsWith('AI agent config')) ? 'config-access' : 'file-access'; aud.log(auditType, { agent: ev.agent, action: ev.action, path: ev.file, severity: ev.sensitive ? 'sensitive' : 'normal' }); }, isOtherPanelExpanded: () => otherPanelExpanded });
-exp.init({ activityLog: sc.activityLog, getLatestNetConnections: () => latestNetConnections, monitoringStarted: sc.monitoringStarted, getMainWindow: () => mainWindow, getStats });
-ai.init({ getSettings: cfg.getSettings, activityLog: sc.activityLog, getLatestAgents: () => latestAgents, getLatestNetConnections: () => latestNetConnections, getAnomalyScores: () => { const scores = {}; for (const a of latestAgents) scores[a.agent] = ad.calculateAnomalyScore(a.agent); return scores; } });
-ti.init({ tray: null, currentTrayColor: 'green', lastNotificationTime: 0, getActivityLog: () => sc.activityLog, getSettings: cfg.getSettings, isMonitoringPaused: () => monitoringPaused, setMonitoringPaused: (v) => { monitoringPaused = v; }, stopScanIntervals, startScanIntervals, getMainWindow: () => mainWindow, setIsQuitting: (v) => { isQuitting = v; }, appQuit: () => app.quit() });
+// ═══ MODULE WIRING ═══
 
-/** @returns {void} @since v0.1.0 */
-function registerIpc() {
-  ipcMain.handle('scan-processes', async () => { const r = await sc.scanProcesses(); await pu.enrichWithParentChains(r.agents); pu.annotateHostApps(r.agents); return r.agents; });
-  ipcMain.handle('get-stats', () => getStats());
-  ipcMain.handle('get-resource-usage', () => getResourceUsage());
-  ipcMain.handle('export-log', () => exp.exportLog());
-  ipcMain.handle('export-csv', () => exp.exportCsv());
-  ipcMain.handle('generate-report', () => exp.generateReport());
-  ipcMain.handle('get-settings', () => ({ ...cfg.getSettings() }));
-  ipcMain.handle('save-settings', (_e, ns) => { cfg.saveSettings(ns); cfg.applySettings(); return { success: true }; });
-  ipcMain.on('other-panel-expanded', (_e, v) => { otherPanelExpanded = v; });
-  ipcMain.handle('analyze-agent', async (_e, n) => !cfg.getSettings().anthropicApiKey ? { success: false, error: 'Set your Anthropic API key in Settings' } : ai.analyzeAgentActivity(n));
-  ipcMain.handle('analyze-session', async () => !cfg.getSettings().anthropicApiKey ? { success: false, error: 'Set your Anthropic API key in Settings' } : ai.analyzeSessionActivity());
-  ipcMain.handle('open-threat-report', async (_e, html) => { const { shell } = require('electron'); const fp = path.join(app.getPath('temp'), `aegis-threat-report-${Date.now()}.html`); fs.writeFileSync(fp, html); shell.openExternal('file://' + fp.replace(/\\/g, '/')); return { success: true, path: fp }; });
-  ipcMain.handle('get-agent-baseline', (_e, n) => { const b = bl.getBaselines().agents[n], sd = bl.getSessionData()[n]; return { sessionCount: b ? b.sessionCount : 0, averages: b ? b.averages : { filesPerSession: 0, sensitivePerSession: 0, typicalDirectories: [], knownEndpoints: [] }, currentSession: sd ? { totalFiles: sd.files.size, sensitiveCount: sd.sensitiveCount, directoryCount: sd.directories.size, endpointCount: sd.endpoints.size } : { totalFiles: 0, sensitiveCount: 0, directoryCount: 0, endpointCount: 0 } }; });
-  ipcMain.handle('get-all-permissions', () => { const s = cfg.getSettings(); return { permissions: s.agentPermissions, seenAgents: s.seenAgents }; });
-  ipcMain.handle('get-agent-permissions', (_e, n) => cfg.getAgentPermissions(n));
-  ipcMain.handle('save-agent-permissions', (_e, pm) => { cfg.getSettings().agentPermissions = pm; try { fs.writeFileSync(cfg.SETTINGS_PATH, JSON.stringify(cfg.getSettings(), null, 2)); } catch (_) {} return { success: true }; });
-  ipcMain.handle('reset-permissions-to-defaults', () => { const s = cfg.getSettings(), np = {}; for (const a of s.seenAgents) np[a] = cfg.getDefaultPermissions(a); s.agentPermissions = np; try { fs.writeFileSync(cfg.SETTINGS_PATH, JSON.stringify(s, null, 2)); } catch (_) {} return { permissions: np, seenAgents: s.seenAgents }; });
-  ipcMain.handle('capture-screenshot', async () => { if (!mainWindow) return { success: false }; const img = await mainWindow.webContents.capturePage(); const p = path.join(__dirname, '..', '..', 'screenshot_electron.png'); fs.writeFileSync(p, img.toPNG()); return { success: true, path: p, width: img.getSize().width, height: img.getSize().height }; });
-  ipcMain.handle('get-agent-database', () => sc.agentDb);
-  ipcMain.handle('get-project-dir', () => path.join(__dirname, '..', '..'));
-  ipcMain.handle('get-custom-agents', () => cfg.getCustomAgents());
-  ipcMain.handle('save-custom-agents', (_e, agents) => { cfg.saveCustomAgents(agents); return { success: true }; });
-  ipcMain.handle('export-agent-database', async () => {
-    const { dialog } = require('electron');
-    const merged = { ...sc.agentDb, customAgents: cfg.getCustomAgents() };
-    const { filePath } = await dialog.showSaveDialog(mainWindow, { title: 'Export Agent Database', defaultPath: 'aegis-agents.json', filters: [{ name: 'JSON', extensions: ['json'] }] });
-    if (!filePath) return { success: false };
-    fs.writeFileSync(filePath, JSON.stringify(merged, null, 2));
-    return { success: true, path: filePath };
-  });
-  ipcMain.handle('import-agent-database', async () => {
-    const { dialog } = require('electron');
-    const { filePaths } = await dialog.showOpenDialog(mainWindow, { title: 'Import Agent Database', filters: [{ name: 'JSON', extensions: ['json'] }], properties: ['openFile'] });
-    if (!filePaths || filePaths.length === 0) return { success: false };
-    try {
-      const raw = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'));
-      const imported = raw.customAgents || raw.agents || [];
-      return { success: true, agents: imported };
-    } catch (e) { return { success: false, error: e.message }; }
-  });
+config.init({ knownAgentNames: scanner.AI_AGENTS.map(a => a.name),
+  applyCallback: () => { stopScanIntervals(); if (!monitoringPaused) startScanIntervals(); } });
+scanner.init({ trackSeenAgent: config.trackSeenAgent });
+watcher.init({
+  getCustomRules: config.getCustomSensitiveRules,
+  getLatestAgents: () => latestAgents, getLatestAiAgents: () => latestAiAgents,
+  isMonitoringPaused: () => monitoringPaused,
+  activityLog: scanner.activityLog, knownHandles: scanner.knownHandles, watchers: fileWatchers,
+  recordFileAccess: baselines.recordFileAccess,
+  onFileEvent: (ev) => {
+    sendToRenderer('file-access', [ev]);
+    if (ev.sensitive && ev.category === 'ai') tray.notifySensitive([ev]);
+    sendToRenderer('stats-update', getStats());
+    tray.updateTrayIcon();
+    logAuditForFile(ev);
+  },
+  isOtherPanelExpanded: () => otherPanelExpanded
+});
+exporter.init({ activityLog: scanner.activityLog, getLatestNetConnections: () => latestNetConnections,
+  monitoringStarted: scanner.monitoringStarted, getMainWindow: () => mainWindow, getStats });
+analysis.init({ getSettings: config.getSettings, activityLog: scanner.activityLog,
+  getLatestAgents: () => latestAgents, getLatestNetConnections: () => latestNetConnections,
+  getAnomalyScores: () => {
+    const scores = {};
+    for (const a of latestAgents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent);
+    return scores;
+  }
+});
+tray.init({ tray: null, currentTrayColor: 'green', lastNotificationTime: 0,
+  getActivityLog: () => scanner.activityLog, getSettings: config.getSettings,
+  isMonitoringPaused: () => monitoringPaused, setMonitoringPaused: (v) => { monitoringPaused = v; },
+  stopScanIntervals, startScanIntervals, getMainWindow: () => mainWindow,
+  setIsQuitting: (v) => { isQuitting = v; }, appQuit: () => app.quit() });
+ipc.init({ getWindow: () => mainWindow, getStats, getResourceUsage,
+  setOtherPanelExpanded: (v) => { otherPanelExpanded = v; } });
 
-  // ── Audit log IPC handlers ──
-  ipcMain.handle('get-audit-stats', () => aud.getStats());
-  ipcMain.handle('open-audit-log-dir', () => { const { shell } = require('electron'); shell.openPath(aud.getLogDir()); return { success: true }; });
-  ipcMain.handle('export-full-audit', async () => {
-    const { dialog } = require('electron');
-    const all = aud.exportAll();
-    const { filePath } = await dialog.showSaveDialog(mainWindow, { title: 'Export Full Audit Log', defaultPath: `aegis-full-audit-${new Date().toISOString().slice(0, 10)}.json`, filters: [{ name: 'JSON', extensions: ['json'] }] });
-    if (!filePath) return { success: false };
-    fs.writeFileSync(filePath, JSON.stringify(all, null, 2));
-    return { success: true, path: filePath, count: all.length };
-  });
+// ═══ SINGLE INSTANCE ═══
 
-  // ── Config export/import ──
-  ipcMain.handle('export-config', async () => { const { dialog } = require('electron'); const s = cfg.getSettings(); const { filePath } = await dialog.showSaveDialog(mainWindow, { title: 'Export Config', defaultPath: 'aegis-config.json', filters: [{ name: 'JSON', extensions: ['json'] }] }); if (!filePath) return { success: false }; fs.writeFileSync(filePath, JSON.stringify(s, null, 2)); return { success: true, path: filePath }; });
-  ipcMain.handle('import-config', async () => { const { dialog } = require('electron'); const { filePaths } = await dialog.showOpenDialog(mainWindow, { title: 'Import Config', filters: [{ name: 'JSON', extensions: ['json'] }], properties: ['openFile'] }); if (!filePaths || filePaths.length === 0) return { success: false }; try { const raw = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8')); cfg.saveSettings(raw); cfg.applySettings(); return { success: true }; } catch (e) { return { success: false, error: e.message }; } });
-
-  // ── Process control IPC handlers ──
-  ipcMain.handle('kill-process', (_e, pid) => {
-    return new Promise((resolve) => {
-      execFile('taskkill', ['/PID', String(pid), '/F'], (err) => {
-        if (err) resolve({ success: false, error: err.message });
-        else resolve({ success: true });
-      });
-    });
-  });
-
-  ipcMain.handle('suspend-process', (_e, pid) => {
-    const psScript = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class Ntdll{[DllImport("ntdll.dll")]public static extern int NtSuspendProcess(IntPtr h);}' -PassThru | Out-Null;$h=(Get-Process -Id ${Number(pid)}).Handle;[Ntdll]::NtSuspendProcess($h)`;
-    return new Promise((resolve) => {
-      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psScript], { timeout: 5000 }, (err) => {
-        if (err) resolve({ success: false, error: err.message });
-        else resolve({ success: true });
-      });
-    });
-  });
-
-  ipcMain.handle('resume-process', (_e, pid) => {
-    const psScript = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class Ntdll2{[DllImport("ntdll.dll")]public static extern int NtResumeProcess(IntPtr h);}' -PassThru | Out-Null;$h=(Get-Process -Id ${Number(pid)}).Handle;[Ntdll2]::NtResumeProcess($h)`;
-    return new Promise((resolve) => {
-      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psScript], { timeout: 5000 }, (err) => {
-        if (err) resolve({ success: false, error: err.message });
-        else resolve({ success: true });
-      });
-    });
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); mainWindow.focus(); }
   });
 }
 
-// ── Single instance lock ──
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) { app.quit(); } else { app.on('second-instance', () => { if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); mainWindow.focus(); } }); }
+// ═══ LIFECYCLE ═══
 
-// ── Lifecycle ──
 app.whenReady().then(() => {
   if (!gotLock) return;
-  cfg.loadSettings(); bl.loadBaselines(); aud.init({ userDataPath: app.getPath('userData') }); createWindow(); ti.createTray(); registerIpc(); fw.setupFileWatchers();
-  setTimeout(async () => { try { const r = await sc.scanProcesses(); latestAgents = r.agents; latestAiAgents = latestAgents.filter(a => a.category === 'ai'); latestOtherAgents = latestAgents.filter(a => a.category === 'other'); await pu.enrichWithParentChains(latestAgents); pu.annotateHostApps(latestAgents); sendToWin('scan-results', latestAgents); sendToWin('stats-update', getStats()); sendToWin('resource-usage', getResourceUsage()); ti.updateTrayIcon(); } catch (_) {} }, 3000);
-  setTimeout(async () => { try { if (latestAgents.length > 0) { const ev = await fw.scanAllFileHandles(latestAgents); if (ev.length > 0) { sendToWin('file-access', ev); ti.notifySensitive(ev.filter(e => e.sensitive && e.category === 'ai')); } sendToWin('stats-update', getStats()); ti.updateTrayIcon(); } } catch (_) {} }, 5000);
-  setTimeout(() => { doNetScan(); if (!monitoringPaused) startScanIntervals(); }, 8000);
+  config.loadSettings(); baselines.loadBaselines();
+  audit.init({ userDataPath: app.getPath('userData') });
+  createWindow(); tray.createTray(); ipc.register(); watcher.setupFileWatchers();
+  // Staggered startup: process 3s → files 5s → network 8s
+  setTimeout(async () => {
+    try {
+      const result = await scanner.scanProcesses();
+      latestAgents = result.agents;
+      latestAiAgents = latestAgents.filter(a => a.category === 'ai');
+      latestOtherAgents = latestAgents.filter(a => a.category === 'other');
+      await procUtil.enrichWithParentChains(latestAgents);
+      procUtil.annotateHostApps(latestAgents);
+      sendToRenderer('scan-results', latestAgents);
+      sendToRenderer('stats-update', getStats());
+      sendToRenderer('resource-usage', getResourceUsage());
+      tray.updateTrayIcon();
+    } catch (_) {}
+  }, 3000);
+  setTimeout(async () => {
+    try {
+      if (latestAgents.length === 0) return;
+      const events = await watcher.scanAllFileHandles(latestAgents);
+      if (events.length > 0) {
+        sendToRenderer('file-access', events);
+        tray.notifySensitive(events.filter(e => e.sensitive && e.category === 'ai'));
+      }
+      sendToRenderer('stats-update', getStats());
+      tray.updateTrayIcon();
+    } catch (_) {}
+  }, 5000);
+  setTimeout(() => { doNetworkScan(); if (!monitoringPaused) startScanIntervals(); }, 8000);
 });
-app.on('before-quit', () => { aud.shutdown(); bl.finalizeSession(); isQuitting = true; if (ti._state && ti._state.tray) { ti._state.tray.destroy(); ti._state.tray = null; } });
+
+app.on('before-quit', () => {
+  audit.shutdown(); baselines.finalizeSession(); isQuitting = true;
+  if (tray._state && tray._state.tray) { tray._state.tray.destroy(); tray._state.tray = null; }
+});
 app.on('window-all-closed', () => {});
-app.on('quit', () => { stopScanIntervals(); watchers.forEach(w => w.close()); });
+app.on('quit', () => { stopScanIntervals(); fileWatchers.forEach(w => w.close()); });
