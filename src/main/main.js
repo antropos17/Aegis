@@ -54,7 +54,7 @@ function createWindow() {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; connect-src 'self' https://api.anthropic.com"
+          "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:"
         ]
       }
     });
