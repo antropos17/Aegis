@@ -5,6 +5,7 @@
     agentFilter = $bindable('all'),
     severityFilter = $bindable('all'),
     typeFilter = $bindable('all'),
+    groupByAgent = $bindable(true),
   } = $props();
 
   const severities = ['all', 'critical', 'high', 'medium', 'low'];
@@ -12,6 +13,12 @@
 </script>
 
 <div class="filters-bar">
+  <button
+    class="pill group-toggle"
+    class:active={groupByAgent}
+    onclick={() => (groupByAgent = !groupByAgent)}
+  >Group by agent</button>
+
   <select class="agent-select" bind:value={agentFilter}>
     <option value="all">All agents</option>
     {#each $enrichedAgents as agent (agent.pid)}
@@ -21,7 +28,7 @@
 
   <div class="pill-group">
     <span class="pill-label">Severity</span>
-    {#each severities as sev}
+    {#each severities as sev (sev)}
       <button
         class="pill sev-{sev}"
         class:active={severityFilter === sev}
@@ -32,7 +39,7 @@
 
   <div class="pill-group">
     <span class="pill-label">Type</span>
-    {#each types as type}
+    {#each types as type (type)}
       <button
         class="pill"
         class:active={typeFilter === type}
@@ -130,5 +137,15 @@
   .pill.active.sev-low {
     background: color-mix(in srgb, var(--md-sys-color-on-surface-variant) 20%, transparent);
     border-color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .group-toggle {
+    border-width: 1.5px;
+  }
+
+  .group-toggle.active {
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-surface);
+    border-color: var(--md-sys-color-primary);
   }
 </style>
