@@ -21,7 +21,7 @@ Unacceptable behavior includes:
 
 ## Enforcement
 
-Violations may be reported to murtuzaliyevr@gmail.comAll complaints will be reviewed and investigated promptly and fairly. Maintainers are obligated to maintain confidentiality.
+Violations may be reported to murtuzaliyevr@gmail.com All complaints will be reviewed and investigated promptly and fairly. Maintainers are obligated to maintain confidentiality.
 
 ## Attribution
 
