@@ -178,7 +178,4 @@
     border-color: rgba(255, 255, 255, 0.15);
   }
 
-  @media (max-width: 600px) {
-    .stat-cards { grid-template-columns: repeat(2, 1fr); }
-  }
 </style>
