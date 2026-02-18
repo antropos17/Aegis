@@ -27,13 +27,13 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 │  │  ┌────────────────────────┐  │     │  ┌────────────────────────┐  │  │
 │  │  │  INFRASTRUCTURE        │  │     │  │   INTELLIGENCE LAYER   │  │  │
 │  │  │                        │  │     │  │                        │  │  │
-│  │  │  config-manager.js     │  │     │  │  risk-scoring.js       │  │  │
-│  │  │  exports.js            │  │     │  │  permissions.js        │  │  │
-│  │  │  tray-icon.js          │  │     │  │  state.js + helpers.js │  │  │
+│  │  │  config-manager.js     │  │     │  │  ipc.js (store)        │  │  │
+│  │  │  exports.js            │  │     │  │  risk.js (store)       │  │  │
+│  │  │  tray-icon.js          │  │     │  │  theme.js (store)      │  │  │
 │  │  └────────────────────────┘  │     │  └────────────────────────┘  │  │
 │  │                              │     │                              │  │
-│  │          main.js             │     │         app.js               │  │
-│  │       (orchestrator)         │     │      (orchestrator)          │  │
+│  │          main.js             │     │       App.svelte              │  │
+│  │       (orchestrator)         │     │    (root component)           │  │
 │  └───────────────┬──────────────┘     └──────────────┬───────────────┘  │
 │                  │          preload.js                │                  │
 │                  └─────── (IPC bridge) ───────────────┘                  │
@@ -134,17 +134,14 @@ process-scanner.js ◄──── config-manager.js
         │
         ▼ IPC via preload.js
         │
-     app.js (renderer orchestrator)
+     App.svelte (root component)
         │
-        ├──► risk-scoring.js
-        ├──► radar-*.js
-        ├──► timeline.js
-        ├──► activity-feed.js
-        ├──► agent-panel.js / agent-render.js
-        ├──► network-panel.js
-        ├──► reports.js
-        ├──► permissions.js
-        └──► settings.js
+        ├──► stores/ (ipc.js, risk.js, theme.js)
+        ├──► ShieldTab → Radar, AgentPanel, Timeline
+        ├──► ActivityTab → ActivityFeed, NetworkPanel
+        ├──► RulesTab → Presets, Permissions, AgentDatabase
+        ├──► ReportsTab → Reports, AuditLog, ThreatAnalysis
+        └──► Settings, Header, Footer
 ```
 
 ## Data Flow

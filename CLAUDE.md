@@ -33,7 +33,7 @@ Consumer desktop app that monitors AI agents (Claude Code, Copilot, Cursor, Manu
 ## Tech Stack
 
 - **Framework:** Electron 33
-- **Frontend:** Vanilla JS + CSS (no React, no build step)
+- **Frontend:** Svelte 5 + Vite (component-based with `$state`/`$derived`/`$effect` runes)
 - **File watching:** chokidar@3
 - **Process detection:** `tasklist /fo csv` (Windows), `ps aux` (Mac/Linux planned)
 - **File handle scanning:** PowerShell `handle64.exe` or `Get-Process` fallback
@@ -41,7 +41,7 @@ Consumer desktop app that monitors AI agents (Claude Code, Copilot, Cursor, Manu
 - **Config storage:** JSON files at Electron `userData` directory (`settings.json`, `baselines.json`)
 - **Agent database:** `src/shared/agent-database.json` (95 agents with metadata)
 - **Fonts:** Plus Jakarta Sans (headings) + DM Sans (body) + DM Mono (code/data)
-- **No frameworks:** No React, no Tailwind, no webpack. Pure vanilla for zero dependencies.
+- **Build:** Vite 7 with `@sveltejs/vite-plugin-svelte`. No Tailwind, no webpack.
 
 ## Project Structure
 
@@ -68,41 +68,34 @@ AEGIS/
 │   │   ├── audit-logger.js                # Persistent JSONL audit trail (176 lines)
 │   │   ├── exports.js                     # JSON/CSV/HTML report export (170 lines)
 │   │   └── tray-icon.js                   # System tray with procedural icon (125 lines)
-│   ├── renderer/                          # Dashboard UI (20 scripts + 1 HTML)
-│   │   ├── index.html                     # 4 tab views + overlays (477 lines)
-│   │   ├── state.js                       # Global DOM refs, tracking objects (198 lines)
-│   │   ├── helpers.js                     # Formatting, sparklines, toast (220 lines)
-│   │   ├── theme.js                       # Dark/light toggle (35 lines)
-│   │   ├── risk-scoring.js                # Time-decay risk engine + trust grades (156 lines)
-│   │   ├── radar-state.js                 # Radar constants, threat colors (94 lines)
-│   │   ├── radar-draw.js                  # Canvas: background, sweep, nodes (193 lines)
-│   │   ├── radar-engine.js                # Canvas: agent orbits, animation loop (186 lines)
-│   │   ├── permissions.js                 # Protection presets + tri-state controls (178 lines)
-│   │   ├── agent-database-ui.js           # Agent DB table rendering + filtering (202 lines)
-│   │   ├── agent-database-crud.js         # Agent DB add/edit/delete/import/export (187 lines)
-│   │   ├── agent-panel.js                 # Agent card HTML + trust bars (234 lines)
-│   │   ├── agent-render.js                # Agent list rendering + click handlers (180 lines)
-│   │   ├── activity-feed.js               # Feed entries + permission enforcement (181 lines)
-│   │   ├── network-panel.js               # Network connections + domain classification (111 lines)
-│   │   ├── timeline.js                    # Session event timeline (153 lines)
-│   │   ├── reports.js                     # Activity filters + reports table + audit UI (198 lines)
-│   │   ├── threat-analysis.js             # AI analysis results + report generation (97 lines)
-│   │   ├── settings.js                    # Settings overlay + pattern management (135 lines)
-│   │   ├── analysis.js                    # Analysis modal open/close (33 lines)
-│   │   └── app.js                         # Renderer orchestrator + IPC wiring (181 lines)
+│   ├── renderer/                              # Dashboard UI (Svelte 5 + Vite)
+│   │   ├── app.html                           # Vite HTML entry point
+│   │   ├── main.js                            # Svelte app mount
+│   │   ├── App.svelte                         # Root component, tab routing
+│   │   └── lib/
+│   │       ├── components/                    # 22 Svelte components
+│   │       │   ├── Header.svelte / Footer.svelte / TabBar.svelte
+│   │       │   ├── ShieldTab.svelte / Radar.svelte / AgentPanel.svelte / AgentCard.svelte
+│   │       │   ├── ActivityTab.svelte / ActivityFeed.svelte / FeedFilters.svelte
+│   │       │   ├── NetworkPanel.svelte / Timeline.svelte
+│   │       │   ├── RulesTab.svelte / ProtectionPresets.svelte / PermissionsGrid.svelte
+│   │       │   ├── AgentDatabase.svelte / AgentDatabaseCrud.svelte
+│   │       │   ├── ReportsTab.svelte / Reports.svelte / AuditLog.svelte
+│   │       │   └── ThreatAnalysis.svelte / Settings.svelte
+│   │       ├── stores/                        # Svelte stores (reactive state)
+│   │       │   ├── ipc.js                     # IPC bridge as writable/derived stores
+│   │       │   ├── risk.js                    # Risk scoring derived store
+│   │       │   └── theme.js                   # Dark/light theme store
+│   │       ├── utils/                         # Shared utilities
+│   │       │   ├── risk-scoring.js            # Risk calculation + trust grades
+│   │       │   └── threat-report.js           # HTML report generation
+│   │       └── styles/                        # Global styles
+│   │           ├── tokens.css                 # M3 design tokens + theme variables
+│   │           └── global.css                 # Base styles + animations
 │   ├── shared/
 │   │   ├── constants.js                   # Sensitive rules, ignore patterns (179 lines)
 │   │   └── agent-database.json            # 95 agent signatures (1,510 lines)
-│   └── styles/                            # 9 CSS files (neumorphic design)
-│       ├── variables.css                  # CSS custom properties, theme tokens (55 lines)
-│       ├── base.css                       # Body, header, footer, layout (159 lines)
-│       ├── radar.css                      # Radar container, meta pills (102 lines)
-│       ├── panels.css                     # Agent cards, network panel (191 lines)
-│       ├── components.css                 # Buttons, trust bars, process list (171 lines)
-│       ├── feed-styles.css                # Feed entries, anomaly, timeline, threat (189 lines)
-│       ├── settings.css                   # Settings overlay, analysis modal (200 lines)
-│       ├── tabs.css                       # Tab bar, tab pills, agent DB table (224 lines)
-│       └── responsive.css                 # Media queries (70 lines)
+│   (styles are scoped inside .svelte components + 2 global files in renderer/lib/styles/)
 ```
 
 Total: **~7,100 lines** across **44 source files** (JS/CSS/HTML). Plus 1,510 lines of agent database JSON.
@@ -184,29 +177,43 @@ Total: **~7,100 lines** across **44 source files** (JS/CSS/HTML). Plus 1,510 lin
 - 26 invoke methods + 8 event listeners
 - Context isolation enabled, node integration disabled
 
-### Renderer — 20 scripts loaded in dependency order
+### Renderer — Svelte 5 component tree
 
-Script load order in `index.html`:
-1. `state.js` → DOM refs, tracking objects, permissions cache, agent database
-2. `helpers.js` → formatDuration, formatUptime, escapeHtml, showToast, sparklines
-3. `theme.js` → Dark/light mode toggle + persistence
-4. `risk-scoring.js` → Time-decay weighted risk engine + trust grades (A+ through F)
-5. `radar-state.js` → RADAR_NODES (8 system nodes), THREAT_COLORS, AGENT_COLORS
-6. `radar-draw.js` → Canvas: background, rings, crosshairs, sweep arm, system nodes
-7. `radar-engine.js` → Canvas: agent orbits, connection lines, animation loop
-8. `permissions.js` → Protection presets (Paranoid/Strict/Balanced/Developer)
-9. `agent-database-ui.js` → Agent DB table rendering, filtering, detected sync
-10. `agent-database-crud.js` → Agent DB add/edit/delete/import/export modals
-11. `agent-panel.js` → Agent card HTML: trust bar, sparkline, baseline tab
-12. `agent-render.js` → Agent list rendering, click-to-filter, radar sync
-13. `activity-feed.js` → Feed entry creation, AI/other event splitting
-14. `network-panel.js` → Network connection rendering, domain classification
-15. `timeline.js` → Session event timeline (100 dots, color-coded)
-16. `reports.js` → Activity tab filtering + Reports tab aggregate stats + audit UI
-17. `threat-analysis.js` → AI threat analysis results + printable report generation
-18. `settings.js` → Export handlers, settings overlay, custom patterns
-19. `analysis.js` → Analysis modal open/close
-20. `app.js` → Renderer orchestrator, IPC listener wiring
+Built with Vite + `@sveltejs/vite-plugin-svelte`. Uses `$state`, `$derived`, `$effect` runes.
+
+**Entry:** `main.js` → mounts `App.svelte` into `app.html`
+
+**Component tree:**
+- `App.svelte` → root layout, tab routing, Settings modal
+  - `Header.svelte` → shield score, agent/file counts, theme toggle, settings gear
+  - `TabBar.svelte` → Shield / Activity / Rules / Reports tabs
+  - `ShieldTab.svelte` → bento grid layout
+    - `Radar.svelte` → canvas radar with agent dots + sweep arm (60fps)
+    - `AgentPanel.svelte` → agent list, grouped by name
+      - `AgentCard.svelte` → trust bar, risk score, expandable detail tabs
+    - `Timeline.svelte` → SVG horizontal event bar (last 100 events)
+  - `ActivityTab.svelte` → feed/network toggle
+    - `ActivityFeed.svelte` + `FeedFilters.svelte` → event list with filters
+    - `NetworkPanel.svelte` → connection list with domain classification
+  - `RulesTab.svelte` → presets/permissions/database toggle
+    - `ProtectionPresets.svelte` → Paranoid/Strict/Balanced/Developer
+    - `PermissionsGrid.svelte` → per-agent tri-state controls
+    - `AgentDatabase.svelte` + `AgentDatabaseCrud.svelte` → agent DB manager
+  - `ReportsTab.svelte` → reports/audit/threat toggle
+    - `Reports.svelte` → aggregate stats + export buttons
+    - `AuditLog.svelte` → audit log viewer + stats
+    - `ThreatAnalysis.svelte` → AI analysis results + report
+  - `Settings.svelte` → modal overlay for app settings
+  - `Footer.svelte` → version, uptime, MEM/HEAP/SCAN stats
+
+**Stores** (Svelte writable/derived):
+- `ipc.js` → IPC bridge: agents, events, stats, networkConnections, anomalyScores, permissions
+- `risk.js` → derived `enrichedAgents` store with calculated risk scores + trust grades
+- `theme.js` → dark/light mode toggle with localStorage persistence
+
+**Utils:**
+- `risk-scoring.js` → `calculateRiskScore()`, `getTrustGrade()`, `getTimeDecayWeight()`
+- `threat-report.js` → HTML threat report generation for print
 
 ### Risk Scoring Formula
 
@@ -326,15 +333,15 @@ Dual-theme system with light (default) and dark mode toggle.
 ## Code Conventions
 
 - **Module pattern:** Main process uses CommonJS (`require`/`module.exports`) with `init()` dependency injection
-- **Renderer:** Global functions via `<script>` tags in load-order; no imports/exports
-- **Variables:** `const` over `let` when possible. `var` only for cross-script shared state.
-- **Template literals** for HTML generation in renderer
+- **Renderer:** Svelte 5 components with `$state`/`$derived`/`$effect` runes. ES module imports.
+- **Variables:** `const` over `let` when possible. Never use `var`.
+- **Template literals** for HTML generation in utils
 - **IPC channels:** kebab-case (`scan-processes`, `get-stats`, `file-access`)
 - **CSS class naming:** `component-element` pattern (e.g., `agent-card`, `feed-entry`)
 - **Section comments:** `// ═══ SECTION NAME ═══` for major, `// ── subsection ──` for minor
 - **JSDoc:** All exported functions have `@param`, `@returns`, `@since` tags
 - **200 line soft limit per file** — split into focused, single-responsibility modules when exceeding
-- **CSS:** 9 files split by concern (variables, base, radar, panels, components, feed-styles, settings, tabs, responsive)
+- **CSS:** Scoped styles inside `.svelte` components + 2 global files (`tokens.css`, `global.css`) in `renderer/lib/styles/`
 
 ## Important Notes
 

@@ -1,0 +1,5 @@
+# Linguist — Svelte is the real renderer stack, own it
+*.svelte linguist-language=Svelte
+
+# Normalize line endings
+* text=auto

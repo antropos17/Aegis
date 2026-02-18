@@ -43,8 +43,8 @@ Requires Node.js 18+ and Windows 10/11 for full monitoring functionality. The El
 
 ### CSS
 
-- 8 files split by concern: `variables.css`, `base.css`, `radar.css`, `panels.css`, `components.css`, `settings.css`, `tabs.css`, `responsive.css`
-- Always use CSS custom properties from `variables.css` — never hardcode colors
+- Scoped styles inside `.svelte` components + 2 global files: `tokens.css` (M3 design tokens) and `global.css` (base styles)
+- Always use CSS custom properties from `tokens.css` — never hardcode colors
 - Glassmorphism pattern with `backdrop-filter` blur and M3 design tokens
 - Both light and dark mode must work — test with the theme toggle
 
