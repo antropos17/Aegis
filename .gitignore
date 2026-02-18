@@ -4,7 +4,6 @@ out/
 *.log
 *.json.bak
 .env
-screenshot*.png
 *.ps1
 cdp_*.js
 .claude/

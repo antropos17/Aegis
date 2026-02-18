@@ -1,13 +1,19 @@
 {
   "name": "aegis",
-  "version": "0.1.0",
-  "description": "AI agent activity monitor for Windows",
+  "version": "0.2.0-alpha",
+  "description": "Independent AI agent oversight layer — monitors what AI agents do on your local machine",
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
     "dev": "vite",
     "build": "vite build"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/antropos17/Aegis"
+  },
+  "author": "Ruslan",
+  "license": "MIT",
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "electron": "^33.0.0",

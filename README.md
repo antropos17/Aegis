@@ -4,7 +4,7 @@
 
 **The first open-source tool that monitors what AI agents do on your computer.**
 
-<!-- ![AEGIS Dashboard](docs/screenshot.png) -->
+![AEGIS Dashboard](screenshot.png)
 
 ## The Problem
 
@@ -43,7 +43,7 @@ Every existing AI security company is enterprise B2B ($10K+/year): Lasso Securit
 - Agent database manager with custom agent support
 - Dark/light neumorphic theme
 - System tray with threat-level shield icon
-- Zero framework dependencies — vanilla JS + Electron
+- Svelte 5 + Vite frontend with glassmorphic UI
 
 ## Coming Soon
 
@@ -61,9 +61,17 @@ Every existing AI security company is enterprise B2B ($10K+/year): Lasso Securit
 ## Quick Start
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/AEGIS.git
-cd AEGIS && npm install
+git clone https://github.com/antropos17/Aegis.git
+cd Aegis
+npm install
+npm run build
 npm start
+```
+
+**Dev mode** (hot reload):
+```bash
+npm run dev      # Terminal 1 — Vite dev server
+npm start        # Terminal 2 — Electron
 ```
 
 Requires Node.js 18+ and Windows 10/11. Mac/Linux support is on the roadmap.
@@ -73,7 +81,7 @@ Requires Node.js 18+ and Windows 10/11. Mac/Linux support is on the roadmap.
 | Component | Technology |
 |---|---|
 | Desktop framework | Electron 33 |
-| Frontend | Vanilla JS + CSS — zero frameworks, no build step |
+| Frontend | Svelte 5 + Vite |
 | File watching | chokidar@3 |
 | Process detection | `tasklist /FO CSV` + PowerShell parent chains |
 | File handle scanning | PowerShell / Sysinternals `handle64.exe` |
@@ -129,32 +137,31 @@ AEGIS uses behavioral pattern detection, not just signature matching. It establi
 
 ```
 AEGIS/
-├── agent-database.json        # 88 agent signatures with metadata
 ├── src/
-│   ├── main/                  # Electron main process (11 modules)
+│   ├── main/                  # Electron main process (13 modules, CommonJS)
 │   │   ├── main.js            # Orchestrator, IPC handlers, lifecycle
 │   │   ├── process-scanner.js # Agent detection engine
 │   │   ├── file-watcher.js    # chokidar + handle scanning
 │   │   ├── network-monitor.js # TCP + DNS monitoring
-│   │   ├── baselines.js       # Anomaly detection engine
+│   │   ├── anomaly-detector.js # Deviation scoring
+│   │   ├── baselines.js       # Session averages
 │   │   ├── ai-analysis.js     # Anthropic API integration
 │   │   ├── audit-logger.js    # Persistent audit trail
 │   │   ├── config-manager.js  # Settings persistence
 │   │   ├── exports.js         # Report generation
 │   │   ├── tray-icon.js       # System tray
+│   │   ├── process-utils.js   # Parent chain resolution
 │   │   └── preload.js         # IPC bridge (contextBridge)
-│   ├── renderer/              # Dashboard UI (18 scripts)
-│   │   ├── index.html         # 4 tab views + overlays
-│   │   ├── radar-*.js         # Canvas radar (3 files)
-│   │   ├── timeline.js        # Session event timeline
-│   │   ├── activity-feed.js   # Real-time event feed
-│   │   ├── reports.js         # Reports + audit UI
-│   │   └── ...                # state, helpers, risk, permissions
-│   ├── shared/constants.js    # Sensitive file rules (70+ patterns)
-│   └── styles/                # 8 CSS files (neumorphic design)
+│   ├── renderer/              # Svelte 5 + Vite dashboard
+│   │   ├── App.svelte         # Root component (tabs, settings, theme)
+│   │   ├── lib/components/    # 20 Svelte components
+│   │   ├── lib/stores/        # IPC bridge, risk engine, theme stores
+│   │   ├── lib/utils/         # Risk scoring, threat reports
+│   │   └── lib/styles/        # M3 design tokens + global CSS
+│   └── shared/
+│       ├── constants.js       # Sensitive file rules (70+ patterns)
+│       └── agent-database.json # 88 agent signatures
 ```
-
-~7,100 lines across 39 source files.
 
 ## Contributing
 
