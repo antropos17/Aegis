@@ -16,12 +16,12 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 │  │  ┌────────────────────────┐  │     │  ┌────────────────────────┐  │  │
 │  │  │  OBSERVABILITY LAYER   │  │     │  │   VISUALIZATION LAYER  │  │  │
 │  │  │                        │  │     │  │                        │  │  │
-│  │  │  process-scanner.js    │──┼──►  │  │  radar-*.js (canvas)   │  │  │
-│  │  │  file-watcher.js       │──┼──►  │  │  timeline.js           │  │  │
-│  │  │  network-monitor.js    │──┼──►  │  │  activity-feed.js      │  │  │
-│  │  │  baselines.js          │──┼──►  │  │  agent-panel.js        │  │  │
-│  │  │  ai-analysis.js        │──┼──►  │  │  network-panel.js      │  │  │
-│  │  │  audit-logger.js       │  │     │  │  reports.js             │  │  │
+│  │  │  process-scanner.js    │──┼──►  │  │  Radar.svelte (canvas) │  │  │
+│  │  │  file-watcher.js       │──┼──►  │  │  Timeline.svelte       │  │  │
+│  │  │  network-monitor.js    │──┼──►  │  │  ActivityFeed.svelte   │  │  │
+│  │  │  baselines.js          │──┼──►  │  │  AgentPanel.svelte     │  │  │
+│  │  │  ai-analysis.js        │──┼──►  │  │  NetworkPanel.svelte   │  │  │
+│  │  │  audit-logger.js       │  │     │  │  Reports.svelte        │  │  │
 │  │  └────────────────────────┘  │     │  └────────────────────────┘  │  │
 │  │                              │     │                              │  │
 │  │  ┌────────────────────────┐  │     │  ┌────────────────────────┐  │  │
@@ -55,7 +55,7 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 ### What's Covered Now
 
 #### 1. Process Intelligence — `process-scanner.js`
-- **What it sees:** All running processes matched against 88 agent signatures
+- **What it sees:** All running processes matched against 95 agent signatures
 - **How:** `tasklist /FO CSV /NH` on Windows, pattern matching against known process names
 - **Depth:** Parent-child process tree resolution via PowerShell (60s TTL cache), IDE host app detection (e.g., "Copilot inside VS Code"), PID tracking for enter/exit events
 - **Coverage:** ~95% of known AI agents. Unknown agents detected via wildcard patterns.
@@ -74,7 +74,7 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 
 #### 4. Risk Engine — `risk-scoring.js` + `baselines.js`
 - **What it computes:** Per-agent risk scores (0-100+), trust grades (A+ through F), anomaly scores (0-100)
-- **Risk formula:** `sensitive×10 + config×5 + network×3 + unknownDomain×15 + min(files×0.1, 10)` with trust multiplier and time decay
+- **Risk formula:** `Base = min(40, log2(1 + sensitiveFiles) * 8)` + `Network = min(30, unknownDomains * 12)` + `Anomaly = min(30, anomalyScore * 0.3)` → `Total = min(100, Base + Network + Anomaly)`
 - **Anomaly scoring:** 5 weighted factors — file volume (30pts), sensitive spike (25pts), new sensitive categories (20pts), new network endpoints (15pts), unusual timing (10pts)
 - **Baselines:** Rolling averages over 10 sessions, persisted to `baselines.json`
 
@@ -99,7 +99,7 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 | Blind Spot | Description | Planned Approach |
 |---|---|---|
 | **UI Awareness** | Cannot see what AI agents display or interact with in UI | Accessibility API monitoring (no screen capture) |
-| **Container/VM Detection** | Docker, WSL, local LLM processes not specifically tracked | Process pattern matching for containers + GPU monitoring |
+| **Container/VM Detection** | Detected — 7 container/VM agents added (Docker, WSL, Ollama, LM Studio, LocalAI, GPT4All, Jan) | Process pattern matching for containers + GPU monitoring |
 | **Sandbox Containment** | Monitor-only — cannot isolate or restrict agents | Job Objects (Windows), AppContainer, Linux namespaces |
 | **GPU Monitoring** | Cannot detect local inference processes | GPU utilization APIs, process GPU memory tracking |
 | **Deep Packet Inspection** | Sees TCP endpoints but not encrypted payloads | TLS interception proxy with user consent |
@@ -256,11 +256,10 @@ Edit `src/shared/constants.js` — add to `SENSITIVE_RULES` array:
 5. Add audit logging via `aud.log(type, details)`
 
 ### Adding a New UI Panel
-1. Create `src/renderer/new-panel.js` with rendering functions
-2. Add HTML container in `index.html`
-3. Add `<script>` tag in correct load order
-4. Wire data via IPC listener in `app.js`
-5. Add CSS in appropriate stylesheet
+1. Create `src/renderer/src/lib/components/NewPanel.svelte`
+2. Import and place the component in the appropriate tab (e.g., `ShieldTab.svelte`, `ActivityTab.svelte`)
+3. Subscribe to IPC data via Svelte stores in `src/renderer/src/lib/stores/`
+4. Use scoped styles within the `.svelte` file (follows project CSS conventions)
 
 ### Adding Platform Support
 The main process modules abstract OS-specific operations:
