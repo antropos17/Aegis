@@ -1,5 +1,5 @@
 <script>
-  /** @type {{ agent: { name: string, pid: number, riskScore: number, trustGrade: string, parentChain: string, sessionStart: number, fileCount: number, networkCount: number } }} */
+  /** @type {{ agent: { name: string, pids: Array<{pid: number, process: string}>, riskScore: number, trustGrade: string, parentChain: string, sessionStart: number, fileCount: number, networkCount: number } }} */
   let { agent } = $props();
 
   let expanded = $state(false);
@@ -19,21 +19,27 @@
     return hrs > 0 ? `${hrs}h ${rem}m` : `${rem}m`;
   });
 
+  let pidSummary = $derived(
+    agent.pids?.length === 1
+      ? `PID ${agent.pids[0].pid}`
+      : `${agent.pids?.length || 0} PIDs`
+  );
+
   function toggle() { expanded = !expanded; }
 
-  async function kill(e) {
+  async function killPid(e, pid) {
     e.stopPropagation();
-    if (window.aegis) await window.aegis.killProcess(agent.pid);
+    if (window.aegis) await window.aegis.killProcess(pid);
   }
 
-  async function suspend(e) {
+  async function suspendPid(e, pid) {
     e.stopPropagation();
-    if (window.aegis) await window.aegis.suspendProcess(agent.pid);
+    if (window.aegis) await window.aegis.suspendProcess(pid);
   }
 
-  async function resume(e) {
+  async function resumePid(e, pid) {
     e.stopPropagation();
-    if (window.aegis) await window.aegis.resumeProcess(agent.pid);
+    if (window.aegis) await window.aegis.resumeProcess(pid);
   }
 </script>
 
@@ -43,7 +49,7 @@
   <div class="agent-header">
     <div class="agent-info">
       <span class="agent-name">{agent.name}</span>
-      <span class="agent-pid">PID {agent.pid}</span>
+      <span class="agent-pid">{pidSummary}</span>
     </div>
     <span class="trust-badge" style:background={gradeColor}>
       {agent.trustGrade}
@@ -80,7 +86,7 @@
     {#if agent.fileCount != null}
       <div class="detail-row">
         <span class="detail-label">Files</span>
-        <span class="detail-value">{agent.fileCount}</span>
+        <span class="detail-value">{Math.round(agent.fileCount)}</span>
       </div>
     {/if}
 
@@ -91,11 +97,20 @@
       </div>
     {/if}
 
-    <div class="actions">
-      <button class="action-btn kill" onclick={kill}>Kill</button>
-      <button class="action-btn suspend" onclick={suspend}>Suspend</button>
-      <button class="action-btn resume" onclick={resume}>Resume</button>
-    </div>
+    {#if agent.pids?.length}
+      <div class="pid-list">
+        {#each agent.pids as p (p.pid)}
+          <div class="pid-row">
+            <span class="pid-info">PID {p.pid}{p.process ? ` \u2014 ${p.process}` : ''}</span>
+            <div class="pid-actions">
+              <button class="action-btn kill" onclick={(e) => killPid(e, p.pid)}>Kill</button>
+              <button class="action-btn suspend" onclick={(e) => suspendPid(e, p.pid)}>Suspend</button>
+              <button class="action-btn resume" onclick={(e) => resumePid(e, p.pid)}>Resume</button>
+            </div>
+          </div>
+        {/each}
+      </div>
+    {/if}
   </div>
 </article>
 
@@ -206,7 +221,7 @@
   }
 
   .agent-card.expanded .expand-body {
-    max-height: 200px;
+    max-height: 400px;
     opacity: 1;
   }
 
@@ -232,11 +247,37 @@
     white-space: nowrap;
   }
 
-  /* ── Action buttons ── */
-  .actions {
+  /* ── PID list ── */
+  .pid-list {
     display: flex;
-    gap: 8px;
+    flex-direction: column;
+    gap: 6px;
     margin-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 6px;
+  }
+
+  .pid-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .pid-info {
+    font: var(--md-sys-typescale-label-medium);
+    font-family: 'DM Mono', monospace;
+    color: var(--md-sys-color-on-surface-variant);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pid-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
   }
 
   .action-btn {
