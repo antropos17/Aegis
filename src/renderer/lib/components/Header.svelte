@@ -7,14 +7,6 @@
 
   let isDark = $derived($theme === 'dark');
 
-  const appStart = Date.now();
-  let uptimeMs = $state(0);
-
-  $effect(() => {
-    const id = setInterval(() => { uptimeMs = Date.now() - appStart; }, 1000);
-    return () => clearInterval(id);
-  });
-
   let shieldScore = $derived.by(() => {
     const list = $enrichedAgents;
     if (!list.length) return '--';
@@ -25,39 +17,22 @@
   let agentCount = $derived($enrichedAgents.length);
   let filesMonitored = $derived($stats.totalFiles ?? '--');
 
-  function formatUptime(ms) {
-    const s = Math.floor(ms / 1000);
-    const h = String(Math.floor(s / 3600)).padStart(2, '0');
-    const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
-    const sec = String(s % 60).padStart(2, '0');
-    return `${h}:${m}:${sec}`;
-  }
+  let scoreClass = $derived(
+    typeof shieldScore === 'number'
+      ? shieldScore < 40 ? 'danger' : shieldScore < 70 ? 'warn' : ''
+      : ''
+  );
 </script>
 
 <header class="header">
   <div class="header-brand">AEGIS</div>
 
-  <div class="header-pills">
-    <div class="pill" class:pill-warn={typeof shieldScore === 'number' && shieldScore < 70}
-         class:pill-danger={typeof shieldScore === 'number' && shieldScore < 40}>
-      <span class="pill-label">shield</span>
-      <span class="pill-value">{shieldScore}</span>
-    </div>
-
-    <div class="pill">
-      <span class="pill-label">{agentCount === 1 ? 'agent' : 'agents'}</span>
-      <span class="pill-value">{agentCount}</span>
-    </div>
-
-    <div class="pill">
-      <span class="pill-label">files</span>
-      <span class="pill-value">{filesMonitored}</span>
-    </div>
-
-    <div class="pill">
-      <span class="pill-label">uptime</span>
-      <span class="pill-value mono">{formatUptime(uptimeMs)}</span>
-    </div>
+  <div class="header-stats">
+    <span class="shield-score {scoreClass}">{shieldScore}</span>
+    <span class="stat-sep">&middot;</span>
+    <span class="stat-text">{agentCount} {agentCount === 1 ? 'agent' : 'agents'}</span>
+    <span class="stat-sep">&middot;</span>
+    <span class="stat-text">{filesMonitored} files</span>
   </div>
 
   <button class="icon-btn" aria-label="Toggle theme" onclick={toggleTheme}>
@@ -107,59 +82,40 @@
     font: var(--md-sys-typescale-title-medium);
     letter-spacing: 0.08em;
     color: var(--md-sys-color-on-surface);
-    margin-right: 8px;
     flex-shrink: 0;
   }
 
-  .header-pills {
+  .header-stats {
     display: flex;
+    align-items: center;
     gap: 8px;
     margin-left: auto;
   }
 
-  .pill {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    background: var(--md-sys-color-surface-container);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: var(--md-sys-shape-corner-full);
-    color: var(--md-sys-color-on-surface);
-    white-space: nowrap;
-    transition: all 0.3s var(--ease-glass);
-  }
-
-  .pill-label {
-    font: var(--md-sys-typescale-label-medium);
-    color: var(--md-sys-color-on-surface-variant);
-  }
-
-  .pill-value {
-    font: var(--md-sys-typescale-label-medium);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .pill-value.mono {
+  .shield-score {
+    font: var(--md-sys-typescale-label-large);
     font-family: 'DM Mono', monospace;
-    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--md-sys-color-on-surface);
   }
 
-  .pill-warn {
-    border-color: color-mix(in srgb, var(--md-sys-color-secondary) 30%, transparent);
-  }
-  .pill-warn .pill-value {
+  .shield-score.warn {
     color: var(--md-sys-color-secondary);
   }
 
-  .pill-danger {
-    border-color: color-mix(in srgb, var(--md-sys-color-error) 30%, transparent);
-  }
-  .pill-danger .pill-value {
+  .shield-score.danger {
     color: var(--md-sys-color-error);
+  }
+
+  .stat-sep {
+    color: var(--md-sys-color-outline);
+  }
+
+  .stat-text {
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    font-variant-numeric: tabular-nums;
   }
 
   .icon-btn {

@@ -9,6 +9,14 @@
   let heapMB = $state('--');
   let scanInterval = $state('--');
 
+  const appStart = Date.now();
+  let uptimeMs = $state(0);
+
+  $effect(() => {
+    const id = setInterval(() => { uptimeMs = Date.now() - appStart; }, 1000);
+    return () => clearInterval(id);
+  });
+
   $effect(() => {
     const u = $resourceUsage;
     if (!u || !u.cpuUser) return;
@@ -35,6 +43,14 @@
     }
   });
 
+  function formatUptime(ms) {
+    const s = Math.floor(ms / 1000);
+    const h = String(Math.floor(s / 3600)).padStart(2, '0');
+    const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+    const sec = String(s % 60).padStart(2, '0');
+    return `${h}:${m}:${sec}`;
+  }
+
   function cpuClass(val) {
     if (typeof val !== 'number') return '';
     if (val > 50) return 'high';
@@ -51,24 +67,33 @@
 </script>
 
 <footer class="footer">
-  <div class="footer-item">
-    <span class="footer-label">CPU</span>
-    <span class="footer-value {cpuClass(cpuPct)}">{cpuPct}{typeof cpuPct === 'number' ? '%' : ''}</span>
-  </div>
+  <span class="footer-version">AEGIS v0.1.0-alpha</span>
 
-  <div class="footer-item">
-    <span class="footer-label">memory</span>
-    <span class="footer-value {memClass(memMB)}">{memMB}{typeof memMB === 'number' ? ' MB' : ''}</span>
-  </div>
+  <div class="footer-stats">
+    <div class="footer-item">
+      <span class="footer-label">CPU</span>
+      <span class="footer-value {cpuClass(cpuPct)}">{cpuPct}{typeof cpuPct === 'number' ? '%' : ''}</span>
+    </div>
 
-  <div class="footer-item">
-    <span class="footer-label">heap</span>
-    <span class="footer-value">{heapMB}{typeof heapMB === 'number' ? ' MB' : ''}</span>
-  </div>
+    <div class="footer-item">
+      <span class="footer-label">MEM</span>
+      <span class="footer-value {memClass(memMB)}">{memMB}{typeof memMB === 'number' ? ' MB' : ''}</span>
+    </div>
 
-  <div class="footer-item">
-    <span class="footer-label">interval</span>
-    <span class="footer-value">{scanInterval}{typeof scanInterval === 'number' ? 's' : ''}</span>
+    <div class="footer-item">
+      <span class="footer-label">HEAP</span>
+      <span class="footer-value">{heapMB}{typeof heapMB === 'number' ? ' MB' : ''}</span>
+    </div>
+
+    <div class="footer-item">
+      <span class="footer-label">SCAN</span>
+      <span class="footer-value">{scanInterval}{typeof scanInterval === 'number' ? 's' : ''}</span>
+    </div>
+
+    <div class="footer-item">
+      <span class="footer-label">UP</span>
+      <span class="footer-value">{formatUptime(uptimeMs)}</span>
+    </div>
   </div>
 </footer>
 
@@ -81,13 +106,25 @@
     z-index: 100;
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 20px;
     padding: 6px 20px;
     background: rgba(5, 5, 7, 0.8);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     border-top: var(--glass-border);
+  }
+
+  .footer-version {
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    flex-shrink: 0;
+  }
+
+  .footer-stats {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-left: auto;
   }
 
   .footer-item {
