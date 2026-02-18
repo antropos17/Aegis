@@ -67,7 +67,7 @@
 </script>
 
 <footer class="footer">
-  <span class="footer-version">AEGIS v0.1.0-alpha</span>
+  <span class="footer-version">AEGIS v0.2.0-alpha</span>
 
   <div class="footer-stats">
     <div class="footer-item">
