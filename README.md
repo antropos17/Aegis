@@ -1,173 +1,106 @@
-# AEGIS — Independent AI Oversight Layer
+# AEGIS
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)]()
 [![Electron](https://img.shields.io/badge/Electron-33-47848F?logo=electron&logoColor=white)](https://electronjs.org)
-[![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte&logoColor=white)](https://svelte.dev)
-[![Version](https://img.shields.io/badge/version-0.2.0--alpha-blue)]()
+[![Agents](https://img.shields.io/badge/Agents-88-4ECDC4)]()
 
-> When AI is embedded in your OS, browser, and apps — oversight must be independent.
-
-**The first open-source tool that monitors what AI agents do on your computer.**
+**Independent AI Oversight Layer — monitors what AI agents do on your computer.**
 
 ![AEGIS Dashboard](screenshot.png)
 
-## The Problem
+## Why AEGIS?
 
-AI agents now have deep access to your machine. Claude Code reads your files, Copilot scans your codebase, Cursor indexes your projects, Devin executes shell commands. These tools access SSH keys, environment variables, API tokens, cloud credentials, and browser data — and make outbound network connections to servers you've never heard of. Until now, nobody was watching what they actually do.
+AI agents now have deep access to your machine — reading files, scanning codebases, executing commands, and making outbound network connections. Every existing AI security tool is enterprise B2B and monitors what humans send *to* AI. None of them monitor what AI agents do *on local machines*.
 
-This isn't theoretical. In February 2026, Hudson Rock documented real-world attacks where infostealers specifically target AI agent configuration directories — stealing API keys, device tokens, session credentials, and memory files from tools like Claude Code, Copilot, and Cursor. AI agent configs are now a documented attack surface, and every developer running these tools is exposed.
+AEGIS is an independent, open-source monitoring layer that watches AI agent behavior in real time. It doesn't belong to any AI vendor. All data stays local. No telemetry, no cloud sync, no tracking.
 
-Every existing AI security company is enterprise B2B ($10K+/year): Lasso Security, PromptArmor, Prompt Security, Nightfall AI, WitnessAI. They monitor what humans send *to* AI. None of them monitor what AI agents do *on local machines*. There is no consumer-grade, open-source solution for AI agent oversight. AEGIS fills this gap — an independent oversight layer that doesn't belong to any AI vendor.
+## What It Monitors
 
-## What AEGIS Monitors
+- **Processes** — Detects 88+ AI agents by matching running processes against known signatures. Resolves parent-child process trees to identify agents inside editors (e.g., Copilot in VS Code).
+- **Files** — Watches sensitive directories (`.ssh`, `.aws`, `.gnupg`, `.env*`, cloud configs) and 27 AI agent config directories. Classifies access against 70+ sensitive file patterns.
+- **Network** — Scans outbound TCP connections per agent PID. Reverse DNS with domain classification — known API endpoints vs. unknown/suspicious destinations.
+- **Behavior** — Rolling 10-session baselines per agent. Anomaly scoring (0-100) with weighted factors: file volume spikes, sensitive file escalation, new network endpoints, unusual timing.
 
-**Process Intelligence** — Detects 88+ AI agents in real time. Resolves parent-child process trees to identify agents spawned inside editors (Copilot in VS Code, AI extensions in JetBrains). Tracks agent enter/exit events with PID-level granularity.
+## Features
 
-**File & Data Access** — Monitors sensitive directories (`.ssh`, `.aws`, `.gnupg`, `.env*`, cloud configs, browser data). Protects 27 AI agent configuration directories targeted by infostealers. Classifies file access against 70+ sensitive patterns with severity levels. Detects mass-read behavior and unusual access patterns.
+**Detection**
+- 88 known agent signatures + wildcard matching for unknown agents
+- Parent chain resolution with IDE host annotation
+- AI agent config directory protection (Hudson Rock threat vector)
+- Per-agent risk scoring with time decay and trust grades (A+ through F)
 
-**Network Intelligence** — Scans all outbound TCP connections for detected agent PIDs. Reverse DNS resolution with domain classification — known AI API endpoints (safe), unknown domains (flagged), suspicious connections (alerted). Maintains connection history for baseline comparison.
+**Analysis**
+- Behavioral baselines with rolling session averages
+- Anomaly detection with 5 weighted factors
+- AI-powered threat assessment via Anthropic API (opt-in, user-triggered only)
+- Printable HTML threat reports
 
-**Behavioral Analysis** — Rolling 10-session baselines per agent with anomaly scoring (0-100). Five weighted detection factors: file volume spikes, sensitive file escalation, new sensitive categories, new network endpoints, unusual timing patterns. Time-decay risk engine with trust grades (A+ through F).
-
-**AI-Powered Analysis** — Full session threat assessment via Anthropic API. Correlates Process + File + Network data into explainable alerts with executive summary, specific findings, risk rating, and actionable recommendations. Generates printable compliance reports.
-
-## Available Now
-
-- Real-time AI agent detection (88 agents in database)
-- File access monitoring with sensitive file alerts
-- AI agent config protection (Hudson Rock threat vector — 27 directories)
-- Network connection tracking with domain classification
-- Behavioral anomaly detection with baseline deviation scoring
-- AI-powered threat analysis via Anthropic API
+**Dashboard**
+- Animated canvas radar with agent orbits and sweep arm (60fps)
+- Activity feed with agent/severity/filetype filters
+- Session timeline with color-coded event dots
+- Agent cards with sparklines, trust bars, and expandable detail tabs
 - Protection presets: Paranoid / Strict / Balanced / Developer
-- Risk scoring with time decay and trust grades (A+ to F)
-- Canvas radar visualization (60fps animated dashboard)
-- Session timeline with color-coded severity dots
-- Persistent audit logging with 30-day rotation
-- Compliance report generation (JSON, CSV, HTML, printable threat report)
-- Agent database manager with custom agent support
 - Dark/light neumorphic theme
-- System tray with threat-level shield icon
-- Svelte 5 + Vite frontend with glassmorphic UI
 
-## Coming Soon
-
-- **OS-level enforcement** — Kernel hooks: Windows Minifilter, macOS Endpoint Security, Linux eBPF
-- **Mac/Linux full support** — `ps aux`, `fanotify`, `ss`/`lsof` monitoring
-- **UI Awareness** — Accessibility API monitoring (no screen capture needed)
-- **Container/VM detection** — Docker, WSL, local LLM processes
-- **Sandbox containment** — Job Objects, AppContainer isolation
-- **GPU monitoring** — Detect local inference processes
-- **Deep packet inspection** — TLS inspection for AI agent traffic
-- **Browser extension** — Monitor web-based AI agents (ChatGPT, Claude web)
-- **Community threat intelligence** — Shared agent signatures and behavioral profiles
-- **Cross-device AI activity correlation**
+**Export**
+- JSON, CSV, and HTML report generation
+- Persistent audit logging (JSONL, daily rotation, 30-day retention)
+- Full audit export and log viewer
 
 ## Quick Start
 
 ```bash
 git clone https://github.com/antropos17/Aegis.git
 cd Aegis
-cp .env.example .env  # add your Anthropic API key (optional)
-npm install
-npm run build
-npm start
+npm install && npm start
 ```
 
-**Dev mode** (hot reload):
-```bash
-npm run dev      # Terminal 1 — Vite dev server
-npm start        # Terminal 2 — Electron
-```
+Requires Node.js 18+ and Windows 10/11. Mac/Linux support is planned.
 
-Requires Node.js 18+ and Windows 10/11. Mac/Linux support is on the roadmap.
-
-## Tech Stack
-
-| Component | Technology |
-|---|---|
-| Desktop framework | Electron 33 |
-| Frontend | Svelte 5 + Vite |
-| File watching | chokidar@3 |
-| Process detection | `tasklist /FO CSV` + PowerShell parent chains |
-| File handle scanning | PowerShell / Sysinternals `handle64.exe` |
-| Network scanning | `Get-NetTCPConnection` + DNS reverse lookup |
-| Visualization | Canvas API (60fps radar) |
-| AI analysis | Anthropic Messages API |
-| Audit storage | JSONL files with daily rotation |
+Optionally set your Anthropic API key in Settings for AI-powered threat analysis.
 
 ## How It Works
 
 ```
-Process Scanning → File Watching → Network Monitoring
-        ↓                ↓               ↓
-    Risk Engine ← Anomaly Detection ← Baselines
-        ↓                ↓               ↓
-   AI Analysis → Activity Feed → Audit Log → User Dashboard
+Process Scanner ─── detects AI agents via tasklist + pattern matching
+       │
+File Watcher ────── monitors sensitive dirs + per-process handle scanning
+       │
+Network Monitor ─── scans TCP connections + reverse DNS + domain classification
+       │
+Baseline Engine ─── tracks per-agent behavior over rolling 10-session windows
+       │
+Risk Engine ──────── scores risk (time-decay weighted) + anomaly detection
+       │
+Audit Logger ────── writes events to daily JSONL files (30-day rotation)
 ```
 
-**Process Scanner** detects AI agents by matching running processes against 88 known signatures. Resolves parent chains (60s TTL cache) to identify IDE-hosted agents. Triggers network rescans on agent change.
+All data flows to the renderer dashboard via Electron IPC. AI analysis calls the Anthropic API only when the user explicitly requests it.
 
-**File Watcher** runs chokidar on sensitive directories and PowerShell handle scanning for per-process file access. Events are classified against 70+ sensitive patterns and 27 agent config directory rules.
+## Agent Database
 
-**Network Monitor** scans TCP connections for agent PIDs. Reverse DNS with 5-minute cache. Domain classification against known vendor endpoints from the agent database.
+88 agents in `src/shared/agent-database.json`, organized by category:
 
-**Baseline Engine** tracks per-agent behavior over rolling 10-session windows. Computes anomaly scores with weighted factors. Deviations trigger alerts in the activity feed and audit log.
+- **Coding assistants** — Claude Code, GitHub Copilot, Cursor, Windsurf, Tabnine, Amazon Q, Cody, Aider
+- **Autonomous agents** — Devin, Manus AI, OpenHands, SWE-Agent, AutoGPT, BabyAGI, CrewAI
+- **Desktop/browser agents** — Anthropic Computer Use, Google Gemini, Apple Intelligence, Microsoft Copilot
+- **CLI/framework tools** — LangChain, Semantic Kernel, AutoGen, MetaGPT, TaskWeaver
+- **Security/DevOps** — Snyk AI, GitHub Advanced Security
 
-**AI Analysis** sends session data to Claude for structured threat assessment — summary, findings, risk rating, recommendations. Only triggered when the user explicitly requests it.
+Custom agents can be added via the Agent Database Manager in the UI or by editing the JSON directly.
 
-**Audit Logger** writes all events to daily JSONL files with 30-day rotation. Seven event types: file-access, network-connection, anomaly-alert, permission-deny, agent-enter, agent-exit, config-access.
+## Roadmap
 
-## Threat Model
-
-AEGIS is built for AI-native threats that traditional security tools don't address:
-
-- **Autonomous agents** with filesystem and terminal access (Devin, Manus, OpenHands)
-- **Self-updating AI workers** that modify their own configurations
-- **AI-modular malware** that uses AI agents as attack vectors
-- **Local LLMs** with unrestricted file access (Ollama, LM Studio, llama.cpp)
-- **Self-executing workflows** that chain multiple AI tools together
-- **Background AI services** embedded in operating systems and browsers
-
-AEGIS uses behavioral pattern detection, not just signature matching. It establishes baselines for what's normal and alerts when agents deviate — regardless of whether the agent is known or unknown.
-
-## Principles
-
-- **Open-source transparency** — Every line of monitoring logic is visible and auditable
-- **Privacy-first** — All data stays local. No cloud sync. No telemetry. No tracking.
-- **Local data processing** — Analysis runs on your machine. API calls only when you explicitly trigger them.
-- **No hidden telemetry** — AEGIS does not phone home. Period.
-- **User in full control** — You choose what to monitor, what to allow, what to block
-
-## Project Structure
-
-```
-AEGIS/
-├── src/
-│   ├── main/                  # Electron main process (13 modules, CommonJS)
-│   │   ├── main.js            # Orchestrator, IPC handlers, lifecycle
-│   │   ├── process-scanner.js # Agent detection engine
-│   │   ├── file-watcher.js    # chokidar + handle scanning
-│   │   ├── network-monitor.js # TCP + DNS monitoring
-│   │   ├── anomaly-detector.js # Deviation scoring
-│   │   ├── baselines.js       # Session averages
-│   │   ├── ai-analysis.js     # Anthropic API integration
-│   │   ├── audit-logger.js    # Persistent audit trail
-│   │   ├── config-manager.js  # Settings persistence
-│   │   ├── exports.js         # Report generation
-│   │   ├── tray-icon.js       # System tray
-│   │   ├── process-utils.js   # Parent chain resolution
-│   │   └── preload.js         # IPC bridge (contextBridge)
-│   ├── renderer/              # Svelte 5 + Vite dashboard
-│   │   ├── App.svelte         # Root component (tabs, settings, theme)
-│   │   ├── lib/components/    # 20 Svelte components
-│   │   ├── lib/stores/        # IPC bridge, risk engine, theme stores
-│   │   ├── lib/utils/         # Risk scoring, threat reports
-│   │   └── lib/styles/        # M3 design tokens + global CSS
-│   └── shared/
-│       ├── constants.js       # Sensitive file rules (70+ patterns)
-│       └── agent-database.json # 88 agent signatures
-```
+- [ ] Mac/Linux support (`ps aux`, `fanotify`, `ss`/`lsof`)
+- [ ] OS-level enforcement via kernel hooks (Windows Minifilter, macOS Endpoint Security, Linux eBPF)
+- [ ] Container/VM detection (Docker, WSL, local LLMs)
+- [ ] GPU monitoring for local inference detection
+- [ ] UI awareness via Accessibility APIs
+- [ ] Browser extension for web-based AI agents
+- [ ] electron-builder packaging (Windows installer)
+- [ ] Cross-device AI activity correlation
 
 ## Contributing
 
@@ -175,16 +108,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code standards, an
 
 ## Security
 
-See [SECURITY.md](SECURITY.md) for vulnerability reporting and responsible disclosure.
-
-## Architecture
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for system design, data flow, observability layers, and extension points.
+See [SECURITY.md](SECURITY.md) for vulnerability reporting and responsible disclosure policy.
 
 ## License
 
 MIT License. See [LICENSE](LICENSE) for details.
 
----
+## Author
 
-Built for the [OpenAI Cybersecurity Grant](https://openai.com/index/openai-cybersecurity-grant-program/) and Y Combinator. AI oversight should be independent, transparent, and open-source.
+**Ruslan Mukhametshin** — Seneca Polytechnic, Toronto
+
+Built for the [OpenAI Cybersecurity Grant](https://openai.com/index/openai-cybersecurity-grant-program/).
