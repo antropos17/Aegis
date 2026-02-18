@@ -178,7 +178,7 @@
   .ta-reason { font: var(--md-sys-typescale-body-medium); color: var(--md-sys-color-on-surface-variant); margin: 6px 0 0; }
   .ta-block { padding: 12px 16px; background: var(--md-sys-color-surface-container-low); backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur)); border: var(--glass-border); box-shadow: var(--glass-shadow), var(--glass-highlight); border-radius: var(--md-sys-shape-corner-medium); }
   .ta-block-title { font: var(--md-sys-typescale-label-medium); font-weight: 600; color: var(--md-sys-color-on-surface-variant); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-  .ta-body { font: var(--md-sys-typescale-body-medium); color: var(--md-sys-color-on-surface); margin: 0; line-height: 1.5; }
+  .ta-body { font: var(--md-sys-typescale-body-medium); color: var(--md-sys-color-on-surface); margin: 0; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
   .ta-list { margin: 0; padding-left: 20px; }
   .ta-list li { font: var(--md-sys-typescale-body-medium); color: var(--md-sys-color-on-surface); margin: 4px 0; line-height: 1.4; }
   .ta-list .finding-critical { color: var(--md-sys-color-error); }
