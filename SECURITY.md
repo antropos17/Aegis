@@ -8,7 +8,7 @@ AEGIS monitors AI agents — security is our core mission. We take vulnerabiliti
 
 ### Contact
 
-Email: **security@aegis-shield.dev**
+Report vulnerabilities via [GitHub Security Advisories](https://github.com/antropos17/Aegis/security/advisories).
 
 Please include:
 - Description of the vulnerability
@@ -21,7 +21,7 @@ Please include:
 
 We follow a 90-day responsible disclosure timeline:
 
-1. **You report** the vulnerability via email
+1. **You report** the vulnerability via GitHub Security Advisories
 2. **We acknowledge** within 48 hours
 3. **We assess** severity and impact within 7 days
 4. **We develop and release** a fix within 90 days
@@ -92,7 +92,7 @@ AEGIS follows Electron security best practices:
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x   | Current release — actively supported |
+| 0.2.x   | Current release — actively supported |
 
 ## Credit
 

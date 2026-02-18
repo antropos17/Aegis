@@ -81,10 +81,19 @@
 - [x] Step 28: Verified electron-builder NSIS packaging (fixed icon.ico→icon.png in build config — .ico had invalid headers; `npm run dist` produces `AEGIS Setup 0.2.0-alpha.exe` at ~82MB; dist/ in .gitignore)
 - [x] Step 29: GitHub Release v0.2.0-alpha created with installer upload (https://github.com/antropos17/Aegis/releases/tag/v0.2.0-alpha — tag moved to HEAD at 1679e8e, AEGIS Setup 0.2.0-alpha.exe ~82MB uploaded, prerelease flag set)
 
+- [x] Step 30: Rebuild installer with radar fix + upload to GitHub Release + README download section (download badge, ## Download with .exe link, "No Node.js required" tagline)
+
 ## Bug Fixes
 - [x] Black screen in packaged .exe: Two root causes — (1) strict CSP header blocked script loading under file:// protocol, relaxed to permissive for debug; (2) dist/renderer/**/* missing from electron-builder files array, Vite output was never packaged into asar archive
 - [x] Radar cut off on left side: .radar-area missing justify-content:center (ShieldTab.svelte)
 - [x] Light theme radar invisible: hardcoded rgba(255,255,255,...) replaced with CSS custom properties (--radar-line-rgb, --radar-label-rgb, --radar-sweep-rgb) that flip to dark values on [data-theme="light"] (Radar.svelte)
 
+- [x] Step 31: Fixed CI YAML syntax error in lint step (single-quoted JSON → eslint shorthand --rule "no-unused-vars:1")
+- [x] Step 32: Fixed CI build auto-publish failure (added --publish never to build script in package.json — electron-builder was auto-detecting CI and trying to publish without GH_TOKEN)
+
+- [x] Step 33: Added CI badge to README.md (alongside existing license/platform/electron/agents/download badges)
+
+- [x] Step 34: Cleaned all fake/placeholder values for public launch (SECURITY.md: GitHub Security Advisories link replacing fake email, version 0.2.x; CONTRIBUTING.md: real repo URL, Svelte 5 + Vite description, glassmorphism CSS; README.md: 95 agents badge + all text refs, author line fixed; .env: replaced SECRET_KEY=test123 with ANTHROPIC_API_KEY placeholder)
+
 ## Status
-Phase 6 in progress. 95 agents in database. README polished for public GitHub launch.
+Phase 6 in progress. 95 agents in database. All docs cleaned for public GitHub launch.
