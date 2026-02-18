@@ -38,29 +38,31 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <article class="agent-card" class:expanded onclick={toggle}>
-  <div class="agent-header">
-    <div class="agent-info">
-      <span class="agent-name">{agent.name}</span>
-      <span class="agent-pid">{pidSummary}</span>
-    </div>
-    <span class="trust-badge" style:background={gradeColor}>
-      {agent.trustGrade}
-    </span>
-  </div>
-
-  <div class="trust-bar-row">
-    <span class="trust-label">Risk</span>
-    <div class="trust-bar">
-      <div
-        class="trust-fill"
-        style:width="{Math.min(agent.riskScore, 100)}%"
-        style:background={gradeColor}
-      ></div>
-    </div>
-    <span class="risk-value">{agent.riskScore}</span>
+  <div class="compact-row">
+    <span class="agent-name">{agent.name}</span>
+    <span class="stat">{pidSummary}</span>
+    {#if agent.fileCount != null}
+      <span class="stat">{Math.round(agent.fileCount)}f</span>
+    {/if}
+    {#if agent.networkCount != null}
+      <span class="stat">{agent.networkCount}n</span>
+    {/if}
+    <span class="risk-score" style:color={gradeColor}>{agent.riskScore}</span>
+    <span class="trust-badge" style:background={gradeColor}>{agent.trustGrade}</span>
   </div>
 
   <div class="expand-body">
+    <div class="risk-bar-row">
+      <span class="bar-label">Risk</span>
+      <div class="risk-bar">
+        <div
+          class="risk-fill"
+          style:width="{Math.min(agent.riskScore, 100)}%"
+          style:background={gradeColor}
+        ></div>
+      </div>
+    </div>
+
     {#if agent.parentChain}
       <div class="detail-row">
         <span class="detail-label">Parent</span>
@@ -72,20 +74,6 @@
       <div class="detail-row">
         <span class="detail-label">Session</span>
         <span class="detail-value">{sessionDuration}</span>
-      </div>
-    {/if}
-
-    {#if agent.fileCount != null}
-      <div class="detail-row">
-        <span class="detail-label">Files</span>
-        <span class="detail-value">{Math.round(agent.fileCount)}</span>
-      </div>
-    {/if}
-
-    {#if agent.networkCount != null}
-      <div class="detail-row">
-        <span class="detail-label">Network</span>
-        <span class="detail-value">{agent.networkCount}</span>
       </div>
     {/if}
 
@@ -114,10 +102,7 @@
     border: var(--glass-border);
     box-shadow: var(--glass-shadow), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
-    padding: 12px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    padding: 8px 12px;
     cursor: pointer;
     transition: all 0.3s var(--ease-glass);
   }
@@ -126,77 +111,46 @@
     border-color: rgba(255, 255, 255, 0.15);
   }
 
-  .agent-header {
+  /* ── Compact row (collapsed state) ── */
+  .compact-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 8px;
   }
 
-  .agent-info {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-
   .agent-name {
-    font: var(--md-sys-typescale-title-medium);
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 600;
     color: var(--md-sys-color-on-surface);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    min-width: 0;
   }
 
-  .agent-pid {
+  .stat {
     font: var(--md-sys-typescale-label-medium);
+    font-family: 'DM Mono', monospace;
     color: var(--md-sys-color-on-surface-variant);
+    flex-shrink: 0;
+  }
+
+  .risk-score {
+    font: var(--md-sys-typescale-label-large);
+    font-family: 'DM Mono', monospace;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-left: auto;
   }
 
   .trust-badge {
     font: var(--md-sys-typescale-label-medium);
     font-weight: 700;
     color: var(--md-sys-color-surface);
-    padding: 2px 8px;
+    padding: 1px 7px;
     border-radius: var(--md-sys-shape-corner-full);
     flex-shrink: 0;
     letter-spacing: 0.5px;
-  }
-
-  .trust-bar-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .trust-label {
-    font: var(--md-sys-typescale-label-medium);
-    color: var(--md-sys-color-on-surface-variant);
-    flex-shrink: 0;
-    width: 28px;
-  }
-
-  .trust-bar {
-    flex: 1;
-    height: 6px;
-    background: var(--md-sys-color-surface-container-highest);
-    border-radius: var(--md-sys-shape-corner-full);
-    overflow: hidden;
-  }
-
-  .trust-fill {
-    height: 100%;
-    border-radius: var(--md-sys-shape-corner-full);
-    transition: width var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-standard);
-  }
-
-  .risk-value {
-    font: var(--md-sys-typescale-label-medium);
-    font-family: 'DM Mono', monospace;
-    color: var(--md-sys-color-on-surface-variant);
-    width: 24px;
-    text-align: right;
-    flex-shrink: 0;
   }
 
   /* ── Expand / collapse ── */
@@ -215,6 +169,34 @@
   .agent-card.expanded .expand-body {
     max-height: 400px;
     opacity: 1;
+    margin-top: 8px;
+  }
+
+  .risk-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .bar-label {
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    flex-shrink: 0;
+    width: 28px;
+  }
+
+  .risk-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--md-sys-color-surface-container-highest);
+    border-radius: var(--md-sys-shape-corner-full);
+    overflow: hidden;
+  }
+
+  .risk-fill {
+    height: 100%;
+    border-radius: var(--md-sys-shape-corner-full);
+    transition: width var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-standard);
   }
 
   .detail-row {
