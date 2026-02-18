@@ -65,3 +65,8 @@ body::before {
   outline: 2px solid var(--md-sys-color-primary);
   outline-offset: 2px;
 }
+
+/* ── Button press feedback ── */
+button:active {
+  transform: scale(0.97);
+}

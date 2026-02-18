@@ -105,7 +105,7 @@
     padding: 24px; min-width: 380px; max-width: 460px; width: 90vw;
     animation: scale-in var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-standard);
   }
-  @keyframes scale-in { from { opacity: 0; transform: scale(0.95); } }
+  @keyframes scale-in { from { opacity: 0; transform: scale(0.96) translateY(8px); } }
   .modal-title { font: var(--md-sys-typescale-headline-medium); color: var(--md-sys-color-on-surface); margin: 0 0 20px; }
   .fields { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
   .field { display: flex; flex-direction: column; gap: 4px; }
@@ -155,6 +155,7 @@
     transition: all var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
   }
   .btn:hover { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); }
+  .btn:active { transform: scale(0.97); }
   .btn.primary { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-surface); border-color: var(--md-sys-color-primary); }
   .btn.primary:hover { background: color-mix(in srgb, var(--md-sys-color-primary-container) 80%, white); }
 </style>

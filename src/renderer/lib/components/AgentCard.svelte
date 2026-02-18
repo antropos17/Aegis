@@ -52,45 +52,47 @@
   </div>
 
   <div class="expand-body">
-    <div class="risk-bar-row">
-      <span class="bar-label">Risk</span>
-      <div class="risk-bar">
-        <div
-          class="risk-fill"
-          style:width="{Math.min(agent.riskScore, 100)}%"
-          style:background={gradeColor}
-        ></div>
+    <div class="expand-inner">
+      <div class="risk-bar-row">
+        <span class="bar-label">Risk</span>
+        <div class="risk-bar">
+          <div
+            class="risk-fill"
+            style:width="{Math.min(agent.riskScore, 100)}%"
+            style:background={gradeColor}
+          ></div>
+        </div>
       </div>
-    </div>
 
-    {#if agent.parentChain}
-      <div class="detail-row">
-        <span class="detail-label">Parent</span>
-        <span class="detail-value">{agent.parentChain}</span>
-      </div>
-    {/if}
+      {#if agent.parentChain}
+        <div class="detail-row">
+          <span class="detail-label">Parent</span>
+          <span class="detail-value">{agent.parentChain}</span>
+        </div>
+      {/if}
 
-    {#if sessionDuration}
-      <div class="detail-row">
-        <span class="detail-label">Session</span>
-        <span class="detail-value">{sessionDuration}</span>
-      </div>
-    {/if}
+      {#if sessionDuration}
+        <div class="detail-row">
+          <span class="detail-label">Session</span>
+          <span class="detail-value">{sessionDuration}</span>
+        </div>
+      {/if}
 
-    {#if agent.pids?.length}
-      <div class="pid-list">
-        {#each agent.pids as p (p.pid)}
-          <div class="pid-row">
-            <span class="pid-info">PID {p.pid}{p.process ? ` \u2014 ${p.process}` : ''}</span>
-            <div class="pid-actions">
-              <button class="action-btn kill" onclick={(e) => pidAction(e, p.pid, 'killProcess')}>Kill</button>
-              <button class="action-btn suspend" onclick={(e) => pidAction(e, p.pid, 'suspendProcess')}>Suspend</button>
-              <button class="action-btn resume" onclick={(e) => pidAction(e, p.pid, 'resumeProcess')}>Resume</button>
+      {#if agent.pids?.length}
+        <div class="pid-list">
+          {#each agent.pids as p (p.pid)}
+            <div class="pid-row">
+              <span class="pid-info">PID {p.pid}{p.process ? ` \u2014 ${p.process}` : ''}</span>
+              <div class="pid-actions">
+                <button class="action-btn kill" onclick={(e) => pidAction(e, p.pid, 'killProcess')}>Kill</button>
+                <button class="action-btn suspend" onclick={(e) => pidAction(e, p.pid, 'suspendProcess')}>Suspend</button>
+                <button class="action-btn resume" onclick={(e) => pidAction(e, p.pid, 'resumeProcess')}>Resume</button>
+              </div>
             </div>
-          </div>
-        {/each}
-      </div>
-    {/if}
+          {/each}
+        </div>
+      {/if}
+    </div>
   </div>
 </article>
 
@@ -155,20 +157,25 @@
 
   /* ── Expand / collapse ── */
   .expand-body {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    max-height: 0;
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 200ms var(--md-sys-motion-easing-standard);
     overflow: hidden;
-    opacity: 0;
-    transition:
-      max-height var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-standard),
-      opacity var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-standard);
   }
 
   .agent-card.expanded .expand-body {
-    max-height: 400px;
-    opacity: 1;
+    grid-template-rows: 1fr;
+  }
+
+  .expand-inner {
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .agent-card.expanded .expand-inner {
     margin-top: 8px;
   }
 
@@ -265,6 +272,7 @@
   }
 
   .action-btn:hover { opacity: 0.8; }
+  .action-btn:active { transform: scale(0.97); }
 
   .action-btn.kill {
     background: var(--md-sys-color-error);
