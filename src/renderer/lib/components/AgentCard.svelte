@@ -4,11 +4,13 @@
 
   let expanded = $state(false);
 
-  let gradeColor = $derived(
-    ['A+', 'A', 'B'].includes(agent.trustGrade) ? 'var(--md-sys-color-tertiary)'
-    : agent.trustGrade === 'C' ? 'var(--md-sys-color-secondary)'
-    : 'var(--md-sys-color-error)'
-  );
+  function gradeToColor(grade) {
+    if (['A+', 'A', 'B'].includes(grade)) return 'var(--md-sys-color-tertiary)';
+    if (grade === 'C') return 'var(--md-sys-color-secondary)';
+    return 'var(--md-sys-color-error)';
+  }
+
+  let gradeColor = $derived(gradeToColor(agent.trustGrade));
 
   let sessionDuration = $derived.by(() => {
     if (!agent.sessionStart) return null;
@@ -27,19 +29,9 @@
 
   function toggle() { expanded = !expanded; }
 
-  async function killPid(e, pid) {
+  async function pidAction(e, pid, method) {
     e.stopPropagation();
-    if (window.aegis) await window.aegis.killProcess(pid);
-  }
-
-  async function suspendPid(e, pid) {
-    e.stopPropagation();
-    if (window.aegis) await window.aegis.suspendProcess(pid);
-  }
-
-  async function resumePid(e, pid) {
-    e.stopPropagation();
-    if (window.aegis) await window.aegis.resumeProcess(pid);
+    if (window.aegis) await window.aegis[method](pid);
   }
 </script>
 
@@ -103,9 +95,9 @@
           <div class="pid-row">
             <span class="pid-info">PID {p.pid}{p.process ? ` \u2014 ${p.process}` : ''}</span>
             <div class="pid-actions">
-              <button class="action-btn kill" onclick={(e) => killPid(e, p.pid)}>Kill</button>
-              <button class="action-btn suspend" onclick={(e) => suspendPid(e, p.pid)}>Suspend</button>
-              <button class="action-btn resume" onclick={(e) => resumePid(e, p.pid)}>Resume</button>
+              <button class="action-btn kill" onclick={(e) => pidAction(e, p.pid, 'killProcess')}>Kill</button>
+              <button class="action-btn suspend" onclick={(e) => pidAction(e, p.pid, 'suspendProcess')}>Suspend</button>
+              <button class="action-btn resume" onclick={(e) => pidAction(e, p.pid, 'resumeProcess')}>Resume</button>
             </div>
           </div>
         {/each}
