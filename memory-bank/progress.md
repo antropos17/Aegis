@@ -51,5 +51,7 @@
 
 - Step 5: Rules tab visual polish (presets: filled active state with shadow, longer descriptions, 10px desc text; permissions: tighter 8px 12px padding; gradient separators between sections; agent DB: glass search input, prominent header row, row hover)
 
+- Step 6: Reports tab stat cards + export + audit polish (stat cards: 24px DM Mono numbers, 9px uppercase labels, semantic colors for sensitive/shield; export buttons: compact 6px 14px pills with glass border; audit cards: grid layout matching reports style; consistent button styling across reports+audit)
+
 ## Status
-All 20 migration steps complete. UX redesign Step 5 done, Step 6 next.
+All 20 migration steps complete. UX redesign Step 6 done, Step 7 next.
