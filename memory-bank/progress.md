@@ -57,5 +57,7 @@
 
 - Step 7: Radar compact sizing + dark canvas consistency (transparent bg — glass shows through; grid circles rgba(255,255,255,0.06), crosshairs 0.04; sweep arm desaturated slate 122,138,158; agent labels rgba(232,230,226,0.8); AEGIS center 0.4; agent dots grouped by name — one dot per agent with name-hash stable angle, highest riskScore wins)
 
+- Step 8: Tab transitions + micro-interactions (App.svelte: {#key activeTab} fade-in 200ms translateY(4px); AgentCard: grid-template-rows 0fr→1fr expand with .expand-inner wrapper; Settings: modal scale-in adds translateY(8px); global button:active scale(0.97); per-component :active on action-btn and .btn)
+
 ## Status
-All 20 migration steps complete. UX redesign Step 7 done. Step 8 next.
+All 20 migration steps complete. UX redesign Step 8 done. Step 9 next.

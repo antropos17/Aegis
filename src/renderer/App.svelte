@@ -26,15 +26,19 @@
   </nav>
 
   <main class="app-content">
-    {#if activeTab === 'shield'}
-      <ShieldTab />
-    {:else if activeTab === 'activity'}
-      <ActivityTab />
-    {:else if activeTab === 'rules'}
-      <RulesTab />
-    {:else if activeTab === 'reports'}
-      <ReportsTab />
-    {/if}
+    {#key activeTab}
+      <div class="tab-content">
+        {#if activeTab === 'shield'}
+          <ShieldTab />
+        {:else if activeTab === 'activity'}
+          <ActivityTab />
+        {:else if activeTab === 'rules'}
+          <RulesTab />
+        {:else if activeTab === 'reports'}
+          <ReportsTab />
+        {/if}
+      </div>
+    {/key}
   </main>
 </div>
 
@@ -62,5 +66,15 @@
     padding: 16px 20px;
     min-height: 0;
     overflow: hidden;
+  }
+
+  .tab-content {
+    height: 100%;
+    animation: tabFadeIn 200ms var(--md-sys-motion-easing-standard);
+  }
+
+  @keyframes tabFadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 </style>
