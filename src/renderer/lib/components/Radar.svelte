@@ -1,8 +1,9 @@
 <script>
   import { enrichedAgents } from '../stores/risk.js';
+  import { theme } from '../stores/theme.js';
 
   let canvas, ctx, animId;
-  let tk = {}, sweepRgb = '';
+  let tk = {}, sweepRgb = '', lineRgb = '', labelRgb = '';
 
   function resolveTokens(el) {
     const s = getComputedStyle(el);
@@ -13,6 +14,8 @@
       error: g('--md-sys-color-error')
     };
     sweepRgb = g('--radar-sweep-rgb');
+    lineRgb = g('--radar-line-rgb');
+    labelRgb = g('--radar-label-rgb');
   }
 
   // ═══ COLORS ═══
@@ -26,7 +29,7 @@
   // ═══ DRAWING ═══
 
   function drawBackground(cx, cy, r) {
-    ctx.strokeStyle = 'rgba(255,255,255, 0.06)';
+    ctx.strokeStyle = `rgba(${lineRgb}, 0.06)`;
     ctx.lineWidth = 1;
     for (const frac of [0.33, 0.66, 1.0]) {
       ctx.beginPath();
@@ -34,7 +37,7 @@
       ctx.stroke();
     }
 
-    ctx.strokeStyle = 'rgba(255,255,255, 0.04)';
+    ctx.strokeStyle = `rgba(${lineRgb}, 0.04)`;
     ctx.beginPath();
     ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy);
     ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r);
@@ -101,12 +104,12 @@
 
       ctx.beginPath();
       ctx.arc(x, y, 3, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255, 0.5)';
+      ctx.fillStyle = `rgba(${lineRgb}, 0.5)`;
       ctx.fill();
 
       ctx.font = "500 9px 'DM Sans', sans-serif";
       ctx.textAlign = 'center';
-      ctx.fillStyle = 'rgba(232,230,226, 0.8)';
+      ctx.fillStyle = `rgba(${labelRgb}, 0.8)`;
       ctx.fillText(agent.name?.split(' ')[0] || '', x, y + 14);
     }
   }
@@ -115,7 +118,7 @@
     ctx.font = "600 11px 'Outfit', sans-serif";
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(232,230,226, 0.4)';
+    ctx.fillStyle = `rgba(${labelRgb}, 0.4)`;
     ctx.fillText('AEGIS', cx, cy);
   }
 
@@ -158,6 +161,7 @@
   }
 
   $effect(() => {
+    $theme; // re-resolve tokens on theme change
     ctx = canvas.getContext('2d');
     resolveTokens(canvas);
     animId = requestAnimationFrame(render);
@@ -172,6 +176,8 @@
 <style>
   .radar-wrap {
     --radar-sweep-rgb: 122, 138, 158;
+    --radar-line-rgb: 255, 255, 255;
+    --radar-label-rgb: 232, 230, 226;
     aspect-ratio: 1 / 1;
     width: 100%;
     max-height: 380px;
@@ -179,6 +185,12 @@
     background: transparent;
     border-radius: var(--md-sys-shape-corner-medium);
     overflow: hidden;
+  }
+
+  :global([data-theme="light"]) .radar-wrap {
+    --radar-line-rgb: 0, 0, 0;
+    --radar-label-rgb: 30, 30, 30;
+    --radar-sweep-rgb: 60, 80, 100;
   }
 
   canvas {

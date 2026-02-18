@@ -81,5 +81,8 @@
 - [x] Step 28: Verified electron-builder NSIS packaging (fixed icon.ico→icon.png in build config — .ico had invalid headers; `npm run dist` produces `AEGIS Setup 0.2.0-alpha.exe` at ~82MB; dist/ in .gitignore)
 - [x] Step 29: GitHub Release v0.2.0-alpha created with installer upload (https://github.com/antropos17/Aegis/releases/tag/v0.2.0-alpha — tag moved to HEAD at 1679e8e, AEGIS Setup 0.2.0-alpha.exe ~82MB uploaded, prerelease flag set)
 
+## Bug Fixes
+- [x] Black screen in packaged .exe: Two root causes — (1) strict CSP header blocked script loading under file:// protocol, relaxed to permissive for debug; (2) dist/renderer/**/* missing from electron-builder files array, Vite output was never packaged into asar archive
+
 ## Status
 Phase 6 in progress. 95 agents in database. README polished for public GitHub launch.
