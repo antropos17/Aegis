@@ -157,14 +157,13 @@
     color: var(--md-sys-color-on-surface-variant);
   }
   .net-row {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 14px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid transparent;
-    transition: all 0.2s ease;
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px;
+    font-size: 11px;
+    transition: background 0.15s ease;
   }
-  .net-row:hover { background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.06); }
+  .net-row:nth-child(odd) { background: rgba(255, 255, 255, 0.01); }
+  .net-row:hover { background: rgba(255, 255, 255, 0.04); }
   .net-agent {
     font: var(--md-sys-typescale-label-medium); font-weight: 600;
     color: var(--md-sys-color-on-surface);

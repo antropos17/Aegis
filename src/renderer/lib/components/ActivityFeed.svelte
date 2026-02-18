@@ -18,6 +18,20 @@
     return 'var(--md-sys-color-on-surface-variant)';
   }
 
+  function badgeLabel(ev, sev) {
+    if (sev === 'critical') return 'DENIED';
+    if (ev.reason?.startsWith('AI agent config')) return 'CONFIG';
+    if (ev.sensitive || sev === 'high') return 'SENSITIVE';
+    if (sev === 'medium') return 'DELETED';
+    return '';
+  }
+
+  function badgeClass(sev) {
+    if (sev === 'critical' || sev === 'high') return 'badge-high';
+    if (sev === 'medium') return 'badge-config';
+    return '';
+  }
+
   function formatTime(ts) {
     const d = new Date(ts);
     const h = String(d.getHours()).padStart(2, '0');
@@ -27,15 +41,11 @@
   }
 
   function shortenPath(p) {
-    if (!p || p.length <= 48) return p || '';
+    if (!p) return '';
+    if (p.length <= 40) return p;
     const parts = p.replace(/\\/g, '/').split('/');
-    if (parts.length <= 3) return p;
-    return '\u2026/' + parts.slice(-3).join('/');
-  }
-
-  function typeIcon(type) {
-    if (type === 'network') return 'NET';
-    return 'FILE';
+    if (parts.length <= 2) return p;
+    return '\u2026/' + parts.slice(-2).join('/');
   }
 
   let unified = $derived.by(() => {
@@ -75,16 +85,16 @@
   {:else}
     {#each filtered as ev, i (`${ev.timestamp}-${ev.agent}-${i}`)}
       {@const sev = getSeverity(ev)}
-      <div class="feed-entry">
+      {@const label = badgeLabel(ev, sev)}
+      <div class="feed-entry" class:odd={i % 2 === 1}>
         <span class="feed-dot" style:background={sevColor(sev)}></span>
         <span class="feed-time">{formatTime(ev.timestamp)}</span>
         <span class="feed-agent">{ev.agent}</span>
-        <span class="feed-type type-{ev._type}">{typeIcon(ev._type)}</span>
-        <span class="feed-desc" title={ev.file}>{shortenPath(ev.file)}</span>
-        {#if ev.reason}
-          <span class="feed-reason">{ev.reason}</span>
+        <span class="feed-action">{ev.action || ev._type}</span>
+        <span class="feed-path" title={ev.file}>{shortenPath(ev.file)}</span>
+        {#if label}
+          <span class="feed-badge {badgeClass(sev)}">{label}</span>
         {/if}
-        <span class="feed-sev" style:background={sevColor(sev)}>{sev}</span>
       </div>
     {/each}
   {/if}
@@ -107,65 +117,54 @@
   .feed-entry {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid transparent;
-    transition: all 0.2s ease;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 11px;
+    transition: background 0.15s ease;
+  }
+
+  .feed-entry.odd {
+    background: rgba(255, 255, 255, 0.01);
   }
 
   .feed-entry:hover {
     background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.06);
   }
 
   .feed-dot {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     flex-shrink: 0;
   }
 
   .feed-time {
-    font: var(--md-sys-typescale-label-medium);
     font-family: 'DM Mono', monospace;
     color: var(--md-sys-color-on-surface-variant);
     flex-shrink: 0;
-    width: 56px;
+    width: 52px;
   }
 
   .feed-agent {
-    font: var(--md-sys-typescale-label-medium);
     font-weight: 600;
     color: var(--md-sys-color-on-surface);
     flex-shrink: 0;
-    max-width: 120px;
+    max-width: 110px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .feed-type {
-    font: var(--md-sys-typescale-label-medium);
-    font-family: 'DM Mono', monospace;
-    font-weight: 600;
-    padding: 1px 6px;
-    border-radius: var(--md-sys-shape-corner-small);
-    flex-shrink: 0;
-    font-size: 10px;
-    letter-spacing: 0.5px;
-    border: 1px solid var(--md-sys-color-outline);
+  .feed-action {
     color: var(--md-sys-color-on-surface-variant);
+    flex-shrink: 0;
+    width: 64px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .type-network {
-    color: var(--md-sys-color-primary);
-    border-color: var(--md-sys-color-primary);
-  }
-
-  .feed-desc {
-    font: var(--md-sys-typescale-body-medium);
+  .feed-path {
     font-family: 'DM Mono', monospace;
     color: var(--md-sys-color-on-surface);
     flex: 1;
@@ -175,26 +174,22 @@
     white-space: nowrap;
   }
 
-  .feed-reason {
-    font: var(--md-sys-typescale-label-medium);
-    color: var(--md-sys-color-secondary);
+  .feed-badge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 1px 6px;
+    border-radius: var(--md-sys-shape-corner-full);
     flex-shrink: 0;
-    max-width: 140px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
-  .feed-sev {
-    font: var(--md-sys-typescale-label-medium);
-    font-weight: 700;
-    font-size: 10px;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    padding: 2px 8px;
-    border-radius: var(--md-sys-shape-corner-full);
-    color: var(--md-sys-color-surface);
-    flex-shrink: 0;
-    box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+  .badge-high {
+    background: rgba(200, 90, 90, 0.15);
+    color: var(--md-sys-color-error);
+  }
+
+  .badge-config {
+    background: rgba(200, 168, 78, 0.12);
+    color: var(--md-sys-color-secondary);
   }
 </style>

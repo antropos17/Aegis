@@ -47,5 +47,7 @@
 
 - Step 3: Header compact + footer merge (header: removed pill containers, merged into inline text "82 · 2 agents · 8 files"; footer: added version left-aligned, moved uptime from header, shortened labels MEM/HEAP/SCAN/UP)
 
+- Step 4: Activity tab compact feed + network rows (feed entries 28px tall: dot+time+agent+action+path+badge; severity badges DENIED/SENSITIVE/CONFIG/DELETED with translucent backgrounds; removed type icons; alternating row stripes; path truncated to last 2 segments; NetworkPanel rows compacted to match; 11px font)
+
 ## Status
-All 20 migration steps complete. UX redesign Step 3 done, Step 4 next.
+All 20 migration steps complete. UX redesign Step 4 done, Step 5 next.
