@@ -126,6 +126,4 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ## Author
 
-**Ruslan Mukhametshin** — Seneca Polytechnic, Toronto
-
 Built by Ruslan Murtuzaliyev. Seneca Polytechnic, Toronto. MIT License.
