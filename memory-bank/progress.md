@@ -65,5 +65,8 @@
 
 - Step 10: Final simplify + screenshot + git tag (screenshot.png at 1200×800 showing Shield tab with radar + Claude Code agent; git tag v0.2.0-alpha)
 
+## Phase 6
+- [x] Step 1: Git push to GitHub
+
 ## Status
-UX redesign complete. 10 steps. Ready for GitHub push.
+UX redesign complete. 10 steps. Pushed to GitHub (main branch + v0.2.0-alpha tag).
