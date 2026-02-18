@@ -42,21 +42,25 @@
 
 <style>
   .app-shell {
-    min-height: 100vh;
+    height: 100vh;
     display: flex;
     flex-direction: column;
     padding-top: 48px;
     padding-bottom: 32px;
+    overflow: hidden;
   }
 
   .app-nav {
     display: flex;
     justify-content: center;
     padding: 12px 20px 0;
+    flex-shrink: 0;
   }
 
   .app-content {
     flex: 1;
     padding: 16px 20px;
+    min-height: 0;
+    overflow: hidden;
   }
 </style>
