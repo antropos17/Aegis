@@ -5,6 +5,7 @@
 [![Electron](https://img.shields.io/badge/Electron-33-47848F?logo=electron&logoColor=white)](https://electronjs.org)
 [![Agents](https://img.shields.io/badge/Agents-88-4ECDC4)]()
 [![Download](https://img.shields.io/github/downloads/antropos17/Aegis/total?style=flat-square&label=downloads&color=4a9eff)](https://github.com/antropos17/Aegis/releases/latest)
+[![CI](https://github.com/antropos17/Aegis/actions/workflows/ci.yml/badge.svg)](https://github.com/antropos17/Aegis/actions/workflows/ci.yml)
 
 **Independent AI Oversight Layer — monitors what AI agents do on your computer.**
 
