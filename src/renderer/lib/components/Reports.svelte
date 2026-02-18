@@ -42,16 +42,16 @@
       <span class="stat-label">Total Events</span>
     </div>
     <div class="stat-card">
+      <span class="stat-value val-sensitive">{$enrichedAgents.reduce((s, a) => s + (a.sensitiveFiles || 0), 0)}</span>
+      <span class="stat-label">Sensitive</span>
+    </div>
+    <div class="stat-card">
       <span class="stat-value">{$enrichedAgents.length}</span>
-      <span class="stat-label">Agents Detected</span>
+      <span class="stat-label">Agents</span>
     </div>
     <div class="stat-card">
-      <span class="stat-value">{avgRisk}</span>
-      <span class="stat-label">Avg Risk Score</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-value">{uptimeStr}</span>
-      <span class="stat-label">Uptime</span>
+      <span class="stat-value val-shield">{100 - avgRisk}</span>
+      <span class="stat-label">Shield</span>
     </div>
   </div>
 
@@ -89,9 +89,9 @@
   <h3 class="section-title">Export</h3>
 
   <div class="export-row">
-    <button class="export-btn" onclick={() => window.aegis?.exportLog()}>Export JSON</button>
-    <button class="export-btn" onclick={() => window.aegis?.exportCsv()}>Export CSV</button>
-    <button class="export-btn" onclick={() => window.aegis?.generateReport()}>Export HTML Report</button>
+    <button class="export-btn" onclick={() => window.aegis?.exportLog()}>JSON</button>
+    <button class="export-btn" onclick={() => window.aegis?.exportCsv()}>CSV</button>
+    <button class="export-btn" onclick={() => window.aegis?.generateReport()}>HTML Report</button>
   </div>
 </div>
 
@@ -103,11 +103,11 @@
     color: var(--md-sys-color-on-surface); margin: 0;
   }
 
-  .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 
   .stat-card {
     display: flex; flex-direction: column; align-items: center; gap: 4px;
-    padding: 16px 12px;
+    padding: 14px 12px;
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -117,12 +117,20 @@
   }
 
   .stat-value {
-    font: var(--md-sys-typescale-headline-medium); font-weight: 700;
+    font-family: 'DM Mono', monospace;
+    font-size: 24px;
+    font-weight: 700;
     color: var(--md-sys-color-on-surface);
   }
 
+  .val-sensitive { color: var(--md-sys-color-error); }
+  .val-shield { color: var(--md-sys-color-tertiary); }
+
   .stat-label {
-    font: var(--md-sys-typescale-label-medium);
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     color: var(--md-sys-color-on-surface-variant);
   }
 
@@ -164,9 +172,9 @@
 
   .export-btn {
     font: var(--md-sys-typescale-label-medium); font-weight: 600;
-    padding: 7px 18px;
+    padding: 6px 14px;
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-full);
     color: var(--md-sys-color-on-surface-variant); cursor: pointer;
     backdrop-filter: blur(12px);

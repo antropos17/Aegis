@@ -72,28 +72,31 @@
     color: var(--md-sys-color-on-surface-variant);
   }
 
-  .audit-cards { display: flex; gap: 12px; flex-wrap: wrap; }
+  .audit-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 
   .audit-card {
-    display: flex; flex-direction: column; gap: 4px;
-    padding: 14px 20px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 14px 12px;
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: var(--glass-border);
     box-shadow: var(--glass-shadow), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
-    flex: 1; min-width: 140px;
   }
 
   .audit-value {
-    font: var(--md-sys-typescale-headline-medium); font-weight: 700;
-    color: var(--md-sys-color-on-surface);
     font-family: 'DM Mono', monospace;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--md-sys-color-on-surface);
   }
 
   .audit-label {
-    font: var(--md-sys-typescale-label-medium);
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     color: var(--md-sys-color-on-surface-variant);
   }
 
@@ -101,9 +104,9 @@
 
   .audit-btn {
     font: var(--md-sys-typescale-label-medium); font-weight: 600;
-    padding: 7px 18px;
+    padding: 6px 14px;
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-full);
     color: var(--md-sys-color-on-surface-variant); cursor: pointer;
     backdrop-filter: blur(12px);
