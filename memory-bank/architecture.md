@@ -41,7 +41,7 @@
 
 ## Shared (src/shared/)
 - constants.js — sensitive rules (70+ patterns), ignore patterns
-- agent-database.json — 88 agent signatures
+- agent-database.json — 95 agent signatures
 
 ## Styles (src/styles/) — 9 CSS files, neumorphic design
 - variables.css — CSS custom properties, theme tokens

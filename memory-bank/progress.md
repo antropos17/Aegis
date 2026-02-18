@@ -99,8 +99,20 @@
 
 ## Simplify Passes
 - main.js: extracted 28 IPC handlers → ipc-handlers.js (217 lines). main.js 226→256 lines (readable names, expanded one-liners, logAuditForFile helper deduped). Both slightly over 200 soft limit but properly separated by concern.
+- config-manager.js: 187 lines (under 200 — cleanup only). Renamed single-letter `p` → `patternStr` in buildCustomRules loop, expanded JSDoc on getSettings/getCustomSensitiveRules with `@since` tags. No behavior changes.
 
 - [x] Step 37: Fresh screenshot (maximized AEGIS window showing Shield tab with radar + Claude Code agent detected, saved as screenshot.png, pushed to GitHub)
+
+- [x] Step 38: Final consistency pass before public launch — all 10 checks passed:
+  - YOUR_USERNAME: clean
+  - aegis-shield.dev: clean
+  - "88 agent" → 95: fixed in CLAUDE.md (5 refs) + architecture.md (1 ref)
+  - vanilla JS refs in README/CONTRIBUTING/ARCHITECTURE: clean
+  - version 0.2.0-alpha: confirmed in package.json (main.js @since v0.1.0 are historical JSDoc, correct)
+  - Screenshot: uncommented, correct path, 247KB
+  - Garbled UTF-8: clean in all 4 .md files
+  - package.json: added homepage, bugs, fixed author → "Ruslan Abbasov", updated keywords (oversight, agents, privacy), added .git to repo URL
+  - .gitignore: added *.exe
 
 ## Status
 Phase 6 in progress. 95 agents in database. All docs cleaned for public GitHub launch.

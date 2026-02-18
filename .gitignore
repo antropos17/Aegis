@@ -13,3 +13,4 @@ aegis-log-*.json
 screenshot_test.png
 screenshot_electron.png
 assets/
+*.exe

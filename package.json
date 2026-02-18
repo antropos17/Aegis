@@ -33,17 +33,22 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/antropos17/Aegis"
+    "url": "https://github.com/antropos17/Aegis.git"
   },
-  "author": "Ruslan Murtuzaliyev",
+  "homepage": "https://github.com/antropos17/Aegis",
+  "bugs": {
+    "url": "https://github.com/antropos17/Aegis/issues"
+  },
+  "author": "Ruslan Abbasov",
   "license": "MIT",
   "keywords": [
     "ai",
     "security",
     "monitoring",
     "electron",
-    "privacy",
-    "ai-agents"
+    "oversight",
+    "agents",
+    "privacy"
   ],
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
