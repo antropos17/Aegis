@@ -52,6 +52,8 @@
       <ProtectionPresets bind:activePreset onApply={handlePresetApply} />
     </div>
 
+    <div class="section-separator"></div>
+
     <div class="rules-section">
       <div class="section-header">
         <h3 class="section-title">Agent Permissions</h3>
@@ -95,6 +97,11 @@
   }
 
   .rules-section { display: flex; flex-direction: column; gap: 10px; }
+  .section-separator {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+    margin: 10px 0;
+  }
   .section-header { display: flex; align-items: center; justify-content: space-between; }
 
   .section-title {

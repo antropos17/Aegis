@@ -3,13 +3,13 @@
   let { activePreset = $bindable('balanced'), onApply } = $props();
 
   const PRESETS = [
-    { id: 'paranoid',  label: 'Paranoid',  desc: 'Block all',
+    { id: 'paranoid',  label: 'Paranoid',  desc: 'Block all agent file access',
       config: { filesystem:'block', sensitive:'block', network:'block', terminal:'block', clipboard:'block', screen:'block' } },
-    { id: 'strict',    label: 'Strict',    desc: 'Monitor sensitive',
+    { id: 'strict',    label: 'Strict',    desc: 'Monitor sensitive, block credentials',
       config: { filesystem:'monitor', sensitive:'block', network:'block', terminal:'block', clipboard:'monitor', screen:'monitor' } },
-    { id: 'balanced',  label: 'Balanced',  desc: 'Default protection',
+    { id: 'balanced',  label: 'Balanced',  desc: 'Monitor all, allow safe operations',
       config: { filesystem:'monitor', sensitive:'monitor', network:'monitor', terminal:'monitor', clipboard:'monitor', screen:'monitor' } },
-    { id: 'developer', label: 'Developer', desc: 'Minimal alerts',
+    { id: 'developer', label: 'Developer', desc: 'Minimal restrictions',
       config: { filesystem:'allow', sensitive:'monitor', network:'allow', terminal:'allow', clipboard:'allow', screen:'allow' } },
   ];
 
@@ -61,8 +61,9 @@
   }
 
   .preset-btn.active {
-    background: var(--md-sys-color-primary-container);
+    background: var(--md-sys-color-primary);
     border-color: var(--md-sys-color-primary);
+    box-shadow: 0 2px 16px rgba(122, 138, 158, 0.3);
   }
 
   .preset-label {
@@ -71,11 +72,16 @@
   }
 
   .preset-btn.active .preset-label {
-    color: var(--md-sys-color-primary);
+    color: var(--md-sys-color-surface);
   }
 
   .preset-desc {
     font: var(--md-sys-typescale-label-medium);
+    font-size: 10px;
     color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .preset-btn.active .preset-desc {
+    color: rgba(255, 255, 255, 0.7);
   }
 </style>

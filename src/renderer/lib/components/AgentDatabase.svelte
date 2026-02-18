@@ -99,10 +99,13 @@
   .db-wrap { display: flex; flex-direction: column; gap: 10px; }
   .db-search {
     font: var(--md-sys-typescale-body-medium); padding: 8px 12px;
-    background: var(--md-sys-color-surface-container-high);
-    border: 1px solid var(--md-sys-color-outline);
+    background: var(--md-sys-color-surface-container-low);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-small);
     color: var(--md-sys-color-on-surface); outline: none;
+    transition: border-color 0.2s ease;
   }
   .db-search:focus { border-color: var(--md-sys-color-primary); }
   .db-pills { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -133,7 +136,7 @@
     font: var(--md-sys-typescale-label-medium); font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.5px;
     color: var(--md-sys-color-on-surface-variant);
-    background: var(--md-sys-color-surface-container);
+    background: var(--md-sys-color-surface-container-high);
     padding: 8px 12px; text-align: left; cursor: pointer; user-select: none;
     border-bottom: 1px solid var(--md-sys-color-outline);
   }

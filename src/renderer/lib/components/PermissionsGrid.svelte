@@ -138,7 +138,7 @@
     color: var(--md-sys-color-on-surface-variant);
     text-transform: uppercase; letter-spacing: 0.5px;
   }
-  .grid-cell { padding: 10px 14px; }
+  .grid-cell { padding: 8px 12px; }
   .grid-cell-cat { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .grid-row-header .grid-cell-cat { flex-direction: row; }
   .cat-label {
