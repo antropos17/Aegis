@@ -166,7 +166,6 @@ const SENSITIVE_RULES = [
   { pattern: /[\\\/]\.ollama[\\\/]/i, reason: 'Local LLM config — Ollama', category: 'agent-config', severity: 'critical' },
   { pattern: /[\\\/]\.jan[\\\/]/i, reason: 'Local LLM config — Jan', category: 'agent-config', severity: 'critical' },
   { pattern: /[\\\/]lm-studio[\\\/]/i, reason: 'Local LLM config — LM Studio', category: 'agent-config', severity: 'critical' },
-  { pattern: /[\\\/]\.cache[\\\/]lm-studio[\\\/]/i, reason: 'Local LLM config — LM Studio', category: 'agent-config', severity: 'critical' },
   { pattern: /[\\\/]\.cache[\\\/]gpt4all[\\\/]/i, reason: 'Local LLM config — GPT4All', category: 'agent-config', severity: 'critical' },
   // ── Environment variables ──
   { pattern: /[\\\/]\.env$/i,              reason: 'Environment variables' },

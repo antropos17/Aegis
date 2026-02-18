@@ -1,10 +1,14 @@
 node_modules/
 dist/
 out/
+.env
 *.log
 *.json.bak
-.env
+.DS_Store
+Thumbs.db
 *.ps1
 cdp_*.js
 .claude/
 aegis-log-*.json
+screenshot_test.png
+screenshot_electron.png
