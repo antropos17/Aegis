@@ -57,9 +57,9 @@ function init(opts) {
  */
 function buildCustomRules() {
   customSensitiveRules = [];
-  for (const p of settings.customSensitivePatterns) {
+  for (const patternStr of settings.customSensitivePatterns) {
     try {
-      customSensitiveRules.push({ pattern: new RegExp(p, 'i'), reason: `Custom: ${p}` });
+      customSensitiveRules.push({ pattern: new RegExp(patternStr, 'i'), reason: `Custom: ${patternStr}` });
     } catch (_) {}
   }
 }
@@ -145,10 +145,18 @@ function trackSeenAgent(agentName) {
   }
 }
 
-/** @returns {Object} Current settings snapshot */
+/**
+ * Return the current settings snapshot.
+ * @returns {Object} Current settings
+ * @since v0.1.0
+ */
 function getSettings() { return settings; }
 
-/** @returns {Array} Current custom sensitive rules */
+/**
+ * Return the compiled custom sensitive rules.
+ * @returns {Array} Custom sensitive rules with pattern and reason
+ * @since v0.1.0
+ */
 function getCustomSensitiveRules() { return customSensitiveRules; }
 
 /**
