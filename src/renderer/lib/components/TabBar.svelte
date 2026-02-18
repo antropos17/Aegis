@@ -54,7 +54,7 @@
 
   .tab-pill.active {
     background: var(--md-sys-color-primary);
-    color: #fff;
+    color: var(--md-sys-color-on-primary);
     font-weight: 600;
     box-shadow: 0 2px 12px rgba(122, 138, 158, 0.3);
   }
