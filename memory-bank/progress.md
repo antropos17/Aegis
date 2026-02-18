@@ -111,7 +111,7 @@
   - version 0.2.0-alpha: confirmed in package.json (main.js @since v0.1.0 are historical JSDoc, correct)
   - Screenshot: uncommented, correct path, 247KB
   - Garbled UTF-8: clean in all 4 .md files
-  - package.json: added homepage, bugs, fixed author → "Ruslan Abbasov", updated keywords (oversight, agents, privacy), added .git to repo URL
+  - package.json: added homepage, bugs, fixed author → "Ruslan Murtuzaliyev", updated keywords (oversight, agents, privacy), added .git to repo URL
   - .gitignore: added *.exe
 
 ## Status
