@@ -6,7 +6,29 @@
   "scripts": {
     "start": "electron .",
     "dev": "vite",
-    "build": "vite build"
+    "build:renderer": "vite build",
+    "build": "electron-builder --win",
+    "dist": "electron-builder --win --publish never"
+  },
+  "build": {
+    "appId": "com.aegis.oversight",
+    "productName": "AEGIS",
+    "copyright": "Copyright © 2026 Ruslan",
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "src/main/main.js"
+    }
   },
   "repository": {
     "type": "git",
@@ -14,10 +36,18 @@
   },
   "author": "Ruslan Murtuzaliyev",
   "license": "MIT",
-  "keywords": ["ai", "security", "monitoring", "electron", "privacy", "ai-agents"],
+  "keywords": [
+    "ai",
+    "security",
+    "monitoring",
+    "electron",
+    "privacy",
+    "ai-agents"
+  ],
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "electron": "^33.0.0",
+    "electron-builder": "^26.7.0",
     "svelte": "^5.51.2",
     "vite": "^7.3.1"
   },
