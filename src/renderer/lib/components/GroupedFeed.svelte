@@ -101,6 +101,15 @@
   }
 
   function toggleEvent(key) { expandedEvent = expandedEvent === key ? null : key; }
+
+  function handlePathClick(ev, e) {
+    e.stopPropagation();
+    if (ev._type === 'network') {
+      navigator.clipboard.writeText(ev.file);
+    } else if (ev.file && window.aegis?.revealInExplorer) {
+      window.aegis.revealInExplorer(ev.file);
+    }
+  }
 </script>
 
 <div class="feed-scroll">
@@ -134,16 +143,16 @@
                 {@const sev = getSeverity(ev)}
                 {@const label = badgeLabel(ev, sev)}
                 {@const xpd = expandedEvent === key}
-                <button class="event-row" class:odd={i % 2 === 1} onclick={() => toggleEvent(key)}>
+                <div class="event-row" class:odd={i % 2 === 1} onclick={() => toggleEvent(key)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleEvent(key); }} role="button" tabindex="0">
                   <span class="feed-dot" style:background={sevColor(sev)}></span>
                   <span class="feed-time">{formatTime(ev.timestamp)}</span>
-                  <span class="feed-path">{shortenPath(ev.file)}</span>
+                  <button class="feed-path" title={ev.file} onclick={(e) => handlePathClick(ev, e)}>{shortenPath(ev.file)}</button>
                   {#if ev.repeatCount > 1}<span class="feed-repeat">&times;{ev.repeatCount}</span>{/if}
                   {#if label}<span class="feed-badge" class:badge-high={sev === 'critical' || sev === 'high'} class:badge-config={sev === 'medium'}>{label}</span>{/if}
-                </button>
+                </div>
                 {#if xpd}
                   <div class="event-detail">
-                    {#if ev._type === 'network'}Domain: {ev._domain || 'unresolved'} &middot; IP: {ev._ip || '?'}{:else}{ev.file}{/if}
+                    {#if ev._type === 'network'}<button class="detail-link" onclick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(`${ev._domain || ev._ip || '?'}:${ev.file.split(':').pop()}`); }}>Domain: {ev._domain || 'unresolved'} &middot; IP: {ev._ip || '?'}</button>{:else}<button class="detail-link" onclick={(e) => handlePathClick(ev, e)}>{ev.file}</button>{/if}
                   </div>
                 {/if}
               {/each}
@@ -197,7 +206,13 @@
 
   .feed-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
   .feed-time { font-family: 'DM Mono', monospace; color: var(--md-sys-color-on-surface-variant); flex-shrink: 0; width: 52px; }
-  .feed-path { font-family: 'DM Mono', monospace; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .feed-path {
+    font-family: 'DM Mono', monospace; flex: 1; min-width: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; background: none; border: none;
+    padding: 0; font-size: inherit; cursor: pointer; text-align: left;
+    color: var(--md-sys-color-on-surface);
+  }
+  .feed-path:hover { text-decoration: underline; color: var(--md-sys-color-primary); }
 
   .feed-badge { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; padding: 1px 6px; border-radius: var(--md-sys-shape-corner-full); flex-shrink: 0; }
   .badge-high { background: rgba(200, 90, 90, 0.15); color: var(--md-sys-color-error); }
@@ -208,4 +223,9 @@
     font-family: 'DM Mono', monospace; font-size: 10px;
     color: var(--md-sys-color-on-surface-variant); padding: 2px 12px 6px 26px; word-break: break-all;
   }
+  .detail-link {
+    background: none; border: none; padding: 0; font: inherit; color: inherit;
+    cursor: pointer; text-align: left; word-break: break-all;
+  }
+  .detail-link:hover { text-decoration: underline; color: var(--md-sys-color-primary); }
 </style>

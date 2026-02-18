@@ -48,6 +48,15 @@
     return '\u2026/' + parts.slice(-2).join('/');
   }
 
+  function handlePathClick(ev, e) {
+    e.stopPropagation();
+    if (ev._type === 'network') {
+      navigator.clipboard.writeText(ev.file);
+    } else if (ev.file && window.aegis?.revealInExplorer) {
+      window.aegis.revealInExplorer(ev.file);
+    }
+  }
+
   let unified = $derived.by(() => {
     const fileEvs = $events.map(ev => ({ ...ev, _type: 'file' }));
     const netEvs = $network.map(conn => ({
@@ -91,7 +100,7 @@
         <span class="feed-time">{formatTime(ev.timestamp)}</span>
         <span class="feed-agent">{ev.agent}</span>
         <span class="feed-action">{ev.action || ev._type}</span>
-        <span class="feed-path" title={ev.file}>{shortenPath(ev.file)}</span>
+        <button class="feed-path" title={ev.file} onclick={(e) => handlePathClick(ev, e)}>{shortenPath(ev.file)}</button>
         {#if ev.repeatCount > 1}
           <span class="feed-repeat">&times;{ev.repeatCount}</span>
         {/if}
@@ -175,6 +184,18 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: text-decoration 0.15s ease;
+  }
+
+  .feed-path:hover {
+    text-decoration: underline;
+    color: var(--md-sys-color-primary);
   }
 
   .feed-badge {

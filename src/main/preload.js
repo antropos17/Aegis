@@ -65,4 +65,5 @@ contextBridge.exposeInMainWorld('aegis', {
   exportFullAudit: () => ipcRenderer.invoke('export-full-audit'),
   exportConfig: () => ipcRenderer.invoke('export-config'),
   importConfig: () => ipcRenderer.invoke('import-config'),
+  revealInExplorer: (filePath) => ipcRenderer.invoke('reveal-in-explorer', filePath),
 });

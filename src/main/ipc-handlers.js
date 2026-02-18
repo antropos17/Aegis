@@ -185,6 +185,11 @@ function register() {
     } catch (e) { return { success: false, error: e.message }; }
   });
 
+  ipcMain.handle('reveal-in-explorer', (_e, filePath) => {
+    shell.showItemInFolder(filePath);
+    return { success: true };
+  });
+
   // ── Process control ──
   ipcMain.handle('kill-process', (_e, pid) => {
     return new Promise((resolve) => {
