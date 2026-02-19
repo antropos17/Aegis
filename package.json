@@ -19,8 +19,7 @@
       "icon": "assets/icon.png"
     },
     "mac": {
-      "target": "dmg",
-      "icon": "assets/icon.png"
+      "target": "dmg"
     },
     "nsis": {
       "oneClick": true,
