@@ -3,7 +3,10 @@
   import { theme } from '../stores/theme.js';
 
   let canvas, ctx, animId;
-  let tk = {}, sweepRgb = '', lineRgb = '', labelRgb = '';
+  let tk = {},
+    sweepRgb = '',
+    lineRgb = '',
+    labelRgb = '';
 
   function resolveTokens(el) {
     const s = getComputedStyle(el);
@@ -11,7 +14,7 @@
     tk = {
       tertiary: g('--md-sys-color-tertiary'),
       secondary: g('--md-sys-color-secondary'),
-      error: g('--md-sys-color-error')
+      error: g('--md-sys-color-error'),
     };
     sweepRgb = g('--radar-sweep-rgb');
     lineRgb = g('--radar-line-rgb');
@@ -39,8 +42,10 @@
 
     ctx.strokeStyle = `rgba(${lineRgb}, 0.09)`;
     ctx.beginPath();
-    ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy);
-    ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r);
+    ctx.moveTo(cx - r, cy);
+    ctx.lineTo(cx + r, cy);
+    ctx.moveTo(cx, cy - r);
+    ctx.lineTo(cx, cy + r);
     ctx.stroke();
   }
 
@@ -187,7 +192,7 @@
     overflow: hidden;
   }
 
-  :global([data-theme="light"]) .radar-wrap {
+  :global([data-theme='light']) .radar-wrap {
     --radar-line-rgb: 0, 0, 0;
     --radar-label-rgb: 30, 30, 30;
     --radar-sweep-rgb: 60, 80, 100;

@@ -3,10 +3,15 @@
   let loading = $state(true);
 
   if (window.aegis) {
-    window.aegis.getAuditStats().then(data => {
-      auditStats = data;
-      loading = false;
-    }).catch(() => { loading = false; });
+    window.aegis
+      .getAuditStats()
+      .then((data) => {
+        auditStats = data;
+        loading = false;
+      })
+      .catch(() => {
+        loading = false;
+      });
   } else {
     loading = false;
   }
@@ -60,11 +65,16 @@
 </div>
 
 <style>
-  .audit-section { display: flex; flex-direction: column; gap: 12px; }
+  .audit-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
 
   .section-title {
     font: var(--md-sys-typescale-headline-medium);
-    color: var(--md-sys-color-on-surface); margin: 0;
+    color: var(--md-sys-color-on-surface);
+    margin: 0;
   }
 
   .audit-loading {
@@ -72,10 +82,17 @@
     color: var(--md-sys-color-on-surface-variant);
   }
 
-  .audit-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .audit-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
 
   .audit-card {
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
     padding: 14px 12px;
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
@@ -100,15 +117,21 @@
     color: var(--md-sys-color-on-surface-variant);
   }
 
-  .audit-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .audit-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
 
   .audit-btn {
-    font: var(--md-sys-typescale-label-medium); font-weight: 600;
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 600;
     padding: 6px 14px;
     background: transparent;
     border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-full);
-    color: var(--md-sys-color-on-surface-variant); cursor: pointer;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     transition: all 0.3s var(--ease-glass);

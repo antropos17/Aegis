@@ -22,7 +22,9 @@ let deps = {};
  * @param {Object} injected — { getWindow, getStats, getResourceUsage, setOtherPanelExpanded }
  * @since v0.1.0
  */
-function init(injected) { deps = injected; }
+function init(injected) {
+  deps = injected;
+}
 
 /** @returns {void} @since v0.1.0 */
 function register() {
@@ -74,14 +76,22 @@ function register() {
     const session = baselines.getSessionData()[name];
     return {
       sessionCount: bl ? bl.sessionCount : 0,
-      averages: bl ? bl.averages : {
-        filesPerSession: 0, sensitivePerSession: 0,
-        typicalDirectories: [], knownEndpoints: []
-      },
-      currentSession: session ? {
-        totalFiles: session.files.size, sensitiveCount: session.sensitiveCount,
-        directoryCount: session.directories.size, endpointCount: session.endpoints.size
-      } : { totalFiles: 0, sensitiveCount: 0, directoryCount: 0, endpointCount: 0 }
+      averages: bl
+        ? bl.averages
+        : {
+            filesPerSession: 0,
+            sensitivePerSession: 0,
+            typicalDirectories: [],
+            knownEndpoints: [],
+          },
+      currentSession: session
+        ? {
+            totalFiles: session.files.size,
+            sensitiveCount: session.sensitiveCount,
+            directoryCount: session.directories.size,
+            endpointCount: session.endpoints.size,
+          }
+        : { totalFiles: 0, sensitiveCount: 0, directoryCount: 0, endpointCount: 0 },
     };
   });
 
@@ -94,7 +104,9 @@ function register() {
 
   ipcMain.handle('save-agent-permissions', (_e, permMap) => {
     config.getSettings().agentPermissions = permMap;
-    try { fs.writeFileSync(config.SETTINGS_PATH, JSON.stringify(config.getSettings(), null, 2)); } catch (_) {}
+    try {
+      fs.writeFileSync(config.SETTINGS_PATH, JSON.stringify(config.getSettings(), null, 2));
+    } catch (_) {}
     return { success: true };
   });
 
@@ -103,7 +115,9 @@ function register() {
     const newPerms = {};
     for (const agent of settings.seenAgents) newPerms[agent] = config.getDefaultPermissions(agent);
     settings.agentPermissions = newPerms;
-    try { fs.writeFileSync(config.SETTINGS_PATH, JSON.stringify(settings, null, 2)); } catch (_) {}
+    try {
+      fs.writeFileSync(config.SETTINGS_PATH, JSON.stringify(settings, null, 2));
+    } catch (_) {}
     return { permissions: newPerms, seenAgents: settings.seenAgents };
   });
 
@@ -119,13 +133,17 @@ function register() {
   ipcMain.handle('get-agent-database', () => scanner.agentDb);
   ipcMain.handle('get-project-dir', () => path.join(__dirname, '..', '..'));
   ipcMain.handle('get-custom-agents', () => config.getCustomAgents());
-  ipcMain.handle('save-custom-agents', (_e, agents) => { config.saveCustomAgents(agents); return { success: true }; });
+  ipcMain.handle('save-custom-agents', (_e, agents) => {
+    config.saveCustomAgents(agents);
+    return { success: true };
+  });
 
   ipcMain.handle('export-agent-database', async () => {
     const merged = { ...scanner.agentDb, customAgents: config.getCustomAgents() };
     const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
-      title: 'Export Agent Database', defaultPath: 'aegis-agents.json',
-      filters: [{ name: 'JSON', extensions: ['json'] }]
+      title: 'Export Agent Database',
+      defaultPath: 'aegis-agents.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
     });
     if (!filePath) return { success: false };
     fs.writeFileSync(filePath, JSON.stringify(merged, null, 2));
@@ -135,25 +153,32 @@ function register() {
   ipcMain.handle('import-agent-database', async () => {
     const { filePaths } = await dialog.showOpenDialog(deps.getWindow(), {
       title: 'Import Agent Database',
-      filters: [{ name: 'JSON', extensions: ['json'] }], properties: ['openFile']
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      properties: ['openFile'],
     });
     if (!filePaths || filePaths.length === 0) return { success: false };
     try {
       const raw = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'));
       return { success: true, agents: raw.customAgents || raw.agents || [] };
-    } catch (e) { return { success: false, error: e.message }; }
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   });
 
   // ── Audit ──
   ipcMain.handle('get-audit-stats', () => audit.getStats());
-  ipcMain.handle('open-audit-log-dir', () => { shell.openPath(audit.getLogDir()); return { success: true }; });
+  ipcMain.handle('open-audit-log-dir', () => {
+    shell.openPath(audit.getLogDir());
+    return { success: true };
+  });
 
   ipcMain.handle('export-full-audit', async () => {
     const all = audit.exportAll();
     const defaultName = `aegis-full-audit-${new Date().toISOString().slice(0, 10)}.json`;
     const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
-      title: 'Export Full Audit Log', defaultPath: defaultName,
-      filters: [{ name: 'JSON', extensions: ['json'] }]
+      title: 'Export Full Audit Log',
+      defaultPath: defaultName,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
     });
     if (!filePath) return { success: false };
     fs.writeFileSync(filePath, JSON.stringify(all, null, 2));
@@ -163,8 +188,9 @@ function register() {
   // ── Config export/import ──
   ipcMain.handle('export-config', async () => {
     const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
-      title: 'Export Config', defaultPath: 'aegis-config.json',
-      filters: [{ name: 'JSON', extensions: ['json'] }]
+      title: 'Export Config',
+      defaultPath: 'aegis-config.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
     });
     if (!filePath) return { success: false };
     fs.writeFileSync(filePath, JSON.stringify(config.getSettings(), null, 2));
@@ -174,7 +200,8 @@ function register() {
   ipcMain.handle('import-config', async () => {
     const { filePaths } = await dialog.showOpenDialog(deps.getWindow(), {
       title: 'Import Config',
-      filters: [{ name: 'JSON', extensions: ['json'] }], properties: ['openFile']
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      properties: ['openFile'],
     });
     if (!filePaths || filePaths.length === 0) return { success: false };
     try {
@@ -182,7 +209,9 @@ function register() {
       config.saveSettings(raw);
       config.applySettings();
       return { success: true };
-    } catch (e) { return { success: false, error: e.message }; }
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   });
 
   ipcMain.handle('reveal-in-explorer', (_e, filePath) => {
@@ -202,18 +231,28 @@ function register() {
   ipcMain.handle('suspend-process', (_e, pid) => {
     const script = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class Ntdll{[DllImport("ntdll.dll")]public static extern int NtSuspendProcess(IntPtr h);}' -PassThru | Out-Null;$h=(Get-Process -Id ${Number(pid)}).Handle;[Ntdll]::NtSuspendProcess($h)`;
     return new Promise((resolve) => {
-      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { timeout: 5000 }, (err) => {
-        resolve(err ? { success: false, error: err.message } : { success: true });
-      });
+      execFile(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', script],
+        { timeout: 5000 },
+        (err) => {
+          resolve(err ? { success: false, error: err.message } : { success: true });
+        },
+      );
     });
   });
 
   ipcMain.handle('resume-process', (_e, pid) => {
     const script = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class Ntdll2{[DllImport("ntdll.dll")]public static extern int NtResumeProcess(IntPtr h);}' -PassThru | Out-Null;$h=(Get-Process -Id ${Number(pid)}).Handle;[Ntdll2]::NtResumeProcess($h)`;
     return new Promise((resolve) => {
-      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { timeout: 5000 }, (err) => {
-        resolve(err ? { success: false, error: err.message } : { success: true });
-      });
+      execFile(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', script],
+        { timeout: 5000 },
+        (err) => {
+          resolve(err ? { success: false, error: err.message } : { success: true });
+        },
+      );
     });
   });
 }

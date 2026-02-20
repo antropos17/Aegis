@@ -8,12 +8,27 @@
 
 <div class="reports-tab">
   <div class="sub-toggle">
-    <button class="sub-btn" class:active={subTab === 'overview'}
-      onclick={() => { subTab = 'overview'; }}>Overview</button>
-    <button class="sub-btn" class:active={subTab === 'audit'}
-      onclick={() => { subTab = 'audit'; }}>Audit Log</button>
-    <button class="sub-btn" class:active={subTab === 'threat'}
-      onclick={() => { subTab = 'threat'; }}>Threat Analysis</button>
+    <button
+      class="sub-btn"
+      class:active={subTab === 'overview'}
+      onclick={() => {
+        subTab = 'overview';
+      }}>Overview</button
+    >
+    <button
+      class="sub-btn"
+      class:active={subTab === 'audit'}
+      onclick={() => {
+        subTab = 'audit';
+      }}>Audit Log</button
+    >
+    <button
+      class="sub-btn"
+      class:active={subTab === 'threat'}
+      onclick={() => {
+        subTab = 'threat';
+      }}>Threat Analysis</button
+    >
   </div>
 
   {#if subTab === 'overview'}
@@ -34,7 +49,10 @@
   }
 
   .sub-toggle {
-    display: flex; gap: 4px; padding: 3px; align-self: flex-start;
+    display: flex;
+    gap: 4px;
+    padding: 3px;
+    align-self: flex-start;
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -43,14 +61,21 @@
   }
 
   .sub-btn {
-    font: var(--md-sys-typescale-label-medium); font-weight: 600;
-    padding: 6px 16px; border: none;
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 600;
+    padding: 6px 16px;
+    border: none;
     border-radius: var(--md-sys-shape-corner-full);
-    background: transparent; color: var(--md-sys-color-on-surface-variant); cursor: pointer;
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
     transition: all 0.3s var(--ease-glass);
   }
 
-  .sub-btn:hover { color: var(--md-sys-color-on-surface); background: rgba(255, 255, 255, 0.04); }
+  .sub-btn:hover {
+    color: var(--md-sys-color-on-surface);
+    background: rgba(255, 255, 255, 0.04);
+  }
 
   .sub-btn.active {
     background: var(--md-sys-color-primary);

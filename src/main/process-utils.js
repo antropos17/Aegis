@@ -23,9 +23,12 @@ const PARENT_CHAIN_TTL = 60000;
  */
 function getParentChains(pids) {
   return new Promise((resolve) => {
-    if (pids.length === 0) { resolve(new Map()); return; }
+    if (pids.length === 0) {
+      resolve(new Map());
+      return;
+    }
     const now = Date.now();
-    const needLookup = pids.filter(pid => {
+    const needLookup = pids.filter((pid) => {
       const cached = parentChainCache.get(pid);
       return !cached || now - cached.timestamp > PARENT_CHAIN_TTL;
     });
@@ -60,28 +63,31 @@ function getParentChains(pids) {
       '}',
       '$r|ConvertTo-Json -Compress',
     ].join('\n');
-    execFile('powershell.exe', [
-      '-NoProfile', '-NonInteractive', '-Command', psScript,
-    ], { timeout: 8000 }, (err, stdout) => {
-      const result = new Map();
-      for (const pid of pids) {
-        const cached = parentChainCache.get(pid);
-        if (cached) result.set(pid, cached.chain);
-      }
-      if (!err && stdout.trim()) {
-        try {
-          const parsed = JSON.parse(stdout.trim());
-          for (const pid of needLookup) {
-            let chain = parsed[String(pid)];
-            if (typeof chain === 'string') chain = [chain];
-            if (!Array.isArray(chain)) chain = [];
-            parentChainCache.set(pid, { chain, timestamp: now });
-            result.set(pid, chain);
-          }
-        } catch (_) {}
-      }
-      resolve(result);
-    });
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', psScript],
+      { timeout: 8000 },
+      (err, stdout) => {
+        const result = new Map();
+        for (const pid of pids) {
+          const cached = parentChainCache.get(pid);
+          if (cached) result.set(pid, cached.chain);
+        }
+        if (!err && stdout.trim()) {
+          try {
+            const parsed = JSON.parse(stdout.trim());
+            for (const pid of needLookup) {
+              let chain = parsed[String(pid)];
+              if (typeof chain === 'string') chain = [chain];
+              if (!Array.isArray(chain)) chain = [];
+              parentChainCache.set(pid, { chain, timestamp: now });
+              result.set(pid, chain);
+            }
+          } catch (_) {}
+        }
+        resolve(result);
+      },
+    );
   });
 }
 
@@ -93,7 +99,7 @@ function getParentChains(pids) {
  */
 async function enrichWithParentChains(agents) {
   if (agents.length === 0) return;
-  const pids = agents.map(a => a.pid);
+  const pids = agents.map((a) => a.pid);
   const chains = await getParentChains(pids);
   for (const a of agents) {
     a.parentChain = chains.get(a.pid) || [];
@@ -103,26 +109,26 @@ async function enrichWithParentChains(agents) {
 /** Map editor host exe names to human-readable labels */
 const EDITOR_LABELS = {
   'code.exe': 'VS Code',
-  'code': 'VS Code',
+  code: 'VS Code',
   'code - insiders.exe': 'VS Code Insiders',
   'idea64.exe': 'IntelliJ IDEA',
-  'idea': 'IntelliJ IDEA',
+  idea: 'IntelliJ IDEA',
   'webstorm64.exe': 'WebStorm',
-  'webstorm': 'WebStorm',
+  webstorm: 'WebStorm',
   'pycharm64.exe': 'PyCharm',
-  'pycharm': 'PyCharm',
+  pycharm: 'PyCharm',
   'goland64.exe': 'GoLand',
-  'goland': 'GoLand',
+  goland: 'GoLand',
   'rider64.exe': 'Rider',
-  'rider': 'Rider',
+  rider: 'Rider',
   'phpstorm64.exe': 'PhpStorm',
-  'phpstorm': 'PhpStorm',
+  phpstorm: 'PhpStorm',
   'rubymine64.exe': 'RubyMine',
-  'rubymine': 'RubyMine',
+  rubymine: 'RubyMine',
   'clion64.exe': 'CLion',
-  'clion': 'CLion',
+  clion: 'CLion',
   'datagrip64.exe': 'DataGrip',
-  'datagrip': 'DataGrip',
+  datagrip: 'DataGrip',
 };
 
 /**

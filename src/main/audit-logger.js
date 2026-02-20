@@ -32,7 +32,9 @@ const RETENTION_DAYS = 30;
  */
 function init(opts) {
   _logDir = path.join(opts.userDataPath, 'audit-logs');
-  try { if (!fs.existsSync(_logDir)) fs.mkdirSync(_logDir, { recursive: true }); } catch (_) {}
+  try {
+    if (!fs.existsSync(_logDir)) fs.mkdirSync(_logDir, { recursive: true });
+  } catch (_) {}
   _flushTimer = setInterval(flush, FLUSH_INTERVAL);
   cleanOldLogs();
 }
@@ -86,7 +88,7 @@ function flush() {
   const entries = _buffer.splice(0);
   const fp = getTodayLogPath();
   try {
-    const lines = entries.map(e => JSON.stringify(e)).join('\n') + '\n';
+    const lines = entries.map((e) => JSON.stringify(e)).join('\n') + '\n';
     fs.appendFileSync(fp, lines, 'utf-8');
   } catch (_) {}
 }
@@ -99,14 +101,18 @@ function flush() {
 function cleanOldLogs() {
   if (!_logDir) return;
   try {
-    const files = fs.readdirSync(_logDir).filter(f => f.startsWith('aegis-audit-') && f.endsWith('.json'));
+    const files = fs
+      .readdirSync(_logDir)
+      .filter((f) => f.startsWith('aegis-audit-') && f.endsWith('.json'));
     const cutoff = Date.now() - RETENTION_DAYS * 86400000;
     for (const f of files) {
       const match = f.match(/aegis-audit-(\d{4}-\d{2}-\d{2})\.json/);
       if (match) {
         const fileDate = new Date(match[1]).getTime();
         if (fileDate < cutoff) {
-          try { fs.unlinkSync(path.join(_logDir, f)); } catch (_) {}
+          try {
+            fs.unlinkSync(path.join(_logDir, f));
+          } catch (_) {}
         }
       }
     }
@@ -124,7 +130,10 @@ function getStats() {
   let totalFiles = 0;
   let recordingSince = '';
   try {
-    const files = fs.readdirSync(_logDir).filter(f => f.startsWith('aegis-audit-') && f.endsWith('.json')).sort();
+    const files = fs
+      .readdirSync(_logDir)
+      .filter((f) => f.startsWith('aegis-audit-') && f.endsWith('.json'))
+      .sort();
     totalFiles = files.length;
     if (files.length > 0) {
       const firstMatch = files[0].match(/aegis-audit-(\d{4}-\d{2}-\d{2})\.json/);
@@ -133,7 +142,7 @@ function getStats() {
     const todayPath = getTodayLogPath();
     if (fs.existsSync(todayPath)) {
       const content = fs.readFileSync(todayPath, 'utf-8');
-      todayEntries = content.split('\n').filter(l => l.trim().length > 0).length;
+      todayEntries = content.split('\n').filter((l) => l.trim().length > 0).length;
     }
   } catch (_) {}
   todayEntries += _buffer.length;
@@ -150,12 +159,17 @@ function exportAll() {
   const all = [];
   if (!_logDir) return all;
   try {
-    const files = fs.readdirSync(_logDir).filter(f => f.startsWith('aegis-audit-') && f.endsWith('.json')).sort();
+    const files = fs
+      .readdirSync(_logDir)
+      .filter((f) => f.startsWith('aegis-audit-') && f.endsWith('.json'))
+      .sort();
     for (const f of files) {
       const content = fs.readFileSync(path.join(_logDir, f), 'utf-8');
       for (const line of content.split('\n')) {
         if (line.trim()) {
-          try { all.push(JSON.parse(line)); } catch (_) {}
+          try {
+            all.push(JSON.parse(line));
+          } catch (_) {}
         }
       }
     }
@@ -169,7 +183,10 @@ function exportAll() {
  * @since v0.2.0
  */
 function shutdown() {
-  if (_flushTimer) { clearInterval(_flushTimer); _flushTimer = null; }
+  if (_flushTimer) {
+    clearInterval(_flushTimer);
+    _flushTimer = null;
+  }
   flush();
 }
 

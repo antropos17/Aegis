@@ -11,7 +11,7 @@
 
   let topAgents = $derived.by(() => {
     const copy = [...$enrichedAgents];
-    copy.sort((a, b) => (b.fileCount + b.networkCount) - (a.fileCount + a.networkCount));
+    copy.sort((a, b) => b.fileCount + b.networkCount - (a.fileCount + a.networkCount));
     return copy.slice(0, 10);
   });
 
@@ -32,7 +32,9 @@
       <span class="stat-label">Total Events</span>
     </div>
     <div class="stat-card">
-      <span class="stat-value val-sensitive">{$enrichedAgents.reduce((s, a) => s + (a.sensitiveFiles || 0), 0)}</span>
+      <span class="stat-value val-sensitive"
+        >{$enrichedAgents.reduce((s, a) => s + (a.sensitiveFiles || 0), 0)}</span
+      >
       <span class="stat-label">Sensitive</span>
     </div>
     <div class="stat-card">
@@ -86,17 +88,29 @@
 </div>
 
 <style>
-  .reports-section { display: flex; flex-direction: column; gap: 16px; }
+  .reports-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
 
   .section-title {
     font: var(--md-sys-typescale-headline-medium);
-    color: var(--md-sys-color-on-surface); margin: 0;
+    color: var(--md-sys-color-on-surface);
+    margin: 0;
   }
 
-  .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .stat-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
 
   .stat-card {
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
     padding: 14px 12px;
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
@@ -113,8 +127,12 @@
     color: var(--md-sys-color-on-surface);
   }
 
-  .val-sensitive { color: var(--md-sys-color-error); }
-  .val-shield { color: var(--md-sys-color-tertiary); }
+  .val-sensitive {
+    color: var(--md-sys-color-error);
+  }
+  .val-shield {
+    color: var(--md-sys-color-tertiary);
+  }
 
   .stat-label {
     font-size: 9px;
@@ -125,7 +143,8 @@
   }
 
   .table-scroll {
-    overflow: auto; max-height: 320px;
+    overflow: auto;
+    max-height: 320px;
     border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-medium);
     backdrop-filter: blur(var(--glass-blur));
@@ -133,40 +152,70 @@
     box-shadow: var(--glass-shadow);
   }
 
-  .activity-table { width: 100%; border-collapse: collapse; }
-  .activity-table thead { position: sticky; top: 0; z-index: 1; }
+  .activity-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .activity-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
 
   .activity-table th {
-    font: var(--md-sys-typescale-label-medium); font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.5px;
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     color: var(--md-sys-color-on-surface-variant);
     background: var(--md-sys-color-surface-container);
-    padding: 8px 12px; text-align: left;
+    padding: 8px 12px;
+    text-align: left;
     border-bottom: 1px solid var(--md-sys-color-outline);
   }
 
   .activity-table td {
-    font: var(--md-sys-typescale-body-medium); padding: 6px 12px;
+    font: var(--md-sys-typescale-body-medium);
+    padding: 6px 12px;
     color: var(--md-sys-color-on-surface);
     border-bottom: 1px solid var(--md-sys-color-outline-variant);
   }
 
-  .activity-table tbody tr:hover td { background: var(--md-sys-color-surface-container-low); }
-  .td-name { font-weight: 500; }
-  .td-num { font-family: 'DM Mono', monospace; }
-  .td-empty { text-align: center; padding: 30px; color: var(--md-sys-color-on-surface-variant); }
+  .activity-table tbody tr:hover td {
+    background: var(--md-sys-color-surface-container-low);
+  }
+  .td-name {
+    font-weight: 500;
+  }
+  .td-num {
+    font-family: 'DM Mono', monospace;
+  }
+  .td-empty {
+    text-align: center;
+    padding: 30px;
+    color: var(--md-sys-color-on-surface-variant);
+  }
 
-  .grade { font: var(--md-sys-typescale-label-medium); font-weight: 700; }
+  .grade {
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 700;
+  }
 
-  .export-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .export-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
 
   .export-btn {
-    font: var(--md-sys-typescale-label-medium); font-weight: 600;
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 600;
     padding: 6px 14px;
     background: transparent;
     border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-full);
-    color: var(--md-sys-color-on-surface-variant); cursor: pointer;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     transition: all 0.3s var(--ease-glass);
@@ -177,5 +226,4 @@
     color: var(--md-sys-color-on-surface);
     border-color: rgba(255, 255, 255, 0.15);
   }
-
 </style>

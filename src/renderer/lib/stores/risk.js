@@ -19,7 +19,7 @@ export const enrichedAgents = derived(
     // Flatten event batches (events store holds arrays of arrays)
     const allEvents = $events.flat();
 
-    return $agents.map(raw => {
+    return $agents.map((raw) => {
       const name = raw.agent;
 
       // ── Event counting: self-access exemption + 30s dedup ──
@@ -56,8 +56,12 @@ export const enrichedAgents = derived(
 
       const anomalyScore = $anomalies[name] || 0;
       const riskScore = calculateRiskScore({
-        sensitiveFiles, configFiles, sshAwsFiles,
-        networkCount, unknownDomains, fileCount,
+        sensitiveFiles,
+        configFiles,
+        sshAwsFiles,
+        networkCount,
+        unknownDomains,
+        fileCount,
       });
       const trustGrade = getTrustGrade(riskScore);
 
@@ -73,5 +77,5 @@ export const enrichedAgents = derived(
         networkCount,
       };
     });
-  }
+  },
 );

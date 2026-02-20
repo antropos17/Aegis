@@ -13,7 +13,9 @@
   let uptimeMs = $state(0);
 
   $effect(() => {
-    const id = setInterval(() => { uptimeMs = Date.now() - appStart; }, 1000);
+    const id = setInterval(() => {
+      uptimeMs = Date.now() - appStart;
+    }, 1000);
     return () => clearInterval(id);
   });
 
@@ -24,7 +26,7 @@
     const now = Date.now();
     const elapsed = (now - lastCpuTime) * 1000;
     if (elapsed > 0 && lastCpuTime > 0) {
-      const delta = (u.cpuUser - lastCpuUser) + (u.cpuSystem - lastCpuSystem);
+      const delta = u.cpuUser - lastCpuUser + (u.cpuSystem - lastCpuSystem);
       cpuPct = Math.min(100, Math.round((delta / elapsed) * 100));
     }
     lastCpuUser = u.cpuUser;
@@ -37,7 +39,7 @@
 
   $effect(() => {
     if (window.aegis) {
-      window.aegis.getSettings().then(s => {
+      window.aegis.getSettings().then((s) => {
         scanInterval = s.scanIntervalSec ?? '--';
       });
     }
@@ -72,12 +74,16 @@
   <div class="footer-stats">
     <div class="footer-item">
       <span class="footer-label">CPU</span>
-      <span class="footer-value {cpuClass(cpuPct)}">{cpuPct}{typeof cpuPct === 'number' ? '%' : ''}</span>
+      <span class="footer-value {cpuClass(cpuPct)}"
+        >{cpuPct}{typeof cpuPct === 'number' ? '%' : ''}</span
+      >
     </div>
 
     <div class="footer-item">
       <span class="footer-label">MEM</span>
-      <span class="footer-value {memClass(memMB)}">{memMB}{typeof memMB === 'number' ? ' MB' : ''}</span>
+      <span class="footer-value {memClass(memMB)}"
+        >{memMB}{typeof memMB === 'number' ? ' MB' : ''}</span
+      >
     </div>
 
     <div class="footer-item">

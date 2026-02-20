@@ -5,12 +5,12 @@
   let { permissions = $bindable({}) } = $props();
 
   const CATEGORIES = [
-    { id: 'filesystem', label: 'File Access',          desc: 'Read/write files' },
-    { id: 'sensitive',  label: 'Credential Access',    desc: '.env, SSH keys, secrets' },
-    { id: 'network',    label: 'Network',              desc: 'Outbound connections' },
-    { id: 'terminal',   label: 'Process Spawn',        desc: 'Shell command execution' },
-    { id: 'clipboard',  label: 'Config Write',         desc: 'Read/write clipboard' },
-    { id: 'screen',     label: 'System Modification',  desc: 'Screen capture access' },
+    { id: 'filesystem', label: 'File Access', desc: 'Read/write files' },
+    { id: 'sensitive', label: 'Credential Access', desc: '.env, SSH keys, secrets' },
+    { id: 'network', label: 'Network', desc: 'Outbound connections' },
+    { id: 'terminal', label: 'Process Spawn', desc: 'Shell command execution' },
+    { id: 'clipboard', label: 'Config Write', desc: 'Read/write clipboard' },
+    { id: 'screen', label: 'System Modification', desc: 'Screen capture access' },
   ];
 
   const STATES = ['allow', 'monitor', 'block'];
@@ -19,7 +19,7 @@
   let selectedAgent = $state('__global__');
 
   let agentList = $derived(
-    $enrichedAgents.map(a => a.name).filter((v, i, arr) => arr.indexOf(v) === i)
+    $enrichedAgents.map((a) => a.name).filter((v, i, arr) => arr.indexOf(v) === i),
   );
 
   /** Get the permission map for the currently selected agent */
@@ -47,7 +47,9 @@
     if (!window.aegis) return;
     try {
       await window.aegis.saveAgentPermissions(permissions);
-    } catch (_) { /* silent */ }
+    } catch (_) {
+      /* silent */
+    }
   }
 
   function stateColor(s) {
@@ -110,49 +112,92 @@
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: var(--glass-border);
     box-shadow: var(--glass-shadow), var(--glass-highlight);
-    border-radius: var(--md-sys-shape-corner-medium); overflow: hidden;
+    border-radius: var(--md-sys-shape-corner-medium);
+    overflow: hidden;
   }
-  .grid-header { padding: 12px 14px; border-bottom: 1px solid var(--md-sys-color-outline); }
+  .grid-header {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--md-sys-color-outline);
+  }
   .agent-select {
-    font: var(--md-sys-typescale-body-medium); padding: 6px 10px;
+    font: var(--md-sys-typescale-body-medium);
+    padding: 6px 10px;
     background: var(--md-sys-color-surface-container-high);
     color: var(--md-sys-color-on-surface);
     border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-small);
-    cursor: pointer; min-width: 200px;
+    cursor: pointer;
+    min-width: 200px;
   }
-  .agent-select:focus { outline: 1px solid var(--md-sys-color-primary); outline-offset: -1px; }
+  .agent-select:focus {
+    outline: 1px solid var(--md-sys-color-primary);
+    outline-offset: -1px;
+  }
   .grid-empty {
-    padding: 40px 20px; text-align: center;
-    font: var(--md-sys-typescale-body-medium); color: var(--md-sys-color-on-surface-variant);
+    padding: 40px 20px;
+    text-align: center;
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface-variant);
   }
-  .grid-table { display: flex; flex-direction: column; }
+  .grid-table {
+    display: flex;
+    flex-direction: column;
+  }
   .grid-row {
-    display: flex; align-items: center;
+    display: flex;
+    align-items: center;
     border-bottom: 1px solid var(--md-sys-color-outline-variant);
   }
-  .grid-row:last-child { border-bottom: none; }
-  .grid-row-header { background: var(--md-sys-color-surface-container); }
-  .grid-row-header .grid-cell {
-    font: var(--md-sys-typescale-label-medium); font-weight: 600;
-    color: var(--md-sys-color-on-surface-variant);
-    text-transform: uppercase; letter-spacing: 0.5px;
+  .grid-row:last-child {
+    border-bottom: none;
   }
-  .grid-cell { padding: 8px 12px; }
-  .grid-cell-cat { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .grid-row-header .grid-cell-cat { flex-direction: row; }
+  .grid-row-header {
+    background: var(--md-sys-color-surface-container);
+  }
+  .grid-row-header .grid-cell {
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface-variant);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .grid-cell {
+    padding: 8px 12px;
+  }
+  .grid-cell-cat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .grid-row-header .grid-cell-cat {
+    flex-direction: row;
+  }
   .cat-label {
-    font: var(--md-sys-typescale-body-medium); font-weight: 500;
+    font: var(--md-sys-typescale-body-medium);
+    font-weight: 500;
     color: var(--md-sys-color-on-surface);
   }
-  .cat-desc { font: var(--md-sys-typescale-label-medium); color: var(--md-sys-color-on-surface-variant); }
-  .grid-cell-state { width: 80px; flex-shrink: 0; text-align: center; }
+  .cat-desc {
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+  }
+  .grid-cell-state {
+    width: 80px;
+    flex-shrink: 0;
+    text-align: center;
+  }
   .state-btn {
-    font: var(--md-sys-typescale-label-medium); font-weight: 700;
-    width: 36px; height: 28px;
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 700;
+    width: 36px;
+    height: 28px;
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--md-sys-shape-corner-small);
-    background: transparent; color: var(--md-sys-color-on-surface-variant); cursor: pointer;
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
     transition: all 0.3s var(--ease-glass);
   }
   .state-btn:hover {
@@ -160,7 +205,8 @@
     color: var(--md-sys-color-on-surface);
   }
   .state-btn.active {
-    background: var(--btn-color); border-color: var(--btn-color);
+    background: var(--btn-color);
+    border-color: var(--btn-color);
     color: var(--md-sys-color-surface);
   }
 </style>
