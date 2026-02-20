@@ -10,10 +10,15 @@
 
   // One-time IPC load on mount
   if (window.aegis) {
-    window.aegis.getAllPermissions().then(all => {
-      if (all) permissions = all;
-      loaded = true;
-    }).catch(() => { loaded = true; });
+    window.aegis
+      .getAllPermissions()
+      .then((all) => {
+        if (all) permissions = all;
+        loaded = true;
+      })
+      .catch(() => {
+        loaded = true;
+      });
   } else {
     loaded = true;
   }
@@ -34,16 +39,28 @@
       const result = await window.aegis.resetPermissionsToDefaults();
       if (result?.permissions) permissions = result.permissions;
       activePreset = 'balanced';
-    } catch (_) { /* silent */ }
+    } catch (_) {
+      /* silent */
+    }
   }
 </script>
 
 <div class="rules-tab">
   <div class="sub-toggle">
-    <button class="sub-btn" class:active={subTab === 'permissions'}
-      onclick={() => { subTab = 'permissions'; }}>Permissions</button>
-    <button class="sub-btn" class:active={subTab === 'database'}
-      onclick={() => { subTab = 'database'; }}>Agent Database</button>
+    <button
+      class="sub-btn"
+      class:active={subTab === 'permissions'}
+      onclick={() => {
+        subTab = 'permissions';
+      }}>Permissions</button
+    >
+    <button
+      class="sub-btn"
+      class:active={subTab === 'database'}
+      onclick={() => {
+        subTab = 'database';
+      }}>Agent Database</button
+    >
   </div>
 
   {#if subTab === 'permissions'}
@@ -69,10 +86,18 @@
 </div>
 
 <style>
-  .rules-tab { display: flex; flex-direction: column; gap: 20px; padding: 20px; }
+  .rules-tab {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 20px;
+  }
 
   .sub-toggle {
-    display: flex; gap: 4px; padding: 3px; align-self: flex-start;
+    display: flex;
+    gap: 4px;
+    padding: 3px;
+    align-self: flex-start;
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -81,14 +106,21 @@
   }
 
   .sub-btn {
-    font: var(--md-sys-typescale-label-medium); font-weight: 600;
-    padding: 6px 16px; border: none;
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 600;
+    padding: 6px 16px;
+    border: none;
     border-radius: var(--md-sys-shape-corner-full);
-    background: transparent; color: var(--md-sys-color-on-surface-variant); cursor: pointer;
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
     transition: all 0.3s var(--ease-glass);
   }
 
-  .sub-btn:hover { color: var(--md-sys-color-on-surface); background: rgba(255, 255, 255, 0.04); }
+  .sub-btn:hover {
+    color: var(--md-sys-color-on-surface);
+    background: rgba(255, 255, 255, 0.04);
+  }
 
   .sub-btn.active {
     background: var(--md-sys-color-primary);
@@ -96,25 +128,37 @@
     box-shadow: 0 2px 12px rgba(122, 138, 158, 0.3);
   }
 
-  .rules-section { display: flex; flex-direction: column; gap: 10px; }
+  .rules-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
   .section-separator {
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
     margin: 10px 0;
   }
-  .section-header { display: flex; align-items: center; justify-content: space-between; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
 
   .section-title {
     font: var(--md-sys-typescale-headline-medium);
-    color: var(--md-sys-color-on-surface); margin: 0;
+    color: var(--md-sys-color-on-surface);
+    margin: 0;
   }
 
   .reset-btn {
-    font: var(--md-sys-typescale-label-medium); font-weight: 600;
-    padding: 6px 14px; background: transparent;
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 600;
+    padding: 6px 14px;
+    background: transparent;
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--md-sys-shape-corner-full);
-    color: var(--md-sys-color-on-surface-variant); cursor: pointer;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     transition: all 0.3s var(--ease-glass);

@@ -58,8 +58,8 @@
   }
 
   let unified = $derived.by(() => {
-    const fileEvs = $events.map(ev => ({ ...ev, _type: 'file' }));
-    const netEvs = $network.map(conn => ({
+    const fileEvs = $events.map((ev) => ({ ...ev, _type: 'file' }));
+    const netEvs = $network.map((conn) => ({
       agent: conn.agent || 'Unknown',
       timestamp: conn.timestamp || Date.now(),
       file: `${conn.domain || conn.remoteIp || '?'}:${conn.remotePort || '?'}`,
@@ -69,20 +69,19 @@
       flagged: !!conn.flagged,
       _type: 'network',
     }));
-    return [...fileEvs, ...netEvs]
-      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    return [...fileEvs, ...netEvs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   });
 
   let filtered = $derived.by(() => {
     let result = unified;
     if (agentFilter !== 'all') {
-      result = result.filter(ev => ev.agent === agentFilter);
+      result = result.filter((ev) => ev.agent === agentFilter);
     }
     if (severityFilter !== 'all') {
-      result = result.filter(ev => getSeverity(ev) === severityFilter);
+      result = result.filter((ev) => getSeverity(ev) === severityFilter);
     }
     if (typeFilter !== 'all') {
-      result = result.filter(ev => ev._type === typeFilter);
+      result = result.filter((ev) => ev._type === typeFilter);
     }
     return result.slice(0, 200);
   });
@@ -100,7 +99,9 @@
         <span class="feed-time">{formatTime(ev.timestamp)}</span>
         <span class="feed-agent">{ev.agent}</span>
         <span class="feed-action">{ev.action || ev._type}</span>
-        <button class="feed-path" title={ev.file} onclick={(e) => handlePathClick(ev, e)}>{shortenPath(ev.file)}</button>
+        <button class="feed-path" title={ev.file} onclick={(e) => handlePathClick(ev, e)}
+          >{shortenPath(ev.file)}</button
+        >
         {#if ev.repeatCount > 1}
           <span class="feed-repeat">&times;{ev.repeatCount}</span>
         {/if}

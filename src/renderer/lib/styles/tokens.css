@@ -7,7 +7,7 @@
   --md-sys-color-surface-container-low: rgba(255, 255, 255, 0.03);
   --md-sys-color-surface-container: rgba(255, 255, 255, 0.05);
   --md-sys-color-surface-container-high: rgba(255, 255, 255, 0.07);
-  --md-sys-color-surface-container-highest: rgba(255, 255, 255, 0.10);
+  --md-sys-color-surface-container-highest: rgba(255, 255, 255, 0.1);
   --md-sys-color-on-surface: #e8e6e2;
   --md-sys-color-on-surface-variant: #a09890;
   --md-sys-color-outline: rgba(255, 255, 255, 0.06);
@@ -49,7 +49,7 @@
 }
 
 /* ── Light theme ── */
-[data-theme="light"] {
+[data-theme='light'] {
   --md-sys-color-surface: #f8f8fa;
   --md-sys-color-surface-container-low: #f0f0f2;
   --md-sys-color-surface-container: #e8e8ea;

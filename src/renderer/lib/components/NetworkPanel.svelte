@@ -21,11 +21,12 @@
 
   let sorted = $derived.by(() => {
     let result = $network;
-    if (agentFilter !== 'all') result = result.filter(c => c.agent === agentFilter);
-    if (classFilter !== 'all') result = result.filter(c => classify(c) === classFilter);
+    if (agentFilter !== 'all') result = result.filter((c) => c.agent === agentFilter);
+    if (classFilter !== 'all') result = result.filter((c) => classify(c) === classFilter);
     const copy = [...result];
     if (sortBy === 'agent') copy.sort((a, b) => a.agent.localeCompare(b.agent));
-    else if (sortBy === 'domain') copy.sort((a, b) => (a.domain || a.remoteIp).localeCompare(b.domain || b.remoteIp));
+    else if (sortBy === 'domain')
+      copy.sort((a, b) => (a.domain || a.remoteIp).localeCompare(b.domain || b.remoteIp));
     else if (sortBy === 'class') copy.sort((a, b) => classify(a).localeCompare(classify(b)));
     return copy;
   });
@@ -51,8 +52,8 @@
       <button
         class="pill cls-{cls}"
         class:active={classFilter === cls}
-        onclick={() => (classFilter = cls)}
-      >{cls}{cls !== 'all' ? ` (${counts[cls]})` : ''}</button>
+        onclick={() => (classFilter = cls)}>{cls}{cls !== 'all' ? ` (${counts[cls]})` : ''}</button
+      >
     {/each}
   </div>
 
@@ -87,8 +88,11 @@
 
 <style>
   .net-filters {
-    display: flex; align-items: center; gap: 16px;
-    padding: 10px 14px; flex-wrap: wrap;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 14px;
+    flex-wrap: wrap;
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -96,21 +100,28 @@
     box-shadow: var(--glass-shadow), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
   }
-  .agent-select, .sort-select {
+  .agent-select,
+  .sort-select {
     font: var(--md-sys-typescale-body-medium);
     background: var(--md-sys-color-surface-container-high);
     color: var(--md-sys-color-on-surface);
     border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-small);
-    padding: 5px 10px; cursor: pointer;
+    padding: 5px 10px;
+    cursor: pointer;
   }
-  .agent-select { min-width: 120px; }
-  .agent-select:focus, .sort-select:focus {
+  .agent-select {
+    min-width: 120px;
+  }
+  .agent-select:focus,
+  .sort-select:focus {
     outline: 1px solid var(--md-sys-color-primary);
     outline-offset: -1px;
   }
   .pill-group {
-    display: flex; align-items: center; gap: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
   .pill-label {
     font: var(--md-sys-typescale-label-medium);
@@ -118,12 +129,15 @@
     margin-right: 4px;
   }
   .pill {
-    font: var(--md-sys-typescale-label-medium); font-weight: 600;
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 600;
     padding: 4px 10px;
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--md-sys-shape-corner-full);
-    background: transparent; color: var(--md-sys-color-on-surface-variant);
-    cursor: pointer; text-transform: capitalize;
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    text-transform: capitalize;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     transition: all 0.3s var(--ease-glass);
@@ -150,48 +164,75 @@
     background: color-mix(in srgb, var(--md-sys-color-error) 25%, transparent);
     border-color: var(--md-sys-color-error);
   }
-  .net-scroll { flex: 1; overflow-y: auto; min-height: 0; }
+  .net-scroll {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+  }
   .net-empty {
-    padding: 40px 20px; text-align: center;
+    padding: 40px 20px;
+    text-align: center;
     font: var(--md-sys-typescale-body-medium);
     color: var(--md-sys-color-on-surface-variant);
   }
   .net-row {
-    display: flex; align-items: center; gap: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     padding: 6px 12px;
     font-size: 11px;
     transition: background 0.15s ease;
   }
-  .net-row:nth-child(odd) { background: rgba(255, 255, 255, 0.01); }
-  .net-row:hover { background: rgba(255, 255, 255, 0.04); }
+  .net-row:nth-child(odd) {
+    background: rgba(255, 255, 255, 0.01);
+  }
+  .net-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
   .net-agent {
-    font: var(--md-sys-typescale-label-medium); font-weight: 600;
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 600;
     color: var(--md-sys-color-on-surface);
-    flex-shrink: 0; width: 120px;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex-shrink: 0;
+    width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .net-endpoint {
     font: var(--md-sys-typescale-body-medium);
     font-family: 'DM Mono', monospace;
     color: var(--md-sys-color-on-surface);
-    flex: 1; min-width: 0;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .net-port {
     font: var(--md-sys-typescale-label-medium);
     font-family: 'DM Mono', monospace;
     color: var(--md-sys-color-on-surface-variant);
-    flex-shrink: 0; width: 48px; text-align: right;
+    flex-shrink: 0;
+    width: 48px;
+    text-align: right;
   }
   .net-state {
     font: var(--md-sys-typescale-label-medium);
     color: var(--md-sys-color-on-surface-variant);
-    flex-shrink: 0; width: 72px; text-transform: lowercase;
+    flex-shrink: 0;
+    width: 72px;
+    text-transform: lowercase;
   }
   .net-badge {
-    font: var(--md-sys-typescale-label-medium); font-weight: 700;
-    font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase;
-    padding: 2px 8px; border-radius: var(--md-sys-shape-corner-full);
-    color: var(--md-sys-color-surface); flex-shrink: 0;
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: var(--md-sys-shape-corner-full);
+    color: var(--md-sys-color-surface);
+    flex-shrink: 0;
   }
 </style>

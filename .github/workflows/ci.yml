@@ -42,5 +42,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - name: Lint
+      - name: Check formatting
+        run: npm run format:check
+      - name: lint
         run: npx eslint src/renderer --ext .svelte,.js --no-eslintrc --rule "no-unused-vars:1" --rule "no-console:1" || true

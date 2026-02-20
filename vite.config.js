@@ -10,7 +10,7 @@ export default defineConfig({
     outDir: '../../dist/renderer',
     emptyOutDir: true,
     rollupOptions: {
-      input: resolve(__dirname, 'src/renderer/index.html')
-    }
-  }
+      input: resolve(__dirname, 'src/renderer/index.html'),
+    },
+  },
 });
