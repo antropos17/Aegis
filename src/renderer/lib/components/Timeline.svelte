@@ -29,8 +29,8 @@
   let width = $state(600);
 
   let dots = $derived.by(() => {
-    const fileEvs = $events.map(ev => ({ ...ev, _type: 'file' }));
-    const netEvs = $network.map(conn => ({
+    const fileEvs = $events.map((ev) => ({ ...ev, _type: 'file' }));
+    const netEvs = $network.map((conn) => ({
       agent: conn.agent || 'Unknown',
       timestamp: conn.timestamp || Date.now(),
       _type: 'network',
@@ -47,10 +47,10 @@
     const range = maxT - minT || 1;
     const usable = width - PAD * 2;
 
-    return all.map(ev => {
+    return all.map((ev) => {
       const sev = getSeverity(ev);
       return {
-        x: PAD + ((ev.timestamp || 0) - minT) / range * usable,
+        x: PAD + (((ev.timestamp || 0) - minT) / range) * usable,
         color: sevColor(sev),
         tip: `${formatTime(ev.timestamp)} | ${ev.agent} | ${ev._type} | ${sev}`,
       };
@@ -59,9 +59,15 @@
 </script>
 
 <div class="timeline" bind:clientWidth={width}>
-  <svg width={width} height={H}>
-    <line x1={PAD} y1={MID} x2={width - PAD} y2={MID}
-      stroke="var(--md-sys-color-outline)" stroke-width="1" />
+  <svg {width} height={H}>
+    <line
+      x1={PAD}
+      y1={MID}
+      x2={width - PAD}
+      y2={MID}
+      stroke="var(--md-sys-color-outline)"
+      stroke-width="1"
+    />
     {#each dots as dot, i (i)}
       <circle cx={dot.x} cy={MID} r={DOT_R} fill={dot.color} opacity="0.85">
         <title>{dot.tip}</title>

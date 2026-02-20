@@ -3,14 +3,58 @@
   let { activePreset = $bindable('balanced'), onApply } = $props();
 
   const PRESETS = [
-    { id: 'paranoid',  label: 'Paranoid',  desc: 'Block all agent file access',
-      config: { filesystem:'block', sensitive:'block', network:'block', terminal:'block', clipboard:'block', screen:'block' } },
-    { id: 'strict',    label: 'Strict',    desc: 'Monitor sensitive, block credentials',
-      config: { filesystem:'monitor', sensitive:'block', network:'block', terminal:'block', clipboard:'monitor', screen:'monitor' } },
-    { id: 'balanced',  label: 'Balanced',  desc: 'Monitor all, allow safe operations',
-      config: { filesystem:'monitor', sensitive:'monitor', network:'monitor', terminal:'monitor', clipboard:'monitor', screen:'monitor' } },
-    { id: 'developer', label: 'Developer', desc: 'Minimal restrictions',
-      config: { filesystem:'allow', sensitive:'monitor', network:'allow', terminal:'allow', clipboard:'allow', screen:'allow' } },
+    {
+      id: 'paranoid',
+      label: 'Paranoid',
+      desc: 'Block all agent file access',
+      config: {
+        filesystem: 'block',
+        sensitive: 'block',
+        network: 'block',
+        terminal: 'block',
+        clipboard: 'block',
+        screen: 'block',
+      },
+    },
+    {
+      id: 'strict',
+      label: 'Strict',
+      desc: 'Monitor sensitive, block credentials',
+      config: {
+        filesystem: 'monitor',
+        sensitive: 'block',
+        network: 'block',
+        terminal: 'block',
+        clipboard: 'monitor',
+        screen: 'monitor',
+      },
+    },
+    {
+      id: 'balanced',
+      label: 'Balanced',
+      desc: 'Monitor all, allow safe operations',
+      config: {
+        filesystem: 'monitor',
+        sensitive: 'monitor',
+        network: 'monitor',
+        terminal: 'monitor',
+        clipboard: 'monitor',
+        screen: 'monitor',
+      },
+    },
+    {
+      id: 'developer',
+      label: 'Developer',
+      desc: 'Minimal restrictions',
+      config: {
+        filesystem: 'allow',
+        sensitive: 'monitor',
+        network: 'allow',
+        terminal: 'allow',
+        clipboard: 'allow',
+        screen: 'allow',
+      },
+    },
   ];
 
   function select(preset) {

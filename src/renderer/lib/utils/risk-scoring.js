@@ -44,10 +44,17 @@ export function calculateRiskScore(agent) {
   const fileContrib = Math.min(5, files * 0.02);
   const sshAwsContrib = Math.min(20, sshAws * 5);
 
-  return Math.min(100, Math.round(
-    sensitiveContrib + configContrib + netContrib +
-    unknownDomainContrib + fileContrib + sshAwsContrib
-  ));
+  return Math.min(
+    100,
+    Math.round(
+      sensitiveContrib +
+        configContrib +
+        netContrib +
+        unknownDomainContrib +
+        fileContrib +
+        sshAwsContrib,
+    ),
+  );
 }
 
 // ═══ TRUST GRADE ═══

@@ -5,8 +5,11 @@
  */
 
 function esc(str) {
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 /**
@@ -16,14 +19,22 @@ function esc(str) {
  */
 export function openThreatReport(result, counts) {
   const now = new Date().toLocaleString();
-  const colors = { CLEAR: '#38A169', LOW: '#38A169', MEDIUM: '#ED8936', HIGH: '#ED8936', CRITICAL: '#E53E3E' };
+  const colors = {
+    CLEAR: '#38A169',
+    LOW: '#38A169',
+    MEDIUM: '#ED8936',
+    HIGH: '#ED8936',
+    CRITICAL: '#E53E3E',
+  };
   const rc = colors[result.riskRating] || '#ED8936';
   const { totalFiles, totalSensitive, totalAgents, totalNet } = counts;
 
   const findings = result.findings?.length
-    ? `<div class="sec"><div class="t">FINDINGS</div><ul>${result.findings.map(f => `<li>${esc(f)}</li>`).join('')}</ul></div>` : '';
+    ? `<div class="sec"><div class="t">FINDINGS</div><ul>${result.findings.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></div>`
+    : '';
   const recs = result.recommendations?.length
-    ? `<div class="sec"><div class="t">RECOMMENDATIONS</div><ul>${result.recommendations.map(r => `<li>${esc(r)}</li>`).join('')}</ul></div>` : '';
+    ? `<div class="sec"><div class="t">RECOMMENDATIONS</div><ul>${result.recommendations.map((r) => `<li>${esc(r)}</li>`).join('')}</ul></div>`
+    : '';
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>AEGIS Threat Report</title>
 <style>body{font-family:'Segoe UI',sans-serif;background:#0a0e17;color:#E0E5EC;margin:0;padding:24px}

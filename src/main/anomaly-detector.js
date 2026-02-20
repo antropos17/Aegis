@@ -44,20 +44,24 @@ function calculateAnomalyScore(agentName) {
 
   // New sensitive categories (0-20) — 10 points per new category
   const knownReasons = new Set(avg.knownSensitiveReasons || []);
-  const newReasons = [...sd.sensitiveReasons].filter(r => !knownReasons.has(r));
+  const newReasons = [...sd.sensitiveReasons].filter((r) => !knownReasons.has(r));
   score += Math.min(20, newReasons.length * 10);
 
   // New network endpoints not seen in last 5 sessions (0-15)
   const recentEndpoints = new Set();
   const recentSessions = ab.sessions.slice(-5);
-  for (const sess of recentSessions) for (const ep of sess.networkEndpoints) recentEndpoints.add(ep);
-  const newEndpoints = [...sd.endpoints].filter(ep => !recentEndpoints.has(ep));
+  for (const sess of recentSessions)
+    for (const ep of sess.networkEndpoints) recentEndpoints.add(ep);
+  const newEndpoints = [...sd.endpoints].filter((ep) => !recentEndpoints.has(ep));
   score += Math.min(15, newEndpoints.length * 5);
 
   // Unusual timing (0-10) — activity at hour never seen before
   const hourHist = avg.hourHistogram || new Array(24).fill(0);
   for (const h of sd.activeHours) {
-    if (hourHist[h] === 0) { score += 10; break; }
+    if (hourHist[h] === 0) {
+      score += 10;
+      break;
+    }
   }
 
   return Math.min(100, score);
@@ -81,13 +85,29 @@ function checkDeviations() {
     // File volume 3x above average
     if (avg.filesPerSession > 0 && sd.files.size > avg.filesPerSession * 3) {
       const key = 'files-3x';
-      if (!sent.has(key)) { sent.add(key); warnings.push({ agent: agentName, type: 'files', message: `${agentName} normally accesses ~${Math.round(avg.filesPerSession)} files, now ${sd.files.size}`, anomalyScore }); }
+      if (!sent.has(key)) {
+        sent.add(key);
+        warnings.push({
+          agent: agentName,
+          type: 'files',
+          message: `${agentName} normally accesses ~${Math.round(avg.filesPerSession)} files, now ${sd.files.size}`,
+          anomalyScore,
+        });
+      }
     }
 
     // Sensitive file access 3x above average
     if (avg.sensitivePerSession > 0 && sd.sensitiveCount > avg.sensitivePerSession * 3) {
       const key = 'sensitive-3x';
-      if (!sent.has(key)) { sent.add(key); warnings.push({ agent: agentName, type: 'sensitive', message: `${agentName}: sensitive file access (${sd.sensitiveCount}) is ${Math.round(sd.sensitiveCount / avg.sensitivePerSession)}x above average (${Math.round(avg.sensitivePerSession)})`, anomalyScore }); }
+      if (!sent.has(key)) {
+        sent.add(key);
+        warnings.push({
+          agent: agentName,
+          type: 'sensitive',
+          message: `${agentName}: sensitive file access (${sd.sensitiveCount}) is ${Math.round(sd.sensitiveCount / avg.sensitivePerSession)}x above average (${Math.round(avg.sensitivePerSession)})`,
+          anomalyScore,
+        });
+      }
     }
 
     // New sensitive category never seen before
@@ -95,29 +115,68 @@ function checkDeviations() {
     for (const reason of sd.sensitiveReasons) {
       if (!knownReasons.has(reason)) {
         const key = `new-sens:${reason}`;
-        if (!sent.has(key)) { sent.add(key); warnings.push({ agent: agentName, type: 'new-sensitive', message: `${agentName} never accessed "${reason}" before`, anomalyScore }); }
+        if (!sent.has(key)) {
+          sent.add(key);
+          warnings.push({
+            agent: agentName,
+            type: 'new-sensitive',
+            message: `${agentName} never accessed "${reason}" before`,
+            anomalyScore,
+          });
+        }
       }
     }
 
     // New network endpoint not seen in last 5 sessions
     const recentEndpoints = new Set();
     const recentSessions = ab.sessions.slice(-5);
-    for (const sess of recentSessions) for (const ep of sess.networkEndpoints) recentEndpoints.add(ep);
+    for (const sess of recentSessions)
+      for (const ep of sess.networkEndpoints) recentEndpoints.add(ep);
     for (const ep of sd.endpoints) {
-      if (!recentEndpoints.has(ep)) { const key = `new-ep:${ep}`; if (!sent.has(key)) { sent.add(key); warnings.push({ agent: agentName, type: 'network', message: `${agentName}: connecting to new endpoint ${ep}`, anomalyScore }); } }
+      if (!recentEndpoints.has(ep)) {
+        const key = `new-ep:${ep}`;
+        if (!sent.has(key)) {
+          sent.add(key);
+          warnings.push({
+            agent: agentName,
+            type: 'network',
+            message: `${agentName}: connecting to new endpoint ${ep}`,
+            anomalyScore,
+          });
+        }
+      }
     }
 
     // Accessing 4+ new directories
     const typicalDirs = new Set(avg.typicalDirectories);
-    const newDirs = [...sd.directories].filter(d => !typicalDirs.has(d));
-    if (newDirs.length >= 4) { const key = 'new-dirs-4+'; if (!sent.has(key)) { sent.add(key); warnings.push({ agent: agentName, type: 'directories', message: `${agentName}: accessing ${newDirs.length} new directories not seen in previous sessions`, anomalyScore }); } }
+    const newDirs = [...sd.directories].filter((d) => !typicalDirs.has(d));
+    if (newDirs.length >= 4) {
+      const key = 'new-dirs-4+';
+      if (!sent.has(key)) {
+        sent.add(key);
+        warnings.push({
+          agent: agentName,
+          type: 'directories',
+          message: `${agentName}: accessing ${newDirs.length} new directories not seen in previous sessions`,
+          anomalyScore,
+        });
+      }
+    }
 
     // Activity at unusual hour
     const hourHist = avg.hourHistogram || new Array(24).fill(0);
     for (const h of sd.activeHours) {
       if (hourHist[h] === 0) {
         const key = `unusual-hour:${h}`;
-        if (!sent.has(key)) { sent.add(key); warnings.push({ agent: agentName, type: 'timing', message: `${agentName}: activity at unusual hour (${String(h).padStart(2, '0')}:00) — not seen in previous sessions`, anomalyScore }); }
+        if (!sent.has(key)) {
+          sent.add(key);
+          warnings.push({
+            agent: agentName,
+            type: 'timing',
+            message: `${agentName}: activity at unusual hour (${String(h).padStart(2, '0')}:00) — not seen in previous sessions`,
+            anomalyScore,
+          });
+        }
         break;
       }
     }

@@ -8,24 +8,28 @@
   let sortDir = $state(1);
 
   const CAT_LABELS = {
-    'coding-assistant': 'Coding', 'ai-ide': 'AI IDE', 'cli-tool': 'CLI',
-    'autonomous-agent': 'Autonomous', 'desktop-agent': 'Desktop',
-    'browser-agent': 'Browser', 'agent-framework': 'Framework',
-    'security-devops': 'Security', 'ide-extension': 'IDE Ext',
+    'coding-assistant': 'Coding',
+    'ai-ide': 'AI IDE',
+    'cli-tool': 'CLI',
+    'autonomous-agent': 'Autonomous',
+    'desktop-agent': 'Desktop',
+    'browser-agent': 'Browser',
+    'agent-framework': 'Framework',
+    'security-devops': 'Security',
+    'ide-extension': 'IDE Ext',
   };
 
-  let categories = $derived(
-    ['all', ...new Set(agents.map(a => a.category).filter(Boolean))]
-  );
+  let categories = $derived(['all', ...new Set(agents.map((a) => a.category).filter(Boolean))]);
 
   let filtered = $derived.by(() => {
-    let list = activeCat === 'all' ? agents : agents.filter(a => a.category === activeCat);
+    let list = activeCat === 'all' ? agents : agents.filter((a) => a.category === activeCat);
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter(a =>
-        a.displayName?.toLowerCase().includes(q) ||
-        a.vendor?.toLowerCase().includes(q) ||
-        a.names?.some(n => n.toLowerCase().includes(q))
+      list = list.filter(
+        (a) =>
+          a.displayName?.toLowerCase().includes(q) ||
+          a.vendor?.toLowerCase().includes(q) ||
+          a.names?.some((n) => n.toLowerCase().includes(q)),
       );
     }
     return [...list].sort((a, b) => {
@@ -37,7 +41,10 @@
 
   function toggleSort(col) {
     if (sortCol === col) sortDir *= -1;
-    else { sortCol = col; sortDir = 1; }
+    else {
+      sortCol = col;
+      sortDir = 1;
+    }
   }
 </script>
 
@@ -46,8 +53,14 @@
 
   <div class="db-pills">
     {#each categories as cat (cat)}
-      <button class="pill" class:active={activeCat === cat} onclick={() => { activeCat = cat; }}>
-        {cat === 'all' ? 'All' : (CAT_LABELS[cat] || cat)}
+      <button
+        class="pill"
+        class:active={activeCat === cat}
+        onclick={() => {
+          activeCat = cat;
+        }}
+      >
+        {cat === 'all' ? 'All' : CAT_LABELS[cat] || cat}
       </button>
     {/each}
   </div>
@@ -56,9 +69,11 @@
     <table class="db-table">
       <thead>
         <tr>
-          {#each [['displayName','Name'],['category','Category'],['names','Detection'],['riskProfile','Risk']] as [key, label] (key)}
+          {#each [['displayName', 'Name'], ['category', 'Category'], ['names', 'Detection'], ['riskProfile', 'Risk']] as [key, label] (key)}
             <th class:sorted={sortCol === key} onclick={() => toggleSort(key)}>
-              {label}{#if sortCol === key}<span class="arrow">{sortDir === 1 ? '\u2191' : '\u2193'}</span>{/if}
+              {label}{#if sortCol === key}<span class="arrow"
+                  >{sortDir === 1 ? '\u2191' : '\u2193'}</span
+                >{/if}
             </th>
           {/each}
           {#if onedit || ondelete}<th class="th-act">Actions</th>{/if}
@@ -67,20 +82,28 @@
       <tbody>
         {#each filtered as agent (agent.id)}
           <tr>
-            <td class="td-name"><span class="icon">{agent.icon || '\u25CF'}</span>{agent.displayName}</td>
+            <td class="td-name"
+              ><span class="icon">{agent.icon || '\u25CF'}</span>{agent.displayName}</td
+            >
             <td>{CAT_LABELS[agent.category] || agent.category}</td>
             <td><code class="detect">{agent.names?.[0] || '\u2014'}</code></td>
             <td>
-              <span class="risk" class:risk-high={agent.riskProfile === 'high'}
-                class:risk-med={agent.riskProfile === 'medium'}>
+              <span
+                class="risk"
+                class:risk-high={agent.riskProfile === 'high'}
+                class:risk-med={agent.riskProfile === 'medium'}
+              >
                 {agent.riskProfile || 'low'}
               </span>
             </td>
             {#if onedit || ondelete}
               <td class="td-act">
                 {#if agent._custom}
-                  {#if onedit}<button class="act-btn" onclick={() => onedit(agent)}>Edit</button>{/if}
-                  {#if ondelete}<button class="act-btn del" onclick={() => ondelete(agent)}>Del</button>{/if}
+                  {#if onedit}<button class="act-btn" onclick={() => onedit(agent)}>Edit</button
+                    >{/if}
+                  {#if ondelete}<button class="act-btn del" onclick={() => ondelete(agent)}
+                      >Del</button
+                    >{/if}
                 {/if}
               </td>
             {/if}
@@ -96,84 +119,153 @@
 </div>
 
 <style>
-  .db-wrap { display: flex; flex-direction: column; gap: 10px; }
+  .db-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
   .db-search {
-    font: var(--md-sys-typescale-body-medium); padding: 8px 12px;
+    font: var(--md-sys-typescale-body-medium);
+    padding: 8px 12px;
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-small);
-    color: var(--md-sys-color-on-surface); outline: none;
+    color: var(--md-sys-color-on-surface);
+    outline: none;
     transition: border-color 0.2s ease;
   }
-  .db-search:focus { border-color: var(--md-sys-color-primary); }
-  .db-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .db-search:focus {
+    border-color: var(--md-sys-color-primary);
+  }
+  .db-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
   .pill {
-    font: var(--md-sys-typescale-label-medium); padding: 4px 10px;
+    font: var(--md-sys-typescale-label-medium);
+    padding: 4px 10px;
     background: var(--md-sys-color-surface-container);
     border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-full);
-    color: var(--md-sys-color-on-surface-variant); cursor: pointer;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
     transition: all var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
   }
-  .pill:hover { background: var(--md-sys-color-surface-container-high); }
+  .pill:hover {
+    background: var(--md-sys-color-surface-container-high);
+  }
   .pill.active {
     background: var(--md-sys-color-primary-container);
-    border-color: var(--md-sys-color-primary); color: var(--md-sys-color-on-surface);
+    border-color: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-surface);
   }
   .db-scroll {
-    overflow: auto; max-height: 420px;
+    overflow: auto;
+    max-height: 420px;
     border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-medium);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     box-shadow: var(--glass-shadow);
   }
-  .db-table { width: 100%; border-collapse: separate; border-spacing: 0; }
-  .db-table thead { position: sticky; top: 0; z-index: 1; }
+  .db-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .db-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
   .db-table th {
-    font: var(--md-sys-typescale-label-medium); font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.5px;
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     color: var(--md-sys-color-on-surface-variant);
     background: var(--md-sys-color-surface-container-high);
-    padding: 8px 12px; text-align: left; cursor: pointer; user-select: none;
+    padding: 8px 12px;
+    text-align: left;
+    cursor: pointer;
+    user-select: none;
     border-bottom: 1px solid var(--md-sys-color-outline);
   }
-  .db-table th.sorted { color: var(--md-sys-color-primary); }
-  .arrow { margin-left: 4px; }
-  .th-act { cursor: default; width: 90px; }
+  .db-table th.sorted {
+    color: var(--md-sys-color-primary);
+  }
+  .arrow {
+    margin-left: 4px;
+  }
+  .th-act {
+    cursor: default;
+    width: 90px;
+  }
   .db-table td {
-    font: var(--md-sys-typescale-body-medium); padding: 6px 12px;
+    font: var(--md-sys-typescale-body-medium);
+    padding: 6px 12px;
     color: var(--md-sys-color-on-surface);
     border-bottom: 1px solid var(--md-sys-color-outline-variant);
   }
-  .db-table tbody tr:hover td { background: var(--md-sys-color-surface-container-low); }
-  .td-name { font-weight: 500; white-space: nowrap; }
-  .icon { margin-right: 6px; }
+  .db-table tbody tr:hover td {
+    background: var(--md-sys-color-surface-container-low);
+  }
+  .td-name {
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .icon {
+    margin-right: 6px;
+  }
   .detect {
-    font-family: 'DM Mono', monospace; font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
     background: var(--md-sys-color-surface-container-high);
-    padding: 2px 6px; border-radius: 4px;
+    padding: 2px 6px;
+    border-radius: 4px;
   }
   .risk {
-    font: var(--md-sys-typescale-label-medium); font-weight: 600;
-    text-transform: uppercase; color: var(--md-sys-color-tertiary);
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--md-sys-color-tertiary);
   }
-  .risk-high { color: var(--md-sys-color-error); }
-  .risk-med { color: var(--md-sys-color-secondary); }
-  .td-act { white-space: nowrap; }
+  .risk-high {
+    color: var(--md-sys-color-error);
+  }
+  .risk-med {
+    color: var(--md-sys-color-secondary);
+  }
+  .td-act {
+    white-space: nowrap;
+  }
   .act-btn {
-    font: var(--md-sys-typescale-label-medium); padding: 3px 8px;
-    background: transparent; border: 1px solid var(--md-sys-color-outline);
+    font: var(--md-sys-typescale-label-medium);
+    padding: 3px 8px;
+    background: transparent;
+    border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-small);
-    color: var(--md-sys-color-primary); cursor: pointer; margin-right: 4px;
+    color: var(--md-sys-color-primary);
+    cursor: pointer;
+    margin-right: 4px;
   }
-  .act-btn:hover { background: var(--md-sys-color-surface-container-high); }
-  .act-btn.del { color: var(--md-sys-color-error); }
-  .td-empty { text-align: center; padding: 30px; color: var(--md-sys-color-on-surface-variant); }
+  .act-btn:hover {
+    background: var(--md-sys-color-surface-container-high);
+  }
+  .act-btn.del {
+    color: var(--md-sys-color-error);
+  }
+  .td-empty {
+    text-align: center;
+    padding: 30px;
+    color: var(--md-sys-color-on-surface-variant);
+  }
   .db-count {
     font: var(--md-sys-typescale-label-medium);
-    color: var(--md-sys-color-on-surface-variant); text-align: right;
+    color: var(--md-sys-color-on-surface-variant);
+    text-align: right;
   }
 </style>
