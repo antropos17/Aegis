@@ -7,7 +7,6 @@
 const { ipcMain, app, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { execFile } = require('child_process');
 const config = require('./config-manager');
 const scanner = require('./process-scanner');
 const procUtil = require('./process-utils');
@@ -15,6 +14,7 @@ const baselines = require('./baselines');
 const analysis = require('./ai-analysis');
 const exporter = require('./exports');
 const audit = require('./audit-logger');
+const { killProcess, suspendProcess, resumeProcess } = require('./platform');
 
 let deps = {};
 
@@ -220,41 +220,9 @@ function register() {
   });
 
   // ── Process control ──
-  ipcMain.handle('kill-process', (_e, pid) => {
-    return new Promise((resolve) => {
-      execFile('taskkill', ['/PID', String(pid), '/F'], (err) => {
-        resolve(err ? { success: false, error: err.message } : { success: true });
-      });
-    });
-  });
-
-  ipcMain.handle('suspend-process', (_e, pid) => {
-    const script = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class Ntdll{[DllImport("ntdll.dll")]public static extern int NtSuspendProcess(IntPtr h);}' -PassThru | Out-Null;$h=(Get-Process -Id ${Number(pid)}).Handle;[Ntdll]::NtSuspendProcess($h)`;
-    return new Promise((resolve) => {
-      execFile(
-        'powershell.exe',
-        ['-NoProfile', '-NonInteractive', '-Command', script],
-        { timeout: 5000 },
-        (err) => {
-          resolve(err ? { success: false, error: err.message } : { success: true });
-        },
-      );
-    });
-  });
-
-  ipcMain.handle('resume-process', (_e, pid) => {
-    const script = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class Ntdll2{[DllImport("ntdll.dll")]public static extern int NtResumeProcess(IntPtr h);}' -PassThru | Out-Null;$h=(Get-Process -Id ${Number(pid)}).Handle;[Ntdll2]::NtResumeProcess($h)`;
-    return new Promise((resolve) => {
-      execFile(
-        'powershell.exe',
-        ['-NoProfile', '-NonInteractive', '-Command', script],
-        { timeout: 5000 },
-        (err) => {
-          resolve(err ? { success: false, error: err.message } : { success: true });
-        },
-      );
-    });
-  });
+  ipcMain.handle('kill-process', (_e, pid) => killProcess(pid));
+  ipcMain.handle('suspend-process', (_e, pid) => suspendProcess(pid));
+  ipcMain.handle('resume-process', (_e, pid) => resumeProcess(pid));
 }
 
 module.exports = { init, register };

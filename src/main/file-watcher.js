@@ -18,13 +18,13 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const chokidar = require('chokidar');
-const { execFile } = require('child_process');
 const {
   SENSITIVE_RULES,
   IGNORE_PATTERNS,
   AGENT_CONFIG_PATHS,
   AGENT_SELF_CONFIG,
 } = require('../shared/constants');
+const { getFileHandles, IGNORE_FILE_PATTERNS } = require('./platform');
 
 const watcherDebounce = new Map();
 let _state = null;
@@ -56,7 +56,8 @@ function classifySensitive(filePath) {
 
 /** @param {string} filePath @returns {boolean} @since v0.1.0 */
 function shouldIgnore(filePath) {
-  return IGNORE_PATTERNS.some((p) => p.test(filePath));
+  return IGNORE_PATTERNS.some((p) => p.test(filePath)) ||
+    IGNORE_FILE_PATTERNS.some((p) => p.test(filePath));
 }
 
 /**
@@ -167,83 +168,41 @@ function setupFileWatchers() {
  * @returns {Promise<Array>}
  * @since v0.1.0
  */
-function scanFileHandles(agent) {
-  return new Promise((resolve) => {
-    const pid = agent.pid;
-    const psScript = [
-      '$ErrorActionPreference="SilentlyContinue"',
-      '$files=[System.Collections.ArrayList]@()',
-      '$h=Get-Command handle64.exe -EA SilentlyContinue',
-      'if(!$h){$h=Get-Command handle.exe -EA SilentlyContinue}',
-      'if($h){',
-      `  $out=& $h.Source -p ${pid} -nobanner -accepteula 2>$null`,
-      '  foreach($l in $out){',
-      '    if($l -match "File\\s+.*?\\s+([A-Z]:\\\\.+)$"){',
-      '      [void]$files.Add($Matches[1].Trim())',
-      '    }',
-      '  }',
-      '}else{',
-      `  $p=Get-Process -Id ${pid} -EA SilentlyContinue`,
-      '  if($p -and $p.Modules){',
-      '    foreach($m in $p.Modules){',
-      '      if($m.FileName){[void]$files.Add($m.FileName)}',
-      '    }',
-      '  }',
-      '}',
-      'if($files.Count -gt 0){$files|ConvertTo-Json -Compress}else{"[]"}',
-    ].join('\n');
-    execFile(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', psScript],
-      { timeout: 15000 },
-      (err, stdout) => {
-        if (err) {
-          resolve([]);
-          return;
-        }
-        try {
-          const raw = stdout.trim();
-          if (!raw || raw === '[]') {
-            resolve([]);
-            return;
-          }
-          let files = JSON.parse(raw);
-          if (typeof files === 'string') files = [files];
-          if (!Array.isArray(files)) {
-            resolve([]);
-            return;
-          }
-          const kh = _state.knownHandles;
-          if (!kh.has(pid)) kh.set(pid, new Set());
-          const known = kh.get(pid);
-          const newAccess = [];
-          for (const f of files) {
-            if (shouldIgnore(f) || known.has(f)) continue;
-            known.add(f);
-            const reason = classifySensitive(f);
-            const selfAccess = reason !== null && isSelfAccess(agent.agent, f);
-            const event = {
-              agent: agent.agent,
-              pid,
-              file: f,
-              sensitive: reason !== null && !selfAccess,
-              selfAccess,
-              reason: reason || '',
-              action: 'accessed',
-              timestamp: Date.now(),
-              category: agent.category || 'other',
-            };
-            newAccess.push(event);
-            _state.activityLog.push(event);
-            _state.recordFileAccess(agent.agent, f, event.sensitive, event.reason);
-          }
-          resolve(newAccess);
-        } catch (_) {
-          resolve([]);
-        }
-      },
-    );
-  });
+async function scanFileHandles(agent) {
+  const pid = agent.pid;
+  let files;
+  try {
+    files = await getFileHandles(pid);
+  } catch (_) {
+    return [];
+  }
+  if (!Array.isArray(files) || files.length === 0) return [];
+
+  const kh = _state.knownHandles;
+  if (!kh.has(pid)) kh.set(pid, new Set());
+  const known = kh.get(pid);
+  const newAccess = [];
+  for (const f of files) {
+    if (shouldIgnore(f) || known.has(f)) continue;
+    known.add(f);
+    const reason = classifySensitive(f);
+    const selfAccess = reason !== null && isSelfAccess(agent.agent, f);
+    const event = {
+      agent: agent.agent,
+      pid,
+      file: f,
+      sensitive: reason !== null && !selfAccess,
+      selfAccess,
+      reason: reason || '',
+      action: 'accessed',
+      timestamp: Date.now(),
+      category: agent.category || 'other',
+    };
+    newAccess.push(event);
+    _state.activityLog.push(event);
+    _state.recordFileAccess(agent.agent, f, event.sensitive, event.reason);
+  }
+  return newAccess;
 }
 
 /**

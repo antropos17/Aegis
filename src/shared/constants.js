@@ -54,17 +54,9 @@ const EDITOR_HOSTS = [
   'datagrip', // DataGrip
 ];
 
-/** @type {RegExp[]} File-path patterns treated as system noise and silently skipped */
-const IGNORE_PATTERNS = [
-  /^C:\\Windows\\/i,
-  /^C:\\Program Files\\Windows/i,
-  /\\pagefile\.sys$/i,
-  /\\swapfile\.sys$/i,
-  /\\\$Extend/i,
-  /\\System Volume Information/i,
-  /^\\Device\\/i,
-  /\\\.tmp$/i,
-];
+/** @type {RegExp[]} Cross-platform file-path patterns treated as system noise and silently skipped.
+ *  Platform-specific patterns live in src/main/platform/*.js (IGNORE_FILE_PATTERNS). */
+const IGNORE_PATTERNS = [/\.tmp$/i];
 
 /**
  * @type {string[]} AI agent config directories relative to home dir.

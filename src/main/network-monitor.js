@@ -14,10 +14,10 @@
 
 'use strict';
 
-const { execFile } = require('child_process');
 const dns = require('dns');
 const fs = require('fs');
 const path = require('path');
+const { getRawTcpConnections } = require('./platform');
 
 const agentDb = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8'),
@@ -117,50 +117,13 @@ async function resolveIp(ip) {
 }
 
 /**
- * Fetch raw TCP connections for given PIDs via PowerShell.
+ * Fetch raw TCP connections for given PIDs via platform adapter.
  * @param {number[]} pids
  * @returns {Promise<Array>}
  * @since v0.1.0
  */
 function getRawConnections(pids) {
-  return new Promise((resolve) => {
-    if (pids.length === 0) {
-      resolve([]);
-      return;
-    }
-    const pidStr = pids.join(',');
-    const psScript = [
-      '$ErrorActionPreference="SilentlyContinue"',
-      `$pids=@(${pidStr})`,
-      '$conns=Get-NetTCPConnection -OwningProcess $pids -EA SilentlyContinue|Where-Object{$_.State -ne "Listen" -and $_.State -ne "Bound" -and $_.RemoteAddress -ne "0.0.0.0" -and $_.RemoteAddress -ne "::" -and $_.RemoteAddress -ne "127.0.0.1" -and $_.RemoteAddress -ne "::1"}',
-      '$r=@()',
-      'foreach($c in $conns){$r+=@{pid=[int]$c.OwningProcess;ip=$c.RemoteAddress;port=[int]$c.RemotePort;state=$c.State.ToString()}}',
-      'if($r.Count -gt 0){$r|ConvertTo-Json -Compress}else{"[]"}',
-    ].join('\n');
-    execFile(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', psScript],
-      { timeout: 10000 },
-      (err, stdout) => {
-        if (err) {
-          resolve([]);
-          return;
-        }
-        try {
-          const raw = stdout.trim();
-          if (!raw || raw === '[]') {
-            resolve([]);
-            return;
-          }
-          let conns = JSON.parse(raw);
-          if (!Array.isArray(conns)) conns = [conns];
-          resolve(conns);
-        } catch (_) {
-          resolve([]);
-        }
-      },
-    );
-  });
+  return getRawTcpConnections(pids);
 }
 
 /**

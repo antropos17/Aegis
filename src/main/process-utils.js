@@ -10,85 +10,70 @@
  */
 'use strict';
 
-const { execFile } = require('child_process');
+const { getParentProcessMap } = require('./platform');
 
 const parentChainCache = new Map();
 const PARENT_CHAIN_TTL = 60000;
 
 /**
- * Resolve parent process chains for a list of PIDs via a single PowerShell call.
+ * Resolve parent process chains for a list of PIDs via platform adapter.
  * @param {number[]} pids
  * @returns {Promise<Map<number, string[]>>} pid to parent-name chain
  * @since v0.1.0
  */
-function getParentChains(pids) {
-  return new Promise((resolve) => {
-    if (pids.length === 0) {
-      resolve(new Map());
-      return;
-    }
-    const now = Date.now();
-    const needLookup = pids.filter((pid) => {
-      const cached = parentChainCache.get(pid);
-      return !cached || now - cached.timestamp > PARENT_CHAIN_TTL;
-    });
-    if (needLookup.length === 0) {
-      const result = new Map();
-      for (const pid of pids) {
-        const cached = parentChainCache.get(pid);
-        if (cached) result.set(pid, cached.chain);
-      }
-      resolve(result);
-      return;
-    }
-    const psScript = [
-      '$ErrorActionPreference="SilentlyContinue"',
-      '$procs=@{}',
-      'Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,Name|ForEach-Object{$procs[[int]$_.ProcessId]=@{n=$_.Name;p=[int]$_.ParentProcessId}}',
-      '$r=@{}',
-      `$pids=@(${needLookup.join(',')})`,
-      'foreach($pid in $pids){',
-      '  $chain=@()',
-      '  $cur=$pid',
-      '  $seen=@{}',
-      '  for($i=0;$i -lt 6;$i++){',
-      '    if(-not $procs.ContainsKey($cur)){break}',
-      '    $pp=$procs[$cur].p',
-      '    if($pp -le 0 -or $pp -eq $cur -or $seen.ContainsKey($pp)){break}',
-      '    $seen[$pp]=$true',
-      '    if($procs.ContainsKey($pp)){$chain+=$procs[$pp].n}else{break}',
-      '    $cur=$pp',
-      '  }',
-      '  $r["$pid"]=$chain',
-      '}',
-      '$r|ConvertTo-Json -Compress',
-    ].join('\n');
-    execFile(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', psScript],
-      { timeout: 8000 },
-      (err, stdout) => {
-        const result = new Map();
-        for (const pid of pids) {
-          const cached = parentChainCache.get(pid);
-          if (cached) result.set(pid, cached.chain);
-        }
-        if (!err && stdout.trim()) {
-          try {
-            const parsed = JSON.parse(stdout.trim());
-            for (const pid of needLookup) {
-              let chain = parsed[String(pid)];
-              if (typeof chain === 'string') chain = [chain];
-              if (!Array.isArray(chain)) chain = [];
-              parentChainCache.set(pid, { chain, timestamp: now });
-              result.set(pid, chain);
-            }
-          } catch (_) {}
-        }
-        resolve(result);
-      },
-    );
+async function getParentChains(pids) {
+  if (pids.length === 0) return new Map();
+
+  const now = Date.now();
+  const needLookup = pids.filter((pid) => {
+    const cached = parentChainCache.get(pid);
+    return !cached || now - cached.timestamp > PARENT_CHAIN_TTL;
   });
+
+  if (needLookup.length === 0) {
+    const result = new Map();
+    for (const pid of pids) {
+      const cached = parentChainCache.get(pid);
+      if (cached) result.set(pid, cached.chain);
+    }
+    return result;
+  }
+
+  const procMap = await getParentProcessMap();
+  const result = new Map();
+
+  // Populate cached entries first
+  for (const pid of pids) {
+    const cached = parentChainCache.get(pid);
+    if (cached && now - cached.timestamp <= PARENT_CHAIN_TTL) {
+      result.set(pid, cached.chain);
+    }
+  }
+
+  // Walk parent chains in JS for uncached PIDs
+  for (const pid of needLookup) {
+    const chain = [];
+    let cur = pid;
+    const seen = new Set();
+    for (let i = 0; i < 6; i++) {
+      const info = procMap.get(cur);
+      if (!info) break;
+      const pp = info.ppid;
+      if (pp <= 0 || pp === cur || seen.has(pp)) break;
+      seen.add(pp);
+      const parentInfo = procMap.get(pp);
+      if (parentInfo) {
+        chain.push(parentInfo.name);
+      } else {
+        break;
+      }
+      cur = pp;
+    }
+    parentChainCache.set(pid, { chain, timestamp: now });
+    result.set(pid, chain);
+  }
+
+  return result;
 }
 
 /**
