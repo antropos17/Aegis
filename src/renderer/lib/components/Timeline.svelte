@@ -59,6 +59,76 @@
   let scrollLeft = $state(0);
   let dragging = $state(false);
   let thumbHover = $state(false);
+  let following = $state(true);
+
+  // Load persisted zoom from settings
+  if (window.aegis) {
+    window.aegis.getSettings().then((s) => {
+      if (typeof s.timelineZoom === 'number' && s.timelineZoom >= 0 && s.timelineZoom < ZOOM_LEVELS.length) {
+        zoomIndex = s.timelineZoom;
+      }
+    });
+  }
+
+  // ═══ HISTORICAL AUDIT ENTRIES (lazy-loaded on scroll-back) ═══
+  let historicalEvents = $state([]);
+  let loadingHistory = $state(false);
+  let historyExhausted = $state(false);
+  let pendingScrollAdjust = $state(false);
+  let prevMinT = $state(0);
+  const HISTORY_BATCH = 25;
+
+  function auditToTimelineEvent(entry) {
+    const ts = new Date(entry.timestamp).getTime();
+    if (entry.type === 'network-connection') {
+      return {
+        agent: entry.agent,
+        timestamp: ts,
+        _type: 'network',
+        flagged: entry.severity === 'high',
+        _historical: true,
+      };
+    }
+    return {
+      agent: entry.agent,
+      timestamp: ts,
+      action: entry.action,
+      file: entry.path,
+      sensitive: entry.severity === 'sensitive',
+      _denied: entry.type === 'permission-deny',
+      _type: 'file',
+      _historical: true,
+    };
+  }
+
+  async function loadOlderHistory() {
+    if (loadingHistory || historyExhausted || !window.aegis?.getAuditEntriesBefore) return;
+    loadingHistory = true;
+    // Snapshot current timeline origin so we can compensate after load
+    prevMinT = minT;
+    try {
+      const oldest = historicalEvents.length > 0
+        ? new Date(historicalEvents[0].timestamp).toISOString()
+        : allLiveEvents.length > 0
+          ? new Date(allLiveEvents[0].timestamp).toISOString()
+          : new Date().toISOString();
+      const entries = await window.aegis.getAuditEntriesBefore(oldest, HISTORY_BATCH);
+      if (entries.length === 0) {
+        historyExhausted = true;
+      } else {
+        const mapped = entries
+          .filter((e) => ['file-access', 'config-access', 'network-connection', 'permission-deny'].includes(e.type))
+          .map(auditToTimelineEvent);
+        if (mapped.length === 0) {
+          historyExhausted = true;
+        } else {
+          pendingScrollAdjust = true;
+          historicalEvents = [...mapped, ...historicalEvents];
+        }
+      }
+    } catch (_) {}
+    loadingHistory = false;
+  }
 
   // Tooltip
   let tooltipVisible = $state(false);
@@ -66,7 +136,7 @@
   let tooltipFixedY = $state(0);
   let tooltipText = $state('');
 
-  let allEvents = $derived.by(() => {
+  let allLiveEvents = $derived.by(() => {
     const fileEvs = $events.flat().map((ev) => ({ ...ev, _type: 'file' }));
     const netEvs = $network.map((conn) => ({
       agent: conn.agent || 'Unknown',
@@ -75,8 +145,22 @@
       flagged: !!conn.flagged,
     }));
     return [...fileEvs, ...netEvs]
-      .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
-      .slice(-200);
+      .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  });
+
+  let allEvents = $derived.by(() => {
+    // Merge historical (from audit log) with live events, dedup by timestamp+agent
+    const seen = new Set();
+    const merged = [];
+    for (const ev of [...historicalEvents, ...allLiveEvents]) {
+      const key = `${ev.timestamp}|${ev.agent}|${ev._type}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(ev);
+      }
+    }
+    merged.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    return merged.slice(-500);
   });
 
   // Snap to nearest 10s boundary DOWN for a clean starting point
@@ -112,14 +196,31 @@
     if (scrollLeft > maxScroll) scrollLeft = maxScroll;
   });
 
-  // Auto-scroll to latest
-  let prevEventCount = $state(0);
+  // After history loads, shift scrollLeft to keep the viewport on the same time range
   $effect(() => {
-    const count = allEvents.length;
-    if (count > prevEventCount && scrollLeft >= maxScroll - 10) {
+    if (pendingScrollAdjust && prevMinT > 0 && minT < prevMinT) {
+      const shiftMs = prevMinT - minT;
+      const shiftPx = (shiftMs / displayRange) * (totalWidth - PAD * 2);
+      scrollLeft = clampedScroll + shiftPx;
+      pendingScrollAdjust = false;
+    }
+  });
+
+  // Load next batch when thumb is at the left edge
+  $effect(() => {
+    if (!following && !historyExhausted && !loadingHistory && thumbOffset >= 0 && thumbOffset <= 2) {
+      loadOlderHistory();
+    }
+  });
+
+  // Auto-scroll to latest when following
+  $effect(() => {
+    // Re-run whenever events change or maxScroll changes
+    void allEvents.length;
+    void maxScroll;
+    if (following) {
       scrollLeft = maxScroll;
     }
-    prevEventCount = count;
   });
 
   // Map timestamp → virtual x
@@ -166,14 +267,35 @@
   let trackWidth = $derived(viewportWidth - scrubPad);
   let thumbWidth = $derived(Math.min(120, Math.max(30, thumbRatio * trackWidth)));
   let trackUsable = $derived(trackWidth - thumbWidth);
-  let thumbX = $derived(maxScroll > 0 ? (clampedScroll / maxScroll) * trackUsable : 0);
+
+  // thumbOffset is the source of truth for thumb position (always draggable)
+  let thumbOffset = $state(-1); // -1 = uninitialized, will sync to right edge
+  // Sync thumbOffset from scrollLeft when there's scroll room and not dragging
+  $effect(() => {
+    if (!dragging) {
+      if (following) {
+        thumbOffset = trackUsable;
+      } else if (maxScroll > 0) {
+        thumbOffset = maxScroll > 0 ? (clampedScroll / maxScroll) * trackUsable : trackUsable;
+      }
+    }
+  });
+  let thumbX = $derived(thumbOffset < 0 ? trackUsable : Math.max(0, Math.min(trackUsable, thumbOffset)));
 
   function handleWheel(e) {
     e.preventDefault();
+    let changed = false;
     if (e.deltaY < 0 && zoomIndex < ZOOM_LEVELS.length - 1) {
       zoomIndex++;
+      changed = true;
     } else if (e.deltaY > 0 && zoomIndex > 0) {
       zoomIndex--;
+      changed = true;
+    }
+    if (changed && window.aegis) {
+      window.aegis.getSettings().then((s) => {
+        window.aegis.saveSettings({ ...s, timelineZoom: zoomIndex });
+      });
     }
   }
 
@@ -225,11 +347,14 @@
   let dragStartX = 0;
   let dragStartScroll = 0;
 
+  let dragStartThumbOffset = 0;
+
   function handleThumbDown(e) {
     e.preventDefault();
     dragging = true;
+    following = false;
     dragStartX = e.clientX;
-    dragStartScroll = clampedScroll;
+    dragStartThumbOffset = thumbX;
     window.addEventListener('mousemove', handleDragMove);
     window.addEventListener('mouseup', handleDragEnd);
   }
@@ -237,12 +362,21 @@
   function handleDragMove(e) {
     if (!dragging) return;
     const dx = e.clientX - dragStartX;
-    const scrollDelta = trackUsable > 0 ? (dx / trackUsable) * maxScroll : 0;
-    scrollLeft = Math.max(0, Math.min(maxScroll, dragStartScroll + scrollDelta));
+    thumbOffset = Math.max(0, Math.min(trackUsable, dragStartThumbOffset + dx));
+    // Drive scrollLeft from thumb position when there's scroll room
+    if (maxScroll > 0 && trackUsable > 0) {
+      scrollLeft = (thumbOffset / trackUsable) * maxScroll;
+    }
   }
 
   function handleDragEnd() {
     dragging = false;
+    // Re-enable following if thumb is at the right edge
+    if (thumbOffset >= trackUsable - 2) following = true;
+    // Trigger history load if thumb reached the left edge
+    if (thumbOffset <= 2 && !historyExhausted && !loadingHistory) {
+      loadOlderHistory();
+    }
     window.removeEventListener('mousemove', handleDragMove);
     window.removeEventListener('mouseup', handleDragEnd);
   }
@@ -250,9 +384,17 @@
   function handleTrackClick(e) {
     if (dragging) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const ratio = Math.max(0, Math.min(1, (clickX - thumbWidth / 2) / trackUsable));
-    scrollLeft = ratio * maxScroll;
+    const clickX = e.clientX - rect.left - scrubPad / 2;
+    const newOffset = Math.max(0, Math.min(trackUsable, clickX - thumbWidth / 2));
+    following = false;
+    thumbOffset = newOffset;
+    if (maxScroll > 0 && trackUsable > 0) {
+      scrollLeft = (thumbOffset / trackUsable) * maxScroll;
+    }
+    if (newOffset >= trackUsable - 2) following = true;
+    if (newOffset <= 2 && !historyExhausted && !loadingHistory) {
+      loadOlderHistory();
+    }
   }
 </script>
 

@@ -54,6 +54,9 @@ contextBridge.exposeInMainWorld('aegis', {
   onAnomalyScores: (cb) => {
     ipcRenderer.on('anomaly-scores', (_e, data) => cb(data));
   },
+  onToggleTheme: (cb) => {
+    ipcRenderer.on('toggle-theme', () => cb());
+  },
   getAgentDatabase: () => ipcRenderer.invoke('get-agent-database'),
   getProjectDir: () => ipcRenderer.invoke('get-project-dir'),
   killProcess: (pid) => ipcRenderer.invoke('kill-process', pid),
@@ -64,6 +67,8 @@ contextBridge.exposeInMainWorld('aegis', {
   exportAgentDatabase: () => ipcRenderer.invoke('export-agent-database'),
   importAgentDatabase: () => ipcRenderer.invoke('import-agent-database'),
   getAuditStats: () => ipcRenderer.invoke('get-audit-stats'),
+  getAuditEntriesBefore: (beforeTs, limit) =>
+    ipcRenderer.invoke('get-audit-entries-before', beforeTs, limit),
   openAuditLogDir: () => ipcRenderer.invoke('open-audit-log-dir'),
   exportFullAudit: () => ipcRenderer.invoke('export-full-audit'),
   getLogStats: () => ipcRenderer.invoke('get-log-stats'),

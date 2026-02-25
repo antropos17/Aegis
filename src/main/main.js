@@ -5,12 +5,13 @@
  * @since v0.1.0
  */
 'use strict';
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, globalShortcut } = require('electron');
 const path = require('path');
 
-app.name = 'AEGIS - AI Monitoring & Threat Detection | Analysis';
+app.name = 'Aegis';
 if (process.platform === 'darwin') {
-  app.setName('AEGIS - AI Monitoring & Threat Detection | Analysis');
+  app.setName('Aegis');
+  app.dock.setIcon(path.join(__dirname, '..', '..', 'assets', 'icon.png'));
 }
 const config = require('./config-manager');
 const baselines = require('./baselines');
@@ -87,7 +88,8 @@ function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    title: 'AEGIS - AI Monitoring & Threat Detection | Analysis',
+    title: 'Aegis',
+    icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
     backgroundColor: '#050507',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -341,6 +343,7 @@ tray.init({
     isQuitting = v;
   },
   appQuit: () => app.quit(),
+  getAgentCount: () => latestAgents.length,
 });
 ipc.init({
   getWindow: () => mainWindow,
@@ -383,6 +386,11 @@ app.whenReady().then(() => {
   tray.createTray();
   ipc.register();
   watcher.setupFileWatchers();
+  globalShortcut.register('CommandOrControl+Shift+T', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('toggle-theme');
+    }
+  });
   // Staggered startup: process 3s → files 5s → network 8s
   setTimeout(async () => {
     try {
@@ -422,6 +430,7 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+  globalShortcut.unregisterAll();
   logger.info('main', 'App quitting');
   audit.shutdown();
   baselines.finalizeSession();

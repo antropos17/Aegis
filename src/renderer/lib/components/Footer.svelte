@@ -114,10 +114,10 @@
     align-items: center;
     gap: var(--aegis-space-9);
     padding: var(--aegis-space-3) var(--aegis-space-9);
-    background: rgba(5, 5, 7, 0.8);
+    background: var(--aegis-footer-bg);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
-    border-top: var(--glass-border);
+    border-top: var(--aegis-footer-border);
   }
 
   .footer-version {
