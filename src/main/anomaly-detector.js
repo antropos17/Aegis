@@ -10,7 +10,6 @@
  */
 'use strict';
 
-const path = require('path');
 const bl = require('./baselines');
 
 const deviationWarningsSent = {};
