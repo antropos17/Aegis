@@ -19,7 +19,12 @@ const path = require('path');
 const { app } = require('electron');
 const { PERMISSION_CATEGORIES } = require('../shared/constants');
 
-const SETTINGS_PATH = path.join(app.getPath('userData'), 'settings.json');
+// ── Lazy path — resolved on first use (after app.whenReady) ──
+let _settingsPath = null;
+function settingsPath() {
+  if (!_settingsPath) _settingsPath = path.join(app.getPath('userData'), 'settings.json');
+  return _settingsPath;
+}
 
 const DEFAULT_SETTINGS = {
   scanIntervalSec: 10,
@@ -74,8 +79,8 @@ function buildCustomRules() {
  */
 function loadSettings() {
   try {
-    if (fs.existsSync(SETTINGS_PATH)) {
-      const raw = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'));
+    if (fs.existsSync(settingsPath())) {
+      const raw = JSON.parse(fs.readFileSync(settingsPath(), 'utf-8'));
       settings = { ...DEFAULT_SETTINGS, ...raw };
     }
   } catch (_) {
@@ -92,7 +97,7 @@ function loadSettings() {
  */
 function saveSettings(newSettings) {
   settings = { ...DEFAULT_SETTINGS, ...newSettings };
-  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+  fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
   buildCustomRules();
 }
 
@@ -143,7 +148,7 @@ function trackSeenAgent(agentName) {
       settings.agentPermissions[agentName] = getDefaultPermissions(agentName);
     }
     try {
-      fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+      fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
     } catch (_) {}
   }
 }
@@ -184,11 +189,11 @@ function getCustomAgents() {
 function saveCustomAgents(agents) {
   settings.customAgents = agents;
   try {
-    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+    fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
   } catch (_) {}
 }
 
-module.exports = {
+const _exports = {
   init,
   loadSettings,
   saveSettings,
@@ -200,5 +205,9 @@ module.exports = {
   getCustomSensitiveRules,
   getCustomAgents,
   saveCustomAgents,
-  SETTINGS_PATH,
 };
+
+// Lazy getter — keeps config.SETTINGS_PATH working for external callers
+Object.defineProperty(_exports, 'SETTINGS_PATH', { get: settingsPath, enumerable: true });
+
+module.exports = _exports;

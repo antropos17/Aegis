@@ -6,6 +6,10 @@ export default defineConfig({
   plugins: [svelte()],
   base: './',
   root: 'src/renderer',
+  server: {
+    port: 5174,
+    strictPort: true,
+  },
   build: {
     outDir: '../../dist/renderer',
     emptyOutDir: true,
