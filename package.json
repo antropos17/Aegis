@@ -4,11 +4,11 @@
   "description": "Independent AI agent oversight layer — monitors what AI agents do on your local machine",
   "main": "src/main/main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "npm run build:renderer && electron .",
     "dev": "vite",
     "build:renderer": "vite build",
-    "build": "electron-builder --win --publish never",
-    "dist": "electron-builder --win --publish never"
+    "build": "electron-builder --publish never",
+    "dist": "electron-builder --publish never"
   },
   "build": {
     "appId": "com.aegis.oversight",
@@ -17,6 +17,9 @@
     "win": {
       "target": "nsis",
       "icon": "assets/icon.png"
+    },
+    "mac": {
+      "target": "dmg"
     },
     "nsis": {
       "oneClick": true,
