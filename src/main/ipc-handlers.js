@@ -194,6 +194,9 @@ function register() {
 
   // ── Audit ──
   ipcMain.handle('get-audit-stats', () => audit.getStats());
+  ipcMain.handle('get-audit-entries-before', (_e, beforeTs, limit) =>
+    audit.getEntriesBefore(beforeTs, limit),
+  );
   ipcMain.handle('open-audit-log-dir', () => {
     shell.openPath(audit.getLogDir());
     return { success: true };

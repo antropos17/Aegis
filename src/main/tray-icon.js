@@ -113,6 +113,7 @@ function updateTrayIcon() {
   _state.tray.setToolTip(
     `AEGIS \u2014 ${labels[color]}${_state.isMonitoringPaused() ? ' [PAUSED]' : ''} | ${agentCount} agents | ${total} sensitive alerts`,
   );
+  rebuildTrayMenu();
 }
 
 /**
@@ -149,6 +150,10 @@ function rebuildTrayMenu() {
             mw.focus();
           }
         },
+      },
+      {
+        label: `${typeof _state.getAgentCount === 'function' ? _state.getAgentCount() : 0} active agents`,
+        enabled: false,
       },
       { type: 'separator' },
       {

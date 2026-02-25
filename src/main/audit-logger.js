@@ -212,4 +212,83 @@ function shutdown() {
   flush();
 }
 
-module.exports = { init, log, flush, shutdown, getStats, exportAll, getLogDir: () => _logDir };
+/**
+ * Return up to `limit` audit entries with timestamps strictly before `beforeTs`.
+ * Reads log files in reverse-chronological order for efficiency.
+ * @param {string} beforeTs - ISO timestamp upper bound (exclusive)
+ * @param {number} [limit=100] - Max entries to return
+ * @returns {Object[]} Entries sorted oldest-first
+ * @since v0.5.0
+ */
+/**
+ * Read lines from the end of a file without loading the whole thing.
+ * Reads in reverse chunks and yields complete lines newest-first.
+ * @param {string} filePath
+ * @param {function} onLine - Called with each line string (newest first). Return false to stop.
+ * @param {number} [chunkSize=4096]
+ */
+function readLinesReverse(filePath, onLine, chunkSize = 4096) {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const stat = fs.fstatSync(fd);
+    let pos = stat.size;
+    let trailing = '';
+    while (pos > 0) {
+      const readSize = Math.min(chunkSize, pos);
+      pos -= readSize;
+      const buf = Buffer.alloc(readSize);
+      fs.readSync(fd, buf, 0, readSize, pos);
+      const chunk = buf.toString('utf-8') + trailing;
+      const lines = chunk.split('\n');
+      // First element is a partial line (or empty) — carry it over
+      trailing = lines.shift();
+      // Process lines from end to start (newest first)
+      for (let i = lines.length - 1; i >= 0; i--) {
+        if (lines[i].trim()) {
+          if (onLine(lines[i]) === false) return;
+        }
+      }
+    }
+    // Handle the final remaining fragment
+    if (trailing.trim()) onLine(trailing);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function getEntriesBefore(beforeTs, limit = 100) {
+  flush();
+  if (!_logDir) return [];
+  const results = [];
+  try {
+    // Extract date from beforeTs to skip files that are entirely after the cursor
+    const beforeDate = beforeTs.slice(0, 10); // 'YYYY-MM-DD'
+    const files = fs
+      .readdirSync(_logDir)
+      .filter((f) => f.startsWith('aegis-audit-') && f.endsWith('.json'))
+      .sort()
+      .reverse();
+    for (const f of files) {
+      const match = f.match(/aegis-audit-(\d{4}-\d{2}-\d{2})\.json/);
+      if (!match) continue;
+      // Skip files for days strictly after the cursor date
+      if (match[1] > beforeDate) continue;
+      const fp = path.join(_logDir, f);
+      readLinesReverse(fp, (line) => {
+        try {
+          const entry = JSON.parse(line);
+          if (entry.timestamp && entry.timestamp < beforeTs) {
+            results.push(entry);
+            if (results.length >= limit) return false;
+          }
+        } catch (_) {}
+      });
+      if (results.length >= limit) break;
+    }
+  } catch (_) {}
+  // Return oldest-first
+  results.reverse();
+  return results;
+}
+
+module.exports = { init, log, flush, shutdown, getStats, exportAll, getEntriesBefore, getLogDir: () => _logDir };
