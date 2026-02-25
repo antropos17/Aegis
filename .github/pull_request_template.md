@@ -14,6 +14,5 @@ How was this tested?
 - [ ] Follows code style guidelines (CommonJS main, Svelte 5 renderer)
 - [ ] No console.log in production code
 - [ ] Files under 200 lines
-- [ ] memory-bank/progress.md updated
 - [ ] I have tested this locally with `npm start`
 - [ ] This code has been reviewed by a human (not solely AI-generated)

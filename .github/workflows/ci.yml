@@ -17,8 +17,6 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
   build-mac:
     runs-on: macos-latest
@@ -30,8 +28,6 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
   lint:
     runs-on: ubuntu-latest
