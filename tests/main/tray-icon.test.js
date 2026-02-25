@@ -105,7 +105,7 @@ describe('tray-icon', () => {
       const state = initTray({
         activityLog: Array.from({ length: 6 }, () => ({ sensitive: true })),
       });
-      state.tray = { setImage: vi.fn(), setToolTip: vi.fn() };
+      state.tray = { setImage: vi.fn(), setToolTip: vi.fn(), setContextMenu: vi.fn() };
       state.currentTrayColor = 'green';
       tray.updateTrayIcon();
       expect(state.currentTrayColor).toBe('red');
@@ -114,7 +114,7 @@ describe('tray-icon', () => {
 
     it('does not update image when color unchanged', () => {
       const state = initTray({ activityLog: [] });
-      state.tray = { setImage: vi.fn(), setToolTip: vi.fn() };
+      state.tray = { setImage: vi.fn(), setToolTip: vi.fn(), setContextMenu: vi.fn() };
       state.currentTrayColor = 'green';
       tray.updateTrayIcon();
       expect(state.tray.setImage).not.toHaveBeenCalled();
@@ -122,7 +122,7 @@ describe('tray-icon', () => {
 
     it('shows [PAUSED] in tooltip when monitoring is paused', () => {
       const state = initTray({ paused: true, activityLog: [] });
-      state.tray = { setImage: vi.fn(), setToolTip: vi.fn() };
+      state.tray = { setImage: vi.fn(), setToolTip: vi.fn(), setContextMenu: vi.fn() };
       tray.updateTrayIcon();
       const tooltip = state.tray.setToolTip.mock.calls[0][0];
       expect(tooltip).toContain('[PAUSED]');
@@ -132,7 +132,7 @@ describe('tray-icon', () => {
       const state = initTray({
         activityLog: [{ sensitive: true }, { sensitive: true }, { sensitive: false }],
       });
-      state.tray = { setImage: vi.fn(), setToolTip: vi.fn() };
+      state.tray = { setImage: vi.fn(), setToolTip: vi.fn(), setContextMenu: vi.fn() };
       tray.updateTrayIcon();
       const tooltip = state.tray.setToolTip.mock.calls[0][0];
       expect(tooltip).toContain('2 sensitive alerts');
@@ -142,7 +142,7 @@ describe('tray-icon', () => {
   describe('getTrayThreatColor (tested via updateTrayIcon)', () => {
     it('green for 0 sensitive events', () => {
       const state = initTray({ activityLog: [] });
-      state.tray = { setImage: vi.fn(), setToolTip: vi.fn() };
+      state.tray = { setImage: vi.fn(), setToolTip: vi.fn(), setContextMenu: vi.fn() };
       state.currentTrayColor = 'red';
       tray.updateTrayIcon();
       expect(state.currentTrayColor).toBe('green');
@@ -152,7 +152,7 @@ describe('tray-icon', () => {
       const state = initTray({
         activityLog: [{ sensitive: true }, { sensitive: true }, { sensitive: true }],
       });
-      state.tray = { setImage: vi.fn(), setToolTip: vi.fn() };
+      state.tray = { setImage: vi.fn(), setToolTip: vi.fn(), setContextMenu: vi.fn() };
       state.currentTrayColor = 'green';
       tray.updateTrayIcon();
       expect(state.currentTrayColor).toBe('yellow');
@@ -162,7 +162,7 @@ describe('tray-icon', () => {
       const state = initTray({
         activityLog: Array.from({ length: 10 }, () => ({ sensitive: true })),
       });
-      state.tray = { setImage: vi.fn(), setToolTip: vi.fn() };
+      state.tray = { setImage: vi.fn(), setToolTip: vi.fn(), setContextMenu: vi.fn() };
       state.currentTrayColor = 'green';
       tray.updateTrayIcon();
       expect(state.currentTrayColor).toBe('red');

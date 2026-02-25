@@ -90,9 +90,10 @@ describe('audit-logger', () => {
     auditLogger.log('test', { agent: 'C' });
 
     const stats = auditLogger.getStats();
-    expect(stats.todayEntries).toBe(3);
-    expect(stats.totalFiles).toBe(1);
-    expect(stats.logDir).toBe(path.join(tmpDir, 'audit-logs'));
+    expect(stats.totalEntries).toBe(3);
+    expect(stats.totalSize).toBeGreaterThan(0);
+    expect(stats.firstEntry).toBeDefined();
+    expect(stats.lastEntry).toBeDefined();
   });
 
   it('exportAll() reads all audit files', () => {
