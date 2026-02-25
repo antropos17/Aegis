@@ -7,8 +7,8 @@ on:
     branches: [master]
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  build:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,18 +16,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - run: npm run build
-
-  build-mac:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run build
+      - run: npm run build:renderer
 
   lint:
     runs-on: ubuntu-latest
@@ -41,4 +30,4 @@ jobs:
       - name: Check formatting
         run: npm run format:check
       - name: lint
-        run: npx eslint src/renderer --ext .svelte,.js --no-eslintrc --rule "no-unused-vars:1" --rule "no-console:1" || true
+        run: npm run lint

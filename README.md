@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)]()
 [![Electron](https://img.shields.io/badge/Electron-33-47848F?logo=electron&logoColor=white)](https://electronjs.org)
-[![Agents](https://img.shields.io/badge/Agents-95-4ECDC4)]()
+[![Agents](https://img.shields.io/badge/Agents-94-4ECDC4)]()
 [![Download](https://img.shields.io/github/downloads/antropos17/Aegis/total?style=flat-square&label=downloads&color=4a9eff)](https://github.com/antropos17/Aegis/releases/latest)
 [![CI](https://github.com/antropos17/Aegis/actions/workflows/ci.yml/badge.svg)](https://github.com/antropos17/Aegis/actions/workflows/ci.yml)
 
@@ -41,7 +41,7 @@ No Node.js required. Download, install, run.
 
 ## What It Monitors
 
-- **Processes** — Detects 95+ AI agents by matching running processes against known signatures. Resolves parent-child process trees to identify agents inside editors (e.g., Copilot in VS Code).
+- **Processes** — Detects 94+ AI agents by matching running processes against known signatures. Resolves parent-child process trees to identify agents inside editors (e.g., Copilot in VS Code).
 - **Files** — Watches sensitive directories (`.ssh`, `.aws`, `.gnupg`, `.env*`, cloud configs) and 27 AI agent config directories. Classifies access against 70+ sensitive file patterns.
 - **Network** — Scans outbound TCP connections per agent PID. Reverse DNS with domain classification — known API endpoints vs. unknown/suspicious destinations.
 - **Behavior** — Rolling 10-session baselines per agent. Anomaly scoring (0-100) with weighted factors: file volume spikes, sensitive file escalation, new network endpoints, unusual timing.
@@ -49,7 +49,7 @@ No Node.js required. Download, install, run.
 ## Features
 
 **Detection**
-- 95 known agent signatures + wildcard matching for unknown agents
+- 94 known agent signatures + wildcard matching for unknown agents
 - Parent chain resolution with IDE host annotation
 - AI agent config directory protection (Hudson Rock threat vector)
 - Per-agent risk scoring with time decay and trust grades (A+ through F)
@@ -105,7 +105,7 @@ All data flows to the renderer dashboard via Electron IPC. AI analysis calls the
 
 ## Agent Database
 
-95 agents in `src/shared/agent-database.json`, organized by category:
+94 agents in `src/shared/agent-database.json`, organized by category:
 
 - **Coding assistants** — Claude Code, GitHub Copilot, Cursor, Windsurf, Tabnine, Amazon Q, Cody, Aider
 - **Autonomous agents** — Devin, Manus AI, OpenHands, SWE-Agent, AutoGPT, BabyAGI, CrewAI

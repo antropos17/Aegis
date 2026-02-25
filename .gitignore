@@ -16,6 +16,10 @@ screenshot_test.png
 screenshot_electron.png
 *.exe
 
+.agent/
+.env.local
+.env.*.local
+
 # Internal dev files — not for public repo
 CLAUDE.md
 _env

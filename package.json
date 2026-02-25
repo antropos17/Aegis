@@ -10,7 +10,8 @@
     "build": "electron-builder --publish never",
     "dist": "electron-builder --publish never",
     "format": "prettier --write 'src/**/*.{js,svelte,css,html}' '*.{js,json}'",
-    "format:check": "prettier --check 'src/**/*.{js,svelte,css,html}' '*.{js,json}'"
+    "format:check": "prettier --check 'src/**/*.{js,svelte,css,html}' '*.{js,json}'",
+    "lint": "npx eslint src/ --ext .js,.svelte --max-warnings 0 || true"
   },
   "build": {
     "appId": "com.aegis.oversight",
