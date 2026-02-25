@@ -59,6 +59,16 @@
   let scrollLeft = $state(0);
   let dragging = $state(false);
   let thumbHover = $state(false);
+  let following = $state(true);
+
+  // Load persisted zoom from settings
+  if (window.aegis) {
+    window.aegis.getSettings().then((s) => {
+      if (typeof s.timelineZoom === 'number' && s.timelineZoom >= 0 && s.timelineZoom < ZOOM_LEVELS.length) {
+        zoomIndex = s.timelineZoom;
+      }
+    });
+  }
 
   // Tooltip
   let tooltipVisible = $state(false);
@@ -112,14 +122,14 @@
     if (scrollLeft > maxScroll) scrollLeft = maxScroll;
   });
 
-  // Auto-scroll to latest
-  let prevEventCount = $state(0);
+  // Auto-scroll to latest when following
   $effect(() => {
-    const count = allEvents.length;
-    if (count > prevEventCount && scrollLeft >= maxScroll - 10) {
+    // Re-run whenever events change or maxScroll changes
+    void allEvents.length;
+    void maxScroll;
+    if (following) {
       scrollLeft = maxScroll;
     }
-    prevEventCount = count;
   });
 
   // Map timestamp → virtual x
@@ -166,14 +176,22 @@
   let trackWidth = $derived(viewportWidth - scrubPad);
   let thumbWidth = $derived(Math.min(120, Math.max(30, thumbRatio * trackWidth)));
   let trackUsable = $derived(trackWidth - thumbWidth);
-  let thumbX = $derived(maxScroll > 0 ? (clampedScroll / maxScroll) * trackUsable : 0);
+  let thumbX = $derived(maxScroll > 0 ? (clampedScroll / maxScroll) * trackUsable : trackUsable);
 
   function handleWheel(e) {
     e.preventDefault();
+    let changed = false;
     if (e.deltaY < 0 && zoomIndex < ZOOM_LEVELS.length - 1) {
       zoomIndex++;
+      changed = true;
     } else if (e.deltaY > 0 && zoomIndex > 0) {
       zoomIndex--;
+      changed = true;
+    }
+    if (changed && window.aegis) {
+      window.aegis.getSettings().then((s) => {
+        window.aegis.saveSettings({ ...s, timelineZoom: zoomIndex });
+      });
     }
   }
 
@@ -239,10 +257,12 @@
     const dx = e.clientX - dragStartX;
     const scrollDelta = trackUsable > 0 ? (dx / trackUsable) * maxScroll : 0;
     scrollLeft = Math.max(0, Math.min(maxScroll, dragStartScroll + scrollDelta));
+    following = scrollLeft >= maxScroll - 2;
   }
 
   function handleDragEnd() {
     dragging = false;
+    following = maxScroll <= 0 || scrollLeft >= maxScroll - 2;
     window.removeEventListener('mousemove', handleDragMove);
     window.removeEventListener('mouseup', handleDragEnd);
   }
@@ -253,6 +273,7 @@
     const clickX = e.clientX - rect.left;
     const ratio = Math.max(0, Math.min(1, (clickX - thumbWidth / 2) / trackUsable));
     scrollLeft = ratio * maxScroll;
+    following = scrollLeft >= maxScroll - 2;
   }
 </script>
 

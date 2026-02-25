@@ -38,6 +38,10 @@
   --aegis-scrub-thumb-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   --aegis-scrub-grip: rgba(255, 255, 255, 0.25);
 
+  /* ── Footer ── */
+  --aegis-footer-bg: rgba(5, 5, 7, 0.85);
+  --aegis-footer-border: 1px solid rgba(255, 255, 255, 0.08);
+
   /* ── Glass tokens ── */
   --glass-blur: 20px;
   --glass-border: 1px solid rgba(255, 255, 255, 0.08);
@@ -158,6 +162,9 @@
   --aegis-scrub-grip: rgba(0, 0, 0, 0.2);
 
   --glass-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
+
+  --aegis-footer-bg: rgba(240, 240, 242, 0.9);
+  --aegis-footer-border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 /* ── Dark High Contrast ── */
@@ -197,6 +204,9 @@
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
   --glass-shadow-card: 0 1px 4px rgba(0, 0, 0, 0.3);
   --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+
+  --aegis-footer-bg: rgba(0, 0, 0, 0.92);
+  --aegis-footer-border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 /* ── Light High Contrast ── */
@@ -236,4 +246,7 @@
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   --glass-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.1);
   --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+
+  --aegis-footer-bg: rgba(255, 255, 255, 0.92);
+  --aegis-footer-border: 1px solid rgba(0, 0, 0, 0.15);
 }

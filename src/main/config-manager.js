@@ -38,6 +38,7 @@ const DEFAULT_SETTINGS = {
   anthropicApiKey: '',
   darkMode: false,
   uiScale: 1,
+  timelineZoom: 6,
   agentPermissions: {},
   seenAgents: [],
   customAgents: [],

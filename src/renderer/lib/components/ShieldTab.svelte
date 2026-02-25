@@ -29,7 +29,7 @@
 <style>
   .shield-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) var(--aegis-size-panel-col);
+    grid-template-columns: var(--aegis-size-panel-col) minmax(0, 1fr) var(--aegis-size-panel-col);
     grid-template-rows: auto auto 1fr;
     gap: var(--aegis-space-8);
     height: 100%;
@@ -38,7 +38,7 @@
   }
 
   .radar-area {
-    grid-column: 1;
+    grid-column: 2;
     grid-row: 1;
     max-height: 380px;
     overflow: hidden;
@@ -48,7 +48,7 @@
   }
 
   .agents-area {
-    grid-column: 2;
+    grid-column: 3;
     grid-row: 1;
     overflow-y: auto;
     min-height: 0;
@@ -77,6 +77,10 @@
     .shield-layout {
       grid-template-columns: 1fr;
       grid-template-rows: 380px auto auto 1fr;
+    }
+
+    .radar-area {
+      grid-column: 1;
     }
 
     .agents-area {

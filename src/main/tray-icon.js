@@ -109,8 +109,9 @@ function updateTrayIcon() {
     _state.tray.setImage(createTrayIconImage(color));
   }
   const labels = { green: 'Clear', yellow: 'Elevated', red: 'Critical' };
+  const agentCount = typeof _state.getAgentCount === 'function' ? _state.getAgentCount() : 0;
   _state.tray.setToolTip(
-    `AEGIS \u2014 ${labels[color]}${_state.isMonitoringPaused() ? ' [PAUSED]' : ''} | ${total} sensitive alerts`,
+    `AEGIS \u2014 ${labels[color]}${_state.isMonitoringPaused() ? ' [PAUSED]' : ''} | ${agentCount} agents | ${total} sensitive alerts`,
   );
 }
 
@@ -181,7 +182,7 @@ function rebuildTrayMenu() {
  */
 function createTray() {
   const tray = new Tray(createTrayIconImage('green'));
-  tray.setToolTip('AEGIS \u2014 Clear | 0 sensitive alerts');
+  tray.setToolTip('AEGIS \u2014 Clear | 0 agents | 0 sensitive alerts');
   _state.tray = tray;
   rebuildTrayMenu();
   tray.on('double-click', () => {

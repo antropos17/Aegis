@@ -125,32 +125,50 @@ function cleanOldLogs() {
 
 /**
  * Get audit log statistics.
- * @returns {{logDir: string, todayEntries: number, totalFiles: number, recordingSince: string}}
+ * @returns {{totalEntries: number, totalSize: number, currentSize: number, firstEntry: string, lastEntry: string}}
  * @since v0.2.0
  */
 function getStats() {
-  if (!_logDir) return { logDir: '', todayEntries: 0, totalFiles: 0, recordingSince: '' };
-  let todayEntries = 0;
-  let totalFiles = 0;
-  let recordingSince = '';
+  if (!_logDir)
+    return { totalEntries: 0, totalSize: 0, currentSize: 0, firstEntry: null, lastEntry: null };
+  let totalEntries = 0;
+  let totalSize = 0;
+  let currentSize = 0;
+  let firstEntry = null;
+  let lastEntry = null;
   try {
     const files = fs
       .readdirSync(_logDir)
       .filter((f) => f.startsWith('aegis-audit-') && f.endsWith('.json'))
       .sort();
-    totalFiles = files.length;
-    if (files.length > 0) {
-      const firstMatch = files[0].match(/aegis-audit-(\d{4}-\d{2}-\d{2})\.json/);
-      if (firstMatch) recordingSince = firstMatch[1];
-    }
     const todayPath = getTodayLogPath();
-    if (fs.existsSync(todayPath)) {
-      const content = fs.readFileSync(todayPath, 'utf-8');
-      todayEntries = content.split('\n').filter((l) => l.trim().length > 0).length;
+    for (const f of files) {
+      const fp = path.join(_logDir, f);
+      const stat = fs.statSync(fp);
+      totalSize += stat.size;
+      if (fp === todayPath) currentSize = stat.size;
+      const content = fs.readFileSync(fp, 'utf-8');
+      const lines = content.split('\n').filter((l) => l.trim().length > 0);
+      totalEntries += lines.length;
+      for (const line of lines) {
+        try {
+          const entry = JSON.parse(line);
+          if (entry.timestamp) {
+            if (!firstEntry || entry.timestamp < firstEntry) firstEntry = entry.timestamp;
+            if (!lastEntry || entry.timestamp > lastEntry) lastEntry = entry.timestamp;
+          }
+        } catch (_) {}
+      }
     }
   } catch (_) {}
-  todayEntries += _buffer.length;
-  return { logDir: _logDir, todayEntries, totalFiles, recordingSince };
+  totalEntries += _buffer.length;
+  for (const entry of _buffer) {
+    if (entry.timestamp) {
+      if (!firstEntry || entry.timestamp < firstEntry) firstEntry = entry.timestamp;
+      if (!lastEntry || entry.timestamp > lastEntry) lastEntry = entry.timestamp;
+    }
+  }
+  return { totalEntries, totalSize, currentSize, firstEntry, lastEntry };
 }
 
 /**

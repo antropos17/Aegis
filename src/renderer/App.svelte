@@ -6,12 +6,18 @@
   import ActivityTab from './lib/components/ActivityTab.svelte';
   import RulesTab from './lib/components/RulesTab.svelte';
   import ReportsTab from './lib/components/ReportsTab.svelte';
-  import { theme, uiScale } from './lib/stores/theme.js';
+  import { theme, uiScale, toggleTheme } from './lib/stores/theme.js';
 
   let activeTab = $state('shield');
 
   $effect(() => {
     document.documentElement.dataset.theme = $theme;
+  });
+
+  $effect(() => {
+    if (window.aegis?.onToggleTheme) {
+      window.aegis.onToggleTheme(() => toggleTheme());
+    }
   });
 
   $effect(() => {
