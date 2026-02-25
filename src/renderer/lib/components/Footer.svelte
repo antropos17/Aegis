@@ -112,8 +112,8 @@
     z-index: 100;
     display: flex;
     align-items: center;
-    gap: 20px;
-    padding: 6px 20px;
+    gap: var(--aegis-space-9);
+    padding: var(--aegis-space-3) var(--aegis-space-9);
     background: rgba(5, 5, 7, 0.8);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
@@ -129,14 +129,14 @@
   .footer-stats {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: var(--aegis-space-8);
     margin-left: auto;
   }
 
   .footer-item {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: var(--aegis-space-3);
   }
 
   .footer-label {

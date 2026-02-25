@@ -10,7 +10,9 @@
  */
 'use strict';
 
-const { getParentProcessMap } = require('./platform');
+const path = require('path');
+const { getParentProcessMap, getProcessCwd } = require('./platform');
+const { EDITORS } = require('../shared/constants');
 
 const parentChainCache = new Map();
 const PARENT_CHAIN_TTL = 60000;
@@ -25,6 +27,12 @@ async function getParentChains(pids) {
   if (pids.length === 0) return new Map();
 
   const now = Date.now();
+  // Prune stale entries when cache grows too large
+  if (parentChainCache.size > 500) {
+    for (const [key, entry] of parentChainCache) {
+      if (now - entry.timestamp > PARENT_CHAIN_TTL) parentChainCache.delete(key);
+    }
+  }
   const needLookup = pids.filter((pid) => {
     const cached = parentChainCache.get(pid);
     return !cached || now - cached.timestamp > PARENT_CHAIN_TTL;
@@ -91,30 +99,10 @@ async function enrichWithParentChains(agents) {
   }
 }
 
-/** Map editor host exe names to human-readable labels */
-const EDITOR_LABELS = {
-  'code.exe': 'VS Code',
-  code: 'VS Code',
-  'code - insiders.exe': 'VS Code Insiders',
-  'idea64.exe': 'IntelliJ IDEA',
-  idea: 'IntelliJ IDEA',
-  'webstorm64.exe': 'WebStorm',
-  webstorm: 'WebStorm',
-  'pycharm64.exe': 'PyCharm',
-  pycharm: 'PyCharm',
-  'goland64.exe': 'GoLand',
-  goland: 'GoLand',
-  'rider64.exe': 'Rider',
-  rider: 'Rider',
-  'phpstorm64.exe': 'PhpStorm',
-  phpstorm: 'PhpStorm',
-  'rubymine64.exe': 'RubyMine',
-  rubymine: 'RubyMine',
-  'clion64.exe': 'CLion',
-  clion: 'CLion',
-  'datagrip64.exe': 'DataGrip',
-  datagrip: 'DataGrip',
-};
+/** Map editor host exe names (lowercase) to human-readable labels, derived from EDITORS */
+const EDITOR_LABELS = Object.fromEntries(
+  EDITORS.flatMap((e) => e.names.map((n) => [n.toLowerCase(), e.label])),
+);
 
 /**
  * Annotate agents whose parentChain includes an editor host.
@@ -137,4 +125,45 @@ function annotateHostApps(agents) {
   }
 }
 
-module.exports = { getParentChains, enrichWithParentChains, annotateHostApps };
+const cwdCache = new Map();
+const CWD_CACHE_TTL = 60000;
+
+/**
+ * Annotate agents with their working directories.
+ * Sets `agent.cwd` (full path) and `agent.projectName` (basename).
+ * @param {Array} agents
+ * @returns {Promise<void>}
+ * @since v0.5.0
+ */
+async function annotateWorkingDirs(agents) {
+  if (agents.length === 0) return;
+
+  const now = Date.now();
+  // Prune stale entries
+  if (cwdCache.size > 500) {
+    for (const [key, entry] of cwdCache) {
+      if (now - entry.timestamp > CWD_CACHE_TTL) cwdCache.delete(key);
+    }
+  }
+
+  const results = await Promise.all(
+    agents.map(async (a) => {
+      const cached = cwdCache.get(a.pid);
+      if (cached && now - cached.timestamp <= CWD_CACHE_TTL) {
+        return { pid: a.pid, cwd: cached.cwd };
+      }
+      const cwd = await getProcessCwd(a.pid);
+      cwdCache.set(a.pid, { cwd, timestamp: now });
+      return { pid: a.pid, cwd };
+    }),
+  );
+
+  const cwdMap = new Map(results.map((r) => [r.pid, r.cwd]));
+  for (const a of agents) {
+    const cwd = cwdMap.get(a.pid) || null;
+    a.cwd = cwd;
+    a.projectName = cwd ? path.basename(cwd) : null;
+  }
+}
+
+module.exports = { getParentChains, enrichWithParentChains, annotateHostApps, annotateWorkingDirs };

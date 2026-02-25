@@ -2,32 +2,18 @@
   import { enrichedAgents } from '../stores/risk.js';
   import AgentCard from './AgentCard.svelte';
 
-  let grouped = $derived.by(() => {
-    const map = new Map();
-    for (const a of $enrichedAgents) {
-      if (!map.has(a.name)) {
-        map.set(a.name, { ...a, pids: [] });
-      }
-      const g = map.get(a.name);
-      g.pids.push({ pid: a.pid, process: a.process });
-      if (a.riskScore > g.riskScore) {
-        g.riskScore = a.riskScore;
-        g.trustGrade = a.trustGrade;
-      }
-    }
-    return [...map.values()];
-  });
+  let expandedPid = $state(null);
 </script>
 
 <section class="agent-panel">
-  {#if grouped.length === 0}
+  {#if $enrichedAgents.length === 0}
     <div class="empty-state">
       <span>No AI agents detected</span>
     </div>
   {:else}
     <div class="agent-list">
-      {#each grouped as agent (agent.name)}
-        <AgentCard {agent} />
+      {#each $enrichedAgents as agent (agent.pid)}
+        <AgentCard {agent} bind:expandedPid />
       {/each}
     </div>
   {/if}
@@ -37,14 +23,14 @@
   .agent-panel {
     height: 100%;
     overflow-y: auto;
-    padding: 4px;
-    min-width: 280px;
+    padding: var(--aegis-space-2) var(--aegis-space-6) var(--aegis-space-2) var(--aegis-space-2);
+    min-width: var(--aegis-size-panel-min);
   }
 
   .agent-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--aegis-space-4);
   }
 
   .empty-state {

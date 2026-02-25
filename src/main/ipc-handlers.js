@@ -4,7 +4,7 @@
  * @since v0.1.0
  */
 'use strict';
-const { ipcMain, app, dialog, shell } = require('electron');
+const { ipcMain, app, dialog, shell, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const config = require('./config-manager');
@@ -14,6 +14,7 @@ const baselines = require('./baselines');
 const analysis = require('./ai-analysis');
 const exporter = require('./exports');
 const audit = require('./audit-logger');
+const logger = require('./logger');
 const { killProcess, suspendProcess, resumeProcess } = require('./platform');
 
 let deps = {};
@@ -32,6 +33,7 @@ function register() {
     const result = await scanner.scanProcesses();
     await procUtil.enrichWithParentChains(result.agents);
     procUtil.annotateHostApps(result.agents);
+    await procUtil.annotateWorkingDirs(result.agents);
     return result.agents;
   });
 
@@ -49,6 +51,15 @@ function register() {
   });
 
   ipcMain.on('other-panel-expanded', (_e, val) => deps.setOtherPanelExpanded(val));
+
+  ipcMain.handle('test-notification', () => {
+    if (!Notification.isSupported()) return { success: false, error: 'Notifications not supported on this system' };
+    new Notification({
+      title: 'AEGIS \u2014 Test Notification',
+      body: 'Desktop notifications are working correctly.',
+    }).show();
+    return { success: true };
+  });
 
   ipcMain.handle('analyze-agent', async (_e, name) => {
     if (!config.getSettings().anthropicApiKey) {
@@ -97,16 +108,35 @@ function register() {
 
   ipcMain.handle('get-all-permissions', () => {
     const settings = config.getSettings();
-    return { permissions: settings.agentPermissions, seenAgents: settings.seenAgents };
+    const agentPerms = {};
+    const instancePerms = {};
+    for (const [key, val] of Object.entries(settings.agentPermissions)) {
+      if (key.includes('::')) {
+        instancePerms[key] = val;
+      } else {
+        agentPerms[key] = val;
+      }
+    }
+    return {
+      permissions: agentPerms,
+      instancePermissions: instancePerms,
+      seenAgents: settings.seenAgents,
+    };
   });
 
   ipcMain.handle('get-agent-permissions', (_e, name) => config.getAgentPermissions(name));
 
   ipcMain.handle('save-agent-permissions', (_e, permMap) => {
-    config.getSettings().agentPermissions = permMap;
-    try {
-      fs.writeFileSync(config.SETTINGS_PATH, JSON.stringify(config.getSettings(), null, 2));
-    } catch (_) {}
+    config.saveSettings({ ...config.getSettings(), agentPermissions: permMap });
+    return { success: true };
+  });
+
+  ipcMain.handle('get-instance-permissions', (_e, agentName, parentEditor, cwd) =>
+    config.getInstancePermissions(agentName, parentEditor, cwd),
+  );
+
+  ipcMain.handle('save-instance-permissions', (_e, { agentName, parentEditor, permissions, cwd }) => {
+    config.saveInstancePermissions(agentName, parentEditor, permissions, cwd);
     return { success: true };
   });
 
@@ -114,10 +144,7 @@ function register() {
     const settings = config.getSettings();
     const newPerms = {};
     for (const agent of settings.seenAgents) newPerms[agent] = config.getDefaultPermissions(agent);
-    settings.agentPermissions = newPerms;
-    try {
-      fs.writeFileSync(config.SETTINGS_PATH, JSON.stringify(settings, null, 2));
-    } catch (_) {}
+    config.saveSettings({ ...settings, agentPermissions: newPerms });
     return { permissions: newPerms, seenAgents: settings.seenAgents };
   });
 
@@ -177,6 +204,26 @@ function register() {
     const defaultName = `aegis-full-audit-${new Date().toISOString().slice(0, 10)}.json`;
     const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
       title: 'Export Full Audit Log',
+      defaultPath: defaultName,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (!filePath) return { success: false };
+    fs.writeFileSync(filePath, JSON.stringify(all, null, 2));
+    return { success: true, path: filePath, count: all.length };
+  });
+
+  // ── Operational logs ──
+  ipcMain.handle('get-log-stats', () => logger.getStats());
+  ipcMain.handle('open-log-dir', () => {
+    shell.openPath(logger.getLogDir());
+    return { success: true };
+  });
+
+  ipcMain.handle('export-full-log', async () => {
+    const all = logger.exportAll();
+    const defaultName = `aegis-full-log-${new Date().toISOString().slice(0, 10)}.json`;
+    const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
+      title: 'Export Full Operational Log',
       defaultPath: defaultName,
       filters: [{ name: 'JSON', extensions: ['json'] }],
     });

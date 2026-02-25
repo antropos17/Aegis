@@ -68,7 +68,7 @@
   .audit-section {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--aegis-space-6);
   }
 
   .section-title {
@@ -85,32 +85,32 @@
   .audit-cards {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
+    gap: var(--aegis-space-5);
   }
 
   .audit-card {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
-    padding: 14px 12px;
+    gap: var(--aegis-space-2);
+    padding: var(--aegis-space-7) var(--aegis-space-6);
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: var(--glass-border);
-    box-shadow: var(--glass-shadow), var(--glass-highlight);
+    box-shadow: var(--glass-shadow-card), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
   }
 
   .audit-value {
     font-family: 'DM Mono', monospace;
-    font-size: 24px;
+    font-size: calc(24px * var(--aegis-ui-scale));
     font-weight: 700;
     color: var(--md-sys-color-on-surface);
   }
 
   .audit-label {
-    font-size: 9px;
+    font-size: calc(9px * var(--aegis-ui-scale));
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -119,14 +119,14 @@
 
   .audit-actions {
     display: flex;
-    gap: 10px;
+    gap: var(--aegis-space-5);
     flex-wrap: wrap;
   }
 
   .audit-btn {
     font: var(--md-sys-typescale-label-medium);
     font-weight: 600;
-    padding: 6px 14px;
+    padding: var(--aegis-space-3) var(--aegis-space-7);
     background: transparent;
     border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-full);

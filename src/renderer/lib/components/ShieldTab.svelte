@@ -29,11 +29,11 @@
 <style>
   .shield-layout {
     display: grid;
-    grid-template-columns: 1fr 320px;
-    grid-template-rows: auto 32px 1fr;
-    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) var(--aegis-size-panel-col);
+    grid-template-rows: auto auto 1fr;
+    gap: var(--aegis-space-8);
     height: 100%;
-    padding: 10px;
+    padding: var(--aegis-space-5);
     overflow: hidden;
   }
 
@@ -52,11 +52,14 @@
     grid-row: 1;
     overflow-y: auto;
     min-height: 0;
+    max-height: 380px;
   }
 
   .timeline-area {
     grid-column: 1 / -1;
     grid-row: 2;
+    min-width: 0;
+    padding: var(--aegis-space-1) var(--aegis-space-3);
   }
 
   .feed-area {
@@ -66,13 +69,14 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--aegis-space-7);
+    padding: var(--aegis-space-1) var(--aegis-space-3);
   }
 
   @media (max-width: 960px) {
     .shield-layout {
       grid-template-columns: 1fr;
-      grid-template-rows: 380px auto 32px 1fr;
+      grid-template-rows: 380px auto auto 1fr;
     }
 
     .agents-area {

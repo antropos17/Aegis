@@ -81,9 +81,21 @@ cd Aegis
 npm install && npm start
 ```
 
-Requires Node.js 18+ and Windows 10/11. Mac/Linux support is planned.
+Requires Node.js 18+ and Windows 10/11. Mac and Linux are supported experimentally.
 
 Optionally set your Anthropic API key in Settings for AI-powered threat analysis.
+
+### macOS Notifications
+
+Desktop notifications (sensitive file access alerts) require notification permissions in macOS:
+
+1. Open **System Settings > Notifications**
+2. Find **AEGIS** in the app list (may appear as "Electron" during development)
+3. Enable **Allow Notifications** and set the alert style to **Banners** or **Alerts**
+
+If AEGIS doesn't appear in the list, click the **Test** button in Settings > Monitoring to trigger the first notification attempt, then check Notifications settings again. macOS registers apps for notifications on first use.
+
+When running a packaged build (via `npm run build`), the app registers under its full name. In development mode (`npm start` or `electron .`), it may register as "Electron" depending on your macOS version.
 
 ## How It Works
 

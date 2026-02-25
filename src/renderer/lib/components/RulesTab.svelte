@@ -89,14 +89,14 @@
   .rules-tab {
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    padding: 20px;
+    gap: var(--aegis-space-9);
+    padding: var(--aegis-space-9);
   }
 
   .sub-toggle {
     display: flex;
-    gap: 4px;
-    padding: 3px;
+    gap: var(--aegis-space-2);
+    padding: calc(3px * var(--aegis-ui-scale));
     align-self: flex-start;
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
@@ -108,7 +108,7 @@
   .sub-btn {
     font: var(--md-sys-typescale-label-medium);
     font-weight: 600;
-    padding: 6px 16px;
+    padding: var(--aegis-space-3) var(--aegis-space-8);
     border: none;
     border-radius: var(--md-sys-shape-corner-full);
     background: transparent;
@@ -131,12 +131,12 @@
   .rules-section {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: var(--aegis-space-5);
   }
   .section-separator {
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
-    margin: 10px 0;
+    margin: var(--aegis-space-5) 0;
   }
   .section-header {
     display: flex;
@@ -153,7 +153,7 @@
   .reset-btn {
     font: var(--md-sys-typescale-label-medium);
     font-weight: 600;
-    padding: 6px 14px;
+    padding: var(--aegis-space-3) var(--aegis-space-7);
     background: transparent;
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--md-sys-shape-corner-full);

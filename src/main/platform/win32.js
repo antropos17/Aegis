@@ -83,11 +83,12 @@ function getParentProcessMap() {
  */
 function getRawTcpConnections(pids) {
   return new Promise((resolve) => {
-    if (pids.length === 0) {
+    const validPids = pids.filter((p) => Number.isInteger(p) && p > 0);
+    if (validPids.length === 0) {
       resolve([]);
       return;
     }
-    const pidStr = pids.join(',');
+    const pidStr = validPids.join(',');
     const psScript = [
       '$ErrorActionPreference="SilentlyContinue"',
       `$pids=@(${pidStr})`,
@@ -128,6 +129,8 @@ function getRawTcpConnections(pids) {
  * @returns {Promise<string[]>}
  */
 function getFileHandles(pid) {
+  pid = Number(pid);
+  if (!Number.isInteger(pid) || pid <= 0) return Promise.resolve([]);
   return new Promise((resolve) => {
     const psScript = [
       '$ErrorActionPreference="SilentlyContinue"',
@@ -229,11 +232,40 @@ function resumeProcess(pid) {
   });
 }
 
+/**
+ * Get the working directory of a process via PowerShell.
+ * Windows has limited support for this — gracefully returns null on failure.
+ * @param {number} pid
+ * @returns {Promise<string|null>}
+ * @since v0.5.0
+ */
+function getProcessCwd(pid) {
+  pid = Number(pid);
+  if (!Number.isInteger(pid) || pid <= 0) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const psScript = `$ErrorActionPreference="SilentlyContinue";$p=Get-CimInstance Win32_Process -Filter "ProcessId=${pid}";if($p -and $p.CommandLine){$m=$p.CommandLine -match '(?:--cwd|--project)\\s+"?([^"]+)"?';if($m){$Matches[1]}else{""}}else{""}`;
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', psScript],
+      { timeout: 5000 },
+      (err, stdout) => {
+        if (err) {
+          resolve(null);
+          return;
+        }
+        const result = stdout.trim();
+        resolve(result || null);
+      },
+    );
+  });
+}
+
 module.exports = {
   listProcesses,
   getParentProcessMap,
   getRawTcpConnections,
   getFileHandles,
+  getProcessCwd,
   killProcess,
   suspendProcess,
   resumeProcess,

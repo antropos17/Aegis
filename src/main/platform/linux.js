@@ -8,6 +8,15 @@
 const { execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const {
+  parseLsofOutput,
+  parseLsofFileHandles,
+  parseLsofCwd,
+  killProcess,
+  suspendProcess,
+  resumeProcess,
+  parseParentProcessMapFromPs,
+} = require('./posix-shared');
 
 /** @type {RegExp[]} Linux-specific file-path patterns to ignore */
 const IGNORE_FILE_PATTERNS = [
@@ -92,17 +101,8 @@ function getParentProcessMap() {
           resolve(map);
           return;
         }
-        const lines = stdout.trim().split('\n');
-        for (const line of lines) {
-          const parts = line.trim().match(/^\s*(\d+)\s+(\d+)\s+(.+)$/);
-          if (!parts) continue;
-          const pid = parseInt(parts[1], 10);
-          const ppid = parseInt(parts[2], 10);
-          let name = parts[3].trim();
-          const slashIdx = name.lastIndexOf('/');
-          if (slashIdx !== -1) name = name.slice(slashIdx + 1);
-          map.set(pid, { name, ppid });
-        }
+        const parsed = parseParentProcessMapFromPs(stdout);
+        for (const [pid, info] of parsed) map.set(pid, info);
         resolve(map);
       },
     );
@@ -131,7 +131,7 @@ function getRawTcpConnections(pids) {
       (err, stdout) => {
         if (!err && stdout) {
           const results = parseSsOutput(stdout, pidSet);
-          if (results.length > 0 || !err) {
+          if (results.length > 0) {
             resolve(results);
             return;
           }
@@ -201,44 +201,6 @@ function parseSsOutput(stdout, pidSet) {
 }
 
 /**
- * Parse `lsof -i TCP -n -P -F pcnT` output.
- * @param {string} stdout
- * @param {Set<number>} pidSet
- * @returns {Array<{pid: number, ip: string, port: number, state: string}>}
- */
-function parseLsofOutput(stdout, pidSet) {
-  const results = [];
-  let currentPid = -1;
-
-  for (const line of stdout.split('\n')) {
-    if (!line) continue;
-    const code = line[0];
-    const value = line.slice(1);
-    if (code === 'p') {
-      currentPid = parseInt(value, 10);
-    } else if (code === 'n' && pidSet.has(currentPid)) {
-      const arrow = value.indexOf('->');
-      if (arrow === -1) continue;
-      const remote = value.slice(arrow + 2);
-      const lastColon = remote.lastIndexOf(':');
-      if (lastColon === -1) continue;
-      const ip = remote.slice(0, lastColon);
-      const port = parseInt(remote.slice(lastColon + 1), 10);
-      if (isNaN(port)) continue;
-      if (ip === '127.0.0.1' || ip === '::1' || ip === '0.0.0.0' || ip === '::' || ip === '*')
-        continue;
-      results.push({ pid: currentPid, ip, port, state: 'Established' });
-    } else if (code === 'T' && value.startsWith('ST=')) {
-      const state = value.slice(3);
-      if (results.length > 0 && results[results.length - 1].pid === currentPid) {
-        results[results.length - 1].state = state;
-      }
-    }
-  }
-  return results;
-}
-
-/**
  * Get file handles for a process via /proc/PID/fd readlink, fallback to lsof.
  * @param {number} pid
  * @returns {Promise<string[]>}
@@ -259,62 +221,24 @@ function getFileHandles(pid) {
   } catch (_) {}
 
   // Fallback to lsof
-  return new Promise((resolve) => {
-    execFile(
-      'lsof',
-      ['-p', String(pid), '-F', 'n'],
-      { timeout: 15000, maxBuffer: 4 * 1024 * 1024 },
-      (err, stdout) => {
-        if (err) {
-          resolve([]);
-          return;
-        }
-        const files = [];
-        for (const line of stdout.split('\n')) {
-          if (line.startsWith('n/')) {
-            files.push(line.slice(1));
-          }
-        }
-        resolve(files);
-      },
-    );
-  });
+  return parseLsofFileHandles(pid);
 }
 
 /**
+ * Get the working directory of a process.
+ * Tries /proc/{pid}/cwd symlink first (fast), falls back to lsof.
  * @param {number} pid
- * @returns {Promise<{success: boolean, error?: string}>}
+ * @returns {Promise<string|null>}
+ * @since v0.5.0
  */
-function killProcess(pid) {
-  return new Promise((resolve) => {
-    execFile('kill', ['-9', String(pid)], (err) => {
-      resolve(err ? { success: false, error: err.message } : { success: true });
-    });
-  });
-}
-
-/**
- * @param {number} pid
- * @returns {Promise<{success: boolean, error?: string}>}
- */
-function suspendProcess(pid) {
-  return new Promise((resolve) => {
-    execFile('kill', ['-STOP', String(pid)], (err) => {
-      resolve(err ? { success: false, error: err.message } : { success: true });
-    });
-  });
-}
-
-/**
- * @param {number} pid
- * @returns {Promise<{success: boolean, error?: string}>}
- */
-function resumeProcess(pid) {
-  return new Promise((resolve) => {
-    execFile('kill', ['-CONT', String(pid)], (err) => {
-      resolve(err ? { success: false, error: err.message } : { success: true });
-    });
-  });
+function getProcessCwd(pid) {
+  try {
+    const target = fs.readlinkSync(path.join('/proc', String(pid), 'cwd'));
+    if (target && target.startsWith('/')) return Promise.resolve(target);
+  } catch (_) {
+    // /proc not available or permission denied, fall back to lsof
+  }
+  return parseLsofCwd(pid);
 }
 
 module.exports = {
@@ -322,6 +246,7 @@ module.exports = {
   getParentProcessMap,
   getRawTcpConnections,
   getFileHandles,
+  getProcessCwd,
   killProcess,
   suspendProcess,
   resumeProcess,

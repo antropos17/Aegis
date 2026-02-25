@@ -7,6 +7,11 @@
 'use strict';
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
+
+app.name = 'AEGIS - AI Monitoring & Threat Detection | Analysis';
+if (process.platform === 'darwin') {
+  app.setName('AEGIS - AI Monitoring & Threat Detection | Analysis');
+}
 const config = require('./config-manager');
 const baselines = require('./baselines');
 const anomaly = require('./anomaly-detector');
@@ -18,6 +23,7 @@ const exporter = require('./exports');
 const analysis = require('./ai-analysis');
 const tray = require('./tray-icon');
 const audit = require('./audit-logger');
+const logger = require('./logger');
 const ipc = require('./ipc-handlers');
 
 let mainWindow = null,
@@ -67,7 +73,9 @@ function getStats() {
 function sendToRenderer(channel, data) {
   try {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data);
-  } catch (_) {}
+  } catch (err) {
+    logger.warn('main', 'sendToRenderer failed', { channel, error: err.message });
+  }
 }
 
 // ═══ WINDOW ═══
@@ -79,7 +87,7 @@ function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    title: 'AEGIS',
+    title: 'AEGIS - AI Monitoring & Threat Detection | Analysis',
     backgroundColor: '#050507',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -147,7 +155,9 @@ function doNetworkScan() {
       }
       sendToRenderer('network-update', connections);
     })
-    .catch(() => {})
+    .catch((err) => {
+      logger.error('main', 'Network scan failed', { error: err.message });
+    })
     .finally(() => network.setNetworkScanRunning(false));
 }
 
@@ -240,7 +250,9 @@ function startScanIntervals() {
       for (const a of latestAgents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent);
       sendToRenderer('anomaly-scores', scores);
       if (result.changed) doNetworkScan();
-    } catch (_) {}
+    } catch (err) {
+      logger.error('main', 'Process scan failed', { error: err.message });
+    }
   }, ms);
   startScanIntervals._netInterval = setInterval(doNetworkScan, 30000);
   fileScanInterval = setInterval(
@@ -256,7 +268,9 @@ function startScanIntervals() {
         }
         sendToRenderer('stats-update', getStats());
         tray.updateTrayIcon();
-      } catch (_) {}
+      } catch (err) {
+        logger.error('main', 'File handle scan failed', { error: err.message });
+      }
     },
     Math.max(ms * 3, 30000),
   );
@@ -356,9 +370,15 @@ if (!gotLock) {
 
 app.whenReady().then(() => {
   if (!gotLock) return;
+  const userData = app.getPath('userData');
+  logger.init({ userDataPath: userData, isDev: !app.isPackaged });
+  logger.info('main', 'App starting', { version: app.getVersion(), platform: process.platform });
   config.loadSettings();
   baselines.loadBaselines();
-  audit.init({ userDataPath: app.getPath('userData') });
+  audit.init({
+    userDataPath: userData,
+    onFlushError: (err) => logger.error('audit-logger', 'Flush failed', { error: err.message }),
+  });
   createWindow();
   tray.createTray();
   ipc.register();
@@ -376,7 +396,9 @@ app.whenReady().then(() => {
       sendToRenderer('stats-update', getStats());
       sendToRenderer('resource-usage', getResourceUsage());
       tray.updateTrayIcon();
-    } catch (_) {}
+    } catch (err) {
+      logger.error('main', 'Initial process scan failed', { error: err.message });
+    }
   }, 3000);
   setTimeout(async () => {
     try {
@@ -389,7 +411,9 @@ app.whenReady().then(() => {
       }
       sendToRenderer('stats-update', getStats());
       tray.updateTrayIcon();
-    } catch (_) {}
+    } catch (err) {
+      logger.error('main', 'Initial file handle scan failed', { error: err.message });
+    }
   }, 5000);
   setTimeout(() => {
     doNetworkScan();
@@ -398,8 +422,10 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+  logger.info('main', 'App quitting');
   audit.shutdown();
   baselines.finalizeSession();
+  logger.shutdown();
   isQuitting = true;
   if (tray._state && tray._state.tray) {
     tray._state.tray.destroy();

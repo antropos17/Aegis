@@ -26,6 +26,9 @@ contextBridge.exposeInMainWorld('aegis', {
   getAllPermissions: () => ipcRenderer.invoke('get-all-permissions'),
   getAgentPermissions: (name) => ipcRenderer.invoke('get-agent-permissions', name),
   saveAgentPermissions: (permMap) => ipcRenderer.invoke('save-agent-permissions', permMap),
+  getInstancePermissions: (agentName, parentEditor, cwd) =>
+    ipcRenderer.invoke('get-instance-permissions', agentName, parentEditor, cwd),
+  saveInstancePermissions: (data) => ipcRenderer.invoke('save-instance-permissions', data),
   resetPermissionsToDefaults: () => ipcRenderer.invoke('reset-permissions-to-defaults'),
   onScanResults: (cb) => {
     ipcRenderer.on('scan-results', (_e, data) => cb(data));
@@ -63,6 +66,10 @@ contextBridge.exposeInMainWorld('aegis', {
   getAuditStats: () => ipcRenderer.invoke('get-audit-stats'),
   openAuditLogDir: () => ipcRenderer.invoke('open-audit-log-dir'),
   exportFullAudit: () => ipcRenderer.invoke('export-full-audit'),
+  getLogStats: () => ipcRenderer.invoke('get-log-stats'),
+  exportFullLog: () => ipcRenderer.invoke('export-full-log'),
+  openLogDir: () => ipcRenderer.invoke('open-log-dir'),
+  testNotification: () => ipcRenderer.invoke('test-notification'),
   exportConfig: () => ipcRenderer.invoke('export-config'),
   importConfig: () => ipcRenderer.invoke('import-config'),
   revealInExplorer: (filePath) => ipcRenderer.invoke('reveal-in-explorer', filePath),

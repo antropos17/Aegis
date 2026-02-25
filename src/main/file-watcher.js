@@ -94,6 +94,7 @@ function handleWatcherEvent(action, filePath) {
     for (const [k, t] of watcherDebounce) {
       if (now - t > 10000) watcherDebounce.delete(k);
     }
+    if (watcherDebounce.size > 500) watcherDebounce.clear();
   }
   const reason = classifySensitive(filePath);
   const aiAgents = _state.getLatestAiAgents();
@@ -102,6 +103,8 @@ function handleWatcherEvent(action, filePath) {
   const event = {
     agent: agent.agent,
     pid: agent.pid,
+    parentEditor: agent.parentEditor || null,
+    cwd: agent.cwd || null,
     file: filePath,
     sensitive: reason !== null && !selfAccess,
     selfAccess,
@@ -111,6 +114,7 @@ function handleWatcherEvent(action, filePath) {
     category: agent.category || 'other',
   };
   _state.activityLog.push(event);
+  if (_state.activityLog.length > 10000) _state.activityLog.shift();
   _state.recordFileAccess(event.agent, filePath, event.sensitive, event.reason);
   if (_state.onFileEvent) _state.onFileEvent(event);
 }
@@ -190,6 +194,8 @@ async function scanFileHandles(agent) {
     const event = {
       agent: agent.agent,
       pid,
+      parentEditor: agent.parentEditor || null,
+      cwd: agent.cwd || null,
       file: f,
       sensitive: reason !== null && !selfAccess,
       selfAccess,
@@ -200,6 +206,7 @@ async function scanFileHandles(agent) {
     };
     newAccess.push(event);
     _state.activityLog.push(event);
+    if (_state.activityLog.length > 10000) _state.activityLog.shift();
     _state.recordFileAccess(agent.agent, f, event.sensitive, event.reason);
   }
   return newAccess;

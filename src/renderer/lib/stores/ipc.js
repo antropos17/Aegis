@@ -7,6 +7,9 @@ export const network = writable([]);
 export const anomalies = writable({});
 export const resourceUsage = writable({});
 
+/** PID of agent to highlight in AgentPanel (set by Timeline dot click) */
+export const focusedAgentPid = writable(null);
+
 if (window.aegis) {
   window.aegis.onScanResults((data) => agents.set(data || []));
   window.aegis.onFileAccess((data) => {

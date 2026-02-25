@@ -15,7 +15,7 @@
   },
   "build": {
     "appId": "com.aegis.oversight",
-    "productName": "AEGIS",
+    "productName": "AEGIS - AI Monitoring & Threat Detection | Analysis",
     "copyright": "Copyright © 2026 Ruslan",
     "win": {
       "target": "nsis",

@@ -241,7 +241,7 @@
   .crud-wrap {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--aegis-space-6);
   }
   .crud-bar {
     display: flex;
@@ -250,12 +250,12 @@
   }
   .crud-right {
     display: flex;
-    gap: 8px;
+    gap: var(--aegis-space-4);
   }
   .crud-btn {
     font: var(--md-sys-typescale-label-medium);
     font-weight: 600;
-    padding: 7px 14px;
+    padding: calc(7px * var(--aegis-ui-scale)) var(--aegis-space-7);
     background: var(--md-sys-color-surface-container);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--md-sys-shape-corner-small);
@@ -296,30 +296,30 @@
     border: var(--glass-border);
     box-shadow: var(--glass-shadow), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-large);
-    padding: 24px;
-    min-width: 360px;
+    padding: var(--aegis-space-10);
+    min-width: calc(360px * var(--aegis-ui-scale));
     max-width: 460px;
   }
   .modal-title {
     font: var(--md-sys-typescale-headline-medium);
     color: var(--md-sys-color-on-surface);
-    margin: 0 0 16px;
+    margin: 0 0 var(--aegis-space-8);
   }
   .modal-text {
     font: var(--md-sys-typescale-body-medium);
     color: var(--md-sys-color-on-surface-variant);
-    margin: 0 0 20px;
+    margin: 0 0 var(--aegis-space-9);
   }
   .modal-form {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    margin-bottom: 20px;
+    gap: var(--aegis-space-6);
+    margin-bottom: var(--aegis-space-9);
   }
   .field {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--aegis-space-2);
   }
   .field span {
     font: var(--md-sys-typescale-label-medium);
@@ -328,7 +328,7 @@
   .field input,
   .field select {
     font: var(--md-sys-typescale-body-medium);
-    padding: 8px 10px;
+    padding: var(--aegis-space-4) var(--aegis-space-5);
     background: var(--md-sys-color-surface-container);
     border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-small);
@@ -342,6 +342,6 @@
   .modal-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
+    gap: var(--aegis-space-4);
   }
 </style>

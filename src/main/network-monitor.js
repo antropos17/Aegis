@@ -105,6 +105,13 @@ function isKnownDomain(domain) {
 async function resolveIp(ip) {
   const cached = dnsCache.get(ip);
   if (cached && Date.now() - cached.timestamp < DNS_CACHE_TTL) return cached.domain;
+  // Prune stale entries when cache grows too large
+  if (dnsCache.size > 1000) {
+    const now = Date.now();
+    for (const [key, entry] of dnsCache) {
+      if (now - entry.timestamp >= DNS_CACHE_TTL) dnsCache.delete(key);
+    }
+  }
   try {
     const hostnames = await dns.promises.reverse(ip);
     const domain = hostnames && hostnames.length > 0 ? hostnames[0] : null;
@@ -117,16 +124,6 @@ async function resolveIp(ip) {
 }
 
 /**
- * Fetch raw TCP connections for given PIDs via platform adapter.
- * @param {number[]} pids
- * @returns {Promise<Array>}
- * @since v0.1.0
- */
-function getRawConnections(pids) {
-  return getRawTcpConnections(pids);
-}
-
-/**
  * Scan network connections for all given agents, resolve IPs, classify domains.
  * @param {Array} agents
  * @returns {Promise<Array>} Enriched connection objects
@@ -136,7 +133,7 @@ async function scanNetworkConnections(agents) {
   if (agents.length === 0) return [];
   const pidMap = new Map();
   for (const a of agents) pidMap.set(a.pid, a);
-  const raw = await getRawConnections(agents.map((a) => a.pid));
+  const raw = await getRawTcpConnections(agents.map((a) => a.pid));
   const seen = new Set();
   const deduped = raw.filter((c) => {
     if (isPrivateIp(c.ip)) return false;
@@ -154,6 +151,8 @@ async function scanNetworkConnections(agents) {
     return {
       agent: agent ? agent.agent : `PID ${c.pid}`,
       pid: c.pid,
+      parentEditor: agent ? agent.parentEditor || null : null,
+      cwd: agent ? agent.cwd || null : null,
       category: agent ? agent.category : 'other',
       remoteIp: c.ip,
       remotePort: c.port,
