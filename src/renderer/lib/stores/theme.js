@@ -16,7 +16,7 @@ export const theme = writable(initial);
  * Persists choice to localStorage.
  */
 export function toggleTheme() {
-  theme.update(current => {
+  theme.update((current) => {
     const next = current === 'dark' ? 'light' : 'dark';
     localStorage.setItem(KEY, next);
     return next;

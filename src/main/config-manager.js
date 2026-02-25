@@ -64,7 +64,10 @@ function buildCustomRules() {
   customSensitiveRules = [];
   for (const patternStr of settings.customSensitivePatterns) {
     try {
-      customSensitiveRules.push({ pattern: new RegExp(patternStr, 'i'), reason: `Custom: ${patternStr}` });
+      customSensitiveRules.push({
+        pattern: new RegExp(patternStr, 'i'),
+        reason: `Custom: ${patternStr}`,
+      });
     } catch (_) {}
   }
 }
@@ -155,21 +158,27 @@ function trackSeenAgent(agentName) {
  * @returns {Object} Current settings
  * @since v0.1.0
  */
-function getSettings() { return settings; }
+function getSettings() {
+  return settings;
+}
 
 /**
  * Return the compiled custom sensitive rules.
  * @returns {Array} Custom sensitive rules with pattern and reason
  * @since v0.1.0
  */
-function getCustomSensitiveRules() { return customSensitiveRules; }
+function getCustomSensitiveRules() {
+  return customSensitiveRules;
+}
 
 /**
  * Return the user's custom agents array.
  * @returns {Array} Custom agent objects
  * @since v0.2.0
  */
-function getCustomAgents() { return settings.customAgents || []; }
+function getCustomAgents() {
+  return settings.customAgents || [];
+}
 
 /**
  * Replace the custom agents array and persist.

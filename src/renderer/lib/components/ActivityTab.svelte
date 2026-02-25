@@ -13,16 +13,12 @@
 
 <div class="activity-tab">
   <div class="view-toggle">
-    <button
-      class="toggle-pill"
-      class:active={view === 'feed'}
-      onclick={() => (view = 'feed')}
-    >Feed</button>
-    <button
-      class="toggle-pill"
-      class:active={view === 'network'}
-      onclick={() => (view = 'network')}
-    >Network</button>
+    <button class="toggle-pill" class:active={view === 'feed'} onclick={() => (view = 'feed')}
+      >Feed</button
+    >
+    <button class="toggle-pill" class:active={view === 'network'} onclick={() => (view = 'network')}
+      >Network</button
+    >
   </div>
 
   {#if view === 'feed'}

@@ -8,13 +8,13 @@ export default defineConfig({
   root: 'src/renderer',
   server: {
     port: 5174,
-    strictPort: true
+    strictPort: true,
   },
   build: {
     outDir: '../../dist/renderer',
     emptyOutDir: true,
     rollupOptions: {
-      input: resolve(__dirname, 'src/renderer/index.html')
-    }
-  }
+      input: resolve(__dirname, 'src/renderer/index.html'),
+    },
+  },
 });

@@ -20,7 +20,7 @@ const fs = require('fs');
 const path = require('path');
 
 const agentDb = JSON.parse(
-  fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8')
+  fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8'),
 );
 
 const dnsCache = new Map();
@@ -29,28 +29,51 @@ let networkScanRunning = false;
 
 /** @type {RegExp[]} Domain patterns considered safe/known */
 const KNOWN_DOMAINS = [
-  /anthropic\.com$/i, /openai\.com$/i, /github\.com$/i,
-  /githubusercontent\.com$/i, /githubassets\.com$/i,
-  /microsoft\.com$/i, /azure\.com$/i, /azure\.net$/i,
-  /windows\.net$/i, /live\.com$/i,
-  /google\.com$/i, /googleapis\.com$/i, /gstatic\.com$/i,
-  /cursor\.sh$/i, /cursor\.com$/i,
-  /tabnine\.com$/i, /sourcegraph\.com$/i,
-  /cloudflare\.com$/i, /cloudflare-dns\.com$/i,
-  /cloudflare\.net$/i, /cloudflareinsights\.com$/i,
-  /amazonaws\.com$/i, /akamai\.net$/i, /akamaiedge\.net$/i,
-  /fastly\.net$/i, /sentry\.io$/i,
-  /vsassets\.io$/i, /vscode-cdn\.net$/i,
-  /visualstudio\.com$/i, /vo\.msecnd\.net$/i,
-  /trafficmanager\.net$/i, /1e100\.net$/i,
-  /googleusercontent\.com$/i, /googlevideo\.com$/i,
-  /cloudfront\.net$/i, /github\.io$/i,
-  /electronjs\.org$/i, /nodejs\.org$/i,
-  /npmjs\.org$/i, /npmjs\.com$/i, /yarnpkg\.com$/i,
+  /anthropic\.com$/i,
+  /openai\.com$/i,
+  /github\.com$/i,
+  /githubusercontent\.com$/i,
+  /githubassets\.com$/i,
+  /microsoft\.com$/i,
+  /azure\.com$/i,
+  /azure\.net$/i,
+  /windows\.net$/i,
+  /live\.com$/i,
+  /google\.com$/i,
+  /googleapis\.com$/i,
+  /gstatic\.com$/i,
+  /cursor\.sh$/i,
+  /cursor\.com$/i,
+  /tabnine\.com$/i,
+  /sourcegraph\.com$/i,
+  /cloudflare\.com$/i,
+  /cloudflare-dns\.com$/i,
+  /cloudflare\.net$/i,
+  /cloudflareinsights\.com$/i,
+  /amazonaws\.com$/i,
+  /akamai\.net$/i,
+  /akamaiedge\.net$/i,
+  /fastly\.net$/i,
+  /sentry\.io$/i,
+  /vsassets\.io$/i,
+  /vscode-cdn\.net$/i,
+  /visualstudio\.com$/i,
+  /vo\.msecnd\.net$/i,
+  /trafficmanager\.net$/i,
+  /1e100\.net$/i,
+  /googleusercontent\.com$/i,
+  /googlevideo\.com$/i,
+  /cloudfront\.net$/i,
+  /github\.io$/i,
+  /electronjs\.org$/i,
+  /nodejs\.org$/i,
+  /npmjs\.org$/i,
+  /npmjs\.com$/i,
+  /yarnpkg\.com$/i,
   ...agentDb.agents
-    .flatMap(a => a.knownDomains || [])
+    .flatMap((a) => a.knownDomains || [])
     .filter((d, i, arr) => arr.indexOf(d) === i)
-    .map(d => new RegExp(d.replace(/\./g, '\\.') + '$', 'i')),
+    .map((d) => new RegExp(d.replace(/\./g, '\\.') + '$', 'i')),
 ];
 
 /**
@@ -70,7 +93,7 @@ function isPrivateIp(ip) {
  * @since v0.1.0
  */
 function isKnownDomain(domain) {
-  return KNOWN_DOMAINS.some(p => p.test(domain));
+  return KNOWN_DOMAINS.some((p) => p.test(domain));
 }
 
 /**
@@ -101,7 +124,10 @@ async function resolveIp(ip) {
  */
 function getRawConnections(pids) {
   return new Promise((resolve) => {
-    if (pids.length === 0) { resolve([]); return; }
+    if (pids.length === 0) {
+      resolve([]);
+      return;
+    }
     const pidStr = pids.join(',');
     const psScript = [
       '$ErrorActionPreference="SilentlyContinue"',
@@ -111,16 +137,29 @@ function getRawConnections(pids) {
       'foreach($c in $conns){$r+=@{pid=[int]$c.OwningProcess;ip=$c.RemoteAddress;port=[int]$c.RemotePort;state=$c.State.ToString()}}',
       'if($r.Count -gt 0){$r|ConvertTo-Json -Compress}else{"[]"}',
     ].join('\n');
-    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psScript], { timeout: 10000 }, (err, stdout) => {
-      if (err) { resolve([]); return; }
-      try {
-        const raw = stdout.trim();
-        if (!raw || raw === '[]') { resolve([]); return; }
-        let conns = JSON.parse(raw);
-        if (!Array.isArray(conns)) conns = [conns];
-        resolve(conns);
-      } catch (_) { resolve([]); }
-    });
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', psScript],
+      { timeout: 10000 },
+      (err, stdout) => {
+        if (err) {
+          resolve([]);
+          return;
+        }
+        try {
+          const raw = stdout.trim();
+          if (!raw || raw === '[]') {
+            resolve([]);
+            return;
+          }
+          let conns = JSON.parse(raw);
+          if (!Array.isArray(conns)) conns = [conns];
+          resolve(conns);
+        } catch (_) {
+          resolve([]);
+        }
+      },
+    );
   });
 }
 
@@ -134,39 +173,46 @@ async function scanNetworkConnections(agents) {
   if (agents.length === 0) return [];
   const pidMap = new Map();
   for (const a of agents) pidMap.set(a.pid, a);
-  const raw = await getRawConnections(agents.map(a => a.pid));
+  const raw = await getRawConnections(agents.map((a) => a.pid));
   const seen = new Set();
-  const deduped = raw.filter(c => {
+  const deduped = raw.filter((c) => {
     if (isPrivateIp(c.ip)) return false;
     const key = `${c.pid}:${c.ip}:${c.port}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
-  const uniqueIps = [...new Set(deduped.map(c => c.ip))];
-  await Promise.all(uniqueIps.map(ip => resolveIp(ip)));
-  return deduped.map(c => {
+  const uniqueIps = [...new Set(deduped.map((c) => c.ip))];
+  await Promise.all(uniqueIps.map((ip) => resolveIp(ip)));
+  return deduped.map((c) => {
     const agent = pidMap.get(c.pid);
     const cached = dnsCache.get(c.ip);
     const domain = cached ? cached.domain : null;
     return {
       agent: agent ? agent.agent : `PID ${c.pid}`,
-      pid: c.pid, category: agent ? agent.category : 'other',
-      remoteIp: c.ip, remotePort: c.port,
-      domain: domain || '', state: c.state,
+      pid: c.pid,
+      category: agent ? agent.category : 'other',
+      remoteIp: c.ip,
+      remotePort: c.port,
+      domain: domain || '',
+      state: c.state,
       flagged: !domain || !isKnownDomain(domain),
     };
   });
 }
 
 /** @returns {boolean} Whether a network scan is in progress */
-function isNetworkScanRunning() { return networkScanRunning; }
+function isNetworkScanRunning() {
+  return networkScanRunning;
+}
 
 /**
  * @param {boolean} v
  * @returns {void}
  */
-function setNetworkScanRunning(v) { networkScanRunning = v; }
+function setNetworkScanRunning(v) {
+  networkScanRunning = v;
+}
 
 module.exports = {
   scanNetworkConnections,

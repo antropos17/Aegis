@@ -30,7 +30,9 @@ let _state = null;
  * @returns {void}
  * @since v0.1.0
  */
-function init(state) { _state = state; }
+function init(state) {
+  _state = state;
+}
 
 /**
  * Escape a value for safe CSV embedding.
@@ -53,7 +55,11 @@ function csvEscape(val) {
  * @since v0.1.0
  */
 function escHtml(str) {
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 /**
@@ -88,10 +94,20 @@ async function exportLog() {
     exportedAt: new Date().toISOString(),
     monitoringStarted: new Date(_state.monitoringStarted).toISOString(),
     uptimeSeconds: Math.floor(stats.uptimeMs / 1000),
-    summary: { totalFiles: stats.totalFiles, sensitiveFiles: stats.totalSensitive, peakAgents: stats.peakAgents, uniqueAgents: stats.uniqueAgents },
-    events: _state.activityLog.map(e => ({
-      timestamp: new Date(e.timestamp).toISOString(), agent: e.agent, pid: e.pid,
-      file: e.file, sensitive: e.sensitive, reason: e.reason, action: e.action || 'accessed',
+    summary: {
+      totalFiles: stats.totalFiles,
+      sensitiveFiles: stats.totalSensitive,
+      peakAgents: stats.peakAgents,
+      uniqueAgents: stats.uniqueAgents,
+    },
+    events: _state.activityLog.map((e) => ({
+      timestamp: new Date(e.timestamp).toISOString(),
+      agent: e.agent,
+      pid: e.pid,
+      file: e.file,
+      sensitive: e.sensitive,
+      reason: e.reason,
+      action: e.action || 'accessed',
     })),
   };
   fs.writeFileSync(result.filePath, JSON.stringify(payload, null, 2));
@@ -112,20 +128,30 @@ async function exportCsv() {
   });
   if (result.canceled || !result.filePath) return { success: false };
   const header = 'Timestamp,Agent Name,Action Type,Target,Sensitive\n';
-  const rows = _state.activityLog.map(e => {
-    const ts = new Date(e.timestamp).toISOString();
-    const action = e.action || 'accessed';
-    const sensitive = e.sensitive ? 'yes' : 'no';
-    return [ts, e.agent, action, e.file, sensitive].map(csvEscape).join(',');
-  }).join('\n');
+  const rows = _state.activityLog
+    .map((e) => {
+      const ts = new Date(e.timestamp).toISOString();
+      const action = e.action || 'accessed';
+      const sensitive = e.sensitive ? 'yes' : 'no';
+      return [ts, e.agent, action, e.file, sensitive].map(csvEscape).join(',');
+    })
+    .join('\n');
   const netConns = _state.getLatestNetConnections();
-  const netRows = netConns.map(c => {
-    const ts = new Date().toISOString();
-    return [ts, c.agent, 'network', `${c.remoteIp}:${c.remotePort}`, c.flagged ? 'yes' : 'no'].map(csvEscape).join(',');
-  }).join('\n');
+  const netRows = netConns
+    .map((c) => {
+      const ts = new Date().toISOString();
+      return [ts, c.agent, 'network', `${c.remoteIp}:${c.remotePort}`, c.flagged ? 'yes' : 'no']
+        .map(csvEscape)
+        .join(',');
+    })
+    .join('\n');
   const csv = header + rows + (netRows ? '\n' + netRows : '');
   fs.writeFileSync(result.filePath, csv);
-  return { success: true, path: result.filePath, eventCount: _state.activityLog.length + netConns.length };
+  return {
+    success: true,
+    path: result.filePath,
+    eventCount: _state.activityLog.length + netConns.length,
+  };
 }
 
 /**
@@ -135,23 +161,30 @@ async function exportCsv() {
  */
 async function generateReport() {
   const stats = _state.getStats();
-  const sensitiveEvents = _state.activityLog.filter(e => e.sensitive);
+  const sensitiveEvents = _state.activityLog.filter((e) => e.sensitive);
   const netConns = _state.getLatestNetConnections();
   const agentFileCounts = {};
-  for (const e of _state.activityLog) agentFileCounts[e.agent] = (agentFileCounts[e.agent] || 0) + 1;
+  for (const e of _state.activityLog)
+    agentFileCounts[e.agent] = (agentFileCounts[e.agent] || 0) + 1;
   const maxCount = Math.max(1, ...Object.values(agentFileCounts));
-  const barChartRows = Object.entries(agentFileCounts).map(([agent, count]) => {
-    const pct = Math.round((count / maxCount) * 100);
-    return `<tr><td style="padding:4px 10px;white-space:nowrap;color:#00e5ff;font-weight:600">${escHtml(agent)}</td><td style="padding:4px 10px;width:100%"><div style="background:#1a3a5c;border-radius:3px;height:20px;position:relative"><div style="background:#00e5ff;height:100%;border-radius:3px;width:${pct}%"></div></div></td><td style="padding:4px 10px;white-space:nowrap;color:#90a4ae">${count}</td></tr>`;
-  }).join('');
-  const sensitiveRows = sensitiveEvents.map(e => {
-    const ts = new Date(e.timestamp).toISOString().replace('T', ' ').slice(0, 19);
-    return `<tr><td style="padding:3px 8px;color:#546e7a">${escHtml(ts)}</td><td style="padding:3px 8px;color:#00e5ff">${escHtml(e.agent)}</td><td style="padding:3px 8px;color:#ff1744">${escHtml(e.file)}</td><td style="padding:3px 8px;color:#ffc107">${escHtml(e.reason)}</td></tr>`;
-  }).join('');
-  const netRows = netConns.map(c => {
-    const flagStyle = c.flagged ? 'color:#ffc107;font-weight:600' : 'color:#90a4ae';
-    return `<tr><td style="padding:3px 8px;color:#00e5ff">${escHtml(c.agent)}</td><td style="padding:3px 8px;color:#90a4ae">${escHtml(c.remoteIp)}</td><td style="padding:3px 8px;color:#78909c">${c.remotePort}</td><td style="padding:3px 8px;${flagStyle}">${escHtml(c.domain || 'unknown')}</td><td style="padding:3px 8px;color:#546e7a">${escHtml(c.state)}</td></tr>`;
-  }).join('');
+  const barChartRows = Object.entries(agentFileCounts)
+    .map(([agent, count]) => {
+      const pct = Math.round((count / maxCount) * 100);
+      return `<tr><td style="padding:4px 10px;white-space:nowrap;color:#00e5ff;font-weight:600">${escHtml(agent)}</td><td style="padding:4px 10px;width:100%"><div style="background:#1a3a5c;border-radius:3px;height:20px;position:relative"><div style="background:#00e5ff;height:100%;border-radius:3px;width:${pct}%"></div></div></td><td style="padding:4px 10px;white-space:nowrap;color:#90a4ae">${count}</td></tr>`;
+    })
+    .join('');
+  const sensitiveRows = sensitiveEvents
+    .map((e) => {
+      const ts = new Date(e.timestamp).toISOString().replace('T', ' ').slice(0, 19);
+      return `<tr><td style="padding:3px 8px;color:#546e7a">${escHtml(ts)}</td><td style="padding:3px 8px;color:#00e5ff">${escHtml(e.agent)}</td><td style="padding:3px 8px;color:#ff1744">${escHtml(e.file)}</td><td style="padding:3px 8px;color:#ffc107">${escHtml(e.reason)}</td></tr>`;
+    })
+    .join('');
+  const netRows = netConns
+    .map((c) => {
+      const flagStyle = c.flagged ? 'color:#ffc107;font-weight:600' : 'color:#90a4ae';
+      return `<tr><td style="padding:3px 8px;color:#00e5ff">${escHtml(c.agent)}</td><td style="padding:3px 8px;color:#90a4ae">${escHtml(c.remoteIp)}</td><td style="padding:3px 8px;color:#78909c">${c.remotePort}</td><td style="padding:3px 8px;${flagStyle}">${escHtml(c.domain || 'unknown')}</td><td style="padding:3px 8px;color:#546e7a">${escHtml(c.state)}</td></tr>`;
+    })
+    .join('');
   const html = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>AEGIS Report - ${new Date().toISOString().slice(0, 10)}</title>
 <style>body{font-family:'Segoe UI',Consolas,monospace;background:#0a0e17;color:#c8d6e5;margin:0;padding:24px}h1{color:#00e5ff;font-size:20px;letter-spacing:3px;margin-bottom:4px}h2{color:#546e7a;font-size:13px;letter-spacing:2px;text-transform:uppercase;margin:24px 0 10px;border-bottom:1px solid #1a2744;padding-bottom:6px}.summary{display:flex;gap:20px;flex-wrap:wrap;margin:16px 0}.s-card{background:#0d1220;border:1px solid #1a2744;padding:12px 20px;border-radius:6px;text-align:center}.s-val{font-size:22px;font-weight:700;color:#00e5ff}.s-lbl{font-size:9px;letter-spacing:1.5px;color:#546e7a;margin-top:2px}table{width:100%;border-collapse:collapse;margin-bottom:12px}th{text-align:left;padding:6px 8px;color:#546e7a;font-size:10px;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #1a2744}td{font-family:Consolas,monospace;font-size:11px}tr:hover td{background:rgba(255,255,255,0.02)}.timestamp{color:#546e7a;font-size:10px;margin-top:32px}</style></head><body>

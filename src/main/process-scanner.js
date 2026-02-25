@@ -19,12 +19,12 @@ const { execFile } = require('child_process');
 const { IGNORE_PROCESS_PATTERNS, EDITOR_HOSTS } = require('../shared/constants');
 
 const agentDb = JSON.parse(
-  fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8')
+  fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8'),
 );
-const AI_AGENTS = agentDb.agents.map(a => ({ name: a.displayName, patterns: a.names }));
+const AI_AGENTS = agentDb.agents.map((a) => ({ name: a.displayName, patterns: a.names }));
 
 /** Set of editor host process names (lowercased) for fast lookup */
-const EDITOR_HOST_SET = new Set(EDITOR_HOSTS.map(h => h.toLowerCase()));
+const EDITOR_HOST_SET = new Set(EDITOR_HOSTS.map((h) => h.toLowerCase()));
 
 let lastProcessPidSet = '';
 
@@ -56,7 +56,10 @@ function init(deps) {
 function scanProcesses() {
   return new Promise((resolve, reject) => {
     execFile('tasklist', ['/FO', 'CSV', '/NH'], (err, stdout) => {
-      if (err) { reject(err); return; }
+      if (err) {
+        reject(err);
+        return;
+      }
       const detected = [];
       const lines = stdout.trim().split('\n');
       for (const line of lines) {
@@ -64,27 +67,36 @@ function scanProcesses() {
         if (!match) continue;
         const procName = match[1].toLowerCase();
         const pid = parseInt(match[2], 10);
-        if (IGNORE_PROCESS_PATTERNS.some(p => procName.includes(p))) continue;
+        if (IGNORE_PROCESS_PATTERNS.some((p) => procName.includes(p))) continue;
         if (EDITOR_HOST_SET.has(procName)) continue;
         for (const agent of AI_AGENTS) {
-          if (agent.patterns.some(p => procName === p.toLowerCase())) {
-            detected.push({ agent: agent.name, process: match[1], pid, status: 'running', category: 'ai' });
+          if (agent.patterns.some((p) => procName === p.toLowerCase())) {
+            detected.push({
+              agent: agent.name,
+              process: match[1],
+              pid,
+              status: 'running',
+              category: 'ai',
+            });
             break;
           }
         }
       }
       const seen = new Set();
-      const unique = detected.filter(d => {
+      const unique = detected.filter((d) => {
         if (seen.has(d.pid)) return false;
         seen.add(d.pid);
         return true;
       });
       if (unique.length > peakAgents) peakAgents = unique.length;
-      unique.forEach(a => {
+      unique.forEach((a) => {
         uniqueAgentNames.add(a.agent);
         if (_trackSeenAgent) _trackSeenAgent(a.agent);
       });
-      const pidSetKey = unique.map(u => u.pid).sort().join(',');
+      const pidSetKey = unique
+        .map((u) => u.pid)
+        .sort()
+        .join(',');
       const changed = pidSetKey !== lastProcessPidSet;
       lastProcessPidSet = pidSetKey;
       resolve({ agents: unique, changed });
@@ -93,9 +105,18 @@ function scanProcesses() {
 }
 
 module.exports = {
-  AI_AGENTS, agentDb, init, scanProcesses,
-  knownHandles, activityLog, monitoringStarted,
-  get peakAgents() { return peakAgents; },
-  set peakAgents(v) { peakAgents = v; },
+  AI_AGENTS,
+  agentDb,
+  init,
+  scanProcesses,
+  knownHandles,
+  activityLog,
+  monitoringStarted,
+  get peakAgents() {
+    return peakAgents;
+  },
+  set peakAgents(v) {
+    peakAgents = v;
+  },
   uniqueAgentNames,
 };

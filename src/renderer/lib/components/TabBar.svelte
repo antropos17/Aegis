@@ -14,7 +14,7 @@
     <button
       class="tab-pill"
       class:active={activeTab === tab.id}
-      onclick={() => activeTab = tab.id}
+      onclick={() => (activeTab = tab.id)}
     >
       {tab.label}
     </button>

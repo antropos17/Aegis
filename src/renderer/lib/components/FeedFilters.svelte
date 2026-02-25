@@ -16,8 +16,8 @@
   <button
     class="pill group-toggle"
     class:active={groupByAgent}
-    onclick={() => (groupByAgent = !groupByAgent)}
-  >Group by agent</button>
+    onclick={() => (groupByAgent = !groupByAgent)}>Group by agent</button
+  >
 
   <select class="agent-select" bind:value={agentFilter}>
     <option value="all">All agents</option>
@@ -32,19 +32,17 @@
       <button
         class="pill sev-{sev}"
         class:active={severityFilter === sev}
-        onclick={() => (severityFilter = sev)}
-      >{sev}</button>
+        onclick={() => (severityFilter = sev)}>{sev}</button
+      >
     {/each}
   </div>
 
   <div class="pill-group">
     <span class="pill-label">Type</span>
     {#each types as type (type)}
-      <button
-        class="pill"
-        class:active={typeFilter === type}
-        onclick={() => (typeFilter = type)}
-      >{type}</button>
+      <button class="pill" class:active={typeFilter === type} onclick={() => (typeFilter = type)}
+        >{type}</button
+      >
     {/each}
   </div>
 </div>

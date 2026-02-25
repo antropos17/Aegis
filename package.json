@@ -8,7 +8,9 @@
     "dev": "vite",
     "build:renderer": "vite build",
     "build": "electron-builder --publish never",
-    "dist": "electron-builder --publish never"
+    "dist": "electron-builder --publish never",
+    "format": "prettier --write 'src/**/*.{js,svelte,css,html}' '*.{js,json}'",
+    "format:check": "prettier --check 'src/**/*.{js,svelte,css,html}' '*.{js,json}'"
   },
   "build": {
     "appId": "com.aegis.oversight",
@@ -57,6 +59,8 @@
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "electron": "^33.4.11",
     "electron-builder": "^26.7.0",
+    "prettier": "^3.8.1",
+    "prettier-plugin-svelte": "^3.5.0",
     "sharp": "^0.34.5",
     "svelte": "^5.51.2",
     "vite": "^7.3.1"
