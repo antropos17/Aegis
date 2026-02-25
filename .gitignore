@@ -1,6 +1,7 @@
 node_modules/
 dist/
 out/
+coverage/
 .env
 *.log
 *.json.bak
