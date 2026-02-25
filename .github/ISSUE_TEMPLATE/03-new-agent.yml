@@ -1,0 +1,50 @@
+name: "🤖 Add New AI Agent"
+description: "Request or submit a new AI agent for the detection database"
+labels: ["agent-database", "good first issue"]
+body:
+  - type: input
+    id: agent-name
+    attributes:
+      label: Agent name
+    validations:
+      required: true
+
+  - type: input
+    id: process-name
+    attributes:
+      label: Process name
+      description: "The executable name as it appears in task manager"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Coding Assistant
+        - Autonomous Agent
+        - Desktop/Browser Agent
+        - CLI Tool
+        - Framework/SDK
+        - Browser Extension
+        - Local LLM
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: vendor
+    attributes:
+      label: Vendor/Company
+
+  - type: input
+    id: website
+    attributes:
+      label: Website URL
+
+  - type: textarea
+    id: detection
+    attributes:
+      label: How to detect
+      description: "Process name, child processes, network domains, or other detection methods"

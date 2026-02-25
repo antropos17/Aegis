@@ -15,3 +15,5 @@ How was this tested?
 - [ ] No console.log in production code
 - [ ] Files under 200 lines
 - [ ] memory-bank/progress.md updated
+- [ ] I have tested this locally with `npm start`
+- [ ] This code has been reviewed by a human (not solely AI-generated)
