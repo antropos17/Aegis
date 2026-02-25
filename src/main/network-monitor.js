@@ -17,7 +17,17 @@
 const dns = require('dns');
 const fs = require('fs');
 const path = require('path');
-const { getRawTcpConnections } = require('./platform');
+const _platform = require('./platform');
+
+let _getRawTcpConnections = _platform.getRawTcpConnections;
+let _dnsReverse = (ip) => dns.promises.reverse(ip);
+/** @internal Override dependencies (for tests). */
+function _setDepsForTest(overrides) {
+  if (overrides.getRawTcpConnections) _getRawTcpConnections = overrides.getRawTcpConnections;
+  if (overrides.dnsReverse) _dnsReverse = overrides.dnsReverse;
+}
+/** @internal Clear caches (for tests). */
+function _resetForTest() { dnsCache.clear(); networkScanRunning = false; }
 
 const agentDb = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8'),
@@ -113,7 +123,7 @@ async function resolveIp(ip) {
     }
   }
   try {
-    const hostnames = await dns.promises.reverse(ip);
+    const hostnames = await _dnsReverse(ip);
     const domain = hostnames && hostnames.length > 0 ? hostnames[0] : null;
     dnsCache.set(ip, { domain, timestamp: Date.now() });
     return domain;
@@ -133,7 +143,7 @@ async function scanNetworkConnections(agents) {
   if (agents.length === 0) return [];
   const pidMap = new Map();
   for (const a of agents) pidMap.set(a.pid, a);
-  const raw = await getRawTcpConnections(agents.map((a) => a.pid));
+  const raw = await _getRawTcpConnections(agents.map((a) => a.pid));
   const seen = new Set();
   const deduped = raw.filter((c) => {
     if (isPrivateIp(c.ip)) return false;
@@ -179,7 +189,11 @@ function setNetworkScanRunning(v) {
 module.exports = {
   scanNetworkConnections,
   isKnownDomain,
+  isPrivateIp,
+  resolveIp,
   KNOWN_DOMAINS,
   isNetworkScanRunning,
   setNetworkScanRunning,
+  _setDepsForTest,
+  _resetForTest,
 };

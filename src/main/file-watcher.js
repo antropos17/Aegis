@@ -24,7 +24,16 @@ const {
   AGENT_CONFIG_PATHS,
   AGENT_SELF_CONFIG,
 } = require('../shared/constants');
-const { getFileHandles, IGNORE_FILE_PATTERNS } = require('./platform');
+const _platform = require('./platform');
+const { IGNORE_FILE_PATTERNS } = _platform;
+
+let _getFileHandles = _platform.getFileHandles;
+/** @internal Override dependencies (for tests). */
+function _setDepsForTest(overrides) {
+  if (overrides.getFileHandles) _getFileHandles = overrides.getFileHandles;
+}
+/** @internal Reset debounce state (for tests). */
+function _resetForTest() { watcherDebounce.clear(); }
 
 const watcherDebounce = new Map();
 let _state = null;
@@ -176,7 +185,7 @@ async function scanFileHandles(agent) {
   const pid = agent.pid;
   let files;
   try {
-    files = await getFileHandles(pid);
+    files = await _getFileHandles(pid);
   } catch (_) {
     return [];
   }
@@ -246,4 +255,8 @@ module.exports = {
   pruneKnownHandles,
   classifySensitive,
   shouldIgnore,
+  isSelfAccess,
+  handleWatcherEvent,
+  _setDepsForTest,
+  _resetForTest,
 };

@@ -22,6 +22,8 @@ function baselinesPath() {
   if (!_baselinesPath) _baselinesPath = path.join(app.getPath('userData'), 'baselines.json');
   return _baselinesPath;
 }
+/** @internal Override baselines path (for tests). */
+function _setBaselinesPathForTest(p) { _baselinesPath = p; }
 const MAX_BASELINE_SESSIONS = 10;
 let baselines = { agents: {} };
 const sessionData = {};
@@ -172,4 +174,5 @@ module.exports = {
   finalizeSession,
   getBaselines,
   getSessionData,
+  _setBaselinesPathForTest,
 };

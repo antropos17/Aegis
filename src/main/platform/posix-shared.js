@@ -5,7 +5,11 @@
  */
 'use strict';
 
-const { execFile } = require('child_process');
+const { execFile: _origExecFile } = require('child_process');
+
+let _execFile = _origExecFile;
+/** @internal Override execFile (for tests). */
+function _setExecFileForTest(fn) { _execFile = fn || _origExecFile; }
 
 /**
  * Parse `lsof -i TCP -n -P -F pcnT` output.
@@ -52,7 +56,7 @@ function parseLsofOutput(stdout, pidSet) {
  */
 function parseLsofFileHandles(pid) {
   return new Promise((resolve) => {
-    execFile(
+    _execFile(
       'lsof',
       ['-p', String(pid), '-F', 'n'],
       { timeout: 15000, maxBuffer: 4 * 1024 * 1024 },
@@ -79,7 +83,7 @@ function parseLsofFileHandles(pid) {
  */
 function killProcess(pid) {
   return new Promise((resolve) => {
-    execFile('kill', ['-9', String(pid)], (err) => {
+    _execFile('kill', ['-9', String(pid)], (err) => {
       resolve(err ? { success: false, error: err.message } : { success: true });
     });
   });
@@ -91,7 +95,7 @@ function killProcess(pid) {
  */
 function suspendProcess(pid) {
   return new Promise((resolve) => {
-    execFile('kill', ['-STOP', String(pid)], (err) => {
+    _execFile('kill', ['-STOP', String(pid)], (err) => {
       resolve(err ? { success: false, error: err.message } : { success: true });
     });
   });
@@ -103,7 +107,7 @@ function suspendProcess(pid) {
  */
 function resumeProcess(pid) {
   return new Promise((resolve) => {
-    execFile('kill', ['-CONT', String(pid)], (err) => {
+    _execFile('kill', ['-CONT', String(pid)], (err) => {
       resolve(err ? { success: false, error: err.message } : { success: true });
     });
   });
@@ -138,7 +142,7 @@ function parseParentProcessMapFromPs(stdout) {
  */
 function parseLsofCwd(pid) {
   return new Promise((resolve) => {
-    execFile(
+    _execFile(
       'lsof',
       ['-d', 'cwd', '-a', '-p', String(pid), '-F', 'n'],
       { timeout: 5000 },
@@ -167,4 +171,5 @@ module.exports = {
   suspendProcess,
   resumeProcess,
   parseParentProcessMapFromPs,
+  _setExecFileForTest,
 };

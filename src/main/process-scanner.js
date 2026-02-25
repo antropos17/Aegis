@@ -16,7 +16,14 @@
 const fs = require('fs');
 const path = require('path');
 const { IGNORE_PROCESS_PATTERNS, EDITOR_HOSTS } = require('../shared/constants');
-const { listProcesses } = require('./platform');
+const _platform = require('./platform');
+let _listProcesses = _platform.listProcesses;
+/** @internal Override platform functions (for tests). */
+function _setPlatformForTest(overrides) {
+  if (overrides.listProcesses) _listProcesses = overrides.listProcesses;
+}
+/** @internal Reset state (for tests). */
+function _resetForTest() { lastProcessPidSet = ''; }
 
 const agentDb = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8'),
@@ -54,7 +61,7 @@ function init(deps) {
  * @since v0.2.0
  */
 async function scanProcesses() {
-  const processes = await listProcesses();
+  const processes = await _listProcesses();
   const detected = [];
   for (const proc of processes) {
     const procName = proc.name.toLowerCase();
@@ -98,6 +105,8 @@ module.exports = {
   agentDb,
   init,
   scanProcesses,
+  _setPlatformForTest,
+  _resetForTest,
   knownHandles,
   activityLog,
   monitoringStarted,

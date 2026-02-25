@@ -138,6 +138,16 @@ Custom agents can be added via the Agent Database Manager in the UI or by editin
 - [ ] electron-builder packaging (Windows installer)
 - [ ] Cross-device AI activity correlation
 
+## Testing
+
+```bash
+npm test              # run all tests once
+npm run test:watch    # run in watch mode (re-runs on file changes)
+npm run test:coverage # run with coverage report
+```
+
+130 tests across 12 test files covering process scanning, file classification, network monitoring, risk scoring, config management, baselines, logging, and platform parsers. Tests use [Vitest](https://vitest.dev/) with the `v8` coverage provider.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code standards, and how to extend AEGIS.

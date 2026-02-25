@@ -26,6 +26,8 @@ function settingsPath() {
   if (!_settingsPath) _settingsPath = path.join(app.getPath('userData'), 'settings.json');
   return _settingsPath;
 }
+/** @internal Override settings path (for tests). */
+function _setSettingsPathForTest(p) { _settingsPath = p; }
 
 const DEFAULT_SETTINGS = {
   scanIntervalSec: 10,
@@ -271,6 +273,7 @@ const _exports = {
   getCustomSensitiveRules,
   getCustomAgents,
   saveCustomAgents,
+  _setSettingsPathForTest,
 };
 
 // Lazy getter — keeps config.SETTINGS_PATH working for external callers

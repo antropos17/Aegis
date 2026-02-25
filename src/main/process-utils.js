@@ -11,8 +11,21 @@
 'use strict';
 
 const path = require('path');
-const { getParentProcessMap, getProcessCwd } = require('./platform');
+const _platform = require('./platform');
 const { EDITORS } = require('../shared/constants');
+
+let _getParentProcessMap = _platform.getParentProcessMap;
+let _getProcessCwd = _platform.getProcessCwd;
+/** @internal Override platform functions (for tests). */
+function _setPlatformForTest(overrides) {
+  if (overrides.getParentProcessMap) _getParentProcessMap = overrides.getParentProcessMap;
+  if (overrides.getProcessCwd) _getProcessCwd = overrides.getProcessCwd;
+}
+/** @internal Clear caches (for tests). */
+function _resetForTest() {
+  parentChainCache.clear();
+  cwdCache.clear();
+}
 
 const parentChainCache = new Map();
 const PARENT_CHAIN_TTL = 60000;
@@ -47,7 +60,7 @@ async function getParentChains(pids) {
     return result;
   }
 
-  const procMap = await getParentProcessMap();
+  const procMap = await _getParentProcessMap();
   const result = new Map();
 
   // Populate cached entries first
@@ -152,7 +165,7 @@ async function annotateWorkingDirs(agents) {
       if (cached && now - cached.timestamp <= CWD_CACHE_TTL) {
         return { pid: a.pid, cwd: cached.cwd };
       }
-      const cwd = await getProcessCwd(a.pid);
+      const cwd = await _getProcessCwd(a.pid);
       cwdCache.set(a.pid, { cwd, timestamp: now });
       return { pid: a.pid, cwd };
     }),
@@ -166,4 +179,4 @@ async function annotateWorkingDirs(agents) {
   }
 }
 
-module.exports = { getParentChains, enrichWithParentChains, annotateHostApps, annotateWorkingDirs };
+module.exports = { getParentChains, enrichWithParentChains, annotateHostApps, annotateWorkingDirs, _setPlatformForTest, _resetForTest };

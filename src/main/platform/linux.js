@@ -5,7 +5,11 @@
  */
 'use strict';
 
-const { execFile } = require('child_process');
+const { execFile: _origExecFile } = require('child_process');
+
+let _execFile = _origExecFile;
+/** @internal Override execFile (for tests). */
+function _setExecFileForTest(fn) { _execFile = fn || _origExecFile; }
 const fs = require('fs');
 const path = require('path');
 const {
@@ -36,7 +40,7 @@ const IGNORE_FILE_PATTERNS = [
  */
 function listProcesses() {
   return new Promise((resolve, reject) => {
-    execFile('ps', ['-axo', 'comm=,pid='], { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+    _execFile('ps', ['-axo', 'comm=,pid='], { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
       if (err) {
         reject(err);
         return;
@@ -124,7 +128,7 @@ function getRawTcpConnections(pids) {
     const pidSet = new Set(pids);
 
     // Try ss first
-    execFile(
+    _execFile(
       'ss',
       ['-tnp'],
       { timeout: 10000, maxBuffer: 4 * 1024 * 1024 },
@@ -137,7 +141,7 @@ function getRawTcpConnections(pids) {
           }
         }
         // Fallback to lsof
-        execFile(
+        _execFile(
           'lsof',
           ['-i', 'TCP', '-n', '-P', '-F', 'pcnT'],
           { timeout: 10000, maxBuffer: 4 * 1024 * 1024 },
@@ -245,10 +249,12 @@ module.exports = {
   listProcesses,
   getParentProcessMap,
   getRawTcpConnections,
+  parseSsOutput,
   getFileHandles,
   getProcessCwd,
   killProcess,
   suspendProcess,
   resumeProcess,
   IGNORE_FILE_PATTERNS,
+  _setExecFileForTest,
 };
