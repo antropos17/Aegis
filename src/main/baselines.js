@@ -15,7 +15,12 @@ const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
 
-const BASELINES_PATH = path.join(app.getPath('userData'), 'baselines.json');
+// ── Lazy path — resolved on first use (after app.whenReady) ──
+let _baselinesPath = null;
+function baselinesPath() {
+  if (!_baselinesPath) _baselinesPath = path.join(app.getPath('userData'), 'baselines.json');
+  return _baselinesPath;
+}
 const MAX_BASELINE_SESSIONS = 10;
 let baselines = { agents: {} };
 const sessionData = {};
@@ -23,8 +28,8 @@ const sessionData = {};
 /** @returns {void} @since v0.1.0 */
 function loadBaselines() {
   try {
-    if (fs.existsSync(BASELINES_PATH)) {
-      const raw = JSON.parse(fs.readFileSync(BASELINES_PATH, 'utf-8'));
+    if (fs.existsSync(baselinesPath())) {
+      const raw = JSON.parse(fs.readFileSync(baselinesPath(), 'utf-8'));
       if (raw && raw.agents) baselines = raw;
     }
   } catch (_) {
@@ -34,9 +39,7 @@ function loadBaselines() {
 
 /** @returns {void} @since v0.1.0 */
 function saveBaselines() {
-  try {
-    fs.writeFileSync(BASELINES_PATH, JSON.stringify(baselines, null, 2));
-  } catch (_) {}
+  try { fs.writeFileSync(baselinesPath(), JSON.stringify(baselines, null, 2)); } catch (_) {}
 }
 
 /**
