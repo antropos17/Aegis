@@ -4,7 +4,7 @@
   "description": "Independent AI agent oversight layer — monitors what AI agents do on your local machine",
   "main": "src/main/main.js",
   "scripts": {
-    "start": "npm run build:renderer && electron .",
+    "start": "npm run build:renderer && node scripts/launch.js",
     "dev": "vite",
     "build:renderer": "vite build",
     "build": "electron-builder --publish never",
@@ -55,7 +55,7 @@
   ],
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
-    "electron": "^33.0.0",
+    "electron": "^33.4.11",
     "electron-builder": "^26.7.0",
     "sharp": "^0.34.5",
     "svelte": "^5.51.2",
