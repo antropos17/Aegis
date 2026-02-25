@@ -11,7 +11,7 @@
     "dist": "electron-builder --publish never",
     "format": "prettier --write 'src/**/*.{js,svelte,css,html}' '*.{js,json}'",
     "format:check": "prettier --check 'src/**/*.{js,svelte,css,html}' '*.{js,json}'",
-    "lint": "npx eslint src/ --ext .js,.svelte --max-warnings 0 || true"
+    "lint": "npx eslint src/"
   },
   "build": {
     "appId": "com.aegis.oversight",
@@ -57,9 +57,11 @@
     "privacy"
   ],
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "electron": "^33.4.11",
     "electron-builder": "^26.7.0",
+    "globals": "^17.3.0",
     "prettier": "^3.8.1",
     "prettier-plugin-svelte": "^3.5.0",
     "sharp": "^0.34.5",
