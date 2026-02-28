@@ -1,7 +1,7 @@
 /**
  * @file main.js
  * @description Electron main-process orchestrator. Wires sub-modules, manages
- *   scan intervals, and controls app lifecycle.
+ *   app lifecycle. Scan intervals delegated to scan-loop.js.
  * @since v0.1.0
  */
 'use strict';
@@ -26,10 +26,9 @@ const tray = require('./tray-icon');
 const audit = require('./audit-logger');
 const logger = require('./logger');
 const ipc = require('./ipc-handlers');
+const scanLoop = require('./scan-loop');
 
-let mainWindow = null,
-  scanInterval = null,
-  fileScanInterval = null;
+let mainWindow = null;
 let latestAgents = [],
   latestAiAgents = [],
   latestOtherAgents = [];
@@ -39,8 +38,6 @@ let latestNetConnections = [],
   otherPanelExpanded = false;
 let previousAgentPids = new Map();
 const fileWatchers = [];
-// Event dedup — same agent + same file within 30s → suppress, track count
-const eventDedupMap = new Map();
 
 /** @returns {Object} Process memory and CPU usage @since v0.1.0 */
 function getResourceUsage() {
@@ -121,171 +118,34 @@ function createWindow() {
   });
 }
 
-// ═══ SCANNING ═══
-
-function stopScanIntervals() {
-  if (scanInterval) {
-    clearInterval(scanInterval);
-    scanInterval = null;
-  }
-  if (fileScanInterval) {
-    clearInterval(fileScanInterval);
-    fileScanInterval = null;
-  }
-  if (startScanIntervals._netInterval) {
-    clearInterval(startScanIntervals._netInterval);
-    startScanIntervals._netInterval = null;
-  }
-}
-
-function doNetworkScan() {
-  if (network.isNetworkScanRunning() || latestAgents.length === 0) return;
-  network.setNetworkScanRunning(true);
-  network
-    .scanNetworkConnections(latestAgents)
-    .then((connections) => {
-      latestNetConnections = connections;
-      for (const conn of connections) {
-        baselines.recordNetworkEndpoint(conn.agent, conn.remoteIp, conn.remotePort);
-        audit.log('network-connection', {
-          agent: conn.agent,
-          action: conn.state,
-          path: `${conn.remoteIp}:${conn.remotePort}`,
-          severity: conn.flagged ? 'high' : 'normal',
-          extra: { domain: conn.domain, flagged: conn.flagged },
-        });
-      }
-      sendToRenderer('network-update', connections);
-    })
-    .catch((err) => {
-      logger.error('main', 'Network scan failed', { error: err.message });
-    })
-    .finally(() => network.setNetworkScanRunning(false));
-}
-
-/**
- * Dedup file events: same agent + same file within 30s → suppress.
- * Returns the event (with repeatCount) if it should be sent, or null to skip.
- * @param {Object} ev @returns {Object|null} @since v0.3.0
- */
-function dedupFileEvent(ev) {
-  const key = `${ev.agent}|${ev.file}`;
-  const now = Date.now();
-  const prev = eventDedupMap.get(key);
-  if (prev && now - prev.lastSent < 30000) {
-    prev.count++;
-    return null;
-  }
-  ev.repeatCount = prev ? prev.count : 1;
-  eventDedupMap.set(key, { lastSent: now, count: 1 });
-  if (eventDedupMap.size > 500) {
-    for (const [k, v] of eventDedupMap) {
-      if (now - v.lastSent > 60000) eventDedupMap.delete(k);
-    }
-  }
-  return ev;
-}
-
-function logAuditForFile(ev) {
-  const type =
-    ev.reason && ev.reason.startsWith('AI agent config') ? 'config-access' : 'file-access';
-  audit.log(type, {
-    agent: ev.agent,
-    action: ev.action,
-    path: ev.file,
-    severity: ev.sensitive ? 'sensitive' : 'normal',
-  });
-}
-
-function startScanIntervals() {
-  const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
-  scanInterval = setInterval(async () => {
-    try {
-      const result = await scanner.scanProcesses();
-      latestAgents = result.agents;
-      latestAiAgents = latestAgents.filter((a) => a.category === 'ai');
-      latestOtherAgents = latestAgents.filter((a) => a.category === 'other');
-      // Agent enter/exit tracking
-      const curPids = new Map();
-      for (const a of latestAgents) curPids.set(a.pid, a.agent);
-      for (const [pid, name] of curPids) {
-        if (!previousAgentPids.has(pid))
-          audit.log('agent-enter', {
-            agent: name,
-            action: 'started',
-            path: '',
-            severity: 'normal',
-            extra: { pid },
-          });
-      }
-      for (const [pid, name] of previousAgentPids) {
-        if (!curPids.has(pid))
-          audit.log('agent-exit', {
-            agent: name,
-            action: 'exited',
-            path: '',
-            severity: 'normal',
-            extra: { pid },
-          });
-      }
-      previousAgentPids = curPids;
-      watcher.pruneKnownHandles(latestAgents);
-      await procUtil.enrichWithParentChains(latestAgents);
-      procUtil.annotateHostApps(latestAgents);
-      await procUtil.annotateWorkingDirs(latestAgents);
-      sendToRenderer('scan-results', latestAgents);
-      sendToRenderer('stats-update', getStats());
-      sendToRenderer('resource-usage', getResourceUsage());
-      tray.updateTrayIcon();
-      const deviations = anomaly.checkDeviations();
-      if (deviations.length > 0) {
-        sendToRenderer('baseline-warnings', deviations);
-        for (const d of deviations)
-          audit.log('anomaly-alert', {
-            agent: d.agent,
-            action: d.type,
-            path: '',
-            severity: 'high',
-            extra: { message: d.message, anomalyScore: d.anomalyScore },
-          });
-      }
-      const scores = {};
-      for (const a of latestAgents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent);
-      sendToRenderer('anomaly-scores', scores);
-      if (result.changed) doNetworkScan();
-    } catch (err) {
-      logger.error('main', 'Process scan failed', { error: err.message });
-    }
-  }, ms);
-  startScanIntervals._netInterval = setInterval(doNetworkScan, 30000);
-  fileScanInterval = setInterval(
-    async () => {
-      if (latestAgents.length === 0) return;
-      try {
-        const rawEvents = await watcher.scanAllFileHandles(latestAgents);
-        const events = rawEvents.map(dedupFileEvent).filter(Boolean);
-        if (events.length > 0) {
-          sendToRenderer('file-access', events);
-          tray.notifySensitive(events.filter((e) => e.sensitive && e.category === 'ai'));
-          for (const ev of events) logAuditForFile(ev);
-        }
-        sendToRenderer('stats-update', getStats());
-        tray.updateTrayIcon();
-      } catch (err) {
-        logger.error('main', 'File handle scan failed', { error: err.message });
-      }
-    },
-    Math.max(ms * 3, 30000),
-  );
-}
-
 // ═══ MODULE WIRING ═══
+
+scanLoop.init({
+  scanner, procUtil, watcher, network, baselines, anomaly, audit, tray, logger,
+  sendToRenderer, getStats, getResourceUsage,
+  getLatestAgents: () => latestAgents,
+  setAgents: (agents) => {
+    latestAgents = agents;
+    latestAiAgents = agents.filter((a) => a.category === 'ai');
+    latestOtherAgents = agents.filter((a) => a.category === 'other');
+  },
+  setLatestNetConnections: (c) => {
+    latestNetConnections = c;
+  },
+  getPreviousPids: () => previousAgentPids,
+  setPreviousPids: (m) => {
+    previousAgentPids = m;
+  },
+});
 
 config.init({
   knownAgentNames: scanner.AI_AGENTS.map((a) => a.name),
   applyCallback: () => {
-    stopScanIntervals();
-    if (!monitoringPaused) startScanIntervals();
+    scanLoop.stopScanIntervals();
+    if (!monitoringPaused) {
+      const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
+      scanLoop.startScanIntervals(ms);
+    }
   },
 });
 scanner.init({ trackSeenAgent: config.trackSeenAgent });
@@ -299,13 +159,13 @@ watcher.init({
   watchers: fileWatchers,
   recordFileAccess: baselines.recordFileAccess,
   onFileEvent: (ev) => {
-    const deduped = dedupFileEvent(ev);
+    const deduped = scanLoop.dedupFileEvent(ev);
     if (!deduped) return;
     sendToRenderer('file-access', [deduped]);
     if (deduped.sensitive && deduped.category === 'ai') tray.notifySensitive([deduped]);
     sendToRenderer('stats-update', getStats());
     tray.updateTrayIcon();
-    logAuditForFile(deduped);
+    scanLoop.logAuditForFile(deduped);
   },
   isOtherPanelExpanded: () => otherPanelExpanded,
 });
@@ -337,8 +197,11 @@ tray.init({
   setMonitoringPaused: (v) => {
     monitoringPaused = v;
   },
-  stopScanIntervals,
-  startScanIntervals,
+  stopScanIntervals: scanLoop.stopScanIntervals,
+  startScanIntervals: () => {
+    const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
+    scanLoop.startScanIntervals(ms);
+  },
   getMainWindow: () => mainWindow,
   setIsQuitting: (v) => {
     isQuitting = v;
@@ -392,43 +255,8 @@ app.whenReady().then(() => {
       mainWindow.webContents.send('toggle-theme');
     }
   });
-  // Staggered startup: process 3s → files 5s → network 8s
-  setTimeout(async () => {
-    try {
-      const result = await scanner.scanProcesses();
-      latestAgents = result.agents;
-      latestAiAgents = latestAgents.filter((a) => a.category === 'ai');
-      latestOtherAgents = latestAgents.filter((a) => a.category === 'other');
-      await procUtil.enrichWithParentChains(latestAgents);
-      procUtil.annotateHostApps(latestAgents);
-      await procUtil.annotateWorkingDirs(latestAgents);
-      sendToRenderer('scan-results', latestAgents);
-      sendToRenderer('stats-update', getStats());
-      sendToRenderer('resource-usage', getResourceUsage());
-      tray.updateTrayIcon();
-    } catch (err) {
-      logger.error('main', 'Initial process scan failed', { error: err.message });
-    }
-  }, 3000);
-  setTimeout(async () => {
-    try {
-      if (latestAgents.length === 0) return;
-      const rawEvents = await watcher.scanAllFileHandles(latestAgents);
-      const events = rawEvents.map(dedupFileEvent).filter(Boolean);
-      if (events.length > 0) {
-        sendToRenderer('file-access', events);
-        tray.notifySensitive(events.filter((e) => e.sensitive && e.category === 'ai'));
-      }
-      sendToRenderer('stats-update', getStats());
-      tray.updateTrayIcon();
-    } catch (err) {
-      logger.error('main', 'Initial file handle scan failed', { error: err.message });
-    }
-  }, 5000);
-  setTimeout(() => {
-    doNetworkScan();
-    if (!monitoringPaused) startScanIntervals();
-  }, 8000);
+  const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
+  scanLoop.staggeredStartup(ms, monitoringPaused);
 });
 
 app.on('before-quit', () => {
@@ -445,6 +273,6 @@ app.on('before-quit', () => {
 });
 app.on('window-all-closed', () => {});
 app.on('quit', () => {
-  stopScanIntervals();
+  scanLoop.stopScanIntervals();
   fileWatchers.forEach((w) => w.close());
 });
