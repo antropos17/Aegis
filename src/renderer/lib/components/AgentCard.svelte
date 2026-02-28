@@ -49,7 +49,7 @@
   let lastFile = $derived.by(() => {
     const ev = agentEvents.find((e) => e.file);
     if (!ev) return null;
-    const parts = ev.file.split('/');
+    const parts = ev.file.split(/[/\\]/);
     return parts.length > 2 ? parts.slice(-2).join('/') : ev.file;
   });
 
@@ -61,7 +61,7 @@
 
   function shortenPath(p) {
     if (!p) return '';
-    const parts = p.split('/');
+    const parts = p.split(/[/\\]/);
     return parts.length > 3 ? '.../' + parts.slice(-3).join('/') : p;
   }
 

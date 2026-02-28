@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { createRequire } from 'module';
 import { EventEmitter } from 'events';
 import Module from 'module';
@@ -15,6 +15,10 @@ Module._load = function (request, parent, isMain) {
   if (request === 'https') return fakeHttps;
   return originalLoad.apply(this, arguments);
 };
+
+afterAll(() => {
+  Module._load = originalLoad;
+});
 
 describe('ai-analysis', () => {
   let analysis;

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { createRequire } from 'module';
 import Module from 'module';
 import fs from 'fs';
@@ -23,6 +23,10 @@ Module._load = function (request, parent, isMain) {
   if (request === 'electron') return fakeElectron;
   return originalLoad.apply(this, arguments);
 };
+
+afterAll(() => {
+  Module._load = originalLoad;
+});
 
 describe('exports', () => {
   let exporter;

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { createRequire } from 'module';
 import Module from 'module';
 import path from 'path';
@@ -117,6 +117,10 @@ Module._load = function (request, parent, isMain) {
   }
   return originalLoad.apply(this, arguments);
 };
+
+afterAll(() => {
+  Module._load = originalLoad;
+});
 
 describe('ipc-handlers', () => {
   let ipcHandlers;
