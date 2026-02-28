@@ -84,37 +84,49 @@
   --md-sys-typescale-display-large-size: calc(32px * var(--aegis-ui-scale));
   --md-sys-typescale-display-large-line: calc(40px * var(--aegis-ui-scale));
   --md-sys-typescale-display-large-family: 'Outfit', sans-serif;
-  --md-sys-typescale-display-large: var(--md-sys-typescale-display-large-weight) var(--md-sys-typescale-display-large-size) / var(--md-sys-typescale-display-large-line) var(--md-sys-typescale-display-large-family);
+  --md-sys-typescale-display-large: var(--md-sys-typescale-display-large-weight)
+    var(--md-sys-typescale-display-large-size) / var(--md-sys-typescale-display-large-line)
+    var(--md-sys-typescale-display-large-family);
 
   --md-sys-typescale-headline-medium-weight: 600;
   --md-sys-typescale-headline-medium-size: calc(20px * var(--aegis-ui-scale));
   --md-sys-typescale-headline-medium-line: calc(28px * var(--aegis-ui-scale));
   --md-sys-typescale-headline-medium-family: 'Outfit', sans-serif;
-  --md-sys-typescale-headline-medium: var(--md-sys-typescale-headline-medium-weight) var(--md-sys-typescale-headline-medium-size) / var(--md-sys-typescale-headline-medium-line) var(--md-sys-typescale-headline-medium-family);
+  --md-sys-typescale-headline-medium: var(--md-sys-typescale-headline-medium-weight)
+    var(--md-sys-typescale-headline-medium-size) / var(--md-sys-typescale-headline-medium-line)
+    var(--md-sys-typescale-headline-medium-family);
 
   --md-sys-typescale-title-medium-weight: 600;
   --md-sys-typescale-title-medium-size: calc(14px * var(--aegis-ui-scale));
   --md-sys-typescale-title-medium-line: calc(20px * var(--aegis-ui-scale));
   --md-sys-typescale-title-medium-family: 'Outfit', sans-serif;
-  --md-sys-typescale-title-medium: var(--md-sys-typescale-title-medium-weight) var(--md-sys-typescale-title-medium-size) / var(--md-sys-typescale-title-medium-line) var(--md-sys-typescale-title-medium-family);
+  --md-sys-typescale-title-medium: var(--md-sys-typescale-title-medium-weight)
+    var(--md-sys-typescale-title-medium-size) / var(--md-sys-typescale-title-medium-line)
+    var(--md-sys-typescale-title-medium-family);
 
   --md-sys-typescale-label-large-weight: 600;
   --md-sys-typescale-label-large-size: calc(13px * var(--aegis-ui-scale));
   --md-sys-typescale-label-large-line: calc(18px * var(--aegis-ui-scale));
   --md-sys-typescale-label-large-family: 'DM Sans', sans-serif;
-  --md-sys-typescale-label-large: var(--md-sys-typescale-label-large-weight) var(--md-sys-typescale-label-large-size) / var(--md-sys-typescale-label-large-line) var(--md-sys-typescale-label-large-family);
+  --md-sys-typescale-label-large: var(--md-sys-typescale-label-large-weight)
+    var(--md-sys-typescale-label-large-size) / var(--md-sys-typescale-label-large-line)
+    var(--md-sys-typescale-label-large-family);
 
   --md-sys-typescale-body-medium-weight: 400;
   --md-sys-typescale-body-medium-size: calc(13px * var(--aegis-ui-scale));
   --md-sys-typescale-body-medium-line: calc(20px * var(--aegis-ui-scale));
   --md-sys-typescale-body-medium-family: 'DM Sans', sans-serif;
-  --md-sys-typescale-body-medium: var(--md-sys-typescale-body-medium-weight) var(--md-sys-typescale-body-medium-size) / var(--md-sys-typescale-body-medium-line) var(--md-sys-typescale-body-medium-family);
+  --md-sys-typescale-body-medium: var(--md-sys-typescale-body-medium-weight)
+    var(--md-sys-typescale-body-medium-size) / var(--md-sys-typescale-body-medium-line)
+    var(--md-sys-typescale-body-medium-family);
 
   --md-sys-typescale-label-medium-weight: 500;
   --md-sys-typescale-label-medium-size: calc(11px * var(--aegis-ui-scale));
   --md-sys-typescale-label-medium-line: calc(16px * var(--aegis-ui-scale));
   --md-sys-typescale-label-medium-family: 'DM Sans', sans-serif;
-  --md-sys-typescale-label-medium: var(--md-sys-typescale-label-medium-weight) var(--md-sys-typescale-label-medium-size) / var(--md-sys-typescale-label-medium-line) var(--md-sys-typescale-label-medium-family);
+  --md-sys-typescale-label-medium: var(--md-sys-typescale-label-medium-weight)
+    var(--md-sys-typescale-label-medium-size) / var(--md-sys-typescale-label-medium-line)
+    var(--md-sys-typescale-label-medium-family);
 
   /* ── Shape ── */
   --md-sys-shape-corner-small: 8px;

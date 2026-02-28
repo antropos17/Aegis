@@ -23,7 +23,9 @@ function _setPlatformForTest(overrides) {
   if (overrides.listProcesses) _listProcesses = overrides.listProcesses;
 }
 /** @internal Reset state (for tests). */
-function _resetForTest() { lastProcessPidSet = ''; }
+function _resetForTest() {
+  lastProcessPidSet = '';
+}
 
 const agentDb = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8'),

@@ -190,7 +190,8 @@ function getFileHandles(pid) {
  */
 function killProcess(pid) {
   pid = Number(pid);
-  if (!Number.isInteger(pid) || pid <= 0) return Promise.resolve({ success: false, error: 'Invalid PID' });
+  if (!Number.isInteger(pid) || pid <= 0)
+    return Promise.resolve({ success: false, error: 'Invalid PID' });
   return new Promise((resolve) => {
     execFile('taskkill', ['/PID', String(pid), '/F'], (err) => {
       resolve(err ? { success: false, error: err.message } : { success: true });
@@ -204,7 +205,8 @@ function killProcess(pid) {
  */
 function suspendProcess(pid) {
   pid = Number(pid);
-  if (!Number.isInteger(pid) || pid <= 0) return Promise.resolve({ success: false, error: 'Invalid PID' });
+  if (!Number.isInteger(pid) || pid <= 0)
+    return Promise.resolve({ success: false, error: 'Invalid PID' });
   const script = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class Ntdll{[DllImport("ntdll.dll")]public static extern int NtSuspendProcess(IntPtr h);}' -PassThru | Out-Null;$h=(Get-Process -Id ${Number(pid)}).Handle;[Ntdll]::NtSuspendProcess($h)`;
   return new Promise((resolve) => {
     execFile(
@@ -224,7 +226,8 @@ function suspendProcess(pid) {
  */
 function resumeProcess(pid) {
   pid = Number(pid);
-  if (!Number.isInteger(pid) || pid <= 0) return Promise.resolve({ success: false, error: 'Invalid PID' });
+  if (!Number.isInteger(pid) || pid <= 0)
+    return Promise.resolve({ success: false, error: 'Invalid PID' });
   const script = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class Ntdll2{[DllImport("ntdll.dll")]public static extern int NtResumeProcess(IntPtr h);}' -PassThru | Out-Null;$h=(Get-Process -Id ${Number(pid)}).Handle;[Ntdll2]::NtResumeProcess($h)`;
   return new Promise((resolve) => {
     execFile(

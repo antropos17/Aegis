@@ -33,7 +33,9 @@ function _setDepsForTest(overrides) {
   if (overrides.getFileHandles) _getFileHandles = overrides.getFileHandles;
 }
 /** @internal Reset debounce state (for tests). */
-function _resetForTest() { watcherDebounce.clear(); }
+function _resetForTest() {
+  watcherDebounce.clear();
+}
 
 const watcherDebounce = new Map();
 let _state = null;
@@ -65,8 +67,10 @@ function classifySensitive(filePath) {
 
 /** @param {string} filePath @returns {boolean} @since v0.1.0 */
 function shouldIgnore(filePath) {
-  return IGNORE_PATTERNS.some((p) => p.test(filePath)) ||
-    IGNORE_FILE_PATTERNS.some((p) => p.test(filePath));
+  return (
+    IGNORE_PATTERNS.some((p) => p.test(filePath)) ||
+    IGNORE_FILE_PATTERNS.some((p) => p.test(filePath))
+  );
 }
 
 /**

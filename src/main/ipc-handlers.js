@@ -53,7 +53,8 @@ function register() {
   ipcMain.on('other-panel-expanded', (_e, val) => deps.setOtherPanelExpanded(val));
 
   ipcMain.handle('test-notification', () => {
-    if (!Notification.isSupported()) return { success: false, error: 'Notifications not supported on this system' };
+    if (!Notification.isSupported())
+      return { success: false, error: 'Notifications not supported on this system' };
     new Notification({
       title: 'AEGIS \u2014 Test Notification',
       body: 'Desktop notifications are working correctly.',
@@ -135,10 +136,13 @@ function register() {
     config.getInstancePermissions(agentName, parentEditor, cwd),
   );
 
-  ipcMain.handle('save-instance-permissions', (_e, { agentName, parentEditor, permissions, cwd }) => {
-    config.saveInstancePermissions(agentName, parentEditor, permissions, cwd);
-    return { success: true };
-  });
+  ipcMain.handle(
+    'save-instance-permissions',
+    (_e, { agentName, parentEditor, permissions, cwd }) => {
+      config.saveInstancePermissions(agentName, parentEditor, permissions, cwd);
+      return { success: true };
+    },
+  );
 
   ipcMain.handle('reset-permissions-to-defaults', () => {
     const settings = config.getSettings();

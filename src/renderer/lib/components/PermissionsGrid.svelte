@@ -82,10 +82,7 @@
   function setState(catId, newState) {
     if (selectedKey === '__global__') return;
 
-    const allEntries = [
-      ...instanceList.running,
-      ...instanceList.savedDefaults,
-    ];
+    const allEntries = [...instanceList.running, ...instanceList.savedDefaults];
     const entry = allEntries.find((e) => e.key === selectedKey);
     if (!entry) return;
 

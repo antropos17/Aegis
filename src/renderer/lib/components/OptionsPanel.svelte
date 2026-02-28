@@ -22,14 +22,17 @@
       localScale = $uiScale;
       testResult = '';
       if (!loaded && window.aegis) {
-        window.aegis.getSettings().then((s) => {
-          if (!s) return;
-          scanInterval = s.scanIntervalSec ?? 10;
-          notifications = s.notificationsEnabled ?? true;
-          apiKey = s.anthropicApiKey ?? '';
-          customPatterns = (s.customSensitivePatterns || []).join('\n');
-          loaded = true;
-        }).catch(() => {});
+        window.aegis
+          .getSettings()
+          .then((s) => {
+            if (!s) return;
+            scanInterval = s.scanIntervalSec ?? 10;
+            notifications = s.notificationsEnabled ?? true;
+            apiKey = s.anthropicApiKey ?? '';
+            customPatterns = (s.customSensitivePatterns || []).join('\n');
+            loaded = true;
+          })
+          .catch(() => {});
       }
     }
   });
@@ -51,7 +54,10 @@
 
     // Save all settings
     if (window.aegis) {
-      const patterns = customPatterns.split('\n').map((l) => l.trim()).filter(Boolean);
+      const patterns = customPatterns
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
       const current = await window.aegis.getSettings();
       await window.aegis.saveSettings({
         ...current,
@@ -98,7 +104,14 @@
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="overlay" onclick={handleBackdrop} onkeydown={handleKeydown} role="dialog" aria-modal="true" tabindex="-1">
+  <div
+    class="overlay"
+    onclick={handleBackdrop}
+    onkeydown={handleKeydown}
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+  >
     <div class="panel" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
       <h2 class="panel-title">Settings</h2>
 
@@ -109,26 +122,52 @@
         <span class="option-label">Theme</span>
         <div class="theme-toggle">
           <label class="radio-label">
-            <input type="radio" name="theme" value="dark" checked={localTheme === 'dark'} onchange={onThemeChange} />
+            <input
+              type="radio"
+              name="theme"
+              value="dark"
+              checked={localTheme === 'dark'}
+              onchange={onThemeChange}
+            />
             Dark
           </label>
           <label class="radio-label">
-            <input type="radio" name="theme" value="light" checked={localTheme === 'light'} onchange={onThemeChange} />
+            <input
+              type="radio"
+              name="theme"
+              value="light"
+              checked={localTheme === 'light'}
+              onchange={onThemeChange}
+            />
             Light
           </label>
           <label class="radio-label">
-            <input type="radio" name="theme" value="dark-hc" checked={localTheme === 'dark-hc'} onchange={onThemeChange} />
+            <input
+              type="radio"
+              name="theme"
+              value="dark-hc"
+              checked={localTheme === 'dark-hc'}
+              onchange={onThemeChange}
+            />
             Dark HC
           </label>
           <label class="radio-label">
-            <input type="radio" name="theme" value="light-hc" checked={localTheme === 'light-hc'} onchange={onThemeChange} />
+            <input
+              type="radio"
+              name="theme"
+              value="light-hc"
+              checked={localTheme === 'light-hc'}
+              onchange={onThemeChange}
+            />
             Light HC
           </label>
         </div>
       </div>
 
       <div class="option-group">
-        <label class="option-label" for="ui-scale-slider">Interface Scale <span class="scale-value">{scalePercent}%</span></label>
+        <label class="option-label" for="ui-scale-slider"
+          >Interface Scale <span class="scale-value">{scalePercent}%</span></label
+        >
         <input
           id="ui-scale-slider"
           type="range"
@@ -164,7 +203,9 @@
             class="toggle"
             class:toggle-on={notifications}
             aria-label="Toggle notifications"
-            onclick={() => { notifications = !notifications; }}
+            onclick={() => {
+              notifications = !notifications;
+            }}
           >
             <span class="toggle-knob"></span>
           </button>
@@ -186,7 +227,12 @@
           {:else}
             <input type="password" bind:value={apiKey} placeholder="sk-ant-..." class="key-input" />
           {/if}
-          <button class="btn btn-small" onclick={() => { showKey = !showKey; }}>
+          <button
+            class="btn btn-small"
+            onclick={() => {
+              showKey = !showKey;
+            }}
+          >
             {showKey ? 'Hide' : 'Show'}
           </button>
         </div>
@@ -195,13 +241,23 @@
       <div class="option-group">
         <span class="option-label">Custom Sensitive Patterns</span>
         <span class="field-hint">One regex per line</span>
-        <textarea rows="3" bind:value={customPatterns} placeholder="e.g. \.secret$&#10;passwords\.txt"></textarea>
+        <textarea
+          rows="3"
+          bind:value={customPatterns}
+          placeholder="e.g. \.secret$&#10;passwords\.txt"
+        ></textarea>
       </div>
 
       <!-- ── Config ── -->
       <div class="config-actions">
         <button class="btn" onclick={() => window.aegis?.exportConfig()}>Export Config</button>
-        <button class="btn" onclick={async () => { const r = await window.aegis?.importConfig(); if (r?.success) loaded = false; }}>Import Config</button>
+        <button
+          class="btn"
+          onclick={async () => {
+            const r = await window.aegis?.importConfig();
+            if (r?.success) loaded = false;
+          }}>Import Config</button
+        >
       </div>
 
       <div class="panel-actions">
@@ -225,8 +281,12 @@
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   .panel {
@@ -249,7 +309,10 @@
   }
 
   @keyframes scale-in {
-    from { opacity: 0; transform: scale(0.96) translateY(8px); }
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(8px);
+    }
   }
 
   .panel-title {
@@ -426,8 +489,14 @@
     color: var(--md-sys-color-on-surface);
     outline: none;
   }
-  .key-input { flex: 1; }
-  textarea { resize: vertical; width: 100%; box-sizing: border-box; }
+  .key-input {
+    flex: 1;
+  }
+  textarea {
+    resize: vertical;
+    width: 100%;
+    box-sizing: border-box;
+  }
   .key-input:focus,
   textarea:focus {
     border-color: var(--md-sys-color-primary);
@@ -457,8 +526,12 @@
     cursor: pointer;
     transition: all 0.3s var(--ease-glass);
   }
-  .btn:hover { opacity: 0.85; }
-  .btn:active { transform: scale(0.97); }
+  .btn:hover {
+    opacity: 0.85;
+  }
+  .btn:active {
+    transform: scale(0.97);
+  }
 
   .btn-small {
     padding: var(--aegis-space-3) var(--aegis-space-6);

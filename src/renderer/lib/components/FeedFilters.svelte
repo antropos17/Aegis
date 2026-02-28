@@ -57,7 +57,9 @@
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: var(--aegis-card-border);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), var(--glass-highlight);
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.12),
+      var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
     flex-wrap: wrap;
   }

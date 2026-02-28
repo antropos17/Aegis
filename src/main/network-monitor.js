@@ -27,7 +27,10 @@ function _setDepsForTest(overrides) {
   if (overrides.dnsReverse) _dnsReverse = overrides.dnsReverse;
 }
 /** @internal Clear caches (for tests). */
-function _resetForTest() { dnsCache.clear(); networkScanRunning = false; }
+function _resetForTest() {
+  dnsCache.clear();
+  networkScanRunning = false;
+}
 
 const agentDb = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8'),

@@ -36,7 +36,13 @@
     <span class="stat-text">{filesMonitored} files</span>
   </div>
 
-  <button class="icon-btn" aria-label="Settings" onclick={() => { optionsOpen = true; }}>
+  <button
+    class="icon-btn"
+    aria-label="Settings"
+    onclick={() => {
+      optionsOpen = true;
+    }}
+  >
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
       <path
         d="M6.5.5h3l.4 2 1.3.7 1.8-1 2.1 2.1-1 1.8.7 1.3 2 .4v3l-2 .4-.7 1.3 1 1.8-2.1 2.1-1.8-1-1.3.7-.4 2h-3l-.4-2-1.3-.7-1.8 1L.9 13.3l1-1.8-.7-1.3-2-.4v-3l2-.4.7-1.3-1-1.8L2.9.9l1.8 1 1.3-.7z"

@@ -11,18 +11,17 @@
   const MIN_TICK_PX = 64;
 
   const ZOOM_LEVELS = [
-    { ms: 3600000 },  // 1h per 120px
-    { ms: 1800000 },  // 30min
-    { ms: 600000  },  // 10min
-    { ms: 300000  },  // 5min
-    { ms: 60000   },  // 1min
-    { ms: 30000   },  // 30s
-    { ms: 10000   },  // 10s (default — most zoomed in)
+    { ms: 3600000 }, // 1h per 120px
+    { ms: 1800000 }, // 30min
+    { ms: 600000 }, // 10min
+    { ms: 300000 }, // 5min
+    { ms: 60000 }, // 1min
+    { ms: 30000 }, // 30s
+    { ms: 10000 }, // 10s (default — most zoomed in)
   ];
 
   const NICE_INTERVALS = [
-    5000, 10000, 15000, 30000, 60000, 120000, 300000,
-    600000, 900000, 1800000, 3600000, 7200000,
+    5000, 10000, 15000, 30000, 60000, 120000, 300000, 600000, 900000, 1800000, 3600000, 7200000,
   ];
 
   function getSeverity(ev) {
@@ -64,7 +63,11 @@
   // Load persisted zoom from settings
   if (window.aegis) {
     window.aegis.getSettings().then((s) => {
-      if (typeof s.timelineZoom === 'number' && s.timelineZoom >= 0 && s.timelineZoom < ZOOM_LEVELS.length) {
+      if (
+        typeof s.timelineZoom === 'number' &&
+        s.timelineZoom >= 0 &&
+        s.timelineZoom < ZOOM_LEVELS.length
+      ) {
         zoomIndex = s.timelineZoom;
       }
     });
@@ -107,17 +110,22 @@
     // Snapshot current timeline origin so we can compensate after load
     prevMinT = minT;
     try {
-      const oldest = historicalEvents.length > 0
-        ? new Date(historicalEvents[0].timestamp).toISOString()
-        : allLiveEvents.length > 0
-          ? new Date(allLiveEvents[0].timestamp).toISOString()
-          : new Date().toISOString();
+      const oldest =
+        historicalEvents.length > 0
+          ? new Date(historicalEvents[0].timestamp).toISOString()
+          : allLiveEvents.length > 0
+            ? new Date(allLiveEvents[0].timestamp).toISOString()
+            : new Date().toISOString();
       const entries = await window.aegis.getAuditEntriesBefore(oldest, HISTORY_BATCH);
       if (entries.length === 0) {
         historyExhausted = true;
       } else {
         const mapped = entries
-          .filter((e) => ['file-access', 'config-access', 'network-connection', 'permission-deny'].includes(e.type))
+          .filter((e) =>
+            ['file-access', 'config-access', 'network-connection', 'permission-deny'].includes(
+              e.type,
+            ),
+          )
           .map(auditToTimelineEvent);
         if (mapped.length === 0) {
           historyExhausted = true;
@@ -144,8 +152,7 @@
       _type: 'network',
       flagged: !!conn.flagged,
     }));
-    return [...fileEvs, ...netEvs]
-      .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    return [...fileEvs, ...netEvs].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
   });
 
   let allEvents = $derived.by(() => {
@@ -164,9 +171,11 @@
   });
 
   // Snap to nearest 10s boundary DOWN for a clean starting point
-  let rawMinT = $derived(allEvents.length > 0 ? (allEvents[0].timestamp || 0) : Date.now());
+  let rawMinT = $derived(allEvents.length > 0 ? allEvents[0].timestamp || 0 : Date.now());
   let minT = $derived(Math.floor(rawMinT / 10000) * 10000);
-  let maxT = $derived(allEvents.length > 0 ? (allEvents[allEvents.length - 1].timestamp || 0) : Date.now());
+  let maxT = $derived(
+    allEvents.length > 0 ? allEvents[allEvents.length - 1].timestamp || 0 : Date.now(),
+  );
   let eventRange = $derived(maxT - minT || 1);
 
   let msPerUnit = $derived(ZOOM_LEVELS[zoomIndex].ms);
@@ -208,7 +217,13 @@
 
   // Load next batch when thumb is at the left edge
   $effect(() => {
-    if (!following && !historyExhausted && !loadingHistory && thumbOffset >= 0 && thumbOffset <= 2) {
+    if (
+      !following &&
+      !historyExhausted &&
+      !loadingHistory &&
+      thumbOffset >= 0 &&
+      thumbOffset <= 2
+    ) {
       loadOlderHistory();
     }
   });
@@ -255,7 +270,10 @@
     let isFirst = true;
     for (let t = firstTick; t <= tickEnd; t += tickInterval) {
       // Skip the very first tick — it sits at the left edge and gets cut off
-      if (isFirst) { isFirst = false; continue; }
+      if (isFirst) {
+        isFirst = false;
+        continue;
+      }
       result.push({ x: tsToX(t), label: formatTick(t, subMinute) });
     }
     return result;
@@ -280,7 +298,9 @@
       }
     }
   });
-  let thumbX = $derived(thumbOffset < 0 ? trackUsable : Math.max(0, Math.min(trackUsable, thumbOffset)));
+  let thumbX = $derived(
+    thumbOffset < 0 ? trackUsable : Math.max(0, Math.min(trackUsable, thumbOffset)),
+  );
 
   function handleWheel(e) {
     e.preventDefault();
@@ -401,23 +421,34 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="timeline-wrap" onwheel={handleWheel} bind:clientWidth={viewportWidth}>
   <div class="timeline-viewport" id="timeline-viewport">
-    <svg width={viewportWidth} height={SVG_H} viewBox={viewBox}>
+    <svg width={viewportWidth} height={SVG_H} {viewBox}>
       <!-- baseline track -->
-      <line x1={clampedScroll + PAD} y1={MID} x2={clampedScroll + viewportWidth - PAD} y2={MID} class="baseline" />
+      <line
+        x1={clampedScroll + PAD}
+        y1={MID}
+        x2={clampedScroll + viewportWidth - PAD}
+        y2={MID}
+        class="baseline"
+      />
 
       <!-- ticks -->
       {#each ticks as t (t.x)}
-        <line x1={t.x} y1={TICK_TOP} x2={t.x} y2={TICK_TOP + TICK_H}
-          class="tick-line" />
-        <text x={t.x} y={TICK_TOP + TICK_H + 1} text-anchor="middle"
-          class="tick-label">{t.label}</text>
+        <line x1={t.x} y1={TICK_TOP} x2={t.x} y2={TICK_TOP + TICK_H} class="tick-line" />
+        <text x={t.x} y={TICK_TOP + TICK_H + 1} text-anchor="middle" class="tick-label"
+          >{t.label}</text
+        >
       {/each}
 
       <!-- dots -->
       {#each dots as dot (dot.idx)}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <circle cx={dot.x} cy={MID} r={DOT_R} fill={dot.color} opacity="0.85"
+        <circle
+          cx={dot.x}
+          cy={MID}
+          r={DOT_R}
+          fill={dot.color}
+          opacity="0.85"
           class="dot"
           onmouseenter={(e) => handleDotEnter(e, dot)}
           onmousemove={(e) => handleDotMove(e)}
@@ -438,8 +469,8 @@
       class:dragging
       style="width:{thumbWidth}px; left:{thumbX}px"
       onmousedown={handleThumbDown}
-      onmouseenter={() => thumbHover = true}
-      onmouseleave={() => thumbHover = false}
+      onmouseenter={() => (thumbHover = true)}
+      onmouseleave={() => (thumbHover = false)}
       role="scrollbar"
       aria-controls="timeline-viewport"
       aria-valuenow={clampedScroll}
@@ -447,7 +478,9 @@
       aria-valuemax={maxScroll}
       aria-orientation="horizontal"
       tabindex="0"
-    ><div class="grip"><span></span><span></span><span></span></div></div>
+    >
+      <div class="grip"><span></span><span></span><span></span></div>
+    </div>
   </div>
 </div>
 
@@ -466,7 +499,9 @@
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: var(--aegis-card-border);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), var(--glass-highlight);
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.12),
+      var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-small);
     padding: 3px 0;
     overflow: hidden;
@@ -476,8 +511,20 @@
     width: 100%;
     height: var(--aegis-size-timeline);
     overflow: hidden;
-    -webkit-mask-image: linear-gradient(to right, transparent, black 28px, black calc(100% - 28px), transparent);
-    mask-image: linear-gradient(to right, transparent, black 28px, black calc(100% - 28px), transparent);
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      black 28px,
+      black calc(100% - 28px),
+      transparent
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black 28px,
+      black calc(100% - 28px),
+      transparent
+    );
   }
 
   svg {
@@ -506,7 +553,8 @@
 
   .dot {
     cursor: pointer;
-    transition: opacity var(--md-sys-motion-duration-short, 100ms) var(--md-sys-motion-easing-standard, ease);
+    transition: opacity var(--md-sys-motion-duration-short, 100ms)
+      var(--md-sys-motion-easing-standard, ease);
   }
 
   .dot:hover {
@@ -546,7 +594,9 @@
     background: var(--aegis-scrub-thumb);
     border: 1px solid var(--aegis-scrub-thumb-border);
     box-shadow: var(--aegis-scrub-thumb-shadow);
-    transition: box-shadow 150ms ease, filter 150ms ease;
+    transition:
+      box-shadow 150ms ease,
+      filter 150ms ease;
     cursor: grab;
   }
 

@@ -291,4 +291,13 @@ function getEntriesBefore(beforeTs, limit = 100) {
   return results;
 }
 
-module.exports = { init, log, flush, shutdown, getStats, exportAll, getEntriesBefore, getLogDir: () => _logDir };
+module.exports = {
+  init,
+  log,
+  flush,
+  shutdown,
+  getStats,
+  exportAll,
+  getEntriesBefore,
+  getLogDir: () => _logDir,
+};

@@ -179,4 +179,11 @@ async function annotateWorkingDirs(agents) {
   }
 }
 
-module.exports = { getParentChains, enrichWithParentChains, annotateHostApps, annotateWorkingDirs, _setPlatformForTest, _resetForTest };
+module.exports = {
+  getParentChains,
+  enrichWithParentChains,
+  annotateHostApps,
+  annotateWorkingDirs,
+  _setPlatformForTest,
+  _resetForTest,
+};
