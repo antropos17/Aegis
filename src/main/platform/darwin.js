@@ -14,6 +14,7 @@ function _setExecFileForTest(fn) {
 }
 
 const {
+  parsePsOutput,
   parseLsofOutput,
   parseLsofFileHandles,
   parseLsofCwd,
@@ -46,25 +47,18 @@ function listProcesses() {
         reject(err);
         return;
       }
-      const results = [];
-      const lines = stdout.trim().split('\n');
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        // pid is the last whitespace-separated token
-        const lastSpace = trimmed.lastIndexOf(' ');
+      const results = parsePsOutput(stdout);
+      // macOS .app bundles: /Applications/Foo.app/Contents/MacOS/Foo → Foo
+      // parsePsOutput extracts basename; override with .app bundle name when present
+      for (const line of stdout.trim().split('\n')) {
+        const appMatch = line.match(/\/([^/]+)\.app\//);
+        if (!appMatch) continue;
+        const lastSpace = line.trimEnd().lastIndexOf(' ');
         if (lastSpace === -1) continue;
-        const comm = trimmed.slice(0, lastSpace).trim();
-        const pid = parseInt(trimmed.slice(lastSpace + 1), 10);
-        if (isNaN(pid) || !comm) continue;
-        // Extract basename from full path; map .app bundle paths to app name
-        let name = comm;
-        const slashIdx = name.lastIndexOf('/');
-        if (slashIdx !== -1) name = name.slice(slashIdx + 1);
-        // Handle macOS .app bundles: /Applications/Foo.app/Contents/MacOS/Foo → Foo
-        const appMatch = comm.match(/\/([^/]+)\.app\//);
-        if (appMatch) name = appMatch[1];
-        results.push({ name, pid });
+        const pid = parseInt(line.slice(lastSpace + 1), 10);
+        if (isNaN(pid)) continue;
+        const proc = results.find((r) => r.pid === pid);
+        if (proc) proc.name = appMatch[1];
       }
       resolve(results);
     });

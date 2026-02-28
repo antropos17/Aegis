@@ -15,6 +15,7 @@ function _setExecFileForTest(fn) {
 const fs = require('fs');
 const path = require('path');
 const {
+  parsePsOutput,
   parseLsofOutput,
   parseLsofFileHandles,
   parseLsofCwd,
@@ -47,22 +48,7 @@ function listProcesses() {
         reject(err);
         return;
       }
-      const results = [];
-      const lines = stdout.trim().split('\n');
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        const lastSpace = trimmed.lastIndexOf(' ');
-        if (lastSpace === -1) continue;
-        const comm = trimmed.slice(0, lastSpace).trim();
-        const pid = parseInt(trimmed.slice(lastSpace + 1), 10);
-        if (isNaN(pid) || !comm) continue;
-        let name = comm;
-        const slashIdx = name.lastIndexOf('/');
-        if (slashIdx !== -1) name = name.slice(slashIdx + 1);
-        results.push({ name, pid });
-      }
-      resolve(results);
+      resolve(parsePsOutput(stdout));
     });
   });
 }

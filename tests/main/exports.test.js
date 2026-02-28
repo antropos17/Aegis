@@ -56,9 +56,14 @@ describe('exports', () => {
       getStats: () => overrides.stats || {
         totalFiles: 10,
         totalSensitive: 2,
-        peakAgents: 3,
-        uniqueAgents: ['Claude', 'Copilot'],
+        aiSensitive: 1,
         uptimeMs: 60000,
+        monitoringStarted: Date.now() - 60000,
+        peakAgents: 3,
+        currentAgents: 2,
+        aiAgentCount: 2,
+        otherAgentCount: 0,
+        uniqueAgents: ['Claude', 'Copilot'],
       },
     };
     exporter.init(state);
@@ -133,7 +138,7 @@ describe('exports', () => {
           { timestamp: Date.now(), agent: 'Claude', pid: 100, file: '/b.js', sensitive: true, reason: 'SSH', action: 'read' },
         ],
         monitoringStarted: started,
-        stats: { totalFiles: 2, totalSensitive: 1, peakAgents: 1, uniqueAgents: ['Claude'], uptimeMs: 120000 },
+        stats: { totalFiles: 2, totalSensitive: 1, aiSensitive: 0, uptimeMs: 120000, monitoringStarted: Date.now() - 120000, peakAgents: 1, currentAgents: 1, aiAgentCount: 1, otherAgentCount: 0, uniqueAgents: ['Claude'] },
       });
 
       mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath });
@@ -250,7 +255,7 @@ describe('exports', () => {
         netConns: [
           { agent: 'Claude', remoteIp: '1.2.3.4', remotePort: 443, domain: 'api.com', flagged: false, state: 'ESTAB' },
         ],
-        stats: { totalFiles: 1, totalSensitive: 1, peakAgents: 1, uniqueAgents: ['Claude'], uptimeMs: 5000 },
+        stats: { totalFiles: 1, totalSensitive: 1, aiSensitive: 1, uptimeMs: 5000, monitoringStarted: Date.now() - 5000, peakAgents: 1, currentAgents: 1, aiAgentCount: 1, otherAgentCount: 0, uniqueAgents: ['Claude'] },
       });
 
       const result = await exporter.generateReport();
@@ -272,7 +277,7 @@ describe('exports', () => {
       initExporter({
         activityLog: [],
         netConns: [],
-        stats: { totalFiles: 0, totalSensitive: 0, peakAgents: 0, uniqueAgents: [], uptimeMs: 1000 },
+        stats: { totalFiles: 0, totalSensitive: 0, aiSensitive: 0, uptimeMs: 1000, monitoringStarted: Date.now() - 1000, peakAgents: 0, currentAgents: 0, aiAgentCount: 0, otherAgentCount: 0, uniqueAgents: [] },
       });
 
       const result = await exporter.generateReport();
@@ -286,7 +291,7 @@ describe('exports', () => {
           { timestamp: Date.now(), agent: '<script>alert(1)</script>', sensitive: false, file: '/f', action: 'r' },
         ],
         netConns: [],
-        stats: { totalFiles: 1, totalSensitive: 0, peakAgents: 1, uniqueAgents: ['test'], uptimeMs: 1000 },
+        stats: { totalFiles: 1, totalSensitive: 0, aiSensitive: 0, uptimeMs: 1000, monitoringStarted: Date.now() - 1000, peakAgents: 1, currentAgents: 1, aiAgentCount: 1, otherAgentCount: 0, uniqueAgents: ['test'] },
       });
 
       const result = await exporter.generateReport();
@@ -304,9 +309,14 @@ describe('exports', () => {
         stats: {
           totalFiles: 0,
           totalSensitive: 0,
-          peakAgents: 0,
-          uniqueAgents: [],
+          aiSensitive: 0,
           uptimeMs: 3723000,
+          monitoringStarted: Date.now() - 3723000,
+          peakAgents: 0,
+          currentAgents: 0,
+          aiAgentCount: 0,
+          otherAgentCount: 0,
+          uniqueAgents: [],
         },
       });
 

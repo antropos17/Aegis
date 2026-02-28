@@ -70,13 +70,13 @@ const mockExporter = {
 };
 
 const mockAudit = {
-  getStats: vi.fn(() => ({ totalEvents: 100 })),
+  getStats: vi.fn(() => ({ totalEntries: 100, totalSize: 5120, currentSize: 2048, firstEntry: null, lastEntry: null })),
   getLogDir: vi.fn(() => '/logs'),
   exportAll: vi.fn(() => []),
 };
 
 const mockLogger = {
-  getStats: vi.fn(() => ({ entries: 50 })),
+  getStats: vi.fn(() => ({ logDir: '/logs', todayEntries: 50, totalFiles: 3, recordingSince: null })),
   getLogDir: vi.fn(() => '/logs'),
   exportAll: vi.fn(() => []),
 };
@@ -160,13 +160,13 @@ describe('ipc-handlers', () => {
   }
 
   it('init stores injected deps', () => {
-    ipcHandlers.init({ getWindow: () => null, getStats: () => ({}), getResourceUsage: () => ({}), setOtherPanelExpanded: () => {} });
+    ipcHandlers.init({ getWindow: () => null, getStats: () => ({ totalFiles: 0, totalSensitive: 0, aiSensitive: 0, uptimeMs: 0, monitoringStarted: null, peakAgents: 0, currentAgents: 0, aiAgentCount: 0, otherAgentCount: 0, uniqueAgents: [] }), getResourceUsage: () => ({}), setOtherPanelExpanded: () => {} });
   });
 
   it('register registers all expected IPC channels', () => {
     ipcHandlers.init({
       getWindow: () => null,
-      getStats: () => ({}),
+      getStats: () => ({ totalFiles: 0, totalSensitive: 0, aiSensitive: 0, uptimeMs: 0, monitoringStarted: null, peakAgents: 0, currentAgents: 0, aiAgentCount: 0, otherAgentCount: 0, uniqueAgents: [] }),
       getResourceUsage: () => ({}),
       setOtherPanelExpanded: () => {},
     });
@@ -217,7 +217,7 @@ describe('ipc-handlers', () => {
     beforeEach(() => {
       ipcHandlers.init({
         getWindow: () => ({ webContents: { capturePage: vi.fn(() => Promise.resolve({ toPNG: () => Buffer.from('png'), getSize: () => ({ width: 800, height: 600 }) })) } }),
-        getStats: () => ({ totalFiles: 5 }),
+        getStats: () => ({ totalFiles: 5, totalSensitive: 1, aiSensitive: 0, uptimeMs: 10000, monitoringStarted: Date.now() - 10000, peakAgents: 1, currentAgents: 1, aiAgentCount: 1, otherAgentCount: 0, uniqueAgents: ['Claude'] }),
         getResourceUsage: () => ({ memMB: 50 }),
         setOtherPanelExpanded: vi.fn(),
       });
@@ -227,7 +227,7 @@ describe('ipc-handlers', () => {
     it('get-stats returns stats from deps', async () => {
       const handler = getHandler('get-stats');
       const result = handler();
-      expect(result).toEqual({ totalFiles: 5 });
+      expect(result.totalFiles).toBe(5);
     });
 
     it('get-resource-usage returns resource data', () => {
@@ -304,7 +304,7 @@ describe('ipc-handlers', () => {
       const setFn = vi.fn();
       ipcHandlers.init({
         getWindow: () => null,
-        getStats: () => ({}),
+        getStats: () => ({ totalFiles: 0, totalSensitive: 0, aiSensitive: 0, uptimeMs: 0, monitoringStarted: null, peakAgents: 0, currentAgents: 0, aiAgentCount: 0, otherAgentCount: 0, uniqueAgents: [] }),
         getResourceUsage: () => ({}),
         setOtherPanelExpanded: setFn,
       });
