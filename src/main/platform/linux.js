@@ -96,7 +96,7 @@ function getParentProcessMap() {
   }
 
   return new Promise((resolve) => {
-    execFile(
+    _execFile(
       'ps',
       ['-axo', 'pid=,ppid=,comm='],
       { maxBuffer: 4 * 1024 * 1024 },

@@ -6,6 +6,11 @@
 'use strict';
 
 const { execFile } = require('child_process');
+
+let _execFile = execFile;
+/** @internal Override execFile (for tests). */
+function _setExecFileForTest(fn) { _execFile = fn || require('child_process').execFile; }
+
 const {
   parseLsofOutput,
   parseLsofFileHandles,
@@ -34,7 +39,7 @@ const IGNORE_FILE_PATTERNS = [
  */
 function listProcesses() {
   return new Promise((resolve, reject) => {
-    execFile('ps', ['-axo', 'comm=,pid='], { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+    _execFile('ps', ['-axo', 'comm=,pid='], { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
       if (err) {
         reject(err);
         return;
@@ -70,7 +75,7 @@ function listProcesses() {
  */
 function getParentProcessMap() {
   return new Promise((resolve) => {
-    execFile(
+    _execFile(
       'ps',
       ['-axo', 'pid=,ppid=,comm='],
       { maxBuffer: 4 * 1024 * 1024 },
@@ -96,7 +101,7 @@ function getRawTcpConnections(pids) {
       resolve([]);
       return;
     }
-    execFile(
+    _execFile(
       'lsof',
       ['-i', 'TCP', '-n', '-P', '-F', 'pcnT'],
       { timeout: 10000, maxBuffer: 4 * 1024 * 1024 },
@@ -141,4 +146,5 @@ module.exports = {
   suspendProcess,
   resumeProcess,
   IGNORE_FILE_PATTERNS,
+  _setExecFileForTest,
 };
