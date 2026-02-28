@@ -315,7 +315,7 @@ describe('ipc-handlers', () => {
       const handler = getHandler('get-project-dir');
       const result = handler();
       expect(typeof result).toBe('string');
-      expect(result).toContain('Aegis');
+      expect(result.toLowerCase()).toContain('aegis');
     });
 
     it('save-custom-agents delegates to config', () => {

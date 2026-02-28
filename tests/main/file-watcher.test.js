@@ -73,8 +73,11 @@ describe('file-watcher', () => {
       expect(fileWatcher.shouldIgnore('/home/user/file.tmp')).toBe(true);
     });
 
-    it('platform-specific patterns (macOS)', () => {
+    it.skipIf(process.platform !== 'darwin')('platform-specific patterns (macOS): /System/', () => {
       expect(fileWatcher.shouldIgnore('/System/Library/something')).toBe(true);
+    });
+
+    it.skipIf(process.platform !== 'darwin')('platform-specific patterns (macOS): .DS_Store', () => {
       expect(fileWatcher.shouldIgnore('/Users/test/.DS_Store')).toBe(true);
     });
 
@@ -82,11 +85,11 @@ describe('file-watcher', () => {
       expect(fileWatcher.shouldIgnore('/home/user/project/index.js')).toBe(false);
     });
 
-    it('/private/var/ on macOS', () => {
+    it.skipIf(process.platform !== 'darwin')('/private/var/ on macOS', () => {
       expect(fileWatcher.shouldIgnore('/private/var/folders/xx/tmp')).toBe(true);
     });
 
-    it('/dev/ paths', () => {
+    it.skipIf(process.platform === 'win32')('/dev/ paths', () => {
       expect(fileWatcher.shouldIgnore('/dev/null')).toBe(true);
     });
   });
