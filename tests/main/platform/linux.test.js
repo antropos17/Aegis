@@ -202,19 +202,18 @@ describe('linux exec-based functions', () => {
       expect(results[0]).toMatchObject({ pid: 100, ip: '8.8.8.8', port: 443 });
     });
 
-    it('falls back to lsof when ss returns no matching results', async () => {
+    it('returns empty when ss succeeds but no matching PIDs', async () => {
       const ssOutput = [
         'State      Recv-Q Send-Q Local Address:Port  Peer Address:Port  Process',
         'ESTAB      0      0      10.0.0.1:50000     52.1.2.3:443       users:(("node",pid=999,fd=3))',
       ].join('\n');
-      const lsofOutput = 'p100\nn10.0.0.1:50000->8.8.8.8:443\n';
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
         if (cmd === 'ss') cb(null, ssOutput);
-        else if (cmd === 'lsof') cb(null, lsofOutput);
+        else if (cmd === 'lsof') cb(null, 'p100\nn10.0.0.1:50000->8.8.8.8:443\n');
       });
       const results = await linux.getRawTcpConnections([100]);
-      expect(results).toHaveLength(1);
-      expect(results[0].ip).toBe('8.8.8.8');
+      // ss succeeded — should NOT fall back to lsof even with 0 matches
+      expect(results).toHaveLength(0);
     });
 
     it('returns empty when both ss and lsof fail', async () => {

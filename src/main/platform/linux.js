@@ -133,12 +133,9 @@ function getRawTcpConnections(pids) {
       ['-tnp'],
       { timeout: 10000, maxBuffer: 4 * 1024 * 1024 },
       (err, stdout) => {
-        if (!err && stdout) {
-          const results = parseSsOutput(stdout, pidSet);
-          if (results.length > 0) {
-            resolve(results);
-            return;
-          }
+        if (!err) {
+          resolve(parseSsOutput(stdout || '', pidSet));
+          return;
         }
         // Fallback to lsof
         _execFile(
