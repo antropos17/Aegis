@@ -37,8 +37,8 @@
   // ═══ DRAWING ═══
 
   function drawBackground(cx, cy, r) {
-    const ringAlpha = isHC ? (isLight ? 0.4 : 0.3) : (isLight ? 0.25 : 0.12);
-    const crossAlpha = isHC ? (isLight ? 0.3 : 0.2) : (isLight ? 0.18 : 0.09);
+    const ringAlpha = isHC ? (isLight ? 0.4 : 0.3) : isLight ? 0.25 : 0.12;
+    const crossAlpha = isHC ? (isLight ? 0.3 : 0.2) : isLight ? 0.18 : 0.09;
     ctx.strokeStyle = `rgba(${lineRgb}, ${ringAlpha})`;
     ctx.lineWidth = 1;
     for (const frac of [0.33, 0.66, 1.0]) {
@@ -58,9 +58,9 @@
 
   function drawSweep(cx, cy, r, angle) {
     const trailLen = Math.PI * 0.4;
-    const midAlpha = isHC ? (isLight ? 0.35 : 0.25) : (isLight ? 0.22 : 0.12);
-    const tipAlpha = isHC ? (isLight ? 0.7 : 0.6) : (isLight ? 0.5 : 0.3);
-    const lineAlpha = isHC ? (isLight ? 0.9 : 0.8) : (isLight ? 0.7 : 0.5);
+    const midAlpha = isHC ? (isLight ? 0.35 : 0.25) : isLight ? 0.22 : 0.12;
+    const tipAlpha = isHC ? (isLight ? 0.7 : 0.6) : isLight ? 0.5 : 0.3;
+    const lineAlpha = isHC ? (isLight ? 0.9 : 0.8) : isLight ? 0.7 : 0.5;
     const trailGrad = ctx.createConicGradient(angle - trailLen, cx, cy);
     trailGrad.addColorStop(0, `rgba(${sweepRgb},0)`);
     trailGrad.addColorStop(0.8, `rgba(${sweepRgb},${midAlpha})`);
@@ -119,12 +119,12 @@
 
       ctx.beginPath();
       ctx.arc(x, y, 3, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${lineRgb}, ${isHC ? 0.9 : (isLight ? 0.7 : 0.5)})`;
+      ctx.fillStyle = `rgba(${lineRgb}, ${isHC ? 0.9 : isLight ? 0.7 : 0.5})`;
       ctx.fill();
 
       ctx.font = "500 9px 'DM Sans', sans-serif";
       ctx.textAlign = 'center';
-      ctx.fillStyle = `rgba(${labelRgb}, ${isHC ? 1 : (isLight ? 0.9 : 0.8)})`;
+      ctx.fillStyle = `rgba(${labelRgb}, ${isHC ? 1 : isLight ? 0.9 : 0.8})`;
       ctx.fillText(agent.name?.split(' ')[0] || '', x, y + 14);
     }
   }
@@ -133,7 +133,7 @@
     ctx.font = "600 11px 'Outfit', sans-serif";
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = `rgba(${labelRgb}, ${isHC ? 1 : (isLight ? 0.85 : 0.7)})`;
+    ctx.fillStyle = `rgba(${labelRgb}, ${isHC ? 1 : isLight ? 0.85 : 0.7})`;
     ctx.fillText('AEGIS', cx, cy);
   }
 

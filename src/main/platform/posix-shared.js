@@ -9,7 +9,9 @@ const { execFile: _origExecFile } = require('child_process');
 
 let _execFile = _origExecFile;
 /** @internal Override execFile (for tests). */
-function _setExecFileForTest(fn) { _execFile = fn || _origExecFile; }
+function _setExecFileForTest(fn) {
+  _execFile = fn || _origExecFile;
+}
 
 /**
  * Parse `lsof -i TCP -n -P -F pcnT` output.

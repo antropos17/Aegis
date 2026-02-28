@@ -9,7 +9,9 @@ const { execFile } = require('child_process');
 
 let _execFile = execFile;
 /** @internal Override execFile (for tests). */
-function _setExecFileForTest(fn) { _execFile = fn || require('child_process').execFile; }
+function _setExecFileForTest(fn) {
+  _execFile = fn || require('child_process').execFile;
+}
 
 const {
   parseLsofOutput,
@@ -75,18 +77,13 @@ function listProcesses() {
  */
 function getParentProcessMap() {
   return new Promise((resolve) => {
-    _execFile(
-      'ps',
-      ['-axo', 'pid=,ppid=,comm='],
-      { maxBuffer: 4 * 1024 * 1024 },
-      (err, stdout) => {
-        if (err) {
-          resolve(new Map());
-          return;
-        }
-        resolve(parseParentProcessMapFromPs(stdout));
-      },
-    );
+    _execFile('ps', ['-axo', 'pid=,ppid=,comm='], { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+      if (err) {
+        resolve(new Map());
+        return;
+      }
+      resolve(parseParentProcessMapFromPs(stdout));
+    });
   });
 }
 

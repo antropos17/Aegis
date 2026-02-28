@@ -80,10 +80,18 @@ function _write(level, mod, message, meta) {
   if (_buffer.length >= FLUSH_THRESHOLD) flush();
 }
 
-function debug(mod, message, meta) { _write('debug', mod, message, meta); }
-function info(mod, message, meta) { _write('info', mod, message, meta); }
-function warn(mod, message, meta) { _write('warn', mod, message, meta); }
-function error(mod, message, meta) { _write('error', mod, message, meta); }
+function debug(mod, message, meta) {
+  _write('debug', mod, message, meta);
+}
+function info(mod, message, meta) {
+  _write('info', mod, message, meta);
+}
+function warn(mod, message, meta) {
+  _write('warn', mod, message, meta);
+}
+function error(mod, message, meta) {
+  _write('error', mod, message, meta);
+}
 
 /**
  * Flush the buffer to disk.

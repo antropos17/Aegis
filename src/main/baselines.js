@@ -23,7 +23,9 @@ function baselinesPath() {
   return _baselinesPath;
 }
 /** @internal Override baselines path (for tests). */
-function _setBaselinesPathForTest(p) { _baselinesPath = p; }
+function _setBaselinesPathForTest(p) {
+  _baselinesPath = p;
+}
 const MAX_BASELINE_SESSIONS = 10;
 let baselines = { agents: {} };
 const sessionData = {};
@@ -46,7 +48,10 @@ function saveBaselines() {
   try {
     fs.writeFileSync(baselinesPath(), JSON.stringify(baselines, null, 2));
   } catch (err) {
-    logger.error('baselines', 'Failed to save baselines', { path: baselinesPath(), error: err.message });
+    logger.error('baselines', 'Failed to save baselines', {
+      path: baselinesPath(),
+      error: err.message,
+    });
   }
 }
 

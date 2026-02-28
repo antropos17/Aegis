@@ -19,9 +19,13 @@
       // Scroll into view
       if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       // Stop blink after 3 cycles (each cycle is 400ms via CSS)
-      setTimeout(() => { blinking = false; }, 1200);
+      setTimeout(() => {
+        blinking = false;
+      }, 1200);
       // Clear the store so clicking the same dot again works
-      setTimeout(() => { focusedAgentPid.set(null); }, 50);
+      setTimeout(() => {
+        focusedAgentPid.set(null);
+      }, 50);
     }
   });
 
@@ -40,7 +44,8 @@
   });
 
   let agentEvents = $derived.by(() => {
-    return $events.flat()
+    return $events
+      .flat()
       .filter((ev) => ev.pid === agent.pid)
       .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
       .slice(0, 50);
@@ -154,11 +159,17 @@
       {/if}
 
       <div class="pid-actions-row">
-        <span class="pid-info">PID {agent.pid}{agent.process ? ` \u2014 ${agent.process}` : ''}</span>
+        <span class="pid-info"
+          >PID {agent.pid}{agent.process ? ` \u2014 ${agent.process}` : ''}</span
+        >
         <div class="pid-actions">
           <button class="action-btn kill" onclick={(e) => pidAction(e, 'killProcess')}>Kill</button>
-          <button class="action-btn suspend" onclick={(e) => pidAction(e, 'suspendProcess')}>Suspend</button>
-          <button class="action-btn resume" onclick={(e) => pidAction(e, 'resumeProcess')}>Resume</button>
+          <button class="action-btn suspend" onclick={(e) => pidAction(e, 'suspendProcess')}
+            >Suspend</button
+          >
+          <button class="action-btn resume" onclick={(e) => pidAction(e, 'resumeProcess')}
+            >Resume</button
+          >
         </div>
       </div>
     </div>
@@ -171,7 +182,9 @@
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: var(--aegis-card-border);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), var(--glass-highlight);
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.12),
+      var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
     padding: var(--aegis-space-4) var(--aegis-space-6);
     cursor: pointer;
@@ -405,7 +418,12 @@
   }
 
   @keyframes card-blink {
-    0%, 100% { background: var(--md-sys-color-surface-container-low); }
-    50% { background: var(--md-sys-color-primary-container); }
+    0%,
+    100% {
+      background: var(--md-sys-color-surface-container-low);
+    }
+    50% {
+      background: var(--md-sys-color-primary-container);
+    }
   }
 </style>

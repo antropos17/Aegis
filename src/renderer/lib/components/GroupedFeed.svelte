@@ -370,7 +370,8 @@
     font-family: 'DM Mono', monospace;
     font-size: calc(10px * var(--aegis-ui-scale));
     color: var(--md-sys-color-on-surface-variant);
-    padding: var(--aegis-space-1) var(--aegis-space-6) var(--aegis-space-3) calc(26px * var(--aegis-ui-scale));
+    padding: var(--aegis-space-1) var(--aegis-space-6) var(--aegis-space-3)
+      calc(26px * var(--aegis-ui-scale));
     word-break: break-all;
   }
   .detail-link {

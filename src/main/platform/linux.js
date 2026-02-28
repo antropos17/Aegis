@@ -9,7 +9,9 @@ const { execFile: _origExecFile } = require('child_process');
 
 let _execFile = _origExecFile;
 /** @internal Override execFile (for tests). */
-function _setExecFileForTest(fn) { _execFile = fn || _origExecFile; }
+function _setExecFileForTest(fn) {
+  _execFile = fn || _origExecFile;
+}
 const fs = require('fs');
 const path = require('path');
 const {
@@ -96,20 +98,15 @@ function getParentProcessMap() {
   }
 
   return new Promise((resolve) => {
-    _execFile(
-      'ps',
-      ['-axo', 'pid=,ppid=,comm='],
-      { maxBuffer: 4 * 1024 * 1024 },
-      (err, stdout) => {
-        if (err) {
-          resolve(map);
-          return;
-        }
-        const parsed = parseParentProcessMapFromPs(stdout);
-        for (const [pid, info] of parsed) map.set(pid, info);
+    _execFile('ps', ['-axo', 'pid=,ppid=,comm='], { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+      if (err) {
         resolve(map);
-      },
-    );
+        return;
+      }
+      const parsed = parseParentProcessMapFromPs(stdout);
+      for (const [pid, info] of parsed) map.set(pid, info);
+      resolve(map);
+    });
   });
 }
 
@@ -128,30 +125,25 @@ function getRawTcpConnections(pids) {
     const pidSet = new Set(pids);
 
     // Try ss first
-    _execFile(
-      'ss',
-      ['-tnp'],
-      { timeout: 10000, maxBuffer: 4 * 1024 * 1024 },
-      (err, stdout) => {
-        if (!err) {
-          resolve(parseSsOutput(stdout || '', pidSet));
-          return;
-        }
-        // Fallback to lsof
-        _execFile(
-          'lsof',
-          ['-i', 'TCP', '-n', '-P', '-F', 'pcnT'],
-          { timeout: 10000, maxBuffer: 4 * 1024 * 1024 },
-          (lsofErr, lsofStdout) => {
-            if (lsofErr) {
-              resolve([]);
-              return;
-            }
-            resolve(parseLsofOutput(lsofStdout, pidSet));
-          },
-        );
-      },
-    );
+    _execFile('ss', ['-tnp'], { timeout: 10000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+      if (!err) {
+        resolve(parseSsOutput(stdout || '', pidSet));
+        return;
+      }
+      // Fallback to lsof
+      _execFile(
+        'lsof',
+        ['-i', 'TCP', '-n', '-P', '-F', 'pcnT'],
+        { timeout: 10000, maxBuffer: 4 * 1024 * 1024 },
+        (lsofErr, lsofStdout) => {
+          if (lsofErr) {
+            resolve([]);
+            return;
+          }
+          resolve(parseLsofOutput(lsofStdout, pidSet));
+        },
+      );
+    });
   });
 }
 

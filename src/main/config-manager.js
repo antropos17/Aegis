@@ -27,7 +27,9 @@ function settingsPath() {
   return _settingsPath;
 }
 /** @internal Override settings path (for tests). */
-function _setSettingsPathForTest(p) { _settingsPath = p; }
+function _setSettingsPathForTest(p) {
+  _settingsPath = p;
+}
 
 const DEFAULT_SETTINGS = {
   scanIntervalSec: 10,
@@ -193,7 +195,10 @@ function saveInstancePermissions(agentName, parentEditor, perms, cwd) {
   try {
     fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
   } catch (err) {
-    logger.warn('config-manager', 'Failed to persist instance permissions', { key, error: err.message });
+    logger.warn('config-manager', 'Failed to persist instance permissions', {
+      key,
+      error: err.message,
+    });
   }
 }
 
@@ -212,7 +217,10 @@ function trackSeenAgent(agentName) {
     try {
       fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
     } catch (err) {
-      logger.warn('config-manager', 'Failed to persist seen agent', { agentName, error: err.message });
+      logger.warn('config-manager', 'Failed to persist seen agent', {
+        agentName,
+        error: err.message,
+      });
     }
   }
 }
