@@ -15,9 +15,8 @@
   });
 
   $effect(() => {
-    if (window.aegis?.onToggleTheme) {
-      window.aegis.onToggleTheme(() => toggleTheme());
-    }
+    const cleanup = window.aegis?.onToggleTheme?.(() => toggleTheme());
+    return () => cleanup?.();
   });
 
   $effect(() => {

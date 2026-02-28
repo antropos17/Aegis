@@ -55,7 +55,9 @@ contextBridge.exposeInMainWorld('aegis', {
     ipcRenderer.on('anomaly-scores', (_e, data) => cb(data));
   },
   onToggleTheme: (cb) => {
-    ipcRenderer.on('toggle-theme', () => cb());
+    const handler = () => cb();
+    ipcRenderer.on('toggle-theme', handler);
+    return () => ipcRenderer.removeListener('toggle-theme', handler);
   },
   getAgentDatabase: () => ipcRenderer.invoke('get-agent-database'),
   getProjectDir: () => ipcRenderer.invoke('get-project-dir'),
