@@ -51,13 +51,13 @@
   .filters-bar {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 10px 14px;
+    gap: var(--aegis-space-8);
+    padding: var(--aegis-space-5) var(--aegis-space-7);
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
-    border: var(--glass-border);
-    box-shadow: var(--glass-shadow), var(--glass-highlight);
+    border: var(--aegis-card-border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
     flex-wrap: wrap;
   }
@@ -68,9 +68,9 @@
     color: var(--md-sys-color-on-surface);
     border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-small);
-    padding: 5px 10px;
+    padding: var(--aegis-space-3) var(--aegis-space-5);
     cursor: pointer;
-    min-width: 120px;
+    min-width: var(--aegis-col-agent);
   }
 
   .agent-select:focus {
@@ -81,19 +81,19 @@
   .pill-group {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--aegis-space-2);
   }
 
   .pill-label {
     font: var(--md-sys-typescale-label-medium);
     color: var(--md-sys-color-on-surface-variant);
-    margin-right: 4px;
+    margin-right: var(--aegis-space-2);
   }
 
   .pill {
     font: var(--md-sys-typescale-label-medium);
     font-weight: 600;
-    padding: 4px 10px;
+    padding: var(--aegis-space-2) var(--aegis-space-5);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--md-sys-shape-corner-full);
     background: transparent;

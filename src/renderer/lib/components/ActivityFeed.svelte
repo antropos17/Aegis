@@ -58,7 +58,7 @@
   }
 
   let unified = $derived.by(() => {
-    const fileEvs = $events.map((ev) => ({ ...ev, _type: 'file' }));
+    const fileEvs = $events.flat().map((ev) => ({ ...ev, _type: 'file' }));
     const netEvs = $network.map((conn) => ({
       agent: conn.agent || 'Unknown',
       timestamp: conn.timestamp || Date.now(),
@@ -121,7 +121,7 @@
   }
 
   .feed-empty {
-    padding: 40px 20px;
+    padding: calc(40px * var(--aegis-ui-scale)) var(--aegis-space-9);
     text-align: center;
     font: var(--md-sys-typescale-body-medium);
     color: var(--md-sys-color-on-surface-variant);
@@ -130,9 +130,9 @@
   .feed-entry {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
-    font-size: 11px;
+    gap: var(--aegis-space-8);
+    padding: var(--aegis-space-3) var(--aegis-space-8);
+    font-size: calc(11px * var(--aegis-ui-scale));
     transition: background 0.15s ease;
   }
 
@@ -155,7 +155,7 @@
     font-family: 'DM Mono', monospace;
     color: var(--md-sys-color-on-surface-variant);
     flex-shrink: 0;
-    width: 52px;
+    width: var(--aegis-col-time);
   }
 
   .feed-agent {
@@ -171,7 +171,7 @@
   .feed-action {
     color: var(--md-sys-color-on-surface-variant);
     flex-shrink: 0;
-    width: 64px;
+    width: var(--aegis-col-action);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -200,10 +200,10 @@
   }
 
   .feed-badge {
-    font-size: 9px;
+    font-size: calc(9px * var(--aegis-ui-scale));
     font-weight: 700;
     letter-spacing: 0.5px;
-    padding: 1px 6px;
+    padding: var(--aegis-space-1) var(--aegis-space-3);
     border-radius: var(--md-sys-shape-corner-full);
     flex-shrink: 0;
   }
@@ -219,7 +219,7 @@
   }
 
   .feed-repeat {
-    font-size: 9px;
+    font-size: calc(9px * var(--aegis-ui-scale));
     font-weight: 700;
     font-family: 'DM Mono', monospace;
     color: var(--md-sys-color-on-surface-variant);

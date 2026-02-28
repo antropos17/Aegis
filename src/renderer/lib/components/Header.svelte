@@ -1,11 +1,9 @@
 <script>
   import { stats } from '../stores/ipc.js';
   import { enrichedAgents } from '../stores/risk.js';
-  import { theme, toggleTheme } from '../stores/theme.js';
+  import OptionsPanel from './OptionsPanel.svelte';
 
-  let { onSettingsClick = () => {} } = $props();
-
-  let isDark = $derived($theme === 'dark');
+  let optionsOpen = $state(false);
 
   let shieldScore = $derived.by(() => {
     const list = $enrichedAgents;
@@ -38,40 +36,7 @@
     <span class="stat-text">{filesMonitored} files</span>
   </div>
 
-  <button class="icon-btn" aria-label="Toggle theme" onclick={toggleTheme}>
-    {#if isDark}
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <circle cx="8" cy="8" r="3.5" stroke="currentColor" stroke-width="1.2" />
-        <g stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
-          <line x1="8" y1="1" x2="8" y2="2.5" /><line x1="8" y1="13.5" x2="8" y2="15" />
-          <line x1="1" y1="8" x2="2.5" y2="8" /><line x1="13.5" y1="8" x2="15" y2="8" />
-          <line x1="3.05" y1="3.05" x2="4.1" y2="4.1" /><line
-            x1="11.9"
-            y1="11.9"
-            x2="12.95"
-            y2="12.95"
-          />
-          <line x1="3.05" y1="12.95" x2="4.1" y2="11.9" /><line
-            x1="11.9"
-            y1="4.1"
-            x2="12.95"
-            y2="3.05"
-          />
-        </g>
-      </svg>
-    {:else}
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path
-          d="M13.5 9.5a5.5 5.5 0 01-7-7 5.5 5.5 0 107 7z"
-          stroke="currentColor"
-          stroke-width="1.2"
-          stroke-linejoin="round"
-        />
-      </svg>
-    {/if}
-  </button>
-
-  <button class="icon-btn" aria-label="Settings" onclick={onSettingsClick}>
+  <button class="icon-btn" aria-label="Settings" onclick={() => { optionsOpen = true; }}>
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
       <path
         d="M6.5.5h3l.4 2 1.3.7 1.8-1 2.1 2.1-1 1.8.7 1.3 2 .4v3l-2 .4-.7 1.3 1 1.8-2.1 2.1-1.8-1-1.3.7-.4 2h-3l-.4-2-1.3-.7-1.8 1L.9 13.3l1-1.8-.7-1.3-2-.4v-3l2-.4.7-1.3-1-1.8L2.9.9l1.8 1 1.3-.7z"
@@ -84,6 +49,8 @@
   </button>
 </header>
 
+<OptionsPanel bind:open={optionsOpen} />
+
 <style>
   .header {
     position: fixed;
@@ -93,25 +60,27 @@
     z-index: 100;
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 10px 20px;
-    background: rgba(5, 5, 7, 0.8);
+    gap: var(--aegis-space-8);
+    padding: var(--aegis-space-5) var(--aegis-space-9);
+    background: var(--aegis-color-header-bg);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
-    border-bottom: var(--glass-border);
+    border-bottom: 1px solid var(--aegis-color-header-border);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   }
 
   .header-brand {
     font: var(--md-sys-typescale-title-medium);
-    letter-spacing: 0.08em;
-    color: var(--md-sys-color-on-surface);
+    font-size: calc(16px * var(--aegis-ui-scale));
+    letter-spacing: 0.12em;
+    color: var(--aegis-color-brand);
     flex-shrink: 0;
   }
 
   .header-stats {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--aegis-space-4);
     margin-left: auto;
   }
 
@@ -143,7 +112,7 @@
 
   .icon-btn {
     flex-shrink: 0;
-    padding: 6px;
+    padding: var(--aegis-space-3);
     cursor: pointer;
     background: transparent;
     border: 1px solid transparent;

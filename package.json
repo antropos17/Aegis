@@ -11,18 +11,31 @@
     "dist": "electron-builder --publish never",
     "format": "prettier --write 'src/**/*.{js,svelte,css,html}' '*.{js,json}'",
     "format:check": "prettier --check 'src/**/*.{js,svelte,css,html}' '*.{js,json}'",
-    "lint": "npx eslint src/"
+    "lint": "npx eslint src/",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "build": {
     "appId": "com.aegis.oversight",
-    "productName": "AEGIS",
+    "productName": "AEGIS - AI Monitoring & Threat Detection | Analysis",
     "copyright": "Copyright © 2026 Ruslan",
     "win": {
       "target": "nsis",
       "icon": "assets/icon.png"
     },
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "icon": "assets/icon.png",
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "icon": "assets/icon.png"
     },
     "nsis": {
       "oneClick": true,
@@ -59,6 +72,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "@vitest/coverage-v8": "^4.0.18",
     "electron": "^33.4.11",
     "electron-builder": "^26.7.0",
     "globals": "^17.3.0",
@@ -66,7 +80,8 @@
     "prettier-plugin-svelte": "^3.5.0",
     "sharp": "^0.34.5",
     "svelte": "^5.51.2",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "chokidar": "^3.6.0"

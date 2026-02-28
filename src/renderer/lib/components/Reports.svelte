@@ -91,7 +91,7 @@
   .reports-section {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--aegis-space-8);
   }
 
   .section-title {
@@ -103,26 +103,26 @@
   .stat-cards {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
+    gap: var(--aegis-space-5);
   }
 
   .stat-card {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
-    padding: 14px 12px;
+    gap: var(--aegis-space-2);
+    padding: var(--aegis-space-7) var(--aegis-space-6);
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: var(--glass-border);
-    box-shadow: var(--glass-shadow), var(--glass-highlight);
+    box-shadow: var(--glass-shadow-card), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
   }
 
   .stat-value {
     font-family: 'DM Mono', monospace;
-    font-size: 24px;
+    font-size: calc(24px * var(--aegis-ui-scale));
     font-weight: 700;
     color: var(--md-sys-color-on-surface);
   }
@@ -135,7 +135,7 @@
   }
 
   .stat-label {
-    font-size: 9px;
+    font-size: calc(9px * var(--aegis-ui-scale));
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -144,12 +144,12 @@
 
   .table-scroll {
     overflow: auto;
-    max-height: 320px;
+    max-height: calc(320px * var(--aegis-ui-scale));
     border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-medium);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
-    box-shadow: var(--glass-shadow);
+    box-shadow: var(--glass-shadow-card);
   }
 
   .activity-table {
@@ -169,14 +169,14 @@
     letter-spacing: 0.5px;
     color: var(--md-sys-color-on-surface-variant);
     background: var(--md-sys-color-surface-container);
-    padding: 8px 12px;
+    padding: var(--aegis-space-4) var(--aegis-space-6);
     text-align: left;
     border-bottom: 1px solid var(--md-sys-color-outline);
   }
 
   .activity-table td {
     font: var(--md-sys-typescale-body-medium);
-    padding: 6px 12px;
+    padding: var(--aegis-space-3) var(--aegis-space-6);
     color: var(--md-sys-color-on-surface);
     border-bottom: 1px solid var(--md-sys-color-outline-variant);
   }
@@ -192,7 +192,7 @@
   }
   .td-empty {
     text-align: center;
-    padding: 30px;
+    padding: calc(30px * var(--aegis-ui-scale));
     color: var(--md-sys-color-on-surface-variant);
   }
 
@@ -203,14 +203,14 @@
 
   .export-row {
     display: flex;
-    gap: 10px;
+    gap: var(--aegis-space-5);
     flex-wrap: wrap;
   }
 
   .export-btn {
     font: var(--md-sys-typescale-label-medium);
     font-weight: 600;
-    padding: 6px 14px;
+    padding: var(--aegis-space-3) var(--aegis-space-7);
     background: transparent;
     border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-full);

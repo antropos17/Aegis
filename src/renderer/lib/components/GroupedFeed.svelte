@@ -58,7 +58,7 @@
   }
 
   let unified = $derived.by(() => {
-    const fileEvs = $events.map((ev) => ({ ...ev, _type: 'file' }));
+    const fileEvs = $events.flat().map((ev) => ({ ...ev, _type: 'file' }));
     const netEvs = $network.map((c) => ({
       agent: c.agent || 'Unknown',
       timestamp: c.timestamp || Date.now(),
@@ -207,7 +207,7 @@
     min-height: 0;
   }
   .feed-empty {
-    padding: 40px 20px;
+    padding: calc(40px * var(--aegis-ui-scale)) var(--aegis-space-9);
     text-align: center;
     font: var(--md-sys-typescale-body-medium);
     color: var(--md-sys-color-on-surface-variant);
@@ -216,14 +216,14 @@
   .group-header {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--aegis-space-8);
     width: 100%;
-    padding: 8px 12px;
+    padding: var(--aegis-space-4) var(--aegis-space-8);
     background: var(--md-sys-color-surface-container-low);
     border: none;
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     cursor: pointer;
-    font-size: 12px;
+    font-size: calc(12px * var(--aegis-ui-scale));
     color: var(--md-sys-color-on-surface);
     text-align: left;
     transition: background 0.15s ease;
@@ -232,7 +232,7 @@
     background: var(--md-sys-color-surface-container);
   }
   .chevron {
-    font-size: 10px;
+    font-size: calc(10px * var(--aegis-ui-scale));
     width: 12px;
     color: var(--md-sys-color-on-surface-variant);
   }
@@ -243,19 +243,19 @@
   .group-count {
     font-family: 'DM Mono', monospace;
     color: var(--md-sys-color-on-surface-variant);
-    font-size: 10px;
+    font-size: calc(10px * var(--aegis-ui-scale));
   }
   .group-time {
     font-family: 'DM Mono', monospace;
     color: var(--md-sys-color-on-surface-variant);
-    font-size: 10px;
+    font-size: calc(10px * var(--aegis-ui-scale));
     margin-left: auto;
   }
 
   .group-badge {
-    font-size: 9px;
+    font-size: calc(9px * var(--aegis-ui-scale));
     font-weight: 700;
-    padding: 1px 8px;
+    padding: var(--aegis-space-1) var(--aegis-space-4);
     border-radius: var(--md-sys-shape-corner-full);
     flex-shrink: 0;
     background: rgba(122, 138, 158, 0.1);
@@ -275,28 +275,28 @@
   }
 
   .group-body {
-    padding-left: 12px;
+    padding-left: var(--aegis-space-6);
     border-left: 2px solid rgba(255, 255, 255, 0.04);
-    margin-left: 6px;
+    margin-left: var(--aegis-space-3);
   }
   .sub-label {
-    font-size: 9px;
+    font-size: calc(9px * var(--aegis-ui-scale));
     font-weight: 700;
     letter-spacing: 0.5px;
     color: var(--md-sys-color-on-surface-variant);
-    padding: 6px 12px 2px;
+    padding: var(--aegis-space-3) var(--aegis-space-6) var(--aegis-space-1);
     text-transform: uppercase;
   }
 
   .event-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--aegis-space-8);
     width: 100%;
-    padding: 4px 12px;
+    padding: var(--aegis-space-3) var(--aegis-space-8);
     background: transparent;
     border: none;
-    font-size: 11px;
+    font-size: calc(11px * var(--aegis-ui-scale));
     cursor: pointer;
     color: var(--md-sys-color-on-surface);
     text-align: left;
@@ -319,7 +319,7 @@
     font-family: 'DM Mono', monospace;
     color: var(--md-sys-color-on-surface-variant);
     flex-shrink: 0;
-    width: 52px;
+    width: var(--aegis-col-time);
   }
   .feed-path {
     font-family: 'DM Mono', monospace;
@@ -342,10 +342,10 @@
   }
 
   .feed-badge {
-    font-size: 9px;
+    font-size: calc(9px * var(--aegis-ui-scale));
     font-weight: 700;
     letter-spacing: 0.5px;
-    padding: 1px 6px;
+    padding: var(--aegis-space-1) var(--aegis-space-3);
     border-radius: var(--md-sys-shape-corner-full);
     flex-shrink: 0;
   }
@@ -358,7 +358,7 @@
     color: var(--md-sys-color-secondary);
   }
   .feed-repeat {
-    font-size: 9px;
+    font-size: calc(9px * var(--aegis-ui-scale));
     font-weight: 700;
     font-family: 'DM Mono', monospace;
     color: var(--md-sys-color-on-surface-variant);
@@ -368,9 +368,9 @@
 
   .event-detail {
     font-family: 'DM Mono', monospace;
-    font-size: 10px;
+    font-size: calc(10px * var(--aegis-ui-scale));
     color: var(--md-sys-color-on-surface-variant);
-    padding: 2px 12px 6px 26px;
+    padding: var(--aegis-space-1) var(--aegis-space-6) var(--aegis-space-3) calc(26px * var(--aegis-ui-scale));
     word-break: break-all;
   }
   .detail-link {

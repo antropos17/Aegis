@@ -6,23 +6,26 @@
   import ActivityTab from './lib/components/ActivityTab.svelte';
   import RulesTab from './lib/components/RulesTab.svelte';
   import ReportsTab from './lib/components/ReportsTab.svelte';
-  import Settings from './lib/components/Settings.svelte';
-  import { theme } from './lib/stores/theme.js';
+  import { theme, uiScale, toggleTheme } from './lib/stores/theme.js';
 
   let activeTab = $state('shield');
-  let settingsOpen = $state(false);
 
   $effect(() => {
     document.documentElement.dataset.theme = $theme;
   });
+
+  $effect(() => {
+    if (window.aegis?.onToggleTheme) {
+      window.aegis.onToggleTheme(() => toggleTheme());
+    }
+  });
+
+  $effect(() => {
+    document.documentElement.style.setProperty('--aegis-ui-scale', String($uiScale));
+  });
 </script>
 
-<Header
-  onSettingsClick={() => {
-    settingsOpen = true;
-  }}
-/>
-<Settings bind:open={settingsOpen} />
+<Header />
 
 <div class="app-shell">
   <nav class="app-nav">
@@ -53,21 +56,21 @@
     height: 100vh;
     display: flex;
     flex-direction: column;
-    padding-top: 48px;
-    padding-bottom: 32px;
+    padding-top: var(--aegis-size-header);
+    padding-bottom: var(--aegis-size-footer);
     overflow: hidden;
   }
 
   .app-nav {
     display: flex;
     justify-content: center;
-    padding: 12px 20px 0;
+    padding: var(--aegis-space-6) var(--aegis-space-9) 0;
     flex-shrink: 0;
   }
 
   .app-content {
     flex: 1;
-    padding: 16px 20px;
+    padding: var(--aegis-space-8) var(--aegis-space-9);
     min-height: 0;
     overflow: hidden;
   }

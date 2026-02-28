@@ -90,14 +90,14 @@
   .net-filters {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 10px 14px;
+    gap: var(--aegis-space-8);
+    padding: var(--aegis-space-5) var(--aegis-space-7);
     flex-wrap: wrap;
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: var(--glass-border);
-    box-shadow: var(--glass-shadow), var(--glass-highlight);
+    box-shadow: var(--glass-shadow-card), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
   }
   .agent-select,
@@ -107,11 +107,11 @@
     color: var(--md-sys-color-on-surface);
     border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-small);
-    padding: 5px 10px;
+    padding: var(--aegis-space-3) var(--aegis-space-5);
     cursor: pointer;
   }
   .agent-select {
-    min-width: 120px;
+    min-width: var(--aegis-col-agent);
   }
   .agent-select:focus,
   .sort-select:focus {
@@ -121,17 +121,17 @@
   .pill-group {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--aegis-space-2);
   }
   .pill-label {
     font: var(--md-sys-typescale-label-medium);
     color: var(--md-sys-color-on-surface-variant);
-    margin-right: 4px;
+    margin-right: var(--aegis-space-2);
   }
   .pill {
     font: var(--md-sys-typescale-label-medium);
     font-weight: 600;
-    padding: 4px 10px;
+    padding: var(--aegis-space-2) var(--aegis-space-5);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--md-sys-shape-corner-full);
     background: transparent;
@@ -170,7 +170,7 @@
     min-height: 0;
   }
   .net-empty {
-    padding: 40px 20px;
+    padding: calc(40px * var(--aegis-ui-scale)) var(--aegis-space-9);
     text-align: center;
     font: var(--md-sys-typescale-body-medium);
     color: var(--md-sys-color-on-surface-variant);
@@ -178,9 +178,9 @@
   .net-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
-    font-size: 11px;
+    gap: var(--aegis-space-4);
+    padding: var(--aegis-space-3) var(--aegis-space-6);
+    font-size: calc(11px * var(--aegis-ui-scale));
     transition: background 0.15s ease;
   }
   .net-row:nth-child(odd) {
@@ -194,7 +194,7 @@
     font-weight: 600;
     color: var(--md-sys-color-on-surface);
     flex-shrink: 0;
-    width: 120px;
+    width: var(--aegis-col-agent);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -214,23 +214,23 @@
     font-family: 'DM Mono', monospace;
     color: var(--md-sys-color-on-surface-variant);
     flex-shrink: 0;
-    width: 48px;
+    width: calc(48px * var(--aegis-ui-scale));
     text-align: right;
   }
   .net-state {
     font: var(--md-sys-typescale-label-medium);
     color: var(--md-sys-color-on-surface-variant);
     flex-shrink: 0;
-    width: 72px;
+    width: var(--aegis-col-state);
     text-transform: lowercase;
   }
   .net-badge {
     font: var(--md-sys-typescale-label-medium);
     font-weight: 700;
-    font-size: 10px;
+    font-size: calc(10px * var(--aegis-ui-scale));
     letter-spacing: 0.5px;
     text-transform: uppercase;
-    padding: 2px 8px;
+    padding: var(--aegis-space-1) var(--aegis-space-4);
     border-radius: var(--md-sys-shape-corner-full);
     color: var(--md-sys-color-surface);
     flex-shrink: 0;

@@ -79,7 +79,7 @@
 <style>
   .presets-row {
     display: flex;
-    gap: 8px;
+    gap: var(--aegis-space-4);
   }
 
   .preset-btn {
@@ -87,13 +87,13 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
-    padding: 10px 8px;
+    gap: var(--aegis-space-2);
+    padding: var(--aegis-space-5) var(--aegis-space-4);
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: var(--glass-border);
-    box-shadow: var(--glass-shadow), var(--glass-highlight);
+    box-shadow: var(--glass-shadow-card), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
     cursor: pointer;
     transition: all 0.3s var(--ease-glass);
@@ -121,7 +121,7 @@
 
   .preset-desc {
     font: var(--md-sys-typescale-label-medium);
-    font-size: 10px;
+    font-size: calc(10px * var(--aegis-ui-scale));
     color: var(--md-sys-color-on-surface-variant);
   }
 

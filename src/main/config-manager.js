@@ -18,6 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
 const { PERMISSION_CATEGORIES } = require('../shared/constants');
+const logger = require('./logger');
 
 // ── Lazy path — resolved on first use (after app.whenReady) ──
 let _settingsPath = null;
@@ -25,6 +26,8 @@ function settingsPath() {
   if (!_settingsPath) _settingsPath = path.join(app.getPath('userData'), 'settings.json');
   return _settingsPath;
 }
+/** @internal Override settings path (for tests). */
+function _setSettingsPathForTest(p) { _settingsPath = p; }
 
 const DEFAULT_SETTINGS = {
   scanIntervalSec: 10,
@@ -34,6 +37,8 @@ const DEFAULT_SETTINGS = {
   autoStartWithWindows: false,
   anthropicApiKey: '',
   darkMode: false,
+  uiScale: 1,
+  timelineZoom: 6,
   agentPermissions: {},
   seenAgents: [],
   customAgents: [],
@@ -136,6 +141,63 @@ function getAgentPermissions(agentName) {
 }
 
 /**
+ * Build the instance permission key for an agent.
+ * CWD takes priority (most specific), then parentEditor, then name only.
+ * @param {string} agentName
+ * @param {string|null} parentEditor
+ * @param {string|null} cwd
+ * @returns {string} e.g. "Claude Code::/path/to/project" or "Claude Code::VS Code" or "Claude Code"
+ * @since v0.4.0
+ */
+function getInstanceKey(agentName, parentEditor, cwd) {
+  if (cwd) return `${agentName}::${cwd}`;
+  if (parentEditor) return `${agentName}::${parentEditor}`;
+  return agentName;
+}
+
+/**
+ * Return permissions for a specific instance using the fallback chain:
+ * cwd override → parentEditor override → agent default → global default.
+ * @param {string} agentName
+ * @param {string|null} parentEditor
+ * @param {string|null} cwd
+ * @returns {Object.<string, string>} category-to-state map
+ * @since v0.4.0
+ */
+function getInstancePermissions(agentName, parentEditor, cwd) {
+  if (cwd) {
+    const cwdKey = getInstanceKey(agentName, null, cwd);
+    const cwdPerms = settings.agentPermissions[cwdKey];
+    if (cwdPerms) return cwdPerms;
+  }
+  if (parentEditor) {
+    const editorKey = getInstanceKey(agentName, parentEditor);
+    const editorPerms = settings.agentPermissions[editorKey];
+    if (editorPerms) return editorPerms;
+  }
+  return getAgentPermissions(agentName);
+}
+
+/**
+ * Save permissions for a specific instance.
+ * @param {string} agentName
+ * @param {string|null} parentEditor
+ * @param {Object.<string, string>} perms - category-to-state map
+ * @param {string|null} cwd
+ * @returns {void}
+ * @since v0.4.0
+ */
+function saveInstancePermissions(agentName, parentEditor, perms, cwd) {
+  const key = getInstanceKey(agentName, parentEditor, cwd);
+  settings.agentPermissions[key] = perms;
+  try {
+    fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
+  } catch (err) {
+    logger.warn('config-manager', 'Failed to persist instance permissions', { key, error: err.message });
+  }
+}
+
+/**
  * Record a newly-seen agent and persist its default permissions.
  * @param {string} agentName
  * @returns {void}
@@ -149,7 +211,9 @@ function trackSeenAgent(agentName) {
     }
     try {
       fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
-    } catch (_) {}
+    } catch (err) {
+      logger.warn('config-manager', 'Failed to persist seen agent', { agentName, error: err.message });
+    }
   }
 }
 
@@ -190,7 +254,9 @@ function saveCustomAgents(agents) {
   settings.customAgents = agents;
   try {
     fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
-  } catch (_) {}
+  } catch (err) {
+    logger.warn('config-manager', 'Failed to persist custom agents', { error: err.message });
+  }
 }
 
 const _exports = {
@@ -200,11 +266,15 @@ const _exports = {
   applySettings,
   getDefaultPermissions,
   getAgentPermissions,
+  getInstanceKey,
+  getInstancePermissions,
+  saveInstancePermissions,
   trackSeenAgent,
   getSettings,
   getCustomSensitiveRules,
   getCustomAgents,
   saveCustomAgents,
+  _setSettingsPathForTest,
 };
 
 // Lazy getter — keeps config.SETTINGS_PATH working for external callers

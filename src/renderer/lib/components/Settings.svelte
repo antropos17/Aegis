@@ -161,8 +161,8 @@
     border: var(--glass-border);
     box-shadow: var(--glass-shadow), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-large);
-    padding: 24px;
-    min-width: 380px;
+    padding: var(--aegis-space-10);
+    min-width: var(--aegis-size-modal-min);
     max-width: 460px;
     width: 90vw;
     animation: scale-in var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-standard);
@@ -176,18 +176,18 @@
   .modal-title {
     font: var(--md-sys-typescale-headline-medium);
     color: var(--md-sys-color-on-surface);
-    margin: 0 0 20px;
+    margin: 0 0 var(--aegis-space-9);
   }
   .fields {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    margin-bottom: 24px;
+    gap: var(--aegis-space-8);
+    margin-bottom: var(--aegis-space-10);
   }
   .field {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--aegis-space-2);
   }
   .field-label {
     font: var(--md-sys-typescale-label-medium);
@@ -197,13 +197,13 @@
     font: var(--md-sys-typescale-label-medium);
     color: var(--md-sys-color-on-surface-variant);
     opacity: 0.6;
-    font-size: 10px;
+    font-size: calc(10px * var(--aegis-ui-scale));
   }
 
   .range-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--aegis-space-5);
   }
   .range-row input[type='range'] {
     flex: 1;
@@ -251,14 +251,14 @@
 
   .key-row {
     display: flex;
-    gap: 8px;
+    gap: var(--aegis-space-4);
   }
   .key-input,
   textarea {
     font: var(--md-sys-typescale-body-medium);
     font-family: 'DM Mono', monospace;
-    font-size: 12px;
-    padding: 8px 10px;
+    font-size: calc(12px * var(--aegis-ui-scale));
+    padding: var(--aegis-space-4) var(--aegis-space-5);
     background: var(--md-sys-color-surface-container);
     border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-small);
@@ -278,7 +278,7 @@
   .toggle-vis {
     font: var(--md-sys-typescale-label-medium);
     font-weight: 600;
-    padding: 6px 10px;
+    padding: var(--aegis-space-3) var(--aegis-space-5);
     cursor: pointer;
     background: var(--md-sys-color-surface-container);
     border: 1px solid var(--md-sys-color-outline);
@@ -291,20 +291,20 @@
 
   .config-actions {
     display: flex;
-    gap: 8px;
-    margin-bottom: 16px;
+    gap: var(--aegis-space-4);
+    margin-bottom: var(--aegis-space-8);
     border-top: 1px solid var(--md-sys-color-outline-variant);
-    padding-top: 16px;
+    padding-top: var(--aegis-space-8);
   }
   .modal-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
+    gap: var(--aegis-space-4);
   }
   .btn {
     font: var(--md-sys-typescale-label-medium);
     font-weight: 600;
-    padding: 8px 16px;
+    padding: var(--aegis-space-4) var(--aegis-space-8);
     cursor: pointer;
     background: var(--md-sys-color-surface-container);
     border: 1px solid var(--md-sys-color-outline);

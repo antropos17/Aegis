@@ -24,24 +24,25 @@
 <style>
   .tab-bar {
     display: flex;
-    gap: 6px;
-    padding: 6px;
+    gap: var(--aegis-space-3);
+    padding: var(--aegis-space-3);
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-medium);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
     width: fit-content;
   }
 
   .tab-pill {
-    padding: 8px 20px;
+    padding: var(--aegis-space-4) var(--aegis-space-9);
     border: none;
     border-radius: var(--md-sys-shape-corner-small);
     background: transparent;
     color: var(--md-sys-color-on-surface-variant);
     font-family: inherit;
-    font-size: 0.875rem;
+    font-size: calc(0.875rem * var(--aegis-ui-scale));
     font-weight: 500;
     cursor: pointer;
     transition: all 0.3s var(--ease-glass);

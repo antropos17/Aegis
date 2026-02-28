@@ -29,42 +29,27 @@ const IGNORE_PROCESS_PATTERNS = [
   'gigabyte',
 ];
 
-/** @type {string[]} Editor/IDE host processes — not agents, but scan their children for AI extensions */
-const EDITOR_HOSTS = [
-  'code.exe',
-  'code', // VS Code
-  'code - insiders.exe', // VS Code Insiders
-  'idea64.exe',
-  'idea', // IntelliJ IDEA
-  'webstorm64.exe',
-  'webstorm', // WebStorm
-  'pycharm64.exe',
-  'pycharm', // PyCharm
-  'goland64.exe',
-  'goland', // GoLand
-  'rider64.exe',
-  'rider', // Rider
-  'phpstorm64.exe',
-  'phpstorm', // PhpStorm
-  'rubymine64.exe',
-  'rubymine', // RubyMine
-  'clion64.exe',
-  'clion', // CLion
-  'datagrip64.exe',
-  'datagrip', // DataGrip
+/** @type {Array<{names: string[], label: string}>} Editor/IDE definitions with process names and labels */
+const EDITORS = [
+  { names: ['code.exe', 'code'], label: 'VS Code' },
+  { names: ['code - insiders.exe'], label: 'VS Code Insiders' },
+  { names: ['idea64.exe', 'idea'], label: 'IntelliJ IDEA' },
+  { names: ['webstorm64.exe', 'webstorm'], label: 'WebStorm' },
+  { names: ['pycharm64.exe', 'pycharm'], label: 'PyCharm' },
+  { names: ['goland64.exe', 'goland'], label: 'GoLand' },
+  { names: ['rider64.exe', 'rider'], label: 'Rider' },
+  { names: ['phpstorm64.exe', 'phpstorm'], label: 'PhpStorm' },
+  { names: ['rubymine64.exe', 'rubymine'], label: 'RubyMine' },
+  { names: ['clion64.exe', 'clion'], label: 'CLion' },
+  { names: ['datagrip64.exe', 'datagrip'], label: 'DataGrip' },
 ];
 
-/** @type {RegExp[]} File-path patterns treated as system noise and silently skipped */
-const IGNORE_PATTERNS = [
-  /^C:\\Windows\\/i,
-  /^C:\\Program Files\\Windows/i,
-  /\\pagefile\.sys$/i,
-  /\\swapfile\.sys$/i,
-  /\\\$Extend/i,
-  /\\System Volume Information/i,
-  /^\\Device\\/i,
-  /\\\.tmp$/i,
-];
+/** @type {string[]} Editor/IDE host processes — not agents, but scan their children for AI extensions */
+const EDITOR_HOSTS = EDITORS.flatMap((e) => e.names);
+
+/** @type {RegExp[]} Cross-platform file-path patterns treated as system noise and silently skipped.
+ *  Platform-specific patterns live in src/main/platform/*.js (IGNORE_FILE_PATTERNS). */
+const IGNORE_PATTERNS = [/\.tmp$/i];
 
 /**
  * @type {string[]} AI agent config directories relative to home dir.
@@ -354,10 +339,6 @@ const SENSITIVE_RULES = [
   },
   // ── Environment variables ──
   { pattern: /[\\\/]\.env$/i, reason: 'Environment variables' },
-  { pattern: /[\\\/]\.env\.local$/i, reason: 'Environment variables' },
-  { pattern: /[\\\/]\.env\.production$/i, reason: 'Environment variables' },
-  { pattern: /[\\\/]\.env\.development$/i, reason: 'Environment variables' },
-  { pattern: /[\\\/]\.env\.staging$/i, reason: 'Environment variables' },
   { pattern: /[\\\/]\.env\.[^\\\/]+$/i, reason: 'Environment variables' },
   { pattern: /[\\\/]\.ssh[\\\/]/i, reason: 'SSH keys/config' },
   { pattern: /id_rsa/i, reason: 'SSH private key' },
@@ -406,6 +387,7 @@ const PERMISSION_CATEGORIES = [
 
 module.exports = {
   IGNORE_PROCESS_PATTERNS,
+  EDITORS,
   EDITOR_HOSTS,
   IGNORE_PATTERNS,
   AGENT_CONFIG_PATHS,

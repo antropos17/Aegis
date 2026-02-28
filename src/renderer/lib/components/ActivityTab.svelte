@@ -37,15 +37,15 @@
   .activity-tab {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--aegis-space-6);
     height: 100%;
     min-height: 0;
   }
 
   .view-toggle {
     display: flex;
-    gap: 4px;
-    padding: 3px;
+    gap: var(--aegis-space-2);
+    padding: calc(3px * var(--aegis-ui-scale));
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -57,7 +57,7 @@
   .toggle-pill {
     font: var(--md-sys-typescale-label-medium);
     font-weight: 600;
-    padding: 5px 16px;
+    padding: var(--aegis-space-3) var(--aegis-space-8);
     border: none;
     border-radius: var(--md-sys-shape-corner-full);
     background: transparent;

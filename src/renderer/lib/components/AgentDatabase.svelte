@@ -122,11 +122,11 @@
   .db-wrap {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: var(--aegis-space-5);
   }
   .db-search {
     font: var(--md-sys-typescale-body-medium);
-    padding: 8px 12px;
+    padding: var(--aegis-space-4) var(--aegis-space-6);
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -141,12 +141,12 @@
   }
   .db-pills {
     display: flex;
-    gap: 6px;
+    gap: var(--aegis-space-3);
     flex-wrap: wrap;
   }
   .pill {
     font: var(--md-sys-typescale-label-medium);
-    padding: 4px 10px;
+    padding: var(--aegis-space-2) var(--aegis-space-5);
     background: var(--md-sys-color-surface-container);
     border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-full);
@@ -164,12 +164,12 @@
   }
   .db-scroll {
     overflow: auto;
-    max-height: 420px;
+    max-height: calc(420px * var(--aegis-ui-scale));
     border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-medium);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
-    box-shadow: var(--glass-shadow);
+    box-shadow: var(--glass-shadow-card);
   }
   .db-table {
     width: 100%;
@@ -188,7 +188,7 @@
     letter-spacing: 0.5px;
     color: var(--md-sys-color-on-surface-variant);
     background: var(--md-sys-color-surface-container-high);
-    padding: 8px 12px;
+    padding: var(--aegis-space-4) var(--aegis-space-6);
     text-align: left;
     cursor: pointer;
     user-select: none;
@@ -206,7 +206,7 @@
   }
   .db-table td {
     font: var(--md-sys-typescale-body-medium);
-    padding: 6px 12px;
+    padding: var(--aegis-space-3) var(--aegis-space-6);
     color: var(--md-sys-color-on-surface);
     border-bottom: 1px solid var(--md-sys-color-outline-variant);
   }
@@ -218,13 +218,13 @@
     white-space: nowrap;
   }
   .icon {
-    margin-right: 6px;
+    margin-right: var(--aegis-space-3);
   }
   .detect {
     font-family: 'DM Mono', monospace;
-    font-size: 11px;
+    font-size: calc(11px * var(--aegis-ui-scale));
     background: var(--md-sys-color-surface-container-high);
-    padding: 2px 6px;
+    padding: var(--aegis-space-1) var(--aegis-space-3);
     border-radius: 4px;
   }
   .risk {
@@ -244,13 +244,13 @@
   }
   .act-btn {
     font: var(--md-sys-typescale-label-medium);
-    padding: 3px 8px;
+    padding: calc(3px * var(--aegis-ui-scale)) var(--aegis-space-4);
     background: transparent;
     border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-small);
     color: var(--md-sys-color-primary);
     cursor: pointer;
-    margin-right: 4px;
+    margin-right: var(--aegis-space-2);
   }
   .act-btn:hover {
     background: var(--md-sys-color-surface-container-high);
@@ -260,7 +260,7 @@
   }
   .td-empty {
     text-align: center;
-    padding: 30px;
+    padding: calc(30px * var(--aegis-ui-scale));
     color: var(--md-sys-color-on-surface-variant);
   }
   .db-count {

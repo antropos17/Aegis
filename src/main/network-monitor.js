@@ -14,10 +14,20 @@
 
 'use strict';
 
-const { execFile } = require('child_process');
 const dns = require('dns');
 const fs = require('fs');
 const path = require('path');
+const _platform = require('./platform');
+
+let _getRawTcpConnections = _platform.getRawTcpConnections;
+let _dnsReverse = (ip) => dns.promises.reverse(ip);
+/** @internal Override dependencies (for tests). */
+function _setDepsForTest(overrides) {
+  if (overrides.getRawTcpConnections) _getRawTcpConnections = overrides.getRawTcpConnections;
+  if (overrides.dnsReverse) _dnsReverse = overrides.dnsReverse;
+}
+/** @internal Clear caches (for tests). */
+function _resetForTest() { dnsCache.clear(); networkScanRunning = false; }
 
 const agentDb = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8'),
@@ -105,8 +115,15 @@ function isKnownDomain(domain) {
 async function resolveIp(ip) {
   const cached = dnsCache.get(ip);
   if (cached && Date.now() - cached.timestamp < DNS_CACHE_TTL) return cached.domain;
+  // Prune stale entries when cache grows too large
+  if (dnsCache.size > 1000) {
+    const now = Date.now();
+    for (const [key, entry] of dnsCache) {
+      if (now - entry.timestamp >= DNS_CACHE_TTL) dnsCache.delete(key);
+    }
+  }
   try {
-    const hostnames = await dns.promises.reverse(ip);
+    const hostnames = await _dnsReverse(ip);
     const domain = hostnames && hostnames.length > 0 ? hostnames[0] : null;
     dnsCache.set(ip, { domain, timestamp: Date.now() });
     return domain;
@@ -114,53 +131,6 @@ async function resolveIp(ip) {
     dnsCache.set(ip, { domain: null, timestamp: Date.now() });
     return null;
   }
-}
-
-/**
- * Fetch raw TCP connections for given PIDs via PowerShell.
- * @param {number[]} pids
- * @returns {Promise<Array>}
- * @since v0.1.0
- */
-function getRawConnections(pids) {
-  return new Promise((resolve) => {
-    if (pids.length === 0) {
-      resolve([]);
-      return;
-    }
-    const pidStr = pids.join(',');
-    const psScript = [
-      '$ErrorActionPreference="SilentlyContinue"',
-      `$pids=@(${pidStr})`,
-      '$conns=Get-NetTCPConnection -OwningProcess $pids -EA SilentlyContinue|Where-Object{$_.State -ne "Listen" -and $_.State -ne "Bound" -and $_.RemoteAddress -ne "0.0.0.0" -and $_.RemoteAddress -ne "::" -and $_.RemoteAddress -ne "127.0.0.1" -and $_.RemoteAddress -ne "::1"}',
-      '$r=@()',
-      'foreach($c in $conns){$r+=@{pid=[int]$c.OwningProcess;ip=$c.RemoteAddress;port=[int]$c.RemotePort;state=$c.State.ToString()}}',
-      'if($r.Count -gt 0){$r|ConvertTo-Json -Compress}else{"[]"}',
-    ].join('\n');
-    execFile(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', psScript],
-      { timeout: 10000 },
-      (err, stdout) => {
-        if (err) {
-          resolve([]);
-          return;
-        }
-        try {
-          const raw = stdout.trim();
-          if (!raw || raw === '[]') {
-            resolve([]);
-            return;
-          }
-          let conns = JSON.parse(raw);
-          if (!Array.isArray(conns)) conns = [conns];
-          resolve(conns);
-        } catch (_) {
-          resolve([]);
-        }
-      },
-    );
-  });
 }
 
 /**
@@ -173,7 +143,7 @@ async function scanNetworkConnections(agents) {
   if (agents.length === 0) return [];
   const pidMap = new Map();
   for (const a of agents) pidMap.set(a.pid, a);
-  const raw = await getRawConnections(agents.map((a) => a.pid));
+  const raw = await _getRawTcpConnections(agents.map((a) => a.pid));
   const seen = new Set();
   const deduped = raw.filter((c) => {
     if (isPrivateIp(c.ip)) return false;
@@ -191,6 +161,8 @@ async function scanNetworkConnections(agents) {
     return {
       agent: agent ? agent.agent : `PID ${c.pid}`,
       pid: c.pid,
+      parentEditor: agent ? agent.parentEditor || null : null,
+      cwd: agent ? agent.cwd || null : null,
       category: agent ? agent.category : 'other',
       remoteIp: c.ip,
       remotePort: c.port,
@@ -217,7 +189,11 @@ function setNetworkScanRunning(v) {
 module.exports = {
   scanNetworkConnections,
   isKnownDomain,
+  isPrivateIp,
+  resolveIp,
   KNOWN_DOMAINS,
   isNetworkScanRunning,
   setNetworkScanRunning,
+  _setDepsForTest,
+  _resetForTest,
 };

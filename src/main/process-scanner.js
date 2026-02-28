@@ -15,8 +15,15 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execFile } = require('child_process');
 const { IGNORE_PROCESS_PATTERNS, EDITOR_HOSTS } = require('../shared/constants');
+const _platform = require('./platform');
+let _listProcesses = _platform.listProcesses;
+/** @internal Override platform functions (for tests). */
+function _setPlatformForTest(overrides) {
+  if (overrides.listProcesses) _listProcesses = overrides.listProcesses;
+}
+/** @internal Reset state (for tests). */
+function _resetForTest() { lastProcessPidSet = ''; }
 
 const agentDb = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8'),
@@ -53,55 +60,44 @@ function init(deps) {
  * @returns {Promise<{agents: Array, changed: boolean}>}
  * @since v0.2.0
  */
-function scanProcesses() {
-  return new Promise((resolve, reject) => {
-    execFile('tasklist', ['/FO', 'CSV', '/NH'], (err, stdout) => {
-      if (err) {
-        reject(err);
-        return;
+async function scanProcesses() {
+  const processes = await _listProcesses();
+  const detected = [];
+  for (const proc of processes) {
+    const procName = proc.name.toLowerCase();
+    if (IGNORE_PROCESS_PATTERNS.some((p) => procName.includes(p))) continue;
+    if (EDITOR_HOST_SET.has(procName)) continue;
+    for (const agent of AI_AGENTS) {
+      if (agent.patterns.some((p) => procName === p.toLowerCase())) {
+        detected.push({
+          agent: agent.name,
+          process: proc.name,
+          pid: proc.pid,
+          status: 'running',
+          category: 'ai',
+        });
+        break;
       }
-      const detected = [];
-      const lines = stdout.trim().split('\n');
-      for (const line of lines) {
-        const match = line.match(/"([^"]+)","(\d+)"/);
-        if (!match) continue;
-        const procName = match[1].toLowerCase();
-        const pid = parseInt(match[2], 10);
-        if (IGNORE_PROCESS_PATTERNS.some((p) => procName.includes(p))) continue;
-        if (EDITOR_HOST_SET.has(procName)) continue;
-        for (const agent of AI_AGENTS) {
-          if (agent.patterns.some((p) => procName === p.toLowerCase())) {
-            detected.push({
-              agent: agent.name,
-              process: match[1],
-              pid,
-              status: 'running',
-              category: 'ai',
-            });
-            break;
-          }
-        }
-      }
-      const seen = new Set();
-      const unique = detected.filter((d) => {
-        if (seen.has(d.pid)) return false;
-        seen.add(d.pid);
-        return true;
-      });
-      if (unique.length > peakAgents) peakAgents = unique.length;
-      unique.forEach((a) => {
-        uniqueAgentNames.add(a.agent);
-        if (_trackSeenAgent) _trackSeenAgent(a.agent);
-      });
-      const pidSetKey = unique
-        .map((u) => u.pid)
-        .sort()
-        .join(',');
-      const changed = pidSetKey !== lastProcessPidSet;
-      lastProcessPidSet = pidSetKey;
-      resolve({ agents: unique, changed });
-    });
+    }
+  }
+  const seen = new Set();
+  const unique = detected.filter((d) => {
+    if (seen.has(d.pid)) return false;
+    seen.add(d.pid);
+    return true;
   });
+  if (unique.length > peakAgents) peakAgents = unique.length;
+  unique.forEach((a) => {
+    uniqueAgentNames.add(a.agent);
+    if (_trackSeenAgent) _trackSeenAgent(a.agent);
+  });
+  const pidSetKey = unique
+    .map((u) => u.pid)
+    .sort()
+    .join(',');
+  const changed = pidSetKey !== lastProcessPidSet;
+  lastProcessPidSet = pidSetKey;
+  return { agents: unique, changed };
 }
 
 module.exports = {
@@ -109,6 +105,8 @@ module.exports = {
   agentDb,
   init,
   scanProcesses,
+  _setPlatformForTest,
+  _resetForTest,
   knownHandles,
   activityLog,
   monitoringStarted,

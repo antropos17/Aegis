@@ -22,19 +22,99 @@
   --md-sys-color-error-container: rgba(200, 122, 122, 0.15);
   --md-sys-color-scrim: rgba(0, 0, 0, 0.6);
 
+  /* ── Brand / Header ── */
+  --aegis-color-brand: #9aafcc;
+  --aegis-color-header-bg: rgba(10, 10, 14, 0.92);
+  --aegis-color-header-border: rgba(255, 255, 255, 0.06);
+
+  /* ── Card ── */
+  --aegis-card-border: 1px solid rgba(255, 255, 255, 0.1);
+  --aegis-card-hover-bg: rgba(150, 170, 200, 0.15);
+
+  /* ── Scrubber ── */
+  --aegis-scrub-track: #151518;
+  --aegis-scrub-thumb: #1e2024;
+  --aegis-scrub-thumb-border: rgba(255, 255, 255, 0.12);
+  --aegis-scrub-thumb-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  --aegis-scrub-grip: rgba(255, 255, 255, 0.25);
+
+  /* ── Footer ── */
+  --aegis-footer-bg: rgba(5, 5, 7, 0.85);
+  --aegis-footer-border: 1px solid rgba(255, 255, 255, 0.08);
+
   /* ── Glass tokens ── */
   --glass-blur: 20px;
   --glass-border: 1px solid rgba(255, 255, 255, 0.08);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --glass-shadow-card: 0 1px 4px rgba(0, 0, 0, 0.2);
   --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   --ease-glass: cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* ── Typography scale ── */
-  --md-sys-typescale-display-large: 600 32px/40px 'Outfit', sans-serif;
-  --md-sys-typescale-headline-medium: 600 20px/28px 'Outfit', sans-serif;
-  --md-sys-typescale-title-medium: 600 14px/20px 'Outfit', sans-serif;
-  --md-sys-typescale-body-medium: 400 13px/20px 'DM Sans', sans-serif;
-  --md-sys-typescale-label-medium: 500 11px/16px 'DM Sans', sans-serif;
+  /* ── UI scale factor (set via JS) ── */
+  --aegis-ui-scale: 1;
+
+  /* ── Spacing tokens (scale with UI) ── */
+  --aegis-space-1: calc(2px * var(--aegis-ui-scale));
+  --aegis-space-2: calc(4px * var(--aegis-ui-scale));
+  --aegis-space-3: calc(6px * var(--aegis-ui-scale));
+  --aegis-space-4: calc(8px * var(--aegis-ui-scale));
+  --aegis-space-5: calc(10px * var(--aegis-ui-scale));
+  --aegis-space-6: calc(12px * var(--aegis-ui-scale));
+  --aegis-space-7: calc(14px * var(--aegis-ui-scale));
+  --aegis-space-8: calc(16px * var(--aegis-ui-scale));
+  --aegis-space-9: calc(20px * var(--aegis-ui-scale));
+  --aegis-space-10: calc(24px * var(--aegis-ui-scale));
+
+  /* ── Sizing tokens (scale with UI) ── */
+  --aegis-size-header: calc(48px * var(--aegis-ui-scale));
+  --aegis-size-footer: calc(32px * var(--aegis-ui-scale));
+  --aegis-size-timeline: calc(36px * var(--aegis-ui-scale));
+  --aegis-size-panel-min: calc(280px * var(--aegis-ui-scale));
+  --aegis-size-panel-col: calc(320px * var(--aegis-ui-scale));
+  --aegis-size-modal-min: calc(380px * var(--aegis-ui-scale));
+
+  /* ── Column width tokens (scale with UI) ── */
+  --aegis-col-time: calc(52px * var(--aegis-ui-scale));
+  --aegis-col-action: calc(64px * var(--aegis-ui-scale));
+  --aegis-col-agent: calc(120px * var(--aegis-ui-scale));
+  --aegis-col-state: calc(80px * var(--aegis-ui-scale));
+
+  /* ── Typography scale — decomposed + scalable ── */
+  --md-sys-typescale-display-large-weight: 600;
+  --md-sys-typescale-display-large-size: calc(32px * var(--aegis-ui-scale));
+  --md-sys-typescale-display-large-line: calc(40px * var(--aegis-ui-scale));
+  --md-sys-typescale-display-large-family: 'Outfit', sans-serif;
+  --md-sys-typescale-display-large: var(--md-sys-typescale-display-large-weight) var(--md-sys-typescale-display-large-size) / var(--md-sys-typescale-display-large-line) var(--md-sys-typescale-display-large-family);
+
+  --md-sys-typescale-headline-medium-weight: 600;
+  --md-sys-typescale-headline-medium-size: calc(20px * var(--aegis-ui-scale));
+  --md-sys-typescale-headline-medium-line: calc(28px * var(--aegis-ui-scale));
+  --md-sys-typescale-headline-medium-family: 'Outfit', sans-serif;
+  --md-sys-typescale-headline-medium: var(--md-sys-typescale-headline-medium-weight) var(--md-sys-typescale-headline-medium-size) / var(--md-sys-typescale-headline-medium-line) var(--md-sys-typescale-headline-medium-family);
+
+  --md-sys-typescale-title-medium-weight: 600;
+  --md-sys-typescale-title-medium-size: calc(14px * var(--aegis-ui-scale));
+  --md-sys-typescale-title-medium-line: calc(20px * var(--aegis-ui-scale));
+  --md-sys-typescale-title-medium-family: 'Outfit', sans-serif;
+  --md-sys-typescale-title-medium: var(--md-sys-typescale-title-medium-weight) var(--md-sys-typescale-title-medium-size) / var(--md-sys-typescale-title-medium-line) var(--md-sys-typescale-title-medium-family);
+
+  --md-sys-typescale-label-large-weight: 600;
+  --md-sys-typescale-label-large-size: calc(13px * var(--aegis-ui-scale));
+  --md-sys-typescale-label-large-line: calc(18px * var(--aegis-ui-scale));
+  --md-sys-typescale-label-large-family: 'DM Sans', sans-serif;
+  --md-sys-typescale-label-large: var(--md-sys-typescale-label-large-weight) var(--md-sys-typescale-label-large-size) / var(--md-sys-typescale-label-large-line) var(--md-sys-typescale-label-large-family);
+
+  --md-sys-typescale-body-medium-weight: 400;
+  --md-sys-typescale-body-medium-size: calc(13px * var(--aegis-ui-scale));
+  --md-sys-typescale-body-medium-line: calc(20px * var(--aegis-ui-scale));
+  --md-sys-typescale-body-medium-family: 'DM Sans', sans-serif;
+  --md-sys-typescale-body-medium: var(--md-sys-typescale-body-medium-weight) var(--md-sys-typescale-body-medium-size) / var(--md-sys-typescale-body-medium-line) var(--md-sys-typescale-body-medium-family);
+
+  --md-sys-typescale-label-medium-weight: 500;
+  --md-sys-typescale-label-medium-size: calc(11px * var(--aegis-ui-scale));
+  --md-sys-typescale-label-medium-line: calc(16px * var(--aegis-ui-scale));
+  --md-sys-typescale-label-medium-family: 'DM Sans', sans-serif;
+  --md-sys-typescale-label-medium: var(--md-sys-typescale-label-medium-weight) var(--md-sys-typescale-label-medium-size) / var(--md-sys-typescale-label-medium-line) var(--md-sys-typescale-label-medium-family);
 
   /* ── Shape ── */
   --md-sys-shape-corner-small: 8px;
@@ -68,4 +148,105 @@
   --md-sys-color-on-error: #ffffff;
   --md-sys-color-error-container: rgba(176, 80, 80, 0.12);
   --md-sys-color-scrim: rgba(0, 0, 0, 0.5);
+
+  --aegis-color-brand: #3a5a7e;
+  --aegis-color-header-bg: rgba(240, 240, 242, 0.92);
+  --aegis-color-header-border: rgba(0, 0, 0, 0.06);
+  --aegis-card-border: 1px solid rgba(0, 0, 0, 0.1);
+  --aegis-card-hover-bg: rgba(90, 106, 126, 0.07);
+
+  --aegis-scrub-track: #e0e0e2;
+  --aegis-scrub-thumb: #caccd0;
+  --aegis-scrub-thumb-border: rgba(0, 0, 0, 0.12);
+  --aegis-scrub-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  --aegis-scrub-grip: rgba(0, 0, 0, 0.2);
+
+  --glass-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
+
+  --aegis-footer-bg: rgba(240, 240, 242, 0.9);
+  --aegis-footer-border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* ── Dark High Contrast ── */
+[data-theme='dark-hc'] {
+  --md-sys-color-surface: #000000;
+  --md-sys-color-surface-container-low: #0e0e10;
+  --md-sys-color-surface-container: #161618;
+  --md-sys-color-surface-container-high: #1e1e22;
+  --md-sys-color-surface-container-highest: #2a2a2e;
+  --md-sys-color-on-surface: #ffffff;
+  --md-sys-color-on-surface-variant: #c8c4be;
+  --md-sys-color-outline: rgba(255, 255, 255, 0.2);
+  --md-sys-color-outline-variant: rgba(255, 255, 255, 0.12);
+  --md-sys-color-primary: #a0bce0;
+  --md-sys-color-on-primary: #000000;
+  --md-sys-color-primary-container: #1a3050;
+  --md-sys-color-secondary: #f0d060;
+  --md-sys-color-tertiary: #60c080;
+  --md-sys-color-error: #ff8080;
+  --md-sys-color-on-error: #000000;
+  --md-sys-color-error-container: rgba(255, 128, 128, 0.2);
+  --md-sys-color-scrim: rgba(0, 0, 0, 0.75);
+
+  --aegis-color-brand: #b0ccf0;
+  --aegis-color-header-bg: rgba(0, 0, 0, 0.96);
+  --aegis-color-header-border: rgba(255, 255, 255, 0.2);
+  --aegis-card-border: 1px solid rgba(255, 255, 255, 0.25);
+  --aegis-card-hover-bg: rgba(160, 188, 224, 0.2);
+
+  --aegis-scrub-track: #0a0a0c;
+  --aegis-scrub-thumb: #1a1c20;
+  --aegis-scrub-thumb-border: rgba(255, 255, 255, 0.25);
+  --aegis-scrub-thumb-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+  --aegis-scrub-grip: rgba(255, 255, 255, 0.4);
+
+  --glass-border: 1px solid rgba(255, 255, 255, 0.2);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --glass-shadow-card: 0 1px 4px rgba(0, 0, 0, 0.3);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+
+  --aegis-footer-bg: rgba(0, 0, 0, 0.92);
+  --aegis-footer-border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* ── Light High Contrast ── */
+[data-theme='light-hc'] {
+  --md-sys-color-surface: #ffffff;
+  --md-sys-color-surface-container-low: #f0f0f2;
+  --md-sys-color-surface-container: #e2e2e4;
+  --md-sys-color-surface-container-high: #d4d4d6;
+  --md-sys-color-surface-container-highest: #c6c6c8;
+  --md-sys-color-on-surface: #000000;
+  --md-sys-color-on-surface-variant: #3a3632;
+  --md-sys-color-outline: rgba(0, 0, 0, 0.22);
+  --md-sys-color-outline-variant: rgba(0, 0, 0, 0.12);
+  --md-sys-color-primary: #2a4a6e;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #a0b8d4;
+  --md-sys-color-secondary: #7a6010;
+  --md-sys-color-tertiary: #1a5a30;
+  --md-sys-color-error: #a01010;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: rgba(160, 16, 16, 0.15);
+  --md-sys-color-scrim: rgba(0, 0, 0, 0.6);
+
+  --aegis-color-brand: #1a3a5e;
+  --aegis-color-header-bg: rgba(255, 255, 255, 0.96);
+  --aegis-color-header-border: rgba(0, 0, 0, 0.18);
+  --aegis-card-border: 1px solid rgba(0, 0, 0, 0.22);
+  --aegis-card-hover-bg: rgba(42, 74, 110, 0.1);
+
+  --aegis-scrub-track: #d0d0d2;
+  --aegis-scrub-thumb: #b0b2b6;
+  --aegis-scrub-thumb-border: rgba(0, 0, 0, 0.22);
+  --aegis-scrub-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --aegis-scrub-grip: rgba(0, 0, 0, 0.35);
+
+  --glass-border: 1px solid rgba(0, 0, 0, 0.15);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --glass-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+
+  --aegis-footer-bg: rgba(255, 255, 255, 0.92);
+  --aegis-footer-border: 1px solid rgba(0, 0, 0, 0.15);
 }

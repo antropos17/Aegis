@@ -14,6 +14,7 @@
 const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
+const logger = require('./logger');
 
 // ── Lazy path — resolved on first use (after app.whenReady) ──
 let _baselinesPath = null;
@@ -21,6 +22,8 @@ function baselinesPath() {
   if (!_baselinesPath) _baselinesPath = path.join(app.getPath('userData'), 'baselines.json');
   return _baselinesPath;
 }
+/** @internal Override baselines path (for tests). */
+function _setBaselinesPathForTest(p) { _baselinesPath = p; }
 const MAX_BASELINE_SESSIONS = 10;
 let baselines = { agents: {} };
 const sessionData = {};
@@ -32,7 +35,8 @@ function loadBaselines() {
       const raw = JSON.parse(fs.readFileSync(baselinesPath(), 'utf-8'));
       if (raw && raw.agents) baselines = raw;
     }
-  } catch (_) {
+  } catch (err) {
+    logger.warn('baselines', 'Failed to load baselines — starting fresh', { error: err.message });
     baselines = { agents: {} };
   }
 }
@@ -41,7 +45,9 @@ function loadBaselines() {
 function saveBaselines() {
   try {
     fs.writeFileSync(baselinesPath(), JSON.stringify(baselines, null, 2));
-  } catch (_) {}
+  } catch (err) {
+    logger.error('baselines', 'Failed to save baselines', { path: baselinesPath(), error: err.message });
+  }
 }
 
 /**
@@ -168,4 +174,5 @@ module.exports = {
   finalizeSession,
   getBaselines,
   getSessionData,
+  _setBaselinesPathForTest,
 };

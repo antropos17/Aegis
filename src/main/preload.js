@@ -26,6 +26,9 @@ contextBridge.exposeInMainWorld('aegis', {
   getAllPermissions: () => ipcRenderer.invoke('get-all-permissions'),
   getAgentPermissions: (name) => ipcRenderer.invoke('get-agent-permissions', name),
   saveAgentPermissions: (permMap) => ipcRenderer.invoke('save-agent-permissions', permMap),
+  getInstancePermissions: (agentName, parentEditor, cwd) =>
+    ipcRenderer.invoke('get-instance-permissions', agentName, parentEditor, cwd),
+  saveInstancePermissions: (data) => ipcRenderer.invoke('save-instance-permissions', data),
   resetPermissionsToDefaults: () => ipcRenderer.invoke('reset-permissions-to-defaults'),
   onScanResults: (cb) => {
     ipcRenderer.on('scan-results', (_e, data) => cb(data));
@@ -51,6 +54,9 @@ contextBridge.exposeInMainWorld('aegis', {
   onAnomalyScores: (cb) => {
     ipcRenderer.on('anomaly-scores', (_e, data) => cb(data));
   },
+  onToggleTheme: (cb) => {
+    ipcRenderer.on('toggle-theme', () => cb());
+  },
   getAgentDatabase: () => ipcRenderer.invoke('get-agent-database'),
   getProjectDir: () => ipcRenderer.invoke('get-project-dir'),
   killProcess: (pid) => ipcRenderer.invoke('kill-process', pid),
@@ -61,8 +67,14 @@ contextBridge.exposeInMainWorld('aegis', {
   exportAgentDatabase: () => ipcRenderer.invoke('export-agent-database'),
   importAgentDatabase: () => ipcRenderer.invoke('import-agent-database'),
   getAuditStats: () => ipcRenderer.invoke('get-audit-stats'),
+  getAuditEntriesBefore: (beforeTs, limit) =>
+    ipcRenderer.invoke('get-audit-entries-before', beforeTs, limit),
   openAuditLogDir: () => ipcRenderer.invoke('open-audit-log-dir'),
   exportFullAudit: () => ipcRenderer.invoke('export-full-audit'),
+  getLogStats: () => ipcRenderer.invoke('get-log-stats'),
+  exportFullLog: () => ipcRenderer.invoke('export-full-log'),
+  openLogDir: () => ipcRenderer.invoke('open-log-dir'),
+  testNotification: () => ipcRenderer.invoke('test-notification'),
   exportConfig: () => ipcRenderer.invoke('export-config'),
   importConfig: () => ipcRenderer.invoke('import-config'),
   revealInExplorer: (filePath) => ipcRenderer.invoke('reveal-in-explorer', filePath),
