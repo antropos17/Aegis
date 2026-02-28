@@ -232,6 +232,7 @@ function startScanIntervals() {
       watcher.pruneKnownHandles(latestAgents);
       await procUtil.enrichWithParentChains(latestAgents);
       procUtil.annotateHostApps(latestAgents);
+      await procUtil.annotateWorkingDirs(latestAgents);
       sendToRenderer('scan-results', latestAgents);
       sendToRenderer('stats-update', getStats());
       sendToRenderer('resource-usage', getResourceUsage());
@@ -400,6 +401,7 @@ app.whenReady().then(() => {
       latestOtherAgents = latestAgents.filter((a) => a.category === 'other');
       await procUtil.enrichWithParentChains(latestAgents);
       procUtil.annotateHostApps(latestAgents);
+      await procUtil.annotateWorkingDirs(latestAgents);
       sendToRenderer('scan-results', latestAgents);
       sendToRenderer('stats-update', getStats());
       sendToRenderer('resource-usage', getResourceUsage());
