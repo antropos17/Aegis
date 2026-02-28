@@ -1,6 +1,6 @@
 {
   "version": "2.0.0",
-  "lastUpdated": "2026-02-16",
+  "lastUpdated": "2026-02-28",
   "agents": [
 
     {
@@ -192,7 +192,7 @@
     },
     {
       "id": "amazon-q",
-      "names": ["q", "q.exe", "codewhisperer", "amazon-q", "aws-q"],
+      "names": ["q", "q.exe", "codewhisperer", "codewhisperer.exe", "aws-codewhisperer", "amazon-q", "aws-q"],
       "displayName": "Amazon Q Developer",
       "vendor": "Amazon Web Services",
       "category": "coding-assistant",
@@ -260,7 +260,7 @@
     },
     {
       "id": "gemini-code-assist",
-      "names": ["gemini", "gemini-code", "google-cloud-code"],
+      "names": ["gemini", "gemini-code", "gemini-cli", "google-cloud-code"],
       "displayName": "Gemini Code Assist",
       "vendor": "Google",
       "category": "coding-assistant",
@@ -495,6 +495,23 @@
       "configPaths": [],
       "parentEditors": ["Code.exe", "code", "idea64.exe"],
       "riskProfile": "low"
+    },
+    {
+      "id": "qwen-agent",
+      "names": ["qwen-agent", "qwen-agent.exe", "qwen-cli", "qwen-cli.exe"],
+      "displayName": "Qwen-Agent",
+      "vendor": "Alibaba Cloud",
+      "category": "coding-assistant",
+      "icon": "\ud83e\udd16",
+      "color": "#615EFF",
+      "defaultTrust": 55,
+      "website": "https://github.com/QwenLM/Qwen-Agent",
+      "description": "AI agent framework powered by Qwen models",
+      "knownDomains": ["dashscope.aliyuncs.com", "qwen.ai", "modelscope.cn"],
+      "knownPorts": [443],
+      "configPaths": [],
+      "parentEditors": [],
+      "riskProfile": "medium"
     },
 
     {
