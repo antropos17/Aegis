@@ -14,6 +14,35 @@ function _setExecFileForTest(fn) {
 }
 
 /**
+ * Parse `ps -axo comm=,pid=` output into an array of {name, pid} objects.
+ * Extracts basename from full path. Does NOT handle OS-specific
+ * bundle formats (.app) — callers add that post-processing.
+ * @param {string} stdout - raw ps output
+ * @returns {Array<{name: string, pid: number}>}
+ * @since v0.6.0
+ */
+function parsePsOutput(stdout) {
+  const results = [];
+  const lines = stdout.trim().split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    // pid is the last whitespace-separated token
+    const lastSpace = trimmed.lastIndexOf(' ');
+    if (lastSpace === -1) continue;
+    const comm = trimmed.slice(0, lastSpace).trim();
+    const pid = parseInt(trimmed.slice(lastSpace + 1), 10);
+    if (isNaN(pid) || !comm) continue;
+    // Extract basename from full path
+    let name = comm;
+    const slashIdx = name.lastIndexOf('/');
+    if (slashIdx !== -1) name = name.slice(slashIdx + 1);
+    results.push({ name, pid });
+  }
+  return results;
+}
+
+/**
  * Parse `lsof -i TCP -n -P -F pcnT` output.
  * @param {string} stdout
  * @param {Set<number>} pidSet
@@ -166,6 +195,7 @@ function parseLsofCwd(pid) {
 }
 
 module.exports = {
+  parsePsOutput,
   parseLsofOutput,
   parseLsofFileHandles,
   parseLsofCwd,
