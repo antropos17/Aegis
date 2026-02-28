@@ -17,8 +17,13 @@
   const PAD = 20;
   const MIN_TICK_PX = 64;
   const ZOOM_LEVELS = [
-    { ms: 3600000 }, { ms: 1800000 }, { ms: 600000 }, { ms: 300000 },
-    { ms: 60000 }, { ms: 30000 }, { ms: 10000 },
+    { ms: 3600000 },
+    { ms: 1800000 },
+    { ms: 600000 },
+    { ms: 300000 },
+    { ms: 60000 },
+    { ms: 30000 },
+    { ms: 10000 },
   ];
   const NICE_INTERVALS = [
     5000, 10000, 15000, 30000, 60000, 120000, 300000, 600000, 900000, 1800000, 3600000, 7200000,
@@ -58,7 +63,11 @@
 
   if (window.aegis) {
     window.aegis.getSettings().then((s) => {
-      if (typeof s.timelineZoom === 'number' && s.timelineZoom >= 0 && s.timelineZoom < ZOOM_LEVELS.length) {
+      if (
+        typeof s.timelineZoom === 'number' &&
+        s.timelineZoom >= 0 &&
+        s.timelineZoom < ZOOM_LEVELS.length
+      ) {
         zoomIndex = s.timelineZoom;
       }
     });
@@ -74,11 +83,24 @@
   function auditToTimelineEvent(entry) {
     const ts = new Date(entry.timestamp).getTime();
     if (entry.type === 'network-connection') {
-      return { agent: entry.agent, timestamp: ts, _type: 'network', flagged: entry.severity === 'high', _historical: true };
+      return {
+        agent: entry.agent,
+        timestamp: ts,
+        _type: 'network',
+        flagged: entry.severity === 'high',
+        _historical: true,
+      };
     }
-    return { agent: entry.agent, timestamp: ts, action: entry.action, file: entry.path,
-      sensitive: entry.severity === 'sensitive', _denied: entry.type === 'permission-deny',
-      _type: 'file', _historical: true };
+    return {
+      agent: entry.agent,
+      timestamp: ts,
+      action: entry.action,
+      file: entry.path,
+      sensitive: entry.severity === 'sensitive',
+      _denied: entry.type === 'permission-deny',
+      _type: 'file',
+      _historical: true,
+    };
   }
 
   async function loadOlderHistory() {
@@ -86,17 +108,29 @@
     loadingHistory = true;
     prevMinT = minT;
     try {
-      const oldest = historicalEvents.length > 0
-        ? new Date(historicalEvents[0].timestamp).toISOString()
-        : allLiveEvents.length > 0 ? new Date(allLiveEvents[0].timestamp).toISOString() : new Date().toISOString();
+      const oldest =
+        historicalEvents.length > 0
+          ? new Date(historicalEvents[0].timestamp).toISOString()
+          : allLiveEvents.length > 0
+            ? new Date(allLiveEvents[0].timestamp).toISOString()
+            : new Date().toISOString();
       const entries = await window.aegis.getAuditEntriesBefore(oldest, HISTORY_BATCH);
-      if (entries.length === 0) { historyExhausted = true; }
-      else {
+      if (entries.length === 0) {
+        historyExhausted = true;
+      } else {
         const mapped = entries
-          .filter((e) => ['file-access', 'config-access', 'network-connection', 'permission-deny'].includes(e.type))
+          .filter((e) =>
+            ['file-access', 'config-access', 'network-connection', 'permission-deny'].includes(
+              e.type,
+            ),
+          )
           .map(auditToTimelineEvent);
-        if (mapped.length === 0) { historyExhausted = true; }
-        else { pendingScrollAdjust = true; historicalEvents = [...mapped, ...historicalEvents]; }
+        if (mapped.length === 0) {
+          historyExhausted = true;
+        } else {
+          pendingScrollAdjust = true;
+          historicalEvents = [...mapped, ...historicalEvents];
+        }
       }
     } catch (_) {}
     loadingHistory = false;
@@ -111,8 +145,10 @@
   let allLiveEvents = $derived.by(() => {
     const fileEvs = $events.flat().map((ev) => ({ ...ev, _type: 'file' }));
     const netEvs = $network.map((conn) => ({
-      agent: conn.agent || 'Unknown', timestamp: conn.timestamp || Date.now(),
-      _type: 'network', flagged: !!conn.flagged,
+      agent: conn.agent || 'Unknown',
+      timestamp: conn.timestamp || Date.now(),
+      _type: 'network',
+      flagged: !!conn.flagged,
     }));
     return [...fileEvs, ...netEvs].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
   });
@@ -122,7 +158,10 @@
     const merged = [];
     for (const ev of [...historicalEvents, ...allLiveEvents]) {
       const key = `${ev.timestamp}|${ev.agent}|${ev._type}`;
-      if (!seen.has(key)) { seen.add(key); merged.push(ev); }
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(ev);
+      }
     }
     merged.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
     return merged.slice(-500);
@@ -130,7 +169,9 @@
 
   let rawMinT = $derived(allEvents.length > 0 ? allEvents[0].timestamp || 0 : Date.now());
   let minT = $derived(Math.floor(rawMinT / 10000) * 10000);
-  let maxT = $derived(allEvents.length > 0 ? allEvents[allEvents.length - 1].timestamp || 0 : Date.now());
+  let maxT = $derived(
+    allEvents.length > 0 ? allEvents[allEvents.length - 1].timestamp || 0 : Date.now(),
+  );
   let eventRange = $derived(maxT - minT || 1);
   let msPerUnit = $derived(ZOOM_LEVELS[zoomIndex].ms);
   let viewportMs = $derived((viewportWidth / PX_PER_UNIT) * msPerUnit);
@@ -148,7 +189,9 @@
   });
 
   let clampedScroll = $derived(Math.min(scrollLeft, maxScroll));
-  $effect(() => { if (scrollLeft > maxScroll) scrollLeft = maxScroll; });
+  $effect(() => {
+    if (scrollLeft > maxScroll) scrollLeft = maxScroll;
+  });
 
   $effect(() => {
     if (pendingScrollAdjust && prevMinT > 0 && minT < prevMinT) {
@@ -160,13 +203,20 @@
   });
 
   $effect(() => {
-    if (!following && !historyExhausted && !loadingHistory && thumbOffset >= 0 && thumbOffset <= 2) {
+    if (
+      !following &&
+      !historyExhausted &&
+      !loadingHistory &&
+      thumbOffset >= 0 &&
+      thumbOffset <= 2
+    ) {
       loadOlderHistory();
     }
   });
 
   $effect(() => {
-    void allEvents.length; void maxScroll;
+    void allEvents.length;
+    void maxScroll;
     if (following) scrollLeft = maxScroll;
   });
 
@@ -181,8 +231,14 @@
     if (allEvents.length === 0) return [];
     return allEvents.map((ev, idx) => {
       const sev = getSeverity(ev);
-      return { x: tsToX(ev.timestamp || 0), color: sevColor(sev),
-        agent: ev.agent || 'Unknown', pid: ev.pid || null, time: formatTime(ev.timestamp), idx };
+      return {
+        x: tsToX(ev.timestamp || 0),
+        color: sevColor(sev),
+        agent: ev.agent || 'Unknown',
+        pid: ev.pid || null,
+        time: formatTime(ev.timestamp),
+        idx,
+      };
     });
   });
 
@@ -193,7 +249,10 @@
     const firstTick = Math.ceil(displayMinT / tickInterval) * tickInterval;
     let isFirst = true;
     for (let t = firstTick; t <= tickEnd; t += tickInterval) {
-      if (isFirst) { isFirst = false; continue; }
+      if (isFirst) {
+        isFirst = false;
+        continue;
+      }
       result.push({ x: tsToX(t), label: formatTick(t, subMinute) });
     }
     return result;
@@ -209,20 +268,32 @@
 
   $effect(() => {
     if (!dragging) {
-      if (following) { thumbOffset = trackUsable; }
-      else if (maxScroll > 0) { thumbOffset = (clampedScroll / maxScroll) * trackUsable; }
+      if (following) {
+        thumbOffset = trackUsable;
+      } else if (maxScroll > 0) {
+        thumbOffset = (clampedScroll / maxScroll) * trackUsable;
+      }
     }
   });
 
-  let thumbX = $derived(thumbOffset < 0 ? trackUsable : Math.max(0, Math.min(trackUsable, thumbOffset)));
+  let thumbX = $derived(
+    thumbOffset < 0 ? trackUsable : Math.max(0, Math.min(trackUsable, thumbOffset)),
+  );
 
   function handleWheel(e) {
     e.preventDefault();
     let changed = false;
-    if (e.deltaY < 0 && zoomIndex < ZOOM_LEVELS.length - 1) { zoomIndex++; changed = true; }
-    else if (e.deltaY > 0 && zoomIndex > 0) { zoomIndex--; changed = true; }
+    if (e.deltaY < 0 && zoomIndex < ZOOM_LEVELS.length - 1) {
+      zoomIndex++;
+      changed = true;
+    } else if (e.deltaY > 0 && zoomIndex > 0) {
+      zoomIndex--;
+      changed = true;
+    }
     if (changed && window.aegis) {
-      window.aegis.getSettings().then((s) => { window.aegis.saveSettings({ ...s, timelineZoom: zoomIndex }); });
+      window.aegis.getSettings().then((s) => {
+        window.aegis.saveSettings({ ...s, timelineZoom: zoomIndex });
+      });
     }
   }
 
@@ -230,16 +301,23 @@
     const estWidth = tooltipText.length * 7 + 16;
     const estHeight = 24;
     const margin = 12;
-    tooltipFixedX = (e.clientX + margin + estWidth > window.innerWidth)
-      ? e.clientX - margin - estWidth : e.clientX + margin;
-    tooltipFixedY = (e.clientY - estHeight - 8 < 0) ? e.clientY + margin : e.clientY - estHeight - 8;
+    tooltipFixedX =
+      e.clientX + margin + estWidth > window.innerWidth
+        ? e.clientX - margin - estWidth
+        : e.clientX + margin;
+    tooltipFixedY = e.clientY - estHeight - 8 < 0 ? e.clientY + margin : e.clientY - estHeight - 8;
   }
   function handleDotEnter(e, dot) {
     tooltipText = `${dot.time}  ${dot.agent}` + (dot.pid ? ` [${dot.pid}]` : '');
-    tooltipVisible = true; positionTooltip(e);
+    tooltipVisible = true;
+    positionTooltip(e);
   }
-  function handleDotMove(e) { positionTooltip(e); }
-  function handleDotLeave() { tooltipVisible = false; }
+  function handleDotMove(e) {
+    positionTooltip(e);
+  }
+  function handleDotLeave() {
+    tooltipVisible = false;
+  }
   function handleDotClick(e, dot) {
     e.stopPropagation();
     if (dot.pid) focusedAgentPid.set(dot.pid);
@@ -248,8 +326,11 @@
   let dragStartX = 0;
   let dragStartThumbOffset = 0;
   function handleThumbDown(e) {
-    e.preventDefault(); dragging = true; following = false;
-    dragStartX = e.clientX; dragStartThumbOffset = thumbX;
+    e.preventDefault();
+    dragging = true;
+    following = false;
+    dragStartX = e.clientX;
+    dragStartThumbOffset = thumbX;
     window.addEventListener('mousemove', handleDragMove);
     window.addEventListener('mouseup', handleDragEnd);
   }
@@ -271,7 +352,8 @@
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left - scrubPad / 2;
     const newOffset = Math.max(0, Math.min(trackUsable, clickX - thumbWidth / 2));
-    following = false; thumbOffset = newOffset;
+    following = false;
+    thumbOffset = newOffset;
     if (maxScroll > 0 && trackUsable > 0) scrollLeft = (thumbOffset / trackUsable) * maxScroll;
     if (newOffset >= trackUsable - 2) following = true;
     if (newOffset <= 2 && !historyExhausted && !loadingHistory) loadOlderHistory();
@@ -281,14 +363,30 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="timeline-wrap" onwheel={handleWheel} bind:clientWidth={viewportWidth}>
   <TimelineCanvas
-    {viewportWidth} svgH={SVG_H} {viewBox} {clampedScroll} pad={PAD} mid={MID}
-    tickTop={TICK_TOP} tickH={TICK_H} {ticks} {dots}
-    onDotEnter={handleDotEnter} onDotMove={handleDotMove}
-    onDotLeave={handleDotLeave} onDotClick={handleDotClick}
+    {viewportWidth}
+    svgH={SVG_H}
+    {viewBox}
+    {clampedScroll}
+    pad={PAD}
+    mid={MID}
+    tickTop={TICK_TOP}
+    tickH={TICK_H}
+    {ticks}
+    {dots}
+    onDotEnter={handleDotEnter}
+    onDotMove={handleDotMove}
+    onDotLeave={handleDotLeave}
+    onDotClick={handleDotClick}
   />
   <TimelineControls
-    {thumbWidth} {thumbX} {trackUsable} {scrubPad} {maxScroll}
-    onTrackClick={handleTrackClick} onThumbDown={handleThumbDown} {dragging}
+    {thumbWidth}
+    {thumbX}
+    {trackUsable}
+    {scrubPad}
+    {maxScroll}
+    onTrackClick={handleTrackClick}
+    onThumbDown={handleThumbDown}
+    {dragging}
   />
 </div>
 
@@ -306,7 +404,9 @@
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: var(--aegis-card-border);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), var(--glass-highlight);
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.12),
+      var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-small);
     padding: 3px 0;
     overflow: hidden;

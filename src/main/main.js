@@ -121,8 +121,18 @@ function createWindow() {
 // ═══ MODULE WIRING ═══
 
 scanLoop.init({
-  scanner, procUtil, watcher, network, baselines, anomaly, audit, tray, logger,
-  sendToRenderer, getStats, getResourceUsage,
+  scanner,
+  procUtil,
+  watcher,
+  network,
+  baselines,
+  anomaly,
+  audit,
+  tray,
+  logger,
+  sendToRenderer,
+  getStats,
+  getResourceUsage,
   getLatestAgents: () => latestAgents,
   setAgents: (agents) => {
     latestAgents = agents;

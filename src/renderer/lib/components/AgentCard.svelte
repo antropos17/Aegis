@@ -22,8 +22,12 @@
       expandedPid = agent.pid;
       blinking = true;
       if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      setTimeout(() => { blinking = false; }, 1200);
-      setTimeout(() => { focusedAgentPid.set(null); }, 50);
+      setTimeout(() => {
+        blinking = false;
+      }, 1200);
+      setTimeout(() => {
+        focusedAgentPid.set(null);
+      }, 50);
     }
   });
 
@@ -42,7 +46,8 @@
   });
 
   let agentEvents = $derived.by(() => {
-    return $events.flat()
+    return $events
+      .flat()
       .filter((ev) => ev.pid === agent.pid)
       .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
       .slice(0, 50);
@@ -64,7 +69,9 @@
     return hrs > 0 ? `${hrs}h ${rem}m` : `${rem}m`;
   });
 
-  function toggle() { expandedPid = expanded ? null : agent.pid; }
+  function toggle() {
+    expandedPid = expanded ? null : agent.pid;
+  }
 
   async function pidAction(e, method) {
     e.stopPropagation();
@@ -88,7 +95,13 @@
 
   <div class="expand-body">
     <div class="expand-inner">
-      <AgentCardDetails {agent} {gradeColor} {agentEvents} {sessionDuration} onPidAction={pidAction} />
+      <AgentCardDetails
+        {agent}
+        {gradeColor}
+        {agentEvents}
+        {sessionDuration}
+        onPidAction={pidAction}
+      />
     </div>
   </div>
 </article>
@@ -99,51 +112,92 @@
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: var(--aegis-card-border);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), var(--glass-highlight);
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.12),
+      var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
     padding: var(--aegis-space-4) var(--aegis-space-6);
     cursor: pointer;
     transition: all 0.3s var(--ease-glass);
   }
-  .agent-card:hover { background: var(--aegis-card-hover-bg); }
-  .compact-row { display: flex; align-items: center; gap: var(--aegis-space-4); }
+  .agent-card:hover {
+    background: var(--aegis-card-hover-bg);
+  }
+  .compact-row {
+    display: flex;
+    align-items: center;
+    gap: var(--aegis-space-4);
+  }
   .agent-name {
-    font: var(--md-sys-typescale-label-large); font-weight: 600;
+    font: var(--md-sys-typescale-label-large);
+    font-weight: 600;
     color: var(--md-sys-color-on-surface);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
   }
   .stat {
-    font: var(--md-sys-typescale-label-medium); font-family: 'DM Mono', monospace;
-    color: var(--md-sys-color-on-surface-variant); flex-shrink: 0;
+    font: var(--md-sys-typescale-label-medium);
+    font-family: 'DM Mono', monospace;
+    color: var(--md-sys-color-on-surface-variant);
+    flex-shrink: 0;
   }
   .risk-score {
-    font: var(--md-sys-typescale-label-large); font-family: 'DM Mono', monospace;
-    font-weight: 700; flex-shrink: 0; margin-left: auto;
+    font: var(--md-sys-typescale-label-large);
+    font-family: 'DM Mono', monospace;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-left: auto;
   }
   .trust-badge {
-    font: var(--md-sys-typescale-label-medium); font-weight: 700;
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 700;
     color: var(--md-sys-color-surface);
     padding: var(--aegis-space-1) calc(7px * var(--aegis-ui-scale));
-    border-radius: var(--md-sys-shape-corner-full); flex-shrink: 0; letter-spacing: 0.5px;
+    border-radius: var(--md-sys-shape-corner-full);
+    flex-shrink: 0;
+    letter-spacing: 0.5px;
   }
   .activity-hint {
-    font: var(--md-sys-typescale-label-medium); font-family: 'DM Mono', monospace;
-    color: var(--md-sys-color-on-surface-variant); opacity: 0.7;
-    margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font: var(--md-sys-typescale-label-medium);
+    font-family: 'DM Mono', monospace;
+    color: var(--md-sys-color-on-surface-variant);
+    opacity: 0.7;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .expand-body {
-    display: grid; grid-template-rows: 0fr;
-    transition: grid-template-rows 200ms var(--md-sys-motion-easing-standard); overflow: hidden;
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 200ms var(--md-sys-motion-easing-standard);
+    overflow: hidden;
   }
-  .agent-card.expanded .expand-body { grid-template-rows: 1fr; }
+  .agent-card.expanded .expand-body {
+    grid-template-rows: 1fr;
+  }
   .expand-inner {
-    min-height: 0; overflow: hidden;
-    display: flex; flex-direction: column; gap: var(--aegis-space-3);
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: var(--aegis-space-3);
   }
-  .agent-card.expanded .expand-inner { margin-top: var(--aegis-space-4); }
-  .agent-card.blinking { animation: card-blink 400ms ease 3; }
+  .agent-card.expanded .expand-inner {
+    margin-top: var(--aegis-space-4);
+  }
+  .agent-card.blinking {
+    animation: card-blink 400ms ease 3;
+  }
   @keyframes card-blink {
-    0%, 100% { background: var(--md-sys-color-surface-container-low); }
-    50% { background: var(--md-sys-color-primary-container); }
+    0%,
+    100% {
+      background: var(--md-sys-color-surface-container-low);
+    }
+    50% {
+      background: var(--md-sys-color-primary-container);
+    }
   }
 </style>

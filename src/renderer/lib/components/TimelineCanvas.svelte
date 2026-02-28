@@ -38,9 +38,7 @@
     <!-- ticks -->
     {#each ticks as t (t.x)}
       <line x1={t.x} y1={tickTop} x2={t.x} y2={tickTop + tickH} class="tick-line" />
-      <text x={t.x} y={tickTop + tickH + 1} text-anchor="middle" class="tick-label"
-        >{t.label}</text
-      >
+      <text x={t.x} y={tickTop + tickH + 1} text-anchor="middle" class="tick-label">{t.label}</text>
     {/each}
 
     <!-- dots -->
@@ -69,13 +67,23 @@
     height: var(--aegis-size-timeline);
     overflow: hidden;
     -webkit-mask-image: linear-gradient(
-      to right, transparent, black 28px, black calc(100% - 28px), transparent
+      to right,
+      transparent,
+      black 28px,
+      black calc(100% - 28px),
+      transparent
     );
     mask-image: linear-gradient(
-      to right, transparent, black 28px, black calc(100% - 28px), transparent
+      to right,
+      transparent,
+      black 28px,
+      black calc(100% - 28px),
+      transparent
     );
   }
-  svg { display: block; }
+  svg {
+    display: block;
+  }
   .baseline {
     stroke: var(--md-sys-color-on-surface-variant);
     stroke-width: 1;

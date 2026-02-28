@@ -61,7 +61,9 @@
     background: var(--aegis-scrub-thumb);
     border: 1px solid var(--aegis-scrub-thumb-border);
     box-shadow: var(--aegis-scrub-thumb-shadow);
-    transition: box-shadow 150ms ease, filter 150ms ease;
+    transition:
+      box-shadow 150ms ease,
+      filter 150ms ease;
     cursor: grab;
   }
   .grip {
@@ -83,7 +85,9 @@
   .scrub-thumb.hover,
   .scrub-thumb:focus-visible {
     filter: brightness(1.15);
-    box-shadow: var(--aegis-scrub-thumb-shadow), 0 0 0 1px var(--aegis-scrub-thumb-border);
+    box-shadow:
+      var(--aegis-scrub-thumb-shadow),
+      0 0 0 1px var(--aegis-scrub-thumb-border);
   }
   .scrub-thumb.hover .grip span,
   .scrub-thumb:focus-visible .grip span {
@@ -92,6 +96,8 @@
   .scrub-thumb.dragging {
     filter: brightness(1.2);
     cursor: grabbing;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--aegis-scrub-thumb-border);
+    box-shadow:
+      0 2px 6px rgba(0, 0, 0, 0.4),
+      0 0 0 1px var(--aegis-scrub-thumb-border);
   }
 </style>

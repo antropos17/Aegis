@@ -49,9 +49,18 @@ function logAuditForFile(ev) {
 }
 
 function stopScanIntervals() {
-  if (scanInterval) { clearInterval(scanInterval); scanInterval = null; }
-  if (fileScanInterval) { clearInterval(fileScanInterval); fileScanInterval = null; }
-  if (netInterval) { clearInterval(netInterval); netInterval = null; }
+  if (scanInterval) {
+    clearInterval(scanInterval);
+    scanInterval = null;
+  }
+  if (fileScanInterval) {
+    clearInterval(fileScanInterval);
+    fileScanInterval = null;
+  }
+  if (netInterval) {
+    clearInterval(netInterval);
+    netInterval = null;
+  }
 }
 
 function doNetworkScan() {
@@ -66,7 +75,8 @@ function doNetworkScan() {
       for (const conn of connections) {
         baselines.recordNetworkEndpoint(conn.agent, conn.remoteIp, conn.remotePort);
         audit.log('network-connection', {
-          agent: conn.agent, action: conn.state,
+          agent: conn.agent,
+          action: conn.state,
           path: `${conn.remoteIp}:${conn.remotePort}`,
           severity: conn.flagged ? 'high' : 'normal',
           extra: { domain: conn.domain, flagged: conn.flagged },
@@ -79,9 +89,21 @@ function doNetworkScan() {
 }
 
 async function doProcessScan() {
-  const { scanner, procUtil, watcher, anomaly, audit, tray, logger,
-    sendToRenderer, getStats, getResourceUsage, setAgents,
-    getPreviousPids, setPreviousPids } = deps;
+  const {
+    scanner,
+    procUtil,
+    watcher,
+    anomaly,
+    audit,
+    tray,
+    logger,
+    sendToRenderer,
+    getStats,
+    getResourceUsage,
+    setAgents,
+    getPreviousPids,
+    setPreviousPids,
+  } = deps;
   try {
     const result = await scanner.scanProcesses();
     setAgents(result.agents);
@@ -91,13 +113,23 @@ async function doProcessScan() {
     const prevPids = getPreviousPids();
     for (const [pid, name] of curPids) {
       if (!prevPids.has(pid))
-        audit.log('agent-enter', { agent: name, action: 'started', path: '',
-          severity: 'normal', extra: { pid } });
+        audit.log('agent-enter', {
+          agent: name,
+          action: 'started',
+          path: '',
+          severity: 'normal',
+          extra: { pid },
+        });
     }
     for (const [pid, name] of prevPids) {
       if (!curPids.has(pid))
-        audit.log('agent-exit', { agent: name, action: 'exited', path: '',
-          severity: 'normal', extra: { pid } });
+        audit.log('agent-exit', {
+          agent: name,
+          action: 'exited',
+          path: '',
+          severity: 'normal',
+          extra: { pid },
+        });
     }
     setPreviousPids(curPids);
     watcher.pruneKnownHandles(agents);
@@ -112,8 +144,13 @@ async function doProcessScan() {
     if (deviations.length > 0) {
       sendToRenderer('baseline-warnings', deviations);
       for (const d of deviations)
-        audit.log('anomaly-alert', { agent: d.agent, action: d.type, path: '',
-          severity: 'high', extra: { message: d.message, anomalyScore: d.anomalyScore } });
+        audit.log('anomaly-alert', {
+          agent: d.agent,
+          action: d.type,
+          path: '',
+          severity: 'high',
+          extra: { message: d.message, anomalyScore: d.anomalyScore },
+        });
     }
     const scores = {};
     for (const a of agents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent);
@@ -162,9 +199,16 @@ function staggeredStartup(intervalMs, paused) {
 }
 
 /** @param {Object} injected @since v0.3.0 */
-function init(injected) { deps = injected; }
+function init(injected) {
+  deps = injected;
+}
 
 module.exports = {
-  init, startScanIntervals, stopScanIntervals, doNetworkScan,
-  staggeredStartup, dedupFileEvent, logAuditForFile,
+  init,
+  startScanIntervals,
+  stopScanIntervals,
+  doNetworkScan,
+  staggeredStartup,
+  dedupFileEvent,
+  logAuditForFile,
 };
