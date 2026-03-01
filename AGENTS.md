@@ -11,7 +11,7 @@ AEGIS is an independent AI oversight layer — a desktop app that monitors AI ag
 ```
 src/main/           Electron main process (CommonJS, require/module.exports)
 src/renderer/       Svelte 5 dashboard UI (ES modules, runes)
-src/shared/         Constants + agent-database.json (98 agent signatures)
+src/shared/         Constants + agent-database.json (106 agent signatures)
 tests/              Vitest unit tests with v8 coverage
 ```
 
@@ -22,7 +22,7 @@ Key modules:
 - `src/main/llm-runtime-detector.js` — local LLM runtime detection (Ollama, LM Studio HTTP probes)
 - `src/main/cli.js` — CLI interface (`--scan-json`, `--version`, `--help`)
 - `src/main/platform/` — OS abstraction (win32.js, darwin.js, linux.js)
-- `src/shared/agent-database.json` — 98 known agent signatures
+- `src/shared/agent-database.json` — 106 known agent signatures
 - `src/shared/constants.js` — sensitive file rules (70+ patterns)
 
 ## Build & test
