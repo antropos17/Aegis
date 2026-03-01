@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/No_Telemetry-✓-2ea44f?style=flat-square" alt="No Telemetry">
   <img src="https://img.shields.io/badge/Data-Local_Only-0969da?style=flat-square" alt="Local Only">
   <img src="https://img.shields.io/badge/Privacy-First-8b5cf6?style=flat-square" alt="Privacy First">
-  <img src="https://img.shields.io/badge/Agents-98-14b8a6?style=flat-square" alt="98 Agents">
+  <img src="https://img.shields.io/badge/Agents-106-14b8a6?style=flat-square" alt="106 Agents">
 </p>
 
 <p align="center">
@@ -298,6 +298,7 @@ npm run test:coverage # coverage report
     <td align="center"><a href="https://github.com/antropos17"><img src="https://github.com/antropos17.png" width="80px;" alt=""/><br/><sub><b>Ruslan Murtuzaliyev</b></sub></a><br/>💻 📖 🚇 🎨</td>
     <td align="center"><a href="https://github.com/ElshadHu"><img src="https://github.com/ElshadHu.png" width="80px;" alt=""/><br/><sub><b>Elshad Humbatli</b></sub></a><br/>💻 🧪</td>
     <td align="center"><a href="https://github.com/skmelendez"><img src="https://github.com/skmelendez.png" width="80px;" alt=""/><br/><sub><b>Steven Melendez</b></sub></a><br/>💻 🤔</td>
+    <td align="center"><a href="https://github.com/travisbreaks"><img src="https://github.com/travisbreaks.png" width="80px;" alt=""/><br/><sub><b>travisbreaks</b></sub></a><br/>📦</td>
   </tr>
 </table>
 
