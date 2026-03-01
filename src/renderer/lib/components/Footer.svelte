@@ -8,6 +8,7 @@
   let memMB = $state('--');
   let heapMB = $state('--');
   let scanInterval = $state('--');
+  let appVersion = $state('v0.3.0-alpha');
 
   const appStart = Date.now();
   let uptimeMs = $state(0);
@@ -42,6 +43,9 @@
       window.aegis.getSettings().then((s) => {
         scanInterval = s.scanIntervalSec ?? '--';
       });
+      window.aegis.getAppVersion().then((v) => {
+        if (v) appVersion = `v${v}`;
+      });
     }
   });
 
@@ -69,7 +73,7 @@
 </script>
 
 <footer class="footer">
-  <span class="footer-version">AEGIS v0.2.0-alpha</span>
+  <span class="footer-version">AEGIS {appVersion}</span>
 
   <div class="footer-stats">
     <div class="footer-item">

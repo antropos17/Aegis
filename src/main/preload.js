@@ -81,4 +81,5 @@ contextBridge.exposeInMainWorld('aegis', {
   importConfig: () => ipcRenderer.invoke('import-config'),
   revealInExplorer: (filePath) => ipcRenderer.invoke('reveal-in-explorer', filePath),
   getLocalModels: () => ipcRenderer.invoke('get-local-models'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 });

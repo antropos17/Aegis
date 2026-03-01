@@ -277,6 +277,9 @@ function register() {
   // ── Local LLM models ──
   ipcMain.handle('get-local-models', () => scanLoop.getLatestLocalModels());
 
+  // ── App info ──
+  ipcMain.handle('get-app-version', () => app.getVersion());
+
   // ── Process control ──
   ipcMain.handle('kill-process', (_e, pid) => killProcess(pid));
   ipcMain.handle('suspend-process', (_e, pid) => suspendProcess(pid));

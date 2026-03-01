@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0-alpha] - 2026-02-28
+
+### Added
+- Multi-dimensional anomaly scoring (4 axes: Network, FileSystem, Process, Baseline)
+- Local LLM runtime detection (Ollama localhost:11434, LM Studio localhost:1234)
+- CLI interface with JSON output (--scan-json, --version, --help)
+- 98 agent signatures including local-llm-runtime category
+- 408 tests across 23 test files (up from 130/12)
+- Dynamic version display in Footer via IPC
+- Contributors section in README with avatars
+- Trust signal badges, Table of Contents, navigation bar
+- "What AEGIS Does / Does NOT Do" section
+- "Building from Source" section
+- Star History chart
+- CODEOWNERS file
+- FUNDING.yml
+
+### Changed
+- README completely rewritten following open-source best practices
+- All badges unified to flat-square style
+- Screenshots moved from screenshots/ to docs/screenshots/
+
+### Fixed
+- Hardcoded version in Footer.svelte → dynamic IPC-based
+- Agent count: 94 → 98 across all files
+- Test count: 130/12 → 408/23
+- Removed completed items from Roadmap (electron-builder, Mac/Linux, local LLMs)
+
 ## [0.2.0-alpha] - 2026-02-24
 
 ### Added
