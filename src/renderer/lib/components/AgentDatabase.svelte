@@ -1,4 +1,6 @@
 <script>
+  import { t } from '../i18n/index.js';
+
   /** @type {{ agents?: any[], onedit?: (a: any) => void, ondelete?: (a: any) => void }} */
   let { agents = [], onedit, ondelete } = $props();
 
@@ -8,15 +10,15 @@
   let sortDir = $state(1);
 
   const CAT_LABELS = {
-    'coding-assistant': 'Coding',
-    'ai-ide': 'AI IDE',
-    'cli-tool': 'CLI',
-    'autonomous-agent': 'Autonomous',
-    'desktop-agent': 'Desktop',
-    'browser-agent': 'Browser',
-    'agent-framework': 'Framework',
-    'security-devops': 'Security',
-    'ide-extension': 'IDE Ext',
+    'coding-assistant': 'rules.database.categories.coding',
+    'ai-ide': 'rules.database.categories.ai_ide',
+    'cli-tool': 'rules.database.categories.cli',
+    'autonomous-agent': 'rules.database.categories.autonomous',
+    'desktop-agent': 'rules.database.categories.desktop',
+    'browser-agent': 'rules.database.categories.browser',
+    'agent-framework': 'rules.database.categories.framework',
+    'security-devops': 'rules.database.categories.security',
+    'ide-extension': 'rules.database.categories.ide_ext',
   };
 
   let categories = $derived(['all', ...new Set(agents.map((a) => a.category).filter(Boolean))]);
@@ -49,7 +51,7 @@
 </script>
 
 <div class="db-wrap">
-  <input class="db-search" type="text" placeholder="Search agents..." bind:value={search} />
+  <input class="db-search" type="text" placeholder={$t('rules.database.search_placeholder')} bind:value={search} />
 
   <div class="db-pills">
     {#each categories as cat (cat)}
@@ -60,7 +62,7 @@
           activeCat = cat;
         }}
       >
-        {cat === 'all' ? 'All' : CAT_LABELS[cat] || cat}
+        {cat === 'all' ? $t('rules.database.categories.all') : $t(CAT_LABELS[cat] || cat)}
       </button>
     {/each}
   </div>
@@ -69,7 +71,7 @@
     <table class="db-table">
       <thead>
         <tr>
-          {#each [['displayName', 'Name'], ['category', 'Category'], ['names', 'Detection'], ['riskProfile', 'Risk']] as [key, label] (key)}
+          {#each [['displayName', $t('rules.database.columns.name')], ['category', $t('rules.database.columns.category')], ['names', $t('rules.database.columns.detection')], ['riskProfile', $t('rules.database.columns.risk')]] as [key, label] (key)}
             <th class:sorted={sortCol === key} onclick={() => toggleSort(key)}>
               {label}{#if sortCol === key}<span class="arrow"
                   >{sortDir === 1 ? '\u2191' : '\u2193'}</span
@@ -85,7 +87,7 @@
             <td class="td-name"
               ><span class="icon">{agent.icon || '\u25CF'}</span>{agent.displayName}</td
             >
-            <td>{CAT_LABELS[agent.category] || agent.category}</td>
+            <td>{$t(CAT_LABELS[agent.category] || agent.category)}</td>
             <td><code class="detect">{agent.names?.[0] || '\u2014'}</code></td>
             <td>
               <span
@@ -93,7 +95,7 @@
                 class:risk-high={agent.riskProfile === 'high'}
                 class:risk-med={agent.riskProfile === 'medium'}
               >
-                {agent.riskProfile || 'low'}
+                {$t('rules.database.risk.' + (agent.riskProfile || 'low'))}
               </span>
             </td>
             {#if onedit || ondelete}
@@ -115,7 +117,7 @@
     </table>
   </div>
 
-  <span class="db-count">{filtered.length} of {agents.length} agents</span>
+  <span class="db-count">{$t('rules.database.count', { filtered: filtered.length, total: agents.length })}</span>
 </div>
 
 <style>

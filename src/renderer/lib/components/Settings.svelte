@@ -1,4 +1,6 @@
 <script>
+  import { t } from '../i18n/index.js';
+
   let { open = $bindable(false) } = $props();
 
   let scanInterval = $state(10);
@@ -63,7 +65,7 @@
   >
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
-      <h3 class="modal-title">Settings</h3>
+      <h3 class="modal-title">{$t('settings.title')}</h3>
       <div class="fields">
         <label class="field">
           <span class="field-label">Scan interval</span>
@@ -104,7 +106,7 @@
                 showKey = !showKey;
               }}
             >
-              {showKey ? 'Hide' : 'Show'}
+              {showKey ? $t('settings.monitoring.hide') : $t('settings.monitoring.show')}
             </button>
           </div>
         </label>
@@ -119,7 +121,7 @@
         </label>
       </div>
       <div class="config-actions">
-        <button class="btn" onclick={() => window.aegis?.exportConfig()}>Export Config</button>
+        <button class="btn" onclick={() => window.aegis?.exportConfig()}>{$t('settings.export_config')}</button>
         <button
           class="btn"
           onclick={async () => {
@@ -127,12 +129,12 @@
             if (r?.success) {
               loaded = false;
             }
-          }}>Import Config</button
+          }}>{$t('settings.import_config')}</button
         >
       </div>
       <div class="modal-actions">
-        <button class="btn" onclick={close}>Cancel</button>
-        <button class="btn primary" onclick={save}>Save</button>
+        <button class="btn" onclick={close}>{$t('settings.cancel')}</button>
+        <button class="btn primary" onclick={save}>{$t('settings.save')}</button>
       </div>
     </div>
   </div>

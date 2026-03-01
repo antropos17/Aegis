@@ -1,12 +1,14 @@
 <script>
+  import { t } from '../i18n/index.js';
+
   let { activeTab = $bindable('shield') } = $props();
 
-  const tabs = [
-    { id: 'shield', label: 'Shield' },
-    { id: 'activity', label: 'Activity' },
-    { id: 'rules', label: 'Rules' },
-    { id: 'reports', label: 'Reports' },
-  ];
+  let tabs = $derived([
+    { id: 'shield', label: $t('tabs.shield') },
+    { id: 'activity', label: $t('tabs.activity') },
+    { id: 'rules', label: $t('tabs.rules') },
+    { id: 'reports', label: $t('tabs.reports') },
+  ]);
 </script>
 
 <nav class="tab-bar">

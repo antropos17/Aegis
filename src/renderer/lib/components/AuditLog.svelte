@@ -1,4 +1,6 @@
 <script>
+  import { t } from '../i18n/index.js';
+
   let auditStats = $state(null);
   let loading = $state(true);
 
@@ -38,35 +40,35 @@
 </script>
 
 <div class="audit-section">
-  <h3 class="section-title">Audit Log</h3>
+  <h3 class="section-title">{$t('reports.audit.title')}</h3>
 
   {#if loading}
-    <span class="audit-loading">Loading audit data...</span>
+    <span class="audit-loading">{$t('reports.audit.loading')}</span>
   {:else if auditStats}
     <div class="audit-cards">
       <div class="audit-card">
         <span class="audit-value">{auditStats.totalEntries?.toLocaleString() || '0'}</span>
-        <span class="audit-label">Total Entries</span>
+        <span class="audit-label">{$t('reports.audit.total_entries')}</span>
       </div>
       <div class="audit-card">
         <span class="audit-value">{fileSize}</span>
-        <span class="audit-label">Log Size</span>
+        <span class="audit-label">{$t('reports.audit.log_size')}</span>
       </div>
       <div class="audit-card">
         <span class="audit-value">{dateRange}</span>
-        <span class="audit-label">Date Range</span>
+        <span class="audit-label">{$t('reports.audit.date_range')}</span>
       </div>
     </div>
   {:else}
-    <span class="audit-loading">No audit data available</span>
+    <span class="audit-loading">{$t('reports.audit.no_data')}</span>
   {/if}
 
   <div class="audit-actions">
     <button class="audit-btn" onclick={() => window.aegis?.openAuditLogDir()}>
-      View Logs Directory
+      {$t('reports.audit.view_logs')}
     </button>
     <button class="audit-btn" onclick={() => window.aegis?.exportFullAudit()}>
-      Export Full Audit
+      {$t('reports.audit.export')}
     </button>
   </div>
 </div>

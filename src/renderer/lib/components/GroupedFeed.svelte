@@ -2,6 +2,7 @@
   import { SvelteSet } from 'svelte/reactivity';
   import { events, network } from '../stores/ipc.js';
   import { enrichedAgents } from '../stores/risk.js';
+  import { t } from '../i18n/index.js';
 
   let { agentFilter = 'all', severityFilter = 'all', typeFilter = 'all' } = $props();
   let expandedGroups = new SvelteSet();
@@ -23,10 +24,10 @@
   }
 
   function badgeLabel(ev, sev) {
-    if (sev === 'critical') return 'DENIED';
-    if (ev.reason?.startsWith('AI agent config')) return 'CONFIG';
-    if (ev.sensitive || sev === 'high') return 'SENSITIVE';
-    if (sev === 'medium') return 'DELETED';
+    if (sev === 'critical') return $t('activity.feed.severity.denied');
+    if (ev.reason?.startsWith('AI agent config')) return $t('activity.feed.severity.config');
+    if (ev.sensitive || sev === 'high') return $t('activity.feed.severity.sensitive');
+    if (sev === 'medium') return $t('activity.feed.severity.deleted');
     return '';
   }
 
@@ -126,14 +127,14 @@
 
 <div class="feed-scroll">
   {#if groups.length === 0}
-    <div class="feed-empty">No events to display</div>
+    <div class="feed-empty">{$t('activity.feed.no_events')}</div>
   {:else}
     {#each groups as group (group.name)}
       {@const open = expandedGroups.has(group.name)}
       <button class="group-header" aria-expanded={open} onclick={() => toggleGroup(group.name)}>
         <span class="chevron">{open ? '\u25BE' : '\u25B8'}</span>
         <span class="group-name">{group.name}</span>
-        <span class="group-count">{group.count} event{group.count !== 1 ? 's' : ''}</span>
+        <span class="group-count">{group.count === 1 ? $t('activity.groups.events_singular', { count: group.count }) : $t('activity.groups.events_plural', { count: group.count })}</span>
         <span class="group-time">{formatTime(group.lastActivity)}</span>
         <span
           class="group-badge"
@@ -145,7 +146,7 @@
       </button>
       {#if open}
         <div class="group-body">
-          {#each [{ label: 'File Access', evs: group.fileEvents }, { label: 'Config Access', evs: group.configEvents }, { label: 'Network', evs: group.networkEvents }] as sub (sub.label)}
+          {#each [{ label: $t('activity.groups.file_access'), evs: group.fileEvents }, { label: $t('activity.groups.config_access'), evs: group.configEvents }, { label: $t('activity.groups.network'), evs: group.networkEvents }] as sub (sub.label)}
             {#if sub.evs.length > 0}
               <div class="sub-label">{sub.label} ({sub.evs.length})</div>
               {#each sub.evs as ev, i (`${ev.timestamp}-${i}`)}
@@ -185,7 +186,7 @@
                           navigator.clipboard.writeText(
                             `${ev._domain || ev._ip || '?'}:${ev.file.split(':').pop()}`,
                           );
-                        }}>Domain: {ev._domain || 'unresolved'} &middot; IP: {ev._ip || '?'}</button
+                        }}>{$t('activity.groups.domain_prefix')} {ev._domain || $t('activity.groups.unresolved')} &middot; {$t('activity.groups.ip_prefix')} {ev._ip || '?'}</button
                       >{:else}<button class="detail-link" onclick={(e) => handlePathClick(ev, e)}
                         >{ev.file}</button
                       >{/if}

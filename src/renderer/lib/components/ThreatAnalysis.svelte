@@ -2,6 +2,7 @@
   import { events, network } from '../stores/ipc.js';
   import { enrichedAgents } from '../stores/risk.js';
   import { openThreatReport } from '../utils/threat-report.js';
+  import { t } from '../i18n/index.js';
 
   let loading = $state(false);
   let result = $state(null);
@@ -95,21 +96,21 @@
 </script>
 
 <div class="ta-section">
-  <h3 class="section-title">AI Threat Analysis</h3>
+  <h3 class="section-title">{$t('reports.threat.title')}</h3>
 
   <div class="ta-controls">
     <div class="mode-row">
       <label class="mode-label">
-        <input type="radio" name="ta-mode" value="session" bind:group={mode} /> Analyze Session
+        <input type="radio" name="ta-mode" value="session" bind:group={mode} /> {$t('reports.threat.analyze_session')}
       </label>
       <label class="mode-label">
-        <input type="radio" name="ta-mode" value="agent" bind:group={mode} /> Analyze Agent
+        <input type="radio" name="ta-mode" value="agent" bind:group={mode} /> {$t('reports.threat.analyze_agent')}
       </label>
     </div>
 
     {#if mode === 'agent'}
       <select class="agent-select" bind:value={selectedAgent}>
-        <option value="">Select an agent...</option>
+        <option value="">{$t('reports.threat.select_agent')}</option>
         {#each $enrichedAgents as agent (agent.pid)}
           <option value={agent.name}>{agent.name}</option>
         {/each}
@@ -122,7 +123,7 @@
       disabled={loading || (mode === 'agent' && !selectedAgent)}
       onclick={runAnalysis}
     >
-      {#if loading}Analyzing...{:else}Run Analysis{/if}
+      {#if loading}{$t('reports.threat.running')}{:else}{$t('reports.threat.run')}{/if}
     </button>
   </div>
 
@@ -136,20 +137,20 @@
         <span class="ta-rating" style:color={ratingColor(result.riskRating)}>
           {result.riskRating || 'UNKNOWN'}
         </span>
-        <span class="ta-rating-label">Threat Assessment</span>
+        <span class="ta-rating-label">{$t('reports.threat.assessment')}</span>
         {#if result.riskJustification}
           <p class="ta-reason">{result.riskJustification}</p>
         {/if}
       </div>
 
       <div class="ta-block">
-        <div class="ta-block-title">Summary</div>
+        <div class="ta-block-title">{$t('reports.threat.summary')}</div>
         <p class="ta-body">{result.summary || 'No summary available'}</p>
       </div>
 
       {#if result.findings?.length}
         <div class="ta-block">
-          <div class="ta-block-title">Findings</div>
+          <div class="ta-block-title">{$t('reports.threat.findings')}</div>
           <ul class="ta-list">
             {#each result.findings as f, i (i)}
               <li class={findingClass(f)}>{f}</li>
@@ -160,7 +161,7 @@
 
       {#if result.recommendations?.length}
         <div class="ta-block">
-          <div class="ta-block-title">Recommendations</div>
+          <div class="ta-block-title">{$t('reports.threat.recommendations')}</div>
           <ol class="ta-list">
             {#each result.recommendations as r, i (i)}
               <li>{r}</li>
@@ -169,7 +170,7 @@
         </div>
       {/if}
 
-      <button class="report-btn" onclick={handleReport}>Open Full Report</button>
+      <button class="report-btn" onclick={handleReport}>{$t('reports.threat.open_report')}</button>
     </div>
   {/if}
 </div>

@@ -1,16 +1,17 @@
 <script>
   import { enrichedAgents } from '../stores/risk.js';
+  import { t } from '../i18n/index.js';
 
   /** @type {{ permissions: Record<string, Record<string, string>> }} */
   let { permissions = $bindable({}) } = $props();
 
   const CATEGORIES = [
-    { id: 'filesystem', label: 'File Access', desc: 'Read/write files' },
-    { id: 'sensitive', label: 'Credential Access', desc: '.env, SSH keys, secrets' },
-    { id: 'network', label: 'Network', desc: 'Outbound connections' },
-    { id: 'terminal', label: 'Process Spawn', desc: 'Shell command execution' },
-    { id: 'clipboard', label: 'Config Write', desc: 'Read/write clipboard' },
-    { id: 'screen', label: 'System Modification', desc: 'Screen capture access' },
+    { id: 'filesystem', labelKey: 'rules.permissions.categories.file_access', descKey: 'rules.permissions.categories.file_access_desc' },
+    { id: 'sensitive', labelKey: 'rules.permissions.categories.credential_access', descKey: 'rules.permissions.categories.credential_access_desc' },
+    { id: 'network', labelKey: 'rules.permissions.categories.network', descKey: 'rules.permissions.categories.network_desc' },
+    { id: 'terminal', labelKey: 'rules.permissions.categories.process_spawn', descKey: 'rules.permissions.categories.process_spawn_desc' },
+    { id: 'clipboard', labelKey: 'rules.permissions.categories.config_write', descKey: 'rules.permissions.categories.config_write_desc' },
+    { id: 'screen', labelKey: 'rules.permissions.categories.system_mod', descKey: 'rules.permissions.categories.system_mod_desc' },
   ];
 
   const STATES = ['allow', 'monitor', 'block'];
@@ -122,7 +123,7 @@
 <div class="grid-wrapper">
   <div class="grid-header">
     <select class="agent-select" bind:value={selectedKey}>
-      <option value="__global__">Select an agent...</option>
+      <option value="__global__">{$t('rules.permissions.select_agent')}</option>
       {#if instanceList.running.length > 0}
         <optgroup label="Running Instances">
           {#each instanceList.running as entry (entry.key)}
@@ -139,18 +140,18 @@
       {/if}
     </select>
     {#if hasOverride}
-      <span class="override-badge">overridden</span>
+      <span class="override-badge">{$t('rules.permissions.overridden')}</span>
     {/if}
   </div>
 
   {#if selectedKey === '__global__'}
-    <div class="grid-empty">Select an agent to configure permissions</div>
+    <div class="grid-empty">{$t('rules.permissions.empty_state')}</div>
   {:else}
     <div class="grid-table">
       <div class="grid-row grid-row-header">
-        <span class="grid-cell grid-cell-cat">Category</span>
+        <span class="grid-cell grid-cell-cat">{$t('rules.permissions.category')}</span>
         {#each STATES as s (s)}
-          <span class="grid-cell grid-cell-state">{s}</span>
+          <span class="grid-cell grid-cell-state">{$t('rules.permissions.states.' + s)}</span>
         {/each}
       </div>
 
@@ -158,8 +159,8 @@
         {@const active = getState(cat.id)}
         <div class="grid-row">
           <span class="grid-cell grid-cell-cat">
-            <span class="cat-label">{cat.label}</span>
-            <span class="cat-desc">{cat.desc}</span>
+            <span class="cat-label">{$t(cat.labelKey)}</span>
+            <span class="cat-desc">{$t(cat.descKey)}</span>
           </span>
           {#each STATES as s (s)}
             <span class="grid-cell grid-cell-state">

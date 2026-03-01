@@ -1,12 +1,18 @@
 <script>
   import { network } from '../stores/ipc.js';
   import { enrichedAgents } from '../stores/risk.js';
+  import { t } from '../i18n/index.js';
 
   let agentFilter = $state('all');
   let classFilter = $state('all');
   let sortBy = $state('agent');
 
-  const CLS_LIST = ['all', 'safe', 'unknown', 'flagged'];
+  const CLS_LIST = [
+    { value: 'all', key: 'network.classes.all' },
+    { value: 'safe', key: 'network.classes.safe' },
+    { value: 'unknown', key: 'network.classes.unknown' },
+    { value: 'flagged', key: 'network.classes.flagged' },
+  ];
 
   function classify(conn) {
     if (!conn.flagged) return 'safe';
@@ -40,36 +46,36 @@
 
 <div class="net-filters">
   <select class="agent-select" bind:value={agentFilter}>
-    <option value="all">All agents</option>
+    <option value="all">{$t('network.all_agents')}</option>
     {#each $enrichedAgents as agent (agent.pid)}
       <option value={agent.name}>{agent.name}</option>
     {/each}
   </select>
 
   <div class="pill-group">
-    <span class="pill-label">Class</span>
-    {#each CLS_LIST as cls (cls)}
+    <span class="pill-label">{$t('network.class')}</span>
+    {#each CLS_LIST as cls (cls.value)}
       <button
-        class="pill cls-{cls}"
-        class:active={classFilter === cls}
-        onclick={() => (classFilter = cls)}>{cls}{cls !== 'all' ? ` (${counts[cls]})` : ''}</button
+        class="pill cls-{cls.value}"
+        class:active={classFilter === cls.value}
+        onclick={() => (classFilter = cls.value)}>{$t(cls.key)}{cls.value !== 'all' ? ` (${counts[cls.value]})` : ''}</button
       >
     {/each}
   </div>
 
   <div class="pill-group">
-    <span class="pill-label">Sort</span>
+    <span class="pill-label">{$t('network.sort')}</span>
     <select class="sort-select" bind:value={sortBy}>
-      <option value="agent">Agent</option>
-      <option value="domain">Domain</option>
-      <option value="class">Classification</option>
+      <option value="agent">{$t('network.sort_options.agent')}</option>
+      <option value="domain">{$t('network.sort_options.domain')}</option>
+      <option value="class">{$t('network.sort_options.classification')}</option>
     </select>
   </div>
 </div>
 
 <div class="net-scroll">
   {#if sorted.length === 0}
-    <div class="net-empty">No network connections detected</div>
+    <div class="net-empty">{$t('network.no_connections')}</div>
   {:else}
     {#each sorted as conn, i (`${conn.pid}-${conn.remoteIp}-${conn.remotePort}-${i}`)}
       {@const cls = classify(conn)}

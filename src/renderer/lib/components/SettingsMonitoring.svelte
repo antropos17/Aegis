@@ -5,6 +5,8 @@
    *   for Settings panel. Extracted from OptionsPanel.svelte.
    * @since v0.3.0
    */
+  import { t } from '../i18n/index.js';
+
   let {
     scanInterval = $bindable(10),
     notifications = $bindable(true),
@@ -18,19 +20,19 @@
   async function testNotify() {
     testResult = '';
     if (!window.aegis?.testNotification) {
-      testResult = 'Not available';
+      testResult = $t('settings.monitoring.not_available');
       return;
     }
     const r = await window.aegis.testNotification();
-    testResult = r.success ? 'Sent' : r.error || 'Failed';
+    testResult = r.success ? $t('settings.monitoring.sent') : r.error || $t('settings.monitoring.failed');
   }
 </script>
 
 <!-- ── Monitoring ── -->
-<div class="section-label">Monitoring</div>
+<div class="section-label">{$t('settings.monitoring.title')}</div>
 
 <div class="option-group">
-  <span class="option-label">Scan Interval</span>
+  <span class="option-label">{$t('settings.monitoring.scan_interval')}</span>
   <div class="range-row">
     <input type="range" min="3" max="60" step="1" bind:value={scanInterval} />
     <span class="range-val">{scanInterval}s</span>
@@ -38,33 +40,33 @@
 </div>
 
 <div class="option-group row">
-  <span class="option-label">Notifications</span>
+  <span class="option-label">{$t('settings.monitoring.notifications')}</span>
   <div class="notif-row">
     <button
       class="toggle"
       class:toggle-on={notifications}
-      aria-label="Toggle notifications"
+      aria-label={$t('settings.monitoring.toggle_notifications')}
       onclick={() => {
         notifications = !notifications;
       }}
     >
       <span class="toggle-knob"></span>
     </button>
-    <button class="btn btn-small" onclick={testNotify}>Test</button>
+    <button class="btn btn-small" onclick={testNotify}>{$t('settings.monitoring.test')}</button>
     {#if testResult}<span class="test-result">{testResult}</span>{/if}
   </div>
 </div>
 
 <!-- ── AI Analysis ── -->
-<div class="section-label">AI Analysis</div>
+<div class="section-label">{$t('settings.monitoring.ai_analysis')}</div>
 
 <div class="option-group">
-  <span class="option-label">Anthropic API Key</span>
+  <span class="option-label">{$t('settings.monitoring.api_key')}</span>
   <div class="key-row">
     {#if showKey}
-      <input type="text" bind:value={apiKey} placeholder="sk-ant-..." class="key-input" />
+      <input type="text" bind:value={apiKey} placeholder={$t('settings.monitoring.api_key_placeholder')} class="key-input" />
     {:else}
-      <input type="password" bind:value={apiKey} placeholder="sk-ant-..." class="key-input" />
+      <input type="password" bind:value={apiKey} placeholder={$t('settings.monitoring.api_key_placeholder')} class="key-input" />
     {/if}
     <button
       class="btn btn-small"
@@ -72,14 +74,14 @@
         showKey = !showKey;
       }}
     >
-      {showKey ? 'Hide' : 'Show'}
+      {showKey ? $t('settings.monitoring.hide') : $t('settings.monitoring.show')}
     </button>
   </div>
 </div>
 
 <div class="option-group">
-  <span class="option-label">Custom Sensitive Patterns</span>
-  <span class="field-hint">One regex per line</span>
+  <span class="option-label">{$t('settings.monitoring.custom_patterns')}</span>
+  <span class="field-hint">{$t('settings.monitoring.patterns_hint')}</span>
   <textarea rows="3" bind:value={customPatterns} placeholder="e.g. \.secret$&#10;passwords\.txt"
   ></textarea>
 </div>

@@ -2,6 +2,7 @@
   import { stats } from '../stores/ipc.js';
   import { enrichedAgents } from '../stores/risk.js';
   import OptionsPanel from './OptionsPanel.svelte';
+  import { t } from '../i18n/index.js';
 
   let optionsOpen = $state(false);
 
@@ -26,19 +27,19 @@
 </script>
 
 <header class="header">
-  <div class="header-brand">AEGIS</div>
+  <div class="header-brand">{$t('brand.name')}</div>
 
   <div class="header-stats">
     <span class="shield-score {scoreClass}">{shieldScore}</span>
     <span class="stat-sep">&middot;</span>
-    <span class="stat-text">{agentCount} {agentCount === 1 ? 'agent' : 'agents'}</span>
+    <span class="stat-text">{agentCount} {agentCount === 1 ? 'agent' : $t('header.agents')}</span>
     <span class="stat-sep">&middot;</span>
-    <span class="stat-text">{filesMonitored} files</span>
+    <span class="stat-text">{filesMonitored} {$t('header.files')}</span>
   </div>
 
   <button
     class="icon-btn"
-    aria-label="Settings"
+    aria-label={$t('header.settings_label')}
     onclick={() => {
       optionsOpen = true;
     }}

@@ -1,12 +1,14 @@
 <script>
+  import { t } from '../i18n/index.js';
+
   /** @type {{ activePreset?: string, onApply?: (name: string, config: Record<string, string>) => void }} */
   let { activePreset = $bindable('balanced'), onApply } = $props();
 
   const PRESETS = [
     {
       id: 'paranoid',
-      label: 'Paranoid',
-      desc: 'Block all agent file access',
+      labelKey: 'rules.protection.paranoid',
+      descKey: 'rules.protection.paranoid_desc',
       config: {
         filesystem: 'block',
         sensitive: 'block',
@@ -18,8 +20,8 @@
     },
     {
       id: 'strict',
-      label: 'Strict',
-      desc: 'Monitor sensitive, block credentials',
+      labelKey: 'rules.protection.strict',
+      descKey: 'rules.protection.strict_desc',
       config: {
         filesystem: 'monitor',
         sensitive: 'block',
@@ -31,8 +33,8 @@
     },
     {
       id: 'balanced',
-      label: 'Balanced',
-      desc: 'Monitor all, allow safe operations',
+      labelKey: 'rules.protection.balanced',
+      descKey: 'rules.protection.balanced_desc',
       config: {
         filesystem: 'monitor',
         sensitive: 'monitor',
@@ -44,8 +46,8 @@
     },
     {
       id: 'developer',
-      label: 'Developer',
-      desc: 'Minimal restrictions',
+      labelKey: 'rules.protection.developer',
+      descKey: 'rules.protection.developer_desc',
       config: {
         filesystem: 'allow',
         sensitive: 'monitor',
@@ -70,8 +72,8 @@
       class:active={activePreset === preset.id}
       onclick={() => select(preset)}
     >
-      <span class="preset-label">{preset.label}</span>
-      <span class="preset-desc">{preset.desc}</span>
+      <span class="preset-label">{$t(preset.labelKey)}</span>
+      <span class="preset-desc">{$t(preset.descKey)}</span>
     </button>
   {/each}
 </div>

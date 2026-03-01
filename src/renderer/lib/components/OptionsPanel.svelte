@@ -8,6 +8,7 @@
   import { theme, setTheme, uiScale, setUiScale } from '../stores/theme.js';
   import SettingsAppearance from './SettingsAppearance.svelte';
   import SettingsMonitoring from './SettingsMonitoring.svelte';
+  import { t } from '../i18n/index.js';
 
   let { open = $bindable(false) } = $props();
 
@@ -97,25 +98,25 @@
     tabindex="-1"
   >
     <div class="panel" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
-      <h2 class="panel-title">Settings</h2>
+      <h2 class="panel-title">{$t('settings.title')}</h2>
 
       <SettingsAppearance bind:localTheme bind:localScale {onThemeChange} {onScaleInput} />
       <SettingsMonitoring bind:scanInterval bind:notifications bind:apiKey bind:customPatterns />
 
       <div class="config-actions">
-        <button class="btn" onclick={() => window.aegis?.exportConfig()}>Export Config</button>
+        <button class="btn" onclick={() => window.aegis?.exportConfig()}>{$t('settings.export_config')}</button>
         <button
           class="btn"
           onclick={async () => {
             const r = await window.aegis?.importConfig();
             if (r?.success) loaded = false;
-          }}>Import Config</button
+          }}>{$t('settings.import_config')}</button
         >
       </div>
 
       <div class="panel-actions">
-        <button class="btn btn-cancel" onclick={handleCancel}>Cancel</button>
-        <button class="btn btn-save" onclick={handleSave}>Save</button>
+        <button class="btn btn-cancel" onclick={handleCancel}>{$t('settings.cancel')}</button>
+        <button class="btn btn-save" onclick={handleSave}>{$t('settings.save')}</button>
       </div>
     </div>
   </div>

@@ -1,5 +1,6 @@
 <script>
   import AgentDatabase from './AgentDatabase.svelte';
+  import { t } from '../i18n/index.js';
 
   let agents = $state([]);
   let customAgents = $state([]);
@@ -144,10 +145,10 @@
 
 <div class="crud-wrap">
   <div class="crud-bar">
-    <button class="crud-btn primary" onclick={openAdd}>+ Add Agent</button>
+    <button class="crud-btn primary" onclick={openAdd}>{$t('rules.database.add_agent')}</button>
     <div class="crud-right">
-      <button class="crud-btn" onclick={handleImport}>Import</button>
-      <button class="crud-btn" onclick={handleExport}>Export</button>
+      <button class="crud-btn" onclick={handleImport}>{$t('rules.database.import')}</button>
+      <button class="crud-btn" onclick={handleExport}>{$t('rules.database.export')}</button>
     </div>
   </div>
 
@@ -174,30 +175,30 @@
       onkeydown={(e) => e.stopPropagation()}
     >
       {#if modalMode === 'delete'}
-        <h3 class="modal-title">Delete Agent</h3>
-        <p class="modal-text">Remove "{editTarget?.displayName}"? This cannot be undone.</p>
+        <h3 class="modal-title">{$t('rules.database.crud.delete_title')}</h3>
+        <p class="modal-text">{$t('rules.database.crud.delete_confirm', { name: editTarget?.displayName ?? '' })}</p>
         <div class="modal-actions">
           <button
             class="crud-btn"
             onclick={() => {
               modalMode = null;
-            }}>Cancel</button
+            }}>{$t('rules.database.crud.cancel')}</button
           >
-          <button class="crud-btn danger" onclick={doDelete}>Delete</button>
+          <button class="crud-btn danger" onclick={doDelete}>{$t('rules.database.crud.delete')}</button>
         </div>
       {:else}
-        <h3 class="modal-title">{modalMode === 'add' ? 'Add Custom Agent' : 'Edit Agent'}</h3>
+        <h3 class="modal-title">{modalMode === 'add' ? $t('rules.database.crud.add_title') : $t('rules.database.crud.edit_title')}</h3>
         <div class="modal-form">
           <label class="field"
-            ><span>Name</span>
-            <input type="text" bind:value={form.displayName} placeholder="Agent name" /></label
+            ><span>{$t('rules.database.crud.name')}</span>
+            <input type="text" bind:value={form.displayName} placeholder={$t('rules.database.crud.name_placeholder')} /></label
           >
           <label class="field"
-            ><span>Process Name</span>
-            <input type="text" bind:value={form.processName} placeholder="e.g. agent.exe" /></label
+            ><span>{$t('rules.database.crud.process_name')}</span>
+            <input type="text" bind:value={form.processName} placeholder={$t('rules.database.crud.process_placeholder')} /></label
           >
           <label class="field"
-            ><span>Category</span>
+            ><span>{$t('rules.database.crud.category')}</span>
             <select bind:value={form.category}>
               {#each CATEGORIES as [val, label] (val)}
                 <option value={val}>{label}</option>
@@ -205,19 +206,19 @@
             </select></label
           >
           <label class="field"
-            ><span>Risk Level</span>
+            ><span>{$t('rules.database.crud.risk_level')}</span>
             <select bind:value={form.riskProfile}>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
+              <option value="low">{$t('rules.database.crud.risk_low')}</option>
+              <option value="medium">{$t('rules.database.crud.risk_medium')}</option>
+              <option value="high">{$t('rules.database.crud.risk_high')}</option>
             </select></label
           >
           <label class="field"
-            ><span>Description</span>
+            ><span>{$t('rules.database.crud.description')}</span>
             <input
               type="text"
               bind:value={form.description}
-              placeholder="Short description"
+              placeholder={$t('rules.database.crud.desc_placeholder')}
             /></label
           >
         </div>
@@ -226,10 +227,10 @@
             class="crud-btn"
             onclick={() => {
               modalMode = null;
-            }}>Cancel</button
+            }}>{$t('rules.database.crud.cancel')}</button
           >
           <button class="crud-btn primary" onclick={saveForm}
-            >{modalMode === 'add' ? 'Add' : 'Save'}</button
+            >{modalMode === 'add' ? $t('rules.database.crud.add') : $t('rules.database.crud.save')}</button
           >
         </div>
       {/if}

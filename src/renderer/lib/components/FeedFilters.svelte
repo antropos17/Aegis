@@ -1,5 +1,6 @@
 <script>
   import { enrichedAgents } from '../stores/risk.js';
+  import { t } from '../i18n/index.js';
 
   let {
     agentFilter = $bindable('all'),
@@ -8,40 +9,50 @@
     groupByAgent = $bindable(true),
   } = $props();
 
-  const severities = ['all', 'critical', 'high', 'medium', 'low'];
-  const types = ['all', 'file', 'network'];
+  const severities = [
+    { value: 'all', key: 'activity.filters.severity_all' },
+    { value: 'critical', key: 'activity.filters.severity_critical' },
+    { value: 'high', key: 'activity.filters.severity_high' },
+    { value: 'medium', key: 'activity.filters.severity_medium' },
+    { value: 'low', key: 'activity.filters.severity_low' },
+  ];
+  const types = [
+    { value: 'all', key: 'activity.filters.type_all' },
+    { value: 'file', key: 'activity.filters.type_file' },
+    { value: 'network', key: 'activity.filters.type_network' },
+  ];
 </script>
 
 <div class="filters-bar">
   <button
     class="pill group-toggle"
     class:active={groupByAgent}
-    onclick={() => (groupByAgent = !groupByAgent)}>Group by agent</button
+    onclick={() => (groupByAgent = !groupByAgent)}>{$t('activity.filters.group_by_agent')}</button
   >
 
   <select class="agent-select" bind:value={agentFilter}>
-    <option value="all">All agents</option>
+    <option value="all">{$t('activity.filters.all_agents')}</option>
     {#each $enrichedAgents as agent (agent.pid)}
       <option value={agent.name}>{agent.name}</option>
     {/each}
   </select>
 
   <div class="pill-group">
-    <span class="pill-label">Severity</span>
-    {#each severities as sev (sev)}
+    <span class="pill-label">{$t('activity.filters.severity')}</span>
+    {#each severities as sev (sev.value)}
       <button
-        class="pill sev-{sev}"
-        class:active={severityFilter === sev}
-        onclick={() => (severityFilter = sev)}>{sev}</button
+        class="pill sev-{sev.value}"
+        class:active={severityFilter === sev.value}
+        onclick={() => (severityFilter = sev.value)}>{$t(sev.key)}</button
       >
     {/each}
   </div>
 
   <div class="pill-group">
-    <span class="pill-label">Type</span>
-    {#each types as type (type)}
-      <button class="pill" class:active={typeFilter === type} onclick={() => (typeFilter = type)}
-        >{type}</button
+    <span class="pill-label">{$t('activity.filters.type')}</span>
+    {#each types as type (type.value)}
+      <button class="pill" class:active={typeFilter === type.value} onclick={() => (typeFilter = type.value)}
+        >{$t(type.key)}</button
       >
     {/each}
   </div>

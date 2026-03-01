@@ -7,6 +7,7 @@
    */
   import { events, focusedAgentPid } from '../stores/ipc.js';
   import AgentCardDetails from './AgentCardDetails.svelte';
+  import { t } from '../i18n/index.js';
 
   /** @type {{ agent: Object, expandedPid: number|null }} */
   let { agent, expandedPid = $bindable(null) } = $props();
@@ -66,7 +67,7 @@
     const mins = Math.floor(ms / 60000);
     const hrs = Math.floor(mins / 60);
     const rem = mins % 60;
-    return hrs > 0 ? `${hrs}h ${rem}m` : `${rem}m`;
+    return hrs > 0 ? $t('agents.session_hours', { h: hrs, m: rem }) : $t('agents.session_minutes', { m: mins });
   });
 
   function toggle() {
@@ -84,14 +85,14 @@
 <article class="agent-card" class:expanded class:blinking bind:this={cardEl} onclick={toggle}>
   <div class="compact-row">
     <span class="agent-name">{displayName}</span>
-    <span class="stat">PID {agent.pid}</span>
+    <span class="stat">{$t('agents.pid', { pid: agent.pid })}</span>
     {#if agent.fileCount != null}<span class="stat">{Math.round(agent.fileCount)}f</span>{/if}
     {#if agent.networkCount != null}<span class="stat">{agent.networkCount}n</span>{/if}
     <span class="risk-score" style:color={gradeColor}>{agent.riskScore}</span>
     <span class="trust-badge" style:background={gradeColor}>{agent.trustGrade}</span>
   </div>
 
-  {#if lastFile}<div class="activity-hint">Last: {lastFile}</div>{/if}
+  {#if lastFile}<div class="activity-hint">{$t('agents.last_file', { file: lastFile })}</div>{/if}
 
   <div class="expand-body">
     <div class="expand-inner">

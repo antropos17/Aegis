@@ -1,6 +1,7 @@
 <script>
   import { enrichedAgents } from '../stores/risk.js';
   import AgentCard from './AgentCard.svelte';
+  import { t } from '../i18n/index.js';
 
   let expandedPid = $state(null);
 </script>
@@ -8,7 +9,7 @@
 <section class="agent-panel">
   {#if $enrichedAgents.length === 0}
     <div class="empty-state">
-      <span>No AI agents detected</span>
+      <span>{$t('agents.no_agents')}</span>
     </div>
   {:else}
     <div class="agent-list">
