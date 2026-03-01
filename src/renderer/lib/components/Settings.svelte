@@ -1,4 +1,6 @@
 <script>
+  import { t } from '../i18n/index.js';
+
   let { open = $bindable(false) } = $props();
 
   let scanInterval = $state(10);
@@ -63,21 +65,21 @@
   >
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
-      <h3 class="modal-title">Settings</h3>
+      <h3 class="modal-title">{$t('settings.title')}</h3>
       <div class="fields">
         <label class="field">
-          <span class="field-label">Scan interval</span>
+          <span class="field-label">{$t('settings.monitoring.scan_interval')}</span>
           <div class="range-row">
             <input type="range" min="3" max="60" step="1" bind:value={scanInterval} />
             <span class="range-val">{scanInterval}s</span>
           </div>
         </label>
         <label class="field">
-          <span class="field-label">Notifications</span>
+          <span class="field-label">{$t('settings.monitoring.notifications')}</span>
           <button
             class="toggle"
             class:toggle-on={notifications}
-            aria-label="Toggle notifications"
+            aria-label={$t('settings.monitoring.toggle_notifications')}
             onclick={() => {
               notifications = !notifications;
             }}
@@ -86,15 +88,20 @@
           </button>
         </label>
         <label class="field">
-          <span class="field-label">Anthropic API key</span>
+          <span class="field-label">{$t('settings.monitoring.api_key')}</span>
           <div class="key-row">
             {#if showKey}
-              <input type="text" bind:value={apiKey} placeholder="sk-ant-..." class="key-input" />
+              <input
+                type="text"
+                bind:value={apiKey}
+                placeholder={$t('settings.monitoring.api_key_placeholder')}
+                class="key-input"
+              />
             {:else}
               <input
                 type="password"
                 bind:value={apiKey}
-                placeholder="sk-ant-..."
+                placeholder={$t('settings.monitoring.api_key_placeholder')}
                 class="key-input"
               />
             {/if}
@@ -104,13 +111,13 @@
                 showKey = !showKey;
               }}
             >
-              {showKey ? 'Hide' : 'Show'}
+              {showKey ? $t('settings.monitoring.hide') : $t('settings.monitoring.show')}
             </button>
           </div>
         </label>
         <label class="field">
-          <span class="field-label">Custom sensitive patterns</span>
-          <span class="field-hint">One regex per line</span>
+          <span class="field-label">{$t('settings.monitoring.custom_patterns')}</span>
+          <span class="field-hint">{$t('settings.monitoring.patterns_hint')}</span>
           <textarea
             rows="4"
             bind:value={customPatterns}
@@ -119,7 +126,9 @@
         </label>
       </div>
       <div class="config-actions">
-        <button class="btn" onclick={() => window.aegis?.exportConfig()}>Export Config</button>
+        <button class="btn" onclick={() => window.aegis?.exportConfig()}
+          >{$t('settings.export_config')}</button
+        >
         <button
           class="btn"
           onclick={async () => {
@@ -127,12 +136,12 @@
             if (r?.success) {
               loaded = false;
             }
-          }}>Import Config</button
+          }}>{$t('settings.import_config')}</button
         >
       </div>
       <div class="modal-actions">
-        <button class="btn" onclick={close}>Cancel</button>
-        <button class="btn primary" onclick={save}>Save</button>
+        <button class="btn" onclick={close}>{$t('settings.cancel')}</button>
+        <button class="btn primary" onclick={save}>{$t('settings.save')}</button>
       </div>
     </div>
   </div>

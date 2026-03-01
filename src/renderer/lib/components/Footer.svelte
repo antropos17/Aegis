@@ -1,5 +1,6 @@
 <script>
   import { resourceUsage } from '../stores/ipc.js';
+  import { t } from '../i18n/index.js';
 
   let lastCpuUser = 0;
   let lastCpuSystem = 0;
@@ -73,35 +74,35 @@
 </script>
 
 <footer class="footer">
-  <span class="footer-version">AEGIS {appVersion}</span>
+  <span class="footer-version">{$t('brand.name')} {appVersion}</span>
 
   <div class="footer-stats">
     <div class="footer-item">
-      <span class="footer-label">CPU</span>
+      <span class="footer-label">{$t('footer.cpu')}</span>
       <span class="footer-value {cpuClass(cpuPct)}"
         >{cpuPct}{typeof cpuPct === 'number' ? '%' : ''}</span
       >
     </div>
 
     <div class="footer-item">
-      <span class="footer-label">MEM</span>
+      <span class="footer-label">{$t('footer.mem')}</span>
       <span class="footer-value {memClass(memMB)}"
         >{memMB}{typeof memMB === 'number' ? ' MB' : ''}</span
       >
     </div>
 
     <div class="footer-item">
-      <span class="footer-label">HEAP</span>
+      <span class="footer-label">{$t('footer.heap')}</span>
       <span class="footer-value">{heapMB}{typeof heapMB === 'number' ? ' MB' : ''}</span>
     </div>
 
     <div class="footer-item">
-      <span class="footer-label">SCAN</span>
+      <span class="footer-label">{$t('footer.scan')}</span>
       <span class="footer-value">{scanInterval}{typeof scanInterval === 'number' ? 's' : ''}</span>
     </div>
 
     <div class="footer-item">
-      <span class="footer-label">UP</span>
+      <span class="footer-label">{$t('footer.up')}</span>
       <span class="footer-value">{formatUptime(uptimeMs)}</span>
     </div>
   </div>

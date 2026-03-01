@@ -1,6 +1,7 @@
 <script>
   import { events } from '../stores/ipc.js';
   import { enrichedAgents } from '../stores/risk.js';
+  import { t } from '../i18n/index.js';
 
   let avgRisk = $derived.by(() => {
     const list = $enrichedAgents;
@@ -24,39 +25,39 @@
 </script>
 
 <div class="reports-section">
-  <h3 class="section-title">Summary</h3>
+  <h3 class="section-title">{$t('reports.overview.summary')}</h3>
 
   <div class="stat-cards">
     <div class="stat-card">
       <span class="stat-value">{$events.length}</span>
-      <span class="stat-label">Total Events</span>
+      <span class="stat-label">{$t('reports.overview.total_events')}</span>
     </div>
     <div class="stat-card">
       <span class="stat-value val-sensitive"
         >{$enrichedAgents.reduce((s, a) => s + (a.sensitiveFiles || 0), 0)}</span
       >
-      <span class="stat-label">Sensitive</span>
+      <span class="stat-label">{$t('reports.overview.sensitive')}</span>
     </div>
     <div class="stat-card">
       <span class="stat-value">{new Set($enrichedAgents.map((a) => a.name)).size}</span>
-      <span class="stat-label">Agents</span>
+      <span class="stat-label">{$t('reports.overview.agents')}</span>
     </div>
     <div class="stat-card">
       <span class="stat-value val-shield">{100 - avgRisk}</span>
-      <span class="stat-label">Shield</span>
+      <span class="stat-label">{$t('reports.overview.shield')}</span>
     </div>
   </div>
 
-  <h3 class="section-title">Most Active Agents</h3>
+  <h3 class="section-title">{$t('reports.overview.most_active')}</h3>
 
   <div class="table-scroll">
     <table class="activity-table">
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Events</th>
-          <th>Risk Score</th>
-          <th>Grade</th>
+          <th>{$t('reports.overview.columns.name')}</th>
+          <th>{$t('reports.overview.columns.events')}</th>
+          <th>{$t('reports.overview.columns.risk_score')}</th>
+          <th>{$t('reports.overview.columns.grade')}</th>
         </tr>
       </thead>
       <tbody>
@@ -72,18 +73,24 @@
             </td>
           </tr>
         {:else}
-          <tr><td colspan="4" class="td-empty">No agents detected yet</td></tr>
+          <tr><td colspan="4" class="td-empty">{$t('reports.overview.no_agents')}</td></tr>
         {/each}
       </tbody>
     </table>
   </div>
 
-  <h3 class="section-title">Export</h3>
+  <h3 class="section-title">{$t('reports.overview.export')}</h3>
 
   <div class="export-row">
-    <button class="export-btn" onclick={() => window.aegis?.exportLog()}>JSON</button>
-    <button class="export-btn" onclick={() => window.aegis?.exportCsv()}>CSV</button>
-    <button class="export-btn" onclick={() => window.aegis?.generateReport()}>HTML Report</button>
+    <button class="export-btn" onclick={() => window.aegis?.exportLog()}
+      >{$t('reports.overview.export_json')}</button
+    >
+    <button class="export-btn" onclick={() => window.aegis?.exportCsv()}
+      >{$t('reports.overview.export_csv')}</button
+    >
+    <button class="export-btn" onclick={() => window.aegis?.generateReport()}
+      >{$t('reports.overview.export_html')}</button
+    >
   </div>
 </div>
 

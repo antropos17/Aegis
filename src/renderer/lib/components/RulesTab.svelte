@@ -2,6 +2,7 @@
   import ProtectionPresets from './ProtectionPresets.svelte';
   import PermissionsGrid from './PermissionsGrid.svelte';
   import AgentDatabaseCrud from './AgentDatabaseCrud.svelte';
+  import { t } from '../i18n/index.js';
 
   let subTab = $state('permissions');
   let activePreset = $state('balanced');
@@ -52,20 +53,20 @@
       class:active={subTab === 'permissions'}
       onclick={() => {
         subTab = 'permissions';
-      }}>Permissions</button
+      }}>{$t('rules.tabs.permissions')}</button
     >
     <button
       class="sub-btn"
       class:active={subTab === 'database'}
       onclick={() => {
         subTab = 'database';
-      }}>Agent Database</button
+      }}>{$t('rules.tabs.agent_database')}</button
     >
   </div>
 
   {#if subTab === 'permissions'}
     <div class="rules-section">
-      <h3 class="section-title">Protection Level</h3>
+      <h3 class="section-title">{$t('rules.protection.title')}</h3>
       <ProtectionPresets bind:activePreset onApply={handlePresetApply} />
     </div>
 
@@ -73,8 +74,10 @@
 
     <div class="rules-section">
       <div class="section-header">
-        <h3 class="section-title">Agent Permissions</h3>
-        <button class="reset-btn" onclick={resetDefaults}>Reset defaults</button>
+        <h3 class="section-title">{$t('rules.permissions.title')}</h3>
+        <button class="reset-btn" onclick={resetDefaults}
+          >{$t('rules.permissions.reset_defaults')}</button
+        >
       </div>
       {#if loaded}
         <PermissionsGrid bind:permissions />
