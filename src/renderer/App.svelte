@@ -7,6 +7,9 @@
   import RulesTab from './lib/components/RulesTab.svelte';
   import ReportsTab from './lib/components/ReportsTab.svelte';
   import { theme, uiScale, toggleTheme } from './lib/stores/theme.js';
+  import Toast from './lib/components/Toast.svelte';
+  import { addToast } from './lib/stores/toast.js';
+  import { agents, anomalies } from './lib/stores/ipc.js';
 
   const TAB_IDS = ['shield', 'activity', 'rules', 'reports'];
 
@@ -66,6 +69,30 @@
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
   });
+
+  // ── Toast: scan complete ──
+  let prevAgentCount = $state(-1);
+  $effect(() => {
+    const count = $agents.length;
+    if (prevAgentCount === -1) { prevAgentCount = count; return; }
+    if (count !== prevAgentCount) {
+      addToast(`Scan complete: ${count} agent${count !== 1 ? 's' : ''} detected`, 'success');
+      prevAgentCount = count;
+    }
+  });
+
+  // ── Toast: anomaly detected ──
+  let prevAnomalyKeys = $state(new Set());
+  $effect(() => {
+    const scores = $anomalies;
+    if (!scores || typeof scores !== 'object') return;
+    for (const [agent, score] of Object.entries(scores)) {
+      if (typeof score === 'number' && score >= 50 && !prevAnomalyKeys.has(agent)) {
+        addToast(`Anomaly: ${agent} score ${score}`, 'warning');
+        prevAnomalyKeys = new Set([...prevAnomalyKeys, agent]);
+      }
+    }
+  });
 </script>
 
 <Header bind:optionsOpen />
@@ -98,6 +125,7 @@
 </div>
 
 <Footer />
+<Toast />
 
 <style>
   .app-shell {
