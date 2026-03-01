@@ -193,7 +193,7 @@ analysis.init({
   getLatestNetConnections: () => latestNetConnections,
   getAnomalyScores: () => {
     const scores = {};
-    for (const a of latestAgents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent);
+    for (const a of latestAgents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent).score;
     return scores;
   },
 });

@@ -1,69 +1,86 @@
 /**
  * @file anomaly-detector.js
  * @module main/anomaly-detector
- * @description Anomaly scoring (0-100) and behavioural deviation detection.
- *   Uses session data and baselines from baselines.js.
+ * @description Multi-dimensional anomaly scoring (0-100) and behavioural deviation
+ *   detection. Uses session data and baselines from baselines.js, with 4-dimensional
+ *   breakdown (network, filesystem, process, baseline).
  * @requires ./baselines
+ * @requires ./scoring-utils
  * @author AEGIS Contributors
  * @license MIT
- * @version 0.2.0
+ * @version 0.3.0
  */
 'use strict';
 
 const bl = require('./baselines');
+const { scoreNetwork, scoreFilesystem, scoreProcess, scoreBaseline } = require('./scoring-utils');
 
 const deviationWarningsSent = {};
 
+/** @type {{network: number, filesystem: number, process: number, baseline: number}} */
+const WEIGHTS = { network: 0.3, filesystem: 0.25, process: 0.25, baseline: 0.2 };
+
 /**
- * Calculate anomaly score (0-100) for an agent based on deviation from baselines.
- * Weighted factors: file volume (30), sensitive spike (25), new sensitive
- * categories (20), new network endpoints (15), unusual timing (10).
+ * @typedef {Object} DimensionScore
+ * @property {number} score - 0-100 score for this dimension
+ * @property {number} weight - Weight used in composite calculation
+ * @property {string[]} factors - Human-readable descriptions of contributing factors
+ */
+
+/**
+ * @typedef {Object} AnomalyResult
+ * @property {number} score - Composite anomaly score 0-100
+ * @property {Object} dimensions - Per-dimension breakdown
+ * @property {DimensionScore} dimensions.network
+ * @property {DimensionScore} dimensions.filesystem
+ * @property {DimensionScore} dimensions.process
+ * @property {DimensionScore} dimensions.baseline
+ */
+
+/**
+ * Calculate multi-dimensional anomaly score for an agent.
+ * Returns composite 0-100 plus per-dimension breakdown.
+ * composite = sum(dimension.score * dimension.weight)
  * @param {string} agentName
- * @returns {number} Score 0-100 (0=normal, 100=extreme anomaly)
- * @since v0.2.0
+ * @returns {AnomalyResult}
+ * @since v0.3.0
  */
 function calculateAnomalyScore(agentName) {
+  const zeroDim = (w) => ({ score: 0, weight: w, factors: [] });
+  const zeroDims = {
+    network: zeroDim(WEIGHTS.network),
+    filesystem: zeroDim(WEIGHTS.filesystem),
+    process: zeroDim(WEIGHTS.process),
+    baseline: zeroDim(WEIGHTS.baseline),
+  };
+
   const sd = bl.getSessionData()[agentName];
   const ab = bl.getBaselines().agents[agentName];
-  if (!sd || !ab || ab.sessionCount < 3) return 0;
-  const avg = ab.averages;
-  let score = 0;
+  if (!sd || !ab || ab.sessionCount < 3) return { score: 0, dimensions: zeroDims };
 
-  // File volume deviation (0-30)
-  if (avg.filesPerSession > 0) {
-    const ratio = sd.files.size / avg.filesPerSession;
-    if (ratio > 3) score += Math.min(30, Math.round((ratio - 1) * 5));
-  }
+  const net = scoreNetwork(sd, ab);
+  const fs = scoreFilesystem(sd, ab);
+  const proc = scoreProcess(sd, ab);
+  const base = scoreBaseline(sd, ab);
 
-  // Sensitive count deviation (0-25)
-  if (avg.sensitivePerSession > 0) {
-    const ratio = sd.sensitiveCount / avg.sensitivePerSession;
-    if (ratio > 3) score += Math.min(25, Math.round((ratio - 1) * 5));
-  }
+  const dimensions = {
+    network: { ...net, weight: WEIGHTS.network },
+    filesystem: { ...fs, weight: WEIGHTS.filesystem },
+    process: { ...proc, weight: WEIGHTS.process },
+    baseline: { ...base, weight: WEIGHTS.baseline },
+  };
 
-  // New sensitive categories (0-20) — 10 points per new category
-  const knownReasons = new Set(avg.knownSensitiveReasons || []);
-  const newReasons = [...sd.sensitiveReasons].filter((r) => !knownReasons.has(r));
-  score += Math.min(20, newReasons.length * 10);
+  const composite = Math.min(
+    100,
+    Math.round(
+      net.score * WEIGHTS.network +
+        fs.score * WEIGHTS.filesystem +
+        proc.score * WEIGHTS.process +
+        base.score * WEIGHTS.baseline,
+    ),
+  );
 
-  // New network endpoints not seen in last 5 sessions (0-15)
-  const recentEndpoints = new Set();
-  const recentSessions = ab.sessions.slice(-5);
-  for (const sess of recentSessions)
-    for (const ep of sess.networkEndpoints) recentEndpoints.add(ep);
-  const newEndpoints = [...sd.endpoints].filter((ep) => !recentEndpoints.has(ep));
-  score += Math.min(15, newEndpoints.length * 5);
-
-  // Unusual timing (0-10) — activity at hour never seen before
-  const hourHist = avg.hourHistogram || new Array(24).fill(0);
-  for (const h of sd.activeHours) {
-    if (hourHist[h] === 0) {
-      score += 10;
-      break;
-    }
-  }
-
-  return Math.min(100, score);
+  return { score: composite, dimensions };
 }
 
 /**
@@ -79,7 +96,7 @@ function checkDeviations() {
     if (!deviationWarningsSent[agentName]) deviationWarningsSent[agentName] = new Set();
     const sent = deviationWarningsSent[agentName];
     const avg = ab.averages;
-    const anomalyScore = calculateAnomalyScore(agentName);
+    const { score: anomalyScore } = calculateAnomalyScore(agentName);
 
     // File volume 3x above average
     if (avg.filesPerSession > 0 && sd.files.size > avg.filesPerSession * 3) {

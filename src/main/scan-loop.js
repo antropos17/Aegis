@@ -153,7 +153,7 @@ async function doProcessScan() {
         });
     }
     const scores = {};
-    for (const a of agents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent);
+    for (const a of agents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent).score;
     sendToRenderer('anomaly-scores', scores);
     if (result.changed) doNetworkScan();
   } catch (err) {
