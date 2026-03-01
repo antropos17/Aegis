@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { get } from 'svelte/store';
-import { toasts, addToast, removeToast, clearAllToasts } from '../../src/renderer/lib/stores/toast.js';
+import {
+  toasts,
+  addToast,
+  removeToast,
+  clearAllToasts,
+} from '../../src/renderer/lib/stores/toast.js';
 
 describe('toast store', () => {
   beforeEach(() => {
@@ -109,6 +114,59 @@ describe('toast store', () => {
       addToast('A');
       addToast('B');
       clearAllToasts();
+      expect(get(toasts)).toHaveLength(0);
+    });
+
+    it('resets ID counter', () => {
+      addToast('A');
+      addToast('B');
+      clearAllToasts();
+      const id = addToast('Fresh');
+      expect(id).toBe(1);
+    });
+  });
+
+  describe('timer cleanup', () => {
+    it('manual remove cancels auto-dismiss timer', () => {
+      const id = addToast('Temp', 'success', 3000);
+      removeToast(id);
+      expect(get(toasts)).toHaveLength(0);
+      // Advancing past original duration should not cause errors
+      vi.advanceTimersByTime(5000);
+      expect(get(toasts)).toHaveLength(0);
+    });
+
+    it('eviction cancels evicted toast timer', () => {
+      addToast('A', 'success', 10000);
+      addToast('B', 'success', 10000);
+      addToast('C', 'success', 10000);
+      // Adding D evicts A — A's timer should be cleared
+      addToast('D', 'success', 10000);
+      expect(get(toasts).map((t) => t.message)).toEqual(['B', 'C', 'D']);
+      // Advancing past A's original timer should not affect the list
+      vi.advanceTimersByTime(10000);
+      expect(get(toasts)).toHaveLength(0);
+    });
+
+    it('staggered auto-dismiss removes in correct order', () => {
+      addToast('Fast', 'success', 1000);
+      addToast('Medium', 'warning', 3000);
+      addToast('Slow', 'error', 5000);
+      expect(get(toasts)).toHaveLength(3);
+      vi.advanceTimersByTime(1000);
+      expect(get(toasts)).toHaveLength(2);
+      expect(get(toasts)[0].message).toBe('Medium');
+      vi.advanceTimersByTime(2000);
+      expect(get(toasts)).toHaveLength(1);
+      expect(get(toasts)[0].message).toBe('Slow');
+      vi.advanceTimersByTime(2000);
+      expect(get(toasts)).toHaveLength(0);
+    });
+
+    it('double remove is a safe no-op', () => {
+      const id = addToast('Once', 'success', 0);
+      removeToast(id);
+      removeToast(id);
       expect(get(toasts)).toHaveLength(0);
     });
   });
