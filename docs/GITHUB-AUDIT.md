@@ -1,4 +1,7 @@
 # GITHUB AUDIT
+
+> **Status:** This audit was conducted during v0.2.0-alpha. Most items have been resolved in v0.3.0-alpha — see resolution table at the bottom.
+
 ## Чек-лист: Что есть у топовых репо и чего НЕТ в Aegis
 
 ### 1. README best practices
@@ -53,3 +56,26 @@
     *   Слоган "Independent AI Oversight Layer" хорош, но сразу за ним идут огромные скриншоты, сдвигающие текст вниз. В топ-репо картинки часто упакованы лучше, или дается короткий GIF, показывающий продукт в действии (TTY GIF или видео).
     *   Огромный раздел "How It Works" в README (может стоить вынести его в Wiki или отдельный Markdown).
     *   Нет ссылок на Community (Discord/Slack/Twitter), которые есть у всех топовых проектов.
+
+---
+
+## Resolution Status (updated v0.3.0-alpha, 2026-03-01)
+
+| Item | Was | Status |
+|------|-----|--------|
+| Table of Contents | Missing | ✅ Added (collapsible details) |
+| Back to top links | Missing | ✅ Added to every section |
+| PRs Welcome badge | Missing | ✅ Added |
+| Contributors with avatars | Missing | ✅ 4 contributors with avatars |
+| GIF demo | Missing | ✅ GIF demo added to README |
+| Badges unified flat-square | Mixed | ✅ All flat-square |
+| Version badge | Missing | ✅ Release v0.3.0-alpha |
+| CLAUDE.md / AGENTS.md | Scattered | ✅ Up to date, 106 agents |
+| Elevator pitch + GIF | Static screenshots | ✅ Tagline + GIF |
+| FUNDING.yml | Missing | ✅ Created |
+| CODEOWNERS | Missing | ✅ Created |
+| SUPPORT.md | Missing | ✅ Created |
+| Profile README | Missing | ⬜ TODO |
+| all-contributors bot | Missing | ⬜ TODO |
+| Code Coverage badge | Missing | ⬜ TODO |
+| Community Discord/Slack | Missing | ⬜ TODO |

@@ -1,5 +1,7 @@
 # Полный аудит GitHub-репозитория AEGIS
 
+> **Status:** This audit was conducted during v0.2.0-alpha. Most issues have been resolved in v0.3.0-alpha. See "Resolution Status" section below.
+
 Этот отчет содержит анализ текущего состояния документации, настроек и файлов сообщества репозитория, а также список того, что необходимо исправить или добавить.
 
 ## 1. README.md: что устарело?
@@ -49,3 +51,25 @@
 ## 10. Версия в Footer.svelte
 - ❌ **Захардкожена.** В файле `src/renderer/lib/components/Footer.svelte` (строка 72) версия жестко прописана статичным текстом: `<span class="footer-version">AEGIS v0.2.0-alpha</span>`.
 - **Что исправить:** Версия должна быть динамической и извлекаться автоматически во время сборки — например, пробрасываться через `import.meta.env` средства Vite (через плагин `vite-plugin-version-mark` или определение `__APP_VERSION__` в конфигурации) либо считываться через IPC напрямую из процесса Node.
+
+---
+
+## Resolution Status (updated v0.3.0-alpha, 2026-03-01)
+
+| # | Issue | Status |
+|---|-------|--------|
+| 1 | Agent count mismatch | ✅ Resolved — 106 agents across all files |
+| 1 | Screenshot paths | ✅ Resolved — `docs/screenshots/` + GIF demo |
+| 1 | Test count | ✅ Resolved — 436 tests, 25 files |
+| 1 | Mac/Linux in Roadmap | ✅ Resolved — experimental support via PR #37 |
+| 4 | FUNDING.yml missing | ✅ Resolved — `.github/FUNDING.yml` created |
+| 4 | CODEOWNERS missing | ✅ Resolved — `.github/CODEOWNERS` created |
+| 4 | SUPPORT.md missing | ✅ Resolved — `.github/SUPPORT.md` created |
+| 5 | GIF/video demo | ✅ Resolved — GIF demo in README |
+| 6 | Contributors section | ✅ Resolved — 4 contributors with avatars |
+| 7 | Version badge | ✅ Resolved — Release badge v0.3.0-alpha |
+| 7 | PRs Welcome badge | ✅ Resolved |
+| 9 | Old screenshots/ folder | ✅ Resolved — deleted |
+| 10 | Footer version hardcoded | ✅ Resolved — dynamic via IPC |
+| 3 | Website URL in GitHub About | ⬜ TODO — add manually |
+| 7 | Code Coverage badge | ⬜ TODO — set up Codecov |
