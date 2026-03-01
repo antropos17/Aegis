@@ -9,7 +9,8 @@
   import { theme, uiScale, toggleTheme } from './lib/stores/theme.js';
   import Toast from './lib/components/Toast.svelte';
   import { addToast } from './lib/stores/toast.js';
-  import { agents, anomalies } from './lib/stores/ipc.js';
+  import { agents, anomalies, isDemoMode } from './lib/stores/ipc.js';
+  import DemoBanner from './lib/components/DemoBanner.svelte';
 
   const TAB_IDS = ['shield', 'activity', 'rules', 'reports'];
 
@@ -126,6 +127,10 @@
     {/key}
   </main>
 </div>
+
+{#if isDemoMode}
+  <DemoBanner />
+{/if}
 
 <Footer />
 <Toast />
