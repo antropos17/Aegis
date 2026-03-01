@@ -12,7 +12,8 @@
     return Math.max(0, Math.round(100 - avg));
   });
 
-  let agentCount = $derived($enrichedAgents.length);
+  let processCount = $derived($enrichedAgents.length);
+  let uniqueAgentCount = $derived(new Set($enrichedAgents.map((a) => a.name)).size);
   let filesMonitored = $derived($stats.totalFiles ?? '--');
 
   function getScoreClass(score) {
@@ -31,7 +32,11 @@
   <div class="header-stats">
     <span class="shield-score {scoreClass}">{shieldScore}</span>
     <span class="stat-sep">&middot;</span>
-    <span class="stat-text">{agentCount} {agentCount === 1 ? 'agent' : 'agents'}</span>
+    <span class="stat-text">{uniqueAgentCount} {uniqueAgentCount === 1 ? 'agent' : 'agents'}</span>
+    <span class="stat-sep">&middot;</span>
+    <span class="stat-text stat-dim"
+      >{processCount} {processCount === 1 ? 'process' : 'processes'}</span
+    >
     <span class="stat-sep">&middot;</span>
     <span class="stat-text">{filesMonitored} files</span>
   </div>
@@ -115,6 +120,10 @@
     font: var(--md-sys-typescale-label-medium);
     color: var(--md-sys-color-on-surface-variant);
     font-variant-numeric: tabular-nums;
+  }
+
+  .stat-dim {
+    opacity: 0.6;
   }
 
   .icon-btn {

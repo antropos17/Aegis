@@ -38,7 +38,7 @@
       <span class="stat-label">Sensitive</span>
     </div>
     <div class="stat-card">
-      <span class="stat-value">{$enrichedAgents.length}</span>
+      <span class="stat-value">{new Set($enrichedAgents.map((a) => a.name)).size}</span>
       <span class="stat-label">Agents</span>
     </div>
     <div class="stat-card">
