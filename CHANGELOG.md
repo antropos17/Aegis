@@ -6,14 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Browser-only demo mode with simulated agent data — works without Electron (PR #10)
+- Toast notification system — success/warning/error toasts with auto-dismiss (PR #15)
+- DemoBanner component for demo mode indicator
+- Development guide (docs/DEVELOPMENT.md)
+- 8 new agent signatures (98 → 106 agents)
+- 28 new tests (408 → 436 tests across 25 files)
+
+### Fixed
+- CSS duplicate rule in PermissionsGrid (PR #52)
+- Cleanup leak in demo data store (PR #52)
+- Split demo-pools for better tree-shaking (PR #52)
+
 ## [0.3.0-alpha] - 2026-02-28
 
 ### Added
 - Multi-dimensional anomaly scoring (4 axes: Network, FileSystem, Process, Baseline)
 - Local LLM runtime detection (Ollama localhost:11434, LM Studio localhost:1234)
 - CLI interface with JSON output (--scan-json, --version, --help)
-- 98 agent signatures including local-llm-runtime category
-- 408 tests across 23 test files (up from 130/12)
+- 106 agent signatures including local-llm-runtime category
+- 436 tests across 25 test files (up from 130/12)
 - Dynamic version display in Footer via IPC
 - Contributors section in README with avatars
 - Trust signal badges, Table of Contents, navigation bar
