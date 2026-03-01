@@ -9,11 +9,16 @@
   ];
 </script>
 
-<nav class="tab-bar">
-  {#each tabs as tab (tab.id)}
+<nav class="tab-bar" role="tablist" aria-label="Main navigation">
+  {#each tabs as tab, i (tab.id)}
     <button
+      id="tab-{tab.id}"
       class="tab-pill"
       class:active={activeTab === tab.id}
+      role="tab"
+      aria-selected={activeTab === tab.id}
+      aria-controls="tabpanel-{tab.id}"
+      aria-keyshortcuts={String(i + 1)}
       onclick={() => (activeTab = tab.id)}
     >
       {tab.label}
