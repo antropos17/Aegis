@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/01-shield-tab.png" alt="AEGIS Dashboard" max-width="720">
+  <img src="https://github.com/antropos17/Aegis/releases/download/v0.3.0-alpha/0228.gif" alt="AEGIS Demo" width="800">
 </p>
 
 <p align="center">
