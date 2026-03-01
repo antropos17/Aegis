@@ -40,7 +40,7 @@ Consumer desktop app that monitors AI agents (Claude Code, Copilot, Cursor, Manu
 - **File handle scanning:** PowerShell `handle64.exe` or `Get-Process` fallback
 - **Network scanning:** PowerShell `Get-NetTCPConnection` + DNS reverse lookup
 - **Config storage:** JSON files at Electron `userData` directory (`settings.json`, `baselines.json`)
-- **Agent database:** `src/shared/agent-database.json` (94 agents with metadata)
+- **Agent database:** `src/shared/agent-database.json` (98 agents with metadata)
 - **Fonts:** Plus Jakarta Sans (headings) + DM Sans (body) + DM Mono (code/data)
 - **Build:** Vite 7 with `@sveltejs/vite-plugin-svelte`. No Tailwind, no webpack.
 
@@ -55,20 +55,24 @@ AEGIS/
 ├── SECURITY.md                            # Vulnerability reporting + 90-day disclosure
 ├── ARCHITECTURE.md                        # System design + observability layers
 ├── src/
-│   ├── main/                              # Electron main process (13 modules)
-│   │   ├── main.js                        # Orchestrator, IPC handlers, lifecycle (204 lines)
-│   │   ├── preload.js                     # Secure IPC bridge via contextBridge (66 lines)
-│   │   ├── config-manager.js              # Settings persistence + permissions (187 lines)
-│   │   ├── process-scanner.js             # AI agent detection via tasklist (101 lines)
-│   │   ├── process-utils.js               # Parent chain resolution + editor annotation (149 lines)
-│   │   ├── file-watcher.js                # chokidar watchers + handle scanning (148 lines)
-│   │   ├── network-monitor.js             # TCP scanning + DNS + domain classification (177 lines)
-│   │   ├── baselines.js                   # Session tracking + rolling averages (125 lines)
-│   │   ├── anomaly-detector.js            # Anomaly scoring + deviation checks (128 lines)
-│   │   ├── ai-analysis.js                 # Anthropic API threat analysis (208 lines)
-│   │   ├── audit-logger.js                # Persistent JSONL audit trail (176 lines)
-│   │   ├── exports.js                     # JSON/CSV/HTML report export (170 lines)
-│   │   └── tray-icon.js                   # System tray with procedural icon (125 lines)
+│   ├── main/                              # Electron main process (17 modules)
+│   │   ├── main.js                        # Orchestrator, lifecycle, module wiring
+│   │   ├── preload.js                     # Secure IPC bridge via contextBridge
+│   │   ├── scan-loop.js                   # Periodic scan intervals + event dedup + LLM probing
+│   │   ├── ipc-handlers.js                # All IPC handlers (28 invoke + 1 listener)
+│   │   ├── cli.js                         # CLI interface (--scan-json, --version, --help)
+│   │   ├── config-manager.js              # Settings persistence + permissions
+│   │   ├── process-scanner.js             # AI agent detection via tasklist
+│   │   ├── process-utils.js               # Parent chain resolution + editor annotation
+│   │   ├── file-watcher.js                # chokidar watchers + handle scanning
+│   │   ├── network-monitor.js             # TCP scanning + DNS + domain classification
+│   │   ├── llm-runtime-detector.js        # Local LLM runtime detection (Ollama, LM Studio)
+│   │   ├── baselines.js                   # Session tracking + rolling averages
+│   │   ├── anomaly-detector.js            # Multi-dimensional anomaly scoring
+│   │   ├── ai-analysis.js                 # Anthropic API threat analysis
+│   │   ├── audit-logger.js                # Persistent JSONL audit trail
+│   │   ├── exports.js                     # JSON/CSV/HTML report export
+│   │   └── tray-icon.js                   # System tray with procedural icon
 │   ├── renderer/                              # Dashboard UI (Svelte 5 + Vite)
 │   │   ├── app.html                           # Vite HTML entry point
 │   │   ├── main.js                            # Svelte app mount
@@ -95,7 +99,7 @@ AEGIS/
 │   │           └── global.css                 # Base styles + animations
 │   ├── shared/
 │   │   ├── constants.js                   # Sensitive rules, ignore patterns (179 lines)
-│   │   └── agent-database.json            # 94 agent signatures (1,510 lines)
+│   │   └── agent-database.json            # 98 agent signatures (1,510 lines)
 │   (styles are scoped inside .svelte components + 2 global files in renderer/lib/styles/)
 ```
 
@@ -103,7 +107,7 @@ Total: **~7,100 lines** across **44 source files** (JS/CSS/HTML). Plus 1,510 lin
 
 ## Architecture
 
-### Main Process — 13 modules
+### Main Process — 17 modules
 
 **main.js** — Orchestrator (204 lines)
 - Wires all sub-modules via init() calls with dependency injection
@@ -121,7 +125,7 @@ Total: **~7,100 lines** across **44 source files** (JS/CSS/HTML). Plus 1,510 lin
 - Tracks seen agents and persists their permission state
 
 **process-scanner.js** — Agent detection (101 lines)
-- Loads 94 agent signatures from `src/shared/agent-database.json`
+- Loads 98 agent signatures from `src/shared/agent-database.json`
 - Scans via `tasklist /FO CSV /NH` on Windows
 - Pattern matching: process name against known agent patterns
 - Deduplication by PID, change detection for triggering network rescans
@@ -172,6 +176,24 @@ Total: **~7,100 lines** across **44 source files** (JS/CSS/HTML). Plus 1,510 lin
 - Color-coded by threat level: green / yellow / red
 - Context menu: Show Dashboard, Pause/Resume Monitoring, Quit
 - Native notifications for sensitive file access (30s cooldown)
+
+**scan-loop.js** — Scan pipeline (259 lines)
+- Periodic process/file/network scan intervals with staggered startup
+- Event dedup: same agent + same file within 30s → suppress
+- LLM runtime probing via enrichWithLocalModels (Ollama + LM Studio)
+
+**ipc-handlers.js** — IPC handlers
+- All 28 invoke handlers + 1 listener extracted from main.js
+
+**llm-runtime-detector.js** — LLM runtime detection (115 lines)
+- Probes Ollama API at localhost:11434/api/tags for loaded models
+- Probes LM Studio at localhost:1234/v1/models (OpenAI-compatible)
+- Returns `{running, models[]}` per runtime
+
+**cli.js** — CLI interface (89 lines)
+- `--scan-json`: single process scan + LLM detection → JSON to stdout
+- `--version`: prints version from package.json
+- `--help`: usage text
 
 **preload.js** — IPC bridge (66 lines)
 - `contextBridge.exposeInMainWorld('aegis', {...})`
@@ -232,7 +254,7 @@ Trust score: `baseTrust - riskScore × 0.8`, graded A+ through F.
 
 ## Known AI Agent Signatures
 
-94 agents loaded from `src/shared/agent-database.json`:
+98 agents loaded from `src/shared/agent-database.json`:
 - **Coding assistants:** Claude Code, GitHub Copilot, OpenAI Codex, Cursor AI, Windsurf, Tabnine, Amazon Q, Sourcegraph Cody, Replit AI, JetBrains AI, Aider
 - **Autonomous agents:** Devin, Manus AI, OpenHands, SWE-Agent, AutoGPT, BabyAGI, CrewAI, AgentGPT
 - **Desktop/browser agents:** Anthropic Computer Use, Google Gemini, Apple Intelligence, Microsoft Copilot (OS), Opera Aria, Perplexity
@@ -277,7 +299,7 @@ Defined in `src/shared/constants.js` — 70+ patterns:
 - [x] Agent cards with sparklines, session duration, parent chain, expand tabs
 - [x] Protection presets (Paranoid/Strict/Balanced/Developer)
 - [x] Per-agent permissions (6 categories x tri-state allow/monitor/block)
-- [x] Agent Database Manager (94 agents, custom add/edit/delete, import/export)
+- [x] Agent Database Manager (98 agents, custom add/edit/delete, import/export)
 - [x] Process control (Kill/Suspend/Resume per agent)
 - [x] Export reports (JSON/CSV/HTML with save dialogs)
 - [x] System tray with procedural shield icon + native notifications
