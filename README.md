@@ -50,6 +50,7 @@
 <summary>📋 Table of Contents</summary>
 
 - [Why AEGIS?](#why-aegis)
+- [How AEGIS Compares](#how-aegis-compares)
 - [What AEGIS Does / Does NOT Do](#what-aegis-does--does-not-do)
 - [Download](#download)
 - [What It Monitors](#what-it-monitors)
@@ -72,6 +73,24 @@
 AI agents now have deep access to your machine. They read files, scan codebases, execute commands, make network connections. Every existing AI security tool is enterprise B2B. They monitor what humans send *to* AI. Nobody monitors what AI agents do *on local machines*.
 
 AEGIS is an independent, open-source monitoring layer. It watches AI agent behavior in real time, doesn't belong to any AI vendor, and keeps all data local. No telemetry, no cloud sync, no tracking.
+
+<p align="right"><a href="#-aegis">⬆ back to top</a></p>
+
+## How AEGIS Compares
+
+| Feature | AEGIS | Lasso Security | Prompt Security | PromptArmor |
+|---------|:-----:|:--------------:|:---------------:|:-----------:|
+| Runs locally | ✅ | ❌ Cloud | ❌ Cloud | ❌ Cloud |
+| No telemetry | ✅ | ❌ | ❌ | ❌ |
+| Open source | ✅ MIT | ❌ | ❌ | ❌ |
+| Free | ✅ | ❌ Enterprise | ❌ Enterprise | ❌ Enterprise |
+| Monitors file access | ✅ | ❌ | ❌ | ❌ |
+| Detects local LLMs | ✅ | ❌ | ❌ | ❌ |
+| CLI JSON output | ✅ | ❌ | ✅ | ❌ |
+| Agent database | 98 agents | Unknown | Unknown | Unknown |
+| Anomaly scoring | 4-axis | N/A | N/A | N/A |
+
+> **AEGIS is the only open-source, local-first AI agent monitor.** Enterprise tools focus on prompt injection and API gateway security. AEGIS focuses on what agents actually do on your machine.
 
 <p align="right"><a href="#-aegis">⬆ back to top</a></p>
 
@@ -292,4 +311,4 @@ MIT. See [LICENSE](LICENSE).
 
 ## Star History
 
-[![Star History](https://api.star-history.com/svg?repos=antropos17/Aegis&type=Date)](https://star-history.com/#antropos17/Aegis&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=antropos17/Aegis&type=Date&theme=dark)](https://star-history.com/#antropos17/Aegis&Date)
