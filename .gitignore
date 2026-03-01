@@ -13,6 +13,7 @@ cdp_*.js
 .mcp.json
 memory-bank/
 aegis-log-*.json
+aegis-full-audit-*.json
 screenshot_test.png
 screenshot_electron.png
 *.exe
