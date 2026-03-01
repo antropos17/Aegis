@@ -156,6 +156,11 @@ No Node.js required. Download, install, run.
 - JSON, CSV, HTML report generation
 - Audit logging (JSONL, daily rotation, 30-day retention)
 
+**Internationalization**
+- i18n system with English base (110+ translated strings)
+- Language selector in Settings
+- Community translations welcome ([contribute a language](https://github.com/antropos17/Aegis/issues))
+
 **CLI**
 ```bash
 aegis --scan-json    # JSON output for scripts
@@ -287,7 +292,7 @@ npm run test:coverage # coverage report
 - [ ] Browser extension for web-based AI agents
 - [ ] Cross-device AI activity correlation
 - [ ] Auto-update mechanism
-- [ ] i18n / localization
+- [x] i18n / localization (PR #53)
 
 [📋 Full roadmap on GitHub Issues](https://github.com/antropos17/Aegis/issues)
 
@@ -300,7 +305,7 @@ npm run test:coverage # coverage report
     <td align="center"><a href="https://github.com/antropos17"><img src="https://github.com/antropos17.png" width="80px;" alt=""/><br/><sub><b>Ruslan Murtuzaliyev</b></sub></a><br/>💻 📖 🚇 🎨</td>
     <td align="center"><a href="https://github.com/ElshadHu"><img src="https://github.com/ElshadHu.png" width="80px;" alt=""/><br/><sub><b>Elshad Humbatli</b></sub></a><br/>💻 🧪</td>
     <td align="center"><a href="https://github.com/skmelendez"><img src="https://github.com/skmelendez.png" width="80px;" alt=""/><br/><sub><b>Steven Melendez</b></sub></a><br/>💻 🤔</td>
-    <td align="center"><a href="https://github.com/travisbreaks"><img src="https://github.com/travisbreaks.png" width="80px;" alt=""/><br/><sub><b>travisbreaks</b></sub></a><br/>📦</td>
+    <td align="center"><a href="https://github.com/travisbreaks"><img src="https://github.com/travisbreaks.png" width="80px;" alt=""/><br/><sub><b>travisbreaks</b></sub></a><br/>💻 ♿ 🌍 📦</td>
   </tr>
 </table>
 

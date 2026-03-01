@@ -7,12 +7,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- Browser-only demo mode with simulated agent data — works without Electron (PR #10)
+- Internationalization system with English base (#53) — @travisbreaks
+- Keyboard shortcuts and accessibility improvements (#51) — @travisbreaks
+- Browser-only demo mode (#52) — @travisbreaks
+- 8 new agent signatures: Jules, Aide, Open WebUI, AnythingLLM, KoboldCPP, GPT Pilot, ScreenPipe, Letta (#50) — @travisbreaks
+- Unique agent count vs process count in header (#55)
 - Toast notification system — success/warning/error toasts with auto-dismiss (PR #15)
 - DemoBanner component for demo mode indicator
 - Development guide (docs/DEVELOPMENT.md)
-- 8 new agent signatures (98 → 106 agents)
 - 28 new tests (408 → 436 tests across 25 files)
+- GPG commit signing
 
 ### Fixed
 - CSS duplicate rule in PermissionsGrid (PR #52)
