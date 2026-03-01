@@ -74,7 +74,10 @@
   let prevAgentCount = $state(-1);
   $effect(() => {
     const count = $agents.length;
-    if (prevAgentCount === -1) { prevAgentCount = count; return; }
+    if (prevAgentCount === -1) {
+      prevAgentCount = count;
+      return;
+    }
     if (count !== prevAgentCount) {
       addToast(`Scan complete: ${count} agent${count !== 1 ? 's' : ''} detected`, 'success');
       prevAgentCount = count;

@@ -16,8 +16,8 @@
       <button
         class="toast-close"
         aria-label="Dismiss notification"
-        onclick={() => removeToast(toast.id)}
-      >&times;</button>
+        onclick={() => removeToast(toast.id)}>&times;</button
+      >
     </div>
   {/each}
 </div>
@@ -54,24 +54,30 @@
 
   .toast-success {
     background: rgba(56, 161, 105, 0.18);
-    border-left: 3px solid #38A169;
+    border-left: 3px solid #38a169;
   }
   .toast-warning {
     background: rgba(237, 137, 54, 0.18);
-    border-left: 3px solid #ED8936;
+    border-left: 3px solid #ed8936;
   }
   .toast-error {
     background: rgba(229, 62, 62, 0.18);
-    border-left: 3px solid #E53E3E;
+    border-left: 3px solid #e53e3e;
   }
 
   .toast-icon {
     flex-shrink: 0;
     font-size: calc(14px * var(--aegis-ui-scale, 1));
   }
-  .toast-success .toast-icon { color: #38A169; }
-  .toast-warning .toast-icon { color: #ED8936; }
-  .toast-error .toast-icon { color: #E53E3E; }
+  .toast-success .toast-icon {
+    color: #38a169;
+  }
+  .toast-warning .toast-icon {
+    color: #ed8936;
+  }
+  .toast-error .toast-icon {
+    color: #e53e3e;
+  }
 
   .toast-msg {
     flex: 1;
@@ -91,7 +97,9 @@
     opacity: 0.6;
     transition: opacity var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
   }
-  .toast-close:hover { opacity: 1; }
+  .toast-close:hover {
+    opacity: 1;
+  }
 
   @keyframes toastIn {
     from {
