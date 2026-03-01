@@ -1,0 +1,286 @@
+{
+  "brand": {
+    "name": "AEGIS"
+  },
+  "header": {
+    "settings_label": "Settings",
+    "agents": "agents",
+    "files": "files"
+  },
+  "footer": {
+    "cpu": "CPU",
+    "mem": "MEM",
+    "heap": "HEAP",
+    "scan": "SCAN",
+    "up": "UP"
+  },
+  "tabs": {
+    "shield": "Shield",
+    "activity": "Activity",
+    "rules": "Rules",
+    "reports": "Reports"
+  },
+  "demo": {
+    "badge": "DEMO MODE",
+    "description": "Simulated data only. No real agents are being monitored.",
+    "cta": "Install AEGIS \u2192"
+  },
+  "settings": {
+    "title": "Settings",
+    "export_config": "Export Config",
+    "import_config": "Import Config",
+    "cancel": "Cancel",
+    "save": "Save",
+    "appearance": {
+      "title": "Appearance",
+      "theme": "Theme",
+      "themes": {
+        "dark": "Dark",
+        "light": "Light",
+        "dark_hc": "Dark HC",
+        "light_hc": "Light HC"
+      },
+      "interface_scale": "Interface Scale",
+      "language": "Language"
+    },
+    "monitoring": {
+      "title": "Monitoring",
+      "scan_interval": "Scan Interval",
+      "notifications": "Notifications",
+      "toggle_notifications": "Toggle notifications",
+      "test": "Test",
+      "ai_analysis": "AI Analysis",
+      "api_key": "Anthropic API Key",
+      "custom_patterns": "Custom Sensitive Patterns",
+      "patterns_hint": "One regex per line",
+      "show": "Show",
+      "hide": "Hide",
+      "api_key_placeholder": "sk-ant-...",
+      "not_available": "Not available",
+      "sent": "Sent",
+      "failed": "Failed"
+    }
+  },
+  "activity": {
+    "tabs": {
+      "feed": "Feed",
+      "network": "Network"
+    },
+    "feed": {
+      "no_events": "No events to display",
+      "severity": {
+        "denied": "DENIED",
+        "config": "CONFIG",
+        "sensitive": "SENSITIVE",
+        "deleted": "DELETED"
+      }
+    },
+    "filters": {
+      "group_by_agent": "Group by agent",
+      "all_agents": "All agents",
+      "severity": "Severity",
+      "type": "Type",
+      "severity_all": "all",
+      "severity_critical": "critical",
+      "severity_high": "high",
+      "severity_medium": "medium",
+      "severity_low": "low",
+      "type_all": "all",
+      "type_file": "file",
+      "type_network": "network"
+    },
+    "groups": {
+      "file_access": "File Access",
+      "config_access": "Config Access",
+      "network": "Network",
+      "events_singular": "{count} event",
+      "events_plural": "{count} events",
+      "unresolved": "unresolved",
+      "domain_prefix": "Domain:",
+      "ip_prefix": "IP:"
+    }
+  },
+  "agents": {
+    "no_agents": "No AI agents detected",
+    "pid": "PID {pid}",
+    "last_file": "Last: {file}",
+    "session_hours": "{h}h {m}m",
+    "session_minutes": "{m}m"
+  },
+  "network": {
+    "all_agents": "All agents",
+    "class": "Class",
+    "classes": {
+      "all": "all",
+      "safe": "safe",
+      "unknown": "unknown",
+      "flagged": "flagged"
+    },
+    "sort": "Sort",
+    "sort_options": {
+      "agent": "Agent",
+      "domain": "Domain",
+      "classification": "Classification"
+    },
+    "no_connections": "No network connections detected",
+    "columns": {
+      "agent": "Agent",
+      "domain": "Domain",
+      "port": "Port",
+      "state": "State"
+    }
+  },
+  "rules": {
+    "tabs": {
+      "permissions": "Permissions",
+      "agent_database": "Agent Database"
+    },
+    "protection": {
+      "title": "Protection Level",
+      "paranoid": "Paranoid",
+      "paranoid_desc": "Block all agent file access",
+      "strict": "Strict",
+      "strict_desc": "Monitor sensitive, block credentials",
+      "balanced": "Balanced",
+      "balanced_desc": "Monitor all, allow safe operations",
+      "developer": "Developer",
+      "developer_desc": "Minimal restrictions"
+    },
+    "permissions": {
+      "title": "Agent Permissions",
+      "reset_defaults": "Reset defaults",
+      "select_agent": "Select an agent...",
+      "overridden": "overridden",
+      "empty_state": "Select an agent to configure permissions",
+      "category": "Category",
+      "states": {
+        "allow": "allow",
+        "monitor": "monitor",
+        "block": "block"
+      },
+      "categories": {
+        "file_access": "File Access",
+        "file_access_desc": "Read/write files",
+        "credential_access": "Credential Access",
+        "credential_access_desc": ".env, SSH keys, secrets",
+        "network": "Network",
+        "network_desc": "Outbound connections",
+        "process_spawn": "Process Spawn",
+        "process_spawn_desc": "Shell command execution",
+        "config_write": "Config Write",
+        "config_write_desc": "Read/write clipboard",
+        "system_mod": "System Modification",
+        "system_mod_desc": "Screen capture access"
+      }
+    },
+    "database": {
+      "search_placeholder": "Search agents...",
+      "categories": {
+        "all": "All",
+        "coding": "Coding",
+        "ai_ide": "AI IDE",
+        "cli": "CLI",
+        "autonomous": "Autonomous",
+        "desktop": "Desktop",
+        "browser": "Browser",
+        "framework": "Framework",
+        "security": "Security",
+        "ide_ext": "IDE Ext"
+      },
+      "columns": {
+        "name": "Name",
+        "category": "Category",
+        "detection": "Detection",
+        "risk": "Risk"
+      },
+      "risk": {
+        "low": "low",
+        "medium": "medium",
+        "high": "high"
+      },
+      "no_agents": "No agents found",
+      "actions": "Actions",
+      "count": "{filtered} of {total} agents",
+      "add_agent": "+ Add Agent",
+      "import": "Import",
+      "export": "Export",
+      "crud": {
+        "add_title": "Add Custom Agent",
+        "edit_title": "Edit Agent",
+        "delete_title": "Delete Agent",
+        "name": "Name",
+        "process_name": "Process Name",
+        "category": "Category",
+        "risk_level": "Risk Level",
+        "description": "Description",
+        "name_placeholder": "Agent name",
+        "process_placeholder": "e.g. agent.exe",
+        "desc_placeholder": "Short description",
+        "delete_confirm": "Remove \"{name}\"? This cannot be undone.",
+        "cancel": "Cancel",
+        "add": "Add",
+        "save": "Save",
+        "delete": "Delete",
+        "risk_low": "Low",
+        "risk_medium": "Medium",
+        "risk_high": "High"
+      }
+    }
+  },
+  "reports": {
+    "tabs": {
+      "overview": "Overview",
+      "audit_log": "Audit Log",
+      "threat_analysis": "Threat Analysis"
+    },
+    "overview": {
+      "summary": "Summary",
+      "total_events": "Total Events",
+      "sensitive": "Sensitive",
+      "agents": "Agents",
+      "shield": "Shield",
+      "most_active": "Most Active Agents",
+      "columns": {
+        "name": "Name",
+        "events": "Events",
+        "risk_score": "Risk Score",
+        "grade": "Grade"
+      },
+      "export": "Export",
+      "export_json": "JSON",
+      "export_csv": "CSV",
+      "export_html": "HTML Report",
+      "no_agents": "No agents detected yet"
+    },
+    "audit": {
+      "title": "Audit Log",
+      "loading": "Loading audit data...",
+      "no_data": "No audit data available",
+      "total_entries": "Total Entries",
+      "log_size": "Log Size",
+      "date_range": "Date Range",
+      "view_logs": "View Logs Directory",
+      "export": "Export Full Audit"
+    },
+    "threat": {
+      "title": "AI Threat Analysis",
+      "analyze_session": "Analyze Session",
+      "analyze_agent": "Analyze Agent",
+      "select_agent": "Select an agent...",
+      "run": "Run Analysis",
+      "running": "Analyzing...",
+      "levels": {
+        "clear": "CLEAR",
+        "low": "LOW",
+        "medium": "MEDIUM",
+        "high": "HIGH",
+        "unknown": "UNKNOWN"
+      },
+      "assessment": "Threat Assessment",
+      "summary": "Summary",
+      "findings": "Findings",
+      "recommendations": "Recommendations",
+      "open_report": "Open Full Report"
+    }
+  }
+}

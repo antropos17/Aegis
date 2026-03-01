@@ -2,6 +2,7 @@
   import Reports from './Reports.svelte';
   import AuditLog from './AuditLog.svelte';
   import ThreatAnalysis from './ThreatAnalysis.svelte';
+  import { t } from '../i18n/index.js';
 
   let subTab = $state('overview');
 </script>
@@ -13,21 +14,21 @@
       class:active={subTab === 'overview'}
       onclick={() => {
         subTab = 'overview';
-      }}>Overview</button
+      }}>{$t('reports.tabs.overview')}</button
     >
     <button
       class="sub-btn"
       class:active={subTab === 'audit'}
       onclick={() => {
         subTab = 'audit';
-      }}>Audit Log</button
+      }}>{$t('reports.tabs.audit_log')}</button
     >
     <button
       class="sub-btn"
       class:active={subTab === 'threat'}
       onclick={() => {
         subTab = 'threat';
-      }}>Threat Analysis</button
+      }}>{$t('reports.tabs.threat_analysis')}</button
     >
   </div>
 

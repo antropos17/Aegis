@@ -5,6 +5,8 @@
    *   Extracted from OptionsPanel.svelte.
    * @since v0.3.0
    */
+  import { t, language, LANGUAGE_OPTIONS } from '../i18n/index.js';
+
   let {
     localTheme = $bindable('dark'),
     localScale = $bindable(1),
@@ -15,10 +17,10 @@
   let scalePercent = $derived(Math.round(localScale * 100));
 </script>
 
-<div class="section-label">Appearance</div>
+<div class="section-label">{$t('settings.appearance.title')}</div>
 
 <div class="option-group">
-  <span class="option-label">Theme</span>
+  <span class="option-label">{$t('settings.appearance.theme')}</span>
   <div class="theme-toggle">
     <label class="radio-label">
       <input
@@ -27,7 +29,8 @@
         value="dark"
         checked={localTheme === 'dark'}
         onchange={onThemeChange}
-      /> Dark
+      />
+      {$t('settings.appearance.themes.dark')}
     </label>
     <label class="radio-label">
       <input
@@ -36,7 +39,8 @@
         value="light"
         checked={localTheme === 'light'}
         onchange={onThemeChange}
-      /> Light
+      />
+      {$t('settings.appearance.themes.light')}
     </label>
     <label class="radio-label">
       <input
@@ -45,7 +49,8 @@
         value="dark-hc"
         checked={localTheme === 'dark-hc'}
         onchange={onThemeChange}
-      /> Dark HC
+      />
+      {$t('settings.appearance.themes.dark_hc')}
     </label>
     <label class="radio-label">
       <input
@@ -54,14 +59,15 @@
         value="light-hc"
         checked={localTheme === 'light-hc'}
         onchange={onThemeChange}
-      /> Light HC
+      />
+      {$t('settings.appearance.themes.light_hc')}
     </label>
   </div>
 </div>
 
 <div class="option-group">
   <label class="option-label" for="ui-scale-slider">
-    Interface Scale <span class="scale-value">{scalePercent}%</span>
+    {$t('settings.appearance.interface_scale')} <span class="scale-value">{scalePercent}%</span>
   </label>
   <input
     id="ui-scale-slider"
@@ -74,6 +80,20 @@
     class="scale-slider"
   />
   <div class="scale-labels"><span>80%</span><span>100%</span><span>150%</span></div>
+</div>
+
+<div class="option-group">
+  <label class="option-label" for="language-select">{$t('settings.appearance.language')}</label>
+  <select
+    id="language-select"
+    class="lang-select"
+    value={$language}
+    onchange={(e) => language.set(e.target.value)}
+  >
+    {#each LANGUAGE_OPTIONS as opt (opt.code)}
+      <option value={opt.code}>{opt.label}</option>
+    {/each}
+  </select>
 </div>
 
 <style>
@@ -141,5 +161,20 @@
     font: var(--md-sys-typescale-label-medium);
     color: var(--md-sys-color-on-surface-variant);
     opacity: 0.6;
+  }
+  .lang-select {
+    width: 100%;
+    padding: var(--aegis-space-4) var(--aegis-space-5);
+    background: var(--md-sys-color-surface-container);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-small);
+    color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-body-medium);
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .lang-select:focus {
+    outline: 2px solid var(--md-sys-color-primary);
+    outline-offset: 2px;
   }
 </style>

@@ -3,6 +3,7 @@
   import ActivityFeed from './ActivityFeed.svelte';
   import GroupedFeed from './GroupedFeed.svelte';
   import NetworkPanel from './NetworkPanel.svelte';
+  import { t } from '../i18n/index.js';
 
   let view = $state('feed');
   let agentFilter = $state('all');
@@ -14,10 +15,10 @@
 <div class="activity-tab">
   <div class="view-toggle">
     <button class="toggle-pill" class:active={view === 'feed'} onclick={() => (view = 'feed')}
-      >Feed</button
+      >{$t('activity.tabs.feed')}</button
     >
     <button class="toggle-pill" class:active={view === 'network'} onclick={() => (view = 'network')}
-      >Network</button
+      >{$t('activity.tabs.network')}</button
     >
   </div>
 

@@ -1,5 +1,6 @@
 <script>
   import { events, network } from '../stores/ipc.js';
+  import { t } from '../i18n/index.js';
 
   let { agentFilter = 'all', severityFilter = 'all', typeFilter = 'all' } = $props();
 
@@ -19,10 +20,10 @@
   }
 
   function badgeLabel(ev, sev) {
-    if (sev === 'critical') return 'DENIED';
-    if (ev.reason?.startsWith('AI agent config')) return 'CONFIG';
-    if (ev.sensitive || sev === 'high') return 'SENSITIVE';
-    if (sev === 'medium') return 'DELETED';
+    if (sev === 'critical') return $t('activity.feed.severity.denied');
+    if (ev.reason?.startsWith('AI agent config')) return $t('activity.feed.severity.config');
+    if (ev.sensitive || sev === 'high') return $t('activity.feed.severity.sensitive');
+    if (sev === 'medium') return $t('activity.feed.severity.deleted');
     return '';
   }
 
@@ -89,7 +90,7 @@
 
 <div class="feed-scroll">
   {#if filtered.length === 0}
-    <div class="feed-empty">No events to display</div>
+    <div class="feed-empty">{$t('activity.feed.no_events')}</div>
   {:else}
     {#each filtered as ev, i (`${ev.timestamp}-${ev.agent}-${i}`)}
       {@const sev = getSeverity(ev)}
