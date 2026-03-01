@@ -41,8 +41,8 @@
 <p align="center">
   <a href="#how-it-works">📖 Docs</a> ·
   <a href="#download">💾 Download</a> ·
-  <a href="https://github.com/antropos17/Aegis/issues/new?template=bug-report.md">🐛 Report Bug</a> ·
-  <a href="https://github.com/antropos17/Aegis/issues/new?template=feature-request.md">💡 Feature Request</a> ·
+  <a href="https://github.com/antropos17/Aegis/issues/new?template=01-bug-report.yml">🐛 Report Bug</a> ·
+  <a href="https://github.com/antropos17/Aegis/issues/new?template=02-feature-request.yml">💡 Feature Request</a> ·
   <a href="CONTRIBUTING.md">🤝 Contributing</a>
 </p>
 
@@ -87,7 +87,7 @@ AEGIS is an independent, open-source monitoring layer. It watches AI agent behav
 | Monitors file access | ✅ | ❌ | ❌ | ❌ |
 | Detects local LLMs | ✅ | ❌ | ❌ | ❌ |
 | CLI JSON output | ✅ | ❌ | ✅ | ❌ |
-| Agent database | 98 agents | Unknown | Unknown | Unknown |
+| Agent database | 106 agents | Unknown | Unknown | Unknown |
 | Anomaly scoring | 4-axis | N/A | N/A | N/A |
 
 > **AEGIS is the only open-source, local-first AI agent monitor.** Enterprise tools focus on prompt injection and API gateway security. AEGIS focuses on what agents actually do on your machine.
@@ -119,7 +119,7 @@ No Node.js required. Download, install, run.
 
 ## What It Monitors
 
-- **Processes**: detects 98 AI agents by matching running processes against known signatures. Resolves parent-child process trees to find agents inside editors (e.g. Copilot in VS Code).
+- **Processes**: detects 106 AI agents by matching running processes against known signatures. Resolves parent-child process trees to find agents inside editors (e.g. Copilot in VS Code).
 - **Files**: watches sensitive directories (`.ssh`, `.aws`, `.gnupg`, `.env*`, cloud configs) and 27 AI agent config dirs. Classifies access against 70+ sensitive file patterns.
 - **Network**: scans outbound TCP connections per agent PID. Reverse DNS with domain classification. Known API endpoints vs. unknown/suspicious destinations.
 - **Behavior**: rolling 10-session baselines per agent. Multi-dimensional anomaly scoring, 4-axis breakdown: Network (0.30), FileSystem (0.25), Process (0.25), Baseline (0.20).
@@ -130,7 +130,7 @@ No Node.js required. Download, install, run.
 ## Features
 
 **Detection**
-- 98 known agent signatures + wildcard matching for unknown agents
+- 106 known agent signatures + wildcard matching for unknown agents
 - Parent chain resolution with IDE host annotation
 - AI agent config directory protection (Hudson Rock threat vector)
 - Per-agent risk scoring with time decay and trust grades (A+ through F)
@@ -149,6 +149,8 @@ No Node.js required. Download, install, run.
 - Agent cards with trust bars, risk scores, expandable details
 - Protection presets: Paranoid / Strict / Balanced / Developer
 - Dark/light neumorphic theme
+- Toast notifications (success/warning/error with auto-dismiss)
+- Browser-only demo mode (no Electron required)
 
 **Export**
 - JSON, CSV, HTML report generation
@@ -236,7 +238,7 @@ Everything flows to the dashboard via Electron IPC. AI analysis only calls the A
 
 ## Agent Database
 
-98 agents in [`src/shared/agent-database.json`](src/shared/agent-database.json), organized by category:
+106 agents in [`src/shared/agent-database.json`](src/shared/agent-database.json), organized by category:
 
 - **Coding assistants**: Claude Code, GitHub Copilot, OpenAI Codex, Cursor, Windsurf, Tabnine, Amazon Q, Cody, Aider
 - **Autonomous agents**: Devin, Manus AI, OpenHands, SWE-Agent, AutoGPT, BabyAGI, CrewAI
@@ -257,7 +259,7 @@ cd Aegis
 npm install
 npm run dev          # Development mode
 npm run build        # Production build (electron-builder)
-npm test             # Run 408 tests
+npm test             # Run 436 tests
 npm run lint         # Check formatting
 ```
 
@@ -265,7 +267,7 @@ npm run lint         # Check formatting
 
 ## Testing
 
-408 tests across 23 test files. Covers process scanning, file classification, network monitoring, risk scoring, anomaly detection, config management, baselines, logging, CLI, and platform parsers. Uses [Vitest](https://vitest.dev/) with `v8` coverage.
+436 tests across 25 test files. Covers process scanning, file classification, network monitoring, risk scoring, anomaly detection, config management, baselines, logging, CLI, platform parsers, toast notifications, and demo mode. Uses [Vitest](https://vitest.dev/) with `v8` coverage.
 
 ```bash
 npm test              # run all tests once
