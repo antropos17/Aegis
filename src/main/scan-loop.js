@@ -6,11 +6,18 @@
  */
 'use strict';
 
+const { detectOllamaModels, detectLMStudioModels } = require('./llm-runtime-detector');
+
 let scanInterval = null;
 let fileScanInterval = null;
 let netInterval = null;
 /** @type {Object} Injected dependencies */
 let deps = {};
+/** @type {{ollama: {running: boolean, models: string[]}, lmstudio: {running: boolean, models: string[]}}} */
+let latestLocalModels = {
+  ollama: { running: false, models: [] },
+  lmstudio: { running: false, models: [] },
+};
 // Event dedup — same agent + same file within 30s → suppress, track count
 const eventDedupMap = new Map();
 
@@ -153,11 +160,42 @@ async function doProcessScan() {
         });
     }
     const scores = {};
-    for (const a of agents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent);
+    for (const a of agents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent).score;
     sendToRenderer('anomaly-scores', scores);
     if (result.changed) doNetworkScan();
+    await enrichWithLocalModels(agents);
   } catch (err) {
     logger.error('main', 'Process scan failed', { error: err.message });
+  }
+}
+
+/**
+ * Probe Ollama/LM Studio APIs and enrich matching agents with localModels.
+ * If runtime is responding but no matching agent in list, inject a synthetic agent.
+ * @param {Array} agents @since v0.4.0
+ */
+async function enrichWithLocalModels(agents) {
+  const [ollama, lmstudio] = await Promise.all([detectOllamaModels(), detectLMStudioModels()]);
+  latestLocalModels = { ollama, lmstudio };
+  attachModels(agents, 'Ollama', ollama);
+  attachModels(agents, 'LM Studio', lmstudio);
+}
+
+/** @param {Array} agents @param {string} name @param {{running:boolean,models:string[]}} info */
+function attachModels(agents, name, info) {
+  if (!info.running) return;
+  const existing = agents.find((a) => a.agent === name);
+  if (existing) {
+    existing.localModels = info.models;
+  } else {
+    agents.push({
+      agent: name,
+      process: name.toLowerCase().replace(/\s/g, '-'),
+      pid: 0,
+      status: 'running',
+      category: 'local-llm-runtime',
+      localModels: info.models,
+    });
   }
 }
 
@@ -203,6 +241,11 @@ function init(injected) {
   deps = injected;
 }
 
+/** @returns {{ollama: {running:boolean,models:string[]}, lmstudio: {running:boolean,models:string[]}}} */
+function getLatestLocalModels() {
+  return latestLocalModels;
+}
+
 module.exports = {
   init,
   startScanIntervals,
@@ -211,4 +254,5 @@ module.exports = {
   staggeredStartup,
   dedupFileEvent,
   logAuditForFile,
+  getLatestLocalModels,
 };

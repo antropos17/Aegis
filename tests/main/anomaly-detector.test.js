@@ -11,8 +11,10 @@ describe('anomaly-detector', () => {
     // Clear require cache to get fresh module instances (with fresh deviationWarningsSent)
     const anomalyPath = require.resolve('../../src/main/anomaly-detector.js');
     const baselinesPath = require.resolve('../../src/main/baselines.js');
+    const scoringPath = require.resolve('../../src/main/scoring-utils.js');
     delete require.cache[anomalyPath];
     delete require.cache[baselinesPath];
+    delete require.cache[scoringPath];
 
     // Load real baselines module, then manipulate its internal data
     bl = require('../../src/main/baselines.js');
@@ -59,21 +61,23 @@ describe('anomaly-detector', () => {
   }
 
   describe('calculateAnomalyScore', () => {
-    it('returns 0 when no session data exists', () => {
-      expect(anomaly.calculateAnomalyScore('Unknown')).toBe(0);
+    it('returns result with score 0 when no session data exists', () => {
+      const result = anomaly.calculateAnomalyScore('Unknown');
+      expect(result.score).toBe(0);
+      expect(result.dimensions).toBeDefined();
     });
 
-    it('returns 0 when no baseline exists', () => {
+    it('returns score 0 when no baseline exists', () => {
       bl.ensureSessionData('Test');
-      expect(anomaly.calculateAnomalyScore('Test')).toBe(0);
+      expect(anomaly.calculateAnomalyScore('Test').score).toBe(0);
     });
 
-    it('returns 0 when session count < 3', () => {
+    it('returns score 0 when session count < 3', () => {
       setupAgent('Test', {}, { sessionCount: 2 });
-      expect(anomaly.calculateAnomalyScore('Test')).toBe(0);
+      expect(anomaly.calculateAnomalyScore('Test').score).toBe(0);
     });
 
-    it('returns 0 for normal behavior within baselines', () => {
+    it('returns score 0 for normal behavior within baselines', () => {
       setupAgent('Test', {
         files: new Set(['a.js', 'b.js']),
         sensitiveCount: 1,
@@ -82,10 +86,10 @@ describe('anomaly-detector', () => {
         directories: new Set(),
         activeHours: new Set([10]),
       }, {});
-      expect(anomaly.calculateAnomalyScore('Test')).toBe(0);
+      expect(anomaly.calculateAnomalyScore('Test').score).toBe(0);
     });
 
-    it('scores file volume deviation (>3x triggers points)', () => {
+    it('scores file volume deviation via filesystem dimension', () => {
       setupAgent('Test', {
         files: new Set(Array.from({ length: 10 }, (_, i) => `f${i}.js`)),
         sensitiveCount: 0,
@@ -94,11 +98,13 @@ describe('anomaly-detector', () => {
         directories: new Set(),
         activeHours: new Set(),
       }, { averages: { filesPerSession: 2, sensitivePerSession: 0 } });
-      const score = anomaly.calculateAnomalyScore('Test');
-      expect(score).toBe(20);
+      const result = anomaly.calculateAnomalyScore('Test');
+      // filesystem: fileVol = min(50, round((5-1)*8)) = 32, weight 0.25 → 8
+      expect(result.score).toBe(8);
+      expect(result.dimensions.filesystem.score).toBe(32);
     });
 
-    it('caps file volume at 30 points', () => {
+    it('caps filesystem dimension at 100', () => {
       setupAgent('Test', {
         files: new Set(Array.from({ length: 100 }, (_, i) => `f${i}`)),
         sensitiveCount: 0,
@@ -107,11 +113,13 @@ describe('anomaly-detector', () => {
         directories: new Set(),
         activeHours: new Set(),
       }, { averages: { filesPerSession: 2, sensitivePerSession: 0 } });
-      const score = anomaly.calculateAnomalyScore('Test');
-      expect(score).toBe(30);
+      const result = anomaly.calculateAnomalyScore('Test');
+      // filesystem: fileVol = min(50, round((50-1)*8)) = 50, weight 0.25 → 13
+      expect(result.dimensions.filesystem.score).toBe(50);
+      expect(result.score).toBe(13);
     });
 
-    it('scores sensitive count deviation', () => {
+    it('scores sensitive count deviation via filesystem dimension', () => {
       setupAgent('Test', {
         files: new Set(['a']),
         sensitiveCount: 10,
@@ -120,11 +128,13 @@ describe('anomaly-detector', () => {
         directories: new Set(),
         activeHours: new Set(),
       }, { averages: { filesPerSession: 10, sensitivePerSession: 2 } });
-      const score = anomaly.calculateAnomalyScore('Test');
-      expect(score).toBe(20);
+      const result = anomaly.calculateAnomalyScore('Test');
+      // filesystem: sensVol = min(50, round((5-1)*8)) = 32, weight 0.25 → 8
+      expect(result.dimensions.filesystem.score).toBe(32);
+      expect(result.score).toBe(8);
     });
 
-    it('caps sensitive count at 25 points', () => {
+    it('caps sensitive contribution at 50 within filesystem', () => {
       setupAgent('Test', {
         files: new Set(['a']),
         sensitiveCount: 200,
@@ -133,11 +143,12 @@ describe('anomaly-detector', () => {
         directories: new Set(),
         activeHours: new Set(),
       }, { averages: { filesPerSession: 10, sensitivePerSession: 2 } });
-      const score = anomaly.calculateAnomalyScore('Test');
-      expect(score).toBe(25);
+      const result = anomaly.calculateAnomalyScore('Test');
+      expect(result.dimensions.filesystem.score).toBe(50);
+      expect(result.score).toBe(13);
     });
 
-    it('scores new sensitive categories (10pts each, max 20)', () => {
+    it('scores new sensitive categories via process dimension', () => {
       setupAgent('Test', {
         files: new Set(['a']),
         sensitiveCount: 0,
@@ -146,8 +157,10 @@ describe('anomaly-detector', () => {
         directories: new Set(),
         activeHours: new Set(),
       }, { averages: { filesPerSession: 10, sensitivePerSession: 0, knownSensitiveReasons: [] } });
-      const score = anomaly.calculateAnomalyScore('Test');
-      expect(score).toBe(20);
+      const result = anomaly.calculateAnomalyScore('Test');
+      // process: catScore = min(60, 3*20) = 60, weight 0.25 → 15
+      expect(result.dimensions.process.score).toBe(60);
+      expect(result.score).toBe(15);
     });
 
     it('does not score known sensitive categories', () => {
@@ -159,10 +172,10 @@ describe('anomaly-detector', () => {
         directories: new Set(),
         activeHours: new Set(),
       }, { averages: { filesPerSession: 10, sensitivePerSession: 0, knownSensitiveReasons: ['SSH key'] } });
-      expect(anomaly.calculateAnomalyScore('Test')).toBe(0);
+      expect(anomaly.calculateAnomalyScore('Test').score).toBe(0);
     });
 
-    it('scores new network endpoints (5pts each, max 15)', () => {
+    it('scores new network endpoints via network dimension', () => {
       setupAgent('Test', {
         files: new Set(),
         sensitiveCount: 0,
@@ -171,8 +184,10 @@ describe('anomaly-detector', () => {
         directories: new Set(),
         activeHours: new Set(),
       }, { averages: { filesPerSession: 0, sensitivePerSession: 0 } });
-      const score = anomaly.calculateAnomalyScore('Test');
-      expect(score).toBe(15);
+      const result = anomaly.calculateAnomalyScore('Test');
+      // network: min(100, 4*33) = 100, weight 0.30 → 30
+      expect(result.dimensions.network.score).toBe(100);
+      expect(result.score).toBe(30);
     });
 
     it('does not score endpoints seen in recent sessions', () => {
@@ -193,10 +208,10 @@ describe('anomaly-detector', () => {
           { networkEndpoints: [] },
         ],
       });
-      expect(anomaly.calculateAnomalyScore('Test')).toBe(0);
+      expect(anomaly.calculateAnomalyScore('Test').score).toBe(0);
     });
 
-    it('scores unusual timing (+10 for unseen hour)', () => {
+    it('scores unusual timing via baseline dimension', () => {
       const hist = new Array(24).fill(1);
       hist[3] = 0;
       setupAgent('Test', {
@@ -207,7 +222,10 @@ describe('anomaly-detector', () => {
         directories: new Set(),
         activeHours: new Set([3]),
       }, { averages: { filesPerSession: 0, sensitivePerSession: 0, hourHistogram: hist } });
-      expect(anomaly.calculateAnomalyScore('Test')).toBe(10);
+      const result = anomaly.calculateAnomalyScore('Test');
+      // baseline: 1 unseen hour → 50, weight 0.20 → 10
+      expect(result.dimensions.baseline.score).toBe(50);
+      expect(result.score).toBe(10);
     });
 
     it('does not score timing for known hours', () => {
@@ -219,28 +237,31 @@ describe('anomaly-detector', () => {
         directories: new Set(),
         activeHours: new Set([10, 14]),
       }, { averages: { filesPerSession: 0, sensitivePerSession: 0, hourHistogram: new Array(24).fill(1) } });
-      expect(anomaly.calculateAnomalyScore('Test')).toBe(0);
+      expect(anomaly.calculateAnomalyScore('Test').score).toBe(0);
     });
 
-    it('caps total score at 100', () => {
+    it('caps total composite score at 100', () => {
       const hist = new Array(24).fill(1);
       hist[3] = 0;
+      hist[4] = 0;
       setupAgent('Test', {
         files: new Set(Array.from({ length: 200 }, (_, i) => `f${i}`)),
         sensitiveCount: 100,
         sensitiveReasons: new Set(['a', 'b', 'c']),
         endpoints: new Set(['e1', 'e2', 'e3', 'e4']),
-        activeHours: new Set([3]),
-        directories: new Set(),
+        activeHours: new Set([3, 4]),
+        directories: new Set(Array.from({ length: 10 }, (_, i) => `/dir${i}`)),
       }, {
         averages: {
           filesPerSession: 1,
           sensitivePerSession: 1,
           knownSensitiveReasons: [],
+          typicalDirectories: [],
           hourHistogram: hist,
         },
       });
-      expect(anomaly.calculateAnomalyScore('Test')).toBe(100);
+      // network: 100*0.30=30, filesystem: 100*0.25=25, process: 100*0.25=25, baseline: 100*0.20=20
+      expect(anomaly.calculateAnomalyScore('Test').score).toBe(100);
     });
 
     it('handles null hourHistogram gracefully', () => {
@@ -252,7 +273,151 @@ describe('anomaly-detector', () => {
         directories: new Set(),
         activeHours: new Set([5]),
       }, { averages: { filesPerSession: 0, sensitivePerSession: 0, hourHistogram: null } });
-      expect(anomaly.calculateAnomalyScore('Test')).toBe(10);
+      // baseline: null histogram → all zeros → hour 5 is unseen → 50 * 0.20 = 10
+      expect(anomaly.calculateAnomalyScore('Test').score).toBe(10);
+    });
+  });
+
+  describe('dimensions breakdown', () => {
+    it('returns all 4 dimensions with score, weight, and factors', () => {
+      setupAgent('Test', {
+        files: new Set(['a']),
+        sensitiveCount: 0,
+        sensitiveReasons: new Set(),
+        endpoints: new Set(),
+        directories: new Set(),
+        activeHours: new Set([10]),
+      }, {});
+      const { dimensions } = anomaly.calculateAnomalyScore('Test');
+      for (const key of ['network', 'filesystem', 'process', 'baseline']) {
+        expect(dimensions[key]).toHaveProperty('score');
+        expect(dimensions[key]).toHaveProperty('weight');
+        expect(dimensions[key]).toHaveProperty('factors');
+        expect(Array.isArray(dimensions[key].factors)).toBe(true);
+      }
+    });
+
+    it('network dimension lists new endpoint factors', () => {
+      setupAgent('Test', {
+        files: new Set(),
+        sensitiveCount: 0,
+        sensitiveReasons: new Set(),
+        endpoints: new Set(['evil.com:443', 'bad.net:80']),
+        directories: new Set(),
+        activeHours: new Set(),
+      }, { averages: { filesPerSession: 0, sensitivePerSession: 0 } });
+      const { dimensions } = anomaly.calculateAnomalyScore('Test');
+      expect(dimensions.network.score).toBe(66);
+      expect(dimensions.network.weight).toBe(0.3);
+      expect(dimensions.network.factors).toHaveLength(2);
+      expect(dimensions.network.factors[0]).toContain('new endpoint');
+    });
+
+    it('filesystem dimension describes file volume and sensitive spikes', () => {
+      setupAgent('Test', {
+        files: new Set(Array.from({ length: 20 }, (_, i) => `f${i}`)),
+        sensitiveCount: 15,
+        sensitiveReasons: new Set(),
+        endpoints: new Set(),
+        directories: new Set(),
+        activeHours: new Set(),
+      }, { averages: { filesPerSession: 2, sensitivePerSession: 2 } });
+      const { dimensions } = anomaly.calculateAnomalyScore('Test');
+      expect(dimensions.filesystem.score).toBeGreaterThan(0);
+      expect(dimensions.filesystem.weight).toBe(0.25);
+      expect(dimensions.filesystem.factors.length).toBeGreaterThanOrEqual(2);
+      expect(dimensions.filesystem.factors.some((f) => f.includes('file volume'))).toBe(true);
+      expect(dimensions.filesystem.factors.some((f) => f.includes('sensitive access'))).toBe(true);
+    });
+
+    it('process dimension includes new categories and directory factors', () => {
+      setupAgent('Test', {
+        files: new Set(['a']),
+        sensitiveCount: 0,
+        sensitiveReasons: new Set(['SSH key', 'AWS credentials']),
+        endpoints: new Set(),
+        directories: new Set(['/a', '/b', '/c', '/d', '/e']),
+        activeHours: new Set(),
+      }, {
+        averages: {
+          filesPerSession: 10,
+          sensitivePerSession: 0,
+          knownSensitiveReasons: [],
+          typicalDirectories: [],
+        },
+      });
+      const { dimensions } = anomaly.calculateAnomalyScore('Test');
+      expect(dimensions.process.score).toBeGreaterThan(0);
+      expect(dimensions.process.weight).toBe(0.25);
+      expect(dimensions.process.factors.some((f) => f.includes('new sensitive category'))).toBe(true);
+      expect(dimensions.process.factors.some((f) => f.includes('new directories'))).toBe(true);
+    });
+
+    it('baseline dimension lists unusual hour factors', () => {
+      const hist = new Array(24).fill(1);
+      hist[2] = 0;
+      hist[3] = 0;
+      setupAgent('Test', {
+        files: new Set(),
+        sensitiveCount: 0,
+        sensitiveReasons: new Set(),
+        endpoints: new Set(),
+        directories: new Set(),
+        activeHours: new Set([2, 3]),
+      }, { averages: { filesPerSession: 0, sensitivePerSession: 0, hourHistogram: hist } });
+      const { dimensions } = anomaly.calculateAnomalyScore('Test');
+      expect(dimensions.baseline.score).toBe(100);
+      expect(dimensions.baseline.factors).toHaveLength(2);
+      expect(dimensions.baseline.factors[0]).toContain('02:00');
+      expect(dimensions.baseline.factors[1]).toContain('03:00');
+    });
+
+    it('composite equals weighted sum of dimension scores', () => {
+      const hist = new Array(24).fill(1);
+      hist[3] = 0;
+      setupAgent('Test', {
+        files: new Set(Array.from({ length: 10 }, (_, i) => `f${i}`)),
+        sensitiveCount: 0,
+        sensitiveReasons: new Set(['SSH key']),
+        endpoints: new Set(['evil.com:443']),
+        directories: new Set(),
+        activeHours: new Set([3]),
+      }, {
+        averages: {
+          filesPerSession: 2,
+          sensitivePerSession: 0,
+          knownSensitiveReasons: [],
+          hourHistogram: hist,
+        },
+      });
+      const { score, dimensions } = anomaly.calculateAnomalyScore('Test');
+      const expected = Math.min(100, Math.round(
+        dimensions.network.score * dimensions.network.weight +
+        dimensions.filesystem.score * dimensions.filesystem.weight +
+        dimensions.process.score * dimensions.process.weight +
+        dimensions.baseline.score * dimensions.baseline.weight,
+      ));
+      expect(score).toBe(expected);
+    });
+
+    it('all dimensions zero for normal behavior', () => {
+      setupAgent('Test', {
+        files: new Set(['a.js']),
+        sensitiveCount: 0,
+        sensitiveReasons: new Set(),
+        endpoints: new Set(),
+        directories: new Set(),
+        activeHours: new Set([10]),
+      }, {});
+      const { dimensions } = anomaly.calculateAnomalyScore('Test');
+      expect(dimensions.network.score).toBe(0);
+      expect(dimensions.filesystem.score).toBe(0);
+      expect(dimensions.process.score).toBe(0);
+      expect(dimensions.baseline.score).toBe(0);
+      expect(dimensions.network.factors).toEqual([]);
+      expect(dimensions.filesystem.factors).toEqual([]);
+      expect(dimensions.process.factors).toEqual([]);
+      expect(dimensions.baseline.factors).toEqual([]);
     });
   });
 
