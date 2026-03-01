@@ -16,16 +16,16 @@
 
 # AEGIS — Independent AI Oversight Layer
 
-Consumer desktop app monitoring AI agents on local PC. Electron 33 + Svelte 5 + Vite 7. 106 agents in database. 429 tests. All data stays local — no telemetry.
+Consumer desktop app monitoring AI agents on local PC. Electron 33 + Svelte 5 + Vite 7. 106 agents in database. 436 tests (25 files). All data stays local — no telemetry.
 
 ## Tech Stack
 Electron 33 | Svelte 5 (runes) | Vite 7 | chokidar@3 | PowerShell (process/network scanning) | JSONL audit logs
 
 ## Key Architecture
-- **Main process:** 17 CommonJS modules (main.js orchestrator, process-scanner, file-watcher, network-monitor, anomaly-detector, audit-logger, ai-analysis, scan-loop, config-manager, baselines, exports, tray-icon, cli, preload, ipc-handlers, process-utils, llm-runtime-detector)
-- **Renderer:** 22 Svelte 5 components, 3 stores (ipc, risk, theme), scoped CSS + tokens.css/global.css
+- **Main process:** 19 CommonJS modules (main.js orchestrator, process-scanner, file-watcher, network-monitor, anomaly-detector, audit-logger, ai-analysis, scan-loop, config-manager, baselines, exports, tray-icon, cli, preload, ipc-handlers, process-utils, llm-runtime-detector, logger, scoring-utils)
+- **Renderer:** 32 Svelte 5 components, 4 stores (ipc, risk, theme, toast) + 2 demo stores, scoped CSS + tokens.css/global.css
 - **Shared:** constants.js (70+ sensitive file rules), agent-database.json (106 agents)
-- **IPC:** preload.js bridge — 26 invoke methods + 8 event listeners
+- **IPC:** preload.js bridge — 39 invoke methods + 10 event channels
 
 ## Code Conventions
 - Main = CommonJS (`require`/`module.exports`), Renderer = ES modules (`import`/`export`)
