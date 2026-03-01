@@ -8,7 +8,10 @@
   import ReportsTab from './lib/components/ReportsTab.svelte';
   import { theme, uiScale, toggleTheme } from './lib/stores/theme.js';
 
+  const TAB_IDS = ['shield', 'activity', 'rules', 'reports'];
+
   let activeTab = $state('shield');
+  let optionsOpen = $state(false);
 
   $effect(() => {
     document.documentElement.dataset.theme = $theme;
@@ -22,9 +25,50 @@
   $effect(() => {
     document.documentElement.style.setProperty('--aegis-ui-scale', String($uiScale));
   });
+
+  $effect(() => {
+    /** @param {KeyboardEvent} e */
+    function handleKeydown(e) {
+      const tag = document.activeElement?.tagName;
+      const isInput =
+        tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable;
+
+      if (isInput && e.key !== 'Escape') return;
+
+      switch (e.key) {
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+          activeTab = TAB_IDS[parseInt(e.key) - 1];
+          break;
+        case 's':
+        case 'S':
+          optionsOpen = true;
+          break;
+        case 't':
+        case 'T':
+          toggleTheme();
+          break;
+        case 'Escape':
+          optionsOpen = false;
+          break;
+        case '/': {
+          e.preventDefault();
+          /** @type {HTMLInputElement | null} */
+          const input = document.querySelector('input[type="search"], input[type="text"]');
+          input?.focus();
+          break;
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeydown);
+    return () => window.removeEventListener('keydown', handleKeydown);
+  });
 </script>
 
-<Header />
+<Header bind:optionsOpen />
 
 <div class="app-shell">
   <nav class="app-nav">
@@ -33,7 +77,12 @@
 
   <main class="app-content">
     {#key activeTab}
-      <div class="tab-content">
+      <div
+        class="tab-content"
+        id="tabpanel-{activeTab}"
+        role="tabpanel"
+        aria-labelledby="tab-{activeTab}"
+      >
         {#if activeTab === 'shield'}
           <ShieldTab />
         {:else if activeTab === 'activity'}
@@ -87,6 +136,12 @@
     to {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tab-content {
+      animation: none;
     }
   }
 </style>

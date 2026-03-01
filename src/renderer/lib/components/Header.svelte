@@ -3,7 +3,7 @@
   import { enrichedAgents } from '../stores/risk.js';
   import OptionsPanel from './OptionsPanel.svelte';
 
-  let optionsOpen = $state(false);
+  let { optionsOpen = $bindable(false) } = $props();
 
   let shieldScore = $derived.by(() => {
     const list = $enrichedAgents;
@@ -39,6 +39,7 @@
   <button
     class="icon-btn"
     aria-label="Settings"
+    aria-keyshortcuts="s"
     onclick={() => {
       optionsOpen = true;
     }}
