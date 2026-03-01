@@ -30,6 +30,8 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 │  │  │  config-manager.js     │  │     │  │  ipc.js (store)        │  │  │
 │  │  │  exports.js            │  │     │  │  risk.js (store)       │  │  │
 │  │  │  tray-icon.js          │  │     │  │  theme.js (store)      │  │  │
+│  │  │  logger.js             │  │     │  │  toast.js (store)      │  │  │
+│  │  │  scoring-utils.js      │  │     │  │                        │  │  │
 │  │  └────────────────────────┘  │     │  └────────────────────────┘  │  │
 │  │                              │     │                              │  │
 │  │          main.js             │     │       App.svelte              │  │
@@ -37,7 +39,7 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 │  └───────────────┬──────────────┘     └──────────────┬───────────────┘  │
 │                  │          preload.js                │                  │
 │                  └─────── (IPC bridge) ───────────────┘                  │
-│                     contextBridge API (20+ channels)                     │
+│                     contextBridge API (49 channels)                     │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -55,7 +57,7 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 ### What's Covered Now
 
 #### 1. Process Intelligence — `process-scanner.js`
-- **What it sees:** All running processes matched against 94 agent signatures
+- **What it sees:** All running processes matched against 106 agent signatures
 - **How:** `tasklist /FO CSV /NH` on Windows, pattern matching against known process names
 - **Depth:** Parent-child process tree resolution via PowerShell (60s TTL cache), IDE host app detection (e.g., "Copilot inside VS Code"), PID tracking for enter/exit events
 - **Coverage:** ~95% of known AI agents. Unknown agents detected via wildcard patterns.
