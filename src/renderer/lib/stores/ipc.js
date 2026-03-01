@@ -32,5 +32,8 @@ if (!isDemoMode) {
   window.aegis.getStats().then((data) => stats.set(data));
   window.aegis.getResourceUsage().then((data) => resourceUsage.set(data));
 } else {
-  startDemoMode({ agents, events, stats, network, anomalies, resourceUsage });
+  const cleanupDemo = startDemoMode({ agents, events, stats, network, anomalies, resourceUsage });
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => cleanupDemo());
+  }
 }

@@ -50,7 +50,6 @@
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.12em;
-    color: var(--md-sys-color-on-tertiary-container);
     background: var(--md-sys-color-tertiary);
     color: var(--md-sys-color-on-tertiary);
     padding: 2px var(--aegis-space-4);
