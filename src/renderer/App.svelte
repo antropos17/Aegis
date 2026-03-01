@@ -7,6 +7,8 @@
   import RulesTab from './lib/components/RulesTab.svelte';
   import ReportsTab from './lib/components/ReportsTab.svelte';
   import { theme, uiScale, toggleTheme } from './lib/stores/theme.js';
+  import { isDemoMode } from './lib/stores/ipc.js';
+  import DemoBanner from './lib/components/DemoBanner.svelte';
 
   let activeTab = $state('shield');
 
@@ -47,6 +49,10 @@
     {/key}
   </main>
 </div>
+
+{#if isDemoMode}
+  <DemoBanner />
+{/if}
 
 <Footer />
 
