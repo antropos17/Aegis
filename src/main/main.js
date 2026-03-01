@@ -5,6 +5,16 @@
  * @since v0.1.0
  */
 'use strict';
+
+// ═══ CLI MODE (before Electron imports) ═══
+const _cliFlags = new Set(['--scan-json', '--version', '--help']);
+if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
+  require('./cli')
+    .handleCLI()
+    .then((code) => process.exit(code ?? 0));
+  return; // CJS module-scope return — stops rest of file from executing
+}
+
 const { app, BrowserWindow, globalShortcut } = require('electron');
 const path = require('path');
 

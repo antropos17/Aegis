@@ -16,6 +16,7 @@ const exporter = require('./exports');
 const audit = require('./audit-logger');
 const logger = require('./logger');
 const { killProcess, suspendProcess, resumeProcess } = require('./platform');
+const scanLoop = require('./scan-loop');
 
 let deps = {};
 
@@ -272,6 +273,9 @@ function register() {
     shell.showItemInFolder(filePath);
     return { success: true };
   });
+
+  // ── Local LLM models ──
+  ipcMain.handle('get-local-models', () => scanLoop.getLatestLocalModels());
 
   // ── Process control ──
   ipcMain.handle('kill-process', (_e, pid) => killProcess(pid));
