@@ -6,7 +6,7 @@ AEGIS is building an independent AI oversight layer — a tool that monitors wha
 
 ```bash
 git clone https://github.com/antropos17/Aegis.git
-cd AEGIS
+cd Aegis
 npm install
 npm start
 ```
