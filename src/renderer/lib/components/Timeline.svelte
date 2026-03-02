@@ -9,6 +9,24 @@
   import TimelineCanvas from './TimelineCanvas.svelte';
   import TimelineControls from './TimelineControls.svelte';
 
+  /** @type {{ active?: boolean }} */
+  let { active = true } = $props();
+
+  /** @type {any[][]} */
+  let cachedEvents = $state([]);
+  /** @type {any[]} */
+  let cachedNetwork = $state([]);
+
+  $effect(() => {
+    if (!active) return;
+    cachedEvents = $events;
+  });
+
+  $effect(() => {
+    if (!active) return;
+    cachedNetwork = $network;
+  });
+
   const SVG_H = 36;
   const MID = 14;
   const TICK_TOP = 24;
@@ -143,8 +161,8 @@
   let tooltipText = $state('');
 
   let allLiveEvents = $derived.by(() => {
-    const fileEvs = $events.flat().map((ev) => ({ ...ev, _type: 'file' }));
-    const netEvs = $network.map((conn) => ({
+    const fileEvs = cachedEvents.flat().map((ev) => ({ ...ev, _type: 'file' }));
+    const netEvs = cachedNetwork.map((conn) => ({
       agent: conn.agent || 'Unknown',
       timestamp: conn.timestamp || Date.now(),
       _type: 'network',
@@ -205,6 +223,7 @@
 
   $effect(() => {
     if (
+      active &&
       !following &&
       !historyExhausted &&
       !loadingHistory &&

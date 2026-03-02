@@ -4,6 +4,9 @@
   import AgentDatabaseCrud from './AgentDatabaseCrud.svelte';
   import { t } from '../i18n/index.js';
 
+  /** @type {{ active?: boolean }} */
+  let { active = true } = $props();
+
   let subTab = $state('permissions');
   let activePreset = $state('balanced');
   let permissions = $state({});

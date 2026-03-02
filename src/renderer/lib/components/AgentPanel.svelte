@@ -3,17 +3,26 @@
   import AgentCard from './AgentCard.svelte';
   import { t } from '../i18n/index.js';
 
+  /** @type {{ active?: boolean }} */
+  let { active = true } = $props();
+
   let expandedPid = $state(null);
+  let localAgents = $state([]);
+
+  $effect(() => {
+    if (!active) return;
+    localAgents = $enrichedAgents;
+  });
 </script>
 
 <section class="agent-panel">
-  {#if $enrichedAgents.length === 0}
+  {#if localAgents.length === 0}
     <div class="empty-state">
       <span>{$t('agents.no_agents')}</span>
     </div>
   {:else}
     <div class="agent-list">
-      {#each $enrichedAgents as agent (agent.pid)}
+      {#each localAgents as agent (agent.pid)}
         <AgentCard {agent} bind:expandedPid />
       {/each}
     </div>

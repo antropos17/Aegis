@@ -5,6 +5,9 @@
   import NetworkPanel from './NetworkPanel.svelte';
   import { t } from '../i18n/index.js';
 
+  /** @type {{ active?: boolean }} */
+  let { active = true } = $props();
+
   let view = $state('feed');
   let agentFilter = $state('all');
   let severityFilter = $state('all');
@@ -25,12 +28,12 @@
   {#if view === 'feed'}
     <FeedFilters bind:agentFilter bind:severityFilter bind:typeFilter bind:groupByAgent />
     {#if groupByAgent}
-      <GroupedFeed {agentFilter} {severityFilter} {typeFilter} />
+      <GroupedFeed {active} {agentFilter} {severityFilter} {typeFilter} />
     {:else}
-      <ActivityFeed {agentFilter} {severityFilter} {typeFilter} />
+      <ActivityFeed {active} {agentFilter} {severityFilter} {typeFilter} />
     {/if}
   {:else}
-    <NetworkPanel />
+    <NetworkPanel {active} />
   {/if}
 </div>
 

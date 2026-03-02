@@ -5,6 +5,9 @@
   import { t } from '../i18n/index.js';
   import { addToast } from '../stores/toast.js';
 
+  /** @type {{ active?: boolean }} */
+  let { active = true } = $props();
+
   let subTab = $state('overview');
   let exporting = $state(false);
 
@@ -65,7 +68,7 @@
 
   <div class="reports-body">
     {#if subTab === 'overview'}
-      <Reports />
+      <Reports {active} />
     {:else if subTab === 'audit'}
       <AuditLog />
     {:else}

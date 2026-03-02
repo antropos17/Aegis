@@ -3,9 +3,27 @@
   import { enrichedAgents } from '../stores/risk.js';
   import { t } from '../i18n/index.js';
 
+  /** @type {{ active?: boolean }} */
+  let { active = true } = $props();
+
   let agentFilter = $state('all');
   let classFilter = $state('all');
   let sortBy = $state('agent');
+
+  /** @type {any[]} */
+  let cachedNetwork = $state([]);
+  /** @type {any[]} */
+  let cachedAgents = $state([]);
+
+  $effect(() => {
+    if (!active) return;
+    cachedNetwork = $network;
+  });
+
+  $effect(() => {
+    if (!active) return;
+    cachedAgents = $enrichedAgents;
+  });
 
   const CLS_LIST = [
     { value: 'all', key: 'network.classes.all' },
@@ -26,7 +44,7 @@
   }
 
   let sorted = $derived.by(() => {
-    let result = $network;
+    let result = cachedNetwork;
     if (agentFilter !== 'all') result = result.filter((c) => c.agent === agentFilter);
     if (classFilter !== 'all') result = result.filter((c) => classify(c) === classFilter);
     const copy = [...result];
@@ -38,8 +56,8 @@
   });
 
   let counts = $derived.by(() => {
-    const c = { all: $network.length, safe: 0, unknown: 0, flagged: 0 };
-    for (const conn of $network) c[classify(conn)]++;
+    const c = { all: cachedNetwork.length, safe: 0, unknown: 0, flagged: 0 };
+    for (const conn of cachedNetwork) c[classify(conn)]++;
     return c;
   });
 </script>
@@ -47,7 +65,7 @@
 <div class="net-filters">
   <select class="agent-select" bind:value={agentFilter}>
     <option value="all">{$t('network.all_agents')}</option>
-    {#each $enrichedAgents as agent (agent.pid)}
+    {#each cachedAgents as agent (agent.pid)}
       <option value={agent.name}>{agent.name}</option>
     {/each}
   </select>
