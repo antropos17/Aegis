@@ -1,9 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createRequire } from 'module';
 import { EventEmitter } from 'events';
-
-const require = createRequire(import.meta.url);
-const detector = require('../../src/main/llm-runtime-detector.js');
+import detector from '../../src/main/llm-runtime-detector.js';
 
 /**
  * Create a mock http module whose request() returns a controllable
