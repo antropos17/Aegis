@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * @file scoring-utils.js
  * @module main/scoring-utils
@@ -10,16 +11,17 @@
 'use strict';
 
 /**
- * @typedef {Object} DimensionResult
- * @property {number} score - 0-100 score for this dimension
- * @property {string[]} factors - Human-readable descriptions of what triggered the score
+ * @typedef {import('../shared/types').SessionData} SessionData
+ * @typedef {import('../shared/types').AgentBaseline} AgentBaseline
+ * @typedef {import('../shared/types').DimensionScore} DimensionScore
+ * @typedef {Omit<DimensionScore, 'weight'>} DimensionResult
  */
 
 /**
  * Score network dimension: new endpoints not seen in recent sessions.
  * Each new endpoint adds 33 points (max 100).
- * @param {Object} sd - Session data for the agent
- * @param {Object} ab - Agent baseline data
+ * @param {SessionData} sd - Session data for the agent
+ * @param {AgentBaseline} ab - Agent baseline data
  * @returns {DimensionResult}
  * @since v0.3.0
  */
@@ -37,8 +39,8 @@ function scoreNetwork(sd, ab) {
 /**
  * Score filesystem dimension: file volume + sensitive file spikes.
  * File volume and sensitive count each contribute up to 50 points.
- * @param {Object} sd - Session data for the agent
- * @param {Object} ab - Agent baseline data
+ * @param {SessionData} sd - Session data for the agent
+ * @param {AgentBaseline} ab - Agent baseline data
  * @returns {DimensionResult}
  * @since v0.3.0
  */
@@ -71,8 +73,8 @@ function scoreFilesystem(sd, ab) {
 /**
  * Score process dimension: new sensitive categories + new directories.
  * Categories contribute up to 60 points (20 each), directories up to 40.
- * @param {Object} sd - Session data for the agent
- * @param {Object} ab - Agent baseline data
+ * @param {SessionData} sd - Session data for the agent
+ * @param {AgentBaseline} ab - Agent baseline data
  * @returns {DimensionResult}
  * @since v0.3.0
  */
@@ -96,8 +98,8 @@ function scoreProcess(sd, ab) {
 /**
  * Score baseline dimension: unusual timing patterns.
  * Each unseen hour adds 50 points (max 100).
- * @param {Object} sd - Session data for the agent
- * @param {Object} ab - Agent baseline data
+ * @param {SessionData} sd - Session data for the agent
+ * @param {AgentBaseline} ab - Agent baseline data
  * @returns {DimensionResult}
  * @since v0.3.0
  */
