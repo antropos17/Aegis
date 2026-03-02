@@ -138,11 +138,11 @@
   }
 
   .feed-entry.odd {
-    background: rgba(255, 255, 255, 0.01);
+    background: var(--md-sys-color-surface-container-low);
   }
 
   .feed-entry:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--md-sys-color-outline-variant);
   }
 
   .feed-dot {

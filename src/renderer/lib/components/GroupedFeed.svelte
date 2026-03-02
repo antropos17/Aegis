@@ -231,7 +231,7 @@
     padding: var(--aegis-space-4) var(--aegis-space-8);
     background: var(--md-sys-color-surface-container-low);
     border: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
     cursor: pointer;
     font-size: calc(12px * var(--aegis-ui-scale));
     color: var(--md-sys-color-on-surface);
@@ -286,7 +286,7 @@
 
   .group-body {
     padding-left: var(--aegis-space-6);
-    border-left: 2px solid rgba(255, 255, 255, 0.04);
+    border-left: 2px solid var(--md-sys-color-outline-variant);
     margin-left: var(--aegis-space-3);
   }
   .sub-label {
@@ -313,10 +313,10 @@
     transition: background 0.15s ease;
   }
   .event-row.odd {
-    background: rgba(255, 255, 255, 0.01);
+    background: var(--md-sys-color-surface-container-low);
   }
   .event-row:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--md-sys-color-outline-variant);
   }
 
   .feed-dot {

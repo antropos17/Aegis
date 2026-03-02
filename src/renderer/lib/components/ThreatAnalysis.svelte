@@ -335,7 +335,7 @@
     padding: calc(7px * var(--aegis-ui-scale)) calc(18px * var(--aegis-ui-scale));
     align-self: flex-start;
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-full);
     color: var(--md-sys-color-on-surface-variant);
     cursor: pointer;
@@ -344,8 +344,8 @@
     transition: all 0.3s var(--ease-glass);
   }
   .report-btn:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--md-sys-color-outline-variant);
     color: var(--md-sys-color-on-surface);
-    border-color: rgba(255, 255, 255, 0.15);
+    border-color: var(--aegis-border-hover);
   }
 </style>

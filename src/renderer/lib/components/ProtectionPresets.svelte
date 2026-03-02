@@ -103,7 +103,7 @@
 
   .preset-btn:hover {
     background: var(--md-sys-color-surface-container-high);
-    border-color: rgba(255, 255, 255, 0.15);
+    border-color: var(--aegis-border-hover);
   }
 
   .preset-btn.active {
@@ -128,6 +128,6 @@
   }
 
   .preset-btn.active .preset-desc {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--md-sys-color-on-surface-variant);
   }
 </style>
