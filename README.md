@@ -5,13 +5,15 @@
 </p>
 
 <p align="center">
-  <img src="https://github.com/antropos17/Aegis/releases/download/v0.3.0-alpha/demo-trimmed.gif" alt="AEGIS Demo" width="800">
+  <img src="https://github.com/antropos17/Aegis/releases/download/v0.3.1-alpha/demo-trimmed.gif" alt="AEGIS Demo" width="800">
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/github/actions/workflow/status/antropos17/Aegis/ci.yml?style=flat-square&label=CI" alt="CI">
-  <img src="https://img.shields.io/badge/Release-v0.3.0--alpha-orange?style=flat-square" alt="Release">
+  <img src="https://img.shields.io/badge/Release-v0.3.1--alpha-orange?style=flat-square" alt="Release">
+  <img src="https://img.shields.io/badge/Tests-475%20passing-brightgreen?style=flat-square" alt="Tests">
+  <a href="https://github.com/antropos17/Aegis/releases/latest"><img src="https://img.shields.io/github/v/release/antropos17/Aegis?include_prereleases&style=flat-square&label=Latest%20Release" alt="Latest Release"></a>
   <img src="https://img.shields.io/badge/Platform-Win%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform">
 </p>
 
@@ -110,7 +112,7 @@ AEGIS is an independent, open-source monitoring layer. It watches AI agent behav
 
 ## Download
 
-**Windows**: [AEGIS Setup 0.3.0-alpha.exe](https://github.com/antropos17/Aegis/releases/latest) (~82 MB)
+**Windows**: [AEGIS Setup 0.3.1-alpha.exe](https://github.com/antropos17/Aegis/releases/latest) (~82 MB)
 
 No Node.js required. Download, install, run.
 
@@ -251,6 +253,7 @@ Everything flows to the dashboard via Electron IPC. AI analysis only calls the A
 
 ## Screenshots
 
+<!-- TODO: Update screenshots for v0.3.1-alpha — scan badge, false positive marking, HW accel toggle, agent DB contribution link are not shown -->
 <table>
   <tr>
     <td align="center"><img src="docs/screenshots/01-shield-tab.png" width="280"><br><b>Shield Tab</b></td>
