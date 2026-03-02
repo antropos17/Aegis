@@ -15,6 +15,7 @@ function _setExecFileForTest(fn) {
 const fs = require('fs');
 const path = require('path');
 const {
+  isValidPid,
   parsePsOutput,
   parseLsofOutput,
   parseLsofFileHandles,
@@ -185,6 +186,8 @@ function parseSsOutput(stdout, pidSet) {
  * @returns {Promise<string[]>}
  */
 function getFileHandles(pid) {
+  pid = Number(pid);
+  if (!isValidPid(pid)) return Promise.resolve([]);
   // Try /proc first
   try {
     const fdDir = path.join('/proc', String(pid), 'fd');
@@ -211,6 +214,8 @@ function getFileHandles(pid) {
  * @since v0.5.0
  */
 function getProcessCwd(pid) {
+  pid = Number(pid);
+  if (!isValidPid(pid)) return Promise.resolve(null);
   try {
     const target = fs.readlinkSync(path.join('/proc', String(pid), 'cwd'));
     if (target && target.startsWith('/')) return Promise.resolve(target);

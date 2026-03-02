@@ -414,6 +414,40 @@ describe('ipc-handlers', () => {
       expect(result.toLowerCase()).toContain('aegis');
     });
 
+    it('kill-process rejects invalid PID at IPC boundary', async () => {
+      const handler = getHandler('kill-process');
+      for (const bad of [0, -1, 1.5, 'abc', null, undefined]) {
+        const result = await handler(null, bad);
+        expect(result).toEqual({ success: false, error: 'Invalid PID' });
+      }
+      expect(mockPlatform.killProcess).not.toHaveBeenCalled();
+    });
+
+    it('suspend-process rejects invalid PID at IPC boundary', async () => {
+      const handler = getHandler('suspend-process');
+      for (const bad of [0, -1, 1.5, 'abc', null, undefined]) {
+        const result = await handler(null, bad);
+        expect(result).toEqual({ success: false, error: 'Invalid PID' });
+      }
+      expect(mockPlatform.suspendProcess).not.toHaveBeenCalled();
+    });
+
+    it('resume-process rejects invalid PID at IPC boundary', async () => {
+      const handler = getHandler('resume-process');
+      for (const bad of [0, -1, 1.5, 'abc', null, undefined]) {
+        const result = await handler(null, bad);
+        expect(result).toEqual({ success: false, error: 'Invalid PID' });
+      }
+      expect(mockPlatform.resumeProcess).not.toHaveBeenCalled();
+    });
+
+    it('kill-process accepts valid PID', async () => {
+      const handler = getHandler('kill-process');
+      const result = await handler(null, 1234);
+      // Valid PID passes boundary check — result comes from platform (mock or real)
+      expect(result).toHaveProperty('success');
+    });
+
     it('save-custom-agents delegates to config', () => {
       const handler = getHandler('save-custom-agents');
       const agents = [{ name: 'custom', process: 'custom.exe' }];
