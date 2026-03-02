@@ -1,18 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
-const posixShared = require('../../../src/main/platform/posix-shared');
+import posixShared from '../../../src/main/platform/posix-shared.js';
 
 describe('posix-shared parsers', () => {
   describe('parseLsofOutput()', () => {
     it('parses multi-line lsof TCP output', () => {
-      const stdout = [
-        'p1234',
-        'n10.0.0.1:50000->52.1.2.3:443',
-        'TST=ESTABLISHED',
-        '',
-      ].join('\n');
+      const stdout = ['p1234', 'n10.0.0.1:50000->52.1.2.3:443', 'TST=ESTABLISHED', ''].join('\n');
       const results = posixShared.parseLsofOutput(stdout, new Set([1234]));
       expect(results).toHaveLength(1);
       expect(results[0]).toMatchObject({
@@ -47,11 +39,7 @@ describe('posix-shared parsers', () => {
     });
 
     it('extracts state from T field', () => {
-      const stdout = [
-        'p100',
-        'n10.0.0.1:5000->8.8.8.8:53',
-        'TST=CLOSE_WAIT',
-      ].join('\n');
+      const stdout = ['p100', 'n10.0.0.1:5000->8.8.8.8:53', 'TST=CLOSE_WAIT'].join('\n');
       const results = posixShared.parseLsofOutput(stdout, new Set([100]));
       expect(results[0].state).toBe('CLOSE_WAIT');
     });
