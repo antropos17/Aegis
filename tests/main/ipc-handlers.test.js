@@ -339,11 +339,11 @@ describe('ipc-handlers', () => {
       expect(result.seenAgents).toEqual(['Claude', 'Copilot']);
     });
 
-    it('analyze-agent returns error when no API key', () => {
+    it('analyze-agent returns error when no API key', async () => {
       mockConfig.getSettings.mockReturnValueOnce({ anthropicApiKey: '' });
       const handler = getHandler('analyze-agent');
       const result = handler(null, 'Claude');
-      expect(result).resolves.toMatchObject({ success: false });
+      await expect(result).resolves.toMatchObject({ success: false });
     });
 
     it('test-notification creates and shows notification', () => {
