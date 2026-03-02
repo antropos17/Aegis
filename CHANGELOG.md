@@ -16,7 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Toast notification system — success/warning/error toasts with auto-dismiss (PR #15)
 - DemoBanner component for demo mode indicator
 - Development guide (docs/DEVELOPMENT.md)
-- 41 new tests (408 → 449 tests across 26 files)
+- Graceful EPERM/EACCES handling in process scanner — catches permission errors on elevated processes, tracks consecutive failures, shows PERM warning in footer when >5
+- 48 new tests (408 → 456 tests across 27 files)
 - GPG commit signing
 
 ### Fixed
