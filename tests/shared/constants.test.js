@@ -1,14 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
-const {
+import {
   SENSITIVE_RULES,
   AGENT_SELF_CONFIG,
   PERMISSION_CATEGORIES,
   EDITORS,
   IGNORE_PROCESS_PATTERNS,
-} = require('../../src/shared/constants');
+} from '../../src/shared/constants.js';
 
 describe('constants', () => {
   describe('SENSITIVE_RULES', () => {
