@@ -113,17 +113,36 @@
   bind:this={cardEl}
   onclick={toggle}
 >
-  <div class="compact-row">
+  <div class="header-row">
     <span class="agent-name">{displayName}</span>
     {#if agent.hasApiCalls}<span class="api-badge" title="Making API calls">API</span>{/if}
-    <button class="stat stat-pid" onclick={copyPid} title={$t('agents.copy_pid')}
-      >{$t('agents.pid', { pid: agent.pid })}</button
-    >
-    {#if agent._processCount > 1}<span class="proc-badge">{agent._processCount}x</span>{/if}
-    {#if agent.fileCount != null}<span class="stat">{Math.round(agent.fileCount)}f</span>{/if}
-    {#if agent.networkCount != null}<span class="stat">{agent.networkCount}n</span>{/if}
     <span class="risk-score" style:color={gradeColor}>{agent.riskScore}</span>
     <span class="trust-badge" style:background={gradeColor}>{agent.trustGrade}</span>
+  </div>
+
+  <div class="stats-row">
+    <button class="stat-chip" onclick={copyPid} title={$t('agents.copy_pid')}>
+      <span class="stat-label">PID</span>
+      <span class="stat-value">{agent.pid}</span>
+    </button>
+    {#if agent._processCount > 1}
+      <span class="stat-chip">
+        <span class="stat-label">{$t('agents.stat_proc')}</span>
+        <span class="stat-value">{agent._processCount}</span>
+      </span>
+    {/if}
+    {#if agent.fileCount != null}
+      <span class="stat-chip">
+        <span class="stat-label">{$t('agents.stat_files')}</span>
+        <span class="stat-value">{Math.round(agent.fileCount).toLocaleString()}</span>
+      </span>
+    {/if}
+    {#if agent.networkCount != null}
+      <span class="stat-chip">
+        <span class="stat-label">{$t('agents.stat_net')}</span>
+        <span class="stat-value">{agent.networkCount}</span>
+      </span>
+    {/if}
   </div>
 
   {#if lastFile}<div class="activity-hint">{$t('agents.last_file', { file: lastFile })}</div>{/if}
@@ -158,35 +177,19 @@
   .agent-card:hover {
     background: var(--aegis-card-hover-bg);
   }
-  .compact-row {
+  .header-row {
     display: flex;
     align-items: center;
     gap: var(--aegis-space-4);
   }
   .agent-name {
-    font: var(--md-sys-typescale-label-large);
+    font: var(--md-sys-typescale-title-medium);
     font-weight: 600;
     color: var(--md-sys-color-on-surface);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
-  }
-  .stat {
-    font: var(--md-sys-typescale-label-medium);
-    font-family: 'DM Mono', monospace;
-    color: var(--md-sys-color-on-surface-variant);
-    flex-shrink: 0;
-  }
-  .stat-pid {
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: copy;
-    transition: color var(--md-sys-motion-duration-short) ease;
-  }
-  .stat-pid:hover {
-    color: var(--md-sys-color-primary);
   }
   .risk-score {
     font: var(--md-sys-typescale-label-large);
@@ -204,17 +207,6 @@
     flex-shrink: 0;
     letter-spacing: 0.5px;
   }
-  .proc-badge {
-    font-size: calc(9px * var(--aegis-ui-scale));
-    font-weight: 700;
-    font-family: 'DM Mono', monospace;
-    letter-spacing: 0.5px;
-    padding: var(--aegis-space-1) var(--aegis-space-3);
-    border-radius: var(--md-sys-shape-corner-full);
-    background: rgba(122, 138, 158, 0.15);
-    color: var(--md-sys-color-on-surface-variant);
-    flex-shrink: 0;
-  }
   .api-badge {
     font-size: calc(9px * var(--aegis-ui-scale));
     font-weight: 700;
@@ -225,12 +217,48 @@
     color: var(--md-sys-color-primary);
     flex-shrink: 0;
   }
+  .stats-row {
+    display: flex;
+    align-items: center;
+    gap: var(--aegis-space-3);
+    margin-top: var(--aegis-space-3);
+    flex-wrap: wrap;
+  }
+  .stat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--aegis-space-2);
+    padding: var(--aegis-space-1) var(--aegis-space-4);
+    background: var(--md-sys-color-surface-container-high);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: var(--md-sys-shape-corner-small);
+    cursor: default;
+    transition: border-color 0.15s ease;
+  }
+  button.stat-chip {
+    cursor: copy;
+  }
+  button.stat-chip:hover {
+    border-color: var(--md-sys-color-primary);
+  }
+  .stat-label {
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .stat-value {
+    font: var(--md-sys-typescale-label-medium);
+    font-family: 'DM Mono', monospace;
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface);
+  }
   .activity-hint {
     font: var(--md-sys-typescale-label-medium);
     font-family: 'DM Mono', monospace;
     color: var(--md-sys-color-on-surface-variant);
     opacity: 0.7;
-    margin-top: 2px;
+    margin-top: var(--aegis-space-2);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

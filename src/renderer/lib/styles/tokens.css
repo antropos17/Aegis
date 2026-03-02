@@ -69,7 +69,7 @@
   /* ── Sizing tokens (scale with UI) ── */
   --aegis-size-header: calc(48px * var(--aegis-ui-scale));
   --aegis-size-footer: calc(32px * var(--aegis-ui-scale));
-  --aegis-size-timeline: calc(36px * var(--aegis-ui-scale));
+  --aegis-size-timeline: calc(80px * var(--aegis-ui-scale));
   --aegis-size-panel-min: calc(280px * var(--aegis-ui-scale));
   --aegis-size-panel-col: calc(320px * var(--aegis-ui-scale));
   --aegis-size-modal-min: calc(380px * var(--aegis-ui-scale));
