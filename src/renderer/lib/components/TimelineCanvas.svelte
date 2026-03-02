@@ -173,9 +173,6 @@
   .dot-group:hover .dot {
     filter: brightness(1.4) drop-shadow(0 0 3px currentColor);
   }
-  .dot-group:hover ~ .agent-link {
-    opacity: 0.5;
-  }
   .cluster-label {
     fill: var(--md-sys-color-surface);
     font-family: 'DM Mono', monospace;

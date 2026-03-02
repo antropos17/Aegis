@@ -103,7 +103,12 @@
     aria-modal="true"
     tabindex="-1"
   >
-    <div class="panel" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+    <div
+      class="panel"
+      role="presentation"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+    >
       <h2 class="panel-title">{$t('settings.title')}</h2>
 
       <SettingsAppearance bind:localTheme bind:localScale {onThemeChange} {onScaleInput} />
