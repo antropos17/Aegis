@@ -7,7 +7,7 @@ const require = createRequire(import.meta.url);
 const mockExecFile = vi.fn();
 
 const originalLoad = Module._load;
-Module._load = function (request, parent, isMain) {
+Module._load = function (request, _parent, _isMain) {
   if (request === 'child_process') return { execFile: mockExecFile };
   return originalLoad.apply(this, arguments);
 };

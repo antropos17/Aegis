@@ -86,6 +86,46 @@ export default [
     },
   },
   {
+    files: ['scripts/**/*.js'],
+    languageOptions: {
+      globals: { ...globals.node },
+      sourceType: 'commonjs',
+    },
+    rules: {
+      'no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
+      'no-console': 'off',
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-useless-escape': 'off',
+    },
+  },
+  {
+    files: ['tests/**/*.js'],
+    languageOptions: {
+      globals: { ...globals.node },
+      sourceType: 'module',
+    },
+    rules: {
+      'no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
+      'no-console': 'warn',
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-useless-escape': 'off',
+    },
+  },
+  {
     ignores: ['dist/', 'node_modules/', '*.config.js', '*.config.mjs', '.claude/'],
   },
 ];

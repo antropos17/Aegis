@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { calculateRiskScore, getTrustGrade, getTimeDecayWeight } from '../../src/renderer/lib/utils/risk-scoring.js';
 
 describe('risk-scoring', () => {

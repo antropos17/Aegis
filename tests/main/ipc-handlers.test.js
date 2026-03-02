@@ -100,7 +100,7 @@ const platformPath = require.resolve('../../src/main/platform/index.js');
 const ipcPath = require.resolve('../../src/main/ipc-handlers.js');
 
 const originalLoad = Module._load;
-Module._load = function (request, parent, isMain) {
+Module._load = function (request, parent, _isMain) {
   if (request === 'electron') return mockElectron;
   // For relative requires from ipc-handlers.js, resolve against its directory
   if (parent && parent.filename === ipcPath) {
