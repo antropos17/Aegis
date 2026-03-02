@@ -115,6 +115,7 @@
 >
   <div class="compact-row">
     <span class="agent-name">{displayName}</span>
+    {#if agent.hasApiCalls}<span class="api-badge" title="Making API calls">API</span>{/if}
     <button class="stat stat-pid" onclick={copyPid} title={$t('agents.copy_pid')}
       >{$t('agents.pid', { pid: agent.pid })}</button
     >
@@ -201,6 +202,16 @@
     border-radius: var(--md-sys-shape-corner-full);
     flex-shrink: 0;
     letter-spacing: 0.5px;
+  }
+  .api-badge {
+    font-size: calc(9px * var(--aegis-ui-scale));
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: var(--aegis-space-1) var(--aegis-space-3);
+    border-radius: var(--md-sys-shape-corner-full);
+    background: rgba(120, 160, 220, 0.15);
+    color: var(--md-sys-color-primary);
+    flex-shrink: 0;
   }
   .activity-hint {
     font: var(--md-sys-typescale-label-medium);

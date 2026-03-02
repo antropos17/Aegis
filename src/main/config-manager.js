@@ -46,6 +46,7 @@ const DEFAULT_SETTINGS = {
   ignoreCommonBuildDirs: true,
   seenAgents: [],
   customAgents: [],
+  hardwareAcceleration: true,
 };
 
 let settings = { ...DEFAULT_SETTINGS };

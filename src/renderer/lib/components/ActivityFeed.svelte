@@ -86,6 +86,8 @@
       reason: conn.flagged ? 'Unknown domain' : '',
       flagged: !!conn.flagged,
       _type: 'network',
+      userAgent: conn.userAgent || null,
+      httpUnencrypted: !!conn.httpUnencrypted,
     }));
     return [...fileEvs, ...netEvs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   });
@@ -129,7 +131,7 @@
       <div class="feed-entry" class:odd={i % 2 === 1}>
         <span class="feed-dot" style:background={sevColor(sev)}></span>
         <span class="feed-time">{formatRelativeTime(ev.timestamp)}</span>
-        <span class="feed-agent">{ev.agent}</span>
+        <span class="feed-agent" title={ev.userAgent ? `Process: ${ev.userAgent}` : ''}>{ev.agent}</span>
         <span class="feed-action">{ev.action || ev._type}</span>
         <button class="feed-path" title={ev.file} onclick={(e) => handlePathClick(ev, e)}
           >{shortenPath(ev.file)}</button
@@ -149,6 +151,9 @@
         {/if}
         {#if label}
           <span class="feed-badge {badgeClass(sev)}">{label}</span>
+        {/if}
+        {#if ev.httpUnencrypted}
+          <span class="feed-badge badge-high">HTTP</span>
         {/if}
       </div>
     {/each}
