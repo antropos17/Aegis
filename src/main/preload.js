@@ -83,4 +83,10 @@ contextBridge.exposeInMainWorld('aegis', {
   getLocalModels: () => ipcRenderer.invoke('get-local-models'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   exportZip: () => ipcRenderer.invoke('export-zip'),
+  getFalsePositives: () => ipcRenderer.invoke('get-false-positives'),
+  addFalsePositive: (entry) => ipcRenderer.invoke('add-false-positive', entry),
+  openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),
+  onScanStatus: (cb) => {
+    ipcRenderer.on('scan-status', (_e, data) => cb(data));
+  },
 });

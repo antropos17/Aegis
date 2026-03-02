@@ -130,6 +130,13 @@
       }
   }
 
+  function openSuggestAgent() {
+    const url = 'https://github.com/antropos17/Aegis/issues/new?template=03-new-agent.yml';
+    if (window.aegis?.openExternalUrl) {
+      window.aegis.openExternalUrl(url);
+    }
+  }
+
   const CATEGORIES = [
     ['coding-assistant', 'Coding Assistant'],
     ['ai-ide', 'AI IDE'],
@@ -149,6 +156,7 @@
     <div class="crud-right">
       <button class="crud-btn" onclick={handleImport}>{$t('rules.database.import')}</button>
       <button class="crud-btn" onclick={handleExport}>{$t('rules.database.export')}</button>
+      <button class="crud-btn suggest" onclick={openSuggestAgent}>Suggest new agent</button>
     </div>
   </div>
 
@@ -298,6 +306,11 @@
     background: var(--md-sys-color-error);
     color: var(--md-sys-color-on-error);
     border-color: var(--md-sys-color-error);
+  }
+  .crud-btn.suggest {
+    background: var(--md-sys-color-tertiary-container);
+    color: var(--md-sys-color-on-surface);
+    border-color: var(--md-sys-color-tertiary);
   }
   .overlay {
     position: fixed;

@@ -47,6 +47,7 @@ const DEFAULT_SETTINGS = {
   seenAgents: [],
   customAgents: [],
   hardwareAcceleration: true,
+  falsePositivePatterns: [],
 };
 
 let settings = { ...DEFAULT_SETTINGS };
@@ -270,6 +271,31 @@ function saveCustomAgents(agents) {
   }
 }
 
+/**
+ * Return the false positive patterns array.
+ * @returns {Array<{agentName: string, pattern: string, timestamp: number}>}
+ * @since v0.4.0
+ */
+function getFalsePositives() {
+  return settings.falsePositivePatterns || [];
+}
+
+/**
+ * Add a false positive entry and persist.
+ * @param {{agentName: string, pattern: string, timestamp: number}} entry
+ * @returns {void}
+ * @since v0.4.0
+ */
+function addFalsePositive(entry) {
+  if (!settings.falsePositivePatterns) settings.falsePositivePatterns = [];
+  settings.falsePositivePatterns.push(entry);
+  try {
+    fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
+  } catch (err) {
+    logger.warn('config-manager', 'Failed to persist false positive', { error: err.message });
+  }
+}
+
 const _exports = {
   init,
   loadSettings,
@@ -285,6 +311,8 @@ const _exports = {
   getCustomSensitiveRules,
   getCustomAgents,
   saveCustomAgents,
+  getFalsePositives,
+  addFalsePositive,
   _setSettingsPathForTest,
 };
 

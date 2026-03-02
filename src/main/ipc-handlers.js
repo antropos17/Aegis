@@ -310,6 +310,19 @@ function register() {
   ipcMain.handle('kill-process', (_e, pid) => killProcess(pid));
   ipcMain.handle('suspend-process', (_e, pid) => suspendProcess(pid));
   ipcMain.handle('resume-process', (_e, pid) => resumeProcess(pid));
+
+  // ── False positives ──
+  ipcMain.handle('get-false-positives', () => config.getFalsePositives());
+  ipcMain.handle('add-false-positive', (_e, entry) => {
+    config.addFalsePositive(entry);
+    return { success: true };
+  });
+
+  // ── Open external URL ──
+  ipcMain.handle('open-external-url', (_e, url) => {
+    shell.openExternal(url);
+    return { success: true };
+  });
 }
 
 module.exports = { init, register };

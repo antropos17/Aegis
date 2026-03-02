@@ -7,6 +7,10 @@ export const stats = writable({});
 export const network = writable([]);
 export const anomalies = writable({});
 export const resourceUsage = writable({});
+/** @type {import('svelte/store').Writable<Array<{agentName: string, pattern: string, timestamp: number}>>} */
+export const falsePositives = writable([]);
+/** @type {import('svelte/store').Writable<boolean>} */
+export const scanActive = writable(false);
 
 /** PID of agent to highlight in AgentPanel (set by Timeline dot click) */
 export const focusedAgentPid = writable(null);
@@ -27,10 +31,12 @@ if (!isDemoMode) {
   });
   window.aegis.onAnomalyScores((data) => anomalies.set(data));
   window.aegis.onResourceUsage((data) => resourceUsage.set(data));
+  window.aegis.onScanStatus((data) => scanActive.set(data?.scanning ?? false));
 
   // Fetch initial data
   window.aegis.getStats().then((data) => stats.set(data));
   window.aegis.getResourceUsage().then((data) => resourceUsage.set(data));
+  window.aegis.getFalsePositives().then((data) => falsePositives.set(data || []));
 } else {
   const cleanupDemo = startDemoMode({ agents, events, stats, network, anomalies, resourceUsage });
   if (import.meta.hot) {
