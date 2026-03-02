@@ -101,6 +101,7 @@ function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
+    show: false,
     title: 'Aegis',
     icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
     backgroundColor: '#050507',
@@ -125,7 +126,10 @@ function createWindow() {
     mainWindow.loadFile(distPath);
   }
   mainWindow.setMenuBarVisibility(false);
-  if (settings.startMinimized) mainWindow.hide();
+  mainWindow.once('ready-to-show', () => {
+    if (!settings.startMinimized) mainWindow.show();
+    tray.createTray();
+  });
   mainWindow.on('close', (e) => {
     if (!isQuitting) {
       e.preventDefault();
@@ -271,14 +275,13 @@ app.whenReady().then(() => {
   logger.init({ userDataPath: userData, isDev: !app.isPackaged });
   logger.info('main', 'App starting', { version: app.getVersion(), platform: process.platform });
   config.loadSettings();
-  baselines.loadBaselines();
   audit.init({
     userDataPath: userData,
     onFlushError: (err) => logger.error('audit-logger', 'Flush failed', { error: err.message }),
   });
   createWindow();
-  tray.createTray();
   ipc.register();
+  baselines.loadBaselines();
   mainWindow.webContents.once('did-finish-load', () => {
     watcher.setupFileWatchers();
   });

@@ -107,7 +107,7 @@ describe('audit-logger', () => {
     expect(all[1].type).toBe('t2');
   });
 
-  it('cleanOldLogs() removes old files', () => {
+  it('cleanOldLogs() removes old files', async () => {
     auditLogger.init({ userDataPath: tmpDir });
     const auditDir = path.join(tmpDir, 'audit-logs');
 
@@ -126,6 +126,7 @@ describe('audit-logger', () => {
     const require2 = createRequire(import.meta.url);
     auditLogger = require2('../../src/main/audit-logger');
     auditLogger.init({ userDataPath: tmpDir });
+    await new Promise((r) => setImmediate(r));
 
     expect(fs.existsSync(oldFile)).toBe(false);
     expect(fs.existsSync(recentFile)).toBe(true);

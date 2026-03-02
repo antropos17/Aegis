@@ -112,7 +112,7 @@ describe('logger', () => {
     expect(all[1].message).toBe('two');
   });
 
-  it('cleanOldLogs() deletes files > 30 days, keeps recent', () => {
+  it('cleanOldLogs() deletes files > 30 days, keeps recent', async () => {
     logger.init({ userDataPath: tmpDir });
     const logDir = path.join(tmpDir, 'logs');
 
@@ -131,6 +131,7 @@ describe('logger', () => {
     const require2 = createRequire(import.meta.url);
     logger = require2('../../src/main/logger');
     logger.init({ userDataPath: tmpDir });
+    await new Promise((r) => setImmediate(r));
 
     expect(fs.existsSync(oldFile)).toBe(false);
     expect(fs.existsSync(recentFile)).toBe(true);
