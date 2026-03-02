@@ -69,7 +69,7 @@
           riskProfile: form.riskProfile,
           vendor: 'Custom',
           icon: '\uD83D\uDD27',
-          color: '#888',
+          color: 'var(--md-sys-color-on-surface-variant)',
           defaultTrust: 50,
           knownDomains: [],
           knownPorts: [],

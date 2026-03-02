@@ -11,7 +11,7 @@
  * @requires ../shared/constants
  * @author AEGIS Contributors
  * @license MIT
- * @version 0.1.0
+ * @version 0.3.0-alpha
  */
 'use strict';
 const fs = require('fs');
