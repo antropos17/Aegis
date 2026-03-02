@@ -11,7 +11,7 @@
   ]);
 </script>
 
-<nav class="tab-bar" role="tablist" aria-label="Main navigation">
+<div class="tab-bar" role="tablist" aria-label="Main navigation">
   {#each tabs as tab, i (tab.id)}
     <button
       id="tab-{tab.id}"
@@ -26,7 +26,7 @@
       {tab.label}
     </button>
   {/each}
-</nav>
+</div>
 
 <style>
   .tab-bar {
