@@ -86,6 +86,8 @@
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@types/electron": "^1.4.38",
     "@types/node": "^25.3.3",
+    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/parser": "^8.56.1",
     "@vitest/coverage-v8": "^4.0.18",
     "electron": "^33.4.11",
     "electron-builder": "^26.8.1",
