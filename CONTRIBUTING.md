@@ -55,6 +55,9 @@ When maintainers merge the Release PR → version bump + CHANGELOG + GitHub Rele
 ### TypeScript
 
 - **New files should be written in TypeScript** (`.ts`) — existing `.js` files will be migrated incrementally
+- **Main process** (`.js`): uses JSDoc annotations + `checkJs: true` for type safety without converting to `.ts`
+- **Renderer** (`.ts`/`.svelte`): native TypeScript with ES modules
+- Shared type definitions live in `src/shared/types/` (34 types across 7 files)
 - Run `npx tsc --noEmit` (typecheck) before opening a PR — zero type errors required
 - **Zero `any`** — use proper types, generics, or `unknown` instead. ESLint warns on `any`
 - Explicit return types on exported functions (`@typescript-eslint/explicit-function-return-type`)
