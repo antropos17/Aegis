@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- Startup performance: deferred file watchers to after first paint, lazy-loaded non-critical modules (network-monitor, ai-analysis, llm-runtime-detector), async fs.existsSync → fs.promises.access, deferred agent-database.json parse — estimated 400-2200ms faster perceived startup
+
 ### Added
 - IPC event batching to prevent renderer freeze during high-frequency file events (npm install, git operations)
 - Internationalization system with English base (#53) — @travisbreaks
@@ -17,7 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - DemoBanner component for demo mode indicator
 - Development guide (docs/DEVELOPMENT.md)
 - Graceful EPERM/EACCES handling in process scanner — catches permission errors on elevated processes, tracks consecutive failures, shows PERM warning in footer when >5
-- 48 new tests (408 → 456 tests across 27 files)
+- 67 new tests (408 → 475 tests across 28 files)
 - GPG commit signing
 
 ### Fixed
