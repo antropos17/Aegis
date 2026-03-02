@@ -126,8 +126,14 @@ async function scanProcesses() {
 }
 
 module.exports = {
-  get AI_AGENTS() { _ensureAgentDb(); return _aiAgents; },
-  get agentDb() { _ensureAgentDb(); return _agentDb; },
+  get AI_AGENTS() {
+    _ensureAgentDb();
+    return _aiAgents;
+  },
+  get agentDb() {
+    _ensureAgentDb();
+    return _agentDb;
+  },
   init,
   scanProcesses,
   _setPlatformForTest,
