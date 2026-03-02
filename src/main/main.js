@@ -37,6 +37,7 @@ const audit = require('./audit-logger');
 const logger = require('./logger');
 const ipc = require('./ipc-handlers');
 const scanLoop = require('./scan-loop');
+const { createBatcher } = require('./ipc-batcher');
 
 let mainWindow = null;
 let latestAgents = [],
@@ -85,6 +86,12 @@ function sendToRenderer(channel, data) {
     logger.warn('main', 'sendToRenderer failed', { channel, error: err.message });
   }
 }
+
+const fileAccessBatcher = createBatcher('file-access', sendToRenderer, { intervalMs: 150 });
+const statsUpdateBatcher = createBatcher('stats-update', sendToRenderer, {
+  intervalMs: 200,
+  mode: 'latest',
+});
 
 // ═══ WINDOW ═══
 
@@ -181,9 +188,9 @@ watcher.init({
   onFileEvent: (ev) => {
     const deduped = scanLoop.dedupFileEvent(ev);
     if (!deduped) return;
-    sendToRenderer('file-access', [deduped]);
+    fileAccessBatcher.push(deduped);
     if (deduped.sensitive && deduped.category === 'ai') tray.notifySensitive([deduped]);
-    sendToRenderer('stats-update', getStats());
+    statsUpdateBatcher.push(getStats());
     tray.updateTrayIcon();
     scanLoop.logAuditForFile(deduped);
   },
@@ -293,6 +300,8 @@ app.on('before-quit', () => {
 });
 app.on('window-all-closed', () => {});
 app.on('quit', () => {
+  fileAccessBatcher.destroy();
+  statsUpdateBatcher.destroy();
   scanLoop.stopScanIntervals();
   fileWatchers.forEach((w) => w.close());
 });
