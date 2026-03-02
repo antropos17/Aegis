@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import { createRequire } from 'module';
 import Module from 'module';
-
-const require = createRequire(import.meta.url);
 
 const mockExecFile = vi.fn();
 
@@ -19,52 +16,67 @@ afterAll(() => {
 describe('platform/win32', () => {
   let win32;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockExecFile.mockReset();
-    const modPath = require.resolve('../../../src/main/platform/win32.js');
-    delete require.cache[modPath];
-    win32 = require('../../../src/main/platform/win32.js');
+    vi.resetModules();
+    const mod = await import('../../../src/main/platform/win32.js');
+    win32 = mod.default;
   });
 
   describe('IGNORE_FILE_PATTERNS', () => {
     it('ignores C:\\Windows paths (case-insensitive)', () => {
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('C:\\Windows\\System32\\cmd.exe'))).toBe(true);
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('c:\\windows\\explorer.exe'))).toBe(true);
+      expect(win32.IGNORE_FILE_PATTERNS.some((p) => p.test('C:\\Windows\\System32\\cmd.exe'))).toBe(
+        true,
+      );
+      expect(win32.IGNORE_FILE_PATTERNS.some((p) => p.test('c:\\windows\\explorer.exe'))).toBe(
+        true,
+      );
     });
 
     it('ignores C:\\Program Files\\Windows paths', () => {
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('C:\\Program Files\\Windows Defender\\foo'))).toBe(true);
+      expect(
+        win32.IGNORE_FILE_PATTERNS.some((p) => p.test('C:\\Program Files\\Windows Defender\\foo')),
+      ).toBe(true);
     });
 
     it('ignores pagefile.sys', () => {
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('C:\\pagefile.sys'))).toBe(true);
+      expect(win32.IGNORE_FILE_PATTERNS.some((p) => p.test('C:\\pagefile.sys'))).toBe(true);
     });
 
     it('ignores swapfile.sys', () => {
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('C:\\swapfile.sys'))).toBe(true);
+      expect(win32.IGNORE_FILE_PATTERNS.some((p) => p.test('C:\\swapfile.sys'))).toBe(true);
     });
 
     it('ignores $Extend', () => {
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('C:\\$Extend\\$UsnJrnl'))).toBe(true);
+      expect(win32.IGNORE_FILE_PATTERNS.some((p) => p.test('C:\\$Extend\\$UsnJrnl'))).toBe(true);
     });
 
     it('ignores System Volume Information', () => {
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('C:\\System Volume Information\\foo'))).toBe(true);
+      expect(
+        win32.IGNORE_FILE_PATTERNS.some((p) => p.test('C:\\System Volume Information\\foo')),
+      ).toBe(true);
     });
 
     it('ignores \\Device\\ paths', () => {
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('\\Device\\HarddiskVolume1'))).toBe(true);
+      expect(win32.IGNORE_FILE_PATTERNS.some((p) => p.test('\\Device\\HarddiskVolume1'))).toBe(
+        true,
+      );
     });
 
     it('does NOT ignore user files', () => {
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('C:\\Users\\me\\project\\main.js'))).toBe(false);
+      expect(
+        win32.IGNORE_FILE_PATTERNS.some((p) => p.test('C:\\Users\\me\\project\\main.js')),
+      ).toBe(false);
     });
   });
 
   describe('listProcesses', () => {
     it('parses tasklist CSV output', async () => {
       mockExecFile.mockImplementation((cmd, args, cb) => {
-        cb(null, '"claude.exe","1234","Console","1","50,000 K"\n"code.exe","5678","Console","1","100,000 K"\n');
+        cb(
+          null,
+          '"claude.exe","1234","Console","1","50,000 K"\n"code.exe","5678","Console","1","100,000 K"\n',
+        );
       });
 
       const procs = await win32.listProcesses();
@@ -96,8 +108,8 @@ describe('platform/win32', () => {
   describe('getParentProcessMap', () => {
     it('parses PowerShell JSON output into Map', async () => {
       const psOutput = JSON.stringify({
-        '100': { n: 'node.exe', p: 50 },
-        '200': { n: 'claude.exe', p: 100 },
+        100: { n: 'node.exe', p: 50 },
+        200: { n: 'claude.exe', p: 100 },
       });
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
         cb(null, psOutput);
