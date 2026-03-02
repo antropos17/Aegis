@@ -12,7 +12,8 @@
     "mem": "MEM",
     "heap": "HEAP",
     "scan": "SCAN",
-    "up": "UP"
+    "up": "UP",
+    "perm_warn": "PERM"
   },
   "tabs": {
     "shield": "Shield",

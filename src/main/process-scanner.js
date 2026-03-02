@@ -25,6 +25,7 @@ function _setPlatformForTest(overrides) {
 /** @internal Reset state (for tests). */
 function _resetForTest() {
   lastProcessPidSet = '';
+  permissionDeniedScans = 0;
 }
 
 const agentDb = JSON.parse(
@@ -36,6 +37,7 @@ const AI_AGENTS = agentDb.agents.map((a) => ({ name: a.displayName, patterns: a.
 const EDITOR_HOST_SET = new Set(EDITOR_HOSTS.map((h) => h.toLowerCase()));
 
 let lastProcessPidSet = '';
+let permissionDeniedScans = 0;
 
 const knownHandles = new Map();
 const activityLog = [];
@@ -63,7 +65,20 @@ function init(deps) {
  * @since v0.2.0
  */
 async function scanProcesses() {
-  const processes = await _listProcesses();
+  let processes;
+  try {
+    processes = await _listProcesses();
+    permissionDeniedScans = 0;
+  } catch (err) {
+    const code = err.code || '';
+    const msg = (err.message || '').toLowerCase();
+    if (code === 'EPERM' || code === 'EACCES' || msg.includes('access is denied')) {
+      permissionDeniedScans++;
+      processes = [];
+    } else {
+      throw err;
+    }
+  }
   const detected = [];
   for (const proc of processes) {
     const procName = proc.name.toLowerCase();
@@ -119,4 +134,7 @@ module.exports = {
     peakAgents = v;
   },
   uniqueAgentNames,
+  get permissionDeniedScans() {
+    return permissionDeniedScans;
+  },
 };
