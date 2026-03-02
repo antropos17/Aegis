@@ -32,16 +32,22 @@ function _resetForTest() {
   networkScanRunning = false;
 }
 
-const agentDb = JSON.parse(
-  fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8'),
-);
+let _agentDb = null;
+/** @returns {Object} Parsed agent-database.json (lazy-loaded on first call) */
+function getAgentDb() {
+  if (!_agentDb) {
+    _agentDb = JSON.parse(
+      fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8'),
+    );
+  }
+  return _agentDb;
+}
 
 const dnsCache = new Map();
 const DNS_CACHE_TTL = 300000;
 let networkScanRunning = false;
 
-/** @type {RegExp[]} Domain patterns considered safe/known */
-const KNOWN_DOMAINS = [
+const STATIC_DOMAINS = [
   /anthropic\.com$/i,
   /openai\.com$/i,
   /github\.com$/i,
@@ -83,11 +89,23 @@ const KNOWN_DOMAINS = [
   /npmjs\.org$/i,
   /npmjs\.com$/i,
   /yarnpkg\.com$/i,
-  ...agentDb.agents
-    .flatMap((a) => a.knownDomains || [])
-    .filter((d, i, arr) => arr.indexOf(d) === i)
-    .map((d) => new RegExp(d.replace(/\./g, '\\.') + '$', 'i')),
 ];
+
+/** @type {RegExp[]|null} Domain patterns considered safe/known (lazy-built) */
+let _knownDomains = null;
+/** @returns {RegExp[]} Full KNOWN_DOMAINS list including agent-db entries */
+function getKnownDomains() {
+  if (!_knownDomains) {
+    _knownDomains = [
+      ...STATIC_DOMAINS,
+      ...getAgentDb()
+        .agents.flatMap((a) => a.knownDomains || [])
+        .filter((d, i, arr) => arr.indexOf(d) === i)
+        .map((d) => new RegExp(d.replace(/\./g, '\\.') + '$', 'i')),
+    ];
+  }
+  return _knownDomains;
+}
 
 /**
  * Test whether an IP belongs to a private/loopback range.
@@ -106,7 +124,7 @@ function isPrivateIp(ip) {
  * @since v0.1.0
  */
 function isKnownDomain(domain) {
-  return KNOWN_DOMAINS.some((p) => p.test(domain));
+  return getKnownDomains().some((p) => p.test(domain));
 }
 
 /**
@@ -194,7 +212,9 @@ module.exports = {
   isKnownDomain,
   isPrivateIp,
   resolveIp,
-  KNOWN_DOMAINS,
+  get KNOWN_DOMAINS() {
+    return getKnownDomains();
+  },
   isNetworkScanRunning,
   setNetworkScanRunning,
   _setDepsForTest,

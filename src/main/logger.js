@@ -44,7 +44,7 @@ function init(opts) {
     if (!fs.existsSync(_logDir)) fs.mkdirSync(_logDir, { recursive: true });
   } catch (_) {}
   _flushTimer = setInterval(flush, FLUSH_INTERVAL);
-  cleanOldLogs();
+  setImmediate(() => cleanOldLogs());
 }
 
 /**
