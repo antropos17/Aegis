@@ -229,8 +229,8 @@
   }
 
   .export-btn:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--md-sys-color-outline-variant);
     color: var(--md-sys-color-on-surface);
-    border-color: rgba(255, 255, 255, 0.15);
+    border-color: var(--aegis-border-hover);
   }
 </style>

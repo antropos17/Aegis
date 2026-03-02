@@ -145,6 +145,6 @@
   .icon-btn:hover {
     color: var(--md-sys-color-on-surface);
     background: var(--md-sys-color-surface-container);
-    border-color: rgba(255, 255, 255, 0.15);
+    border-color: var(--aegis-border-hover);
   }
 </style>
