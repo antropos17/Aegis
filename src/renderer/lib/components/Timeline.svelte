@@ -154,6 +154,7 @@
   });
 
   let allEvents = $derived.by(() => {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const seen = new Set();
     const merged = [];
     for (const ev of [...historicalEvents, ...allLiveEvents]) {
@@ -360,7 +361,6 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="timeline-wrap" onwheel={handleWheel} bind:clientWidth={viewportWidth}>
   <TimelineCanvas
     {viewportWidth}

@@ -30,6 +30,7 @@
   /* ── Card ── */
   --aegis-card-border: 1px solid rgba(255, 255, 255, 0.1);
   --aegis-card-hover-bg: rgba(150, 170, 200, 0.15);
+  --aegis-border-hover: rgba(255, 255, 255, 0.15);
 
   /* ── Scrubber ── */
   --aegis-scrub-track: #151518;
@@ -166,6 +167,7 @@
   --aegis-color-header-border: rgba(0, 0, 0, 0.06);
   --aegis-card-border: 1px solid rgba(0, 0, 0, 0.1);
   --aegis-card-hover-bg: rgba(90, 106, 126, 0.07);
+  --aegis-border-hover: rgba(0, 0, 0, 0.15);
 
   --aegis-scrub-track: #e0e0e2;
   --aegis-scrub-thumb: #caccd0;
@@ -205,6 +207,7 @@
   --aegis-color-header-border: rgba(255, 255, 255, 0.2);
   --aegis-card-border: 1px solid rgba(255, 255, 255, 0.25);
   --aegis-card-hover-bg: rgba(160, 188, 224, 0.2);
+  --aegis-border-hover: rgba(255, 255, 255, 0.3);
 
   --aegis-scrub-track: #0a0a0c;
   --aegis-scrub-thumb: #1a1c20;
@@ -247,6 +250,7 @@
   --aegis-color-header-border: rgba(0, 0, 0, 0.18);
   --aegis-card-border: 1px solid rgba(0, 0, 0, 0.22);
   --aegis-card-hover-bg: rgba(42, 74, 110, 0.1);
+  --aegis-border-hover: rgba(0, 0, 0, 0.3);
 
   --aegis-scrub-track: #d0d0d2;
   --aegis-scrub-thumb: #b0b2b6;

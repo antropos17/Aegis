@@ -122,7 +122,7 @@
 
   .sub-btn:hover {
     color: var(--md-sys-color-on-surface);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--md-sys-color-outline-variant);
   }
 
   .sub-btn.active {
@@ -138,7 +138,7 @@
   }
   .section-separator {
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+    background: linear-gradient(90deg, transparent, var(--md-sys-color-outline), transparent);
     margin: var(--aegis-space-5) 0;
   }
   .section-header {
@@ -158,7 +158,7 @@
     font-weight: 600;
     padding: var(--aegis-space-3) var(--aegis-space-7);
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-full);
     color: var(--md-sys-color-on-surface-variant);
     cursor: pointer;
@@ -168,8 +168,8 @@
   }
 
   .reset-btn:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--md-sys-color-outline-variant);
     color: var(--md-sys-color-on-surface);
-    border-color: rgba(255, 255, 255, 0.15);
+    border-color: var(--aegis-border-hover);
   }
 </style>

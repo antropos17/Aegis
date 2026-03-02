@@ -276,7 +276,7 @@
     font-weight: 600;
     padding: calc(7px * var(--aegis-ui-scale)) var(--aegis-space-7);
     background: var(--md-sys-color-surface-container);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-small);
     color: var(--md-sys-color-on-surface-variant);
     cursor: pointer;
@@ -285,9 +285,9 @@
     transition: all 0.3s var(--ease-glass);
   }
   .crud-btn:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--md-sys-color-outline-variant);
     color: var(--md-sys-color-on-surface);
-    border-color: rgba(255, 255, 255, 0.15);
+    border-color: var(--aegis-border-hover);
   }
   .crud-btn.primary {
     background: var(--md-sys-color-primary-container);

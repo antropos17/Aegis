@@ -69,7 +69,7 @@
 
   .toggle-pill:hover {
     color: var(--md-sys-color-on-surface);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--md-sys-color-outline-variant);
   }
 
   .toggle-pill.active {

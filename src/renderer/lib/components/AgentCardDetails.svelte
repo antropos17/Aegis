@@ -179,7 +179,7 @@
     justify-content: space-between;
     gap: var(--aegis-space-4);
     margin-top: var(--aegis-space-2);
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-top: 1px solid var(--md-sys-color-outline);
     padding-top: var(--aegis-space-3);
   }
   .pid-info {

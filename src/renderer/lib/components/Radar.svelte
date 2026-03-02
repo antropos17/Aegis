@@ -88,6 +88,7 @@
 
   function drawAgentDots(cx, cy, r) {
     // Group by name — one dot per agent
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const byName = new Map();
     for (const agent of $enrichedAgents) {
       const prev = byName.get(agent.name);

@@ -45,6 +45,7 @@
 
   /** Derive unique instance entries from enriched agents, keyed by cwd/project */
   let instanceList = $derived.by(() => {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const seen = new Set();
     const running = [];
     const savedDefaults = [];
@@ -303,7 +304,7 @@
     font-weight: 700;
     width: 36px;
     height: 28px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-small);
     background: transparent;
     color: var(--md-sys-color-on-surface-variant);

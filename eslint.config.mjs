@@ -1,9 +1,11 @@
 import js from '@eslint/js';
+import svelte from 'eslint-plugin-svelte';
 import globals from 'globals';
 
 /** @type {import("eslint").Linter.Config[]} */
 export default [
   js.configs.recommended,
+  ...svelte.configs.recommended,
   {
     files: ['src/main/**/*.js'],
     languageOptions: {
@@ -65,6 +67,25 @@ export default [
     },
   },
   {
-    ignores: ['dist/', 'node_modules/', '*.config.js', '*.config.mjs'],
+    files: ['src/renderer/**/*.svelte'],
+    languageOptions: {
+      globals: { ...globals.browser },
+    },
+    rules: {
+      'no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
+      'no-console': 'warn',
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-useless-escape': 'off',
+    },
+  },
+  {
+    ignores: ['dist/', 'node_modules/', '*.config.js', '*.config.mjs', '.claude/'],
   },
 ];
