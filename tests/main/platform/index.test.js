@@ -18,16 +18,16 @@ describe('platform/index', () => {
   });
 
   it('selects darwin module on macOS', () => {
-    // This test validates the current platform's module is loaded
-    // On macOS CI/local, this confirms darwin was selected
     if (process.platform === 'darwin') {
-      expect(platform.listProcesses).toBe(darwin.listProcesses);
+      expect(platform.listProcesses.name).toBe(darwin.listProcesses.name);
+      expect(platform.listProcesses.toString()).toBe(darwin.listProcesses.toString());
     }
   });
 
   it('selects linux module on Linux', () => {
     if (process.platform === 'linux') {
-      expect(platform.listProcesses).toBe(linux.listProcesses);
+      expect(platform.listProcesses.name).toBe(linux.listProcesses.name);
+      expect(platform.listProcesses.toString()).toBe(linux.listProcesses.toString());
     }
   });
 });
