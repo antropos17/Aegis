@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * @file constants.js
  * @module shared/constants
@@ -11,7 +12,13 @@
 
 'use strict';
 
-/** @type {string[]} Hardware/driver process name fragments to never flag as AI agents */
+/**
+ * @typedef {import('./types/config').PermissionCategory} PermissionCategory
+ * @typedef {{ readonly names: string[]; readonly label: string }} EditorDef
+ * @typedef {import('./types/config').SensitiveRule & { readonly category?: string; readonly severity?: string }} BuiltinSensitiveRule
+ */
+
+/** @type {readonly string[]} Hardware/driver process name fragments to never flag as AI agents */
 const IGNORE_PROCESS_PATTERNS = [
   'asus',
   'armoury',
@@ -29,7 +36,7 @@ const IGNORE_PROCESS_PATTERNS = [
   'gigabyte',
 ];
 
-/** @type {Array<{names: string[], label: string}>} Editor/IDE definitions with process names and labels */
+/** @type {readonly EditorDef[]} Editor/IDE definitions with process names and labels */
 const EDITORS = [
   { names: ['code.exe', 'code'], label: 'VS Code' },
   { names: ['code - insiders.exe'], label: 'VS Code Insiders' },
@@ -44,15 +51,15 @@ const EDITORS = [
   { names: ['datagrip64.exe', 'datagrip'], label: 'DataGrip' },
 ];
 
-/** @type {string[]} Editor/IDE host processes — not agents, but scan their children for AI extensions */
+/** @type {readonly string[]} Editor/IDE host processes — not agents, but scan their children for AI extensions */
 const EDITOR_HOSTS = EDITORS.flatMap((e) => e.names);
 
-/** @type {RegExp[]} Cross-platform file-path patterns treated as system noise and silently skipped.
+/** @type {readonly RegExp[]} Cross-platform file-path patterns treated as system noise and silently skipped.
  *  Platform-specific patterns live in src/main/platform/*.js (IGNORE_FILE_PATTERNS). */
 const IGNORE_PATTERNS = [/\.tmp$/i];
 
 /**
- * @type {string[]} AI agent config directories relative to home dir.
+ * @type {readonly string[]} AI agent config directories relative to home dir.
  * Monitored as critical targets — infostealers target these for API keys,
  * session tokens, and MCP server configs (ref: Hudson Rock, Feb 2026).
  * @since 0.2.0
@@ -96,7 +103,7 @@ const AGENT_CONFIG_PATHS = [
 ];
 
 /**
- * @type {Object<string, RegExp>} Map of agent name keywords to their own config directory patterns.
+ * @type {Readonly<Record<string, RegExp>>} Map of agent name keywords to their own config directory patterns.
  * Used for self-access exemption: an agent accessing its OWN config is expected, not a threat.
  * @since 0.3.0
  */
@@ -127,15 +134,7 @@ const AGENT_SELF_CONFIG = {
   jan: /[\\\/]\.jan[\\\/]/i,
 };
 
-/**
- * @typedef {Object} SensitiveRule
- * @property {RegExp} pattern - Regex tested against file paths
- * @property {string} reason  - Human-readable classification label
- * @property {string} [category] - Rule category (e.g. 'agent-config')
- * @property {string} [severity] - Severity level (e.g. 'critical')
- */
-
-/** @type {SensitiveRule[]} Rules that classify a file path as sensitive */
+/** @type {readonly BuiltinSensitiveRule[]} Rules that classify a file path as sensitive */
 const SENSITIVE_RULES = [
   // ── AI Agent Config Files — critical targets (Hudson Rock, Feb 2026) ──
   {
@@ -375,7 +374,7 @@ const SENSITIVE_RULES = [
   { pattern: /[\\\/]\.kube[\\\/]/i, reason: 'Kubernetes config' },
 ];
 
-/** @type {string[]} The six permission category identifiers */
+/** @type {readonly PermissionCategory[]} The six permission category identifiers */
 const PERMISSION_CATEGORIES = [
   'filesystem',
   'sensitive',
