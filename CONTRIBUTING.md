@@ -18,8 +18,8 @@ Requires Node.js 18+ and Windows 10/11 for full monitoring functionality. The El
 1. **Fork** the repository
 2. **Branch** from `master`: `git checkout -b feature/your-feature`
 3. **Implement** your changes following the code standards below
-4. **Test** manually: `npm start` — verify no console errors, all tabs render, existing features work
-5. **Commit** with a descriptive prefix: `feat:`, `fix:`, `docs:`, `refactor:`, `security:`
+4. **Test**: run `npm test` (475 tests across 28 files) and `npm start` — verify no console errors, all tabs render, existing features work
+5. **Commit** with [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
 6. **Push** your branch and open a **Pull Request** with a clear description of what changed and why
 
 ### Branch Workflow
@@ -43,7 +43,7 @@ When maintainers merge the Release PR → version bump + CHANGELOG + GitHub Rele
 - **JSDoc headers on all exported functions** — `@param`, `@returns`, `@since` tags required. Include `@file`, `@module`, `@description` at top of every file.
 - **200 line soft limit per file** — split into focused, single-responsibility modules when exceeding.
 - **`const` over `let`** when the binding doesn't change. Never use `var`.
-- **No external dependencies** without discussion — the project intentionally has only 2 runtime dependencies (`electron`, `chokidar`). Adding a dependency requires justification.
+- **No external dependencies** without discussion — the project intentionally has only 1 runtime dependency (`chokidar`; `electron` is a devDependency). Adding a dependency requires justification.
 
 ### Naming Conventions
 

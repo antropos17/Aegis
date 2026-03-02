@@ -68,7 +68,7 @@ AEGIS follows Electron security best practices:
 
 - **Context isolation:** Enabled. The renderer process cannot access Node.js APIs.
 - **Node integration:** Disabled in the renderer.
-- **Preload bridge:** All IPC passes through `contextBridge.exposeInMainWorld` with a defined, enumerated API surface (20+ channels). No arbitrary IPC.
+- **Preload bridge:** All IPC passes through `contextBridge.exposeInMainWorld` with a defined, enumerated API surface (54 channels). No arbitrary IPC.
 - **Content Security Policy:** `default-src 'self'` with limited exceptions for Google Fonts.
 - **No remote content:** The app loads only local files. No external URLs in the renderer.
 - **Input sanitization:** All user-visible strings pass through `escapeHtml()` before DOM insertion. Template literals are used for HTML generation, not `innerHTML` with raw strings.
