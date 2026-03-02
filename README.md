@@ -264,15 +264,15 @@ cd Aegis
 npm install
 npm run dev          # Development mode
 npm run build        # Production build (electron-builder)
-npm test             # Run 475 tests
-npm run lint         # Check formatting
+npm test             # Run 475+ tests
+npm run lint         # ESLint checks
 ```
 
 <p align="right"><a href="#-aegis">⬆ back to top</a></p>
 
 ## Testing
 
-475 tests across 28 test files. Uses [Vitest](https://vitest.dev/) with `v8` coverage.
+475+ tests across 28 test files. Uses [Vitest](https://vitest.dev/) with `v8` coverage.
 
 ```bash
 npm test              # run all tests once

@@ -35,7 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Local LLM runtime detection (Ollama localhost:11434, LM Studio localhost:1234)
 - CLI interface with JSON output (--scan-json, --version, --help)
 - 106 agent signatures including local-llm-runtime category
-- 436 tests across 25 test files (up from 130/12)
+- 408 tests across 25 test files (up from 130/12)
 - Dynamic version display in Footer via IPC
 - Contributors section in README with avatars
 - Trust signal badges, Table of Contents, navigation bar
