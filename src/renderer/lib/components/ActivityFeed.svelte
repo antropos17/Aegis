@@ -73,7 +73,10 @@
     if (window.aegis?.addFalsePositive) {
       await window.aegis.addFalsePositive(entry);
       falsePositives.update((arr) => [...arr, entry]);
-      addToast('Marked as false positive. Future similar events will have reduced risk.', 'success');
+      addToast(
+        'Marked as false positive. Future similar events will have reduced risk.',
+        'success',
+      );
     }
   }
 
@@ -142,7 +145,9 @@
       <div class="feed-entry" class:odd={i % 2 === 1}>
         <span class="feed-dot" style:background={sevColor(sev)}></span>
         <span class="feed-time">{formatRelativeTime(ev.timestamp)}</span>
-        <span class="feed-agent" title={ev.userAgent ? `Process: ${ev.userAgent}` : ''}>{ev.agent}</span>
+        <span class="feed-agent" title={ev.userAgent ? `Process: ${ev.userAgent}` : ''}
+          >{ev.agent}</span
+        >
         <span class="feed-action">{ev.action || ev._type}</span>
         <button class="feed-path" title={ev.file} onclick={(e) => handlePathClick(ev, e)}
           >{shortenPath(ev.file)}</button
@@ -170,8 +175,8 @@
           <button
             class="fp-btn"
             title="Mark as false positive"
-            onclick={(e) => markFalsePositive(ev, e)}
-          >FP</button>
+            onclick={(e) => markFalsePositive(ev, e)}>FP</button
+          >
         {/if}
       </div>
     {/each}
@@ -320,7 +325,9 @@
     cursor: pointer;
     flex-shrink: 0;
     opacity: 0;
-    transition: opacity 0.15s ease, background 0.15s ease;
+    transition:
+      opacity 0.15s ease,
+      background 0.15s ease;
   }
   .feed-entry:hover .fp-btn {
     opacity: 0.7;

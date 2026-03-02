@@ -17,7 +17,10 @@
     if (window.aegis?.addFalsePositive) {
       await window.aegis.addFalsePositive(entry);
       falsePositives.update((arr) => [...arr, entry]);
-      addToast('Marked as false positive. Future similar events will have reduced risk.', 'success');
+      addToast(
+        'Marked as false positive. Future similar events will have reduced risk.',
+        'success',
+      );
     }
   }
 
@@ -76,7 +79,11 @@
           <span class="log-action">{ev.action || 'access'}</span>
           <span class="log-path" title={ev.file}>{shortenPath(ev.file)}</span>
           {#if ev.sensitive}
-            <button class="fp-btn" title="Mark as false positive" onclick={() => markFalsePositive(ev)}>FP</button>
+            <button
+              class="fp-btn"
+              title="Mark as false positive"
+              onclick={() => markFalsePositive(ev)}>FP</button
+            >
           {/if}
         </div>
       {/each}
@@ -199,7 +206,9 @@
     cursor: pointer;
     flex-shrink: 0;
     opacity: 0;
-    transition: opacity 0.15s ease, background 0.15s ease;
+    transition:
+      opacity 0.15s ease,
+      background 0.15s ease;
   }
   .log-row:hover .fp-btn {
     opacity: 0.7;
