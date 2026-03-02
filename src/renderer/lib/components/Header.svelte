@@ -1,5 +1,5 @@
 <script>
-  import { stats } from '../stores/ipc.js';
+  import { stats, scanActive } from '../stores/ipc.js';
   import { enrichedAgents } from '../stores/risk.js';
   import OptionsPanel from './OptionsPanel.svelte';
   import { t } from '../i18n/index.js';
@@ -42,6 +42,11 @@
     >
     <span class="stat-sep">&middot;</span>
     <span class="stat-text">{filesMonitored} {$t('header.files')}</span>
+    <span class="stat-sep">&middot;</span>
+    <span class="scan-badge" class:active={$scanActive}>
+      <span class="scan-dot"></span>
+      {$scanActive ? 'Scanning' : 'Idle'}
+    </span>
   </div>
 
   <button
@@ -127,6 +132,30 @@
 
   .stat-dim {
     opacity: 0.6;
+  }
+
+  .scan-badge {
+    display: flex;
+    align-items: center;
+    gap: var(--aegis-space-2);
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+  }
+  .scan-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--md-sys-color-outline);
+    flex-shrink: 0;
+    transition: background 0.3s ease;
+  }
+  .scan-badge.active .scan-dot {
+    background: var(--md-sys-color-primary);
+    animation: scan-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes scan-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
   }
 
   .icon-btn {

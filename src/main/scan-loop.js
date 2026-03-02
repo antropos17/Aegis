@@ -18,6 +18,15 @@ let latestLocalModels = {
 };
 // Event dedup — same agent + same file within 30s → suppress, track count
 const eventDedupMap = new Map();
+let activeScanCount = 0;
+
+/** @param {boolean} entering — true when scan starts, false when ends @since v0.4.0 */
+function updateScanStatus(entering) {
+  activeScanCount += entering ? 1 : -1;
+  if (deps.sendToRenderer) {
+    deps.sendToRenderer('scan-status', { scanning: activeScanCount > 0 });
+  }
+}
 
 /**
  * Dedup file events: same agent + same file within 30s → suppress.
@@ -113,6 +122,7 @@ async function doProcessScan() {
     getPreviousPids,
     setPreviousPids,
   } = deps;
+  updateScanStatus(true);
   try {
     const result = await scanner.scanProcesses();
     setAgents(result.agents);
@@ -168,6 +178,8 @@ async function doProcessScan() {
     await enrichWithLocalModels(agents);
   } catch (err) {
     logger.error('main', 'Process scan failed', { error: err.message });
+  } finally {
+    updateScanStatus(false);
   }
 }
 
@@ -206,6 +218,7 @@ async function doFileScan() {
   const { watcher, tray, logger, sendToRenderer, getStats, getLatestAgents } = deps;
   const agents = getLatestAgents();
   if (agents.length === 0) return;
+  updateScanStatus(true);
   try {
     const rawEvents = await watcher.scanAllFileHandles(agents);
     const events = rawEvents.map(dedupFileEvent).filter(Boolean);
@@ -218,6 +231,8 @@ async function doFileScan() {
     tray.updateTrayIcon();
   } catch (err) {
     logger.error('main', 'File handle scan failed', { error: err.message });
+  } finally {
+    updateScanStatus(false);
   }
 }
 

@@ -1,5 +1,6 @@
 <script>
-  import { events, network } from '../stores/ipc.js';
+  import { events, network, falsePositives } from '../stores/ipc.js';
+  import { addToast } from '../stores/toast.js';
   import { t } from '../i18n/index.js';
 
   let { agentFilter = 'all', severityFilter = 'all', typeFilter = 'all' } = $props();
@@ -64,6 +65,16 @@
     const parts = p.replace(/\\/g, '/').split('/');
     if (parts.length <= 3) return p;
     return '\u2026/' + parts.slice(-3).join('/');
+  }
+
+  async function markFalsePositive(ev, e) {
+    e.stopPropagation();
+    const entry = { agentName: ev.agent, pattern: ev.file, timestamp: Date.now() };
+    if (window.aegis?.addFalsePositive) {
+      await window.aegis.addFalsePositive(entry);
+      falsePositives.update((arr) => [...arr, entry]);
+      addToast('Marked as false positive. Future similar events will have reduced risk.', 'success');
+    }
   }
 
   function handlePathClick(ev, e) {
@@ -154,6 +165,13 @@
         {/if}
         {#if ev.httpUnencrypted}
           <span class="feed-badge badge-high">HTTP</span>
+        {/if}
+        {#if ev.sensitive || ev.flagged}
+          <button
+            class="fp-btn"
+            title="Mark as false positive"
+            onclick={(e) => markFalsePositive(ev, e)}
+          >FP</button>
         {/if}
       </div>
     {/each}
@@ -289,5 +307,26 @@
     color: var(--md-sys-color-on-surface-variant);
     opacity: 0.7;
     flex-shrink: 0;
+  }
+
+  .fp-btn {
+    font-size: calc(9px * var(--aegis-ui-scale));
+    font-weight: 700;
+    padding: var(--aegis-space-1) var(--aegis-space-3);
+    border-radius: var(--md-sys-shape-corner-full);
+    border: 1px solid var(--md-sys-color-outline);
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s ease, background 0.15s ease;
+  }
+  .feed-entry:hover .fp-btn {
+    opacity: 0.7;
+  }
+  .fp-btn:hover {
+    opacity: 1;
+    background: var(--md-sys-color-surface-container);
   }
 </style>

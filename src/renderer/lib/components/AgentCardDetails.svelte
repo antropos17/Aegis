@@ -7,7 +7,19 @@
    * @since v0.3.0
    */
 
+  import { falsePositives } from '../stores/ipc.js';
+  import { addToast } from '../stores/toast.js';
+
   let { agent, gradeColor, agentEvents, sessionDuration, onPidAction } = $props();
+
+  async function markFalsePositive(ev) {
+    const entry = { agentName: agent.name || agent.agent, pattern: ev.file, timestamp: Date.now() };
+    if (window.aegis?.addFalsePositive) {
+      await window.aegis.addFalsePositive(entry);
+      falsePositives.update((arr) => [...arr, entry]);
+      addToast('Marked as false positive. Future similar events will have reduced risk.', 'success');
+    }
+  }
 
   function formatTime(ts) {
     if (!ts) return '';
@@ -63,6 +75,9 @@
           <span class="log-time">{formatTime(ev.timestamp)}</span>
           <span class="log-action">{ev.action || 'access'}</span>
           <span class="log-path" title={ev.file}>{shortenPath(ev.file)}</span>
+          {#if ev.sensitive}
+            <button class="fp-btn" title="Mark as false positive" onclick={() => markFalsePositive(ev)}>FP</button>
+          {/if}
         </div>
       {/each}
     </div>
@@ -172,6 +187,26 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .fp-btn {
+    font-size: calc(9px * var(--aegis-ui-scale));
+    font-weight: 700;
+    padding: 0 var(--aegis-space-2);
+    border-radius: var(--md-sys-shape-corner-full);
+    border: 1px solid var(--md-sys-color-outline);
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    cursor: pointer;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s ease, background 0.15s ease;
+  }
+  .log-row:hover .fp-btn {
+    opacity: 0.7;
+  }
+  .fp-btn:hover {
+    opacity: 1;
+    background: var(--md-sys-color-surface-container);
   }
   .pid-actions-row {
     display: flex;

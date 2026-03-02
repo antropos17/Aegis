@@ -5,7 +5,7 @@
  */
 
 import { derived } from 'svelte/store';
-import { agents, events, anomalies, network } from './ipc.js';
+import { agents, events, anomalies, network, falsePositives } from './ipc.js';
 import { calculateRiskScore, getTrustGrade, getTimeDecayWeight } from '../utils/risk-scoring.js';
 
 /** Known API domain patterns for API-call indicator */
@@ -64,8 +64,8 @@ function eventMatchesInstance(ev, name, parentEditor, pid, hasCwd) {
  * Risk is calculated per-instance (using cwd/parentEditor), not per-name.
  */
 export const enrichedAgents = derived(
-  [agents, events, anomalies, network],
-  ([$agents, $events, $anomalies, $network]) => {
+  [agents, events, anomalies, network, falsePositives],
+  ([$agents, $events, $anomalies, $network, $fp]) => {
     const allEvents = $events.flat();
 
     return $agents.map((raw) => {
@@ -110,7 +110,7 @@ export const enrichedAgents = derived(
       }
 
       const anomalyScore = $anomalies[name] || 0;
-      const riskScore = calculateRiskScore({
+      let riskScore = calculateRiskScore({
         sensitiveFiles,
         configFiles,
         sshAwsFiles,
@@ -119,6 +119,8 @@ export const enrichedAgents = derived(
         fileCount,
         httpUnencryptedCount,
       });
+      const hasFp = $fp.some((fp) => fp.agentName === name);
+      if (hasFp) riskScore = Math.max(0, riskScore - 20);
       const trustGrade = getTrustGrade(riskScore);
 
       return {
