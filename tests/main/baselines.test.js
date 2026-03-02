@@ -1,18 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createRequire } from 'module';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-
-const require = createRequire(import.meta.url);
+import baselines from '../../src/main/baselines.js';
 
 describe('baselines', () => {
-  let baselines;
   let tmpDir;
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-baselines-test-'));
-    baselines = require('../../src/main/baselines.js');
     baselines._setBaselinesPathForTest(path.join(tmpDir, 'baselines.json'));
 
     // Clear session data from prior tests
