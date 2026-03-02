@@ -264,7 +264,7 @@ cd Aegis
 npm install
 npm run dev          # Development mode
 npm run build        # Production build (electron-builder)
-npm test             # Run 436 tests
+npm test             # Run 449 tests
 npm run lint         # Check formatting
 ```
 
@@ -272,7 +272,7 @@ npm run lint         # Check formatting
 
 ## Testing
 
-436 tests across 25 test files. Covers process scanning, file classification, network monitoring, risk scoring, anomaly detection, config management, baselines, logging, CLI, platform parsers, toast notifications, and demo mode. Uses [Vitest](https://vitest.dev/) with `v8` coverage.
+449 tests across 26 test files. Covers process scanning, file classification, network monitoring, risk scoring, anomaly detection, config management, baselines, logging, CLI, platform parsers, toast notifications, and demo mode. Uses [Vitest](https://vitest.dev/) with `v8` coverage.
 
 ```bash
 npm test              # run all tests once
