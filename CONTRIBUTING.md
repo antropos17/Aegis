@@ -52,6 +52,14 @@ When maintainers merge the Release PR → version bump + CHANGELOG + GitHub Rele
 - Section comments: `// ═══ SECTION NAME ═══` for major sections, `// ── subsection ──` for minor
 - User-facing text: UPPERCASE for labels and badges, Title Case for proper names
 
+### TypeScript
+
+- **New files should be written in TypeScript** (`.ts`) — existing `.js` files will be migrated incrementally
+- Run `npx tsc --noEmit` (typecheck) before opening a PR — zero type errors required
+- **Zero `any`** — use proper types, generics, or `unknown` instead. ESLint warns on `any`
+- Explicit return types on exported functions (`@typescript-eslint/explicit-function-return-type`)
+- Unused variables are errors, not warnings, in `.ts` files
+
 ### CSS
 
 - Scoped styles inside `.svelte` components + 2 global files: `tokens.css` (M3 design tokens) and `global.css` (base styles)
