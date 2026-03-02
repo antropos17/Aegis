@@ -6,7 +6,7 @@ Electron 33 + Svelte 5 (runes) + Vite 7. Monitors AI agents on local machines. P
 npm run build:renderer    # Vite build (MUST pass before commit)
 npm run lint              # ESLint
 npm run format            # Prettier
-npm test                  # Vitest (456 tests, 27 files)
+npm test                  # Vitest (475 tests, 28 files)
 npm run dist              # Electron-builder NSIS installer
 
 ## Critical Rules
