@@ -1,15 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
+import scanner from '../../src/main/process-scanner.js';
 
 describe('process-scanner EPERM handling', () => {
-  let scanner;
   let mockListProcesses;
 
   beforeEach(() => {
     mockListProcesses = vi.fn();
-    scanner = require('../../src/main/process-scanner.js');
     scanner._resetForTest();
     scanner._setPlatformForTest({ listProcesses: mockListProcesses });
     scanner.init({ trackSeenAgent: vi.fn() });
