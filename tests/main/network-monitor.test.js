@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
-const networkMonitor = require('../../src/main/network-monitor.js');
+import networkMonitor from '../../src/main/network-monitor.js';
 
 describe('network-monitor', () => {
   describe('isKnownDomain()', () => {
@@ -152,12 +149,12 @@ describe('network-monitor DI tests', () => {
     });
 
     it('enriches connections with agent info and domain', async () => {
-      mockGetRawTcp.mockResolvedValue([
-        { pid: 100, ip: '52.1.2.3', port: 443, state: 'ESTAB' },
-      ]);
+      mockGetRawTcp.mockResolvedValue([{ pid: 100, ip: '52.1.2.3', port: 443, state: 'ESTAB' }]);
       mockDnsReverse.mockResolvedValue(['api.anthropic.com']);
 
-      const agents = [{ pid: 100, agent: 'Claude Code', parentEditor: 'VS Code', cwd: '/proj', category: 'ai' }];
+      const agents = [
+        { pid: 100, agent: 'Claude Code', parentEditor: 'VS Code', cwd: '/proj', category: 'ai' },
+      ];
       const results = await networkMonitor.scanNetworkConnections(agents);
 
       expect(results).toHaveLength(1);
@@ -174,9 +171,7 @@ describe('network-monitor DI tests', () => {
     });
 
     it('flags unknown domains', async () => {
-      mockGetRawTcp.mockResolvedValue([
-        { pid: 100, ip: '99.99.99.99', port: 443, state: 'ESTAB' },
-      ]);
+      mockGetRawTcp.mockResolvedValue([{ pid: 100, ip: '99.99.99.99', port: 443, state: 'ESTAB' }]);
       mockDnsReverse.mockResolvedValue(['evil-server.xyz']);
 
       const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
@@ -185,9 +180,7 @@ describe('network-monitor DI tests', () => {
     });
 
     it('flags connections with no domain resolution', async () => {
-      mockGetRawTcp.mockResolvedValue([
-        { pid: 100, ip: '99.99.99.99', port: 443, state: 'ESTAB' },
-      ]);
+      mockGetRawTcp.mockResolvedValue([{ pid: 100, ip: '99.99.99.99', port: 443, state: 'ESTAB' }]);
       mockDnsReverse.mockRejectedValue(new Error('ENOTFOUND'));
 
       const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
@@ -246,9 +239,7 @@ describe('network-monitor DI tests', () => {
     });
 
     it('uses PID label when agent not found in map', async () => {
-      mockGetRawTcp.mockResolvedValue([
-        { pid: 999, ip: '8.8.8.8', port: 53, state: 'ESTAB' },
-      ]);
+      mockGetRawTcp.mockResolvedValue([{ pid: 999, ip: '8.8.8.8', port: 53, state: 'ESTAB' }]);
       mockDnsReverse.mockResolvedValue(['dns.google']);
 
       const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
