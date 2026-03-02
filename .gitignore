@@ -9,8 +9,9 @@ coverage/
 Thumbs.db
 *.ps1
 cdp_*.js
-.claude/
-.mcp.json
+.claude/*
+!.claude/skills/
+!.mcp.json
 memory-bank/
 aegis-log-*.json
 aegis-export-*.zip
@@ -19,7 +20,8 @@ screenshot_test.png
 screenshot_electron.png
 *.exe
 
-.agent/
+.agent/*
+!.agent/skills/
 .env.local
 .env.*.local
 
