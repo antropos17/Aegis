@@ -19,6 +19,7 @@ let latestLocalModels = {
 // Event dedup — same agent + same file within 30s → suppress, track count
 const eventDedupMap = new Map();
 let activeScanCount = 0;
+let _lastTriggeredNetScan = 0;
 
 /** @param {boolean} entering — true when scan starts, false when ends @since v0.4.0 */
 function updateScanStatus(entering) {
@@ -63,6 +64,10 @@ function logAuditForFile(ev) {
 }
 
 function stopScanIntervals() {
+  if (warmupTimer) {
+    clearTimeout(warmupTimer);
+    warmupTimer = null;
+  }
   if (scanInterval) {
     clearInterval(scanInterval);
     scanInterval = null;
@@ -180,7 +185,10 @@ async function doProcessScan() {
       resourceUsage: getResourceUsage(),
       anomalyScores: scores,
     });
-    if (result.changed) doNetworkScan();
+    if (result.changed && Date.now() - _lastTriggeredNetScan > 15000) {
+      _lastTriggeredNetScan = Date.now();
+      doNetworkScan();
+    }
     await enrichWithLocalModels(agents);
   } catch (err) {
     logger.error('main', 'Process scan failed', { error: err.message });
@@ -250,14 +258,33 @@ function startScanIntervals(intervalMs) {
   fileScanInterval = setInterval(doFileScan, Math.max(ms * 3, 30000));
 }
 
+let warmupTimer = null;
+
+/** @param {number} targetMs @since v0.4.0 */
+function startWarmup(targetMs) {
+  const warmupMs = targetMs * 3;
+  scanInterval = setInterval(doProcessScan, warmupMs);
+  netInterval = setInterval(doNetworkScan, 60000);
+  fileScanInterval = setInterval(doFileScan, 60000);
+  warmupTimer = setTimeout(() => {
+    clearInterval(scanInterval);
+    clearInterval(netInterval);
+    clearInterval(fileScanInterval);
+    scanInterval = null;
+    netInterval = null;
+    fileScanInterval = null;
+    startScanIntervals(targetMs);
+  }, 60000);
+}
+
 /** @param {number} intervalMs @param {boolean} paused @since v0.3.0 */
 function staggeredStartup(intervalMs, paused) {
   setTimeout(() => doProcessScan(), 3000);
-  setTimeout(() => doFileScan(), 5000);
+  setTimeout(() => doFileScan(), 8000);
   setTimeout(() => {
     doNetworkScan();
-    if (!paused) startScanIntervals(intervalMs);
-  }, 8000);
+    if (!paused) startWarmup(intervalMs);
+  }, 12000);
 }
 
 /** @param {Object} injected @since v0.3.0 */
