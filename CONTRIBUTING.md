@@ -22,6 +22,18 @@ Requires Node.js 18+ and Windows 10/11 for full monitoring functionality. The El
 5. **Commit** with a descriptive prefix: `feat:`, `fix:`, `docs:`, `refactor:`, `security:`
 6. **Push** your branch and open a **Pull Request** with a clear description of what changed and why
 
+### Branch Workflow
+See [BRANCHING.md](BRANCHING.md) for full details.
+- Create a feature branch: `git checkout -b feat/my-feature`
+- Make changes with conventional commits
+- Push and create PR: `gh pr create --base master`
+- CI must pass, then maintainer merges
+
+### Releases
+Releases are automated via [release-please](https://github.com/googleapis/release-please).
+Just write proper conventional commits. release-please creates a Release PR automatically.
+When maintainers merge the Release PR → version bump + CHANGELOG + GitHub Release happen automatically.
+
 ## Code Standards
 
 ### General Rules
