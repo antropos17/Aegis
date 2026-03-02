@@ -1,6 +1,8 @@
 <script>
-  import { resourceUsage } from '../stores/ipc.js';
+  import { resourceUsage, stats } from '../stores/ipc.js';
   import { t } from '../i18n/index.js';
+
+  let permDenied = $derived($stats.permissionDeniedScans || 0);
 
   let lastCpuUser = 0;
   let lastCpuSystem = 0;
@@ -105,6 +107,16 @@
       <span class="footer-label">{$t('footer.up')}</span>
       <span class="footer-value">{formatUptime(uptimeMs)}</span>
     </div>
+
+    {#if permDenied > 5}
+      <div
+        class="footer-item"
+        title="Process scanner encountered {permDenied} consecutive permission errors. Some elevated processes may not be visible. Try running AEGIS as Administrator."
+      >
+        <span class="footer-label">{$t('footer.perm_warn')}</span>
+        <span class="footer-value high">{permDenied}</span>
+      </div>
+    {/if}
   </div>
 </footer>
 

@@ -76,6 +76,7 @@ function getStats() {
     aiAgentCount: new Set(latestAiAgents.map((a) => a.agent)).size,
     otherAgentCount: new Set(latestOtherAgents.map((a) => a.agent)).size,
     uniqueAgents: Array.from(scanner.uniqueAgentNames),
+    permissionDeniedScans: scanner.permissionDeniedScans,
   };
 }
 
