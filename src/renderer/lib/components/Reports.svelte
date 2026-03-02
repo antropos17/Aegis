@@ -28,10 +28,33 @@
     return Math.round(sum / list.length);
   });
 
+  /** Group by name: sum events, take max risk */
   let topAgents = $derived.by(() => {
-    const copy = [...cachedAgents];
-    copy.sort((a, b) => b.fileCount + b.networkCount - (a.fileCount + a.networkCount));
-    return copy.slice(0, 10);
+    /** @type {Map<string, {name:string, fileCount:number, networkCount:number, riskScore:number, trustGrade:string}>} */
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const byName = new Map();
+    for (const a of cachedAgents) {
+      const prev = byName.get(a.name);
+      if (!prev) {
+        byName.set(a.name, {
+          name: a.name,
+          fileCount: a.fileCount || 0,
+          networkCount: a.networkCount || 0,
+          riskScore: a.riskScore || 0,
+          trustGrade: a.trustGrade || '?',
+        });
+      } else {
+        prev.fileCount += a.fileCount || 0;
+        prev.networkCount += a.networkCount || 0;
+        if ((a.riskScore || 0) > prev.riskScore) {
+          prev.riskScore = a.riskScore;
+          prev.trustGrade = a.trustGrade || '?';
+        }
+      }
+    }
+    return [...byName.values()]
+      .sort((a, b) => b.fileCount + b.networkCount - (a.fileCount + a.networkCount))
+      .slice(0, 10);
   });
 
   function gradeColor(grade) {
@@ -79,10 +102,10 @@
         </tr>
       </thead>
       <tbody>
-        {#each topAgents as agent (agent.pid)}
+        {#each topAgents as agent (agent.name)}
           <tr>
             <td class="td-name">{agent.name}</td>
-            <td class="td-num">{agent.fileCount + agent.networkCount}</td>
+            <td class="td-num">{Math.round(agent.fileCount + agent.networkCount)}</td>
             <td class="td-num">{agent.riskScore}</td>
             <td>
               <span class="grade" style:color={gradeColor(agent.trustGrade)}>
