@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- IPC event batching to prevent renderer freeze during high-frequency file events (npm install, git operations)
 - Internationalization system with English base (#53) — @travisbreaks
 - Keyboard shortcuts and accessibility improvements (#51) — @travisbreaks
 - Browser-only demo mode (#52) — @travisbreaks
@@ -15,7 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Toast notification system — success/warning/error toasts with auto-dismiss (PR #15)
 - DemoBanner component for demo mode indicator
 - Development guide (docs/DEVELOPMENT.md)
-- 28 new tests (408 → 436 tests across 25 files)
+- 41 new tests (408 → 449 tests across 26 files)
 - GPG commit signing
 
 ### Fixed
