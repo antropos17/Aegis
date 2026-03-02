@@ -110,7 +110,9 @@
     "pid": "PID {pid}",
     "last_file": "Last: {file}",
     "session_hours": "{h}h {m}m",
-    "session_minutes": "{m}m"
+    "session_minutes": "{m}m",
+    "pid_copied": "PID copied",
+    "copy_pid": "Click to copy PID"
   },
   "network": {
     "all_agents": "All agents",

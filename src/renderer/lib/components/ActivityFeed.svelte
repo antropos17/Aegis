@@ -4,6 +4,15 @@
 
   let { agentFilter = 'all', severityFilter = 'all', typeFilter = 'all' } = $props();
 
+  let feedEl = $state(null);
+  let userScrolled = $state(false);
+  let now = $state(Date.now());
+
+  $effect(() => {
+    const id = setInterval(() => { now = Date.now(); }, 30000);
+    return () => clearInterval(id);
+  });
+
   function getSeverity(ev) {
     if (ev._type === 'network') return ev.flagged ? 'high' : 'low';
     if (ev._denied) return 'critical';
@@ -33,20 +42,26 @@
     return '';
   }
 
-  function formatTime(ts) {
+  /** @param {number} ts */
+  function formatRelativeTime(ts) {
+    const diff = now - ts;
+    if (diff < 30000) return 'just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
     const d = new Date(ts);
+    const mo = d.getMonth() + 1;
+    const day = d.getDate();
     const h = String(d.getHours()).padStart(2, '0');
     const m = String(d.getMinutes()).padStart(2, '0');
-    const s = String(d.getSeconds()).padStart(2, '0');
-    return `${h}:${m}:${s}`;
+    return `${mo}/${day} ${h}:${m}`;
   }
 
   function shortenPath(p) {
     if (!p) return '';
-    if (p.length <= 40) return p;
+    if (p.length <= 50) return p;
     const parts = p.replace(/\\/g, '/').split('/');
-    if (parts.length <= 2) return p;
-    return '\u2026/' + parts.slice(-2).join('/');
+    if (parts.length <= 3) return p;
+    return '\u2026/' + parts.slice(-3).join('/');
   }
 
   function handlePathClick(ev, e) {
@@ -86,9 +101,23 @@
     }
     return result.slice(0, 200);
   });
+
+  function onFeedScroll() {
+    if (!feedEl) return;
+    const { scrollTop, clientHeight, scrollHeight } = feedEl;
+    userScrolled = scrollTop + clientHeight < scrollHeight - 50;
+  }
+
+  $effect(() => {
+    // eslint-disable-next-line no-unused-vars -- tracks filtered changes to trigger autoscroll
+    const _len = filtered.length;
+    if (feedEl && !userScrolled) {
+      feedEl.scrollTop = feedEl.scrollHeight;
+    }
+  });
 </script>
 
-<div class="feed-scroll">
+<div class="feed-scroll" bind:this={feedEl} onscroll={onFeedScroll}>
   {#if filtered.length === 0}
     <div class="feed-empty">{$t('activity.feed.no_events')}</div>
   {:else}
@@ -97,7 +126,7 @@
       {@const label = badgeLabel(ev, sev)}
       <div class="feed-entry" class:odd={i % 2 === 1}>
         <span class="feed-dot" style:background={sevColor(sev)}></span>
-        <span class="feed-time">{formatTime(ev.timestamp)}</span>
+        <span class="feed-time">{formatRelativeTime(ev.timestamp)}</span>
         <span class="feed-agent">{ev.agent}</span>
         <span class="feed-action">{ev.action || ev._type}</span>
         <button class="feed-path" title={ev.file} onclick={(e) => handlePathClick(ev, e)}
