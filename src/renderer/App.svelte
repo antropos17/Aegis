@@ -33,6 +33,16 @@
   $effect(() => {
     /** @param {KeyboardEvent} e */
     function handleKeydown(e) {
+      // Ctrl+1-4: switch tabs (works even from inputs)
+      if (e.ctrlKey && !e.altKey && !e.shiftKey) {
+        const idx = parseInt(e.key) - 1;
+        if (idx >= 0 && idx <= 3) {
+          e.preventDefault();
+          activeTab = TAB_IDS[idx];
+          return;
+        }
+      }
+
       const tag = document.activeElement?.tagName;
       const isInput =
         tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable;
