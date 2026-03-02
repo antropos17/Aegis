@@ -112,7 +112,14 @@
     "session_hours": "{h}h {m}m",
     "session_minutes": "{m}m",
     "pid_copied": "PID copied",
-    "copy_pid": "Click to copy PID"
+    "copy_pid": "Click to copy PID",
+    "stat_proc": "Proc",
+    "stat_files": "Files",
+    "stat_net": "Net"
+  },
+  "timeline": {
+    "title": "Event Timeline",
+    "zoom_hint": "scroll to zoom"
   },
   "network": {
     "all_agents": "All agents",

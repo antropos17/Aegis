@@ -27,39 +27,49 @@
 </script>
 
 <div class="filters-bar">
-  <button
-    class="pill group-toggle"
-    class:active={groupByAgent}
-    onclick={() => (groupByAgent = !groupByAgent)}>{$t('activity.filters.group_by_agent')}</button
-  >
+  <div class="filter-section">
+    <button
+      class="pill group-toggle"
+      class:active={groupByAgent}
+      onclick={() => (groupByAgent = !groupByAgent)}>{$t('activity.filters.group_by_agent')}</button
+    >
 
-  <select class="agent-select" bind:value={agentFilter}>
-    <option value="all">{$t('activity.filters.all_agents')}</option>
-    {#each uniqueNames as name (name)}
-      <option value={name}>{name}</option>
-    {/each}
-  </select>
-
-  <div class="pill-group">
-    <span class="pill-label">{$t('activity.filters.severity')}</span>
-    {#each severities as sev (sev.value)}
-      <button
-        class="pill sev-{sev.value}"
-        class:active={severityFilter === sev.value}
-        onclick={() => (severityFilter = sev.value)}>{$t(sev.key)}</button
-      >
-    {/each}
+    <select class="agent-select" bind:value={agentFilter}>
+      <option value="all">{$t('activity.filters.all_agents')}</option>
+      {#each uniqueNames as name (name)}
+        <option value={name}>{name}</option>
+      {/each}
+    </select>
   </div>
 
-  <div class="pill-group">
+  <span class="divider"></span>
+
+  <div class="filter-section">
+    <span class="pill-label">{$t('activity.filters.severity')}</span>
+    <div class="pill-group">
+      {#each severities as sev (sev.value)}
+        <button
+          class="pill sev-{sev.value}"
+          class:active={severityFilter === sev.value}
+          onclick={() => (severityFilter = sev.value)}>{$t(sev.key)}</button
+        >
+      {/each}
+    </div>
+  </div>
+
+  <span class="divider"></span>
+
+  <div class="filter-section">
     <span class="pill-label">{$t('activity.filters.type')}</span>
-    {#each types as type (type.value)}
-      <button
-        class="pill"
-        class:active={typeFilter === type.value}
-        onclick={() => (typeFilter = type.value)}>{$t(type.key)}</button
-      >
-    {/each}
+    <div class="pill-group">
+      {#each types as type (type.value)}
+        <button
+          class="pill"
+          class:active={typeFilter === type.value}
+          onclick={() => (typeFilter = type.value)}>{$t(type.key)}</button
+        >
+      {/each}
+    </div>
   </div>
 </div>
 
@@ -67,8 +77,8 @@
   .filters-bar {
     display: flex;
     align-items: center;
-    gap: var(--aegis-space-8);
-    padding: var(--aegis-space-5) var(--aegis-space-7);
+    gap: var(--aegis-space-6);
+    padding: var(--aegis-space-6) var(--aegis-space-8);
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -80,13 +90,26 @@
     flex-wrap: wrap;
   }
 
+  .filter-section {
+    display: flex;
+    align-items: center;
+    gap: var(--aegis-space-4);
+  }
+
+  .divider {
+    width: 1px;
+    height: var(--aegis-space-9);
+    background: var(--md-sys-color-outline-variant);
+    flex-shrink: 0;
+  }
+
   .agent-select {
     font: var(--md-sys-typescale-body-medium);
     background: var(--md-sys-color-surface-container-high);
     color: var(--md-sys-color-on-surface);
     border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-small);
-    padding: var(--aegis-space-3) var(--aegis-space-5);
+    padding: var(--aegis-space-3) var(--aegis-space-6);
     cursor: pointer;
     min-width: var(--aegis-col-agent);
   }
@@ -99,34 +122,44 @@
   .pill-group {
     display: flex;
     align-items: center;
-    gap: var(--aegis-space-2);
+    gap: var(--aegis-space-3);
+    flex-wrap: wrap;
   }
 
   .pill-label {
-    font: var(--md-sys-typescale-label-medium);
+    font: var(--md-sys-typescale-label-large);
     color: var(--md-sys-color-on-surface-variant);
-    margin-right: var(--aegis-space-2);
+    white-space: nowrap;
   }
 
   .pill {
-    font: var(--md-sys-typescale-label-medium);
+    font: var(--md-sys-typescale-label-large);
     font-weight: 600;
-    padding: var(--aegis-space-2) var(--aegis-space-5);
+    padding: var(--aegis-space-3) var(--aegis-space-6);
     border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-full);
     background: transparent;
     color: var(--md-sys-color-on-surface-variant);
     cursor: pointer;
     text-transform: capitalize;
+    white-space: nowrap;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    transition: all 0.3s var(--ease-glass);
+    transition:
+      background 0.2s var(--ease-glass),
+      color 0.2s var(--ease-glass),
+      border-color 0.2s var(--ease-glass),
+      transform 0.15s var(--ease-glass);
   }
 
   .pill:hover {
     background: var(--md-sys-color-outline-variant);
     color: var(--md-sys-color-on-surface);
     border-color: var(--aegis-border-hover);
+  }
+
+  .pill:active {
+    transform: scale(0.96);
   }
 
   .pill.active {

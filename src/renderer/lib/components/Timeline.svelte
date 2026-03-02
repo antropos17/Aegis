@@ -1,13 +1,14 @@
 <script>
   /**
    * @file Timeline.svelte
-   * @description Horizontal event timeline with zoom, scroll, and history loading.
-   *   Canvas rendering in TimelineCanvas, scrub bar in TimelineControls.
+   * @description Horizontal event timeline with zoom, scroll, severity lanes,
+   *   dot clustering, summary counters, and history loading.
    * @since v0.1.0
    */
   import { events, network, focusedAgentPid } from '../stores/ipc.js';
   import TimelineCanvas from './TimelineCanvas.svelte';
   import TimelineControls from './TimelineControls.svelte';
+  import { t } from '../i18n/index.js';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
@@ -27,13 +28,17 @@
     cachedNetwork = $network;
   });
 
-  const SVG_H = 36;
-  const MID = 14;
-  const TICK_TOP = 24;
-  const TICK_H = 8;
+  const SVG_H = 80;
+  const LANE_CRIT = 12;
+  const LANE_HIGH = 26;
+  const LANE_MED = 40;
+  const LANE_LOW = 54;
+  const TICK_TOP = 60;
+  const TICK_H = 6;
   const PX_PER_UNIT = 120;
   const PAD = 20;
   const MIN_TICK_PX = 64;
+  const CLUSTER_PX = 12;
   const ZOOM_LEVELS = [
     { ms: 3600000 },
     { ms: 1800000 },
@@ -48,6 +53,7 @@
   ];
   const HISTORY_BATCH = 25;
 
+  /** @param {any} ev */
   function getSeverity(ev) {
     if (ev._type === 'network') return ev.flagged ? 'high' : 'low';
     if (ev._denied) return 'critical';
@@ -55,12 +61,23 @@
     if (ev.action === 'deleted') return 'medium';
     return 'low';
   }
+
+  /** @param {string} sev */
   function sevColor(sev) {
     if (sev === 'critical') return 'var(--md-sys-color-error)';
     if (sev === 'high') return 'var(--md-sys-color-secondary)';
     if (sev === 'medium') return 'var(--md-sys-color-primary)';
     return 'var(--md-sys-color-on-surface-variant)';
   }
+
+  /** @param {string} sev */
+  function sevLane(sev) {
+    if (sev === 'critical') return LANE_CRIT;
+    if (sev === 'high') return LANE_HIGH;
+    if (sev === 'medium') return LANE_MED;
+    return LANE_LOW;
+  }
+
   function formatTime(ts) {
     const d = new Date(ts);
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
@@ -186,6 +203,22 @@
     return merged.slice(-500);
   });
 
+  /** Summary counters */
+  let summary = $derived.by(() => {
+    let critical = 0;
+    let high = 0;
+    let medium = 0;
+    let low = 0;
+    for (const ev of allEvents) {
+      const sev = getSeverity(ev);
+      if (sev === 'critical') critical++;
+      else if (sev === 'high') high++;
+      else if (sev === 'medium') medium++;
+      else low++;
+    }
+    return { critical, high, medium, low, total: allEvents.length };
+  });
+
   let rawMinT = $derived(allEvents.length > 0 ? allEvents[0].timestamp || 0 : Date.now());
   let minT = $derived(Math.floor(rawMinT / 10000) * 10000);
   let maxT = $derived(
@@ -247,12 +280,15 @@
 
   let viewBox = $derived(`${clampedScroll} 0 ${viewportWidth} ${SVG_H}`);
 
-  let dots = $derived.by(() => {
+  /** Cluster nearby dots on the same lane */
+  let clusters = $derived.by(() => {
     if (allEvents.length === 0) return [];
-    return allEvents.map((ev, idx) => {
+    const raw = allEvents.map((ev, idx) => {
       const sev = getSeverity(ev);
       return {
         x: tsToX(ev.timestamp || 0),
+        y: sevLane(sev),
+        sev,
         color: sevColor(sev),
         agent: ev.agent || 'Unknown',
         pid: ev.pid || null,
@@ -260,6 +296,55 @@
         idx,
       };
     });
+
+    const result = [];
+    let i = 0;
+    while (i < raw.length) {
+      const base = raw[i];
+      const group = [base];
+      let j = i + 1;
+      while (j < raw.length && raw[j].y === base.y && Math.abs(raw[j].x - base.x) < CLUSTER_PX) {
+        group.push(raw[j]);
+        j++;
+      }
+      const avgX = group.reduce((s, d) => s + d.x, 0) / group.length;
+      const best = group.reduce((a, b) => {
+        const ord = { critical: 3, high: 2, medium: 1, low: 0 };
+        return (ord[b.sev] || 0) > (ord[a.sev] || 0) ? b : a;
+      }, group[0]);
+      // Collect unique agents in cluster for link tracking
+      const agents = [...new Set(group.map((d) => d.agent))];
+      result.push({
+        x: avgX,
+        y: base.y,
+        color: best.color,
+        count: group.length,
+        agent: group.length === 1 ? base.agent : `${group.length} events`,
+        agentKey: agents.length === 1 ? agents[0] : null,
+        pid: group.length === 1 ? base.pid : null,
+        time: group.length === 1 ? base.time : `${group[0].time} — ${group[group.length - 1].time}`,
+        idx: base.idx,
+        sev: best.sev,
+      });
+      i = j;
+    }
+    return result;
+  });
+
+  /** Connection lines between sequential dots of the same agent */
+  let links = $derived.by(() => {
+    const result = [];
+    /** @type {Record<string, {x: number, y: number, color: string}>} */
+    const lastByAgent = {};
+    for (const dot of clusters) {
+      if (!dot.agentKey) continue;
+      const prev = lastByAgent[dot.agentKey];
+      if (prev && Math.abs(dot.x - prev.x) > 3) {
+        result.push({ x1: prev.x, y1: prev.y, x2: dot.x, y2: dot.y, color: dot.color });
+      }
+      lastByAgent[dot.agentKey] = { x: dot.x, y: dot.y, color: dot.color };
+    }
+    return result;
   });
 
   let ticks = $derived.by(() => {
@@ -319,7 +404,7 @@
 
   function positionTooltip(e) {
     const estWidth = tooltipText.length * 7 + 16;
-    const estHeight = 24;
+    const estHeight = 28;
     const margin = 12;
     tooltipFixedX =
       e.clientX + margin + estWidth > window.innerWidth
@@ -328,7 +413,8 @@
     tooltipFixedY = e.clientY - estHeight - 8 < 0 ? e.clientY + margin : e.clientY - estHeight - 8;
   }
   function handleDotEnter(e, dot) {
-    tooltipText = `${dot.time}  ${dot.agent}` + (dot.pid ? ` [${dot.pid}]` : '');
+    const countInfo = dot.count > 1 ? ` (${dot.count})` : '';
+    tooltipText = `${dot.time}  ${dot.agent}${countInfo}` + (dot.pid ? ` [${dot.pid}]` : '');
     tooltipVisible = true;
     positionTooltip(e);
   }
@@ -381,17 +467,35 @@
 </script>
 
 <div class="timeline-wrap" onwheel={handleWheel} bind:clientWidth={viewportWidth}>
+  <div class="timeline-header">
+    <span class="timeline-title">{$t('timeline.title')}</span>
+    <div class="timeline-counters">
+      {#if summary.critical > 0}
+        <span class="counter critical">{summary.critical}</span>
+      {/if}
+      {#if summary.high > 0}
+        <span class="counter high">{summary.high}</span>
+      {/if}
+      {#if summary.medium > 0}
+        <span class="counter medium">{summary.medium}</span>
+      {/if}
+      <span class="counter low">{summary.low}</span>
+      <span class="counter total">{summary.total}</span>
+    </div>
+    <span class="zoom-hint">{$t('timeline.zoom_hint')}</span>
+  </div>
+
   <TimelineCanvas
     {viewportWidth}
     svgH={SVG_H}
     {viewBox}
     {clampedScroll}
-    pad={PAD}
-    mid={MID}
+    lanePositions={{ crit: LANE_CRIT, high: LANE_HIGH, med: LANE_MED, low: LANE_LOW }}
     tickTop={TICK_TOP}
     tickH={TICK_H}
     {ticks}
-    {dots}
+    dots={clusters}
+    {links}
     onDotEnter={handleDotEnter}
     onDotMove={handleDotMove}
     onDotLeave={handleDotLeave}
@@ -426,10 +530,76 @@
     box-shadow:
       0 2px 8px rgba(0, 0, 0, 0.12),
       var(--glass-highlight);
-    border-radius: var(--md-sys-shape-corner-small);
-    padding: 3px 0;
+    border-radius: var(--md-sys-shape-corner-medium);
+    padding: var(--aegis-space-3) 0;
     overflow: hidden;
   }
+
+  .timeline-header {
+    display: flex;
+    align-items: center;
+    gap: var(--aegis-space-4);
+    padding: 0 var(--aegis-space-6) var(--aegis-space-3);
+  }
+
+  .timeline-title {
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .timeline-counters {
+    display: flex;
+    align-items: center;
+    gap: var(--aegis-space-2);
+  }
+
+  .counter {
+    font: var(--md-sys-typescale-label-medium);
+    font-family: 'DM Mono', monospace;
+    font-weight: 700;
+    padding: 0 var(--aegis-space-3);
+    border-radius: var(--md-sys-shape-corner-full);
+    line-height: 1.6;
+  }
+
+  .counter.critical {
+    background: color-mix(in srgb, var(--md-sys-color-error) 20%, transparent);
+    color: var(--md-sys-color-error);
+  }
+
+  .counter.high {
+    background: color-mix(in srgb, var(--md-sys-color-secondary) 20%, transparent);
+    color: var(--md-sys-color-secondary);
+  }
+
+  .counter.medium {
+    background: color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent);
+    color: var(--md-sys-color-primary);
+  }
+
+  .counter.low {
+    background: color-mix(in srgb, var(--md-sys-color-on-surface-variant) 12%, transparent);
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .counter.total {
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+    opacity: 0.6;
+    padding: 0;
+    margin-left: var(--aegis-space-2);
+  }
+
+  .zoom-hint {
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-on-surface-variant);
+    opacity: 0.4;
+    margin-left: auto;
+  }
+
   .timeline-tooltip {
     position: fixed;
     pointer-events: none;
@@ -440,7 +610,7 @@
     background: var(--md-sys-color-surface-container-high);
     border: var(--aegis-card-border);
     border-radius: var(--md-sys-shape-corner-small);
-    padding: calc(3px * var(--aegis-ui-scale)) var(--aegis-space-4);
+    padding: var(--aegis-space-2) var(--aegis-space-5);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     z-index: 9999;
   }
