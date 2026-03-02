@@ -78,6 +78,10 @@ function doNetworkScan() {
     .then((connections) => {
       deps.setLatestNetConnections(connections);
       for (const conn of connections) {
+        if (conn.httpUnencrypted) {
+          logger.warn('network', 'Unencrypted HTTP connection detected: ' +
+            (conn.domain || conn.remoteIp));
+        }
         baselines.recordNetworkEndpoint(conn.agent, conn.remoteIp, conn.remotePort);
         audit.log('network-connection', {
           agent: conn.agent,

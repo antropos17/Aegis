@@ -8,6 +8,29 @@ import { derived } from 'svelte/store';
 import { agents, events, anomalies, network } from './ipc.js';
 import { calculateRiskScore, getTrustGrade, getTimeDecayWeight } from '../utils/risk-scoring.js';
 
+/** Known API domain patterns for API-call indicator */
+const API_DOMAIN_PATTERNS = [
+  /^api\./i,
+  /api\.openai\.com$/i,
+  /api\.anthropic\.com$/i,
+  /api\.github\.com$/i,
+  /api\.groq\.com$/i,
+  /api\.cohere\.ai$/i,
+  /api\.mistral\.ai$/i,
+  /generativelanguage\.googleapis\.com$/i,
+  /api\.together\.xyz$/i,
+  /api\.replicate\.com$/i,
+];
+
+/**
+ * Check if a domain is a known API endpoint.
+ * @param {string} domain
+ * @returns {boolean}
+ */
+function isApiDomain(domain) {
+  return API_DOMAIN_PATTERNS.some((p) => p.test(domain));
+}
+
 /**
  * Build an instance key for matching events/connections to a specific agent instance.
  * CWD takes priority as the most specific identifier.
@@ -76,10 +99,14 @@ export const enrichedAgents = derived(
 
       let unknownDomains = 0;
       let networkCount = 0;
+      let httpUnencryptedCount = 0;
+      let hasApiCalls = false;
       for (const conn of $network) {
         if (!eventMatchesInstance(conn, name, parentEditor, raw.pid, hasCwd)) continue;
         networkCount++;
         if (conn.flagged) unknownDomains++;
+        if (conn.httpUnencrypted) httpUnencryptedCount++;
+        if (conn.domain && isApiDomain(conn.domain)) hasApiCalls = true;
       }
 
       const anomalyScore = $anomalies[name] || 0;
@@ -90,6 +117,7 @@ export const enrichedAgents = derived(
         networkCount,
         unknownDomains,
         fileCount,
+        httpUnencryptedCount,
       });
       const trustGrade = getTrustGrade(riskScore);
 
@@ -107,6 +135,7 @@ export const enrichedAgents = derived(
         trustGrade,
         fileCount,
         networkCount,
+        hasApiCalls,
       };
     });
   },

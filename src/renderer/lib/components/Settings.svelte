@@ -9,6 +9,8 @@
   let customPatterns = $state('');
   let showKey = $state(false);
   let loaded = $state(false);
+  let hwAccel = $state(true);
+  let hwAccelChanged = $state(false);
 
   $effect(() => {
     if (!open || loaded || !window.aegis) return;
@@ -20,6 +22,8 @@
         notifications = s.notificationsEnabled ?? true;
         apiKey = s.anthropicApiKey ?? '';
         customPatterns = (s.customSensitivePatterns || []).join('\n');
+        hwAccel = s.hardwareAcceleration !== false;
+        hwAccelChanged = false;
         loaded = true;
       })
       .catch(() => {});
@@ -48,6 +52,7 @@
       notificationsEnabled: notifications,
       anthropicApiKey: apiKey.trim(),
       customSensitivePatterns: patterns,
+      hardwareAcceleration: hwAccel,
     });
     close();
   }
@@ -122,6 +127,25 @@
             bind:value={customPatterns}
             placeholder="e.g. \.secret$&#10;passwords\.txt"
           ></textarea>
+        </label>
+        <label class="field">
+          <span class="field-label">Hardware Acceleration</span>
+          <div class="hw-row">
+            <button
+              class="toggle"
+              class:toggle-on={hwAccel}
+              aria-label="Toggle hardware acceleration"
+              onclick={() => {
+                hwAccel = !hwAccel;
+                hwAccelChanged = true;
+              }}
+            >
+              <span class="toggle-knob"></span>
+            </button>
+            {#if hwAccelChanged}
+              <span class="hw-warn">Requires restart to take effect</span>
+            {/if}
+          </div>
         </label>
       </div>
       <div class="config-actions">
@@ -295,6 +319,17 @@
   }
   .toggle-vis:hover {
     color: var(--md-sys-color-on-surface);
+  }
+
+  .hw-row {
+    display: flex;
+    align-items: center;
+    gap: var(--aegis-space-5);
+  }
+  .hw-warn {
+    font: var(--md-sys-typescale-label-medium);
+    color: var(--md-sys-color-secondary);
+    font-size: calc(10px * var(--aegis-ui-scale));
   }
 
   .config-actions {

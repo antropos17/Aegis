@@ -17,6 +17,20 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
 
 const { app, BrowserWindow, globalShortcut } = require('electron');
 const path = require('path');
+const fs = require('fs');
+
+// ═══ HW ACCELERATION (must run before app.whenReady) ═══
+try {
+  const settingsFile = path.join(app.getPath('userData'), 'settings.json');
+  if (fs.existsSync(settingsFile)) {
+    const raw = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
+    if (raw.hardwareAcceleration === false) {
+      app.disableHardwareAcceleration();
+    }
+  }
+} catch (_) {
+  // Settings unreadable — keep HW accel enabled (default)
+}
 
 app.name = 'Aegis';
 if (process.platform === 'darwin') {

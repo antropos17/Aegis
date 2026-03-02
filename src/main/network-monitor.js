@@ -179,6 +179,7 @@ async function scanNetworkConnections(agents) {
     const agent = pidMap.get(c.pid);
     const cached = dnsCache.get(c.ip);
     const domain = cached ? cached.domain : null;
+    const httpUnencrypted = c.port === 80;
     return {
       agent: agent ? agent.agent : `PID ${c.pid}`,
       pid: c.pid,
@@ -190,6 +191,8 @@ async function scanNetworkConnections(agents) {
       domain: domain || '',
       state: c.state,
       flagged: !domain || !isKnownDomain(domain),
+      httpUnencrypted,
+      userAgent: agent ? agent.process || agent.agent : null,
     };
   });
 }
