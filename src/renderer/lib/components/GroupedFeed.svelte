@@ -84,6 +84,7 @@
   });
 
   let groups = $derived.by(() => {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const map = new Map();
     for (const ev of filtered) {
       if (!map.has(ev.agent)) map.set(ev.agent, []);

@@ -45,6 +45,7 @@
 
   /** Derive unique instance entries from enriched agents, keyed by cwd/project */
   let instanceList = $derived.by(() => {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const seen = new Set();
     const running = [];
     const savedDefaults = [];
