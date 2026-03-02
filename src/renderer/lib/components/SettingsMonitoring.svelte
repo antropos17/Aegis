@@ -12,6 +12,8 @@
     notifications = $bindable(true),
     apiKey = $bindable(''),
     customPatterns = $bindable(''),
+    ignoreBuildDirs = $bindable(true),
+    ignoredDirectories = $bindable(''),
   } = $props();
 
   let showKey = $state(false);
@@ -97,6 +99,32 @@
   <textarea rows="3" bind:value={customPatterns} placeholder="e.g. \.secret$&#10;passwords\.txt"
   ></textarea>
 </div>
+
+<!-- ── File Watcher Ignores ── -->
+<div class="section-label">{$t('settings.monitoring.ignore_build_dirs')}</div>
+
+<div class="option-group row">
+  <span class="option-label">{$t('settings.monitoring.ignore_build_dirs')}</span>
+  <button
+    class="toggle"
+    class:toggle-on={ignoreBuildDirs}
+    aria-label={$t('settings.monitoring.toggle_ignore_dirs')}
+    onclick={() => {
+      ignoreBuildDirs = !ignoreBuildDirs;
+    }}
+  >
+    <span class="toggle-knob"></span>
+  </button>
+</div>
+
+{#if ignoreBuildDirs}
+  <div class="option-group">
+    <span class="option-label">{$t('settings.monitoring.ignored_dirs_custom')}</span>
+    <span class="field-hint">{$t('settings.monitoring.ignored_dirs_hint')}</span>
+    <textarea rows="2" bind:value={ignoredDirectories} placeholder="e.g. vendor&#10;.output"
+    ></textarea>
+  </div>
+{/if}
 
 <style>
   .section-label {

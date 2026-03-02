@@ -59,7 +59,11 @@
       "api_key_placeholder": "sk-ant-...",
       "not_available": "Not available",
       "sent": "Sent",
-      "failed": "Failed"
+      "failed": "Failed",
+      "ignore_build_dirs": "Ignore Common Build Directories",
+      "toggle_ignore_dirs": "Toggle ignore common build directories",
+      "ignored_dirs_custom": "Custom Ignored Directories",
+      "ignored_dirs_hint": "One directory name per line"
     }
   },
   "activity": {

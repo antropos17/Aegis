@@ -27,6 +27,25 @@ const {
 const _platform = require('./platform');
 const { IGNORE_FILE_PATTERNS } = _platform;
 
+/**
+ * Default directories to ignore in file watchers.
+ * @type {string[]}
+ */
+const DEFAULT_IGNORED_DIRS = [
+  '.git',
+  'node_modules',
+  '__pycache__',
+  '.svn',
+  '.hg',
+  'dist',
+  'build',
+  '.next',
+  '.nuxt',
+  '.cache',
+  '.tmp',
+  '.venv',
+];
+
 let _getFileHandles = _platform.getFileHandles;
 /** @internal Override dependencies (for tests). */
 function _setDepsForTest(overrides) {
@@ -86,6 +105,28 @@ function isSelfAccess(agentName, filePath) {
     if (agentLower.includes(keyword) && pattern.test(filePath)) return true;
   }
   return false;
+}
+
+/**
+ * Build an ignore-filter function for chokidar's `ignored` option.
+ * Uses function form (not glob) to avoid chokidar issue #773.
+ * Handles both `/` and `\` separators for Windows compatibility.
+ * @param {Object} [config] - Config object with ignoredDirectories and ignoreCommonBuildDirs
+ * @returns {(filePath: string) => boolean}
+ */
+function getIgnoredDirFilter(config) {
+  const useDefaults = config?.ignoreCommonBuildDirs !== false;
+  const custom = Array.isArray(config?.ignoredDirectories) ? config.ignoredDirectories : [];
+  const dirs = useDefaults ? [...DEFAULT_IGNORED_DIRS, ...custom] : custom;
+  if (dirs.length === 0) return () => false;
+  return (filePath) =>
+    dirs.some(
+      (dir) =>
+        filePath.includes('/' + dir + '/') ||
+        filePath.includes('\\' + dir + '\\') ||
+        filePath.endsWith('/' + dir) ||
+        filePath.endsWith('\\' + dir),
+    );
 }
 
 function bindWatcherEvents(watcher) {
@@ -162,10 +203,12 @@ function setupFileWatchers() {
     bindWatcherEvents(cw);
     _state.watchers.push(cw);
   }
+  const config = _state.getSettings ? _state.getSettings() : {};
+  const dirFilter = getIgnoredDirFilter(config);
   const pw = chokidar.watch(projectDir, {
     persistent: true,
     ignoreInitial: true,
-    ignored: [/(node_modules|\.git|dist|out)[\\\/]/, /package-lock\.json$/],
+    ignored: (filePath) => dirFilter(filePath) || /package-lock\.json$/.test(filePath),
     usePolling: false,
   });
   bindWatcherEvents(pw);
@@ -261,6 +304,8 @@ module.exports = {
   shouldIgnore,
   isSelfAccess,
   handleWatcherEvent,
+  getIgnoredDirFilter,
+  DEFAULT_IGNORED_DIRS,
   _setDepsForTest,
   _resetForTest,
 };

@@ -18,6 +18,8 @@
   let notifications = $state(true);
   let apiKey = $state('');
   let customPatterns = $state('');
+  let ignoreBuildDirs = $state(true);
+  let ignoredDirectories = $state('');
   let loaded = $state(false);
 
   $effect(() => {
@@ -33,6 +35,8 @@
             notifications = s.notificationsEnabled ?? true;
             apiKey = s.anthropicApiKey ?? '';
             customPatterns = (s.customSensitivePatterns || []).join('\n');
+            ignoreBuildDirs = s.ignoreCommonBuildDirs !== false;
+            ignoredDirectories = (s.ignoredDirectories || []).join('\n');
             loaded = true;
           })
           .catch(() => {});
@@ -65,6 +69,11 @@
         notificationsEnabled: notifications,
         anthropicApiKey: apiKey.trim(),
         customSensitivePatterns: patterns,
+        ignoreCommonBuildDirs: ignoreBuildDirs,
+        ignoredDirectories: ignoredDirectories
+          .split('\n')
+          .map((l) => l.trim())
+          .filter(Boolean),
       });
     }
     loaded = false;
@@ -101,7 +110,14 @@
       <h2 class="panel-title">{$t('settings.title')}</h2>
 
       <SettingsAppearance bind:localTheme bind:localScale {onThemeChange} {onScaleInput} />
-      <SettingsMonitoring bind:scanInterval bind:notifications bind:apiKey bind:customPatterns />
+      <SettingsMonitoring
+        bind:scanInterval
+        bind:notifications
+        bind:apiKey
+        bind:customPatterns
+        bind:ignoreBuildDirs
+        bind:ignoredDirectories
+      />
 
       <div class="config-actions">
         <button class="btn" onclick={() => window.aegis?.exportConfig()}
