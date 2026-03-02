@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
-const { createBatcher } = require('../../src/main/ipc-batcher.js');
+import { createBatcher } from '../../src/main/ipc-batcher.js';
 
 describe('ipc-batcher', () => {
   beforeEach(() => {
