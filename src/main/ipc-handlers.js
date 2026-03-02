@@ -17,6 +17,7 @@ const audit = require('./audit-logger');
 const logger = require('./logger');
 const { killProcess, suspendProcess, resumeProcess } = require('./platform');
 const scanLoop = require('./scan-loop');
+const zipWriter = require('./zip-writer');
 
 let deps = {};
 
@@ -279,6 +280,31 @@ function register() {
 
   // ── App info ──
   ipcMain.handle('get-app-version', () => app.getVersion());
+
+  // ── Zip export ──
+  ipcMain.handle('export-zip', async () => {
+    const settingsCopy = { ...config.getSettings() };
+    delete settingsCopy.anthropicApiKey;
+    delete settingsCopy.apiKey;
+    const entries = [
+      { name: 'audit-log.json', data: Buffer.from(JSON.stringify(audit.exportAll(), null, 2)) },
+      {
+        name: 'activity-log.json',
+        data: Buffer.from(JSON.stringify(scanner.activityLog.slice(-5000), null, 2)),
+      },
+      { name: 'config.json', data: Buffer.from(JSON.stringify(settingsCopy, null, 2)) },
+    ];
+    const zipBuf = zipWriter.createZip(entries);
+    const defaultName = `aegis-export-${new Date().toISOString().slice(0, 10)}.zip`;
+    const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
+      title: 'Export All Data (ZIP)',
+      defaultPath: defaultName,
+      filters: [{ name: 'ZIP', extensions: ['zip'] }],
+    });
+    if (!filePath) return { success: false };
+    fs.writeFileSync(filePath, zipBuf);
+    return { success: true, path: filePath };
+  });
 
   // ── Process control ──
   ipcMain.handle('kill-process', (_e, pid) => killProcess(pid));

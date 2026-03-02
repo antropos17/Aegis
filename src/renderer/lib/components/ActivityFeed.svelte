@@ -9,7 +9,9 @@
   let now = $state(Date.now());
 
   $effect(() => {
-    const id = setInterval(() => { now = Date.now(); }, 30000);
+    const id = setInterval(() => {
+      now = Date.now();
+    }, 30000);
     return () => clearInterval(id);
   });
 
@@ -132,6 +134,16 @@
         <button class="feed-path" title={ev.file} onclick={(e) => handlePathClick(ev, e)}
           >{shortenPath(ev.file)}</button
         >
+        {#if ev._type === 'file' && ev.file}
+          <button
+            class="feed-reveal"
+            title="Open file location"
+            onclick={(e) => {
+              e.stopPropagation();
+              window.aegis?.revealInExplorer(ev.file);
+            }}>&#128193;</button
+          >
+        {/if}
         {#if ev.repeatCount > 1}
           <span class="feed-repeat">&times;{ev.repeatCount}</span>
         {/if}
@@ -246,6 +258,23 @@
   .badge-config {
     background: rgba(200, 168, 78, 0.12);
     color: var(--md-sys-color-secondary);
+  }
+
+  .feed-reveal {
+    background: none;
+    border: none;
+    padding: 0 var(--aegis-space-1);
+    cursor: pointer;
+    font-size: calc(12px * var(--aegis-ui-scale));
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .feed-entry:hover .feed-reveal {
+    opacity: 0.7;
+  }
+  .feed-reveal:hover {
+    opacity: 1;
   }
 
   .feed-repeat {

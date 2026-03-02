@@ -292,6 +292,20 @@ app.whenReady().then(() => {
   });
   const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
   scanLoop.staggeredStartup(ms, monitoringPaused);
+
+  // ── OOM protection: trim old data when heap > 512 MB ──
+  setInterval(() => {
+    const heap = process.memoryUsage().heapUsed;
+    if (heap > 512 * 1024 * 1024) {
+      logger.warn('main', 'Memory threshold reached, trimming old data', {
+        heapMB: Math.round(heap / 1024 / 1024),
+      });
+      const log = scanner.activityLog;
+      if (log.length > 1000) {
+        log.splice(0, log.length - 1000);
+      }
+    }
+  }, 60_000);
 });
 
 app.on('before-quit', () => {

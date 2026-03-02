@@ -14,8 +14,21 @@
   let { agent, expandedPid = $bindable(null) } = $props();
 
   let blinking = $state(false);
+  let threatFlash = $state(false);
+  let _prevRiskScore = -1;
   let cardEl = $state(null);
   let expanded = $derived(expandedPid === agent.pid);
+
+  $effect(() => {
+    const score = agent.riskScore ?? 0;
+    if (_prevRiskScore !== -1 && score >= 70 && _prevRiskScore < 70) {
+      threatFlash = true;
+      setTimeout(() => {
+        threatFlash = false;
+      }, 1000);
+    }
+    _prevRiskScore = score;
+  });
 
   $effect(() => {
     const pid = $focusedAgentPid;
@@ -92,11 +105,19 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<article class="agent-card" class:expanded class:blinking bind:this={cardEl} onclick={toggle}>
+<article
+  class="agent-card"
+  class:expanded
+  class:blinking
+  class:threat-flash={threatFlash}
+  bind:this={cardEl}
+  onclick={toggle}
+>
   <div class="compact-row">
     <span class="agent-name">{displayName}</span>
     <button class="stat stat-pid" onclick={copyPid} title={$t('agents.copy_pid')}
-      >{$t('agents.pid', { pid: agent.pid })}</button>
+      >{$t('agents.pid', { pid: agent.pid })}</button
+    >
     {#if agent.fileCount != null}<span class="stat">{Math.round(agent.fileCount)}f</span>{/if}
     {#if agent.networkCount != null}<span class="stat">{agent.networkCount}n</span>{/if}
     <span class="risk-score" style:color={gradeColor}>{agent.riskScore}</span>
@@ -220,6 +241,19 @@
     }
     50% {
       background: var(--md-sys-color-primary-container);
+    }
+  }
+  .agent-card.threat-flash {
+    outline: 2px solid transparent;
+    animation: threat-flash 500ms ease 2;
+  }
+  @keyframes threat-flash {
+    0%,
+    100% {
+      outline-color: transparent;
+    }
+    50% {
+      outline-color: var(--md-sys-color-error);
     }
   }
 </style>
