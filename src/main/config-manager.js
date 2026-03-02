@@ -42,6 +42,8 @@ const DEFAULT_SETTINGS = {
   uiScale: 1,
   timelineZoom: 6,
   agentPermissions: {},
+  ignoredDirectories: [],
+  ignoreCommonBuildDirs: true,
   seenAgents: [],
   customAgents: [],
 };
