@@ -24,7 +24,7 @@
     <Timeline {active} />
   </div>
   <div class="feed-area">
-    <FeedFilters bind:agentFilter bind:severityFilter bind:typeFilter />
+    <FeedFilters {active} bind:agentFilter bind:severityFilter bind:typeFilter />
     <ActivityFeed {active} {agentFilter} {severityFilter} {typeFilter} />
   </div>
 </div>

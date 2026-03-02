@@ -3,14 +3,23 @@
   import { t } from '../i18n/index.js';
 
   let {
+    active = true,
     agentFilter = $bindable('all'),
     severityFilter = $bindable('all'),
     typeFilter = $bindable('all'),
     groupByAgent = $bindable(true),
   } = $props();
 
+  /** @type {any[]} */
+  let cachedAgents = $state([]);
+
+  $effect(() => {
+    if (!active) return;
+    cachedAgents = $enrichedAgents;
+  });
+
   /** Unique agent names for dropdown (deduped from enrichedAgents) */
-  let uniqueNames = $derived([...new Set($enrichedAgents.map((a) => a.name))].sort());
+  let uniqueNames = $derived([...new Set(cachedAgents.map((a) => a.name))].sort());
 
   const severities = [
     { value: 'all', key: 'activity.filters.severity_all' },

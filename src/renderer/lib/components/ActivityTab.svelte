@@ -26,7 +26,7 @@
   </div>
 
   {#if view === 'feed'}
-    <FeedFilters bind:agentFilter bind:severityFilter bind:typeFilter bind:groupByAgent />
+    <FeedFilters {active} bind:agentFilter bind:severityFilter bind:typeFilter bind:groupByAgent />
     {#if groupByAgent}
       <GroupedFeed {active} {agentFilter} {severityFilter} {typeFilter} />
     {:else}
