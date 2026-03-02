@@ -173,12 +173,12 @@ function handleWatcherEvent(action, filePath) {
   if (_state.onFileEvent) _state.onFileEvent(event);
 }
 
-/** @returns {void} @since v0.1.0 */
-function setupFileWatchers() {
+/** @returns {Promise<void>} @since v0.1.0 */
+async function setupFileWatchers() {
   const homeDir = os.homedir();
-  const sensitiveDirs = ['.ssh', '.aws', '.gnupg', '.kube', '.docker', '.azure']
-    .map((d) => path.join(homeDir, d))
-    .filter((d) => fs.existsSync(d));
+  const sensitiveDirCandidates = ['.ssh', '.aws', '.gnupg', '.kube', '.docker', '.azure']
+    .map((d) => path.join(homeDir, d));
+  const sensitiveDirs = await filterExistingDirs(sensitiveDirCandidates);
   const projectDir = path.join(__dirname, '..', '..');
   if (sensitiveDirs.length > 0) {
     const w = chokidar.watch(sensitiveDirs, {
@@ -191,9 +191,9 @@ function setupFileWatchers() {
   }
   // AI agent config directories (Hudson Rock threat vector — critical)
   const sensitiveDirNames = new Set(['.ssh', '.aws', '.gnupg', '.kube', '.docker', '.azure']);
-  const agentConfigDirs = AGENT_CONFIG_PATHS.filter((d) => !sensitiveDirNames.has(d))
-    .map((d) => path.join(homeDir, d))
-    .filter((d) => fs.existsSync(d));
+  const agentConfigCandidates = AGENT_CONFIG_PATHS.filter((d) => !sensitiveDirNames.has(d))
+    .map((d) => path.join(homeDir, d));
+  const agentConfigDirs = await filterExistingDirs(agentConfigCandidates);
   if (agentConfigDirs.length > 0) {
     const cw = chokidar.watch(agentConfigDirs, {
       persistent: true,
@@ -221,6 +221,17 @@ function setupFileWatchers() {
   });
   bindWatcherEvents(ew);
   _state.watchers.push(ew);
+}
+
+/**
+ * Check which directories exist using async fs, in parallel.
+ * @param {string[]} dirs @returns {Promise<string[]>} @since v0.5.0
+ */
+async function filterExistingDirs(dirs) {
+  const results = await Promise.all(
+    dirs.map((d) => fs.promises.access(d).then(() => d).catch(() => null)),
+  );
+  return results.filter(Boolean);
 }
 
 /**

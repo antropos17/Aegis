@@ -28,10 +28,17 @@ function _resetForTest() {
   permissionDeniedScans = 0;
 }
 
-const agentDb = JSON.parse(
-  fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8'),
-);
-const AI_AGENTS = agentDb.agents.map((a) => ({ name: a.displayName, patterns: a.names }));
+let _agentDb = null;
+let _aiAgents = null;
+
+/** @returns {void} Lazily parse agent-database.json on first use. */
+function _ensureAgentDb() {
+  if (_agentDb) return;
+  _agentDb = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8'),
+  );
+  _aiAgents = _agentDb.agents.map((a) => ({ name: a.displayName, patterns: a.names }));
+}
 
 /** Set of editor host process names (lowercased) for fast lookup */
 const EDITOR_HOST_SET = new Set(EDITOR_HOSTS.map((h) => h.toLowerCase()));
@@ -65,6 +72,7 @@ function init(deps) {
  * @since v0.2.0
  */
 async function scanProcesses() {
+  _ensureAgentDb();
   let processes;
   try {
     processes = await _listProcesses();
@@ -84,7 +92,7 @@ async function scanProcesses() {
     const procName = proc.name.toLowerCase();
     if (IGNORE_PROCESS_PATTERNS.some((p) => procName.includes(p))) continue;
     if (EDITOR_HOST_SET.has(procName)) continue;
-    for (const agent of AI_AGENTS) {
+    for (const agent of _aiAgents) {
       if (agent.patterns.some((p) => procName === p.toLowerCase())) {
         detected.push({
           agent: agent.name,
@@ -118,8 +126,8 @@ async function scanProcesses() {
 }
 
 module.exports = {
-  AI_AGENTS,
-  agentDb,
+  get AI_AGENTS() { _ensureAgentDb(); return _aiAgents; },
+  get agentDb() { _ensureAgentDb(); return _agentDb; },
   init,
   scanProcesses,
   _setPlatformForTest,

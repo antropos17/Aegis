@@ -29,9 +29,7 @@ const anomaly = require('./anomaly-detector');
 const scanner = require('./process-scanner');
 const procUtil = require('./process-utils');
 const watcher = require('./file-watcher');
-const network = require('./network-monitor');
 const exporter = require('./exports');
-const analysis = require('./ai-analysis');
 const tray = require('./tray-icon');
 const audit = require('./audit-logger');
 const logger = require('./logger');
@@ -136,116 +134,6 @@ function createWindow() {
   });
 }
 
-// ═══ MODULE WIRING ═══
-
-scanLoop.init({
-  scanner,
-  procUtil,
-  watcher,
-  network,
-  baselines,
-  anomaly,
-  audit,
-  tray,
-  logger,
-  sendToRenderer,
-  getStats,
-  getResourceUsage,
-  getLatestAgents: () => latestAgents,
-  setAgents: (agents) => {
-    latestAgents = agents;
-    latestAiAgents = agents.filter((a) => a.category === 'ai');
-    latestOtherAgents = agents.filter((a) => a.category === 'other');
-  },
-  setLatestNetConnections: (c) => {
-    latestNetConnections = c;
-  },
-  getPreviousPids: () => previousAgentPids,
-  setPreviousPids: (m) => {
-    previousAgentPids = m;
-  },
-});
-
-config.init({
-  knownAgentNames: scanner.AI_AGENTS.map((a) => a.name),
-  applyCallback: () => {
-    scanLoop.stopScanIntervals();
-    if (!monitoringPaused) {
-      const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
-      scanLoop.startScanIntervals(ms);
-    }
-  },
-});
-scanner.init({ trackSeenAgent: config.trackSeenAgent });
-watcher.init({
-  getCustomRules: config.getCustomSensitiveRules,
-  getLatestAgents: () => latestAgents,
-  getLatestAiAgents: () => latestAiAgents,
-  isMonitoringPaused: () => monitoringPaused,
-  activityLog: scanner.activityLog,
-  knownHandles: scanner.knownHandles,
-  watchers: fileWatchers,
-  recordFileAccess: baselines.recordFileAccess,
-  onFileEvent: (ev) => {
-    const deduped = scanLoop.dedupFileEvent(ev);
-    if (!deduped) return;
-    fileAccessBatcher.push(deduped);
-    if (deduped.sensitive && deduped.category === 'ai') tray.notifySensitive([deduped]);
-    statsUpdateBatcher.push(getStats());
-    tray.updateTrayIcon();
-    scanLoop.logAuditForFile(deduped);
-  },
-  isOtherPanelExpanded: () => otherPanelExpanded,
-});
-exporter.init({
-  activityLog: scanner.activityLog,
-  getLatestNetConnections: () => latestNetConnections,
-  monitoringStarted: scanner.monitoringStarted,
-  getMainWindow: () => mainWindow,
-  getStats,
-});
-analysis.init({
-  getSettings: config.getSettings,
-  activityLog: scanner.activityLog,
-  getLatestAgents: () => latestAgents,
-  getLatestNetConnections: () => latestNetConnections,
-  getAnomalyScores: () => {
-    const scores = {};
-    for (const a of latestAgents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent).score;
-    return scores;
-  },
-});
-tray.init({
-  tray: null,
-  currentTrayColor: 'green',
-  lastNotificationTime: 0,
-  getActivityLog: () => scanner.activityLog,
-  getSettings: config.getSettings,
-  isMonitoringPaused: () => monitoringPaused,
-  setMonitoringPaused: (v) => {
-    monitoringPaused = v;
-  },
-  stopScanIntervals: scanLoop.stopScanIntervals,
-  startScanIntervals: () => {
-    const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
-    scanLoop.startScanIntervals(ms);
-  },
-  getMainWindow: () => mainWindow,
-  setIsQuitting: (v) => {
-    isQuitting = v;
-  },
-  appQuit: () => app.quit(),
-  getAgentCount: () => latestAgents.length,
-});
-ipc.init({
-  getWindow: () => mainWindow,
-  getStats,
-  getResourceUsage,
-  setOtherPanelExpanded: (v) => {
-    otherPanelExpanded = v;
-  },
-});
-
 // ═══ SINGLE INSTANCE ═══
 
 const gotLock = app.requestSingleInstanceLock();
@@ -265,6 +153,120 @@ if (!gotLock) {
 
 app.whenReady().then(() => {
   if (!gotLock) return;
+
+  // ── Lazy-load modules not needed until scan loop / user action ──
+  const network = require('./network-monitor');
+  const analysis = require('./ai-analysis');
+
+  // ── Module wiring (deferred from module scope for faster cold start) ──
+  scanLoop.init({
+    scanner,
+    procUtil,
+    watcher,
+    network,
+    baselines,
+    anomaly,
+    audit,
+    tray,
+    logger,
+    sendToRenderer,
+    getStats,
+    getResourceUsage,
+    getLatestAgents: () => latestAgents,
+    setAgents: (agents) => {
+      latestAgents = agents;
+      latestAiAgents = agents.filter((a) => a.category === 'ai');
+      latestOtherAgents = agents.filter((a) => a.category === 'other');
+    },
+    setLatestNetConnections: (c) => {
+      latestNetConnections = c;
+    },
+    getPreviousPids: () => previousAgentPids,
+    setPreviousPids: (m) => {
+      previousAgentPids = m;
+    },
+  });
+  config.init({
+    knownAgentNames: scanner.AI_AGENTS.map((a) => a.name),
+    applyCallback: () => {
+      scanLoop.stopScanIntervals();
+      if (!monitoringPaused) {
+        const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
+        scanLoop.startScanIntervals(ms);
+      }
+    },
+  });
+  scanner.init({ trackSeenAgent: config.trackSeenAgent });
+  watcher.init({
+    getCustomRules: config.getCustomSensitiveRules,
+    getLatestAgents: () => latestAgents,
+    getLatestAiAgents: () => latestAiAgents,
+    isMonitoringPaused: () => monitoringPaused,
+    activityLog: scanner.activityLog,
+    knownHandles: scanner.knownHandles,
+    watchers: fileWatchers,
+    recordFileAccess: baselines.recordFileAccess,
+    onFileEvent: (ev) => {
+      const deduped = scanLoop.dedupFileEvent(ev);
+      if (!deduped) return;
+      fileAccessBatcher.push(deduped);
+      if (deduped.sensitive && deduped.category === 'ai') tray.notifySensitive([deduped]);
+      statsUpdateBatcher.push(getStats());
+      tray.updateTrayIcon();
+      scanLoop.logAuditForFile(deduped);
+    },
+    isOtherPanelExpanded: () => otherPanelExpanded,
+  });
+  exporter.init({
+    activityLog: scanner.activityLog,
+    getLatestNetConnections: () => latestNetConnections,
+    monitoringStarted: scanner.monitoringStarted,
+    getMainWindow: () => mainWindow,
+    getStats,
+  });
+  analysis.init({
+    getSettings: config.getSettings,
+    activityLog: scanner.activityLog,
+    getLatestAgents: () => latestAgents,
+    getLatestNetConnections: () => latestNetConnections,
+    getAnomalyScores: () => {
+      const scores = {};
+      for (const a of latestAgents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent).score;
+      return scores;
+    },
+  });
+  tray.init({
+    tray: null,
+    currentTrayColor: 'green',
+    lastNotificationTime: 0,
+    getActivityLog: () => scanner.activityLog,
+    getSettings: config.getSettings,
+    isMonitoringPaused: () => monitoringPaused,
+    setMonitoringPaused: (v) => {
+      monitoringPaused = v;
+    },
+    stopScanIntervals: scanLoop.stopScanIntervals,
+    startScanIntervals: () => {
+      const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
+      scanLoop.startScanIntervals(ms);
+    },
+    getMainWindow: () => mainWindow,
+    setIsQuitting: (v) => {
+      isQuitting = v;
+    },
+    appQuit: () => app.quit(),
+    getAgentCount: () => latestAgents.length,
+  });
+  ipc.init({
+    getWindow: () => mainWindow,
+    getStats,
+    getResourceUsage,
+    setOtherPanelExpanded: (v) => {
+      otherPanelExpanded = v;
+    },
+  });
+
+  // ── Startup sequence ──
   const userData = app.getPath('userData');
   logger.init({ userDataPath: userData, isDev: !app.isPackaged });
   logger.info('main', 'App starting', { version: app.getVersion(), platform: process.platform });
@@ -277,7 +279,9 @@ app.whenReady().then(() => {
   createWindow();
   tray.createTray();
   ipc.register();
-  watcher.setupFileWatchers();
+  mainWindow.webContents.once('did-finish-load', () => {
+    watcher.setupFileWatchers();
+  });
   globalShortcut.register('CommandOrControl+Shift+T', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('toggle-theme');

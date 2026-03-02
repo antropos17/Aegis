@@ -6,8 +6,6 @@
  */
 'use strict';
 
-const { detectOllamaModels, detectLMStudioModels } = require('./llm-runtime-detector');
-
 let scanInterval = null;
 let fileScanInterval = null;
 let netInterval = null;
@@ -175,6 +173,7 @@ async function doProcessScan() {
  * @param {Array} agents @since v0.4.0
  */
 async function enrichWithLocalModels(agents) {
+  const { detectOllamaModels, detectLMStudioModels } = require('./llm-runtime-detector');
   const [ollama, lmstudio] = await Promise.all([detectOllamaModels(), detectLMStudioModels()]);
   latestLocalModels = { ollama, lmstudio };
   attachModels(agents, 'Ollama', ollama);
