@@ -1,12 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
+import platform from '../../../src/main/platform/index.js';
+import darwin from '../../../src/main/platform/darwin.js';
+import linux from '../../../src/main/platform/linux.js';
 
 describe('platform/index', () => {
   it('exports the correct platform module for the current OS', () => {
-    const platform = require('../../../src/main/platform/index.js');
-
     // On whatever OS we're running, the module should export the expected interface
     expect(typeof platform.listProcesses).toBe('function');
     expect(typeof platform.getParentProcessMap).toBe('function');
@@ -23,16 +21,12 @@ describe('platform/index', () => {
     // This test validates the current platform's module is loaded
     // On macOS CI/local, this confirms darwin was selected
     if (process.platform === 'darwin') {
-      const platform = require('../../../src/main/platform/index.js');
-      const darwin = require('../../../src/main/platform/darwin.js');
       expect(platform.listProcesses).toBe(darwin.listProcesses);
     }
   });
 
   it('selects linux module on Linux', () => {
     if (process.platform === 'linux') {
-      const platform = require('../../../src/main/platform/index.js');
-      const linux = require('../../../src/main/platform/linux.js');
       expect(platform.listProcesses).toBe(linux.listProcesses);
     }
   });
