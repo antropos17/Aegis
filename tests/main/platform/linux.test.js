@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
-const linux = require('../../../src/main/platform/linux');
+import linux from '../../../src/main/platform/linux.js';
 
 describe('linux parseSsOutput()', () => {
   const header = 'State      Recv-Q Send-Q Local Address:Port  Peer Address:Port  Process';

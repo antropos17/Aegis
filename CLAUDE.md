@@ -21,6 +21,7 @@ npm run dist              # Electron-builder NSIS installer
 9. Conventional commits: feat/fix/refactor/docs/chore
 10. NEVER add "Co-Authored-By" or "Generated with Claude Code" to commits
 11. Git: powershell.exe -NoProfile -Command "cd 'X:\Future\ESCAPE\AEGIS'; git ..."
+12. TypeScript: new files in .ts, run `npx eslint` + `npx tsc --noEmit` before commit, zero `any`
 
 ## Key Paths
 - src/main/ — 21 CommonJS modules (scanners, watchers, IPC, scoring, zip-writer)

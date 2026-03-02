@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
-const fileWatcher = require('../../src/main/file-watcher.js');
+import fileWatcher from '../../src/main/file-watcher.js';
 
 function makeState(overrides = {}) {
   return {
@@ -54,16 +51,24 @@ describe('file-watcher', () => {
     });
 
     it('includes custom rules when state is initialized', () => {
-      fileWatcher.init(makeState({
-        getCustomRules: () => [{ pattern: /my-internal-project/, reason: 'Custom: my-internal-project' }],
-      }));
-      expect(fileWatcher.classifySensitive('/home/my-internal-project/data')).toBe('Custom: my-internal-project');
+      fileWatcher.init(
+        makeState({
+          getCustomRules: () => [
+            { pattern: /my-internal-project/, reason: 'Custom: my-internal-project' },
+          ],
+        }),
+      );
+      expect(fileWatcher.classifySensitive('/home/my-internal-project/data')).toBe(
+        'Custom: my-internal-project',
+      );
     });
 
     it('built-in rules take priority over custom rules', () => {
-      fileWatcher.init(makeState({
-        getCustomRules: () => [{ pattern: /\.ssh/, reason: 'Custom SSH' }],
-      }));
+      fileWatcher.init(
+        makeState({
+          getCustomRules: () => [{ pattern: /\.ssh/, reason: 'Custom SSH' }],
+        }),
+      );
       expect(fileWatcher.classifySensitive('/home/user/.ssh/id_rsa')).toBe('SSH keys/config');
     });
   });
@@ -77,9 +82,12 @@ describe('file-watcher', () => {
       expect(fileWatcher.shouldIgnore('/System/Library/something')).toBe(true);
     });
 
-    it.skipIf(process.platform !== 'darwin')('platform-specific patterns (macOS): .DS_Store', () => {
-      expect(fileWatcher.shouldIgnore('/Users/test/.DS_Store')).toBe(true);
-    });
+    it.skipIf(process.platform !== 'darwin')(
+      'platform-specific patterns (macOS): .DS_Store',
+      () => {
+        expect(fileWatcher.shouldIgnore('/Users/test/.DS_Store')).toBe(true);
+      },
+    );
 
     it('does not ignore normal files', () => {
       expect(fileWatcher.shouldIgnore('/home/user/project/index.js')).toBe(false);
@@ -104,7 +112,9 @@ describe('file-watcher', () => {
     });
 
     it('Claude → .cursor/ is false (cross-agent)', () => {
-      expect(fileWatcher.isSelfAccess('Claude Code', '/home/user/.cursor/settings.json')).toBe(false);
+      expect(fileWatcher.isSelfAccess('Claude Code', '/home/user/.cursor/settings.json')).toBe(
+        false,
+      );
     });
 
     it('case-insensitive matching', () => {
@@ -207,12 +217,8 @@ describe('file-watcher event handling', () => {
     });
 
     it('uses AI agent over generic agent when available', () => {
-      state.getLatestAgents = () => [
-        { pid: 50, agent: 'Generic', category: 'other' },
-      ];
-      state.getLatestAiAgents = () => [
-        { pid: 100, agent: 'Claude Code', category: 'ai' },
-      ];
+      state.getLatestAgents = () => [{ pid: 50, agent: 'Generic', category: 'other' }];
+      state.getLatestAiAgents = () => [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
       fileWatcher.handleWatcherEvent('modified', '/home/user/file.js');
       expect(state.activityLog[0].agent).toBe('Claude Code');
     });
@@ -251,7 +257,10 @@ describe('file-watcher scanFileHandles', () => {
 
   describe('scanAllFileHandles()', () => {
     it('scans AI agents and returns new events', async () => {
-      mockGetFileHandles.mockResolvedValue(['/home/user/project/file.js', '/home/user/.ssh/id_rsa']);
+      mockGetFileHandles.mockResolvedValue([
+        '/home/user/project/file.js',
+        '/home/user/.ssh/id_rsa',
+      ]);
       const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
       const events = await fileWatcher.scanAllFileHandles(agents);
       expect(events.length).toBeGreaterThanOrEqual(1);

@@ -1,9 +1,6 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import { createRequire } from 'module';
 import { EventEmitter } from 'events';
 import Module from 'module';
-
-const require = createRequire(import.meta.url);
 
 // Intercept CJS require for 'https' by patching Module._cache
 const mockRequest = vi.fn();
@@ -23,12 +20,11 @@ afterAll(() => {
 describe('ai-analysis', () => {
   let analysis;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockRequest.mockReset();
-    // Clear the module from require cache to get fresh module state
-    const modPath = require.resolve('../../src/main/ai-analysis.js');
-    delete require.cache[modPath];
-    analysis = require('../../src/main/ai-analysis.js');
+    vi.resetModules();
+    const mod = await import('../../src/main/ai-analysis.js');
+    analysis = mod.default;
   });
 
   function setupState(overrides = {}) {
@@ -84,7 +80,9 @@ describe('ai-analysis', () => {
     req.end = vi.fn();
     req.destroy = vi.fn();
     let timeoutCb;
-    req.setTimeout = vi.fn((ms, cb) => { timeoutCb = cb; });
+    req.setTimeout = vi.fn((ms, cb) => {
+      timeoutCb = cb;
+    });
 
     mockRequest.mockImplementation(() => {
       process.nextTick(() => timeoutCb());
@@ -140,7 +138,15 @@ describe('ai-analysis', () => {
 
     it('makes HTTPS request with correct headers', async () => {
       setupState({
-        agents: [{ agent: 'TestAgent', pid: 100, process: 'test', category: 'ai', parentChain: ['vscode'] }],
+        agents: [
+          {
+            agent: 'TestAgent',
+            pid: 100,
+            process: 'test',
+            category: 'ai',
+            parentChain: ['vscode'],
+          },
+        ],
       });
       mockHttpSuccess({ content: [{ text: '{"summary":"ok"}' }] });
 
@@ -239,7 +245,11 @@ describe('ai-analysis', () => {
     it('extracts JSON embedded in prose', async () => {
       setupState({ agents: [{ agent: 'TestAgent', pid: 100, process: 'test', category: 'ai' }] });
       mockHttpSuccess({
-        content: [{ text: 'Here is the analysis: {"summary":"embedded","riskLevel":"LOW"} Hope this helps!' }],
+        content: [
+          {
+            text: 'Here is the analysis: {"summary":"embedded","riskLevel":"LOW"} Hope this helps!',
+          },
+        ],
       });
 
       const result = await analysis.analyzeAgentActivity('TestAgent');
@@ -266,12 +276,25 @@ describe('ai-analysis', () => {
     it('includes sensitive and network details in request body', async () => {
       setupState({
         activityLog: [
-          { agent: 'TestAgent', sensitive: true, file: '/home/.ssh/id_rsa', reason: 'SSH key', action: 'read' },
+          {
+            agent: 'TestAgent',
+            sensitive: true,
+            file: '/home/.ssh/id_rsa',
+            reason: 'SSH key',
+            action: 'read',
+          },
           { agent: 'Other', sensitive: false, file: '/tmp/a.js', action: 'read' },
         ],
         agents: [{ agent: 'TestAgent', pid: 100, process: 'test', category: 'ai' }],
         netConns: [
-          { agent: 'TestAgent', remoteIp: '1.2.3.4', remotePort: 443, domain: 'api.com', flagged: true, state: 'ESTAB' },
+          {
+            agent: 'TestAgent',
+            remoteIp: '1.2.3.4',
+            remotePort: 443,
+            domain: 'api.com',
+            flagged: true,
+            state: 'ESTAB',
+          },
         ],
       });
       mockHttpSuccess({ content: [{ text: '{"summary":"ok"}' }] });
@@ -301,20 +324,30 @@ describe('ai-analysis', () => {
           { agent: 'Claude', sensitive: true, reason: 'SSH key', file: '/ssh/key', action: 'read' },
         ],
         agents: [{ agent: 'Claude', pid: 100, parentChain: ['vscode'] }],
-        netConns: [{ agent: 'Claude', remoteIp: '1.2.3.4', remotePort: 443, domain: 'api.com', flagged: false }],
+        netConns: [
+          {
+            agent: 'Claude',
+            remoteIp: '1.2.3.4',
+            remotePort: 443,
+            domain: 'api.com',
+            flagged: false,
+          },
+        ],
         getAnomalyScores: () => ({ Claude: 15 }),
       });
 
       mockHttpSuccess({
-        content: [{
-          text: JSON.stringify({
-            summary: 'Session safe',
-            findings: ['Minor activity'],
-            riskRating: 'LOW',
-            riskJustification: 'Normal',
-            recommendations: ['Monitor'],
-          }),
-        }],
+        content: [
+          {
+            text: JSON.stringify({
+              summary: 'Session safe',
+              findings: ['Minor activity'],
+              riskRating: 'LOW',
+              riskJustification: 'Normal',
+              recommendations: ['Monitor'],
+            }),
+          },
+        ],
       });
 
       const result = await analysis.analyzeSessionActivity();
@@ -370,7 +403,13 @@ describe('ai-analysis', () => {
     it('includes config access events in analysis', async () => {
       setupState({
         activityLog: [
-          { agent: 'Claude', sensitive: true, reason: 'AI agent config: .cursor', file: '/cfg', action: 'read' },
+          {
+            agent: 'Claude',
+            sensitive: true,
+            reason: 'AI agent config: .cursor',
+            file: '/cfg',
+            action: 'read',
+          },
         ],
         agents: [{ agent: 'Claude', pid: 1, parentChain: [] }],
       });

@@ -10,17 +10,20 @@
     "build:demo": "vite build --mode demo",
     "build": "electron-builder --publish never",
     "dist": "electron-builder --publish never",
-    "format": "prettier --write 'src/**/*.{js,svelte,css,html}' '*.{js,json}'",
-    "format:check": "prettier --check 'src/**/*.{js,svelte,css,html}' '*.{js,json}'",
+    "format": "prettier --write 'src/**/*.{js,ts,svelte,css,html}' '*.{js,ts,json}'",
+    "format:check": "prettier --check 'src/**/*.{js,ts,svelte,css,html}' '*.{js,ts,json}'",
     "lint": "npx eslint src/",
+    "typecheck": "tsc --noEmit -p tsconfig.main.json && tsc --noEmit -p tsconfig.renderer.json",
+    "typecheck:main": "tsc --noEmit -p tsconfig.main.json",
+    "typecheck:renderer": "tsc --noEmit -p tsconfig.renderer.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "prepare": "husky"
   },
   "lint-staged": {
-    "src/**/*.{js,svelte,css,html}": "prettier --write",
-    "*.{js,json}": "prettier --write"
+    "src/**/*.{js,ts,svelte,css,html}": "prettier --write",
+    "*.{js,ts,json}": "prettier --write"
   },
   "build": {
     "appId": "com.aegis.oversight",
@@ -81,6 +84,10 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "@types/electron": "^1.4.38",
+    "@types/node": "^25.3.3",
+    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/parser": "^8.56.1",
     "@vitest/coverage-v8": "^4.0.18",
     "electron": "^33.4.11",
     "electron-builder": "^26.8.1",
@@ -92,6 +99,7 @@
     "prettier-plugin-svelte": "^3.5.0",
     "sharp": "^0.34.5",
     "svelte": "^5.53.6",
+    "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vitest": "^4.0.18"
   },

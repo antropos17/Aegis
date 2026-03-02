@@ -1,20 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createRequire } from 'module';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-
-const require = createRequire(import.meta.url);
+import configManager from '../../src/main/config-manager.js';
 
 describe('config-manager', () => {
-  let configManager;
   let tmpDir;
   let settingsPath;
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-config-test-'));
     settingsPath = path.join(tmpDir, 'settings.json');
-    configManager = require('../../src/main/config-manager.js');
     configManager._setSettingsPathForTest(settingsPath);
   });
 
