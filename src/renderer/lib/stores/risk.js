@@ -63,12 +63,86 @@ function eventMatchesInstance(ev, name, parentEditor, pid, hasCwd) {
  * anomalyScore, riskScore, trustGrade, fileCount, networkCount.
  * Risk is calculated per-instance (using cwd/parentEditor), not per-name.
  */
+/** @type {unknown} */ let _prevAgents = null;
+/** @type {unknown} */ let _prevEvents = null;
+/** @type {unknown} */ let _prevAnomalies = null;
+/** @type {unknown} */ let _prevNetwork = null;
+/** @type {unknown} */ let _prevFp = null;
+/** @type {Array<Object>} */ let _cachedResult = [];
+
 export const enrichedAgents = derived(
   [agents, events, anomalies, network, falsePositives],
   ([$agents, $events, $anomalies, $network, $fp]) => {
+    // Reference equality cache — skip recompute if all inputs unchanged
+    if (
+      $agents === _prevAgents &&
+      $events === _prevEvents &&
+      $anomalies === _prevAnomalies &&
+      $network === _prevNetwork &&
+      $fp === _prevFp
+    ) {
+      return _cachedResult;
+    }
+    _prevAgents = $agents;
+    _prevEvents = $events;
+    _prevAnomalies = $anomalies;
+    _prevNetwork = $network;
+    _prevFp = $fp;
+
     const allEvents = $events.flat();
 
-    return $agents.map((raw) => {
+    // Pre-build lookup maps for O(1) event matching
+    /** @type {Map<number, Array<Object>>} */
+    const eventsByPid = new Map();
+    /** @type {Map<string, Array<Object>>} */
+    const eventsByName = new Map();
+    for (const ev of allEvents) {
+      if (ev.selfAccess) continue;
+      if (ev.pid) {
+        let arr = eventsByPid.get(ev.pid);
+        if (!arr) {
+          arr = [];
+          eventsByPid.set(ev.pid, arr);
+        }
+        arr.push(ev);
+      }
+      if (ev.agent) {
+        let arr = eventsByName.get(ev.agent);
+        if (!arr) {
+          arr = [];
+          eventsByName.set(ev.agent, arr);
+        }
+        arr.push(ev);
+      }
+    }
+
+    /** @type {Map<number, Array<Object>>} */
+    const connsByPid = new Map();
+    /** @type {Map<string, Array<Object>>} */
+    const connsByName = new Map();
+    for (const conn of $network) {
+      if (conn.pid) {
+        let arr = connsByPid.get(conn.pid);
+        if (!arr) {
+          arr = [];
+          connsByPid.set(conn.pid, arr);
+        }
+        arr.push(conn);
+      }
+      if (conn.agent) {
+        let arr = connsByName.get(conn.agent);
+        if (!arr) {
+          arr = [];
+          connsByName.set(conn.agent, arr);
+        }
+        arr.push(conn);
+      }
+    }
+
+    // Pre-build false-positive name set
+    const fpNames = new Set($fp.map((fp) => fp.agentName));
+
+    _cachedResult = $agents.map((raw) => {
       const name = raw.agent;
       const parentEditor = raw.parentEditor || null;
       const cwd = raw.cwd || null;
@@ -76,15 +150,22 @@ export const enrichedAgents = derived(
       const iKey = instanceKey(name, parentEditor, cwd);
       const hasCwd = !!cwd;
 
+      // Use pre-built lookup instead of scanning all events
+      const candidateEvents =
+        hasCwd && raw.pid ? eventsByPid.get(raw.pid) || [] : eventsByName.get(name) || [];
+
       let sensitiveFiles = 0;
       let configFiles = 0;
       let sshAwsFiles = 0;
       let fileCount = 0;
       const seen = new Map();
 
-      for (const ev of allEvents) {
-        if (!eventMatchesInstance(ev, name, parentEditor, raw.pid, hasCwd)) continue;
+      for (const ev of candidateEvents) {
         if (ev.selfAccess) continue;
+        // For name-based matches, verify parentEditor
+        if (!hasCwd || !raw.pid) {
+          if (parentEditor && ev.parentEditor !== parentEditor) continue;
+        }
         if (ev.file) {
           const prev = seen.get(ev.file);
           if (prev && ev.timestamp - prev < 30000) continue;
@@ -97,12 +178,18 @@ export const enrichedAgents = derived(
         if (/SSH|AWS/i.test(ev.reason)) sshAwsFiles += w;
       }
 
+      // Use pre-built lookup for network connections
+      const candidateConns =
+        hasCwd && raw.pid ? connsByPid.get(raw.pid) || [] : connsByName.get(name) || [];
+
       let unknownDomains = 0;
       let networkCount = 0;
       let httpUnencryptedCount = 0;
       let hasApiCalls = false;
-      for (const conn of $network) {
-        if (!eventMatchesInstance(conn, name, parentEditor, raw.pid, hasCwd)) continue;
+      for (const conn of candidateConns) {
+        if (!hasCwd || !raw.pid) {
+          if (parentEditor && conn.parentEditor !== parentEditor) continue;
+        }
         networkCount++;
         if (conn.flagged) unknownDomains++;
         if (conn.httpUnencrypted) httpUnencryptedCount++;
@@ -119,8 +206,7 @@ export const enrichedAgents = derived(
         fileCount,
         httpUnencryptedCount,
       });
-      const hasFp = $fp.some((fp) => fp.agentName === name);
-      if (hasFp) riskScore = Math.max(0, riskScore - 20);
+      if (fpNames.has(name)) riskScore = Math.max(0, riskScore - 20);
       const trustGrade = getTrustGrade(riskScore);
 
       return {
@@ -140,5 +226,6 @@ export const enrichedAgents = derived(
         hasApiCalls,
       };
     });
+    return _cachedResult;
   },
 );

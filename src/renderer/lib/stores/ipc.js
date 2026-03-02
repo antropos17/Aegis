@@ -19,6 +19,15 @@ export const focusedAgentPid = writable(null);
 export const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true' || !window.aegis;
 
 if (!isDemoMode) {
+  // Primary path: batched scan data (single IPC → single recompute)
+  window.aegis.onScanBatch((data) => {
+    if (data.agents) agents.set(data.agents);
+    if (data.stats) stats.set(data.stats);
+    if (data.resourceUsage) resourceUsage.set(data.resourceUsage);
+    if (data.anomalyScores) anomalies.set(data.anomalyScores);
+  });
+
+  // Individual channels kept for non-batch sources (file watcher, network monitor)
   window.aegis.onScanResults((data) => agents.set(data || []));
   window.aegis.onFileAccess((data) => {
     const batch = Array.isArray(data) ? data : [data];

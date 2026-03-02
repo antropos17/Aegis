@@ -5,6 +5,9 @@
   import FeedFilters from './FeedFilters.svelte';
   import ActivityFeed from './ActivityFeed.svelte';
 
+  /** @type {{ active?: boolean }} */
+  let { active = true } = $props();
+
   let agentFilter = $state('all');
   let severityFilter = $state('all');
   let typeFilter = $state('all');
@@ -12,7 +15,7 @@
 
 <div class="shield-layout">
   <div class="radar-area">
-    <Radar />
+    <Radar {active} />
   </div>
   <div class="agents-area">
     <AgentPanel />
