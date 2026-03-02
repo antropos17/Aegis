@@ -1,17 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
+import processUtils from '../../src/main/process-utils.js';
 
 describe('process-utils', () => {
-  let processUtils;
   let mockGetParentProcessMap;
   let mockGetProcessCwd;
 
   beforeEach(() => {
     mockGetParentProcessMap = vi.fn();
     mockGetProcessCwd = vi.fn();
-    processUtils = require('../../src/main/process-utils.js');
     processUtils._resetForTest();
     processUtils._setPlatformForTest({
       getParentProcessMap: mockGetParentProcessMap,
@@ -56,7 +52,10 @@ describe('process-utils', () => {
 
     it('caching within TTL', async () => {
       mockGetParentProcessMap.mockResolvedValue(
-        new Map([[100, { name: 'a', ppid: 200 }], [200, { name: 'b', ppid: 0 }]]),
+        new Map([
+          [100, { name: 'a', ppid: 200 }],
+          [200, { name: 'b', ppid: 0 }],
+        ]),
       );
 
       await processUtils.getParentChains([100]);
@@ -66,7 +65,10 @@ describe('process-utils', () => {
 
     it('re-fetches after TTL', async () => {
       mockGetParentProcessMap.mockResolvedValue(
-        new Map([[100, { name: 'a', ppid: 200 }], [200, { name: 'b', ppid: 0 }]]),
+        new Map([
+          [100, { name: 'a', ppid: 200 }],
+          [200, { name: 'b', ppid: 0 }],
+        ]),
       );
 
       await processUtils.getParentChains([100]);
@@ -88,7 +90,10 @@ describe('process-utils', () => {
   describe('enrichWithParentChains()', () => {
     it('attaches chains to agents', async () => {
       mockGetParentProcessMap.mockResolvedValue(
-        new Map([[100, { name: 'a', ppid: 200 }], [200, { name: 'code', ppid: 0 }]]),
+        new Map([
+          [100, { name: 'a', ppid: 200 }],
+          [200, { name: 'code', ppid: 0 }],
+        ]),
       );
 
       const agents = [{ pid: 100, agent: 'Claude' }];
