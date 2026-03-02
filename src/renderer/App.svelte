@@ -117,24 +117,42 @@
   </nav>
 
   <main class="app-content">
-    {#key activeTab}
-      <div
-        class="tab-content"
-        id="tabpanel-{activeTab}"
-        role="tabpanel"
-        aria-labelledby="tab-{activeTab}"
-      >
-        {#if activeTab === 'shield'}
-          <ShieldTab />
-        {:else if activeTab === 'activity'}
-          <ActivityTab />
-        {:else if activeTab === 'rules'}
-          <RulesTab />
-        {:else if activeTab === 'reports'}
-          <ReportsTab />
-        {/if}
-      </div>
-    {/key}
+    <div
+      class="tab-content"
+      class:tab-hidden={activeTab !== 'shield'}
+      id="tabpanel-shield"
+      role="tabpanel"
+      aria-labelledby="tab-shield"
+    >
+      <ShieldTab active={activeTab === 'shield'} />
+    </div>
+    <div
+      class="tab-content"
+      class:tab-hidden={activeTab !== 'activity'}
+      id="tabpanel-activity"
+      role="tabpanel"
+      aria-labelledby="tab-activity"
+    >
+      <ActivityTab />
+    </div>
+    <div
+      class="tab-content"
+      class:tab-hidden={activeTab !== 'rules'}
+      id="tabpanel-rules"
+      role="tabpanel"
+      aria-labelledby="tab-rules"
+    >
+      <RulesTab />
+    </div>
+    <div
+      class="tab-content"
+      class:tab-hidden={activeTab !== 'reports'}
+      id="tabpanel-reports"
+      role="tabpanel"
+      aria-labelledby="tab-reports"
+    >
+      <ReportsTab />
+    </div>
   </main>
 </div>
 
@@ -171,23 +189,9 @@
 
   .tab-content {
     height: 100%;
-    animation: tabFadeIn 200ms var(--md-sys-motion-easing-standard);
   }
 
-  @keyframes tabFadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .tab-content {
-      animation: none;
-    }
+  .tab-hidden {
+    display: none;
   }
 </style>

@@ -94,7 +94,9 @@ function getStats() {
 
 function sendToRenderer(channel, data) {
   try {
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(channel, data);
+    }
   } catch (err) {
     logger.warn('main', 'sendToRenderer failed', { channel, error: err.message });
   }

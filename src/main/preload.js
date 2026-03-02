@@ -86,6 +86,9 @@ contextBridge.exposeInMainWorld('aegis', {
   getFalsePositives: () => ipcRenderer.invoke('get-false-positives'),
   addFalsePositive: (entry) => ipcRenderer.invoke('add-false-positive', entry),
   openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),
+  onScanBatch: (cb) => {
+    ipcRenderer.on('scan-batch', (_e, data) => cb(data));
+  },
   onScanStatus: (cb) => {
     ipcRenderer.on('scan-status', (_e, data) => cb(data));
   },

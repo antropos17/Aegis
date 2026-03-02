@@ -2,6 +2,9 @@
   import { enrichedAgents } from '../stores/risk.js';
   import { theme } from '../stores/theme.js';
 
+  /** @type {{ active?: boolean }} */
+  let { active = true } = $props();
+
   let canvas, ctx, animId;
   let tk = {},
     sweepRgb = '',
@@ -141,6 +144,7 @@
   // ═══ ANIMATION LOOP ═══
 
   function render(timestamp) {
+    if (!active) return;
     animId = requestAnimationFrame(render);
     if (!canvas || !ctx) return;
 
@@ -178,6 +182,10 @@
 
   $effect(() => {
     $theme; // re-resolve tokens on theme change
+    if (!active) {
+      cancelAnimationFrame(animId);
+      return;
+    }
     ctx = canvas.getContext('2d');
     // Defer token resolution to next frame so CSS cascade has applied [data-theme]
     requestAnimationFrame(() => {

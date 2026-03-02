@@ -157,9 +157,6 @@ async function doProcessScan() {
     await procUtil.enrichWithParentChains(agents);
     procUtil.annotateHostApps(agents);
     await procUtil.annotateWorkingDirs(agents);
-    sendToRenderer('scan-results', agents);
-    sendToRenderer('stats-update', getStats());
-    sendToRenderer('resource-usage', getResourceUsage());
     tray.updateTrayIcon();
     const deviations = anomaly.checkDeviations();
     if (deviations.length > 0) {
@@ -175,7 +172,14 @@ async function doProcessScan() {
     }
     const scores = {};
     for (const a of agents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent).score;
-    sendToRenderer('anomaly-scores', scores);
+
+    // Single batched IPC — renderer updates all stores at once
+    sendToRenderer('scan-batch', {
+      agents,
+      stats: getStats(),
+      resourceUsage: getResourceUsage(),
+      anomalyScores: scores,
+    });
     if (result.changed) doNetworkScan();
     await enrichWithLocalModels(agents);
   } catch (err) {
