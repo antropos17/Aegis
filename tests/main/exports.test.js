@@ -1,11 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
-import { createRequire } from 'module';
 import Module from 'module';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-
-const require = createRequire(import.meta.url);
 
 // Mock electron via Module._load interception
 const mockShowSaveDialog = vi.fn();
@@ -32,15 +29,15 @@ describe('exports', () => {
   let exporter;
   let tmpDir;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-exports-test-'));
     mockShowSaveDialog.mockReset();
     mockOpenPath.mockReset();
     mockGetPath.mockReset().mockReturnValue(tmpDir);
 
-    const modPath = require.resolve('../../src/main/exports.js');
-    delete require.cache[modPath];
-    exporter = require('../../src/main/exports.js');
+    vi.resetModules();
+    const mod = await import('../../src/main/exports.js');
+    exporter = mod.default;
   });
 
   afterEach(() => {
@@ -53,18 +50,19 @@ describe('exports', () => {
       getLatestNetConnections: () => overrides.netConns || [],
       monitoringStarted: overrides.monitoringStarted || Date.now() - 60000,
       getMainWindow: () => overrides.mainWindow || {},
-      getStats: () => overrides.stats || {
-        totalFiles: 10,
-        totalSensitive: 2,
-        aiSensitive: 1,
-        uptimeMs: 60000,
-        monitoringStarted: Date.now() - 60000,
-        peakAgents: 3,
-        currentAgents: 2,
-        aiAgentCount: 2,
-        otherAgentCount: 0,
-        uniqueAgents: ['Claude', 'Copilot'],
-      },
+      getStats: () =>
+        overrides.stats || {
+          totalFiles: 10,
+          totalSensitive: 2,
+          aiSensitive: 1,
+          uptimeMs: 60000,
+          monitoringStarted: Date.now() - 60000,
+          peakAgents: 3,
+          currentAgents: 2,
+          aiAgentCount: 2,
+          otherAgentCount: 0,
+          uniqueAgents: ['Claude', 'Copilot'],
+        },
     };
     exporter.init(state);
     return state;
@@ -134,11 +132,38 @@ describe('exports', () => {
       const started = Date.now() - 120000;
       initExporter({
         activityLog: [
-          { timestamp: Date.now(), agent: 'Claude', pid: 100, file: '/a.js', sensitive: false, reason: null, action: 'read' },
-          { timestamp: Date.now(), agent: 'Claude', pid: 100, file: '/b.js', sensitive: true, reason: 'SSH', action: 'read' },
+          {
+            timestamp: Date.now(),
+            agent: 'Claude',
+            pid: 100,
+            file: '/a.js',
+            sensitive: false,
+            reason: null,
+            action: 'read',
+          },
+          {
+            timestamp: Date.now(),
+            agent: 'Claude',
+            pid: 100,
+            file: '/b.js',
+            sensitive: true,
+            reason: 'SSH',
+            action: 'read',
+          },
         ],
         monitoringStarted: started,
-        stats: { totalFiles: 2, totalSensitive: 1, aiSensitive: 0, uptimeMs: 120000, monitoringStarted: Date.now() - 120000, peakAgents: 1, currentAgents: 1, aiAgentCount: 1, otherAgentCount: 0, uniqueAgents: ['Claude'] },
+        stats: {
+          totalFiles: 2,
+          totalSensitive: 1,
+          aiSensitive: 0,
+          uptimeMs: 120000,
+          monitoringStarted: Date.now() - 120000,
+          peakAgents: 1,
+          currentAgents: 1,
+          aiAgentCount: 1,
+          otherAgentCount: 0,
+          uniqueAgents: ['Claude'],
+        },
       });
 
       mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath });
@@ -188,8 +213,22 @@ describe('exports', () => {
       const filePath = path.join(tmpDir, 'log.csv');
       initExporter({
         activityLog: [
-          { timestamp: 1700000000000, agent: 'Claude', pid: 100, file: '/a.js', sensitive: false, action: 'read' },
-          { timestamp: 1700000001000, agent: 'Claude', pid: 100, file: '/b.js', sensitive: true, action: 'write' },
+          {
+            timestamp: 1700000000000,
+            agent: 'Claude',
+            pid: 100,
+            file: '/a.js',
+            sensitive: false,
+            action: 'read',
+          },
+          {
+            timestamp: 1700000001000,
+            agent: 'Claude',
+            pid: 100,
+            file: '/b.js',
+            sensitive: true,
+            action: 'write',
+          },
         ],
         netConns: [],
       });
@@ -214,9 +253,7 @@ describe('exports', () => {
       const filePath = path.join(tmpDir, 'log.csv');
       initExporter({
         activityLog: [],
-        netConns: [
-          { agent: 'Claude', remoteIp: '1.2.3.4', remotePort: 443, flagged: true },
-        ],
+        netConns: [{ agent: 'Claude', remoteIp: '1.2.3.4', remotePort: 443, flagged: true }],
       });
 
       mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath });
@@ -250,12 +287,37 @@ describe('exports', () => {
     it('generates HTML report and returns path', async () => {
       initExporter({
         activityLog: [
-          { timestamp: Date.now(), agent: 'Claude', sensitive: true, file: '/ssh/key', reason: 'SSH key', action: 'read' },
+          {
+            timestamp: Date.now(),
+            agent: 'Claude',
+            sensitive: true,
+            file: '/ssh/key',
+            reason: 'SSH key',
+            action: 'read',
+          },
         ],
         netConns: [
-          { agent: 'Claude', remoteIp: '1.2.3.4', remotePort: 443, domain: 'api.com', flagged: false, state: 'ESTAB' },
+          {
+            agent: 'Claude',
+            remoteIp: '1.2.3.4',
+            remotePort: 443,
+            domain: 'api.com',
+            flagged: false,
+            state: 'ESTAB',
+          },
         ],
-        stats: { totalFiles: 1, totalSensitive: 1, aiSensitive: 1, uptimeMs: 5000, monitoringStarted: Date.now() - 5000, peakAgents: 1, currentAgents: 1, aiAgentCount: 1, otherAgentCount: 0, uniqueAgents: ['Claude'] },
+        stats: {
+          totalFiles: 1,
+          totalSensitive: 1,
+          aiSensitive: 1,
+          uptimeMs: 5000,
+          monitoringStarted: Date.now() - 5000,
+          peakAgents: 1,
+          currentAgents: 1,
+          aiAgentCount: 1,
+          otherAgentCount: 0,
+          uniqueAgents: ['Claude'],
+        },
       });
 
       const result = await exporter.generateReport();
@@ -277,7 +339,18 @@ describe('exports', () => {
       initExporter({
         activityLog: [],
         netConns: [],
-        stats: { totalFiles: 0, totalSensitive: 0, aiSensitive: 0, uptimeMs: 1000, monitoringStarted: Date.now() - 1000, peakAgents: 0, currentAgents: 0, aiAgentCount: 0, otherAgentCount: 0, uniqueAgents: [] },
+        stats: {
+          totalFiles: 0,
+          totalSensitive: 0,
+          aiSensitive: 0,
+          uptimeMs: 1000,
+          monitoringStarted: Date.now() - 1000,
+          peakAgents: 0,
+          currentAgents: 0,
+          aiAgentCount: 0,
+          otherAgentCount: 0,
+          uniqueAgents: [],
+        },
       });
 
       const result = await exporter.generateReport();
@@ -288,10 +361,27 @@ describe('exports', () => {
     it('HTML-escapes agent names to prevent XSS', async () => {
       initExporter({
         activityLog: [
-          { timestamp: Date.now(), agent: '<script>alert(1)</script>', sensitive: false, file: '/f', action: 'r' },
+          {
+            timestamp: Date.now(),
+            agent: '<script>alert(1)</script>',
+            sensitive: false,
+            file: '/f',
+            action: 'r',
+          },
         ],
         netConns: [],
-        stats: { totalFiles: 1, totalSensitive: 0, aiSensitive: 0, uptimeMs: 1000, monitoringStarted: Date.now() - 1000, peakAgents: 1, currentAgents: 1, aiAgentCount: 1, otherAgentCount: 0, uniqueAgents: ['test'] },
+        stats: {
+          totalFiles: 1,
+          totalSensitive: 0,
+          aiSensitive: 0,
+          uptimeMs: 1000,
+          monitoringStarted: Date.now() - 1000,
+          peakAgents: 1,
+          currentAgents: 1,
+          aiAgentCount: 1,
+          otherAgentCount: 0,
+          uniqueAgents: ['test'],
+        },
       });
 
       const result = await exporter.generateReport();
