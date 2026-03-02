@@ -20,6 +20,7 @@ npm run dist              # Electron-builder NSIS installer
 8. JSDoc on all exported functions
 9. Conventional commits: feat/fix/refactor/docs/chore
 10. NEVER add "Co-Authored-By" or "Generated with Claude Code" to commits
+11. Git: powershell.exe -NoProfile -Command "cd 'X:\Future\ESCAPE\AEGIS'; git ..."
 
 ## Key Paths
 - src/main/ — 20 CommonJS modules (scanners, watchers, IPC, scoring)
