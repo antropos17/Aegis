@@ -44,6 +44,9 @@ const DEFAULT_IGNORED_DIRS = [
   '.cache',
   '.tmp',
   '.venv',
+  '.vite',
+  '.svelte-kit',
+  '.turbo',
 ];
 
 let _getFileHandles = _platform.getFileHandles;

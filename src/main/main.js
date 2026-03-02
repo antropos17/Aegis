@@ -104,7 +104,7 @@ function sendToRenderer(channel, data) {
 
 const fileAccessBatcher = createBatcher('file-access', sendToRenderer, { intervalMs: 150 });
 const statsUpdateBatcher = createBatcher('stats-update', sendToRenderer, {
-  intervalMs: 200,
+  intervalMs: 1000,
   mode: 'latest',
 });
 
