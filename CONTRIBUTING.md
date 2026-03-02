@@ -31,7 +31,6 @@ Requires Node.js 18+ and Windows 10/11 for full monitoring functionality. The El
 - **JSDoc headers on all exported functions** — `@param`, `@returns`, `@since` tags required. Include `@file`, `@module`, `@description` at top of every file.
 - **200 line soft limit per file** — split into focused, single-responsibility modules when exceeding.
 - **`const` over `let`** when the binding doesn't change. Never use `var`.
-- **Template literals** for all HTML generation in renderer.
 - **No external dependencies** without discussion — the project intentionally has only 2 runtime dependencies (`electron`, `chokidar`). Adding a dependency requires justification.
 
 ### Naming Conventions
@@ -81,7 +80,7 @@ Add an entry to the `agents` array:
 - `configPaths` — Directories to monitor for the Hudson Rock config protection feature. These directories are watched for unauthorized access.
 - `defaultTrust` — Initial trust score (0-100). Lower = more suspicious. Affects risk score multiplier.
 - `riskProfile` — `low`, `medium`, or `high`. Affects default permission assignments.
-- `category` — One of: `coding-assistant`, `ai-ide`, `cli-tool`, `autonomous-agent`, `desktop-agent`, `browser-agent`, `agent-framework`, `security-devops`, `ide-extension`
+- `category` — One of: `coding-assistant`, `ai-ide`, `cli-tool`, `autonomous-agent`, `desktop-agent`, `browser-agent`, `agent-framework`, `security-devops`, `ide-extension`, `local-llm-runtime`
 
 ### Via the UI
 
