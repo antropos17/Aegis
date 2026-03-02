@@ -249,9 +249,9 @@
   .group-header {
     display: flex;
     align-items: center;
-    gap: var(--aegis-space-8);
+    gap: var(--aegis-space-4);
     width: 100%;
-    padding: var(--aegis-space-4) var(--aegis-space-8);
+    padding: var(--aegis-space-3) var(--aegis-space-6);
     background: var(--md-sys-color-surface-container-low);
     border: none;
     border-bottom: 1px solid var(--md-sys-color-outline-variant);
@@ -324,9 +324,9 @@
   .event-row {
     display: flex;
     align-items: center;
-    gap: var(--aegis-space-8);
+    gap: var(--aegis-space-4);
     width: 100%;
-    padding: var(--aegis-space-3) var(--aegis-space-8);
+    padding: var(--aegis-space-2) var(--aegis-space-6);
     background: transparent;
     border: none;
     font-size: calc(11px * var(--aegis-ui-scale));

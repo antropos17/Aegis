@@ -13,16 +13,45 @@
     if (!active) return;
     localAgents = $enrichedAgents;
   });
+
+  /**
+   * Group agents by name — pick the representative (highest risk) per name,
+   * aggregate totals, and attach process count.
+   */
+  let grouped = $derived.by(() => {
+    /** @type {Map<string, any[]>} */
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const byName = new Map();
+    for (const a of localAgents) {
+      let arr = byName.get(a.name);
+      if (!arr) {
+        arr = [];
+        byName.set(a.name, arr);
+      }
+      arr.push(a);
+    }
+    return [...byName.values()].map((instances) => {
+      const rep = instances.reduce((best, cur) =>
+        (cur.riskScore || 0) > (best.riskScore || 0) ? cur : best,
+      );
+      return {
+        ...rep,
+        fileCount: instances.reduce((s, a) => s + (a.fileCount || 0), 0),
+        networkCount: instances.reduce((s, a) => s + (a.networkCount || 0), 0),
+        _processCount: instances.length,
+      };
+    });
+  });
 </script>
 
 <section class="agent-panel">
-  {#if localAgents.length === 0}
+  {#if grouped.length === 0}
     <div class="empty-state">
       <span>{$t('agents.no_agents')}</span>
     </div>
   {:else}
     <div class="agent-list">
-      {#each localAgents as agent (agent.pid)}
+      {#each grouped as agent (agent.name)}
         <AgentCard {agent} bind:expandedPid />
       {/each}
     </div>

@@ -25,6 +25,9 @@
     cachedAgents = $enrichedAgents;
   });
 
+  /** Unique agent names for dropdown (deduped) */
+  let uniqueNames = $derived([...new Set(cachedAgents.map((a) => a.name))].sort());
+
   const CLS_LIST = [
     { value: 'all', key: 'network.classes.all' },
     { value: 'safe', key: 'network.classes.safe' },
@@ -65,8 +68,8 @@
 <div class="net-filters">
   <select class="agent-select" bind:value={agentFilter}>
     <option value="all">{$t('network.all_agents')}</option>
-    {#each cachedAgents as agent (agent.pid)}
-      <option value={agent.name}>{agent.name}</option>
+    {#each uniqueNames as name (name)}
+      <option value={name}>{name}</option>
     {/each}
   </select>
 

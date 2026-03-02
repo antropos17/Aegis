@@ -9,6 +9,9 @@
     groupByAgent = $bindable(true),
   } = $props();
 
+  /** Unique agent names for dropdown (deduped from enrichedAgents) */
+  let uniqueNames = $derived([...new Set($enrichedAgents.map((a) => a.name))].sort());
+
   const severities = [
     { value: 'all', key: 'activity.filters.severity_all' },
     { value: 'critical', key: 'activity.filters.severity_critical' },
@@ -32,8 +35,8 @@
 
   <select class="agent-select" bind:value={agentFilter}>
     <option value="all">{$t('activity.filters.all_agents')}</option>
-    {#each $enrichedAgents as agent (agent.pid)}
-      <option value={agent.name}>{agent.name}</option>
+    {#each uniqueNames as name (name)}
+      <option value={name}>{name}</option>
     {/each}
   </select>
 

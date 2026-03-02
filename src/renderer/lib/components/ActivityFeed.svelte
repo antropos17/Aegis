@@ -63,16 +63,15 @@
 
   /** @param {number} ts */
   function formatRelativeTime(ts) {
-    const diff = now - ts;
-    if (diff < 30000) return 'just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
     const d = new Date(ts);
-    const mo = d.getMonth() + 1;
-    const day = d.getDate();
     const h = String(d.getHours()).padStart(2, '0');
     const m = String(d.getMinutes()).padStart(2, '0');
-    return `${mo}/${day} ${h}:${m}`;
+    const s = String(d.getSeconds()).padStart(2, '0');
+    const diff = now - ts;
+    if (diff < 60000) return `${h}:${m}:${s}`;
+    if (diff < 3600000) return `${h}:${m}:${s}`;
+    if (diff < 86400000) return `${h}:${m}`;
+    return `${d.getMonth() + 1}/${d.getDate()} ${h}:${m}`;
   }
 
   function shortenPath(p) {
@@ -216,8 +215,8 @@
   .feed-entry {
     display: flex;
     align-items: center;
-    gap: var(--aegis-space-8);
-    padding: var(--aegis-space-3) var(--aegis-space-8);
+    gap: var(--aegis-space-4);
+    padding: var(--aegis-space-2) var(--aegis-space-6);
     font-size: calc(11px * var(--aegis-ui-scale));
     transition: background 0.15s ease;
   }

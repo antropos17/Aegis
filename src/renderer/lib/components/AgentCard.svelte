@@ -119,6 +119,7 @@
     <button class="stat stat-pid" onclick={copyPid} title={$t('agents.copy_pid')}
       >{$t('agents.pid', { pid: agent.pid })}</button
     >
+    {#if agent._processCount > 1}<span class="proc-badge">{agent._processCount}x</span>{/if}
     {#if agent.fileCount != null}<span class="stat">{Math.round(agent.fileCount)}f</span>{/if}
     {#if agent.networkCount != null}<span class="stat">{agent.networkCount}n</span>{/if}
     <span class="risk-score" style:color={gradeColor}>{agent.riskScore}</span>
@@ -202,6 +203,17 @@
     border-radius: var(--md-sys-shape-corner-full);
     flex-shrink: 0;
     letter-spacing: 0.5px;
+  }
+  .proc-badge {
+    font-size: calc(9px * var(--aegis-ui-scale));
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.5px;
+    padding: var(--aegis-space-1) var(--aegis-space-3);
+    border-radius: var(--md-sys-shape-corner-full);
+    background: rgba(122, 138, 158, 0.15);
+    color: var(--md-sys-color-on-surface-variant);
+    flex-shrink: 0;
   }
   .api-badge {
     font-size: calc(9px * var(--aegis-ui-scale));
