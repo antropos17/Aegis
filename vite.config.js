@@ -7,6 +7,9 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [svelte()],
     base: './',
+    resolve: {
+      extensions: ['.ts', '.js', '.svelte'],
+    },
     root: 'src/renderer',
     define: {
       // Replaced at build time — no runtime cost, tree-shakeable
