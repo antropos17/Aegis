@@ -1,47 +1,36 @@
-# CRITICAL RULES (Always read before ANY code change)
-
-1. Always read memory-bank/ai-mistakes.md before making changes
-2. Always read memory-bank/architecture.md before writing code in unfamiliar files
-3. After completing a step, update memory-bank/progress.md
-4. After adding/removing files, update memory-bank/architecture.md
-5. Do NOT change anything I did not ask for. Do ONLY what the prompt says.
-6. Do NOT add features I did not request
-7. Keep files under 200 lines
-8. Use Svelte MCP autofixer before finishing any .svelte file
-9. Main process = CommonJS (require/module.exports). Renderer = ES modules (import/export)
-10. CSS: scoped styles in .svelte files. No global CSS modifications without explicit request.
-11. NEVER add "Co-Authored-By" or "Generated with Claude Code" to commits or PR bodies
-
----
-
 # AEGIS — Independent AI Oversight Layer
 
-Consumer desktop app monitoring AI agents on local PC. Electron 33 + Svelte 5 + Vite 7. 106 agents in database. 436 tests (25 files). All data stays local — no telemetry.
+Electron 33 + Svelte 5 (runes) + Vite 7. Monitors AI agents on local machines. Privacy-first, no telemetry.
 
-## Tech Stack
-Electron 33 | Svelte 5 (runes) | Vite 7 | chokidar@3 | PowerShell (process/network scanning) | JSONL audit logs
+## Commands
+npm run build:renderer    # Vite build (MUST pass before commit)
+npm run lint              # ESLint
+npm run format            # Prettier
+npm test                  # Vitest (456 tests, 27 files)
+npm run dist              # Electron-builder NSIS installer
 
-## Key Architecture
-- **Main process:** 19 CommonJS modules (main.js orchestrator, process-scanner, file-watcher, network-monitor, anomaly-detector, audit-logger, ai-analysis, scan-loop, config-manager, baselines, exports, tray-icon, cli, preload, ipc-handlers, process-utils, llm-runtime-detector, logger, scoring-utils)
-- **Renderer:** 32 Svelte 5 components, 4 stores (ipc, risk, theme, toast) + 2 demo stores, scoped CSS + tokens.css/global.css
-- **Shared:** constants.js (70+ sensitive file rules), agent-database.json (106 agents)
-- **IPC:** preload.js bridge — 39 invoke methods + 10 event channels
+## Critical Rules
+1. Read memory-bank/ai-mistakes.md before ANY code change
+2. Do ONLY what the prompt says — no extra features, no unrequested changes
+3. Main = CommonJS (require). Renderer = ES modules (import)
+4. Max 200 lines per file. Split if exceeded
+5. CSS: var() from tokens.css ONLY. Never hardcode colors
+6. Svelte 5 runes: $state, $derived, $effect. No legacy syntax
+7. Use Svelte MCP autofixer on all .svelte files before finishing
+8. JSDoc on all exported functions
+9. Conventional commits: feat/fix/refactor/docs/chore
+10. NEVER add "Co-Authored-By" or "Generated with Claude Code" to commits
 
-## Code Conventions
-- Main = CommonJS (`require`/`module.exports`), Renderer = ES modules (`import`/`export`)
-- `const` > `let`, never `var`. Template literals for HTML generation
-- IPC channels: kebab-case. CSS classes: `component-element`. JSDoc on all exports
-- Section comments: `// ═══ SECTION ═══` (major), `// ── sub ──` (minor)
-- 200-line soft limit per file. Fonts: Plus Jakarta Sans / DM Sans / DM Mono
+## Key Paths
+- src/main/ — 20 CommonJS modules (scanners, watchers, IPC, scoring)
+- src/renderer/ — 32 Svelte 5 components + 6 stores + tokens.css/global.css
+- src/shared/ — agent-database.json (106 agents), constants.js (70+ rules)
+- memory-bank/ — ai-mistakes.md (READ FIRST), progress.md, architecture.md
+- .claude/skills/ — orchestrator, context, audit, ship
 
-## Risk Scoring
-Weighted time-decay: sensitive×10, config×5, network×3, unknownDomain×15, files×0.1 (cap 10). Trusted agents get 0.5x. Trust = baseTrust − risk×0.8, graded A+ through F.
+## IPC Bridge
+preload.js — 40 invoke methods + 9 event channels via contextBridge
 
-## Important Notes
-- App MONITORS only — no OS-level enforcement. Permission states affect UI display only.
-- Windows-focused (tasklist + PowerShell). Mac/Linux planned.
-- `agent-database.json` at `src/shared/`, read by process-scanner and network-monitor.
-- AI analysis calls Anthropic API only on explicit user action. No background API calls.
-
-## Positioning
-Consumer: free open-source desktop monitor (MIT). Government: Canadian AI Agent Audit Platform. No competitors monitor what agents DO on local machines.
+## MCP Available
+- Context7: fresh docs for any library (append "use context7")
+- Svelte MCP: list-sections → get-documentation → svelte-autofixer
