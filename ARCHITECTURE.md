@@ -31,7 +31,10 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 │  │  │  exports.js            │  │     │  │  risk.js (store)       │  │  │
 │  │  │  tray-icon.js          │  │     │  │  theme.js (store)      │  │  │
 │  │  │  logger.js             │  │     │  │  toast.js (store)      │  │  │
-│  │  │  scoring-utils.js      │  │     │  │                        │  │  │
+│  │  │  scoring-utils.js      │  │     │  │  demo-data.js (store)  │  │  │
+│  │  │  ipc-batcher.js        │  │     │  │                        │  │  │
+│  │  │  zip-writer.js         │  │     │  │                        │  │  │
+│  │  │  scan-loop.js          │  │     │  │                        │  │  │
 │  │  └────────────────────────┘  │     │  └────────────────────────┘  │  │
 │  │                              │     │                              │  │
 │  │          main.js             │     │       App.svelte              │  │
@@ -39,7 +42,7 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 │  └───────────────┬──────────────┘     └──────────────┬───────────────┘  │
 │                  │          preload.js                │                  │
 │                  └─────── (IPC bridge) ───────────────┘                  │
-│                     contextBridge API (49 channels)                     │
+│                     contextBridge API (54 channels)                     │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -138,12 +141,12 @@ process-scanner.js ◄──── config-manager.js
         │
      App.svelte (root component)
         │
-        ├──► stores/ (ipc.js, risk.js, theme.js)
+        ├──► stores/ (ipc.js, risk.js, theme.js, toast.js, demo-data.js)
         ├──► ShieldTab → Radar, AgentPanel, Timeline
         ├──► ActivityTab → ActivityFeed, NetworkPanel
         ├──► RulesTab → Presets, Permissions, AgentDatabase
         ├──► ReportsTab → Reports, AuditLog, ThreatAnalysis
-        └──► Settings, Header, Footer
+        └──► Settings, Header, Footer, Toast
 ```
 
 ## Data Flow
@@ -216,6 +219,22 @@ Process Scan (every Ns)
 | `kill-process` | main | Terminate process by PID |
 | `suspend-process` | main | Suspend process via NtSuspendProcess |
 | `resume-process` | main | Resume process via NtResumeProcess |
+| `get-instance-permissions` | config-manager | Per-instance permission state |
+| `save-instance-permissions` | config-manager | Persist per-instance permissions |
+| `get-audit-entries-before` | audit-logger | Paginated audit log entries |
+| `get-log-stats` | logger | Structured log statistics |
+| `export-full-log` | logger | Export all structured logs |
+| `open-log-dir` | logger | Open log directory in explorer |
+| `test-notification` | main | Trigger test OS notification |
+| `export-config` | config-manager | Export settings to JSON file |
+| `import-config` | config-manager | Import settings from JSON file |
+| `reveal-in-explorer` | main | Open file location in file manager |
+| `get-local-models` | llm-runtime-detector | Local LLM model list |
+| `get-app-version` | main | Current app version string |
+| `export-zip` | zip-writer | One-click ZIP session export |
+| `get-false-positives` | config-manager | List of false-positive entries |
+| `add-false-positive` | config-manager | Mark process as false positive |
+| `open-external-url` | main | Open URL in default browser |
 
 ### Send (Renderer → Main, no response)
 
@@ -235,6 +254,8 @@ Process Scan (every Ns)
 | `baseline-warnings` | Behavioral deviations |
 | `anomaly-scores` | Per-agent anomaly scores (0-100) |
 | `monitoring-paused` | Pause/resume state from tray |
+| `toggle-theme` | Theme toggle from tray menu |
+| `scan-status` | Scanner state (scanning/idle/error) |
 
 ## Extension Points
 

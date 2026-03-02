@@ -23,14 +23,14 @@ npm run dist              # Electron-builder NSIS installer
 11. Git: powershell.exe -NoProfile -Command "cd 'X:\Future\ESCAPE\AEGIS'; git ..."
 
 ## Key Paths
-- src/main/ — 20 CommonJS modules (scanners, watchers, IPC, scoring)
-- src/renderer/ — 32 Svelte 5 components + 6 stores + tokens.css/global.css
+- src/main/ — 21 CommonJS modules (scanners, watchers, IPC, scoring, zip-writer)
+- src/renderer/ — 32 Svelte 5 components + 5 stores + tokens.css/global.css
 - src/shared/ — agent-database.json (106 agents), constants.js (70+ rules)
 - memory-bank/ — ai-mistakes.md (READ FIRST), progress.md, architecture.md
 - .claude/skills/ — orchestrator, context, audit, ship
 
 ## IPC Bridge
-preload.js — 40 invoke methods + 9 event channels via contextBridge
+preload.js — 43 invoke methods + 10 event channels via contextBridge
 
 ## MCP Available
 - Context7: fresh docs for any library (append "use context7")

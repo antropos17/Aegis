@@ -68,7 +68,10 @@
     "electron",
     "oversight",
     "agents",
-    "privacy"
+    "privacy",
+    "anomaly-detection",
+    "process-monitor",
+    "network-monitor"
   ],
   "devDependencies": {
     "@eslint/js": "^10.0.1",

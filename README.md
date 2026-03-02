@@ -55,6 +55,7 @@
 - [Download](#download)
 - [What It Monitors](#what-it-monitors)
 - [Features](#features)
+- [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Quick Start](#quick-start)
 - [How It Works](#how-it-works)
 - [Screenshots](#screenshots)
@@ -134,7 +135,11 @@ No Node.js required. Download, install, run.
 - Parent chain resolution with IDE host annotation
 - AI agent config directory protection (Hudson Rock threat vector)
 - Per-agent risk scoring with time decay and trust grades (A+ through F)
+- HTTP/HTTPS connection scoring and User-Agent header detection
+- API call indicator for known AI vendor endpoints
 - Local LLM runtime detection (Ollama, LM Studio, vLLM, llama.cpp)
+- False positive marking — exclude known-safe processes from alerts
+- Scan status badge — real-time scanner state in the header
 
 **Analysis**
 - Behavioral baselines with rolling session averages
@@ -147,19 +152,39 @@ No Node.js required. Download, install, run.
 - Activity feed with filters (agent, severity, filetype)
 - Session timeline with color-coded event dots
 - Agent cards with trust bars, risk scores, expandable details
+- Copy PID to clipboard from agent cards
+- Relative timestamps (e.g., "2m ago") with tooltip for absolute time
+- Smart path truncation for long file paths
+- Autoscroll toggle for activity feed
+- Threat flash animation on high-risk detections
+- Open file location from activity feed entries
 - Protection presets: Paranoid / Strict / Balanced / Developer
 - Dark/light neumorphic theme
 - Toast notifications (success/warning/error with auto-dismiss)
+- OOM protection — automatic memory limit enforcement
 - Browser-only demo mode (no Electron required)
 
 **Export**
 - JSON, CSV, HTML report generation
+- ZIP export — one-click full session archive
 - Audit logging (JSONL, daily rotation, 30-day retention)
+
+**Keyboard Shortcuts**
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+1` | Switch to Shield tab |
+| `Ctrl+2` | Switch to Activity tab |
+| `Ctrl+3` | Switch to Rules tab |
+| `Ctrl+4` | Switch to Reports tab |
 
 **Internationalization**
 - i18n system with English base (110+ translated strings)
 - Language selector in Settings
 - Community translations welcome ([contribute a language](https://github.com/antropos17/Aegis/issues))
+
+**Settings**
+- Hardware acceleration toggle (disable for lower GPU usage)
+- Agent DB contribution link — submit new agents directly from the app
 
 **CLI**
 ```bash
@@ -212,12 +237,12 @@ Optional: set your Anthropic API key in Settings for AI threat analysis.
             │    Risk     │    │   Audit     │    │     CLI     │
             │   Engine    │    │   Logger    │    │ (--scan-json│
             │(time-decay) │    │  (JSONL/30d)│    │  --version) │
-            └──────┬──────┘    └─────────────┘    └─────────────┘
-                   │
-            ┌──────▼──────┐
-            │  Dashboard  │
-            │ (Svelte IPC)│
-            └─────────────┘
+            └──────┬──────┘    └──────┬──────┘    └─────────────┘
+                   │                  │
+            ┌──────▼──────┐    ┌──────▼──────┐
+            │  Dashboard  │    │ ZIP Writer  │
+            │ (Svelte IPC)│    │ (export)    │
+            └─────────────┘    └─────────────┘
 ```
 
 Everything flows to the dashboard via Electron IPC. AI analysis only calls the Anthropic API when you click the button.
@@ -264,7 +289,7 @@ cd Aegis
 npm install
 npm run dev          # Development mode
 npm run build        # Production build (electron-builder)
-npm test             # Run 475+ tests
+npm test             # Run 475 tests
 npm run lint         # ESLint checks
 ```
 
