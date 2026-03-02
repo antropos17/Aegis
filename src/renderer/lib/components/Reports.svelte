@@ -3,15 +3,33 @@
   import { enrichedAgents } from '../stores/risk.js';
   import { t } from '../i18n/index.js';
 
+  /** @type {{ active?: boolean }} */
+  let { active = true } = $props();
+
+  /** @type {any[][]} */
+  let cachedEvents = $state([]);
+  /** @type {any[]} */
+  let cachedAgents = $state([]);
+
+  $effect(() => {
+    if (!active) return;
+    cachedEvents = $events;
+  });
+
+  $effect(() => {
+    if (!active) return;
+    cachedAgents = $enrichedAgents;
+  });
+
   let avgRisk = $derived.by(() => {
-    const list = $enrichedAgents;
+    const list = cachedAgents;
     if (!list.length) return 0;
     const sum = list.reduce((acc, a) => acc + (a.riskScore || 0), 0);
     return Math.round(sum / list.length);
   });
 
   let topAgents = $derived.by(() => {
-    const copy = [...$enrichedAgents];
+    const copy = [...cachedAgents];
     copy.sort((a, b) => b.fileCount + b.networkCount - (a.fileCount + a.networkCount));
     return copy.slice(0, 10);
   });
@@ -29,17 +47,17 @@
 
   <div class="stat-cards">
     <div class="stat-card">
-      <span class="stat-value">{$events.length}</span>
+      <span class="stat-value">{cachedEvents.length}</span>
       <span class="stat-label">{$t('reports.overview.total_events')}</span>
     </div>
     <div class="stat-card">
       <span class="stat-value val-sensitive"
-        >{$enrichedAgents.reduce((s, a) => s + (a.sensitiveFiles || 0), 0)}</span
+        >{cachedAgents.reduce((s, a) => s + (a.sensitiveFiles || 0), 0)}</span
       >
       <span class="stat-label">{$t('reports.overview.sensitive')}</span>
     </div>
     <div class="stat-card">
-      <span class="stat-value">{new Set($enrichedAgents.map((a) => a.name)).size}</span>
+      <span class="stat-value">{new Set(cachedAgents.map((a) => a.name)).size}</span>
       <span class="stat-label">{$t('reports.overview.agents')}</span>
     </div>
     <div class="stat-card">

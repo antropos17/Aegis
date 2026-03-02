@@ -3,13 +3,29 @@
   import { addToast } from '../stores/toast.js';
   import { t } from '../i18n/index.js';
 
-  let { agentFilter = 'all', severityFilter = 'all', typeFilter = 'all' } = $props();
+  let { active = true, agentFilter = 'all', severityFilter = 'all', typeFilter = 'all' } = $props();
 
   let feedEl = $state(null);
   let userScrolled = $state(false);
   let now = $state(Date.now());
 
+  /** @type {any[][]} */
+  let cachedEvents = $state([]);
+  /** @type {any[]} */
+  let cachedNetwork = $state([]);
+
   $effect(() => {
+    if (!active) return;
+    cachedEvents = $events;
+  });
+
+  $effect(() => {
+    if (!active) return;
+    cachedNetwork = $network;
+  });
+
+  $effect(() => {
+    if (!active) return;
     const id = setInterval(() => {
       now = Date.now();
     }, 30000);
@@ -90,8 +106,8 @@
   }
 
   let unified = $derived.by(() => {
-    const fileEvs = $events.flat().map((ev) => ({ ...ev, _type: 'file' }));
-    const netEvs = $network.map((conn) => ({
+    const fileEvs = cachedEvents.flat().map((ev) => ({ ...ev, _type: 'file' }));
+    const netEvs = cachedNetwork.map((conn) => ({
       agent: conn.agent || 'Unknown',
       timestamp: conn.timestamp || Date.now(),
       file: `${conn.domain || conn.remoteIp || '?'}:${conn.remotePort || '?'}`,

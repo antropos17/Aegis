@@ -18,14 +18,14 @@
     <Radar {active} />
   </div>
   <div class="agents-area">
-    <AgentPanel />
+    <AgentPanel {active} />
   </div>
   <div class="timeline-area">
-    <Timeline />
+    <Timeline {active} />
   </div>
   <div class="feed-area">
     <FeedFilters bind:agentFilter bind:severityFilter bind:typeFilter />
-    <ActivityFeed {agentFilter} {severityFilter} {typeFilter} />
+    <ActivityFeed {active} {agentFilter} {severityFilter} {typeFilter} />
   </div>
 </div>
 

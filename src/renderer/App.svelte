@@ -133,7 +133,7 @@
       role="tabpanel"
       aria-labelledby="tab-activity"
     >
-      <ActivityTab />
+      <ActivityTab active={activeTab === 'activity'} />
     </div>
     <div
       class="tab-content"
@@ -142,7 +142,7 @@
       role="tabpanel"
       aria-labelledby="tab-rules"
     >
-      <RulesTab />
+      <RulesTab active={activeTab === 'rules'} />
     </div>
     <div
       class="tab-content"
@@ -151,7 +151,7 @@
       role="tabpanel"
       aria-labelledby="tab-reports"
     >
-      <ReportsTab />
+      <ReportsTab active={activeTab === 'reports'} />
     </div>
   </main>
 </div>

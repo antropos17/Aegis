@@ -4,9 +4,31 @@
   import { enrichedAgents } from '../stores/risk.js';
   import { t } from '../i18n/index.js';
 
-  let { agentFilter = 'all', severityFilter = 'all', typeFilter = 'all' } = $props();
+  let { active = true, agentFilter = 'all', severityFilter = 'all', typeFilter = 'all' } = $props();
   let expandedGroups = new SvelteSet();
   let expandedEvent = $state(null);
+
+  /** @type {any[][]} */
+  let cachedEvents = $state([]);
+  /** @type {any[]} */
+  let cachedNetwork = $state([]);
+  /** @type {any[]} */
+  let cachedAgents = $state([]);
+
+  $effect(() => {
+    if (!active) return;
+    cachedEvents = $events;
+  });
+
+  $effect(() => {
+    if (!active) return;
+    cachedNetwork = $network;
+  });
+
+  $effect(() => {
+    if (!active) return;
+    cachedAgents = $enrichedAgents;
+  });
 
   function getSeverity(ev) {
     if (ev._type === 'network') return ev.flagged ? 'high' : 'low';
@@ -59,8 +81,8 @@
   }
 
   let unified = $derived.by(() => {
-    const fileEvs = $events.flat().map((ev) => ({ ...ev, _type: 'file' }));
-    const netEvs = $network.map((c) => ({
+    const fileEvs = cachedEvents.flat().map((ev) => ({ ...ev, _type: 'file' }));
+    const netEvs = cachedNetwork.map((c) => ({
       agent: c.agent || 'Unknown',
       timestamp: c.timestamp || Date.now(),
       file: `${c.domain || c.remoteIp || '?'}:${c.remotePort || '?'}`,
@@ -92,7 +114,7 @@
     }
     return [...map.entries()]
       .map(([name, evs]) => {
-        const a = $enrichedAgents.find((x) => x.name === name);
+        const a = cachedAgents.find((x) => x.name === name);
         return {
           name,
           count: evs.length,
