@@ -123,6 +123,24 @@ describe('linux exec-based functions', () => {
     linux._setExecFileForTest(null);
   });
 
+  describe('PID validation', () => {
+    const invalidPids = [0, -1, 1.5, 'abc', null, undefined];
+
+    it('getFileHandles returns [] for invalid PIDs', async () => {
+      for (const bad of invalidPids) {
+        expect(await linux.getFileHandles(bad)).toEqual([]);
+      }
+      expect(mockExecFile).not.toHaveBeenCalled();
+    });
+
+    it('getProcessCwd returns null for invalid PIDs', async () => {
+      for (const bad of invalidPids) {
+        expect(await linux.getProcessCwd(bad)).toBeNull();
+      }
+      expect(mockExecFile).not.toHaveBeenCalled();
+    });
+  });
+
   describe('listProcesses()', () => {
     it('parses ps output into process objects', async () => {
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {

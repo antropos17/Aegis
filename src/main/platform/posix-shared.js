@@ -14,6 +14,16 @@ function _setExecFileForTest(fn) {
 }
 
 /**
+ * Validate that pid is a positive integer.
+ * @param {unknown} pid
+ * @returns {boolean}
+ */
+function isValidPid(pid) {
+  const n = Number(pid);
+  return Number.isInteger(n) && n > 0;
+}
+
+/**
  * Parse `ps -axo comm=,pid=` output into an array of {name, pid} objects.
  * Extracts basename from full path. Does NOT handle OS-specific
  * bundle formats (.app) — callers add that post-processing.
@@ -86,6 +96,8 @@ function parseLsofOutput(stdout, pidSet) {
  * @returns {Promise<string[]>}
  */
 function parseLsofFileHandles(pid) {
+  pid = Number(pid);
+  if (!isValidPid(pid)) return Promise.resolve([]);
   return new Promise((resolve) => {
     _execFile(
       'lsof',
@@ -113,6 +125,8 @@ function parseLsofFileHandles(pid) {
  * @returns {Promise<{success: boolean, error?: string}>}
  */
 function killProcess(pid) {
+  pid = Number(pid);
+  if (!isValidPid(pid)) return Promise.resolve({ success: false, error: 'Invalid PID' });
   return new Promise((resolve) => {
     _execFile('kill', ['-9', String(pid)], (err) => {
       resolve(err ? { success: false, error: err.message } : { success: true });
@@ -125,6 +139,8 @@ function killProcess(pid) {
  * @returns {Promise<{success: boolean, error?: string}>}
  */
 function suspendProcess(pid) {
+  pid = Number(pid);
+  if (!isValidPid(pid)) return Promise.resolve({ success: false, error: 'Invalid PID' });
   return new Promise((resolve) => {
     _execFile('kill', ['-STOP', String(pid)], (err) => {
       resolve(err ? { success: false, error: err.message } : { success: true });
@@ -137,6 +153,8 @@ function suspendProcess(pid) {
  * @returns {Promise<{success: boolean, error?: string}>}
  */
 function resumeProcess(pid) {
+  pid = Number(pid);
+  if (!isValidPid(pid)) return Promise.resolve({ success: false, error: 'Invalid PID' });
   return new Promise((resolve) => {
     _execFile('kill', ['-CONT', String(pid)], (err) => {
       resolve(err ? { success: false, error: err.message } : { success: true });
@@ -172,6 +190,8 @@ function parseParentProcessMapFromPs(stdout) {
  * @since v0.5.0
  */
 function parseLsofCwd(pid) {
+  pid = Number(pid);
+  if (!isValidPid(pid)) return Promise.resolve(null);
   return new Promise((resolve) => {
     _execFile(
       'lsof',
@@ -195,6 +215,7 @@ function parseLsofCwd(pid) {
 }
 
 module.exports = {
+  isValidPid,
   parsePsOutput,
   parseLsofOutput,
   parseLsofFileHandles,

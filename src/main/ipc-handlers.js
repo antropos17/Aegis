@@ -307,9 +307,21 @@ function register() {
   });
 
   // ── Process control ──
-  ipcMain.handle('kill-process', (_e, pid) => killProcess(pid));
-  ipcMain.handle('suspend-process', (_e, pid) => suspendProcess(pid));
-  ipcMain.handle('resume-process', (_e, pid) => resumeProcess(pid));
+  ipcMain.handle('kill-process', (_e, pid) => {
+    pid = Number(pid);
+    if (!Number.isInteger(pid) || pid <= 0) return { success: false, error: 'Invalid PID' };
+    return killProcess(pid);
+  });
+  ipcMain.handle('suspend-process', (_e, pid) => {
+    pid = Number(pid);
+    if (!Number.isInteger(pid) || pid <= 0) return { success: false, error: 'Invalid PID' };
+    return suspendProcess(pid);
+  });
+  ipcMain.handle('resume-process', (_e, pid) => {
+    pid = Number(pid);
+    if (!Number.isInteger(pid) || pid <= 0) return { success: false, error: 'Invalid PID' };
+    return resumeProcess(pid);
+  });
 
   // ── False positives ──
   ipcMain.handle('get-false-positives', () => config.getFalsePositives());

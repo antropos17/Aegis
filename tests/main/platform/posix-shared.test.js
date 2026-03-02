@@ -228,6 +228,65 @@ describe('posix-shared exec-based functions', () => {
     });
   });
 
+  describe('isValidPid()', () => {
+    it('accepts positive integers', () => {
+      expect(posixShared.isValidPid(1)).toBe(true);
+      expect(posixShared.isValidPid(12345)).toBe(true);
+    });
+
+    it('accepts string-encoded positive integers', () => {
+      expect(posixShared.isValidPid('100')).toBe(true);
+    });
+
+    it('rejects zero, negatives, floats, non-numeric', () => {
+      for (const bad of [0, -1, 1.5, 'abc', null, undefined, NaN]) {
+        expect(posixShared.isValidPid(bad)).toBe(false);
+      }
+    });
+  });
+
+  describe('PID validation', () => {
+    const invalidPids = [0, -1, 1.5, 'abc', null, undefined];
+
+    it('killProcess rejects invalid PIDs', async () => {
+      for (const bad of invalidPids) {
+        const r = await posixShared.killProcess(bad);
+        expect(r).toEqual({ success: false, error: 'Invalid PID' });
+      }
+      expect(mockExecFile).not.toHaveBeenCalled();
+    });
+
+    it('suspendProcess rejects invalid PIDs', async () => {
+      for (const bad of invalidPids) {
+        const r = await posixShared.suspendProcess(bad);
+        expect(r).toEqual({ success: false, error: 'Invalid PID' });
+      }
+      expect(mockExecFile).not.toHaveBeenCalled();
+    });
+
+    it('resumeProcess rejects invalid PIDs', async () => {
+      for (const bad of invalidPids) {
+        const r = await posixShared.resumeProcess(bad);
+        expect(r).toEqual({ success: false, error: 'Invalid PID' });
+      }
+      expect(mockExecFile).not.toHaveBeenCalled();
+    });
+
+    it('parseLsofFileHandles returns [] for invalid PIDs', async () => {
+      for (const bad of invalidPids) {
+        expect(await posixShared.parseLsofFileHandles(bad)).toEqual([]);
+      }
+      expect(mockExecFile).not.toHaveBeenCalled();
+    });
+
+    it('parseLsofCwd returns null for invalid PIDs', async () => {
+      for (const bad of invalidPids) {
+        expect(await posixShared.parseLsofCwd(bad)).toBeNull();
+      }
+      expect(mockExecFile).not.toHaveBeenCalled();
+    });
+  });
+
   describe('killProcess()', () => {
     it('returns success on kill', async () => {
       mockExecFile.mockImplementation((cmd, args, cb) => cb(null));
