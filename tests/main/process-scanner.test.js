@@ -1,15 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
+import scanner from '../../src/main/process-scanner.js';
 
 describe('process-scanner', () => {
-  let scanner;
   let mockListProcesses;
 
   beforeEach(() => {
     mockListProcesses = vi.fn();
-    scanner = require('../../src/main/process-scanner.js');
     scanner._resetForTest();
     scanner._setPlatformForTest({ listProcesses: mockListProcesses });
     scanner.init({ trackSeenAgent: vi.fn() });
@@ -26,9 +22,7 @@ describe('process-scanner', () => {
   });
 
   it('ignores editor hosts', async () => {
-    mockListProcesses.mockResolvedValue([
-      { name: 'code', pid: 100 },
-    ]);
+    mockListProcesses.mockResolvedValue([{ name: 'code', pid: 100 }]);
     const { agents } = await scanner.scanProcesses();
     expect(agents).toHaveLength(0);
   });

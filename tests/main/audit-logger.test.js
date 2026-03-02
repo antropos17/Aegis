@@ -2,17 +2,16 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { createRequire } from 'module';
 
 describe('audit-logger', () => {
   let auditLogger;
   let tmpDir;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-audit-test-'));
     vi.resetModules();
-    const require = createRequire(import.meta.url);
-    auditLogger = require('../../src/main/audit-logger');
+    const mod = await import('../../src/main/audit-logger.js');
+    auditLogger = mod.default;
   });
 
   afterEach(() => {
@@ -123,8 +122,8 @@ describe('audit-logger', () => {
 
     auditLogger.shutdown();
     vi.resetModules();
-    const require2 = createRequire(import.meta.url);
-    auditLogger = require2('../../src/main/audit-logger');
+    const mod2 = await import('../../src/main/audit-logger.js');
+    auditLogger = mod2.default;
     auditLogger.init({ userDataPath: tmpDir });
     await new Promise((r) => setImmediate(r));
 

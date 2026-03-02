@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import { createRequire } from 'module';
 import Module from 'module';
-
-const require = createRequire(import.meta.url);
 
 // Mock electron via Module._load
 const mockTrayInstance = {
@@ -12,10 +9,14 @@ const mockTrayInstance = {
   on: vi.fn(),
   destroy: vi.fn(),
 };
-const mockTrayConstructor = vi.fn(function() { return mockTrayInstance; });
+const mockTrayConstructor = vi.fn(function () {
+  return mockTrayInstance;
+});
 const mockBuildFromTemplate = vi.fn((template) => template);
 const mockNotificationInstance = { show: vi.fn() };
-const mockNotificationConstructor = vi.fn(function() { return mockNotificationInstance; });
+const mockNotificationConstructor = vi.fn(function () {
+  return mockNotificationInstance;
+});
 const mockCreateFromBuffer = vi.fn((buf) => ({ buffer: buf, isNativeImage: true }));
 
 const fakeElectron = {
@@ -38,7 +39,7 @@ afterAll(() => {
 describe('tray-icon', () => {
   let tray;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockTrayInstance.setImage.mockClear();
     mockTrayInstance.setToolTip.mockClear();
     mockTrayInstance.setContextMenu.mockClear();
@@ -50,9 +51,9 @@ describe('tray-icon', () => {
     mockNotificationInstance.show.mockClear();
     mockCreateFromBuffer.mockClear();
 
-    const modPath = require.resolve('../../src/main/tray-icon.js');
-    delete require.cache[modPath];
-    tray = require('../../src/main/tray-icon.js');
+    vi.resetModules();
+    const mod = await import('../../src/main/tray-icon.js');
+    tray = mod.default;
   });
 
   function initTray(overrides = {}) {
@@ -66,7 +67,13 @@ describe('tray-icon', () => {
       setMonitoringPaused: vi.fn(),
       stopScanIntervals: vi.fn(),
       startScanIntervals: vi.fn(),
-      getMainWindow: () => overrides.mainWindow || { show: vi.fn(), focus: vi.fn(), isDestroyed: () => false, webContents: { send: vi.fn() } },
+      getMainWindow: () =>
+        overrides.mainWindow || {
+          show: vi.fn(),
+          focus: vi.fn(),
+          isDestroyed: () => false,
+          webContents: { send: vi.fn() },
+        },
       setIsQuitting: vi.fn(),
       appQuit: vi.fn(),
     };
@@ -177,7 +184,13 @@ describe('tray-icon', () => {
     it('shows notification for sensitive events', () => {
       initTray();
       const events = [
-        { sensitive: true, agent: 'Claude', action: 'read', file: '/home/.ssh/id_rsa', reason: 'SSH key' },
+        {
+          sensitive: true,
+          agent: 'Claude',
+          action: 'read',
+          file: '/home/.ssh/id_rsa',
+          reason: 'SSH key',
+        },
       ];
       tray.notifySensitive(events);
       expect(mockNotificationConstructor).toHaveBeenCalledTimes(1);
@@ -243,9 +256,9 @@ describe('tray-icon', () => {
       tray.rebuildTrayMenu();
       expect(mockBuildFromTemplate).toHaveBeenCalled();
       const template = mockBuildFromTemplate.mock.calls[0][0];
-      expect(template.some(item => item.label === 'Show Dashboard')).toBe(true);
-      expect(template.some(item => item.label === 'Pause Monitoring')).toBe(true);
-      expect(template.some(item => item.label === 'Quit')).toBe(true);
+      expect(template.some((item) => item.label === 'Show Dashboard')).toBe(true);
+      expect(template.some((item) => item.label === 'Pause Monitoring')).toBe(true);
+      expect(template.some((item) => item.label === 'Quit')).toBe(true);
     });
 
     it('shows "Resume Monitoring" when paused', () => {
@@ -253,7 +266,7 @@ describe('tray-icon', () => {
       state.tray = { setContextMenu: vi.fn() };
       tray.rebuildTrayMenu();
       const template = mockBuildFromTemplate.mock.calls[0][0];
-      expect(template.some(item => item.label === 'Resume Monitoring')).toBe(true);
+      expect(template.some((item) => item.label === 'Resume Monitoring')).toBe(true);
     });
   });
 });

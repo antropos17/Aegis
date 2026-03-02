@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import { createRequire } from 'module';
 import Module from 'module';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { fileURLToPath } from 'url';
 
-const require = createRequire(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Mock objects for all dependencies
 const handlers = {};
@@ -13,17 +14,26 @@ const onHandlers = {};
 
 const mockElectron = {
   ipcMain: {
-    handle: vi.fn((channel, handler) => { handlers[channel] = handler; }),
-    on: vi.fn((channel, handler) => { onHandlers[channel] = handler; }),
+    handle: vi.fn((channel, handler) => {
+      handlers[channel] = handler;
+    }),
+    on: vi.fn((channel, handler) => {
+      onHandlers[channel] = handler;
+    }),
     _handlers: handlers,
     _onHandlers: onHandlers,
   },
   app: { getPath: vi.fn(() => os.tmpdir()) },
   dialog: { showSaveDialog: vi.fn(), showOpenDialog: vi.fn() },
   shell: { openExternal: vi.fn(), openPath: vi.fn(), showItemInFolder: vi.fn() },
-  Notification: Object.assign(vi.fn(function() { return { show: vi.fn() }; }), {
-    isSupported: vi.fn(() => true),
-  }),
+  Notification: Object.assign(
+    vi.fn(function () {
+      return { show: vi.fn() };
+    }),
+    {
+      isSupported: vi.fn(() => true),
+    },
+  ),
 };
 
 const mockConfig = {
@@ -70,13 +80,24 @@ const mockExporter = {
 };
 
 const mockAudit = {
-  getStats: vi.fn(() => ({ totalEntries: 100, totalSize: 5120, currentSize: 2048, firstEntry: null, lastEntry: null })),
+  getStats: vi.fn(() => ({
+    totalEntries: 100,
+    totalSize: 5120,
+    currentSize: 2048,
+    firstEntry: null,
+    lastEntry: null,
+  })),
   getLogDir: vi.fn(() => '/logs'),
   exportAll: vi.fn(() => []),
 };
 
 const mockLogger = {
-  getStats: vi.fn(() => ({ logDir: '/logs', todayEntries: 50, totalFiles: 3, recordingSince: null })),
+  getStats: vi.fn(() => ({
+    logDir: '/logs',
+    todayEntries: 50,
+    totalFiles: 3,
+    recordingSince: null,
+  })),
   getLogDir: vi.fn(() => '/logs'),
   exportAll: vi.fn(() => []),
 };
@@ -88,16 +109,16 @@ const mockPlatform = {
 };
 
 // Resolve absolute paths for internal modules
-const configPath = require.resolve('../../src/main/config-manager.js');
-const scannerPath = require.resolve('../../src/main/process-scanner.js');
-const procUtilPath = require.resolve('../../src/main/process-utils.js');
-const baselinesPath = require.resolve('../../src/main/baselines.js');
-const analysisPath = require.resolve('../../src/main/ai-analysis.js');
-const exporterPath = require.resolve('../../src/main/exports.js');
-const auditPath = require.resolve('../../src/main/audit-logger.js');
-const loggerPath = require.resolve('../../src/main/logger.js');
-const platformPath = require.resolve('../../src/main/platform/index.js');
-const ipcPath = require.resolve('../../src/main/ipc-handlers.js');
+const configPath = path.resolve(__dirname, '../../src/main/config-manager.js');
+const scannerPath = path.resolve(__dirname, '../../src/main/process-scanner.js');
+const procUtilPath = path.resolve(__dirname, '../../src/main/process-utils.js');
+const baselinesPath = path.resolve(__dirname, '../../src/main/baselines.js');
+const analysisPath = path.resolve(__dirname, '../../src/main/ai-analysis.js');
+const exporterPath = path.resolve(__dirname, '../../src/main/exports.js');
+const auditPath = path.resolve(__dirname, '../../src/main/audit-logger.js');
+const loggerPath = path.resolve(__dirname, '../../src/main/logger.js');
+const platformPath = path.resolve(__dirname, '../../src/main/platform/index.js');
+const ipcPath = path.resolve(__dirname, '../../src/main/ipc-handlers.js');
 
 const originalLoad = Module._load;
 Module._load = function (request, parent, _isMain) {
@@ -105,15 +126,27 @@ Module._load = function (request, parent, _isMain) {
   // For relative requires from ipc-handlers.js, resolve against its directory
   if (parent && parent.filename === ipcPath) {
     const resolved = path.resolve(path.dirname(ipcPath), request);
-    if (resolved === configPath.replace(/\.js$/, '') || resolved + '.js' === configPath) return mockConfig;
-    if (resolved === scannerPath.replace(/\.js$/, '') || resolved + '.js' === scannerPath) return mockScanner;
-    if (resolved === procUtilPath.replace(/\.js$/, '') || resolved + '.js' === procUtilPath) return mockProcUtil;
-    if (resolved === baselinesPath.replace(/\.js$/, '') || resolved + '.js' === baselinesPath) return mockBaselines;
-    if (resolved === analysisPath.replace(/\.js$/, '') || resolved + '.js' === analysisPath) return mockAnalysis;
-    if (resolved === exporterPath.replace(/\.js$/, '') || resolved + '.js' === exporterPath) return mockExporter;
-    if (resolved === auditPath.replace(/\.js$/, '') || resolved + '.js' === auditPath) return mockAudit;
-    if (resolved === loggerPath.replace(/\.js$/, '') || resolved + '.js' === loggerPath) return mockLogger;
-    if (resolved === platformPath.replace(/\.js$/, '') || resolved.replace(/\/index$/, '') + '/index.js' === platformPath) return mockPlatform;
+    if (resolved === configPath.replace(/\.js$/, '') || resolved + '.js' === configPath)
+      return mockConfig;
+    if (resolved === scannerPath.replace(/\.js$/, '') || resolved + '.js' === scannerPath)
+      return mockScanner;
+    if (resolved === procUtilPath.replace(/\.js$/, '') || resolved + '.js' === procUtilPath)
+      return mockProcUtil;
+    if (resolved === baselinesPath.replace(/\.js$/, '') || resolved + '.js' === baselinesPath)
+      return mockBaselines;
+    if (resolved === analysisPath.replace(/\.js$/, '') || resolved + '.js' === analysisPath)
+      return mockAnalysis;
+    if (resolved === exporterPath.replace(/\.js$/, '') || resolved + '.js' === exporterPath)
+      return mockExporter;
+    if (resolved === auditPath.replace(/\.js$/, '') || resolved + '.js' === auditPath)
+      return mockAudit;
+    if (resolved === loggerPath.replace(/\.js$/, '') || resolved + '.js' === loggerPath)
+      return mockLogger;
+    if (
+      resolved === platformPath.replace(/\.js$/, '') ||
+      resolved.replace(/\/index$/, '') + '/index.js' === platformPath
+    )
+      return mockPlatform;
   }
   return originalLoad.apply(this, arguments);
 };
@@ -125,7 +158,7 @@ afterAll(() => {
 describe('ipc-handlers', () => {
   let ipcHandlers;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Clear handler registrations
     for (const key of Object.keys(handlers)) delete handlers[key];
     for (const key of Object.keys(onHandlers)) delete onHandlers[key];
@@ -148,8 +181,9 @@ describe('ipc-handlers', () => {
     mockBaselines.getBaselines.mockClear().mockReturnValue({ agents: {} });
     mockBaselines.getSessionData.mockClear().mockReturnValue({});
 
-    delete require.cache[ipcPath];
-    ipcHandlers = require('../../src/main/ipc-handlers.js');
+    vi.resetModules();
+    const mod = await import('../../src/main/ipc-handlers.js');
+    ipcHandlers = mod.default;
   });
 
   function getHandler(channel) {
@@ -160,19 +194,46 @@ describe('ipc-handlers', () => {
   }
 
   it('init stores injected deps', () => {
-    ipcHandlers.init({ getWindow: () => null, getStats: () => ({ totalFiles: 0, totalSensitive: 0, aiSensitive: 0, uptimeMs: 0, monitoringStarted: null, peakAgents: 0, currentAgents: 0, aiAgentCount: 0, otherAgentCount: 0, uniqueAgents: [] }), getResourceUsage: () => ({}), setOtherPanelExpanded: () => {} });
+    ipcHandlers.init({
+      getWindow: () => null,
+      getStats: () => ({
+        totalFiles: 0,
+        totalSensitive: 0,
+        aiSensitive: 0,
+        uptimeMs: 0,
+        monitoringStarted: null,
+        peakAgents: 0,
+        currentAgents: 0,
+        aiAgentCount: 0,
+        otherAgentCount: 0,
+        uniqueAgents: [],
+      }),
+      getResourceUsage: () => ({}),
+      setOtherPanelExpanded: () => {},
+    });
   });
 
   it('register registers all expected IPC channels', () => {
     ipcHandlers.init({
       getWindow: () => null,
-      getStats: () => ({ totalFiles: 0, totalSensitive: 0, aiSensitive: 0, uptimeMs: 0, monitoringStarted: null, peakAgents: 0, currentAgents: 0, aiAgentCount: 0, otherAgentCount: 0, uniqueAgents: [] }),
+      getStats: () => ({
+        totalFiles: 0,
+        totalSensitive: 0,
+        aiSensitive: 0,
+        uptimeMs: 0,
+        monitoringStarted: null,
+        peakAgents: 0,
+        currentAgents: 0,
+        aiAgentCount: 0,
+        otherAgentCount: 0,
+        uniqueAgents: [],
+      }),
       getResourceUsage: () => ({}),
       setOtherPanelExpanded: () => {},
     });
     ipcHandlers.register();
 
-    const registeredChannels = mockElectron.ipcMain.handle.mock.calls.map(c => c[0]);
+    const registeredChannels = mockElectron.ipcMain.handle.mock.calls.map((c) => c[0]);
     expect(registeredChannels).toContain('scan-processes');
     expect(registeredChannels).toContain('get-stats');
     expect(registeredChannels).toContain('get-resource-usage');
@@ -216,8 +277,28 @@ describe('ipc-handlers', () => {
   describe('handler behavior', () => {
     beforeEach(() => {
       ipcHandlers.init({
-        getWindow: () => ({ webContents: { capturePage: vi.fn(() => Promise.resolve({ toPNG: () => Buffer.from('png'), getSize: () => ({ width: 800, height: 600 }) })) } }),
-        getStats: () => ({ totalFiles: 5, totalSensitive: 1, aiSensitive: 0, uptimeMs: 10000, monitoringStarted: Date.now() - 10000, peakAgents: 1, currentAgents: 1, aiAgentCount: 1, otherAgentCount: 0, uniqueAgents: ['Claude'] }),
+        getWindow: () => ({
+          webContents: {
+            capturePage: vi.fn(() =>
+              Promise.resolve({
+                toPNG: () => Buffer.from('png'),
+                getSize: () => ({ width: 800, height: 600 }),
+              }),
+            ),
+          },
+        }),
+        getStats: () => ({
+          totalFiles: 5,
+          totalSensitive: 1,
+          aiSensitive: 0,
+          uptimeMs: 10000,
+          monitoringStarted: Date.now() - 10000,
+          peakAgents: 1,
+          currentAgents: 1,
+          aiAgentCount: 1,
+          otherAgentCount: 0,
+          uniqueAgents: ['Claude'],
+        }),
         getResourceUsage: () => ({ memMB: 50 }),
         setOtherPanelExpanded: vi.fn(),
       });
@@ -304,7 +385,18 @@ describe('ipc-handlers', () => {
       const setFn = vi.fn();
       ipcHandlers.init({
         getWindow: () => null,
-        getStats: () => ({ totalFiles: 0, totalSensitive: 0, aiSensitive: 0, uptimeMs: 0, monitoringStarted: null, peakAgents: 0, currentAgents: 0, aiAgentCount: 0, otherAgentCount: 0, uniqueAgents: [] }),
+        getStats: () => ({
+          totalFiles: 0,
+          totalSensitive: 0,
+          aiSensitive: 0,
+          uptimeMs: 0,
+          monitoringStarted: null,
+          peakAgents: 0,
+          currentAgents: 0,
+          aiAgentCount: 0,
+          otherAgentCount: 0,
+          uniqueAgents: [],
+        }),
         getResourceUsage: () => ({}),
         setOtherPanelExpanded: setFn,
       });

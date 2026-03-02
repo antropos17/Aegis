@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import { createRequire } from 'module';
 import Module from 'module';
-
-const require = createRequire(import.meta.url);
 
 const mockExecFile = vi.fn();
 
@@ -19,55 +16,62 @@ afterAll(() => {
 describe('platform/darwin', () => {
   let darwin;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockExecFile.mockReset();
-    // Clear both darwin and posix-shared from cache
-    const darwinPath = require.resolve('../../../src/main/platform/darwin.js');
-    const posixPath = require.resolve('../../../src/main/platform/posix-shared.js');
-    delete require.cache[darwinPath];
-    delete require.cache[posixPath];
-    darwin = require('../../../src/main/platform/darwin.js');
+    vi.resetModules();
+    const mod = await import('../../../src/main/platform/darwin.js');
+    darwin = mod.default;
   });
 
   describe('IGNORE_FILE_PATTERNS', () => {
     it('ignores /System/ paths', () => {
-      expect(darwin.IGNORE_FILE_PATTERNS.some(p => p.test('/System/Library/Fonts/a.ttf'))).toBe(true);
+      expect(darwin.IGNORE_FILE_PATTERNS.some((p) => p.test('/System/Library/Fonts/a.ttf'))).toBe(
+        true,
+      );
     });
 
     it('ignores /Library/Caches/ paths', () => {
-      expect(darwin.IGNORE_FILE_PATTERNS.some(p => p.test('/Library/Caches/com.apple.foo'))).toBe(true);
+      expect(darwin.IGNORE_FILE_PATTERNS.some((p) => p.test('/Library/Caches/com.apple.foo'))).toBe(
+        true,
+      );
     });
 
     it('ignores /private/var/ paths', () => {
-      expect(darwin.IGNORE_FILE_PATTERNS.some(p => p.test('/private/var/db/something'))).toBe(true);
+      expect(darwin.IGNORE_FILE_PATTERNS.some((p) => p.test('/private/var/db/something'))).toBe(
+        true,
+      );
     });
 
     it('ignores .DS_Store', () => {
-      expect(darwin.IGNORE_FILE_PATTERNS.some(p => p.test('/Users/foo/.DS_Store'))).toBe(true);
+      expect(darwin.IGNORE_FILE_PATTERNS.some((p) => p.test('/Users/foo/.DS_Store'))).toBe(true);
     });
 
     it('ignores /dev/ paths', () => {
-      expect(darwin.IGNORE_FILE_PATTERNS.some(p => p.test('/dev/null'))).toBe(true);
+      expect(darwin.IGNORE_FILE_PATTERNS.some((p) => p.test('/dev/null'))).toBe(true);
     });
 
     it('ignores .dylib files', () => {
-      expect(darwin.IGNORE_FILE_PATTERNS.some(p => p.test('/usr/lib/libSystem.dylib'))).toBe(true);
+      expect(darwin.IGNORE_FILE_PATTERNS.some((p) => p.test('/usr/lib/libSystem.dylib'))).toBe(
+        true,
+      );
     });
 
     it('ignores /usr/share/ paths', () => {
-      expect(darwin.IGNORE_FILE_PATTERNS.some(p => p.test('/usr/share/zoneinfo/UTC'))).toBe(true);
+      expect(darwin.IGNORE_FILE_PATTERNS.some((p) => p.test('/usr/share/zoneinfo/UTC'))).toBe(true);
     });
 
     it('ignores /usr/lib/ paths', () => {
-      expect(darwin.IGNORE_FILE_PATTERNS.some(p => p.test('/usr/lib/libz.1.dylib'))).toBe(true);
+      expect(darwin.IGNORE_FILE_PATTERNS.some((p) => p.test('/usr/lib/libz.1.dylib'))).toBe(true);
     });
 
     it('does NOT ignore normal user paths', () => {
-      expect(darwin.IGNORE_FILE_PATTERNS.some(p => p.test('/Users/me/project/main.js'))).toBe(false);
+      expect(darwin.IGNORE_FILE_PATTERNS.some((p) => p.test('/Users/me/project/main.js'))).toBe(
+        false,
+      );
     });
 
     it('does NOT ignore /tmp paths', () => {
-      expect(darwin.IGNORE_FILE_PATTERNS.some(p => p.test('/tmp/build/output.js'))).toBe(false);
+      expect(darwin.IGNORE_FILE_PATTERNS.some((p) => p.test('/tmp/build/output.js'))).toBe(false);
     });
   });
 

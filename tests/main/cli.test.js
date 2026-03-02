@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
-const cli = require('../../src/main/cli.js');
+import cli from '../../src/main/cli.js';
+import pkg from '../../package.json';
 
 describe('cli', () => {
   let output;
@@ -23,7 +21,6 @@ describe('cli', () => {
   });
 
   it('--version prints version from package.json', async () => {
-    const pkg = require('../../package.json');
     const result = await cli.handleCLI(['--version']);
     expect(result).toBe(0);
     expect(output).toEqual([pkg.version]);
@@ -63,7 +60,10 @@ describe('cli', () => {
       scanFn: async () => ({
         timestamp: '2026-01-01T00:00:00Z',
         agents: [],
-        localModels: { ollama: { running: false, models: [] }, lmstudio: { running: false, models: [] } },
+        localModels: {
+          ollama: { running: false, models: [] },
+          lmstudio: { running: false, models: [] },
+        },
       }),
     });
     const result = await cli.handleCLI(['--scan-json']);

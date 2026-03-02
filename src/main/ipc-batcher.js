@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * @file ipc-batcher.js
  * @module main/ipc-batcher
@@ -8,24 +9,37 @@
 'use strict';
 
 /**
+ * @typedef {Object} BatcherOptions
+ * @property {number} [intervalMs] - Flush interval in milliseconds (default 150)
+ * @property {'append' | 'latest'} [mode] - Batching strategy (default 'append')
+ */
+
+/**
+ * @typedef {Object} Batcher
+ * @property {(value: unknown) => void} push - Add event to buffer
+ * @property {() => void} flush - Send buffered data immediately
+ * @property {() => void} destroy - Flush and prevent further pushes
+ */
+
+/**
  * Create a batched IPC sender.
  *
  * - **append** mode: accumulates events in an array, flushes as flat array.
  * - **latest** mode: keeps only the most recent value, flushes that.
  *
  * @param {string} channel - IPC channel name (e.g. 'file-access').
- * @param {function(string, *): void} sendFn - Function that sends data to renderer.
- * @param {Object} [options]
- * @param {number} [options.intervalMs=150] - Flush interval in milliseconds.
- * @param {'append'|'latest'} [options.mode='append'] - Batching strategy.
- * @returns {{ push: function(*): void, flush: function(): void, destroy: function(): void }}
+ * @param {(channel: string, data: unknown) => void} sendFn - Function that sends data to renderer.
+ * @param {BatcherOptions} [options]
+ * @returns {Batcher}
  * @since v0.5.0
  */
 function createBatcher(channel, sendFn, options = {}) {
   const intervalMs = options.intervalMs || 150;
   const mode = options.mode || 'append';
 
+  /** @type {unknown} */
   let buffer = mode === 'append' ? [] : undefined;
+  /** @type {ReturnType<typeof setTimeout> | null} */
   let timer = null;
   let destroyed = false;
 
@@ -38,12 +52,12 @@ function createBatcher(channel, sendFn, options = {}) {
 
   /**
    * Add an event to the batch buffer.
-   * @param {*} value - Event object (append) or full replacement value (latest).
+   * @param {unknown} value - Event object (append) or full replacement value (latest).
    */
   function push(value) {
     if (destroyed) return;
     if (mode === 'append') {
-      buffer.push(value);
+      /** @type {unknown[]} */ (buffer).push(value);
     } else {
       buffer = value;
     }
@@ -60,10 +74,10 @@ function createBatcher(channel, sendFn, options = {}) {
       timer = null;
     }
     if (mode === 'append') {
-      if (buffer.length === 0) return;
-      const batch = buffer;
+      const buf = /** @type {unknown[]} */ (buffer);
+      if (buf.length === 0) return;
       buffer = [];
-      sendFn(channel, batch);
+      sendFn(channel, buf);
     } else {
       if (buffer === undefined) return;
       const snapshot = buffer;

@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
-const { getIgnoredDirFilter, DEFAULT_IGNORED_DIRS } = require('../../src/main/file-watcher.js');
+import { getIgnoredDirFilter, DEFAULT_IGNORED_DIRS } from '../../src/main/file-watcher.js';
 
 describe('getIgnoredDirFilter()', () => {
   describe('default config (ignoreCommonBuildDirs: true)', () => {
