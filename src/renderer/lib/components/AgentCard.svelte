@@ -7,6 +7,7 @@
    */
   import { events, focusedAgentPid } from '../stores/ipc.js';
   import AgentCardDetails from './AgentCardDetails.svelte';
+  import { addToast } from '../stores/toast.js';
   import { t } from '../i18n/index.js';
 
   /** @type {{ agent: Object, expandedPid: number|null }} */
@@ -80,6 +81,13 @@
     e.stopPropagation();
     if (window.aegis) await window.aegis[method](agent.pid);
   }
+
+  /** Copy PID to clipboard and show toast. */
+  async function copyPid(e) {
+    e.stopPropagation();
+    await navigator.clipboard.writeText(String(agent.pid));
+    addToast($t('agents.pid_copied'), 'success', 3000);
+  }
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -87,7 +95,8 @@
 <article class="agent-card" class:expanded class:blinking bind:this={cardEl} onclick={toggle}>
   <div class="compact-row">
     <span class="agent-name">{displayName}</span>
-    <span class="stat">{$t('agents.pid', { pid: agent.pid })}</span>
+    <button class="stat stat-pid" onclick={copyPid} title={$t('agents.copy_pid')}
+      >{$t('agents.pid', { pid: agent.pid })}</button>
     {#if agent.fileCount != null}<span class="stat">{Math.round(agent.fileCount)}f</span>{/if}
     {#if agent.networkCount != null}<span class="stat">{agent.networkCount}n</span>{/if}
     <span class="risk-score" style:color={gradeColor}>{agent.riskScore}</span>
@@ -145,6 +154,16 @@
     font-family: 'DM Mono', monospace;
     color: var(--md-sys-color-on-surface-variant);
     flex-shrink: 0;
+  }
+  .stat-pid {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: copy;
+    transition: color var(--md-sys-motion-duration-short) ease;
+  }
+  .stat-pid:hover {
+    color: var(--md-sys-color-primary);
   }
   .risk-score {
     font: var(--md-sys-typescale-label-large);
