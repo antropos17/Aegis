@@ -13,7 +13,7 @@ npm run dist              # Electron-builder NSIS installer
 1. Read memory-bank/ai-mistakes.md before ANY code change
 2. Do ONLY what the prompt says — no extra features, no unrequested changes
 3. Main = CommonJS (require). Renderer = ES modules (import)
-4. Max 200 lines per file. Split if exceeded
+4. Max 300 lines per file (soft limit). Split if exceeded
 5. CSS: var() from tokens.css ONLY. Never hardcode colors
 6. Svelte 5 runes: $state, $derived, $effect. No legacy syntax
 7. Use Svelte MCP autofixer on all .svelte files before finishing

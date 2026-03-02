@@ -1,14 +1,25 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { createRequire } from 'module';
+import { EventEmitter } from 'events';
 import Module from 'module';
 
 const require = createRequire(import.meta.url);
 
 const mockExecFile = vi.fn();
+const mockSpawn = vi.fn();
+
+/** Create a mock child process with stdout/stderr streams and kill. */
+function createMockChild() {
+  const child = new EventEmitter();
+  child.stdout = new EventEmitter();
+  child.stderr = new EventEmitter();
+  child.kill = vi.fn();
+  return child;
+}
 
 const originalLoad = Module._load;
 Module._load = function (request, _parent, _isMain) {
-  if (request === 'child_process') return { execFile: mockExecFile };
+  if (request === 'child_process') return { execFile: mockExecFile, spawn: mockSpawn };
   return originalLoad.apply(this, arguments);
 };
 
@@ -21,6 +32,7 @@ describe('platform/win32', () => {
 
   beforeEach(() => {
     mockExecFile.mockReset();
+    mockSpawn.mockReset();
     const modPath = require.resolve('../../../src/main/platform/win32.js');
     delete require.cache[modPath];
     win32 = require('../../../src/main/platform/win32.js');
@@ -28,76 +40,149 @@ describe('platform/win32', () => {
 
   describe('IGNORE_FILE_PATTERNS', () => {
     it('ignores C:\\Windows paths (case-insensitive)', () => {
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('C:\\Windows\\System32\\cmd.exe'))).toBe(true);
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('c:\\windows\\explorer.exe'))).toBe(true);
+      expect(win32.IGNORE_FILE_PATTERNS.some((p) => p.test('C:\\Windows\\System32\\cmd.exe'))).toBe(
+        true,
+      );
+      expect(win32.IGNORE_FILE_PATTERNS.some((p) => p.test('c:\\windows\\explorer.exe'))).toBe(
+        true,
+      );
     });
 
     it('ignores C:\\Program Files\\Windows paths', () => {
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('C:\\Program Files\\Windows Defender\\foo'))).toBe(true);
+      expect(
+        win32.IGNORE_FILE_PATTERNS.some((p) => p.test('C:\\Program Files\\Windows Defender\\foo')),
+      ).toBe(true);
     });
 
     it('ignores pagefile.sys', () => {
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('C:\\pagefile.sys'))).toBe(true);
+      expect(win32.IGNORE_FILE_PATTERNS.some((p) => p.test('C:\\pagefile.sys'))).toBe(true);
     });
 
     it('ignores swapfile.sys', () => {
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('C:\\swapfile.sys'))).toBe(true);
+      expect(win32.IGNORE_FILE_PATTERNS.some((p) => p.test('C:\\swapfile.sys'))).toBe(true);
     });
 
     it('ignores $Extend', () => {
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('C:\\$Extend\\$UsnJrnl'))).toBe(true);
+      expect(win32.IGNORE_FILE_PATTERNS.some((p) => p.test('C:\\$Extend\\$UsnJrnl'))).toBe(true);
     });
 
     it('ignores System Volume Information', () => {
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('C:\\System Volume Information\\foo'))).toBe(true);
+      expect(
+        win32.IGNORE_FILE_PATTERNS.some((p) => p.test('C:\\System Volume Information\\foo')),
+      ).toBe(true);
     });
 
     it('ignores \\Device\\ paths', () => {
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('\\Device\\HarddiskVolume1'))).toBe(true);
+      expect(win32.IGNORE_FILE_PATTERNS.some((p) => p.test('\\Device\\HarddiskVolume1'))).toBe(
+        true,
+      );
     });
 
     it('does NOT ignore user files', () => {
-      expect(win32.IGNORE_FILE_PATTERNS.some(p => p.test('C:\\Users\\me\\project\\main.js'))).toBe(false);
+      expect(
+        win32.IGNORE_FILE_PATTERNS.some((p) => p.test('C:\\Users\\me\\project\\main.js')),
+      ).toBe(false);
     });
   });
 
-  describe('listProcesses', () => {
-    it('parses tasklist CSV output', async () => {
-      mockExecFile.mockImplementation((cmd, args, cb) => {
-        cb(null, '"claude.exe","1234","Console","1","50,000 K"\n"code.exe","5678","Console","1","100,000 K"\n');
-      });
+  describe('listProcesses (spawn-based)', () => {
+    it('parses tasklist CSV output via spawn stream', async () => {
+      const child = createMockChild();
+      mockSpawn.mockReturnValue(child);
 
-      const procs = await win32.listProcesses();
+      const p = win32.listProcesses();
+      child.stdout.emit('data', Buffer.from('"claude.exe","1234","Console","1","50,000 K"\n'));
+      child.stdout.emit('data', Buffer.from('"code.exe","5678","Console","1","100,000 K"\n'));
+      child.emit('close', 0);
+
+      const procs = await p;
       expect(procs).toEqual([
         { name: 'claude.exe', pid: 1234 },
         { name: 'code.exe', pid: 5678 },
       ]);
+      expect(mockSpawn).toHaveBeenCalledWith('tasklist', ['/FO', 'CSV', '/NH'], expect.any(Object));
     });
 
     it('skips malformed lines', async () => {
-      mockExecFile.mockImplementation((cmd, args, cb) => {
-        cb(null, 'this is not csv\n"node.exe","100","Console","1","50K"\n');
-      });
+      const child = createMockChild();
+      mockSpawn.mockReturnValue(child);
 
-      const procs = await win32.listProcesses();
+      const p = win32.listProcesses();
+      child.stdout.emit(
+        'data',
+        Buffer.from('this is not csv\n"node.exe","100","Console","1","50K"\n'),
+      );
+      child.emit('close', 0);
+
+      const procs = await p;
       expect(procs).toHaveLength(1);
       expect(procs[0].name).toBe('node.exe');
     });
 
-    it('rejects on error', async () => {
-      mockExecFile.mockImplementation((cmd, args, cb) => {
-        cb(new Error('tasklist failed'));
-      });
+    it('rejects on spawn error event', async () => {
+      const child = createMockChild();
+      mockSpawn.mockReturnValue(child);
 
-      await expect(win32.listProcesses()).rejects.toThrow('tasklist failed');
+      const p = win32.listProcesses();
+      child.emit('error', new Error('spawn ENOENT'));
+
+      await expect(p).rejects.toThrow('spawn ENOENT');
+    });
+
+    it('rejects on non-zero exit code', async () => {
+      const child = createMockChild();
+      mockSpawn.mockReturnValue(child);
+
+      const p = win32.listProcesses();
+      child.emit('close', 1);
+
+      await expect(p).rejects.toThrow('tasklist exited with code 1');
+    });
+
+    it('rejects with stderr message on non-zero exit', async () => {
+      const child = createMockChild();
+      mockSpawn.mockReturnValue(child);
+
+      const p = win32.listProcesses();
+      child.stderr.emit('data', Buffer.from('Access denied'));
+      child.emit('close', 1);
+
+      await expect(p).rejects.toThrow('Access denied');
+    });
+
+    it('rejects on timeout and kills child', async () => {
+      vi.useFakeTimers();
+      const child = createMockChild();
+      mockSpawn.mockReturnValue(child);
+
+      const p = win32.listProcesses();
+      vi.advanceTimersByTime(10_000);
+      child.emit('close', null);
+
+      await expect(p).rejects.toThrow('tasklist timed out after 10s');
+      expect(child.kill).toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('handles chunked data across multiple events', async () => {
+      const child = createMockChild();
+      mockSpawn.mockReturnValue(child);
+
+      const p = win32.listProcesses();
+      child.stdout.emit('data', Buffer.from('"clau'));
+      child.stdout.emit('data', Buffer.from('de.exe","999","Console","1","50K"\n'));
+      child.emit('close', 0);
+
+      const procs = await p;
+      expect(procs).toEqual([{ name: 'claude.exe', pid: 999 }]);
     });
   });
 
   describe('getParentProcessMap', () => {
     it('parses PowerShell JSON output into Map', async () => {
       const psOutput = JSON.stringify({
-        '100': { n: 'node.exe', p: 50 },
-        '200': { n: 'claude.exe', p: 100 },
+        100: { n: 'node.exe', p: 50 },
+        200: { n: 'claude.exe', p: 100 },
       });
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
         cb(null, psOutput);

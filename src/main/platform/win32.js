@@ -5,7 +5,7 @@
  */
 'use strict';
 
-const { execFile } = require('child_process');
+const { spawn, execFile } = require('child_process');
 
 /** @type {RegExp[]} Windows-specific file-path patterns to ignore */
 const IGNORE_FILE_PATTERNS = [
@@ -18,17 +18,62 @@ const IGNORE_FILE_PATTERNS = [
   /^\\Device\\/i,
 ];
 
+/** Timeout for tasklist spawn in milliseconds */
+const TASKLIST_TIMEOUT_MS = 10_000;
+
 /**
- * List running processes via tasklist CSV output.
+ * List running processes via tasklist CSV output (spawn-based streaming).
  * @returns {Promise<Array<{name: string, pid: number}>>}
  */
 function listProcesses() {
   return new Promise((resolve, reject) => {
-    execFile('tasklist', ['/FO', 'CSV', '/NH'], (err, stdout) => {
-      if (err) {
+    const chunks = [];
+    let stderrData = '';
+    let killed = false;
+    let settled = false;
+
+    const child = spawn('tasklist', ['/FO', 'CSV', '/NH'], {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    const timer = setTimeout(() => {
+      killed = true;
+      child.kill();
+    }, TASKLIST_TIMEOUT_MS);
+
+    child.stdout.on('data', (chunk) => chunks.push(chunk));
+
+    child.stderr.on('data', (chunk) => {
+      stderrData += chunk.toString();
+    });
+
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      if (!settled) {
+        settled = true;
         reject(err);
+      }
+    });
+
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (settled) return;
+      settled = true;
+
+      if (killed) {
+        reject(new Error('tasklist timed out after 10s'));
         return;
       }
+      if (stderrData.trim()) {
+        console.warn('[AEGIS] tasklist stderr:', stderrData.trim());
+      }
+      if (code !== 0 && code !== null) {
+        reject(new Error(stderrData.trim() || `tasklist exited with code ${code}`));
+        return;
+      }
+
+      const stdout = Buffer.concat(chunks).toString('utf-8');
       const results = [];
       const lines = stdout.trim().split('\n');
       for (const line of lines) {
