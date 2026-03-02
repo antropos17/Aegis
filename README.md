@@ -272,13 +272,30 @@ npm run lint         # Check formatting
 
 ## Testing
 
-475 tests across 28 test files. Covers process scanning, file classification, network monitoring, risk scoring, anomaly detection, config management, baselines, logging, CLI, platform parsers, toast notifications, and demo mode. Uses [Vitest](https://vitest.dev/) with `v8` coverage.
+475 tests across 28 test files. Uses [Vitest](https://vitest.dev/) with `v8` coverage.
 
 ```bash
 npm test              # run all tests once
 npm run test:watch    # watch mode
 npm run test:coverage # coverage report
 ```
+
+<details>
+<summary>Test groups breakdown</summary>
+
+| Group | Files | Tests | What it covers |
+|-------|-------|-------|----------------|
+| **Process Scanning** | 3 | 25 | AI agent detection via tasklist, EPERM handling, parent chain and editor annotation |
+| **File Monitoring** | 2 | 63 | Chokidar events, sensitive file classification, dedup, ignore filters for .git/node_modules |
+| **Network** | 1 | 31 | TCP connection scanning, DNS reverse lookup, domain classification |
+| **Platform Parsers** | 5 | 113 | Windows tasklist/PowerShell, macOS ps/lsof, Linux /proc, POSIX shared utils, auto-detect |
+| **Analysis** | 3 | 70 | Anomaly scoring (4 axes), AI threat analysis via API, Ollama/LM Studio HTTP probes |
+| **Config & State** | 2 | 19 | Settings persistence, custom patterns, behavior baselines, sessions |
+| **Infrastructure** | 7 | 88 | IPC handlers (40 methods), event batching, audit logging, structured logging, tray icon, exports, CLI |
+| **Shared** | 1 | 8 | 70+ sensitive file rules, ignore patterns, agent config paths |
+| **Renderer** | 4 | 62 | Risk scoring and trust grades, HTML threat reports, toast notifications, demo mode data |
+
+</details>
 
 <p align="right"><a href="#-aegis">⬆ back to top</a></p>
 
