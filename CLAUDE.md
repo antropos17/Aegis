@@ -6,7 +6,7 @@ Electron 33 + Svelte 5 (runes) + Vite 7. Monitors AI agents on local machines. P
 npm run build:renderer    # Vite build (MUST pass before commit)
 npm run lint              # ESLint
 npm run format            # Prettier
-npm test                  # Vitest (475 tests, 28 files)
+npm test                  # Vitest (489 tests, 28 files)
 npm run dist              # Electron-builder NSIS installer
 
 ## Critical Rules
@@ -36,3 +36,10 @@ preload.js — 43 invoke methods + 10 event channels via contextBridge
 ## MCP Available
 - Context7: fresh docs for any library (append "use context7")
 - Svelte MCP: list-sections → get-documentation → svelte-autofixer
+
+## Skills (ОБЯЗАТЕЛЬНО)
+- Читай .claude/skills/ ПЕРЕД каждой задачей
+- Логируй [SKILL: name] и [MCP: name] в начале ответа
+- Context7 MCP: проверяй доку ПЕРЕД решениями по стеку
+- Svelte MCP: используй для runes/component вопросов
+- НИКОГДА не угадывай API — всегда проверяй
