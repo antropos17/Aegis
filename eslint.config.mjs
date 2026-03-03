@@ -72,6 +72,9 @@ export default [
     files: ['src/renderer/**/*.svelte'],
     languageOptions: {
       globals: { ...globals.browser },
+      parserOptions: {
+        parser: tsParser,
+      },
     },
     rules: {
       'no-unused-vars': [
