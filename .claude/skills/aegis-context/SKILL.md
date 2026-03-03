@@ -1,6 +1,6 @@
 ---
 name: aegis-context
-description: Aegis project context — 106 agents, Electron 33, Svelte 5 + TypeScript, 507 tests. Auto-invoked on any Aegis task.
+description: AEGIS project context — 106 agents, Electron 33, Svelte 5 + TypeScript, 553 tests. Auto-invoked on any AEGIS task.
 ---
 
 # AEGIS Context
@@ -8,25 +8,35 @@ description: Aegis project context — 106 agents, Electron 33, Svelte 5 + TypeS
 ## Project
 AEGIS — Independent AI Oversight Layer (Electron desktop)
 Repo: github.com/antropos17/Aegis | Version: 0.5.0-alpha
-Current Focus: Fancy UI Redesign (feat/fancy-ui branch)
+Current Focus: Post-release polish, tech debt cleanup
 
 ## Stack
 Read package.json for exact versions. NEVER hardcode.
 Electron 33, Svelte 5, Vite 7, TypeScript (incremental, allowJs:true, checkJs:true), chokidar.
 
 ## Architecture
-- Main process (Node.js): src/main/ — 21 CJS modules (scanners, watchers, IPC, scoring, logging)
-- Renderer (Svelte 5): src/renderer/ — ~41 components + 6 stores via IPC bridge
-- Bridge: src/main/preload.js — contextBridge, 43 invoke + 10 push channels
+- Main process (Node.js): src/main/ — 26 CJS modules (scanners, watchers, IPC, scoring, logging)
+- Renderer (Svelte 5): src/renderer/ — 40 components + 6 stores + 11 utils via IPC bridge
+- Bridge: src/main/preload.js — contextBridge, 43 invoke + 11 push channels
 - Data: src/shared/agent-database.json (106 agent signatures)
 - Config: src/shared/constants.js (70+ sensitive patterns)
 - Types: src/shared/types/ — 7 .ts files, 39 type definitions
-- Tests: 507 pass, 4 skip across 29 files (Vitest, all ESM)
+- Tests: 553 pass, 4 skip across 33 files (Vitest, all ESM)
+
+## Key Components (Fancy UI — complete)
+- ShieldTab: bento grid with SummaryCards, RiskRing, ActivityFeed
+- SummaryCards: animated counters + trend arrows
+- Sparkline: pure SVG mini charts
+- TrustBadge: color-coded trust level indicator
+- RiskRing: SVG gauge with glow + pulse animation
+- AgentCard: sparkline + badge + spotlight hover
+- FooterMiniCharts: CPU/memory sparklines in footer
+- TabBar: sliding indicator + tab transitions
+- VisTimeline, AgentGraph, EventFeed, AgentStatsPanel
 
 ## Key Files
-- FANCY-AEGIS-MASTER-PLAN.md — UI redesign spec (current focus)
-- design/mockup-shield.html — visual reference
-- src/renderer/lib/styles/tokens.css — design tokens
+- src/renderer/lib/styles/tokens.css — 60+ design tokens (Fancy UI)
+- src/renderer/lib/styles/global.css — atmosphere, fonts, resets
 - src/shared/constants.js — ~70 SENSITIVE_RULES
 
 ## MCP
@@ -34,7 +44,6 @@ Electron 33, Svelte 5, Vite 7, TypeScript (incremental, allowJs:true, checkJs:tr
 - Svelte MCP: list-sections, get-documentation, svelte-autofixer
 
 ## Commands
-- /fancy-ui F#.# — run UI phase via ui-designer agent
 - /audit — full health check via auditor agent
 - /ship v#.#.# — release workflow via shipper agent
 - /research "query" — explore codebase (read-only)

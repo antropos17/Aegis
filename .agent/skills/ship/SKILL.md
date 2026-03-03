@@ -4,7 +4,7 @@ description: Full deploy pipeline. Use when user says ship, push, deploy, or cod
 disable-model-invocation: true
 ---
 
-# aegis-ship
+# Ship
 
 One command — format, build, lint, commit, push, verify CI. No questions asked.
 
@@ -57,7 +57,7 @@ gh run list -L 1 --json status,conclusion,name,createdAt
 
 ### Step 6: Report
 Print:
-✅ SHIPPED
+SHIPPED
 Commit: [hash] [message]
 Files: [count] changed
 CI: [status]
