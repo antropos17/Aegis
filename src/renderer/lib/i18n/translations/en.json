@@ -20,8 +20,7 @@
     "activity": "Activity",
     "rules": "Rules",
     "reports": "Reports",
-    "stats": "Stats",
-    "feed": "Feed"
+    "stats": "Stats"
   },
   "demo": {
     "badge": "DEMO MODE",
