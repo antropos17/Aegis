@@ -52,7 +52,7 @@
 
   .counter {
     font: var(--md-sys-typescale-label-medium);
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     font-weight: 700;
     padding: 0 var(--aegis-space-3);
     border-radius: var(--md-sys-shape-corner-full);

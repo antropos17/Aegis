@@ -126,7 +126,7 @@
       ctx.fillStyle = `rgba(${lineRgb}, ${isHC ? 0.9 : isLight ? 0.7 : 0.5})`;
       ctx.fill();
 
-      ctx.font = "500 9px 'DM Sans', sans-serif";
+      ctx.font = '500 9px DM Sans, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillStyle = `rgba(${labelRgb}, ${isHC ? 1 : isLight ? 0.9 : 0.8})`;
       ctx.fillText(agent.name?.split(' ')[0] || '', x, y + 14);
@@ -134,7 +134,7 @@
   }
 
   function drawCenter(cx, cy) {
-    ctx.font = "600 11px 'Outfit', sans-serif";
+    ctx.font = '600 11px Outfit, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = `rgba(${labelRgb}, ${isHC ? 1 : isLight ? 0.85 : 0.7})`;

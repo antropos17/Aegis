@@ -230,7 +230,7 @@
     margin-right: var(--aegis-space-3);
   }
   .detect {
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     font-size: calc(11px * var(--aegis-ui-scale));
     background: var(--md-sys-color-surface-container-high);
     padding: var(--aegis-space-1) var(--aegis-space-3);

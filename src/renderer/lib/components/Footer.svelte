@@ -121,7 +121,7 @@
 
   .footer-value {
     font: var(--md-sys-typescale-label-medium);
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     font-variant-numeric: tabular-nums;
     color: var(--md-sys-color-on-surface);
   }

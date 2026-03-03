@@ -107,7 +107,7 @@
     border-radius: var(--md-sys-shape-corner-small);
     background: transparent;
     color: var(--md-sys-color-on-surface-variant);
-    font-family: inherit;
+    font-family: var(--fancy-font-body);
     font-size: calc(0.875rem * var(--aegis-ui-scale));
     font-weight: 500;
     cursor: pointer;

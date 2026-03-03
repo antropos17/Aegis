@@ -117,7 +117,7 @@
     color: var(--md-sys-color-on-surface-variant);
   }
   .scale-value {
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     color: var(--md-sys-color-primary);
     font-weight: 700;
   }
@@ -170,7 +170,7 @@
     border-radius: var(--md-sys-shape-corner-small);
     color: var(--md-sys-color-on-surface);
     font: var(--md-sys-typescale-body-medium);
-    font-family: inherit;
+    font-family: var(--fancy-font-body);
     cursor: pointer;
   }
   .lang-select:focus {

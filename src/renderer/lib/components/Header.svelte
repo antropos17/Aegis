@@ -106,7 +106,7 @@
 
   .shield-score {
     font: var(--md-sys-typescale-label-large);
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: var(--md-sys-color-on-surface);

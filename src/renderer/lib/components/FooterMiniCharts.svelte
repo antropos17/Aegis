@@ -116,7 +116,7 @@
 
   .mini-value {
     font: var(--md-sys-typescale-label-medium);
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     font-variant-numeric: tabular-nums;
     min-width: 42px;
     text-align: right;

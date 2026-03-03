@@ -21,7 +21,7 @@
     pointer-events: none;
     white-space: nowrap;
     font: var(--md-sys-typescale-label-medium);
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     color: var(--md-sys-color-on-surface);
     background: var(--md-sys-color-surface-container-high);
     border: var(--aegis-card-border);

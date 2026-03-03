@@ -146,7 +146,7 @@
     width: 100%;
     border-collapse: collapse;
     font-size: calc(0.8125rem * var(--aegis-ui-scale));
-    font-family: inherit;
+    font-family: var(--fancy-font-mono);
   }
 
   thead th {

@@ -160,7 +160,7 @@
   .tick-label {
     fill: var(--md-sys-color-on-surface-variant);
     opacity: 0.5;
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     font-size: calc(10px * var(--aegis-ui-scale, 1));
     font-weight: 500;
   }
@@ -175,7 +175,7 @@
   }
   .cluster-label {
     fill: var(--md-sys-color-surface);
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     font-size: calc(8px * var(--aegis-ui-scale, 1));
     font-weight: 700;
     pointer-events: none;
