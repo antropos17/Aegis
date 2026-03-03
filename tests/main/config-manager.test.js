@@ -78,12 +78,6 @@ describe('config-manager', () => {
     expect(Object.values(perms).every((v) => v === 'monitor')).toBe(true);
   });
 
-  it.skip('getInstanceKey() — now internal', () => {
-    expect(configManager.getInstanceKey('Claude', null, '/project')).toBe('Claude::/project');
-    expect(configManager.getInstanceKey('Claude', 'VS Code', null)).toBe('Claude::VS Code');
-    expect(configManager.getInstanceKey('Claude', null, null)).toBe('Claude');
-  });
-
   it('getInstancePermissions() — fallback chain: cwd → editor → agent → default', () => {
     configManager.init({ knownAgentNames: ['Claude'] });
     configManager.loadSettings();
