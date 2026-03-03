@@ -4,14 +4,17 @@ import processUtils from '../../src/main/process-utils.js';
 describe('process-utils', () => {
   let mockGetParentProcessMap;
   let mockGetProcessCwd;
+  let mockGetProcessCwds;
 
   beforeEach(() => {
     mockGetParentProcessMap = vi.fn();
     mockGetProcessCwd = vi.fn();
+    mockGetProcessCwds = vi.fn();
     processUtils._resetForTest();
     processUtils._setPlatformForTest({
       getParentProcessMap: mockGetParentProcessMap,
       getProcessCwd: mockGetProcessCwd,
+      getProcessCwds: mockGetProcessCwds,
     });
   });
 
@@ -125,20 +128,47 @@ describe('process-utils', () => {
   });
 
   describe('annotateWorkingDirs()', () => {
-    it('sets cwd and projectName', async () => {
-      mockGetProcessCwd.mockResolvedValue('/home/user/my-project');
+    it('sets cwd and projectName via batch lookup', async () => {
+      mockGetProcessCwds.mockResolvedValue(new Map([[100, '/home/user/my-project']]));
       const agents = [{ pid: 100, agent: 'Claude' }];
       await processUtils.annotateWorkingDirs(agents);
       expect(agents[0].cwd).toBe('/home/user/my-project');
       expect(agents[0].projectName).toBe('my-project');
+      expect(mockGetProcessCwds).toHaveBeenCalledWith([100]);
     });
 
     it('caches within TTL', async () => {
-      mockGetProcessCwd.mockResolvedValue('/home/user/proj');
+      mockGetProcessCwds.mockResolvedValue(new Map([[100, '/home/user/proj']]));
       const agents = [{ pid: 100, agent: 'Claude' }];
       await processUtils.annotateWorkingDirs(agents);
       await processUtils.annotateWorkingDirs(agents);
-      expect(mockGetProcessCwd).toHaveBeenCalledTimes(1);
+      expect(mockGetProcessCwds).toHaveBeenCalledTimes(1);
+    });
+
+    it('handles null CWD from batch', async () => {
+      mockGetProcessCwds.mockResolvedValue(new Map());
+      const agents = [{ pid: 100, agent: 'Claude' }];
+      await processUtils.annotateWorkingDirs(agents);
+      expect(agents[0].cwd).toBeNull();
+      expect(agents[0].projectName).toBeNull();
+    });
+
+    it('batches multiple PIDs in single call', async () => {
+      mockGetProcessCwds.mockResolvedValue(
+        new Map([
+          [100, '/home/user/proj-a'],
+          [200, '/home/user/proj-b'],
+        ]),
+      );
+      const agents = [
+        { pid: 100, agent: 'Claude' },
+        { pid: 200, agent: 'Cursor' },
+      ];
+      await processUtils.annotateWorkingDirs(agents);
+      expect(agents[0].cwd).toBe('/home/user/proj-a');
+      expect(agents[1].cwd).toBe('/home/user/proj-b');
+      expect(mockGetProcessCwds).toHaveBeenCalledTimes(1);
+      expect(mockGetProcessCwds).toHaveBeenCalledWith([100, 200]);
     });
   });
 });
