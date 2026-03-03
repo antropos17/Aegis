@@ -12,7 +12,7 @@ const TAB_ORDER: readonly string[] = ['shield', 'activity', 'rules', 'reports', 
  * @param tabId - The tab identifier
  * @returns Index position (0-based), or -1 if not found
  */
-export function getTabIndex(tabId: string): number {
+function getTabIndex(tabId: string): number {
   return TAB_ORDER.indexOf(tabId);
 }
 
