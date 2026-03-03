@@ -245,7 +245,6 @@ module.exports = {
   listProcesses,
   getParentProcessMap,
   getRawTcpConnections,
-  parseSsOutput,
   getFileHandles,
   getProcessCwd,
   getProcessCwds,

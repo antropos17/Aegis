@@ -12,7 +12,7 @@ const initial = (typeof localStorage !== 'undefined' && localStorage.getItem(KEY
 export const theme = writable(initial);
 
 /** All supported theme keys */
-export const THEMES = ['dark', 'light', 'dark-hc', 'light-hc'];
+const THEMES = ['dark', 'light', 'dark-hc', 'light-hc'];
 
 /**
  * Cycle to the next theme in the list.
@@ -54,7 +54,3 @@ export function setUiScale(value) {
   uiScale.set(value);
   localStorage.setItem(SCALE_KEY, String(value));
 }
-
-// Backward-compat aliases
-export const fontScale = uiScale;
-export const setFontScale = setUiScale;

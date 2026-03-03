@@ -171,7 +171,6 @@ function finalizeSession() {
 
 module.exports = {
   loadBaselines,
-  saveBaselines,
   ensureSessionData,
   recordFileAccess,
   recordNetworkEndpoint,

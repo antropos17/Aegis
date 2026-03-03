@@ -46,18 +46,6 @@ function instanceKey(name, parentEditor, cwd) {
 }
 
 /**
- * Check if an event matches a specific agent instance.
- * When the agent has a cwd, match by PID (most precise — each instance has a unique PID).
- * Otherwise fall back to name + parentEditor matching.
- */
-function eventMatchesInstance(ev, name, parentEditor, pid, hasCwd) {
-  if (hasCwd && pid) return ev.pid === pid;
-  if (ev.agent !== name) return false;
-  if (parentEditor) return ev.parentEditor === parentEditor;
-  return true;
-}
-
-/**
  * Enriched agents store — derives from agents, events, anomalies, network.
  * Each agent object gets: name, instanceKey, sensitiveFiles, unknownDomains,
  * anomalyScore, riskScore, trustGrade, fileCount, networkCount.
