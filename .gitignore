@@ -25,6 +25,9 @@ screenshot_electron.png
 .env.local
 .env.*.local
 
+# Design mockups — local only
+design/
+
 # Internal dev files — not for public repo
 CLAUDE.md
 _env
