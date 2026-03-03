@@ -109,8 +109,12 @@ function doNetworkScan() {
       }
       sendToRenderer('network-update', connections);
     })
-    .catch((err) => logger.error('main', 'Network scan failed', { error: err.message }))
-    .finally(() => network.setNetworkScanRunning(false));
+    .catch((err) => {
+      logger.error('main', 'Network scan failed', { error: err.message });
+    })
+    .finally(() => {
+      network.setNetworkScanRunning(false);
+    });
 }
 
 async function doProcessScan() {
