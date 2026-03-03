@@ -165,8 +165,6 @@ function rebuildTrayMenu() {
           else _state.startScanIntervals();
           rebuildTrayMenu();
           updateTrayIcon();
-          const mw = _state.getMainWindow();
-          if (mw && !mw.isDestroyed()) mw.webContents.send('monitoring-paused', p);
         },
       },
       { type: 'separator' },
