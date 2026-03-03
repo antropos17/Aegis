@@ -5,7 +5,8 @@
    *   trust badge, spotlight hover, and expandable details. [F2.3]
    * @since v0.5.0
    */
-  import { events, focusedAgentPid } from '../stores/ipc.js';
+  import { focusedAgentPid } from '../stores/ipc.js';
+  import { eventsByPid } from '../stores/events-index.ts';
   import AgentCardDetails from './AgentCardDetails.svelte';
   import Sparkline from './Sparkline.svelte';
   import TrustBadge from './TrustBadge.svelte';
@@ -67,13 +68,7 @@
     return agent.name;
   });
 
-  let agentEvents = $derived.by(() => {
-    return $events
-      .flat()
-      .filter((ev) => ev.pid === agent.pid)
-      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-      .slice(0, 50);
-  });
+  let agentEvents = $derived($eventsByPid.get(agent.pid) || []);
 
   let lastFile = $derived.by(() => {
     const ev = agentEvents.find((e) => e.file);
