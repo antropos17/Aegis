@@ -182,6 +182,9 @@
 <style>
   .vis-timeline-wrap {
     width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
     box-sizing: border-box;
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
@@ -191,15 +194,16 @@
       0 2px 8px rgba(0, 0, 0, 0.12),
       var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
-    padding: var(--aegis-space-3) 0;
-    overflow: hidden;
+    padding: var(--aegis-space-3) var(--aegis-space-4);
+    overflow: auto;
   }
 
   .loading-indicator {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 280px;
+    flex: 1;
+    min-height: 200px;
     color: var(--md-sys-color-on-surface-variant);
     font: var(--md-sys-typescale-label-medium);
     opacity: 0.5;
@@ -207,7 +211,8 @@
 
   .vis-timeline-container {
     width: 100%;
-    min-height: 280px;
+    flex: 1;
+    min-height: 200px;
   }
 
   /* vis-timeline dark theme overrides */

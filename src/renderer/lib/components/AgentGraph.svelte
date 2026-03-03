@@ -106,6 +106,11 @@
       resource: l.resource,
     }));
 
+    const nodeCount = simNodes.length;
+    const minDim = Math.min(width, height);
+    const chargeStrength = -Math.max(300, minDim * 1.5);
+    const linkDist = Math.max(100, minDim / Math.max(2, nodeCount));
+
     simulation = d3
       .forceSimulation(simNodes)
       .force(
@@ -113,13 +118,13 @@
         d3
           .forceLink(simLinks)
           .id((d) => d.id)
-          .distance(80),
+          .distance(linkDist),
       )
-      .force('charge', d3.forceManyBody().strength(-200))
+      .force('charge', d3.forceManyBody().strength(chargeStrength))
       .force('center', d3.forceCenter(cx, cy))
       .force(
         'collision',
-        d3.forceCollide().radius((d) => d.radius + 4),
+        d3.forceCollide().radius((d) => d.radius + 8),
       )
       .alphaDecay(0.02)
       .on('tick', () => {
@@ -196,7 +201,7 @@
   let selectedDetail = $derived(selectedNode ? nodes.find((n) => n.id === selectedNode) : null);
 </script>
 
-<div class="agent-graph-wrap" bind:clientWidth={width}>
+<div class="agent-graph-wrap">
   <div class="graph-header">
     <span class="graph-title">Agent Relations</span>
     <span class="graph-count">{nodes.length} agents</span>
@@ -208,62 +213,64 @@
   {#if loading}
     <div class="loading-indicator">Loading graph…</div>
   {/if}
-  <svg bind:this={svgEl} {width} {height} viewBox="0 0 {width} {height}" class="graph-svg">
-    <!-- Links -->
-    {#each resolvedLinks as link, i (i)}
-      <line
-        x1={link.source.x ?? 0}
-        y1={link.source.y ?? 0}
-        x2={link.target.x ?? 0}
-        y2={link.target.y ?? 0}
-        class="graph-link"
-        class:highlighted={isLinkHighlighted(link)}
-        class:dimmed={hoveredNode !== null && !isLinkHighlighted(link)}
-        class:link-file={link.type === 'file'}
-        class:link-network={link.type === 'network'}
-        stroke-width={Math.max(1, Math.min(4, link.weight))}
-      />
-    {/each}
-
-    <!-- Nodes -->
-    {#each nodes as node (node.id)}
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <g
-        class="graph-node"
-        class:dimmed={hoveredNode !== null && !isNodeConnected(node.id)}
-        class:selected={selectedNode === node.id}
-        transform="translate({node.x ?? 0}, {node.y ?? 0})"
-        onmouseenter={() => handleNodeEnter(node.id)}
-        onmouseleave={handleNodeLeave}
-        onclick={() => handleNodeClick(node.id)}
-      >
-        <!-- Glow for high risk -->
-        {#if node.riskScore > 60}
-          <circle r={(node.radius || 5) + 6} fill={node.color || 'currentColor'} opacity="0.15" />
-        {/if}
-
-        <!-- Main circle -->
-        <circle
-          r={node.radius || 5}
-          fill={node.color || 'currentColor'}
-          stroke="var(--md-sys-color-surface-container-low)"
-          stroke-width="2"
-          class="node-circle"
+  <div class="graph-canvas" bind:clientWidth={width} bind:clientHeight={height}>
+    <svg bind:this={svgEl} {width} {height} viewBox="0 0 {width} {height}" class="graph-svg">
+      <!-- Links -->
+      {#each resolvedLinks as link, i (i)}
+        <line
+          x1={link.source.x ?? 0}
+          y1={link.source.y ?? 0}
+          x2={link.target.x ?? 0}
+          y2={link.target.y ?? 0}
+          class="graph-link"
+          class:highlighted={isLinkHighlighted(link)}
+          class:dimmed={hoveredNode !== null && !isLinkHighlighted(link)}
+          class:link-file={link.type === 'file'}
+          class:link-network={link.type === 'network'}
+          stroke-width={Math.max(1, Math.min(4, link.weight))}
         />
+      {/each}
 
-        <!-- Label -->
-        <text y={(node.radius || 5) + 14} text-anchor="middle" class="node-label">
-          {node.label}
-        </text>
+      <!-- Nodes -->
+      {#each nodes as node (node.id)}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <g
+          class="graph-node"
+          class:dimmed={hoveredNode !== null && !isNodeConnected(node.id)}
+          class:selected={selectedNode === node.id}
+          transform="translate({node.x ?? 0}, {node.y ?? 0})"
+          onmouseenter={() => handleNodeEnter(node.id)}
+          onmouseleave={handleNodeLeave}
+          onclick={() => handleNodeClick(node.id)}
+        >
+          <!-- Glow for high risk -->
+          {#if node.riskScore > 60}
+            <circle r={(node.radius || 5) + 6} fill={node.color || 'currentColor'} opacity="0.15" />
+          {/if}
 
-        <!-- Trust grade badge -->
-        <text y={4} text-anchor="middle" class="node-grade">
-          {node.trustGrade}
-        </text>
-      </g>
-    {/each}
-  </svg>
+          <!-- Main circle -->
+          <circle
+            r={node.radius || 5}
+            fill={node.color || 'currentColor'}
+            stroke="var(--md-sys-color-surface-container-low)"
+            stroke-width="2"
+            class="node-circle"
+          />
+
+          <!-- Label -->
+          <text y={(node.radius || 5) + 14} text-anchor="middle" class="node-label">
+            {node.label}
+          </text>
+
+          <!-- Trust grade badge -->
+          <text y={4} text-anchor="middle" class="node-grade">
+            {node.trustGrade}
+          </text>
+        </g>
+      {/each}
+    </svg>
+  </div>
 
   {#if selectedDetail}
     <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -282,6 +289,9 @@
 <style>
   .agent-graph-wrap {
     width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
     box-sizing: border-box;
     background: var(--md-sys-color-surface-container-low);
     backdrop-filter: blur(var(--glass-blur));
@@ -294,11 +304,18 @@
     overflow: hidden;
   }
 
+  .graph-canvas {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   .loading-indicator {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 400px;
+    flex: 1;
+    min-height: 200px;
     color: var(--md-sys-color-on-surface-variant);
     font: var(--md-sys-typescale-label-medium);
     opacity: 0.5;
