@@ -16,7 +16,7 @@ export const TICK_H = 6;
 export const PX_PER_UNIT = 120;
 export const PAD = 20;
 export const MIN_TICK_PX = 64;
-export const CLUSTER_PX = 12;
+const CLUSTER_PX = 12;
 
 export const ZOOM_LEVELS: { ms: number }[] = [
   { ms: 3600000 },
@@ -28,7 +28,7 @@ export const ZOOM_LEVELS: { ms: number }[] = [
   { ms: 10000 },
 ];
 
-export const NICE_INTERVALS: number[] = [
+const NICE_INTERVALS: number[] = [
   5000, 10000, 15000, 30000, 60000, 120000, 300000, 600000, 900000, 1800000, 3600000, 7200000,
 ];
 
@@ -62,7 +62,7 @@ export function sevColor(sev: string): string {
 }
 
 /** Severity → Y-lane position. */
-export function sevLane(sev: string): number {
+function sevLane(sev: string): number {
   if (sev === 'critical') return LANE_CRIT;
   if (sev === 'high') return LANE_HIGH;
   if (sev === 'medium') return LANE_MED;

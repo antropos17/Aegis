@@ -16,10 +16,12 @@ const { EDITORS } = require('../shared/constants');
 
 let _getParentProcessMap = _platform.getParentProcessMap;
 let _getProcessCwd = _platform.getProcessCwd;
+let _getProcessCwds = _platform.getProcessCwds;
 /** @internal Override platform functions (for tests). */
 function _setPlatformForTest(overrides) {
   if (overrides.getParentProcessMap) _getParentProcessMap = overrides.getParentProcessMap;
   if (overrides.getProcessCwd) _getProcessCwd = overrides.getProcessCwd;
+  if (overrides.getProcessCwds) _getProcessCwds = overrides.getProcessCwds;
 }
 /** @internal Clear caches (for tests). */
 function _resetForTest() {
@@ -144,6 +146,7 @@ const CWD_CACHE_TTL = 60000;
 /**
  * Annotate agents with their working directories.
  * Sets `agent.cwd` (full path) and `agent.projectName` (basename).
+ * Uses batched platform call (single PowerShell spawn on Windows).
  * @param {Array} agents
  * @returns {Promise<void>}
  * @since v0.5.0
@@ -159,21 +162,27 @@ async function annotateWorkingDirs(agents) {
     }
   }
 
-  const results = await Promise.all(
-    agents.map(async (a) => {
-      const cached = cwdCache.get(a.pid);
-      if (cached && now - cached.timestamp <= CWD_CACHE_TTL) {
-        return { pid: a.pid, cwd: cached.cwd };
-      }
-      const cwd = await _getProcessCwd(a.pid);
-      cwdCache.set(a.pid, { cwd, timestamp: now });
-      return { pid: a.pid, cwd };
-    }),
-  );
-
-  const cwdMap = new Map(results.map((r) => [r.pid, r.cwd]));
+  // Separate cached vs uncached PIDs
+  const uncachedPids = [];
   for (const a of agents) {
-    const cwd = cwdMap.get(a.pid) || null;
+    const cached = cwdCache.get(a.pid);
+    if (!cached || now - cached.timestamp > CWD_CACHE_TTL) {
+      uncachedPids.push(a.pid);
+    }
+  }
+
+  // Single batched call for all uncached PIDs
+  if (uncachedPids.length > 0) {
+    const batchResults = await _getProcessCwds(uncachedPids);
+    for (const pid of uncachedPids) {
+      const cwd = batchResults.get(pid) || null;
+      cwdCache.set(pid, { cwd, timestamp: now });
+    }
+  }
+
+  for (const a of agents) {
+    const cached = cwdCache.get(a.pid);
+    const cwd = cached ? cached.cwd : null;
     a.cwd = cwd;
     a.projectName = cwd ? path.basename(cwd) : null;
   }

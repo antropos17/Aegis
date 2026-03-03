@@ -29,7 +29,6 @@
 
   /* ── Card ── */
   --aegis-card-border: 1px solid rgba(255, 255, 255, 0.1);
-  --aegis-card-hover-bg: rgba(150, 170, 200, 0.15);
   --aegis-border-hover: rgba(255, 255, 255, 0.15);
 
   /* ── Scrubber ── */
@@ -71,7 +70,6 @@
   --aegis-size-footer: calc(32px * var(--aegis-ui-scale));
   --aegis-size-timeline: calc(80px * var(--aegis-ui-scale));
   --aegis-size-panel-min: calc(280px * var(--aegis-ui-scale));
-  --aegis-size-panel-col: calc(320px * var(--aegis-ui-scale));
   --aegis-size-modal-min: calc(380px * var(--aegis-ui-scale));
 
   /* ── Column width tokens (scale with UI) ── */
@@ -81,14 +79,6 @@
   --aegis-col-state: calc(80px * var(--aegis-ui-scale));
 
   /* ── Typography scale — decomposed + scalable ── */
-  --md-sys-typescale-display-large-weight: 600;
-  --md-sys-typescale-display-large-size: calc(32px * var(--aegis-ui-scale));
-  --md-sys-typescale-display-large-line: calc(40px * var(--aegis-ui-scale));
-  --md-sys-typescale-display-large-family: 'Outfit', sans-serif;
-  --md-sys-typescale-display-large: var(--md-sys-typescale-display-large-weight)
-    var(--md-sys-typescale-display-large-size) / var(--md-sys-typescale-display-large-line)
-    var(--md-sys-typescale-display-large-family);
-
   --md-sys-typescale-headline-medium-weight: 600;
   --md-sys-typescale-headline-medium-size: calc(20px * var(--aegis-ui-scale));
   --md-sys-typescale-headline-medium-line: calc(28px * var(--aegis-ui-scale));
@@ -143,7 +133,6 @@
   /* ═══ FANCY UI TOKENS (F1.1) ═══ */
 
   /* ── Fancy: Semantic colors (from mockup) ── */
-  --fancy-bg: #050507;
   --fancy-surface: rgba(20, 20, 25, 0.6);
   --fancy-surface-hover: rgba(30, 30, 40, 0.8);
   --fancy-border: rgba(255, 255, 255, 0.08);
@@ -164,22 +153,15 @@
   --fancy-space-xs: 4px;
   --fancy-space-sm: 8px;
   --fancy-space-md: 16px;
-  --fancy-space-lg: 24px;
-  --fancy-space-xl: 32px;
-  --fancy-space-2xl: 48px;
 
   /* ── Fancy: Border radius ── */
   --fancy-radius-sm: 8px;
   --fancy-radius-md: 12px;
-  --fancy-radius-lg: 16px;
-  --fancy-radius-xl: 20px;
 
   /* ── Fancy: Transitions ── */
   --fancy-transition-micro: 150ms;
   --fancy-transition-normal: 300ms;
-  --fancy-transition-dramatic: 600ms;
   --fancy-ease: cubic-bezier(0.4, 0, 0.2, 1);
-  --fancy-ease-bouncy: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* ── Fancy: Severity glow (F3.1) ── */
   --fancy-danger-glow: 0 0 8px rgba(255, 51, 102, 0.4);
@@ -229,7 +211,6 @@
   --aegis-color-header-bg: rgba(240, 240, 242, 0.92);
   --aegis-color-header-border: rgba(0, 0, 0, 0.06);
   --aegis-card-border: 1px solid rgba(0, 0, 0, 0.1);
-  --aegis-card-hover-bg: rgba(90, 106, 126, 0.07);
   --aegis-border-hover: rgba(0, 0, 0, 0.15);
 
   --aegis-scrub-track: #e0e0e2;
@@ -269,7 +250,6 @@
   --aegis-color-header-bg: rgba(0, 0, 0, 0.96);
   --aegis-color-header-border: rgba(255, 255, 255, 0.2);
   --aegis-card-border: 1px solid rgba(255, 255, 255, 0.25);
-  --aegis-card-hover-bg: rgba(160, 188, 224, 0.2);
   --aegis-border-hover: rgba(255, 255, 255, 0.3);
 
   --aegis-scrub-track: #0a0a0c;
@@ -312,7 +292,6 @@
   --aegis-color-header-bg: rgba(255, 255, 255, 0.96);
   --aegis-color-header-border: rgba(0, 0, 0, 0.18);
   --aegis-card-border: 1px solid rgba(0, 0, 0, 0.22);
-  --aegis-card-hover-bg: rgba(42, 74, 110, 0.1);
   --aegis-border-hover: rgba(0, 0, 0, 0.3);
 
   --aegis-scrub-track: #d0d0d2;

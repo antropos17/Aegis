@@ -9,9 +9,11 @@
  *
  * @since 0.2.0-alpha
  */
-const { execFileSync } = require('child_process');
+const { spawn } = require('child_process');
 const electron = require('electron');
 
 delete process.env.ELECTRON_RUN_AS_NODE;
 
-execFileSync(electron, ['.'], { stdio: 'inherit', cwd: process.cwd() });
+// Use spawn instead of execFileSync for live stdout streaming (needed for PERF timing)
+const child = spawn(electron, ['.'], { stdio: 'inherit', cwd: process.cwd() });
+child.on('exit', (code) => process.exit(code ?? 0));

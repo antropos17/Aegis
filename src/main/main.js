@@ -15,6 +15,7 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
   return; // CJS module-scope return — stops rest of file from executing
 }
 
+const _startupT0 = Date.now();
 const { app, BrowserWindow, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -285,7 +286,6 @@ app.whenReady().then(() => {
       otherPanelExpanded = v;
     },
   });
-
   // ── Startup sequence ──
   const userData = app.getPath('userData');
   logger.init({ userDataPath: userData, isDev: !app.isPackaged });
@@ -300,6 +300,9 @@ app.whenReady().then(() => {
   baselines.loadBaselines();
   mainWindow.webContents.once('did-finish-load', () => {
     watcher.setupFileWatchers();
+  });
+  mainWindow.once('ready-to-show', () => {
+    console.log(`[Aegis] ready-to-show in ${Date.now() - _startupT0}ms`);
   });
   globalShortcut.register('CommandOrControl+Shift+T', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {

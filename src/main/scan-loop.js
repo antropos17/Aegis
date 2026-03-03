@@ -109,8 +109,12 @@ function doNetworkScan() {
       }
       sendToRenderer('network-update', connections);
     })
-    .catch((err) => logger.error('main', 'Network scan failed', { error: err.message }))
-    .finally(() => network.setNetworkScanRunning(false));
+    .catch((err) => {
+      logger.error('main', 'Network scan failed', { error: err.message });
+    })
+    .finally(() => {
+      network.setNetworkScanRunning(false);
+    });
 }
 
 async function doProcessScan() {
@@ -165,7 +169,6 @@ async function doProcessScan() {
     tray.updateTrayIcon();
     const deviations = anomaly.checkDeviations();
     if (deviations.length > 0) {
-      sendToRenderer('baseline-warnings', deviations);
       for (const d of deviations)
         audit.log('anomaly-alert', {
           agent: d.agent,
