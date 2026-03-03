@@ -189,6 +189,7 @@ async function setupFileWatchers() {
       persistent: true,
       ignoreInitial: true,
       usePolling: false,
+      depth: 1,
     });
     bindWatcherEvents(w);
     _state.watchers.push(w);
@@ -204,6 +205,7 @@ async function setupFileWatchers() {
       persistent: true,
       ignoreInitial: true,
       usePolling: false,
+      depth: 2,
     });
     bindWatcherEvents(cw);
     _state.watchers.push(cw);
@@ -215,6 +217,7 @@ async function setupFileWatchers() {
     ignoreInitial: true,
     ignored: (filePath) => dirFilter(filePath) || /package-lock\.json$/.test(filePath),
     usePolling: false,
+    depth: 5,
   });
   bindWatcherEvents(pw);
   _state.watchers.push(pw);
