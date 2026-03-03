@@ -8,6 +8,8 @@
   let feedEl = $state(null);
   let userScrolled = $state(false);
   let now = $state(Date.now());
+  /** Track previous count so we know which items are "new" */
+  let prevCount = $state(0);
 
   /** @type {any[][]} */
   let cachedEvents = $state([]);
@@ -40,11 +42,20 @@
     return 'low';
   }
 
+  /** Severity to fancy color variable */
   function sevColor(sev) {
-    if (sev === 'critical') return 'var(--md-sys-color-error)';
-    if (sev === 'high') return 'var(--md-sys-color-secondary)';
-    if (sev === 'medium') return 'var(--md-sys-color-primary)';
-    return 'var(--md-sys-color-on-surface-variant)';
+    if (sev === 'critical') return 'var(--fancy-danger)';
+    if (sev === 'high') return 'var(--fancy-warning)';
+    if (sev === 'medium') return 'var(--fancy-info)';
+    return 'var(--fancy-text-2)';
+  }
+
+  /** Severity to glow box-shadow */
+  function sevGlow(sev) {
+    if (sev === 'critical') return 'var(--fancy-danger-glow)';
+    if (sev === 'high') return 'var(--fancy-warning-glow)';
+    if (sev === 'medium') return 'var(--fancy-info-glow)';
+    return 'none';
   }
 
   function badgeLabel(ev, sev) {
@@ -56,8 +67,9 @@
   }
 
   function badgeClass(sev) {
-    if (sev === 'critical' || sev === 'high') return 'badge-high';
-    if (sev === 'medium') return 'badge-config';
+    if (sev === 'critical') return 'badge-danger';
+    if (sev === 'high') return 'badge-warning';
+    if (sev === 'medium') return 'badge-info';
     return '';
   }
 
@@ -135,6 +147,23 @@
     return result.slice(0, 200);
   });
 
+  /** Track new items count for animation (items at top of list are newest) */
+  let newItemCount = $derived.by(() => {
+    const count = filtered.length;
+    const diff = count - prevCount;
+    return diff > 0 ? diff : 0;
+  });
+
+  /** Update prevCount after render to reset animation state */
+  $effect(() => {
+    const len = filtered.length;
+    /** Debounce: batch rapid arrivals with a small delay */
+    const id = setTimeout(() => {
+      prevCount = len;
+    }, 300);
+    return () => clearTimeout(id);
+  });
+
   function onFeedScroll() {
     if (!feedEl) return;
     const { scrollTop, clientHeight, scrollHeight } = feedEl;
@@ -168,8 +197,18 @@
       {#each filtered as ev, i (`${ev.timestamp}-${ev.agent}-${i}`)}
         {@const sev = getSeverity(ev)}
         {@const label = badgeLabel(ev, sev)}
-        <div class="feed-entry" class:odd={i % 2 === 1}>
-          <span class="feed-dot" style:background={sevColor(sev)}></span>
+        {@const isNew = i < newItemCount}
+        <div
+          class="feed-entry"
+          class:odd={i % 2 === 1}
+          class:sev-critical={sev === 'critical'}
+          class:sev-high={sev === 'high'}
+          class:sev-medium={sev === 'medium'}
+          class:feed-enter={isNew}
+        >
+          <span class="sev-bar" style:background={sevColor(sev)}></span>
+          <span class="feed-dot" style:background={sevColor(sev)} style:box-shadow={sevGlow(sev)}
+          ></span>
           <span class="feed-time">{formatRelativeTime(ev.timestamp)}</span>
           <span class="feed-agent" title={ev.userAgent ? `Process: ${ev.userAgent}` : ''}
             >{ev.agent}</span
@@ -195,7 +234,7 @@
             <span class="feed-badge {badgeClass(sev)}">{label}</span>
           {/if}
           {#if ev.httpUnencrypted}
-            <span class="feed-badge badge-high">HTTP</span>
+            <span class="feed-badge badge-danger">HTTP</span>
           {/if}
           {#if ev.sensitive || ev.flagged}
             <button
@@ -253,13 +292,32 @@
     color: var(--md-sys-color-on-surface-variant);
   }
 
+  /* ── Slide-in animation (GPU-only: transform + opacity) ── */
+  @keyframes feed-slide-in {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .feed-enter {
+    animation: feed-slide-in var(--fancy-transition-normal) var(--fancy-ease) both;
+  }
+
   .feed-entry {
+    position: relative;
     display: flex;
     align-items: center;
     gap: var(--aegis-space-4);
     padding: var(--aegis-space-2) var(--aegis-space-6);
+    padding-left: calc(var(--aegis-space-6) + 3px);
     font-size: calc(11px * var(--aegis-ui-scale));
-    transition: background 0.15s ease;
+    font-family: var(--fancy-font-body);
+    transition: background var(--fancy-transition-micro) var(--fancy-ease);
   }
 
   .feed-entry.odd {
@@ -267,7 +325,25 @@
   }
 
   .feed-entry:hover {
-    background: var(--md-sys-color-outline-variant);
+    background: var(--fancy-surface-hover);
+  }
+
+  /* ── Severity left bar indicator ── */
+  .sev-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    border-radius: 0 2px 2px 0;
+    opacity: 0;
+    transition: opacity var(--fancy-transition-micro) var(--fancy-ease);
+  }
+
+  .feed-entry.sev-critical .sev-bar,
+  .feed-entry.sev-high .sev-bar,
+  .feed-entry.sev-medium .sev-bar {
+    opacity: 1;
   }
 
   .feed-dot {
@@ -275,16 +351,18 @@
     height: 6px;
     border-radius: 50%;
     flex-shrink: 0;
+    transition: box-shadow var(--fancy-transition-micro) var(--fancy-ease);
   }
 
   .feed-time {
-    font-family: 'DM Mono', monospace;
-    color: var(--md-sys-color-on-surface-variant);
+    font-family: var(--fancy-font-mono);
+    color: var(--fancy-text-2);
     flex-shrink: 0;
     width: var(--aegis-col-time);
   }
 
   .feed-agent {
+    font-family: var(--fancy-font-body);
     font-weight: 600;
     color: var(--md-sys-color-on-surface);
     flex-shrink: 0;
@@ -295,7 +373,8 @@
   }
 
   .feed-action {
-    color: var(--md-sys-color-on-surface-variant);
+    font-family: var(--fancy-font-body);
+    color: var(--fancy-text-2);
     flex-shrink: 0;
     width: var(--aegis-col-action);
     overflow: hidden;
@@ -304,7 +383,7 @@
   }
 
   .feed-path {
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     color: var(--md-sys-color-on-surface);
     flex: 1;
     min-width: 0;
@@ -317,7 +396,7 @@
     font-size: inherit;
     cursor: pointer;
     text-align: left;
-    transition: text-decoration 0.15s ease;
+    transition: color var(--fancy-transition-micro) var(--fancy-ease);
   }
 
   .feed-path:hover {
@@ -325,23 +404,30 @@
     color: var(--md-sys-color-primary);
   }
 
+  /* ── Severity badge colors (fancy palette) ── */
   .feed-badge {
     font-size: calc(9px * var(--aegis-ui-scale));
     font-weight: 700;
+    font-family: var(--fancy-font-mono);
     letter-spacing: 0.5px;
     padding: var(--aegis-space-1) var(--aegis-space-3);
     border-radius: var(--md-sys-shape-corner-full);
     flex-shrink: 0;
   }
 
-  .badge-high {
-    background: rgba(200, 90, 90, 0.15);
-    color: var(--md-sys-color-error);
+  .badge-danger {
+    background: var(--fancy-danger-bg);
+    color: var(--fancy-danger);
   }
 
-  .badge-config {
-    background: rgba(200, 168, 78, 0.12);
-    color: var(--md-sys-color-secondary);
+  .badge-warning {
+    background: var(--fancy-warning-bg);
+    color: var(--fancy-warning);
+  }
+
+  .badge-info {
+    background: var(--fancy-info-bg);
+    color: var(--fancy-info);
   }
 
   .feed-reveal {
@@ -352,7 +438,7 @@
     font-size: calc(12px * var(--aegis-ui-scale));
     flex-shrink: 0;
     opacity: 0;
-    transition: opacity 0.15s ease;
+    transition: opacity var(--fancy-transition-micro) var(--fancy-ease);
   }
   .feed-entry:hover .feed-reveal {
     opacity: 0.7;
@@ -364,8 +450,8 @@
   .feed-repeat {
     font-size: calc(9px * var(--aegis-ui-scale));
     font-weight: 700;
-    font-family: 'DM Mono', monospace;
-    color: var(--md-sys-color-on-surface-variant);
+    font-family: var(--fancy-font-mono);
+    color: var(--fancy-text-2);
     opacity: 0.7;
     flex-shrink: 0;
   }
@@ -373,17 +459,18 @@
   .fp-btn {
     font-size: calc(9px * var(--aegis-ui-scale));
     font-weight: 700;
+    font-family: var(--fancy-font-mono);
     padding: var(--aegis-space-1) var(--aegis-space-3);
     border-radius: var(--md-sys-shape-corner-full);
-    border: 1px solid var(--md-sys-color-outline);
+    border: 1px solid var(--fancy-border);
     background: transparent;
-    color: var(--md-sys-color-on-surface-variant);
+    color: var(--fancy-text-2);
     cursor: pointer;
     flex-shrink: 0;
     opacity: 0;
     transition:
-      opacity 0.15s ease,
-      background 0.15s ease;
+      opacity var(--fancy-transition-micro) var(--fancy-ease),
+      background var(--fancy-transition-micro) var(--fancy-ease);
   }
   .feed-entry:hover .fp-btn {
     opacity: 0.7;
