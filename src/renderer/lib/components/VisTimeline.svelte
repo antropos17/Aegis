@@ -22,6 +22,7 @@
   let { active = true } = $props();
 
   let containerEl = $state();
+  let loading = $state(true);
   /** @type {any} */
   let timeline = $state(null);
   /** @type {any} */
@@ -78,6 +79,7 @@
     itemsDataSet = items;
     groupsDataSet = groups;
     timeline = tl;
+    loading = false;
 
     return () => {
       if (timeline) {
@@ -157,6 +159,9 @@
 <div class="vis-timeline-wrap">
   <TimelineLegend {summary} />
 
+  {#if loading}
+    <div class="loading-indicator">Loading timeline…</div>
+  {/if}
   <div class="vis-timeline-container" bind:this={containerEl}></div>
 
   {#if selectedEvent}
@@ -188,6 +193,16 @@
     border-radius: var(--md-sys-shape-corner-medium);
     padding: var(--aegis-space-3) 0;
     overflow: hidden;
+  }
+
+  .loading-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 280px;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+    opacity: 0.5;
   }
 
   .vis-timeline-container {
@@ -259,13 +274,13 @@
   }
 
   .vis-timeline-container :global(.vis-item.vis-item-anomaly) {
-    background-color: #c8907a;
-    border-color: #c8907a;
+    background-color: var(--aegis-grade-d);
+    border-color: var(--aegis-grade-d);
     color: var(--md-sys-color-on-error);
   }
 
   .vis-timeline-container :global(.vis-item.vis-item-flagged) {
-    box-shadow: 0 0 6px rgba(200, 122, 122, 0.5);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--md-sys-color-error) 50%, transparent);
   }
 
   .vis-timeline-container :global(.vis-item.vis-selected) {

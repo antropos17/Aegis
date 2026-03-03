@@ -22,6 +22,15 @@
   --md-sys-color-error-container: rgba(200, 122, 122, 0.15);
   --md-sys-color-scrim: rgba(0, 0, 0, 0.6);
 
+  /* ── Trust grade colors (agent graph) ── */
+  --aegis-grade-a-plus: #4a7a5a;
+  --aegis-grade-a: #5a8a6a;
+  --aegis-grade-b-plus: #7a8a9e;
+  --aegis-grade-b: #9aafcc;
+  --aegis-grade-c: #c8a84e;
+  --aegis-grade-d: #c8907a;
+  --aegis-grade-f: #c87a7a;
+
   /* ── Brand / Header ── */
   --aegis-color-brand: #9aafcc;
   --aegis-color-header-bg: rgba(10, 10, 14, 0.92);
@@ -162,6 +171,14 @@
   --md-sys-color-error-container: rgba(176, 80, 80, 0.12);
   --md-sys-color-scrim: rgba(0, 0, 0, 0.5);
 
+  --aegis-grade-a-plus: #3a6a4a;
+  --aegis-grade-a: #4a7a5a;
+  --aegis-grade-b-plus: #5a6a7e;
+  --aegis-grade-b: #3a5a7e;
+  --aegis-grade-c: #a08830;
+  --aegis-grade-d: #b07050;
+  --aegis-grade-f: #b05050;
+
   --aegis-color-brand: #3a5a7e;
   --aegis-color-header-bg: rgba(240, 240, 242, 0.92);
   --aegis-color-header-border: rgba(0, 0, 0, 0.06);
@@ -201,6 +218,14 @@
   --md-sys-color-on-error: #000000;
   --md-sys-color-error-container: rgba(255, 128, 128, 0.2);
   --md-sys-color-scrim: rgba(0, 0, 0, 0.75);
+
+  --aegis-grade-a-plus: #60c080;
+  --aegis-grade-a: #70d090;
+  --aegis-grade-b-plus: #a0bce0;
+  --aegis-grade-b: #b0ccf0;
+  --aegis-grade-c: #f0d060;
+  --aegis-grade-d: #f0a060;
+  --aegis-grade-f: #ff8080;
 
   --aegis-color-brand: #b0ccf0;
   --aegis-color-header-bg: rgba(0, 0, 0, 0.96);
@@ -244,6 +269,14 @@
   --md-sys-color-on-error: #ffffff;
   --md-sys-color-error-container: rgba(160, 16, 16, 0.15);
   --md-sys-color-scrim: rgba(0, 0, 0, 0.6);
+
+  --aegis-grade-a-plus: #1a5a30;
+  --aegis-grade-a: #2a6a40;
+  --aegis-grade-b-plus: #2a4a6e;
+  --aegis-grade-b: #1a3a5e;
+  --aegis-grade-c: #7a6010;
+  --aegis-grade-d: #8a5020;
+  --aegis-grade-f: #a01010;
 
   --aegis-color-brand: #1a3a5e;
   --aegis-color-header-bg: rgba(255, 255, 255, 0.96);

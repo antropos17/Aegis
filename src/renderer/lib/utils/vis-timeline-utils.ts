@@ -68,11 +68,12 @@ export function fileEventsToTimeline(events: FileEvent[]): TimelineEvent[] {
  * @param conns - Raw network connections from IPC store
  */
 export function networkEventsToTimeline(conns: NetworkConnection[]): TimelineEvent[] {
+  const now = Date.now();
   return conns
     .filter((c) => c.agent)
     .map((c, i) => ({
       agent: c.agent,
-      timestamp: Date.now() - i * 1000,
+      timestamp: now + i,
       eventType: 'network' as const,
       label: c.domain || c.remoteIp,
       detail: `${c.domain || c.remoteIp}:${c.remotePort} (${c.state})`,
@@ -85,9 +86,10 @@ export function networkEventsToTimeline(conns: NetworkConnection[]): TimelineEve
  * @param warnings - Anomaly warnings from anomaly detector
  */
 export function anomalyEventsToTimeline(warnings: DeviationWarning[]): TimelineEvent[] {
-  return warnings.map((w) => ({
+  const now = Date.now();
+  return warnings.map((w, i) => ({
     agent: w.agent,
-    timestamp: Date.now(),
+    timestamp: now + i,
     eventType: 'anomaly' as const,
     label: w.type,
     detail: w.message,

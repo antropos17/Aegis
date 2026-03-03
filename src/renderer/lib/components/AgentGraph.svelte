@@ -9,7 +9,7 @@
    */
   import { onMount } from 'svelte';
   import { agents, events, network } from '../stores/ipc.js';
-  import { buildGraphData } from '../utils/agent-graph-utils.ts';
+  import { buildGraphData, resolveGradeColors } from '../utils/agent-graph-utils.ts';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
@@ -17,6 +17,7 @@
   let width = $state(600);
   let height = $state(400);
   let svgEl = $state();
+  let loading = $state(true);
 
   /** @type {import('../utils/agent-graph-utils.ts').GraphNode[]} */
   let nodes = $state([]);
@@ -32,6 +33,10 @@
   let simulation = null;
   /** @type {any} D3 module */
   let d3Module = null;
+  /** @type {Record<import('../../../shared/types').TrustGrade, string>} */
+  let gradeColors = $state(/** @type {any} */ ({}));
+  /** @type {ReturnType<typeof setTimeout> | null} Debounce timer for simulation rebuild */
+  let rebuildTimer = null;
 
   /**
    * Resolved links with x/y coordinates from simulation
@@ -40,8 +45,11 @@
   let resolvedLinks = $state([]);
 
   onMount(async () => {
+    gradeColors = resolveGradeColors();
     d3Module = await import('d3');
+    loading = false;
     return () => {
+      if (rebuildTimer) clearTimeout(rebuildTimer);
       if (simulation) {
         simulation.stop();
         simulation = null;
@@ -49,7 +57,7 @@
     };
   });
 
-  /** Rebuild graph when agents/events change */
+  /** Rebuild graph when agents/events change (debounced 200ms) */
   $effect(() => {
     if (!active || !d3Module) return;
     const agentList = $agents;
@@ -63,8 +71,11 @@
       return;
     }
 
-    const data = buildGraphData(agentList, fileEvs, netConns);
-    runSimulation(data.nodes, data.links);
+    if (rebuildTimer) clearTimeout(rebuildTimer);
+    rebuildTimer = setTimeout(() => {
+      const data = buildGraphData(agentList, fileEvs, netConns, gradeColors);
+      runSimulation(data.nodes, data.links);
+    }, 200);
   });
 
   /**
@@ -113,7 +124,7 @@
       .alphaDecay(0.02)
       .on('tick', () => {
         simulationRunning = true;
-        nodes = simNodes.map((n) => ({ ...n }));
+        nodes = [...simNodes];
         resolvedLinks = simLinks.map((l) => ({
           source: typeof l.source === 'object' ? l.source : findNode(l.source),
           target: typeof l.target === 'object' ? l.target : findNode(l.target),
@@ -139,7 +150,7 @@
         trustGrade: 'C',
         category: '',
         radius: 5,
-        color: '#7a8a9e',
+        color: gradeColors['C'] || 'currentColor',
       }
     );
   }
@@ -194,6 +205,9 @@
     {/if}
   </div>
 
+  {#if loading}
+    <div class="loading-indicator">Loading graph…</div>
+  {/if}
   <svg bind:this={svgEl} {width} {height} viewBox="0 0 {width} {height}" class="graph-svg">
     <!-- Links -->
     {#each resolvedLinks as link, i (i)}
@@ -226,20 +240,20 @@
       >
         <!-- Glow for high risk -->
         {#if node.riskScore > 60}
-          <circle r={node.radius + 6} fill={node.color} opacity="0.15" />
+          <circle r={(node.radius || 5) + 6} fill={node.color || 'currentColor'} opacity="0.15" />
         {/if}
 
         <!-- Main circle -->
         <circle
-          r={node.radius}
-          fill={node.color}
+          r={node.radius || 5}
+          fill={node.color || 'currentColor'}
           stroke="var(--md-sys-color-surface-container-low)"
           stroke-width="2"
           class="node-circle"
         />
 
         <!-- Label -->
-        <text y={node.radius + 14} text-anchor="middle" class="node-label">
+        <text y={(node.radius || 5) + 14} text-anchor="middle" class="node-label">
           {node.label}
         </text>
 
@@ -278,6 +292,16 @@
       var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
     overflow: hidden;
+  }
+
+  .loading-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 400px;
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--md-sys-typescale-label-medium);
+    opacity: 0.5;
   }
 
   .graph-header {

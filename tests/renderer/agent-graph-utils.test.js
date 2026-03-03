@@ -7,6 +7,17 @@ import {
 } from '../../src/renderer/lib/utils/agent-graph-utils.ts';
 
 describe('agent-graph-utils', () => {
+  /** Mock grade colors for tests (no DOM available) */
+  const mockGradeColors = {
+    'A+': '#4a7a5a',
+    A: '#5a8a6a',
+    'B+': '#7a8a9e',
+    B: '#9aafcc',
+    C: '#c8a84e',
+    D: '#c8907a',
+    F: '#c87a7a',
+  };
+
   const mockAgents = [
     {
       agent: 'Cursor',
@@ -72,7 +83,7 @@ describe('agent-graph-utils', () => {
 
   describe('buildGraphNodes()', () => {
     it('creates nodes from enriched agents', () => {
-      const nodes = buildGraphNodes(mockAgents);
+      const nodes = buildGraphNodes(mockAgents, mockGradeColors);
       expect(nodes).toHaveLength(3);
       expect(nodes[0].id).toBe('Cursor');
       expect(nodes[0].label).toBe('Cursor');
@@ -82,19 +93,19 @@ describe('agent-graph-utils', () => {
 
     it('deduplicates agents by name', () => {
       const duped = [...mockAgents, { ...mockAgents[0], pid: 99 }];
-      const nodes = buildGraphNodes(duped);
+      const nodes = buildGraphNodes(duped, mockGradeColors);
       expect(nodes).toHaveLength(3);
     });
 
     it('radius scales with risk score', () => {
-      const nodes = buildGraphNodes(mockAgents);
+      const nodes = buildGraphNodes(mockAgents, mockGradeColors);
       const low = nodes.find((n) => n.id === 'Claude');
       const high = nodes.find((n) => n.id === 'Devin');
       expect(high.radius).toBeGreaterThan(low.radius);
     });
 
     it('radius is bounded 5-25', () => {
-      const nodes = buildGraphNodes(mockAgents);
+      const nodes = buildGraphNodes(mockAgents, mockGradeColors);
       for (const n of nodes) {
         expect(n.radius).toBeGreaterThanOrEqual(5);
         expect(n.radius).toBeLessThanOrEqual(25);
@@ -102,7 +113,7 @@ describe('agent-graph-utils', () => {
     });
 
     it('empty agents returns empty', () => {
-      expect(buildGraphNodes([])).toEqual([]);
+      expect(buildGraphNodes([], mockGradeColors)).toEqual([]);
     });
   });
 
@@ -398,7 +409,7 @@ describe('agent-graph-utils', () => {
           userAgent: null,
         },
       ];
-      const data = buildGraphData(mockAgents, events, conns);
+      const data = buildGraphData(mockAgents, events, conns, mockGradeColors);
       expect(data.nodes).toHaveLength(3);
       expect(data.links.length).toBeGreaterThanOrEqual(2);
 
@@ -409,7 +420,7 @@ describe('agent-graph-utils', () => {
     });
 
     it('empty inputs return empty graph', () => {
-      const data = buildGraphData([], [], []);
+      const data = buildGraphData([], [], [], mockGradeColors);
       expect(data.nodes).toEqual([]);
       expect(data.links).toEqual([]);
     });

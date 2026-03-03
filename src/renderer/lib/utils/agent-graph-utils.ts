@@ -37,30 +37,52 @@ export interface GraphLink {
   readonly weight: number;
 }
 
-/** Trust grade → color mapping using CSS custom properties */
-const GRADE_COLORS: Record<TrustGrade, string> = {
-  'A+': '#4a7a5a',
-  A: '#5a8a6a',
-  'B+': '#7a8a9e',
-  B: '#9aafcc',
-  C: '#c8a84e',
-  D: '#c8907a',
-  F: '#c87a7a',
+/** Trust grade → CSS custom property name mapping */
+const GRADE_CSS_VARS: Record<TrustGrade, string> = {
+  'A+': '--aegis-grade-a-plus',
+  A: '--aegis-grade-a',
+  'B+': '--aegis-grade-b-plus',
+  B: '--aegis-grade-b',
+  C: '--aegis-grade-c',
+  D: '--aegis-grade-d',
+  F: '--aegis-grade-f',
 };
+
+/**
+ * Resolve grade colors from CSS custom properties.
+ * Must be called in browser context (renderer only).
+ * @param el - Element to read computed styles from (defaults to documentElement)
+ */
+/* eslint-disable no-undef */
+export function resolveGradeColors(el?: Element): Record<TrustGrade, string> {
+  const root = el ?? document.documentElement;
+  const style = window.getComputedStyle(root);
+  const colors = {} as Record<TrustGrade, string>;
+  for (const [grade, varName] of Object.entries(GRADE_CSS_VARS)) {
+    colors[grade as TrustGrade] = style.getPropertyValue(varName).trim() || '#7a8a9e';
+  }
+  return colors;
+}
+/* eslint-enable no-undef */
 
 /**
  * Calculate node radius from risk score (5–25 range)
  * @param riskScore - Agent risk score 0–100
  */
 function riskToRadius(riskScore: number): number {
-  return Math.max(5, Math.min(25, 5 + (riskScore / 100) * 20));
+  const score = Number.isFinite(riskScore) ? riskScore : 0;
+  return Math.max(5, Math.min(25, 5 + (score / 100) * 20));
 }
 
 /**
  * Build graph nodes from enriched agents
  * @param agents - Enriched agent list from IPC
+ * @param gradeColors - Resolved grade→color map from CSS vars
  */
-export function buildGraphNodes(agents: EnrichedAgent[]): GraphNode[] {
+export function buildGraphNodes(
+  agents: EnrichedAgent[],
+  gradeColors: Record<TrustGrade, string>,
+): GraphNode[] {
   const seen = new Set<string>();
   const nodes: GraphNode[] = [];
   for (const a of agents) {
@@ -74,7 +96,7 @@ export function buildGraphNodes(agents: EnrichedAgent[]): GraphNode[] {
       trustGrade: a.trustGrade,
       category: a.category,
       radius: riskToRadius(a.riskScore),
-      color: GRADE_COLORS[a.trustGrade] || GRADE_COLORS['C'],
+      color: gradeColors[a.trustGrade] || gradeColors['C'] || 'currentColor',
     });
   }
   return nodes;
@@ -164,13 +186,15 @@ export function buildNetworkLinks(conns: NetworkConnection[], nodeIds: Set<strin
  * @param agents - Enriched agents
  * @param fileEvents - File access events
  * @param networkConns - Network connections
+ * @param gradeColors - Resolved grade→color map from CSS vars
  */
 export function buildGraphData(
   agents: EnrichedAgent[],
   fileEvents: FileEvent[],
   networkConns: NetworkConnection[],
+  gradeColors: Record<TrustGrade, string>,
 ): { nodes: GraphNode[]; links: GraphLink[] } {
-  const nodes = buildGraphNodes(agents);
+  const nodes = buildGraphNodes(agents, gradeColors);
   const nodeIds = new Set(nodes.map((n) => n.id));
   const fileLinks = buildFileLinks(fileEvents, nodeIds);
   const networkLinks = buildNetworkLinks(networkConns, nodeIds);
