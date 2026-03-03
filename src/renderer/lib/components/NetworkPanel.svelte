@@ -229,7 +229,7 @@
   }
   .net-endpoint {
     font: var(--md-sys-typescale-body-medium);
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     color: var(--md-sys-color-on-surface);
     flex: 1;
     min-width: 0;
@@ -239,7 +239,7 @@
   }
   .net-port {
     font: var(--md-sys-typescale-label-medium);
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     color: var(--md-sys-color-on-surface-variant);
     flex-shrink: 0;
     width: calc(48px * var(--aegis-ui-scale));

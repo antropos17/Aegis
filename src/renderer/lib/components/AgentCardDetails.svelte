@@ -175,7 +175,7 @@
     gap: var(--aegis-space-3);
     padding: var(--aegis-space-1) 0;
     font: var(--md-sys-typescale-label-medium);
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     color: var(--md-sys-color-on-surface-variant);
   }
   .log-row.sensitive {
@@ -228,7 +228,7 @@
   }
   .pid-info {
     font: var(--md-sys-typescale-label-medium);
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     color: var(--md-sys-color-on-surface-variant);
     min-width: 0;
     overflow: hidden;

@@ -1,12 +1,15 @@
 <script>
   /**
    * @file AgentCard.svelte
-   * @description Agent card — compact summary row with expandable details.
-   *   Detail body in AgentCardDetails.svelte.
-   * @since v0.1.0
+   * @description Fancy agent card — glassmorphism panel with sparkline,
+   *   trust badge, spotlight hover, and expandable details. [F2.3]
+   * @since v0.5.0
    */
   import { events, focusedAgentPid } from '../stores/ipc.js';
   import AgentCardDetails from './AgentCardDetails.svelte';
+  import Sparkline from './Sparkline.svelte';
+  import TrustBadge from './TrustBadge.svelte';
+  import { getRiskInfo } from '../utils/trust-badge-utils';
   import { addToast } from '../stores/toast.js';
   import { t } from '../i18n/index.js';
 
@@ -18,6 +21,18 @@
   let _prevRiskScore = -1;
   let cardEl = $state(null);
   let expanded = $derived(expandedPid === agent.pid);
+
+  /** Risk info (color, label) derived from agent score */
+  let risk = $derived(getRiskInfo(agent.riskScore ?? 0));
+
+  /** Sparkline color: match the risk color */
+  let sparkColor = $derived(risk.color);
+
+  /** Risk history: use agent.riskHistory if available, else empty */
+  let riskHistory = $derived(agent.riskHistory ?? []);
+
+  /** Danger border when risk >= 70 */
+  let isDanger = $derived((agent.riskScore ?? 0) >= 70);
 
   $effect(() => {
     const score = agent.riskScore ?? 0;
@@ -45,14 +60,6 @@
       }, 50);
     }
   });
-
-  function gradeToColor(grade) {
-    if (['A+', 'A', 'B'].includes(grade)) return 'var(--md-sys-color-tertiary)';
-    if (grade === 'C') return 'var(--md-sys-color-secondary)';
-    return 'var(--md-sys-color-error)';
-  }
-
-  let gradeColor = $derived(gradeToColor(agent.trustGrade));
 
   let displayName = $derived.by(() => {
     if (agent.projectName) return `${agent.name} \u2014 ${agent.projectName}`;
@@ -101,6 +108,14 @@
     await navigator.clipboard.writeText(String(agent.pid));
     addToast($t('agents.pid_copied'), 'success', 3000);
   }
+
+  /** Spotlight hover — track mouse position relative to card */
+  function handleMouseMove(e) {
+    if (!cardEl) return;
+    const rect = cardEl.getBoundingClientRect();
+    cardEl.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+    cardEl.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+  }
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -110,15 +125,22 @@
   class:expanded
   class:blinking
   class:threat-flash={threatFlash}
+  class:danger={isDanger}
   bind:this={cardEl}
   onclick={toggle}
+  onmousemove={handleMouseMove}
 >
   <div class="header-row">
     <span class="agent-name">{displayName}</span>
     {#if agent.hasApiCalls}<span class="api-badge" title="Making API calls">API</span>{/if}
-    <span class="risk-score" style:color={gradeColor}>{agent.riskScore}</span>
-    <span class="trust-badge" style:background={gradeColor}>{agent.trustGrade}</span>
+    <TrustBadge score={agent.riskScore ?? 0} size="sm" />
   </div>
+
+  {#if riskHistory.length > 1}
+    <div class="sparkline-row">
+      <Sparkline data={riskHistory} color={sparkColor} width={100} height={28} />
+    </div>
+  {/if}
 
   <div class="stats-row">
     <button class="stat-chip" onclick={copyPid} title={$t('agents.copy_pid')}>
@@ -151,7 +173,7 @@
     <div class="expand-inner">
       <AgentCardDetails
         {agent}
-        {gradeColor}
+        gradeColor={risk.color}
         {agentEvents}
         {sessionDuration}
         onPidAction={pidAction}
@@ -162,111 +184,141 @@
 
 <style>
   .agent-card {
-    background: var(--md-sys-color-surface-container-low);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-    border: var(--aegis-card-border);
-    box-shadow:
-      0 2px 8px rgba(0, 0, 0, 0.12),
-      var(--glass-highlight);
-    border-radius: var(--md-sys-shape-corner-medium);
-    padding: var(--aegis-space-4) var(--aegis-space-6);
+    background: var(--fancy-surface);
+    backdrop-filter: blur(var(--fancy-panel-blur));
+    -webkit-backdrop-filter: blur(var(--fancy-panel-blur));
+    border: 1px solid var(--fancy-border);
+    border-radius: var(--fancy-radius-md);
+    padding: var(--fancy-space-md);
     cursor: pointer;
-    transition: all 0.3s var(--ease-glass);
+    position: relative;
+    overflow: hidden;
+    transition:
+      transform var(--fancy-transition-normal) var(--fancy-ease),
+      box-shadow var(--fancy-transition-normal) var(--fancy-ease),
+      border-color var(--fancy-transition-normal) var(--fancy-ease),
+      background var(--fancy-transition-normal) var(--fancy-ease);
   }
+
+  /* Spotlight hover pseudo-element */
+  .agent-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+      rgba(255, 255, 255, 0.06),
+      transparent 40%
+    );
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--fancy-transition-micro) var(--fancy-ease);
+  }
+  .agent-card:hover::before {
+    opacity: 1;
+  }
+
   .agent-card:hover {
-    background: var(--aegis-card-hover-bg);
+    background: var(--fancy-surface-hover);
+    border-color: var(--fancy-border-highlight);
+    transform: translateY(-2px);
+    box-shadow:
+      var(--glass-highlight),
+      0 8px 24px rgba(0, 0, 0, 0.3);
   }
+
+  /* Danger left border for high-risk agents */
+  .agent-card.danger {
+    border-left: 3px solid var(--fancy-danger);
+  }
+
   .header-row {
     display: flex;
     align-items: center;
-    gap: var(--aegis-space-4);
+    gap: var(--fancy-space-sm);
   }
   .agent-name {
-    font: var(--md-sys-typescale-title-medium);
+    font-family: var(--fancy-font-title);
+    font-size: calc(14px * var(--aegis-ui-scale));
     font-weight: 600;
-    color: var(--md-sys-color-on-surface);
+    color: var(--fancy-text-1);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
-  }
-  .risk-score {
-    font: var(--md-sys-typescale-label-large);
-    font-family: 'DM Mono', monospace;
-    font-weight: 700;
-    flex-shrink: 0;
-    margin-left: auto;
-  }
-  .trust-badge {
-    font: var(--md-sys-typescale-label-medium);
-    font-weight: 700;
-    color: var(--md-sys-color-surface);
-    padding: var(--aegis-space-1) calc(7px * var(--aegis-ui-scale));
-    border-radius: var(--md-sys-shape-corner-full);
-    flex-shrink: 0;
-    letter-spacing: 0.5px;
+    flex: 1;
   }
   .api-badge {
+    font-family: var(--fancy-font-mono);
     font-size: calc(9px * var(--aegis-ui-scale));
     font-weight: 700;
     letter-spacing: 0.5px;
-    padding: var(--aegis-space-1) var(--aegis-space-3);
+    padding: var(--fancy-space-xs) var(--fancy-space-sm);
     border-radius: var(--md-sys-shape-corner-full);
     background: rgba(120, 160, 220, 0.15);
-    color: var(--md-sys-color-primary);
+    color: var(--fancy-info);
     flex-shrink: 0;
   }
+
+  .sparkline-row {
+    height: 28px;
+    margin: var(--fancy-space-sm) 0;
+  }
+
   .stats-row {
     display: flex;
     align-items: center;
-    gap: var(--aegis-space-3);
-    margin-top: var(--aegis-space-3);
+    gap: var(--fancy-space-sm);
+    margin-top: var(--fancy-space-sm);
     flex-wrap: wrap;
   }
   .stat-chip {
     display: inline-flex;
     align-items: center;
-    gap: var(--aegis-space-2);
-    padding: var(--aegis-space-1) var(--aegis-space-4);
-    background: var(--md-sys-color-surface-container-high);
-    border: 1px solid var(--md-sys-color-outline-variant);
-    border-radius: var(--md-sys-shape-corner-small);
+    gap: var(--fancy-space-xs);
+    padding: var(--fancy-space-xs) var(--fancy-space-sm);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--fancy-border);
+    border-radius: var(--fancy-radius-sm);
     cursor: default;
-    transition: border-color 0.15s ease;
+    transition: border-color var(--fancy-transition-micro) var(--fancy-ease);
   }
   button.stat-chip {
     cursor: copy;
   }
   button.stat-chip:hover {
-    border-color: var(--md-sys-color-primary);
+    border-color: var(--fancy-border-highlight);
   }
   .stat-label {
-    font: var(--md-sys-typescale-label-medium);
-    color: var(--md-sys-color-on-surface-variant);
+    font-family: var(--fancy-font-body);
+    font-size: calc(10px * var(--aegis-ui-scale));
+    font-weight: 500;
+    color: var(--fancy-text-2);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
   .stat-value {
-    font: var(--md-sys-typescale-label-medium);
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
+    font-size: calc(11px * var(--aegis-ui-scale));
     font-weight: 600;
-    color: var(--md-sys-color-on-surface);
+    color: var(--fancy-text-1);
   }
+
   .activity-hint {
-    font: var(--md-sys-typescale-label-medium);
-    font-family: 'DM Mono', monospace;
-    color: var(--md-sys-color-on-surface-variant);
+    font-family: var(--fancy-font-mono);
+    font-size: calc(11px * var(--aegis-ui-scale));
+    color: var(--fancy-text-2);
     opacity: 0.7;
-    margin-top: var(--aegis-space-2);
+    margin-top: var(--fancy-space-xs);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
   .expand-body {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows 200ms var(--md-sys-motion-easing-standard);
+    transition: grid-template-rows 200ms var(--fancy-ease);
     overflow: hidden;
   }
   .agent-card.expanded .expand-body {
@@ -277,21 +329,22 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    gap: var(--aegis-space-3);
+    gap: var(--fancy-space-sm);
   }
   .agent-card.expanded .expand-inner {
-    margin-top: var(--aegis-space-4);
+    margin-top: var(--fancy-space-md);
   }
+
   .agent-card.blinking {
     animation: card-blink 400ms ease 3;
   }
   @keyframes card-blink {
     0%,
     100% {
-      background: var(--md-sys-color-surface-container-low);
+      background: var(--fancy-surface);
     }
     50% {
-      background: var(--md-sys-color-primary-container);
+      background: rgba(0, 255, 136, 0.08);
     }
   }
   .agent-card.threat-flash {
@@ -304,7 +357,7 @@
       outline-color: transparent;
     }
     50% {
-      outline-color: var(--md-sys-color-error);
+      outline-color: var(--fancy-danger);
     }
   }
 </style>
