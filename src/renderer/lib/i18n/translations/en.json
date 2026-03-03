@@ -19,7 +19,8 @@
     "shield": "Shield",
     "activity": "Activity",
     "rules": "Rules",
-    "reports": "Reports"
+    "reports": "Reports",
+    "stats": "Stats"
   },
   "demo": {
     "badge": "DEMO MODE",

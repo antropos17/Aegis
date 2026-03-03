@@ -141,6 +141,12 @@
     userScrolled = scrollTop + clientHeight < scrollHeight - 50;
   }
 
+  /** Snap to bottom and re-enable auto-scroll */
+  function followFeed() {
+    userScrolled = false;
+    if (feedEl) feedEl.scrollTop = feedEl.scrollHeight;
+  }
+
   $effect(() => {
     // eslint-disable-next-line no-unused-vars -- tracks filtered changes to trigger autoscroll
     const _len = filtered.length;
@@ -150,55 +156,90 @@
   });
 </script>
 
-<div class="feed-scroll" bind:this={feedEl} onscroll={onFeedScroll}>
-  {#if filtered.length === 0}
-    <div class="feed-empty">{$t('activity.feed.no_events')}</div>
-  {:else}
-    {#each filtered as ev, i (`${ev.timestamp}-${ev.agent}-${i}`)}
-      {@const sev = getSeverity(ev)}
-      {@const label = badgeLabel(ev, sev)}
-      <div class="feed-entry" class:odd={i % 2 === 1}>
-        <span class="feed-dot" style:background={sevColor(sev)}></span>
-        <span class="feed-time">{formatRelativeTime(ev.timestamp)}</span>
-        <span class="feed-agent" title={ev.userAgent ? `Process: ${ev.userAgent}` : ''}
-          >{ev.agent}</span
-        >
-        <span class="feed-action">{ev.action || ev._type}</span>
-        <button class="feed-path" title={ev.file} onclick={(e) => handlePathClick(ev, e)}
-          >{shortenPath(ev.file)}</button
-        >
-        {#if ev._type === 'file' && ev.file}
-          <button
-            class="feed-reveal"
-            title="Open file location"
-            onclick={(e) => {
-              e.stopPropagation();
-              window.aegis?.revealInExplorer(ev.file);
-            }}>&#128193;</button
-          >
-        {/if}
-        {#if ev.repeatCount > 1}
-          <span class="feed-repeat">&times;{ev.repeatCount}</span>
-        {/if}
-        {#if label}
-          <span class="feed-badge {badgeClass(sev)}">{label}</span>
-        {/if}
-        {#if ev.httpUnencrypted}
-          <span class="feed-badge badge-high">HTTP</span>
-        {/if}
-        {#if ev.sensitive || ev.flagged}
-          <button
-            class="fp-btn"
-            title="Mark as false positive"
-            onclick={(e) => markFalsePositive(ev, e)}>FP</button
-          >
-        {/if}
-      </div>
-    {/each}
+<div class="feed-wrap">
+  {#if userScrolled}
+    <button class="follow-btn" onclick={followFeed}>Follow</button>
   {/if}
+
+  <div class="feed-scroll" bind:this={feedEl} onscroll={onFeedScroll}>
+    {#if filtered.length === 0}
+      <div class="feed-empty">{$t('activity.feed.no_events')}</div>
+    {:else}
+      {#each filtered as ev, i (`${ev.timestamp}-${ev.agent}-${i}`)}
+        {@const sev = getSeverity(ev)}
+        {@const label = badgeLabel(ev, sev)}
+        <div class="feed-entry" class:odd={i % 2 === 1}>
+          <span class="feed-dot" style:background={sevColor(sev)}></span>
+          <span class="feed-time">{formatRelativeTime(ev.timestamp)}</span>
+          <span class="feed-agent" title={ev.userAgent ? `Process: ${ev.userAgent}` : ''}
+            >{ev.agent}</span
+          >
+          <span class="feed-action">{ev.action || ev._type}</span>
+          <button class="feed-path" title={ev.file} onclick={(e) => handlePathClick(ev, e)}
+            >{shortenPath(ev.file)}</button
+          >
+          {#if ev._type === 'file' && ev.file}
+            <button
+              class="feed-reveal"
+              title="Open file location"
+              onclick={(e) => {
+                e.stopPropagation();
+                window.aegis?.revealInExplorer(ev.file);
+              }}>&#128193;</button
+            >
+          {/if}
+          {#if ev.repeatCount > 1}
+            <span class="feed-repeat">&times;{ev.repeatCount}</span>
+          {/if}
+          {#if label}
+            <span class="feed-badge {badgeClass(sev)}">{label}</span>
+          {/if}
+          {#if ev.httpUnencrypted}
+            <span class="feed-badge badge-high">HTTP</span>
+          {/if}
+          {#if ev.sensitive || ev.flagged}
+            <button
+              class="fp-btn"
+              title="Mark as false positive"
+              onclick={(e) => markFalsePositive(ev, e)}>FP</button
+            >
+          {/if}
+        </div>
+      {/each}
+    {/if}
+  </div>
 </div>
 
 <style>
+  .feed-wrap {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .follow-btn {
+    position: absolute;
+    right: var(--aegis-space-8);
+    top: var(--aegis-space-3);
+    padding: var(--aegis-space-2) var(--aegis-space-6);
+    background: var(--md-sys-color-primary);
+    color: var(--md-sys-color-on-primary);
+    border: none;
+    border-radius: var(--md-sys-shape-corner-small);
+    font: var(--md-sys-typescale-label-medium);
+    font-weight: 600;
+    cursor: pointer;
+    z-index: 1;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: opacity 0.2s ease;
+  }
+
+  .follow-btn:hover {
+    opacity: 0.9;
+  }
+
   .feed-scroll {
     flex: 1;
     overflow-y: auto;
