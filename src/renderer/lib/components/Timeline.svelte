@@ -156,9 +156,6 @@
   let tickInterval = $derived(pickTickInterval(totalWidth, displayRange));
 
   let clampedScroll = $derived(Math.min(scrollLeft, maxScroll));
-  $effect(() => {
-    if (scrollLeft > maxScroll) scrollLeft = maxScroll;
-  });
 
   $effect(() => {
     if (pendingScrollAdjust && prevMinT > 0 && minT < prevMinT) {
@@ -182,10 +179,10 @@
     }
   });
 
+  /** Keep scroll pinned to end while auto-following */
+  let autoScrollTarget = $derived(following ? maxScroll : -1);
   $effect(() => {
-    void allEvents.length;
-    void maxScroll;
-    if (following) scrollLeft = maxScroll;
+    if (autoScrollTarget >= 0) scrollLeft = autoScrollTarget;
   });
 
   function tsToX(ts) {

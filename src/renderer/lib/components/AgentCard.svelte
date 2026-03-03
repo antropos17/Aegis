@@ -39,9 +39,11 @@
     const score = agent.riskScore ?? 0;
     if (_prevRiskScore !== -1 && score >= 70 && _prevRiskScore < 70) {
       threatFlash = true;
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         threatFlash = false;
       }, 1000);
+      _prevRiskScore = score;
+      return () => clearTimeout(timer);
     }
     _prevRiskScore = score;
   });
@@ -53,12 +55,16 @@
       expandedPid = agent.pid;
       blinking = true;
       if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      setTimeout(() => {
+      const t1 = setTimeout(() => {
         blinking = false;
       }, 1200);
-      setTimeout(() => {
+      const t2 = setTimeout(() => {
         focusedAgentPid.set(null);
       }, 50);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
     }
   });
 
