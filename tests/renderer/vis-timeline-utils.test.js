@@ -31,7 +31,7 @@ describe('vis-timeline-utils', () => {
       expect(result[0].eventType).toBe('file');
       expect(result[0].timestamp).toBe(1700000000000);
       expect(result[0].flagged).toBe(true);
-      expect(result[0].label).toBe('accessed');
+      expect(result[0].label).toBe('accessed passwd');
       expect(result[0].detail).toContain('(sensitive)');
     });
 
@@ -83,7 +83,7 @@ describe('vis-timeline-utils', () => {
       expect(result).toHaveLength(1);
       expect(result[0].eventType).toBe('network');
       expect(result[0].agent).toBe('Claude');
-      expect(result[0].label).toBe('api.anthropic.com');
+      expect(result[0].label).toBe('api.anthropic.com:443');
       expect(result[0].detail).toContain('443');
     });
 
@@ -126,7 +126,7 @@ describe('vis-timeline-utils', () => {
         },
       ];
       const result = networkEventsToTimeline(conns);
-      expect(result[0].label).toBe('10.0.0.1');
+      expect(result[0].label).toBe('10.0.0.1:8080');
       expect(result[0].flagged).toBe(true);
     });
   });
@@ -181,7 +181,7 @@ describe('vis-timeline-utils', () => {
       expect(items[0].group).toBe('Cursor');
       expect(items[0].className).toBe('vis-item-file');
       expect(items[0]._eventType).toBe('file');
-      expect(items[0].type).toBe('point');
+      expect(items[0].type).toBe('box');
       expect(items[0].start).toBeInstanceOf(Date);
 
       expect(items[1].className).toBe('vis-item-network vis-item-flagged');
@@ -195,7 +195,7 @@ describe('vis-timeline-utils', () => {
 
   describe('VIS_TIMELINE_OPTIONS', () => {
     it('has required properties', () => {
-      expect(VIS_TIMELINE_OPTIONS.height).toBe('280px');
+      expect(VIS_TIMELINE_OPTIONS.height).toBe('100%');
       expect(VIS_TIMELINE_OPTIONS.zoomMin).toBe(1000);
       expect(VIS_TIMELINE_OPTIONS.selectable).toBe(true);
     });

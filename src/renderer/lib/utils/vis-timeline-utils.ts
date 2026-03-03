@@ -57,7 +57,7 @@ export function fileEventsToTimeline(events: FileEvent[]): TimelineEvent[] {
     agent: ev.agent,
     timestamp: ev.timestamp,
     eventType: 'file' as const,
-    label: ev.action,
+    label: `${ev.action} ${ev.file.split(/[\\/]/).pop() || ev.file}`,
     detail: `${ev.action}: ${ev.file}${ev.sensitive ? ' (sensitive)' : ''}`,
     flagged: ev.sensitive,
   }));
@@ -73,9 +73,9 @@ export function networkEventsToTimeline(conns: NetworkConnection[]): TimelineEve
     .filter((c) => c.agent)
     .map((c, i) => ({
       agent: c.agent,
-      timestamp: now + i,
+      timestamp: now + i * 1000,
       eventType: 'network' as const,
-      label: c.domain || c.remoteIp,
+      label: `${c.domain || c.remoteIp}:${c.remotePort}`,
       detail: `${c.domain || c.remoteIp}:${c.remotePort} (${c.state})`,
       flagged: c.flagged,
     }));
@@ -89,7 +89,7 @@ export function anomalyEventsToTimeline(warnings: DeviationWarning[]): TimelineE
   const now = Date.now();
   return warnings.map((w, i) => ({
     agent: w.agent,
-    timestamp: now + i,
+    timestamp: now + i * 1000,
     eventType: 'anomaly' as const,
     label: w.type,
     detail: w.message,
@@ -128,20 +128,20 @@ export function buildVisItems(events: TimelineEvent[]): VisItem[] {
     content: ev.label,
     className: `${EVENT_CLASS[ev.eventType]}${ev.flagged ? ' vis-item-flagged' : ''}`,
     title: ev.detail,
-    type: 'point' as const,
+    type: 'box' as const,
     _eventType: ev.eventType,
   }));
 }
 
 /** Dark theme options for vis-timeline */
 export const VIS_TIMELINE_OPTIONS = {
-  height: '280px',
+  height: '100%',
   stack: true,
   showCurrentTime: true,
   zoomMin: 1000,
   zoomMax: 1000 * 60 * 60 * 24,
   orientation: { axis: 'bottom' },
-  margin: { item: 4 },
+  margin: { item: 10 },
   selectable: true,
   multiselect: false,
 } as const;
