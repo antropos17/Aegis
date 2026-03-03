@@ -1,9 +1,12 @@
 <script>
+  import { fade } from 'svelte/transition';
+  import { agents } from '../stores/ipc.js';
   import Radar from './Radar.svelte';
   import AgentPanel from './AgentPanel.svelte';
   import FeedFilters from './FeedFilters.svelte';
   import ActivityFeed from './ActivityFeed.svelte';
   import SummaryCards from './SummaryCards.svelte';
+  import SkeletonLoader from './SkeletonLoader.svelte';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
@@ -11,22 +14,46 @@
   let agentFilter = $state('all');
   let severityFilter = $state('all');
   let typeFilter = $state('all');
+
+  /** True once first scan batch arrives with agent data */
+  let dataReady = $state(false);
+  $effect(() => {
+    if ($agents.length > 0) dataReady = true;
+  });
 </script>
 
 <div class="bento">
-  <div class="bento-radar panel">
-    <Radar {active} />
-  </div>
-  <div class="bento-summary panel">
-    <SummaryCards {active} />
-  </div>
-  <div class="bento-feed panel">
-    <FeedFilters {active} bind:agentFilter bind:severityFilter bind:typeFilter />
-    <ActivityFeed {active} {agentFilter} {severityFilter} {typeFilter} />
-  </div>
-  <div class="bento-agents panel">
-    <AgentPanel {active} />
-  </div>
+  {#if dataReady}
+    <div class="bento-radar panel" transition:fade={{ duration: 300 }}>
+      <Radar {active} />
+    </div>
+    <div class="bento-summary panel" transition:fade={{ duration: 300 }}>
+      <SummaryCards {active} />
+    </div>
+    <div class="bento-feed panel" transition:fade={{ duration: 300 }}>
+      <FeedFilters {active} bind:agentFilter bind:severityFilter bind:typeFilter />
+      <ActivityFeed {active} {agentFilter} {severityFilter} {typeFilter} />
+    </div>
+    <div class="bento-agents panel" transition:fade={{ duration: 300 }}>
+      <AgentPanel {active} />
+    </div>
+  {:else}
+    <div class="bento-radar panel">
+      <SkeletonLoader lines={5} style="list" />
+    </div>
+    <div class="bento-summary panel">
+      <SkeletonLoader lines={4} style="card" />
+    </div>
+    <div class="bento-feed panel">
+      <SkeletonLoader lines={3} style="card" />
+      <SkeletonLoader lines={3} style="card" />
+    </div>
+    <div class="bento-agents panel">
+      <SkeletonLoader lines={3} style="card" />
+      <SkeletonLoader lines={3} style="card" />
+      <SkeletonLoader lines={3} style="card" />
+    </div>
+  {/if}
 </div>
 
 <style>
