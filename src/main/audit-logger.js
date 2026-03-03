@@ -23,6 +23,11 @@ const FLUSH_INTERVAL = 5000;
 const FLUSH_THRESHOLD = 50;
 const RETENTION_DAYS = 30;
 
+/** In-memory counters — avoids re-reading all log files on every getStats() call */
+let _totalEntries = 0;
+let _firstEntry = /** @type {string|null} */ (null);
+let _lastEntry = /** @type {string|null} */ (null);
+
 /**
  * Initialise audit logger. Creates audit-logs directory if needed, starts flush timer,
  * and cleans up old log files.
@@ -37,8 +42,41 @@ function init(opts) {
   try {
     if (!fs.existsSync(_logDir)) fs.mkdirSync(_logDir, { recursive: true });
   } catch (_) {}
+  _seedCounters();
   _flushTimer = setInterval(flush, FLUSH_INTERVAL);
   setImmediate(() => cleanOldLogs());
+}
+
+/**
+ * One-time scan of existing log files to seed in-memory counters.
+ * @returns {void}
+ */
+function _seedCounters() {
+  _totalEntries = 0;
+  _firstEntry = null;
+  _lastEntry = null;
+  if (!_logDir) return;
+  try {
+    const files = fs
+      .readdirSync(_logDir)
+      .filter((f) => f.startsWith('aegis-audit-') && f.endsWith('.json'))
+      .sort();
+    for (const f of files) {
+      const fp = path.join(_logDir, f);
+      const content = fs.readFileSync(fp, 'utf-8');
+      const lines = content.split('\n').filter((l) => l.trim().length > 0);
+      _totalEntries += lines.length;
+      for (const line of lines) {
+        try {
+          const entry = JSON.parse(line);
+          if (entry.timestamp) {
+            if (!_firstEntry || entry.timestamp < _firstEntry) _firstEntry = entry.timestamp;
+            if (!_lastEntry || entry.timestamp > _lastEntry) _lastEntry = entry.timestamp;
+          }
+        } catch (_) {}
+      }
+    }
+  } catch (_) {}
 }
 
 /**
@@ -77,6 +115,9 @@ function log(type, details) {
     details: details.extra || null,
   };
   _buffer.push(entry);
+  _totalEntries++;
+  if (!_firstEntry || entry.timestamp < _firstEntry) _firstEntry = entry.timestamp;
+  if (!_lastEntry || entry.timestamp > _lastEntry) _lastEntry = entry.timestamp;
   if (_buffer.length >= FLUSH_THRESHOLD) flush();
 }
 
@@ -131,44 +172,27 @@ function cleanOldLogs() {
 function getStats() {
   if (!_logDir)
     return { totalEntries: 0, totalSize: 0, currentSize: 0, firstEntry: null, lastEntry: null };
-  let totalEntries = 0;
   let totalSize = 0;
   let currentSize = 0;
-  let firstEntry = null;
-  let lastEntry = null;
   try {
     const files = fs
       .readdirSync(_logDir)
-      .filter((f) => f.startsWith('aegis-audit-') && f.endsWith('.json'))
-      .sort();
+      .filter((f) => f.startsWith('aegis-audit-') && f.endsWith('.json'));
     const todayPath = getTodayLogPath();
     for (const f of files) {
       const fp = path.join(_logDir, f);
       const stat = fs.statSync(fp);
       totalSize += stat.size;
       if (fp === todayPath) currentSize = stat.size;
-      const content = fs.readFileSync(fp, 'utf-8');
-      const lines = content.split('\n').filter((l) => l.trim().length > 0);
-      totalEntries += lines.length;
-      for (const line of lines) {
-        try {
-          const entry = JSON.parse(line);
-          if (entry.timestamp) {
-            if (!firstEntry || entry.timestamp < firstEntry) firstEntry = entry.timestamp;
-            if (!lastEntry || entry.timestamp > lastEntry) lastEntry = entry.timestamp;
-          }
-        } catch (_) {}
-      }
     }
   } catch (_) {}
-  totalEntries += _buffer.length;
-  for (const entry of _buffer) {
-    if (entry.timestamp) {
-      if (!firstEntry || entry.timestamp < firstEntry) firstEntry = entry.timestamp;
-      if (!lastEntry || entry.timestamp > lastEntry) lastEntry = entry.timestamp;
-    }
-  }
-  return { totalEntries, totalSize, currentSize, firstEntry, lastEntry };
+  return {
+    totalEntries: _totalEntries,
+    totalSize,
+    currentSize,
+    firstEntry: _firstEntry,
+    lastEntry: _lastEntry,
+  };
 }
 
 /**
