@@ -169,7 +169,7 @@
   .range-val {
     font: var(--md-sys-typescale-label-medium);
     font-weight: 600;
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     color: var(--md-sys-color-on-surface);
     min-width: 32px;
     text-align: right;
@@ -211,7 +211,7 @@
   }
   .test-result {
     font: var(--md-sys-typescale-label-medium);
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     color: var(--md-sys-color-primary);
   }
   .key-row {
@@ -221,7 +221,7 @@
   .key-input,
   textarea {
     font: var(--md-sys-typescale-body-medium);
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     font-size: calc(12px * var(--aegis-ui-scale));
     padding: var(--aegis-space-4) var(--aegis-space-5);
     background: var(--md-sys-color-surface-container);

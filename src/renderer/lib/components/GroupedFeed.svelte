@@ -116,15 +116,16 @@
     padding: var(--aegis-space-3) var(--aegis-space-6);
     background: var(--md-sys-color-surface-container-low);
     border: none;
-    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+    border-bottom: 1px solid var(--fancy-border);
     cursor: pointer;
     font-size: calc(12px * var(--aegis-ui-scale));
+    font-family: var(--fancy-font-body);
     color: var(--md-sys-color-on-surface);
     text-align: left;
-    transition: background 0.15s ease;
+    transition: background var(--fancy-transition-micro) var(--fancy-ease);
   }
   .group-header:hover {
-    background: var(--md-sys-color-surface-container);
+    background: var(--fancy-surface-hover);
   }
   .chevron {
     font-size: calc(10px * var(--aegis-ui-scale));
@@ -136,13 +137,13 @@
     flex-shrink: 0;
   }
   .group-count {
-    font-family: 'DM Mono', monospace;
-    color: var(--md-sys-color-on-surface-variant);
+    font-family: var(--fancy-font-mono);
+    color: var(--fancy-text-2);
     font-size: calc(10px * var(--aegis-ui-scale));
   }
   .group-time {
-    font-family: 'DM Mono', monospace;
-    color: var(--md-sys-color-on-surface-variant);
+    font-family: var(--fancy-font-mono);
+    color: var(--fancy-text-2);
     font-size: calc(10px * var(--aegis-ui-scale));
     margin-left: auto;
   }
@@ -150,35 +151,37 @@
   .group-badge {
     font-size: calc(9px * var(--aegis-ui-scale));
     font-weight: 700;
+    font-family: var(--fancy-font-mono);
     padding: var(--aegis-space-1) var(--aegis-space-4);
     border-radius: var(--md-sys-shape-corner-full);
     flex-shrink: 0;
     background: rgba(122, 138, 158, 0.1);
-    color: var(--md-sys-color-on-surface-variant);
+    color: var(--fancy-text-2);
   }
   .group-badge.sev-critical {
-    background: rgba(200, 90, 90, 0.15);
-    color: var(--md-sys-color-error);
+    background: var(--fancy-danger-bg);
+    color: var(--fancy-danger);
   }
   .group-badge.sev-high {
-    background: rgba(200, 168, 78, 0.12);
-    color: var(--md-sys-color-secondary);
+    background: var(--fancy-warning-bg);
+    color: var(--fancy-warning);
   }
   .group-badge.sev-medium {
-    background: rgba(66, 153, 225, 0.12);
-    color: var(--md-sys-color-primary);
+    background: var(--fancy-info-bg);
+    color: var(--fancy-info);
   }
 
   .group-body {
     padding-left: var(--aegis-space-6);
-    border-left: 2px solid var(--md-sys-color-outline-variant);
+    border-left: 2px solid var(--fancy-border);
     margin-left: var(--aegis-space-3);
   }
   .sub-label {
     font-size: calc(9px * var(--aegis-ui-scale));
     font-weight: 700;
+    font-family: var(--fancy-font-mono);
     letter-spacing: 0.5px;
-    color: var(--md-sys-color-on-surface-variant);
+    color: var(--fancy-text-2);
     padding: var(--aegis-space-3) var(--aegis-space-6) var(--aegis-space-1);
     text-transform: uppercase;
   }
