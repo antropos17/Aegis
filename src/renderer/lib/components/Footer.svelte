@@ -1,14 +1,10 @@
 <script>
   import { resourceUsage, stats } from '../stores/ipc.js';
   import { t } from '../i18n/index.js';
+  import FooterMiniCharts from './FooterMiniCharts.svelte';
 
   let permDenied = $derived($stats.permissionDeniedScans || 0);
 
-  let lastCpuUser = 0;
-  let lastCpuSystem = 0;
-  let lastCpuTime = 0;
-  let cpuPct = $state('--');
-  let memMB = $state('--');
   let heapMB = $state('--');
   let scanInterval = $state('--');
   let appVersion = $state('v0.3.0-alpha');
@@ -26,18 +22,6 @@
   $effect(() => {
     const u = $resourceUsage;
     if (!u || !u.cpuUser) return;
-
-    const now = Date.now();
-    const elapsed = (now - lastCpuTime) * 1000;
-    if (elapsed > 0 && lastCpuTime > 0) {
-      const delta = u.cpuUser - lastCpuUser + (u.cpuSystem - lastCpuSystem);
-      cpuPct = Math.min(100, Math.round((delta / elapsed) * 100));
-    }
-    lastCpuUser = u.cpuUser;
-    lastCpuSystem = u.cpuSystem;
-    lastCpuTime = now;
-
-    memMB = u.memMB ?? '--';
     heapMB = u.heapMB ?? '--';
   });
 
@@ -59,39 +43,13 @@
     const sec = String(s % 60).padStart(2, '0');
     return `${h}:${m}:${sec}`;
   }
-
-  function cpuClass(val) {
-    if (typeof val !== 'number') return '';
-    if (val > 50) return 'high';
-    if (val > 25) return 'warn';
-    return '';
-  }
-
-  function memClass(val) {
-    if (typeof val !== 'number') return '';
-    if (val > 300) return 'high';
-    if (val > 150) return 'warn';
-    return '';
-  }
 </script>
 
 <footer class="footer">
   <span class="footer-version">{$t('brand.name')} {appVersion}</span>
 
   <div class="footer-stats">
-    <div class="footer-item">
-      <span class="footer-label">{$t('footer.cpu')}</span>
-      <span class="footer-value {cpuClass(cpuPct)}"
-        >{cpuPct}{typeof cpuPct === 'number' ? '%' : ''}</span
-      >
-    </div>
-
-    <div class="footer-item">
-      <span class="footer-label">{$t('footer.mem')}</span>
-      <span class="footer-value {memClass(memMB)}"
-        >{memMB}{typeof memMB === 'number' ? ' MB' : ''}</span
-      >
-    </div>
+    <FooterMiniCharts />
 
     <div class="footer-item">
       <span class="footer-label">{$t('footer.heap')}</span>
@@ -166,10 +124,6 @@
     font-family: 'DM Mono', monospace;
     font-variant-numeric: tabular-nums;
     color: var(--md-sys-color-on-surface);
-  }
-
-  .footer-value.warn {
-    color: var(--md-sys-color-secondary);
   }
 
   .footer-value.high {
