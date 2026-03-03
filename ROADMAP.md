@@ -52,7 +52,7 @@
 
 ## Architecture Roadmap
 
-- **Phase A:** Ship v0.3.0 — complete bugs + features, auto-updater
+- **Phase A:** Ship v0.4.0 — complete bugs + features, auto-updater
 - **Phase B:** scanner to child_process, ring buffers, container detection, GPU monitor, process tree fan-out
 - **Phase C:** ETW/eBPF native C++ addons (CPU 15% to 0.1%)
 - **Phase D:** daemon architecture, MCP interception, SIEM export

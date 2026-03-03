@@ -2,19 +2,19 @@
 
 ## Project
 AEGIS — Independent AI Oversight Layer (Electron desktop)
-Repo: github.com/antropos17/Aegis | Version: 0.3.1-alpha
+Repo: github.com/antropos17/Aegis | Version: 0.4.0-alpha
 
 ## Stack
 Read package.json for exact versions. NEVER hardcode.
 Electron 33, Svelte 5, Vite 7, TypeScript (incremental, allowJs:true), chokidar.
 
 ## Architecture
-- Main process (Node.js): src/main/ — 21 CommonJS modules (scanners, watchers, IPC, scoring, logging, zip-writer)
-- Renderer (Svelte 5): src/renderer/ — 32 components + 5 stores via IPC bridge
-- Bridge: src/main/preload.js — contextBridge, 43 invoke methods + 10 event channels
+- Main process (Node.js): src/main/ — 26 CommonJS modules (scanners, watchers, IPC, scoring, logging, zip-writer)
+- Renderer (Svelte 5): src/renderer/ — 35 components + 6 stores via IPC bridge
+- Bridge: src/main/preload.js — contextBridge, 43 invoke methods + 11 event channels
 - Data: src/shared/agent-database.json (106 agent signatures)
 - Config: src/shared/constants.js (70+ sensitive patterns)
-- Tests: 479 tests across 28 files (Vitest)
+- Tests: 489 pass, 4 skip across 28 files (Vitest, all ESM)
 
 ## MCP
 - Context7: fresh docs for any library (append "use context7")
@@ -26,7 +26,7 @@ Electron 33, Svelte 5, Vite 7, TypeScript (incremental, allowJs:true), chokidar.
 - Svelte 5 runes ($state, $derived, $effect). No legacy syntax.
 - Main process: CommonJS (require/module.exports). Renderer: ES modules.
 - IPC: all channels through preload.js contextBridge
-- Max 300 lines per file (soft limit). Early returns. Named exports.
+- Max 200 lines per file (soft limit). Early returns. Named exports.
 - npm (not pnpm). Windows: ";" not "&&" in PowerShell.
 - Conventional commits (feat/fix/refactor/docs/chore). No Co-Authored-By.
 - Run Svelte MCP autofixer on all .svelte files before finishing.
