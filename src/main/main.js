@@ -272,28 +272,6 @@ function initDeferredSubsystems(userData) {
       return scores;
     },
   });
-  tray.init({
-    tray: null,
-    currentTrayColor: 'green',
-    lastNotificationTime: 0,
-    getActivityLog: () => scanner.activityLog,
-    getSettings: config.getSettings,
-    isMonitoringPaused: () => monitoringPaused,
-    setMonitoringPaused: (v) => {
-      monitoringPaused = v;
-    },
-    stopScanIntervals: scanLoop.stopScanIntervals,
-    startScanIntervals: () => {
-      const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
-      scanLoop.startScanIntervals(ms);
-    },
-    getMainWindow: () => mainWindow,
-    setIsQuitting: (v) => {
-      isQuitting = v;
-    },
-    appQuit: () => app.quit(),
-    getAgentCount: () => latestAgents.length,
-  });
   audit.init({
     userDataPath: userData,
     onFlushError: (err) => logger.error('audit-logger', 'Flush failed', { error: err.message }),
@@ -328,6 +306,32 @@ app.whenReady().then(() => {
   logger.init({ userDataPath: userData, isDev: !app.isPackaged });
   logger.info('main', 'App starting', { version: app.getVersion(), platform: process.platform });
   config.loadSettings();
+  tray.init({
+    tray: null,
+    currentTrayColor: 'green',
+    lastNotificationTime: 0,
+    getActivityLog: () => (scanner ? scanner.activityLog : []),
+    getSettings: config.getSettings,
+    isMonitoringPaused: () => monitoringPaused,
+    setMonitoringPaused: (v) => {
+      monitoringPaused = v;
+    },
+    stopScanIntervals: () => {
+      if (scanLoop) scanLoop.stopScanIntervals();
+    },
+    startScanIntervals: () => {
+      if (scanLoop) {
+        const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
+        scanLoop.startScanIntervals(ms);
+      }
+    },
+    getMainWindow: () => mainWindow,
+    setIsQuitting: (v) => {
+      isQuitting = v;
+    },
+    appQuit: () => app.quit(),
+    getAgentCount: () => latestAgents.length,
+  });
   createWindow();
   ipc.init({
     getWindow: () => mainWindow,
