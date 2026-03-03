@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.3.1-alpha...aegis-v0.4.0-alpha) (2026-03-03)
+
+
+### Features
+
+* add JSDoc type annotations using shared type definitions ([a737a08](https://github.com/antropos17/Aegis/commit/a737a084de64bc95aa6298ea1df719c9e6eb1601))
+* add TypeScript type definitions for all data structures ([f36fea9](https://github.com/antropos17/Aegis/commit/f36fea9d33da676ee4215eb8b0f2d4427a173c77))
+* redesign AgentCard, FeedFilters, and Timeline UI ([d177e68](https://github.com/antropos17/Aegis/commit/d177e687a3c23cf9019b7f7a05cf216dc5773b1f))
+* TypeScript infrastructure — tsconfig, 34 types, ESLint TS, ESM test migration, JSDoc annotations (P5-B.0) ([c480a73](https://github.com/antropos17/Aegis/commit/c480a73d4dacaf7d13db859ff0b2142a24ecd3cc))
+
+
+### Bug Fixes
+
+* add missing await in ipc-handlers.test.js:346 ([0570652](https://github.com/antropos17/Aegis/commit/0570652f4fec77a72f2e8900395146f0e9ac7179))
+* add PID validation to POSIX platform functions and IPC boundary ([b0fc17b](https://github.com/antropos17/Aegis/commit/b0fc17b560cfab55c70aed5264203312a9004cd9))
+* deduplicate agents in dropdowns, cards, and reports table ([73b55a1](https://github.com/antropos17/Aegis/commit/73b55a1e3e7c71f33f1b49be4e985e99b2675483))
+* platform index test compares export shape instead of function toString (CJS/ESM interop) ([fa75cb4](https://github.com/antropos17/Aegis/commit/fa75cb442b6cc5c9bee409929b72de380db8a26f))
+* platform index test uses function identity comparison compatible with CJS/ESM interop ([5690d5d](https://github.com/antropos17/Aegis/commit/5690d5d2991306b9f19f4f1e572f21b7f98d4b7f))
+* resolve a11y and CSS build warnings ([6a91fff](https://github.com/antropos17/Aegis/commit/6a91fff12b57339fc90c69a9f707d8afd34402e7))
+
+
+### Performance
+
+* eliminate dev server fallback on production start (~2s boot improvement) ([dbe466e](https://github.com/antropos17/Aegis/commit/dbe466e146179792057f02e32b934ebddbfbd348))
+* eliminate tab switch lag — show/hide pattern, IPC batching, enrichedAgents cache ([c29f593](https://github.com/antropos17/Aegis/commit/c29f5935b2d6022f6dc7a2d3b243ec33b9508396))
+* reduce IPC flood at startup — chokidar exclusions, warmup ramp-up, network debounce, stats batch 1s ([8106bee](https://github.com/antropos17/Aegis/commit/8106beedfd1a0b56e48943e1d695423414cd110d))
+* skip store updates in hidden tabs — active prop propagation ([b2cfde9](https://github.com/antropos17/Aegis/commit/b2cfde9ef4eef8a10c2ec37ae885f3fca26735b7))
+* skip store updates in hidden tabs — active prop propagation ([fc50527](https://github.com/antropos17/Aegis/commit/fc50527961837886a47b4766e7bdef772d9c6b3d))
+
+
+### Code Refactoring
+
+* split AgentDatabaseCrud.svelte into sub-components ([a3bb506](https://github.com/antropos17/Aegis/commit/a3bb506d1398a0ffc182092f2b7a5fbd6808ee7e))
+* split GroupedFeed.svelte into sub-components ([e71d24f](https://github.com/antropos17/Aegis/commit/e71d24f6a470d471e055f1cd05a44fe8a670c6c3))
+* split Timeline.svelte into sub-components ([36b1999](https://github.com/antropos17/Aegis/commit/36b1999184efba2fa278f180cf133b49c9d5d79f))
+
+
+### Documentation
+
+* add TypeScript guidelines to CONTRIBUTING.md ([0d8345a](https://github.com/antropos17/Aegis/commit/0d8345a924adbe42ef28d545383d9a3fd7b2132a))
+* add TypeScript rules to CLAUDE.md ([cd75102](https://github.com/antropos17/Aegis/commit/cd75102c284147ffe415b67af8c13d5bfce37791))
+* post-release badges, links, counts update for v0.3.1-alpha ([940cded](https://github.com/antropos17/Aegis/commit/940cded42a52b44d888eda29b5a838d834ba0d60))
+* update context files for P5-B.0 completion, boot perf fix, and TS workflow ([38c2180](https://github.com/antropos17/Aegis/commit/38c2180bd85fc1901e8e6a27672248f8017888bf))
+* update test count to 489, add Skills section to CLAUDE.md ([384bcc0](https://github.com/antropos17/Aegis/commit/384bcc00f39e07749f5e6ab06088ccc101b83b57))
+
 ## [0.3.1-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.3.0-alpha...aegis-v0.3.1-alpha) (2026-03-02)
 
 
