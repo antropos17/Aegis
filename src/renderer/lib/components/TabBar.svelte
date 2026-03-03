@@ -9,7 +9,6 @@
     { id: 'rules', label: $t('tabs.rules') },
     { id: 'reports', label: $t('tabs.reports') },
     { id: 'stats', label: $t('tabs.stats') },
-    { id: 'feed', label: $t('tabs.feed') },
   ]);
 </script>
 
