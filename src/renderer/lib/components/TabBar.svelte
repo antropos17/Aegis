@@ -8,8 +8,6 @@
     { id: 'activity', label: $t('tabs.activity') },
     { id: 'rules', label: $t('tabs.rules') },
     { id: 'reports', label: $t('tabs.reports') },
-    { id: 'timeline', label: $t('tabs.timeline') },
-    { id: 'graph', label: $t('tabs.graph') },
   ]);
 </script>
 
