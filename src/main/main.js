@@ -85,6 +85,21 @@ function getResourceUsage() {
 
 /** @returns {Object} Monitoring statistics @since v0.1.0 */
 function getStats() {
+  if (!scanner) {
+    return {
+      totalFiles: 0,
+      totalSensitive: 0,
+      aiSensitive: 0,
+      uptimeMs: 0,
+      monitoringStarted: Date.now(),
+      peakAgents: 0,
+      currentAgents: 0,
+      aiAgentCount: 0,
+      otherAgentCount: 0,
+      uniqueAgents: [],
+      permissionDeniedScans: 0,
+    };
+  }
   const log = scanner.activityLog;
   return {
     totalFiles: log.length,
