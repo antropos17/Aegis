@@ -169,7 +169,7 @@
   }
 
   .stat-value {
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     font-size: calc(24px * var(--aegis-ui-scale));
     font-weight: 700;
     color: var(--md-sys-color-on-surface);
@@ -236,7 +236,7 @@
     font-weight: 500;
   }
   .td-num {
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
   }
   .td-empty {
     text-align: center;

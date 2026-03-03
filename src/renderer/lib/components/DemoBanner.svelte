@@ -46,7 +46,7 @@
   }
 
   .demo-badge {
-    font-family: 'DM Mono', monospace;
+    font-family: var(--fancy-font-mono);
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.12em;
