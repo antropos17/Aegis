@@ -4,6 +4,57 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.4.0-alpha...aegis-v0.5.0-alpha) (2026-03-03)
+
+
+### Features
+
+* add vis-timeline and d3 dependencies ([652917c](https://github.com/antropos17/Aegis/commit/652917c6d0f6b23fe2123ae4b0e6e37c489edab6))
+* AgentGraph component with force-directed layout ([1d14ccd](https://github.com/antropos17/Aegis/commit/1d14ccd6458b685373942858787da9a6de128209))
+* AgentStatsPanel — sortable agent statistics table ([6108ed5](https://github.com/antropos17/Aegis/commit/6108ed5bee594fb13a84b10b1ebe7a7e460b9b23))
+* EventFeed — live terminal-style event stream ([5b1b61a](https://github.com/antropos17/Aegis/commit/5b1b61aeb00f316ddd28b09c1258c67c05ca04f2))
+* fancy aegis UI redesign v0.5.0-alpha (F1.1-F4.3) ([f5c461c](https://github.com/antropos17/Aegis/commit/f5c461c534f64e64939b946fb3dd34e71fdf6076))
+* move Timeline and Graph to separate tabs with bug fixes ([acc99b1](https://github.com/antropos17/Aegis/commit/acc99b15f1ac2c2c4aad7a47ade468a92e730ae9))
+* Stats tab, cleanup Timeline/Feed, Follow in Activity (#timeline-graph) ([752a6d8](https://github.com/antropos17/Aegis/commit/752a6d8b1208a4a80c3390c31f608529a92565fd))
+* **ui:** add background atmosphere effect [F4.3] ([6306d19](https://github.com/antropos17/Aegis/commit/6306d19824e22f974630672c727bad857f62a760))
+* **ui:** add design system tokens and local fonts [F1.1] ([7c6fec6](https://github.com/antropos17/Aegis/commit/7c6fec620827861149df89961a3c0e2e8bb85012))
+* **ui:** add feed item animations and severity colors [F3.1] ([fdb2544](https://github.com/antropos17/Aegis/commit/fdb2544f7d66a1d78467e1abcb917febf39062e6))
+* **ui:** add footer mini charts for CPU and memory [F3.2] ([3a1fa6d](https://github.com/antropos17/Aegis/commit/3a1fa6d0d50d801f853205a390843733dba860b8))
+* **ui:** add risk ring SVG gauge with glow and pulse [F4.1] ([fe08cad](https://github.com/antropos17/Aegis/commit/fe08cad1dff7818a2d3326d1d6a5be2d15d80d47))
+* **ui:** add sparkline SVG component [F2.1] ([b29e24a](https://github.com/antropos17/Aegis/commit/b29e24a04e2a0f0ebdd7653c66df514f6f5aa478))
+* **ui:** add summary cards component with animated counters and trend arrows [F1.3] ([909e7b3](https://github.com/antropos17/Aegis/commit/909e7b349da2fd9f57a17773e56627255266c412))
+* **ui:** add summary cards component with threat metrics [F1.3] ([42f7e76](https://github.com/antropos17/Aegis/commit/42f7e76a103f52832e5a4f3bd0cfc2e1cf158236))
+* **ui:** add tab switch transitions [F3.3] ([01d4c2d](https://github.com/antropos17/Aegis/commit/01d4c2d02b426b613e70c153eec400dfdaa38e51))
+* **ui:** add trust badge component [F2.2] ([60ef2ed](https://github.com/antropos17/Aegis/commit/60ef2edf0b1e82c03044ebf58eb8ff54df7de151))
+* **ui:** redesign agent card with sparkline, badge, spotlight [F2.3] ([3ccd1b5](https://github.com/antropos17/Aegis/commit/3ccd1b5fa0270edaebdb9c913b49ec8b2c30989f))
+* **ui:** redesign Shield tab with bento grid layout [F1.2] ([06b876d](https://github.com/antropos17/Aegis/commit/06b876d5ceda1d76531480d3ba326bc1bbe837e4))
+* **ui:** typography pass — consistent font tokens across all components [F4.2] ([cbf8446](https://github.com/antropos17/Aegis/commit/cbf844656eaeced81b24fae22a55db53c4217b14))
+* VisTimeline component with agent groups and event items ([b7adbe0](https://github.com/antropos17/Aegis/commit/b7adbe0e3abd8a0bdab8654a44c55f01d861d172))
+
+
+### Bug Fixes
+
+* clean up tab navigation ([8893d84](https://github.com/antropos17/Aegis/commit/8893d84fd517f07ee64b0aa20e6f1fb4f66f6271))
+* convert svelte components to JSDoc style for eslint compatibility ([13dd271](https://github.com/antropos17/Aegis/commit/13dd2716002539aad6af341f8b57dfcef153f166))
+* **lint:** configure eslint-plugin-svelte with TypeScript parser ([45e4343](https://github.com/antropos17/Aegis/commit/45e434356ba5f430dfd9f4a1cbbb5d8adaabac08))
+* **lint:** configure eslint-plugin-svelte with TypeScript parser ([f91c721](https://github.com/antropos17/Aegis/commit/f91c72122054f140bba41af754d6591a4f7dbb49))
+* remove Event Timeline from Shield tab ([a58144c](https://github.com/antropos17/Aegis/commit/a58144cd2c2542b53c44343b9ab920b4061dcf4e))
+* tune graph simulation forces and layout (WIP) ([a8a8773](https://github.com/antropos17/Aegis/commit/a8a8773eaeaa6027d2b816230f9abc9eefc9bc3f))
+
+
+### Code Refactoring
+
+* integrate VisTimeline into main dashboard ([b84d734](https://github.com/antropos17/Aegis/commit/b84d7344e9d825931bfbf78689e1aa8f04984cc4))
+* merge Feed into Activity tab ([6acb3e7](https://github.com/antropos17/Aegis/commit/6acb3e7f5c2c26baff9a8851dd606bda48ff680c))
+* update tab navigation (Stats + Feed) ([33a4d70](https://github.com/antropos17/Aegis/commit/33a4d7069f7d142ecf36c5a25abd4225220b7f3c))
+
+
+### Documentation
+
+* polish README for Dev.to launch — tighten badges, update test count to 489, clean changelog ([5b5d9f4](https://github.com/antropos17/Aegis/commit/5b5d9f491a2174a1bf417361d85aa5d3cafd5e66))
+* sync context files for v0.4.0-alpha — update counts, version, limits ([cc1a362](https://github.com/antropos17/Aegis/commit/cc1a362327d1de682451f78d030970d619e6f1d3))
+* update context for Stats tab and tab cleanup ([ab82f90](https://github.com/antropos17/Aegis/commit/ab82f90000783e37171999518ca95d908633edc8))
+
 ## [0.4.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.3.1-alpha...aegis-v0.4.0-alpha) (2026-03-03)
 
 
