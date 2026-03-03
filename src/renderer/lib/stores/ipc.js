@@ -27,8 +27,7 @@ if (!isDemoMode) {
     if (data.anomalyScores) anomalies.set(data.anomalyScores);
   });
 
-  // Individual channels kept for non-batch sources (file watcher, network monitor)
-  window.aegis.onScanResults((data) => agents.set(data || []));
+  // Individual channels for non-batch sources (file watcher, network monitor)
   window.aegis.onFileAccess((data) => {
     const batch = Array.isArray(data) ? data : [data];
     events.update((arr) => [...arr.slice(-499), ...batch]);
@@ -38,8 +37,6 @@ if (!isDemoMode) {
     const arr = Array.isArray(data) ? data : [];
     network.set(arr.length > 500 ? arr.slice(-500) : arr);
   });
-  window.aegis.onAnomalyScores((data) => anomalies.set(data));
-  window.aegis.onResourceUsage((data) => resourceUsage.set(data));
   window.aegis.onScanStatus((data) => scanActive.set(data?.scanning ?? false));
 
   // Fetch initial data

@@ -25,6 +25,10 @@ const FLUSH_INTERVAL = 5000;
 const FLUSH_THRESHOLD = 50;
 const RETENTION_DAYS = 30;
 
+/** In-memory counter — avoids re-reading today's log file on every getStats() call */
+let _todayEntries = 0;
+let _todayDate = '';
+
 const LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 const LEVEL_LABELS = { debug: 'DEBUG', info: 'INFO ', warn: 'WARN ', error: 'ERROR' };
 
@@ -43,8 +47,27 @@ function init(opts) {
   try {
     if (!fs.existsSync(_logDir)) fs.mkdirSync(_logDir, { recursive: true });
   } catch (_) {}
+  _seedTodayCount();
   _flushTimer = setInterval(flush, FLUSH_INTERVAL);
   setImmediate(() => cleanOldLogs());
+}
+
+/**
+ * One-time read of today's log file to seed the in-memory entry count.
+ * @returns {void}
+ */
+function _seedTodayCount() {
+  _todayEntries = 0;
+  const d = new Date();
+  _todayDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (!_logDir) return;
+  const todayPath = getTodayLogPath();
+  try {
+    if (fs.existsSync(todayPath)) {
+      const content = fs.readFileSync(todayPath, 'utf-8');
+      _todayEntries = content.split('\n').filter((l) => l.trim().length > 0).length;
+    }
+  } catch (_) {}
 }
 
 /**
@@ -77,6 +100,13 @@ function _write(level, mod, message, meta) {
 
   if (!_logDir) return;
   _buffer.push(entry);
+  // Reset counter on day rollover
+  const dateStr = timestamp.slice(0, 10);
+  if (dateStr !== _todayDate) {
+    _todayDate = dateStr;
+    _todayEntries = 0;
+  }
+  _todayEntries++;
   if (_buffer.length >= FLUSH_THRESHOLD) flush();
 }
 
@@ -150,7 +180,6 @@ function shutdown() {
  */
 function getStats() {
   if (!_logDir) return { logDir: '', todayEntries: 0, totalFiles: 0, recordingSince: '' };
-  let todayEntries = 0;
   let totalFiles = 0;
   let recordingSince = '';
   try {
@@ -163,14 +192,8 @@ function getStats() {
       const firstMatch = files[0].match(/aegis-(\d{4}-\d{2}-\d{2})\.log/);
       if (firstMatch) recordingSince = firstMatch[1];
     }
-    const todayPath = getTodayLogPath();
-    if (fs.existsSync(todayPath)) {
-      const content = fs.readFileSync(todayPath, 'utf-8');
-      todayEntries = content.split('\n').filter((l) => l.trim().length > 0).length;
-    }
   } catch (_) {}
-  todayEntries += _buffer.length;
-  return { logDir: _logDir, todayEntries, totalFiles, recordingSince };
+  return { logDir: _logDir, todayEntries: _todayEntries, totalFiles, recordingSince };
 }
 
 /**

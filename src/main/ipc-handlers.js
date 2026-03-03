@@ -9,20 +9,16 @@ const path = require('path');
 const fs = require('fs');
 const config = require('./config-manager');
 const scanner = require('./process-scanner');
-const procUtil = require('./process-utils');
-const baselines = require('./baselines');
 const analysis = require('./ai-analysis');
 const exporter = require('./exports');
 const audit = require('./audit-logger');
-const logger = require('./logger');
 const { killProcess, suspendProcess, resumeProcess } = require('./platform');
-const scanLoop = require('./scan-loop');
 const zipWriter = require('./zip-writer');
 
 let deps = {};
 
 /**
- * @param {Object} injected — { getWindow, getStats, getResourceUsage, setOtherPanelExpanded }
+ * @param {Object} injected — { getWindow, getStats, getResourceUsage }
  * @since v0.1.0
  */
 function init(injected) {
@@ -31,14 +27,6 @@ function init(injected) {
 
 /** @returns {void} @since v0.1.0 */
 function register() {
-  ipcMain.handle('scan-processes', async () => {
-    const result = await scanner.scanProcesses();
-    await procUtil.enrichWithParentChains(result.agents);
-    procUtil.annotateHostApps(result.agents);
-    await procUtil.annotateWorkingDirs(result.agents);
-    return result.agents;
-  });
-
   ipcMain.handle('get-stats', () => deps.getStats());
   ipcMain.handle('get-resource-usage', () => deps.getResourceUsage());
   ipcMain.handle('export-log', () => exporter.exportLog());
@@ -51,8 +39,6 @@ function register() {
     config.applySettings();
     return { success: true };
   });
-
-  ipcMain.on('other-panel-expanded', (_e, val) => deps.setOtherPanelExpanded(val));
 
   ipcMain.handle('test-notification', () => {
     if (!Notification.isSupported())
@@ -85,30 +71,6 @@ function register() {
     return { success: true, path: fp };
   });
 
-  ipcMain.handle('get-agent-baseline', (_e, name) => {
-    const bl = baselines.getBaselines().agents[name];
-    const session = baselines.getSessionData()[name];
-    return {
-      sessionCount: bl ? bl.sessionCount : 0,
-      averages: bl
-        ? bl.averages
-        : {
-            filesPerSession: 0,
-            sensitivePerSession: 0,
-            typicalDirectories: [],
-            knownEndpoints: [],
-          },
-      currentSession: session
-        ? {
-            totalFiles: session.files.size,
-            sensitiveCount: session.sensitiveCount,
-            directoryCount: session.directories.size,
-            endpointCount: session.endpoints.size,
-          }
-        : { totalFiles: 0, sensitiveCount: 0, directoryCount: 0, endpointCount: 0 },
-    };
-  });
-
   ipcMain.handle('get-all-permissions', () => {
     const settings = config.getSettings();
     const agentPerms = {};
@@ -127,16 +89,10 @@ function register() {
     };
   });
 
-  ipcMain.handle('get-agent-permissions', (_e, name) => config.getAgentPermissions(name));
-
   ipcMain.handle('save-agent-permissions', (_e, permMap) => {
     config.saveSettings({ ...config.getSettings(), agentPermissions: permMap });
     return { success: true };
   });
-
-  ipcMain.handle('get-instance-permissions', (_e, agentName, parentEditor, cwd) =>
-    config.getInstancePermissions(agentName, parentEditor, cwd),
-  );
 
   ipcMain.handle(
     'save-instance-permissions',
@@ -154,17 +110,7 @@ function register() {
     return { permissions: newPerms, seenAgents: settings.seenAgents };
   });
 
-  ipcMain.handle('capture-screenshot', async () => {
-    const win = deps.getWindow();
-    if (!win) return { success: false };
-    const img = await win.webContents.capturePage();
-    const fp = path.join(__dirname, '..', '..', 'screenshot_electron.png');
-    fs.writeFileSync(fp, img.toPNG());
-    return { success: true, path: fp, width: img.getSize().width, height: img.getSize().height };
-  });
-
   ipcMain.handle('get-agent-database', () => scanner.agentDb);
-  ipcMain.handle('get-project-dir', () => path.join(__dirname, '..', '..'));
   ipcMain.handle('get-custom-agents', () => config.getCustomAgents());
   ipcMain.handle('save-custom-agents', (_e, agents) => {
     config.saveCustomAgents(agents);
@@ -199,7 +145,6 @@ function register() {
   });
 
   // ── Audit ──
-  ipcMain.handle('get-audit-stats', () => audit.getStats());
   ipcMain.handle('get-audit-entries-before', (_e, beforeTs, limit) =>
     audit.getEntriesBefore(beforeTs, limit),
   );
@@ -213,26 +158,6 @@ function register() {
     const defaultName = `aegis-full-audit-${new Date().toISOString().slice(0, 10)}.json`;
     const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
       title: 'Export Full Audit Log',
-      defaultPath: defaultName,
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-    });
-    if (!filePath) return { success: false };
-    fs.writeFileSync(filePath, JSON.stringify(all, null, 2));
-    return { success: true, path: filePath, count: all.length };
-  });
-
-  // ── Operational logs ──
-  ipcMain.handle('get-log-stats', () => logger.getStats());
-  ipcMain.handle('open-log-dir', () => {
-    shell.openPath(logger.getLogDir());
-    return { success: true };
-  });
-
-  ipcMain.handle('export-full-log', async () => {
-    const all = logger.exportAll();
-    const defaultName = `aegis-full-log-${new Date().toISOString().slice(0, 10)}.json`;
-    const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
-      title: 'Export Full Operational Log',
       defaultPath: defaultName,
       filters: [{ name: 'JSON', extensions: ['json'] }],
     });
@@ -274,9 +199,6 @@ function register() {
     shell.showItemInFolder(filePath);
     return { success: true };
   });
-
-  // ── Local LLM models ──
-  ipcMain.handle('get-local-models', () => scanLoop.getLatestLocalModels());
 
   // ── App info ──
   ipcMain.handle('get-app-version', () => app.getVersion());

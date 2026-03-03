@@ -360,6 +360,60 @@ describe('platform/win32', () => {
     });
   });
 
+  describe('getProcessCwds', () => {
+    it('returns empty Map for empty PID list', async () => {
+      const result = await win32.getProcessCwds([]);
+      expect(result).toBeInstanceOf(Map);
+      expect(result.size).toBe(0);
+    });
+
+    it('parses batch CWD output', async () => {
+      const psOutput = JSON.stringify([
+        { ProcessId: 100, CommandLine: 'node --cwd "C:\\Users\\me\\proj-a" server.js' },
+        { ProcessId: 200, CommandLine: 'node --project "C:\\Users\\me\\proj-b"' },
+      ]);
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        cb(null, psOutput);
+      });
+
+      const result = await win32.getProcessCwds([100, 200]);
+      expect(result.get(100)).toBe('C:\\Users\\me\\proj-a');
+      expect(result.get(200)).toBe('C:\\Users\\me\\proj-b');
+    });
+
+    it('handles single object (non-array) response', async () => {
+      const psOutput = JSON.stringify({
+        ProcessId: 100,
+        CommandLine: 'node --cwd "/home/user/project" index.js',
+      });
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        cb(null, psOutput);
+      });
+
+      const result = await win32.getProcessCwds([100]);
+      expect(result.get(100)).toBe('/home/user/project');
+    });
+
+    it('returns empty Map on error', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        cb(new Error('fail'));
+      });
+
+      const result = await win32.getProcessCwds([100]);
+      expect(result.size).toBe(0);
+    });
+
+    it('returns null CWD for process without --cwd flag', async () => {
+      const psOutput = JSON.stringify([{ ProcessId: 100, CommandLine: 'node server.js' }]);
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        cb(null, psOutput);
+      });
+
+      const result = await win32.getProcessCwds([100]);
+      expect(result.get(100)).toBeNull();
+    });
+  });
+
   describe('exports', () => {
     it('exports all expected members', () => {
       expect(typeof win32.listProcesses).toBe('function');
@@ -367,6 +421,7 @@ describe('platform/win32', () => {
       expect(typeof win32.getRawTcpConnections).toBe('function');
       expect(typeof win32.getFileHandles).toBe('function');
       expect(typeof win32.getProcessCwd).toBe('function');
+      expect(typeof win32.getProcessCwds).toBe('function');
       expect(typeof win32.killProcess).toBe('function');
       expect(typeof win32.suspendProcess).toBe('function');
       expect(typeof win32.resumeProcess).toBe('function');

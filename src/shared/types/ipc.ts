@@ -6,7 +6,6 @@
 
 /** IPC invoke channel names (renderer -> main, request-response) */
 export type IpcInvokeChannel =
-  | 'scan-processes'
   | 'get-stats'
   | 'get-resource-usage'
   | 'export-log'
@@ -18,31 +17,21 @@ export type IpcInvokeChannel =
   | 'analyze-agent'
   | 'analyze-session'
   | 'open-threat-report'
-  | 'get-agent-baseline'
   | 'get-all-permissions'
-  | 'get-agent-permissions'
   | 'save-agent-permissions'
-  | 'get-instance-permissions'
   | 'save-instance-permissions'
   | 'reset-permissions-to-defaults'
-  | 'capture-screenshot'
   | 'get-agent-database'
-  | 'get-project-dir'
   | 'get-custom-agents'
   | 'save-custom-agents'
   | 'export-agent-database'
   | 'import-agent-database'
-  | 'get-audit-stats'
   | 'get-audit-entries-before'
   | 'open-audit-log-dir'
   | 'export-full-audit'
-  | 'get-log-stats'
-  | 'open-log-dir'
-  | 'export-full-log'
   | 'export-config'
   | 'import-config'
   | 'reveal-in-explorer'
-  | 'get-local-models'
   | 'get-app-version'
   | 'export-zip'
   | 'kill-process'
@@ -54,19 +43,12 @@ export type IpcInvokeChannel =
 
 /** IPC event channel names (main -> renderer, push) */
 export type IpcEventChannel =
-  | 'scan-results'
   | 'file-access'
   | 'stats-update'
-  | 'monitoring-paused'
   | 'network-update'
-  | 'resource-usage'
-  | 'baseline-warnings'
-  | 'anomaly-scores'
   | 'toggle-theme'
+  | 'scan-batch'
   | 'scan-status';
-
-/** IPC send channel names (renderer -> main, fire-and-forget) */
-export type IpcSendChannel = 'other-panel-expanded';
 
 /** Payload for save-instance-permissions invoke */
 export interface SaveInstancePermissionsPayload {

@@ -303,7 +303,6 @@ const _exports = {
   applySettings,
   getDefaultPermissions,
   getAgentPermissions,
-  getInstanceKey,
   getInstancePermissions,
   saveInstancePermissions,
   trackSeenAgent,
