@@ -12,11 +12,25 @@
   import { addToast } from './lib/stores/toast.js';
   import { agents, anomalies, isDemoMode } from './lib/stores/ipc.js';
   import DemoBanner from './lib/components/DemoBanner.svelte';
+  import {
+    getSlideDirection,
+    SLIDE_OFFSET_PX,
+    TRANSITION_DURATION_MS,
+  } from './lib/utils/tab-transitions.js';
 
   const TAB_IDS = ['shield', 'activity', 'rules', 'reports', 'stats'];
 
   let activeTab = $state('shield');
+  let prevTab = $state('shield');
+  let slideDir = $state(1);
   let optionsOpen = $state(false);
+
+  $effect(() => {
+    if (activeTab !== prevTab) {
+      slideDir = getSlideDirection(prevTab, activeTab);
+      prevTab = activeTab;
+    }
+  });
 
   $effect(() => {
     document.documentElement.dataset.theme = $theme;
@@ -118,52 +132,36 @@
     <TabBar bind:activeTab />
   </nav>
 
-  <main class="app-content">
-    <div
-      class="tab-content"
-      class:tab-hidden={activeTab !== 'shield'}
-      id="tabpanel-shield"
-      role="tabpanel"
-      aria-labelledby="tab-shield"
-    >
-      <ShieldTab active={activeTab === 'shield'} />
-    </div>
-    <div
-      class="tab-content"
-      class:tab-hidden={activeTab !== 'activity'}
-      id="tabpanel-activity"
-      role="tabpanel"
-      aria-labelledby="tab-activity"
-    >
-      <ActivityTab active={activeTab === 'activity'} />
-    </div>
-    <div
-      class="tab-content"
-      class:tab-hidden={activeTab !== 'rules'}
-      id="tabpanel-rules"
-      role="tabpanel"
-      aria-labelledby="tab-rules"
-    >
-      <RulesTab active={activeTab === 'rules'} />
-    </div>
-    <div
-      class="tab-content"
-      class:tab-hidden={activeTab !== 'reports'}
-      id="tabpanel-reports"
-      role="tabpanel"
-      aria-labelledby="tab-reports"
-    >
-      <ReportsTab active={activeTab === 'reports'} />
-    </div>
-    <div
-      class="tab-content"
-      class:tab-hidden={activeTab !== 'stats'}
-      id="tabpanel-stats"
-      role="tabpanel"
-      aria-labelledby="tab-stats"
-    >
-      <AgentStatsPanel active={activeTab === 'stats'} />
-    </div>
+  <main
+    class="app-content"
+    style:--slide-offset="{SLIDE_OFFSET_PX}px"
+    style:--slide-dir={slideDir}
+    style:--tab-dur="{TRANSITION_DURATION_MS}ms"
+  >
+    {#each TAB_IDS as tabId (tabId)}
+      {@const isActive = activeTab === tabId}
+      <div
+        class="tab-panel"
+        class:tab-active={isActive}
+        class:tab-inactive={!isActive}
+        id="tabpanel-{tabId}"
+        role="tabpanel"
+        aria-labelledby="tab-{tabId}"
+        aria-hidden={!isActive}
+      >
+        {#if tabId === 'shield'}
+          <ShieldTab active={isActive} />
+        {:else if tabId === 'activity'}
+          <ActivityTab active={isActive} />
+        {:else if tabId === 'rules'}
+          <RulesTab active={isActive} />
+        {:else if tabId === 'reports'}
+          <ReportsTab active={isActive} />
+        {:else if tabId === 'stats'}
+          <AgentStatsPanel active={isActive} />
+        {/if}
+      </div>
+    {/each}
   </main>
 </div>
 
@@ -193,16 +191,38 @@
 
   .app-content {
     flex: 1;
+    position: relative;
     padding: var(--aegis-space-8) var(--aegis-space-9);
     min-height: 0;
     overflow: hidden;
   }
 
-  .tab-content {
-    height: 100%;
+  .tab-panel {
+    position: absolute;
+    inset: 0;
+    padding: inherit;
+    will-change: transform, opacity;
+    transition:
+      opacity var(--tab-dur, 220ms) var(--ease-glass),
+      transform var(--tab-dur, 220ms) var(--ease-glass);
   }
 
-  .tab-hidden {
-    display: none;
+  .tab-active {
+    opacity: 1;
+    transform: translateX(0);
+    z-index: 1;
+    pointer-events: auto;
+  }
+
+  .tab-inactive {
+    opacity: 0;
+    transform: translateX(calc(var(--slide-offset, 24px) * var(--slide-dir, 1) * -1));
+    z-index: 0;
+    pointer-events: none;
+    visibility: hidden;
+    transition:
+      opacity var(--tab-dur, 220ms) var(--ease-glass),
+      transform var(--tab-dur, 220ms) var(--ease-glass),
+      visibility 0s var(--tab-dur, 220ms);
   }
 </style>
