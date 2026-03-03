@@ -3,6 +3,7 @@
   import AgentPanel from './AgentPanel.svelte';
   import FeedFilters from './FeedFilters.svelte';
   import ActivityFeed from './ActivityFeed.svelte';
+  import SummaryCards from './SummaryCards.svelte';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
@@ -17,7 +18,7 @@
     <Radar {active} />
   </div>
   <div class="bento-summary panel">
-    <span class="panel-title">Overview</span>
+    <SummaryCards {active} />
   </div>
   <div class="bento-feed panel">
     <FeedFilters {active} bind:agentFilter bind:severityFilter bind:typeFilter />
@@ -76,14 +77,13 @@
     justify-content: center;
   }
 
-  /* ── Summary: top center (F1.3 will fill this) ── */
+  /* ── Summary: top center (F1.3) ── */
   .bento-summary {
     grid-column: 2;
     grid-row: 1;
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    align-items: stretch;
+    overflow: hidden;
   }
 
   /* ── Feed: bottom center ── */
