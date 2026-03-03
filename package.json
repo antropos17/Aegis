@@ -71,15 +71,15 @@
   "license": "MIT",
   "keywords": [
     "ai",
+    "ai-agents",
     "security",
     "monitoring",
     "electron",
+    "svelte",
     "oversight",
-    "agents",
     "privacy",
-    "anomaly-detection",
-    "process-monitor",
-    "network-monitor"
+    "edr",
+    "anomaly-detection"
   ],
   "devDependencies": {
     "@eslint/js": "^10.0.1",

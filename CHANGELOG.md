@@ -180,38 +180,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * update test counts and changelog for IPC batching ([823db91](https://github.com/antropos17/Aegis/commit/823db91b6efe9a9480db608729b0516c1b664550))
 * update test counts and changelog for startup perf fix ([8c384a1](https://github.com/antropos17/Aegis/commit/8c384a12dfe0da8e2aa20de8e7dc3024e198e05a))
 
-## [Unreleased]
-
-### Added
-- **P4 UI polish**: Copy PID to clipboard, relative timestamps, smart path truncation, autoscroll toggle (#P4.1-5)
-- **P4 UX**: Threat flash animation on high-risk detections, keyboard hotkeys (Ctrl+1-4 for tab switching), open file location, OOM protection, ZIP export (#P4.6-10)
-- **P4 Detection**: HTTP/HTTPS connection scoring, User-Agent header detection, API call indicator for AI vendor endpoints, hardware acceleration toggle (#P4.11-14)
-- **P4 Community**: False positive marking, agent DB contribution link, scan status badge (#P4.15-17)
-- IPC event batching to prevent renderer freeze during high-frequency file events (npm install, git operations)
-- Internationalization system with English base (#53) — @travisbreaks
-- Keyboard shortcuts and accessibility improvements (#51) — @travisbreaks
-- Browser-only demo mode (#52) — @travisbreaks
-- 8 new agent signatures: Jules, Aide, Open WebUI, AnythingLLM, KoboldCPP, GPT Pilot, ScreenPipe, Letta (#50) — @travisbreaks
-- Unique agent count vs process count in header (#55)
-- Toast notification system — success/warning/error toasts with auto-dismiss (PR #15)
-- DemoBanner component for demo mode indicator
-- Development guide (docs/DEVELOPMENT.md)
-- Graceful EPERM/EACCES handling in process scanner — catches permission errors on elevated processes, tracks consecutive failures, shows PERM warning in footer when >5
-- 67 new tests (408 → 475 tests across 28 files)
-- GPG commit signing
-- Automated releases with release-please (#58)
-
-### Changed
-- Startup performance: deferred file watchers to after first paint, lazy-loaded non-critical modules (network-monitor, ai-analysis, llm-runtime-detector), async fs.existsSync → fs.promises.access, deferred agent-database.json parse — estimated 400-2200ms faster perceived startup
-- Dependency audit: updated svelte 5.53.6, electron-builder 26.8.1, fixed 4 vulnerabilities
-
-### Fixed
-- CSS duplicate rule in PermissionsGrid (PR #52)
-- Cleanup leak in demo data store (PR #52)
-- Split demo-pools for better tree-shaking (PR #52)
-- Replaced hardcoded rgba colors with design tokens
-- ESLint globals for Node/Vitest + unused vars cleanup
-
 ## [0.3.0-alpha] - 2026-02-28
 
 ### Added

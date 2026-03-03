@@ -1,7 +1,15 @@
 <p align="center">
   <h1 align="center">AEGIS</h1>
-  <p align="center"><b>Independent AI Oversight Layer</b><br>Monitors what AI agents do on your computer.</p>
-  <p align="center">No telemetry · No cloud · Everything stays local</p>
+  <p align="center"><b>EDR for AI Agents</b></p>
+  <p align="center">Watches what AI agents do on your machine. Processes, files, network, risk scoring.<br>No telemetry. No cloud. Everything stays local.</p>
+</p>
+
+<p align="center">
+  <a href="https://github.com/antropos17/Aegis/releases/latest"><img src="https://img.shields.io/github/v/release/antropos17/Aegis?include_prereleases&style=flat-square&label=Release" alt="Release"></a>
+  <img src="https://img.shields.io/github/actions/workflow/status/antropos17/Aegis/ci.yml?style=flat-square&label=CI" alt="CI">
+  <img src="https://img.shields.io/badge/Tests-489%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
+  <img src="https://img.shields.io/badge/Platform-Win%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform">
 </p>
 
 <p align="center">
@@ -9,216 +17,97 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/github/actions/workflow/status/antropos17/Aegis/ci.yml?style=flat-square&label=CI" alt="CI">
-  <img src="https://img.shields.io/badge/Release-v0.3.1--alpha-orange?style=flat-square" alt="Release">
-  <img src="https://img.shields.io/badge/Tests-475%20passing-brightgreen?style=flat-square" alt="Tests">
-  <a href="https://github.com/antropos17/Aegis/releases/latest"><img src="https://img.shields.io/github/v/release/antropos17/Aegis?include_prereleases&style=flat-square&label=Latest%20Release" alt="Latest Release"></a>
-  <img src="https://img.shields.io/badge/Platform-Win%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform">
+  <a href="#quick-start">Quick Start</a> &middot;
+  <a href="#download">Download</a> &middot;
+  <a href="https://github.com/antropos17/Aegis/issues/new?template=01-bug-report.yml">Report Bug</a> &middot;
+  <a href="https://github.com/antropos17/Aegis/issues/new?template=02-feature-request.yml">Feature Request</a> &middot;
+  <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/No_Telemetry-✓-2ea44f?style=flat-square" alt="No Telemetry">
-  <img src="https://img.shields.io/badge/Data-Local_Only-0969da?style=flat-square" alt="Local Only">
-  <img src="https://img.shields.io/badge/Privacy-First-8b5cf6?style=flat-square" alt="Privacy First">
-  <img src="https://img.shields.io/badge/Agents-106-14b8a6?style=flat-square" alt="106 Agents">
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Electron-33-47848F?style=flat-square&logo=electron&logoColor=white" alt="Electron">
-  <img src="https://img.shields.io/badge/Svelte-5-FF3E00?style=flat-square&logo=svelte&logoColor=white" alt="Svelte">
-  <img src="https://img.shields.io/badge/Vite-7-646CFF?style=flat-square&logo=vite&logoColor=white" alt="Vite">
-  <img src="https://img.shields.io/badge/Vitest-4-6E9F18?style=flat-square&logo=vitest&logoColor=white" alt="Vitest">
-  <img src="https://img.shields.io/badge/Node.js-18+-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node.js">
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/github/stars/antropos17/Aegis?style=flat-square" alt="Stars">
-  <img src="https://img.shields.io/github/forks/antropos17/Aegis?style=flat-square" alt="Forks">
-  <img src="https://img.shields.io/github/issues/antropos17/Aegis?style=flat-square" alt="Issues">
-  <img src="https://img.shields.io/github/last-commit/antropos17/Aegis?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen?style=flat-square" alt="PRs Welcome">
-</p>
-
-<p align="center">
-  <a href="#how-it-works">📖 Docs</a> ·
-  <a href="#download">💾 Download</a> ·
-  <a href="https://github.com/antropos17/Aegis/issues/new?template=01-bug-report.yml">🐛 Report Bug</a> ·
-  <a href="https://github.com/antropos17/Aegis/issues/new?template=02-feature-request.yml">💡 Feature Request</a> ·
-  <a href="CONTRIBUTING.md">🤝 Contributing</a>
-</p>
-
-<details>
-<summary>📋 Table of Contents</summary>
-
-- [Why AEGIS?](#why-aegis)
-- [How AEGIS Compares](#how-aegis-compares)
-- [What AEGIS Does / Does NOT Do](#what-aegis-does--does-not-do)
-- [Download](#download)
-- [What It Monitors](#what-it-monitors)
-- [Features](#features)
-- [Keyboard Shortcuts](#keyboard-shortcuts)
-- [Quick Start](#quick-start)
-- [How It Works](#how-it-works)
-- [Screenshots](#screenshots)
-- [Agent Database](#agent-database)
-- [Building from Source](#building-from-source)
-- [Testing](#testing)
-- [Roadmap](#roadmap)
-- [Contributors](#contributors)
-- [License](#license)
-- [Star History](#star-history)
-
-</details>
+---
 
 ## Why AEGIS?
 
-AI agents now have deep access to your machine. They read files, scan codebases, execute commands, make network connections. Every existing AI security tool is enterprise B2B. They monitor what humans send *to* AI. Nobody monitors what AI agents do *on local machines*.
+AI agents now have deep access to your machine — files, commands, network. Every existing AI security tool is enterprise SaaS that monitors what humans send *to* AI. Nobody monitors what AI agents do *on local machines*.
 
-AEGIS is an independent, open-source monitoring layer. It watches AI agent behavior in real time, doesn't belong to any AI vendor, and keeps all data local. No telemetry, no cloud sync, no tracking.
-
-<p align="right"><a href="#-aegis">⬆ back to top</a></p>
-
-## How AEGIS Compares
-
-| Feature | AEGIS | Lasso Security | Prompt Security | PromptArmor |
-|---------|:-----:|:--------------:|:---------------:|:-----------:|
-| Runs locally | ✅ | ❌ Cloud | ❌ Cloud | ❌ Cloud |
-| No telemetry | ✅ | ❌ | ❌ | ❌ |
-| Open source | ✅ MIT | ❌ | ❌ | ❌ |
-| Free | ✅ | ❌ Enterprise | ❌ Enterprise | ❌ Enterprise |
-| Monitors file access | ✅ | ❌ | ❌ | ❌ |
-| Detects local LLMs | ✅ | ❌ | ❌ | ❌ |
-| CLI JSON output | ✅ | ❌ | ✅ | ❌ |
-| Agent database | 106 agents | Unknown | Unknown | Unknown |
-| Anomaly scoring | 4-axis | N/A | N/A | N/A |
-
-> **AEGIS is the only open-source, local-first AI agent monitor.** Enterprise tools focus on prompt injection and API gateway security. AEGIS focuses on what agents actually do on your machine.
-
-<p align="right"><a href="#-aegis">⬆ back to top</a></p>
-
-## What AEGIS Does / Does NOT Do
-
-| ✅ Does | ❌ Does NOT |
-|---------|------------|
-| Monitor AI agent processes | Block or kill processes |
-| Detect anomalies (4 axes) | Send data anywhere |
-| Scan local LLM runtimes | Require internet |
-| Log file access | Modify your files |
-| Track network connections | Access your conversations |
-| CLI JSON output | |
-
-<p align="right"><a href="#-aegis">⬆ back to top</a></p>
-
-## Download
-
-**Windows**: [AEGIS Setup 0.3.1-alpha.exe](https://github.com/antropos17/Aegis/releases/latest) (~82 MB)
-
-No Node.js required. Download, install, run.
-
-> macOS and Linux support is experimental (PR [#37](https://github.com/antropos17/Aegis/pull/37)).
-
-<p align="right"><a href="#-aegis">⬆ back to top</a></p>
+AEGIS is an independent, open-source monitoring layer. It watches AI agent behavior in real time, doesn't belong to any AI vendor, and keeps all data local.
 
 ## What It Monitors
 
-- **Processes**: detects 106 AI agents by matching running processes against known signatures. Resolves parent-child process trees to find agents inside editors (e.g. Copilot in VS Code).
-- **Files**: watches sensitive directories (`.ssh`, `.aws`, `.gnupg`, `.env*`, cloud configs) and 27 AI agent config dirs. Classifies access against 70+ sensitive file patterns.
-- **Network**: scans outbound TCP connections per agent PID. Reverse DNS with domain classification. Known API endpoints vs. unknown/suspicious destinations.
-- **Behavior**: rolling 10-session baselines per agent. Multi-dimensional anomaly scoring, 4-axis breakdown: Network (0.30), FileSystem (0.25), Process (0.25), Baseline (0.20).
-- **Local LLMs**: detects Ollama (`localhost:11434`) and LM Studio (`localhost:1234`). Reports loaded models and running status.
+| Layer | How |
+|-------|-----|
+| **Processes** | 106 known AI agent signatures, parent-child tree resolution, IDE host detection |
+| **Files** | Watches `.ssh`, `.aws`, `.gnupg`, `.env*`, cloud configs, 27 AI agent config dirs |
+| **Network** | Outbound TCP per agent PID, reverse DNS, known API endpoints vs unknown |
+| **Behavior** | Rolling 10-session baselines, 4-axis anomaly scoring (Network/FS/Process/Baseline) |
+| **Local LLMs** | Ollama, LM Studio, vLLM, llama.cpp runtime detection |
 
-<p align="right"><a href="#-aegis">⬆ back to top</a></p>
+## How It Compares
 
-## Features
+| | AEGIS | Lasso / Prompt Security / PromptArmor |
+|-|:-----:|:--------------------------------------:|
+| Runs locally | Yes | Cloud |
+| Open source | MIT | No |
+| Free | Yes | Enterprise |
+| Monitors file access | Yes | No |
+| Detects local LLMs | Yes | No |
 
-**Detection**
-- 106 known agent signatures + wildcard matching for unknown agents
-- Parent chain resolution with IDE host annotation
-- AI agent config directory protection (Hudson Rock threat vector)
-- Per-agent risk scoring with time decay and trust grades (A+ through F)
-- HTTP/HTTPS connection scoring and User-Agent header detection
-- API call indicator for known AI vendor endpoints
-- Local LLM runtime detection (Ollama, LM Studio, vLLM, llama.cpp)
-- False positive marking — exclude known-safe processes from alerts
-- Scan status badge — real-time scanner state in the header
+> **AEGIS is the only open-source, local-first AI agent monitor.**
 
-**Analysis**
-- Behavioral baselines with rolling session averages
-- Multi-dimensional anomaly detection (Network, FileSystem, Process, Baseline)
-- AI threat assessment via Anthropic API (opt-in, you click the button)
-- Printable HTML threat reports
+## Download
 
-**Dashboard**
-- Canvas radar with agent orbits and sweep arm (60fps)
-- Activity feed with filters (agent, severity, filetype)
-- Session timeline with color-coded event dots
-- Agent cards with trust bars, risk scores, expandable details
-- Copy PID to clipboard from agent cards
-- Relative timestamps (e.g., "2m ago") with tooltip for absolute time
-- Smart path truncation for long file paths
-- Autoscroll toggle for activity feed
-- Threat flash animation on high-risk detections
-- Open file location from activity feed entries
-- Protection presets: Paranoid / Strict / Balanced / Developer
-- Dark/light neumorphic theme
-- Toast notifications (success/warning/error with auto-dismiss)
-- OOM protection — automatic memory limit enforcement
-- Browser-only demo mode (no Electron required)
+**Windows**: [AEGIS Setup (.exe)](https://github.com/antropos17/Aegis/releases/latest) — no Node.js required.
 
-**Export**
-- JSON, CSV, HTML report generation
-- ZIP export — one-click full session archive
-- Audit logging (JSONL, daily rotation, 30-day retention)
-
-**Keyboard Shortcuts**
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+1` | Switch to Shield tab |
-| `Ctrl+2` | Switch to Activity tab |
-| `Ctrl+3` | Switch to Rules tab |
-| `Ctrl+4` | Switch to Reports tab |
-
-**Internationalization**
-- i18n system with English base (110+ translated strings)
-- Language selector in Settings
-- Community translations welcome ([contribute a language](https://github.com/antropos17/Aegis/issues))
-
-**Settings**
-- Hardware acceleration toggle (disable for lower GPU usage)
-- Agent DB contribution link — submit new agents directly from the app
-
-**CLI**
-```bash
-aegis --scan-json    # JSON output for scripts
-aegis --version      # Show version
-aegis --help         # Show help
-```
-
-<p align="right"><a href="#-aegis">⬆ back to top</a></p>
+macOS and Linux support is experimental ([#37](https://github.com/antropos17/Aegis/pull/37)).
 
 ## Quick Start
 
 ```bash
 git clone https://github.com/antropos17/Aegis.git
 cd Aegis
-npm install && npm start
+npm install
+npm start
 ```
 
-Needs Node.js 18+ and Windows 10/11. Mac/Linux work experimentally.
+Requires Node.js 18+ and Windows 10/11. Mac/Linux work experimentally.
 
-### CLI Usage
+**CLI:**
 
 ```bash
-npx electron src/main/main.js --scan-json   # scan + print JSON
-npx electron src/main/main.js --version     # print version
+npx electron src/main/main.js --scan-json   # JSON output for scripts
+npx electron src/main/main.js --version
 ```
 
-Optional: set your Anthropic API key in Settings for AI threat analysis.
+## Features
 
-<p align="right"><a href="#-aegis">⬆ back to top</a></p>
+**Detection** — 106 agent signatures, parent chain resolution, config dir protection, per-agent risk scoring with trust grades (A+ through F), HTTP/User-Agent scoring, local LLM detection, false positive marking
 
-## How It Works
+**Analysis** — Behavioral baselines with rolling averages, multi-dimensional anomaly detection, AI threat assessment via Anthropic API (opt-in), printable HTML threat reports
+
+**Dashboard** — Canvas radar with agent orbits (60fps), activity feed with filters, session timeline, agent cards with expandable details, protection presets (Paranoid/Strict/Balanced/Developer), dark/light theme, toast notifications, OOM protection, keyboard shortcuts (Ctrl+1-4)
+
+**Export** — JSON, CSV, HTML reports, one-click ZIP archive, JSONL audit logging (daily rotation, 30-day retention)
+
+**i18n** — Internationalization with English base (110+ strings), community translations welcome
+
+**CLI** — `--scan-json` for scripting, `--version`, `--help`
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/01-shield-tab.png" width="280"><br><b>Shield Tab</b></td>
+    <td align="center"><img src="docs/screenshots/02-activity-feed.png" width="280"><br><b>Activity Feed</b></td>
+    <td align="center"><img src="docs/screenshots/03-activity-network.png" width="280"><br><b>Network Monitor</b></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/04-rules-permissions.png" width="280"><br><b>Rules & Permissions</b></td>
+    <td align="center"><img src="docs/screenshots/05-rules-agent-db.png" width="280"><br><b>Agent Database</b></td>
+    <td align="center"><img src="docs/screenshots/07-settings-modal.png" width="280"><br><b>Settings</b></td>
+  </tr>
+</table>
+
+## Architecture
 
 ```
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
@@ -247,42 +136,19 @@ Optional: set your Anthropic API key in Settings for AI threat analysis.
             └─────────────┘    └─────────────┘
 ```
 
-Everything flows to the dashboard via Electron IPC. AI analysis only calls the Anthropic API when you click the button.
-
-<p align="right"><a href="#-aegis">⬆ back to top</a></p>
-
-## Screenshots
-
-<!-- TODO: Update screenshots for v0.3.1-alpha — scan badge, false positive marking, HW accel toggle, agent DB contribution link are not shown -->
-<table>
-  <tr>
-    <td align="center"><img src="docs/screenshots/01-shield-tab.png" width="280"><br><b>Shield Tab</b></td>
-    <td align="center"><img src="docs/screenshots/02-activity-feed.png" width="280"><br><b>Activity Feed</b></td>
-    <td align="center"><img src="docs/screenshots/03-activity-network.png" width="280"><br><b>Network Monitor</b></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/screenshots/04-rules-permissions.png" width="280"><br><b>Rules & Permissions</b></td>
-    <td align="center"><img src="docs/screenshots/05-rules-agent-db.png" width="280"><br><b>Agent Database</b></td>
-    <td align="center"><img src="docs/screenshots/07-settings-modal.png" width="280"><br><b>Settings</b></td>
-  </tr>
-</table>
-
-<p align="right"><a href="#-aegis">⬆ back to top</a></p>
+**Stack**: Electron 33, Svelte 5, Vite 7, TypeScript, Vitest (489 tests across 28 files)
 
 ## Agent Database
 
-106 agents in [`src/shared/agent-database.json`](src/shared/agent-database.json), organized by category:
+106 agents in [`src/shared/agent-database.json`](src/shared/agent-database.json):
 
-- **Coding assistants**: Claude Code, GitHub Copilot, OpenAI Codex, Cursor, Windsurf, Tabnine, Amazon Q, Cody, Aider
-- **Autonomous agents**: Devin, Manus AI, OpenHands, SWE-Agent, AutoGPT, BabyAGI, CrewAI
-- **Desktop/browser**: Anthropic Computer Use, Google Gemini, Apple Intelligence, Microsoft Copilot
-- **CLI/frameworks**: LangChain, Semantic Kernel, AutoGen, MetaGPT, TaskWeaver
-- **Security/DevOps**: Snyk AI, GitHub Advanced Security
-- **Local LLM runtimes**: Ollama, LM Studio, vLLM, llama.cpp, LocalAI, GPT4All, Jan, text-generation-webui
+**Coding** — Claude Code, GitHub Copilot, Cursor, Windsurf, Tabnine, Amazon Q, Cody, Aider
+**Autonomous** — Devin, Manus AI, OpenHands, SWE-Agent, AutoGPT, BabyAGI, CrewAI
+**Desktop** — Anthropic Computer Use, Google Gemini, Apple Intelligence, Microsoft Copilot
+**Frameworks** — LangChain, Semantic Kernel, AutoGen, MetaGPT, TaskWeaver
+**Local LLMs** — Ollama, LM Studio, vLLM, llama.cpp, LocalAI, GPT4All, Jan
 
-Add custom agents in the UI or edit the JSON directly. See [AGENTS.md](AGENTS.md) for contributing new signatures.
-
-<p align="right"><a href="#-aegis">⬆ back to top</a></p>
+Add custom agents via the UI or edit the JSON. See [AGENTS.md](AGENTS.md).
 
 ## Building from Source
 
@@ -291,76 +157,37 @@ git clone https://github.com/antropos17/Aegis.git
 cd Aegis
 npm install
 npm run dev          # Development mode
-npm run build        # Production build (electron-builder)
-npm test             # Run 475 tests
-npm run lint         # ESLint checks
+npm run dist         # Electron-builder installer
+npm test             # 489 tests
+npm run lint         # ESLint
 ```
-
-<p align="right"><a href="#-aegis">⬆ back to top</a></p>
-
-## Testing
-
-475+ tests across 28 test files. Uses [Vitest](https://vitest.dev/) with `v8` coverage.
-
-```bash
-npm test              # run all tests once
-npm run test:watch    # watch mode
-npm run test:coverage # coverage report
-```
-
-<details>
-<summary>Test groups breakdown</summary>
-
-| Group | Files | Tests | What it covers |
-|-------|-------|-------|----------------|
-| **Process Scanning** | 3 | 25 | AI agent detection via tasklist, EPERM handling, parent chain and editor annotation |
-| **File Monitoring** | 2 | 63 | Chokidar events, sensitive file classification, dedup, ignore filters for .git/node_modules |
-| **Network** | 1 | 31 | TCP connection scanning, DNS reverse lookup, domain classification |
-| **Platform Parsers** | 5 | 113 | Windows tasklist/PowerShell, macOS ps/lsof, Linux /proc, POSIX shared utils, auto-detect |
-| **Analysis** | 3 | 70 | Anomaly scoring (4 axes), AI threat analysis via API, Ollama/LM Studio HTTP probes |
-| **Config & State** | 2 | 19 | Settings persistence, custom patterns, behavior baselines, sessions |
-| **Infrastructure** | 7 | 88 | IPC handlers (40 methods), event batching, audit logging, structured logging, tray icon, exports, CLI |
-| **Shared** | 1 | 8 | 70+ sensitive file rules, ignore patterns, agent config paths |
-| **Renderer** | 4 | 62 | Risk scoring and trust grades, HTML threat reports, toast notifications, demo mode data |
-
-</details>
-
-<p align="right"><a href="#-aegis">⬆ back to top</a></p>
 
 ## Roadmap
 
 - [ ] GPU monitoring for local inference detection
-- [ ] OS-level enforcement via kernel hooks (Windows Minifilter, macOS Endpoint Security, Linux eBPF)
-- [ ] Per-process file attribution (ETW on Windows, fanotify on Linux)
-- [ ] Container/VM detection (Docker socket, WSL interop)
-- [ ] UI awareness via Accessibility APIs
+- [ ] OS-level enforcement (Windows Minifilter, macOS Endpoint Security, Linux eBPF)
+- [ ] Per-process file attribution (ETW, fanotify)
+- [ ] Container/VM detection (Docker, WSL)
 - [ ] Browser extension for web-based AI agents
-- [ ] Cross-device AI activity correlation
 - [ ] Auto-update mechanism
-- [x] i18n / localization (PR #53)
-
-[📋 Full roadmap on GitHub Issues](https://github.com/antropos17/Aegis/issues)
-
-<p align="right"><a href="#-aegis">⬆ back to top</a></p>
+- [x] i18n / localization ([#53](https://github.com/antropos17/Aegis/issues/53))
 
 ## Contributors
 
 <table>
   <tr>
-    <td align="center"><a href="https://github.com/antropos17"><img src="https://github.com/antropos17.png" width="80px;" alt=""/><br/><sub><b>Ruslan Murtuzaliyev</b></sub></a><br/>💻 📖 🚇 🎨</td>
-    <td align="center"><a href="https://github.com/ElshadHu"><img src="https://github.com/ElshadHu.png" width="80px;" alt=""/><br/><sub><b>Elshad Humbatli</b></sub></a><br/>💻 🧪</td>
-    <td align="center"><a href="https://github.com/skmelendez"><img src="https://github.com/skmelendez.png" width="80px;" alt=""/><br/><sub><b>Steven Melendez</b></sub></a><br/>💻 🤔</td>
-    <td align="center"><a href="https://github.com/travisbreaks"><img src="https://github.com/travisbreaks.png" width="80px;" alt=""/><br/><sub><b>travisbreaks</b></sub></a><br/>💻 ♿ 🌍 📦</td>
+    <td align="center"><a href="https://github.com/antropos17"><img src="https://github.com/antropos17.png" width="80px;" alt=""/><br/><sub><b>Ruslan Murtuzaliyev</b></sub></a></td>
+    <td align="center"><a href="https://github.com/ElshadHu"><img src="https://github.com/ElshadHu.png" width="80px;" alt=""/><br/><sub><b>Elshad Humbatli</b></sub></a></td>
+    <td align="center"><a href="https://github.com/skmelendez"><img src="https://github.com/skmelendez.png" width="80px;" alt=""/><br/><sub><b>Steven Melendez</b></sub></a></td>
+    <td align="center"><a href="https://github.com/travisbreaks"><img src="https://github.com/travisbreaks.png" width="80px;" alt=""/><br/><sub><b>travisbreaks</b></sub></a></td>
   </tr>
 </table>
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md)
-
-<p align="right"><a href="#-aegis">⬆ back to top</a></p>
+[CONTRIBUTING.md](CONTRIBUTING.md) &middot; [SECURITY.md](SECURITY.md) &middot; [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+[MIT](LICENSE)
 
 ## Star History
 
