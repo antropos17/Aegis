@@ -1,6 +1,6 @@
 ---
 name: aegis-context
-description: AEGIS project context — 106 agents, Electron 33, Svelte 5 + TypeScript, 489 tests. Triggers on any AEGIS task.
+description: AEGIS project context — 106 agents, Electron 33, Svelte 5 + TypeScript, 507 tests. Triggers on any AEGIS task.
 ---
 
 # AEGIS Context
@@ -28,7 +28,7 @@ Electron 33, Svelte 5, Vite 7, TypeScript (incremental, allowJs:true, checkJs:tr
 - Data: src/shared/agent-database.json (106 agent signatures)
 - Config: src/shared/constants.js (70+ sensitive patterns)
 - Types: src/shared/types/ — 7 .ts files, 34 type definitions
-- Tests: 489 pass, 4 skip across 28 files (Vitest, all ESM)
+- Tests: 507 pass, 4 skip across 29 files (Vitest, all ESM)
 
 ## Boot Performance
 - Production start: ~439ms (dev server fallback eliminated in dbe466e)
