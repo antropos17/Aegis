@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
   /**
    * @file VisTimeline.svelte
    * @description Interactive timeline using vis-timeline library.
@@ -14,33 +14,30 @@
     buildVisGroups,
     buildVisItems,
     VIS_TIMELINE_OPTIONS,
-    type TimelineEvent,
-    type VisItem,
-    type VisGroup,
   } from '../utils/vis-timeline-utils.ts';
-  import type { DetectedAgent, FileEvent, NetworkConnection } from '../../../shared/types';
   import TimelineLegend from './TimelineLegend.svelte';
   import { buildSummary } from '../utils/timeline-utils.ts';
 
-  interface Props {
-    active?: boolean;
-  }
+  /** @type {{ active?: boolean }} */
+  let { active = true } = $props();
 
-  let { active = true }: Props = $props();
-
-  let containerEl: HTMLDivElement | undefined = $state();
-  let timeline: ReturnType<typeof createTimeline> | null = $state(null);
-  let itemsDataSet: InstanceType<typeof import('vis-data').DataSet<VisItem>> | null = $state(null);
-  let groupsDataSet: InstanceType<typeof import('vis-data').DataSet<VisGroup>> | null =
-    $state(null);
-  let selectedEvent: VisItem | null = $state(null);
+  let containerEl = $state();
+  /** @type {any} */
+  let timeline = $state(null);
+  /** @type {any} */
+  let itemsDataSet = $state(null);
+  /** @type {any} */
+  let groupsDataSet = $state(null);
+  /** @type {any} */
+  let selectedEvent = $state(null);
 
   /** Track last processed event count to only add new ones */
   let lastFileCount = 0;
   let lastNetCount = 0;
 
   /** Summary for legend (reuses existing buildSummary) */
-  let allEvents: TimelineEvent[] = $state([]);
+  /** @type {import('../utils/vis-timeline-utils.ts').TimelineEvent[]} */
+  let allEvents = $state([]);
   let summary = $derived(
     buildSummary(
       allEvents.map((e) => ({
@@ -53,34 +50,6 @@
     ),
   );
 
-  /** Create vis-timeline instance (called in onMount) */
-  function createTimeline(
-    container: HTMLElement,
-    DataSetClass: typeof import('vis-data').DataSet,
-    TimelineClass: typeof import('vis-timeline/peer').Timeline,
-  ) {
-    const items = new DataSetClass<VisItem>([]);
-    const groups = new DataSetClass<VisGroup>([]);
-
-    const tl = new TimelineClass(container, items as never, groups as never, {
-      ...VIS_TIMELINE_OPTIONS,
-    });
-
-    tl.on('select', (props: { items: string[] }) => {
-      if (props.items.length > 0) {
-        const item = items.get(props.items[0]) as VisItem | null;
-        selectedEvent = item;
-      } else {
-        selectedEvent = null;
-      }
-    });
-
-    itemsDataSet = items;
-    groupsDataSet = groups;
-
-    return tl;
-  }
-
   onMount(async () => {
     if (!containerEl) return;
 
@@ -89,10 +58,26 @@
       import('vis-timeline/peer'),
     ]);
 
-    // Import CSS
     await import('vis-timeline/styles/vis-timeline-graph2d.css');
 
-    timeline = createTimeline(containerEl, DataSet, Timeline);
+    const items = new DataSet([]);
+    const groups = new DataSet([]);
+
+    const tl = new Timeline(containerEl, items, groups, {
+      ...VIS_TIMELINE_OPTIONS,
+    });
+
+    tl.on('select', (props) => {
+      if (props.items.length > 0) {
+        selectedEvent = items.get(props.items[0]);
+      } else {
+        selectedEvent = null;
+      }
+    });
+
+    itemsDataSet = items;
+    groupsDataSet = groups;
+    timeline = tl;
 
     return () => {
       if (timeline) {
@@ -105,18 +90,16 @@
   /** Sync groups when agents change */
   $effect(() => {
     if (!active || !groupsDataSet) return;
-    const agentList = $agents as DetectedAgent[];
+    const agentList = $agents;
     const newGroups = buildVisGroups(agentList);
-    const currentIds = new Set(groupsDataSet.getIds() as string[]);
+    const currentIds = new Set(groupsDataSet.getIds());
     const newIds = new Set(newGroups.map((g) => g.id));
 
-    // Add new groups
     for (const g of newGroups) {
       if (!currentIds.has(g.id)) {
-        groupsDataSet.add(g as never);
+        groupsDataSet.add(g);
       }
     }
-    // Remove stale groups
     for (const id of currentIds) {
       if (!newIds.has(id)) {
         groupsDataSet.remove(id);
@@ -127,7 +110,7 @@
   /** Add new file events incrementally */
   $effect(() => {
     if (!active || !itemsDataSet) return;
-    const fileEvs = ($events as FileEvent[][]).flat();
+    const fileEvs = $events.flat();
     if (fileEvs.length <= lastFileCount) return;
 
     const newEvs = fileEvs.slice(lastFileCount);
@@ -138,7 +121,7 @@
 
     const items = buildVisItems(timelineEvs);
     for (const item of items) {
-      itemsDataSet.add(item as never);
+      itemsDataSet.add(item);
     }
 
     if (timeline) {
@@ -149,7 +132,7 @@
   /** Add new network events incrementally */
   $effect(() => {
     if (!active || !itemsDataSet) return;
-    const netEvs = $network as NetworkConnection[];
+    const netEvs = $network;
     if (netEvs.length <= lastNetCount) return;
 
     const newEvs = netEvs.slice(lastNetCount);
@@ -160,7 +143,7 @@
 
     const items = buildVisItems(timelineEvs);
     for (const item of items) {
-      itemsDataSet.add(item as never);
+      itemsDataSet.add(item);
     }
   });
 

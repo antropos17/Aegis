@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
   /**
    * @file AgentGraph.svelte
    * @description Force-directed agent relationship graph.
@@ -9,36 +9,35 @@
    */
   import { onMount } from 'svelte';
   import { agents, events, network } from '../stores/ipc.js';
-  import { buildGraphData, type GraphNode, type GraphLink } from '../utils/agent-graph-utils.ts';
-  import type { EnrichedAgent, FileEvent, NetworkConnection } from '../../../shared/types';
+  import { buildGraphData } from '../utils/agent-graph-utils.ts';
 
-  interface Props {
-    active?: boolean;
-  }
-
-  let { active = true }: Props = $props();
+  /** @type {{ active?: boolean }} */
+  let { active = true } = $props();
 
   let width = $state(600);
   let height = $state(400);
-  let svgEl: SVGSVGElement | undefined = $state();
+  let svgEl = $state();
 
-  let nodes: GraphNode[] = $state([]);
-  let links: GraphLink[] = $state([]);
-  let hoveredNode: string | null = $state(null);
-  let selectedNode: string | null = $state(null);
+  /** @type {import('../utils/agent-graph-utils.ts').GraphNode[]} */
+  let nodes = $state([]);
+  /** @type {import('../utils/agent-graph-utils.ts').GraphLink[]} */
+  let links = $state([]);
+  /** @type {string | null} */
+  let hoveredNode = $state(null);
+  /** @type {string | null} */
+  let selectedNode = $state(null);
   let simulationRunning = $state(false);
 
-  /** D3 simulation reference */
-  let simulation: ReturnType<typeof import('d3').forceSimulation> | null = null;
-  let d3Module: typeof import('d3') | null = null;
+  /** @type {any} D3 simulation reference */
+  let simulation = null;
+  /** @type {any} D3 module */
+  let d3Module = null;
 
-  /** Resolved links with x/y coordinates from simulation */
-  let resolvedLinks: Array<{
-    source: GraphNode;
-    target: GraphNode;
-    type: string;
-    weight: number;
-  }> = $state([]);
+  /**
+   * Resolved links with x/y coordinates from simulation
+   * @type {Array<{source: import('../utils/agent-graph-utils.ts').GraphNode, target: import('../utils/agent-graph-utils.ts').GraphNode, type: string, weight: number}>}
+   */
+  let resolvedLinks = $state([]);
 
   onMount(async () => {
     d3Module = await import('d3');
@@ -53,9 +52,9 @@
   /** Rebuild graph when agents/events change */
   $effect(() => {
     if (!active || !d3Module) return;
-    const agentList = $agents as EnrichedAgent[];
-    const fileEvs = ($events as FileEvent[][]).flat();
-    const netConns = $network as NetworkConnection[];
+    const agentList = $agents;
+    const fileEvs = $events.flat();
+    const netConns = $network;
 
     if (agentList.length === 0) {
       nodes = [];
@@ -68,8 +67,12 @@
     runSimulation(data.nodes, data.links);
   });
 
-  /** Start or restart D3 force simulation */
-  function runSimulation(newNodes: GraphNode[], newLinks: GraphLink[]) {
+  /**
+   * Start or restart D3 force simulation
+   * @param {import('../utils/agent-graph-utils.ts').GraphNode[]} newNodes
+   * @param {import('../utils/agent-graph-utils.ts').GraphLink[]} newLinks
+   */
+  function runSimulation(newNodes, newLinks) {
     if (!d3Module) return;
 
     if (simulation) simulation.stop();
@@ -78,7 +81,6 @@
     const cx = width / 2;
     const cy = height / 2;
 
-    /** Mutable copies for D3 */
     const simNodes = newNodes.map((n) => ({
       ...n,
       x: n.x ?? cx + (Math.random() - 0.5) * 100,
@@ -94,27 +96,27 @@
     }));
 
     simulation = d3
-      .forceSimulation(simNodes as never[])
+      .forceSimulation(simNodes)
       .force(
         'link',
         d3
-          .forceLink(simLinks as never[])
-          .id((d: never) => (d as GraphNode).id)
+          .forceLink(simLinks)
+          .id((d) => d.id)
           .distance(80),
       )
       .force('charge', d3.forceManyBody().strength(-200))
       .force('center', d3.forceCenter(cx, cy))
       .force(
         'collision',
-        d3.forceCollide().radius((d: never) => (d as GraphNode).radius + 4),
+        d3.forceCollide().radius((d) => d.radius + 4),
       )
       .alphaDecay(0.02)
       .on('tick', () => {
         simulationRunning = true;
         nodes = simNodes.map((n) => ({ ...n }));
         resolvedLinks = simLinks.map((l) => ({
-          source: typeof l.source === 'object' ? (l.source as GraphNode) : findNode(l.source),
-          target: typeof l.target === 'object' ? (l.target as GraphNode) : findNode(l.target),
+          source: typeof l.source === 'object' ? l.source : findNode(l.source),
+          target: typeof l.target === 'object' ? l.target : findNode(l.target),
           type: l.type,
           weight: l.weight,
         }));
@@ -124,8 +126,11 @@
       });
   }
 
-  /** Find node by id */
-  function findNode(id: string): GraphNode {
+  /**
+   * Find node by id
+   * @param {string} id
+   */
+  function findNode(id) {
     return (
       nodes.find((n) => n.id === id) || {
         id,
@@ -139,14 +144,20 @@
     );
   }
 
-  /** Check if link connects to hovered node */
-  function isLinkHighlighted(link: { source: GraphNode; target: GraphNode }): boolean {
+  /**
+   * Check if link connects to hovered node
+   * @param {{ source: { id: string }, target: { id: string } }} link
+   */
+  function isLinkHighlighted(link) {
     if (!hoveredNode) return false;
     return link.source.id === hoveredNode || link.target.id === hoveredNode;
   }
 
-  /** Check if node is connected to hovered node */
-  function isNodeConnected(nodeId: string): boolean {
+  /**
+   * Check if node is connected to hovered node
+   * @param {string} nodeId
+   */
+  function isNodeConnected(nodeId) {
     if (!hoveredNode) return true;
     if (nodeId === hoveredNode) return true;
     return resolvedLinks.some(
@@ -156,7 +167,8 @@
     );
   }
 
-  function handleNodeEnter(id: string) {
+  /** @param {string} id */
+  function handleNodeEnter(id) {
     hoveredNode = id;
   }
 
@@ -164,7 +176,8 @@
     hoveredNode = null;
   }
 
-  function handleNodeClick(id: string) {
+  /** @param {string} id */
+  function handleNodeClick(id) {
     selectedNode = selectedNode === id ? null : id;
   }
 
