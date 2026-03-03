@@ -33,7 +33,6 @@ export type {
 export type {
   IpcInvokeChannel,
   IpcEventChannel,
-  IpcSendChannel,
   SaveInstancePermissionsPayload,
   IpcResult,
 } from './ipc';

@@ -189,9 +189,6 @@ describe('ipc-handlers', () => {
   function getHandler(channel) {
     return handlers[channel];
   }
-  function getOnHandler(channel) {
-    return onHandlers[channel];
-  }
 
   it('init stores injected deps', () => {
     ipcHandlers.init({
@@ -234,7 +231,6 @@ describe('ipc-handlers', () => {
     ipcHandlers.register();
 
     const registeredChannels = mockElectron.ipcMain.handle.mock.calls.map((c) => c[0]);
-    expect(registeredChannels).toContain('scan-processes');
     expect(registeredChannels).toContain('get-stats');
     expect(registeredChannels).toContain('get-resource-usage');
     expect(registeredChannels).toContain('export-log');
@@ -246,32 +242,23 @@ describe('ipc-handlers', () => {
     expect(registeredChannels).toContain('analyze-agent');
     expect(registeredChannels).toContain('analyze-session');
     expect(registeredChannels).toContain('open-threat-report');
-    expect(registeredChannels).toContain('get-agent-baseline');
     expect(registeredChannels).toContain('get-all-permissions');
-    expect(registeredChannels).toContain('get-agent-permissions');
     expect(registeredChannels).toContain('save-agent-permissions');
-    expect(registeredChannels).toContain('get-instance-permissions');
     expect(registeredChannels).toContain('save-instance-permissions');
     expect(registeredChannels).toContain('reset-permissions-to-defaults');
     expect(registeredChannels).toContain('get-agent-database');
-    expect(registeredChannels).toContain('get-project-dir');
     expect(registeredChannels).toContain('get-custom-agents');
     expect(registeredChannels).toContain('save-custom-agents');
     expect(registeredChannels).toContain('export-agent-database');
     expect(registeredChannels).toContain('import-agent-database');
-    expect(registeredChannels).toContain('get-audit-stats');
     expect(registeredChannels).toContain('open-audit-log-dir');
     expect(registeredChannels).toContain('export-full-audit');
-    expect(registeredChannels).toContain('get-log-stats');
-    expect(registeredChannels).toContain('open-log-dir');
-    expect(registeredChannels).toContain('export-full-log');
     expect(registeredChannels).toContain('export-config');
     expect(registeredChannels).toContain('import-config');
     expect(registeredChannels).toContain('reveal-in-explorer');
     expect(registeredChannels).toContain('kill-process');
     expect(registeredChannels).toContain('suspend-process');
     expect(registeredChannels).toContain('resume-process');
-    expect(registeredChannels).toContain('capture-screenshot');
   });
 
   describe('handler behavior', () => {
@@ -367,51 +354,11 @@ describe('ipc-handlers', () => {
       if (fs.existsSync(result.path)) fs.unlinkSync(result.path);
     });
 
-    it('get-agent-baseline returns defaults for unknown agent', () => {
-      const handler = getHandler('get-agent-baseline');
-      const result = handler(null, 'UnknownAgent');
-      expect(result.sessionCount).toBe(0);
-      expect(result.currentSession.totalFiles).toBe(0);
-    });
-
     it('reveal-in-explorer calls shell.showItemInFolder', () => {
       const handler = getHandler('reveal-in-explorer');
       const result = handler(null, '/some/path');
       expect(mockElectron.shell.showItemInFolder).toHaveBeenCalledWith('/some/path');
       expect(result.success).toBe(true);
-    });
-
-    it('other-panel-expanded sets via deps', () => {
-      const setFn = vi.fn();
-      ipcHandlers.init({
-        getWindow: () => null,
-        getStats: () => ({
-          totalFiles: 0,
-          totalSensitive: 0,
-          aiSensitive: 0,
-          uptimeMs: 0,
-          monitoringStarted: null,
-          peakAgents: 0,
-          currentAgents: 0,
-          aiAgentCount: 0,
-          otherAgentCount: 0,
-          uniqueAgents: [],
-        }),
-        getResourceUsage: () => ({}),
-        setOtherPanelExpanded: setFn,
-      });
-      ipcHandlers.register();
-
-      const handler = getOnHandler('other-panel-expanded');
-      handler(null, true);
-      expect(setFn).toHaveBeenCalledWith(true);
-    });
-
-    it('get-project-dir returns path two levels up from __dirname', () => {
-      const handler = getHandler('get-project-dir');
-      const result = handler();
-      expect(typeof result).toBe('string');
-      expect(result.toLowerCase()).toContain('aegis');
     });
 
     it('kill-process rejects invalid PID at IPC boundary', async () => {
