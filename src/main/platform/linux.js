@@ -225,6 +225,22 @@ function getProcessCwd(pid) {
   return parseLsofCwd(pid);
 }
 
+/**
+ * Batch CWD lookup — calls getProcessCwd for each PID.
+ * On Linux, /proc readlink is instant so no special batching needed.
+ * @param {number[]} pids
+ * @returns {Promise<Map<number, string|null>>}
+ * @since v0.5.0
+ */
+async function getProcessCwds(pids) {
+  const map = new Map();
+  const results = await Promise.all(
+    pids.map((pid) => getProcessCwd(pid).then((cwd) => ({ pid, cwd }))),
+  );
+  for (const { pid, cwd } of results) map.set(pid, cwd);
+  return map;
+}
+
 module.exports = {
   listProcesses,
   getParentProcessMap,
@@ -232,6 +248,7 @@ module.exports = {
   parseSsOutput,
   getFileHandles,
   getProcessCwd,
+  getProcessCwds,
   killProcess,
   suspendProcess,
   resumeProcess,

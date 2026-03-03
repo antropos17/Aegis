@@ -269,12 +269,65 @@ function getProcessCwd(pid) {
   });
 }
 
+/**
+ * Extract CWD from a process CommandLine string.
+ * Looks for --cwd or --project flags followed by a path.
+ * @param {string|null} commandLine
+ * @returns {string|null}
+ */
+function extractCwdFromCommandLine(commandLine) {
+  if (!commandLine) return null;
+  const m = commandLine.match(/(?:--cwd|--project)\s+"?([^"]+)"?/);
+  return m ? m[1] : null;
+}
+
+/**
+ * Batch CWD lookup — single PowerShell call for multiple PIDs.
+ * Returns a Map<number, string|null> of pid → cwd.
+ * @param {number[]} pids
+ * @returns {Promise<Map<number, string|null>>}
+ * @since v0.5.0
+ */
+function getProcessCwds(pids) {
+  const validPids = pids.filter((p) => Number.isInteger(Number(p)) && Number(p) > 0);
+  if (validPids.length === 0) return Promise.resolve(new Map());
+  return new Promise((resolve) => {
+    const pidFilter = validPids.map((p) => `ProcessId=${p}`).join(' OR ');
+    const psScript = `$ErrorActionPreference="SilentlyContinue";Get-CimInstance Win32_Process -Filter '${pidFilter}' -Property ProcessId,CommandLine | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress`;
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', psScript],
+      { timeout: 8000 },
+      (err, stdout) => {
+        const map = new Map();
+        if (err || !stdout.trim()) {
+          resolve(map);
+          return;
+        }
+        try {
+          let entries = JSON.parse(stdout.trim());
+          if (!Array.isArray(entries)) entries = [entries];
+          for (const proc of entries) {
+            const pid = proc.ProcessId;
+            const cwd = extractCwdFromCommandLine(proc.CommandLine);
+            map.set(pid, cwd);
+          }
+        } catch (_) {
+          // parse failure — return empty map
+        }
+        resolve(map);
+      },
+    );
+  });
+}
+
 module.exports = {
   listProcesses,
   getParentProcessMap,
   getRawTcpConnections,
   getFileHandles,
   getProcessCwd,
+  getProcessCwds,
   killProcess,
   suspendProcess,
   resumeProcess,
