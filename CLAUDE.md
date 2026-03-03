@@ -6,7 +6,7 @@ Electron 33 + Svelte 5 (runes) + Vite 7. Monitors AI agents on local machines. P
 npm run build:renderer    # Vite build (MUST pass before commit)
 npm run lint              # ESLint
 npm run format            # Prettier
-npm test                  # Vitest (507 tests, 29 files)
+npm test                  # Vitest (553 tests, 33 files)
 npm run dist              # Electron-builder NSIS installer
 
 ## Critical Rules
@@ -25,13 +25,13 @@ npm run dist              # Electron-builder NSIS installer
 
 ## Key Paths
 - src/main/ — 26 CommonJS modules (scanners, watchers, IPC, scoring, zip-writer)
-- src/renderer/ — 35 Svelte 5 components + 6 stores + tokens.css/global.css
-- src/shared/ — agent-database.json (106 agents), constants.js (70+ rules), types/ (34 TS defs)
+- src/renderer/ — 40 Svelte 5 components + 6 stores + 11 utils + tokens.css/global.css
+- src/shared/ — agent-database.json (106 agents), constants.js (70+ rules), types/ (7 TS files)
 - memory-bank/ — ai-mistakes.md (READ FIRST), progress.md, architecture.md
-- .claude/skills/ — orchestrator, context, audit, ship
+- .claude/skills/ — context, design-system, electron-main, svelte-patterns, testing, ship
 
 ## IPC Bridge
-preload.js — 43 invoke methods + 11 event channels via contextBridge
+preload.js — 43 invoke + 11 push channels via contextBridge
 
 ## MCP Available
 - Context7: fresh docs for any library (append "use context7")
