@@ -120,6 +120,7 @@ body {
   position: relative;
 }
 
+/* ── F4.3 Background atmosphere ── */
 body::before {
   content: '';
   position: fixed;
@@ -127,8 +128,21 @@ body::before {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(ellipse at 30% 20%, rgba(122, 138, 158, 0.04), transparent 70%),
-    radial-gradient(ellipse at 80% 80%, rgba(74, 122, 90, 0.02), transparent 60%);
+    radial-gradient(ellipse at 50% 50%, transparent 40%, var(--fancy-atmo-vignette) 100%),
+    radial-gradient(ellipse at 25% 30%, var(--fancy-atmo-accent-glow), transparent 55%),
+    radial-gradient(ellipse at 70% 65%, var(--fancy-atmo-primary-glow), transparent 50%),
+    radial-gradient(ellipse at 50% 40%, var(--fancy-atmo-center-lift), transparent 60%);
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: var(--fancy-atmo-noise-opacity);
+  filter: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3C/svg%3E#n");
+  background: repeating-conic-gradient(#fff 0 0.0001%, transparent 0 0.0005%) 50% / 200px 200px;
 }
 
 /* ── Selection ── */
