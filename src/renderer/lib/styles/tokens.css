@@ -189,6 +189,13 @@
   --fancy-warning-bg: rgba(255, 136, 0, 0.08);
   --fancy-info-bg: rgba(154, 175, 204, 0.08);
 
+  /* ── Fancy: Atmosphere (F4.3) ── */
+  --fancy-atmo-vignette: rgba(0, 0, 0, 0.35);
+  --fancy-atmo-accent-glow: rgba(0, 255, 136, 0.025);
+  --fancy-atmo-primary-glow: rgba(122, 138, 158, 0.035);
+  --fancy-atmo-center-lift: rgba(255, 255, 255, 0.015);
+  --fancy-atmo-noise-opacity: 0.04;
+
   /* ── Fancy: Glass panel ── */
   --fancy-panel-bg: rgba(20, 20, 25, 0.6);
   --fancy-panel-border: 1px solid rgba(255, 255, 255, 0.08);
