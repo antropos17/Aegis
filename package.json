@@ -104,6 +104,10 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
-    "chokidar": "^3.6.0"
+    "@types/d3": "^7.4.3",
+    "chokidar": "^3.6.0",
+    "d3": "^7.9.0",
+    "vis-data": "^8.0.3",
+    "vis-timeline": "^8.5.0"
   }
 }
