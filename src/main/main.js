@@ -38,19 +38,15 @@ if (process.platform === 'darwin') {
   app.setName('Aegis');
   app.dock.setIcon(path.join(__dirname, '..', '..', 'assets', 'icon.png'));
 }
+// ═══ CRITICAL (needed before ready-to-show) ═══
 const config = require('./config-manager');
-const baselines = require('./baselines');
-const anomaly = require('./anomaly-detector');
-const scanner = require('./process-scanner');
-const procUtil = require('./process-utils');
-const watcher = require('./file-watcher');
-const exporter = require('./exports');
-const tray = require('./tray-icon');
-const audit = require('./audit-logger');
 const logger = require('./logger');
+const tray = require('./tray-icon');
 const ipc = require('./ipc-handlers');
-const scanLoop = require('./scan-loop');
 const { createBatcher } = require('./ipc-batcher');
+
+// ═══ DEFERRED (loaded after ready-to-show via loadDeferredModules) ═══
+let baselines, anomaly, scanner, procUtil, watcher, exporter, audit, scanLoop;
 
 let mainWindow = null;
 let latestAgents = [],
@@ -62,6 +58,18 @@ let latestNetConnections = [],
   otherPanelExpanded = false;
 let previousAgentPids = new Map();
 const fileWatchers = [];
+
+/** Loads modules not needed until first scan cycle. Called after ready-to-show. */
+function loadDeferredModules() {
+  baselines = require('./baselines');
+  anomaly = require('./anomaly-detector');
+  scanner = require('./process-scanner');
+  procUtil = require('./process-utils');
+  watcher = require('./file-watcher');
+  exporter = require('./exports');
+  audit = require('./audit-logger');
+  scanLoop = require('./scan-loop');
+}
 
 /** @returns {Object} Process memory and CPU usage @since v0.1.0 */
 function getResourceUsage() {
@@ -77,6 +85,21 @@ function getResourceUsage() {
 
 /** @returns {Object} Monitoring statistics @since v0.1.0 */
 function getStats() {
+  if (!scanner) {
+    return {
+      totalFiles: 0,
+      totalSensitive: 0,
+      aiSensitive: 0,
+      uptimeMs: 0,
+      monitoringStarted: Date.now(),
+      peakAgents: 0,
+      currentAgents: 0,
+      aiAgentCount: 0,
+      otherAgentCount: 0,
+      uniqueAgents: [],
+      permissionDeniedScans: 0,
+    };
+  }
   const log = scanner.activityLog;
   return {
     totalFiles: log.length,
@@ -112,7 +135,6 @@ const statsUpdateBatcher = createBatcher('stats-update', sendToRenderer, {
 // ═══ WINDOW ═══
 
 function createWindow() {
-  const settings = config.getSettings();
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -143,10 +165,6 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '..', '..', 'dist', 'renderer', 'index.html'));
   }
   mainWindow.setMenuBarVisibility(false);
-  mainWindow.once('ready-to-show', () => {
-    if (!settings.startMinimized) mainWindow.show();
-    tray.createTray();
-  });
   mainWindow.on('close', (e) => {
     if (!isQuitting) {
       e.preventDefault();
@@ -172,14 +190,12 @@ if (!gotLock) {
 
 // ═══ LIFECYCLE ═══
 
-app.whenReady().then(() => {
-  if (!gotLock) return;
-
-  // ── Lazy-load modules not needed until scan loop / user action ──
+/** Wires deferred modules and starts scanning. Called after ready-to-show. */
+function initDeferredSubsystems(userData) {
+  loadDeferredModules();
   const network = require('./network-monitor');
   const analysis = require('./ai-analysis');
 
-  // ── Module wiring (deferred from module scope for faster cold start) ──
   scanLoop.init({
     scanner,
     procUtil,
@@ -256,58 +272,13 @@ app.whenReady().then(() => {
       return scores;
     },
   });
-  tray.init({
-    tray: null,
-    currentTrayColor: 'green',
-    lastNotificationTime: 0,
-    getActivityLog: () => scanner.activityLog,
-    getSettings: config.getSettings,
-    isMonitoringPaused: () => monitoringPaused,
-    setMonitoringPaused: (v) => {
-      monitoringPaused = v;
-    },
-    stopScanIntervals: scanLoop.stopScanIntervals,
-    startScanIntervals: () => {
-      const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
-      scanLoop.startScanIntervals(ms);
-    },
-    getMainWindow: () => mainWindow,
-    setIsQuitting: (v) => {
-      isQuitting = v;
-    },
-    appQuit: () => app.quit(),
-    getAgentCount: () => latestAgents.length,
-  });
-  ipc.init({
-    getWindow: () => mainWindow,
-    getStats,
-    getResourceUsage,
-    setOtherPanelExpanded: (v) => {
-      otherPanelExpanded = v;
-    },
-  });
-  // ── Startup sequence ──
-  const userData = app.getPath('userData');
-  logger.init({ userDataPath: userData, isDev: !app.isPackaged });
-  logger.info('main', 'App starting', { version: app.getVersion(), platform: process.platform });
-  config.loadSettings();
   audit.init({
     userDataPath: userData,
     onFlushError: (err) => logger.error('audit-logger', 'Flush failed', { error: err.message }),
   });
-  createWindow();
-  ipc.register();
   baselines.loadBaselines();
   mainWindow.webContents.once('did-finish-load', () => {
     watcher.setupFileWatchers();
-  });
-  mainWindow.once('ready-to-show', () => {
-    console.log(`[Aegis] ready-to-show in ${Date.now() - _startupT0}ms`);
-  });
-  globalShortcut.register('CommandOrControl+Shift+T', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('toggle-theme');
-    }
   });
   const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
   scanLoop.staggeredStartup(ms, monitoringPaused);
@@ -325,13 +296,72 @@ app.whenReady().then(() => {
       }
     }
   }, 60_000);
+}
+
+app.whenReady().then(() => {
+  if (!gotLock) return;
+
+  // ── Critical startup: logger, config, window — fast path to visible UI ──
+  const userData = app.getPath('userData');
+  logger.init({ userDataPath: userData, isDev: !app.isPackaged });
+  logger.info('main', 'App starting', { version: app.getVersion(), platform: process.platform });
+  config.loadSettings();
+  tray.init({
+    tray: null,
+    currentTrayColor: 'green',
+    lastNotificationTime: 0,
+    getActivityLog: () => (scanner ? scanner.activityLog : []),
+    getSettings: config.getSettings,
+    isMonitoringPaused: () => monitoringPaused,
+    setMonitoringPaused: (v) => {
+      monitoringPaused = v;
+    },
+    stopScanIntervals: () => {
+      if (scanLoop) scanLoop.stopScanIntervals();
+    },
+    startScanIntervals: () => {
+      if (scanLoop) {
+        const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
+        scanLoop.startScanIntervals(ms);
+      }
+    },
+    getMainWindow: () => mainWindow,
+    setIsQuitting: (v) => {
+      isQuitting = v;
+    },
+    appQuit: () => app.quit(),
+    getAgentCount: () => latestAgents.length,
+  });
+  createWindow();
+  ipc.init({
+    getWindow: () => mainWindow,
+    getStats,
+    getResourceUsage,
+    setOtherPanelExpanded: (v) => {
+      otherPanelExpanded = v;
+    },
+  });
+  ipc.register();
+  const settings = config.getSettings();
+  mainWindow.once('ready-to-show', () => {
+    if (!settings.startMinimized) mainWindow.show();
+    tray.createTray();
+    console.log(`[Aegis] ready-to-show in ${Date.now() - _startupT0}ms`);
+    // Load heavy modules AFTER window is visible
+    setImmediate(() => initDeferredSubsystems(userData));
+  });
+  globalShortcut.register('CommandOrControl+Shift+T', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('toggle-theme');
+    }
+  });
 });
 
 app.on('before-quit', () => {
   globalShortcut.unregisterAll();
   logger.info('main', 'App quitting');
-  audit.shutdown();
-  baselines.finalizeSession();
+  if (audit) audit.shutdown();
+  if (baselines) baselines.finalizeSession();
   logger.shutdown();
   isQuitting = true;
   if (tray._state && tray._state.tray) {
@@ -343,6 +373,6 @@ app.on('window-all-closed', () => {});
 app.on('quit', () => {
   fileAccessBatcher.destroy();
   statsUpdateBatcher.destroy();
-  scanLoop.stopScanIntervals();
+  if (scanLoop) scanLoop.stopScanIntervals();
   fileWatchers.forEach((w) => w.close());
 });
