@@ -1,7 +1,6 @@
 <script>
   import Radar from './Radar.svelte';
   import AgentPanel from './AgentPanel.svelte';
-  import Timeline from './Timeline.svelte';
   import FeedFilters from './FeedFilters.svelte';
   import ActivityFeed from './ActivityFeed.svelte';
 
@@ -20,9 +19,6 @@
   <div class="agents-area">
     <AgentPanel {active} />
   </div>
-  <div class="timeline-area">
-    <Timeline {active} />
-  </div>
   <div class="feed-area">
     <FeedFilters {active} bind:agentFilter bind:severityFilter bind:typeFilter />
     <ActivityFeed {active} {agentFilter} {severityFilter} {typeFilter} />
@@ -33,7 +29,7 @@
   .shield-layout {
     display: grid;
     grid-template-columns: var(--aegis-size-panel-col) minmax(0, 1fr) var(--aegis-size-panel-col);
-    grid-template-rows: auto auto 1fr;
+    grid-template-rows: auto 1fr;
     gap: var(--aegis-space-8);
     height: 100%;
     padding: var(--aegis-space-5);
@@ -58,16 +54,9 @@
     max-height: 380px;
   }
 
-  .timeline-area {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    min-width: 0;
-    padding: var(--aegis-space-1) var(--aegis-space-3);
-  }
-
   .feed-area {
     grid-column: 1 / -1;
-    grid-row: 3;
+    grid-row: 2;
     overflow-y: auto;
     min-height: 0;
     display: flex;
@@ -79,7 +68,7 @@
   @media (max-width: 960px) {
     .shield-layout {
       grid-template-columns: 1fr;
-      grid-template-rows: 380px auto auto 1fr;
+      grid-template-rows: 380px auto 1fr;
     }
 
     .radar-area {
@@ -92,14 +81,9 @@
       max-height: 200px;
     }
 
-    .timeline-area {
-      grid-column: 1;
-      grid-row: 3;
-    }
-
     .feed-area {
       grid-column: 1;
-      grid-row: 4;
+      grid-row: 3;
     }
   }
 </style>

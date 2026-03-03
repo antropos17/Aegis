@@ -6,13 +6,14 @@
   import ActivityTab from './lib/components/ActivityTab.svelte';
   import RulesTab from './lib/components/RulesTab.svelte';
   import ReportsTab from './lib/components/ReportsTab.svelte';
+  import AgentStatsPanel from './lib/components/AgentStatsPanel.svelte';
   import { theme, uiScale, toggleTheme } from './lib/stores/theme.js';
   import Toast from './lib/components/Toast.svelte';
   import { addToast } from './lib/stores/toast.js';
   import { agents, anomalies, isDemoMode } from './lib/stores/ipc.js';
   import DemoBanner from './lib/components/DemoBanner.svelte';
 
-  const TAB_IDS = ['shield', 'activity', 'rules', 'reports'];
+  const TAB_IDS = ['shield', 'activity', 'rules', 'reports', 'stats'];
 
   let activeTab = $state('shield');
   let optionsOpen = $state(false);
@@ -36,7 +37,7 @@
       // Ctrl+1-4: switch tabs (works even from inputs)
       if (e.ctrlKey && !e.altKey && !e.shiftKey) {
         const idx = parseInt(e.key) - 1;
-        if (idx >= 0 && idx <= 3) {
+        if (idx >= 0 && idx < TAB_IDS.length) {
           e.preventDefault();
           activeTab = TAB_IDS[idx];
           return;
@@ -54,6 +55,7 @@
         case '2':
         case '3':
         case '4':
+        case '5':
           activeTab = TAB_IDS[parseInt(e.key) - 1];
           break;
         case 's':
@@ -152,6 +154,15 @@
       aria-labelledby="tab-reports"
     >
       <ReportsTab active={activeTab === 'reports'} />
+    </div>
+    <div
+      class="tab-content"
+      class:tab-hidden={activeTab !== 'stats'}
+      id="tabpanel-stats"
+      role="tabpanel"
+      aria-labelledby="tab-stats"
+    >
+      <AgentStatsPanel active={activeTab === 'stats'} />
     </div>
   </main>
 </div>
