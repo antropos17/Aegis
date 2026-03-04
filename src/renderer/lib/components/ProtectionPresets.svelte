@@ -91,9 +91,7 @@
     align-items: center;
     gap: var(--aegis-space-2);
     padding: var(--aegis-space-5) var(--aegis-space-4);
-    background: var(--md-sys-color-surface-container-low);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
+    background: var(--md-sys-color-surface-container-low-opaque);
     border: var(--glass-border);
     box-shadow: var(--glass-shadow-card), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);

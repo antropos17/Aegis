@@ -238,11 +238,9 @@
     position: relative;
     padding: var(--fancy-space-md) var(--fancy-space-sm);
 
-    background: rgba(0, 0, 0, 0.3);
+    background: #0d0d10;
     border: 1px solid var(--fancy-border);
     border-radius: var(--fancy-radius-md);
-    backdrop-filter: blur(var(--fancy-panel-blur));
-    -webkit-backdrop-filter: blur(var(--fancy-panel-blur));
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.05),
       0 4px 12px rgba(0, 0, 0, 0.3);

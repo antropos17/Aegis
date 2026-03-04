@@ -121,9 +121,7 @@
     gap: var(--aegis-space-8);
     padding: var(--aegis-space-5) var(--aegis-space-7);
     flex-wrap: wrap;
-    background: var(--md-sys-color-surface-container-low);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
+    background: var(--md-sys-color-surface-container-low-opaque);
     border: var(--glass-border);
     box-shadow: var(--glass-shadow-card), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);
@@ -166,8 +164,6 @@
     color: var(--md-sys-color-on-surface-variant);
     cursor: pointer;
     text-transform: capitalize;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     transition: all 0.3s var(--ease-glass);
   }
   .pill:hover {
