@@ -332,7 +332,7 @@
 
   .trend-flat {
     color: var(--fancy-text-2);
-    opacity: 0.5;
+    opacity: 0.7;
   }
 
   .trend-num {
