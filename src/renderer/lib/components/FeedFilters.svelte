@@ -88,9 +88,7 @@
     align-items: center;
     gap: var(--aegis-space-6);
     padding: var(--aegis-space-6) var(--aegis-space-8);
-    background: var(--md-sys-color-surface-container-low);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
+    background: var(--md-sys-color-surface-container-low-opaque);
     border: var(--aegis-card-border);
     box-shadow:
       0 2px 8px rgba(0, 0, 0, 0.12),
@@ -152,8 +150,6 @@
     cursor: pointer;
     text-transform: capitalize;
     white-space: nowrap;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     transition:
       background 0.2s var(--ease-glass),
       color 0.2s var(--ease-glass),

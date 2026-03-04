@@ -15,6 +15,7 @@ const audit = require('./audit-logger');
 const { killProcess, suspendProcess, resumeProcess } = require('./platform');
 const zipWriter = require('./zip-writer');
 const { getAllRules, reloadRules } = require('./rule-loader');
+const logger = require('./logger');
 
 let deps = {};
 
@@ -30,9 +31,33 @@ function init(injected) {
 function register() {
   ipcMain.handle('get-stats', () => deps.getStats());
   ipcMain.handle('get-resource-usage', () => deps.getResourceUsage());
-  ipcMain.handle('export-log', () => exporter.exportLog());
-  ipcMain.handle('export-csv', () => exporter.exportCsv());
-  ipcMain.handle('generate-report', () => exporter.generateReport());
+  ipcMain.handle('export-log', async () => {
+    try {
+      const data = await exporter.exportLog();
+      return data;
+    } catch (error) {
+      logger.error(`IPC export-log failed: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle('export-csv', async () => {
+    try {
+      const data = await exporter.exportCsv();
+      return data;
+    } catch (error) {
+      logger.error(`IPC export-csv failed: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle('generate-report', async () => {
+    try {
+      const data = await exporter.generateReport();
+      return data;
+    } catch (error) {
+      logger.error(`IPC generate-report failed: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  });
   ipcMain.handle('get-settings', () => ({ ...config.getSettings() }));
 
   ipcMain.handle('save-settings', (_e, newSettings) => {
@@ -55,21 +80,36 @@ function register() {
     if (!config.getSettings().anthropicApiKey) {
       return { success: false, error: 'Set your Anthropic API key in Settings' };
     }
-    return analysis.analyzeAgentActivity(name);
+    try {
+      return await analysis.analyzeAgentActivity(name);
+    } catch (error) {
+      logger.error(`IPC analyze-agent failed: ${error.message}`);
+      return { success: false, error: error.message };
+    }
   });
 
   ipcMain.handle('analyze-session', async () => {
     if (!config.getSettings().anthropicApiKey) {
       return { success: false, error: 'Set your Anthropic API key in Settings' };
     }
-    return analysis.analyzeSessionActivity();
+    try {
+      return await analysis.analyzeSessionActivity();
+    } catch (error) {
+      logger.error(`IPC analyze-session failed: ${error.message}`);
+      return { success: false, error: error.message };
+    }
   });
 
   ipcMain.handle('open-threat-report', async (_e, html) => {
-    const fp = path.join(app.getPath('temp'), `aegis-threat-report-${Date.now()}.html`);
-    fs.writeFileSync(fp, html);
-    shell.openExternal('file://' + fp.replace(/\\/g, '/'));
-    return { success: true, path: fp };
+    try {
+      const fp = path.join(app.getPath('temp'), `aegis-threat-report-${Date.now()}.html`);
+      fs.writeFileSync(fp, html);
+      shell.openExternal('file://' + fp.replace(/\\/g, '/'));
+      return { success: true, path: fp };
+    } catch (error) {
+      logger.error(`IPC open-threat-report failed: ${error.message}`);
+      return { success: false, error: error.message };
+    }
   });
 
   ipcMain.handle('get-all-permissions', () => {
@@ -119,15 +159,20 @@ function register() {
   });
 
   ipcMain.handle('export-agent-database', async () => {
-    const merged = { ...scanner.agentDb, customAgents: config.getCustomAgents() };
-    const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
-      title: 'Export Agent Database',
-      defaultPath: 'aegis-agents.json',
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-    });
-    if (!filePath) return { success: false };
-    fs.writeFileSync(filePath, JSON.stringify(merged, null, 2));
-    return { success: true, path: filePath };
+    try {
+      const merged = { ...scanner.agentDb, customAgents: config.getCustomAgents() };
+      const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
+        title: 'Export Agent Database',
+        defaultPath: 'aegis-agents.json',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      });
+      if (!filePath) return { success: false };
+      fs.writeFileSync(filePath, JSON.stringify(merged, null, 2));
+      return { success: true, path: filePath };
+    } catch (error) {
+      logger.error(`IPC export-agent-database failed: ${error.message}`);
+      return { success: false, error: error.message };
+    }
   });
 
   ipcMain.handle('import-agent-database', async () => {
@@ -155,28 +200,38 @@ function register() {
   });
 
   ipcMain.handle('export-full-audit', async () => {
-    const all = audit.exportAll();
-    const defaultName = `aegis-full-audit-${new Date().toISOString().slice(0, 10)}.json`;
-    const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
-      title: 'Export Full Audit Log',
-      defaultPath: defaultName,
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-    });
-    if (!filePath) return { success: false };
-    fs.writeFileSync(filePath, JSON.stringify(all, null, 2));
-    return { success: true, path: filePath, count: all.length };
+    try {
+      const all = audit.exportAll();
+      const defaultName = `aegis-full-audit-${new Date().toISOString().slice(0, 10)}.json`;
+      const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
+        title: 'Export Full Audit Log',
+        defaultPath: defaultName,
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      });
+      if (!filePath) return { success: false };
+      fs.writeFileSync(filePath, JSON.stringify(all, null, 2));
+      return { success: true, path: filePath, count: all.length };
+    } catch (error) {
+      logger.error(`IPC export-full-audit failed: ${error.message}`);
+      return { success: false, error: error.message };
+    }
   });
 
   // ── Config export/import ──
   ipcMain.handle('export-config', async () => {
-    const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
-      title: 'Export Config',
-      defaultPath: 'aegis-config.json',
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-    });
-    if (!filePath) return { success: false };
-    fs.writeFileSync(filePath, JSON.stringify(config.getSettings(), null, 2));
-    return { success: true, path: filePath };
+    try {
+      const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
+        title: 'Export Config',
+        defaultPath: 'aegis-config.json',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      });
+      if (!filePath) return { success: false };
+      fs.writeFileSync(filePath, JSON.stringify(config.getSettings(), null, 2));
+      return { success: true, path: filePath };
+    } catch (error) {
+      logger.error(`IPC export-config failed: ${error.message}`);
+      return { success: false, error: error.message };
+    }
   });
 
   ipcMain.handle('import-config', async () => {
@@ -206,27 +261,32 @@ function register() {
 
   // ── Zip export ──
   ipcMain.handle('export-zip', async () => {
-    const settingsCopy = { ...config.getSettings() };
-    delete settingsCopy.anthropicApiKey;
-    delete settingsCopy.apiKey;
-    const entries = [
-      { name: 'audit-log.json', data: Buffer.from(JSON.stringify(audit.exportAll(), null, 2)) },
-      {
-        name: 'activity-log.json',
-        data: Buffer.from(JSON.stringify(scanner.activityLog.slice(-5000), null, 2)),
-      },
-      { name: 'config.json', data: Buffer.from(JSON.stringify(settingsCopy, null, 2)) },
-    ];
-    const zipBuf = zipWriter.createZip(entries);
-    const defaultName = `aegis-export-${new Date().toISOString().slice(0, 10)}.zip`;
-    const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
-      title: 'Export All Data (ZIP)',
-      defaultPath: defaultName,
-      filters: [{ name: 'ZIP', extensions: ['zip'] }],
-    });
-    if (!filePath) return { success: false };
-    fs.writeFileSync(filePath, zipBuf);
-    return { success: true, path: filePath };
+    try {
+      const settingsCopy = { ...config.getSettings() };
+      delete settingsCopy.anthropicApiKey;
+      delete settingsCopy.apiKey;
+      const entries = [
+        { name: 'audit-log.json', data: Buffer.from(JSON.stringify(audit.exportAll(), null, 2)) },
+        {
+          name: 'activity-log.json',
+          data: Buffer.from(JSON.stringify(scanner.activityLog.slice(-5000), null, 2)),
+        },
+        { name: 'config.json', data: Buffer.from(JSON.stringify(settingsCopy, null, 2)) },
+      ];
+      const zipBuf = zipWriter.createZip(entries);
+      const defaultName = `aegis-export-${new Date().toISOString().slice(0, 10)}.zip`;
+      const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
+        title: 'Export All Data (ZIP)',
+        defaultPath: defaultName,
+        filters: [{ name: 'ZIP', extensions: ['zip'] }],
+      });
+      if (!filePath) return { success: false };
+      fs.writeFileSync(filePath, zipBuf);
+      return { success: true, path: filePath };
+    } catch (error) {
+      logger.error(`IPC export-zip failed: ${error.message}`);
+      return { success: false, error: error.message };
+    }
   });
 
   // ── Process control ──

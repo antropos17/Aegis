@@ -178,9 +178,7 @@
     }
   }
   .panel {
-    background: var(--md-sys-color-surface-container-high);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
+    background: var(--md-sys-color-surface-container-high-opaque);
     border: var(--glass-border);
     box-shadow: var(--glass-shadow);
     border-radius: var(--md-sys-shape-corner-large);

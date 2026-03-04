@@ -137,11 +137,12 @@ async function resolveIp(ip) {
   const cached = dnsCache.get(ip);
   if (cached && Date.now() - cached.timestamp < DNS_CACHE_TTL) return cached.domain;
   // Prune stale entries when cache grows too large
-  if (dnsCache.size > 1000) {
+  if (dnsCache.size > 500) {
     const now = Date.now();
     for (const [key, entry] of dnsCache) {
       if (now - entry.timestamp >= DNS_CACHE_TTL) dnsCache.delete(key);
     }
+    if (dnsCache.size > 500) dnsCache.clear();
   }
   try {
     const hostnames = await _dnsReverse(ip);
