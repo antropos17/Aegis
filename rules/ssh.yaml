@@ -1,0 +1,52 @@
+version: 1
+category: ssh
+description: SSH keys, known hosts and authorized keys
+
+rules:
+  - id: "SS001"
+    name: "SSH directory"
+    pattern: "[\\\\\/]\\.ssh[\\\\\/]"
+    reason: "SSH keys/config"
+    category: "ssh"
+    risk: critical
+    enabled: true
+
+  - id: "SS002"
+    name: "SSH RSA private key"
+    pattern: "id_rsa"
+    reason: "SSH private key"
+    category: "ssh"
+    risk: critical
+    enabled: true
+
+  - id: "SS003"
+    name: "SSH Ed25519 private key"
+    pattern: "id_ed25519"
+    reason: "SSH private key"
+    category: "ssh"
+    risk: critical
+    enabled: true
+
+  - id: "SS004"
+    name: "SSH ECDSA private key"
+    pattern: "id_ecdsa"
+    reason: "SSH private key"
+    category: "ssh"
+    risk: critical
+    enabled: true
+
+  - id: "SS005"
+    name: "SSH known hosts"
+    pattern: "known_hosts"
+    reason: "SSH known hosts"
+    category: "ssh"
+    risk: high
+    enabled: true
+
+  - id: "SS006"
+    name: "SSH authorized keys"
+    pattern: "authorized_keys"
+    reason: "SSH authorized keys"
+    category: "ssh"
+    risk: critical
+    enabled: true

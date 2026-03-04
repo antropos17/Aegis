@@ -14,6 +14,7 @@ const exporter = require('./exports');
 const audit = require('./audit-logger');
 const { killProcess, suspendProcess, resumeProcess } = require('./platform');
 const zipWriter = require('./zip-writer');
+const { getAllRules, reloadRules } = require('./rule-loader');
 
 let deps = {};
 
@@ -256,6 +257,25 @@ function register() {
   ipcMain.handle('open-external-url', (_e, url) => {
     shell.openExternal(url);
     return { success: true };
+  });
+
+  // ── Rules (YAML rulesets) ──
+  ipcMain.handle('rules:getAll', () => {
+    const rules = getAllRules();
+    return Array.from(rules.values()).map((r) => ({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      risk: r.risk,
+      reason: r.reason,
+      enabled: r.enabled,
+    }));
+  });
+
+  ipcMain.handle('rules:reload', () => {
+    reloadRules();
+    const rules = getAllRules();
+    return { success: true, count: rules.size };
   });
 }
 

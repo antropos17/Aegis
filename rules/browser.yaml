@@ -1,0 +1,76 @@
+version: 1
+category: browser
+description: Browser credential stores, cookies, autofill and history databases
+
+rules:
+  - id: "BR001"
+    name: "Chrome passwords"
+    pattern: "Chrome[\\\\\/]User Data[\\\\\/].*Login Data"
+    reason: "Chrome passwords"
+    category: "browser"
+    risk: critical
+    enabled: true
+
+  - id: "BR002"
+    name: "Chrome cookies"
+    pattern: "Chrome[\\\\\/]User Data[\\\\\/].*Cookies"
+    reason: "Chrome cookies"
+    category: "browser"
+    risk: critical
+    enabled: true
+
+  - id: "BR003"
+    name: "Chrome autofill data"
+    pattern: "Chrome[\\\\\/]User Data[\\\\\/].*Web Data"
+    reason: "Chrome autofill data"
+    category: "browser"
+    risk: high
+    enabled: true
+
+  - id: "BR004"
+    name: "Chrome browsing history"
+    pattern: "Chrome[\\\\\/]User Data[\\\\\/].*History"
+    reason: "Chrome browsing history"
+    category: "browser"
+    risk: high
+    enabled: true
+
+  - id: "BR005"
+    name: "Firefox passwords"
+    pattern: "Firefox[\\\\\/]Profiles[\\\\\/].*logins\\.json"
+    reason: "Firefox passwords"
+    category: "browser"
+    risk: critical
+    enabled: true
+
+  - id: "BR006"
+    name: "Firefox cookies"
+    pattern: "Firefox[\\\\\/]Profiles[\\\\\/].*cookies\\.sqlite"
+    reason: "Firefox cookies"
+    category: "browser"
+    risk: critical
+    enabled: true
+
+  - id: "BR007"
+    name: "Firefox key database"
+    pattern: "Firefox[\\\\\/]Profiles[\\\\\/].*key[34]\\.db"
+    reason: "Firefox key database"
+    category: "browser"
+    risk: critical
+    enabled: true
+
+  - id: "BR008"
+    name: "Edge passwords"
+    pattern: "Edge[\\\\\/]User Data[\\\\\/].*Login Data"
+    reason: "Edge passwords"
+    category: "browser"
+    risk: critical
+    enabled: true
+
+  - id: "BR009"
+    name: "Edge cookies"
+    pattern: "Edge[\\\\\/]User Data[\\\\\/].*Cookies"
+    reason: "Edge cookies"
+    category: "browser"
+    risk: critical
+    enabled: true

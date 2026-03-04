@@ -60,6 +60,13 @@ contextBridge.exposeInMainWorld('aegis', {
   getFalsePositives: () => ipcRenderer.invoke('get-false-positives'),
   addFalsePositive: (entry) => ipcRenderer.invoke('add-false-positive', entry),
   openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),
+  getRules: () => ipcRenderer.invoke('rules:getAll'),
+  reloadRules: () => ipcRenderer.invoke('rules:reload'),
+  onRulesReloaded: (cb) => {
+    const handler = (_e, data) => cb(data);
+    ipcRenderer.on('rules:reloaded', handler);
+    return () => ipcRenderer.removeListener('rules:reloaded', handler);
+  },
   onScanBatch: (cb) => {
     ipcRenderer.on('scan-batch', (_e, data) => cb(data));
   },

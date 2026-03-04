@@ -1,0 +1,268 @@
+version: 1
+category: ai-config
+description: AI agent and local LLM configuration directories — critical targets for infostealers
+
+rules:
+  - id: "AI001"
+    name: "Claude Code config"
+    pattern: "[\\\\\/]\\.claude[\\\\\/]"
+    reason: "AI agent config — Claude Code"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI002"
+    name: "Claude Code JSON config"
+    pattern: "[\\\\\/]\\.claude\\.json$"
+    reason: "AI agent config — Claude Code"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI003"
+    name: "GitHub Copilot config"
+    pattern: "[\\\\\/]\\.copilot[\\\\\/]"
+    reason: "AI agent config — GitHub Copilot"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI004"
+    name: "Cursor config"
+    pattern: "[\\\\\/]\\.cursor[\\\\\/]"
+    reason: "AI agent config — Cursor"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI005"
+    name: "Cursor rules file"
+    pattern: "[\\\\\/]\\.cursorrules$"
+    reason: "AI agent config — Cursor"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI006"
+    name: "Codeium config"
+    pattern: "[\\\\\/]\\.codeium[\\\\\/]"
+    reason: "AI agent config — Codeium"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI007"
+    name: "Continue config"
+    pattern: "[\\\\\/]\\.continue[\\\\\/]"
+    reason: "AI agent config — Continue"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI008"
+    name: "Tabnine config"
+    pattern: "[\\\\\/]\\.tabnine[\\\\\/]"
+    reason: "AI agent config — Tabnine"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI009"
+    name: "Tabnine XDG config"
+    pattern: "[\\\\\/]\\.config[\\\\\/]TabNine[\\\\\/]"
+    reason: "AI agent config — Tabnine"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI010"
+    name: "GitHub Copilot XDG config"
+    pattern: "[\\\\\/]\\.config[\\\\\/]github-copilot[\\\\\/]"
+    reason: "AI agent config — GitHub Copilot"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI011"
+    name: "Aider config"
+    pattern: "[\\\\\/]\\.config[\\\\\/]aider[\\\\\/]"
+    reason: "AI agent config — Aider"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI012"
+    name: "Aider YAML config"
+    pattern: "[\\\\\/]\\.aider\\.conf\\.yml$"
+    reason: "AI agent config — Aider"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI013"
+    name: "OpenClaw config"
+    pattern: "[\\\\\/]\\.openclaw[\\\\\/]"
+    reason: "AI agent config — OpenClaw"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI014"
+    name: "Supermaven config"
+    pattern: "[\\\\\/]\\.supermaven[\\\\\/]"
+    reason: "AI agent config — Supermaven"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI015"
+    name: "JetBrains AI config"
+    pattern: "[\\\\\/]\\.config[\\\\\/]JetBrains[\\\\\/]"
+    reason: "AI agent config — JetBrains AI"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI016"
+    name: "OpenAI Codex config"
+    pattern: "[\\\\\/]\\.codex[\\\\\/]"
+    reason: "AI agent config — OpenAI Codex"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI017"
+    name: "Goose config"
+    pattern: "[\\\\\/]\\.config[\\\\\/]goose[\\\\\/]"
+    reason: "AI agent config — Goose"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI018"
+    name: "Warp config"
+    pattern: "[\\\\\/]\\.warp[\\\\\/]"
+    reason: "AI agent config — Warp"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI019"
+    name: "Gemini config"
+    pattern: "[\\\\\/]\\.gemini[\\\\\/]"
+    reason: "AI agent config — Gemini"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI020"
+    name: "ShellGPT config"
+    pattern: "[\\\\\/]\\.config[\\\\\/]shell_gpt[\\\\\/]"
+    reason: "AI agent config — ShellGPT"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI021"
+    name: "AIsh config"
+    pattern: "[\\\\\/]\\.aish[\\\\\/]"
+    reason: "AI agent config — AIsh"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI022"
+    name: "Mentat config"
+    pattern: "[\\\\\/]\\.mentat[\\\\\/]"
+    reason: "AI agent config — Mentat"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI023"
+    name: "Tabby config"
+    pattern: "[\\\\\/]\\.tabby-client[\\\\\/]"
+    reason: "AI agent config — Tabby"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI024"
+    name: "MetaGPT config"
+    pattern: "[\\\\\/]\\.metagpt[\\\\\/]"
+    reason: "AI agent config — MetaGPT"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI025"
+    name: "Claude Desktop config"
+    pattern: "[\\\\\/]\\.config[\\\\\/]Claude[\\\\\/]"
+    reason: "AI agent config — Claude Desktop"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI026"
+    name: "Composio config"
+    pattern: "[\\\\\/]\\.composio[\\\\\/]"
+    reason: "AI agent config — Composio"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI027"
+    name: "Semgrep config"
+    pattern: "[\\\\\/]\\.semgrep[\\\\\/]"
+    reason: "AI agent config — Semgrep"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI028"
+    name: "Zed config"
+    pattern: "[\\\\\/]\\.config[\\\\\/]zed[\\\\\/]"
+    reason: "AI agent config — Zed"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI029"
+    name: "Config Store"
+    pattern: "[\\\\\/]\\.config[\\\\\/]configstore[\\\\\/]"
+    reason: "AI agent config — Config Store"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI030"
+    name: "Ollama config"
+    pattern: "[\\\\\/]\\.ollama[\\\\\/]"
+    reason: "Local LLM config — Ollama"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI031"
+    name: "Jan config"
+    pattern: "[\\\\\/]\\.jan[\\\\\/]"
+    reason: "Local LLM config — Jan"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI032"
+    name: "LM Studio config"
+    pattern: "[\\\\\/]lm-studio[\\\\\/]"
+    reason: "Local LLM config — LM Studio"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI033"
+    name: "GPT4All config"
+    pattern: "[\\\\\/]\\.cache[\\\\\/]gpt4all[\\\\\/]"
+    reason: "Local LLM config — GPT4All"
+    category: "ai-config"
+    risk: critical
+    enabled: true
