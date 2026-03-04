@@ -46,20 +46,49 @@
     };
   }
 
+  /** Static result for demo mode (no Electron IPC). */
+  function demoResult() {
+    const agents = $enrichedAgents;
+    const agentName = mode === 'agent' && selectedAgent ? selectedAgent : 'all active agents';
+    const names = agents.map((a) => a.name).join(', ') || 'Claude Code, GitHub Copilot';
+    return {
+      summary: `Analysis of ${agentName}: ${agents.length} agent(s) monitored (${names}). File access patterns and network connections reviewed.`,
+      findings: [
+        'Sensitive file access detected: .env.local, .ssh/id_rsa, .aws/credentials',
+        'Normal code editing activity: src/, tests/, package.json',
+        'Suspicious outbound connection to data-collector-unknown.io:4444',
+        'All API traffic uses TLS on port 443',
+      ],
+      riskRating: agents.length > 3 ? 'HIGH' : 'MEDIUM',
+      riskJustification:
+        'Sensitive credential files accessed by multiple agents. Flagged network destination requires investigation.',
+      recommendations: [
+        'Review .ssh and .aws access — restrict to specific agents only',
+        'Block data-collector-unknown.io in firewall rules',
+        'Enable per-agent file access permissions in Rules tab',
+        'Consider rotating exposed credentials',
+      ],
+    };
+  }
+
   async function runAnalysis() {
-    if (!window.aegis) return;
     loading = true;
     error = null;
     result = null;
     try {
-      const res =
-        mode === 'session'
-          ? await window.aegis.analyzeSession()
-          : await window.aegis.analyzeAgent(selectedAgent);
-      if (res.success) {
-        result = normalizeResult(res);
+      if (!window.aegis) {
+        await new Promise((r) => setTimeout(r, 1200));
+        result = demoResult();
       } else {
-        error = res.error || 'Analysis failed';
+        const res =
+          mode === 'session'
+            ? await window.aegis.analyzeSession()
+            : await window.aegis.analyzeAgent(selectedAgent);
+        if (res.success) {
+          result = normalizeResult(res);
+        } else {
+          error = res.error || 'Analysis failed';
+        }
       }
     } catch (e) {
       error = e.message || 'Analysis failed';

@@ -1,5 +1,5 @@
 <script>
-  import { events } from '../stores/ipc.js';
+  import { events, isDemoMode } from '../stores/ipc.js';
   import { enrichedAgents } from '../stores/risk.js';
   import { t } from '../i18n/index.js';
 
@@ -123,13 +123,13 @@
   <h3 class="section-title">{$t('reports.overview.export')}</h3>
 
   <div class="export-row">
-    <button class="export-btn" onclick={() => window.aegis?.exportLog()}
+    <button class="export-btn" disabled={isDemoMode} title={isDemoMode ? 'Desktop app only' : ''} onclick={() => window.aegis?.exportLog()}
       >{$t('reports.overview.export_json')}</button
     >
-    <button class="export-btn" onclick={() => window.aegis?.exportCsv()}
+    <button class="export-btn" disabled={isDemoMode} title={isDemoMode ? 'Desktop app only' : ''} onclick={() => window.aegis?.exportCsv()}
       >{$t('reports.overview.export_csv')}</button
     >
-    <button class="export-btn" onclick={() => window.aegis?.generateReport()}
+    <button class="export-btn" disabled={isDemoMode} title={isDemoMode ? 'Desktop app only' : ''} onclick={() => window.aegis?.generateReport()}
       >{$t('reports.overview.export_html')}</button
     >
   </div>
@@ -269,9 +269,14 @@
     transition: all 0.3s var(--ease-glass);
   }
 
-  .export-btn:hover {
+  .export-btn:hover:not(:disabled) {
     background: var(--md-sys-color-outline-variant);
     color: var(--md-sys-color-on-surface);
     border-color: var(--aegis-border-hover);
+  }
+
+  .export-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 </style>
