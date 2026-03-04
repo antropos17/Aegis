@@ -42,7 +42,7 @@
   <div class="risk-bar">
     <div
       class="risk-fill"
-      style:width="{Math.min(agent.riskScore, 100)}%"
+      style:--progress={Math.min(agent.riskScore, 100) / 100}
       style:background={gradeColor}
     ></div>
   </div>
@@ -125,8 +125,11 @@
   }
   .risk-fill {
     height: 100%;
+    width: 100%;
     border-radius: var(--md-sys-shape-corner-full);
-    transition: width var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-standard);
+    transform: scaleX(var(--progress, 0));
+    transform-origin: left;
+    transition: transform var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-standard);
   }
   .detail-row {
     display: flex;
