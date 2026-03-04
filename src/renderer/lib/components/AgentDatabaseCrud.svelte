@@ -15,7 +15,7 @@
   let editTarget = $state(null);
   let form = $state(createEmptyForm());
 
-  // ── Load agents from IPC ──
+  // ── Load agents from IPC (or static JSON in demo mode) ──
   if (window.aegis) {
     Promise.all([window.aegis.getAgentDatabase(), window.aegis.getCustomAgents()])
       .then(([db, custom]) => {
@@ -23,6 +23,10 @@
         customAgents = custom || [];
       })
       .catch(() => {});
+  } else {
+    import('../../../shared/agent-database.json').then((mod) => {
+      agents = mod.default?.agents || mod.agents || [];
+    });
   }
 
   let allAgents = $derived([...agents, ...customAgents.map((a) => ({ ...a, _custom: true }))]);

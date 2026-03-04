@@ -6,6 +6,7 @@
    * @since v0.1.0
    */
   import { theme, setTheme, uiScale, setUiScale } from '../stores/theme.js';
+  import { isDemoMode } from '../stores/ipc.js';
   import SettingsAppearance from './SettingsAppearance.svelte';
   import SettingsMonitoring from './SettingsMonitoring.svelte';
   import { t } from '../i18n/index.js';
@@ -26,20 +27,30 @@
     if (open) {
       localTheme = $theme;
       localScale = $uiScale;
-      if (!loaded && window.aegis) {
-        window.aegis
-          .getSettings()
-          .then((s) => {
-            if (!s) return;
-            scanInterval = s.scanIntervalSec ?? 10;
-            notifications = s.notificationsEnabled ?? true;
-            apiKey = s.anthropicApiKey ?? '';
-            customPatterns = (s.customSensitivePatterns || []).join('\n');
-            ignoreBuildDirs = s.ignoreCommonBuildDirs !== false;
-            ignoredDirectories = (s.ignoredDirectories || []).join('\n');
-            loaded = true;
-          })
-          .catch(() => {});
+      if (!loaded) {
+        if (window.aegis) {
+          window.aegis
+            .getSettings()
+            .then((s) => {
+              if (!s) return;
+              scanInterval = s.scanIntervalSec ?? 10;
+              notifications = s.notificationsEnabled ?? true;
+              apiKey = s.anthropicApiKey ?? '';
+              customPatterns = (s.customSensitivePatterns || []).join('\n');
+              ignoreBuildDirs = s.ignoreCommonBuildDirs !== false;
+              ignoredDirectories = (s.ignoredDirectories || []).join('\n');
+              loaded = true;
+            })
+            .catch(() => {});
+        } else {
+          scanInterval = 10;
+          notifications = true;
+          apiKey = '';
+          customPatterns = '.env\n.ssh/id_rsa\n.aws/credentials';
+          ignoreBuildDirs = true;
+          ignoredDirectories = 'node_modules\n.git\ndist';
+          loaded = true;
+        }
       }
     }
   });
@@ -122,11 +133,13 @@
       />
 
       <div class="config-actions">
-        <button class="btn" onclick={() => window.aegis?.exportConfig()}
+        <button class="btn" disabled={isDemoMode} title={isDemoMode ? 'Desktop app only' : ''} onclick={() => window.aegis?.exportConfig()}
           >{$t('settings.export_config')}</button
         >
         <button
           class="btn"
+          disabled={isDemoMode}
+          title={isDemoMode ? 'Desktop app only' : ''}
           onclick={async () => {
             const r = await window.aegis?.importConfig();
             if (r?.success) loaded = false;
