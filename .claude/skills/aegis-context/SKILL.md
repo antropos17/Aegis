@@ -1,13 +1,13 @@
 ---
 name: aegis-context
-description: AEGIS project context — 106 agents, Electron 33, Svelte 5 + TypeScript, 553 tests. Auto-invoked on any AEGIS task.
+description: AEGIS project context — 106 agents, Electron 33, Svelte 5 + TypeScript, 568 tests. Auto-invoked on any AEGIS task.
 ---
 
 # AEGIS Context
 
 ## Project
 AEGIS — Independent AI Oversight Layer (Electron desktop)
-Repo: github.com/antropos17/Aegis | Version: 0.5.0-alpha
+Repo: github.com/antropos17/Aegis | Version: 0.7.0-alpha
 Current Focus: Post-release polish, tech debt cleanup
 
 ## Stack
@@ -21,7 +21,7 @@ Electron 33, Svelte 5, Vite 7, TypeScript (incremental, allowJs:true, checkJs:tr
 - Data: src/shared/agent-database.json (106 agent signatures)
 - Config: src/shared/constants.js (70+ sensitive patterns)
 - Types: src/shared/types/ — 7 .ts files, 39 type definitions
-- Tests: 553 pass, 4 skip across 33 files (Vitest, all ESM)
+- Tests: 568 pass, 4 skip across 34 files (Vitest, all ESM)
 
 ## Key Components (Fancy UI — complete)
 - ShieldTab: bento grid with SummaryCards, RiskRing, ActivityFeed
