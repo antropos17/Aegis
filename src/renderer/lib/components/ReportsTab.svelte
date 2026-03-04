@@ -51,7 +51,12 @@
       >
     </div>
 
-    <button class="export-btn" onclick={handleExportAll} disabled={exporting || isDemoMode} title={isDemoMode ? 'Desktop app only' : ''}>
+    <button
+      class="export-btn"
+      onclick={handleExportAll}
+      disabled={exporting || isDemoMode}
+      title={isDemoMode ? 'Desktop app only' : ''}
+    >
       <svg
         class="export-icon"
         viewBox="0 0 16 16"

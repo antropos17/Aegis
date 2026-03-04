@@ -72,10 +72,20 @@
   {/if}
 
   <div class="audit-actions">
-    <button class="audit-btn" disabled={isDemoMode} title={isDemoMode ? 'Desktop app only' : ''} onclick={() => window.aegis?.openAuditLogDir()}>
+    <button
+      class="audit-btn"
+      disabled={isDemoMode}
+      title={isDemoMode ? 'Desktop app only' : ''}
+      onclick={() => window.aegis?.openAuditLogDir()}
+    >
       {$t('reports.audit.view_logs')}
     </button>
-    <button class="audit-btn" disabled={isDemoMode} title={isDemoMode ? 'Desktop app only' : ''} onclick={() => window.aegis?.exportFullAudit()}>
+    <button
+      class="audit-btn"
+      disabled={isDemoMode}
+      title={isDemoMode ? 'Desktop app only' : ''}
+      onclick={() => window.aegis?.exportFullAudit()}
+    >
       {$t('reports.audit.export')}
     </button>
   </div>
