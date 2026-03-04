@@ -69,7 +69,8 @@ export function startDemoMode({ agents, events, stats, network, anomalies, resou
   }
 
   // Seed initial state — stagger across frames to avoid reactivity cascade
-  const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 0);
+  const raf =
+    typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 0);
   agents.set(activeAgents());
   raf(() => {
     stats.set(
