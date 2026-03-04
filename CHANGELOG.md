@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.5.0-alpha...aegis-v0.6.0-alpha) (2026-03-03)
+
+
+### Features
+
+* **ui:** add skeleton loading for pre-scan state ([cf02d81](https://github.com/antropos17/Aegis/commit/cf02d81742a2d3b83aff44085311dd233c5932ba))
+
+
+### Bug Fixes
+
+* cleanup  timers and reactive loop in Timeline ([8637f5a](https://github.com/antropos17/Aegis/commit/8637f5a43415f98bf8b7c6c6dbc0cc2e40891e53))
+* guard getStats against undefined scanner during early IPC ([eba8091](https://github.com/antropos17/Aegis/commit/eba80919665769f923e1b0fd9ee2734a1becdbbd))
+* move tray.init to critical path before ready-to-show ([e9972ad](https://github.com/antropos17/Aegis/commit/e9972adfa03af0dc59fdacb08dff268acf4b5b2d))
+
+
+### Performance
+
+* add depth limits to chokidar watchers (18s-&gt;2s) ([9c5812f](https://github.com/antropos17/Aegis/commit/9c5812faf011bd6730b4fca57a646d73ecc5c5aa))
+* batch PowerShell CWD lookup (54 spawns-&gt;1) ([cb414b1](https://github.com/antropos17/Aegis/commit/cb414b158c90a85ee1805c7e6cbef6b6987cea7b))
+* defer non-critical module loading until after ready-to-show ([0d1d22e](https://github.com/antropos17/Aegis/commit/0d1d22e2d9dd300e5f2df6c812064a499529254a))
+* fix startup freeze + dead code cleanup + renderer optimizations (120s-&gt;1s) ([09bb6ca](https://github.com/antropos17/Aegis/commit/09bb6caf351cc133c3ad92a84de2707ee34b3a73))
+* lazy module loading + skeleton UI (eliminate perceived startup lag) ([e3d0880](https://github.com/antropos17/Aegis/commit/e3d088091a434d00f4f1230fcaba5850c8a638fc))
+* pre-build events index to eliminate O(N*M) in AgentCard ([12e4772](https://github.com/antropos17/Aegis/commit/12e4772b10455c34368838fd579d426e8c1cab52))
+* replace sync fs reads with in-memory counters in loggers ([47a926f](https://github.com/antropos17/Aegis/commit/47a926ff3e823e9727514ba3e05a7bcc8b63c2e3))
+
+
+### Code Refactoring
+
+* remove 12 dead exports, 11 dead CSS vars, @types/electron ([c7b5f8b](https://github.com/antropos17/Aegis/commit/c7b5f8bd8693298a2b80b4fb603259bae609a58a))
+* remove 17 dead IPC channels ([f1555bf](https://github.com/antropos17/Aegis/commit/f1555bf0eaf8813e992d36b7fdb1c444c2bf50ed))
+
+
+### Documentation
+
+* sync context files for v0.5.0-alpha ([c28b7f7](https://github.com/antropos17/Aegis/commit/c28b7f7e5dd52eca24c9a16177ef5cc476b7088a))
+* sync context files for v0.5.0-alpha ([e4d89c9](https://github.com/antropos17/Aegis/commit/e4d89c97fe93a1fa521a10be6d102bf2621a3f4b))
+
 ## [0.5.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.4.0-alpha...aegis-v0.5.0-alpha) (2026-03-03)
 
 
