@@ -84,6 +84,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.3.3",
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^8.56.1",
@@ -103,6 +104,8 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
-    "chokidar": "^3.6.0"
+    "ajv": "^6.14.0",
+    "chokidar": "^3.6.0",
+    "js-yaml": "^4.1.1"
   }
 }
