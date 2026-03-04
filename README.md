@@ -103,18 +103,29 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
 
 ## Screenshots
 
-<table>
-  <tr>
-    <td align="center"><img src="docs/screenshots/01-shield-tab.png" width="280"><br><b>Shield Tab</b></td>
-    <td align="center"><img src="docs/screenshots/02-activity-feed.png" width="280"><br><b>Activity Feed</b></td>
-    <td align="center"><img src="docs/screenshots/03-activity-network.png" width="280"><br><b>Network Monitor</b></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/screenshots/04-rules-permissions.png" width="280"><br><b>Rules & Permissions</b></td>
-    <td align="center"><img src="docs/screenshots/05-rules-agent-db.png" width="280"><br><b>Agent Database</b></td>
-    <td align="center"><img src="docs/screenshots/07-settings-modal.png" width="280"><br><b>Settings</b></td>
-  </tr>
-</table>
+<details><summary>📸 Shield — Real-time Overview</summary>
+<img src="docs/screenshots/01-shield-tab.png" alt="Shield tab" width="800" />
+</details>
+
+<details><summary>📸 Activity Feed</summary>
+<img src="docs/screenshots/02-activity-tab.png" alt="Activity Feed" width="800" />
+</details>
+
+<details><summary>📸 Rules & Permissions</summary>
+<img src="docs/screenshots/03-rules-tab.png" alt="Rules & Permissions" width="800" />
+</details>
+
+<details><summary>📸 Reports & Export</summary>
+<img src="docs/screenshots/04-reports-tab.png" alt="Reports & Export" width="800" />
+</details>
+
+<details><summary>📸 Agent Statistics</summary>
+<img src="docs/screenshots/05-stats-tab.png" alt="Agent Statistics" width="800" />
+</details>
+
+<details><summary>📸 Settings</summary>
+<img src="docs/screenshots/06-settings.png" alt="Settings" width="800" />
+</details>
 
 ## Architecture
 
