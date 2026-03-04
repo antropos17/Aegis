@@ -70,11 +70,9 @@
 
   /* ── Glass panel ── */
   .panel {
-    background: var(--fancy-panel-bg);
+    background: var(--fancy-panel-bg-opaque);
     border: var(--fancy-panel-border);
     border-radius: var(--fancy-panel-radius);
-    backdrop-filter: blur(var(--fancy-panel-blur));
-    -webkit-backdrop-filter: blur(var(--fancy-panel-blur));
     box-shadow: var(--fancy-panel-shadow);
     overflow: hidden;
     transition: border-color var(--fancy-transition-micro) var(--fancy-ease);

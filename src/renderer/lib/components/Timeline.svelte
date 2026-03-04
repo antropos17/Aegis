@@ -338,9 +338,7 @@
   .timeline-wrap {
     width: 100%;
     box-sizing: border-box;
-    background: var(--md-sys-color-surface-container-low);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
+    background: var(--md-sys-color-surface-container-low-opaque);
     border: var(--aegis-card-border);
     box-shadow:
       0 2px 8px rgba(0, 0, 0, 0.12),

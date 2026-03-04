@@ -63,9 +63,7 @@
     display: flex;
     gap: var(--aegis-space-2);
     padding: calc(3px * var(--aegis-ui-scale));
-    background: var(--md-sys-color-surface-container-low);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
+    background: var(--md-sys-color-surface-container-low-opaque);
     border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-full);
     width: fit-content;

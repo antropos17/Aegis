@@ -138,9 +138,7 @@
     gap: var(--aegis-space-2);
     padding: calc(3px * var(--aegis-ui-scale));
     align-self: flex-start;
-    background: var(--md-sys-color-surface-container-low);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
+    background: var(--md-sys-color-surface-container-low-opaque);
     border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-full);
   }
@@ -199,8 +197,6 @@
     border-radius: var(--md-sys-shape-corner-full);
     color: var(--md-sys-color-on-surface-variant);
     cursor: pointer;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     transition: all 0.3s var(--ease-glass);
   }
 

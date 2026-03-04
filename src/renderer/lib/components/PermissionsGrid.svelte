@@ -207,9 +207,7 @@
 
 <style>
   .grid-wrapper {
-    background: var(--md-sys-color-surface-container-low);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
+    background: var(--md-sys-color-surface-container-low-opaque);
     border: var(--glass-border);
     box-shadow: var(--glass-shadow-card), var(--glass-highlight);
     border-radius: var(--md-sys-shape-corner-medium);

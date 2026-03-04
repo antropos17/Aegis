@@ -153,8 +153,6 @@
     border-radius: var(--md-sys-shape-corner-small);
     color: var(--md-sys-color-on-surface-variant);
     cursor: pointer;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     transition: all 0.3s var(--ease-glass);
   }
   .crud-btn:hover {

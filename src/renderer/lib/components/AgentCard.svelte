@@ -185,9 +185,7 @@
 
 <style>
   .agent-card {
-    background: var(--fancy-surface);
-    backdrop-filter: blur(var(--fancy-panel-blur));
-    -webkit-backdrop-filter: blur(var(--fancy-panel-blur));
+    background: var(--fancy-panel-bg-opaque);
     border: 1px solid var(--fancy-border);
     border-radius: var(--fancy-radius-md);
     padding: var(--fancy-space-md);

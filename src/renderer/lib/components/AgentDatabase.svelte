@@ -136,9 +136,7 @@
   .db-search {
     font: var(--md-sys-typescale-body-medium);
     padding: var(--aegis-space-4) var(--aegis-space-6);
-    background: var(--md-sys-color-surface-container-low);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
+    background: var(--md-sys-color-surface-container-low-opaque);
     border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-small);
     color: var(--md-sys-color-on-surface);
@@ -176,8 +174,6 @@
     max-height: calc(420px * var(--aegis-ui-scale));
     border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-medium);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
     box-shadow: var(--glass-shadow-card);
   }
   .db-table {
