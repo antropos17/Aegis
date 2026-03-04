@@ -59,6 +59,26 @@ let latestNetConnections = [],
 let previousAgentPids = new Map();
 const fileWatchers = [];
 
+// ═══ RUNNING COUNTERS for getStats() — O(1) instead of O(n) ═══
+let totalSensitive = 0;
+let aiSensitive = 0;
+
+/** @param {Object} ev - Activity log event being added */
+function onActivityPush(ev) {
+  if (ev.sensitive) {
+    totalSensitive++;
+    if (ev.category === 'ai') aiSensitive++;
+  }
+}
+
+/** @param {Object} ev - Activity log event being evicted */
+function onActivityEvict(ev) {
+  if (ev.sensitive) {
+    totalSensitive--;
+    if (ev.category === 'ai') aiSensitive--;
+  }
+}
+
 /** Loads modules not needed until first scan cycle. Called after ready-to-show. */
 function loadDeferredModules() {
   baselines = require('./baselines');
@@ -103,8 +123,8 @@ function getStats() {
   const log = scanner.activityLog;
   return {
     totalFiles: log.length,
-    totalSensitive: log.filter((e) => e.sensitive).length,
-    aiSensitive: log.filter((e) => e.sensitive && e.category === 'ai').length,
+    totalSensitive,
+    aiSensitive,
     uptimeMs: Date.now() - scanner.monitoringStarted,
     monitoringStarted: scanner.monitoringStarted,
     peakAgents: scanner.peakAgents,
@@ -245,6 +265,8 @@ function initDeferredSubsystems(userData) {
     knownHandles: scanner.knownHandles,
     watchers: fileWatchers,
     recordFileAccess: baselines.recordFileAccess,
+    onActivityPush,
+    onActivityEvict,
     onFileEvent: (ev) => {
       const deduped = scanLoop.dedupFileEvent(ev);
       if (!deduped) return;
@@ -295,7 +317,8 @@ function initDeferredSubsystems(userData) {
       });
       const log = scanner.activityLog;
       if (log.length > 1000) {
-        log.splice(0, log.length - 1000);
+        const removed = log.splice(0, log.length - 1000);
+        for (const ev of removed) onActivityEvict(ev);
       }
     }
   }, 60_000);
