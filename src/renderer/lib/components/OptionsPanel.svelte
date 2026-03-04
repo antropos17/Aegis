@@ -133,8 +133,11 @@
       />
 
       <div class="config-actions">
-        <button class="btn" disabled={isDemoMode} title={isDemoMode ? 'Desktop app only' : ''} onclick={() => window.aegis?.exportConfig()}
-          >{$t('settings.export_config')}</button
+        <button
+          class="btn"
+          disabled={isDemoMode}
+          title={isDemoMode ? 'Desktop app only' : ''}
+          onclick={() => window.aegis?.exportConfig()}>{$t('settings.export_config')}</button
         >
         <button
           class="btn"

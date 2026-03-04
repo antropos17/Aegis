@@ -123,14 +123,23 @@
   <h3 class="section-title">{$t('reports.overview.export')}</h3>
 
   <div class="export-row">
-    <button class="export-btn" disabled={isDemoMode} title={isDemoMode ? 'Desktop app only' : ''} onclick={() => window.aegis?.exportLog()}
-      >{$t('reports.overview.export_json')}</button
+    <button
+      class="export-btn"
+      disabled={isDemoMode}
+      title={isDemoMode ? 'Desktop app only' : ''}
+      onclick={() => window.aegis?.exportLog()}>{$t('reports.overview.export_json')}</button
     >
-    <button class="export-btn" disabled={isDemoMode} title={isDemoMode ? 'Desktop app only' : ''} onclick={() => window.aegis?.exportCsv()}
-      >{$t('reports.overview.export_csv')}</button
+    <button
+      class="export-btn"
+      disabled={isDemoMode}
+      title={isDemoMode ? 'Desktop app only' : ''}
+      onclick={() => window.aegis?.exportCsv()}>{$t('reports.overview.export_csv')}</button
     >
-    <button class="export-btn" disabled={isDemoMode} title={isDemoMode ? 'Desktop app only' : ''} onclick={() => window.aegis?.generateReport()}
-      >{$t('reports.overview.export_html')}</button
+    <button
+      class="export-btn"
+      disabled={isDemoMode}
+      title={isDemoMode ? 'Desktop app only' : ''}
+      onclick={() => window.aegis?.generateReport()}>{$t('reports.overview.export_html')}</button
     >
   </div>
 </div>
