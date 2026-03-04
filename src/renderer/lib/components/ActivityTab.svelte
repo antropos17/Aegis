@@ -3,6 +3,8 @@
   import ActivityFeed from './ActivityFeed.svelte';
   import GroupedFeed from './GroupedFeed.svelte';
   import NetworkPanel from './NetworkPanel.svelte';
+  import SkeletonLoader from './SkeletonLoader.svelte';
+  import { events } from '../stores/ipc.js';
   import { t } from '../i18n/index.js';
 
   /** @type {{ active?: boolean }} */
@@ -13,6 +15,12 @@
   let severityFilter = $state('all');
   let typeFilter = $state('all');
   let groupByAgent = $state(true);
+
+  /** True once first event batch arrives */
+  let dataReady = $state(false);
+  $effect(() => {
+    if ($events.length > 0) dataReady = true;
+  });
 </script>
 
 <div class="activity-tab">
@@ -25,7 +33,12 @@
     >
   </div>
 
-  {#if view === 'feed'}
+  {#if !dataReady}
+    <div class="activity-skeleton">
+      <SkeletonLoader lines={1} style="card" />
+      <SkeletonLoader lines={5} style="list" />
+    </div>
+  {:else if view === 'feed'}
     <FeedFilters {active} bind:agentFilter bind:severityFilter bind:typeFilter bind:groupByAgent />
     {#if groupByAgent}
       <GroupedFeed {active} {agentFilter} {severityFilter} {typeFilter} />
@@ -79,5 +92,13 @@
     background: var(--md-sys-color-primary-container);
     color: var(--md-sys-color-on-primary);
     box-shadow: 0 2px 12px rgba(42, 58, 78, 0.4);
+  }
+
+  .activity-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: var(--aegis-space-6);
+    flex: 1;
+    min-height: 0;
   }
 </style>
