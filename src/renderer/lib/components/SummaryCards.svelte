@@ -286,7 +286,7 @@
     font-size: 11px;
     font-weight: 500;
     line-height: 1;
-    color: var(--fancy-text-2);
+    color: #9ea3ac;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     order: -1;
