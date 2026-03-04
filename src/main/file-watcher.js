@@ -9,6 +9,7 @@
  * @requires chokidar
  * @requires child_process
  * @requires ../shared/constants
+ * @requires ./rule-loader
  * @author AEGIS Contributors
  * @license MIT
  * @version 0.3.0-alpha
@@ -18,12 +19,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const chokidar = require('chokidar');
-const {
-  SENSITIVE_RULES,
-  IGNORE_PATTERNS,
-  AGENT_CONFIG_PATHS,
-  AGENT_SELF_CONFIG,
-} = require('../shared/constants');
+const { IGNORE_PATTERNS, AGENT_CONFIG_PATHS, AGENT_SELF_CONFIG } = require('../shared/constants');
+const { getAllRules } = require('./rule-loader');
 const _platform = require('./platform');
 const { IGNORE_FILE_PATTERNS } = _platform;
 
@@ -76,8 +73,8 @@ function init(state) {
  * @since v0.1.0
  */
 function classifySensitive(filePath) {
-  for (const rule of SENSITIVE_RULES) {
-    if (rule.pattern.test(filePath)) return rule.reason;
+  for (const rule of getAllRules().values()) {
+    if (rule.enabled !== false && rule.pattern.test(filePath)) return rule.reason;
   }
   if (_state) {
     for (const rule of _state.getCustomRules()) {
