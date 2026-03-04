@@ -157,9 +157,9 @@
   }
 
   .sub-btn.active {
-    background: var(--md-sys-color-primary);
+    background: var(--md-sys-color-primary-container);
     color: var(--md-sys-color-on-primary);
-    box-shadow: 0 2px 12px rgba(122, 138, 158, 0.3);
+    box-shadow: 0 2px 12px rgba(42, 58, 78, 0.4);
   }
 
   .rules-section {
