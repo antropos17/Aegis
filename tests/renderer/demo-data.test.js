@@ -129,7 +129,7 @@ describe('demo-data', () => {
       expect(result).toHaveProperty('aiSensitive');
       expect(result).toHaveProperty('uptimeMs');
       expect(result).toHaveProperty('monitoringStarted');
-      expect(result).toHaveProperty('peakAgents', 5);
+      expect(result).toHaveProperty('peakAgents', 12);
       expect(result).toHaveProperty('currentAgents', 2);
       expect(result).toHaveProperty('aiAgentCount', 1);
       expect(result).toHaveProperty('otherAgentCount', 1);

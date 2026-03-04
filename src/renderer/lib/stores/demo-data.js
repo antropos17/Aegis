@@ -32,7 +32,7 @@ export function buildStats({ activeAgents, totalFiles, totalSensitive, monitorin
     aiSensitive: Math.round(totalSensitive * 0.85),
     uptimeMs: Date.now() - monitoringStarted,
     monitoringStarted,
-    peakAgents: 5,
+    peakAgents: 12,
     currentAgents: activeAgents.length,
     aiAgentCount: activeAgents.filter((a) => a.category === 'ai').length,
     otherAgentCount: activeAgents.filter((a) => a.category !== 'ai').length,
