@@ -1,0 +1,43 @@
+version: 1
+category: secrets
+description: Test rules for sensitive file detection
+
+rules:
+  - id: TS001
+    name: Environment variables
+    pattern: "[\\\\/]\\.env$"
+    reason: Environment variables
+    category: secrets
+    risk: high
+    tags: [env, credentials]
+
+  - id: TS002
+    name: SSH private key (RSA)
+    pattern: "id_rsa"
+    reason: SSH private key
+    category: ssh
+    risk: critical
+    platform: all
+
+  - id: TS003
+    name: AWS credentials directory
+    pattern: "[\\\\/]\\.aws[\\\\/]"
+    reason: AWS credentials
+    category: cloud
+    risk: critical
+    tags: [aws, cloud]
+
+  - id: TS004
+    name: PEM private key file
+    pattern: "\\.pem$"
+    reason: Private key (PEM)
+    category: certificates
+    risk: high
+
+  - id: TS005
+    name: Chrome passwords
+    pattern: "Chrome[\\\\/]User Data[\\\\/].*Login Data"
+    reason: Chrome passwords
+    category: browser
+    risk: critical
+    enabled: true

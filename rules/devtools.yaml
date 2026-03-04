@@ -1,0 +1,36 @@
+version: 1
+category: devtools
+description: Developer tool configs that may contain authentication tokens
+
+rules:
+  - id: "DV001"
+    name: "NPM config"
+    pattern: "[\\\\\/]\\.npmrc$"
+    reason: "NPM config (may contain tokens)"
+    category: "devtools"
+    risk: high
+    enabled: true
+
+  - id: "DV002"
+    name: "PyPI config"
+    pattern: "[\\\\\/]\\.pypirc$"
+    reason: "PyPI config (may contain tokens)"
+    category: "devtools"
+    risk: high
+    enabled: true
+
+  - id: "DV003"
+    name: "Docker credentials"
+    pattern: "[\\\\\/]\\.docker[\\\\\/]config\\.json"
+    reason: "Docker credentials"
+    category: "devtools"
+    risk: critical
+    enabled: true
+
+  - id: "DV004"
+    name: "Kubernetes config"
+    pattern: "[\\\\\/]\\.kube[\\\\\/]"
+    reason: "Kubernetes config"
+    category: "devtools"
+    risk: critical
+    enabled: true

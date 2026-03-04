@@ -1,0 +1,12 @@
+version: 1
+category: crypto
+description: Cryptographic key stores (GPG, PGP)
+
+rules:
+  - id: "CR001"
+    name: "GPG keys"
+    pattern: "[\\\\\/]\\.gnupg[\\\\\/]"
+    reason: "GPG keys"
+    category: "crypto"
+    risk: critical
+    enabled: true

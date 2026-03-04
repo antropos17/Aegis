@@ -1,0 +1,106 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aegis.dev/schemas/ruleset.json",
+  "title": "AEGIS Ruleset",
+  "description": "Schema for AEGIS YAML ruleset files — defines sensitive file detection rules",
+  "type": "object",
+  "required": ["version", "category", "description", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version (must be 1)"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "ai-config",
+        "secrets",
+        "ssh",
+        "certificates",
+        "cloud",
+        "browser",
+        "devtools",
+        "crypto"
+      ],
+      "description": "Ruleset category"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable description of this ruleset"
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/rule" },
+      "description": "Array of detection rules"
+    }
+  },
+  "definitions": {
+    "rule": {
+      "type": "object",
+      "required": ["id", "name", "pattern", "reason", "category"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z]{2,4}[0-9]{3}$",
+          "description": "Unique rule ID (e.g. AI001, SH003)"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable rule name"
+        },
+        "pattern": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Regex pattern as string (no slashes) — compiled to RegExp by loader"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Why this file is sensitive (shown in UI, matches file-watcher contract)"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "ai-config",
+            "secrets",
+            "ssh",
+            "certificates",
+            "cloud",
+            "browser",
+            "devtools",
+            "crypto"
+          ],
+          "description": "Rule category"
+        },
+        "risk": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low"],
+          "default": "medium",
+          "description": "Risk severity level"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the rule is active"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional tags for filtering"
+        },
+        "platform": {
+          "type": "string",
+          "enum": ["all", "windows", "darwin", "linux"],
+          "default": "all",
+          "description": "Target platform (all = cross-platform)"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,36 @@
+version: 1
+category: certificates
+description: Private keys and certificate files (PEM, KEY, PFX, P12)
+
+rules:
+  - id: "CE001"
+    name: "PEM private key"
+    pattern: "\\.pem$"
+    reason: "Private key (PEM)"
+    category: "certificates"
+    risk: critical
+    enabled: true
+
+  - id: "CE002"
+    name: "Private key file"
+    pattern: "\\.key$"
+    reason: "Private key"
+    category: "certificates"
+    risk: critical
+    enabled: true
+
+  - id: "CE003"
+    name: "PFX certificate"
+    pattern: "\\.pfx$"
+    reason: "Certificate (PFX)"
+    category: "certificates"
+    risk: critical
+    enabled: true
+
+  - id: "CE004"
+    name: "P12 certificate"
+    pattern: "\\.p12$"
+    reason: "Certificate (P12)"
+    category: "certificates"
+    risk: critical
+    enabled: true

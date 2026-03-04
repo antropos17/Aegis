@@ -9,6 +9,7 @@
  * @requires chokidar
  * @requires child_process
  * @requires ../shared/constants
+ * @requires ./rule-loader
  * @author AEGIS Contributors
  * @license MIT
  * @version 0.3.0-alpha
@@ -18,12 +19,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const chokidar = require('chokidar');
-const {
-  SENSITIVE_RULES,
-  IGNORE_PATTERNS,
-  AGENT_CONFIG_PATHS,
-  AGENT_SELF_CONFIG,
-} = require('../shared/constants');
+const { IGNORE_PATTERNS, AGENT_CONFIG_PATHS, AGENT_SELF_CONFIG } = require('../shared/constants');
+const { getAllRules, reloadRules } = require('./rule-loader');
 const _platform = require('./platform');
 const { IGNORE_FILE_PATTERNS } = _platform;
 
@@ -76,8 +73,8 @@ function init(state) {
  * @since v0.1.0
  */
 function classifySensitive(filePath) {
-  for (const rule of SENSITIVE_RULES) {
-    if (rule.pattern.test(filePath)) return rule.reason;
+  for (const rule of getAllRules().values()) {
+    if (rule.enabled !== false && rule.pattern.test(filePath)) return rule.reason;
   }
   if (_state) {
     for (const rule of _state.getCustomRules()) {
@@ -319,9 +316,34 @@ function pruneKnownHandles(activeAgents) {
   }
 }
 
+/**
+ * Watch the rules/ directory for YAML changes and hot-reload.
+ * @param {(channel: string, data: object) => void} sendFn - Function to push events to renderer
+ * @returns {import('chokidar').FSWatcher}
+ * @since v0.6.0
+ */
+function setupRulesWatcher(sendFn) {
+  const rulesDir = path.join(__dirname, '..', '..', 'rules');
+  const rw = chokidar.watch(rulesDir, {
+    ignored: (filePath) => path.basename(filePath).startsWith('_'),
+    persistent: false,
+    ignoreInitial: true,
+    depth: 0,
+  });
+  rw.on('change', (filePath) => {
+    const basename = path.basename(filePath);
+    if (!basename.endsWith('.yaml') && !basename.endsWith('.yml')) return;
+    console.log('[rule-loader] YAML changed:', basename);
+    reloadRules();
+    sendFn('rules:reloaded', { count: getAllRules().size, file: basename });
+  });
+  return rw;
+}
+
 module.exports = {
   init,
   setupFileWatchers,
+  setupRulesWatcher,
   scanAllFileHandles,
   pruneKnownHandles,
   classifySensitive,
