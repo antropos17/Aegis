@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://github.com/antropos17/Aegis/releases/latest"><img src="https://img.shields.io/github/v/release/antropos17/Aegis?include_prereleases&style=flat-square&label=Release" alt="Release"></a>
   <img src="https://img.shields.io/github/actions/workflow/status/antropos17/Aegis/ci.yml?style=flat-square&label=CI" alt="CI">
-  <img src="https://img.shields.io/badge/Tests-489%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-568%20passing-brightgreen?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/Platform-Win%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform">
 </p>
@@ -84,13 +84,19 @@ npx electron src/main/main.js --version
 
 **Analysis** — Behavioral baselines with rolling averages, multi-dimensional anomaly detection, AI threat assessment via Anthropic API (opt-in), printable HTML threat reports
 
-**Dashboard** — Canvas radar with agent orbits (60fps), activity feed with filters, session timeline, agent cards with expandable details, protection presets (Paranoid/Strict/Balanced/Developer), dark/light theme, toast notifications, OOM protection, keyboard shortcuts (Ctrl+1-4)
+**Dashboard** — Bento grid dashboard — RiskRing gauge, Sparklines, TrustBadge, agent stats, activity feed with filters, session timeline, agent cards with expandable details, protection presets (Paranoid/Strict/Balanced/Developer), dark/light theme, toast notifications, OOM protection, keyboard shortcuts (Ctrl+1-4)
 
 **Export** — JSON, CSV, HTML reports, one-click ZIP archive, JSONL audit logging (daily rotation, 30-day retention)
 
 **i18n** — Internationalization with English base (110+ strings), community translations welcome
 
 **CLI** — `--scan-json` for scripting, `--version`, `--help`
+
+## YAML Rulesets
+
+- 68 detection rules across 8 categories (AI config, secrets, SSH, cloud, browser, devtools, crypto, certificates)
+- JSON Schema validated, hot-reload without restart
+- Extend or override via `rules/custom/` directory
 
 ## Screenshots
 
@@ -136,7 +142,7 @@ npx electron src/main/main.js --version
             └─────────────┘    └─────────────┘
 ```
 
-**Stack**: Electron 33, Svelte 5, Vite 7, TypeScript, Vitest (489 tests across 28 files)
+**Stack**: Electron 33, Svelte 5, Vite 7, TypeScript, Vitest (568 tests across 34 files)
 
 ## Agent Database
 
@@ -158,7 +164,7 @@ cd Aegis
 npm install
 npm run dev          # Development mode
 npm run dist         # Electron-builder installer
-npm test             # 489 tests
+npm test             # 568 tests
 npm run lint         # ESLint
 ```
 
