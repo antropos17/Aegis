@@ -270,6 +270,13 @@ async function scanFileHandles(agent) {
   for (const f of files) {
     if (shouldIgnore(f) || known.has(f)) continue;
     known.add(f);
+    // Cap per-PID set at 500 — evict oldest entries
+    if (known.size > 500) {
+      const iter = known.values();
+      for (let i = 0; i < known.size - 500; i++) {
+        known.delete(iter.next().value);
+      }
+    }
     const reason = classifySensitive(f);
     const selfAccess = reason !== null && isSelfAccess(agent.agent, f);
     const event = {

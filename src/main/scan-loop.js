@@ -48,6 +48,7 @@ function dedupFileEvent(ev) {
       if (now - v.lastSent > 60000) eventDedupMap.delete(k);
     }
   }
+  if (eventDedupMap.size > 1000) eventDedupMap.clear();
   return ev;
 }
 

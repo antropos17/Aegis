@@ -116,12 +116,16 @@
   $effect(() => {
     const scores = $anomalies;
     if (!scores || typeof scores !== 'object') return;
+    const currentKeys = new Set();
     for (const [agent, score] of Object.entries(scores)) {
-      if (typeof score === 'number' && score >= 50 && !prevAnomalyKeys.has(agent)) {
-        addToast(`Anomaly: ${agent} score ${score}`, 'warning');
-        prevAnomalyKeys = new Set([...prevAnomalyKeys, agent]);
+      if (typeof score === 'number' && score >= 50) {
+        currentKeys.add(agent);
+        if (!prevAnomalyKeys.has(agent)) {
+          addToast(`Anomaly: ${agent} score ${score}`, 'warning');
+        }
       }
     }
+    prevAnomalyKeys = currentKeys;
   });
 </script>
 
