@@ -32,7 +32,6 @@ screenshot_electron.png
 design/
 
 # Internal dev files — not for public repo
-CLAUDE.md
 _env
 _gitignore
 AEGIS-CONTEXT-*.md
