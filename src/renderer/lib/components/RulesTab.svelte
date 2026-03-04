@@ -2,6 +2,7 @@
   import ProtectionPresets from './ProtectionPresets.svelte';
   import PermissionsGrid from './PermissionsGrid.svelte';
   import AgentDatabaseCrud from './AgentDatabaseCrud.svelte';
+  import SkeletonLoader from './SkeletonLoader.svelte';
   import { t } from '../i18n/index.js';
 
   /** @type {{ active?: boolean }} */
@@ -12,48 +13,50 @@
   let permissions = $state({});
   let loaded = $state(false);
 
-  // One-time IPC load on mount (or seed demo permissions)
-  if (window.aegis) {
-    window.aegis
-      .getAllPermissions()
-      .then((all) => {
-        if (all) permissions = all;
-        loaded = true;
-      })
-      .catch(() => {
-        loaded = true;
-      });
-  } else {
-    const base = {
-      filesystem: 'allow',
-      sensitive: 'monitor',
-      network: 'allow',
-      terminal: 'allow',
-      clipboard: 'monitor',
-      screen: 'block',
-    };
-    permissions = {
-      'Claude Code': { ...base },
-      'GitHub Copilot': { ...base, terminal: 'block' },
-      Cursor: { ...base, clipboard: 'allow', screen: 'monitor' },
-      'GPT Pilot': {
-        ...base,
-        filesystem: 'monitor',
-        sensitive: 'block',
-        network: 'monitor',
-        terminal: 'monitor',
-        clipboard: 'block',
-      },
-      Ollama: {
-        ...base,
-        filesystem: 'monitor',
-        sensitive: 'block',
-        terminal: 'block',
-        clipboard: 'block',
-      },
-    };
-    loaded = true;
-  }
+  /** Defer IPC call to after mount so it doesn't block component init */
+  $effect(() => {
+    if (window.aegis) {
+      window.aegis
+        .getAllPermissions()
+        .then((all) => {
+          if (all) permissions = all;
+          loaded = true;
+        })
+        .catch(() => {
+          loaded = true;
+        });
+    } else {
+      const base = {
+        filesystem: 'allow',
+        sensitive: 'monitor',
+        network: 'allow',
+        terminal: 'allow',
+        clipboard: 'monitor',
+        screen: 'block',
+      };
+      permissions = {
+        'Claude Code': { ...base },
+        'GitHub Copilot': { ...base, terminal: 'block' },
+        Cursor: { ...base, clipboard: 'allow', screen: 'monitor' },
+        'GPT Pilot': {
+          ...base,
+          filesystem: 'monitor',
+          sensitive: 'block',
+          network: 'monitor',
+          terminal: 'monitor',
+          clipboard: 'block',
+        },
+        Ollama: {
+          ...base,
+          filesystem: 'monitor',
+          sensitive: 'block',
+          terminal: 'block',
+          clipboard: 'block',
+        },
+      };
+      loaded = true;
+    }
+  });
 
   function handlePresetApply(presetName, config) {
     for (const agent of Object.keys(permissions)) {
@@ -95,7 +98,12 @@
     >
   </div>
 
-  {#if subTab === 'permissions'}
+  {#if !loaded}
+    <div class="rules-skeleton">
+      <SkeletonLoader lines={3} style="card" />
+      <SkeletonLoader lines={4} style="list" />
+    </div>
+  {:else if subTab === 'permissions'}
     <div class="rules-section">
       <h3 class="section-title">{$t('rules.protection.title')}</h3>
       <ProtectionPresets bind:activePreset onApply={handlePresetApply} />
@@ -110,9 +118,7 @@
           >{$t('rules.permissions.reset_defaults')}</button
         >
       </div>
-      {#if loaded}
-        <PermissionsGrid bind:permissions />
-      {/if}
+      <PermissionsGrid bind:permissions />
     </div>
   {:else}
     <AgentDatabaseCrud />
@@ -202,5 +208,11 @@
     background: var(--md-sys-color-outline-variant);
     color: var(--md-sys-color-on-surface);
     border-color: var(--aegis-border-hover);
+  }
+
+  .rules-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: var(--aegis-space-6);
   }
 </style>

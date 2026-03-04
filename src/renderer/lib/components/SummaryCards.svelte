@@ -253,6 +253,7 @@
 
     cursor: default;
     overflow: hidden;
+    min-width: 0;
   }
 
   /* Spotlight hover glow */
@@ -307,8 +308,10 @@
   }
 
   .card-value-uptime {
-    font-size: 22px;
+    font-size: clamp(16px, 3.5vw, 22px);
     letter-spacing: 0.04em;
+    white-space: nowrap;
+    min-width: 0;
   }
 
   /* ── Trend arrow ── */
@@ -364,7 +367,7 @@
     }
 
     .card-value-uptime {
-      font-size: 18px;
+      font-size: clamp(14px, 4vw, 18px);
     }
   }
 </style>

@@ -117,7 +117,7 @@
   .bento-feed {
     grid-column: 2;
     grid-row: 2;
-    overflow-y: auto;
+    overflow: hidden;
     min-height: 0;
     display: flex;
     flex-direction: column;
