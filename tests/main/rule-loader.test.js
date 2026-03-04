@@ -161,4 +161,60 @@ describe('rule-loader', () => {
       expect(rules1).not.toBe(rules2);
     });
   });
+
+  describe('R2 migration — production YAML rulesets', () => {
+    const PROD_RULES_DIR = path.resolve(__dirname, '../../rules');
+
+    it('loads at least 50 rules from production YAML files', () => {
+      const rules = ruleLoader.reloadRules(PROD_RULES_DIR);
+      expect(rules.size).toBeGreaterThanOrEqual(50);
+    });
+
+    it('loads exactly 68 rules (all migrated from constants.js)', () => {
+      const rules = ruleLoader.reloadRules(PROD_RULES_DIR);
+      expect(rules.size).toBe(68);
+    });
+
+    it('getRulesByCategory("secrets") returns only SC-prefixed IDs', () => {
+      ruleLoader.reloadRules(PROD_RULES_DIR);
+      const secrets = ruleLoader.getRulesByCategory('secrets', PROD_RULES_DIR);
+      expect(secrets.length).toBeGreaterThan(0);
+      for (const rule of secrets) {
+        expect(rule.id).toMatch(/^SC\d{3}$/);
+      }
+    });
+
+    it('getRulesByCategory("ai-config") returns only AI-prefixed IDs', () => {
+      ruleLoader.reloadRules(PROD_RULES_DIR);
+      const aiRules = ruleLoader.getRulesByCategory('ai-config', PROD_RULES_DIR);
+      expect(aiRules.length).toBeGreaterThan(0);
+      for (const rule of aiRules) {
+        expect(rule.id).toMatch(/^AI\d{3}$/);
+      }
+    });
+
+    it('every rule has a non-empty reason string', () => {
+      const rules = ruleLoader.reloadRules(PROD_RULES_DIR);
+      for (const rule of rules.values()) {
+        expect(typeof rule.reason).toBe('string');
+        expect(rule.reason.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('every rule has pattern compiled as RegExp', () => {
+      const rules = ruleLoader.reloadRules(PROD_RULES_DIR);
+      for (const rule of rules.values()) {
+        expect(rule.pattern).toBeInstanceOf(RegExp);
+      }
+    });
+
+    it('AI001 pattern matches real .claude config paths', () => {
+      ruleLoader.reloadRules(PROD_RULES_DIR);
+      const rule = ruleLoader.getRuleById('AI001', PROD_RULES_DIR);
+      expect(rule).toBeDefined();
+      expect(rule.pattern.test('/home/user/.claude/config.json')).toBe(true);
+      expect(rule.pattern.test('C:\\Users\\me\\.claude\\settings')).toBe(true);
+      expect(rule.reason).toBe('AI agent config — Claude Code');
+    });
+  });
 });

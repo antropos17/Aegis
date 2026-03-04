@@ -1,0 +1,28 @@
+version: 1
+category: cloud
+description: Cloud provider credential directories (AWS, Azure, GCloud)
+
+rules:
+  - id: "CL001"
+    name: "AWS credentials"
+    pattern: "[\\\\\/]\\.aws[\\\\\/]"
+    reason: "AWS credentials"
+    category: "cloud"
+    risk: critical
+    enabled: true
+
+  - id: "CL002"
+    name: "Azure credentials"
+    pattern: "[\\\\\/]\\.azure[\\\\\/]"
+    reason: "Azure credentials"
+    category: "cloud"
+    risk: critical
+    enabled: true
+
+  - id: "CL003"
+    name: "GCloud credentials"
+    pattern: "[\\\\\/]\\.gcloud[\\\\\/]"
+    reason: "GCloud credentials"
+    category: "cloud"
+    risk: critical
+    enabled: true
