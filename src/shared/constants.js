@@ -134,6 +134,8 @@ const AGENT_SELF_CONFIG = {
   jan: /[\\\/]\.jan[\\\/]/i,
 };
 
+// @deprecated — use rule-loader.js instead. Will be removed in v0.7.0-alpha.
+// Kept for backward compatibility during migration.
 /** @type {readonly BuiltinSensitiveRule[]} Rules that classify a file path as sensitive */
 const SENSITIVE_RULES = [
   // ── AI Agent Config Files — critical targets (Hudson Rock, Feb 2026) ──
