@@ -43,6 +43,8 @@
     ).length;
   });
 
+  let sensitiveCount = $derived(localStats.totalSensitive || 0);
+
   let uptimeStr = $derived.by(() => {
     const ms = localStats.uptimeMs || 0;
     const s = Math.floor(ms / 1000);
@@ -56,6 +58,7 @@
   let prevAgentCount = $state(0);
   let prevRisk = $state(0);
   let prevEpm = $state(0);
+  let prevSensitive = $state(0);
 
   // Snapshot every 30s
   $effect(() => {
@@ -64,12 +67,14 @@
       prevAgentCount = agentCount;
       prevRisk = avgRiskScore;
       prevEpm = eventsPerMin;
+      prevSensitive = sensitiveCount;
     }, 30_000);
     // Seed initial snapshot after 1s
     const seed = setTimeout(() => {
       prevAgentCount = agentCount;
       prevRisk = avgRiskScore;
       prevEpm = eventsPerMin;
+      prevSensitive = sensitiveCount;
     }, 1000);
     return () => {
       clearInterval(id);
@@ -80,6 +85,7 @@
   let agentTrend = $derived(agentCount - prevAgentCount);
   let riskTrend = $derived(avgRiskScore - prevRisk);
   let epmTrend = $derived(eventsPerMin - prevEpm);
+  let sensitiveTrend = $derived(sensitiveCount - prevSensitive);
 
   /**
    * Returns trend arrow info.
@@ -101,6 +107,7 @@
   let displayAgents = $state(0);
   let displayRisk = $state(0);
   let displayEpm = $state(0);
+  let displaySensitive = $state(0);
 
   /**
    * Animate a number from current displayed value to target.
@@ -132,11 +139,15 @@
   $effect(() => {
     animateCount(displayEpm, eventsPerMin, (v) => (displayEpm = v));
   });
+  $effect(() => {
+    animateCount(displaySensitive, sensitiveCount, (v) => (displaySensitive = v));
+  });
 
   /* ── Card definitions ── */
   let agentTrendInfo = $derived(trendInfo(agentTrend));
   let riskTrendInfo = $derived(trendInfo(riskTrend, true));
   let epmTrendInfo = $derived(trendInfo(epmTrend));
+  let sensitiveTrendInfo = $derived(trendInfo(sensitiveTrend, true));
 
   /** Risk color by score */
   let riskColor = $derived(
@@ -185,7 +196,19 @@
     </span>
   </div>
 
-  <!-- Card 4: System Uptime -->
+  <!-- Card 4: Sensitive Files -->
+  <div class="card">
+    <span class="card-label">Sensitive Files</span>
+    <span class="card-value card-value-sensitive">{displaySensitive}</span>
+    <span class="card-trend {sensitiveTrendInfo.cls}">
+      {sensitiveTrendInfo.arrow}
+      {#if sensitiveTrend !== 0}
+        <span class="trend-num">{Math.abs(sensitiveTrend)}</span>
+      {/if}
+    </span>
+  </div>
+
+  <!-- Card 5: System Uptime -->
   <div class="card">
     <span class="card-label">System Uptime</span>
     <span class="card-value card-value-uptime">{uptimeStr}</span>
@@ -197,7 +220,7 @@
   /* ── Summary Cards Grid (F1.3) ── */
   .summary-cards {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: var(--fancy-space-sm);
     width: 100%;
     height: 100%;
@@ -279,6 +302,10 @@
     letter-spacing: -0.02em;
   }
 
+  .card-value-sensitive {
+    color: var(--fancy-danger);
+  }
+
   .card-value-uptime {
     font-size: 22px;
     letter-spacing: 0.04em;
@@ -312,7 +339,13 @@
     font-size: 10px;
   }
 
-  /* ── Responsive: 4 → 2 → 1 ── */
+  /* ── Responsive: 5 → 3 → 2 → 1 ── */
+  @media (max-width: 1100px) {
+    .summary-cards {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
   @media (max-width: 900px) {
     .summary-cards {
       grid-template-columns: repeat(2, 1fr);
