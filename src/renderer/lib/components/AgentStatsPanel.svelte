@@ -110,7 +110,7 @@
               <div class="risk-bar">
                 <div
                   class="risk-fill"
-                  style:width="{Math.min(row.riskScore, 100)}%"
+                  style:--progress={Math.min(row.riskScore, 100) / 100}
                   style:background={riskColor(row.riskScore)}
                 ></div>
               </div>
@@ -237,8 +237,11 @@
 
   .risk-fill {
     height: 100%;
+    width: 100%;
     border-radius: 2px;
-    transition: width 0.3s ease;
+    transform: scaleX(var(--progress, 0));
+    transform-origin: left;
+    transition: transform 0.3s ease;
   }
 
   .col-files,
