@@ -12,7 +12,7 @@
   let permissions = $state({});
   let loaded = $state(false);
 
-  // One-time IPC load on mount
+  // One-time IPC load on mount (or seed demo permissions)
   if (window.aegis) {
     window.aegis
       .getAllPermissions()
@@ -24,6 +24,14 @@
         loaded = true;
       });
   } else {
+    const base = { filesystem: 'allow', sensitive: 'monitor', network: 'allow', terminal: 'allow', clipboard: 'monitor', screen: 'block' };
+    permissions = {
+      'Claude Code': { ...base },
+      'GitHub Copilot': { ...base, terminal: 'block' },
+      'Cursor': { ...base, clipboard: 'allow', screen: 'monitor' },
+      'GPT Pilot': { ...base, filesystem: 'monitor', sensitive: 'block', network: 'monitor', terminal: 'monitor', clipboard: 'block' },
+      'Ollama': { ...base, filesystem: 'monitor', sensitive: 'block', terminal: 'block', clipboard: 'block' },
+    };
     loaded = true;
   }
 

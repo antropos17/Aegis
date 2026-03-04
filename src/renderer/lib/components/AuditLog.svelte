@@ -1,4 +1,5 @@
 <script>
+  import { isDemoMode } from '../stores/ipc.js';
   import { t } from '../i18n/index.js';
 
   let auditStats = $state(null);
@@ -15,6 +16,13 @@
         loading = false;
       });
   } else {
+    auditStats = {
+      totalEntries: 1247,
+      currentSize: 524288,
+      totalSize: 1048576,
+      firstEntry: Date.now() - 1000 * 60 * 60 * 24 * 7,
+      lastEntry: Date.now() - 1000 * 60 * 3,
+    };
     loading = false;
   }
 
@@ -64,10 +72,10 @@
   {/if}
 
   <div class="audit-actions">
-    <button class="audit-btn" onclick={() => window.aegis?.openAuditLogDir()}>
+    <button class="audit-btn" disabled={isDemoMode} title={isDemoMode ? 'Desktop app only' : ''} onclick={() => window.aegis?.openAuditLogDir()}>
       {$t('reports.audit.view_logs')}
     </button>
-    <button class="audit-btn" onclick={() => window.aegis?.exportFullAudit()}>
+    <button class="audit-btn" disabled={isDemoMode} title={isDemoMode ? 'Desktop app only' : ''} onclick={() => window.aegis?.exportFullAudit()}>
       {$t('reports.audit.export')}
     </button>
   </div>
@@ -146,9 +154,14 @@
     transition: all 0.3s var(--ease-glass);
   }
 
-  .audit-btn:hover {
+  .audit-btn:hover:not(:disabled) {
     background: var(--md-sys-color-outline-variant);
     color: var(--md-sys-color-on-surface);
     border-color: var(--aegis-border-hover);
+  }
+
+  .audit-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 </style>
