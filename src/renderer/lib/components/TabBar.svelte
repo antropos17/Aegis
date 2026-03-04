@@ -86,9 +86,9 @@
     height: calc(100% - var(--aegis-space-3) * 2);
     width: var(--ind-w);
     transform: translateX(var(--ind-x));
-    background: var(--md-sys-color-primary);
+    background: var(--md-sys-color-primary-container);
     border-radius: var(--md-sys-shape-corner-small);
-    box-shadow: 0 2px 12px rgba(122, 138, 158, 0.3);
+    box-shadow: 0 2px 12px rgba(42, 58, 78, 0.4);
     pointer-events: none;
     will-change: transform, width;
   }

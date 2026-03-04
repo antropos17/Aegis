@@ -34,14 +34,18 @@
     <span class="shield-score {scoreClass}">{shieldScore}</span>
     <span class="stat-sep">&middot;</span>
     <span class="stat-text"
-      >{uniqueAgentCount} {uniqueAgentCount === 1 ? 'agent' : $t('header.agents')}</span
+      ><span class="stat-count">{uniqueAgentCount}</span>
+      {uniqueAgentCount === 1 ? 'agent' : $t('header.agents')}</span
     >
     <span class="stat-sep">&middot;</span>
     <span class="stat-text stat-dim"
-      >{processCount} {processCount === 1 ? 'process' : 'processes'}</span
+      ><span class="stat-count">{processCount}</span>
+      {processCount === 1 ? 'process' : 'processes'}</span
     >
     <span class="stat-sep">&middot;</span>
-    <span class="stat-text">{filesMonitored} {$t('header.files')}</span>
+    <span class="stat-text"
+      ><span class="stat-count">{filesMonitored}</span> {$t('header.files')}</span
+    >
     <span class="stat-sep">&middot;</span>
     <span class="scan-badge" class:active={$scanActive}>
       <span class="scan-dot"></span>
@@ -128,6 +132,10 @@
     font: var(--md-sys-typescale-label-medium);
     color: var(--md-sys-color-on-surface-variant);
     font-variant-numeric: tabular-nums;
+  }
+
+  .stat-count {
+    color: var(--md-sys-color-on-surface);
   }
 
   .stat-dim {

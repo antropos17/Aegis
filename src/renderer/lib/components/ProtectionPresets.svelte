@@ -107,8 +107,8 @@
   }
 
   .preset-btn.active {
-    background: var(--md-sys-color-primary);
-    border-color: var(--md-sys-color-primary);
+    background: var(--md-sys-color-primary-container);
+    border-color: var(--md-sys-color-primary-container);
     box-shadow: 0 2px 16px rgba(122, 138, 158, 0.3);
   }
 
@@ -118,7 +118,7 @@
   }
 
   .preset-btn.active .preset-label {
-    color: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-primary);
   }
 
   .preset-desc {
@@ -128,6 +128,6 @@
   }
 
   .preset-btn.active .preset-desc {
-    color: var(--md-sys-color-on-surface-variant);
+    color: rgba(255, 255, 255, 0.7);
   }
 </style>
