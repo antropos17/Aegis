@@ -2,6 +2,7 @@
   import Reports from './Reports.svelte';
   import AuditLog from './AuditLog.svelte';
   import ThreatAnalysis from './ThreatAnalysis.svelte';
+  import SkeletonLoader from './SkeletonLoader.svelte';
   import { isDemoMode } from '../stores/ipc.js';
   import { t } from '../i18n/index.js';
   import { addToast } from '../stores/toast.js';
@@ -11,6 +12,22 @@
 
   let subTab = $state('overview');
   let exporting = $state(false);
+
+  /**
+   * Defer heavy sub-component mounting so the toolbar + skeleton
+   * renders first and the UI stays responsive during tab switch.
+   */
+  let contentReady = $state(false);
+  $effect(() => {
+    if (!active) {
+      contentReady = false;
+      return;
+    }
+    const id = setTimeout(() => {
+      contentReady = true;
+    }, 0);
+    return () => clearTimeout(id);
+  });
 
   /** Export audit + activity + config as ZIP. */
   async function handleExportAll() {
@@ -73,7 +90,13 @@
   </div>
 
   <div class="reports-body">
-    {#if subTab === 'overview'}
+    {#if !contentReady}
+      <div class="reports-skeleton">
+        <SkeletonLoader lines={2} style="card" />
+        <SkeletonLoader lines={4} style="list" />
+        <SkeletonLoader lines={3} style="card" />
+      </div>
+    {:else if subTab === 'overview'}
       <Reports {active} />
     {:else if subTab === 'audit'}
       <AuditLog />
@@ -174,5 +197,12 @@
     flex: 1;
     min-height: 0;
     overflow: auto;
+  }
+
+  .reports-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: var(--aegis-space-6);
+    padding: var(--aegis-space-6);
   }
 </style>
