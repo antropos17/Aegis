@@ -5,26 +5,29 @@
   let auditStats = $state(null);
   let loading = $state(true);
 
-  if (window.aegis) {
-    window.aegis
-      .getAuditStats()
-      .then((data) => {
-        auditStats = data;
-        loading = false;
-      })
-      .catch(() => {
-        loading = false;
-      });
-  } else {
-    auditStats = {
-      totalEntries: 1247,
-      currentSize: 524288,
-      totalSize: 1048576,
-      firstEntry: Date.now() - 1000 * 60 * 60 * 24 * 7,
-      lastEntry: Date.now() - 1000 * 60 * 3,
-    };
-    loading = false;
-  }
+  /** Defer IPC call to after mount so it doesn't block component init */
+  $effect(() => {
+    if (window.aegis) {
+      window.aegis
+        .getAuditStats()
+        .then((data) => {
+          auditStats = data;
+          loading = false;
+        })
+        .catch(() => {
+          loading = false;
+        });
+    } else {
+      auditStats = {
+        totalEntries: 1247,
+        currentSize: 524288,
+        totalSize: 1048576,
+        firstEntry: Date.now() - 1000 * 60 * 60 * 24 * 7,
+        lastEntry: Date.now() - 1000 * 60 * 3,
+      };
+      loading = false;
+    }
+  });
 
   let dateRange = $derived.by(() => {
     if (!auditStats?.firstEntry || !auditStats?.lastEntry) return 'N/A';
