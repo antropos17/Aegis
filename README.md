@@ -13,11 +13,10 @@
 </p>
 
 <p align="center">
-  <img src="https://github.com/antropos17/Aegis/releases/download/v0.3.1-alpha/demo-trimmed.gif" alt="AEGIS Demo" width="800">
+  <img src="https://github.com/antropos17/Aegis/releases/download/v0.3.0-alpha/demo-trimmed.gif" alt="AEGIS Demo" width="800">
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick Start</a> &middot;
   <a href="#download">Download</a> &middot;
   <a href="https://github.com/antropos17/Aegis/issues/new?template=01-bug-report.yml">Report Bug</a> &middot;
   <a href="https://github.com/antropos17/Aegis/issues/new?template=02-feature-request.yml">Feature Request</a> &middot;
@@ -56,12 +55,7 @@ AEGIS is an independent, open-source monitoring layer. It watches AI agent behav
 
 ## Download
 
-**Windows**: [AEGIS Setup (.exe)](https://github.com/antropos17/Aegis/releases/latest) — no Node.js required.
-
-macOS and Linux support is experimental ([#37](https://github.com/antropos17/Aegis/pull/37)).
-
-## Quick Start
-
+### From Source (all platforms)
 ```bash
 git clone https://github.com/antropos17/Aegis.git
 cd Aegis
@@ -69,14 +63,23 @@ npm install
 npm start
 ```
 
-Requires Node.js 18+ and Windows 10/11. Mac/Linux work experimentally.
+> Requires **Node.js 18+** and **npm 9+**. Windows 10/11 recommended. macOS/Linux experimental ([#37](https://github.com/antropos17/Aegis/issues/37)).
 
-**CLI:**
+### Windows Installer
 
-```bash
-npx electron src/main/main.js --scan-json   # JSON output for scripts
-npx electron src/main/main.js --version
-```
+Pre-built `.exe` installer is coming in a future release. Track progress in [Releases](https://github.com/antropos17/Aegis/releases).
+
+<!-- TODO: uncomment when CI builds .exe
+[![Download](https://img.shields.io/badge/Download-Windows%20Installer-00ff88?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/antropos17/Aegis/releases/latest)
+-->
+
+### Release History
+
+| Version | Date | Highlights |
+|---------|------|------------|
+| [v0.7.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.7.0-alpha) | 2026-03-04 | YAML rulesets, 68 rules, hot-reload, 568 tests |
+| [v0.5.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.5.0-alpha) | 2026-03-03 | Fancy UI redesign, VisTimeline, AgentGraph |
+| [v0.4.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.4.0-alpha) | 2026-03-03 | TypeScript infrastructure, perf, refactoring |
 
 ## Features
 
@@ -155,18 +158,6 @@ npx electron src/main/main.js --version
 **Local LLMs** — Ollama, LM Studio, vLLM, llama.cpp, LocalAI, GPT4All, Jan
 
 Add custom agents via the UI or edit the JSON. See [AGENTS.md](AGENTS.md).
-
-## Building from Source
-
-```bash
-git clone https://github.com/antropos17/Aegis.git
-cd Aegis
-npm install
-npm run dev          # Development mode
-npm run dist         # Electron-builder installer
-npm test             # 568 tests
-npm run lint         # ESLint
-```
 
 ## Roadmap
 
