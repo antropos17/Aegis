@@ -146,7 +146,7 @@
     border: none;
     border-radius: var(--md-sys-shape-corner-full);
     background: transparent;
-    color: var(--md-sys-color-on-surface-variant);
+    color: #b8b0a8;
     cursor: pointer;
     transition: all 0.3s var(--ease-glass);
   }
