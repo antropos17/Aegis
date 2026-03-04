@@ -19,12 +19,15 @@ export const focusedAgentPid = writable(null);
 export const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true' || !window.aegis;
 
 if (!isDemoMode) {
-  // Primary path: batched scan data (single IPC → single recompute)
+  // Primary path: coalesce all store updates into a single microtask
+  // so Svelte batches DOM repaints instead of 4 separate cascades.
   window.aegis.onScanBatch((data) => {
-    if (data.agents) agents.set(data.agents);
-    if (data.stats) stats.set(data.stats);
-    if (data.resourceUsage) resourceUsage.set(data.resourceUsage);
-    if (data.anomalyScores) anomalies.set(data.anomalyScores);
+    queueMicrotask(() => {
+      if (data.agents) agents.set(data.agents);
+      if (data.stats) stats.set(data.stats);
+      if (data.resourceUsage) resourceUsage.set(data.resourceUsage);
+      if (data.anomalyScores) anomalies.set(data.anomalyScores);
+    });
   });
 
   // Individual channels for non-batch sources (file watcher, network monitor)
