@@ -5,7 +5,7 @@ and IPC architecture specific to this codebase.
 
 ---
 
-## Stack Versions (current as of v0.4.0-alpha)
+## Stack Versions (current as of v0.7.0-alpha)
 
 | Dep | Version | Role |
 |-----|---------|------|
