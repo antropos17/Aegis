@@ -26,13 +26,19 @@ contextBridge.exposeInMainWorld('aegis', {
   saveInstancePermissions: (data) => ipcRenderer.invoke('save-instance-permissions', data),
   resetPermissionsToDefaults: () => ipcRenderer.invoke('reset-permissions-to-defaults'),
   onFileAccess: (cb) => {
-    ipcRenderer.on('file-access', (_e, data) => cb(data));
+    const handler = (_e, data) => cb(data);
+    ipcRenderer.on('file-access', handler);
+    return () => ipcRenderer.removeListener('file-access', handler);
   },
   onStatsUpdate: (cb) => {
-    ipcRenderer.on('stats-update', (_e, data) => cb(data));
+    const handler = (_e, data) => cb(data);
+    ipcRenderer.on('stats-update', handler);
+    return () => ipcRenderer.removeListener('stats-update', handler);
   },
   onNetworkUpdate: (cb) => {
-    ipcRenderer.on('network-update', (_e, data) => cb(data));
+    const handler = (_e, data) => cb(data);
+    ipcRenderer.on('network-update', handler);
+    return () => ipcRenderer.removeListener('network-update', handler);
   },
   onToggleTheme: (cb) => {
     const handler = () => cb();
@@ -68,9 +74,13 @@ contextBridge.exposeInMainWorld('aegis', {
     return () => ipcRenderer.removeListener('rules:reloaded', handler);
   },
   onScanBatch: (cb) => {
-    ipcRenderer.on('scan-batch', (_e, data) => cb(data));
+    const handler = (_e, data) => cb(data);
+    ipcRenderer.on('scan-batch', handler);
+    return () => ipcRenderer.removeListener('scan-batch', handler);
   },
   onScanStatus: (cb) => {
-    ipcRenderer.on('scan-status', (_e, data) => cb(data));
+    const handler = (_e, data) => cb(data);
+    ipcRenderer.on('scan-status', handler);
+    return () => ipcRenderer.removeListener('scan-status', handler);
   },
 });

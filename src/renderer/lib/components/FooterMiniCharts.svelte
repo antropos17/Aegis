@@ -7,6 +7,7 @@
   import { resourceUsage } from '../stores/ipc.js';
   import Sparkline from './Sparkline.svelte';
   import { createRingBuffer } from '../utils/ring-buffer';
+  import { tick, startTick } from '../stores/tick.ts';
 
   /** Ring buffers: 60 data points = 60 seconds of history */
   const HISTORY_SIZE = 60;
@@ -26,37 +27,38 @@
   let lastCpuSystem = 0;
   let lastCpuTime = 0;
 
-  /** Sample resource usage every second into ring buffers */
+  /** Start shared tick and sample resource usage every tick */
   $effect(() => {
-    const id = setInterval(() => {
-      const u = $resourceUsage;
-      if (!u || !u.cpuUser) return;
+    return startTick();
+  });
 
-      // CPU percentage (delta-based)
-      const now = Date.now();
-      const elapsed = (now - lastCpuTime) * 1000;
-      if (elapsed > 0 && lastCpuTime > 0) {
-        const delta = u.cpuUser - lastCpuUser + (u.cpuSystem - lastCpuSystem);
-        cpuPct = Math.min(100, Math.round((delta / elapsed) * 100));
-      }
-      lastCpuUser = u.cpuUser;
-      lastCpuSystem = u.cpuSystem;
-      lastCpuTime = now;
+  $effect(() => {
+    $tick; // subscribe — triggers each second
+    const u = $resourceUsage;
+    if (!u || !u.cpuUser) return;
 
-      // Memory
-      const mem = typeof u.memMB === 'number' ? u.memMB : 0;
-      memMB = mem;
+    // CPU percentage (delta-based)
+    const now = Date.now();
+    const elapsed = (now - lastCpuTime) * 1000;
+    if (elapsed > 0 && lastCpuTime > 0) {
+      const delta = u.cpuUser - lastCpuUser + (u.cpuSystem - lastCpuSystem);
+      cpuPct = Math.min(100, Math.round((delta / elapsed) * 100));
+    }
+    lastCpuUser = u.cpuUser;
+    lastCpuSystem = u.cpuSystem;
+    lastCpuTime = now;
 
-      // Push into ring buffers
-      cpuHistory.push(cpuPct);
-      memHistory.push(mem);
+    // Memory
+    const mem = typeof u.memMB === 'number' ? u.memMB : 0;
+    memMB = mem;
 
-      // Rebuild reactive arrays
-      cpuData = cpuHistory.toArray();
-      memData = memHistory.toArray();
-    }, 1000);
+    // Push into ring buffers
+    cpuHistory.push(cpuPct);
+    memHistory.push(mem);
 
-    return () => clearInterval(id);
+    // Rebuild reactive arrays
+    cpuData = cpuHistory.toArray();
+    memData = memHistory.toArray();
   });
 
   /** Formatted display strings */

@@ -13,17 +13,8 @@
   $effect(() => {
     if (!active) return;
     localAgents = $agents;
-  });
-  $effect(() => {
-    if (!active) return;
     localEvents = $events;
-  });
-  $effect(() => {
-    if (!active) return;
     localAnomalies = $anomalies;
-  });
-  $effect(() => {
-    if (!active) return;
     localStats = $stats;
   });
 
@@ -111,36 +102,39 @@
 
   /**
    * Animate a number from current displayed value to target.
+   * Returns a cancel function to abort the animation.
    * @param {number} from
    * @param {number} to
    * @param {(v: number) => void} setter
    * @param {number} [duration]
+   * @returns {() => void} cancel function
    */
   function animateCount(from, to, setter, duration = 600) {
-    if (from === to) return;
+    if (from === to) return () => {};
     const start = performance.now();
     const diff = to - from;
+    let rafId = 0;
     function tick(now) {
       const t = Math.min((now - start) / duration, 1);
-      // ease-out quad
       const eased = 1 - (1 - t) * (1 - t);
       setter(Math.round(from + diff * eased));
-      if (t < 1) requestAnimationFrame(tick);
+      if (t < 1) rafId = requestAnimationFrame(tick);
     }
-    requestAnimationFrame(tick);
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
   }
 
   $effect(() => {
-    animateCount(displayAgents, agentCount, (v) => (displayAgents = v));
-  });
-  $effect(() => {
-    animateCount(displayRisk, avgRiskScore, (v) => (displayRisk = v));
-  });
-  $effect(() => {
-    animateCount(displayEpm, eventsPerMin, (v) => (displayEpm = v));
-  });
-  $effect(() => {
-    animateCount(displaySensitive, sensitiveCount, (v) => (displaySensitive = v));
+    const c1 = animateCount(displayAgents, agentCount, (v) => (displayAgents = v));
+    const c2 = animateCount(displayRisk, avgRiskScore, (v) => (displayRisk = v));
+    const c3 = animateCount(displayEpm, eventsPerMin, (v) => (displayEpm = v));
+    const c4 = animateCount(displaySensitive, sensitiveCount, (v) => (displaySensitive = v));
+    return () => {
+      c1();
+      c2();
+      c3();
+      c4();
+    };
   });
 
   /* ── Card definitions ── */
@@ -238,11 +232,9 @@
     position: relative;
     padding: var(--fancy-space-md) var(--fancy-space-sm);
 
-    background: rgba(0, 0, 0, 0.3);
+    background: #0d0d10;
     border: 1px solid var(--fancy-border);
     border-radius: var(--fancy-radius-md);
-    backdrop-filter: blur(var(--fancy-panel-blur));
-    -webkit-backdrop-filter: blur(var(--fancy-panel-blur));
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.05),
       0 4px 12px rgba(0, 0, 0, 0.3);

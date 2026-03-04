@@ -168,7 +168,11 @@ function handleWatcherEvent(action, filePath) {
     category: agent.category || 'other',
   };
   _state.activityLog.push(event);
-  if (_state.activityLog.length > 10000) _state.activityLog.shift();
+  if (_state.onActivityPush) _state.onActivityPush(event);
+  if (_state.activityLog.length > 10000) {
+    const evicted = _state.activityLog.shift();
+    if (_state.onActivityEvict) _state.onActivityEvict(evicted);
+  }
   _state.recordFileAccess(event.agent, filePath, event.sensitive, event.reason);
   if (_state.onFileEvent) _state.onFileEvent(event);
 }
@@ -266,6 +270,13 @@ async function scanFileHandles(agent) {
   for (const f of files) {
     if (shouldIgnore(f) || known.has(f)) continue;
     known.add(f);
+    // Cap per-PID set at 500 — evict oldest entries
+    if (known.size > 500) {
+      const iter = known.values();
+      for (let i = 0; i < known.size - 500; i++) {
+        known.delete(iter.next().value);
+      }
+    }
     const reason = classifySensitive(f);
     const selfAccess = reason !== null && isSelfAccess(agent.agent, f);
     const event = {
@@ -283,7 +294,11 @@ async function scanFileHandles(agent) {
     };
     newAccess.push(event);
     _state.activityLog.push(event);
-    if (_state.activityLog.length > 10000) _state.activityLog.shift();
+    if (_state.onActivityPush) _state.onActivityPush(event);
+    if (_state.activityLog.length > 10000) {
+      const evicted = _state.activityLog.shift();
+      if (_state.onActivityEvict) _state.onActivityEvict(evicted);
+    }
     _state.recordFileAccess(agent.agent, f, event.sensitive, event.reason);
   }
   return newAccess;

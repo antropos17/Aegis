@@ -13,6 +13,7 @@
     formatRelativeTime,
     riskColor,
   } from '../utils/agent-stats-utils.ts';
+  import { tick, startTick } from '../stores/tick.ts';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
@@ -22,7 +23,7 @@
   /** @type {import('../utils/agent-stats-utils.ts').SortDirection} */
   let sortDir = $state('desc');
 
-  let now = $state(Date.now());
+  let now = $derived($tick ? Date.now() : Date.now());
   let localAgents = $state([]);
 
   $effect(() => {
@@ -32,10 +33,7 @@
 
   $effect(() => {
     if (!active) return;
-    const id = setInterval(() => {
-      now = Date.now();
-    }, 1000);
-    return () => clearInterval(id);
+    return startTick();
   });
 
   let rows = $derived(sortRows(toStatsRows(localAgents, now), sortColumn, sortDir));
@@ -110,7 +108,7 @@
               <div class="risk-bar">
                 <div
                   class="risk-fill"
-                  style:width="{Math.min(row.riskScore, 100)}%"
+                  style:--progress={Math.min(row.riskScore, 100) / 100}
                   style:background={riskColor(row.riskScore)}
                 ></div>
               </div>
@@ -237,8 +235,11 @@
 
   .risk-fill {
     height: 100%;
+    width: 100%;
     border-radius: 2px;
-    transition: width 0.3s ease;
+    transform: scaleX(var(--progress, 0));
+    transform-origin: left;
+    transition: transform 0.3s ease;
   }
 
   .col-files,
