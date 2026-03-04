@@ -279,6 +279,7 @@ function initDeferredSubsystems(userData) {
   baselines.loadBaselines();
   mainWindow.webContents.once('did-finish-load', () => {
     watcher.setupFileWatchers();
+    watcher.setupRulesWatcher(sendToRenderer);
   });
   const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
   scanLoop.staggeredStartup(ms, monitoringPaused);
