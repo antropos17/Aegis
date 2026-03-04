@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.6.0-alpha...aegis-v0.7.0-alpha) (2026-03-04)
+
+
+### Features
+
+* **rules:** add IPC endpoints + hot-reload watcher for YAML rules [R4] ([e986358](https://github.com/antropos17/Aegis/commit/e986358783d865d88ee8d8890aef5e9f4bd700dd))
+* **rules:** add YAML rule loader with JSON Schema validation [R1] ([db2b496](https://github.com/antropos17/Aegis/commit/db2b496f7776a5417c3f5965fdfdb299532aade6))
+* **rules:** migrate all SENSITIVE_RULES to typed YAML rulesets [R2] ([20fce07](https://github.com/antropos17/Aegis/commit/20fce07682642ab2c02ed40b5e8eb3c23fb08a23))
+* **rules:** wire rule-loader into file-watcher, deprecate SENSITIVE_RULES [R3] ([74500dd](https://github.com/antropos17/Aegis/commit/74500dd76c59bc3edb2080946c49c72297a554e3))
+* **rules:** YAML rulesets with hot-reload and IPC (R1-R4) ([3c9072f](https://github.com/antropos17/Aegis/commit/3c9072f8eb81d8df1dae86c23dc74aff8c68aa9d))
+
 ## [0.6.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.5.0-alpha...aegis-v0.6.0-alpha) (2026-03-03)
 
 
