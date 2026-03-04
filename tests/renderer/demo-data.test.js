@@ -53,9 +53,10 @@ describe('demo-data', () => {
       cleanup();
     });
 
-    it('seeds initial stats immediately', () => {
+    it('seeds stats after staggered init', () => {
       const stores = makeStores();
       const cleanup = startDemoMode(stores);
+      vi.advanceTimersByTime(1); // flush staggered rAF fallback
       const s = get(stores.stats);
       expect(s).toHaveProperty('totalFiles');
       expect(s).toHaveProperty('currentAgents');
@@ -65,6 +66,7 @@ describe('demo-data', () => {
     it('cleanup clears all intervals (no leaks)', () => {
       const stores = makeStores();
       const cleanup = startDemoMode(stores);
+      vi.advanceTimersByTime(1); // flush staggered init
       cleanup();
 
       const agentsBefore = get(stores.agents);
@@ -79,8 +81,9 @@ describe('demo-data', () => {
     it('cycles: calm → elevated → critical → reset', () => {
       const stores = makeStores();
       const cleanup = startDemoMode(stores);
+      vi.advanceTimersByTime(1); // flush staggered init
 
-      // Initial phase = calm (index 0), agentCount = 2
+      // Initial phase = calm (index 0), agentCount = 3
       expect(get(stores.agents)).toHaveLength(SCENARIOS[0].agentCount);
 
       // Advance past calm duration → elevated
@@ -101,6 +104,7 @@ describe('demo-data', () => {
     it('wraps back to calm after reset', () => {
       const stores = makeStores();
       const cleanup = startDemoMode(stores);
+      vi.advanceTimersByTime(1); // flush staggered init
 
       const totalDuration = SCENARIOS.reduce((s, p) => s + p.duration, 0);
       vi.advanceTimersByTime(totalDuration);
