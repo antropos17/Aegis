@@ -1,13 +1,17 @@
 <div class="demo-banner" role="status" aria-live="polite">
-  <span class="demo-badge">DEMO MODE</span>
-  <span class="demo-text">Simulated data only. No real agents are being monitored.</span>
+  <span class="demo-badge">DEMO</span>
+  <span class="demo-text">
+    Monitoring <strong>106</strong> AI agents across <strong>11</strong> categories
+    <span class="demo-sep">&middot;</span>
+    Simulated scenario data
+  </span>
   <a
     class="demo-link"
-    href="https://github.com/antropos17/Aegis"
+    href="https://github.com/anthropos17/Aegis"
     target="_blank"
     rel="noopener noreferrer"
   >
-    Install AEGIS &rarr;
+    &#9733; Star on GitHub &rarr;
   </a>
 </div>
 
@@ -60,6 +64,16 @@
   .demo-text {
     font: var(--md-sys-typescale-body-small);
     color: var(--md-sys-color-on-tertiary-container);
+  }
+
+  .demo-text strong {
+    font-weight: 700;
+    color: var(--md-sys-color-on-tertiary-container);
+  }
+
+  .demo-sep {
+    margin: 0 var(--aegis-space-2);
+    opacity: 0.5;
   }
 
   .demo-link {
