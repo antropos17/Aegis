@@ -207,6 +207,8 @@ function initDeferredSubsystems(userData) {
     tray,
     logger,
     sendToRenderer,
+    fileAccessBatcher,
+    statsUpdateBatcher,
     getStats,
     getResourceUsage,
     getLatestAgents: () => latestAgents,
