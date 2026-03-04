@@ -2,6 +2,7 @@
   import Reports from './Reports.svelte';
   import AuditLog from './AuditLog.svelte';
   import ThreatAnalysis from './ThreatAnalysis.svelte';
+  import { isDemoMode } from '../stores/ipc.js';
   import { t } from '../i18n/index.js';
   import { addToast } from '../stores/toast.js';
 
@@ -50,7 +51,7 @@
       >
     </div>
 
-    <button class="export-btn" onclick={handleExportAll} disabled={exporting}>
+    <button class="export-btn" onclick={handleExportAll} disabled={exporting || isDemoMode} title={isDemoMode ? 'Desktop app only' : ''}>
       <svg
         class="export-icon"
         viewBox="0 0 16 16"
