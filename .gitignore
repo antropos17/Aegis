@@ -19,9 +19,12 @@ aegis-full-audit-*.json
 screenshot_test.png
 screenshot_electron.png
 *.exe
+*.pem
+*.key
+*.p12
+*.pfx
 
-.agent/*
-!.agent/skills/
+.agent/
 .env.local
 .env.*.local
 
