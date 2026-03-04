@@ -13,6 +13,7 @@
     formatRelativeTime,
     riskColor,
   } from '../utils/agent-stats-utils.ts';
+  import { tick, startTick } from '../stores/tick.ts';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
@@ -22,7 +23,7 @@
   /** @type {import('../utils/agent-stats-utils.ts').SortDirection} */
   let sortDir = $state('desc');
 
-  let now = $state(Date.now());
+  let now = $derived($tick ? Date.now() : Date.now());
   let localAgents = $state([]);
 
   $effect(() => {
@@ -32,10 +33,7 @@
 
   $effect(() => {
     if (!active) return;
-    const id = setInterval(() => {
-      now = Date.now();
-    }, 1000);
-    return () => clearInterval(id);
+    return startTick();
   });
 
   let rows = $derived(sortRows(toStatsRows(localAgents, now), sortColumn, sortDir));

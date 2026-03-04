@@ -2,6 +2,7 @@
   import { resourceUsage, stats } from '../stores/ipc.js';
   import { t } from '../i18n/index.js';
   import FooterMiniCharts from './FooterMiniCharts.svelte';
+  import { tick, startTick } from '../stores/tick.ts';
 
   let permDenied = $derived($stats.permissionDeniedScans || 0);
 
@@ -10,13 +11,10 @@
   let appVersion = $state('v0.7.0-alpha');
 
   const appStart = Date.now();
-  let uptimeMs = $state(0);
+  let uptimeMs = $derived($tick ? Date.now() - appStart : 0);
 
   $effect(() => {
-    const id = setInterval(() => {
-      uptimeMs = Date.now() - appStart;
-    }, 1000);
-    return () => clearInterval(id);
+    return startTick();
   });
 
   $effect(() => {
