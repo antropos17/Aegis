@@ -1,0 +1,10 @@
+version: 1
+category: secrets
+description: Invalid ruleset for testing validation
+
+rules:
+  - id: BADID
+    name: Invalid rule with bad ID format
+    pattern: "\\.env$"
+    reason: Should be skipped
+    category: secrets
