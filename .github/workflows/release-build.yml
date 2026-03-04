@@ -1,0 +1,36 @@
+name: Build Windows Installer
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Build renderer
+        run: npm run build:renderer
+
+      - name: Build Windows .exe
+        run: npx electron-builder --win --publish never
+
+      - name: Upload .exe to release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXE=$(ls dist/*.exe)
+          echo "Found installer: $EXE"
+          gh release upload "${{ github.event.release.tag_name }}" "$EXE" --clobber
