@@ -240,11 +240,11 @@ async function doFileScan() {
     const rawEvents = await watcher.scanAllFileHandles(agents);
     const events = rawEvents.map(dedupFileEvent).filter(Boolean);
     if (events.length > 0) {
-      sendToRenderer('file-access', events);
+      for (const ev of events) deps.fileAccessBatcher.push(ev);
       tray.notifySensitive(events.filter((e) => e.sensitive && e.category === 'ai'));
       for (const ev of events) logAuditForFile(ev);
     }
-    sendToRenderer('stats-update', getStats());
+    deps.statsUpdateBatcher.push(getStats());
     tray.updateTrayIcon();
   } catch (err) {
     logger.error('main', 'File handle scan failed', { error: err.message });
