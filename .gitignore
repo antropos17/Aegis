@@ -40,3 +40,9 @@ _env
 _gitignore
 AEGIS-CONTEXT-*.md
 AEGIS-PERSONA-VAULT.md
+
+# Sensitive production/cert files
+.env.production
+*.cert
+*.crt
+.vscode/settings.json
