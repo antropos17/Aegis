@@ -216,4 +216,4 @@ If Aegis is useful to you, consider giving it a star on GitHub — it helps othe
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=antropos17/Aegis&type=Date&theme=dark)](https://star-history.com/#antropos17/Aegis&Date)
+[![Star History Chart](https://api.star-history.com/image?repos=antropos17/Aegis&type=timeline&legend=top-left)](https://www.star-history.com/?repos=antropos17%2FAegis&type=timeline&legend=top-left)
