@@ -28,6 +28,10 @@ screenshot_electron.png
 .env.local
 .env.*.local
 
+# Audit artifacts — local only
+docs/audit/
+scripts/capture-audit-screenshots.mjs
+
 # Design mockups — local only
 design/
 
