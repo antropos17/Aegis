@@ -2,6 +2,7 @@
   <h1 align="center">AEGIS</h1>
   <p align="center"><b>EDR for AI Agents</b></p>
   <p align="center">Watches what AI agents do on your machine. Processes, files, network, risk scoring.<br>No telemetry. No cloud. Everything stays local.</p>
+  <p align="center"><i>With autonomous agents like OpenClaw (247K+ GitHub stars) gaining access to local files, credentials, and shell — somebody needs to watch.</i></p>
 </p>
 
 <p align="center">
@@ -29,13 +30,15 @@
 
 AI agents now have deep access to your machine — files, commands, network. Every existing AI security tool is enterprise SaaS that monitors what humans send *to* AI. Nobody monitors what AI agents do *on local machines*.
 
+CrowdStrike, Cisco, and Kaspersky have all flagged security risks in autonomous AI agents. Aegis is the open-source answer.
+
 AEGIS is an independent, open-source monitoring layer. It watches AI agent behavior in real time, doesn't belong to any AI vendor, and keeps all data local.
 
 ## What It Monitors
 
 | Layer | How |
 |-------|-----|
-| **Processes** | 106 known AI agent signatures, parent-child tree resolution, IDE host detection |
+| **Processes** | 107 known AI agent signatures, parent-child tree resolution, IDE host detection |
 | **Files** | Watches `.ssh`, `.aws`, `.gnupg`, `.env*`, cloud configs, 27 AI agent config dirs |
 | **Network** | Outbound TCP per agent PID, reverse DNS, known API endpoints vs unknown |
 | **Behavior** | Rolling 10-session baselines, 4-axis anomaly scoring (Network/FS/Process/Baseline) |
@@ -65,6 +68,14 @@ npm start
 
 > Requires **Node.js 18+** and **npm 9+**. Windows 10/11 recommended. macOS/Linux experimental ([#37](https://github.com/antropos17/Aegis/issues/37)).
 
+### Try Without AI Agents
+
+```bash
+npm run build:demo && npm start
+```
+
+No real AI agents needed — explore the full UI with simulated data.
+
 ### Windows Installer
 
 Pre-built `.exe` installer is coming in a future release. Track progress in [Releases](https://github.com/antropos17/Aegis/releases).
@@ -83,7 +94,7 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
 
 ## Features
 
-**Detection** — 106 agent signatures, parent chain resolution, config dir protection, per-agent risk scoring with trust grades (A+ through F), HTTP/User-Agent scoring, local LLM detection, false positive marking
+**Detection** — 107 agent signatures, parent chain resolution, config dir protection, per-agent risk scoring with trust grades (A+ through F), HTTP/User-Agent scoring, local LLM detection, false positive marking
 
 **Analysis** — Behavioral baselines with rolling averages, multi-dimensional anomaly detection, AI threat assessment via Anthropic API (opt-in), printable HTML threat reports
 
@@ -160,10 +171,10 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
 
 ## Agent Database
 
-106 agents in [`src/shared/agent-database.json`](src/shared/agent-database.json):
+107 agents in [`src/shared/agent-database.json`](src/shared/agent-database.json):
 
 **Coding** — Claude Code, GitHub Copilot, Cursor, Windsurf, Tabnine, Amazon Q, Cody, Aider
-**Autonomous** — Devin, Manus AI, OpenHands, SWE-Agent, AutoGPT, BabyAGI, CrewAI
+**Autonomous** — OpenClaw, Devin, Manus AI, OpenHands, SWE-Agent, AutoGPT, BabyAGI, CrewAI
 **Desktop** — Anthropic Computer Use, Google Gemini, Apple Intelligence, Microsoft Copilot
 **Frameworks** — LangChain, Semantic Kernel, AutoGen, MetaGPT, TaskWeaver
 **Local LLMs** — Ollama, LM Studio, vLLM, llama.cpp, LocalAI, GPT4All, Jan
@@ -192,6 +203,12 @@ Add custom agents via the UI or edit the JSON. See [AGENTS.md](AGENTS.md).
 </table>
 
 [CONTRIBUTING.md](CONTRIBUTING.md) &middot; [SECURITY.md](SECURITY.md) &middot; [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+
+## Support
+
+If Aegis is useful to you, consider giving it a star on GitHub — it helps others discover the project.
+
+**Teams & Enterprise** — Need centralized dashboards, SIEM integration, or managed deployment? We're building it. [Get notified](mailto:aegis@antropos17.dev?subject=Aegis%20Enterprise%20Interest)
 
 ## License
 

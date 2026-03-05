@@ -27,7 +27,7 @@ function getStoredLang() {
   }
 }
 
-function getTranslations(lang) {
+function getTranslations(_lang) {
   // Add additional language imports here as they become available:
   // if (lang === 'es') return es;
   // if (lang === 'fr') return fr;

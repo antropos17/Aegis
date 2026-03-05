@@ -2,7 +2,6 @@
   "version": "2.0.0",
   "lastUpdated": "2026-02-28",
   "agents": [
-
     {
       "id": "claude-code",
       "names": ["claude", "claude-code", "claude.exe"],
@@ -31,7 +30,15 @@
       "defaultTrust": 78,
       "website": "https://github.com/features/copilot",
       "description": "AI pair programmer by GitHub",
-      "knownDomains": ["github.com", "copilot-proxy.githubusercontent.com", "api.github.com", "api.githubcopilot.com", "api.individual.githubcopilot.com", "copilot-telemetry.githubusercontent.com", "default.exp-tas.com"],
+      "knownDomains": [
+        "github.com",
+        "copilot-proxy.githubusercontent.com",
+        "api.github.com",
+        "api.githubcopilot.com",
+        "api.individual.githubcopilot.com",
+        "copilot-telemetry.githubusercontent.com",
+        "default.exp-tas.com"
+      ],
       "knownPorts": [443],
       "configPaths": ["~/.copilot/", ".github/copilot-instructions.md"],
       "parentEditors": ["Code.exe", "code", "idea64.exe", "webstorm64.exe", "pycharm64.exe"],
@@ -48,7 +55,13 @@
       "defaultTrust": 75,
       "website": "https://cursor.com",
       "description": "AI-first code editor (VS Code fork)",
-      "knownDomains": ["cursor.sh", "cursor.com", "api2.cursor.sh", "api3.cursor.sh", "agent.api5.cursor.sh"],
+      "knownDomains": [
+        "cursor.sh",
+        "cursor.com",
+        "api2.cursor.sh",
+        "api3.cursor.sh",
+        "agent.api5.cursor.sh"
+      ],
       "knownPorts": [443],
       "configPaths": [".cursor/", ".cursorrules"],
       "parentEditors": [],
@@ -65,7 +78,13 @@
       "defaultTrust": 70,
       "website": "https://windsurf.com",
       "description": "AI-powered IDE (formerly Codeium)",
-      "knownDomains": ["codeium.com", "windsurf.com", "windsurf.ai", "api.windsurf.com", "server.codeium.com"],
+      "knownDomains": [
+        "codeium.com",
+        "windsurf.com",
+        "windsurf.ai",
+        "api.windsurf.com",
+        "server.codeium.com"
+      ],
       "knownPorts": [443],
       "configPaths": ["~/.codeium/"],
       "parentEditors": [],
@@ -82,7 +101,14 @@
       "defaultTrust": 45,
       "website": "https://trae.ai",
       "description": "AI IDE by ByteDance with extensive telemetry",
-      "knownDomains": ["trae.ai", "api.trae.ai", "api-sg-central.trae.ai", "mon-va.byteoversea.com", "maliva-mcs.byteoversea.com", "bytegate-sg.byteintlapi.com"],
+      "knownDomains": [
+        "trae.ai",
+        "api.trae.ai",
+        "api-sg-central.trae.ai",
+        "mon-va.byteoversea.com",
+        "maliva-mcs.byteoversea.com",
+        "bytegate-sg.byteintlapi.com"
+      ],
       "knownPorts": [443],
       "configPaths": [],
       "parentEditors": [],
@@ -184,7 +210,13 @@
       "defaultTrust": 65,
       "website": "https://tabnine.com",
       "description": "AI code completion assistant",
-      "knownDomains": ["tabnine.com", "app.tabnine.com", "api.tabnine.com", "update.tabnine.com", "models.tabnine.com"],
+      "knownDomains": [
+        "tabnine.com",
+        "app.tabnine.com",
+        "api.tabnine.com",
+        "update.tabnine.com",
+        "models.tabnine.com"
+      ],
       "knownPorts": [443],
       "configPaths": ["~/.config/TabNine/", "~/.tabnine/"],
       "parentEditors": ["Code.exe", "code", "idea64.exe"],
@@ -192,7 +224,15 @@
     },
     {
       "id": "amazon-q",
-      "names": ["q", "q.exe", "codewhisperer", "codewhisperer.exe", "aws-codewhisperer", "amazon-q", "aws-q"],
+      "names": [
+        "q",
+        "q.exe",
+        "codewhisperer",
+        "codewhisperer.exe",
+        "aws-codewhisperer",
+        "amazon-q",
+        "aws-q"
+      ],
       "displayName": "Amazon Q Developer",
       "vendor": "Amazon Web Services",
       "category": "coding-assistant",
@@ -201,7 +241,12 @@
       "defaultTrust": 72,
       "website": "https://aws.amazon.com/q/developer",
       "description": "AI coding companion by AWS",
-      "knownDomains": ["amazonaws.com", "aws.amazon.com", "codewhisperer.amazonaws.com", "desktop-release.q.us-east-1.amazonaws.com"],
+      "knownDomains": [
+        "amazonaws.com",
+        "aws.amazon.com",
+        "codewhisperer.amazonaws.com",
+        "desktop-release.q.us-east-1.amazonaws.com"
+      ],
       "knownPorts": [443],
       "configPaths": ["~/.aws/", "~/.aws/amazonq/mcp.json", ".amazonq/"],
       "parentEditors": ["Code.exe", "code", "idea64.exe"],
@@ -269,7 +314,13 @@
       "defaultTrust": 72,
       "website": "https://developers.google.com/gemini-code-assist",
       "description": "AI code assistance by Google",
-      "knownDomains": ["googleapis.com", "google.com", "cloud.google.com", "cloudaicompanion.googleapis.com", "generativelanguage.googleapis.com"],
+      "knownDomains": [
+        "googleapis.com",
+        "google.com",
+        "cloud.google.com",
+        "cloudaicompanion.googleapis.com",
+        "generativelanguage.googleapis.com"
+      ],
       "knownPorts": [443],
       "configPaths": ["~/.config/gcloud/", "~/.gemini/settings.json"],
       "parentEditors": ["Code.exe", "code", "idea64.exe"],
@@ -289,7 +340,13 @@
       "knownDomains": ["jetbrains.com", "api.jetbrains.ai", "api.app.prod.grazie.aws.intellij.net"],
       "knownPorts": [443],
       "configPaths": ["~/.config/JetBrains/"],
-      "parentEditors": ["idea64.exe", "webstorm64.exe", "pycharm64.exe", "goland64.exe", "rider64.exe"],
+      "parentEditors": [
+        "idea64.exe",
+        "webstorm64.exe",
+        "pycharm64.exe",
+        "goland64.exe",
+        "rider64.exe"
+      ],
       "riskProfile": "low"
     },
     {
@@ -1003,7 +1060,13 @@
       "defaultTrust": 70,
       "website": "https://openai.com/chatgpt/desktop",
       "description": "ChatGPT desktop application",
-      "knownDomains": ["openai.com", "chat.openai.com", "chatgpt.com", "api.openai.com", "cdn.oaistatic.com"],
+      "knownDomains": [
+        "openai.com",
+        "chat.openai.com",
+        "chatgpt.com",
+        "api.openai.com",
+        "cdn.oaistatic.com"
+      ],
       "knownPorts": [443],
       "configPaths": [],
       "parentEditors": [],
@@ -1022,7 +1085,11 @@
       "description": "Claude desktop application by Anthropic",
       "knownDomains": ["api.anthropic.com", "claude.ai", "cdn.anthropic.com"],
       "knownPorts": [443],
-      "configPaths": ["%APPDATA%\\Claude\\claude_desktop_config.json", "~/Library/Application Support/Claude/claude_desktop_config.json", "~/.config/Claude/claude_desktop_config.json"],
+      "configPaths": [
+        "%APPDATA%\\Claude\\claude_desktop_config.json",
+        "~/Library/Application Support/Claude/claude_desktop_config.json",
+        "~/.config/Claude/claude_desktop_config.json"
+      ],
       "parentEditors": [],
       "riskProfile": "low"
     },
@@ -1037,7 +1104,12 @@
       "defaultTrust": 72,
       "website": "https://copilot.microsoft.com",
       "description": "Microsoft Copilot for Windows",
-      "knownDomains": ["copilot.microsoft.com", "api.bing.microsoft.com", "substrate.office.com", "copilot.cloud.microsoft"],
+      "knownDomains": [
+        "copilot.microsoft.com",
+        "api.bing.microsoft.com",
+        "substrate.office.com",
+        "copilot.cloud.microsoft"
+      ],
       "knownPorts": [443],
       "configPaths": [],
       "parentEditors": [],
@@ -1474,7 +1546,12 @@
     },
     {
       "id": "codeium-language-server",
-      "names": ["language_server_windows_x64.exe", "language_server_linux_x64", "language_server_macos_x64", "codeium_language_server"],
+      "names": [
+        "language_server_windows_x64.exe",
+        "language_server_linux_x64",
+        "language_server_macos_x64",
+        "codeium_language_server"
+      ],
       "displayName": "Codeium Language Server",
       "vendor": "Codeium",
       "category": "ide-extension",
@@ -1526,7 +1603,14 @@
 
     {
       "id": "docker-desktop",
-      "names": ["Docker Desktop.exe", "docker.exe", "docker", "dockerd", "dockerd.exe", "com.docker.backend.exe"],
+      "names": [
+        "Docker Desktop.exe",
+        "docker.exe",
+        "docker",
+        "dockerd",
+        "dockerd.exe",
+        "com.docker.backend.exe"
+      ],
       "displayName": "Docker Desktop",
       "vendor": "Docker Inc.",
       "category": "container-runtime",
@@ -1535,7 +1619,12 @@
       "defaultTrust": 70,
       "website": "https://docker.com",
       "description": "Container runtime — can run local LLMs and AI agents in isolated containers",
-      "knownDomains": ["hub.docker.com", "registry-1.docker.io", "auth.docker.io", "production.cloudflare.docker.com"],
+      "knownDomains": [
+        "hub.docker.com",
+        "registry-1.docker.io",
+        "auth.docker.io",
+        "production.cloudflare.docker.com"
+      ],
       "knownPorts": [443, 2375, 2376],
       "configPaths": ["~/.docker/"],
       "parentEditors": [],
@@ -1645,7 +1734,13 @@
     },
     {
       "id": "llama-cpp",
-      "names": ["llama-server", "llama-server.exe", "llama-cli", "llama-cli.exe", "llama-cpp-server"],
+      "names": [
+        "llama-server",
+        "llama-server.exe",
+        "llama-cli",
+        "llama-cli.exe",
+        "llama-cpp-server"
+      ],
       "displayName": "llama.cpp",
       "vendor": "ggerganov",
       "category": "local-llm-runtime",
@@ -1812,6 +1907,23 @@
       "configPaths": ["~/.letta/"],
       "parentEditors": [],
       "riskProfile": "medium"
+    },
+    {
+      "id": "openclaw",
+      "names": ["openclaw", "moltbot", "clawdbot", "molty"],
+      "displayName": "OpenClaw",
+      "vendor": "Peter Steinberger",
+      "category": "autonomous-agent",
+      "icon": "\ud83e\udd80",
+      "color": "#EF4444",
+      "defaultTrust": 35,
+      "website": "https://github.com/openclaw/openclaw",
+      "description": "Open-source autonomous AI agent with messaging platform integration (formerly Moltbot/Clawdbot)",
+      "knownDomains": ["openclaw.ai", "127.0.0.1"],
+      "knownPorts": [18789],
+      "configPaths": ["~/.openclaw/", "~/.openclaw/config", "~/.moltbot/"],
+      "parentEditors": [],
+      "riskProfile": "high"
     }
   ]
 }

@@ -266,3 +266,19 @@ rules:
     category: "ai-config"
     risk: critical
     enabled: true
+
+  - id: "AI034"
+    name: "Moltbot legacy config"
+    pattern: "[\\\\\/]\\.moltbot[\\\\\/]"
+    reason: "AI agent config — OpenClaw (legacy Moltbot)"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI035"
+    name: "OpenClaw config file"
+    pattern: "[\\\\\/]\\.openclaw[\\\\\/]config\\.yaml$"
+    reason: "AI agent config — OpenClaw"
+    category: "ai-config"
+    risk: critical
+    enabled: true

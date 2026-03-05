@@ -348,7 +348,6 @@ function setupRulesWatcher(sendFn) {
   rw.on('change', (filePath) => {
     const basename = path.basename(filePath);
     if (!basename.endsWith('.yaml') && !basename.endsWith('.yml')) return;
-    console.log('[rule-loader] YAML changed:', basename);
     reloadRules();
     sendFn('rules:reloaded', { count: getAllRules().size, file: basename });
   });
