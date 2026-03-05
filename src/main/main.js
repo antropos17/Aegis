@@ -15,7 +15,6 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
   return; // CJS module-scope return — stops rest of file from executing
 }
 
-const _startupT0 = Date.now();
 const { app, BrowserWindow, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -374,7 +373,6 @@ app.whenReady().then(() => {
   mainWindow.once('ready-to-show', () => {
     if (!settings.startMinimized) mainWindow.show();
     tray.createTray();
-    console.log(`[Aegis] ready-to-show in ${Date.now() - _startupT0}ms`);
     // Load heavy modules AFTER window is visible
     setImmediate(() => initDeferredSubsystems(userData));
   });

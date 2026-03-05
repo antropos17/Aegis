@@ -233,7 +233,7 @@ function attachModels(agents, name, info) {
 }
 
 async function doFileScan() {
-  const { watcher, tray, logger, sendToRenderer, getStats, getLatestAgents } = deps;
+  const { watcher, tray, logger, getStats, getLatestAgents } = deps;
   const agents = getLatestAgents();
   if (agents.length === 0) return;
   updateScanStatus(true);

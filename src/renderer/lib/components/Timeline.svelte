@@ -17,7 +17,6 @@
     TICK_H,
     PX_PER_UNIT,
     PAD,
-    MIN_TICK_PX,
     ZOOM_LEVELS,
     HISTORY_BATCH,
     AUDIT_EVENT_TYPES,
@@ -323,8 +322,6 @@
   <TimelineControls
     {thumbWidth}
     {thumbX}
-    {trackUsable}
-    {scrubPad}
     {maxScroll}
     onTrackClick={handleTrackClick}
     onThumbDown={handleThumbDown}

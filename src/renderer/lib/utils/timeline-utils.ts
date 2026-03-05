@@ -42,6 +42,10 @@ interface TimelineEvent {
   sensitive?: boolean;
   action?: string;
   flagged?: boolean;
+  agent?: string;
+  timestamp?: number;
+  file?: string;
+  _historical?: boolean;
 }
 
 /** Map an event to its severity level. */
@@ -115,7 +119,7 @@ interface AuditEntry {
 }
 
 /** Convert an audit log entry to a timeline event object. */
-export function auditToTimelineEvent(entry: AuditEntry) {
+export function auditToTimelineEvent(entry: AuditEntry): TimelineEvent {
   const ts = new Date(entry.timestamp).getTime();
   if (entry.type === 'network-connection') {
     return {
@@ -139,7 +143,13 @@ export function auditToTimelineEvent(entry: AuditEntry) {
 }
 
 /** Compute summary counters from events. */
-export function buildSummary(events: TimelineEvent[]) {
+export function buildSummary(events: TimelineEvent[]): {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  total: number;
+} {
   let critical = 0;
   let high = 0;
   let medium = 0;
