@@ -90,9 +90,11 @@ AEGIS follows Electron security best practices:
 
 ## Supported Versions
 
-| Version | Supported |
-|---------|-----------|
-| 0.4.x   | Current release — actively supported |
+| Version     | Supported                          |
+|-------------|------------------------------------|
+| 0.8.x       | Current release — actively supported |
+| 0.5.x–0.7.x | Security fixes only                |
+| < 0.5.x     | End of life                        |
 
 ## Credit
 
