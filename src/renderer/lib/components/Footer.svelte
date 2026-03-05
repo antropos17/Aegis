@@ -8,7 +8,7 @@
 
   let heapMB = $state('--');
   let scanInterval = $state('--');
-  let appVersion = $state('v0.7.0-alpha');
+  let appVersion = $state('v0.8.0-alpha');
 
   const appStart = Date.now();
   let uptimeMs = $derived($tick ? Date.now() - appStart : 0);

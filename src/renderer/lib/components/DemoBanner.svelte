@@ -1,7 +1,7 @@
 <div class="demo-banner" role="status" aria-live="polite">
   <span class="demo-badge">DEMO</span>
   <span class="demo-text">
-    Monitoring <strong>106</strong> AI agents across <strong>11</strong> categories
+    Monitoring <strong>107</strong> AI agents across <strong>11</strong> categories
     <span class="demo-sep">&middot;</span>
     Simulated scenario data
   </span>

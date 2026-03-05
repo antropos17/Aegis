@@ -15,6 +15,7 @@ export const DEMO_AGENTS_POOL = [
   { agent: 'LM Studio', process: 'lms', pid: 2200, category: 'local-llm-runtime', parentEditor: null, cwd: null, projectName: null, localModels: ['llama3.1', 'qwen2.5-coder', 'deepseek-r1'] },
   { agent: 'Ollama', process: 'ollama', pid: 1544, category: 'local-llm-runtime', parentEditor: null, cwd: null, projectName: null, localModels: ['llama3', 'mistral', 'codellama'] },
   { agent: 'GPT Pilot', process: 'gpt-pilot', pid: 7102, category: 'autonomous-agent', parentEditor: null, cwd: '~/code/backend', projectName: 'backend' },
+  { agent: 'OpenClaw', process: 'openclaw', pid: 18789, category: 'autonomous-agent', parentEditor: null, cwd: '~/projects/ml-pipeline', projectName: 'ml-pipeline' },
 ];
 
 /** @type {Array<{file: string, sensitive: boolean, selfAccess: boolean, reason: string, action: string}>} */
