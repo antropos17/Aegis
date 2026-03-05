@@ -4,6 +4,61 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.7.0-alpha...aegis-v0.8.0-alpha) (2026-03-05)
+
+
+### Features
+
+* **demo:** enrich demo — 12 agents, 25 events, informative banner ([#69](https://github.com/antropos17/Aegis/issues/69)) ([bd01ac8](https://github.com/antropos17/Aegis/commit/bd01ac87b8888446e77dac223b33cbc937b5b461))
+* **demo:** enrich demo with 12 agents, 25 events, informative banner ([a03b7b0](https://github.com/antropos17/Aegis/commit/a03b7b0b4112aac7da5efc58f17566ff56f36a86))
+* **demo:** polish all tabs for browser demo — mock data for Rules, Reports, Settings ([d18d95a](https://github.com/antropos17/Aegis/commit/d18d95a17a3b35511c31fe2a4e26a516ce2526d0))
+* **demo:** polish all tabs for browser demo ([#68](https://github.com/antropos17/Aegis/issues/68)) ([e41fae2](https://github.com/antropos17/Aegis/commit/e41fae21a63ccded456c5ebac477b897eaba343e))
+* **ui:** add skeleton loading states for ActivityTab and RulesTab ([30bbe1b](https://github.com/antropos17/Aegis/commit/30bbe1bab1552414faa4d514b53063e4efda09cb))
+
+
+### Bug Fixes
+
+* **ipc:** add try-catch to all async ipc handlers ([dc22669](https://github.com/antropos17/Aegis/commit/dc2266922c2b862171ccb6b369d6317164a1f6b6))
+* **lint:** use SvelteSet for reactive set in App.svelte ([a4b0cfd](https://github.com/antropos17/Aegis/commit/a4b0cfd6ddded14ffa35124a298fa5024bdfd72f))
+* **memory:** add caps to prevAnomalyKeys, knownHandles, eventDedupMap, dnsCache ([b5cde3b](https://github.com/antropos17/Aegis/commit/b5cde3bd72ce1d04672b3cc1c1b92f4f7c61c42b))
+* **preload:** return cleanup functions for all IPC listeners ([e0ecd76](https://github.com/antropos17/Aegis/commit/e0ecd765131d5ddadaf2cc4cee7eb18cda258973))
+* **ui:** defer ReportsTab rendering to prevent UI freeze ([5f3e03f](https://github.com/antropos17/Aegis/commit/5f3e03f5cc6b72fc35fb8284127c3e9da656ee8c))
+* **ui:** fix uptime text overflow and pin feed filters (L1, L2) ([c033572](https://github.com/antropos17/Aegis/commit/c033572605e444714d15b52450e6188cfa854b5a))
+* **ui:** improve contrast for warning-level readability issues (W1-W4) ([ee2bf38](https://github.com/antropos17/Aegis/commit/ee2bf389cedd0c960edb624e4feac734fef4bb5b))
+* **ui:** layout fixes + skeleton loading states + ReportsTab freeze fix ([858951f](https://github.com/antropos17/Aegis/commit/858951fec96b63eed684764bdd691d561e5fe561))
+* **ui:** resolve 7 critical contrast issues (WCAG AA) ([f889c55](https://github.com/antropos17/Aegis/commit/f889c555f4808662f3840db49ae4fa2c34172cf3))
+* **ui:** resolve 7 critical contrast issues from visual audit ([e635975](https://github.com/antropos17/Aegis/commit/e6359758e4d79e359110e6ca91f07e9feb440f5d))
+
+
+### Performance
+
+* comprehensive performance optimization (A-J) ([aaadf08](https://github.com/antropos17/Aegis/commit/aaadf08119cee59d6c1544d17109d06a3e19d718))
+* **css:** reduce backdrop-filter from 33 to 5 instances ([77e5374](https://github.com/antropos17/Aegis/commit/77e5374f68baf818b4f60bafd8535f32b2088a85))
+* **css:** replace width transitions with transform scaleX ([e63377d](https://github.com/antropos17/Aegis/commit/e63377db57308c830e3f34da963a84374fc2e83e))
+* **demo:** stagger initial seeding + delay intervals ([#70](https://github.com/antropos17/Aegis/issues/70)) ([f709d72](https://github.com/antropos17/Aegis/commit/f709d727d4e2290f67cda5dd43cdb752fd4f4b2d))
+* **demo:** stagger initial seeding + delay intervals to prevent startup freeze ([c2731f6](https://github.com/antropos17/Aegis/commit/c2731f658c0c8b802716f5543e722df8c4a787ec))
+* **ipc:** route stats-update and file-access through existing batchers ([3c1bb4c](https://github.com/antropos17/Aegis/commit/3c1bb4c73e5a2e6b89a882a3419e01ac648aea9f))
+* **main:** replace O(n) filters with running counters in getStats ([09ba8e6](https://github.com/antropos17/Aegis/commit/09ba8e6de632725d637d6dcb759195c7b32f8be6))
+* **renderer:** coalesce scan-batch store updates into single tick ([58b6827](https://github.com/antropos17/Aegis/commit/58b6827f7ef0f1d9b081ca64d0332d76c3ce5257))
+
+
+### Code Refactoring
+
+* **renderer:** consolidate 1s timers into shared tick store ([2c46303](https://github.com/antropos17/Aegis/commit/2c46303b346e8a61d3aff8e45feed0c2e7b29503))
+* **renderer:** consolidate effects, add rAF cleanup ([7eed9f2](https://github.com/antropos17/Aegis/commit/7eed9f263bf11a215ddea43e2d56bbaded73d7ac))
+
+
+### Documentation
+
+* Fancy UI screenshots + capture script ([#67](https://github.com/antropos17/Aegis/issues/67)) ([4aa089c](https://github.com/antropos17/Aegis/commit/4aa089ca739f81ab5da9420e06d6dd8e7a84ab16))
+* overhaul Download section — honest install, release table, fix 404 GIF ([8297c57](https://github.com/antropos17/Aegis/commit/8297c5740fb5efd701da1f49f044750f7108b8a8))
+* sync test counts and versions across all documentation ([ed63d87](https://github.com/antropos17/Aegis/commit/ed63d876a5f19adf159422f581f9a17976b2851a))
+* sync test counts and versions across all documentation ([02c3d18](https://github.com/antropos17/Aegis/commit/02c3d18255a057cf5de7bcc3da03bac81cf2702d))
+* update README for v0.7.0-alpha (568 tests, YAML rulesets, Fancy UI) ([e533a5c](https://github.com/antropos17/Aegis/commit/e533a5c1d4339b74f80bff016435ff17c0f49ada))
+* update README for v0.7.0-alpha (568 tests, YAML rulesets, Fancy UI) ([8fe3e4b](https://github.com/antropos17/Aegis/commit/8fe3e4b47956e6d2f53c850fee9cf429253dee51))
+* update screenshots with Fancy UI v0.5.0 ([d04cd99](https://github.com/antropos17/Aegis/commit/d04cd99a9f72d108213bb7bdf4f419f27ed6a53b))
+* update screenshots with Fancy UI v0.7.0, add capture script, fix gitignore ([b8acd46](https://github.com/antropos17/Aegis/commit/b8acd460bb17974f3ce56ded7999001f23374514))
+
 ## [0.7.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.6.0-alpha...aegis-v0.7.0-alpha) (2026-03-04)
 
 
