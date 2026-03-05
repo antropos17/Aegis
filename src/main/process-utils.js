@@ -15,12 +15,10 @@ const _platform = require('./platform');
 const { EDITORS } = require('../shared/constants');
 
 let _getParentProcessMap = _platform.getParentProcessMap;
-let _getProcessCwd = _platform.getProcessCwd;
 let _getProcessCwds = _platform.getProcessCwds;
 /** @internal Override platform functions (for tests). */
 function _setPlatformForTest(overrides) {
   if (overrides.getParentProcessMap) _getParentProcessMap = overrides.getParentProcessMap;
-  if (overrides.getProcessCwd) _getProcessCwd = overrides.getProcessCwd;
   if (overrides.getProcessCwds) _getProcessCwds = overrides.getProcessCwds;
 }
 /** @internal Clear caches (for tests). */

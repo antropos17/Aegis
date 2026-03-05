@@ -11,7 +11,10 @@
  * @param capacity - Maximum number of elements
  * @param fill - Initial fill value (default: 0)
  */
-export function createRingBuffer(capacity: number, fill = 0) {
+export function createRingBuffer(
+  capacity: number,
+  fill = 0,
+): { push(value: number): void; toArray(): number[]; readonly length: number } {
   const buf = new Array<number>(capacity).fill(fill);
   let head = 0;
   let count = 0;

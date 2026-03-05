@@ -6,16 +6,7 @@
    * @since v0.3.0
    */
 
-  let {
-    thumbWidth,
-    thumbX,
-    trackUsable,
-    scrubPad,
-    maxScroll,
-    onTrackClick,
-    onThumbDown,
-    dragging,
-  } = $props();
+  let { thumbWidth, thumbX, maxScroll, onTrackClick, onThumbDown, dragging } = $props();
 
   let thumbHover = $state(false);
 </script>
