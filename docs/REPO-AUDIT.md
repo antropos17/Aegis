@@ -31,7 +31,7 @@
 - ❌ **Отсутствует.** В топовых open-source проектах прямо под заголовком `README.md` обычно находится анимированная GIF-демонстрация или короткое видео `.mp4`, мгновенно показывающие работу и ценность продукта (в данном случае радар и сканирование). AEGIS имеет только статические `.png`.
 
 ## 6. Раздел Contributors в README
-- ❌ **Отсутствует.** Сейчас есть только раздел "Author" (Built by Ruslan Murtuzaliyev). В README нет визуальной секции «Contributors» с аватарками. Использование ботов вроде `@all-contributors` или `contrib.rocks` сильно помогает мотивировать внешних разработчиков.
+- ❌ **Отсутствует.** Сейчас есть только раздел "Author" (Built by Antropos7). В README нет визуальной секции «Contributors» с аватарками. Использование ботов вроде `@all-contributors` или `contrib.rocks` сильно помогает мотивировать внешних разработчиков.
 
 ## 7. Бейджи (Badges)
 - **Текущие бейджи:** License (MIT), Platform (Windows), Electron (33), Agents count, Downloads, CI (GitHub Actions).

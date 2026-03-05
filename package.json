@@ -28,7 +28,7 @@
   "build": {
     "appId": "com.aegis.oversight",
     "productName": "AEGIS - AI Monitoring & Threat Detection",
-    "copyright": "Copyright © 2026 Ruslan",
+    "copyright": "Copyright © 2026 AEGIS Contributors",
     "win": {
       "target": "nsis",
       "icon": "assets/icon.png"
@@ -67,7 +67,7 @@
   "bugs": {
     "url": "https://github.com/antropos17/Aegis/issues"
   },
-  "author": "Ruslan Murtuzaliyev",
+  "author": "AEGIS Contributors",
   "license": "MIT",
   "keywords": [
     "ai",
