@@ -204,6 +204,12 @@ Add custom agents via the UI or edit the JSON. See [AGENTS.md](AGENTS.md).
 
 [CONTRIBUTING.md](CONTRIBUTING.md) &middot; [SECURITY.md](SECURITY.md) &middot; [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 
+## Support
+
+If Aegis is useful to you, consider giving it a star on GitHub — it helps others discover the project.
+
+**Teams & Enterprise** — Need centralized dashboards, SIEM integration, or managed deployment? We're building it. [Get notified](mailto:aegis@antropos17.dev?subject=Aegis%20Enterprise%20Interest)
+
 ## License
 
 [MIT](LICENSE)
