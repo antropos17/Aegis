@@ -68,6 +68,14 @@ npm start
 
 > Requires **Node.js 18+** and **npm 9+**. Windows 10/11 recommended. macOS/Linux experimental ([#37](https://github.com/antropos17/Aegis/issues/37)).
 
+### Try Without AI Agents
+
+```bash
+npm run build:demo && npm start
+```
+
+No real AI agents needed — explore the full UI with simulated data.
+
 ### Windows Installer
 
 Pre-built `.exe` installer is coming in a future release. Track progress in [Releases](https://github.com/antropos17/Aegis/releases).
