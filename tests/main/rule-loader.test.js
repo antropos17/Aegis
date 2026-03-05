@@ -170,9 +170,9 @@ describe('rule-loader', () => {
       expect(rules.size).toBeGreaterThanOrEqual(50);
     });
 
-    it('loads exactly 68 rules (all migrated from constants.js)', () => {
+    it('loads exactly 70 rules (68 migrated + 2 OpenClaw additions)', () => {
       const rules = ruleLoader.reloadRules(PROD_RULES_DIR);
-      expect(rules.size).toBe(68);
+      expect(rules.size).toBe(70);
     });
 
     it('getRulesByCategory("secrets") returns only SC-prefixed IDs', () => {
