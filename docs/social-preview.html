@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AEGIS Social Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1280px;
+    height: 640px;
+    overflow: hidden;
+    background: #000000;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  /* Subtle radial glow — barely visible, adds depth */
+  body::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 900px;
+    height: 500px;
+    background: radial-gradient(ellipse, rgba(255,255,255,0.03) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .title {
+    font-size: 96px;
+    font-weight: 800;
+    letter-spacing: 0.3em;
+    color: #ffffff;
+    text-indent: 0.3em; /* balance letter-spacing visually */
+    line-height: 1;
+    margin-bottom: 32px;
+  }
+
+  /* Thin horizontal divider */
+  .divider {
+    width: 120px;
+    height: 1px;
+    background: #222222;
+    margin-bottom: 32px;
+  }
+
+  .tagline {
+    font-size: 22px;
+    font-weight: 400;
+    color: #888888;
+    letter-spacing: 0.02em;
+    margin-bottom: 48px;
+  }
+
+  .pills {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .pill {
+    font-size: 13px;
+    font-weight: 500;
+    color: #666666;
+    border: 1px solid #333333;
+    border-radius: 20px;
+    padding: 6px 16px;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="title">AEGIS</div>
+    <div class="divider"></div>
+    <div class="tagline">Agents execute code. We execute oversight.</div>
+    <div class="pills">
+      <span class="pill">568 tests</span>
+      <span class="pill">107 agents</span>
+      <span class="pill">70 rules</span>
+      <span class="pill">MIT Licensed</span>
+    </div>
+  </div>
+</body>
+</html>
