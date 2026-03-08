@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.1-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.8.0-alpha...aegis-v0.8.1-alpha) (2026-03-08)
+
+
+### Documentation
+
+* document demo mode in README Quick Start section ([947991b](https://github.com/antropos17/Aegis/commit/947991ba15340d0de5db6d4d1bb1b0aba41407c9))
+* document demo mode in README Quick Start section ([e125a6c](https://github.com/antropos17/Aegis/commit/e125a6c6c8bf3728b2ac4fbb642336b7d5f52a66)), closes [#76](https://github.com/antropos17/Aegis/issues/76)
+* **readme:** add v0.8.0-alpha to release history ([dbc7c21](https://github.com/antropos17/Aegis/commit/dbc7c21b72160e5e6394cdca08dca6412f92321d))
+* **readme:** add v0.8.0-alpha to release history, fix CSP description ([8e04eb6](https://github.com/antropos17/Aegis/commit/8e04eb63be5012d9d5d120df6235361127162a0b))
+* **readme:** update Star History chart to timeline format ([20bb034](https://github.com/antropos17/Aegis/commit/20bb034a18c4b172f317dac69cc63583f4b2c6f2))
+* **readme:** update Star History chart to timeline format ([415c791](https://github.com/antropos17/Aegis/commit/415c79147189a641b30a841c58a518d94bfdeffa))
+
 ## [0.8.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.7.0-alpha...aegis-v0.8.0-alpha) (2026-03-05)
 
 
