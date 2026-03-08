@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.8.2-alpha...aegis-v0.9.0-alpha) (2026-03-08)
+
+
+### Features
+
+* add ci-monitor skill for CI watching and repo health ([bc5c860](https://github.com/antropos17/Aegis/commit/bc5c860fcd51a10836def814a5a4ff7a5afa6764))
+* add pr-monitor and ci-monitor skills with /loop support ([#91](https://github.com/antropos17/Aegis/issues/91)) ([2766c10](https://github.com/antropos17/Aegis/commit/2766c109ccc167cabe61e265d175187eb9723676))
+* add pr-monitor skill for PR triage and /loop monitoring ([77b959d](https://github.com/antropos17/Aegis/commit/77b959d0f3aa2a8b61f01a67fb2dbf1e3ef5cc88))
+
+
+### Bug Fixes
+
+* **security:** catch block fallbacks + navigation lock ([5f9859a](https://github.com/antropos17/Aegis/commit/5f9859a18f6c776d7b413dcc0a4ada09392f0486))
+* **security:** encrypt API key at rest using Electron safeStorage ([db7b15d](https://github.com/antropos17/Aegis/commit/db7b15d86a04b1acf528b6388c2f7781c7e0b34d))
+* **security:** encrypt API key at rest using Electron safeStorage ([8dba03c](https://github.com/antropos17/Aegis/commit/8dba03c0ed0f6c044df5c2e10a542b25ef5f7c89))
+* **security:** replace swallowed exceptions with console.error fallback ([08acfe1](https://github.com/antropos17/Aegis/commit/08acfe19af0c74d82662b36953f6d628de02a77f))
+* **security:** restrict BrowserWindow navigation and new-window ([e96a94f](https://github.com/antropos17/Aegis/commit/e96a94fa31778fc5acc582c499ac96b248292ae9))
+
+
+### Documentation
+
+* add /loop tasks and new skills to CLAUDE.md ([5c2fb21](https://github.com/antropos17/Aegis/commit/5c2fb2173fad46f3b2ccb44f8db3b487ea1ddfe9))
+* add new skills to aegis-context reference ([a4e621e](https://github.com/antropos17/Aegis/commit/a4e621e99a7a587c705ff892ed80e99ca9c99212))
+* add security audit report and social preview assets ([9176620](https://github.com/antropos17/Aegis/commit/91766201bde10eed6b3042709e861e6604dc8a89))
+* update project context to v0.8.2-alpha (v16) ([f3d6287](https://github.com/antropos17/Aegis/commit/f3d62875cd06ff4049d2dcdc485282b3c00af1bf))
+* update project context to v0.8.2-alpha (v16) ([bab4d7e](https://github.com/antropos17/Aegis/commit/bab4d7e6fff5273feca04b4ce5c77f2080160e69))
+
 ## [0.8.2-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.8.1-alpha...aegis-v0.8.2-alpha) (2026-03-08)
 
 
