@@ -70,11 +70,15 @@ npm start
 
 ### Try Without AI Agents
 
+Don't have AI agents running? Demo mode lets you explore the full dashboard with simulated data — no real monitoring, no real processes.
+
 ```bash
 npm run build:demo && npm start
 ```
 
-No real AI agents needed — explore the full UI with simulated data.
+Demo mode runs a scenario engine that cycles through four threat phases — **calm → elevated → critical → reset** — with up to 12 simulated AI agents (Claude Code, Copilot, Cursor, and more). File access events, network connections, anomaly scores, and risk assessments are all generated in real time so every tab and feature is fully functional.
+
+Use it to evaluate AEGIS before deploying, demo the UI to your team, or develop new features without needing a live Windows environment.
 
 ### Windows Installer
 
