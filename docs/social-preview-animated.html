@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AEGIS Animated Social Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1280px;
+    height: 640px;
+    overflow: hidden;
+    background: #000000;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  /* Subtle radial glow */
+  body::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 900px;
+    height: 500px;
+    background: radial-gradient(ellipse, rgba(255,255,255,0.03) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* Scan line */
+  .scanline {
+    position: absolute;
+    top: -2px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg,
+      transparent, rgba(255,255,255,0.06), transparent);
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .title {
+    font-size: 96px;
+    font-weight: 800;
+    letter-spacing: 0.3em;
+    color: #ffffff;
+    text-indent: 0.3em;
+    line-height: 1;
+    margin-bottom: 32px;
+    font-family: Inter, -apple-system, BlinkMacSystemFont,
+      'Segoe UI', sans-serif;
+    display: flex;
+    gap: 0;
+  }
+
+  .title .char {
+    display: inline-block;
+    width: 1.3em;
+    text-align: center;
+  }
+
+  .title .char.hex {
+    font-family: 'Courier New', monospace;
+    font-size: 72px;
+    color: #444444;
+    font-weight: 400;
+  }
+
+  .title .char.decoded {
+    font-family: Inter, -apple-system, BlinkMacSystemFont,
+      'Segoe UI', sans-serif;
+    font-size: 96px;
+    color: #ffffff;
+    font-weight: 800;
+  }
+
+  .title .char.flash {
+    color: #00ff88;
+    text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+  }
+
+  .divider {
+    width: 120px;
+    height: 1px;
+    background: #222222;
+    margin-bottom: 32px;
+    opacity: 0;
+  }
+
+  .tagline {
+    font-size: 22px;
+    font-weight: 400;
+    color: #888888;
+    letter-spacing: 0.02em;
+    margin-bottom: 48px;
+    font-family: Inter, -apple-system, BlinkMacSystemFont,
+      'Segoe UI', sans-serif;
+    opacity: 0;
+  }
+
+  .pills {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    opacity: 0;
+  }
+
+  .pill {
+    font-size: 13px;
+    font-weight: 500;
+    color: #666666;
+    border: 1px solid #333333;
+    border-radius: 20px;
+    padding: 6px 16px;
+    white-space: nowrap;
+    font-family: Inter, -apple-system, BlinkMacSystemFont,
+      'Segoe UI', sans-serif;
+  }
+</style>
+</head>
+<body>
+  <div class="scanline" id="scanline"></div>
+  <div class="container">
+    <div class="title" id="title"></div>
+    <div class="divider" id="divider"></div>
+    <div class="tagline" id="tagline">
+      Agents execute code. We execute oversight.
+    </div>
+    <div class="pills" id="pills">
+      <span class="pill">568 tests</span>
+      <span class="pill">107 agents</span>
+      <span class="pill">70 rules</span>
+      <span class="pill">MIT Licensed</span>
+    </div>
+  </div>
+
+<script>
+  const TARGET = 'AEGIS';
+  const HEX_CHARS = '0123456789ABCDEF';
+  const titleEl = document.getElementById('title');
+  const scanline = document.getElementById('scanline');
+  const divider = document.getElementById('divider');
+  const tagline = document.getElementById('tagline');
+  const pills = document.getElementById('pills');
+
+  // Timeline: 40 frames at 10fps = 4 seconds
+  // Frames 0-5:   hex scramble (all letters random)
+  // Frames 6-20:  decode one letter every 3 frames
+  // Frames 21-26: fade in tagline + pills
+  // Frames 27-39: hold (pause before loop)
+
+  const TOTAL_FRAMES = 40;
+  const DECODE_START = 6;
+  const FRAMES_PER_LETTER = 3;
+  const FADE_START = 21;
+  const FADE_DURATION = 5;
+
+  // Deterministic seed for hex values per frame
+  const HEX_SEED = [
+    ['A3','F7','2B','9E','C1'],
+    ['D4','8A','1F','B6','73'],
+    ['E2','5C','94','07','DA'],
+    ['7B','C8','3E','F1','46'],
+    ['19','AD','67','E5','82'],
+    ['F0','4D','B3','28','9C']
+  ];
+
+  function randomHex(frameIdx, charIdx) {
+    if (frameIdx < HEX_SEED.length) {
+      return HEX_SEED[frameIdx][charIdx];
+    }
+    // After seed exhausted, use pseudo-random
+    const seed = frameIdx * 7 + charIdx * 13;
+    const h1 = HEX_CHARS[(seed * 37 + 11) % 16];
+    const h2 = HEX_CHARS[(seed * 53 + 7) % 16];
+    return h1 + h2;
+  }
+
+  function renderFrame(frame) {
+    const f = frame % TOTAL_FRAMES;
+
+    let decodedCount = 0;
+    if (f >= DECODE_START) {
+      decodedCount = Math.min(
+        TARGET.length,
+        Math.floor((f - DECODE_START) / FRAMES_PER_LETTER) + 1
+      );
+    }
+
+    // Flash on the frame a letter first appears
+    let flashIndex = -1;
+    if (f >= DECODE_START && f < DECODE_START + TARGET.length * FRAMES_PER_LETTER) {
+      if ((f - DECODE_START) % FRAMES_PER_LETTER === 0) {
+        flashIndex = decodedCount - 1;
+      }
+    }
+
+    let html = '';
+    for (let i = 0; i < TARGET.length; i++) {
+      if (i < decodedCount) {
+        const cls = i === flashIndex ? 'char decoded flash' : 'char decoded';
+        html += '<span class="' + cls + '">' + TARGET[i] + '</span>';
+      } else {
+        html += '<span class="char hex">' + randomHex(f, i) + '</span>';
+      }
+    }
+    titleEl.innerHTML = html;
+
+    // Fade in elements
+    if (f >= FADE_START) {
+      const p = Math.min(1, (f - FADE_START) / FADE_DURATION);
+      divider.style.opacity = p;
+      tagline.style.opacity = p;
+      pills.style.opacity = p;
+    } else {
+      divider.style.opacity = 0;
+      tagline.style.opacity = 0;
+      pills.style.opacity = 0;
+    }
+
+    // Scanline sweep
+    const scanPos = (f / TOTAL_FRAMES) * 640;
+    scanline.style.top = scanPos + 'px';
+  }
+
+  // Expose for frame capture
+  window.renderFrame = renderFrame;
+  window.TOTAL_FRAMES = TOTAL_FRAMES;
+
+  // Live preview
+  let animFrame = 0;
+  function animate() {
+    renderFrame(animFrame);
+    animFrame++;
+    setTimeout(animate, 100);
+  }
+  animate();
+</script>
+</body>
+</html>
