@@ -8,7 +8,7 @@
 <p align="center">
   <a href="https://github.com/antropos17/Aegis/releases/latest"><img src="https://img.shields.io/github/v/release/antropos17/Aegis?include_prereleases&style=flat-square&label=Release" alt="Release"></a>
   <img src="https://img.shields.io/github/actions/workflow/status/antropos17/Aegis/ci.yml?style=flat-square&label=CI" alt="CI">
-  <img src="https://img.shields.io/badge/Tests-568%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-593%20passing-brightgreen?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/Platform-Win%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform">
 </p>
@@ -92,6 +92,8 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v0.8.2-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.8.2-alpha) | 2026-03-08 | formatBytes TS extraction, meaningful tests, branch cleanup |
+| [v0.8.1-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.8.1-alpha) | 2026-03-07 | Patch release |
 | [v0.8.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.8.0-alpha) | 2026-03-05 | Launch readiness: CSP hardened, OpenClaw integration, README overhaul |
 | [v0.7.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.7.0-alpha) | 2026-03-04 | YAML rulesets, 68 rules, hot-reload, 568 tests |
 | [v0.5.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.5.0-alpha) | 2026-03-03 | Fancy UI redesign, VisTimeline, AgentGraph |
@@ -172,7 +174,7 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
             └─────────────┘    └─────────────┘
 ```
 
-**Stack**: Electron 33, Svelte 5, Vite 7, TypeScript, Vitest (568 tests across 34 files)
+**Stack**: Electron 33, Svelte 5, Vite 7, TypeScript, Vitest (593 tests across 35 files)
 
 ## Agent Database
 
@@ -204,6 +206,8 @@ Add custom agents via the UI or edit the JSON. See [AGENTS.md](AGENTS.md).
     <td align="center"><a href="https://github.com/ElshadHu"><img src="https://github.com/ElshadHu.png" width="80px;" alt=""/><br/><sub><b>Elshad Humbatli</b></sub></a></td>
     <td align="center"><a href="https://github.com/skmelendez"><img src="https://github.com/skmelendez.png" width="80px;" alt=""/><br/><sub><b>Steven Melendez</b></sub></a></td>
     <td align="center"><a href="https://github.com/travisbreaks"><img src="https://github.com/travisbreaks.png" width="80px;" alt=""/><br/><sub><b>travisbreaks</b></sub></a></td>
+    <td align="center"><a href="https://github.com/raye-deng"><img src="https://github.com/raye-deng.png" width="80px;" alt=""/><br/><sub><b>raye-deng</b></sub></a></td>
+    <td align="center"><a href="https://github.com/KJyang-0114"><img src="https://github.com/KJyang-0114.png" width="80px;" alt=""/><br/><sub><b>KJyang-0114</b></sub></a></td>
   </tr>
 </table>
 
