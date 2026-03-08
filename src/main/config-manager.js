@@ -19,6 +19,7 @@ const path = require('path');
 const { app } = require('electron');
 const { PERMISSION_CATEGORIES } = require('../shared/constants');
 const logger = require('./logger');
+const safeStore = require('./safe-storage');
 
 // ── Lazy path — resolved on first use (after app.whenReady) ──
 let _settingsPath = null;
@@ -84,7 +85,33 @@ function buildCustomRules() {
 }
 
 /**
+ * Write the in-memory settings to disk.
+ * Strips plaintext anthropicApiKey and persists the encrypted blob instead.
+ * @returns {void}
+ * @since v0.8.3
+ */
+function _writeSettings() {
+  const disk = { ...settings };
+  // Never persist the plaintext key — store encrypted blob only
+  const plainKey = disk.anthropicApiKey || '';
+  delete disk.anthropicApiKey;
+  if (plainKey) {
+    const blob = safeStore.encrypt(plainKey);
+    if (blob) {
+      disk._encryptedApiKey = blob;
+    } else {
+      // safeStorage unavailable — fall back to plaintext (CI, headless Linux)
+      disk.anthropicApiKey = plainKey;
+    }
+  } else {
+    delete disk._encryptedApiKey;
+  }
+  fs.writeFileSync(settingsPath(), JSON.stringify(disk, null, 2));
+}
+
+/**
  * Load settings from disk, merging with defaults.
+ * Migrates plaintext API key to encrypted storage on first load.
  * @returns {void}
  * @since v0.1.0
  */
@@ -93,6 +120,16 @@ function loadSettings() {
     if (fs.existsSync(settingsPath())) {
       const raw = JSON.parse(fs.readFileSync(settingsPath(), 'utf-8'));
       settings = { ...DEFAULT_SETTINGS, ...raw };
+      // Decrypt API key into memory
+      if (raw._encryptedApiKey) {
+        settings.anthropicApiKey = safeStore.decrypt(raw._encryptedApiKey);
+        delete settings._encryptedApiKey;
+      }
+      // Migrate plaintext key → encrypted on first load
+      if (raw.anthropicApiKey && !raw._encryptedApiKey && safeStore.isAvailable()) {
+        logger.info('config-manager', 'Migrating API key to encrypted storage');
+        _writeSettings();
+      }
     }
   } catch (_) {
     settings = { ...DEFAULT_SETTINGS };
@@ -108,7 +145,7 @@ function loadSettings() {
  */
 function saveSettings(newSettings) {
   settings = { ...DEFAULT_SETTINGS, ...newSettings };
-  fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
+  _writeSettings();
   buildCustomRules();
 }
 
@@ -197,7 +234,7 @@ function saveInstancePermissions(agentName, parentEditor, perms, cwd) {
   const key = getInstanceKey(agentName, parentEditor, cwd);
   settings.agentPermissions[key] = perms;
   try {
-    fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
+    _writeSettings();
   } catch (err) {
     logger.warn('config-manager', 'Failed to persist instance permissions', {
       key,
@@ -219,7 +256,7 @@ function trackSeenAgent(agentName) {
       settings.agentPermissions[agentName] = getDefaultPermissions(agentName);
     }
     try {
-      fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
+      _writeSettings();
     } catch (err) {
       logger.warn('config-manager', 'Failed to persist seen agent', {
         agentName,
@@ -265,7 +302,7 @@ function getCustomAgents() {
 function saveCustomAgents(agents) {
   settings.customAgents = agents;
   try {
-    fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
+    _writeSettings();
   } catch (err) {
     logger.warn('config-manager', 'Failed to persist custom agents', { error: err.message });
   }
@@ -290,7 +327,7 @@ function addFalsePositive(entry) {
   if (!settings.falsePositivePatterns) settings.falsePositivePatterns = [];
   settings.falsePositivePatterns.push(entry);
   try {
-    fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
+    _writeSettings();
   } catch (err) {
     logger.warn('config-manager', 'Failed to persist false positive', { error: err.message });
   }

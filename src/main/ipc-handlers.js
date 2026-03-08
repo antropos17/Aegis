@@ -264,6 +264,7 @@ function register() {
     try {
       const settingsCopy = { ...config.getSettings() };
       delete settingsCopy.anthropicApiKey;
+      delete settingsCopy._encryptedApiKey;
       delete settingsCopy.apiKey;
       const entries = [
         { name: 'audit-log.json', data: Buffer.from(JSON.stringify(audit.exportAll(), null, 2)) },
@@ -315,8 +316,16 @@ function register() {
 
   // ── Open external URL ──
   ipcMain.handle('open-external-url', (_e, url) => {
-    shell.openExternal(url);
-    return { success: true };
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        shell.openExternal(url);
+        return { success: true };
+      }
+      return { success: false, error: 'Invalid URL scheme' };
+    } catch (error) {
+      return { success: false, error: 'Invalid URL length or format' };
+    }
   });
 
   // ── Rules (YAML rulesets) ──
