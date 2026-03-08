@@ -46,7 +46,9 @@ function init(opts) {
   _minLevel = LEVELS[opts.minLevel] || 0;
   try {
     if (!fs.existsSync(_logDir)) fs.mkdirSync(_logDir, { recursive: true });
-  } catch (_) {}
+  } catch (err) {
+    console.error('[logger] mkdirSync failed:', err.message);
+  }
   _seedTodayCount();
   _flushTimer = setInterval(flush, FLUSH_INTERVAL);
   setImmediate(() => cleanOldLogs());
@@ -67,7 +69,9 @@ function _seedTodayCount() {
       const content = fs.readFileSync(todayPath, 'utf-8');
       _todayEntries = content.split('\n').filter((l) => l.trim().length > 0).length;
     }
-  } catch (_) {}
+  } catch (err) {
+    console.error('[logger] seed today count failed:', err.message);
+  }
 }
 
 /**
@@ -134,7 +138,9 @@ function flush() {
   try {
     const lines = entries.map((e) => JSON.stringify(e)).join('\n') + '\n';
     fs.appendFileSync(fp, lines, 'utf-8');
-  } catch (_) {}
+  } catch (err) {
+    console.error('[logger] flush write failed:', err.message);
+  }
 }
 
 /**
@@ -155,11 +161,15 @@ function cleanOldLogs() {
         if (fileDate < cutoff) {
           try {
             fs.unlinkSync(path.join(_logDir, f));
-          } catch (_) {}
+          } catch (err) {
+            console.error('[logger] unlink old log failed:', err.message);
+          }
         }
       }
     }
-  } catch (_) {}
+  } catch (err) {
+    console.error('[logger] cleanOldLogs failed:', err.message);
+  }
 }
 
 /**
@@ -192,7 +202,9 @@ function getStats() {
       const firstMatch = files[0].match(/aegis-(\d{4}-\d{2}-\d{2})\.log/);
       if (firstMatch) recordingSince = firstMatch[1];
     }
-  } catch (_) {}
+  } catch (err) {
+    console.error('[logger] getStats failed:', err.message);
+  }
   return { logDir: _logDir, todayEntries: _todayEntries, totalFiles, recordingSince };
 }
 
@@ -215,11 +227,15 @@ function exportAll() {
         if (line.trim()) {
           try {
             all.push(JSON.parse(line));
-          } catch (_) {}
+          } catch (_) {
+            /* skip malformed line */
+          }
         }
       }
     }
-  } catch (_) {}
+  } catch (err) {
+    console.error('[logger] exportAll failed:', err.message);
+  }
   return all;
 }
 
