@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.8.2-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.8.1-alpha...aegis-v0.8.2-alpha) (2026-03-08)
+
+
+### Bug Fixes
+
+* **test:** replace tautological formatBytes tests with boundary and behavioral assertions ([18e1c52](https://github.com/antropos17/Aegis/commit/18e1c52255720311de21ea6e23064de2b1d69403))
+* **test:** replace tautological formatBytes tests with boundary and behavioral assertions ([70ebc36](https://github.com/antropos17/Aegis/commit/70ebc3658776510667c26a384542a306b5afacf2))
+
 ## [0.8.1-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.8.0-alpha...aegis-v0.8.1-alpha) (2026-03-08)
 
 
