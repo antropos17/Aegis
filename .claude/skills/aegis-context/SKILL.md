@@ -43,6 +43,15 @@ Electron 33, Svelte 5, Vite 7, TypeScript (incremental, allowJs:true, checkJs:tr
 - Context7: fresh docs for any library (append "use context7")
 - Svelte MCP: list-sections, get-documentation, svelte-autofixer
 
+## Skills (.claude/skills/)
+- aegis-context — project overview, auto-invoked on any task
+- design-system — Fancy UI tokens, typography, glassmorphism, animation rules
+- electron-main — CJS modules, platform abstraction, IPC, file watchers
+- svelte-patterns — Svelte 5 runes, component patterns, template directives
+- testing — Vitest patterns, ESM imports, mocking, test structure
+- pr-monitor — PR triage, contributor management, /loop monitoring
+- ci-monitor — CI watching, repo health, post-launch metrics
+
 ## Commands
 - /audit — full health check via auditor agent
 - /ship v#.#.# — release workflow via shipper agent
