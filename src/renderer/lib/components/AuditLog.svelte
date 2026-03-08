@@ -1,6 +1,7 @@
 <script>
   import { isDemoMode } from '../stores/ipc.js';
   import { t } from '../i18n/index.js';
+  import { formatBytes } from '../utils/format-bytes.ts';
 
   let auditStats = $state(null);
   let loading = $state(true);
@@ -34,14 +35,6 @@
     const fmt = (ts) => new Date(ts).toLocaleDateString();
     return `${fmt(auditStats.firstEntry)} — ${fmt(auditStats.lastEntry)}`;
   });
-
-  function formatBytes(bytes) {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`;
-    if (bytes < 1099511627776) return `${(bytes / 1073741824).toFixed(1)} GB`;
-    return `${(bytes / 1099511627776).toFixed(1)} TB`;
-  }
 
   let fileSize = $derived.by(() => {
     const current = auditStats?.currentSize || 0;
