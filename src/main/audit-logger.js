@@ -41,7 +41,9 @@ function init(opts) {
   _logDir = path.join(opts.userDataPath, 'audit-logs');
   try {
     if (!fs.existsSync(_logDir)) fs.mkdirSync(_logDir, { recursive: true });
-  } catch (_) {}
+  } catch (err) {
+    console.error('[audit-logger] mkdirSync failed:', err.message);
+  }
   _seedCounters();
   _flushTimer = setInterval(flush, FLUSH_INTERVAL);
   setImmediate(() => cleanOldLogs());
@@ -73,10 +75,14 @@ function _seedCounters() {
             if (!_firstEntry || entry.timestamp < _firstEntry) _firstEntry = entry.timestamp;
             if (!_lastEntry || entry.timestamp > _lastEntry) _lastEntry = entry.timestamp;
           }
-        } catch (_) {}
+        } catch (_) {
+          /* skip malformed line */
+        }
       }
     }
-  } catch (_) {}
+  } catch (err) {
+    console.error('[audit-logger] seed counters failed:', err.message);
+  }
 }
 
 /**
@@ -157,11 +163,15 @@ function cleanOldLogs() {
         if (fileDate < cutoff) {
           try {
             fs.unlinkSync(path.join(_logDir, f));
-          } catch (_) {}
+          } catch (err) {
+            console.error('[audit-logger] unlink old log failed:', err.message);
+          }
         }
       }
     }
-  } catch (_) {}
+  } catch (err) {
+    console.error('[audit-logger] cleanOldLogs failed:', err.message);
+  }
 }
 
 /**
@@ -185,7 +195,9 @@ function getStats() {
       totalSize += stat.size;
       if (fp === todayPath) currentSize = stat.size;
     }
-  } catch (_) {}
+  } catch (err) {
+    console.error('[audit-logger] getStats failed:', err.message);
+  }
   return {
     totalEntries: _totalEntries,
     totalSize,
@@ -215,11 +227,15 @@ function exportAll() {
         if (line.trim()) {
           try {
             all.push(JSON.parse(line));
-          } catch (_) {}
+          } catch (_) {
+            /* skip malformed line */
+          }
         }
       }
     }
-  } catch (_) {}
+  } catch (err) {
+    console.error('[audit-logger] exportAll failed:', err.message);
+  }
   return all;
 }
 
@@ -305,11 +321,15 @@ function getEntriesBefore(beforeTs, limit = 100) {
             results.push(entry);
             if (results.length >= limit) return false;
           }
-        } catch (_) {}
+        } catch (_) {
+          /* skip malformed line */
+        }
       });
       if (results.length >= limit) break;
     }
-  } catch (_) {}
+  } catch (err) {
+    console.error('[audit-logger] getEntriesBefore failed:', err.message);
+  }
   // Return oldest-first
   results.reverse();
   return results;
