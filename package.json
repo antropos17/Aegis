@@ -1,6 +1,6 @@
 {
   "name": "aegis",
-  "version": "0.8.0-alpha",
+  "version": "0.8.1-alpha",
   "description": "Independent AI agent oversight layer — monitors what AI agents do on your local machine",
   "main": "src/main/main.js",
   "scripts": {
