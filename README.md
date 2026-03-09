@@ -1,9 +1,11 @@
 <p align="center">
   <h1 align="center">AEGIS</h1>
   <p align="center"><b>EDR for AI Agents</b></p>
-  <p align="center">Watches what AI agents do on your machine. Processes, files, network, risk scoring.<br>No telemetry. No cloud. Everything stays local.</p>
-  <p align="center"><i>With autonomous agents like OpenClaw (247K+ GitHub stars) gaining access to local files, credentials, and shell — somebody needs to watch.</i></p>
 </p>
+
+**Aegis is an open-source endpoint detection and response (EDR) tool that monitors AI agent processes, file access, network activity, and behavioral anomalies in real time.** Built with Electron 33, Svelte 5, and TypeScript, it provides the same class of oversight for autonomous AI agents that CrowdStrike provides for traditional endpoints. No telemetry. No cloud. Everything stays local.
+
+> "Kaspersky found 512 bugs in OpenClaw. So we built an EDR to monitor it."
 
 <p align="center">
   <a href="https://github.com/antropos17/Aegis/releases/latest"><img src="https://img.shields.io/github/v/release/antropos17/Aegis?include_prereleases&style=flat-square&label=Release" alt="Release"></a>
@@ -25,6 +27,15 @@
 </p>
 
 ---
+
+## What Does Aegis Monitor?
+
+- **Process Monitoring** — Tracks 107 known AI agent signatures with parent-child tree resolution and IDE host detection.
+- **File System Access** — Watches sensitive directories (`.ssh`, `.aws`, `.gnupg`, `.env`, cloud configs) and 27 AI agent config paths for unauthorized access.
+- **Network Activity** — Logs outbound TCP connections per agent PID with reverse DNS and known-vs-unknown API endpoint classification.
+- **Behavioral Analysis** — Applies 68 detection rules across 8 categories with rolling 10-session baselines and 4-axis anomaly scoring.
+- **Trust Scoring** — Assigns real-time risk scores with trust grades (A+ through F) using time-decay algorithms and multi-dimensional threat assessment.
+- **Multi-Agent Dashboard** — Displays all 107 agents in a bento-grid dashboard with sparklines, risk rings, activity feeds, and expandable agent cards.
 
 ## Why AEGIS?
 
