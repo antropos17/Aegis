@@ -37,6 +37,9 @@ const DEFAULT_RULES_DIR = path.join(__dirname, '..', '..', 'rules');
 /** @type {Map<string, LoadedRule>} */
 let ruleCache = new Map();
 
+/** @type {Map<string, LoadedRule[]>} */
+let categoryIndex = new Map();
+
 /** @type {import('ajv').ValidateFunction | null} */
 let validateFn = null;
 
@@ -148,6 +151,26 @@ function loadRules(rulesDir = DEFAULT_RULES_DIR) {
 }
 
 /**
+ * Builds a category-to-rules index from the given rule map.
+ * Provides O(1) lookup by category instead of O(N) filtering.
+ * @param {Map<string, LoadedRule>} rules - Rule map to index
+ * @returns {Map<string, LoadedRule[]>}
+ */
+function buildCategoryIndex(rules) {
+  /** @type {Map<string, LoadedRule[]>} */
+  const index = new Map();
+  for (const rule of rules.values()) {
+    const bucket = index.get(rule.category);
+    if (bucket) {
+      bucket.push(rule);
+    } else {
+      index.set(rule.category, [rule]);
+    }
+  }
+  return index;
+}
+
+/**
  * Returns all loaded rules.
  * Loads from disk on first call (lazy init).
  * @param {string} [rulesDir] - Optional custom rules directory
@@ -156,26 +179,20 @@ function loadRules(rulesDir = DEFAULT_RULES_DIR) {
 function getAllRules(rulesDir) {
   if (ruleCache.size === 0) {
     ruleCache = loadRules(rulesDir);
+    categoryIndex = buildCategoryIndex(ruleCache);
   }
   return ruleCache;
 }
 
 /**
- * Returns rules filtered by category.
+ * Returns rules filtered by category via pre-built index (O(1) lookup).
  * @param {string} category - Category to filter by
  * @param {string} [rulesDir] - Optional custom rules directory
  * @returns {LoadedRule[]}
  */
 function getRulesByCategory(category, rulesDir) {
-  const all = getAllRules(rulesDir);
-  /** @type {LoadedRule[]} */
-  const result = [];
-  for (const rule of all.values()) {
-    if (rule.category === category) {
-      result.push(rule);
-    }
-  }
-  return result;
+  getAllRules(rulesDir);
+  return categoryIndex.get(category) || [];
 }
 
 /**
@@ -195,8 +212,10 @@ function getRuleById(id, rulesDir) {
  */
 function reloadRules(rulesDir) {
   ruleCache.clear();
+  categoryIndex.clear();
   validateFn = null;
   ruleCache = loadRules(rulesDir);
+  categoryIndex = buildCategoryIndex(ruleCache);
   return ruleCache;
 }
 
