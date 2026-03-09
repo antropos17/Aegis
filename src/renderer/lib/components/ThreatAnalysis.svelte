@@ -10,6 +10,18 @@
   let selectedAgent = $state('');
   let mode = $state('session');
 
+  /** Unique agents grouped by name, sorted by count desc */
+  let groupedAgents = $derived.by(() => {
+    /** @type {Map<string, number>} */
+    const counts = new Map();
+    for (const a of $enrichedAgents) {
+      counts.set(a.name, (counts.get(a.name) || 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  });
+
   function normalizeResult(res) {
     let obj = res.structured || null;
     // If no structured data, try to parse the analysis text
@@ -142,8 +154,8 @@
     {#if mode === 'agent'}
       <select class="agent-select" bind:value={selectedAgent}>
         <option value="">{$t('reports.threat.select_agent')}</option>
-        {#each $enrichedAgents as agent (agent.pid)}
-          <option value={agent.name}>{agent.name}</option>
+        {#each groupedAgents as entry (entry.name)}
+          <option value={entry.name}>{entry.name} [{entry.count}]</option>
         {/each}
       </select>
     {/if}
