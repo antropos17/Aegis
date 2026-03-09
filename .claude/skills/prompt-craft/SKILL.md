@@ -99,19 +99,12 @@ Refer to `memory-bank/ai-mistakes.md` for common Aegis-specific mistakes to guar
 
 ### 5. VERIFY
 
-Exact commands, no guessing. For Aegis, the verification sequence is:
-
-```
-npm test
-npm run build:renderer
-npx tsc --noEmit
-npx eslint src/
-```
+Run the verify loop (see code-quality rule) — this is the single source of truth for which commands to run.
 
 Additional checks depending on the task:
 - **Svelte files changed:** Run Svelte MCP autofixer on each changed .svelte file
 - **Main process files changed:** Test on Windows (Electron main is CJS-only)
-- **Types changed:** Verify no any types — npx tsc --noEmit must pass clean
+- **Types changed:** Verify no any types — tsc must pass clean
 - **agent-database.json changed:** Verify count consistency across README, CLAUDE.md
 
 Never skip verification. A prompt without VERIFY is incomplete.
@@ -229,9 +222,7 @@ STOP:
 - Do NOT touch any other component
 
 VERIFY:
-npm test
-npm run build:renderer
-npx tsc --noEmit
+Run verify loop (see code-quality rule)
 Svelte MCP autofixer on Sparkline.svelte
 
 COMMIT: fix(renderer): handle null values in Sparkline data array
