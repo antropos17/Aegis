@@ -528,7 +528,7 @@ ${findingsHtml}${recsHtml}
         return { success: true };
       }
       return { success: false, error: 'Invalid URL scheme' };
-    } catch (error) {
+    } catch (_error) {
       return { success: false, error: 'Invalid URL length or format' };
     }
   });

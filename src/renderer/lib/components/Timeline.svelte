@@ -100,7 +100,9 @@
           historicalEvents = [...mapped, ...historicalEvents];
         }
       }
-    } catch (_) {}
+    } catch (_error) {
+      console.warn('Failed to fetch timeline history:', _error);
+    }
     loadingHistory = false;
   }
 

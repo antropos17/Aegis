@@ -9,6 +9,8 @@
 
   import { falsePositives } from '../stores/ipc.js';
   import { addToast } from '../stores/toast.js';
+  import { formatTime } from '../utils/timeline-utils';
+  import { shortenPath } from '../utils/path-utils';
 
   let { agent, gradeColor, agentEvents, sessionDuration, onPidAction } = $props();
 
@@ -22,18 +24,6 @@
         'success',
       );
     }
-  }
-
-  function formatTime(ts) {
-    if (!ts) return '';
-    const d = new Date(ts);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  }
-
-  function shortenPath(p) {
-    if (!p) return '';
-    const parts = p.split(/[/\\]/);
-    return parts.length > 3 ? '.../' + parts.slice(-3).join('/') : p;
   }
 </script>
 

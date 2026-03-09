@@ -2,6 +2,8 @@
   import { events, network, falsePositives } from '../stores/ipc.js';
   import { addToast } from '../stores/toast.js';
   import { t } from '../i18n/index.js';
+  import { getSeverity } from '../utils/timeline-utils';
+  import { shortenPath } from '../utils/path-utils';
 
   let { active = true, agentFilter = 'all', severityFilter = 'all', typeFilter = 'all' } = $props();
 
@@ -33,14 +35,6 @@
     }, 30000);
     return () => clearInterval(id);
   });
-
-  function getSeverity(ev) {
-    if (ev._type === 'network') return ev.flagged ? 'high' : 'low';
-    if (ev._denied) return 'critical';
-    if (ev.sensitive) return 'high';
-    if (ev.action === 'deleted') return 'medium';
-    return 'low';
-  }
 
   /** Severity to fancy color variable */
   function sevColor(sev) {
@@ -84,14 +78,6 @@
     if (diff < 3600000) return `${h}:${m}:${s}`;
     if (diff < 86400000) return `${h}:${m}`;
     return `${d.getMonth() + 1}/${d.getDate()} ${h}:${m}`;
-  }
-
-  function shortenPath(p) {
-    if (!p) return '';
-    if (p.length <= 50) return p;
-    const parts = p.replace(/\\/g, '/').split('/');
-    if (parts.length <= 3) return p;
-    return '\u2026/' + parts.slice(-3).join('/');
   }
 
   async function markFalsePositive(ev, e) {
