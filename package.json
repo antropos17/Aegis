@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.main.json && tsc --noEmit -p tsconfig.renderer.json",
     "typecheck:main": "tsc --noEmit -p tsconfig.main.json",
     "typecheck:renderer": "tsc --noEmit -p tsconfig.renderer.json",
-    "typecheck:svelte": "svelte-check --tsconfig ./tsconfig.json",
+    "typecheck:svelte": "svelte-check --tsconfig ./tsconfig.renderer.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

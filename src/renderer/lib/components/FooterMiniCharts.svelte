@@ -40,7 +40,7 @@
 
   $effect(() => {
     $tick; // subscribe — triggers each second
-    const u = $resourceUsage as ResourceUsageData;
+    const u = $resourceUsage as unknown as ResourceUsageData;
     if (!u || !u.cpuUser) return;
 
     // CPU percentage (delta-based)

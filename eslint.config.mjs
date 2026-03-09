@@ -131,6 +131,12 @@ export default [
     },
   },
   {
+    files: ['src/renderer/**/*.ts'],
+    languageOptions: {
+      globals: { ...globals.browser },
+    },
+  },
+  {
     files: ['**/*.ts'],
     languageOptions: {
       parser: tsParser,

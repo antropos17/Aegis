@@ -1,15 +1,23 @@
 /**
- * @file risk.js — Derived store: agents enriched with risk scores + trust grades
+ * @file risk.ts — Derived store: agents enriched with risk scores + trust grades
  * @module renderer/stores/risk
  * @since 0.2.0
  */
 
 import { derived } from 'svelte/store';
+import type { Readable } from 'svelte/store';
 import { agents, events, anomalies, network, falsePositives } from './ipc.js';
 import { calculateRiskScore, getTrustGrade, getTimeDecayWeight } from '../utils/risk-scoring.js';
+import type {
+  FileEvent,
+  NetworkConnection,
+  EnrichedAgent,
+  RiskScoreInput,
+  TrustGrade,
+} from '../../../shared/types';
 
 /** Known API domain patterns for API-call indicator */
-const API_DOMAIN_PATTERNS = [
+const API_DOMAIN_PATTERNS: readonly RegExp[] = [
   /^api\./i,
   /api\.openai\.com$/i,
   /api\.anthropic\.com$/i,
@@ -24,22 +32,22 @@ const API_DOMAIN_PATTERNS = [
 
 /**
  * Check if a domain is a known API endpoint.
- * @param {string} domain
- * @returns {boolean}
+ * @param domain - Domain string to test
+ * @returns true if domain matches a known API pattern
  */
-function isApiDomain(domain) {
+function isApiDomain(domain: string): boolean {
   return API_DOMAIN_PATTERNS.some((p) => p.test(domain));
 }
 
 /**
  * Build an instance key for matching events/connections to a specific agent instance.
  * CWD takes priority as the most specific identifier.
- * @param {string} name - Agent name
- * @param {string|null} parentEditor - Parent editor name or null
- * @param {string|null} cwd - Working directory or null
- * @returns {string}
+ * @param name - Agent name
+ * @param parentEditor - Parent editor name or null
+ * @param cwd - Working directory or null
+ * @returns Composite instance key
  */
-function instanceKey(name, parentEditor, cwd) {
+function instanceKey(name: string, parentEditor: string | null, cwd: string | null): string {
   if (cwd) return `${name}::${cwd}`;
   if (parentEditor) return `${name}::${parentEditor}`;
   return name;
@@ -51,14 +59,14 @@ function instanceKey(name, parentEditor, cwd) {
  * anomalyScore, riskScore, trustGrade, fileCount, networkCount.
  * Risk is calculated per-instance (using cwd/parentEditor), not per-name.
  */
-/** @type {unknown} */ let _prevAgents = null;
-/** @type {unknown} */ let _prevEvents = null;
-/** @type {unknown} */ let _prevAnomalies = null;
-/** @type {unknown} */ let _prevNetwork = null;
-/** @type {unknown} */ let _prevFp = null;
-/** @type {Array<Object>} */ let _cachedResult = [];
+let _prevAgents: unknown = null;
+let _prevEvents: unknown = null;
+let _prevAnomalies: unknown = null;
+let _prevNetwork: unknown = null;
+let _prevFp: unknown = null;
+let _cachedResult: EnrichedAgent[] = [];
 
-export const enrichedAgents = derived(
+export const enrichedAgents: Readable<EnrichedAgent[]> = derived(
   [agents, events, anomalies, network, falsePositives],
   ([$agents, $events, $anomalies, $network, $fp]) => {
     // Reference equality cache — skip recompute if all inputs unchanged
@@ -77,13 +85,11 @@ export const enrichedAgents = derived(
     _prevNetwork = $network;
     _prevFp = $fp;
 
-    const allEvents = $events.flat();
+    const allEvents: FileEvent[] = $events.flat();
 
     // Pre-build lookup maps for O(1) event matching
-    /** @type {Map<number, Array<Object>>} */
-    const eventsByPid = new Map();
-    /** @type {Map<string, Array<Object>>} */
-    const eventsByName = new Map();
+    const eventsByPid = new Map<number, FileEvent[]>();
+    const eventsByName = new Map<string, FileEvent[]>();
     for (const ev of allEvents) {
       if (ev.selfAccess) continue;
       if (ev.pid) {
@@ -104,10 +110,8 @@ export const enrichedAgents = derived(
       }
     }
 
-    /** @type {Map<number, Array<Object>>} */
-    const connsByPid = new Map();
-    /** @type {Map<string, Array<Object>>} */
-    const connsByName = new Map();
+    const connsByPid = new Map<number, NetworkConnection[]>();
+    const connsByName = new Map<string, NetworkConnection[]>();
     for (const conn of $network) {
       if (conn.pid) {
         let arr = connsByPid.get(conn.pid);
@@ -128,9 +132,9 @@ export const enrichedAgents = derived(
     }
 
     // Pre-build false-positive name set
-    const fpNames = new Set($fp.map((fp) => fp.agentName));
+    const fpNames = new Set<string>($fp.map((fp) => fp.agentName));
 
-    _cachedResult = $agents.map((raw) => {
+    _cachedResult = $agents.map((raw): EnrichedAgent => {
       const name = raw.agent;
       const parentEditor = raw.parentEditor || null;
       const cwd = raw.cwd || null;
@@ -139,14 +143,14 @@ export const enrichedAgents = derived(
       const hasCwd = !!cwd;
 
       // Use pre-built lookup instead of scanning all events
-      const candidateEvents =
+      const candidateEvents: FileEvent[] =
         hasCwd && raw.pid ? eventsByPid.get(raw.pid) || [] : eventsByName.get(name) || [];
 
       let sensitiveFiles = 0;
       let configFiles = 0;
       let sshAwsFiles = 0;
       let fileCount = 0;
-      const seen = new Map();
+      const seen = new Map<string, number>();
 
       for (const ev of candidateEvents) {
         if (ev.selfAccess) continue;
@@ -167,7 +171,7 @@ export const enrichedAgents = derived(
       }
 
       // Use pre-built lookup for network connections
-      const candidateConns =
+      const candidateConns: NetworkConnection[] =
         hasCwd && raw.pid ? connsByPid.get(raw.pid) || [] : connsByName.get(name) || [];
 
       let unknownDomains = 0;
@@ -185,7 +189,7 @@ export const enrichedAgents = derived(
       }
 
       const anomalyScore = $anomalies[name] || 0;
-      let riskScore = calculateRiskScore({
+      const riskInput: RiskScoreInput = {
         sensitiveFiles,
         configFiles,
         sshAwsFiles,
@@ -193,9 +197,10 @@ export const enrichedAgents = derived(
         unknownDomains,
         fileCount,
         httpUnencryptedCount,
-      });
+      };
+      let riskScore: number = calculateRiskScore(riskInput);
       if (fpNames.has(name)) riskScore = Math.max(0, riskScore - 20);
-      const trustGrade = getTrustGrade(riskScore);
+      const trustGrade = getTrustGrade(riskScore) as TrustGrade;
 
       return {
         ...raw,
