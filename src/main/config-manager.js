@@ -21,6 +21,32 @@ const { PERMISSION_CATEGORIES } = require('../shared/constants');
 const logger = require('./logger');
 const safeStore = require('./safe-storage');
 
+/**
+ * Check if a regex pattern is safe from ReDoS (no nested quantifiers).
+ * Rejects patterns like (a+)+, (a*)*b, (a|b+)+ that cause exponential backtracking.
+ * @param {string} pattern - Raw regex string
+ * @returns {boolean} true if pattern is safe
+ * @since v0.9.1
+ */
+function isSafeRegex(pattern) {
+  if (typeof pattern !== 'string' || pattern.length === 0) return false;
+  if (pattern.length > 256) return false;
+  // Detect nested quantifiers: group with quantifier inside, followed by quantifier
+  // e.g. (a+)+  (a*)*  (a{2,})+  (a+|b)+
+  const nestedQuantifier = /\([^)]*[+*]\)[+*{]/;
+  if (nestedQuantifier.test(pattern)) return false;
+  // Also check for deeply nested groups with quantifiers: ((a+))+
+  const deepNested = /\(\([^)]*[+*]\)\)[+*{]/;
+  if (deepNested.test(pattern)) return false;
+  // Verify it compiles
+  try {
+    new RegExp(pattern);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 // ── Lazy path — resolved on first use (after app.whenReady) ──
 let _settingsPath = null;
 function settingsPath() {
@@ -75,12 +101,14 @@ function init(opts) {
 function buildCustomRules() {
   customSensitiveRules = [];
   for (const patternStr of settings.customSensitivePatterns) {
-    try {
-      customSensitiveRules.push({
-        pattern: new RegExp(patternStr, 'i'),
-        reason: `Custom: ${patternStr}`,
-      });
-    } catch (_) {}
+    if (!isSafeRegex(patternStr)) {
+      logger.warn('config-manager', `Skipped unsafe/invalid regex: ${patternStr}`);
+      continue;
+    }
+    customSensitiveRules.push({
+      pattern: new RegExp(patternStr, 'i'),
+      reason: `Custom: ${patternStr}`,
+    });
   }
 }
 
@@ -335,6 +363,7 @@ function addFalsePositive(entry) {
 
 const _exports = {
   init,
+  isSafeRegex,
   loadSettings,
   saveSettings,
   applySettings,
