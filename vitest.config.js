@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 export default defineConfig({
   test: {
@@ -15,6 +16,19 @@ export default defineConfig({
           name: 'renderer',
           include: ['tests/renderer/**/*.test.js'],
           environment: 'node',
+        },
+      },
+      {
+        plugins: [svelte({ hot: false })],
+        resolve: {
+          conditions: ['browser'],
+        },
+        test: {
+          name: 'components',
+          include: ['tests/renderer/components/**/*.test.ts'],
+          environment: 'jsdom',
+          setupFiles: ['tests/renderer/components/_setup.ts'],
+          css: { modules: { classNameStrategy: 'non-scoped' } },
         },
       },
     ],
