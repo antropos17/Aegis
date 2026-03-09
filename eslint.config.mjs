@@ -137,6 +137,20 @@ export default [
     },
   },
   {
+    files: ['**/*.svelte.ts'],
+    languageOptions: {
+      globals: {
+        $state: 'readonly',
+        $derived: 'readonly',
+        $effect: 'readonly',
+        $props: 'readonly',
+        $bindable: 'readonly',
+        $inspect: 'readonly',
+        $host: 'readonly',
+      },
+    },
+  },
+  {
     files: ['**/*.ts'],
     languageOptions: {
       parser: tsParser,

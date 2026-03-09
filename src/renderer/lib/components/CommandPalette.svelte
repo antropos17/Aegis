@@ -4,6 +4,7 @@
    * @module renderer/components/CommandPalette
    */
 
+  import { SvelteMap } from 'svelte/reactivity';
   import { commandPalette } from '../stores/command-palette.svelte.ts';
 
   /**
@@ -29,7 +30,7 @@
    */
   function groupByCategory(items) {
     /** @type {Map<string, import('../../../../shared/types').ScoredCommand[]>} */
-    const groups = new Map();
+    const groups = new SvelteMap();
     for (const item of items) {
       const list = groups.get(item.category);
       if (list) {
@@ -47,7 +48,7 @@
   /** Flat index counter for tracking selected state across groups */
   let flatIndex = $derived.by(() => {
     /** @type {Map<string, number>} */
-    const map = new Map();
+    const map = new SvelteMap();
     let idx = 0;
     for (const item of commandPalette.filteredItems) {
       map.set(item.id, idx++);

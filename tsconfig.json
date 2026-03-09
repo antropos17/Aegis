@@ -13,5 +13,5 @@
     "noEmit": true,
     "forceConsistentCasingInFileNames": true
   },
-  "exclude": ["node_modules", "dist", "tests/renderer/components"]
+  "exclude": ["node_modules", "dist", "tests/renderer/components", "src/renderer/**"]
 }

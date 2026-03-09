@@ -53,7 +53,6 @@ export const scanActive: Writable<boolean> = writable(false);
 export const focusedAgentPid: Writable<number | null> = writable(null);
 
 /** True when running in a browser without Electron IPC. */
-// @ts-expect-error Vite injects import.meta.env at build time
 export const isDemoMode: boolean = import.meta.env.VITE_DEMO_MODE === 'true' || !window.aegis;
 
 if (!isDemoMode) {
@@ -86,9 +85,7 @@ if (!isDemoMode) {
   window.aegis!.getFalsePositives().then((data) => falsePositives.set(data || []));
 } else {
   const cleanupDemo = startDemoMode({ agents, events, stats, network, anomalies, resourceUsage });
-  // @ts-expect-error Vite HMR - only exists in dev mode
   if (import.meta.hot) {
-    // @ts-expect-error Vite HMR - only exists in dev mode
     import.meta.hot.dispose(() => cleanupDemo());
   }
 }
