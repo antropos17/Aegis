@@ -68,7 +68,7 @@ AEGIS follows Electron security best practices:
 
 - **Context isolation:** Enabled. The renderer process cannot access Node.js APIs.
 - **Node integration:** Disabled in the renderer.
-- **Preload bridge:** All IPC passes through `contextBridge.exposeInMainWorld` with a defined, enumerated API surface (54 channels). No arbitrary IPC.
+- **Preload bridge:** All IPC passes through `contextBridge.exposeInMainWorld` with a defined, enumerated API surface (49 channels: 43 invoke + 6 push). No arbitrary IPC.
 - **Content Security Policy:** Strict `default-src 'self'` policy, no external font loading.
 - **No remote content:** The app loads only local files. No external URLs in the renderer.
 - **Input sanitization:** All user-visible strings pass through `escapeHtml()` before DOM insertion. Template literals are used for HTML generation, not `innerHTML` with raw strings.
@@ -79,7 +79,7 @@ AEGIS follows Electron security best practices:
 - **All data stays local.** No telemetry, no cloud sync, no analytics, no tracking.
 - **AI analysis is opt-in.** API calls to Anthropic only happen when the user explicitly clicks "Run AI Threat Analysis." No background API calls.
 - **Audit logs contain metadata, not content.** File paths and agent names are logged, but file contents are never read or stored.
-- **API key is stored locally** in `settings.json` in Electron's userData directory. It is not encrypted at rest — this is a known limitation.
+- **API key is stored locally** in Electron's userData directory, encrypted via Electron safeStorage (added v0.9.0).
 
 ### Known Limitations
 
@@ -92,9 +92,9 @@ AEGIS follows Electron security best practices:
 
 | Version     | Supported                          |
 |-------------|------------------------------------|
-| 0.8.x       | Current release — actively supported |
-| 0.5.x–0.7.x | Security fixes only                |
-| < 0.5.x     | End of life                        |
+| 0.10.x      | Current release — actively supported |
+| 0.7.x–0.9.x | Security fixes only                |
+| < 0.7.x     | End of life                        |
 
 ## Credit
 
