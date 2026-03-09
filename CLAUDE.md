@@ -1,12 +1,12 @@
 # AEGIS — Independent AI Oversight Layer
-Electron 33 + Svelte 5 (runes) + Vite 7. Privacy-first AI agent monitor. v0.8.2-alpha
+Electron 33 + Svelte 5 (runes) + Vite 7. Privacy-first AI agent monitor. v0.9.0-alpha
 Landing: aegisprotect.vercel.app | Demo: aegis-demo-ten.vercel.app
 
 ## Commands
 npm run build:renderer    # Vite build (MUST pass before commit)
 npm run lint              # ESLint
 npm run format            # Prettier
-npm test                  # Vitest (593 tests, 35 files)
+npm test                  # Vitest (595 tests, 35 files)
 npm run dist              # Electron-builder NSIS installer
 
 ## Background Tasks (/loop)

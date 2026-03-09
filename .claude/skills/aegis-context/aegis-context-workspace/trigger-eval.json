@@ -1,0 +1,82 @@
+[
+  {
+    "query": "добавь новый агент 'Windsurf' в agent-database.json с правильной категорией и паттернами обнаружения",
+    "should_trigger": true
+  },
+  {
+    "query": "rule-loader.js кидает ошибку при hot-reload — rules is undefined после второго вызова loadRules(). Посмотри что не так",
+    "should_trigger": true
+  },
+  {
+    "query": "хочу добавить новую вкладку 'Insights' между Shield и Activity. Она должна показывать аналитику по агентам за последние 24 часа",
+    "should_trigger": true
+  },
+  {
+    "query": "network-monitor.js слишком часто сканирует — добавь throttling по 5 секунд между сканами одного PID",
+    "should_trigger": true
+  },
+  {
+    "query": "какие IPC каналы сейчас есть в preload.js? Мне нужно добавить новый для экспорта аудит-лога",
+    "should_trigger": true
+  },
+  {
+    "query": "обнови README — добавь секцию про категории правил и getRulesByCategory API",
+    "should_trigger": true
+  },
+  {
+    "query": "перенеси risk-scoring.js из renderer/utils в shared/, чтобы main process тоже мог его использовать",
+    "should_trigger": true
+  },
+  {
+    "query": "почему anomaly-detector.js даёт false positive на обычный VS Code? Посмотри scoring logic",
+    "should_trigger": true
+  },
+  {
+    "query": "напиши тест для getRulesByCategory — проверь что возвращает пустой массив для несуществующей категории",
+    "should_trigger": true
+  },
+  {
+    "query": "добавь поддержку dark/light toggle в Settings.svelte — сейчас переключение не сохраняется между сессиями",
+    "should_trigger": true
+  },
+  {
+    "query": "как работает скоринг рисков в AEGIS? объясни архитектуру",
+    "should_trigger": true
+  },
+  {
+    "query": "fix typo in README.md line 42",
+    "should_trigger": false
+  },
+  {
+    "query": "git push origin master",
+    "should_trigger": false
+  },
+  {
+    "query": "What's the weather in Moscow?",
+    "should_trigger": false
+  },
+  {
+    "query": "напиши мне python скрипт для парсинга CSV файла с продажами за 2025 год",
+    "should_trigger": false
+  },
+  {
+    "query": "какой сейчас курс доллара?",
+    "should_trigger": false
+  },
+  {
+    "query": "npm install && npm test",
+    "should_trigger": false
+  },
+  {
+    "query": "объясни как работает async/await в JavaScript вообще",
+    "should_trigger": false
+  },
+  {
+    "query": "создай новый Next.js проект с Tailwind CSS",
+    "should_trigger": false
+  },
+  {
+    "query": "rename variable 'x' to 'count' in this file",
+    "should_trigger": false
+  }
+]
