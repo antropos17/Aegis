@@ -12,12 +12,12 @@
 
   /** Unique agents grouped by name, sorted by count desc */
   let groupedAgents = $derived.by(() => {
-    /** @type {Map<string, number>} */
-    const counts = new Map();
+    /** @type {Record<string, number>} */
+    const counts = {};
     for (const a of $enrichedAgents) {
-      counts.set(a.name, (counts.get(a.name) || 0) + 1);
+      counts[a.name] = (counts[a.name] || 0) + 1;
     }
-    return [...counts.entries()]
+    return Object.entries(counts)
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count);
   });
