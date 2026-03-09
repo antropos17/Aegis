@@ -100,6 +100,9 @@ const mockLogger = {
   })),
   getLogDir: vi.fn(() => '/logs'),
   exportAll: vi.fn(() => []),
+  error: vi.fn(),
+  warn: vi.fn(),
+  info: vi.fn(),
 };
 
 const mockPlatform = {
@@ -144,7 +147,8 @@ Module._load = function (request, parent, _isMain) {
       return mockLogger;
     if (
       resolved === platformPath.replace(/\.js$/, '') ||
-      resolved.replace(/\/index$/, '') + '/index.js' === platformPath
+      resolved.replace(/[/\\]index$/, '') + path.sep + 'index.js' === platformPath ||
+      resolved + path.sep + 'index.js' === platformPath
     )
       return mockPlatform;
   }
@@ -167,6 +171,10 @@ describe('ipc-handlers', () => {
     mockElectron.ipcMain.handle.mockClear();
     mockElectron.ipcMain.on.mockClear();
     mockElectron.shell.showItemInFolder.mockClear();
+    mockElectron.shell.openExternal.mockClear();
+    mockPlatform.killProcess.mockClear();
+    mockPlatform.suspendProcess.mockClear();
+    mockPlatform.resumeProcess.mockClear();
     mockElectron.Notification.mockClear();
     mockElectron.Notification.isSupported.mockClear().mockReturnValue(true);
 
@@ -287,6 +295,10 @@ describe('ipc-handlers', () => {
           uniqueAgents: ['Claude'],
         }),
         getResourceUsage: () => ({ memMB: 50 }),
+        getLatestAgents: () => [
+          { agent: 'Claude', pid: 1234, category: 'ai' },
+          { agent: 'Copilot', pid: 5678, category: 'ai' },
+        ],
         setOtherPanelExpanded: vi.fn(),
       });
       ipcHandlers.register();
@@ -346,19 +358,77 @@ describe('ipc-handlers', () => {
       expect(result.success).toBe(false);
     });
 
-    it('open-threat-report writes HTML to temp file', async () => {
+    it('open-threat-report generates HTML from structured data', async () => {
       const handler = getHandler('open-threat-report');
-      const result = await handler(null, '<html>test</html>');
+      const data = {
+        riskRating: 'HIGH',
+        summary: 'Test summary',
+        findings: ['Finding 1'],
+        recommendations: ['Rec 1'],
+        counts: { totalFiles: 10, totalSensitive: 2, totalAgents: 3, totalNet: 1 },
+      };
+      const result = await handler(null, data);
       expect(result.success).toBe(true);
       expect(result.path).toContain('aegis-threat-report-');
-      if (fs.existsSync(result.path)) fs.unlinkSync(result.path);
+      if (fs.existsSync(result.path)) {
+        const content = fs.readFileSync(result.path, 'utf-8');
+        expect(content).toContain('Test summary');
+        expect(content).toContain('Finding 1');
+        expect(content).toContain('AEGIS Threat Analysis Report');
+        fs.unlinkSync(result.path);
+      }
     });
 
-    it('reveal-in-explorer calls shell.showItemInFolder', () => {
-      const handler = getHandler('reveal-in-explorer');
-      const result = handler(null, '/some/path');
-      expect(mockElectron.shell.showItemInFolder).toHaveBeenCalledWith('/some/path');
+    it('open-threat-report escapes HTML in data fields', async () => {
+      const handler = getHandler('open-threat-report');
+      const data = {
+        riskRating: '<script>alert(1)</script>',
+        summary: '<img onerror=alert(1)>',
+        findings: ['<b>xss</b>'],
+        recommendations: [],
+        counts: { totalFiles: 0, totalSensitive: 0, totalAgents: 0, totalNet: 0 },
+      };
+      const result = await handler(null, data);
       expect(result.success).toBe(true);
+      if (fs.existsSync(result.path)) {
+        const content = fs.readFileSync(result.path, 'utf-8');
+        expect(content).not.toContain('<script>');
+        expect(content).not.toContain('<img');
+        expect(content).not.toContain('<b>xss</b>');
+        expect(content).toContain('&lt;script&gt;');
+        fs.unlinkSync(result.path);
+      }
+    });
+
+    it('open-threat-report rejects non-object data', async () => {
+      const handler = getHandler('open-threat-report');
+      const result = await handler(null, '<html>raw</html>');
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Invalid report data');
+    });
+
+    it('reveal-in-explorer calls shell.showItemInFolder for existing paths', () => {
+      const handler = getHandler('reveal-in-explorer');
+      // Use a path that exists (the test file itself)
+      const existingPath = path.resolve(__dirname, '../../package.json');
+      const result = handler(null, existingPath);
+      expect(mockElectron.shell.showItemInFolder).toHaveBeenCalled();
+      expect(result.success).toBe(true);
+    });
+
+    it('reveal-in-explorer rejects path traversal with ..', () => {
+      const handler = getHandler('reveal-in-explorer');
+      const result = handler(null, '/some/path/../../etc/passwd');
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Path traversal not allowed');
+      expect(mockElectron.shell.showItemInFolder).not.toHaveBeenCalled();
+    });
+
+    it('reveal-in-explorer rejects invalid path types', () => {
+      const handler = getHandler('reveal-in-explorer');
+      expect(handler(null, null).success).toBe(false);
+      expect(handler(null, '').success).toBe(false);
+      expect(handler(null, 123).success).toBe(false);
     });
 
     it('kill-process rejects invalid PID at IPC boundary', async () => {
@@ -388,11 +458,32 @@ describe('ipc-handlers', () => {
       expect(mockPlatform.resumeProcess).not.toHaveBeenCalled();
     });
 
-    it('kill-process accepts valid PID', async () => {
+    it('kill-process accepts monitored PID', async () => {
       const handler = getHandler('kill-process');
       const result = await handler(null, 1234);
-      // Valid PID passes boundary check — result comes from platform (mock or real)
-      expect(result).toHaveProperty('success');
+      expect(result).toEqual({ success: true });
+      expect(mockPlatform.killProcess).toHaveBeenCalledWith(1234);
+    });
+
+    it('kill-process rejects unmonitored PID', async () => {
+      const handler = getHandler('kill-process');
+      const result = await handler(null, 9999);
+      expect(result).toEqual({ success: false, error: 'Process not monitored by Aegis' });
+      expect(mockPlatform.killProcess).not.toHaveBeenCalled();
+    });
+
+    it('suspend-process rejects unmonitored PID', async () => {
+      const handler = getHandler('suspend-process');
+      const result = await handler(null, 9999);
+      expect(result).toEqual({ success: false, error: 'Process not monitored by Aegis' });
+      expect(mockPlatform.suspendProcess).not.toHaveBeenCalled();
+    });
+
+    it('resume-process rejects unmonitored PID', async () => {
+      const handler = getHandler('resume-process');
+      const result = await handler(null, 9999);
+      expect(result).toEqual({ success: false, error: 'Process not monitored by Aegis' });
+      expect(mockPlatform.resumeProcess).not.toHaveBeenCalled();
     });
 
     it('save-custom-agents delegates to config', () => {
