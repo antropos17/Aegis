@@ -1,13 +1,18 @@
 ---
 name: aegis-context
-description: AEGIS project context — 107 agents, Electron 33, Svelte 5 + TypeScript, 593 tests. Auto-invoked on any AEGIS task.
+description: >-
+  AEGIS project architecture, file paths, module map, and conventions for the Electron + Svelte 5 AI agent monitor.
+  MUST be used before ANY non-trivial task in this repo — adding features, fixing bugs, refactoring, debugging,
+  writing tests, modifying components, updating agents/rules/IPC/scoring, or asking questions about how AEGIS works.
+  Use this skill whenever you touch src/main/, src/renderer/, src/shared/, or need to understand the project structure.
+  The only exceptions are trivial one-line fixes (typos, variable renames) and pure git/npm commands.
 ---
 
 # AEGIS Context
 
 ## Project
 AEGIS — Independent AI Oversight Layer (Electron desktop)
-Repo: github.com/antropos17/Aegis | Version: 0.8.2-alpha
+Repo: github.com/antropos17/Aegis | Version: 0.9.0-alpha
 Current Focus: Post-release polish, tech debt cleanup
 
 ## Stack
@@ -20,8 +25,9 @@ Electron 33, Svelte 5, Vite 7, TypeScript (incremental, allowJs:true, checkJs:tr
 - Bridge: src/main/preload.js — contextBridge, 43 invoke + 11 push channels
 - Data: src/shared/agent-database.json (107 agent signatures)
 - Config: src/shared/constants.js (70+ sensitive patterns)
+- Rules: src/main/rule-loader.js — loadRules() + categoryIndex Map for O(1) lookup by category
 - Types: src/shared/types/ — 7 .ts files, 39 type definitions
-- Tests: 593 pass, 4 skip across 35 files (Vitest, all ESM)
+- Tests: 595 pass, 4 skip across 35 files (Vitest, all ESM)
 
 ## Key Components (Fancy UI — complete)
 - ShieldTab: bento grid with SummaryCards, RiskRing, ActivityFeed
