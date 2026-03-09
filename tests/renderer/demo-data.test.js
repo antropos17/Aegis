@@ -8,6 +8,7 @@ import {
   _resetDeps,
 } from '../../src/renderer/lib/stores/demo-data.js';
 import { SCENARIOS } from '../../src/renderer/lib/stores/demo-pools.js';
+/** @typedef {import('../../src/renderer/lib/stores/demo-pools.js').DemoAgent} DemoAgent */
 
 /** Create a fresh set of writable stores for each test. */
 function makeStores() {
