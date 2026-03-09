@@ -190,6 +190,7 @@ async function setupFileWatchers() {
       persistent: true,
       ignoreInitial: true,
       usePolling: false,
+      followSymlinks: false,
       depth: 1,
     });
     bindWatcherEvents(w);
@@ -206,6 +207,7 @@ async function setupFileWatchers() {
       persistent: true,
       ignoreInitial: true,
       usePolling: false,
+      followSymlinks: false,
       depth: 2,
     });
     bindWatcherEvents(cw);
@@ -218,6 +220,7 @@ async function setupFileWatchers() {
     ignoreInitial: true,
     ignored: (filePath) => dirFilter(filePath) || /package-lock\.json$/.test(filePath),
     usePolling: false,
+    followSymlinks: false,
     depth: 5,
   });
   bindWatcherEvents(pw);
@@ -227,6 +230,7 @@ async function setupFileWatchers() {
     ignoreInitial: true,
     depth: 0,
     usePolling: false,
+    followSymlinks: false,
   });
   bindWatcherEvents(ew);
   _state.watchers.push(ew);
@@ -343,6 +347,7 @@ function setupRulesWatcher(sendFn) {
     ignored: (filePath) => path.basename(filePath).startsWith('_'),
     persistent: false,
     ignoreInitial: true,
+    followSymlinks: false,
     depth: 0,
   });
   rw.on('change', (filePath) => {

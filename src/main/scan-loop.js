@@ -65,6 +65,8 @@ function logAuditForFile(ev) {
 }
 
 function stopScanIntervals() {
+  for (const t of startupTimers) clearTimeout(t);
+  startupTimers = [];
   if (warmupTimer) {
     clearTimeout(warmupTimer);
     warmupTimer = null;
@@ -263,6 +265,8 @@ function startScanIntervals(intervalMs) {
 }
 
 let warmupTimer = null;
+/** @type {Array<ReturnType<typeof setTimeout>>} */
+let startupTimers = [];
 
 /** @param {number} targetMs @since v0.4.0 */
 function startWarmup(targetMs) {
@@ -283,12 +287,14 @@ function startWarmup(targetMs) {
 
 /** @param {number} intervalMs @param {boolean} paused @since v0.3.0 */
 function staggeredStartup(intervalMs, paused) {
-  setTimeout(() => doProcessScan(), 3000);
-  setTimeout(() => doFileScan(), 8000);
-  setTimeout(() => {
-    doNetworkScan();
-    if (!paused) startWarmup(intervalMs);
-  }, 12000);
+  startupTimers.push(setTimeout(() => doProcessScan(), 3000));
+  startupTimers.push(setTimeout(() => doFileScan(), 8000));
+  startupTimers.push(
+    setTimeout(() => {
+      doNetworkScan();
+      if (!paused) startWarmup(intervalMs);
+    }, 12000),
+  );
 }
 
 /** @param {Object} injected @since v0.3.0 */
