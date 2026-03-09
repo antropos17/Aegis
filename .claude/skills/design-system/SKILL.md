@@ -5,9 +5,9 @@ description: Aegis Fancy UI design tokens, typography, glassmorphism, animation 
 # Design System
 
 Read these files for all design values:
-- FANCY-AEGIS-MASTER-PLAN.md — full token spec, component designs, animation params
+- memory-bank/fancy-ui-plan.md — full token spec, component designs, animation params
 - design/mockup-shield.html — visual reference, extract CSS variables
-- src/renderer/tokens.css — current tokens (extend, don't replace)
+- src/renderer/lib/styles/tokens.css — current tokens (extend, don't replace)
 
 ## Key Principles
 - All colors via CSS variables from tokens.css
