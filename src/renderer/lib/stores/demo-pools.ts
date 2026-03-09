@@ -1,8 +1,49 @@
 /** @file Static data pools for demo mode scenario engine. */
 
-/** @type {Array<{agent: string, process: string, pid: number, category: string, parentEditor: string|null, cwd: string|null, projectName: string|null, localModels?: string[]}>} */
+/** Demo agent entry with optional local model list.
+ *  parentEditor/cwd/projectName allow undefined for DetectedAgent compatibility. */
+export interface DemoAgent {
+  readonly agent: string;
+  readonly process: string;
+  readonly pid: number;
+  readonly category: string;
+  readonly parentEditor?: string | null;
+  readonly cwd?: string | null;
+  readonly projectName?: string | null;
+  readonly localModels?: readonly string[];
+}
+
+/** Demo file template for simulated file events */
+export interface DemoFileTemplate {
+  readonly file: string;
+  readonly sensitive: boolean;
+  readonly selfAccess: boolean;
+  readonly reason: string;
+  readonly action: 'created' | 'modified' | 'deleted' | 'accessed';
+}
+
+/** Demo domain template for simulated network connections */
+export interface DemoDomainTemplate {
+  readonly domain: string;
+  readonly remoteIp: string;
+  readonly remotePort: number;
+  readonly state: string;
+  readonly flagged: boolean;
+}
+
+/** Scenario phase name */
+export type ScenarioName = 'calm' | 'elevated' | 'critical' | 'reset';
+
+/** Scenario phase configuration */
+export interface DemoScenario {
+  readonly name: ScenarioName;
+  readonly duration: number;
+  readonly agentCount: number;
+  readonly sensitiveWeight: number;
+}
+
 // prettier-ignore
-export const DEMO_AGENTS_POOL = [
+export const DEMO_AGENTS_POOL: readonly DemoAgent[] = [
   { agent: 'Claude Code', process: 'claude', pid: 3421, category: 'coding-assistant', parentEditor: null, cwd: '~/code/myapp', projectName: 'myapp' },
   { agent: 'GitHub Copilot', process: 'copilot-agent', pid: 4832, category: 'coding-assistant', parentEditor: 'Code', cwd: '~/code/myapp', projectName: 'myapp' },
   { agent: 'Cursor', process: 'Cursor Helper', pid: 2901, category: 'ai-ide', parentEditor: null, cwd: '~/code/myapp', projectName: 'myapp' },
@@ -18,9 +59,9 @@ export const DEMO_AGENTS_POOL = [
   { agent: 'OpenClaw', process: 'openclaw', pid: 18789, category: 'autonomous-agent', parentEditor: null, cwd: '~/projects/ml-pipeline', projectName: 'ml-pipeline' },
 ];
 
-/** @type {Array<{file: string, sensitive: boolean, selfAccess: boolean, reason: string, action: string}>} */
+/** @type {readonly DemoFileTemplate[]} */
 // prettier-ignore
-export const DEMO_FILE_POOL = [
+export const DEMO_FILE_POOL: readonly DemoFileTemplate[] = [
   // ── Normal project files ──
   { file: '~/code/myapp/src/index.js', sensitive: false, selfAccess: false, reason: '', action: 'modified' },
   { file: '~/code/myapp/src/components/App.jsx', sensitive: false, selfAccess: false, reason: '', action: 'modified' },
@@ -51,9 +92,9 @@ export const DEMO_FILE_POOL = [
   { file: '~/.config/gcloud/credentials.json', sensitive: true, selfAccess: false, reason: 'GCP credentials', action: 'accessed' },
 ];
 
-/** @type {Array<{domain: string, remoteIp: string, remotePort: number, state: string, flagged: boolean}>} */
+/** @type {readonly DemoDomainTemplate[]} */
 // prettier-ignore
-export const DEMO_DOMAIN_POOL = [
+export const DEMO_DOMAIN_POOL: readonly DemoDomainTemplate[] = [
   // ── Legitimate AI services ──
   { domain: 'api.anthropic.com', remoteIp: '18.64.128.42', remotePort: 443, state: 'ESTABLISHED', flagged: false },
   { domain: 'github.copilot.ai', remoteIp: '140.82.121.3', remotePort: 443, state: 'ESTABLISHED', flagged: false },
@@ -74,9 +115,9 @@ export const DEMO_DOMAIN_POOL = [
 
 /**
  * Scenario phases that cycle in order.
- * @type {Array<{name: string, duration: number, agentCount: number, sensitiveWeight: number}>}
+ * @type {readonly DemoScenario[]}
  */
-export const SCENARIOS = [
+export const SCENARIOS: readonly DemoScenario[] = [
   { name: 'calm', duration: 25000, agentCount: 3, sensitiveWeight: 0.05 },
   { name: 'elevated', duration: 25000, agentCount: 7, sensitiveWeight: 0.25 },
   { name: 'critical', duration: 25000, agentCount: 12, sensitiveWeight: 0.55 },
