@@ -7,7 +7,13 @@
   import { resourceUsage } from '../stores/ipc.js';
   import Sparkline from './Sparkline.svelte';
   import { createRingBuffer } from '../utils/ring-buffer';
-  import { tick, startTick } from '../stores/tick.ts';
+  import { tick, startTick } from '../stores/tick';
+
+  interface ResourceUsageData {
+    cpuUser: number;
+    cpuSystem: number;
+    memMB: number;
+  }
 
   /** Ring buffers: 60 data points = 60 seconds of history */
   const HISTORY_SIZE = 60;
@@ -34,7 +40,7 @@
 
   $effect(() => {
     $tick; // subscribe — triggers each second
-    const u = $resourceUsage;
+    const u = $resourceUsage as ResourceUsageData;
     if (!u || !u.cpuUser) return;
 
     // CPU percentage (delta-based)

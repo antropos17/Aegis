@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.main.json && tsc --noEmit -p tsconfig.renderer.json",
     "typecheck:main": "tsc --noEmit -p tsconfig.main.json",
     "typecheck:renderer": "tsc --noEmit -p tsconfig.renderer.json",
+    "typecheck:svelte": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -100,6 +101,7 @@
     "prettier-plugin-svelte": "^3.5.0",
     "sharp": "^0.34.5",
     "svelte": "^5.53.6",
+    "svelte-check": "^4.4.5",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vitest": "^4.0.18"

@@ -82,17 +82,6 @@
     border-color: var(--fancy-border-highlight);
   }
 
-  .panel-title {
-    display: block;
-    padding: var(--fancy-space-md);
-    font-family: var(--fancy-font-title);
-    font-weight: 600;
-    font-size: 14px;
-    color: var(--fancy-text-2);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
   /* ── Radar: left column, spans 2 rows ── */
   .bento-radar {
     grid-column: 1;
