@@ -1,9 +1,11 @@
 <p align="center">
   <h1 align="center">AEGIS</h1>
   <p align="center"><b>EDR for AI Agents</b></p>
-  <p align="center">Watches what AI agents do on your machine. Processes, files, network, risk scoring.<br>No telemetry. No cloud. Everything stays local.</p>
-  <p align="center"><i>With autonomous agents like OpenClaw (247K+ GitHub stars) gaining access to local files, credentials, and shell — somebody needs to watch.</i></p>
 </p>
+
+**Aegis is an open-source endpoint detection and response (EDR) tool that monitors AI agent processes, file access, network activity, and behavioral anomalies in real time.** Built with Electron 33, Svelte 5, and TypeScript, it provides the same class of oversight for autonomous AI agents that CrowdStrike provides for traditional endpoints. No telemetry. No cloud. Everything stays local.
+
+> "Kaspersky found 512 bugs in OpenClaw. So we built an EDR to monitor it."
 
 <p align="center">
   <a href="https://github.com/antropos17/Aegis/releases/latest"><img src="https://img.shields.io/github/v/release/antropos17/Aegis?include_prereleases&style=flat-square&label=Release" alt="Release"></a>
@@ -26,13 +28,27 @@
 
 ---
 
-## Why AEGIS?
+## What Does Aegis Monitor?
 
-AI agents now have deep access to your machine — files, commands, network. Every existing AI security tool is enterprise SaaS that monitors what humans send *to* AI. Nobody monitors what AI agents do *on local machines*.
+- **Process Monitoring** — Tracks 107 known AI agent signatures with parent-child tree resolution and IDE host detection.
+- **File System Access** — Watches sensitive directories (`.ssh`, `.aws`, `.gnupg`, `.env`, cloud configs) and 27 AI agent config paths for unauthorized access.
+- **Network Activity** — Logs outbound TCP connections per agent PID with reverse DNS and known-vs-unknown API endpoint classification.
+- **Behavioral Analysis** — Applies 68 detection rules across 8 categories with rolling 10-session baselines and 4-axis anomaly scoring.
+- **Trust Scoring** — Assigns real-time risk scores with trust grades (A+ through F) using time-decay algorithms and multi-dimensional threat assessment.
+- **Multi-Agent Dashboard** — Displays all 107 agents in a bento-grid dashboard with sparklines, risk rings, activity feeds, and expandable agent cards.
 
-CrowdStrike, Cisco, and Kaspersky have all flagged security risks in autonomous AI agents. Aegis is the open-source answer.
+## Why Aegis?
 
-AEGIS is an independent, open-source monitoring layer. It watches AI agent behavior in real time, doesn't belong to any AI vendor, and keeps all data local.
+| | |
+|---|---|
+| **512** | vulnerabilities found in OpenClaw by Kaspersky — autonomous agents ship with real security risks |
+| **0** | open-source EDR tools existed for AI agents before Aegis |
+| **107** | AI agent signatures in the detection database, from Claude Code to AutoGPT |
+| **68** | behavioral detection rules across 8 categories, with hot-reload and custom overrides |
+| **707** | tests passing, 0 failures — the monitoring engine is verified on every commit |
+| **<2s** | cold boot to full dashboard — lightweight enough to run alongside the agents it monitors |
+
+AI agents now have deep access to your machine — files, commands, network. Every existing AI security tool is enterprise SaaS that monitors what humans send *to* AI. Nobody monitors what AI agents do *on local machines*. Aegis is the open-source answer.
 
 ## What It Monitors
 
@@ -200,6 +216,40 @@ Add custom agents via the UI or edit the JSON. See [AGENTS.md](AGENTS.md).
 - [ ] Browser extension for web-based AI agents
 - [ ] Auto-update mechanism
 - [x] i18n / localization ([#53](https://github.com/antropos17/Aegis/issues/53))
+
+## Frequently Asked Questions
+
+### What is Aegis?
+
+Aegis is an open-source endpoint detection and response (EDR) tool purpose-built for monitoring AI agents. It tracks processes, file access, network activity, and behavioral anomalies in real time using Electron 33, Svelte 5, and TypeScript. All data stays local — no telemetry, no cloud dependency.
+
+### Why do AI agents need monitoring?
+
+Autonomous AI agents like OpenClaw, AutoGPT, and Devin have deep access to local files, credentials, and shell commands — yet run with minimal oversight. Kaspersky's analysis found 512 bugs in OpenClaw alone. Aegis provides the missing observability layer so you can see exactly what agents do on your machine.
+
+### How is Aegis different from traditional EDR?
+
+Traditional EDR tools (CrowdStrike, Sentinel One) monitor human-driven threats — malware, ransomware, phishing. Aegis is built specifically for AI agent behavior: it ships with 107 agent profiles, 68 detection rules tuned for agent-specific patterns, and behavioral baselines that track how each agent's activity changes over time.
+
+### Does Aegis work with MCP tools?
+
+Yes. Aegis monitors any AI agent process running on your machine, including tools connected via the Model Context Protocol (MCP). If an MCP-connected tool spawns processes, accesses files, or makes network calls, Aegis will detect and score that activity.
+
+### Is Aegis a replacement for sandboxing?
+
+No. Aegis is an observability layer, not a restriction layer. Sandboxes limit what agents can do; Aegis shows you what agents are doing. They are complementary — use sandboxing for enforcement and Aegis for visibility, auditing, and anomaly detection.
+
+### What agents does Aegis support?
+
+Aegis ships with 107 agent signatures across five categories: coding assistants (Claude Code, Copilot, Cursor), autonomous agents (OpenClaw, AutoGPT, CrewAI, Devin), desktop AI (Gemini, Apple Intelligence), frameworks (LangChain, AutoGen, MetaGPT), and local LLMs (Ollama, LM Studio, llama.cpp). You can add custom agents via the UI or JSON config.
+
+### Can I use Aegis in production?
+
+Aegis is currently at v0.10.0-alpha and is recommended for development and testing environments. The core monitoring engine is stable with 707 tests passing, but production deployment features (auto-update, OS-level enforcement) are on the roadmap for v1.0.
+
+### Is Aegis free?
+
+Yes. Aegis is released under the MIT license with no telemetry, no cloud requirements, and no paid tiers. The full source code is available on GitHub.
 
 ## Contributors
 
