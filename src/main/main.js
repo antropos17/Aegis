@@ -53,6 +53,7 @@ let latestAgents = [],
   latestOtherAgents = [];
 let isQuitting = false,
   monitoringPaused = false;
+let oomIntervalId = null;
 let latestNetConnections = [],
   otherPanelExpanded = false;
 let previousAgentPids = new Map();
@@ -166,7 +167,10 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
+      sandbox: true,
       nodeIntegration: false,
+      nodeIntegrationInSubFrames: false,
+      plugins: false,
     },
   });
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, cb) => {
@@ -174,7 +178,7 @@ function createWindow() {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'",
+          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
         ],
       },
     });
@@ -326,7 +330,7 @@ function initDeferredSubsystems(userData) {
   scanLoop.staggeredStartup(ms, monitoringPaused);
 
   // ── OOM protection: trim old data when heap > 512 MB ──
-  setInterval(() => {
+  oomIntervalId = setInterval(() => {
     const heap = process.memoryUsage().heapUsed;
     if (heap > 512 * 1024 * 1024) {
       logger.warn('main', 'Memory threshold reached, trimming old data', {
@@ -401,6 +405,10 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+  if (oomIntervalId) {
+    clearInterval(oomIntervalId);
+    oomIntervalId = null;
+  }
   globalShortcut.unregisterAll();
   logger.info('main', 'App quitting');
   if (audit) audit.shutdown();
