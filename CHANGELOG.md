@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.1-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.9.0-alpha...aegis-v0.9.1-alpha) (2026-03-09)
+
+
+### Bug Fixes
+
+* deduplicate agent dropdown entries ([#98](https://github.com/antropos17/Aegis/issues/98)) ([f0b6c19](https://github.com/antropos17/Aegis/commit/f0b6c1978fcd8cd18a57bb91cbf45f84eac8fdd4))
+* **docs:** update broken file references in design-system skill ([5071384](https://github.com/antropos17/Aegis/commit/50713848d262ff8b4f342dcc4de544f9e5db362c))
+* **lint:** replace Map with plain object in agent grouping ([6715d8b](https://github.com/antropos17/Aegis/commit/6715d8b2ffe0c10e40c921e8d0fd00033990bf17))
+* **lint:** replace Map with plain object in agent grouping ([#99](https://github.com/antropos17/Aegis/issues/99)) ([43b8510](https://github.com/antropos17/Aegis/commit/43b8510d16952e578a960e214624ea8785f35425))
+* **ui:** deduplicate agent dropdown with count in brackets ([67e2b20](https://github.com/antropos17/Aegis/commit/67e2b20f7c5fe8ca13479903e0c862679b44e74b))
+* update broken file references in design-system skill ([#100](https://github.com/antropos17/Aegis/issues/100)) ([aae8906](https://github.com/antropos17/Aegis/commit/aae89069f2a5500fc4f0cabd8df5e5ede154791c))
+
+
+### Performance
+
+* **rules:** add category index for O(1) rule lookup by category ([b552fb4](https://github.com/antropos17/Aegis/commit/b552fb4ec8a27e1c2a84da3656bd778e35bc3ca3))
+
+
+### Documentation
+
+* optimize aegis-context description + update context after PR [#95](https://github.com/antropos17/Aegis/issues/95) ([17d574d](https://github.com/antropos17/Aegis/commit/17d574dded821b3fafff5b67ab869c7dcfd31254))
+
 ## [0.9.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.8.2-alpha...aegis-v0.9.0-alpha) (2026-03-08)
 
 
