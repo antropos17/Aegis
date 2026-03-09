@@ -86,10 +86,7 @@
     }
     if (e.key === 'Enter') {
       e.preventDefault();
-      const selected = commandPalette.getSelected();
-      if (selected) {
-        console.log('execute', selected);
-      }
+      commandPalette.executeSelected();
       return;
     }
   }
@@ -132,7 +129,8 @@
                 class="cp-item"
                 class:cp-item-selected={idx === commandPalette.selectedIndex}
                 onmousedown={() => {
-                  console.log('execute', item);
+                  commandPalette.moveSelection(idx - commandPalette.selectedIndex);
+                  commandPalette.executeSelected();
                 }}
                 onmouseenter={() => {
                   commandPalette.moveSelection(idx - commandPalette.selectedIndex);

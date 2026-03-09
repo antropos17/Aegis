@@ -6,13 +6,14 @@
 
 import { getAllCommands } from '../utils/command-registry';
 import { filterAndSort } from '../utils/fuzzy-search';
-import type { ScoredCommand } from '../../../shared/types';
+import type { CommandItem, ScoredCommand } from '../../../shared/types';
 
 /** Creates a reactive command palette store using Svelte 5 runes */
 function createCommandPalette() {
   let open = $state(false);
   let query = $state('');
   let selectedIndex = $state(0);
+  let lastExecuted: CommandItem | null = $state(null);
 
   const filteredItems: ScoredCommand[] = $derived(
     query ? filterAndSort(query, getAllCommands()) : filterAndSort('', getAllCommands()),
@@ -30,6 +31,9 @@ function createCommandPalette() {
     },
     get filteredItems() {
       return filteredItems;
+    },
+    get lastExecuted() {
+      return lastExecuted;
     },
 
     /** Toggle palette open/closed. Resets query and selection on open. */
@@ -64,6 +68,16 @@ function createCommandPalette() {
     /** Get the currently selected command, if any */
     getSelected(): ScoredCommand | undefined {
       return filteredItems[selectedIndex];
+    },
+
+    /** Execute the currently selected command and close the palette */
+    executeSelected() {
+      const item = filteredItems[selectedIndex];
+      if (!item) return;
+      lastExecuted = item;
+      open = false;
+      query = '';
+      selectedIndex = 0;
     },
   };
 }
