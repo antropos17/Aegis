@@ -16,7 +16,7 @@ describe('threat-report', () => {
   beforeEach(async () => {
     vi.resetModules();
     mockOpenThreatReport.mockClear();
-    const mod = await import('../../src/renderer/lib/utils/threat-report.js');
+    const mod = await import('../../src/renderer/lib/utils/threat-report.ts');
     openThreatReport = mod.openThreatReport;
   });
 

@@ -1,7 +1,7 @@
 <script>
   import { events, network } from '../stores/ipc.js';
   import { enrichedAgents } from '../stores/risk.js';
-  import { openThreatReport } from '../utils/threat-report.js';
+  import { openThreatReport } from '../utils/threat-report';
   import { t } from '../i18n/index.js';
 
   let loading = $state(false);

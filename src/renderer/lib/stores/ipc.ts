@@ -32,6 +32,7 @@ interface AegisIpcBridge {
   getStats(): Promise<Record<string, unknown>>;
   getResourceUsage(): Promise<Record<string, unknown>>;
   getFalsePositives(): Promise<FalsePositiveEntry[]>;
+  openThreatReport(html: string): void;
 }
 
 declare global {
