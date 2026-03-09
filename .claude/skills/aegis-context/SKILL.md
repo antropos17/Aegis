@@ -1,11 +1,13 @@
 ---
 name: aegis-context
 description: >-
-  AEGIS project architecture, file paths, module map, and conventions for the Electron + Svelte 5 AI agent monitor.
-  MUST be used before ANY non-trivial task in this repo — adding features, fixing bugs, refactoring, debugging,
-  writing tests, modifying components, updating agents/rules/IPC/scoring, or asking questions about how AEGIS works.
-  Use this skill whenever you touch src/main/, src/renderer/, src/shared/, or need to understand the project structure.
-  The only exceptions are trivial one-line fixes (typos, variable renames) and pure git/npm commands.
+  AEGIS project context — Electron desktop app for AI agent monitoring with Svelte 5 renderer.
+  Provides architecture map, module locations, IPC channels, component inventory, and coding conventions.
+  MUST be invoked before working on any AEGIS source file: editing scanners, watchers, or scoring in src/main/;
+  modifying Svelte components, stores, or utils in src/renderer/; updating agent-database.json, constants.js,
+  or types in src/shared/; adding IPC channels to preload.js; debugging anomaly-detector, rule-loader,
+  network-monitor, or process-scanner; writing tests; or asking how AEGIS architecture works.
+  Skip only for trivial one-line fixes (typos, renames) and bare git/npm commands.
 ---
 
 # AEGIS Context
