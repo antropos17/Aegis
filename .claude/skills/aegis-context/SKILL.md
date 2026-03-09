@@ -14,22 +14,22 @@ description: >-
 
 ## Project
 AEGIS — Independent AI Oversight Layer (Electron desktop)
-Repo: github.com/antropos17/Aegis | Version: 0.9.0-alpha
-Current Focus: Post-release polish, tech debt cleanup
+Repo: github.com/antropos17/Aegis | Version: 0.10.0-alpha
+Current Focus: Launch preparation (GIF, Dev.to, Reddit, HN)
 
 ## Stack
 Read package.json for exact versions. NEVER hardcode.
 Electron 33, Svelte 5, Vite 7, TypeScript (incremental, allowJs:true, checkJs:true), chokidar.
 
 ## Architecture
-- Main process (Node.js): src/main/ — 26 CJS modules (scanners, watchers, IPC, scoring, logging)
-- Renderer (Svelte 5): src/renderer/ — 40 components + 6 stores + 11 utils via IPC bridge
-- Bridge: src/main/preload.js — contextBridge, 43 invoke + 11 push channels
+- Main process (Node.js): src/main/ — 23 CJS modules (scanners, watchers, IPC, scoring, logging)
+- Renderer (Svelte 5): src/renderer/ — 43 components + 9 stores + 15 utils via IPC bridge
+- Bridge: src/main/preload.js — contextBridge, 43 invoke + 6 push channels
 - Data: src/shared/agent-database.json (107 agent signatures)
-- Config: src/shared/constants.js (70+ sensitive patterns)
+- Config: src/shared/constants.js (68 rules across 8 categories)
 - Rules: src/main/rule-loader.js — loadRules() + categoryIndex Map for O(1) lookup by category
-- Types: src/shared/types/ — 7 .ts files, 39 type definitions
-- Tests: 595 pass, 4 skip across 35 files (Vitest, all ESM)
+- Types: src/shared/types/ — 8 .ts files
+- Tests: 707 pass, 4 skip across 44 files (Vitest, all ESM)
 
 ## Key Components (Fancy UI — complete)
 - ShieldTab: bento grid with SummaryCards, RiskRing, ActivityFeed
@@ -57,6 +57,7 @@ Electron 33, Svelte 5, Vite 7, TypeScript (incremental, allowJs:true, checkJs:tr
 - electron-main — CJS modules, platform abstraction, IPC, file watchers
 - svelte-patterns — Svelte 5 runes, component patterns, template directives
 - testing — Vitest patterns, ESM imports, mocking, test structure
+- prompt-craft — prompt formula for Claude Code and Antigravity
 - pr-monitor — PR triage, contributor management, /loop monitoring
 - ci-monitor — CI watching, repo health, post-launch metrics
 

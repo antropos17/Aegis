@@ -8,7 +8,7 @@
 <p align="center">
   <a href="https://github.com/antropos17/Aegis/releases/latest"><img src="https://img.shields.io/github/v/release/antropos17/Aegis?include_prereleases&style=flat-square&label=Release" alt="Release"></a>
   <img src="https://img.shields.io/github/actions/workflow/status/antropos17/Aegis/ci.yml?style=flat-square&label=CI" alt="CI">
-  <img src="https://img.shields.io/badge/Tests-593%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-707%20passing-brightgreen?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/Platform-Win%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform">
 </p>
@@ -92,6 +92,9 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v0.10.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.10.0-alpha) | 2026-03-09 | Code cleanup, security hardening, command palette |
+| [v0.9.1-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.9.1-alpha) | 2026-03-08 | Dropdown dedup, skill paths, aegis-context optimized |
+| [v0.9.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.9.0-alpha) | 2026-03-08 | categoryIndex, prompt-craft skill, TS migration stores |
 | [v0.8.2-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.8.2-alpha) | 2026-03-08 | formatBytes TS extraction, meaningful tests, branch cleanup |
 | [v0.8.1-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.8.1-alpha) | 2026-03-07 | Patch release |
 | [v0.8.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.8.0-alpha) | 2026-03-05 | Launch readiness: CSP hardened, OpenClaw integration, README overhaul |
@@ -174,7 +177,7 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
             └─────────────┘    └─────────────┘
 ```
 
-**Stack**: Electron 33, Svelte 5, Vite 7, TypeScript, Vitest (593 tests across 35 files)
+**Stack**: Electron 33, Svelte 5, Vite 7, TypeScript, Vitest (707 tests across 44 files)
 
 ## Agent Database
 

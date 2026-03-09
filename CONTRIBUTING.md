@@ -18,7 +18,7 @@ Requires Node.js 18+ and Windows 10/11 for full monitoring functionality. The El
 1. **Fork** the repository
 2. **Branch** from `master`: `git checkout -b feature/your-feature`
 3. **Implement** your changes following the code standards below
-4. **Test**: run `npm test` (568 tests across 34 files) and `npm start` — verify no console errors, all tabs render, existing features work
+4. **Test**: run `npm test` (707 tests across 44 files) and `npm start` — verify no console errors, all tabs render, existing features work
 5. **Commit** with [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
 6. **Push** your branch and open a **Pull Request** with a clear description of what changed and why
 
@@ -41,7 +41,7 @@ When maintainers merge the Release PR → version bump + CHANGELOG + GitHub Rele
 - **Svelte 5 + Vite for renderer** — component-based architecture with `$state`/`$derived`/`$effect` runes. Main process remains CommonJS.
 - **CommonJS in main process** — `require`/`module.exports` with `init()` dependency injection pattern. Each module receives only the state it needs.
 - **JSDoc headers on all exported functions** — `@param`, `@returns`, `@since` tags required. Include `@file`, `@module`, `@description` at top of every file.
-- **200 line soft limit per file** — split into focused, single-responsibility modules when exceeding.
+- **300 line soft limit per file** — split into focused, single-responsibility modules when exceeding.
 - **`const` over `let`** when the binding doesn't change. Never use `var`.
 - **No external dependencies** without discussion — the project intentionally has only 1 runtime dependency (`chokidar`; `electron` is a devDependency). Adding a dependency requires justification.
 
@@ -57,7 +57,7 @@ When maintainers merge the Release PR → version bump + CHANGELOG + GitHub Rele
 - **New files should be written in TypeScript** (`.ts`) — existing `.js` files will be migrated incrementally
 - **Main process** (`.js`): uses JSDoc annotations + `checkJs: true` for type safety without converting to `.ts`
 - **Renderer** (`.ts`/`.svelte`): native TypeScript with ES modules
-- Shared type definitions live in `src/shared/types/` (34 types across 7 files)
+- Shared type definitions live in `src/shared/types/` (types across 8 files)
 - Run `npx tsc --noEmit` (typecheck) before opening a PR — zero type errors required
 - **Zero `any`** — use proper types, generics, or `unknown` instead. ESLint warns on `any`
 - Explicit return types on exported functions (`@typescript-eslint/explicit-function-return-type`)
