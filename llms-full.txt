@@ -1,0 +1,69 @@
+# Aegis — EDR for AI Agents
+
+> Aegis is an open-source endpoint detection and response (EDR) tool that monitors AI agent processes, file access, network activity, and behavioral anomalies in real time.
+
+## Problem
+
+Autonomous AI agents (OpenClaw, AutoGPT, Devin, CrewAI) now have deep access to local files, credentials, and shell commands. Every existing AI security tool is enterprise SaaS that monitors what humans send *to* AI. Nobody monitors what AI agents do *on local machines*. CrowdStrike, Cisco, and Kaspersky have all flagged security risks in autonomous AI agents — Kaspersky found 512 bugs in OpenClaw alone.
+
+## Solution
+
+Aegis provides the same class of oversight for autonomous AI agents that CrowdStrike provides for traditional endpoints. It runs locally, keeps all data on-device, and is vendor-independent. No telemetry, no cloud, no paid tiers.
+
+## Installation
+
+```bash
+git clone https://github.com/antropos17/Aegis.git
+cd Aegis
+npm install
+npm start
+```
+
+Requires Node.js 18+ and npm 9+. Windows 10/11 recommended. macOS/Linux experimental.
+
+## Features
+
+### Process Monitoring
+Tracks 107 known AI agent signatures with parent-child tree resolution and IDE host detection. Covers coding assistants (Claude Code, Copilot, Cursor), autonomous agents (OpenClaw, AutoGPT, CrewAI, Devin), desktop AI (Gemini, Apple Intelligence), frameworks (LangChain, AutoGen, MetaGPT), and local LLMs (Ollama, LM Studio, llama.cpp).
+
+### File System Access
+Watches sensitive directories (.ssh, .aws, .gnupg, .env, cloud configs) and 27 AI agent config paths for unauthorized access.
+
+### Network Activity
+Logs outbound TCP connections per agent PID with reverse DNS and known-vs-unknown API endpoint classification.
+
+### Behavioral Analysis
+Applies 68 detection rules across 8 categories (AI config, secrets, SSH, cloud, browser, devtools, crypto, certificates) with rolling 10-session baselines and 4-axis anomaly scoring (Network/FS/Process/Baseline).
+
+### Trust Scoring
+Assigns real-time risk scores with trust grades (A+ through F) using time-decay algorithms and multi-dimensional threat assessment.
+
+### Dashboard
+Bento grid layout with RiskRing gauge, sparklines, TrustBadge, agent stats, activity feed with filters, session timeline, and expandable agent cards. Protection presets: Paranoid, Strict, Balanced, Developer.
+
+### Export and Audit
+JSON, CSV, HTML reports, one-click ZIP archive, JSONL audit logging with daily rotation and 30-day retention.
+
+### YAML Rulesets
+68 detection rules, JSON Schema validated, hot-reload without restart. Extend or override via rules/custom/ directory.
+
+## Documentation
+
+- [README](https://github.com/antropos17/Aegis/blob/master/README.md)
+- [Security Policy](https://github.com/antropos17/Aegis/blob/master/SECURITY.md)
+- [Contributing Guide](https://github.com/antropos17/Aegis/blob/master/CONTRIBUTING.md)
+- [Code of Conduct](https://github.com/antropos17/Aegis/blob/master/CODE_OF_CONDUCT.md)
+
+## Technical Details
+
+- **Stack**: Electron 33, Svelte 5, Vite 7, TypeScript
+- **Tests**: 707 passing across 44 files (Vitest)
+- **License**: MIT
+- **Version**: 0.10.0-alpha
+- **Platform**: Windows, macOS, Linux
+
+## Links
+
+- Repository: https://github.com/antropos17/Aegis
+- Website: https://aegisprotect.vercel.app
+- Demo: https://aegis-demo-ten.vercel.app
