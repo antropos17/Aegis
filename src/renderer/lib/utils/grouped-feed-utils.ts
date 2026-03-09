@@ -7,6 +7,7 @@
 
 export { getSeverity, sevColor, formatTime } from './timeline-utils';
 import { getSeverity } from './timeline-utils';
+import { shortenPath as _shortenPath } from './path-utils';
 
 // ═══ TYPES ═══
 
@@ -57,9 +58,7 @@ export interface FeedGroup {
 
 /** Shorten a file path to last 2 segments if over 40 chars. */
 export function shortenPath(p: string | undefined): string {
-  if (!p || p.length <= 40) return p || '';
-  const parts = p.replace(/\\/g, '/').split('/');
-  return parts.length <= 2 ? p : '\u2026/' + parts.slice(-2).join('/');
+  return _shortenPath(p, 40, 2);
 }
 
 /** Classify event sub-type for grouping. */

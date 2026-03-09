@@ -193,10 +193,10 @@
         addToast('Test notification', 'success');
         break;
       case 'action:toggle-demo':
-        console.log('TODO: toggle demo mode (isDemoMode is compile-time const)');
+        addToast('Coming soon', 'info');
         break;
       case 'action:analyze-session':
-        console.log('TODO: analyze session');
+        addToast('Coming soon', 'info');
         break;
       // Export
       case 'export:json':
@@ -206,10 +206,10 @@
       case 'export:audit':
       case 'export:config':
       case 'export:agent-db':
-        console.log('TODO: export', cmd.id);
+        addToast('Coming soon', 'info');
         break;
       default:
-        console.log('Unknown command:', cmd.id);
+        console.warn('Unknown command:', cmd.id);
     }
   });
 </script>

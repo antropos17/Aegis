@@ -8,8 +8,23 @@ import { getAllCommands } from '../utils/command-registry';
 import { filterAndSort } from '../utils/fuzzy-search';
 import type { CommandItem, ScoredCommand } from '../../../shared/types';
 
+/** Public API surface of the command palette store */
+interface CommandPaletteStore {
+  readonly open: boolean;
+  readonly query: string;
+  readonly selectedIndex: number;
+  readonly filteredItems: ScoredCommand[];
+  readonly lastExecuted: CommandItem | null;
+  toggle(): void;
+  close(): void;
+  setQuery(q: string): void;
+  moveSelection(delta: number): void;
+  getSelected(): ScoredCommand | undefined;
+  executeSelected(): void;
+}
+
 /** Creates a reactive command palette store using Svelte 5 runes */
-function createCommandPalette() {
+function createCommandPalette(): CommandPaletteStore {
   let open = $state(false);
   let query = $state('');
   let selectedIndex = $state(0);
@@ -20,24 +35,24 @@ function createCommandPalette() {
   );
 
   return {
-    get open() {
+    get open(): boolean {
       return open;
     },
-    get query() {
+    get query(): string {
       return query;
     },
-    get selectedIndex() {
+    get selectedIndex(): number {
       return selectedIndex;
     },
-    get filteredItems() {
+    get filteredItems(): ScoredCommand[] {
       return filteredItems;
     },
-    get lastExecuted() {
+    get lastExecuted(): CommandItem | null {
       return lastExecuted;
     },
 
     /** Toggle palette open/closed. Resets query and selection on open. */
-    toggle() {
+    toggle(): void {
       open = !open;
       if (open) {
         query = '';
@@ -46,20 +61,20 @@ function createCommandPalette() {
     },
 
     /** Close palette and reset all state */
-    close() {
+    close(): void {
       open = false;
       query = '';
       selectedIndex = 0;
     },
 
     /** Update the search query and reset selection to top */
-    setQuery(q: string) {
+    setQuery(q: string): void {
       query = q;
       selectedIndex = 0;
     },
 
     /** Move selection up/down with wrap-around */
-    moveSelection(delta: number) {
+    moveSelection(delta: number): void {
       const len = filteredItems.length;
       if (len === 0) return;
       selectedIndex = (((selectedIndex + delta) % len) + len) % len;
@@ -71,7 +86,7 @@ function createCommandPalette() {
     },
 
     /** Execute the currently selected command and close the palette */
-    executeSelected() {
+    executeSelected(): void {
       const item = filteredItems[selectedIndex];
       if (!item) return;
       lastExecuted = item;
@@ -82,4 +97,4 @@ function createCommandPalette() {
   };
 }
 
-export const commandPalette = createCommandPalette();
+export const commandPalette: CommandPaletteStore = createCommandPalette();

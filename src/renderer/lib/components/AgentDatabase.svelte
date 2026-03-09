@@ -1,7 +1,11 @@
 <script>
   import { t } from '../i18n/index.js';
 
-  /** @type {{ agents?: any[], onedit?: (a: any) => void, ondelete?: (a: any) => void }} */
+  /**
+   * @typedef {import('../../../shared/types').AgentSignature & { _custom?: boolean }} AgentRow
+   */
+
+  /** @type {{ agents?: AgentRow[], onedit?: (a: AgentRow) => void, ondelete?: (a: AgentRow) => void }} */
   let { agents = [], onedit, ondelete } = $props();
 
   let search = $state('');
