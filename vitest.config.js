@@ -14,7 +14,8 @@ export default defineConfig({
       {
         test: {
           name: 'renderer',
-          include: ['tests/renderer/**/*.test.js'],
+          include: ['tests/renderer/**/*.test.js', 'tests/renderer/**/*.test.ts'],
+          exclude: ['tests/renderer/components/**'],
           environment: 'node',
         },
       },

@@ -59,3 +59,5 @@ export type {
   Baselines,
   EnrichedAgent,
 } from './risk';
+
+export type { CommandCategory, CommandItem, ScoredCommand } from './command-palette';

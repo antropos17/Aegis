@@ -7,8 +7,10 @@
   import RulesTab from './lib/components/RulesTab.svelte';
   import ReportsTab from './lib/components/ReportsTab.svelte';
   import AgentStatsPanel from './lib/components/AgentStatsPanel.svelte';
-  import { theme, uiScale, toggleTheme } from './lib/stores/theme.js';
+  import { theme, uiScale, toggleTheme, setTheme } from './lib/stores/theme.js';
   import Toast from './lib/components/Toast.svelte';
+  import CommandPalette from './lib/components/CommandPalette.svelte';
+  import { commandPalette } from './lib/stores/command-palette.svelte.ts';
   import { addToast } from './lib/stores/toast.js';
   import { agents, anomalies, isDemoMode } from './lib/stores/ipc.js';
   import DemoBanner from './lib/components/DemoBanner.svelte';
@@ -49,7 +51,17 @@
   $effect(() => {
     /** @param {KeyboardEvent} e */
     function handleKeydown(e) {
-      // Ctrl+1-4: switch tabs (works even from inputs)
+      // Ctrl+K / Cmd+K: toggle command palette
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key === 'k') {
+        e.preventDefault();
+        commandPalette.toggle();
+        return;
+      }
+
+      // When palette is open, let it handle all keys
+      if (commandPalette.open) return;
+
+      // Ctrl+1-5: switch tabs (works even from inputs)
       if (e.ctrlKey && !e.altKey && !e.shiftKey) {
         const idx = parseInt(e.key) - 1;
         if (idx >= 0 && idx < TAB_IDS.length) {
@@ -128,6 +140,78 @@
     }
     prevAnomalyKeys = currentKeys;
   });
+
+  // ── Command palette: execute actions ──
+  $effect(() => {
+    const cmd = commandPalette.lastExecuted;
+    if (!cmd) return;
+
+    switch (cmd.id) {
+      // Navigation
+      case 'nav:shield':
+        activeTab = 'shield';
+        break;
+      case 'nav:activity':
+        activeTab = 'activity';
+        break;
+      case 'nav:rules':
+        activeTab = 'rules';
+        break;
+      case 'nav:reports':
+        activeTab = 'reports';
+        break;
+      case 'nav:stats':
+        activeTab = 'stats';
+        break;
+      case 'nav:settings':
+        optionsOpen = !optionsOpen;
+        break;
+      case 'nav:search': {
+        /** @type {HTMLInputElement | null} */
+        const input = document.querySelector('input[type="search"], input[type="text"]');
+        input?.focus();
+        break;
+      }
+      // Theme
+      case 'theme:toggle':
+        toggleTheme();
+        break;
+      case 'theme:dark':
+        setTheme('dark');
+        break;
+      case 'theme:light':
+        setTheme('light');
+        break;
+      case 'theme:dark-hc':
+        setTheme('dark-hc');
+        break;
+      case 'theme:light-hc':
+        setTheme('light-hc');
+        break;
+      // Actions
+      case 'action:test-notification':
+        addToast('Test notification', 'success');
+        break;
+      case 'action:toggle-demo':
+        console.log('TODO: toggle demo mode (isDemoMode is compile-time const)');
+        break;
+      case 'action:analyze-session':
+        console.log('TODO: analyze session');
+        break;
+      // Export
+      case 'export:json':
+      case 'export:csv':
+      case 'export:html':
+      case 'export:zip':
+      case 'export:audit':
+      case 'export:config':
+      case 'export:agent-db':
+        console.log('TODO: export', cmd.id);
+        break;
+      default:
+        console.log('Unknown command:', cmd.id);
+    }
+  });
 </script>
 
 <Header bind:optionsOpen />
@@ -176,6 +260,7 @@
 
 <Footer />
 <Toast />
+<CommandPalette />
 
 <style>
   .app-shell {
