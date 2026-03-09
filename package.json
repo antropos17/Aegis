@@ -1,7 +1,7 @@
 {
   "name": "aegis",
   "version": "0.10.0-alpha",
-  "description": "Independent AI agent oversight layer — monitors what AI agents do on your local machine",
+  "description": "Open-source endpoint detection and response (EDR) for AI agents. Monitor processes, files, network, and behavior of autonomous AI agents in real time.",
   "main": "src/main/main.js",
   "scripts": {
     "start": "npm run build:renderer && node scripts/launch.js",
@@ -71,16 +71,20 @@
   "author": "AEGIS Contributors",
   "license": "MIT",
   "keywords": [
-    "ai",
-    "ai-agents",
-    "security",
-    "monitoring",
+    "ai-agent-security",
+    "ai-agent-monitoring",
+    "edr",
+    "endpoint-detection",
+    "ai-safety",
+    "ai-oversight",
+    "process-monitoring",
     "electron",
     "svelte",
-    "oversight",
-    "privacy",
-    "edr",
-    "anomaly-detection"
+    "typescript",
+    "open-source",
+    "openclaw",
+    "mcp-security",
+    "llm-agent-security"
   ],
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -37,13 +37,18 @@
 - **Trust Scoring** — Assigns real-time risk scores with trust grades (A+ through F) using time-decay algorithms and multi-dimensional threat assessment.
 - **Multi-Agent Dashboard** — Displays all 107 agents in a bento-grid dashboard with sparklines, risk rings, activity feeds, and expandable agent cards.
 
-## Why AEGIS?
+## Why Aegis?
 
-AI agents now have deep access to your machine — files, commands, network. Every existing AI security tool is enterprise SaaS that monitors what humans send *to* AI. Nobody monitors what AI agents do *on local machines*.
+| | |
+|---|---|
+| **512** | vulnerabilities found in OpenClaw by Kaspersky — autonomous agents ship with real security risks |
+| **0** | open-source EDR tools existed for AI agents before Aegis |
+| **107** | AI agent signatures in the detection database, from Claude Code to AutoGPT |
+| **68** | behavioral detection rules across 8 categories, with hot-reload and custom overrides |
+| **707** | tests passing, 0 failures — the monitoring engine is verified on every commit |
+| **<2s** | cold boot to full dashboard — lightweight enough to run alongside the agents it monitors |
 
-CrowdStrike, Cisco, and Kaspersky have all flagged security risks in autonomous AI agents. Aegis is the open-source answer.
-
-AEGIS is an independent, open-source monitoring layer. It watches AI agent behavior in real time, doesn't belong to any AI vendor, and keeps all data local.
+AI agents now have deep access to your machine — files, commands, network. Every existing AI security tool is enterprise SaaS that monitors what humans send *to* AI. Nobody monitors what AI agents do *on local machines*. Aegis is the open-source answer.
 
 ## What It Monitors
 
