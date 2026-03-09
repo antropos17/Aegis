@@ -1,14 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { calculateRiskScore, getTrustGrade, getTimeDecayWeight } from '../../src/renderer/lib/utils/risk-scoring.js';
+import {
+  calculateRiskScore,
+  getTrustGrade,
+  getTimeDecayWeight,
+} from '../../src/renderer/lib/utils/risk-scoring.ts';
 
 describe('risk-scoring', () => {
   describe('calculateRiskScore()', () => {
     it('zero inputs → 0', () => {
       expect(calculateRiskScore({})).toBe(0);
-      expect(calculateRiskScore({
-        sensitiveFiles: 0, configFiles: 0, sshAwsFiles: 0,
-        networkCount: 0, unknownDomains: 0, fileCount: 0,
-      })).toBe(0);
+      expect(
+        calculateRiskScore({
+          sensitiveFiles: 0,
+          configFiles: 0,
+          sshAwsFiles: 0,
+          networkCount: 0,
+          unknownDomains: 0,
+          fileCount: 0,
+        }),
+      ).toBe(0);
     });
 
     it('sensitive files with diminishing returns', () => {
@@ -69,13 +79,20 @@ describe('risk-scoring', () => {
 
   describe('getTrustGrade()', () => {
     const cases = [
-      [0, 'A+'], [10, 'A+'],
-      [11, 'A'], [20, 'A'],
-      [21, 'B+'], [30, 'B+'],
-      [31, 'B'], [40, 'B'],
-      [41, 'C'], [55, 'C'],
-      [56, 'D'], [70, 'D'],
-      [71, 'F'], [100, 'F'],
+      [0, 'A+'],
+      [10, 'A+'],
+      [11, 'A'],
+      [20, 'A'],
+      [21, 'B+'],
+      [30, 'B+'],
+      [31, 'B'],
+      [40, 'B'],
+      [41, 'C'],
+      [55, 'C'],
+      [56, 'D'],
+      [70, 'D'],
+      [71, 'F'],
+      [100, 'F'],
     ];
 
     for (const [score, grade] of cases) {

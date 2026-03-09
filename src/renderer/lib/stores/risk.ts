@@ -7,7 +7,7 @@
 import { derived } from 'svelte/store';
 import type { Readable } from 'svelte/store';
 import { agents, events, anomalies, network, falsePositives } from './ipc.js';
-import { calculateRiskScore, getTrustGrade, getTimeDecayWeight } from '../utils/risk-scoring.js';
+import { calculateRiskScore, getTrustGrade, getTimeDecayWeight } from '../utils/risk-scoring';
 import type {
   FileEvent,
   NetworkConnection,

@@ -1,18 +1,21 @@
 /**
- * @file risk-scoring.js — Risk score calculation + trust grades
+ * @file risk-scoring.ts — Risk score calculation + trust grades
  * @module renderer/utils/risk-scoring
  * @since 0.2.0
  */
+
+import type { RiskScoreInput } from '../../../shared/types/risk';
+import type { TrustGrade } from '../../../shared/types/agent';
 
 // ═══ TIME DECAY ═══
 
 /**
  * Time-decay weight for an event based on its age.
- * @param {number} timestampMs - Event timestamp in ms since epoch
- * @returns {number} 1.0 (recent), 0.5 (>1hr), 0.1 (>24hr)
+ * @param timestampMs - Event timestamp in ms since epoch
+ * @returns 1.0 (recent), 0.5 (>1hr), 0.1 (>24hr)
  * @since 0.2.0
  */
-export function getTimeDecayWeight(timestampMs) {
+export function getTimeDecayWeight(timestampMs: number): number {
   const ageMs = Date.now() - timestampMs;
   if (ageMs > 86400000) return 0.1;
   if (ageMs > 3600000) return 0.5;
@@ -25,11 +28,11 @@ export function getTimeDecayWeight(timestampMs) {
  * Calculate risk score for an agent (0–100).
  * Diminishing returns for sensitive files, separate SSH/AWS signal,
  * capped contributions per factor to prevent instant-100.
- * @param {{ sensitiveFiles: number, configFiles: number, sshAwsFiles: number, networkCount: number, unknownDomains: number, fileCount: number, httpUnencryptedCount?: number }} agent
- * @returns {number} Risk score 0–100
+ * @param agent - Agent activity metrics
+ * @returns Risk score 0–100
  * @since 0.2.0
  */
-export function calculateRiskScore(agent) {
+export function calculateRiskScore(agent: RiskScoreInput): number {
   const sensitive = agent.sensitiveFiles || 0;
   const config = agent.configFiles || 0;
   const sshAws = agent.sshAwsFiles || 0;
@@ -64,11 +67,11 @@ export function calculateRiskScore(agent) {
 
 /**
  * Map a risk score to a trust grade.
- * @param {number} score - Risk score 0–100
- * @returns {string} Grade: A+, A, B+, B, C, D, or F
+ * @param score - Risk score 0–100
+ * @returns Trust grade from A+ (safest) to F (highest risk)
  * @since 0.2.0
  */
-export function getTrustGrade(score) {
+export function getTrustGrade(score: number): TrustGrade {
   if (score <= 10) return 'A+';
   if (score <= 20) return 'A';
   if (score <= 30) return 'B+';
