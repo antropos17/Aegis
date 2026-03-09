@@ -380,6 +380,7 @@ app.whenReady().then(() => {
     getWindow: () => mainWindow,
     getStats,
     getResourceUsage,
+    getLatestAgents: () => latestAgents,
     setOtherPanelExpanded: (v) => {
       otherPanelExpanded = v;
     },

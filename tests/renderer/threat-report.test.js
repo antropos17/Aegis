@@ -20,7 +20,7 @@ describe('threat-report', () => {
     openThreatReport = mod.openThreatReport;
   });
 
-  it('generates HTML with risk rating', () => {
+  it('sends structured data with all fields', () => {
     const result = {
       riskRating: 'HIGH',
       summary: 'Suspicious activity detected',
@@ -32,29 +32,27 @@ describe('threat-report', () => {
     openThreatReport(result, counts);
 
     expect(mockOpenThreatReport).toHaveBeenCalledTimes(1);
-    const html = mockOpenThreatReport.mock.calls[0][0];
-    expect(html).toContain('AEGIS Threat Analysis Report');
-    expect(html).toContain('HIGH');
-    expect(html).toContain('Suspicious activity detected');
-    expect(html).toContain('Finding 1');
-    expect(html).toContain('Finding 2');
-    expect(html).toContain('Action 1');
+    const data = mockOpenThreatReport.mock.calls[0][0];
+    expect(data).toEqual({
+      riskRating: 'HIGH',
+      summary: 'Suspicious activity detected',
+      findings: ['Finding 1', 'Finding 2'],
+      recommendations: ['Action 1'],
+      counts: { totalFiles: 100, totalSensitive: 5, totalAgents: 3, totalNet: 10 },
+    });
   });
 
-  it('shows correct counts in the report', () => {
+  it('passes counts through correctly', () => {
     const result = { riskRating: 'LOW', summary: 'All clear' };
     const counts = { totalFiles: 42, totalSensitive: 7, totalAgents: 2, totalNet: 15 };
 
     openThreatReport(result, counts);
 
-    const html = mockOpenThreatReport.mock.calls[0][0];
-    expect(html).toContain('42');
-    expect(html).toContain('7');
-    expect(html).toContain('2');
-    expect(html).toContain('15');
+    const data = mockOpenThreatReport.mock.calls[0][0];
+    expect(data.counts).toEqual(counts);
   });
 
-  it('HTML-escapes values to prevent XSS', () => {
+  it('does not generate HTML — passes raw data for main process to escape', () => {
     const result = {
       riskRating: '<script>alert("xss")</script>',
       summary: 'Test <b>bold</b> & "quotes"',
@@ -65,12 +63,12 @@ describe('threat-report', () => {
 
     openThreatReport(result, counts);
 
-    const html = mockOpenThreatReport.mock.calls[0][0];
-    expect(html).not.toContain('<script>alert("xss")</script>');
-    expect(html).toContain('&lt;script&gt;');
-    expect(html).toContain('&amp;');
-    expect(html).toContain('&quot;');
-    expect(html).not.toContain('<img onerror');
+    const data = mockOpenThreatReport.mock.calls[0][0];
+    // Data is passed as-is — escaping happens in main process
+    expect(data.riskRating).toBe('<script>alert("xss")</script>');
+    expect(data.summary).toBe('Test <b>bold</b> & "quotes"');
+    expect(data.findings[0]).toBe('<img onerror=alert(1)>');
+    expect(typeof data).toBe('object');
   });
 
   it('handles missing findings gracefully', () => {
@@ -84,10 +82,10 @@ describe('threat-report', () => {
 
     openThreatReport(result, counts);
 
-    const html = mockOpenThreatReport.mock.calls[0][0];
-    expect(html).toContain('CLEAR');
-    // No FINDINGS section when empty
-    expect(html).not.toContain('FINDINGS');
+    const data = mockOpenThreatReport.mock.calls[0][0];
+    expect(data.riskRating).toBe('CLEAR');
+    expect(data.findings).toEqual([]);
+    expect(data.recommendations).toEqual([]);
   });
 
   it('handles undefined findings/recommendations', () => {
@@ -100,56 +98,42 @@ describe('threat-report', () => {
 
     openThreatReport(result, counts);
 
-    const html = mockOpenThreatReport.mock.calls[0][0];
-    expect(html).toContain('LOW');
-    expect(html).not.toContain('FINDINGS');
-    expect(html).not.toContain('RECOMMENDATIONS');
+    const data = mockOpenThreatReport.mock.calls[0][0];
+    expect(data.riskRating).toBe('LOW');
+    expect(data.findings).toBeUndefined();
+    expect(data.recommendations).toBeUndefined();
   });
 
-  it('uses correct color for each risk level', () => {
-    const levels = {
-      CLEAR: '#38A169',
-      LOW: '#38A169',
-      MEDIUM: '#ED8936',
-      HIGH: '#ED8936',
-      CRITICAL: '#E53E3E',
-    };
+  it('passes risk rating through without modification', () => {
+    const levels = ['CLEAR', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
-    for (const [level, color] of Object.entries(levels)) {
+    for (const level of levels) {
       mockOpenThreatReport.mockClear();
       openThreatReport(
         { riskRating: level, summary: 'test' },
         { totalFiles: 0, totalSensitive: 0, totalAgents: 0, totalNet: 0 },
       );
-      const html = mockOpenThreatReport.mock.calls[0][0];
-      expect(html).toContain(color);
+      const data = mockOpenThreatReport.mock.calls[0][0];
+      expect(data.riskRating).toBe(level);
     }
   });
 
-  it('falls back to orange for unknown risk rating', () => {
-    openThreatReport(
-      { riskRating: 'UNKNOWN', summary: 'test' },
-      { totalFiles: 0, totalSensitive: 0, totalAgents: 0, totalNet: 0 },
-    );
-    const html = mockOpenThreatReport.mock.calls[0][0];
-    expect(html).toContain('#ED8936'); // fallback color
-  });
-
-  it('handles null/undefined summary with UNKNOWN fallback', () => {
+  it('passes null values through for main process to handle', () => {
     openThreatReport(
       { riskRating: null, summary: null },
       { totalFiles: 0, totalSensitive: 0, totalAgents: 0, totalNet: 0 },
     );
-    const html = mockOpenThreatReport.mock.calls[0][0];
-    expect(html).toContain('UNKNOWN');
+    const data = mockOpenThreatReport.mock.calls[0][0];
+    expect(data.riskRating).toBeNull();
+    expect(data.summary).toBeNull();
   });
 
-  it('converts newlines in summary to <br> tags', () => {
+  it('preserves newlines in summary for main process to convert', () => {
     openThreatReport(
       { riskRating: 'LOW', summary: 'Line one\nLine two\nLine three' },
       { totalFiles: 0, totalSensitive: 0, totalAgents: 0, totalNet: 0 },
     );
-    const html = mockOpenThreatReport.mock.calls[0][0];
-    expect(html).toContain('<br>');
+    const data = mockOpenThreatReport.mock.calls[0][0];
+    expect(data.summary).toBe('Line one\nLine two\nLine three');
   });
 });
