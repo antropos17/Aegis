@@ -212,6 +212,40 @@ Add custom agents via the UI or edit the JSON. See [AGENTS.md](AGENTS.md).
 - [ ] Auto-update mechanism
 - [x] i18n / localization ([#53](https://github.com/antropos17/Aegis/issues/53))
 
+## Frequently Asked Questions
+
+### What is Aegis?
+
+Aegis is an open-source endpoint detection and response (EDR) tool purpose-built for monitoring AI agents. It tracks processes, file access, network activity, and behavioral anomalies in real time using Electron 33, Svelte 5, and TypeScript. All data stays local — no telemetry, no cloud dependency.
+
+### Why do AI agents need monitoring?
+
+Autonomous AI agents like OpenClaw, AutoGPT, and Devin have deep access to local files, credentials, and shell commands — yet run with minimal oversight. Kaspersky's analysis found 512 bugs in OpenClaw alone. Aegis provides the missing observability layer so you can see exactly what agents do on your machine.
+
+### How is Aegis different from traditional EDR?
+
+Traditional EDR tools (CrowdStrike, Sentinel One) monitor human-driven threats — malware, ransomware, phishing. Aegis is built specifically for AI agent behavior: it ships with 107 agent profiles, 68 detection rules tuned for agent-specific patterns, and behavioral baselines that track how each agent's activity changes over time.
+
+### Does Aegis work with MCP tools?
+
+Yes. Aegis monitors any AI agent process running on your machine, including tools connected via the Model Context Protocol (MCP). If an MCP-connected tool spawns processes, accesses files, or makes network calls, Aegis will detect and score that activity.
+
+### Is Aegis a replacement for sandboxing?
+
+No. Aegis is an observability layer, not a restriction layer. Sandboxes limit what agents can do; Aegis shows you what agents are doing. They are complementary — use sandboxing for enforcement and Aegis for visibility, auditing, and anomaly detection.
+
+### What agents does Aegis support?
+
+Aegis ships with 107 agent signatures across five categories: coding assistants (Claude Code, Copilot, Cursor), autonomous agents (OpenClaw, AutoGPT, CrewAI, Devin), desktop AI (Gemini, Apple Intelligence), frameworks (LangChain, AutoGen, MetaGPT), and local LLMs (Ollama, LM Studio, llama.cpp). You can add custom agents via the UI or JSON config.
+
+### Can I use Aegis in production?
+
+Aegis is currently at v0.10.0-alpha and is recommended for development and testing environments. The core monitoring engine is stable with 707 tests passing, but production deployment features (auto-update, OS-level enforcement) are on the roadmap for v1.0.
+
+### Is Aegis free?
+
+Yes. Aegis is released under the MIT license with no telemetry, no cloud requirements, and no paid tiers. The full source code is available on GitHub.
+
 ## Contributors
 
 <table>
