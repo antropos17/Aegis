@@ -118,7 +118,7 @@ describe('rule-loader', () => {
     });
   });
 
-  describe('getRulesByCategory()', () => {
+  describe('getRulesByCategory() — category index', () => {
     it('returns rules matching the given category', () => {
       ruleLoader.reloadRules(FIXTURES_DIR);
       const cloudRules = ruleLoader.getRulesByCategory('cloud', FIXTURES_DIR);
@@ -130,6 +130,31 @@ describe('rule-loader', () => {
       ruleLoader.reloadRules(FIXTURES_DIR);
       const noRules = ruleLoader.getRulesByCategory('nonexistent', FIXTURES_DIR);
       expect(noRules).toEqual([]);
+    });
+
+    it('builds correct buckets for all categories in fixture', () => {
+      ruleLoader.reloadRules(FIXTURES_DIR);
+      // valid-test.yaml: secrets(TS001), ssh(TS002), cloud(TS003), certificates(TS004), browser(TS005)
+      expect(ruleLoader.getRulesByCategory('secrets', FIXTURES_DIR).length).toBe(1);
+      expect(ruleLoader.getRulesByCategory('ssh', FIXTURES_DIR).length).toBe(1);
+      expect(ruleLoader.getRulesByCategory('cloud', FIXTURES_DIR).length).toBe(1);
+      expect(ruleLoader.getRulesByCategory('certificates', FIXTURES_DIR).length).toBe(1);
+      expect(ruleLoader.getRulesByCategory('browser', FIXTURES_DIR).length).toBe(1);
+    });
+
+    it('rebuilds index after reloadRules()', () => {
+      ruleLoader.reloadRules(FIXTURES_DIR);
+      const before = ruleLoader.getRulesByCategory('cloud', FIXTURES_DIR);
+      expect(before.length).toBe(1);
+
+      // Reload — index should be rebuilt with same data
+      ruleLoader.reloadRules(FIXTURES_DIR);
+      const after = ruleLoader.getRulesByCategory('cloud', FIXTURES_DIR);
+      expect(after.length).toBe(1);
+      expect(after[0].id).toBe('TS003');
+
+      // Should be different array instance (fresh index)
+      expect(before).not.toBe(after);
     });
   });
 
