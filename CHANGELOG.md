@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.10.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.9.1-alpha...aegis-v0.10.0-alpha) (2026-03-09)
+
+
+### Features
+
+* Command Palette (Ctrl+K) — fuzzy search, keyboard nav, 22 commands ([994e691](https://github.com/antropos17/Aegis/commit/994e69194b73b9127bad21d2c8f7a66c69f36d59))
+* **command-palette:** add command palette store ([7adce84](https://github.com/antropos17/Aegis/commit/7adce843c673da088f5e8953fdabc851093010d5))
+* **command-palette:** add CommandPalette UI component ([78b4eba](https://github.com/antropos17/Aegis/commit/78b4ebaeebe461810f0a48dc2337776d40789763))
+* **command-palette:** add fuzzy search with tests ([068cf2b](https://github.com/antropos17/Aegis/commit/068cf2b32eff0fc87c2788f7e23f19c279448eed))
+* **command-palette:** add types and command registry ([b80c242](https://github.com/antropos17/Aegis/commit/b80c242effa9c0c84cfed45a398f3ce705354f4e))
+* **command-palette:** integrate with App and wire actions ([a238836](https://github.com/antropos17/Aegis/commit/a2388366f9912c53d51a44ccfc4c1ede24833d5d))
+
+
+### Bug Fixes
+
+* **ci:** resolve svelte-check, eslint errors for command palette and ipc ([78da6b3](https://github.com/antropos17/Aegis/commit/78da6b3f553acdd820983b2b1d826b299288c155))
+* **renderer:** suppress import.meta TS1470 in ipc store ([e65cf4c](https://github.com/antropos17/Aegis/commit/e65cf4c49f45986e7a377fa85cb7f7ed543e4d2c))
+* **security:** explicit sandbox, CSP hardening, symlink protection, timer cleanup ([4e77fcc](https://github.com/antropos17/Aegis/commit/4e77fcc2ea8f1efea59dbba2795f3addecbab963))
+* **security:** explicit sandbox, CSP hardening, symlink protection, timer cleanup ([52e301d](https://github.com/antropos17/Aegis/commit/52e301d49949cfba11246ef9bb8da138038afda6))
+* **security:** harden IPC handlers — HTML injection, path traversal, process authorization ([3d123dc](https://github.com/antropos17/Aegis/commit/3d123dc399607f371d0ea47a9780b02016606f88))
+* **security:** harden IPC handlers — HTML injection, path traversal, process authorization ([c653b75](https://github.com/antropos17/Aegis/commit/c653b75bb50e2758f547993188aa427b7168122a))
+* **security:** sanitize LLM prompt inputs against injection ([cfc3877](https://github.com/antropos17/Aegis/commit/cfc38771d9578c556eb595109691d18e4323e15d))
+* **security:** sanitize LLM prompt inputs against injection ([75840be](https://github.com/antropos17/Aegis/commit/75840be130a9fa4791135f247aeb5467867b201e))
+* **security:** validate IPC inputs — settings, config import, false positives, regex ([b97de54](https://github.com/antropos17/Aegis/commit/b97de545c8b4627d1c8ae219da7445c0d83fd37d))
+* **security:** validate IPC inputs — settings, config import, false positives, regex ([7dbf914](https://github.com/antropos17/Aegis/commit/7dbf91425a2f1b23733dd285f0d905199ce323e5))
+* suppress import.meta TS1470 in ipc.ts ([918f4bc](https://github.com/antropos17/Aegis/commit/918f4bc1b3f5b8dedb3e997f7b404c0218eaacb5))
+
+
+### Code Refactoring
+
+* **renderer:** migrate 4 store files to TypeScript ([11caf43](https://github.com/antropos17/Aegis/commit/11caf43d1a256d22ef49c861c025e3783870b9a9))
+* **renderer:** migrate ipc store to TypeScript ([af92a0c](https://github.com/antropos17/Aegis/commit/af92a0cd640257bc07d8b210964da9cbfc2c6f6c))
+* **renderer:** migrate risk store to TypeScript ([a162123](https://github.com/antropos17/Aegis/commit/a1621235a6100270b42a973556c45f98bc38d73b))
+* **renderer:** migrate theme store to TypeScript ([1d61582](https://github.com/antropos17/Aegis/commit/1d615823d00f08366d0c90832ef56d512a61c97c))
+* **renderer:** migrate toast store to TypeScript ([2436c1a](https://github.com/antropos17/Aegis/commit/2436c1ac4d515ab12e0ff3055ab9a8aa6c97da73))
+
 ## [0.9.1-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.9.0-alpha...aegis-v0.9.1-alpha) (2026-03-09)
 
 
