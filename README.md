@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <img src="https://github.com/antropos17/Aegis/releases/download/v0.3.0-alpha/demo-trimmed.gif" alt="AEGIS Demo" width="800">
+  <img src="https://github.com/antropos17/Aegis/releases/download/aegis-v0.10.0-alpha/demo.gif" alt="AEGIS Demo" width="800">
 </p>
 
 <p align="center">
