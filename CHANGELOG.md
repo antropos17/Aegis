@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.10.1-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.10.0-alpha...aegis-v0.10.1-alpha) (2026-03-15)
+
+
+### Bug Fixes
+
+* **ui:** show unique agent count in Total Agents card ([d2b9b73](https://github.com/antropos17/Aegis/commit/d2b9b73b3513922c8b4082db23492929e52e34b5))
+* **ui:** show unique agent count instead of process count in Total Agents card ([c686fe4](https://github.com/antropos17/Aegis/commit/c686fe4d5742733ec1fdf9296f731140cbf508df))
+
+
+### Documentation
+
+* update all metadata to v0.10.0-alpha ([82a8a8a](https://github.com/antropos17/Aegis/commit/82a8a8a28fcd9b645be9157fadb80317b994cfaf))
+* update all metadata to v0.10.0-alpha (707 tests, 23 modules, 43 components) ([a08b08f](https://github.com/antropos17/Aegis/commit/a08b08f9b48f028bd11da1cba0a38170670c1105))
+
 ## [0.10.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.9.1-alpha...aegis-v0.10.0-alpha) (2026-03-09)
 
 
