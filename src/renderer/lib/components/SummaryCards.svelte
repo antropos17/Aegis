@@ -19,7 +19,7 @@
   });
 
   /* ── Derived metrics ── */
-  let agentCount = $derived(localAgents.length);
+  let agentCount = $derived(new Set(localAgents.map((a) => a.name)).size);
 
   let avgRiskScore = $derived.by(() => {
     const scores = Object.values(localAnomalies).filter((s) => typeof s === 'number');
