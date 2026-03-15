@@ -141,23 +141,23 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
 ## Screenshots
 
 <details><summary>📸 Shield — Real-time Overview</summary>
-<img src="docs/screenshots/01-shield-tab.png" alt="Shield tab" width="800" />
+<img src="docs/screenshots/01-shield.png" alt="Shield tab" width="800" />
 </details>
 
 <details><summary>📸 Activity Feed</summary>
-<img src="docs/screenshots/02-activity-tab.png" alt="Activity Feed" width="800" />
+<img src="docs/screenshots/02-activity.png" alt="Activity Feed" width="800" />
 </details>
 
 <details><summary>📸 Rules & Permissions</summary>
-<img src="docs/screenshots/03-rules-tab.png" alt="Rules & Permissions" width="800" />
+<img src="docs/screenshots/03-rules.png" alt="Rules & Permissions" width="800" />
 </details>
 
 <details><summary>📸 Reports & Export</summary>
-<img src="docs/screenshots/04-reports-tab.png" alt="Reports & Export" width="800" />
+<img src="docs/screenshots/04-reports.png" alt="Reports & Export" width="800" />
 </details>
 
 <details><summary>📸 Agent Statistics</summary>
-<img src="docs/screenshots/05-stats-tab.png" alt="Agent Statistics" width="800" />
+<img src="docs/screenshots/05-stats.png" alt="Agent Statistics" width="800" />
 </details>
 
 <details><summary>📸 Settings</summary>
