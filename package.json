@@ -1,6 +1,6 @@
 {
   "name": "aegis",
-  "version": "0.10.0-alpha",
+  "version": "0.10.1-alpha",
   "description": "Open-source endpoint detection and response (EDR) for AI agents. Monitor processes, files, network, and behavior of autonomous AI agents in real time.",
   "main": "src/main/main.js",
   "scripts": {
