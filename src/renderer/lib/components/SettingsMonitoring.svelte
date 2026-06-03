@@ -228,7 +228,6 @@
     border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-small);
     color: var(--md-sys-color-on-surface);
-    outline: none;
   }
   .key-input {
     flex: 1;
@@ -237,6 +236,11 @@
     resize: vertical;
     width: 100%;
     box-sizing: border-box;
+  }
+  /* Keep the global :focus-visible ring for keyboard users; drop it on mouse. */
+  .key-input:focus:not(:focus-visible),
+  textarea:focus:not(:focus-visible) {
+    outline: none;
   }
   .key-input:focus,
   textarea:focus {

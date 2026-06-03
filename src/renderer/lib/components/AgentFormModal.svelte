@@ -6,6 +6,16 @@
    * @type {{ mode: 'add' | 'edit' | 'delete', form: import('../utils/agent-crud-utils.ts').AgentFormData, agentName: string, onclose: () => void, onsave: () => void, ondelete: () => void }}
    */
   let { mode, form, agentName, onclose, onsave, ondelete } = $props();
+
+  /** @type {HTMLDivElement | undefined} */
+  let modalRef = $state(undefined);
+
+  // Autofocus the dialog on open so the overlay/dialog subtree is in the
+  // keyboard event path immediately — without this, focus stays on the
+  // trigger button outside the overlay and Esc never reaches our handler.
+  $effect(() => {
+    modalRef?.focus();
+  });
 </script>
 
 <div
@@ -18,11 +28,15 @@
   }}
 >
   <div
+    bind:this={modalRef}
     class="modal"
     role="dialog"
     tabindex="-1"
     onclick={(e) => e.stopPropagation()}
-    onkeydown={(e) => e.stopPropagation()}
+    onkeydown={(e) => {
+      if (e.key === 'Escape') onclose();
+      e.stopPropagation();
+    }}
   >
     {#if mode === 'delete'}
       <h3 class="modal-title">{$t('rules.database.crud.delete_title')}</h3>
@@ -147,6 +161,11 @@
     border: 1px solid var(--md-sys-color-outline);
     border-radius: var(--md-sys-shape-corner-small);
     color: var(--md-sys-color-on-surface);
+  }
+  /* Suppress the outline only for mouse focus; keyboard focus keeps the
+     global :focus-visible ring (global.css). */
+  .field input:focus:not(:focus-visible),
+  .field select:focus:not(:focus-visible) {
     outline: none;
   }
   .field input:focus,

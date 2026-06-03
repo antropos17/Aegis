@@ -429,7 +429,8 @@
   .feed-entry:hover .feed-reveal {
     opacity: 0.7;
   }
-  .feed-reveal:hover {
+  .feed-reveal:hover,
+  .feed-reveal:focus-visible {
     opacity: 1;
   }
 
@@ -461,7 +462,8 @@
   .feed-entry:hover .fp-btn {
     opacity: 0.7;
   }
-  .fp-btn:hover {
+  .fp-btn:hover,
+  .fp-btn:focus-visible {
     opacity: 1;
     background: var(--md-sys-color-surface-container);
   }

@@ -144,8 +144,11 @@
     border: var(--glass-border);
     border-radius: var(--md-sys-shape-corner-small);
     color: var(--md-sys-color-on-surface);
-    outline: none;
     transition: border-color 0.2s ease;
+  }
+  /* Keep the global :focus-visible ring for keyboard users; drop it on mouse. */
+  .db-search:focus:not(:focus-visible) {
+    outline: none;
   }
   .db-search:focus {
     border-color: var(--md-sys-color-primary);
