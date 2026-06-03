@@ -1,9 +1,9 @@
 <p align="center">
   <h1 align="center">AEGIS</h1>
-  <p align="center"><b>EDR for AI Agents</b></p>
+  <p align="center"><b>OS-level oversight for AI coding agents</b></p>
 </p>
 
-**Aegis is an open-source endpoint detection and response (EDR) tool that monitors AI agent processes, file access, network activity, and behavioral anomalies in real time.** Built with Electron 33, Svelte 5, and TypeScript, it provides the same class of oversight for autonomous AI agents that CrowdStrike provides for traditional endpoints. No telemetry. No cloud. Everything stays local.
+**AEGIS sees every AI agent on your machine — even ones that don't cooperate.** It is an independent, OS-level observer that watches agent processes, file access, network activity, and behavioral anomalies in real time, regardless of how the agent was launched. Built on a JavaScript (ES modules / CommonJS) monitoring engine, with TypeScript in the renderer and shared types. **Open-source, local, no telemetry** — everything stays on your machine.
 
 > "Kaspersky found 512 bugs in OpenClaw. So we built an EDR to monitor it."
 
@@ -49,6 +49,16 @@
 | **<2s** | cold boot to full dashboard — lightweight enough to run alongside the agents it monitors |
 
 AI agents now have deep access to your machine — files, commands, network. Every existing AI security tool is enterprise SaaS that monitors what humans send *to* AI. Nobody monitors what AI agents do *on local machines*. Aegis is the open-source answer.
+
+## Why AEGIS is different
+
+Most AI-agent oversight tools work by **hooking inside the agent itself** — a Claude Code plugin, a Cursor extension, an SDK wrapper. Sage (Gen Digital), leash, and Microsoft's Agent Governance Toolkit all live *in* the agent's runtime. That has a structural blind spot: **they only see agents that installed their hook.** An agent launched a different way — a raw `python autogpt.py`, a binary you didn't wrap, a tool that simply doesn't cooperate — is invisible to them.
+
+AEGIS sits at a different layer. It is an **independent, OS-level observer**: it watches process, file, and network activity from outside the agents, so it catches *any* agent on the machine regardless of how it was started or whether it wants to be watched. Hook-based tools and AEGIS are complementary — one instruments the agents that opt in, the other sees the whole machine.
+
+## Monitor-first
+
+> **AEGIS is a camera, not a guard.** It **observes and logs** — it does **not** block agents at the OS level today. There are no kernel hooks and no automatic enforcement. Process control (kill / suspend / resume) is **manual and user-invoked** only. Active blocking is on the [roadmap](#roadmap), not in the current release. Use AEGIS for visibility, auditing, and anomaly detection — pair it with sandboxing when you need enforcement.
 
 ## What It Monitors
 
@@ -193,7 +203,7 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
             └─────────────┘    └─────────────┘
 ```
 
-**Stack**: Electron 33, Svelte 5, Vite 7, TypeScript, Vitest (707 tests across 44 files)
+**Stack**: Electron 33, Svelte 5, Vite 7, Vitest (707 tests across 44 files). The monitoring engine is JavaScript (CommonJS); TypeScript is used in the renderer and shared types.
 
 ## Agent Database
 
@@ -209,8 +219,15 @@ Add custom agents via the UI or edit the JSON. See [AGENTS.md](AGENTS.md).
 
 ## Roadmap
 
+Everything below is **planned**, not shipped. AEGIS today is monitor-only (see [Monitor-first](#monitor-first)).
+
+- [ ] Active blocking — enforce rules on violation (today: observe & log only)
+- [ ] OS-level enforcement / kernel hooks (Windows Minifilter, macOS Endpoint Security, Linux eBPF)
+- [ ] MITRE ATT&CK mapping for detection rules
+- [ ] ML-based anomaly detection (today: hard-coded heuristic weights)
+- [ ] TLS / encrypted-traffic visibility, with user consent (today: TCP endpoints only)
+- [ ] First-class macOS & Linux support (currently experimental — [#37](https://github.com/antropos17/Aegis/issues/37))
 - [ ] GPU monitoring for local inference detection
-- [ ] OS-level enforcement (Windows Minifilter, macOS Endpoint Security, Linux eBPF)
 - [ ] Per-process file attribution (ETW, fanotify)
 - [ ] Container/VM detection (Docker, WSL)
 - [ ] Browser extension for web-based AI agents
@@ -221,7 +238,7 @@ Add custom agents via the UI or edit the JSON. See [AGENTS.md](AGENTS.md).
 
 ### What is Aegis?
 
-Aegis is an open-source endpoint detection and response (EDR) tool purpose-built for monitoring AI agents. It tracks processes, file access, network activity, and behavioral anomalies in real time using Electron 33, Svelte 5, and TypeScript. All data stays local — no telemetry, no cloud dependency.
+Aegis is an open-source endpoint detection and response (EDR) tool purpose-built for monitoring AI agents. It tracks processes, file access, network activity, and behavioral anomalies in real time, built on Electron 33 and Svelte 5. The monitoring engine is JavaScript (ES modules / CommonJS); TypeScript is used in the renderer and shared type definitions. All data stays local — no telemetry, no cloud dependency.
 
 ### Why do AI agents need monitoring?
 
