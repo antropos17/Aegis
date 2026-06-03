@@ -13,6 +13,8 @@
       "Bash(npx prettier *)",
       "Bash(npm test:*)",
       "Bash(npm run build:*)",
+      "Bash(npm audit:*)",
+      "Bash(npm ls:*)",
       "Bash(npx tsc:*)",
       "Bash(npx eslint:*)",
       "Bash(wc:*)",

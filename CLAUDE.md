@@ -36,3 +36,21 @@ npm run dist              # Electron-builder NSIS installer
 - Context7 MCP: проверяй доку ПЕРЕД решениями | Svelte MCP: autofixer на .svelte
 - Читай .claude/skills/ ПЕРЕД задачей. Логируй [SKILL: name] и [MCP: name]
 - НИКОГДА не угадывай API — всегда проверяй
+
+## Agent Fleet
+8 subagents in `.claude/agents/`. "read-only" reflects the **frontmatter**, not the
+agent's own prose. **enforced** = no Write/Edit tool AND Bash given as scoped
+specifiers (only `auditor`). **prompt-only** = read-only held by prompt text while
+`tools:` grants bare `Bash` (a full shell) — the harness will NOT block a write/mutation;
+only the project-level settings.json `deny` (rm -rf, git push --force, .env reads) is a hard floor.
+
+| Agent | read-only | Purpose | When to call |
+|-------|-----------|---------|--------------|
+| auditor | **enforced** (no Write/Edit + 6 scoped Bash) | Full health check: test/build/tsc/lint, files >300 lines, TODO/FIXME, git status → READY verdict | Pre-push / pre-release quality gate (`/audit`) |
+| architecture-mapper | prompt-only (bare Bash) | Structural map: main/renderer/preload split, detection pipeline, IPC channels, dead code, JS→TS completeness | Before a refactor or release when you need an architecture map |
+| security-reviewer | prompt-only (bare Bash) | Electron hardening, IPC surface, secrets-leak trace, Anthropic key handling, dep CVEs (RED/YELLOW/GREEN) | Before any release, dep bump, or IPC/preload/logging/export change |
+| test-auditor | prompt-only (bare Bash) | Coverage matrix, untested monitoring/IPC/cross-platform paths, weak/tautological tests | When you need what is actually tested vs untested |
+| consistency-reviewer | prompt-only (bare Bash) | Docs-vs-reality: verify 107 agents / 68 rules / <2s boot / CSP / JS-vs-TS / IPC counts | Before README, grant/investor material, or public release |
+| researcher | prompt-only (write-block structural via `agent: Explore`; Bash unscoped) | Explore codebase, answer questions with file:line refs | Quick read-only investigation of how something works (`/research`) |
+| shipper | **no** — releases via `Bash(git *)` (push/merge) | Release workflow: verify loop, show diff, push/merge/tag, waits for confirmation | Shipping a version (`/ship`) |
+| ui-designer | **no** — has `Edit` | Implements Fancy UI Svelte components from the master plan | Any visual/CSS/Svelte component work (`/fancy-ui`) |
