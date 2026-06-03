@@ -103,7 +103,9 @@
       "events_plural": "{count} events",
       "unresolved": "unresolved",
       "domain_prefix": "Domain:",
-      "ip_prefix": "IP:"
+      "ip_prefix": "IP:",
+      "show_more": "Show {count} more",
+      "show_less": "Show less"
     }
   },
   "agents": {

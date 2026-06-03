@@ -103,7 +103,13 @@
   }
 
   let unified = $derived.by(() => {
-    const fileEvs = cachedEvents.flat().map((ev) => ({ ...ev, _type: 'file' }));
+    const fileEvs = cachedEvents.flat().map((ev) => ({
+      ...ev,
+      _type: 'file',
+      // Position-independent identity (no loop index) so prepending a new
+      // event doesn't re-key — and thus destroy/recreate — every row.
+      _key: `f-${ev.timestamp}-${ev.pid}-${ev.file}-${ev.action}`,
+    }));
     const netEvs = cachedNetwork.map((conn) => ({
       agent: conn.agent || 'Unknown',
       timestamp: conn.timestamp || Date.now(),
@@ -115,8 +121,24 @@
       _type: 'network',
       userAgent: conn.userAgent || null,
       httpUnencrypted: !!conn.httpUnencrypted,
+      // No timestamp in the key: network is re-set wholesale each poll and the
+      // ts fallback (Date.now) would churn. pid+endpoint+state is stable.
+      _key: `n-${conn.pid}-${conn.remoteIp}-${conn.remotePort}-${conn.state}`,
     }));
-    return [...fileEvs, ...netEvs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    const merged = [...fileEvs, ...netEvs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    // Crash guard: Svelte 5 throws on duplicate keyed-each keys. There is no
+    // unique id in the source data, so collapse any exact key collisions —
+    // keep-first keeps the newest (list is sorted desc). No-op when the
+    // upstream 30s dedup invariant holds; safety net if it ever doesn't.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient dedup helper inside a derived, not reactive state
+    const seen = new Set();
+    const deduped = [];
+    for (const ev of merged) {
+      if (seen.has(ev._key)) continue;
+      seen.add(ev._key);
+      deduped.push(ev);
+    }
+    return deduped;
   });
 
   let filtered = $derived.by(() => {
@@ -180,7 +202,7 @@
     {#if filtered.length === 0}
       <div class="feed-empty">{$t('activity.feed.no_events')}</div>
     {:else}
-      {#each filtered as ev, i (`${ev.timestamp}-${ev.agent}-${i}`)}
+      {#each filtered as ev, i (ev._key)}
         {@const sev = getSeverity(ev)}
         {@const label = badgeLabel(ev, sev)}
         {@const isNew = i < newItemCount}
