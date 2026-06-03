@@ -111,7 +111,9 @@ if (!isDemoMode) {
   window.aegis!.getResourceUsage().then((data) => resourceUsage.set(data));
   window.aegis!.getFalsePositives().then((data) => falsePositives.set(data || []));
 } else {
-  firstScanDone.set(true);
+  // Demo mode seeds agents synchronously (≥2 every scenario), so the live
+  // `populated` check drives the dashboard — no `firstScanDone` latch needed,
+  // and the original skeleton→populated flow is preserved.
   const cleanupDemo = startDemoMode({ agents, events, stats, network, anomalies, resourceUsage });
   if (import.meta.hot) {
     import.meta.hot.dispose(() => cleanupDemo());
