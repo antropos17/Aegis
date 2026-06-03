@@ -6,6 +6,8 @@
  */
 'use strict';
 
+const sessionTracker = require('./session-tracker');
+
 let scanInterval = null;
 let fileScanInterval = null;
 let netInterval = null;
@@ -133,38 +135,34 @@ async function doProcessScan() {
     getStats,
     getResourceUsage,
     setAgents,
-    getPreviousPids,
-    setPreviousPids,
   } = deps;
   updateScanStatus(true);
   try {
     const result = await scanner.scanProcesses();
     setAgents(result.agents);
     const agents = result.agents;
-    const curPids = new Map();
-    for (const a of agents) curPids.set(a.pid, a.agent);
-    const prevPids = getPreviousPids();
-    for (const [pid, name] of curPids) {
-      if (!prevPids.has(pid))
-        audit.log('agent-enter', {
-          agent: name,
-          action: 'started',
-          path: '',
-          severity: 'normal',
-          extra: { pid },
-        });
-    }
-    for (const [pid, name] of prevPids) {
-      if (!curPids.has(pid))
-        audit.log('agent-exit', {
-          agent: name,
-          action: 'exited',
-          path: '',
-          severity: 'normal',
-          extra: { pid },
-        });
-    }
-    setPreviousPids(curPids);
+    // Eager-enter / lazy-exit session reconciliation: an agent seen in even ONE
+    // scan logs session-start immediately, and a flickering or permission-denied
+    // scan never spawns a duplicate session. See session-tracker.js.
+    const { entered, exited } = sessionTracker.reconcile(agents, {
+      reliable: result.reliable !== false,
+    });
+    for (const s of entered)
+      audit.log('agent-enter', {
+        agent: s.agent,
+        action: 'started',
+        path: '',
+        severity: 'normal',
+        extra: { pid: s.pid, startTime: s.firstSeen },
+      });
+    for (const s of exited)
+      audit.log('agent-exit', {
+        agent: s.agent,
+        action: 'exited',
+        path: '',
+        severity: 'normal',
+        extra: { pid: s.pid },
+      });
     watcher.pruneKnownHandles(agents);
     await procUtil.enrichWithParentChains(agents);
     procUtil.annotateHostApps(agents);
