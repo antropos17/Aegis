@@ -2,7 +2,9 @@
  * @file command-registry.ts — Static command definitions for Command Palette
  * @module renderer/lib/utils/command-registry
  * @description Provides all static commands grouped by category.
- * Agent commands (107) are excluded — loaded dynamically via fuzzy search.
+ * Per-agent commands (107 signatures) are excluded — loaded dynamically via
+ * fuzzy search. Agent *action* commands (kill/suspend the selected agent) are
+ * static and live here under the `agent` category.
  */
 
 import type { CommandItem } from '../../../shared/types/command-palette';
@@ -160,6 +162,26 @@ export function getExportCommands(): CommandItem[] {
   ];
 }
 
+/** Agent action commands — operate on the currently selected (expanded) agent */
+export function getAgentActionCommands(): CommandItem[] {
+  return [
+    {
+      id: 'agent:kill',
+      label: 'Kill agent',
+      category: 'agent',
+      icon: '🛑',
+      keywords: ['terminate', 'stop', 'end', 'selected', 'process'],
+    },
+    {
+      id: 'agent:suspend',
+      label: 'Suspend agent',
+      category: 'agent',
+      icon: '⏸️',
+      keywords: ['pause', 'freeze', 'halt', 'selected', 'process'],
+    },
+  ];
+}
+
 /** Miscellaneous action commands */
 export function getActionCommands(): CommandItem[] {
   return [
@@ -193,6 +215,7 @@ export function getAllCommands(): CommandItem[] {
     ...getNavigationCommands(),
     ...getThemeCommands(),
     ...getExportCommands(),
+    ...getAgentActionCommands(),
     ...getActionCommands(),
   ];
 }

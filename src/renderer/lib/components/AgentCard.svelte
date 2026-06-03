@@ -98,6 +98,22 @@
     expandedPid = expanded ? null : agent.pid;
   }
 
+  /**
+   * Keyboard activation for the card (role="button"). Enter/Space toggle the
+   * card, mirroring the click handler. Guarded to the article itself so that
+   * Enter/Space on inner buttons (copy PID, kill/suspend/resume) does not
+   * bubble up and collapse the card — those buttons stopPropagation on click,
+   * not on keydown.
+   * @param {KeyboardEvent} e
+   */
+  function handleKeydown(e) {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggle();
+    }
+  }
+
   async function pidAction(e, method) {
     e.stopPropagation();
     if (window.aegis) await window.aegis[method](agent.pid);
@@ -119,16 +135,18 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<article
+<div
   class="agent-card"
   class:expanded
   class:blinking
   class:threat-flash={threatFlash}
   class:danger={isDanger}
   bind:this={cardEl}
+  role="button"
+  tabindex="0"
+  aria-expanded={expanded}
   onclick={toggle}
+  onkeydown={handleKeydown}
   onmousemove={handleMouseMove}
 >
   <div class="header-row">
@@ -181,7 +199,7 @@
       />
     </div>
   </div>
-</article>
+</div>
 
 <style>
   .agent-card {

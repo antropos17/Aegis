@@ -12,7 +12,8 @@
   import CommandPalette from './lib/components/CommandPalette.svelte';
   import { commandPalette } from './lib/stores/command-palette.svelte.ts';
   import { addToast } from './lib/stores/toast.js';
-  import { agents, anomalies, isDemoMode } from './lib/stores/ipc.js';
+  import { agents, anomalies, isDemoMode, selectedAgentPid } from './lib/stores/ipc.js';
+  import { get } from 'svelte/store';
   import DemoBanner from './lib/components/DemoBanner.svelte';
   import {
     getSlideDirection,
@@ -141,6 +142,29 @@
     prevAnomalyKeys = currentKeys;
   });
 
+  /**
+   * Run a kill/suspend intervention on the currently selected (expanded) agent
+   * via the existing IPC bridge. Reads the selection non-reactively so the
+   * dispatch effect is not re-triggered when the selection changes.
+   * @param {'killProcess'|'suspendProcess'} method
+   * @param {string} doneLabel  Success toast label, e.g. "Killed agent"
+   * @param {string} failLabel  Failure toast label, e.g. "Failed to kill agent"
+   */
+  async function runSelectedAgentAction(method, doneLabel, failLabel) {
+    const pid = get(selectedAgentPid);
+    if (pid == null) {
+      addToast('No agent selected — open an agent card first', 'warning');
+      return;
+    }
+    if (!window.aegis) return;
+    const result = await window.aegis[method](pid);
+    if (result?.success) {
+      addToast(`${doneLabel} (PID ${pid})`, 'success');
+    } else {
+      addToast(`${failLabel}: ${result?.error ?? 'unknown error'}`, 'error');
+    }
+  }
+
   // ── Command palette: execute actions ──
   $effect(() => {
     const cmd = commandPalette.lastExecuted;
@@ -187,6 +211,13 @@
         break;
       case 'theme:light-hc':
         setTheme('light-hc');
+        break;
+      // Agent actions — operate on the currently selected (expanded) agent
+      case 'agent:kill':
+        runSelectedAgentAction('killProcess', 'Killed agent', 'Failed to kill agent');
+        break;
+      case 'agent:suspend':
+        runSelectedAgentAction('suspendProcess', 'Suspended agent', 'Failed to suspend agent');
         break;
       // Actions
       case 'action:test-notification':
