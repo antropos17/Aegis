@@ -3,7 +3,7 @@ name: auditor
 description: Runs code quality audits on the Aegis codebase. Read-only — never edits files.
 tools: Read, Grep, Glob, Bash(npm test), Bash(npm run build), Bash(npx tsc *), Bash(npx eslint *), Bash(wc *), Bash(find *)
 model: sonnet
-permissionMode: plan
+disallowedTools: Write, Edit
 skills:
   - aegis-context
   - testing
