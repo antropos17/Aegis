@@ -1,12 +1,12 @@
 <script>
   import { enrichedAgents } from '../stores/risk.js';
+  import { selectedAgentPid } from '../stores/ipc.js';
   import AgentCard from './AgentCard.svelte';
   import { t } from '../i18n/index.js';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
 
-  let expandedPid = $state(null);
   let localAgents = $state([]);
 
   $effect(() => {
@@ -52,7 +52,7 @@
   {:else}
     <div class="agent-list">
       {#each grouped as agent (agent.name)}
-        <AgentCard {agent} bind:expandedPid />
+        <AgentCard {agent} bind:expandedPid={$selectedAgentPid} />
       {/each}
     </div>
   {/if}

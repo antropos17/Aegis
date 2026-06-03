@@ -7,16 +7,17 @@ import {
   getNavigationCommands,
   getThemeCommands,
   getExportCommands,
+  getAgentActionCommands,
   getActionCommands,
 } from '../../src/renderer/lib/utils/command-registry';
 import type { CommandCategory } from '../../src/shared/types';
 
-const VALID_CATEGORIES: CommandCategory[] = ['navigate', 'theme', 'export', 'action'];
+const VALID_CATEGORIES: CommandCategory[] = ['navigate', 'agent', 'theme', 'export', 'action'];
 
 describe('command-registry', () => {
   describe('getAllCommands', () => {
-    it('returns 22 commands total', () => {
-      expect(getAllCommands()).toHaveLength(22);
+    it('returns 24 commands total', () => {
+      expect(getAllCommands()).toHaveLength(24);
     });
 
     it('every command has id, label, and category', () => {
@@ -72,6 +73,23 @@ describe('command-registry', () => {
       for (const cmd of getExportCommands()) {
         expect(cmd.category).toBe('export');
       }
+    });
+  });
+
+  describe('getAgentActionCommands', () => {
+    it('returns 2 items (kill + suspend)', () => {
+      expect(getAgentActionCommands()).toHaveLength(2);
+    });
+
+    it('all have category "agent"', () => {
+      for (const cmd of getAgentActionCommands()) {
+        expect(cmd.category).toBe('agent');
+      }
+    });
+
+    it('exposes agent:kill and agent:suspend ids', () => {
+      const ids = getAgentActionCommands().map((c) => c.id);
+      expect(ids).toEqual(['agent:kill', 'agent:suspend']);
     });
   });
 

@@ -22,6 +22,12 @@ interface ScanStatusData {
   readonly scanning?: boolean;
 }
 
+/** Result of a process intervention (kill/suspend/resume) from the main process */
+interface ProcessActionResult {
+  readonly success: boolean;
+  readonly error?: string;
+}
+
 /** Minimal type for the window.aegis IPC bridge exposed by preload.js */
 interface AegisIpcBridge {
   onScanBatch(cb: (data: ScanBatchData) => void): void;
@@ -32,6 +38,9 @@ interface AegisIpcBridge {
   getStats(): Promise<Record<string, unknown>>;
   getResourceUsage(): Promise<Record<string, unknown>>;
   getFalsePositives(): Promise<FalsePositiveEntry[]>;
+  killProcess(pid: number): Promise<ProcessActionResult>;
+  suspendProcess(pid: number): Promise<ProcessActionResult>;
+  resumeProcess(pid: number): Promise<ProcessActionResult>;
 }
 
 declare global {
@@ -51,6 +60,13 @@ export const scanActive: Writable<boolean> = writable(false);
 
 /** PID of agent to highlight in AgentPanel (set by Timeline dot click) */
 export const focusedAgentPid: Writable<number | null> = writable(null);
+
+/**
+ * PID of the currently selected (expanded) agent card. Persistent across the
+ * session — the target for Command Palette kill/suspend actions. Distinct from
+ * {@link focusedAgentPid}, which auto-clears after a scroll-into-view.
+ */
+export const selectedAgentPid: Writable<number | null> = writable(null);
 
 /** True when running in a browser without Electron IPC. */
 export const isDemoMode: boolean = import.meta.env.VITE_DEMO_MODE === 'true' || !window.aegis;
