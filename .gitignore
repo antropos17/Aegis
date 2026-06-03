@@ -12,6 +12,7 @@ cdp_*.js
 .claude/*
 !.claude/skills/
 !.claude/agents/
+!.claude/settings.json
 !.mcp.json
 memory-bank/
 aegis-log-*.json
@@ -26,6 +27,7 @@ screenshot_electron.png
 *.pfx
 
 .agent/
+.prompts/
 .env.local
 .env.*.local
 
