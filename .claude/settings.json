@@ -65,7 +65,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ \"$(git branch --show-current)\" != \"master\" ] || { echo '{\"block\": true, \"message\": \"Cannot edit on master. Create feature branch first.\"}' >&2; exit 2; }",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/branch-guard.js\"",
             "timeout": 5
           }
         ]
