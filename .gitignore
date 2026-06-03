@@ -13,6 +13,7 @@ cdp_*.js
 !.claude/skills/
 !.claude/agents/
 !.claude/commands/
+!.claude/hooks/
 !.claude/settings.json
 !.mcp.json
 memory-bank/
