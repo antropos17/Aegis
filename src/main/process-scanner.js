@@ -74,6 +74,10 @@ function init(deps) {
 async function scanProcesses() {
   _ensureAgentDb();
   let processes;
+  // A scan is "reliable" only when the process list was actually enumerated.
+  // A permission-denied scan returns an empty list that must NOT be read as
+  // "all agents exited" — the session tracker uses this flag to ignore it.
+  let reliable = true;
   try {
     processes = await _listProcesses();
     permissionDeniedScans = 0;
@@ -83,6 +87,7 @@ async function scanProcesses() {
     if (code === 'EPERM' || code === 'EACCES' || msg.includes('access is denied')) {
       permissionDeniedScans++;
       processes = [];
+      reliable = false;
     } else {
       throw err;
     }
@@ -122,7 +127,7 @@ async function scanProcesses() {
     .join(',');
   const changed = pidSetKey !== lastProcessPidSet;
   lastProcessPidSet = pidSetKey;
-  return { agents: unique, changed };
+  return { agents: unique, changed, reliable };
 }
 
 module.exports = {

@@ -56,7 +56,6 @@ let isQuitting = false,
 let oomIntervalId = null;
 let latestNetConnections = [],
   otherPanelExpanded = false;
-let previousAgentPids = new Map();
 const fileWatchers = [];
 
 // ═══ RUNNING COUNTERS for getStats() — O(1) instead of O(n) ═══
@@ -260,10 +259,6 @@ function initDeferredSubsystems(userData) {
     },
     setLatestNetConnections: (c) => {
       latestNetConnections = c;
-    },
-    getPreviousPids: () => previousAgentPids,
-    setPreviousPids: (m) => {
-      previousAgentPids = m;
     },
   });
   config.init({
