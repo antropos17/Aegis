@@ -108,6 +108,7 @@
   },
   "agents": {
     "no_agents": "No AI agents detected",
+    "no_agents_hint": "AEGIS is monitoring your system — detected AI agents will appear here automatically.",
     "pid": "PID {pid}",
     "last_file": "Last: {file}",
     "session_hours": "{h}h {m}m",

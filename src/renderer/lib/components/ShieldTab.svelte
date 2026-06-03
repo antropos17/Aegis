@@ -1,6 +1,7 @@
 <script>
   import { fade } from 'svelte/transition';
-  import { agents } from '../stores/ipc.js';
+  import { agents, firstScanDone } from '../stores/ipc.js';
+  import { t } from '../i18n/index.js';
   import Radar from './Radar.svelte';
   import AgentPanel from './AgentPanel.svelte';
   import FeedFilters from './FeedFilters.svelte';
@@ -15,15 +16,19 @@
   let severityFilter = $state('all');
   let typeFilter = $state('all');
 
-  /** True once first scan batch arrives with agent data */
-  let dataReady = $state(false);
-  $effect(() => {
-    if ($agents.length > 0) dataReady = true;
-  });
+  // Three render states, derived live from the stores (no latch):
+  //   populated → at least one agent detected → show the bento dashboard
+  //   empty     → first scan landed but found nothing → show an empty state
+  //   loading   → first scan hasn't arrived yet → show skeletons
+  // Deriving `populated` from the live store (rather than a one-way latch)
+  // means a machine whose last agent exits correctly falls back to the empty
+  // state instead of being stuck showing a populated dashboard.
+  let populated = $derived($agents.length > 0);
+  let empty = $derived(!populated && $firstScanDone);
 </script>
 
 <div class="bento">
-  {#if dataReady}
+  {#if populated}
     <div class="bento-radar panel" transition:fade={{ duration: 300 }}>
       <Radar {active} />
     </div>
@@ -36,6 +41,13 @@
     </div>
     <div class="bento-agents panel" transition:fade={{ duration: 300 }}>
       <AgentPanel {active} />
+    </div>
+  {:else if empty}
+    <div class="bento-empty panel" transition:fade={{ duration: 300 }}>
+      <div class="empty-card">
+        <h2 class="empty-title">{$t('agents.no_agents')}</h2>
+        <p class="empty-hint">{$t('agents.no_agents_hint')}</p>
+      </div>
     </div>
   {:else}
     <div class="bento-radar panel">
@@ -118,6 +130,33 @@
     grid-row: 1 / span 2;
     overflow-y: auto;
     min-height: 0;
+  }
+
+  /* ── Empty state: spans the whole grid when no agents are detected ── */
+  .bento-empty {
+    grid-column: 1 / -1;
+    grid-row: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--fancy-space-md);
+  }
+
+  .empty-card {
+    max-width: 420px;
+    text-align: center;
+  }
+
+  .empty-title {
+    margin: 0 0 var(--fancy-space-sm);
+    font: var(--md-sys-typescale-title-medium);
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .empty-hint {
+    margin: 0;
+    font: var(--md-sys-typescale-body-medium);
+    color: var(--md-sys-color-on-surface-variant);
   }
 
   /* ── Responsive: 2-col at medium ── */

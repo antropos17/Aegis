@@ -58,6 +58,15 @@ export const resourceUsage: Writable<Record<string, unknown>> = writable({});
 export const falsePositives: Writable<FalsePositiveEntry[]> = writable([]);
 export const scanActive: Writable<boolean> = writable(false);
 
+/**
+ * True once the first scan batch has arrived from the main process. Monotonic
+ * (only ever flips false→true). Lets the UI distinguish "first scan hasn't
+ * landed yet" (show skeletons) from "scan ran and found zero agents" (show an
+ * empty state) instead of latching on agent count, which left quiet machines
+ * stuck on skeletons forever.
+ */
+export const firstScanDone: Writable<boolean> = writable(false);
+
 /** PID of agent to highlight in AgentPanel (set by Timeline dot click) */
 export const focusedAgentPid: Writable<number | null> = writable(null);
 
@@ -80,6 +89,8 @@ if (!isDemoMode) {
       if (data.stats) stats.set(data.stats);
       if (data.resourceUsage) resourceUsage.set(data.resourceUsage);
       if (data.anomalyScores) anomalies.set(data.anomalyScores);
+      // A batch landed — the first scan has completed, even if it found nothing.
+      firstScanDone.set(true);
     });
   });
 
@@ -100,6 +111,9 @@ if (!isDemoMode) {
   window.aegis!.getResourceUsage().then((data) => resourceUsage.set(data));
   window.aegis!.getFalsePositives().then((data) => falsePositives.set(data || []));
 } else {
+  // Demo mode seeds agents synchronously (≥2 every scenario), so the live
+  // `populated` check drives the dashboard — no `firstScanDone` latch needed,
+  // and the original skeleton→populated flow is preserved.
   const cleanupDemo = startDemoMode({ agents, events, stats, network, anomalies, resourceUsage });
   if (import.meta.hot) {
     import.meta.hot.dispose(() => cleanupDemo());
