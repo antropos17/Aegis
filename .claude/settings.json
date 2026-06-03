@@ -37,7 +37,6 @@
       "Bash(git push *)",
       "Bash(git merge *)",
       "Bash(git rebase *)",
-      "Bash(rm -rf *)",
       "Bash(npm publish *)",
       "Edit(.env*)",
       "Edit(*.pem)",
