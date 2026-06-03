@@ -63,6 +63,13 @@ const STATIC_DOMAINS = [
   /gstatic\.com$/i,
   /cursor\.sh$/i,
   /cursor\.com$/i,
+  // New AI-agent vendors (Kilo Code, opencode, grok/xAI). Short domains use a
+  // label boundary `(^|\.)` so e.g. `x.ai` does not match `netflix.ai`; the
+  // boundary form also covers subdomains like `api.x.ai`.
+  /(^|\.)kilo\.ai$/i,
+  /(^|\.)kilocode\.ai$/i,
+  /(^|\.)opencode\.ai$/i,
+  /(^|\.)x\.ai$/i,
   /tabnine\.com$/i,
   /sourcegraph\.com$/i,
   /cloudflare\.com$/i,

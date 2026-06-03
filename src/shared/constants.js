@@ -100,6 +100,12 @@ const AGENT_CONFIG_PATHS = [
   '.cache/lm-studio',
   '.cache/gpt4all',
   '.docker',
+  // WSL-inner agents (grok, opencode) — passive fallback signal when WSL process
+  // enumeration is unavailable. NOTE: resolved against the WINDOWS home dir, so
+  // this watches a NATIVE install (e.g. C:\Users\you\.opencode), NOT the
+  // WSL-inner ~/.opencode. The primary signal is wsl-detector.js enumeration.
+  '.grok-build',
+  '.opencode',
 ];
 
 /**

@@ -186,6 +186,77 @@ describe('scan-loop', () => {
     });
   });
 
+  // ── external-agent injection (IDE-extension + WSL) ──
+
+  describe('external-agent injection into scan-batch', () => {
+    it('injects cached detector agents into the scan-batch payload before sending', async () => {
+      const ide = require_('../../src/main/ide-extension-detector.js');
+      const wsl = require_('../../src/main/wsl-detector.js');
+      const origIde = ide.getCachedExtensionAgents;
+      const origWsl = wsl.getCachedWslAgents;
+      const synthetic = {
+        agent: 'Kilo Code',
+        process: 'code.exe',
+        pid: 0,
+        status: 'running',
+        category: 'ai',
+        parentEditor: 'VS Code',
+        detectionMethod: 'ide-extension',
+      };
+      ide.getCachedExtensionAgents = () => [synthetic];
+      wsl.getCachedWslAgents = () => [];
+      try {
+        const sendToRenderer = vi.fn();
+        const mockDeps = {
+          scanner: { scanProcesses: vi.fn().mockResolvedValue({ agents: [], changed: false }) },
+          procUtil: {
+            enrichWithParentChains: vi.fn().mockResolvedValue(),
+            annotateHostApps: vi.fn(),
+            annotateWorkingDirs: vi.fn().mockResolvedValue(),
+          },
+          watcher: {
+            pruneKnownHandles: vi.fn(),
+            scanAllFileHandles: vi.fn().mockResolvedValue([]),
+          },
+          network: {
+            isNetworkScanRunning: vi.fn().mockReturnValue(false),
+            setNetworkScanRunning: vi.fn(),
+            scanNetworkConnections: vi.fn().mockResolvedValue([]),
+          },
+          baselines: { recordNetworkEndpoint: vi.fn() },
+          anomaly: {
+            checkDeviations: vi.fn().mockReturnValue([]),
+            calculateAnomalyScore: vi.fn().mockReturnValue({ score: 0 }),
+          },
+          audit: { log: vi.fn() },
+          tray: { updateTrayIcon: vi.fn(), notifySensitive: vi.fn() },
+          logger: { error: vi.fn(), warn: vi.fn() },
+          sendToRenderer,
+          fileAccessBatcher: { push: vi.fn() },
+          statsUpdateBatcher: { push: vi.fn() },
+          getStats: vi.fn().mockReturnValue({}),
+          getResourceUsage: vi.fn().mockReturnValue({}),
+          getLatestAgents: vi.fn().mockReturnValue([]),
+          setAgents: vi.fn(),
+          setLatestNetConnections: vi.fn(),
+          getPreviousPids: vi.fn().mockReturnValue(new Map()),
+          setPreviousPids: vi.fn(),
+        };
+        scanLoop.init(mockDeps);
+        scanLoop.startScanIntervals(5000);
+        await vi.advanceTimersByTimeAsync(5000);
+
+        const batchCall = sendToRenderer.mock.calls.find((c) => c[0] === 'scan-batch');
+        expect(batchCall).toBeTruthy();
+        const names = batchCall[1].agents.map((a) => a.agent);
+        expect(names).toContain('Kilo Code');
+      } finally {
+        ide.getCachedExtensionAgents = origIde;
+        wsl.getCachedWslAgents = origWsl;
+      }
+    });
+  });
+
   // ── getLatestLocalModels ──
 
   describe('getLatestLocalModels', () => {

@@ -43,6 +43,20 @@ describe('network-monitor', () => {
       expect(networkMonitor.isKnownDomain('registry.npmjs.org')).toBe(true);
       expect(networkMonitor.isKnownDomain('nodejs.org')).toBe(true);
     });
+
+    it('recognizes new AI-agent vendor domains (Kilo, opencode, grok/xAI)', () => {
+      expect(networkMonitor.isKnownDomain('kilo.ai')).toBe(true);
+      expect(networkMonitor.isKnownDomain('kilocode.ai')).toBe(true);
+      expect(networkMonitor.isKnownDomain('api.kilocode.ai')).toBe(true);
+      expect(networkMonitor.isKnownDomain('opencode.ai')).toBe(true);
+      expect(networkMonitor.isKnownDomain('x.ai')).toBe(true);
+      expect(networkMonitor.isKnownDomain('api.x.ai')).toBe(true);
+    });
+
+    it('does not let the short x.ai pattern match unrelated .ai domains', () => {
+      expect(networkMonitor.isKnownDomain('netflix.ai')).toBe(false);
+      expect(networkMonitor.isKnownDomain('phoenix.ai')).toBe(false);
+    });
   });
 
   describe('isPrivateIp()', () => {
