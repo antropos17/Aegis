@@ -13,6 +13,48 @@
     isLight = false,
     isHC = false;
 
+  // ═══ AGENT DOT LAYOUT (recomputed only when agents change, NOT per frame) ═══
+
+  /**
+   * Deduped, position-resolved dot list derived from $enrichedAgents.
+   * Holds everything that depends only on agent data — dedup pick, polar
+   * angle, normalized distance fraction, trust grade and label. The render
+   * loop reads this each frame but Svelte only recomputes it when the
+   * enrichedAgents reference changes (~per scan), so the Map rebuild + hash
+   * scan no longer runs at 60fps. Canvas-size (`r`) and theme-dependent
+   * colour are still applied at draw time, keeping the visual identical.
+   * @type {{ distFrac: number, angle: number, trustGrade: string, label: string }[]}
+   */
+  const agentDots = $derived.by(() => {
+    // Group by name — one dot per agent (highest risk wins)
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const byName = new Map();
+    for (const agent of $enrichedAgents) {
+      const prev = byName.get(agent.name);
+      if (!prev || (agent.riskScore || 0) > (prev.riskScore || 0)) {
+        byName.set(agent.name, agent);
+      }
+    }
+
+    const dots = [];
+    for (const agent of byName.values()) {
+      const score = Math.min(agent.riskScore || 0, 100);
+      const distFrac = 0.2 + (score / 100) * 0.75;
+      let hash = 0;
+      for (let i = 0; i < (agent.name?.length || 0); i++) {
+        hash = (hash * 31 + agent.name.charCodeAt(i)) | 0;
+      }
+      const angle = (Math.abs(hash) * 2.654) % (Math.PI * 2);
+      dots.push({
+        distFrac,
+        angle,
+        trustGrade: agent.trustGrade,
+        label: agent.name?.split(' ')[0] || '',
+      });
+    }
+    return dots;
+  });
+
   function resolveTokens(el) {
     const s = getComputedStyle(el);
     const g = (v) => s.getPropertyValue(v).trim();
@@ -90,27 +132,11 @@
   }
 
   function drawAgentDots(cx, cy, r) {
-    // Group by name — one dot per agent
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity
-    const byName = new Map();
-    for (const agent of $enrichedAgents) {
-      const prev = byName.get(agent.name);
-      if (!prev || (agent.riskScore || 0) > (prev.riskScore || 0)) {
-        byName.set(agent.name, agent);
-      }
-    }
-
-    for (const agent of byName.values()) {
-      const score = Math.min(agent.riskScore || 0, 100);
-      const dist = (0.2 + (score / 100) * 0.75) * r;
-      let hash = 0;
-      for (let i = 0; i < (agent.name?.length || 0); i++) {
-        hash = (hash * 31 + agent.name.charCodeAt(i)) | 0;
-      }
-      const angle = (Math.abs(hash) * 2.654) % (Math.PI * 2);
-      const x = cx + Math.cos(angle) * dist;
-      const y = cy + Math.sin(angle) * dist;
-      const color = dotColor(agent.trustGrade);
+    for (const dot of agentDots) {
+      const dist = dot.distFrac * r;
+      const x = cx + Math.cos(dot.angle) * dist;
+      const y = cy + Math.sin(dot.angle) * dist;
+      const color = dotColor(dot.trustGrade);
 
       ctx.save();
       ctx.shadowColor = color;
@@ -129,7 +155,7 @@
       ctx.font = '500 10px DM Sans, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillStyle = `rgba(${labelRgb}, ${isHC ? 1 : isLight ? 0.9 : 0.88})`;
-      ctx.fillText(agent.name?.split(' ')[0] || '', x, y + 14);
+      ctx.fillText(dot.label, x, y + 14);
     }
   }
 
@@ -191,6 +217,9 @@
     requestAnimationFrame(() => {
       resolveTokens(canvas);
     });
+    // Cancel any frame still pending from a prior run (e.g. theme toggle)
+    // before scheduling a new one, so we never run two render loops at once.
+    cancelAnimationFrame(animId);
     animId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animId);
   });
