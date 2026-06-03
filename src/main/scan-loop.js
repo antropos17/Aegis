@@ -7,6 +7,8 @@
 'use strict';
 
 const sessionTracker = require('./session-tracker');
+const ideExtensionDetector = require('./ide-extension-detector');
+const wslDetector = require('./wsl-detector');
 
 let scanInterval = null;
 let fileScanInterval = null;
@@ -122,6 +124,24 @@ function doNetworkScan() {
     });
 }
 
+/**
+ * Append synthetic agents that have no Windows process and so are invisible to
+ * the process scanner: editor-extension agents (Kilo Code, Cline) and WSL-inner
+ * agents (grok, opencode). Reads each detector's throttled cache synchronously —
+ * the dir/WSL scans run in the background, never blocking this batch. Dedups by
+ * agent name so a real process (if any) already in the list wins.
+ * @param {Array} agents @returns {void} @since v0.11.0-alpha
+ */
+function injectDetectedExternalAgents(agents) {
+  const external = [
+    ...ideExtensionDetector.getCachedExtensionAgents(),
+    ...wslDetector.getCachedWslAgents(),
+  ];
+  for (const ext of external) {
+    if (!agents.some((a) => a.agent === ext.agent)) agents.push(ext);
+  }
+}
+
 async function doProcessScan() {
   const {
     scanner,
@@ -167,6 +187,9 @@ async function doProcessScan() {
     await procUtil.enrichWithParentChains(agents);
     procUtil.annotateHostApps(agents);
     await procUtil.annotateWorkingDirs(agents);
+    // Surface extension-only (Kilo/Cline) and WSL-inner (grok/opencode) agents
+    // before the batch so the renderer sees them; cache-backed, non-blocking.
+    injectDetectedExternalAgents(agents);
     tray.updateTrayIcon();
     const deviations = anomaly.checkDeviations();
     if (deviations.length > 0) {
