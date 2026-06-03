@@ -182,7 +182,14 @@ export function getAgentActionCommands(): CommandItem[] {
   ];
 }
 
-/** Miscellaneous action commands */
+/**
+ * Miscellaneous action commands.
+ * Only commands with a real, palette-appropriate effect live here.
+ * `analyze-session` was removed — it returns data that must be rendered, and
+ * its proper home is the ThreatAnalysis view (Reports → Threat); firing it from
+ * the palette would discard the result. `toggle-demo` was removed — demo mode is
+ * a build-time constant (`isDemoMode` in stores/ipc.ts), not runtime-togglable.
+ */
 export function getActionCommands(): CommandItem[] {
   return [
     {
@@ -191,20 +198,6 @@ export function getActionCommands(): CommandItem[] {
       category: 'action',
       icon: '🔔',
       keywords: ['alert', 'toast'],
-    },
-    {
-      id: 'action:analyze-session',
-      label: 'Analyze Session',
-      category: 'action',
-      icon: '🔬',
-      keywords: ['scan', 'inspect', 'review'],
-    },
-    {
-      id: 'action:toggle-demo',
-      label: 'Toggle Demo Mode',
-      category: 'action',
-      icon: '🎭',
-      keywords: ['sample', 'fake', 'mock'],
     },
   ];
 }

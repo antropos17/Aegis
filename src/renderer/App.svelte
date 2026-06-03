@@ -223,21 +223,29 @@
       case 'action:test-notification':
         addToast('Test notification', 'success');
         break;
-      case 'action:toggle-demo':
-        addToast('Coming soon', 'info');
-        break;
-      case 'action:analyze-session':
-        addToast('Coming soon', 'info');
-        break;
-      // Export
+      // Export — each triggers a native save dialog via the existing IPC bridge
+      // (same handlers Reports/AuditLog/Settings/AgentDatabase already use).
+      // Optional chaining no-ops in demo/web mode where window.aegis is absent.
       case 'export:json':
+        window.aegis?.exportLog();
+        break;
       case 'export:csv':
+        window.aegis?.exportCsv();
+        break;
       case 'export:html':
+        window.aegis?.generateReport();
+        break;
       case 'export:zip':
+        window.aegis?.exportZip();
+        break;
       case 'export:audit':
+        window.aegis?.exportFullAudit();
+        break;
       case 'export:config':
+        window.aegis?.exportConfig();
+        break;
       case 'export:agent-db':
-        addToast('Coming soon', 'info');
+        window.aegis?.exportAgentDatabase();
         break;
       default:
         console.warn('Unknown command:', cmd.id);
