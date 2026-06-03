@@ -11,6 +11,7 @@ Thumbs.db
 cdp_*.js
 .claude/*
 !.claude/skills/
+!.claude/agents/
 !.mcp.json
 memory-bank/
 aegis-log-*.json
