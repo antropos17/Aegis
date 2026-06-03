@@ -15,6 +15,19 @@
   let expandedGroups = new SvelteSet();
   let expandedEvent = $state(null);
 
+  /**
+   * Max events rendered per sub-list before a "show more" toggle. Without this,
+   * a single agent can absorb the whole 200-event cap and an expanded group
+   * renders up to ~200 items x ~5 nodes = ~1000 DOM nodes (perf-audit P4).
+   */
+  const SUB_CAP = 50;
+  /** Keys (`${group.name}-${sub.label}`) of sub-lists the user expanded fully. */
+  let expandedSubs = new SvelteSet();
+
+  function toggleSub(key) {
+    expandedSubs.has(key) ? expandedSubs.delete(key) : expandedSubs.add(key);
+  }
+
   /** @type {any[][]} */
   let cachedEvents = $state([]);
   /** @type {any[]} */
@@ -77,8 +90,11 @@
         <div class="group-body">
           {#each [{ label: $t('activity.groups.file_access'), evs: group.fileEvents }, { label: $t('activity.groups.config_access'), evs: group.configEvents }, { label: $t('activity.groups.network'), evs: group.networkEvents }] as sub (sub.label)}
             {#if sub.evs.length > 0}
+              {@const subKey = `${group.name}-${sub.label}`}
+              {@const showAll = expandedSubs.has(subKey)}
+              {@const shown = showAll ? sub.evs : sub.evs.slice(0, SUB_CAP)}
               <div class="sub-label">{sub.label} ({sub.evs.length})</div>
-              {#each sub.evs as ev, i (`${ev.timestamp}-${i}`)}
+              {#each shown as ev, i (`${ev.timestamp}-${i}`)}
                 <GroupedFeedItem
                   {ev}
                   index={i}
@@ -87,6 +103,13 @@
                   onToggle={toggleEvent}
                 />
               {/each}
+              {#if sub.evs.length > SUB_CAP}
+                <button class="show-more" onclick={() => toggleSub(subKey)}>
+                  {showAll
+                    ? $t('activity.groups.show_less')
+                    : $t('activity.groups.show_more', { count: sub.evs.length - SUB_CAP })}
+                </button>
+              {/if}
             {/if}
           {/each}
         </div>
@@ -184,5 +207,24 @@
     color: var(--fancy-text-2);
     padding: var(--aegis-space-3) var(--aegis-space-6) var(--aegis-space-1);
     text-transform: uppercase;
+  }
+
+  .show-more {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: var(--aegis-space-2) var(--aegis-space-6);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: calc(10px * var(--aegis-ui-scale));
+    font-family: var(--fancy-font-mono);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--md-sys-color-primary);
+    transition: color var(--fancy-transition-micro) var(--fancy-ease);
+  }
+  .show-more:hover {
+    color: var(--md-sys-color-on-surface);
   }
 </style>

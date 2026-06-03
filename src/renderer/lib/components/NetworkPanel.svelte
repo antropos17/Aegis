@@ -55,7 +55,20 @@
     else if (sortBy === 'domain')
       copy.sort((a, b) => (a.domain || a.remoteIp).localeCompare(b.domain || b.remoteIp));
     else if (sortBy === 'class') copy.sort((a, b) => classify(a).localeCompare(classify(b)));
-    return copy;
+    // Crash guard: the each-key (pid-ip-port-state) must be unique — Svelte 5
+    // throws on duplicate keys. No unique id exists in the source, so drop any
+    // exact collisions (keep first). Lets us key by stable identity instead of
+    // the volatile loop index, so rows are reused across polls, not recreated.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient dedup helper inside a derived, not reactive state
+    const seen = new Set();
+    const out = [];
+    for (const c of copy) {
+      const k = `${c.pid}-${c.remoteIp}-${c.remotePort}-${c.state}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(c);
+    }
+    return out;
   });
 
   let counts = $derived.by(() => {
@@ -99,7 +112,7 @@
   {#if sorted.length === 0}
     <div class="net-empty">{$t('network.no_connections')}</div>
   {:else}
-    {#each sorted as conn, i (`${conn.pid}-${conn.remoteIp}-${conn.remotePort}-${i}`)}
+    {#each sorted as conn (`${conn.pid}-${conn.remoteIp}-${conn.remotePort}-${conn.state}`)}
       {@const cls = classify(conn)}
       <div class="net-row">
         <span class="net-agent">{conn.agent}</span>
@@ -206,6 +219,12 @@
     padding: var(--aegis-space-3) var(--aegis-space-6);
     font-size: calc(11px * var(--aegis-ui-scale));
     transition: background 0.15s ease;
+    /* Browser-native virtualization: skip layout/paint for off-screen rows
+       (the list can reach 500). Rows stay in the DOM, so :nth-child striping,
+       scroll position, and filters are preserved automatically. The `auto`
+       keyword lets the estimate self-correct after a row renders once. */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 30px;
   }
   .net-row:nth-child(odd) {
     background: var(--md-sys-color-surface-container-low);
