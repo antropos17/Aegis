@@ -1,6 +1,7 @@
 <p align="center">
   <h1 align="center">AEGIS</h1>
   <p align="center"><b>OS-level oversight for AI coding agents</b></p>
+  <p align="center"><i>Open-source monitor that shows what AI coding agents actually do on your machine — at the OS level, no agent hooks required.</i></p>
 </p>
 
 **AEGIS sees every AI agent on your machine — even ones that don't cooperate.** It is an independent, OS-level observer that watches agent processes, file access, network activity, and behavioral anomalies in real time, regardless of how the agent was launched. Built on a JavaScript (ES modules / CommonJS) monitoring engine, with TypeScript in the renderer and shared types. **Open-source, local, no telemetry** — everything stays on your machine.
@@ -11,6 +12,7 @@
   <a href="https://github.com/antropos17/Aegis/releases/latest"><img src="https://img.shields.io/github/v/release/antropos17/Aegis?include_prereleases&style=flat-square&label=Release" alt="Release"></a>
   <img src="https://img.shields.io/github/actions/workflow/status/antropos17/Aegis/ci.yml?style=flat-square&label=CI" alt="CI">
   <img src="https://img.shields.io/badge/Tests-707%20passing-brightgreen?style=flat-square" alt="Tests">
+  <a href="#monitor-first"><img src="https://img.shields.io/badge/Mode-monitor--first-8a2be2?style=flat-square" alt="Monitor-first"></a>
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/Platform-Win%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform">
 </p>
@@ -33,7 +35,7 @@
 - **Process Monitoring** — Tracks 107 known AI agent signatures with parent-child tree resolution and IDE host detection.
 - **File System Access** — Watches sensitive directories (`.ssh`, `.aws`, `.gnupg`, `.env`, cloud configs) and 27 AI agent config paths for unauthorized access.
 - **Network Activity** — Logs outbound TCP connections per agent PID with reverse DNS and known-vs-unknown API endpoint classification.
-- **Behavioral Analysis** — Applies 68 detection rules across 8 categories with rolling 10-session baselines and 4-axis anomaly scoring.
+- **Behavioral Analysis** — Applies 70 detection rules across 8 categories with rolling 10-session baselines and 4-axis anomaly scoring.
 - **Trust Scoring** — Assigns real-time risk scores with trust grades (A+ through F) using time-decay algorithms and multi-dimensional threat assessment.
 - **Multi-Agent Dashboard** — Displays all 107 agents in a bento-grid dashboard with sparklines, risk rings, activity feeds, and expandable agent cards.
 
@@ -44,7 +46,7 @@
 | **512** | vulnerabilities found in OpenClaw by Kaspersky — autonomous agents ship with real security risks |
 | **0** | open-source EDR tools existed for AI agents before Aegis |
 | **107** | AI agent signatures in the detection database, from Claude Code to AutoGPT |
-| **68** | behavioral detection rules across 8 categories, with hot-reload and custom overrides |
+| **70** | behavioral detection rules across 8 categories, with hot-reload and custom overrides |
 | **707** | tests passing, 0 failures — the monitoring engine is verified on every commit |
 | **<2s** | cold boot to full dashboard — lightweight enough to run alongside the agents it monitors |
 
@@ -144,7 +146,7 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
 
 ## YAML Rulesets
 
-- 68 detection rules across 8 categories (AI config, secrets, SSH, cloud, browser, devtools, crypto, certificates)
+- 70 detection rules across 8 categories (AI config, secrets, SSH, cloud, browser, devtools, crypto, certificates)
 - JSON Schema validated, hot-reload without restart
 - Extend or override via `rules/custom/` directory
 
@@ -246,7 +248,7 @@ Autonomous AI agents like OpenClaw, AutoGPT, and Devin have deep access to local
 
 ### How is Aegis different from traditional EDR?
 
-Traditional EDR tools (CrowdStrike, Sentinel One) monitor human-driven threats — malware, ransomware, phishing. Aegis is built specifically for AI agent behavior: it ships with 107 agent profiles, 68 detection rules tuned for agent-specific patterns, and behavioral baselines that track how each agent's activity changes over time.
+Traditional EDR tools (CrowdStrike, Sentinel One) monitor human-driven threats — malware, ransomware, phishing. Aegis is built specifically for AI agent behavior: it ships with 107 agent profiles, 70 detection rules tuned for agent-specific patterns, and behavioral baselines that track how each agent's activity changes over time.
 
 ### Does Aegis work with MCP tools?
 
