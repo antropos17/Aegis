@@ -206,7 +206,8 @@
   .log-row:hover .fp-btn {
     opacity: 0.7;
   }
-  .fp-btn:hover {
+  .fp-btn:hover,
+  .fp-btn:focus-visible {
     opacity: 1;
     background: var(--md-sys-color-surface-container);
   }

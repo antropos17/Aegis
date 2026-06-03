@@ -144,8 +144,12 @@
     appearance: none;
     background: var(--md-sys-color-surface-container-highest);
     border-radius: 2px;
-    outline: none;
     cursor: pointer;
+  }
+  /* Slider is arrow-key operable — keep the global :focus-visible ring for
+     keyboard users; drop the outline only on mouse focus. */
+  .scale-slider:focus:not(:focus-visible) {
+    outline: none;
   }
   .scale-slider::-webkit-slider-thumb {
     -webkit-appearance: none;

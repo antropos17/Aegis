@@ -208,12 +208,16 @@
     flex: 1;
     background: transparent;
     border: none;
-    outline: none;
     color: var(--fancy-text-1);
     font-family: var(--fancy-font-body);
     font-size: 14px;
     padding: var(--fancy-space-md) 0;
     line-height: 1.4;
+  }
+
+  /* Keep the global :focus-visible ring for keyboard users; drop it on mouse. */
+  .cp-input:focus:not(:focus-visible) {
+    outline: none;
   }
 
   .cp-input::placeholder {
