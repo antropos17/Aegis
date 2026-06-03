@@ -46,12 +46,16 @@
       "Read(./.env.*)",
       "Read(**/.env)",
       "Read(**/.env.*)",
+      "Read(**/.ssh/**)",
+      "Read(**/.aws/**)",
       "Bash(rm -rf:*)",
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
       "Bash(git push --force-with-lease:*)",
       "Bash(find * -delete:*)",
-      "Bash(find * -exec:*)"
+      "Bash(find * -exec:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)"
     ]
   },
   "hooks": {
