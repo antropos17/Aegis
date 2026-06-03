@@ -16,8 +16,8 @@ const VALID_CATEGORIES: CommandCategory[] = ['navigate', 'agent', 'theme', 'expo
 
 describe('command-registry', () => {
   describe('getAllCommands', () => {
-    it('returns 24 commands total', () => {
-      expect(getAllCommands()).toHaveLength(24);
+    it('returns 22 commands total', () => {
+      expect(getAllCommands()).toHaveLength(22);
     });
 
     it('every command has id, label, and category', () => {
@@ -94,14 +94,19 @@ describe('command-registry', () => {
   });
 
   describe('getActionCommands', () => {
-    it('returns 3 items', () => {
-      expect(getActionCommands()).toHaveLength(3);
+    it('returns 1 item (test-notification only)', () => {
+      expect(getActionCommands()).toHaveLength(1);
     });
 
     it('all have category "action"', () => {
       for (const cmd of getActionCommands()) {
         expect(cmd.category).toBe('action');
       }
+    });
+
+    it('exposes only action:test-notification (no dead stubs)', () => {
+      const ids = getActionCommands().map((c) => c.id);
+      expect(ids).toEqual(['action:test-notification']);
     });
   });
 });
