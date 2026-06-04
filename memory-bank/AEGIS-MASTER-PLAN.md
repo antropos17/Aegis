@@ -104,13 +104,16 @@ git rev-parse --short HEAD ; date +%F
 
 ## 4. Performance roadmap (чтобы летало)
 
-**Tier 0 — быстрые победы, без смены архитектуры:**
-1. **Движок с main-потока в `utilityProcess`** — главный UX-выигрыш, убирает фризы (в твоём roadmap). Engine стримит события в Electron по пайпу.
-2. **Индекс `имя→агент` (O(1))** — фикc C-14, детерминирует дубли C-04.
-3. **`classifySensitive` через `categoryIndex`** (C-16).
-4. **Схлопнуть PS-вызовы в один скрипт за цикл + персистентный runspace** — режет spawn-tax (бьёт на churn агентов).
-5. **Linux /proc — асинхронно** (C-15); darwin — убрать O(n²).
+> **⚠️ MEASURE-GATE 2026-06-04 (read-only): `utilityProcess` REMOVED from Tier 0 → Phase 5.** Code measurement (file:line) proved the Windows + macOS engine is fully ASYNC with zero event-loop blocks — a `utilityProcess` offloads CPU-bound work, but moving async I/O to another process does NOT speed it up, and no CPU-bound tick exists. Per Electron docs a separate process = last-resort; the freeze premise is absent on the primary platform. utilityProcess re-homed to Phase 5 as **isolation / self-protection**, NOT a freeze-remedy. False alarms cleared: C-18 (feed capped 200 / stores 500) and darwin-sync (it's async). Tier 0 re-oriented **instrumentation-first**. See `progress.md` "Phase 2 measure-gate" + `DEFERRED-utilityprocess-migration.md`.
+
+**Tier 0 — быстрые победы, без смены архитектуры (instrumentation-first):**
+1. **`feat/scan-timing-instrumentation` — ПЕРВЫМ.** `performance.now()` вокруг 3 scan-функций (`scan-loop.js` doProcessScan/doFileScan/doNetworkScan) → structured лог. Сейчас `grep performance.now` = 0 hits → летим вслепую. Пререк для ЛЮБОГО перф-решения и единственный путь заново открыть utilityProcess (только измеренный CPU-bound Windows-тик его ре-мотивирует).
+2. **Linux /proc — асинхронно** (C-15-linux) — единственный реальный sync-блок: `platform/linux.js:66,69,194,198` (`readdirSync('/proc')` + per-PID `readFileSync` + per-fd `readlinkSync`) → `fs.promises`. Доказать секундомером из п.1 (было/стало). darwin уже async (ложная тревога снята).
+3. **Индекс `имя→агент` (O(1))** — фикc C-14, детерминирует дубли C-04.
+4. **`classifySensitive` через `categoryIndex`** (C-16).
+5. **Схлопнуть PS-вызовы в один скрипт за цикл + персистентный runspace** — режет spawn-tax (бьёт на churn агентов).
 6. **Ring buffers / OOM hardening** (твой roadmap).
+7. *(опц.)* **async log flush** — `logger.js:140` / `audit-logger.js:141` `appendFileSync` → async (minor, батчится 50/5s).
 
 **Tier 1 — event-driven (настоящий «полёт») → Phase 5.**
 > ⚠️ Не путать: смена слоя сбора (ETW/драйвер) = «летает»; Tauri-vs-Electron = вес RAM UI. Сначала первое.
@@ -149,8 +152,8 @@ git rev-parse --short HEAD ; date +%F
 ## 8. Порядок выполнения по фазам + зависимости
 ```
 Phase 1   Корректность:  C-01 → C-04 → C-03 → C-02 → C-05   (+ regression-тесты)
-Phase 2a  Перф/UX:       utilityProcess — вынос движка с main-потока
-Phase 2b  Перф (Tier 0): O(1)-index, categoryIndex, PS-runspace, async /proc, ring buffers
+Phase 2a  Перф/UX:       instrumentation-first (scan-timing) → Linux /proc async   [utilityProcess ОТКЛОНЁН как freeze-cure 2026-06-04 → Phase 5]
+Phase 2b  Перф (Tier 0): O(1)-index, categoryIndex, PS-runspace, ring buffers
 Phase 3   Доверие:       hash-chained signed audit, OWASP mapping, OTel export
 Phase 4a  Охват:         headless JSON daemon
 Phase 4b  Охват:         SQLite session store + query CLI
@@ -163,7 +166,7 @@ Phase 6   Интеллект:     per-agent baselines, z-score, correlation, tri
 **Жёсткие зависимости:**
 - **C-01 → Phase 6** (корреляция / per-agent невозможны при сломанной атрибуции).
 - **C-03 → Phase 3** (hash-chain строится на исправленном flush).
-- **Phase 2a `utilityProcess` → Phase 5** (вынос движка — ступенька к sidecar).
+- **`utilityProcess` → Phase 5** (НЕ Phase 2a — измерение 2026-06-04 сняло freeze-предпосылку; вынос движка остаётся ступенькой к sidecar, но мотивация = ИЗОЛЯЦИЯ/SELF-PROTECTION, не перф). Готовый 6-PR план: `DEFERRED-utilityprocess-migration.md`.
 - **analyzer-chain** — дом для self-access exemption + dedup (зона калибровки C-04/C-05).
 
 ---
