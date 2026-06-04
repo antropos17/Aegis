@@ -7,16 +7,22 @@
 
 const { execFile } = require('child_process');
 const logger = require('../logger');
+const restartManager = require('./restart-manager');
 
 /**
- * Whether open-file-handle detection is available — i.e. handle64.exe/handle.exe
- * is on PATH. Optimistic default (true): downgraded to false ONLY by
- * probeReadDetection() finding no binary or erroring. "Can't tell" must fail
- * honest (false), never optimistic. When false, getFileHandles() short-circuits
- * to [] (no spawn) rather than fabricating handles from loaded modules.
+ * Whether the handle.exe/handle64.exe binary is on PATH — the LEGACY read-detect
+ * mechanism (getFileHandles). Optimistic default (true): downgraded to false ONLY
+ * by probeReadDetection() finding no binary or erroring. "Can't tell" fails honest
+ * (false). When false, getFileHandles() short-circuits to [] (no spawn) rather
+ * than fabricating handles from loaded modules.
+ *
+ * NOTE: this is now only ONE of two read-detect capabilities. Restart Manager
+ * (restart-manager.js) is the PRIMARY mechanism and does NOT need this binary;
+ * its availability lives in restart-manager._rmAvailable. Overall read-detection
+ * is available when EITHER works — see isReadDetectionAvailable().
  * @type {boolean}
  */
-let _readDetectionAvailable = true;
+let _handleBinaryAvailable = true;
 /** @type {boolean} One-shot guard so the degraded warning logs at most once. */
 let _readDetectionWarned = false;
 
@@ -146,7 +152,9 @@ function getFileHandles(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return Promise.resolve([]);
   // Honest zero: when no handle binary exists we cannot read open file handles.
   // Return [] without spawning rather than reporting loaded modules as handles.
-  if (!_readDetectionAvailable) return Promise.resolve([]);
+  // (Restart Manager is the primary path; this legacy handle.exe path only runs
+  // when the binary is genuinely present.)
+  if (!_handleBinaryAvailable) return Promise.resolve([]);
   return new Promise((resolve) => {
     const psScript = [
       '$ErrorActionPreference="SilentlyContinue"',
@@ -194,15 +202,11 @@ function getFileHandles(pid) {
 }
 
 /**
- * One-time startup probe: is a handle binary (handle64.exe/handle.exe) on PATH?
- * Sets the module-level _readDetectionAvailable flag and warns (once) when
- * degraded. Errors/timeouts resolve to unavailable — fail honest, not optimistic.
- * darwin/linux do NOT define this method (their lsof//proc read-detection is
- * always available), so main.js calls it via optional chaining.
+ * Probe whether a handle binary (handle64.exe/handle.exe) is on PATH. Sets the
+ * module-level _handleBinaryAvailable flag. Errors/timeouts → false (fail honest).
  * @returns {Promise<{available: boolean, path: string|null}>}
- * @since v0.10.0
  */
-function probeReadDetection() {
+function _probeHandleBinary() {
   return new Promise((resolve) => {
     const psScript = [
       '$ErrorActionPreference="SilentlyContinue"',
@@ -216,28 +220,52 @@ function probeReadDetection() {
       { timeout: 8000 },
       (err, stdout) => {
         const sourcePath = !err && stdout ? stdout.trim() : '';
-        const available = sourcePath.length > 0;
-        _readDetectionAvailable = available;
-        if (!available && !_readDetectionWarned) {
-          _readDetectionWarned = true;
-          logger.warn(
-            'platform',
-            'File read-detection degraded: handle64.exe/handle.exe not found — ' +
-              'file-read (accessed) events disabled until a handle binary is installed',
-          );
-        }
-        resolve({ available, path: available ? sourcePath : null });
+        _handleBinaryAvailable = sourcePath.length > 0;
+        resolve({
+          available: _handleBinaryAvailable,
+          path: _handleBinaryAvailable ? sourcePath : null,
+        });
       },
     );
   });
 }
 
 /**
- * @returns {boolean} Whether open-file-handle detection is currently available.
+ * One-time startup probe for read-detection. Probes BOTH capabilities in
+ * parallel: the legacy handle.exe binary AND the Windows Restart Manager (the
+ * primary path, no binary needed). Read-detection is available when EITHER works.
+ * Warns (once) ONLY when BOTH are absent. Errors/timeouts → unavailable (fail
+ * honest, not optimistic). darwin/linux do NOT define this method (their
+ * lsof//proc read-detection is always available), so main.js calls it via
+ * optional chaining.
+ * @returns {Promise<{available: boolean, handle: string|null, rm: boolean}>}
+ * @since v0.10.0
+ */
+async function probeReadDetection() {
+  const [handle, rm] = await Promise.all([
+    _probeHandleBinary(),
+    restartManager.probeRestartManager(),
+  ]);
+  const available = handle.available || rm.available;
+  if (!available && !_readDetectionWarned) {
+    _readDetectionWarned = true;
+    logger.warn(
+      'platform',
+      'File read-detection degraded: neither a handle binary (handle64.exe/' +
+        'handle.exe) nor the Windows Restart Manager is available — file-hold ' +
+        '(holding) events disabled',
+    );
+  }
+  return { available, handle: handle.path, rm: rm.available };
+}
+
+/**
+ * @returns {boolean} Whether read-detection is available via EITHER mechanism
+ *   (handle.exe binary OR Restart Manager).
  * @since v0.10.0
  */
 function isReadDetectionAvailable() {
-  return _readDetectionAvailable;
+  return _handleBinaryAvailable || restartManager.isRestartManagerAvailable();
 }
 
 /**
@@ -382,6 +410,8 @@ module.exports = {
   getParentProcessMap,
   getRawTcpConnections,
   getFileHandles,
+  getSensitiveHolders: restartManager.getSensitiveHolders,
+  isRestartManagerAvailable: restartManager.isRestartManagerAvailable,
   probeReadDetection,
   isReadDetectionAvailable,
   getProcessCwd,
