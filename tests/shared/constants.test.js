@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   SENSITIVE_RULES,
   AGENT_SELF_CONFIG,
+  AGENT_CONFIG_PATHS,
   PERMISSION_CATEGORIES,
   EDITORS,
   IGNORE_PROCESS_PATTERNS,
@@ -43,6 +44,26 @@ describe('constants', () => {
       expect(AGENT_SELF_CONFIG.claude.test('/home/.cursor/settings')).toBe(false);
       expect(AGENT_SELF_CONFIG.cursor.test('/home/.claude/config')).toBe(false);
       expect(AGENT_SELF_CONFIG.copilot.test('/home/.claude/config')).toBe(false);
+    });
+
+    it('Gate ③ agents match their own config dirs', () => {
+      expect(AGENT_SELF_CONFIG.kilo.test('/home/.config/kilo/kilo.jsonc')).toBe(true);
+      expect(AGENT_SELF_CONFIG.opencode.test('/home/.opencode/auth.json')).toBe(true);
+      expect(AGENT_SELF_CONFIG.grok.test('/home/.grok-build/settings.json')).toBe(true);
+    });
+
+    it('Gate ③ agents do not cross-match each other', () => {
+      expect(AGENT_SELF_CONFIG.kilo.test('/home/.opencode/auth.json')).toBe(false);
+      expect(AGENT_SELF_CONFIG.opencode.test('/home/.grok-build/settings.json')).toBe(false);
+      expect(AGENT_SELF_CONFIG.grok.test('/home/.config/kilo/kilo.jsonc')).toBe(false);
+    });
+  });
+
+  describe('AGENT_CONFIG_PATHS', () => {
+    it('includes the watched config dirs for kilo / opencode / grok', () => {
+      expect(AGENT_CONFIG_PATHS).toContain('.config/kilo');
+      expect(AGENT_CONFIG_PATHS).toContain('.opencode');
+      expect(AGENT_CONFIG_PATHS).toContain('.grok-build');
     });
   });
 

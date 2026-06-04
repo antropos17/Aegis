@@ -94,6 +94,11 @@ const AGENT_CONFIG_PATHS = [
   '.semgrep',
   '.config/zed',
   '.config/configstore',
+  // Kilo Code — VS Code extension (ide-extension-detector.js). Global config dir
+  // ~/.config/kilo/kilo.jsonc. NOTE: the API key is NOT here — Kilo stores it in
+  // the OS keychain (VS Code SecretStorage), outside file-watching reach; the
+  // JSON only holds a "<removed>" placeholder. This watches the config, not the key.
+  '.config/kilo',
   // Container / VM / Local LLM config paths
   '.ollama',
   '.jan',
@@ -132,6 +137,12 @@ const AGENT_SELF_CONFIG = {
   goose: /[\\\/]\.config[\\\/]goose[\\\/]/i,
   zed: /[\\\/]\.config[\\\/]zed[\\\/]/i,
   jetbrains: /[\\\/]\.config[\\\/]JetBrains[\\\/]/i,
+  // WSL-inner & extension agents (Gate ③). Keys match the names the detectors
+  // emit — wsl-detector.js → 'opencode'/'grok', ide-extension-detector.js →
+  // 'Kilo Code' — so isSelfAccess (agentName.includes(keyword)) resolves them.
+  kilo: /[\\\/]\.config[\\\/]kilo[\\\/]/i,
+  opencode: /[\\\/]\.opencode[\\\/]/i,
+  grok: /[\\\/]\.grok-build[\\\/]/i,
   // Container / VM / Local LLM self-config
   docker: /[\\\/]\.docker[\\\/]/i,
   ollama: /[\\\/]\.ollama[\\\/]/i,
