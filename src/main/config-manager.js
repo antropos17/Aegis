@@ -75,9 +75,22 @@ const DEFAULT_SETTINGS = {
   customAgents: [],
   hardwareAcceleration: true,
   falsePositivePatterns: [],
+  watchlist: [],
 };
 
-let settings = { ...DEFAULT_SETTINGS };
+/**
+ * Fresh deep copy of the defaults. A shallow `{ ...DEFAULT_SETTINGS }` would
+ * share the mutable array/object values (watchlist, seenAgents, customAgents,
+ * agentPermissions, …) by reference, so an in-place `push` by a caller would
+ * silently pollute DEFAULT_SETTINGS itself and leak across every later reset.
+ * @returns {Object} an independent copy of DEFAULT_SETTINGS
+ * @since v0.10.0-alpha
+ */
+function freshDefaults() {
+  return structuredClone(DEFAULT_SETTINGS);
+}
+
+let settings = freshDefaults();
 let customSensitiveRules = [];
 let _knownAgentNames = [];
 let _applyCallback = null;
@@ -147,7 +160,7 @@ function loadSettings() {
   try {
     if (fs.existsSync(settingsPath())) {
       const raw = JSON.parse(fs.readFileSync(settingsPath(), 'utf-8'));
-      settings = { ...DEFAULT_SETTINGS, ...raw };
+      settings = { ...freshDefaults(), ...raw };
       // Decrypt API key into memory
       if (raw._encryptedApiKey) {
         settings.anthropicApiKey = safeStore.decrypt(raw._encryptedApiKey);
@@ -160,7 +173,7 @@ function loadSettings() {
       }
     }
   } catch (_) {
-    settings = { ...DEFAULT_SETTINGS };
+    settings = freshDefaults();
   }
   buildCustomRules();
 }
@@ -172,7 +185,7 @@ function loadSettings() {
  * @since v0.1.0
  */
 function saveSettings(newSettings) {
-  settings = { ...DEFAULT_SETTINGS, ...newSettings };
+  settings = { ...freshDefaults(), ...newSettings };
   _writeSettings();
   buildCustomRules();
 }

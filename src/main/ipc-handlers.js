@@ -15,6 +15,7 @@ const audit = require('./audit-logger');
 const { killProcess, suspendProcess, resumeProcess } = require('./platform');
 const zipWriter = require('./zip-writer');
 const { getAllRules, reloadRules } = require('./rule-loader');
+const blocklist = require('./blocklist');
 const logger = require('./logger');
 
 /** @type {Set<string>} Whitelist of allowed settings keys */
@@ -35,6 +36,7 @@ const SETTINGS_WHITELIST = new Set([
   'customAgents',
   'hardwareAcceleration',
   'falsePositivePatterns',
+  'watchlist',
 ]);
 
 /** @type {string[]} Catch-all regex patterns to reject as false positives */
@@ -551,6 +553,25 @@ ${findingsHtml}${recsHtml}
     const rules = getAllRules();
     return { success: true, count: rules.size };
   });
+
+  // ── Alert-only agent watchlist (advisory flag only — never affects monitoring) ──
+  ipcMain.handle('blocklist-add', (_e, entry) => {
+    try {
+      return { success: true, entry: blocklist.add(entry) };
+    } catch (error) {
+      logger.warn(`IPC blocklist-add rejected: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle('blocklist-remove', (_e, entry) => {
+    try {
+      return { success: true, removed: blocklist.remove(entry) };
+    } catch (error) {
+      logger.warn(`IPC blocklist-remove rejected: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle('blocklist-list', () => blocklist.list());
 }
 
 module.exports = { init, register };
