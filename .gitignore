@@ -16,7 +16,8 @@ cdp_*.js
 !.claude/hooks/
 !.claude/settings.json
 !.mcp.json
-memory-bank/
+memory-bank/*
+!memory-bank/AEGIS-MASTER-PLAN.md
 aegis-log-*.json
 aegis-export-*.zip
 aegis-full-audit-*.json
