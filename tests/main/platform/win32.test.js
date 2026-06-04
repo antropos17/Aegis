@@ -309,6 +309,37 @@ describe('platform/win32', () => {
       await win32.probeReadDetection();
       expect(win32.isReadDetectionAvailable()).toBe(false);
     });
+
+    // #2 two-flag honesty: read-detection has TWO capabilities now — the legacy
+    // handle.exe binary AND the Restart Manager. When handle.exe is ABSENT but RM
+    // is PRESENT, read-detection is AVAILABLE (via RM) and the degraded warning
+    // must NOT fire. The warning is gated by the SAME `!available` condition as
+    // this flag, so available===true proves no degraded warning was logged.
+    it('reports available (no degraded warning) when handle.exe is absent but RM works', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        const script = args[3]; // the -Command body
+        if (/AegisRm|GetHolders/.test(script))
+          cb(null, 'OK'); // RM probe succeeds
+        else cb(null, ''); // handle-binary probe: not found
+      });
+      const result = await win32.probeReadDetection();
+      expect(result.available).toBe(true);
+      expect(result.rm).toBe(true);
+      expect(result.handle).toBeNull();
+      expect(win32.isReadDetectionAvailable()).toBe(true);
+    });
+
+    it('reports unavailable (degraded) only when BOTH handle.exe and RM are absent', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        const script = args[3];
+        if (/AegisRm|GetHolders/.test(script))
+          cb(null, 'FAIL'); // RM probe fails
+        else cb(null, ''); // handle-binary probe: not found
+      });
+      const result = await win32.probeReadDetection();
+      expect(result.available).toBe(false);
+      expect(win32.isReadDetectionAvailable()).toBe(false);
+    });
   });
 
   describe('killProcess', () => {
@@ -474,6 +505,8 @@ describe('platform/win32', () => {
       expect(typeof win32.resumeProcess).toBe('function');
       expect(typeof win32.probeReadDetection).toBe('function');
       expect(typeof win32.isReadDetectionAvailable).toBe('function');
+      expect(typeof win32.getSensitiveHolders).toBe('function');
+      expect(typeof win32.isRestartManagerAvailable).toBe('function');
       expect(Array.isArray(win32.IGNORE_FILE_PATTERNS)).toBe(true);
     });
   });
