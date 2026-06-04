@@ -2,7 +2,7 @@
 
 > **Назначение:** единый источник правды по разработке AEGIS. Положи в `memory-bank/AEGIS-MASTER-PLAN.md` ИЛИ вставь содержимое в новый чат — контекст подхватится отсюда.
 > **Scope:** только разработка (код / архитектура / фичи). Без Dev.to-поста, без лендинга, без маркетинга.
-> **Сверено по живому коду:** master @ `1c3c2d6`, 2026-06-03. Числа — снимок, не истина.
+> **Сверено по живому коду:** master @ `<verify: git rev-parse --short HEAD>`, 2026-06-03. Числа — снимок, не истина.
 
 ---
 
@@ -27,8 +27,21 @@
 
 **Одной строкой:** local-first, out-of-band OS-level наблюдатель за AI-агентами (процессы / файлы / сеть) с сигнатурами агентов, risk-scoring и дашбордом. Сидит **снаружи** агента → не требует кооперации и **не тормозит** агента (в отличие от hook-based).
 
-**Снимок (сверено):**
-- version `0.10.0-alpha` · **107 агентов** · **73 правила** (YAML) · **796 тестов / 47 файлов** · **6929 LOC** в `src/main`
+**Снимок (ориентир — не истина; сверяй командой, не вбивай число):**
+```sh
+# version
+node -e "console.log(require('./package.json').version)"
+# агенты
+node -e "console.log(require('./src/shared/agent-database.json').agents.length)"
+# правила
+grep -rhcE '^\s*-\s*id:' rules/*.yaml | paste -sd+ | bc
+# тесты (считаются запуском, число не вбивать)
+npm test 2>&1 | tail -3
+# LOC main
+find src/main -name '*.js' | xargs wc -l | tail -1
+# commit / дата
+git rev-parse --short HEAD ; date +%F
+```
 - Electron 33 · Svelte 5 (runes) · Vite 7 · main = JavaScript/CommonJS · renderer/shared = TS · chokidar 3 · ajv · js-yaml · Vitest 4
 
 ---
@@ -135,18 +148,22 @@
 
 ## 8. Порядок выполнения по фазам + зависимости
 ```
-Phase 1  Корректность:  C-01 → C-04 → C-03 → C-02 → C-05   (+ regression-тесты)
-Phase 2  Перф (Tier 0): utilityProcess, O(1)-index, categoryIndex, PS-runspace, async /proc, ring buffers
-Phase 3  Доверие:       hash-chained signed audit, OWASP mapping, OTel export
-Phase 4  Охват:         headless JSON daemon, SQLite session store + CLI, top-view, dashboard UX
-Phase 5  Ров (moat):    Rust/native event-driven sidecar (ETW Win / eBPF+fanotify Linux / EndpointSecurity mac)
-                        → закрывает polling gap + read-слепоту + tamper + нагрузку на main
-Phase 6  Интеллект:     per-agent baselines, z-score, correlation, triage, Rules UI
+Phase 1   Корректность:  C-01 → C-04 → C-03 → C-02 → C-05   (+ regression-тесты)
+Phase 2a  Перф/UX:       utilityProcess — вынос движка с main-потока
+Phase 2b  Перф (Tier 0): O(1)-index, categoryIndex, PS-runspace, async /proc, ring buffers
+Phase 3   Доверие:       hash-chained signed audit, OWASP mapping, OTel export
+Phase 4a  Охват:         headless JSON daemon
+Phase 4b  Охват:         SQLite session store + query CLI
+Phase 4c  UX:            top-view (ranked live) + dashboard UX
+Phase 5   Ров (moat):    Rust/native event-driven sidecar (ETW Win / eBPF+fanotify Linux / EndpointSecurity mac)
+          (multi-month, native sidecar — НЕ недельная задача)
+                         → закрывает polling gap + read-слепоту + tamper + нагрузку на main
+Phase 6   Интеллект:     per-agent baselines, z-score, correlation, triage, Rules UI
 ```
 **Жёсткие зависимости:**
 - **C-01 → Phase 6** (корреляция / per-agent невозможны при сломанной атрибуции).
 - **C-03 → Phase 3** (hash-chain строится на исправленном flush).
-- **Phase 2 `utilityProcess` → Phase 5** (вынос движка — ступенька к sidecar).
+- **Phase 2a `utilityProcess` → Phase 5** (вынос движка — ступенька к sidecar).
 - **analyzer-chain** — дом для self-access exemption + dedup (зона калибровки C-04/C-05).
 
 ---
@@ -157,6 +174,7 @@ Phase 6  Интеллект:     per-agent baselines, z-score, correlation, tria
 - Новые IPC-каналы → через `preload.js` contextBridge, имена **kebab-case**.
 - Файл ≤300 строк (soft), early returns, named exports.
 - Commit после каждого рабочего состояния; **verify ПЕРЕД commit**; **НИКОГДА не force-push master**.
+- Один P0 = один PR ≤300 строк. Не пихать несколько фиксов в один PR (защита от git-гонок и нечитаемых diff).
 - Risk-engine: **self-access exemptions, event dedup, веса с diminishing returns** — не ломать при правках scoring.
 - **Code-honesty:** ни «tamper-proof» / «kernel» / «blocks» в строках/UI кода, пока способность не реализована (см. C-10).
 - TRUST CODE OVER DOCS — числа сверять с кодом.
@@ -164,6 +182,7 @@ Phase 6  Интеллект:     per-agent baselines, z-score, correlation, tria
 ---
 
 ## 10. Definition of «серьёзный проект» (exit criteria)
+- [ ] Phase 1 DoD: C-01..C-05 закрыты; у каждого regression-тест, который КРАСНЫЙ без фикса (доказывает реальность фикса).
 - [ ] 0 P0-багов; у каждого — тест, который падает без фикса.
 - [ ] Мониторинг вне main-потока; нет UI-jank.
 - [ ] Tamper-evident (hash-chained) audit; правила с OWASP-маппингом; OTel-экспорт.
