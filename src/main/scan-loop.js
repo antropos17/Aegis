@@ -24,6 +24,9 @@ let latestLocalModels = {
 const eventDedupMap = new Map();
 let activeScanCount = 0;
 let _lastTriggeredNetScan = 0;
+// C-02: reentrancy guard — block overlapping doProcessScan runs so a slow scan
+// can't be clobbered by the next interval tick (last-writer-wins on the snapshot).
+let processScanRunning = false;
 
 /** @param {boolean} entering — true when scan starts, false when ends @since v0.4.0 */
 function updateScanStatus(entering) {
@@ -156,6 +159,10 @@ async function doProcessScan() {
     getResourceUsage,
     setAgents,
   } = deps;
+  // Early-return BEFORE updateScanStatus(true): a blocked re-entrant call must not
+  // bump activeScanCount, whose only decrement lives in the finally below.
+  if (processScanRunning) return;
+  processScanRunning = true;
   updateScanStatus(true);
   try {
     const result = await scanner.scanProcesses();
@@ -221,6 +228,7 @@ async function doProcessScan() {
     logger.error('main', 'Process scan failed', { error: err.message });
   } finally {
     updateScanStatus(false);
+    processScanRunning = false;
   }
 }
 

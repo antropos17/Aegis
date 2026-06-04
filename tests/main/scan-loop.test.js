@@ -266,4 +266,62 @@ describe('scan-loop', () => {
       expect(models.lmstudio).toEqual({ running: false, models: [] });
     });
   });
+
+  // ── reentrancy guard (doProcessScan) ──
+
+  describe('reentrancy guard (doProcessScan)', () => {
+    it('does not start an overlapping process scan while a previous scan is in-flight', async () => {
+      // First scanProcesses call hangs forever (pending) so scan N stays in-flight
+      // across the next interval tick; any later call resolves normally.
+      const firstScan = new Promise(() => {});
+      let scanCalls = 0;
+      const scanProcesses = vi.fn().mockImplementation(() => {
+        scanCalls += 1;
+        return scanCalls === 1 ? firstScan : Promise.resolve({ agents: [], changed: false });
+      });
+      const mockDeps = {
+        scanner: { scanProcesses },
+        procUtil: {
+          enrichWithParentChains: vi.fn().mockResolvedValue(),
+          annotateHostApps: vi.fn(),
+          annotateWorkingDirs: vi.fn().mockResolvedValue(),
+        },
+        watcher: {
+          pruneKnownHandles: vi.fn(),
+          scanAllFileHandles: vi.fn().mockResolvedValue([]),
+        },
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: vi.fn().mockResolvedValue([]),
+        },
+        baselines: { recordNetworkEndpoint: vi.fn() },
+        anomaly: {
+          checkDeviations: vi.fn().mockReturnValue([]),
+          calculateAnomalyScore: vi.fn().mockReturnValue({ score: 0 }),
+        },
+        audit: { log: vi.fn() },
+        tray: { updateTrayIcon: vi.fn(), notifySensitive: vi.fn() },
+        logger: { error: vi.fn(), warn: vi.fn() },
+        sendToRenderer: vi.fn(),
+        fileAccessBatcher: { push: vi.fn() },
+        statsUpdateBatcher: { push: vi.fn() },
+        getStats: vi.fn().mockReturnValue({}),
+        getResourceUsage: vi.fn().mockReturnValue({}),
+        getLatestAgents: vi.fn().mockReturnValue([]),
+        setAgents: vi.fn(),
+        setLatestNetConnections: vi.fn(),
+      };
+      scanLoop.init(mockDeps);
+      scanLoop.startScanIntervals(5000);
+
+      await vi.advanceTimersByTimeAsync(5000); // tick 1 → scan starts, hangs on firstScan
+      await vi.advanceTimersByTimeAsync(5000); // tick 2 → fires while scan 1 is in-flight
+
+      // Assert inside the in-flight window (firstScan is never resolved). A guarded
+      // doProcessScan short-circuits the second tick → 1 call; the unguarded (buggy)
+      // version runs both overlapping bodies → 2 calls.
+      expect(scanProcesses).toHaveBeenCalledTimes(1);
+    });
+  });
 });
