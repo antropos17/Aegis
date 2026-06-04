@@ -2,7 +2,7 @@
  * @file command-registry.ts — Static command definitions for Command Palette
  * @module renderer/lib/utils/command-registry
  * @description Provides all static commands grouped by category.
- * Per-agent commands (107 signatures) are excluded — loaded dynamically via
+ * Per-agent commands (110 signatures) are excluded — loaded dynamically via
  * fuzzy search. Agent *action* commands (kill/suspend the selected agent) are
  * static and live here under the `agent` category.
  */

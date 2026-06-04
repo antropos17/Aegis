@@ -32,12 +32,12 @@
 
 ## What Does Aegis Monitor?
 
-- **Process Monitoring** — Tracks 107 known AI agent signatures with parent-child tree resolution and IDE host detection.
+- **Process Monitoring** — Tracks 110 known AI agent signatures with parent-child tree resolution and IDE host detection.
 - **File System Access** — Watches sensitive directories (`.ssh`, `.aws`, `.gnupg`, `.env`, cloud configs) and 27 AI agent config paths for unauthorized access.
 - **Network Activity** — Logs outbound TCP connections per agent PID with reverse DNS and known-vs-unknown API endpoint classification.
 - **Behavioral Analysis** — Applies 73 detection rules across 8 categories with rolling 10-session baselines and 4-axis anomaly scoring.
 - **Trust Scoring** — Assigns real-time risk scores with trust grades (A+ through F) using time-decay algorithms and multi-dimensional threat assessment.
-- **Multi-Agent Dashboard** — Displays all 107 agents in a bento-grid dashboard with sparklines, risk rings, activity feeds, and expandable agent cards.
+- **Multi-Agent Dashboard** — Displays all 110 agents in a bento-grid dashboard with sparklines, risk rings, activity feeds, and expandable agent cards.
 
 ## Why Aegis?
 
@@ -45,7 +45,7 @@
 |---|---|
 | **512** | vulnerabilities found in OpenClaw by Kaspersky — autonomous agents ship with real security risks |
 | **0** | open-source EDR tools existed for AI agents before Aegis |
-| **107** | AI agent signatures in the detection database, from Claude Code to AutoGPT |
+| **110** | AI agent signatures in the detection database, from Claude Code to AutoGPT |
 | **73** | behavioral detection rules across 8 categories, with hot-reload and custom overrides |
 | **707** | tests passing, 0 failures — the monitoring engine is verified on every commit |
 | **<2s** | cold boot to full dashboard — lightweight enough to run alongside the agents it monitors |
@@ -66,7 +66,7 @@ AEGIS sits at a different layer. It is an **independent, OS-level observer**: it
 
 | Layer | How |
 |-------|-----|
-| **Processes** | 107 known AI agent signatures, parent-child tree resolution, IDE host detection |
+| **Processes** | 110 known AI agent signatures, parent-child tree resolution, IDE host detection |
 | **Files** | Watches `.ssh`, `.aws`, `.gnupg`, `.env*`, cloud configs, 27 AI agent config dirs |
 | **Network** | Outbound TCP per agent PID, reverse DNS, known API endpoints vs unknown |
 | **Behavior** | Rolling 10-session baselines, 4-axis anomaly scoring (Network/FS/Process/Baseline) |
@@ -132,7 +132,7 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
 
 ## Features
 
-**Detection** — 107 agent signatures, parent chain resolution, config dir protection, per-agent risk scoring with trust grades (A+ through F), HTTP/User-Agent scoring, local LLM detection, false positive marking
+**Detection** — 110 agent signatures, parent chain resolution, config dir protection, per-agent risk scoring with trust grades (A+ through F), HTTP/User-Agent scoring, local LLM detection, false positive marking
 
 **Analysis** — Behavioral baselines with rolling averages, multi-dimensional anomaly detection, AI threat assessment via Anthropic API (opt-in), printable HTML threat reports
 
@@ -209,7 +209,7 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
 
 ## Agent Database
 
-107 agents in [`src/shared/agent-database.json`](src/shared/agent-database.json):
+110 agents in [`src/shared/agent-database.json`](src/shared/agent-database.json):
 
 **Coding** — Claude Code, GitHub Copilot, Cursor, Windsurf, Tabnine, Amazon Q, Cody, Aider
 **Autonomous** — OpenClaw, Devin, Manus AI, OpenHands, SWE-Agent, AutoGPT, BabyAGI, CrewAI
@@ -248,7 +248,7 @@ Autonomous AI agents like OpenClaw, AutoGPT, and Devin have deep access to local
 
 ### How is Aegis different from traditional EDR?
 
-Traditional EDR tools (CrowdStrike, Sentinel One) monitor human-driven threats — malware, ransomware, phishing. Aegis is built specifically for AI agent behavior: it ships with 107 agent profiles, 73 detection rules tuned for agent-specific patterns, and behavioral baselines that track how each agent's activity changes over time.
+Traditional EDR tools (CrowdStrike, Sentinel One) monitor human-driven threats — malware, ransomware, phishing. Aegis is built specifically for AI agent behavior: it ships with 110 agent profiles, 73 detection rules tuned for agent-specific patterns, and behavioral baselines that track how each agent's activity changes over time.
 
 ### Does Aegis work with MCP tools?
 
@@ -260,7 +260,7 @@ No. Aegis is an observability layer, not a restriction layer. Sandboxes limit wh
 
 ### What agents does Aegis support?
 
-Aegis ships with 107 agent signatures across five categories: coding assistants (Claude Code, Copilot, Cursor), autonomous agents (OpenClaw, AutoGPT, CrewAI, Devin), desktop AI (Gemini, Apple Intelligence), frameworks (LangChain, AutoGen, MetaGPT), and local LLMs (Ollama, LM Studio, llama.cpp). You can add custom agents via the UI or JSON config.
+Aegis ships with 110 agent signatures across five categories: coding assistants (Claude Code, Copilot, Cursor), autonomous agents (OpenClaw, AutoGPT, CrewAI, Devin), desktop AI (Gemini, Apple Intelligence), frameworks (LangChain, AutoGen, MetaGPT), and local LLMs (Ollama, LM Studio, llama.cpp). You can add custom agents via the UI or JSON config.
 
 ### Can I use Aegis in production?
 
