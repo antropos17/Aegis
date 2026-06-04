@@ -21,7 +21,7 @@
     },
     {
       "id": "github-copilot",
-      "names": ["copilot-agent", "copilot", "github-copilot", "copilot-language-server"],
+      "names": ["copilot-agent", "copilot", "github-copilot"],
       "displayName": "GitHub Copilot",
       "vendor": "GitHub / Microsoft",
       "category": "coding-assistant",
@@ -69,7 +69,7 @@
     },
     {
       "id": "windsurf",
-      "names": ["Windsurf.exe", "windsurf", "Windsurf"],
+      "names": ["Windsurf.exe", "windsurf"],
       "displayName": "Windsurf",
       "vendor": "Cognition / Codeium",
       "category": "ai-ide",
@@ -150,7 +150,7 @@
     },
     {
       "id": "pearai",
-      "names": ["pearai", "pearai.exe", "PearAI.exe"],
+      "names": ["pearai", "pearai.exe"],
       "displayName": "PearAI",
       "vendor": "PearAI",
       "category": "ai-ide",
@@ -201,7 +201,7 @@
     },
     {
       "id": "tabnine",
-      "names": ["TabNine.exe", "TabNine", "tabnine", "TabNine-deep-local", "WD-TabNine"],
+      "names": ["TabNine.exe", "tabnine", "TabNine-deep-local", "WD-TabNine"],
       "displayName": "Tabnine",
       "vendor": "Tabnine",
       "category": "coding-assistant",
@@ -402,7 +402,7 @@
     },
     {
       "id": "supermaven",
-      "names": ["sm-agent", "supermaven"],
+      "names": ["supermaven"],
       "displayName": "Supermaven",
       "vendor": "Supermaven Inc.",
       "category": "coding-assistant",
@@ -1168,7 +1168,7 @@
     },
     {
       "id": "perplexity-desktop",
-      "names": ["Perplexity.exe", "perplexity", "Perplexity"],
+      "names": ["Perplexity.exe", "perplexity"],
       "displayName": "Perplexity Desktop",
       "vendor": "Perplexity AI",
       "category": "desktop-agent",
@@ -1751,7 +1751,7 @@
     },
     {
       "id": "jan",
-      "names": ["jan.exe", "jan", "Jan.exe"],
+      "names": ["jan.exe", "jan"],
       "displayName": "Jan",
       "vendor": "Jan AI",
       "category": "local-llm-runtime",
@@ -1876,7 +1876,7 @@
     },
     {
       "id": "anythingllm",
-      "names": ["AnythingLLM", "anything-llm", "anythingllm"],
+      "names": ["anything-llm", "anythingllm"],
       "displayName": "AnythingLLM",
       "vendor": "Mintplex Labs",
       "category": "local-llm-runtime",
