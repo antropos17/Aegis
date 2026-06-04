@@ -141,6 +141,11 @@ function flush() {
     fs.appendFileSync(fp, lines, 'utf-8');
   } catch (err) {
     if (_onFlushError) _onFlushError(err);
+    // TODO(C-03-followup): unbounded buffer growth — if the disk is permanently
+    // broken (full / no perms), re-queuing on every failed flush grows _buffer
+    // without bound (OOM). Add a cap (drop-oldest beyond a limit) in a follow-up;
+    // out of scope for this PR.
+    _buffer = entries.concat(_buffer);
   }
 }
 
