@@ -7,6 +7,8 @@
   import RulesTab from './lib/components/RulesTab.svelte';
   import ReportsTab from './lib/components/ReportsTab.svelte';
   import AgentStatsPanel from './lib/components/AgentStatsPanel.svelte';
+  import RiskIndex from './lib/components/RiskIndex.svelte';
+  import { enrichedAgents } from './lib/stores/risk.js';
   import { theme, uiScale, toggleTheme, setTheme } from './lib/stores/theme.js';
   import Toast from './lib/components/Toast.svelte';
   import CommandPalette from './lib/components/CommandPalette.svelte';
@@ -301,7 +303,24 @@
 <Toast />
 <CommandPalette />
 
+<!-- Fleet-wide risk index — fixed dock, fed the risk-enriched agents (riskScore
+     lives on enrichedAgents, never on the raw `agents` store). Append-only. -->
+<aside class="risk-index-dock">
+  <RiskIndex agents={$enrichedAgents} />
+</aside>
+
 <style>
+  /* Fixed dock for the fleet risk index — pinned bottom-left above the footer,
+     below modals (CommandPalette z-index 100, Toast 9000). */
+  .risk-index-dock {
+    position: fixed;
+    left: var(--aegis-space-9);
+    bottom: calc(var(--aegis-size-footer) + var(--aegis-space-6));
+    width: 240px;
+    max-width: calc(100vw - var(--aegis-space-9) * 2);
+    z-index: 50;
+  }
+
   .app-shell {
     height: 100vh;
     display: flex;

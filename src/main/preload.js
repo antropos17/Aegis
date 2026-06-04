@@ -83,4 +83,19 @@ contextBridge.exposeInMainWorld('aegis', {
     ipcRenderer.on('scan-status', handler);
     return () => ipcRenderer.removeListener('scan-status', handler);
   },
+  // ── Per-PID resource usage + token costs (main → renderer push) ──
+  onResourceUsage: (cb) => {
+    const handler = (_e, data) => cb(data);
+    ipcRenderer.on('resource-usage', handler);
+    return () => ipcRenderer.removeListener('resource-usage', handler);
+  },
+  onTokenCosts: (cb) => {
+    const handler = (_e, data) => cb(data);
+    ipcRenderer.on('token-costs', handler);
+    return () => ipcRenderer.removeListener('token-costs', handler);
+  },
+  // ── Alert-only agent watchlist (renderer → main invoke) ──
+  blocklistAdd: (entry) => ipcRenderer.invoke('blocklist-add', entry),
+  blocklistRemove: (entry) => ipcRenderer.invoke('blocklist-remove', entry),
+  blocklistList: () => ipcRenderer.invoke('blocklist-list'),
 });

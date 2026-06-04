@@ -9,6 +9,9 @@
 const sessionTracker = require('./session-tracker');
 const ideExtensionDetector = require('./ide-extension-detector');
 const wslDetector = require('./wsl-detector');
+const resourceMonitor = require('./resource-monitor');
+const tokenTracker = require('./token-tracker');
+const blocklist = require('./blocklist');
 
 let scanInterval = null;
 let fileScanInterval = null;
@@ -218,6 +221,11 @@ async function doProcessScan() {
     const scores = {};
     for (const a of agents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent).score;
 
+    // Alert-only watchlist flag (synchronous): set agent.flagged so it rides the
+    // scan-batch below. Advisory only — never stops or restricts any process (C-01:
+    // isFlagged matches the scanned agent's OWN signature + pid).
+    for (const a of agents) a.flagged = blocklist.isFlagged(a);
+
     // Single batched IPC — renderer updates all stores at once
     sendToRenderer('scan-batch', {
       agents,
@@ -225,6 +233,20 @@ async function doProcessScan() {
       resourceUsage: getResourceUsage(),
       anomalyScores: scores,
     });
+
+    // Token costs ride a separate channel. With no usage feed wired this is an
+    // empty array (honest zero) — the tracker never fabricates counts.
+    sendToRenderer('token-costs', tokenTracker.getAllCosts());
+
+    // Per-PID CPU/RAM/GPU is fetched fire-and-forget AFTER the batch so its
+    // spawn (~0.4–8s, 5s-cached) never delays getting agents on screen. The
+    // result is pushed on its own `resource-usage` channel, keyed by pid (C-01).
+    const resourcePids = agents.map((a) => a.pid).filter((p) => Number.isInteger(p) && p > 0);
+    resourceMonitor
+      .getResourcesForPids(resourcePids)
+      .then((resourceMap) => sendToRenderer('resource-usage', [...resourceMap.values()]))
+      .catch((err) => logger.error('main', 'Resource usage scan failed', { error: err.message }));
+
     if (result.changed && Date.now() - _lastTriggeredNetScan > 15000) {
       _lastTriggeredNetScan = Date.now();
       doNetworkScan();
