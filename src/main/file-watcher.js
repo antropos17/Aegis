@@ -108,6 +108,31 @@ function isSelfAccess(agentName, filePath) {
 }
 
 /**
+ * Find the AI agent that owns a file path so the event is attributed to it
+ * (and the self-access exemption is checked against the right agent). An
+ * agent's OWN config dir wins first — a cwd may contain another agent's config
+ * dir, so self-config must outrank cwd containment. Returns null if none match,
+ * letting the caller fall back to its prior default.
+ * @param {string} filePath - Resolved file path from the watcher event.
+ * @param {Array<{agent:string,cwd?:string}>} aiAgents - Candidate AI agents.
+ * @returns {Object|null} The owning agent, or null when no agent matches.
+ * @since v0.10.0
+ */
+function findOwningAgent(filePath, aiAgents) {
+  for (const a of aiAgents) {
+    if (isSelfAccess(a.agent, filePath)) return a;
+  }
+  const target = process.platform === 'win32' ? filePath.toLowerCase() : filePath;
+  for (const a of aiAgents) {
+    if (!a.cwd) continue;
+    let base = path.resolve(a.cwd);
+    if (process.platform === 'win32') base = base.toLowerCase();
+    if (target === base || target.startsWith(base + path.sep)) return a;
+  }
+  return null;
+}
+
+/**
  * Build an ignore-filter function for chokidar's `ignored` option.
  * Uses function form (not glob) to avoid chokidar issue #773.
  * Handles both `/` and `\` separators for Windows compatibility.
@@ -152,7 +177,8 @@ function handleWatcherEvent(action, filePath) {
   }
   const reason = classifySensitive(filePath);
   const aiAgents = _state.getLatestAiAgents();
-  const agent = aiAgents.length > 0 ? aiAgents[0] : agents[0];
+  const owner = aiAgents.length > 0 ? findOwningAgent(filePath, aiAgents) : null;
+  const agent = owner || (aiAgents.length > 0 ? aiAgents[0] : agents[0]);
   const selfAccess = reason !== null && isSelfAccess(agent.agent, filePath);
   const event = {
     agent: agent.agent,

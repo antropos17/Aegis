@@ -251,6 +251,36 @@ describe('file-watcher event handling', () => {
       fileWatcher.handleWatcherEvent('modified', '/home/user/file.js');
       expect(state.activityLog[0].agent).toBe('Claude Code');
     });
+
+    it('attributes a self-config event to the owning agent, not aiAgents[0] (C-01)', () => {
+      // Two AI agents online; the event is opencode accessing its OWN config.
+      // Old code blamed aiAgents[0] (Claude Code) → wrong agent AND a false
+      // sensitive flag, because the self-access check ran against Claude.
+      state.getLatestAiAgents = () => [
+        { pid: 100, agent: 'Claude Code', category: 'ai', cwd: '/home/user/claude-proj' },
+        { pid: 200, agent: 'opencode', category: 'ai', cwd: '/home/user/project' },
+      ];
+      fileWatcher.handleWatcherEvent('modified', '/home/user/.opencode/auth.json');
+      const event = state.activityLog[0];
+      expect(event.agent).toBe('opencode');
+      expect(event.pid).toBe(200);
+      expect(event.selfAccess).toBe(true);
+      expect(event.sensitive).toBe(false);
+    });
+
+    it('attributes a non-config event to the agent whose cwd contains it (C-01)', () => {
+      // A plain (non-sensitive) file inside the SECOND agent's working dir must
+      // attribute to that agent, not aiAgents[0]. Exercises the cwd-ownership
+      // branch (no self-config match is possible for an ordinary source file).
+      state.getLatestAiAgents = () => [
+        { pid: 100, agent: 'Claude Code', category: 'ai', cwd: '/home/user/claude-proj' },
+        { pid: 200, agent: 'opencode', category: 'ai', cwd: '/home/user/project' },
+      ];
+      fileWatcher.handleWatcherEvent('modified', '/home/user/project/src/index.js');
+      const event = state.activityLog[0];
+      expect(event.agent).toBe('opencode');
+      expect(event.pid).toBe(200);
+    });
   });
 
   describe('pruneKnownHandles()', () => {
