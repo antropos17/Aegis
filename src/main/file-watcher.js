@@ -46,6 +46,15 @@ const DEFAULT_IGNORED_DIRS = [
   '.turbo',
 ];
 
+/**
+ * Max concurrent per-PID handle scans in scanAllFileHandles. Each scan spawns
+ * one powershell.exe + handle.exe (~500ms cold) on win32 — an uncapped fan-out
+ * over ~12 agents would saturate CPU and spike resources. Fixed at 5 (the
+ * bottleneck is per-PID I/O, not core count) so the cap stays deterministic.
+ * @type {number}
+ */
+const FILE_SCAN_CONCURRENCY = 5;
+
 let _getFileHandles = _platform.getFileHandles;
 /** @internal Override dependencies (for tests). */
 function _setDepsForTest(overrides) {
@@ -342,11 +351,28 @@ async function scanFileHandles(agent) {
 async function scanAllFileHandles(agents) {
   const toScan =
     _state && _state.isOtherPanelExpanded() ? agents : agents.filter((a) => a.category === 'ai');
-  const allNew = [];
-  for (const agent of toScan) {
-    const events = await scanFileHandles(agent);
-    allNew.push(...events);
+  // Bounded-concurrency worker pool: at most FILE_SCAN_CONCURRENCY scanFileHandles()
+  // run at once (each spawns one powershell/handle.exe). Results are stored by
+  // original index, so the returned array stays in agent order — per-event agent
+  // attribution (C-01) is stamped inside scanFileHandles and never cross-wired.
+  const results = new Array(toScan.length);
+  let next = 0;
+  async function worker() {
+    while (next < toScan.length) {
+      const i = next++;
+      try {
+        results[i] = await scanFileHandles(toScan[i]);
+      } catch (_) {
+        // One agent's scan throwing (e.g. unguarded recordFileAccess) must not
+        // abort the batch — drop just this agent's events and pull the next.
+        results[i] = [];
+      }
+    }
   }
+  const poolSize = Math.min(FILE_SCAN_CONCURRENCY, toScan.length);
+  await Promise.all(Array.from({ length: poolSize }, worker));
+  const allNew = [];
+  for (const r of results) allNew.push(...r);
   return allNew;
 }
 
@@ -397,6 +423,7 @@ module.exports = {
   handleWatcherEvent,
   getIgnoredDirFilter,
   DEFAULT_IGNORED_DIRS,
+  FILE_SCAN_CONCURRENCY,
   _setDepsForTest,
   _resetForTest,
 };

@@ -438,5 +438,54 @@ describe('file-watcher scanFileHandles', () => {
       await fileWatcher.scanAllFileHandles(agents);
       expect(state.recordFileAccess).toHaveBeenCalledTimes(2);
     });
+
+    it('runs at most FILE_SCAN_CONCURRENCY (5) handle scans concurrently, preserving attribution', async () => {
+      let inFlight = 0;
+      let maxInFlight = 0;
+      mockGetFileHandles.mockImplementation((pid) => {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            inFlight--;
+            resolve([`/home/user/file-${pid}.js`]);
+          }, 10);
+        });
+      });
+      state.isOtherPanelExpanded = () => true; // scan every agent
+      const agents = Array.from({ length: 12 }, (_, i) => ({
+        pid: 100 + i,
+        agent: `Agent${i}`,
+        category: 'ai',
+      }));
+      const events = await fileWatcher.scanAllFileHandles(agents);
+
+      // Caps AND saturates: a serial loop gives 1, an uncapped Promise.all gives 12.
+      expect(fileWatcher.FILE_SCAN_CONCURRENCY).toBe(5);
+      expect(maxInFlight).toBe(fileWatcher.FILE_SCAN_CONCURRENCY);
+      expect(mockGetFileHandles).toHaveBeenCalledTimes(12); // all still scanned
+      // C-01: each event carries the agent name matching its pid — no cross-wiring.
+      expect(events.filter((e) => e.pid === 105).every((e) => e.agent === 'Agent5')).toBe(true);
+    });
+
+    it('one agent throwing on an unguarded path does not abort the rest of the batch', async () => {
+      mockGetFileHandles.mockResolvedValue(['/home/user/x.js']);
+      state.isOtherPanelExpanded = () => true;
+      // recordFileAccess (file-watcher.js:332) is NOT inside scanFileHandles' try/catch,
+      // so a throw here propagates — the worker pool's try/catch must contain it.
+      state.recordFileAccess = vi.fn((agentName) => {
+        if (agentName === 'B') throw new Error('downstream blew up');
+      });
+      const agents = [
+        { pid: 100, agent: 'A', category: 'ai' },
+        { pid: 101, agent: 'B', category: 'ai' }, // throws mid-scan
+        { pid: 102, agent: 'C', category: 'ai' },
+      ];
+      const events = await fileWatcher.scanAllFileHandles(agents);
+      const pids = events.map((e) => e.pid);
+      expect(pids).toContain(100); // A survived
+      expect(pids).toContain(102); // C survived
+      expect(pids).not.toContain(101); // B's events dropped, batch intact
+    });
   });
 });
