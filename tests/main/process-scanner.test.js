@@ -76,4 +76,21 @@ describe('process-scanner', () => {
     const result = await scanner.scanProcesses();
     expect(result.agents.some((a) => a.agent === 'Claude Code')).toBe(true);
   });
+
+  // C-04: each process name belongs to exactly one agent (umbrella no longer
+  // steals a name from its rightful owner). Asserts the SPECIFIC owner is
+  // present AND the umbrella is absent — not tied to agents[0].
+  it('routes "copilot-language-server" to Copilot Language Server, not GitHub Copilot', async () => {
+    mockListProcesses.mockResolvedValue([{ name: 'copilot-language-server', pid: 4242 }]);
+    const { agents } = await scanner.scanProcesses();
+    expect(agents.some((a) => a.agent === 'Copilot Language Server')).toBe(true);
+    expect(agents.some((a) => a.agent === 'GitHub Copilot')).toBe(false);
+  });
+
+  it('routes bare "sm-agent" to Supermaven Agent, not Supermaven', async () => {
+    mockListProcesses.mockResolvedValue([{ name: 'sm-agent', pid: 4243 }]);
+    const { agents } = await scanner.scanProcesses();
+    expect(agents.some((a) => a.agent === 'Supermaven Agent')).toBe(true);
+    expect(agents.some((a) => a.agent === 'Supermaven')).toBe(false);
+  });
 });
