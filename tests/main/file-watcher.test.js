@@ -489,3 +489,90 @@ describe('file-watcher scanFileHandles', () => {
     });
   });
 });
+
+// Restart Manager (RM) path — the win32 read-detect replacement for handle.exe.
+// RM inverts the model: register sensitive DIRECTORY groups, one RmGetList per
+// group returns the holder PIDs. file-watcher maps each holder PID → owning agent
+// and emits an `action:'holding'` event (point-in-time handle hold, NOT a read).
+// The whole RM mechanism is injected via _setDepsForTest({ getSensitiveHolders })
+// so these tests never spawn PowerShell. _resetForTest() clears the RM dep so the
+// getFileHandles-pool tests above stay on their own (non-RM) path.
+describe('file-watcher Restart Manager (RM) holder path', () => {
+  let state;
+  let mockGetSensitiveHolders;
+
+  beforeEach(() => {
+    mockGetSensitiveHolders = vi.fn();
+    state = makeState();
+    fileWatcher.init(state);
+    fileWatcher._resetForTest();
+    fileWatcher._setDepsForTest({ getSensitiveHolders: mockGetSensitiveHolders });
+  });
+
+  // #1 (core proof, RED before the RM branch exists): a holder PID resolves to the
+  // OWNING agent by PID — never cross-wired (C-01) — and emits one holding event.
+  it('maps an RM holder PID to the owning agent and emits a holding event (C-01)', async () => {
+    mockGetSensitiveHolders.mockResolvedValue([
+      { pid: 105, group: '/home/user/.ssh', reason: 'SSH keys/config' },
+    ]);
+    const agents = [
+      { pid: 100, agent: 'Claude Code', category: 'ai' },
+      { pid: 105, agent: 'Agent5', category: 'ai' },
+    ];
+    const events = await fileWatcher.scanAllFileHandles(agents);
+    expect(events).toHaveLength(1);
+    expect(events[0].agent).toBe('Agent5'); // resolved from holder PID 105, not aiAgents[0]
+    expect(events[0].pid).toBe(105);
+    expect(events[0].action).toBe('holding'); // NOT 'accessed' / 'read' — it's a hold
+    expect(events[0].file).toBe('/home/user/.ssh'); // the DIRECTORY group, not a fabricated file
+    expect(events[0].sensitive).toBe(true);
+    expect(events[0].reason).toBe('SSH keys/config');
+  });
+
+  // #3 self-access exemption: an agent holding its OWN config dir is expected, not a
+  // threat — selfAccess true, sensitive false (must not regress under the RM path).
+  it('marks an agent holding its OWN config dir as self-access (not a threat)', async () => {
+    mockGetSensitiveHolders.mockResolvedValue([
+      { pid: 100, group: '/home/user/.claude', reason: 'AI agent config — Claude Code' },
+    ]);
+    const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
+    const events = await fileWatcher.scanAllFileHandles(agents);
+    expect(events).toHaveLength(1);
+    expect(events[0].selfAccess).toBe(true);
+    expect(events[0].sensitive).toBe(false);
+  });
+
+  // #4 own-PID guard: AEGIS's own process holding a watched file must NEVER be
+  // attributed to an agent ("AEGIS is holding your SSH keys" would be a false alarm).
+  it('drops a holder whose PID is AEGIS itself (own-PID guard)', async () => {
+    mockGetSensitiveHolders.mockResolvedValue([
+      { pid: process.pid, group: '/home/user/.ssh', reason: 'SSH keys/config' },
+    ]);
+    const agents = [{ pid: process.pid, agent: 'Self', category: 'ai' }];
+    const events = await fileWatcher.scanAllFileHandles(agents);
+    expect(events).toEqual([]);
+  });
+
+  it('drops RM holders whose PID is not a tracked agent', async () => {
+    mockGetSensitiveHolders.mockResolvedValue([
+      { pid: 9999, group: '/home/user/.aws', reason: 'AWS credentials' },
+    ]);
+    const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
+    const events = await fileWatcher.scanAllFileHandles(agents);
+    expect(events).toEqual([]);
+  });
+
+  // #5 scope honesty: RM catches a handle HELD across the scan tick, never a
+  // transient open→read→close. The same dir held two consecutive scans dedups to
+  // one event — proving we report a sustained hold, not a per-read stream.
+  it('detects a held handle at the scan tick (dedups a sustained hold, not reads)', async () => {
+    mockGetSensitiveHolders.mockResolvedValue([
+      { pid: 105, group: '/home/user/.ssh', reason: 'SSH keys/config' },
+    ]);
+    const agents = [{ pid: 105, agent: 'Agent5', category: 'ai' }];
+    const first = await fileWatcher.scanAllFileHandles(agents);
+    const second = await fileWatcher.scanAllFileHandles(agents); // still holding
+    expect(first).toHaveLength(1);
+    expect(second).toHaveLength(0); // sustained hold → one event, not one-per-scan
+  });
+});
