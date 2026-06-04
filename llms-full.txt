@@ -24,7 +24,7 @@ Requires Node.js 18+ and npm 9+. Windows 10/11 recommended. macOS/Linux experime
 ## Features
 
 ### Process Monitoring
-Tracks 107 known AI agent signatures with parent-child tree resolution and IDE host detection. Covers coding assistants (Claude Code, Copilot, Cursor), autonomous agents (OpenClaw, AutoGPT, CrewAI, Devin), desktop AI (Gemini, Apple Intelligence), frameworks (LangChain, AutoGen, MetaGPT), and local LLMs (Ollama, LM Studio, llama.cpp).
+Tracks 110 known AI agent signatures with parent-child tree resolution and IDE host detection. Covers coding assistants (Claude Code, Copilot, Cursor), autonomous agents (OpenClaw, AutoGPT, CrewAI, Devin), desktop AI (Gemini, Apple Intelligence), frameworks (LangChain, AutoGen, MetaGPT), and local LLMs (Ollama, LM Studio, llama.cpp).
 
 ### File System Access
 Watches sensitive directories (.ssh, .aws, .gnupg, .env, cloud configs) and 27 AI agent config paths for unauthorized access.

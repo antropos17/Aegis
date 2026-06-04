@@ -11,7 +11,7 @@
 
 ## Key Features
 
-- Process monitoring with 107 known AI agent signatures and parent-child tree resolution
+- Process monitoring with 110 known AI agent signatures and parent-child tree resolution
 - File system watching for sensitive directories (.ssh, .aws, .gnupg, .env, cloud configs)
 - Network activity logging with per-agent PID tracking and reverse DNS
 - Behavioral analysis with 68 detection rules across 8 categories

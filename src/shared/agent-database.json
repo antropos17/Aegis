@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0",
-  "lastUpdated": "2026-02-28",
+  "version": "2.1.0",
+  "lastUpdated": "2026-06-03",
   "agents": [
     {
       "id": "claude-code",
@@ -384,6 +384,23 @@
       "riskProfile": "medium"
     },
     {
+      "id": "kilo-code",
+      "names": ["kilo-code", "kilocode"],
+      "displayName": "Kilo Code",
+      "vendor": "Kilo Code",
+      "category": "coding-assistant",
+      "icon": "\ud83e\udd8e",
+      "color": "#A855F7",
+      "defaultTrust": 58,
+      "website": "https://kilocode.ai",
+      "description": "AI coding agent (Cline/Roo lineage) for VS Code",
+      "knownDomains": ["kilocode.ai", "kilo.ai", "api.kilocode.ai"],
+      "knownPorts": [443],
+      "configPaths": ["~/.config/kilo/kilo.jsonc"],
+      "parentEditors": ["Code.exe", "code"],
+      "riskProfile": "medium"
+    },
+    {
       "id": "supermaven",
       "names": ["sm-agent", "supermaven"],
       "displayName": "Supermaven",
@@ -687,6 +704,40 @@
       "knownDomains": [],
       "knownPorts": [443],
       "configPaths": ["~/.mentat/.mentat_config.json", ".mentat_config.json"],
+      "parentEditors": [],
+      "riskProfile": "medium"
+    },
+    {
+      "id": "opencode",
+      "names": ["opencode", "opencode.exe"],
+      "displayName": "opencode",
+      "vendor": "SST",
+      "category": "cli-tool",
+      "icon": "\u2328\ufe0f",
+      "color": "#38BDF8",
+      "defaultTrust": 60,
+      "website": "https://opencode.ai",
+      "description": "Open-source terminal coding agent",
+      "knownDomains": ["opencode.ai"],
+      "knownPorts": [443],
+      "configPaths": ["~/.opencode/", ".opencode/"],
+      "parentEditors": [],
+      "riskProfile": "medium"
+    },
+    {
+      "id": "grok-cli",
+      "names": ["grok-cli", "grok", "grok-cli.exe"],
+      "displayName": "Grok CLI",
+      "vendor": "xAI",
+      "category": "cli-tool",
+      "icon": "\u2716\ufe0f",
+      "color": "#000000",
+      "defaultTrust": 58,
+      "website": "https://x.ai",
+      "description": "Grok terminal coding agent by xAI",
+      "knownDomains": ["api.x.ai"],
+      "knownPorts": [443],
+      "configPaths": ["~/.grok-build/"],
       "parentEditors": [],
       "riskProfile": "medium"
     },

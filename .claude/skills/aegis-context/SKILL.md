@@ -25,7 +25,7 @@ Electron 33, Svelte 5, Vite 7, TypeScript (incremental, allowJs:true, checkJs:tr
 - Main process (Node.js): src/main/ — 23 CJS modules (scanners, watchers, IPC, scoring, logging)
 - Renderer (Svelte 5): src/renderer/ — 43 components + 9 stores + 15 utils via IPC bridge
 - Bridge: src/main/preload.js — contextBridge, 43 invoke + 6 push channels
-- Data: src/shared/agent-database.json (107 agent signatures)
+- Data: src/shared/agent-database.json (110 agent signatures)
 - Config: src/shared/constants.js (68 rules across 8 categories)
 - Rules: src/main/rule-loader.js — loadRules() + categoryIndex Map for O(1) lookup by category
 - Types: src/shared/types/ — 8 .ts files
