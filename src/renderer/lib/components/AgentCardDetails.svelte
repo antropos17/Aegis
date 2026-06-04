@@ -14,6 +14,13 @@
 
   let { agent, gradeColor, agentEvents, sessionDuration, onPidAction } = $props();
 
+  /**
+   * Per-PID list for a grouped agent. Falls back to the single agent when the
+   * card is not a group (no `_instances`), so non-grouped cards are unchanged.
+   * @type {Array<{ pid: number, process?: string }>}
+   */
+  let instances = $derived(agent._instances?.length ? agent._instances : [agent]);
+
   async function markFalsePositive(ev) {
     const entry = { agentName: agent.name || agent.agent, pattern: ev.file, timestamp: Date.now() };
     if (window.aegis?.addFalsePositive) {
@@ -81,17 +88,24 @@
   </div>
 {/if}
 
-<div class="pid-actions-row">
-  <span class="pid-info">PID {agent.pid}{agent.process ? ` \u2014 ${agent.process}` : ''}</span>
-  <div class="pid-actions">
-    <button class="action-btn kill" onclick={(e) => onPidAction(e, 'killProcess')}>Kill</button>
-    <button class="action-btn suspend" onclick={(e) => onPidAction(e, 'suspendProcess')}
-      >Suspend</button
-    >
-    <button class="action-btn resume" onclick={(e) => onPidAction(e, 'resumeProcess')}
-      >Resume</button
-    >
-  </div>
+<div class="pid-list">
+  {#each instances as inst (inst.pid)}
+    <div class="pid-actions-row">
+      <span class="pid-info">PID {inst.pid}{inst.process ? ` \u2014 ${inst.process}` : ''}</span>
+      <div class="pid-actions">
+        <button class="action-btn kill" onclick={(e) => onPidAction(e, 'killProcess', inst.pid)}
+          >Kill</button
+        >
+        <button
+          class="action-btn suspend"
+          onclick={(e) => onPidAction(e, 'suspendProcess', inst.pid)}>Suspend</button
+        >
+        <button class="action-btn resume" onclick={(e) => onPidAction(e, 'resumeProcess', inst.pid)}
+          >Resume</button
+        >
+      </div>
+    </div>
+  {/each}
 </div>
 
 <style>
@@ -210,6 +224,10 @@
   .fp-btn:focus-visible {
     opacity: 1;
     background: var(--md-sys-color-surface-container);
+  }
+  .pid-list {
+    display: flex;
+    flex-direction: column;
   }
   .pid-actions-row {
     display: flex;

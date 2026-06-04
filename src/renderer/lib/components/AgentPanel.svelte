@@ -39,6 +39,9 @@
         fileCount: instances.reduce((s, a) => s + (a.fileCount || 0), 0),
         networkCount: instances.reduce((s, a) => s + (a.networkCount || 0), 0),
         _processCount: instances.length,
+        // Full per-PID list (riskiest first) — rendered on expand. The rep is
+        // included; the collapsed card's count badge already shows the total.
+        _instances: [...instances].sort((a, b) => (b.riskScore || 0) - (a.riskScore || 0)),
       };
     });
   });

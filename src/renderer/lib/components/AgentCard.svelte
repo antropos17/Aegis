@@ -114,9 +114,10 @@
     }
   }
 
-  async function pidAction(e, method) {
+  /** Run a process action against a specific PID (defaults to the representative). */
+  async function pidAction(e, method, pid = agent.pid) {
     e.stopPropagation();
-    if (window.aegis) await window.aegis[method](agent.pid);
+    if (window.aegis) await window.aegis[method](pid);
   }
 
   /** Copy PID to clipboard and show toast. */
