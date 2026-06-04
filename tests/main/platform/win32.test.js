@@ -262,6 +262,53 @@ describe('platform/win32', () => {
 
       expect(await win32.getFileHandles(100)).toEqual([]);
     });
+
+    // PR-A honesty — A1: the PS script must not fall back to loaded modules.
+    // White-box (the execFile mock can't simulate a real "binary absent" PS run,
+    // so we assert the script itself no longer contains the .Modules branch).
+    it('PS script has no .Modules / Get-Process fallback (no false-positive handles)', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, '[]'));
+      await win32.getFileHandles(100);
+      expect(mockExecFile).toHaveBeenCalled();
+      const psScript = mockExecFile.mock.calls[0][1][3];
+      expect(psScript).not.toMatch(/Modules/);
+      expect(psScript).not.toMatch(/Get-Process/);
+    });
+
+    // PR-A honesty — A2: when read-detection is unavailable, getFileHandles must
+    // return [] WITHOUT spawning a powershell (honest zero + perf short-circuit).
+    it('returns [] without spawning when read-detection is unavailable', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, ''));
+      await win32.probeReadDetection();
+      expect(win32.isReadDetectionAvailable()).toBe(false);
+      const callsAfterProbe = mockExecFile.mock.calls.length;
+      const result = await win32.getFileHandles(100);
+      expect(result).toEqual([]);
+      expect(mockExecFile.mock.calls.length).toBe(callsAfterProbe);
+    });
+  });
+
+  // PR-A — B: one-time startup probe drives the degraded flag honestly.
+  describe('probeReadDetection', () => {
+    it('sets readDetectionAvailable=true when a handle binary is found', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) =>
+        cb(null, 'C:\\tools\\handle64.exe\n'),
+      );
+      await win32.probeReadDetection();
+      expect(win32.isReadDetectionAvailable()).toBe(true);
+    });
+
+    it('sets readDetectionAvailable=false when no handle binary is found', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, ''));
+      await win32.probeReadDetection();
+      expect(win32.isReadDetectionAvailable()).toBe(false);
+    });
+
+    it('sets readDetectionAvailable=false on probe error (fail honest, not optimistic)', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(new Error('powershell missing')));
+      await win32.probeReadDetection();
+      expect(win32.isReadDetectionAvailable()).toBe(false);
+    });
   });
 
   describe('killProcess', () => {
@@ -425,6 +472,8 @@ describe('platform/win32', () => {
       expect(typeof win32.killProcess).toBe('function');
       expect(typeof win32.suspendProcess).toBe('function');
       expect(typeof win32.resumeProcess).toBe('function');
+      expect(typeof win32.probeReadDetection).toBe('function');
+      expect(typeof win32.isReadDetectionAvailable).toBe('function');
       expect(Array.isArray(win32.IGNORE_FILE_PATTERNS)).toBe(true);
     });
   });

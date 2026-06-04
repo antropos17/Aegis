@@ -6,6 +6,19 @@
 'use strict';
 
 const { execFile } = require('child_process');
+const logger = require('../logger');
+
+/**
+ * Whether open-file-handle detection is available — i.e. handle64.exe/handle.exe
+ * is on PATH. Optimistic default (true): downgraded to false ONLY by
+ * probeReadDetection() finding no binary or erroring. "Can't tell" must fail
+ * honest (false), never optimistic. When false, getFileHandles() short-circuits
+ * to [] (no spawn) rather than fabricating handles from loaded modules.
+ * @type {boolean}
+ */
+let _readDetectionAvailable = true;
+/** @type {boolean} One-shot guard so the degraded warning logs at most once. */
+let _readDetectionWarned = false;
 
 /** @type {RegExp[]} Windows-specific file-path patterns to ignore */
 const IGNORE_FILE_PATTERNS = [
@@ -131,6 +144,9 @@ function getRawTcpConnections(pids) {
 function getFileHandles(pid) {
   pid = Number(pid);
   if (!Number.isInteger(pid) || pid <= 0) return Promise.resolve([]);
+  // Honest zero: when no handle binary exists we cannot read open file handles.
+  // Return [] without spawning rather than reporting loaded modules as handles.
+  if (!_readDetectionAvailable) return Promise.resolve([]);
   return new Promise((resolve) => {
     const psScript = [
       '$ErrorActionPreference="SilentlyContinue"',
@@ -142,13 +158,6 @@ function getFileHandles(pid) {
       '  foreach($l in $out){',
       '    if($l -match "File\\s+.*?\\s+([A-Z]:\\\\.+)$"){',
       '      [void]$files.Add($Matches[1].Trim())',
-      '    }',
-      '  }',
-      '}else{',
-      `  $p=Get-Process -Id ${pid} -EA SilentlyContinue`,
-      '  if($p -and $p.Modules){',
-      '    foreach($m in $p.Modules){',
-      '      if($m.FileName){[void]$files.Add($m.FileName)}',
       '    }',
       '  }',
       '}',
@@ -182,6 +191,53 @@ function getFileHandles(pid) {
       },
     );
   });
+}
+
+/**
+ * One-time startup probe: is a handle binary (handle64.exe/handle.exe) on PATH?
+ * Sets the module-level _readDetectionAvailable flag and warns (once) when
+ * degraded. Errors/timeouts resolve to unavailable — fail honest, not optimistic.
+ * darwin/linux do NOT define this method (their lsof//proc read-detection is
+ * always available), so main.js calls it via optional chaining.
+ * @returns {Promise<{available: boolean, path: string|null}>}
+ * @since v0.10.0
+ */
+function probeReadDetection() {
+  return new Promise((resolve) => {
+    const psScript = [
+      '$ErrorActionPreference="SilentlyContinue"',
+      '$h=Get-Command handle64.exe -EA SilentlyContinue',
+      'if(!$h){$h=Get-Command handle.exe -EA SilentlyContinue}',
+      'if($h){$h.Source}else{""}',
+    ].join('\n');
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', psScript],
+      { timeout: 8000 },
+      (err, stdout) => {
+        const sourcePath = !err && stdout ? stdout.trim() : '';
+        const available = sourcePath.length > 0;
+        _readDetectionAvailable = available;
+        if (!available && !_readDetectionWarned) {
+          _readDetectionWarned = true;
+          logger.warn(
+            'platform',
+            'File read-detection degraded: handle64.exe/handle.exe not found — ' +
+              'file-read (accessed) events disabled until a handle binary is installed',
+          );
+        }
+        resolve({ available, path: available ? sourcePath : null });
+      },
+    );
+  });
+}
+
+/**
+ * @returns {boolean} Whether open-file-handle detection is currently available.
+ * @since v0.10.0
+ */
+function isReadDetectionAvailable() {
+  return _readDetectionAvailable;
 }
 
 /**
@@ -326,6 +382,8 @@ module.exports = {
   getParentProcessMap,
   getRawTcpConnections,
   getFileHandles,
+  probeReadDetection,
+  isReadDetectionAvailable,
   getProcessCwd,
   getProcessCwds,
   killProcess,
