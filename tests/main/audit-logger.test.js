@@ -155,4 +155,25 @@ describe('audit-logger', () => {
     expect(errorCb).toHaveBeenCalledTimes(1);
     expect(errorCb.mock.calls[0][0]).toBeInstanceOf(Error);
   });
+
+  it('re-queues events on write failure so a later flush persists them', () => {
+    auditLogger.init({ userDataPath: tmpDir, onFlushError: vi.fn() });
+    const auditDir = path.join(tmpDir, 'audit-logs');
+
+    auditLogger.log('test', { agent: 'requeue-me' });
+
+    // Force the first flush to fail: remove the dir so appendFileSync throws ENOENT.
+    fs.rmSync(auditDir, { recursive: true, force: true });
+    auditLogger.flush();
+
+    // Restore writability and flush again — a re-queue fix must persist the event
+    // that the failed flush had drained from the buffer.
+    fs.mkdirSync(auditDir, { recursive: true });
+    auditLogger.flush();
+
+    const files = fs.readdirSync(auditDir).filter((f) => f.endsWith('.json'));
+    expect(files).toHaveLength(1);
+    const content = fs.readFileSync(path.join(auditDir, files[0]), 'utf-8');
+    expect(content).toContain('requeue-me');
+  });
 });
