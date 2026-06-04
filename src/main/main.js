@@ -233,6 +233,10 @@ if (!gotLock) {
 /** Wires deferred modules and starts scanning. Called after ready-to-show. */
 function initDeferredSubsystems(userData) {
   loadDeferredModules();
+  // One-time read-detection capability probe (win32 only — darwin/linux don't
+  // define it, so optional chaining no-ops). Fire-and-forget: it sets the
+  // platform's degraded flag before the first staggered file-scan tick.
+  require('./platform').probeReadDetection?.();
   const network = require('./network-monitor');
   const analysis = require('./ai-analysis');
 
