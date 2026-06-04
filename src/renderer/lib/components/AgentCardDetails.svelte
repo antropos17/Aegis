@@ -11,15 +11,9 @@
   import { addToast } from '../stores/toast.js';
   import { formatTime } from '../utils/timeline-utils';
   import { shortenPath } from '../utils/path-utils';
+  import PidList from './PidList.svelte';
 
   let { agent, gradeColor, agentEvents, sessionDuration, onPidAction } = $props();
-
-  /**
-   * Per-PID list for a grouped agent. Falls back to the single agent when the
-   * card is not a group (no `_instances`), so non-grouped cards are unchanged.
-   * @type {Array<{ pid: number, process?: string }>}
-   */
-  let instances = $derived(agent._instances?.length ? agent._instances : [agent]);
 
   async function markFalsePositive(ev) {
     const entry = { agentName: agent.name || agent.agent, pattern: ev.file, timestamp: Date.now() };
@@ -88,25 +82,7 @@
   </div>
 {/if}
 
-<div class="pid-list">
-  {#each instances as inst (inst.pid)}
-    <div class="pid-actions-row">
-      <span class="pid-info">PID {inst.pid}{inst.process ? ` \u2014 ${inst.process}` : ''}</span>
-      <div class="pid-actions">
-        <button class="action-btn kill" onclick={(e) => onPidAction(e, 'killProcess', inst.pid)}
-          >Kill</button
-        >
-        <button
-          class="action-btn suspend"
-          onclick={(e) => onPidAction(e, 'suspendProcess', inst.pid)}>Suspend</button
-        >
-        <button class="action-btn resume" onclick={(e) => onPidAction(e, 'resumeProcess', inst.pid)}
-          >Resume</button
-        >
-      </div>
-    </div>
-  {/each}
-</div>
+<PidList {agent} {onPidAction} />
 
 <style>
   .risk-bar-row {
@@ -224,59 +200,5 @@
   .fp-btn:focus-visible {
     opacity: 1;
     background: var(--md-sys-color-surface-container);
-  }
-  .pid-list {
-    display: flex;
-    flex-direction: column;
-  }
-  .pid-actions-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--aegis-space-4);
-    margin-top: var(--aegis-space-2);
-    border-top: 1px solid var(--md-sys-color-outline);
-    padding-top: var(--aegis-space-3);
-  }
-  .pid-info {
-    font: var(--md-sys-typescale-label-medium);
-    font-family: var(--fancy-font-mono);
-    color: var(--md-sys-color-on-surface-variant);
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .pid-actions {
-    display: flex;
-    gap: var(--aegis-space-3);
-    flex-shrink: 0;
-  }
-  .action-btn {
-    font: var(--md-sys-typescale-label-medium);
-    font-weight: 600;
-    padding: var(--aegis-space-2) var(--aegis-space-6);
-    border: none;
-    border-radius: var(--md-sys-shape-corner-full);
-    cursor: pointer;
-    transition: all 0.3s var(--ease-glass);
-  }
-  .action-btn:hover {
-    opacity: 0.8;
-  }
-  .action-btn:active {
-    transform: scale(0.97);
-  }
-  .action-btn.kill {
-    background: var(--md-sys-color-error);
-    color: var(--md-sys-color-on-error);
-  }
-  .action-btn.suspend {
-    background: var(--md-sys-color-secondary);
-    color: var(--md-sys-color-surface);
-  }
-  .action-btn.resume {
-    background: var(--md-sys-color-tertiary);
-    color: var(--md-sys-color-surface);
   }
 </style>
