@@ -56,13 +56,19 @@ const DEFAULT_IGNORED_DIRS = [
 const FILE_SCAN_CONCURRENCY = 5;
 
 let _getFileHandles = _platform.getFileHandles;
+// win32 exposes these (Restart Manager); darwin/linux do not → undefined, so the
+// RM branch is skipped and the legacy getFileHandles pool path runs unchanged.
+let _getSensitiveHolders = _platform.getSensitiveHolders;
+const _isRmAvailable = _platform.isRestartManagerAvailable;
 /** @internal Override dependencies (for tests). */
 function _setDepsForTest(overrides) {
   if (overrides.getFileHandles) _getFileHandles = overrides.getFileHandles;
+  if (overrides.getSensitiveHolders) _getSensitiveHolders = overrides.getSensitiveHolders;
 }
-/** @internal Reset debounce state (for tests). */
+/** @internal Reset debounce state + opt out of the RM path (for tests). */
 function _resetForTest() {
   watcherDebounce.clear();
+  _getSensitiveHolders = undefined; // tests opt into RM explicitly via _setDepsForTest
 }
 
 const watcherDebounce = new Map();
@@ -344,11 +350,102 @@ async function scanFileHandles(agent) {
 }
 
 /**
+ * Whether the Restart Manager read-detect path is usable: the platform exposes
+ * getSensitiveHolders (win32 only) AND, if it reports availability, RM is up. When
+ * RM is unavailable the caller falls back to the legacy getFileHandles pool path,
+ * preserving the PR-A handle.exe fallback.
+ * @returns {boolean}
+ */
+function rmEnabled() {
+  if (typeof _getSensitiveHolders !== 'function') return false;
+  if (typeof _isRmAvailable === 'function' && !_isRmAvailable()) return false;
+  return true;
+}
+
+/**
+ * Restart Manager scan path (win32 primary): ONE powershell spawn returns every
+ * process holding a handle to a registered sensitive directory group. Each holder
+ * PID is mapped to its OWNING agent (C-01 — resolved from the PID, never
+ * cross-wired); AEGIS's own PID and non-agent holders are dropped. Emits an
+ * `action:'holding'` event — a point-in-time handle HOLD at the scan tick, NOT a
+ * read/access. Dedups per-PID by group via knownHandles so a sustained hold fires
+ * once, not once-per-scan.
+ * @param {Array} agents
+ * @returns {Promise<Array>}
+ * @since v0.10.0
+ */
+async function scanViaRestartManager(agents) {
+  let holders;
+  try {
+    holders = await _getSensitiveHolders();
+  } catch (_) {
+    return [];
+  }
+  if (!Array.isArray(holders) || holders.length === 0) return [];
+  const toScan =
+    _state && _state.isOtherPanelExpanded() ? agents : agents.filter((a) => a.category === 'ai');
+  const pidToAgent = new Map();
+  for (const a of toScan) pidToAgent.set(a.pid, a);
+  const kh = _state.knownHandles;
+  const newAccess = [];
+  for (const h of holders) {
+    if (h.pid === process.pid) continue; // own-PID guard — never blame AEGIS itself
+    const agent = pidToAgent.get(h.pid);
+    if (!agent) continue; // holder is not a tracked (in-scope) agent — drop
+    const group = h.group;
+    if (!kh.has(h.pid)) kh.set(h.pid, new Set());
+    const known = kh.get(h.pid);
+    const dedupKey = 'holding|' + group;
+    if (known.has(dedupKey)) continue;
+    known.add(dedupKey);
+    if (known.size > 500) {
+      const iter = known.values();
+      for (let i = 0; i < known.size - 500; i++) known.delete(iter.next().value);
+    }
+    // Rule/self-config patterns anchor on a separator AFTER the dir name (e.g.
+    // `\.claude[\\/]`), but a group is a bare DIR path with no trailing separator.
+    // Match against a separator-normalized variant so dir groups resolve, while
+    // keeping event.file the clean dir. Single-file (env) groups still match
+    // as-is via the basename-anchored ($) patterns.
+    const groupSep = group.endsWith('/') || group.endsWith('\\') ? group : group + '/';
+    const reason = h.reason || classifySensitive(groupSep) || classifySensitive(group) || '';
+    const selfAccess =
+      reason !== '' && (isSelfAccess(agent.agent, groupSep) || isSelfAccess(agent.agent, group));
+    const event = {
+      agent: agent.agent,
+      pid: h.pid,
+      parentEditor: agent.parentEditor || null,
+      cwd: agent.cwd || null,
+      file: group,
+      sensitive: reason !== '' && !selfAccess,
+      selfAccess,
+      reason,
+      action: 'holding',
+      timestamp: Date.now(),
+      category: agent.category || 'other',
+    };
+    newAccess.push(event);
+    _state.activityLog.push(event);
+    if (_state.onActivityPush) _state.onActivityPush(event);
+    if (_state.activityLog.length > 10000) {
+      const evicted = _state.activityLog.shift();
+      if (_state.onActivityEvict) _state.onActivityEvict(evicted);
+    }
+    _state.recordFileAccess(agent.agent, group, event.sensitive, event.reason);
+  }
+  return newAccess;
+}
+
+/**
  * @param {Array} agents
  * @returns {Promise<Array>}
  * @since v0.1.0
  */
 async function scanAllFileHandles(agents) {
+  // win32 primary: honest read-detect via Restart Manager (no handle.exe needed).
+  // Falls through to the legacy per-PID handle pool on darwin/linux, or on win32
+  // when RM is unavailable (the PR-A getFileHandles→[] fallback still applies).
+  if (rmEnabled()) return scanViaRestartManager(agents);
   const toScan =
     _state && _state.isOtherPanelExpanded() ? agents : agents.filter((a) => a.category === 'ai');
   // Bounded-concurrency worker pool: at most FILE_SCAN_CONCURRENCY scanFileHandles()
