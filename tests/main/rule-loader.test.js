@@ -195,9 +195,9 @@ describe('rule-loader', () => {
       expect(rules.size).toBeGreaterThanOrEqual(50);
     });
 
-    it('loads exactly 70 rules (68 migrated + 2 OpenClaw additions)', () => {
+    it('loads exactly 73 rules (68 migrated + 2 OpenClaw + 3 kilo/opencode/grok)', () => {
       const rules = ruleLoader.reloadRules(PROD_RULES_DIR);
-      expect(rules.size).toBe(70);
+      expect(rules.size).toBe(73);
     });
 
     it('getRulesByCategory("secrets") returns only SC-prefixed IDs', () => {
@@ -240,6 +240,23 @@ describe('rule-loader', () => {
       expect(rule.pattern.test('/home/user/.claude/config.json')).toBe(true);
       expect(rule.pattern.test('C:\\Users\\me\\.claude\\settings')).toBe(true);
       expect(rule.reason).toBe('AI agent config — Claude Code');
+    });
+
+    it('Gate ③ rules classify kilo / opencode / grok config dirs', () => {
+      ruleLoader.reloadRules(PROD_RULES_DIR);
+      const kilo = ruleLoader.getRuleById('AI036', PROD_RULES_DIR);
+      expect(kilo).toBeDefined();
+      expect(kilo.pattern.test('/home/user/.config/kilo/kilo.jsonc')).toBe(true);
+      expect(kilo.pattern.test('C:\\Users\\me\\.config\\kilo\\kilo.jsonc')).toBe(true);
+      expect(kilo.reason).toBe('AI agent config — Kilo Code');
+
+      const opencode = ruleLoader.getRuleById('AI037', PROD_RULES_DIR);
+      expect(opencode).toBeDefined();
+      expect(opencode.pattern.test('/home/user/.opencode/auth.json')).toBe(true);
+
+      const grok = ruleLoader.getRuleById('AI038', PROD_RULES_DIR);
+      expect(grok).toBeDefined();
+      expect(grok.pattern.test('/home/user/.grok-build/settings.json')).toBe(true);
     });
   });
 });

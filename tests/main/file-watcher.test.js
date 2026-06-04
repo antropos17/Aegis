@@ -50,6 +50,18 @@ describe('file-watcher', () => {
       expect(fileWatcher.classifySensitive('/home/user/Documents/readme.txt')).toBeNull();
     });
 
+    it('Gate ③ config dirs (.config/kilo/, .opencode/, .grok-build/)', () => {
+      expect(fileWatcher.classifySensitive('/home/user/.config/kilo/kilo.jsonc')).toBe(
+        'AI agent config — Kilo Code',
+      );
+      expect(fileWatcher.classifySensitive('/home/user/.opencode/auth.json')).toBe(
+        'AI agent config — opencode',
+      );
+      expect(fileWatcher.classifySensitive('/home/user/.grok-build/settings.json')).toBe(
+        'AI agent config — Grok',
+      );
+    });
+
     it('includes custom rules when state is initialized', () => {
       fileWatcher.init(
         makeState({
@@ -123,6 +135,23 @@ describe('file-watcher', () => {
 
     it('non-matching agent returns false', () => {
       expect(fileWatcher.isSelfAccess('SomeAgent', '/home/user/.ssh/id_rsa')).toBe(false);
+    });
+
+    it('Gate ③ agents self-accessing own config is true (suppresses FP)', () => {
+      // Names exactly as the detectors emit them (wsl/ide-extension detectors).
+      expect(fileWatcher.isSelfAccess('Kilo Code', '/home/user/.config/kilo/kilo.jsonc')).toBe(
+        true,
+      );
+      expect(fileWatcher.isSelfAccess('opencode', '/home/user/.opencode/auth.json')).toBe(true);
+      expect(fileWatcher.isSelfAccess('grok', '/home/user/.grok-build/settings.json')).toBe(true);
+    });
+
+    it('Gate ③ cross-agent access stays flagged (not self-access)', () => {
+      // opencode reading Kilo's config is NOT self-access — must remain a threat.
+      expect(fileWatcher.isSelfAccess('opencode', '/home/user/.config/kilo/kilo.jsonc')).toBe(
+        false,
+      );
+      expect(fileWatcher.isSelfAccess('grok', '/home/user/.opencode/auth.json')).toBe(false);
     });
   });
 });

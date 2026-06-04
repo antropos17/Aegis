@@ -282,3 +282,27 @@ rules:
     category: "ai-config"
     risk: critical
     enabled: true
+
+  - id: "AI036"
+    name: "Kilo Code config"
+    pattern: "[\\\\\/]\\.config[\\\\\/]kilo[\\\\\/]"
+    reason: "AI agent config — Kilo Code"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI037"
+    name: "opencode config"
+    pattern: "[\\\\\/]\\.opencode[\\\\\/]"
+    reason: "AI agent config — opencode"
+    category: "ai-config"
+    risk: critical
+    enabled: true
+
+  - id: "AI038"
+    name: "Grok config"
+    pattern: "[\\\\\/]\\.grok-build[\\\\\/]"
+    reason: "AI agent config — Grok"
+    category: "ai-config"
+    risk: critical
+    enabled: true
