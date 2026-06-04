@@ -35,7 +35,7 @@
 - **Process Monitoring** — Tracks 107 known AI agent signatures with parent-child tree resolution and IDE host detection.
 - **File System Access** — Watches sensitive directories (`.ssh`, `.aws`, `.gnupg`, `.env`, cloud configs) and 27 AI agent config paths for unauthorized access.
 - **Network Activity** — Logs outbound TCP connections per agent PID with reverse DNS and known-vs-unknown API endpoint classification.
-- **Behavioral Analysis** — Applies 70 detection rules across 8 categories with rolling 10-session baselines and 4-axis anomaly scoring.
+- **Behavioral Analysis** — Applies 73 detection rules across 8 categories with rolling 10-session baselines and 4-axis anomaly scoring.
 - **Trust Scoring** — Assigns real-time risk scores with trust grades (A+ through F) using time-decay algorithms and multi-dimensional threat assessment.
 - **Multi-Agent Dashboard** — Displays all 107 agents in a bento-grid dashboard with sparklines, risk rings, activity feeds, and expandable agent cards.
 
@@ -46,7 +46,7 @@
 | **512** | vulnerabilities found in OpenClaw by Kaspersky — autonomous agents ship with real security risks |
 | **0** | open-source EDR tools existed for AI agents before Aegis |
 | **107** | AI agent signatures in the detection database, from Claude Code to AutoGPT |
-| **70** | behavioral detection rules across 8 categories, with hot-reload and custom overrides |
+| **73** | behavioral detection rules across 8 categories, with hot-reload and custom overrides |
 | **707** | tests passing, 0 failures — the monitoring engine is verified on every commit |
 | **<2s** | cold boot to full dashboard — lightweight enough to run alongside the agents it monitors |
 
@@ -146,7 +146,7 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
 
 ## YAML Rulesets
 
-- 70 detection rules across 8 categories (AI config, secrets, SSH, cloud, browser, devtools, crypto, certificates)
+- 73 detection rules across 8 categories (AI config, secrets, SSH, cloud, browser, devtools, crypto, certificates)
 - JSON Schema validated, hot-reload without restart
 - Extend or override via `rules/custom/` directory
 
@@ -248,7 +248,7 @@ Autonomous AI agents like OpenClaw, AutoGPT, and Devin have deep access to local
 
 ### How is Aegis different from traditional EDR?
 
-Traditional EDR tools (CrowdStrike, Sentinel One) monitor human-driven threats — malware, ransomware, phishing. Aegis is built specifically for AI agent behavior: it ships with 107 agent profiles, 70 detection rules tuned for agent-specific patterns, and behavioral baselines that track how each agent's activity changes over time.
+Traditional EDR tools (CrowdStrike, Sentinel One) monitor human-driven threats — malware, ransomware, phishing. Aegis is built specifically for AI agent behavior: it ships with 107 agent profiles, 73 detection rules tuned for agent-specific patterns, and behavioral baselines that track how each agent's activity changes over time.
 
 ### Does Aegis work with MCP tools?
 
