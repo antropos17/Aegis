@@ -62,6 +62,42 @@ describe('file-watcher', () => {
       );
     });
 
+    // C-05: SC003/SC004/SC007 anchored to basename (like SC006) — word in a
+    // DIRECTORY name must NOT flag; word in the basename still flags.
+    it('SC003: password in dir name → null (basename-anchored)', () => {
+      expect(
+        fileWatcher.classifySensitive('/home/user/projects/password-manager/README.md'),
+      ).toBeNull();
+    });
+
+    it('SC004: credential in dir name → null (basename-anchored)', () => {
+      expect(
+        fileWatcher.classifySensitive('/home/user/code/credential-helper/index.js'),
+      ).toBeNull();
+    });
+
+    it('SC007: api_key in dir name → null (basename-anchored)', () => {
+      expect(fileWatcher.classifySensitive('/home/user/src/api_key_validator/test.js')).toBeNull();
+    });
+
+    it('SC003: password in basename → "Password file"', () => {
+      expect(fileWatcher.classifySensitive('/home/user/myproj/password.json')).toBe(
+        'Password file',
+      );
+    });
+
+    it('SC004: credentials in basename → "Credentials"', () => {
+      expect(fileWatcher.classifySensitive('/home/user/myproj/credentials.json')).toBe(
+        'Credentials',
+      );
+    });
+
+    it('SC007: api_key in basename → "API key file"', () => {
+      expect(fileWatcher.classifySensitive('/home/user/myproj/my_api_key.txt')).toBe(
+        'API key file',
+      );
+    });
+
     it('includes custom rules when state is initialized', () => {
       fileWatcher.init(
         makeState({
