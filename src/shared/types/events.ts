@@ -4,8 +4,15 @@
  * @description Types for file watcher events, network connections, and deviation warnings.
  */
 
-/** File watcher action types */
-export type FileAction = 'created' | 'modified' | 'deleted' | 'accessed';
+/**
+ * File watcher action types.
+ * - created/modified/deleted: chokidar write events.
+ * - accessed: open file handle read-detect (handle.exe / lsof / /proc).
+ * - holding: Windows Restart Manager — a process holds a handle to a sensitive
+ *   resource AT THE SCAN TICK (point-in-time hold, not a read). Distinct from
+ *   'accessed' so the source (rm-hold vs chokidar-write) is never conflated.
+ */
+export type FileAction = 'created' | 'modified' | 'deleted' | 'accessed' | 'holding';
 
 /** File access event from watcher or handle scan */
 export interface FileEvent {
