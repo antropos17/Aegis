@@ -27,7 +27,7 @@ npm run dist              # Electron-builder NSIS installer
 ## Key Paths
 - src/main/ — 23 CommonJS modules (scanners, watchers, IPC, scoring, zip-writer)
 - src/renderer/ — 43 Svelte 5 components + 9 stores + 15 utils + tokens.css/global.css
-- src/shared/ — agent-database.json (107 agents), constants.js (68 rules), types/ (8 TS files)
+- src/shared/ — agent-database.json (110 agents), constants.js (68 rules), types/ (8 TS files)
 - memory-bank/ — ai-mistakes.md (READ FIRST), progress.md, architecture.md
 - .claude/skills/ — 9 skills: context, design-system, electron-main, svelte-patterns, testing, ship, pr-monitor, ci-monitor, prompt-craft
 - IPC: preload.js — 43 invoke + 6 push channels via contextBridge
