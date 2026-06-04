@@ -126,14 +126,6 @@
     await navigator.clipboard.writeText(String(agent.pid));
     addToast($t('agents.pid_copied'), 'success', 3000);
   }
-
-  /** Spotlight hover — track mouse position relative to card */
-  function handleMouseMove(e) {
-    if (!cardEl) return;
-    const rect = cardEl.getBoundingClientRect();
-    cardEl.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
-    cardEl.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
-  }
 </script>
 
 <div
@@ -148,7 +140,6 @@
   aria-expanded={expanded}
   onclick={toggle}
   onkeydown={handleKeydown}
-  onmousemove={handleMouseMove}
 >
   <div class="header-row">
     <span class="agent-name">{displayName}</span>
@@ -216,24 +207,6 @@
       box-shadow var(--fancy-transition-normal) var(--fancy-ease),
       border-color var(--fancy-transition-normal) var(--fancy-ease),
       background var(--fancy-transition-normal) var(--fancy-ease);
-  }
-
-  /* Spotlight hover pseudo-element */
-  .agent-card::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(
-      circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
-      rgba(255, 255, 255, 0.06),
-      transparent 40%
-    );
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity var(--fancy-transition-micro) var(--fancy-ease);
-  }
-  .agent-card:hover::before {
-    opacity: 1;
   }
 
   .agent-card:hover {

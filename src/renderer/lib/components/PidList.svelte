@@ -23,11 +23,27 @@
    */
   let instances = $derived(agent._instances?.length ? agent._instances : [agent]);
 
-  /** Compact per-PID intervention buttons — muted, revealed on row hover. */
+  /**
+   * Compact per-PID intervention buttons — muted, revealed on row hover.
+   * Icons are inlined Google Material Icons (Apache-2.0) path data so they
+   * render crisply and inherit `currentColor`, with no CDN or font dependency
+   * (the app CSP forbids both). `path` is the `d` of a 24×24 Material glyph:
+   * close / pause / play_arrow.
+   */
   const PID_ACTIONS = [
-    { method: 'killProcess', glyph: '✕', label: 'Kill', cls: 'kill' },
-    { method: 'suspendProcess', glyph: '⏸', label: 'Suspend', cls: 'suspend' },
-    { method: 'resumeProcess', glyph: '▶', label: 'Resume', cls: 'resume' },
+    {
+      method: 'killProcess',
+      label: 'Kill',
+      cls: 'kill',
+      path: 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
+    },
+    {
+      method: 'suspendProcess',
+      label: 'Suspend',
+      cls: 'suspend',
+      path: 'M6 19h4V5H6v14zm8-14v14h4V5h-4z',
+    },
+    { method: 'resumeProcess', label: 'Resume', cls: 'resume', path: 'M8 5v14l11-7z' },
   ];
 
   /**
@@ -58,8 +74,12 @@
             class="pid-act {act.cls}"
             title={act.label}
             aria-label="{act.label} PID {inst.pid}"
-            onclick={(e) => onPidAction(e, act.method, inst.pid)}>{act.glyph}</button
+            onclick={(e) => onPidAction(e, act.method, inst.pid)}
           >
+            <svg class="pid-act-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d={act.path} />
+            </svg>
+          </button>
         {/each}
       </div>
     </div>
@@ -103,7 +123,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    opacity: 0.7;
+    opacity: 0.85;
   }
   .pid-acts {
     display: flex;
@@ -120,16 +140,22 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: calc(20px * var(--aegis-ui-scale));
-    height: calc(20px * var(--aegis-ui-scale));
-    font-size: calc(10px * var(--aegis-ui-scale));
+    width: calc(24px * var(--aegis-ui-scale));
+    height: calc(24px * var(--aegis-ui-scale));
+    padding: 0;
     line-height: 1;
     border-radius: var(--md-sys-shape-corner-small);
     border: 1px solid currentColor;
     background: transparent;
     cursor: pointer;
-    opacity: 0.7;
+    opacity: 0.9;
     transition: all var(--fancy-transition-micro) var(--fancy-ease);
+  }
+  .pid-act-icon {
+    width: calc(15px * var(--aegis-ui-scale));
+    height: calc(15px * var(--aegis-ui-scale));
+    fill: currentColor;
+    display: block;
   }
   .pid-act:hover,
   .pid-act:focus-visible {
