@@ -97,6 +97,7 @@ function doNetworkScan() {
   const agents = getLatestAgents();
   if (network.isNetworkScanRunning() || agents.length === 0) return;
   network.setNetworkScanRunning(true);
+  const t0 = performance.now();
   network
     .scanNetworkConnections(agents)
     .then((connections) => {
@@ -118,6 +119,10 @@ function doNetworkScan() {
         });
       }
       sendToRenderer('network-update', connections);
+      logger.debug('scan', 'network', {
+        ms: Math.round(performance.now() - t0),
+        connections: connections.length,
+      });
     })
     .catch((err) => {
       logger.error('main', 'Network scan failed', { error: err.message });
@@ -164,6 +169,7 @@ async function doProcessScan() {
   if (processScanRunning) return;
   processScanRunning = true;
   updateScanStatus(true);
+  const t0 = performance.now();
   try {
     const result = await scanner.scanProcesses();
     setAgents(result.agents);
@@ -224,6 +230,10 @@ async function doProcessScan() {
       doNetworkScan();
     }
     await enrichWithLocalModels(agents);
+    logger.debug('scan', 'process', {
+      ms: Math.round(performance.now() - t0),
+      agents: agents.length,
+    });
   } catch (err) {
     logger.error('main', 'Process scan failed', { error: err.message });
   } finally {
@@ -267,6 +277,7 @@ async function doFileScan() {
   const { watcher, tray, logger, getStats, getLatestAgents } = deps;
   const agents = getLatestAgents();
   if (agents.length === 0) return;
+  const t0 = performance.now();
   updateScanStatus(true);
   try {
     const rawEvents = await watcher.scanAllFileHandles(agents);
@@ -282,6 +293,7 @@ async function doFileScan() {
     logger.error('main', 'File handle scan failed', { error: err.message });
   } finally {
     updateScanStatus(false);
+    logger.debug('scan', 'file', { ms: Math.round(performance.now() - t0) });
   }
 }
 

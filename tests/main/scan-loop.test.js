@@ -159,7 +159,7 @@ describe('scan-loop', () => {
         },
         audit: { log: vi.fn() },
         tray: { updateTrayIcon: vi.fn(), notifySensitive: vi.fn() },
-        logger: { error: vi.fn(), warn: vi.fn() },
+        logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
         sendToRenderer: vi.fn(),
         fileAccessBatcher: { push: vi.fn() },
         statsUpdateBatcher: { push: vi.fn() },
@@ -230,7 +230,7 @@ describe('scan-loop', () => {
           },
           audit: { log: vi.fn() },
           tray: { updateTrayIcon: vi.fn(), notifySensitive: vi.fn() },
-          logger: { error: vi.fn(), warn: vi.fn() },
+          logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
           sendToRenderer,
           fileAccessBatcher: { push: vi.fn() },
           statsUpdateBatcher: { push: vi.fn() },
@@ -302,7 +302,7 @@ describe('scan-loop', () => {
         },
         audit: { log: vi.fn() },
         tray: { updateTrayIcon: vi.fn(), notifySensitive: vi.fn() },
-        logger: { error: vi.fn(), warn: vi.fn() },
+        logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
         sendToRenderer: vi.fn(),
         fileAccessBatcher: { push: vi.fn() },
         statsUpdateBatcher: { push: vi.fn() },
@@ -322,6 +322,111 @@ describe('scan-loop', () => {
       // doProcessScan short-circuits the second tick → 1 call; the unguarded (buggy)
       // version runs both overlapping bodies → 2 calls.
       expect(scanProcesses).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ── timing instrumentation (logger.debug under module 'scan') ──
+
+  describe('timing instrumentation', () => {
+    /** @param {Object} [overrides] @returns {Object} fresh mock deps for a scan run */
+    function makeDeps(overrides = {}) {
+      return {
+        scanner: { scanProcesses: vi.fn().mockResolvedValue({ agents: [], changed: false }) },
+        procUtil: {
+          enrichWithParentChains: vi.fn().mockResolvedValue(),
+          annotateHostApps: vi.fn(),
+          annotateWorkingDirs: vi.fn().mockResolvedValue(),
+        },
+        watcher: {
+          pruneKnownHandles: vi.fn(),
+          scanAllFileHandles: vi.fn().mockResolvedValue([]),
+        },
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: vi.fn().mockResolvedValue([]),
+        },
+        baselines: { recordNetworkEndpoint: vi.fn() },
+        anomaly: {
+          checkDeviations: vi.fn().mockReturnValue([]),
+          calculateAnomalyScore: vi.fn().mockReturnValue({ score: 0 }),
+        },
+        audit: { log: vi.fn() },
+        tray: { updateTrayIcon: vi.fn(), notifySensitive: vi.fn() },
+        logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+        sendToRenderer: vi.fn(),
+        fileAccessBatcher: { push: vi.fn() },
+        statsUpdateBatcher: { push: vi.fn() },
+        getStats: vi.fn().mockReturnValue({}),
+        getResourceUsage: vi.fn().mockReturnValue({}),
+        getLatestAgents: vi.fn().mockReturnValue([]),
+        setAgents: vi.fn(),
+        setLatestNetConnections: vi.fn(),
+        ...overrides,
+      };
+    }
+
+    it('emits scan/process debug timing with the batched agent count', async () => {
+      const deps = makeDeps({
+        scanner: {
+          scanProcesses: vi
+            .fn()
+            .mockResolvedValue({ agents: [{ agent: 'Cursor' }], changed: false }),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+
+      const call = deps.logger.debug.mock.calls.find((c) => c[0] === 'scan' && c[1] === 'process');
+      expect(call).toBeTruthy();
+      // Fake timers can freeze performance.now → assert shape + bounds, not an exact value
+      expect(call[2]).toEqual({ ms: expect.any(Number), agents: expect.any(Number) });
+      expect(call[2].ms).toBeGreaterThanOrEqual(0);
+      // agents = the enriched batch count (process + injected external + local-model agents)
+      expect(call[2].agents).toBeGreaterThanOrEqual(1);
+    });
+
+    it('emits scan/network debug timing with the connection count', async () => {
+      const deps = makeDeps({
+        getLatestAgents: vi.fn().mockReturnValue([{ agent: 'Cursor' }]),
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: vi
+            .fn()
+            .mockResolvedValue([
+              {
+                agent: 'Cursor',
+                remoteIp: '1.2.3.4',
+                remotePort: 443,
+                state: 'ESTABLISHED',
+                flagged: false,
+              },
+            ]),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      await vi.advanceTimersByTimeAsync(0); // flush the scanNetworkConnections promise chain
+
+      const call = deps.logger.debug.mock.calls.find((c) => c[0] === 'scan' && c[1] === 'network');
+      expect(call).toBeTruthy();
+      expect(call[2]).toEqual({ ms: expect.any(Number), connections: 1 });
+      expect(call[2].ms).toBeGreaterThanOrEqual(0);
+    });
+
+    it('emits scan/file debug timing after a file-handle scan', async () => {
+      const deps = makeDeps({ getLatestAgents: vi.fn().mockReturnValue([{ agent: 'Cursor' }]) });
+      scanLoop.init(deps);
+      // staggeredStartup(_, paused=true): doProcessScan @3s, doFileScan @8s, no warmup
+      scanLoop.staggeredStartup(5000, true);
+      await vi.advanceTimersByTimeAsync(8000);
+
+      const call = deps.logger.debug.mock.calls.find((c) => c[0] === 'scan' && c[1] === 'file');
+      expect(call).toBeTruthy();
+      expect(call[2]).toEqual({ ms: expect.any(Number) });
+      expect(call[2].ms).toBeGreaterThanOrEqual(0);
     });
   });
 });
