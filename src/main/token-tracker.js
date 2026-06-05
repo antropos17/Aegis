@@ -18,9 +18,9 @@
  *     as tokens, so a char proxy would imply a data source we do not have).
  *
  *   The `estimated` flag reports whether the TOKEN COUNTS are measured vs
- *   guessed — the thing AEGIS actually observes. It does NOT claim the dollar
- *   figure is audited: the price table below is explicitly unverified
- *   (see `MODEL_PRICING` / `// TODO: verify pricing`).
+ *   guessed — the thing AEGIS actually observes. It does NOT certify the dollar
+ *   figure: even where `MODEL_PRICING` rates are verified, an unknown model id
+ *   still falls back to `DEFAULT_PRICING` and flips `estimated` true.
  *
  *   Attribution is per-PID (C-01): every count is stamped from the `pid`
  *   argument and stored under that pid only — concurrency or interleaved events
@@ -35,16 +35,26 @@
  * Published per-model pricing, in USD per 1,000,000 tokens, split into input
  * (prompt) and output (completion) rates.
  *
- * TODO: verify pricing — these are approximate published rates captured at
- * authoring time and are NOT auto-refreshed. Confirm against the provider's
- * current price sheet before presenting any dollar figure as authoritative.
+ * Claude rates verified 2026-06-05 (see the inline note on the Claude block).
+ * GPT/Gemini rates are still approximate authoring-time guesses (their inline
+ * `TODO: verify pricing`) and none of these auto-refresh — confirm against the
+ * provider's current price sheet before presenting any dollar figure as
+ * authoritative.
  * @type {Readonly<Record<string, { input: number, output: number }>>}
  */
 const MODEL_PRICING = Object.freeze({
-  // Anthropic — Claude (USD / 1M tokens). TODO: verify pricing.
+  // Anthropic — Claude (USD / 1M tokens). Verified 2026-06-05 against the
+  // bundled Anthropic `claude-api` skill (models.md + SKILL.md, cached
+  // 2026-05-26): Opus 4.6/4.7/4.8 = $5/$25, Sonnet 4.6 = $3/$15, Haiku 4.5 =
+  // $1/$5. These bare ids match what Claude Code writes to `message.model`
+  // (confirmed against live transcripts). Re-confirm on the next model launch.
+  'claude-opus-4-8': { input: 5.0, output: 25.0 },
+  'claude-opus-4-7': { input: 5.0, output: 25.0 },
+  'claude-opus-4-6': { input: 5.0, output: 25.0 },
+  'claude-sonnet-4-6': { input: 3.0, output: 15.0 },
   'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0 },
   'claude-sonnet-4-5': { input: 3.0, output: 15.0 },
-  'claude-opus-4-1': { input: 15.0, output: 75.0 },
+  'claude-opus-4-1': { input: 15.0, output: 75.0 }, // legacy Opus rate (pre price cut)
   // OpenAI — GPT (USD / 1M tokens). TODO: verify pricing.
   'gpt-4o': { input: 2.5, output: 10.0 },
   'gpt-4o-mini': { input: 0.15, output: 0.6 },

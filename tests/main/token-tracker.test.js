@@ -181,4 +181,52 @@ describe('token-tracker', () => {
       expect(getAllCosts()).toHaveLength(1);
     });
   });
+
+  // Regression (2026-06-05): the live token-feed records bare model ids verbatim
+  // (`claude-opus-4-8`, `claude-sonnet-4-6` — confirmed against real transcripts).
+  // Before this pricing fix those ids were absent from MODEL_PRICING, so they hit
+  // DEFAULT_PRICING and flipped `estimated:true` — the footer showed `~$`. Dollar
+  // amounts are hard-coded (NOT read from MODEL_PRICING) so the assertion locks
+  // the actual money: it fails red if a rate drifts or an entry is dropped.
+  describe('current model pricing (regression)', () => {
+    it('prices claude-opus-4-8 at $5 in / $25 out — measured, not estimated', () => {
+      const { costUsd, knownModel } = computeCost('claude-opus-4-8', 1_000_000, 1_000_000);
+      expect(costUsd).toBeCloseTo(30.0, 10); // 5 input + 25 output
+      expect(knownModel).toBe(true);
+
+      const rec = trackTokens(4242, {
+        model: 'claude-opus-4-8',
+        inputTokens: 1_000_000,
+        outputTokens: 1_000_000,
+      });
+      expect(rec.costUsd).toBeCloseTo(30.0, 10);
+      expect(rec.estimated).toBe(false);
+    });
+
+    it('prices claude-sonnet-4-6 at $3 in / $15 out — measured, not estimated', () => {
+      const { costUsd, knownModel } = computeCost('claude-sonnet-4-6', 1_000_000, 1_000_000);
+      expect(costUsd).toBeCloseTo(18.0, 10); // 3 input + 15 output
+      expect(knownModel).toBe(true);
+
+      const rec = trackTokens(4343, {
+        model: 'claude-sonnet-4-6',
+        inputTokens: 1_000_000,
+        outputTokens: 1_000_000,
+      });
+      expect(rec.estimated).toBe(false);
+    });
+
+    it('keeps DEFAULT + sticky-estimated for a genuinely unknown model', () => {
+      const { costUsd, knownModel } = computeCost('foo-1', 1_000_000, 0);
+      expect(knownModel).toBe(false);
+      expect(costUsd).toBeCloseTo(DEFAULT_PRICING.input, 10); // 1M input only → $3
+
+      const rec = trackTokens(4444, {
+        model: 'foo-1',
+        inputTokens: 1_000_000,
+        outputTokens: 0,
+      });
+      expect(rec.estimated).toBe(true);
+    });
+  });
 });
