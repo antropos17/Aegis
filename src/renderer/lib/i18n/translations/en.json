@@ -164,9 +164,9 @@
     "protection": {
       "title": "Protection Level",
       "paranoid": "Paranoid",
-      "paranoid_desc": "Block all agent file access",
+      "paranoid_desc": "Alert only — enforcement planned",
       "strict": "Strict",
-      "strict_desc": "Monitor sensitive, block credentials",
+      "strict_desc": "Monitor sensitive — alert only",
       "balanced": "Balanced",
       "balanced_desc": "Monitor all, allow safe operations",
       "developer": "Developer",
@@ -182,7 +182,7 @@
       "states": {
         "allow": "allow",
         "monitor": "monitor",
-        "block": "block"
+        "block": "alert"
       },
       "categories": {
         "file_access": "File Access",
