@@ -115,11 +115,28 @@ describe('platform/restart-manager', () => {
         expect(Array.isArray(g.files)).toBe(true);
       }
     });
+
+    // Hot-scoping: when given a subset + includeEnv=false, the params must be
+    // honored — no .aws/.gnupg groups, no ~/.env* single-file groups. Fails if
+    // the function ignored its args and used the hardcoded full set. (On a host
+    // with no ~/.ssh the list is empty and the loop is vacuously clean.)
+    it('honors dirNames subset and includeEnv=false (hot scoping)', () => {
+      const path = require('path');
+      const groups = rm.buildSensitiveGroups(['.ssh'], false);
+      expect(Array.isArray(groups)).toBe(true);
+      for (const g of groups) {
+        const lower = g.group.toLowerCase();
+        expect(lower).not.toContain(`${path.sep}.aws`);
+        expect(lower).not.toContain(`${path.sep}.gnupg`);
+        expect(/^\.env(\.|$)/i.test(path.basename(g.group))).toBe(false);
+      }
+    });
   });
 
   describe('exports', () => {
     it('exports the RM contract', () => {
       expect(typeof rm.getSensitiveHolders).toBe('function');
+      expect(typeof rm.getHotSensitiveHolders).toBe('function');
       expect(typeof rm.probeRestartManager).toBe('function');
       expect(typeof rm.isRestartManagerAvailable).toBe('function');
       expect(typeof rm.buildSensitiveGroups).toBe('function');

@@ -16,6 +16,14 @@ const blocklist = require('./blocklist');
 let scanInterval = null;
 let fileScanInterval = null;
 let netInterval = null;
+let hotReadInterval = null;
+/**
+ * Fast hot read-detect cadence (win32 RM only): ~10s, vs the 30s full file scan.
+ * Shrinks the read-blind window on the crown-jewel secret dirs (HOT_DIRS). 10s is
+ * the safe `-TypeDefinition` cadence (no precompiled-DLL spawn optimization).
+ * @type {number}
+ */
+const HOT_READ_INTERVAL_MS = 10000;
 /** @type {Object} Injected dependencies */
 let deps = {};
 /** @type {{ollama: {running: boolean, models: string[]}, lmstudio: {running: boolean, models: string[]}}} */
@@ -92,6 +100,10 @@ function stopScanIntervals() {
   if (netInterval) {
     clearInterval(netInterval);
     netInterval = null;
+  }
+  if (hotReadInterval) {
+    clearInterval(hotReadInterval);
+    hotReadInterval = null;
   }
 }
 
@@ -319,12 +331,50 @@ async function doFileScan() {
   }
 }
 
+/**
+ * Fast hot read-detect cycle (win32 RM only, ~10s): a faster RM poll over the
+ * crown-jewel secret dirs (HOT_DIRS + ~/.env*) that shrinks the 30s read-blind
+ * window. Events ride the SAME dedup→batch→audit→tray pipeline as doFileScan and
+ * share knownHandles, so a hold caught here will not re-fire from the 30s scan.
+ * Deliberately does NOT toggle updateScanStatus — a 10s background poll must not
+ * flicker the global "scanning" indicator (process/file scans drive that). RM
+ * catches a HOLD at the tick, never a transient open→read→close.
+ * @since v0.11.0-alpha
+ */
+async function doHotReadScan() {
+  const { watcher, tray, logger, getStats, getLatestAgents } = deps;
+  const agents = getLatestAgents();
+  if (agents.length === 0) return;
+  const t0 = performance.now();
+  try {
+    const rawEvents = await watcher.scanHotFileHolders(agents);
+    const events = rawEvents.map(dedupFileEvent).filter(Boolean);
+    if (events.length > 0) {
+      for (const ev of events) deps.fileAccessBatcher.push(ev);
+      tray.notifySensitive(events.filter((e) => e.sensitive && e.category === 'ai'));
+      for (const ev of events) logAuditForFile(ev);
+      deps.statsUpdateBatcher.push(getStats());
+      tray.updateTrayIcon();
+    }
+  } catch (err) {
+    logger.error('main', 'Hot read scan failed', { error: err.message });
+  } finally {
+    logger.debug('scan', 'hot-read', { ms: Math.round(performance.now() - t0) });
+  }
+}
+
 /** @param {number} intervalMs @since v0.3.0 */
 function startScanIntervals(intervalMs) {
   const ms = intervalMs || 10000;
   scanInterval = setInterval(doProcessScan, ms);
   netInterval = setInterval(doNetworkScan, 30000);
   fileScanInterval = setInterval(doFileScan, Math.max(ms * 3, 30000));
+  // Hot read-detect cycle: win32 + RM only. Not created on darwin/linux (no RM)
+  // so we never run a pointless no-op timer. Started here (post-warmup) only —
+  // never during startWarmup — to keep the heavy boot window quiet.
+  if (deps.watcher && deps.watcher.isHotReadScanActive && deps.watcher.isHotReadScanActive()) {
+    hotReadInterval = setInterval(doHotReadScan, HOT_READ_INTERVAL_MS);
+  }
 }
 
 let warmupTimer = null;
