@@ -28,6 +28,13 @@ interface ProcessActionResult {
   readonly error?: string;
 }
 
+/** Result of an alert-only watchlist add from the main process */
+interface WatchlistAddResult {
+  readonly success: boolean;
+  readonly entry?: unknown;
+  readonly error?: string;
+}
+
 /** Minimal type for the window.aegis IPC bridge exposed by preload.js */
 interface AegisIpcBridge {
   onScanBatch(cb: (data: ScanBatchData) => void): void;
@@ -41,6 +48,11 @@ interface AegisIpcBridge {
   killProcess(pid: number): Promise<ProcessActionResult>;
   suspendProcess(pid: number): Promise<ProcessActionResult>;
   resumeProcess(pid: number): Promise<ProcessActionResult>;
+  blocklistAdd(entry: {
+    signature: string;
+    pid?: number | null;
+    reason?: string;
+  }): Promise<WatchlistAddResult>;
 }
 
 declare global {
