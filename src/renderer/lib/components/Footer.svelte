@@ -1,10 +1,14 @@
 <script>
-  import { resourceUsage, stats } from '../stores/ipc.js';
+  import { resourceUsage, stats, tokenCosts } from '../stores/ipc.js';
   import { t } from '../i18n/index.js';
   import FooterMiniCharts from './FooterMiniCharts.svelte';
   import { tick, startTick } from '../stores/tick.ts';
 
   let permDenied = $derived($stats.permissionDeniedScans || 0);
+
+  let totalTokens = $derived($tokenCosts.reduce((sum, r) => sum + (r.totalTokens || 0), 0));
+  let totalCost = $derived($tokenCosts.reduce((sum, r) => sum + (r.costUsd || 0), 0));
+  let anyEstimated = $derived($tokenCosts.some((r) => r.estimated));
 
   let heapMB = $state('--');
   let scanInterval = $state('--');
@@ -63,6 +67,15 @@
       <span class="footer-label">{$t('footer.up')}</span>
       <span class="footer-value">{formatUptime(uptimeMs)}</span>
     </div>
+
+    {#if totalTokens > 0}
+      <div class="footer-item">
+        <span class="footer-label">{$t('footer.tokens')}</span>
+        <span class="footer-value"
+          >{totalTokens.toLocaleString()} {anyEstimated ? '~$' : '$'}{totalCost.toFixed(4)}</span
+        >
+      </div>
+    {/if}
 
     {#if permDenied > 5}
       <div

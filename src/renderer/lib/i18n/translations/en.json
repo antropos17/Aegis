@@ -13,7 +13,8 @@
     "heap": "HEAP",
     "scan": "SCAN",
     "up": "UP",
-    "perm_warn": "PERM"
+    "perm_warn": "PERM",
+    "tokens": "TOK"
   },
   "tabs": {
     "shield": "Shield",
