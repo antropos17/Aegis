@@ -59,16 +59,26 @@ let _getFileHandles = _platform.getFileHandles;
 // win32 exposes these (Restart Manager); darwin/linux do not → undefined, so the
 // RM branch is skipped and the legacy getFileHandles pool path runs unchanged.
 let _getSensitiveHolders = _platform.getSensitiveHolders;
+// Fast hot-cycle holder source (HOT_DIRS only); win32 only, undefined elsewhere.
+let _getHotSensitiveHolders = _platform.getHotSensitiveHolders;
 const _isRmAvailable = _platform.isRestartManagerAvailable;
+// Cost guard: ensure only ONE RM powershell spawn is in flight at a time across
+// the full (30s) and hot (~10s) cycles. NOT a correctness guard — the shared
+// knownHandles dedup already prevents double-emit (JS is single-threaded); this
+// only avoids a redundant concurrent spawn when both ticks coincide.
+let _rmScanInFlight = false;
 /** @internal Override dependencies (for tests). */
 function _setDepsForTest(overrides) {
   if (overrides.getFileHandles) _getFileHandles = overrides.getFileHandles;
   if (overrides.getSensitiveHolders) _getSensitiveHolders = overrides.getSensitiveHolders;
+  if (overrides.getHotSensitiveHolders) _getHotSensitiveHolders = overrides.getHotSensitiveHolders;
 }
 /** @internal Reset debounce state + opt out of the RM path (for tests). */
 function _resetForTest() {
   watcherDebounce.clear();
   _getSensitiveHolders = undefined; // tests opt into RM explicitly via _setDepsForTest
+  _getHotSensitiveHolders = undefined;
+  _rmScanInFlight = false;
 }
 
 const watcherDebounce = new Map();
@@ -370,14 +380,39 @@ function rmEnabled() {
  * `action:'holding'` event — a point-in-time handle HOLD at the scan tick, NOT a
  * read/access. Dedups per-PID by group via knownHandles so a sustained hold fires
  * once, not once-per-scan.
+ *
+ * Used by BOTH the full (30s) and the hot (~10s) cycles via `fetchHolders`; both
+ * share `_state.knownHandles`, so a hold caught by one cycle is deduped against
+ * the other (cross-cycle dedup). A single-flight guard keeps the two cycles from
+ * spawning two powershells at once (cost only — the shared dedup already prevents
+ * any double-emit since JS is single-threaded).
  * @param {Array} agents
+ * @param {Function} [fetchHolders] - Holder source (full or hot); defaults to full.
  * @returns {Promise<Array>}
  * @since v0.10.0
  */
-async function scanViaRestartManager(agents) {
+async function scanViaRestartManager(agents, fetchHolders = _getSensitiveHolders) {
+  if (_rmScanInFlight) return []; // a full/hot RM scan is already running — skip
+  _rmScanInFlight = true;
+  try {
+    return await _scanRmHolders(agents, fetchHolders);
+  } finally {
+    _rmScanInFlight = false;
+  }
+}
+
+/**
+ * Core RM holder→agent mapping + holding-event emission (C-01: agent resolved from
+ * the holder PID, never cross-wired). Split out so scanViaRestartManager can wrap
+ * it with the single-flight guard.
+ * @param {Array} agents
+ * @param {Function} fetchHolders - Holder source (full or hot).
+ * @returns {Promise<Array>}
+ */
+async function _scanRmHolders(agents, fetchHolders) {
   let holders;
   try {
-    holders = await _getSensitiveHolders();
+    holders = await fetchHolders();
   } catch (_) {
     return [];
   }
@@ -434,6 +469,34 @@ async function scanViaRestartManager(agents) {
     _state.recordFileAccess(agent.agent, group, event.sensitive, event.reason);
   }
   return newAccess;
+}
+
+/**
+ * Whether the fast hot read-detect cycle is usable: the platform exposes
+ * getHotSensitiveHolders (win32 only) AND, if it reports availability, RM is up.
+ * scan-loop checks this to avoid creating the hot timer on darwin/linux (no RM).
+ * @returns {boolean}
+ */
+function isHotReadScanActive() {
+  if (typeof _getHotSensitiveHolders !== 'function') return false;
+  if (typeof _isRmAvailable === 'function' && !_isRmAvailable()) return false;
+  return true;
+}
+
+/**
+ * Fast hot read-detect scan (win32 only): the same RM holder→agent path as the
+ * full scan but sourced from getHotSensitiveHolders (HOT_DIRS + ~/.env* only),
+ * driven at ~10s to shrink the 30s read-blind window on the crown-jewel secret
+ * dirs. Shares _state.knownHandles with the full scan → cross-cycle dedup (a hold
+ * caught here will NOT re-fire from the 30s scan, and vice versa). Emits
+ * `action:'holding'` — a HOLD at the tick, NEVER a transient open→read→close.
+ * @param {Array} agents
+ * @returns {Promise<Array>}
+ * @since v0.11.0-alpha
+ */
+async function scanHotFileHolders(agents) {
+  if (!isHotReadScanActive()) return [];
+  return scanViaRestartManager(agents, _getHotSensitiveHolders);
 }
 
 /**
@@ -513,6 +576,8 @@ module.exports = {
   setupFileWatchers,
   setupRulesWatcher,
   scanAllFileHandles,
+  scanHotFileHolders,
+  isHotReadScanActive,
   pruneKnownHandles,
   classifySensitive,
   shouldIgnore,

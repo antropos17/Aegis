@@ -576,3 +576,73 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
     expect(second).toHaveLength(0); // sustained hold → one event, not one-per-scan
   });
 });
+
+// Hot read-detect cycle (~10s) — the fast RM poll over HOT_DIRS. Its whole point
+// is shared dedup: a hold caught by EITHER the hot cycle or the full (30s) scan
+// must fire ONCE, because both cycles write the same key into the shared
+// knownHandles. These RED before scanHotFileHolders exists, and stay RED for the
+// wrong implementation (a hot cycle that keeps its OWN dedup state → 2 events).
+describe('file-watcher hot read-detect cycle (cross-cycle dedup)', () => {
+  let state;
+  let mockFull;
+  let mockHot;
+  const HOLDER = [{ pid: 105, group: '/home/user/.ssh', reason: 'SSH keys/config' }];
+  const AGENTS = [{ pid: 105, agent: 'Agent5', category: 'ai' }];
+
+  beforeEach(() => {
+    mockFull = vi.fn().mockResolvedValue(HOLDER);
+    mockHot = vi.fn().mockResolvedValue(HOLDER);
+    state = makeState();
+    fileWatcher.init(state);
+    fileWatcher._resetForTest();
+    fileWatcher._setDepsForTest({
+      getSensitiveHolders: mockFull,
+      getHotSensitiveHolders: mockHot,
+    });
+  });
+
+  // Core proof + C-01: the hot scan resolves the holder PID to its OWNING agent
+  // and emits a `holding` (never read/accessed) event.
+  it('hot scan emits a holding event attributed by PID (C-01)', async () => {
+    const events = await fileWatcher.scanHotFileHolders(AGENTS);
+    expect(events).toHaveLength(1);
+    expect(events[0].agent).toBe('Agent5');
+    expect(events[0].pid).toBe(105);
+    expect(events[0].action).toBe('holding');
+    expect(events[0].file).toBe('/home/user/.ssh');
+  });
+
+  // Hot then full: full must see the shared dedup key and emit nothing.
+  it('hot scan then full scan of the same holder → ONE event total', async () => {
+    const hot = await fileWatcher.scanHotFileHolders(AGENTS);
+    const full = await fileWatcher.scanAllFileHandles(AGENTS);
+    expect(hot).toHaveLength(1);
+    expect(full).toHaveLength(0);
+  });
+
+  // Reverse order (full first, e.g. agent already held at process start): the hot
+  // cycle must then dedup against the full scan.
+  it('full scan then hot scan of the same holder → ONE event total (reverse order)', async () => {
+    const full = await fileWatcher.scanAllFileHandles(AGENTS);
+    const hot = await fileWatcher.scanHotFileHolders(AGENTS);
+    expect(full).toHaveLength(1);
+    expect(hot).toHaveLength(0);
+  });
+
+  // A sustained hold sampled repeatedly by the FAST cycle still fires once.
+  it('repeated hot scans of a sustained hold → one event, not one-per-tick', async () => {
+    const first = await fileWatcher.scanHotFileHolders(AGENTS);
+    const second = await fileWatcher.scanHotFileHolders(AGENTS);
+    expect(first).toHaveLength(1);
+    expect(second).toHaveLength(0);
+  });
+
+  // Capability gate: with no hot holder source wired (darwin/linux), the hot scan
+  // is a cheap no-op — never throws, returns [].
+  it('returns [] when no hot holder source is available (darwin/linux)', async () => {
+    fileWatcher._resetForTest(); // clears the injected hot dep
+    const events = await fileWatcher.scanHotFileHolders(AGENTS);
+    expect(events).toEqual([]);
+    expect(fileWatcher.isHotReadScanActive()).toBe(false);
+  });
+});

@@ -419,6 +419,7 @@ module.exports = {
   getRawTcpConnections,
   getFileHandles,
   getSensitiveHolders: restartManager.getSensitiveHolders,
+  getHotSensitiveHolders: restartManager.getHotSensitiveHolders,
   isRestartManagerAvailable: restartManager.isRestartManagerAvailable,
   probeReadDetection,
   isReadDetectionAvailable,
