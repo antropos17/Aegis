@@ -62,14 +62,18 @@ function listProcesses() {
 
 /**
  * Build a map of all processes with their parent PIDs via PowerShell Get-CimInstance.
- * @returns {Promise<Map<number, {name: string, ppid: number}>>}
+ * `startTime` is the OS process creation time (epoch-ms). Get-CimInstance returns
+ * CreationDate as a System.DateTime (Kind=Local), NOT a DMTF string (that is the
+ * legacy Get-WmiObject shape) — so the [DateTimeOffset] cast is a direct, correct
+ * UTC-epoch conversion. Null when the OS withholds CreationDate (rare/access).
+ * @returns {Promise<Map<number, {name: string, ppid: number, startTime: number|null}>>}
  */
 function getParentProcessMap() {
   return new Promise((resolve) => {
     const psScript = [
       '$ErrorActionPreference="SilentlyContinue"',
       '$r=@{}',
-      'Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,Name|ForEach-Object{$r[[string]$_.ProcessId]=@{n=$_.Name;p=[int]$_.ParentProcessId}}',
+      'Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,Name,CreationDate|ForEach-Object{$r[[string]$_.ProcessId]=@{n=$_.Name;p=[int]$_.ParentProcessId;t=$(if($_.CreationDate){([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds()}else{$null})}}',
       '$r|ConvertTo-Json -Compress',
     ].join('\n');
     execFile(
@@ -84,7 +88,11 @@ function getParentProcessMap() {
             for (const [pidStr, info] of Object.entries(parsed)) {
               const pid = parseInt(pidStr, 10);
               if (!isNaN(pid)) {
-                map.set(pid, { name: info.n, ppid: info.p });
+                map.set(pid, {
+                  name: info.n,
+                  ppid: info.p,
+                  startTime: typeof info.t === 'number' ? info.t : null,
+                });
               }
             }
           } catch (_) {}

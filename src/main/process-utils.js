@@ -90,7 +90,16 @@ async function getParentChains(pids) {
       }
       cur = pp;
     }
-    parentChainCache.set(pid, { chain, timestamp: now });
+    // Capture the OS process birth time (epoch-ms) for the agent's OWN pid from
+    // the same map fetch — zero extra spawn. Only win32 supplies it; darwin/linux
+    // map entries omit startTime, so the typeof guard yields null (honest).
+    // KNOWN BOUND: the 60s cache TTL means a pid REUSED within 60s serves the
+    // prior process's startTime. Mostly fail-safe (stale time won't match a new
+    // session's startedAt → the token-feed guard rejects it) and strictly better
+    // than no startTime (on which the Windows guard never passes).
+    const ownInfo = procMap.get(pid);
+    const startTime = ownInfo && typeof ownInfo.startTime === 'number' ? ownInfo.startTime : null;
+    parentChainCache.set(pid, { chain, startTime, timestamp: now });
     result.set(pid, chain);
   }
 
@@ -98,7 +107,11 @@ async function getParentChains(pids) {
 }
 
 /**
- * Attach parent-chain arrays to each agent object.
+ * Attach parent-chain arrays AND the OS process start-time to each agent object.
+ * `startTime` (epoch-ms, OS birth time) is distinct from `firstSeen`
+ * (AEGIS-observed) and is read from the same cache `getParentChains` populates —
+ * after the call every requested pid has an entry, so the read is safe. Used by
+ * the token-feed PID-reuse guard; null on non-Windows or absent pid.
  * @param {Array} agents
  * @returns {Promise<void>}
  * @since v0.1.0
@@ -109,6 +122,8 @@ async function enrichWithParentChains(agents) {
   const chains = await getParentChains(pids);
   for (const a of agents) {
     a.parentChain = chains.get(a.pid) || [];
+    const entry = parentChainCache.get(a.pid);
+    a.startTime = entry && typeof entry.startTime === 'number' ? entry.startTime : null;
   }
 }
 

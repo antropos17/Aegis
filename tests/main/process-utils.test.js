@@ -106,6 +106,42 @@ describe('process-utils', () => {
     });
   });
 
+  describe('enrichWithParentChains() — OS startTime', () => {
+    it('surfaces OS startTime (epoch-ms) from the win32 map onto the agent', async () => {
+      mockGetParentProcessMap.mockResolvedValue(
+        new Map([
+          [100, { name: 'claude', ppid: 200, startTime: 1717000000000 }],
+          [200, { name: 'code', ppid: 0, startTime: 1716999990000 }],
+        ]),
+      );
+
+      const agents = [{ pid: 100, agent: 'Claude' }];
+      await processUtils.enrichWithParentChains(agents);
+      expect(agents[0].startTime).toBe(1717000000000);
+    });
+
+    it('sets startTime null when the map entry has no startTime (darwin/linux shape)', async () => {
+      mockGetParentProcessMap.mockResolvedValue(
+        new Map([
+          [100, { name: 'claude', ppid: 200 }],
+          [200, { name: 'bash', ppid: 0 }],
+        ]),
+      );
+
+      const agents = [{ pid: 100, agent: 'Claude' }];
+      await processUtils.enrichWithParentChains(agents);
+      expect(agents[0].startTime).toBeNull();
+    });
+
+    it('sets startTime null for a synthetic PID absent from the map', async () => {
+      mockGetParentProcessMap.mockResolvedValue(new Map([[100, { name: 'a', ppid: 0 }]]));
+
+      const agents = [{ pid: 0, agent: 'Ollama' }];
+      await processUtils.enrichWithParentChains(agents);
+      expect(agents[0].startTime).toBeNull();
+    });
+  });
+
   describe('annotateHostApps()', () => {
     it('sets parentEditor/displayLabel for known editors', () => {
       const agents = [{ agent: 'Claude', parentChain: ['code'] }];

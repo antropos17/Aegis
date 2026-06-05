@@ -106,7 +106,7 @@ describe('platform/win32', () => {
   });
 
   describe('getParentProcessMap', () => {
-    it('parses PowerShell JSON output into Map', async () => {
+    it('parses PowerShell JSON output into Map (no CreationDate → startTime null)', async () => {
       const psOutput = JSON.stringify({
         100: { n: 'node.exe', p: 50 },
         200: { n: 'claude.exe', p: 100 },
@@ -117,8 +117,23 @@ describe('platform/win32', () => {
 
       const map = await win32.getParentProcessMap();
       expect(map).toBeInstanceOf(Map);
-      expect(map.get(100)).toEqual({ name: 'node.exe', ppid: 50 });
-      expect(map.get(200)).toEqual({ name: 'claude.exe', ppid: 100 });
+      expect(map.get(100)).toEqual({ name: 'node.exe', ppid: 50, startTime: null });
+      expect(map.get(200)).toEqual({ name: 'claude.exe', ppid: 100, startTime: null });
+    });
+
+    it('maps the CreationDate epoch (t) field onto startTime when present', async () => {
+      const psOutput = JSON.stringify({
+        100: { n: 'claude.exe', p: 50, t: 1717000000000 },
+        200: { n: 'node.exe', p: 100 },
+      });
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        cb(null, psOutput);
+      });
+
+      const map = await win32.getParentProcessMap();
+      expect(map.get(100).startTime).toBe(1717000000000);
+      // A row without the t field stays honest-null, never fabricates a time.
+      expect(map.get(200).startTime).toBeNull();
     });
 
     it('returns empty Map on error', async () => {
