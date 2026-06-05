@@ -5,7 +5,7 @@
    *   trust badge, spotlight hover, and expandable details. [F2.3]
    * @since v0.5.0
    */
-  import { focusedAgentPid } from '../stores/ipc.js';
+  import { focusedAgentPid, tokenCosts } from '../stores/ipc.js';
   import { eventsByPid } from '../stores/events-index.ts';
   import AgentCardDetails from './AgentCardDetails.svelte';
   import AgentActions from './AgentActions.svelte';
@@ -76,6 +76,9 @@
   });
 
   let agentEvents = $derived($eventsByPid.get(agent.pid) || []);
+
+  /** Token + cost record for this agent's PID, from the `token-costs` push. */
+  let tokenRec = $derived($tokenCosts.find((r) => r.pid === agent.pid));
 
   let lastFile = $derived.by(() => {
     const ev = agentEvents.find((e) => e.file);
@@ -175,6 +178,16 @@
       <span class="stat-chip">
         <span class="stat-label">{$t('agents.stat_net')}</span>
         <span class="stat-value">{agent.networkCount}</span>
+      </span>
+    {/if}
+    {#if tokenRec && tokenRec.totalTokens > 0}
+      <span class="stat-chip">
+        <span class="stat-label">{$t('agents.tokens')}</span>
+        <span class="stat-value"
+          >{tokenRec.totalTokens.toLocaleString()}{tokenRec.estimated
+            ? ' ~$'
+            : ' $'}{tokenRec.costUsd.toFixed(4)}</span
+        >
       </span>
     {/if}
   </div>

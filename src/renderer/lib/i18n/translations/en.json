@@ -120,7 +120,8 @@
     "copy_pid": "Click to copy PID",
     "stat_proc": "Proc",
     "stat_files": "Files",
-    "stat_net": "Net"
+    "stat_net": "Net",
+    "tokens": "TOK"
   },
   "timeline": {
     "title": "Event Timeline",
