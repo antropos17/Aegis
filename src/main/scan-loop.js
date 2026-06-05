@@ -11,6 +11,7 @@ const ideExtensionDetector = require('./ide-extension-detector');
 const wslDetector = require('./wsl-detector');
 const resourceMonitor = require('./resource-monitor');
 const tokenTracker = require('./token-tracker');
+const { collectTokenCosts } = require('./token-cost-collector');
 const blocklist = require('./blocklist');
 
 let scanInterval = null;
@@ -246,8 +247,12 @@ async function doProcessScan() {
       anomalyScores: scores,
     });
 
-    // Token costs ride a separate channel. With no usage feed wired this is an
-    // empty array (honest zero) — the tracker never fabricates counts.
+    // Token costs ride a separate channel. Pull any new measured per-PID token
+    // deltas from the feed and fold them into the tracker, then emit the full
+    // accumulated set. Runs inside this C-02-guarded scan (released only in the
+    // finally below) and never throws. A tick with no self-logging agent yields
+    // an honest empty array — the tracker never fabricates counts.
+    await collectTokenCosts(agents);
     sendToRenderer('token-costs', tokenTracker.getAllCosts());
 
     // Per-PID CPU/RAM/GPU is fetched fire-and-forget AFTER the batch so its

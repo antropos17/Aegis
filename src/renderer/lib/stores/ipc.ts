@@ -35,6 +35,21 @@ interface WatchlistAddResult {
   readonly error?: string;
 }
 
+/**
+ * Per-PID token + cost record pushed on the `token-costs` channel. Mirrors the
+ * main process `CostRecord` (token-tracker.js). `estimated` reports whether the
+ * TOKEN COUNTS are measured vs guessed — not whether the dollar figure is audited.
+ */
+interface TokenCostRecord {
+  readonly pid: number;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly totalTokens: number;
+  readonly costUsd: number;
+  readonly estimated: boolean;
+  readonly models: string[];
+}
+
 /** Minimal type for the window.aegis IPC bridge exposed by preload.js */
 interface AegisIpcBridge {
   onScanBatch(cb: (data: ScanBatchData) => void): void;
@@ -42,6 +57,7 @@ interface AegisIpcBridge {
   onStatsUpdate(cb: (data: Record<string, unknown>) => void): void;
   onNetworkUpdate(cb: (data: NetworkConnection[]) => void): void;
   onScanStatus(cb: (data: ScanStatusData) => void): void;
+  onTokenCosts(cb: (data: TokenCostRecord[]) => void): void;
   getStats(): Promise<Record<string, unknown>>;
   getResourceUsage(): Promise<Record<string, unknown>>;
   getFalsePositives(): Promise<FalsePositiveEntry[]>;
@@ -69,6 +85,9 @@ export const anomalies: Writable<Record<string, number>> = writable({});
 export const resourceUsage: Writable<Record<string, unknown>> = writable({});
 export const falsePositives: Writable<FalsePositiveEntry[]> = writable([]);
 export const scanActive: Writable<boolean> = writable(false);
+
+/** Per-PID token + cost records, refreshed each scan via the `token-costs` push. */
+export const tokenCosts: Writable<TokenCostRecord[]> = writable([]);
 
 /**
  * True once the first scan batch has arrived from the main process. Monotonic
@@ -117,6 +136,7 @@ if (!isDemoMode) {
     network.set(arr.length > 500 ? arr.slice(-500) : arr);
   });
   window.aegis!.onScanStatus((data) => scanActive.set(data?.scanning ?? false));
+  window.aegis!.onTokenCosts((data) => tokenCosts.set(Array.isArray(data) ? data : []));
 
   // Fetch initial data
   window.aegis!.getStats().then((data) => stats.set(data));
