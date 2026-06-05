@@ -8,6 +8,7 @@
   import { focusedAgentPid } from '../stores/ipc.js';
   import { eventsByPid } from '../stores/events-index.ts';
   import AgentCardDetails from './AgentCardDetails.svelte';
+  import AgentActions from './AgentActions.svelte';
   import Sparkline from './Sparkline.svelte';
   import TrustBadge from './TrustBadge.svelte';
   import { getRiskInfo } from '../utils/trust-badge-utils';
@@ -179,6 +180,8 @@
   </div>
 
   {#if lastFile}<div class="activity-hint">{$t('agents.last_file', { file: lastFile })}</div>{/if}
+
+  <AgentActions {agent} onViewDetails={() => (expandedPid = agent.pid)} />
 
   <div class="expand-body">
     <div class="expand-inner">
