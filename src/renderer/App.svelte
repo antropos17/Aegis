@@ -12,8 +12,11 @@
   import { theme, uiScale, toggleTheme, setTheme } from './lib/stores/theme.js';
   import Toast from './lib/components/Toast.svelte';
   import CommandPalette from './lib/components/CommandPalette.svelte';
+  import ConfirmDialog from './lib/components/ConfirmDialog.svelte';
   import { commandPalette } from './lib/stores/command-palette.svelte.ts';
   import { addToast } from './lib/stores/toast.js';
+  import { pendingStop, requestStop, clearStop } from './lib/stores/process-action.js';
+  import { t } from './lib/i18n/index.js';
   import { agents, anomalies, isDemoMode, selectedAgentPid } from './lib/stores/ipc.js';
   import { get } from 'svelte/store';
   import DemoBanner from './lib/components/DemoBanner.svelte';
@@ -140,12 +143,14 @@
   });
 
   /**
-   * Run a kill/suspend intervention on the currently selected (expanded) agent
-   * via the existing IPC bridge. Reads the selection non-reactively so the
-   * dispatch effect is not re-triggered when the selection changes.
-   * @param {'killProcess'|'suspendProcess'} method
-   * @param {string} doneLabel  Success toast label, e.g. "Killed agent"
-   * @param {string} failLabel  Failure toast label, e.g. "Failed to kill agent"
+   * Run a reversible process action (suspend) on the currently selected
+   * (expanded) agent via the existing IPC bridge. Reads the selection
+   * non-reactively so the dispatch effect is not re-triggered when the
+   * selection changes. Destructive stop (kill) goes through `requestStopSelected`
+   * → confirmation dialog instead.
+   * @param {'suspendProcess'} method
+   * @param {string} doneLabel  Success toast label, e.g. "Suspended agent"
+   * @param {string} failLabel  Failure toast label, e.g. "Failed to suspend agent"
    */
   async function runSelectedAgentAction(method, doneLabel, failLabel) {
     const pid = get(selectedAgentPid);
@@ -159,6 +164,38 @@
       addToast(`${doneLabel} (PID ${pid})`, 'success');
     } else {
       addToast(`${failLabel}: ${result?.error ?? 'unknown error'}`, 'error');
+    }
+  }
+
+  /**
+   * Open the stop-process confirmation for the currently selected agent
+   * (command-palette `agent:kill` entry point). Resolves the display name from
+   * the risk-enriched agents so the dialog reads honestly.
+   */
+  function requestStopSelected() {
+    const pid = get(selectedAgentPid);
+    if (pid == null) {
+      addToast('No agent selected — open an agent card first', 'warning');
+      return;
+    }
+    const match = get(enrichedAgents).find((a) => a.pid === pid);
+    requestStop(pid, match?.name || match?.agent || String(pid));
+  }
+
+  /**
+   * Execute the pending stop-process request after the user confirms. Reads the
+   * pending entry non-reactively, clears the dialog, then terminates the process
+   * via the existing IPC bridge and toasts the outcome.
+   */
+  async function confirmStop() {
+    const target = get(pendingStop);
+    clearStop();
+    if (!target || !window.aegis) return;
+    const result = await window.aegis.killProcess(target.pid);
+    if (result?.success) {
+      addToast(`Stopped process ${target.name} (PID ${target.pid})`, 'success');
+    } else {
+      addToast(`Failed to stop process: ${result?.error ?? 'unknown error'}`, 'error');
     }
   }
 
@@ -209,9 +246,11 @@
       case 'theme:light-hc':
         setTheme('light-hc');
         break;
-      // Agent actions — operate on the currently selected (expanded) agent
+      // Agent actions — operate on the currently selected (expanded) agent.
+      // Destructive stop is gated behind a confirmation dialog; suspend (reversible)
+      // runs directly.
       case 'agent:kill':
-        runSelectedAgentAction('killProcess', 'Killed agent', 'Failed to kill agent');
+        requestStopSelected();
         break;
       case 'agent:suspend':
         runSelectedAgentAction('suspendProcess', 'Suspended agent', 'Failed to suspend agent');
@@ -297,6 +336,17 @@
 <Footer />
 <Toast />
 <CommandPalette />
+
+{#if $pendingStop}
+  <ConfirmDialog
+    title={$t('process_action.stop_title')}
+    message={$t('process_action.stop_body', { name: $pendingStop.name, pid: $pendingStop.pid })}
+    confirmLabel={$t('process_action.stop_confirm')}
+    cancelLabel={$t('process_action.cancel')}
+    onconfirm={confirmStop}
+    oncancel={clearStop}
+  />
+{/if}
 
 <!-- Fleet-wide risk index — fixed dock, fed the risk-enriched agents (riskScore
      lives on enrichedAgents, never on the raw `agents` store). Append-only. -->

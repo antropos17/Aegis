@@ -13,6 +13,7 @@
   import TrustBadge from './TrustBadge.svelte';
   import { getRiskInfo } from '../utils/trust-badge-utils';
   import { addToast } from '../stores/toast.js';
+  import { requestStop } from '../stores/process-action.js';
   import { t } from '../i18n/index.js';
 
   /** @type {{ agent: Object, expandedPid: number|null }} */
@@ -118,9 +119,17 @@
     }
   }
 
-  /** Run a process action against a specific PID (defaults to the representative). */
+  /**
+   * Run a process action against a specific PID (defaults to the representative).
+   * Destructive `killProcess` routes through a confirmation gate; the reversible
+   * `suspendProcess`/`resumeProcess` run directly.
+   */
   async function pidAction(e, method, pid = agent.pid) {
     e.stopPropagation();
+    if (method === 'killProcess') {
+      requestStop(pid, agent.name || agent.agent || String(pid));
+      return;
+    }
     if (window.aegis) await window.aegis[method](pid);
   }
 
