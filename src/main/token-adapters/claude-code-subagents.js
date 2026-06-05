@@ -16,8 +16,13 @@
  *       nested under a folder named exactly <sessionId>, beside <sessionId>.jsonl);
  *     - a sidecar `agent-<id>.meta.json` carries {agentType, toolUseId} only — NO
  *       usage, NO pid — and is excluded by the strict `agent-*.jsonl` glob;
- *     - subagent lines repeat one `message.id` across N content-block lines (same
- *       N×-count hazard as the main file) → intra-file dedup by id is REQUIRED;
+ *     - on these live subagent files each `message.id` appeared on exactly ONE
+ *       line (1 line/id); the N×-per-id repeat was NOT reproduced on subagents.
+ *       That N×-count hazard is CONFIRMED only on the MAIN transcript (live: 86
+ *       usage lines → 25 ids, one id spanning up to 7 lines). Subagent lines share
+ *       the SAME line shape, so the SAME intra-file dedup by id is applied
+ *       DEFENSIVELY — identical to the main path, not because it fired on today's
+ *       files;
  *     - a subagent's `message.model` differs from the main session (e.g. sonnet
  *       under an opus session) → model is taken PER LINE, never hardcoded;
  *     - `message.id`s are globally unique, so cross-file double-count never occurs,
