@@ -22,7 +22,7 @@
     SLIDE_OFFSET_PX,
     TRANSITION_DURATION_MS,
   } from './lib/utils/tab-transitions.js';
-  import { SvelteSet } from 'svelte/reactivity';
+  import { createAnomalyToastTracker } from './lib/utils/anomaly-toast-tracker.js';
 
   const TAB_IDS = ['shield', 'activity', 'rules', 'reports', 'stats'];
 
@@ -128,20 +128,15 @@
   });
 
   // ── Toast: anomaly detected ──
-  let prevAnomalyKeys = new SvelteSet();
+  // The tracker seeds itself on the first emission so anomalies already present
+  // at startup do not produce a toast storm (C-12); later emissions toast only
+  // genuinely-new anomalies.
+  const anomalyTracker = createAnomalyToastTracker();
   $effect(() => {
     const scores = $anomalies;
-    if (!scores || typeof scores !== 'object') return;
-    const currentKeys = new SvelteSet();
-    for (const [agent, score] of Object.entries(scores)) {
-      if (typeof score === 'number' && score >= 50) {
-        currentKeys.add(agent);
-        if (!prevAnomalyKeys.has(agent)) {
-          addToast(`Anomaly: ${agent} score ${score}`, 'warning');
-        }
-      }
+    for (const agent of anomalyTracker.ingest(scores)) {
+      addToast(`Anomaly: ${agent} score ${scores[agent]}`, 'warning');
     }
-    prevAnomalyKeys = currentKeys;
   });
 
   /**
