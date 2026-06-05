@@ -486,6 +486,40 @@ describe('ipc-handlers', () => {
       expect(mockPlatform.resumeProcess).not.toHaveBeenCalled();
     });
 
+    it('kill-process refuses AEGIS own PID even when it is monitored', async () => {
+      // Inject AEGIS's own PID as a monitored agent so the monitored-agent
+      // check would otherwise pass — only the own-PID self-guard must block it.
+      ipcHandlers.init({
+        getWindow: () => null,
+        getStats: () => ({}),
+        getResourceUsage: () => ({}),
+        getLatestAgents: () => [{ agent: 'Self', pid: process.pid, category: 'ai' }],
+        setOtherPanelExpanded: vi.fn(),
+      });
+      ipcHandlers.register();
+      mockPlatform.killProcess.mockClear();
+      const handler = getHandler('kill-process');
+      const result = await handler(null, process.pid);
+      expect(result).toEqual({ success: false, error: 'Refusing to act on AEGIS itself' });
+      expect(mockPlatform.killProcess).not.toHaveBeenCalled();
+    });
+
+    it('suspend-process refuses AEGIS own PID even when it is monitored', async () => {
+      ipcHandlers.init({
+        getWindow: () => null,
+        getStats: () => ({}),
+        getResourceUsage: () => ({}),
+        getLatestAgents: () => [{ agent: 'Self', pid: process.pid, category: 'ai' }],
+        setOtherPanelExpanded: vi.fn(),
+      });
+      ipcHandlers.register();
+      mockPlatform.suspendProcess.mockClear();
+      const handler = getHandler('suspend-process');
+      const result = await handler(null, process.pid);
+      expect(result).toEqual({ success: false, error: 'Refusing to act on AEGIS itself' });
+      expect(mockPlatform.suspendProcess).not.toHaveBeenCalled();
+    });
+
     it('save-custom-agents delegates to config', () => {
       const handler = getHandler('save-custom-agents');
       const agents = [{ name: 'custom', process: 'custom.exe' }];

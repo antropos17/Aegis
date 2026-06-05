@@ -481,6 +481,11 @@ ${findingsHtml}${recsHtml}
   ipcMain.handle('kill-process', (_e, pid) => {
     pid = Number(pid);
     if (!Number.isInteger(pid) || pid <= 0) return { success: false, error: 'Invalid PID' };
+    if (pid === process.pid) {
+      // C-01 own-PID self-guard — never terminate AEGIS itself.
+      logger.warn(`kill-process: refused — PID ${pid} is AEGIS itself`);
+      return { success: false, error: 'Refusing to act on AEGIS itself' };
+    }
     const agents = deps.getLatestAgents ? deps.getLatestAgents() : [];
     if (!agents.some((a) => a.pid === pid)) {
       logger.warn(`kill-process: PID ${pid} not monitored by Aegis`);
@@ -491,6 +496,11 @@ ${findingsHtml}${recsHtml}
   ipcMain.handle('suspend-process', (_e, pid) => {
     pid = Number(pid);
     if (!Number.isInteger(pid) || pid <= 0) return { success: false, error: 'Invalid PID' };
+    if (pid === process.pid) {
+      // C-01 own-PID self-guard — suspending AEGIS's own PID would freeze it.
+      logger.warn(`suspend-process: refused — PID ${pid} is AEGIS itself`);
+      return { success: false, error: 'Refusing to act on AEGIS itself' };
+    }
     const agents = deps.getLatestAgents ? deps.getLatestAgents() : [];
     if (!agents.some((a) => a.pid === pid)) {
       logger.warn(`suspend-process: PID ${pid} not monitored by Aegis`);
@@ -501,6 +511,11 @@ ${findingsHtml}${recsHtml}
   ipcMain.handle('resume-process', (_e, pid) => {
     pid = Number(pid);
     if (!Number.isInteger(pid) || pid <= 0) return { success: false, error: 'Invalid PID' };
+    if (pid === process.pid) {
+      // C-01 own-PID self-guard — keep process-control symmetric across all three.
+      logger.warn(`resume-process: refused — PID ${pid} is AEGIS itself`);
+      return { success: false, error: 'Refusing to act on AEGIS itself' };
+    }
     const agents = deps.getLatestAgents ? deps.getLatestAgents() : [];
     if (!agents.some((a) => a.pid === pid)) {
       logger.warn(`resume-process: PID ${pid} not monitored by Aegis`);

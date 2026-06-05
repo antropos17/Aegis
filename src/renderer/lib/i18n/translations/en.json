@@ -16,6 +16,12 @@
     "perm_warn": "PERM",
     "tokens": "TOK"
   },
+  "process_action": {
+    "stop_title": "Stop process?",
+    "stop_body": "Stop process {name} (PID {pid})? This terminates the process.",
+    "stop_confirm": "Stop process",
+    "cancel": "Cancel"
+  },
   "tabs": {
     "shield": "Shield",
     "activity": "Activity",
