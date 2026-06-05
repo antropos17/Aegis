@@ -43,6 +43,16 @@ const { RM_CSHARP } = require('./rm-csharp');
 const SECRET_DIRS = ['.ssh', '.aws', '.gnupg', '.kube', '.docker', '.azure'];
 
 /**
+ * The crown-jewel credential roots scanned by the FAST hot read-detect cycle
+ * (file-watcher.scanHotFileHolders, ~10s) — a strict subset of SECRET_DIRS, kept
+ * small so each frequent spawn registers few files and stays cheap. `~/.env*` is
+ * folded in via the includeEnv branch of buildSensitiveGroups, not listed here.
+ * The full 30s scan still covers the broader SECRET_DIRS ∪ AGENT_CONFIG_PATHS set.
+ * @type {string[]}
+ */
+const HOT_DIRS = ['.ssh', '.aws', '.gnupg'];
+
+/**
  * Whether Restart Manager P/Invoke is usable. Optimistic default (true);
  * downgraded to false ONLY by probeRestartManager() failing — "can't tell" must
  * fail honest, not optimistic. rstrtmgr.dll ships on every Windows Vista+, so the
@@ -96,13 +106,21 @@ function classify(filePath) {
  * plus home ~/.env* files, grouped for registration. A directory becomes one group
  * keyed by the dir path (dir-level naming); each ~/.env* file is its own group
  * keyed by the file path (single confirmed file → file-level naming is honest).
+ *
+ * Parametrized so the FAST hot cycle can register a small subset. Defaults
+ * reproduce the original full-scan behavior exactly (SECRET_DIRS ∪
+ * AGENT_CONFIG_PATHS, env included) — existing callers are unaffected.
+ * @param {string[]} [dirNames] - Directory basenames (under home) to enumerate.
+ * @param {boolean} [includeEnv=true] - Whether to add ~/.env* single-file groups.
  * @returns {Array<{group: string, reason: string, files: string[]}>}
  */
-function buildSensitiveGroups() {
+function buildSensitiveGroups(
+  dirNames = [...SECRET_DIRS, ...AGENT_CONFIG_PATHS],
+  includeEnv = true,
+) {
   const home = os.homedir();
   /** @type {Array<{group: string, reason: string, files: string[]}>} */
   const groups = [];
-  const dirNames = [...SECRET_DIRS, ...AGENT_CONFIG_PATHS];
   const seen = new Set();
   for (const name of dirNames) {
     const dir = path.join(home, name);
@@ -126,15 +144,17 @@ function buildSensitiveGroups() {
     groups.push({ group: dir, reason, files });
   }
   // ~/.env* — each file its own single-file group (confirmed file-level naming).
-  try {
-    for (const e of fs.readdirSync(home, { withFileTypes: true })) {
-      if (!e.isFile() || !/^\.env(\.|$)/i.test(e.name)) continue;
-      const file = path.join(home, e.name);
-      const reason = classify(file);
-      if (reason) groups.push({ group: file, reason, files: [file] });
+  if (includeEnv) {
+    try {
+      for (const e of fs.readdirSync(home, { withFileTypes: true })) {
+        if (!e.isFile() || !/^\.env(\.|$)/i.test(e.name)) continue;
+        const file = path.join(home, e.name);
+        const reason = classify(file);
+        if (reason) groups.push({ group: file, reason, files: [file] });
+      }
+    } catch (_) {
+      // home unreadable — skip env group
     }
-  } catch (_) {
-    // home unreadable — skip env group
   }
   return groups;
 }
@@ -145,18 +165,28 @@ function buildSensitiveGroups() {
  * to a registered sensitive resource. Holders are returned RAW (including
  * non-agent PIDs and possibly AEGIS itself) — the caller maps PIDs to agents and
  * applies the own-PID guard.
+ *
+ * Parametrized so the fast hot cycle can scan a small subset; default args
+ * reproduce the original full scan exactly. `windowsHide:true` keeps the
+ * frequent spawn from flashing a console window every ~10s.
+ * @param {string[]} [dirNames] - Directory basenames to scan (see buildSensitiveGroups).
+ * @param {boolean} [includeEnv=true] - Whether to include ~/.env* groups.
  * @returns {Promise<Array<{pid: number, group: string, reason: string}>>}
  * @since v0.10.0
  */
-function getSensitiveHolders() {
+function getSensitiveHolders(dirNames, includeEnv) {
   if (!_rmAvailable) return Promise.resolve([]);
-  const groups = buildSensitiveGroups();
+  const groups = buildSensitiveGroups(dirNames, includeEnv);
   if (groups.length === 0) return Promise.resolve([]);
   return new Promise((resolve) => {
     execFile(
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-Command', PS_BODY],
-      { timeout: 15000, env: { ...process.env, AEGIS_RM_GROUPS: JSON.stringify(groups) } },
+      {
+        timeout: 15000,
+        windowsHide: true,
+        env: { ...process.env, AEGIS_RM_GROUPS: JSON.stringify(groups) },
+      },
       (err, stdout) => {
         if (err) {
           resolve([]);
@@ -166,6 +196,18 @@ function getSensitiveHolders() {
       },
     );
   });
+}
+
+/**
+ * Fast hot-cycle variant: scans ONLY the crown-jewel credential roots (HOT_DIRS)
+ * plus ~/.env*, for the ~10s read-detect poll that shrinks the 30s read-blind
+ * window. Same RM mechanism and same HOLDS-AT-TICK honesty as getSensitiveHolders
+ * — it catches a handle held at the tick, NEVER a transient open→read→close.
+ * @returns {Promise<Array<{pid: number, group: string, reason: string}>>}
+ * @since v0.11.0-alpha
+ */
+function getHotSensitiveHolders() {
+  return getSensitiveHolders(HOT_DIRS, true);
 }
 
 /**
@@ -238,6 +280,7 @@ function isRestartManagerAvailable() {
 
 module.exports = {
   getSensitiveHolders,
+  getHotSensitiveHolders,
   probeRestartManager,
   isRestartManagerAvailable,
   buildSensitiveGroups,
