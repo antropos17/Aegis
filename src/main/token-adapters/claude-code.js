@@ -1,38 +1,23 @@
 /**
  * @file claude-code.js
  * @module main/token-adapters/claude-code
- * @description Token-feed adapter for the Claude Code agent family. Claude Code
- *   persists its own decrypted per-turn `usage` block to local disk; this adapter
- *   reads ONLY those numeric counts and returns them as honest, measured
- *   (`estimated:false`) per-PID token deltas. It is the first concrete adapter
- *   behind the extensible {@link module:main/token-feed} core.
+ * @description Token-feed adapter for the Claude Code agent family. Reads ONLY the
+ *   numeric `usage` blocks Claude Code persists to disk → honest measured
+ *   (`estimated:false`) per-PID deltas; first adapter behind {@link module:main/token-feed}.
  *
- *   VERIFIED C-01 CHAIN (live disk, 2026-06-04 — TRUST CODE OVER DOCS):
- *     proc {pid, startTime}
- *       → ~/.claude/sessions/<pid>.json   { sessionId, cwd, startedAt }
- *       → startedAt-guard rejects PID reuse (|startedAt − startTime| ≤ tolerance)
- *       → ~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl
- *       → tail only NEW bytes since last offset; parse only `type==="assistant"`
- *       → dedup by `message.id` (one message spans many content-block lines, each
- *         repeating the same usage — counting per-line would N×-count)
- *       → { pid, model, inputTokens, outputTokens, estimated:false }
+ *   C-01 CHAIN (live disk — TRUST CODE OVER DOCS): proc {pid, startTime} →
+ *   `sessions/<pid>.json` {sessionId, cwd, startedAt} → startedAt-guard rejects PID
+ *   reuse → `projects/<enc-cwd>/<sessionId>.jsonl` → tail NEW bytes; parse
+ *   `type==="assistant"` → dedup by `message.id` (a message spans N usage-repeating
+ *   lines; per-line would N×-count) → delta. PRIVACY (gating): allowlist usage
+ *   numbers + model + id only — never content, in objects or logs (errors log
+ *   `{ error }`); scope is monitored PIDs, no history sweep.
  *
- *   PRIVACY INVARIANT (gating): allowlist-extract ONLY the numeric usage fields +
- *   model + message id. Message content (prompts/responses) is never read into a
- *   returned object and never written to any log — on a parse error we log only
- *   `{ error }`, never the offending line. Scope is limited to the monitored PIDs
- *   passed in; we never sweep unrelated project history.
- *
- *   `procStart` in the registry is an opaque .NET-ticks-like string (version
- *   fragile) — the guard deliberately uses `startedAt` (clean epoch-ms) instead.
- *
- *   SCOPE / KNOWN LIMITATION: reads the main session transcript only. Subagent
- *   turns are logged to separate `projects/<enc>/<sessionId>/subagents/agent-*.jsonl`
- *   files; their usage is NOT yet summed, so heavily-delegated sessions undercount.
- *   This is honest-but-partial (never over-counts) and a deliberate later extension.
- *
- *   The line shape (`type:"assistant"` with `message.{id,model,usage}`) and the
- *   3-bucket input sum were validated against a live `2.1.x` transcript, not docs.
+ *   SUBAGENTS: delegated (Task) turns log to nested
+ *   `projects/<enc>/<sessionId>/subagents/agent-*.jsonl` and ARE summed (see
+ *   {@link module:main/token-adapters/claude-code-subagents}) — SAME line shape (so
+ *   `_extractUsage` is reused), attributed to the MAIN session pid. Shared `seenIds`
+ *   + per-file `subOffsets` block double-count; read independently of main activity.
  * @author AEGIS Contributors
  * @license MIT
  * @version 0.1.0
@@ -43,42 +28,42 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const logger = require('../logger');
+const { readSubagentUsage } = require('./claude-code-subagents');
 
 /**
  * @typedef {Object} Proc
  * @property {number} pid - live process id (C-01 attribution key).
- * @property {number} startTime - live OS process-creation time (epoch ms),
- *   supplied by the scan layer; compared against the registry to reject PID reuse.
+ * @property {number} startTime - live OS process-creation time (epoch ms), from the
+ *   scan layer; compared against the registry to reject PID reuse.
  */
 
 /**
  * @typedef {Object} UsageDelta
  * @property {number} pid - owning process (C-01).
- * @property {string} model - model id from the usage block (may be absent from
- *   the price table → cost becomes approximate downstream; tokens stay measured).
+ * @property {string} model - model id from the usage block (may be absent from the
+ *   price table → cost approximate downstream; tokens stay measured).
  * @property {number} inputTokens - input_tokens + cache_creation + cache_read.
  * @property {number} outputTokens - output_tokens.
- * @property {boolean} estimated - always `false`: these are measured, not guessed.
+ * @property {boolean} estimated - always `false`: measured, not guessed.
  */
 
 /** @type {string} stable adapter id used by the core registry. */
 const id = 'claude-code';
 
 /**
- * Max |registry.startedAt − live startTime| (ms) still considered the SAME
- * process. Generous enough to absorb startup jitter (startedAt is written a beat
- * after process birth), tight enough that a reused PID — whose real creation time
- * differs by minutes/hours — is rejected. Bias is toward rejection (honest empty)
- * over mis-attribution.
- * @type {number}
+ * Max |registry.startedAt − live startTime| (ms) still treated as the SAME process.
+ * Absorbs startup jitter yet rejects a reused PID (creation time off by min/hours);
+ * bias toward rejection (honest empty) over mis-attribution. @type {number}
  */
 const GUARD_TOLERANCE_MS = 60_000;
 
 /**
  * @typedef {Object} SessionState
- * @property {number} offset - bytes of the transcript already consumed.
- * @property {Set<string>} seenIds - message.ids already counted (persists across
- *   calls so a message whose blocks straddle a tail boundary is counted once).
+ * @property {number} offset - bytes of the MAIN transcript already consumed.
+ * @property {Set<string>} seenIds - message.ids already counted (counts a
+ *   boundary-straddling message once); SHARED across main + all subagent files.
+ * @property {Map<string, number>} subOffsets - per-subagent-file byte offset
+ *   (`agent-*.jsonl` path → bytes consumed); independent of `offset`.
  */
 
 /** @type {Map<string, SessionState>} per-sessionId tail state. */
@@ -88,14 +73,15 @@ const sessions = new Map();
 let _homedir = () => os.homedir();
 
 /**
- * Injectable fs surface. `readRange(path, start, length)` returns a Buffer of the
- * byte slice — production reads only the new bytes, never the whole file.
- * @type {{ readFileSync: Function, existsSync: Function, statSync: Function, readRange: Function }}
+ * Injectable fs surface. `readRange(path, start, length)` returns a Buffer slice —
+ * production reads only the new bytes, never the whole file.
+ * @type {{ readFileSync: Function, existsSync: Function, statSync: Function, readdirSync: Function, readRange: Function }}
  */
 let _fs = {
   readFileSync: (p, enc) => fs.readFileSync(p, enc),
   existsSync: (p) => fs.existsSync(p),
   statSync: (p) => fs.statSync(p),
+  readdirSync: (p) => fs.readdirSync(p),
   readRange: (p, start, length) => {
     const fd = fs.openSync(p, 'r');
     try {
@@ -112,31 +98,23 @@ let _fs = {
 let _log = logger;
 
 /**
- * Encode an absolute cwd into Claude Code's `projects/` directory name. The
- * encoding is lossy by design (`:` `\` `/` `.` all collapse to `-`); we only
- * forward-encode a known cwd and existence-check the result — never reverse it.
- * @param {string} cwd
- * @returns {string}
+ * Encode an absolute cwd into Claude Code's `projects/` directory name. Lossy by
+ * design (`:` `\` `/` `.` → `-`); we only forward-encode a known cwd and
+ * existence-check the result — never reverse it. @param {string} cwd @returns {string}
  */
 function _encodeCwd(cwd) {
   return String(cwd).replace(/[/\\:.]/g, '-');
 }
 
-/**
- * True when `v` is a usable pid (finite integer > 0).
- * @param {*} v
- * @returns {boolean}
- */
+/** True when `v` is a usable pid (finite integer > 0). @param {*} v @returns {boolean} */
 function isPositivePid(v) {
   return typeof v === 'number' && Number.isInteger(v) && v > 0;
 }
 
 /**
- * Decide whether a session registry belongs to the live process (PID-reuse
- * guard). Both timestamps must be finite numbers and agree within tolerance.
- * @param {{ startedAt?: number }} registry
- * @param {{ startTime?: number }} proc
- * @returns {boolean}
+ * Session registry belongs to the live process (PID-reuse guard): both timestamps
+ * finite and within tolerance. @param {{ startedAt?: number }} registry
+ * @param {{ startTime?: number }} proc @returns {boolean}
  */
 function _passesGuard(registry, proc) {
   if (!registry || typeof registry.startedAt !== 'number') return false;
@@ -145,10 +123,8 @@ function _passesGuard(registry, proc) {
 }
 
 /**
- * Allowlist-extract the measured usage from one parsed transcript line. Returns
- * `null` for any line that is not an assistant message carrying a usage block, so
- * prompt/content-bearing lines are dropped before any content field is touched.
- * @param {*} parsed - a parsed JSONL line object.
+ * Allowlist-extract measured usage from one parsed line; `null` for non-assistant
+ * or usage-less lines (content-bearing lines drop first). @param {*} parsed
  * @returns {{ id: string, model: string, inputTokens: number, outputTokens: number }|null}
  */
 function _extractUsage(parsed) {
@@ -171,17 +147,15 @@ function _extractUsage(parsed) {
 function _stateFor(sessionId) {
   let st = sessions.get(sessionId);
   if (!st) {
-    st = { offset: 0, seenIds: new Set() };
+    st = { offset: 0, seenIds: new Set(), subOffsets: new Map() };
     sessions.set(sessionId, st);
   }
   return st;
 }
 
 /**
- * Read the registry for one pid. Returns the parsed object or `null` (absent /
- * unreadable / malformed) — never logs the file body.
- * @param {number} pid
- * @returns {*}
+ * Read the registry for one pid → parsed object or `null` (absent / unreadable /
+ * malformed); never logs the file body. @param {number} pid @returns {*}
  */
 function _readRegistry(pid) {
   const p = path.join(_homedir(), '.claude', 'sessions', `${pid}.json`);
@@ -193,25 +167,16 @@ function _readRegistry(pid) {
 }
 
 /**
- * Resolve and tail one proc's transcript, returning new measured deltas. All
- * failure modes degrade to `[]` (honest empty) without throwing.
- * @param {Proc} proc
+ * Tail ONE proc's MAIN transcript → new measured deltas. Behaviour unchanged from
+ * the original inline tail (offset/dedup machinery intact); failures degrade to `[]`.
+ * Subagent files are handled separately so this never short-circuits them.
+ * @param {string} tPath - absolute path to `<sessionId>.jsonl`.
+ * @param {SessionState} st - session tail + dedup state. @param {number} pid - C-01 key.
  * @returns {UsageDelta[]}
  */
-function _readOneProc(proc) {
-  const pid = proc && proc.pid;
-  if (!isPositivePid(pid)) return [];
-
-  const registry = _readRegistry(pid);
-  if (!_passesGuard(registry, proc)) return [];
-  const { sessionId, cwd } = registry;
-  if (typeof sessionId !== 'string' || typeof cwd !== 'string') return [];
-
-  const tPath = path.join(_homedir(), '.claude', 'projects', _encodeCwd(cwd), `${sessionId}.jsonl`);
+function _tailMain(tPath, st, pid) {
   if (!_fs.existsSync(tPath)) return [];
-
   const size = _fs.statSync(tPath).size;
-  const st = _stateFor(sessionId);
   if (size < st.offset) st.offset = 0; // file truncated/rotated → restart tail
   if (size <= st.offset) return []; // nothing new
 
@@ -249,13 +214,37 @@ function _readOneProc(proc) {
 }
 
 /**
- * Read new measured token deltas for the given live processes. Non-idempotent by
- * design: a second call with no newly-appended transcript bytes returns `[]`
- * (the deltas were already emitted), which matches the accumulating contract of
- * the downstream token-tracker.
+ * Resolve one proc's session → new measured deltas from BOTH the main transcript and
+ * its subagent transcripts. Subagent usage is read independently of main-file
+ * activity (a subagent can append while the main agent is blocked on it) and shares
+ * the pid (C-01). All failures degrade to `[]`. @param {Proc} proc @returns {UsageDelta[]}
+ */
+function _readOneProc(proc) {
+  const pid = proc && proc.pid;
+  if (!isPositivePid(pid)) return [];
+
+  const registry = _readRegistry(pid);
+  if (!_passesGuard(registry, proc)) return [];
+  const { sessionId, cwd } = registry;
+  if (typeof sessionId !== 'string' || typeof cwd !== 'string') return [];
+
+  const projDir = path.join(_homedir(), '.claude', 'projects', _encodeCwd(cwd));
+  const st = _stateFor(sessionId);
+
+  const deltas = _tailMain(path.join(projDir, `${sessionId}.jsonl`), st, pid);
+  const sessionDir = path.join(projDir, sessionId);
+  for (const d of readSubagentUsage(sessionDir, st, _extractUsage, _fs, _log)) {
+    deltas.push({ pid, ...d }); // C-01: subagent tokens → MAIN session pid
+  }
+  return deltas;
+}
+
+/**
+ * Read new measured token deltas for the given live processes. Non-idempotent: a
+ * second call with no newly-appended bytes returns `[]` (already emitted), matching
+ * the accumulating contract of the downstream token-tracker.
  * @param {Proc[]} procs - live processes enriched with OS `startTime`.
- * @returns {Promise<UsageDelta[]>}
- * @since v0.10.0-alpha
+ * @returns {Promise<UsageDelta[]>} @since v0.10.0-alpha
  */
 async function readUsage(procs) {
   if (!Array.isArray(procs) || procs.length === 0) return [];
