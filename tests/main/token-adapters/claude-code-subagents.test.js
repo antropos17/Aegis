@@ -13,6 +13,11 @@
  *     (e) `.meta.json` sidecars are ignored — only `agent-*.jsonl` is read,
  *     (f) per-file byte offset means a re-read with no new bytes emits nothing,
  *     (g) a missing/empty `subagents/` degrades to [] (honest empty, never throws),
+ *     (h) the tail's READ POSITION is pinned at the source: the first read starts at
+ *         byte 0 and advances `subOffsets` to EOF; a no-append re-read NEVER re-reads
+ *         from 0. This is asserted on the `readRange` start arg — NOT on emptiness —
+ *         because the shared `seenIds` would swallow a re-read-from-0 regression and
+ *         leave (f) green. (h) catches that regression independent of `seenIds`.
  *   plus an end-to-end pin through the adapter: subagent tokens attribute to the
  *   MAIN session pid (C-01) and BOTH models surface in the final deltas.
  *
@@ -271,6 +276,57 @@ describe('readSubagentUsage — helper (DI, caller-owned state)', () => {
       [subagentFile(CWD, SID, 'agent-1.meta.json')]: '{}',
     });
     expect(readSubagentUsage(dir, st, _extractUsage, onlyMeta, log)).toEqual([]);
+  });
+
+  it('(h) offset is pinned at the readRange call site: first read starts at 0 and advances to EOF; a no-append re-read never re-reads from 0 (seenIds-independent regression guard)', () => {
+    const file = subagentFile(CWD, SID, 'agent-1.jsonl');
+    // A multibyte char in the line content makes file BYTES > char count, so the
+    // `subOffsets === size` assert below pins a BYTE-exact advance, not a char one.
+    const fs = makeFs({
+      [file]: jsonl(
+        assistantLine({
+          id: 'o1',
+          model: 'claude-sonnet-4-6',
+          input: 11,
+          output: 1,
+          content: '日本語',
+        }),
+        assistantLine({ id: 'o2', model: 'claude-sonnet-4-6', input: 22, output: 2 }),
+      ),
+    });
+    const size = fs.statSync(file).size; // byte length (multibyte → > char length)
+    // Spy that STILL calls through to the real in-memory reader (vi.spyOn default),
+    // so behaviour is unchanged — we only capture the (start, length) it was handed.
+    const readRangeSpy = vi.spyOn(fs, 'readRange');
+    const st = freshState();
+
+    // 1st read: two fresh ids. The tail MUST start at byte 0 and read the whole file,
+    // then advance subOffsets to EOF (byte-exact).
+    const first = readSubagentUsage(dir, st, _extractUsage, fs, log);
+    expect(first).toHaveLength(2);
+    expect(readRangeSpy).toHaveBeenCalledTimes(1);
+    expect(readRangeSpy.mock.calls[0][1]).toBe(0); // start === 0
+    expect(readRangeSpy.mock.calls[0][2]).toBe(size); // length === whole file (bytes)
+    expect(st.subOffsets.get(file)).toBe(size); // advanced to EOF in BYTES, not left at 0
+
+    const callsAfterFirst = readRangeSpy.mock.calls.length;
+
+    // 2nd read, file UNCHANGED. Honesty pin: even though seenIds alone would swallow
+    // the duplicate ids and leave the result [] (so an emptiness assert can't tell a
+    // correct tail from a broken one), the tail must NOT re-read from byte 0. The
+    // correct code early-returns at `size <= offset` BEFORE readRange; a regression
+    // that ignored subOffsets would call readRange(start=0) here — caught below.
+    const second = readSubagentUsage(dir, st, _extractUsage, fs, log);
+    expect(second).toEqual([]); // no new bytes → no new deltas
+    const secondCalls = readRangeSpy.mock.calls.slice(callsAfterFirst);
+    for (const call of secondCalls) {
+      // if it read at all, it read FROM EOF — never rewound to 0
+      expect(call[1]).toBe(size);
+      expect(call[1]).not.toBe(0);
+    }
+    expect(st.subOffsets.get(file)).toBe(size); // offset unchanged, no rewind
+
+    readRangeSpy.mockRestore();
   });
 });
 
