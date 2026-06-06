@@ -30,17 +30,16 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { getAllRules } = require('../rule-loader');
-const { AGENT_CONFIG_PATHS } = require('../../shared/constants');
+const { AGENT_CONFIG_PATHS, SENSITIVE_AGENT_DIRS } = require('../../shared/constants');
 const { RM_CSHARP } = require('./rm-csharp');
 
 /**
- * Secret credential directories watched for held handles (mirror of the roots in
- * file-watcher.setupFileWatchers). Each existing dir becomes ONE registration
- * group → dir-level honest attribution ("holding a file under ~/.ssh"), never a
- * fabricated per-file claim RM cannot confirm.
- * @type {string[]}
+ * Secret credential directories watched for held handles. Each existing dir
+ * becomes ONE registration group → dir-level honest attribution ("holding a file
+ * under ~/.ssh"), never a fabricated per-file claim RM cannot confirm.
+ * @type {readonly string[]}
  */
-const SECRET_DIRS = ['.ssh', '.aws', '.gnupg', '.kube', '.docker', '.azure'];
+const SECRET_DIRS = SENSITIVE_AGENT_DIRS;
 
 /**
  * The crown-jewel credential roots scanned by the FAST hot read-detect cycle

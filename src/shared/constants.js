@@ -114,6 +114,16 @@ const AGENT_CONFIG_PATHS = [
 ];
 
 /**
+ * @type {readonly string[]} Secret credential directories (relative to home dir)
+ * watched for sensitive-file access. Single source of truth shared by
+ * file-watcher.setupFileWatchers (the credential roots + the Set that dedupes
+ * them out of the agent-config watch) and restart-manager (held-handle scan).
+ * Order and membership are load-bearing — keep byte-identical across consumers.
+ * @since 0.10.0
+ */
+const SENSITIVE_AGENT_DIRS = ['.ssh', '.aws', '.gnupg', '.kube', '.docker', '.azure'];
+
+/**
  * @type {Readonly<Record<string, RegExp>>} Map of agent name keywords to their own config directory patterns.
  * Used for self-access exemption: an agent accessing its OWN config is expected, not a threat.
  * @since 0.3.0
@@ -409,6 +419,7 @@ module.exports = {
   EDITOR_HOSTS,
   IGNORE_PATTERNS,
   AGENT_CONFIG_PATHS,
+  SENSITIVE_AGENT_DIRS,
   AGENT_SELF_CONFIG,
   SENSITIVE_RULES,
   PERMISSION_CATEGORIES,
