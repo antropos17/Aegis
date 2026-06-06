@@ -23,7 +23,10 @@
   /** @type {import('../utils/agent-stats-utils.ts').SortDirection} */
   let sortDir = $state('desc');
 
-  let now = $derived($tick ? Date.now() : Date.now());
+  let now = $derived.by(() => {
+    $tick; // subscribe — re-derive each tick
+    return Date.now();
+  });
   let localAgents = $state([]);
 
   $effect(() => {
