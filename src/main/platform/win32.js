@@ -38,12 +38,27 @@ const IGNORE_FILE_PATTERNS = [
 ];
 
 /**
+ * Measure-only spawn-timing probe: log one external spawn's round-trip duration
+ * to the operational log under mod='perf' (one NDJSON line per spawn). The logger
+ * stamps `timestamp` (ts) and `module` ('perf'); meta carries the spawn label and
+ * elapsed ms. Pure instrumentation — never alters collection behavior.
+ * @param {string} spawn - Spawn label (tasklist|cim-parent|cim-cwd).
+ * @param {number} t0 - performance.now() captured immediately before the spawn.
+ * @returns {void}
+ */
+function logSpawnTax(spawn, t0) {
+  logger.debug('perf', 'spawn', { spawn, ms: Math.round(performance.now() - t0) });
+}
+
+/**
  * List running processes via tasklist CSV output.
  * @returns {Promise<Array<{name: string, pid: number}>>}
  */
 function listProcesses() {
   return new Promise((resolve, reject) => {
+    const t0 = performance.now();
     execFile('tasklist', ['/FO', 'CSV', '/NH'], (err, stdout) => {
+      logSpawnTax('tasklist', t0);
       if (err) {
         reject(err);
         return;
@@ -76,11 +91,13 @@ function getParentProcessMap() {
       'Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,Name,CreationDate|ForEach-Object{$r[[string]$_.ProcessId]=@{n=$_.Name;p=[int]$_.ParentProcessId;t=$(if($_.CreationDate){([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds()}else{$null})}}',
       '$r|ConvertTo-Json -Compress',
     ].join('\n');
+    const t0 = performance.now();
     execFile(
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-Command', psScript],
       { timeout: 8000 },
       (err, stdout) => {
+        logSpawnTax('cim-parent', t0);
         const map = new Map();
         if (!err && stdout.trim()) {
           try {
@@ -386,11 +403,13 @@ function getProcessCwds(pids) {
   return new Promise((resolve) => {
     const pidFilter = validPids.map((p) => `ProcessId=${p}`).join(' OR ');
     const psScript = `$ErrorActionPreference="SilentlyContinue";Get-CimInstance Win32_Process -Filter '${pidFilter}' -Property ProcessId,CommandLine | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress`;
+    const t0 = performance.now();
     execFile(
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-Command', psScript],
       { timeout: 8000 },
       (err, stdout) => {
+        logSpawnTax('cim-cwd', t0);
         const map = new Map();
         if (err || !stdout.trim()) {
           resolve(map);
