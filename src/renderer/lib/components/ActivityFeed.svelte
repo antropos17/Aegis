@@ -74,7 +74,6 @@
     const m = String(d.getMinutes()).padStart(2, '0');
     const s = String(d.getSeconds()).padStart(2, '0');
     const diff = now - ts;
-    if (diff < 60000) return `${h}:${m}:${s}`;
     if (diff < 3600000) return `${h}:${m}:${s}`;
     if (diff < 86400000) return `${h}:${m}`;
     return `${d.getMonth() + 1}/${d.getDate()} ${h}:${m}`;
