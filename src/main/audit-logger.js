@@ -14,6 +14,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const hashchain = require('./audit-hashchain');
 
 let _logDir = '';
 let _buffer = [];
@@ -22,6 +23,14 @@ let _onFlushError = null;
 const FLUSH_INTERVAL = 5000;
 const FLUSH_THRESHOLD = 50;
 const RETENTION_DAYS = 30;
+
+/** Injectable clock — overridable via init({ now }) so day rotation is testable. */
+let _now = () => new Date();
+
+/** Hash-chain state for the current daily file (per-file chain; resets each day). */
+let _prevHash = hashchain.GENESIS;
+let _seq = 0;
+let _chainDate = /** @type {string|null} */ (null);
 
 /** In-memory counters — avoids re-reading all log files on every getStats() call */
 let _totalEntries = 0;
@@ -33,11 +42,14 @@ let _lastEntry = /** @type {string|null} */ (null);
  * and cleans up old log files.
  * @param {Object} opts
  * @param {string} opts.userDataPath - Electron app.getPath('userData')
+ * @param {function} [opts.onFlushError] - Called with the Error when a flush write fails
+ * @param {function} [opts.now] - Test seam: returns the current Date (defaults to real clock)
  * @returns {void}
  * @since v0.2.0
  */
 function init(opts) {
   _onFlushError = opts.onFlushError || null;
+  if (opts.now) _now = opts.now;
   _logDir = path.join(opts.userDataPath, 'audit-logs');
   try {
     if (!fs.existsSync(_logDir)) fs.mkdirSync(_logDir, { recursive: true });
@@ -86,14 +98,22 @@ function _seedCounters() {
 }
 
 /**
+ * Today's date as YYYY-MM-DD (local time, via the injectable clock). Used both
+ * for the file name and to detect day rotation in flush().
+ * @returns {string}
+ */
+function _todayDateStr() {
+  const d = _now();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
  * Get the log file path for today.
  * @returns {string} Path to today's audit log file.
  * @since v0.2.0
  */
 function getTodayLogPath() {
-  const d = new Date();
-  const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  return path.join(_logDir, `aegis-audit-${dateStr}.json`);
+  return path.join(_logDir, `aegis-audit-${_todayDateStr()}.json`);
 }
 
 /**
@@ -129,6 +149,12 @@ function log(type, details) {
 
 /**
  * Flush the buffer to disk, appending entries to today's log file.
+ *
+ * Each entry is hash-chained: it gains a per-file `seq` and a `hash` binding it to
+ * the previous record (see audit-hashchain.js). The chain state (_prevHash/_seq/
+ * _chainDate) advances ONLY after a successful write, so a failed flush re-queues
+ * the pristine entries without consuming seq numbers — the next flush renumbers
+ * from the same point, keeping the chain gap-free (C-03 recovery).
  * @returns {void}
  * @since v0.2.0
  */
@@ -136,15 +162,42 @@ function flush() {
   if (_buffer.length === 0 || !_logDir) return;
   const entries = _buffer.splice(0);
   const fp = getTodayLogPath();
+  const todayDate = _todayDateStr();
+
+  // Seed the chain: continue the in-memory state for the same day, otherwise
+  // (process start or day rollover) resume from the tail of today's file.
+  let prevHash;
+  let seq;
+  if (_chainDate === todayDate) {
+    prevHash = _prevHash;
+    seq = _seq;
+  } else {
+    const seed = hashchain.seedFromTail(fp);
+    prevHash = seed.prevHash;
+    seq = seed.seq;
+  }
+
+  const out = [];
+  for (const e of entries) {
+    const hash = hashchain.computeHash(prevHash, e);
+    out.push(JSON.stringify({ ...e, seq, hash }));
+    prevHash = hash;
+    seq += 1;
+  }
+
   try {
-    const lines = entries.map((e) => JSON.stringify(e)).join('\n') + '\n';
-    fs.appendFileSync(fp, lines, 'utf-8');
+    fs.appendFileSync(fp, out.join('\n') + '\n', 'utf-8');
+    _prevHash = prevHash;
+    _seq = seq;
+    _chainDate = todayDate;
   } catch (err) {
     if (_onFlushError) _onFlushError(err);
     // TODO(C-03-followup): unbounded buffer growth — if the disk is permanently
     // broken (full / no perms), re-queuing on every failed flush grows _buffer
     // without bound (OOM). Add a cap (drop-oldest beyond a limit) in a follow-up;
     // out of scope for this PR.
+    // Re-queue PRISTINE entries (no seq/hash baked in) and leave chain state
+    // unadvanced so the retry produces an unbroken chain.
     _buffer = entries.concat(_buffer);
   }
 }
@@ -348,5 +401,6 @@ module.exports = {
   getStats,
   exportAll,
   getEntriesBefore,
+  verifyChain: hashchain.verifyChain,
   getLogDir: () => _logDir,
 };

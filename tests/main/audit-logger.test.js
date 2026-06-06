@@ -176,4 +176,131 @@ describe('audit-logger', () => {
     const content = fs.readFileSync(path.join(auditDir, files[0]), 'utf-8');
     expect(content).toContain('requeue-me');
   });
+
+  // --- tamper-evident hash chain (per-file) ---------------------------------
+
+  function todayFile() {
+    const auditDir = path.join(tmpDir, 'audit-logs');
+    const name = fs.readdirSync(auditDir).find((f) => f.endsWith('.json'));
+    return path.join(auditDir, name);
+  }
+
+  it('hash-chain: log x3 -> flush -> verifyChain valid with seq 0/1/2', () => {
+    auditLogger.init({ userDataPath: tmpDir });
+    auditLogger.log('t', { agent: 'A' });
+    auditLogger.log('t', { agent: 'B' });
+    auditLogger.log('t', { agent: 'C' });
+    auditLogger.flush();
+
+    const fp = todayFile();
+    const seqs = fs
+      .readFileSync(fp, 'utf-8')
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l).seq);
+    expect(seqs).toEqual([0, 1, 2]);
+    expect(auditLogger.verifyChain(fp)).toEqual({ valid: true, brokenAtSeq: null, reason: 'ok' });
+  });
+
+  it('hash-chain: details carrying undefined-valued keys still verify clean', () => {
+    auditLogger.init({ userDataPath: tmpDir });
+    // details.extra becomes the persisted `details` field; the undefined key is
+    // dropped by JSON.stringify on disk but must not break the chain.
+    auditLogger.log('t', { agent: 'A', extra: { foo: undefined, bar: 1 } });
+    auditLogger.flush();
+
+    expect(auditLogger.verifyChain(todayFile()).valid).toBe(true);
+  });
+
+  it('hash-chain: rotation — each day-file verifies, day 2 restarts at seq 0', () => {
+    let fakeNow = new Date(2026, 5, 5, 12, 0, 0); // 2026-06-05 (local, TZ-safe)
+    auditLogger.init({ userDataPath: tmpDir, now: () => fakeNow });
+    const auditDir = path.join(tmpDir, 'audit-logs');
+
+    auditLogger.log('day1', { agent: 'A' });
+    auditLogger.log('day1', { agent: 'B' });
+    auditLogger.flush();
+
+    fakeNow = new Date(2026, 5, 6, 12, 0, 0); // roll over to 2026-06-06
+    auditLogger.log('day2', { agent: 'C' });
+    auditLogger.flush();
+
+    const day1 = path.join(auditDir, 'aegis-audit-2026-06-05.json');
+    const day2 = path.join(auditDir, 'aegis-audit-2026-06-06.json');
+    expect(fs.existsSync(day1)).toBe(true);
+    expect(fs.existsSync(day2)).toBe(true);
+
+    expect(auditLogger.verifyChain(day1).valid).toBe(true);
+    expect(auditLogger.verifyChain(day2).valid).toBe(true);
+
+    const day2first = JSON.parse(fs.readFileSync(day2, 'utf-8').trim().split('\n')[0]);
+    expect(day2first.seq).toBe(0); // fresh chain, GENESIS-seeded
+  });
+
+  it('hash-chain: C-03 re-queue after a failed flush keeps the chain valid (no seq gap)', () => {
+    auditLogger.init({ userDataPath: tmpDir, onFlushError: vi.fn() });
+    const auditDir = path.join(tmpDir, 'audit-logs');
+
+    auditLogger.log('c03', { agent: 'first' });
+    auditLogger.log('c03', { agent: 'second' });
+
+    // First flush fails (dir gone) — entries must re-queue WITHOUT consuming seq.
+    fs.rmSync(auditDir, { recursive: true, force: true });
+    auditLogger.flush();
+
+    // Recover and flush again.
+    fs.mkdirSync(auditDir, { recursive: true });
+    auditLogger.flush();
+
+    const fp = todayFile();
+    const seqs = fs
+      .readFileSync(fp, 'utf-8')
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l).seq);
+    expect(seqs).toEqual([0, 1]); // contiguous, no gap from the failed flush
+    expect(auditLogger.verifyChain(fp).valid).toBe(true);
+  });
+
+  it('hash-chain: resumes the chain from the file tail after a same-day restart', async () => {
+    const now = () => new Date(2026, 5, 5, 12, 0, 0);
+    auditLogger.init({ userDataPath: tmpDir, now });
+    auditLogger.log('t', { agent: 'A' });
+    auditLogger.log('t', { agent: 'B' });
+    auditLogger.flush();
+    auditLogger.shutdown();
+
+    // Simulate a process restart: fresh module instance, same dir + same day.
+    vi.resetModules();
+    auditLogger = (await import('../../src/main/audit-logger.js')).default;
+    auditLogger.init({ userDataPath: tmpDir, now });
+    auditLogger.log('t', { agent: 'C' });
+    auditLogger.flush();
+
+    const fp = todayFile();
+    const seqs = fs
+      .readFileSync(fp, 'utf-8')
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l).seq);
+    expect(seqs).toEqual([0, 1, 2]); // continued from the tail, NOT restarted at 0
+    expect(auditLogger.verifyChain(fp).valid).toBe(true);
+  });
+
+  it('hash-chain: continues the in-memory chain across multiple same-day flushes', () => {
+    auditLogger.init({ userDataPath: tmpDir });
+    auditLogger.log('t', { agent: 'A' });
+    auditLogger.flush(); // seeds _chainDate
+    auditLogger.log('t', { agent: 'B' });
+    auditLogger.flush(); // hits the _chainDate === todayDate continuation branch
+
+    const fp = todayFile();
+    const seqs = fs
+      .readFileSync(fp, 'utf-8')
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l).seq);
+    expect(seqs).toEqual([0, 1]);
+    expect(auditLogger.verifyChain(fp).valid).toBe(true);
+  });
 });
