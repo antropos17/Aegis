@@ -19,7 +19,12 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const chokidar = require('chokidar');
-const { IGNORE_PATTERNS, AGENT_CONFIG_PATHS, AGENT_SELF_CONFIG } = require('../shared/constants');
+const {
+  IGNORE_PATTERNS,
+  AGENT_CONFIG_PATHS,
+  SENSITIVE_AGENT_DIRS,
+  AGENT_SELF_CONFIG,
+} = require('../shared/constants');
 const { getAllRules, reloadRules } = require('./rule-loader');
 const _platform = require('./platform');
 const { IGNORE_FILE_PATTERNS } = _platform;
@@ -231,9 +236,7 @@ function handleWatcherEvent(action, filePath) {
 /** @returns {Promise<void>} @since v0.1.0 */
 async function setupFileWatchers() {
   const homeDir = os.homedir();
-  const sensitiveDirCandidates = ['.ssh', '.aws', '.gnupg', '.kube', '.docker', '.azure'].map((d) =>
-    path.join(homeDir, d),
-  );
+  const sensitiveDirCandidates = SENSITIVE_AGENT_DIRS.map((d) => path.join(homeDir, d));
   const sensitiveDirs = await filterExistingDirs(sensitiveDirCandidates);
   const projectDir = path.join(__dirname, '..', '..');
   if (sensitiveDirs.length > 0) {
@@ -248,7 +251,7 @@ async function setupFileWatchers() {
     _state.watchers.push(w);
   }
   // AI agent config directories (Hudson Rock threat vector — critical)
-  const sensitiveDirNames = new Set(['.ssh', '.aws', '.gnupg', '.kube', '.docker', '.azure']);
+  const sensitiveDirNames = new Set(SENSITIVE_AGENT_DIRS);
   const agentConfigCandidates = AGENT_CONFIG_PATHS.filter((d) => !sensitiveDirNames.has(d)).map(
     (d) => path.join(homeDir, d),
   );
