@@ -29,6 +29,7 @@ const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const logger = require('../logger');
 const { getAllRules } = require('../rule-loader');
 const { AGENT_CONFIG_PATHS, SENSITIVE_AGENT_DIRS } = require('../../shared/constants');
 const { RM_CSHARP } = require('./rm-csharp');
@@ -159,6 +160,20 @@ function buildSensitiveGroups(
 }
 
 /**
+ * Measure-only spawn-timing probe: log the Restart Manager scan's external
+ * powershell.exe spawn round-trip duration to the operational log under
+ * mod='perf' (one NDJSON line per spawn). The logger stamps `timestamp` (ts) and
+ * `module` ('perf'); meta carries the spawn label and elapsed ms. Pure
+ * instrumentation — never alters read-detect behavior.
+ * @param {string} spawn - Spawn label (handle).
+ * @param {number} t0 - performance.now() captured immediately before the spawn.
+ * @returns {void}
+ */
+function logSpawnTax(spawn, t0) {
+  logger.debug('perf', 'spawn', { spawn, ms: Math.round(performance.now() - t0) });
+}
+
+/**
  * Run the Restart Manager scan: ONE powershell.exe spawn, one RM session per
  * group (sequentially opened/closed), returning every process holding a handle
  * to a registered sensitive resource. Holders are returned RAW (including
@@ -178,6 +193,7 @@ function getSensitiveHolders(dirNames, includeEnv) {
   const groups = buildSensitiveGroups(dirNames, includeEnv);
   if (groups.length === 0) return Promise.resolve([]);
   return new Promise((resolve) => {
+    const t0 = performance.now();
     execFile(
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-Command', PS_BODY],
@@ -187,6 +203,7 @@ function getSensitiveHolders(dirNames, includeEnv) {
         env: { ...process.env, AEGIS_RM_GROUPS: JSON.stringify(groups) },
       },
       (err, stdout) => {
+        logSpawnTax('handle', t0);
         if (err) {
           resolve([]);
           return;
