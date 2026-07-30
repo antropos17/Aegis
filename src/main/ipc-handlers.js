@@ -264,6 +264,11 @@ ${findingsHtml}${recsHtml}
   });
 
   // ── Audit ──
+  // AuditLog.svelte has always called window.aegis.getAuditStats(); until this handler
+  // existed the method was undefined, so the call threw synchronously inside $effect —
+  // before .catch() was attached — and the panel never left its loading state outside
+  // demo mode.
+  ipcMain.handle('get-audit-stats', () => audit.getStats());
   ipcMain.handle('get-audit-entries-before', (_e, beforeTs, limit) =>
     audit.getEntriesBefore(beforeTs, limit),
   );

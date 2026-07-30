@@ -259,6 +259,7 @@ describe('ipc-handlers', () => {
     expect(registeredChannels).toContain('save-custom-agents');
     expect(registeredChannels).toContain('export-agent-database');
     expect(registeredChannels).toContain('import-agent-database');
+    expect(registeredChannels).toContain('get-audit-stats');
     expect(registeredChannels).toContain('open-audit-log-dir');
     expect(registeredChannels).toContain('export-full-audit');
     expect(registeredChannels).toContain('export-config');

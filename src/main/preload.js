@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('aegis', {
   saveCustomAgents: (agents) => ipcRenderer.invoke('save-custom-agents', agents),
   exportAgentDatabase: () => ipcRenderer.invoke('export-agent-database'),
   importAgentDatabase: () => ipcRenderer.invoke('import-agent-database'),
+  getAuditStats: () => ipcRenderer.invoke('get-audit-stats'),
   getAuditEntriesBefore: (beforeTs, limit) =>
     ipcRenderer.invoke('get-audit-entries-before', beforeTs, limit),
   openAuditLogDir: () => ipcRenderer.invoke('open-audit-log-dir'),
