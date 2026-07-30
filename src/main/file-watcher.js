@@ -27,6 +27,7 @@ const {
 } = require('../shared/constants');
 const { getAllRules, reloadRules } = require('./rule-loader');
 const { EVIDENCE, makeAttribution } = require('./attribution');
+const { buildInstanceId } = require('./process-identity');
 const _platform = require('./platform');
 const { IGNORE_FILE_PATTERNS } = _platform;
 
@@ -337,6 +338,21 @@ async function filterExistingDirs(dirs) {
 }
 
 /**
+ * Dedup key for _state.knownHandles: the agent's process INSTANCE, never its
+ * bare pid. Windows recycles PIDs, so a pid-keyed store lets a new process
+ * inherit a dead one's seen-set and silently lose its first sensitive access.
+ * Uses the instanceId stamped upstream by procUtil.enrichWithParentChains and
+ * derives one for un-enriched agents (same fallback as session-tracker).
+ * @param {{pid?: number, process?: string, agent?: string, startTime?: number|null, instanceId?: string}} agent
+ * @returns {string}
+ */
+function handleKey(agent) {
+  return typeof agent.instanceId === 'string' && agent.instanceId
+    ? agent.instanceId
+    : buildInstanceId(agent);
+}
+
+/**
  * @param {Object} agent
  * @returns {Promise<Array>}
  * @since v0.1.0
@@ -352,13 +368,14 @@ async function scanFileHandles(agent) {
   if (!Array.isArray(files) || files.length === 0) return [];
 
   const kh = _state.knownHandles;
-  if (!kh.has(pid)) kh.set(pid, new Set());
-  const known = kh.get(pid);
+  const key = handleKey(agent);
+  if (!kh.has(key)) kh.set(key, new Set());
+  const known = kh.get(key);
   const newAccess = [];
   for (const f of files) {
     if (shouldIgnore(f) || known.has(f)) continue;
     known.add(f);
-    // Cap per-PID set at 500 — evict oldest entries
+    // Cap per-instance set at 500 — evict oldest entries
     if (known.size > 500) {
       const iter = known.values();
       for (let i = 0; i < known.size - 500; i++) {
@@ -415,8 +432,8 @@ function rmEnabled() {
  * PID is mapped to its OWNING agent (C-01 — resolved from the PID, never
  * cross-wired); AEGIS's own PID and non-agent holders are dropped. Emits an
  * `action:'holding'` event — a point-in-time handle HOLD at the scan tick, NOT a
- * read/access. Dedups per-PID by group via knownHandles so a sustained hold fires
- * once, not once-per-scan.
+ * read/access. Dedups per-instance by group via knownHandles so a sustained hold
+ * fires once, not once-per-scan.
  *
  * Used by BOTH the full (30s) and the hot (~10s) cycles via `fetchHolders`; both
  * share `_state.knownHandles`, so a hold caught by one cycle is deduped against
@@ -465,8 +482,9 @@ async function _scanRmHolders(agents, fetchHolders) {
     const agent = pidToAgent.get(h.pid);
     if (!agent) continue; // holder is not a tracked (in-scope) agent — drop
     const group = h.group;
-    if (!kh.has(h.pid)) kh.set(h.pid, new Set());
-    const known = kh.get(h.pid);
+    const key = handleKey(agent);
+    if (!kh.has(key)) kh.set(key, new Set());
+    const known = kh.get(key);
     const dedupKey = 'holding|' + group;
     if (known.has(dedupKey)) continue;
     known.add(dedupKey);
@@ -578,13 +596,17 @@ async function scanAllFileHandles(agents) {
 }
 
 /**
+ * Drop knownHandles entries whose process INSTANCE is gone. Keyed by instanceId,
+ * so a recycled pid counts as gone: the dead instance's entry is removed even
+ * while a NEW process occupies the same pid — that new instance starts with a
+ * clean seen-set and its first sensitive access fires.
  * @param {Array} activeAgents
  * @returns {void} @since v0.1.0
  */
 function pruneKnownHandles(activeAgents) {
-  const activePids = new Set(activeAgents.map((a) => a.pid));
-  for (const pid of _state.knownHandles.keys()) {
-    if (!activePids.has(pid)) _state.knownHandles.delete(pid);
+  const activeKeys = new Set(activeAgents.map(handleKey));
+  for (const key of _state.knownHandles.keys()) {
+    if (!activeKeys.has(key)) _state.knownHandles.delete(key);
   }
 }
 
