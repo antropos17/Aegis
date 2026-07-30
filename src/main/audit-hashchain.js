@@ -66,6 +66,22 @@ function computeHash(prevHash, event) {
  *
  * Detects in-place edits, insertions, and deletions of interior lines; does NOT
  * detect truncation of trailing lines (valid prefix remains a valid chain).
+ *
+ * The verdict is asymmetric in BOTH directions, and neither direction is about intent:
+ *
+ * A `valid: true` verdict proves no surviving record was ALTERED. It does NOT prove the
+ * file is COMPLETE. An entry evicted from the write buffer under a full disk was never
+ * assigned a seq, so its absence leaves no gap and the remaining records still chain
+ * perfectly. Records of type `buffer-overflow-drop` (see audit-drop-tracker.js) document
+ * the loss windows that are known; loss during a session that never recovered leaves no
+ * record at all.
+ *
+ * A `valid: false` verdict does NOT prove tampering. A write interrupted partway — the
+ * disk filling mid-append, or the process dying during one — leaves a truncated line and,
+ * once the retry re-appends the batch, a repeated seq range. Both produce exactly the
+ * signal an edit would. Treat an invalid verdict as "this file is not trustworthy",
+ * never as "someone changed this file". The exposure scales with batch size, so it is
+ * largest precisely when flushes have been failing and the buffer has filled.
  * @param {string} filePath - Path to an aegis-audit-YYYY-MM-DD.json file.
  * @returns {{valid: boolean, brokenAtSeq: number|null, reason: string}}
  *   On failure, brokenAtSeq is the 0-based line position where the chain breaks.

@@ -62,6 +62,15 @@
         <span class="audit-value">{dateRange}</span>
         <span class="audit-label">{$t('reports.audit.date_range')}</span>
       </div>
+      {#if auditStats.droppedEntries > 0}
+        <!-- Only rendered when the audit trail is actually incomplete: entries were
+             evicted from the write buffer because the disk could not be written. Silence
+             here means nothing was lost, not that nothing is being counted. -->
+        <div class="audit-card">
+          <span class="audit-value">{auditStats.droppedEntries.toLocaleString()}</span>
+          <span class="audit-label">{$t('reports.audit.dropped_entries')}</span>
+        </div>
+      {/if}
     </div>
   {:else}
     <span class="audit-loading">{$t('reports.audit.no_data')}</span>

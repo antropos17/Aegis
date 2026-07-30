@@ -28,6 +28,25 @@ interface ProcessActionResult {
   readonly error?: string;
 }
 
+/**
+ * Audit-log statistics from `get-audit-stats`.
+ *
+ * The counts are not interchangeable: `totalEntries` counts everything the logger was
+ * handed — including entries evicted and gone for good — `persistedEntries` only what
+ * reached disk, `droppedEntries` what was evicted, and `bufferDepth` what is waiting.
+ * `droppedEntries + bufferDepth` is how much would be missing if the process stopped now.
+ */
+interface AuditStats {
+  readonly totalEntries: number;
+  readonly persistedEntries: number;
+  readonly droppedEntries: number;
+  readonly bufferDepth: number;
+  readonly totalSize: number;
+  readonly currentSize: number;
+  readonly firstEntry: string | null;
+  readonly lastEntry: string | null;
+}
+
 /** Result of an alert-only watchlist add from the main process */
 interface WatchlistAddResult {
   readonly success: boolean;
@@ -62,6 +81,7 @@ interface AegisIpcBridge {
   onScanStatus(cb: (data: ScanStatusData) => void): void;
   onTokenCosts(cb: (data: TokenCostRecord[]) => void): void;
   getStats(): Promise<Record<string, unknown>>;
+  getAuditStats(): Promise<AuditStats>;
   getResourceUsage(): Promise<Record<string, unknown>>;
   getFalsePositives(): Promise<FalsePositiveEntry[]>;
   killProcess(pid: number): Promise<ProcessActionResult>;

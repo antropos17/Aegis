@@ -283,6 +283,7 @@
       "loading": "Loading audit data...",
       "no_data": "No audit data available",
       "total_entries": "Total Entries",
+      "dropped_entries": "Dropped (Not Written)",
       "log_size": "Log Size",
       "date_range": "Date Range",
       "view_logs": "View Logs Directory",
