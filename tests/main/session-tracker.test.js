@@ -126,6 +126,75 @@ describe('session-tracker', () => {
       expect(names).toEqual(['Copilot', 'Cursor']);
       expect(allEntered).toHaveLength(2);
     });
+
+    // The case the name-only key could NOT see: the OS hands pid 200 to a SECOND
+    // run of the same executable. Before instanceId this collapsed into one
+    // never-ending session — no exit for the dead process, no enter for the new
+    // one, and firstSeen frozen at the dead process's first sighting.
+    // Shape follows the existing reuse guard test in
+    // tests/main/token-adapters/claude-code.test.js:264-278 (divergent startTime).
+    describe('same process name, different OS birth time', () => {
+      const STARTED = 1_717_000_000_000;
+      const live = (startTime) => ({
+        pid: 200,
+        agent: 'Claude Code',
+        process: 'claude',
+        startTime,
+        instanceId: `200:${startTime}`,
+      });
+
+      it('ends the dead session and starts a new one', () => {
+        const first = tracker.reconcile([live(STARTED)], { now: 0, grace: 2 });
+        expect(first.entered).toHaveLength(1);
+
+        // The recycled pid appears (+10h birth time). The dead session is not in
+        // this scan, so it ages out over the grace window.
+        tracker.reconcile([live(STARTED + 36_000_000)], { now: 10000, grace: 2 });
+        const res = tracker.reconcile([live(STARTED + 36_000_000)], { now: 20000, grace: 2 });
+
+        expect(res.exited).toHaveLength(1);
+        expect(res.exited[0].pid).toBe(200);
+        expect(res.exited[0].instanceId).toBe(`200:${STARTED}`);
+        expect(tracker.activeCount()).toBe(1);
+      });
+
+      it('gives the new instance its own firstSeen, not the dead process one', () => {
+        const first = tracker.reconcile([live(STARTED)], { now: 5000, grace: 2 });
+        const second = tracker.reconcile([live(STARTED + 36_000_000)], { now: 15000, grace: 2 });
+
+        expect(first.entered[0].firstSeen).toBe(5000);
+        expect(second.entered).toHaveLength(1);
+        expect(second.entered[0].firstSeen).toBe(15000);
+        expect(second.entered[0].instanceId).toBe(`200:${STARTED + 36_000_000}`);
+      });
+
+      it('derives instanceId itself when the scan layer did not stamp one', () => {
+        // Same reuse, but the agent objects carry only startTime (no instanceId) —
+        // session-tracker must still separate the two instances.
+        const bare = (startTime) => ({
+          pid: 200,
+          agent: 'Claude Code',
+          process: 'claude',
+          startTime,
+        });
+        const first = tracker.reconcile([bare(STARTED)], { now: 0, grace: 2 });
+        const second = tracker.reconcile([bare(STARTED + 36_000_000)], { now: 10000, grace: 2 });
+        expect(first.entered).toHaveLength(1);
+        expect(second.entered).toHaveLength(1);
+        expect(second.entered[0].instanceId).not.toBe(first.entered[0].instanceId);
+      });
+
+      it('a same-birth-time re-sighting is still ONE session (no flicker split)', () => {
+        const { allEntered, allExited } = runScans(
+          [{ agents: [live(STARTED)] }, { agents: [] }, { agents: [live(STARTED)] }],
+          0,
+          2,
+        );
+        expect(allEntered).toHaveLength(1);
+        expect(allExited).toHaveLength(0);
+        expect(tracker.activeCount()).toBe(1);
+      });
+    });
   });
 
   describe('reconcile — multiple concurrent agents', () => {
