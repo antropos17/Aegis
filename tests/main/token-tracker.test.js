@@ -6,9 +6,8 @@ const {
   DEFAULT_PRICING,
   computeCost,
   trackTokens,
-  getCostByPid,
+  getCost,
   getAllCosts,
-  reset,
   _resetForTest,
 } = tracker;
 
@@ -43,9 +42,10 @@ describe('token-tracker', () => {
   });
 
   describe('zero-state', () => {
-    it('returns an honest all-zero record for an untracked pid', () => {
-      const rec = getCostByPid(9999);
+    it('returns an honest all-zero record for an untracked pid (degraded `:u` space)', () => {
+      const rec = getCost(9999);
       expect(rec).toEqual({
+        instanceId: '9999:u',
         pid: 9999,
         inputTokens: 0,
         outputTokens: 0,
@@ -54,6 +54,14 @@ describe('token-tracker', () => {
         estimated: false,
         models: [],
       });
+    });
+
+    it('returns an honest all-zero record for an untracked instance', () => {
+      const rec = getCost({ pid: 9999, startTime: 111 });
+      expect(rec.instanceId).toBe('9999:111');
+      expect(rec.pid).toBe(9999);
+      expect(rec.totalTokens).toBe(0);
+      expect(rec.estimated).toBe(false);
     });
 
     it('reports no tracked records before any event', () => {
@@ -91,13 +99,13 @@ describe('token-tracker', () => {
     });
   });
 
-  describe('per-PID attribution (C-01)', () => {
+  describe('per-instance attribution (C-01)', () => {
     it('keeps two pids independent — no cross-wiring', () => {
       trackTokens(100, { model: KNOWN_MODEL, inputTokens: 1000, outputTokens: 100 });
       trackTokens(200, { model: OTHER_MODEL, inputTokens: 5000, outputTokens: 500 });
 
-      const a = getCostByPid(100);
-      const b = getCostByPid(200);
+      const a = getCost(100);
+      const b = getCost(200);
 
       expect(a.pid).toBe(100);
       expect(a.inputTokens).toBe(1000);
@@ -106,6 +114,57 @@ describe('token-tracker', () => {
       expect(b.pid).toBe(200);
       expect(b.inputTokens).toBe(5000);
       expect(b.models).toEqual([OTHER_MODEL]);
+    });
+
+    // The reason this module keys by instance at all: Windows recycles PIDs, so
+    // a new process must never inherit a dead instance's accumulated record.
+    it('keeps a recycled pid clean: 100:111 dead, 100:222 starts from zero', () => {
+      trackTokens(
+        { pid: 100, startTime: 111 },
+        { model: KNOWN_MODEL, inputTokens: 1000, outputTokens: 100, estimated: true },
+      );
+      const fresh = trackTokens(
+        { pid: 100, startTime: 222 },
+        { model: KNOWN_MODEL, inputTokens: 7, outputTokens: 3 },
+      );
+
+      // The new instance inherits neither counts nor the sticky estimated flag.
+      expect(fresh.instanceId).toBe('100:222');
+      expect(fresh.totalTokens).toBe(10);
+      expect(fresh.estimated).toBe(false);
+
+      // The dead instance's record is retained (session-total honesty), untouched.
+      const dead = getCost({ pid: 100, startTime: 111 });
+      expect(dead.instanceId).toBe('100:111');
+      expect(dead.totalTokens).toBe(1100);
+      expect(dead.estimated).toBe(true);
+
+      expect(getAllCosts()).toHaveLength(2);
+    });
+
+    it('prefers a stamped instanceId over local derivation (same key as file-watcher handleKey)', () => {
+      trackTokens(
+        { pid: 100, startTime: 111, instanceId: '100:999' },
+        { model: KNOWN_MODEL, inputTokens: 10, outputTokens: 1 },
+      );
+
+      expect(getCost({ pid: 100, instanceId: '100:999' }).totalTokens).toBe(11);
+      // The derived key was never written — the stamped one won.
+      expect(getCost({ pid: 100, startTime: 111 }).totalTokens).toBe(0);
+    });
+
+    it('accumulates a bare-number caller into the degraded `<pid>:u` record', () => {
+      trackTokens(100, { model: KNOWN_MODEL, inputTokens: 10, outputTokens: 1 });
+      const rec = trackTokens(
+        { pid: 100 },
+        { model: KNOWN_MODEL, inputTokens: 5, outputTokens: 2 },
+      );
+
+      // Bare pid and a ref without startTime resolve to the SAME `:u` key —
+      // exactly the pre-instanceId behaviour, not a third identity.
+      expect(rec.instanceId).toBe('100:u');
+      expect(rec.totalTokens).toBe(18);
+      expect(getAllCosts()).toHaveLength(1);
     });
   });
 
@@ -125,7 +184,7 @@ describe('token-tracker', () => {
 
     it('makes estimated sticky-true once any contributing event is estimated', () => {
       trackTokens(100, { model: KNOWN_MODEL, inputTokens: 1000, outputTokens: 200 });
-      expect(getCostByPid(100).estimated).toBe(false);
+      expect(getCost(100).estimated).toBe(false);
 
       trackTokens(100, {
         model: KNOWN_MODEL,
@@ -133,14 +192,14 @@ describe('token-tracker', () => {
         outputTokens: 10,
         estimated: true,
       });
-      expect(getCostByPid(100).estimated).toBe(true);
+      expect(getCost(100).estimated).toBe(true);
     });
 
     it('collects distinct models in first-seen order', () => {
       trackTokens(100, { model: KNOWN_MODEL, inputTokens: 10, outputTokens: 1 });
       trackTokens(100, { model: KNOWN_MODEL, inputTokens: 10, outputTokens: 1 });
       trackTokens(100, { model: OTHER_MODEL, inputTokens: 10, outputTokens: 1 });
-      expect(getCostByPid(100).models).toEqual([KNOWN_MODEL, OTHER_MODEL]);
+      expect(getCost(100).models).toEqual([KNOWN_MODEL, OTHER_MODEL]);
     });
   });
 
@@ -149,6 +208,13 @@ describe('token-tracker', () => {
       expect(trackTokens(0, { model: KNOWN_MODEL, inputTokens: 1 })).toBeNull();
       expect(trackTokens(-5, { model: KNOWN_MODEL, inputTokens: 1 })).toBeNull();
       expect(trackTokens(NaN, { model: KNOWN_MODEL, inputTokens: 1 })).toBeNull();
+      // Object refs are held to the same pid contract — an instanceId alone
+      // cannot smuggle in a record for a process that has no valid pid.
+      expect(
+        trackTokens({ pid: 0, startTime: 1 }, { model: KNOWN_MODEL, inputTokens: 1 }),
+      ).toBeNull();
+      expect(trackTokens({ instanceId: '7:1' }, { model: KNOWN_MODEL, inputTokens: 1 })).toBeNull();
+      expect(trackTokens(null, { model: KNOWN_MODEL, inputTokens: 1 })).toBeNull();
     });
 
     it('records nothing when an event carries no usable token counts', () => {
@@ -158,27 +224,19 @@ describe('token-tracker', () => {
   });
 
   describe('getAllCosts', () => {
-    it('returns one record per tracked pid', () => {
-      trackTokens(100, { model: KNOWN_MODEL, inputTokens: 10, outputTokens: 1 });
-      trackTokens(200, { model: KNOWN_MODEL, inputTokens: 20, outputTokens: 2 });
+    it('returns one record per tracked instance, each carrying its instanceId', () => {
+      trackTokens(
+        { pid: 100, startTime: 1 },
+        { model: KNOWN_MODEL, inputTokens: 10, outputTokens: 1 },
+      );
+      trackTokens(
+        { pid: 200, startTime: 2 },
+        { model: KNOWN_MODEL, inputTokens: 20, outputTokens: 2 },
+      );
       const all = getAllCosts();
       expect(all).toHaveLength(2);
       expect(all.map((r) => r.pid).sort((x, y) => x - y)).toEqual([100, 200]);
-    });
-  });
-
-  describe('reset(pid)', () => {
-    it('drops only the targeted pid and reverts it to zero-state', () => {
-      trackTokens(100, { model: KNOWN_MODEL, inputTokens: 10, outputTokens: 1 });
-      trackTokens(200, { model: KNOWN_MODEL, inputTokens: 20, outputTokens: 2 });
-
-      expect(reset(100)).toBe(true);
-      expect(reset(100)).toBe(false); // already gone
-
-      expect(getCostByPid(100).totalTokens).toBe(0);
-      expect(getCostByPid(100).inputTokens).toBe(0);
-      expect(getCostByPid(200).inputTokens).toBe(20); // survives
-      expect(getAllCosts()).toHaveLength(1);
+      expect(all.map((r) => r.instanceId).sort()).toEqual(['100:1', '200:2']);
     });
   });
 

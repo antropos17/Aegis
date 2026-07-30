@@ -81,4 +81,29 @@ describe('token-cost-collector — folds measured deltas into the tracker', () =
 
     expect(readUsage).toHaveBeenCalledTimes(1);
   });
+
+  it('(d) keys tracker records by the agent instanceId, pid stored alongside', async () => {
+    tokenFeed._setAdaptersForTest([{ id: 'fake', readUsage: vi.fn(async () => [delta(1, 100)]) }]);
+
+    await collectTokenCosts([{ ...agent(1, 1000), instanceId: '1:1000' }]);
+
+    const costs = tokenTracker.getAllCosts();
+    expect(costs).toHaveLength(1);
+    expect(costs[0].instanceId).toBe('1:1000');
+    expect(costs[0].pid).toBe(1);
+  });
+
+  it('(e) a recycled pid on a later tick gets its own record, not the dead instance sum', async () => {
+    const readUsage = vi.fn(async () => [delta(1, 100)]);
+    tokenFeed._setAdaptersForTest([{ id: 'fake', readUsage }]);
+
+    // Tick 1: pid 1 born at 1000. Tick 2: same pid recycled, born at 2000.
+    await collectTokenCosts([agent(1, 1000)]);
+    await collectTokenCosts([agent(1, 2000)]);
+
+    const costs = tokenTracker.getAllCosts();
+    expect(costs.map((c) => c.instanceId).sort()).toEqual(['1:1000', '1:2000']);
+    // Each instance carries only its own tick's tokens — no inheritance.
+    for (const c of costs) expect(c.inputTokens).toBe(100);
+  });
 });

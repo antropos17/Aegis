@@ -22,14 +22,25 @@
  *   figure: even where `MODEL_PRICING` rates are verified, an unknown model id
  *   still falls back to `DEFAULT_PRICING` and flips `estimated` true.
  *
- *   Attribution is per-PID (C-01): every count is stamped from the `pid`
- *   argument and stored under that pid only — concurrency or interleaved events
- *   can never cross-wire one agent's usage onto another.
+ *   Attribution is per-INSTANCE (C-01): every count is keyed by the process
+ *   INSTANCE (`instanceId` = pid bound to its OS birth time, see
+ *   process-identity.js), with the pid stored alongside for display — so
+ *   concurrency or interleaved events can never cross-wire one agent's usage
+ *   onto another, and a recycled pid can never inherit a dead instance's
+ *   accumulated tokens, cost, or sticky `estimated` flag.
+ *
+ *   Records for exited instances are RETAINED deliberately: the footer sums
+ *   `getAllCosts()` into a session-total spend, and that figure must be
+ *   monotonic — an agent exiting must not roll back money already spent. That
+ *   is why this module has no prune analogous to the file-watcher's
+ *   `pruneKnownHandles` (dedup must not leak; accounting must not forget).
  * @author AEGIS Contributors
  * @license MIT
  * @version 0.1.0
  */
 'use strict';
+
+const { buildInstanceId } = require('./process-identity');
 
 /**
  * Published per-model pricing, in USD per 1,000,000 tokens, split into input
@@ -80,8 +91,19 @@ const DEFAULT_PRICING = Object.freeze({ input: 3.0, output: 15.0 });
 const TOKENS_PER_PRICED_UNIT = 1_000_000;
 
 /**
+ * @typedef {Object} ProcRef
+ * @property {number} pid - OS process id; must be a finite number > 0.
+ * @property {number|null} [startTime] - OS process-creation time (epoch ms), used
+ *   to derive the instance key when no `instanceId` is stamped.
+ * @property {string} [instanceId] - instance key stamped upstream
+ *   (procUtil.enrichWithParentChains); preferred over local derivation.
+ */
+
+/**
  * @typedef {Object} CostRecord
- * @property {number} pid - the process this usage is attributed to (C-01 key).
+ * @property {string} instanceId - the process INSTANCE this usage is keyed by
+ *   (C-01 key; see process-identity.js for the three value spaces).
+ * @property {number} pid - the owning process id, stored alongside for display.
  * @property {number} inputTokens - accumulated prompt/input tokens.
  * @property {number} outputTokens - accumulated completion/output tokens.
  * @property {number} totalTokens - `inputTokens + outputTokens`.
@@ -101,7 +123,7 @@ const TOKENS_PER_PRICED_UNIT = 1_000_000;
  *   estimate the caller computed, not measured usage.
  */
 
-/** @type {Map<number, CostRecord>} Accumulated cost records keyed by pid. */
+/** @type {Map<string, CostRecord>} Accumulated cost records keyed by instanceId. */
 const records = new Map();
 
 /**
@@ -144,13 +166,46 @@ function computeCost(model, inputTokens, outputTokens) {
 }
 
 /**
- * Honest zero-state record for a pid with no tracked usage. `estimated:false`
- * because an exact zero is a fact, not a guess.
+ * Extract the owning pid from a proc ref (bare number or {@link ProcRef}).
+ * @param {number|ProcRef} proc
+ * @returns {*} the pid candidate, validated by the caller.
+ */
+function pidOf(proc) {
+  if (typeof proc === 'number') return proc;
+  return proc && typeof proc === 'object' ? proc.pid : null;
+}
+
+/**
+ * Accounting key for `records`: the process INSTANCE, never the bare pid — a
+ * recycled pid must never inherit a dead instance's accumulated record. Shared
+ * by every write AND read path, so a key mismatch between them is impossible by
+ * construction (same invariant as file-watcher's `handleKey`).
+ *
+ * Prefers the `instanceId` stamped upstream by procUtil.enrichWithParentChains;
+ * otherwise derives one from `{pid, startTime}`. A bare-number caller (or a ref
+ * with no usable startTime) degrades to the `"<pid>:u"` space — exactly the
+ * pre-instanceId behaviour, never an invented identity.
+ * @param {number|ProcRef} proc
+ * @returns {string}
+ */
+function recordKey(proc) {
+  if (typeof proc === 'number') return buildInstanceId({ pid: proc });
+  if (!proc || typeof proc !== 'object') return buildInstanceId({});
+  return typeof proc.instanceId === 'string' && proc.instanceId
+    ? proc.instanceId
+    : buildInstanceId({ pid: proc.pid, startTime: proc.startTime });
+}
+
+/**
+ * Honest zero-state record for an instance with no tracked usage.
+ * `estimated:false` because an exact zero is a fact, not a guess.
  * @param {number} pid
+ * @param {string} instanceId
  * @returns {CostRecord}
  */
-function zeroRecord(pid) {
+function zeroRecord(pid, instanceId) {
   return {
+    instanceId,
     pid,
     inputTokens: 0,
     outputTokens: 0,
@@ -162,23 +217,28 @@ function zeroRecord(pid) {
 }
 
 /**
- * Attribute one usage event to a pid and accumulate its tokens + cost (C-01).
+ * Attribute one usage event to a process instance and accumulate its tokens +
+ * cost (C-01).
  *
- * @param {number} pid - owning process id; must be a finite number > 0.
+ * @param {number|ProcRef} proc - owning process: a full ref keys by instance; a
+ *   bare pid degrades to the `"<pid>:u"` space. The pid itself must be a finite
+ *   number > 0 either way.
  * @param {TokenEvent} event - usage to record.
- * @returns {CostRecord|null} the updated record, or `null` when `pid` is invalid
- *   or `event` carries no usable token counts (nothing is fabricated).
+ * @returns {CostRecord|null} the updated record, or `null` when the pid is
+ *   invalid or `event` carries no usable token counts (nothing is fabricated).
  * @since v0.10.0-alpha
  */
-function trackTokens(pid, event) {
+function trackTokens(proc, event) {
+  const pid = pidOf(proc);
   if (!isPositiveNumber(pid)) return null;
   if (!event || typeof event !== 'object') return null;
 
+  const key = recordKey(proc);
   const hasInput = isNonNegativeNumber(event.inputTokens);
   const hasOutput = isNonNegativeNumber(event.outputTokens);
   // No usable counts → record nothing. You cannot estimate from nothing, and
   // fabricating a number here is exactly the dishonesty this module forbids.
-  if (!hasInput && !hasOutput) return records.get(pid) || null;
+  if (!hasInput && !hasOutput) return records.get(key) || null;
 
   const inTok = hasInput ? event.inputTokens : 0;
   const outTok = hasOutput ? event.outputTokens : 0;
@@ -188,7 +248,7 @@ function trackTokens(pid, event) {
   // estimated is sticky-true: caller-flagged estimate OR an unknown-model price.
   const eventEstimated = event.estimated === true || !knownModel;
 
-  const record = records.get(pid) || zeroRecord(pid);
+  const record = records.get(key) || zeroRecord(pid, key);
   record.inputTokens += inTok;
   record.outputTokens += outTok;
   record.totalTokens = record.inputTokens + record.outputTokens;
@@ -196,37 +256,32 @@ function trackTokens(pid, event) {
   record.estimated = record.estimated || eventEstimated;
   if (model && !record.models.includes(model)) record.models.push(model);
 
-  records.set(pid, record);
+  records.set(key, record);
   return record;
 }
 
 /**
- * Read the accumulated cost record for a pid.
- * @param {number} pid
+ * Read the accumulated cost record for one process instance. Resolved through
+ * the same {@link recordKey} as every write, so read and write can never
+ * disagree on identity.
+ * @param {number|ProcRef} proc - same shapes as {@link trackTokens}.
  * @returns {CostRecord} the tracked record, or an honest zero-state record when
- *   the pid has no usage (never `null`).
+ *   the instance has no usage (never `null`).
  * @since v0.10.0-alpha
  */
-function getCostByPid(pid) {
-  return records.get(pid) || zeroRecord(pid);
+function getCost(proc) {
+  const key = recordKey(proc);
+  const pid = pidOf(proc);
+  return records.get(key) || zeroRecord(isPositiveNumber(pid) ? pid : 0, key);
 }
 
 /**
- * @returns {CostRecord[]} every tracked per-pid record (excludes untracked pids).
+ * @returns {CostRecord[]} every tracked per-instance record (excludes untracked
+ *   instances; records of exited instances are retained — see the file header).
  * @since v0.10.0-alpha
  */
 function getAllCosts() {
   return Array.from(records.values());
-}
-
-/**
- * Drop the record for one pid (e.g. when an agent process exits).
- * @param {number} pid
- * @returns {boolean} true if a record existed and was removed.
- * @since v0.10.0-alpha
- */
-function reset(pid) {
-  return records.delete(pid);
 }
 
 /** @internal Clear all module state (for tests). @returns {void} */
@@ -239,8 +294,7 @@ module.exports = {
   DEFAULT_PRICING,
   computeCost,
   trackTokens,
-  getCostByPid,
+  getCost,
   getAllCosts,
-  reset,
   _resetForTest,
 };

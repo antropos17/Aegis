@@ -36,11 +36,14 @@ interface WatchlistAddResult {
 }
 
 /**
- * Per-PID token + cost record pushed on the `token-costs` channel. Mirrors the
- * main process `CostRecord` (token-tracker.js). `estimated` reports whether the
- * TOKEN COUNTS are measured vs guessed — not whether the dollar figure is audited.
+ * Per process-instance token + cost record pushed on the `token-costs` channel.
+ * Mirrors the main process `CostRecord` (token-tracker.js). `estimated` reports
+ * whether the TOKEN COUNTS are measured vs guessed — not whether the dollar
+ * figure is audited. Keyed by `instanceId` so a recycled pid never inherits a
+ * dead instance's record; `pid` rides alongside for display and legacy matching.
  */
 interface TokenCostRecord {
+  readonly instanceId: string;
   readonly pid: number;
   readonly inputTokens: number;
   readonly outputTokens: number;
@@ -86,7 +89,7 @@ export const resourceUsage: Writable<Record<string, unknown>> = writable({});
 export const falsePositives: Writable<FalsePositiveEntry[]> = writable([]);
 export const scanActive: Writable<boolean> = writable(false);
 
-/** Per-PID token + cost records, refreshed each scan via the `token-costs` push. */
+/** Per process-instance token + cost records, refreshed each scan via the `token-costs` push. */
 export const tokenCosts: Writable<TokenCostRecord[]> = writable([]);
 
 /**
