@@ -18,7 +18,7 @@ Requires Node.js 18+ and Windows 10/11 for full monitoring functionality. The El
 1. **Fork** the repository
 2. **Branch** from `master`: `git checkout -b feature/your-feature`
 3. **Implement** your changes following the code standards below
-4. **Test**: run `npm test` (968 tests across 62 files) and `npm start` — verify no console errors, all tabs render, existing features work
+4. **Test**: run `npm test` (1017 tests across 64 files) and `npm start` — verify no console errors, all tabs render, existing features work
 5. **Commit** with [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
 6. **Push** your branch and open a **Pull Request** with a clear description of what changed and why
 
@@ -55,7 +55,7 @@ When maintainers merge the Release PR → version bump + CHANGELOG + GitHub Rele
 ### TypeScript
 
 - **New files should be written in TypeScript** (`.ts`) — existing `.js` files will be migrated incrementally
-- **Main process** (`.js`): uses JSDoc annotations + `checkJs: true` for type safety without converting to `.ts`
+- **Main process** (`.js`): annotated with JSDoc, which editors use for IntelliSense. `checkJs` is **off** in `tsconfig.base.json`, so `tsc` resolves these files but does not type-check their bodies — the annotations document intent, they are not enforced by the typecheck gate
 - **Renderer** (`.ts`/`.svelte`): native TypeScript with ES modules
 - Shared type definitions live in `src/shared/types/` (types across 8 files)
 - Run `npm run typecheck` before opening a PR — zero type errors required. It checks both projects (`tsconfig.main.json` + `tsconfig.renderer.json`); a bare `npx tsc --noEmit` resolves the root solution file and checks nothing

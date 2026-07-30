@@ -6,7 +6,7 @@ Landing: aegisprotect.vercel.app | Demo: aegis-demo-ten.vercel.app
 npm run build:renderer    # Vite build (MUST pass before commit)
 npm run lint              # ESLint
 npm run format            # Prettier
-npm test                  # Vitest (1006 passed / 4 skipped = 1010, 63 files)
+npm test                  # Vitest (1017 passed / 4 skipped = 1021, 64 files)
 npm run dist              # Electron-builder NSIS installer
 
 ## Background Tasks (/loop)
