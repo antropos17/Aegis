@@ -221,6 +221,26 @@ describe('tray-icon', () => {
       expect(mockNotificationConstructor).toHaveBeenCalledTimes(1);
     });
 
+    it('labels an unattributed event "Unknown source" instead of a blank name', () => {
+      initTray();
+      tray.notifySensitive([
+        {
+          sensitive: true,
+          agent: '',
+          action: 'modified',
+          file: '/home/user/.ssh/id_rsa',
+          reason: 'SSH keys/config',
+          attribution: { status: 'unattributed', evidence: ['no-owner-match'] },
+        },
+      ]);
+      expect(mockNotificationConstructor).toHaveBeenCalledTimes(1);
+      const body = mockNotificationConstructor.mock.calls[0][0].body;
+      expect(body).toContain('Unknown source');
+      // Without the label the body would open with a bare space.
+      expect(body.startsWith(' ')).toBe(false);
+      expect(body).toContain('id_rsa');
+    });
+
     it('shows (+N more) for multiple sensitive events', () => {
       initTray();
       const events = [

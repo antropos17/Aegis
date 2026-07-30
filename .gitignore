@@ -47,6 +47,9 @@ _gitignore
 AEGIS-CONTEXT-*.md
 AEGIS-PERSONA-VAULT.md
 
+# Claude Code hook telemetry (UserPromptSubmit) — not produced by AEGIS
+events.jsonl
+
 # Sensitive production/cert files
 .env.production
 *.cert

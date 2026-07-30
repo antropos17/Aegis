@@ -16,8 +16,21 @@
 const fs = require('fs');
 const path = require('path');
 const { dialog, shell, app } = require('electron');
+const { UNKNOWN_SOURCE_LABEL } = require('./attribution');
 
 let _state = null;
+
+/**
+ * Agent name for a HUMAN-facing export cell (CSV, HTML report). An unattributed
+ * event carries `agent: ''`; a blank cell in a report the user forwards to
+ * someone else reads as a bug rather than as "we did not know".
+ * @param {Object} ev - Activity-log event.
+ * @returns {string}
+ * @since v0.11.0
+ */
+function displayAgent(ev) {
+  return ev.agent || UNKNOWN_SOURCE_LABEL;
+}
 
 /**
  * Initialise with shared state references.
@@ -100,6 +113,9 @@ async function exportLog() {
       peakAgents: stats.peakAgents,
       uniqueAgents: stats.uniqueAgents,
     },
+    // MACHINE-readable: `agent` stays raw ('' when unattributed) and the status
+    // is exported alongside it. Substituting a display label here would make a
+    // downstream tool group real activity under an agent that does not exist.
     events: _state.activityLog.map((e) => ({
       timestamp: new Date(e.timestamp).toISOString(),
       agent: e.agent,
@@ -108,6 +124,7 @@ async function exportLog() {
       sensitive: e.sensitive,
       reason: e.reason,
       action: e.action || 'accessed',
+      attribution: e.attribution ? e.attribution.status : null,
     })),
   };
   fs.writeFileSync(result.filePath, JSON.stringify(payload, null, 2));
@@ -133,7 +150,7 @@ async function exportCsv() {
       const ts = new Date(e.timestamp).toISOString();
       const action = e.action || 'accessed';
       const sensitive = e.sensitive ? 'yes' : 'no';
-      return [ts, e.agent, action, e.file, sensitive].map(csvEscape).join(',');
+      return [ts, displayAgent(e), action, e.file, sensitive].map(csvEscape).join(',');
     })
     .join('\n');
   const netConns = _state.getLatestNetConnections();
@@ -164,8 +181,10 @@ async function generateReport() {
   const sensitiveEvents = _state.activityLog.filter((e) => e.sensitive);
   const netConns = _state.getLatestNetConnections();
   const agentFileCounts = {};
-  for (const e of _state.activityLog)
-    agentFileCounts[e.agent] = (agentFileCounts[e.agent] || 0) + 1;
+  for (const e of _state.activityLog) {
+    const name = displayAgent(e);
+    agentFileCounts[name] = (agentFileCounts[name] || 0) + 1;
+  }
   const maxCount = Math.max(1, ...Object.values(agentFileCounts));
   const barChartRows = Object.entries(agentFileCounts)
     .map(([agent, count]) => {
@@ -176,7 +195,7 @@ async function generateReport() {
   const sensitiveRows = sensitiveEvents
     .map((e) => {
       const ts = new Date(e.timestamp).toISOString().replace('T', ' ').slice(0, 19);
-      return `<tr><td style="padding:3px 8px;color:#546e7a">${escHtml(ts)}</td><td style="padding:3px 8px;color:#00e5ff">${escHtml(e.agent)}</td><td style="padding:3px 8px;color:#ff1744">${escHtml(e.file)}</td><td style="padding:3px 8px;color:#ffc107">${escHtml(e.reason)}</td></tr>`;
+      return `<tr><td style="padding:3px 8px;color:#546e7a">${escHtml(ts)}</td><td style="padding:3px 8px;color:#00e5ff">${escHtml(displayAgent(e))}</td><td style="padding:3px 8px;color:#ff1744">${escHtml(e.file)}</td><td style="padding:3px 8px;color:#ffc107">${escHtml(e.reason)}</td></tr>`;
     })
     .join('');
   const netRows = netConns

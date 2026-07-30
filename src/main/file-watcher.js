@@ -26,6 +26,7 @@ const {
   AGENT_SELF_CONFIG,
 } = require('../shared/constants');
 const { getAllRules, reloadRules } = require('./rule-loader');
+const { EVIDENCE, makeAttribution } = require('./attribution');
 const _platform = require('./platform');
 const { IGNORE_FILE_PATTERNS } = _platform;
 
@@ -141,23 +142,31 @@ function isSelfAccess(agentName, filePath) {
  * Find the AI agent that owns a file path so the event is attributed to it
  * (and the self-access exemption is checked against the right agent). An
  * agent's OWN config dir wins first — a cwd may contain another agent's config
- * dir, so self-config must outrank cwd containment. Returns null if none match,
- * letting the caller fall back to its prior default.
+ * dir, so self-config must outrank cwd containment.
+ *
+ * Returns the owner TOGETHER WITH the evidence code that resolved it, so the
+ * caller never has to re-derive "why" (and never re-runs isSelfAccess against a
+ * different agent). Returns null when nothing matches — the caller must then emit
+ * an UNATTRIBUTED event rather than blame a substitute (C-01).
  * @param {string} filePath - Resolved file path from the watcher event.
  * @param {Array<{agent:string,cwd?:string}>} aiAgents - Candidate AI agents.
- * @returns {Object|null} The owning agent, or null when no agent matches.
+ * @returns {{agent: Object, evidence: string[]}|null} Owner plus why, or null.
  * @since v0.10.0
  */
 function findOwningAgent(filePath, aiAgents) {
   for (const a of aiAgents) {
-    if (isSelfAccess(a.agent, filePath)) return a;
+    if (isSelfAccess(a.agent, filePath)) {
+      return { agent: a, evidence: [EVIDENCE.SELF_CONFIG_PATH] };
+    }
   }
   const target = process.platform === 'win32' ? filePath.toLowerCase() : filePath;
   for (const a of aiAgents) {
     if (!a.cwd) continue;
     let base = path.resolve(a.cwd);
     if (process.platform === 'win32') base = base.toLowerCase();
-    if (target === base || target.startsWith(base + path.sep)) return a;
+    if (target === base || target.startsWith(base + path.sep)) {
+      return { agent: a, evidence: [EVIDENCE.CWD_CONTAINMENT] };
+    }
   }
   return null;
 }
@@ -208,20 +217,36 @@ function handleWatcherEvent(action, filePath) {
   const reason = classifySensitive(filePath);
   const aiAgents = _state.getLatestAiAgents();
   const owner = aiAgents.length > 0 ? findOwningAgent(filePath, aiAgents) : null;
-  const agent = owner || (aiAgents.length > 0 ? aiAgents[0] : agents[0]);
-  const selfAccess = reason !== null && isSelfAccess(agent.agent, filePath);
+  // C-01: chokidar hands us a PATH, never a PID — so this path can be `inferred`
+  // at best, and MUST be `unattributed` when no owner matches. Substituting the
+  // first AI agent (or the first agent of any kind) poisoned that agent's
+  // baselines, risk score, tray alert and audit trail. `pid: null`, not 0 — pid 0
+  // is taken by synthetic WSL / local-runtime agents, so 0 would collide with a
+  // real agent card.
+  const evidence = owner
+    ? owner.evidence
+    : [aiAgents.length > 0 ? EVIDENCE.NO_OWNER_MATCH : EVIDENCE.NO_AI_AGENTS_ONLINE];
+  const attribution = makeAttribution(evidence);
+  const agent = owner ? owner.agent : null;
+  // D2: the self-access exemption belongs to the agent that OWNS the path, and is
+  // implied by the evidence — findOwningAgent's first loop already ran
+  // isSelfAccess over every AI agent, so reaching the cwd branch (or no branch at
+  // all) proves no agent self-matched. Re-running it against a substituted agent
+  // is what let a foreign agent's exemption silently clear `sensitive`.
+  const selfAccess = reason !== null && evidence.includes(EVIDENCE.SELF_CONFIG_PATH);
   const event = {
-    agent: agent.agent,
-    pid: agent.pid,
-    parentEditor: agent.parentEditor || null,
-    cwd: agent.cwd || null,
+    agent: agent ? agent.agent : '',
+    pid: agent ? agent.pid : null,
+    parentEditor: (agent && agent.parentEditor) || null,
+    cwd: (agent && agent.cwd) || null,
     file: filePath,
     sensitive: reason !== null && !selfAccess,
     selfAccess,
     reason: reason || '',
     action,
     timestamp: now,
-    category: agent.category || 'other',
+    category: agent ? agent.category || 'other' : 'other',
+    attribution,
   };
   _state.activityLog.push(event);
   if (_state.onActivityPush) _state.onActivityPush(event);
@@ -229,7 +254,12 @@ function handleWatcherEvent(action, filePath) {
     const evicted = _state.activityLog.shift();
     if (_state.onActivityEvict) _state.onActivityEvict(evicted);
   }
-  _state.recordFileAccess(event.agent, filePath, event.sensitive, event.reason);
+  // An unattributed event enters NO agent's behaviour baseline: recording it under
+  // an empty name would create a phantom agent in sessionData, which
+  // checkDeviations() then iterates and warns about.
+  if (attribution.status !== 'unattributed') {
+    _state.recordFileAccess(event.agent, filePath, event.sensitive, event.reason);
+  }
   if (_state.onFileEvent) _state.onFileEvent(event);
 }
 
@@ -337,6 +367,9 @@ async function scanFileHandles(agent) {
     }
     const reason = classifySensitive(f);
     const selfAccess = reason !== null && isSelfAccess(agent.agent, f);
+    // Confirmed: this scan was run FOR agent.pid, so the owner IS the pid.
+    const evidence = [EVIDENCE.HANDLE_SCAN_PID];
+    if (selfAccess) evidence.push(EVIDENCE.SELF_CONFIG_PATH);
     const event = {
       agent: agent.agent,
       pid,
@@ -349,6 +382,7 @@ async function scanFileHandles(agent) {
       action: 'accessed',
       timestamp: Date.now(),
       category: agent.category || 'other',
+      attribution: makeAttribution(evidence),
     };
     newAccess.push(event);
     _state.activityLog.push(event);
@@ -449,6 +483,9 @@ async function _scanRmHolders(agents, fetchHolders) {
     const reason = h.reason || classifySensitive(groupSep) || classifySensitive(group) || '';
     const selfAccess =
       reason !== '' && (isSelfAccess(agent.agent, groupSep) || isSelfAccess(agent.agent, group));
+    // Confirmed: the agent was resolved from the holder PID (never cross-wired).
+    const evidence = [EVIDENCE.RM_HOLDER_PID];
+    if (selfAccess) evidence.push(EVIDENCE.SELF_CONFIG_PATH);
     const event = {
       agent: agent.agent,
       pid: h.pid,
@@ -461,6 +498,7 @@ async function _scanRmHolders(agents, fetchHolders) {
       action: 'holding',
       timestamp: Date.now(),
       category: agent.category || 'other',
+      attribution: makeAttribution(evidence),
     };
     newAccess.push(event);
     _state.activityLog.push(event);

@@ -56,6 +56,13 @@ export interface FeedGroup {
 
 // ═══ DISPLAY HELPERS ═══
 
+/**
+ * Label for an event whose owning agent is unknown (`attribution.status ===
+ * 'unattributed'` → `agent: ''`). Single source of truth so the feed row and the
+ * grouped view never drift apart.
+ */
+export const UNKNOWN_SOURCE = 'Unknown source';
+
 /** Shorten a file path to last 2 segments if over 40 chars. */
 export function shortenPath(p: string | undefined): string {
   return _shortenPath(p, 40, 2);
@@ -130,7 +137,10 @@ export function groupByAgent(events: FeedEvent[], agents: EnrichedAgent[]): Feed
     .map(([name, evs]) => {
       const a = agents.find((x) => x.name === name);
       return {
-        name,
+        // Unattributed events all share the '' key, so they collapse into ONE
+        // named group instead of a nameless header. No enriched agent matches ''
+        // → riskScore 0 / trustGrade '?', which is the honest readout.
+        name: name || UNKNOWN_SOURCE,
         count: evs.length,
         lastActivity: evs[0]?.timestamp || 0,
         severity: maxSev(evs),
