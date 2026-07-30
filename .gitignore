@@ -50,6 +50,9 @@ AEGIS-PERSONA-VAULT.md
 # Claude Code hook telemetry (UserPromptSubmit) — not produced by AEGIS
 events.jsonl
 
+# Standalone marketing landing page — external artifact, not part of the product
+aegis_landing.html
+
 # Sensitive production/cert files
 .env.production
 *.cert
