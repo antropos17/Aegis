@@ -22,7 +22,7 @@ npm run dist              # Electron-builder NSIS installer
 5. Svelte MCP autofixer on all .svelte files. JSDoc on all exports
 6. Conventional commits. NEVER add "Co-Authored-By" or "Generated with Claude Code"
 7. Git: powershell.exe -NoProfile -Command "cd 'X:\Future\ESCAPE\AEGIS'; git ..."
-8. TypeScript: new files in .ts, `npx eslint` + `npx tsc --noEmit` before commit, zero `any`
+8. TypeScript: new files in .ts, `npx eslint` + `npm run typecheck` before commit, zero `any`. Root tsconfig.json is a solution file (`files: []` + references) — a bare `npx tsc --noEmit` checks NOTHING and always exits 0; use `npm run typecheck` (both projects) or `npx tsc -b`
 
 ## Key Paths
 - src/main/ — 44 CommonJS modules (35 top-level + platform/ 7 + token-adapters/ 2)

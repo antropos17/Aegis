@@ -58,7 +58,7 @@ When maintainers merge the Release PR → version bump + CHANGELOG + GitHub Rele
 - **Main process** (`.js`): uses JSDoc annotations + `checkJs: true` for type safety without converting to `.ts`
 - **Renderer** (`.ts`/`.svelte`): native TypeScript with ES modules
 - Shared type definitions live in `src/shared/types/` (types across 8 files)
-- Run `npx tsc --noEmit` (typecheck) before opening a PR — zero type errors required
+- Run `npm run typecheck` before opening a PR — zero type errors required. It checks both projects (`tsconfig.main.json` + `tsconfig.renderer.json`); a bare `npx tsc --noEmit` resolves the root solution file and checks nothing
 - **Zero `any`** — use proper types, generics, or `unknown` instead. ESLint warns on `any`
 - Explicit return types on exported functions (`@typescript-eslint/explicit-function-return-type`)
 - Unused variables are errors, not warnings, in `.ts` files
