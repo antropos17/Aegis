@@ -190,9 +190,8 @@ All nine, exactly as subscribed in `preload.js`. There is no `scan-results` or
 
 Common ones: `get-stats`, `get-resource-usage`, `get-agent-database`, `get-settings`,
 `save-settings`, `get-all-permissions`, `save-agent-permissions`, `analyze-session`,
-`kill-process`, `get-audit-entries-before`. All 39 are listed in `src/main/preload.js`; the
-full table with module attribution is in [ARCHITECTURE.md](../ARCHITECTURE.md). Note there
-is no `get-audit-stats` channel — `audit-logger.getStats()` exists but is not wired to IPC.
+`kill-process`, `get-audit-entries-before`. All 40 are listed in `src/main/preload.js`; the
+full table with module attribution is in [ARCHITECTURE.md](../ARCHITECTURE.md).
 
 ### Browser / demo mode guard
 

@@ -42,7 +42,7 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 │  └───────────────┬──────────────┘     └──────────────┬───────────────┘  │
 │                  │          preload.js                │                  │
 │                  └─────── (IPC bridge) ───────────────┘                  │
-│              contextBridge API (48 channels: 39 invoke + 9 push)        │
+│              contextBridge API (49 channels: 40 invoke + 9 push)        │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -189,7 +189,7 @@ Process Scan (every Ns)
 
 ### Invoke (Renderer → Main → Response)
 
-All 39 registered in `src/main/ipc-handlers.js` and exposed through `src/main/preload.js`. A
+All 40 registered in `src/main/ipc-handlers.js` and exposed through `src/main/preload.js`. A
 channel absent from `preload.js` is unreachable from the renderer under `contextIsolation`,
 so this table is the complete surface — nothing else can be invoked.
 
@@ -206,6 +206,7 @@ so this table is the complete surface — nothing else can be invoked.
 | `analyze-agent` | ai-analysis | Per-agent AI threat analysis |
 | `analyze-session` | ai-analysis | Full session AI threat analysis |
 | `open-threat-report` | main | Write HTML to temp + open in browser |
+| `get-audit-stats` | audit-logger | Entry counts, durability counters, size, date range |
 | `open-audit-log-dir` | audit-logger | Open audit directory in the file manager |
 | `export-full-audit` | audit-logger | Export all audit logs to a single JSON |
 | `get-audit-entries-before` | audit-logger | Paginated audit log entries (cursor) |
