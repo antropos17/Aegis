@@ -6,15 +6,21 @@
 - `feat/short-name` — new features
 - `fix/short-name` — bug fixes
 - `perf/short-name` — performance
+- `chore/short-name` — maintenance, data updates
 - `docs/short-name` — documentation
 
 ## Rules
 
-1. NEVER commit features directly to master
-2. Create branch -> changes -> PR -> CI passes -> squash merge
-3. Keep branches short-lived (1-3 days)
-4. Delete branch after merge
-5. Direct master commits OK ONLY for: typos, version bumps, CI config
+1. Create branch -> changes -> PR -> CI passes -> **merge commit**. Squash and rebase are
+   disabled on the repository, so `gh pr merge <n> --merge --delete-branch` is the only
+   method available and every merge lands as a two-parent commit. Squash the noisy commits
+   on your own branch *before* opening the PR.
+2. Keep branches short-lived (1-3 days)
+3. Branch is deleted on merge (`delete_branch_on_merge` is on)
+4. **Direct commits to master are impossible, for anything — including typos, version bumps
+   and CI config.** `master` requires a pull request plus green `audit` / `build` / `lint` /
+   `svelte-check` / `test`, with admin enforcement on, so the push is rejected. The
+   `.claude/hooks/branch-guard.js` hook refuses edits on master before you get that far.
 
 ## For AI agents (Claude Code)
 

@@ -5,7 +5,7 @@ and IPC architecture specific to this codebase.
 
 ---
 
-## Stack Versions (current as of v0.7.0-alpha)
+## Stack Versions (current as of v0.10.0-alpha)
 
 | Dep | Version | Role |
 |-----|---------|------|
@@ -16,7 +16,9 @@ and IPC architecture specific to this codebase.
 | chokidar | 3.6 | File system watcher (main process only) |
 | prettier | 3.8 | Code formatter — run before committing |
 
-**Runtime deps only:** `electron` + `chokidar`. No other runtime deps without discussion.
+**Runtime deps (package.json `dependencies`) — three:** `ajv`, `chokidar`, `js-yaml`. `electron`
+is a devDependency; it ships as the shell, not as a resolved runtime dep. No further runtime
+deps without discussion.
 
 ---
 
@@ -169,20 +171,28 @@ OS (chokidar + netstat) --> main process
 
 ### Stream channels (pushed from main)
 
+All nine, exactly as subscribed in `preload.js`. There is no `scan-results` or
+`anomaly-scores` channel — anomaly scores ride inside `scan-batch`.
+
 | Channel | Store | Payload |
 |---------|-------|---------|
-| `scan-results` | `agents` | `Agent[]` |
+| `scan-batch` | `agents`, `stats`, `resourceUsage`, `anomalies` | `{ agents, stats, resourceUsage, anomalyScores }` — one coalesced payload per scan |
 | `file-access` | `events` | `FileEvent[]` |
 | `stats-update` | `stats` | `StatsObject` |
 | `network-update` | `network` | `NetworkConnection[]` |
-| `anomaly-scores` | `anomalies` | `{ [agentName]: score }` |
-| `resource-usage` | `resourceUsage` | `{ memMB, heapMB, cpuUser, cpuSystem }` |
+| `token-costs` | `tokenCosts` | `TokenCostRecord[]` |
+| `scan-status` | `scanActive` | `{ scanning: boolean }` |
+| `toggle-theme` | — | consumed directly in `App.svelte`, not via a store |
+| `resource-usage` | — | exposed by `preload.js` but **no renderer subscriber**; metrics arrive via `scan-batch` |
+| `rules:reloaded` | — | exposed by `preload.js` but **no renderer subscriber** |
 
 ### Invoke channels (renderer requests main)
 
 Common ones: `get-stats`, `get-resource-usage`, `get-agent-database`, `get-settings`,
 `save-settings`, `get-all-permissions`, `save-agent-permissions`, `analyze-session`,
-`kill-process`, `get-audit-stats`. Full list in `src/main/preload.js`.
+`kill-process`, `get-audit-entries-before`. All 39 are listed in `src/main/preload.js`; the
+full table with module attribution is in [ARCHITECTURE.md](../ARCHITECTURE.md). Note there
+is no `get-audit-stats` channel — `audit-logger.getStats()` exists but is not wired to IPC.
 
 ### Browser / demo mode guard
 
@@ -245,7 +255,8 @@ npm start              # build:renderer + launch.js (opens Electron with built r
 
 ## Testing
 
-Vitest (not Jest). Tests live in `src/tests/`.
+Vitest (not Jest). Tests live in `tests/` at the repository root — split into three Vitest
+projects (`main`, `renderer`, `components`) by `vitest.config.js`.
 
 ```bash
 npm test               # run all tests once
@@ -285,7 +296,7 @@ Key token namespaces:
 
 ## Conventions
 
-- **200-line soft limit** per file — split by feature, not enforced by linter
+- **300-line soft limit** per file — a target for NEW files, not an invariant; 18 existing `src/` files already exceed it. Not enforced by the linter
 - **JSDoc on all exported functions**: `@param`, `@returns`, `@since`
 - **Commit prefixes**: `feat:`, `fix:`, `docs:`, `refactor:`, `security:`
 - **IPC channel names**: `kebab-case`

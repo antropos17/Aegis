@@ -43,7 +43,7 @@ When maintainers merge the Release PR → version bump + CHANGELOG + GitHub Rele
 - **JSDoc headers on all exported functions** — `@param`, `@returns`, `@since` tags required. Include `@file`, `@module`, `@description` at top of every file.
 - **300 line soft limit per file** — split into focused, single-responsibility modules when exceeding.
 - **`const` over `let`** when the binding doesn't change. Never use `var`.
-- **No external dependencies** without discussion — the project intentionally has only 1 runtime dependency (`chokidar`; `electron` is a devDependency). Adding a dependency requires justification.
+- **No external dependencies** without discussion — the project intentionally keeps `dependencies` to three: `ajv` (rule-schema validation), `chokidar` (file watching) and `js-yaml` (ruleset parsing). `electron` is a devDependency. Adding a dependency requires justification.
 
 ### Naming Conventions
 
@@ -80,7 +80,7 @@ Add an entry to the `agents` array:
 {
   "name": "My Agent",
   "displayName": "My Agent",
-  "processPatterns": ["myagent", "myagent.exe"],
+  "names": ["myagent", "myagent.exe"],
   "icon": "🤖",
   "color": "#FF6B6B",
   "vendor": "My Company",
@@ -96,14 +96,14 @@ Add an entry to the `agents` array:
 
 **Required fields:**
 - `name` / `displayName` — Agent identifier (must be unique)
-- `processPatterns` — Substrings matched against running process names (case-insensitive)
+- `names` — Substrings matched against running process names (case-insensitive). The field is `names`, not `processPatterns`; nothing in the codebase reads a `processPatterns` key
 
 **Important fields:**
 - `knownDomains` — Domains classified as "safe" when this agent connects to them. Without this, the agent's connections will be flagged as unknown.
 - `configPaths` — Directories to monitor for the Hudson Rock config protection feature. These directories are watched for unauthorized access.
 - `defaultTrust` — Initial trust score (0-100). Lower = more suspicious. Affects risk score multiplier.
 - `riskProfile` — `low`, `medium`, or `high`. Affects default permission assignments.
-- `category` — One of: `coding-assistant`, `ai-ide`, `cli-tool`, `autonomous-agent`, `desktop-agent`, `browser-agent`, `agent-framework`, `security-devops`, `ide-extension`, `local-llm-runtime`
+- `category` — One of the 11 in use: `agent-framework`, `ai-ide`, `autonomous-agent`, `browser-agent`, `cli-tool`, `coding-assistant`, `container-runtime`, `desktop-agent`, `ide-extension`, `local-llm-runtime`, `security-devops`
 
 ### Via the UI
 

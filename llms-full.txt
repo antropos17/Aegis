@@ -19,15 +19,15 @@ npm install
 npm start
 ```
 
-Requires Node.js 18+ and npm 9+. Windows 10/11 recommended. macOS/Linux experimental.
+Building from source requires Node.js 20.19+ or 22.12+ — Vite 7 declares `^20.19.0 || >=22.12.0` and Vitest 4 declares `^20.0.0 || ^22.0.0 || >=24.0.0`, so Node 18 and 19 are excluded. npm 10+. The packaged app ships its own Node runtime inside Electron. Windows 10/11 recommended. macOS/Linux experimental.
 
 ## Features
 
 ### Process Monitoring
-Tracks 110 known AI agent signatures with parent-child tree resolution and IDE host detection. Covers coding assistants (Claude Code, Copilot, Cursor), autonomous agents (OpenClaw, AutoGPT, CrewAI, Devin), desktop AI (Gemini, Apple Intelligence), frameworks (LangChain, AutoGen, MetaGPT), and local LLMs (Ollama, LM Studio, llama.cpp).
+Tracks 110 known AI agents (262 process-name signatures across their `names` arrays) with parent-child tree resolution and IDE host detection. Covers coding assistants (Claude Code, Copilot, Cursor), autonomous agents (OpenClaw, AutoGPT, CrewAI, Devin), desktop AI (Gemini, Apple Intelligence), frameworks (LangChain, AutoGen, MetaGPT), and local LLMs (Ollama, LM Studio, llama.cpp).
 
 ### File System Access
-Watches sensitive directories (.ssh, .aws, .gnupg, .env, cloud configs) and 27 AI agent config paths for unauthorized access.
+Watches sensitive directories (.ssh, .aws, .gnupg, .env, cloud configs) and the 35 AI agent config paths registered in AGENT_CONFIG_PATHS for unauthorized access.
 
 ### Network Activity
 Logs outbound TCP connections per agent PID with reverse DNS and known-vs-unknown API endpoint classification.

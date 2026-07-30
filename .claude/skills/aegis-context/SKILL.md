@@ -25,7 +25,7 @@ Electron 33, Svelte 5, Vite 7, chokidar. TypeScript: `allowJs: true`, **`checkJs
 - Main process (Node.js): src/main/ — 44 CJS modules (35 top-level + 7 platform/ + 2 token-adapters/)
 - Renderer (Svelte 5): src/renderer/ — 46 components + 11 stores + 16 utils via IPC bridge
 - Bridge: src/main/preload.js — contextBridge, 39 invoke + 9 push = 48 channels
-- Data: src/shared/agent-database.json (110 agent signatures)
+- Data: src/shared/agent-database.json (110 agents / 262 name signatures)
 - Rules: rules/*.yaml — 73 active rules across 8 categories, validated against rules/_schema.json
 - Rule loader: src/main/rule-loader.js — loadRules() + categoryIndex Map exposed via getRulesByCategory(); built and tested, but no production caller consumes it yet (C-16)
 - Types: src/shared/types/ — 8 .ts files
@@ -40,7 +40,7 @@ Electron 33, Svelte 5, Vite 7, chokidar. TypeScript: `allowJs: true`, **`checkJs
 - AgentCard: sparkline + badge + spotlight hover
 - FooterMiniCharts: CPU/memory sparklines in footer
 - TabBar: sliding indicator + tab transitions
-- VisTimeline, AgentGraph, EventFeed, AgentStatsPanel
+- Timeline (+ TimelineCanvas/Controls/Legend/Tooltip), ActivityFeed, GroupedFeed (+ GroupedFeedItem), FeedFilters, AgentPanel, AgentStatsPanel
 
 ## Key Files
 - src/renderer/lib/styles/tokens.css — 60+ design tokens (Fancy UI)

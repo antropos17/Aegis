@@ -4,7 +4,7 @@
   <p align="center"><i>Open-source monitor that shows what AI coding agents actually do on your machine — at the OS level, no agent hooks required.</i></p>
 </p>
 
-**AEGIS sees every AI agent on your machine — even ones that don't cooperate.** It is an independent, OS-level observer that watches agent processes, file access, network activity, and behavioral anomalies in real time, regardless of how the agent was launched. Built on a JavaScript (ES modules / CommonJS) monitoring engine, with TypeScript in the renderer and shared types. **Open-source, local, no telemetry** — everything stays on your machine.
+**AEGIS sees every AI agent on your machine — even ones that don't cooperate.** It is an independent, OS-level observer that watches agent processes, file access, network activity, and behavioral anomalies in real time, regardless of how the agent was launched. Built on a CommonJS JavaScript monitoring engine, with TypeScript in the renderer and in the shared types. **Open-source, local, no telemetry** — everything stays on your machine.
 
 > "Kaspersky found 512 bugs in OpenClaw. So we built an EDR to monitor it."
 
@@ -67,7 +67,7 @@ AEGIS sits at a different layer. It is an **independent, OS-level observer**: it
 | Layer | How |
 |-------|-----|
 | **Processes** | 110 known AI agent signatures, parent-child tree resolution, IDE host detection |
-| **Files** | Watches `.ssh`, `.aws`, `.gnupg`, `.env*`, cloud configs, 27 AI agent config dirs |
+| **Files** | Watches `.ssh`, `.aws`, `.gnupg`, `.env*`, cloud configs, 35 registered AI agent config dirs |
 | **Network** | Outbound TCP per agent PID, reverse DNS, known API endpoints vs unknown |
 | **Behavior** | Rolling 10-session baselines, 4-axis anomaly scoring (Network/FS/Process/Baseline) |
 | **Local LLMs** | Ollama, LM Studio, vLLM, llama.cpp runtime detection |
@@ -240,7 +240,7 @@ Everything below is **planned**, not shipped. AEGIS today is monitor-only (see [
 
 ### What is Aegis?
 
-Aegis is an open-source endpoint detection and response (EDR) tool purpose-built for monitoring AI agents. It tracks processes, file access, network activity, and behavioral anomalies in real time, built on Electron 33 and Svelte 5. The monitoring engine is JavaScript (ES modules / CommonJS); TypeScript is used in the renderer and shared type definitions. All data stays local — no telemetry, no cloud dependency.
+Aegis is an open-source endpoint detection and response (EDR) tool purpose-built for monitoring AI agents. It tracks processes, file access, network activity, and behavioral anomalies in real time, built on Electron 33 and Svelte 5. The monitoring engine is CommonJS JavaScript; the renderer is ES modules, and TypeScript is used in the renderer and the shared type definitions. All data stays local — no telemetry, no cloud dependency.
 
 ### Why do AI agents need monitoring?
 
