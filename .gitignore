@@ -2,6 +2,8 @@ node_modules/
 dist/
 out/
 coverage/
+# `npx tsc -b` writes one per referenced project, next to the config
+*.tsbuildinfo
 .env
 *.log
 *.json.bak
