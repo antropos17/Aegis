@@ -6,7 +6,7 @@ Landing: aegisprotect.vercel.app | Demo: aegis-demo-ten.vercel.app
 npm run build:renderer    # Vite build (MUST pass before commit)
 npm run lint              # ESLint
 npm run format            # Prettier
-npm test                  # Vitest (1017 passed / 4 skipped = 1021, 64 files)
+npm test                  # Vitest (1034 passed / 4 skipped = 1038, 65 files)
 npm run dist              # Electron-builder NSIS installer
 
 ## Background Tasks (/loop)
@@ -31,7 +31,7 @@ npm run dist              # Electron-builder NSIS installer
 - rules/ — 73 active detection rules in 8 YAML files, validated by rules/_schema.json
 - memory-bank/ — ai-mistakes.md (READ FIRST), progress.md, architecture.md
 - .claude/skills/ — 11 skills: aegis-context, design-system, electron-main, svelte-patterns, testing, ship, pr-monitor, ci-monitor, prompt-craft, audit-check, commit-and-track
-- IPC: preload.js — 39 invoke + 9 push = 48 channels via contextBridge
+- IPC: preload.js — 40 invoke + 9 push = 49 channels via contextBridge
 
 ## MCP & Skills
 - Context7 MCP: проверяй доку ПЕРЕД решениями | Svelte MCP: autofixer на .svelte
