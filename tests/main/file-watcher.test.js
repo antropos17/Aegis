@@ -203,6 +203,11 @@ describe('file-watcher event handling', () => {
 
   describe('handleWatcherEvent()', () => {
     it('creates event with correct structure', () => {
+      // The agent needs a cwd containing the file: without an owner the event is
+      // now UNATTRIBUTED (C-01) instead of being pinned on aiAgents[0].
+      const owner = { pid: 100, agent: 'Claude Code', category: 'ai', cwd: '/home/user/project' };
+      state.getLatestAgents = () => [owner];
+      state.getLatestAiAgents = () => [owner];
       fileWatcher.handleWatcherEvent('modified', '/home/user/project/index.js');
       expect(state.activityLog).toHaveLength(1);
       const event = state.activityLog[0];
@@ -212,6 +217,7 @@ describe('file-watcher event handling', () => {
       expect(event.sensitive).toBe(false);
       expect(event.reason).toBe('');
       expect(event.timestamp).toBeGreaterThan(0);
+      expect(event.attribution).toEqual({ status: 'inferred', evidence: ['cwd-containment'] });
     });
 
     it('marks sensitive files', () => {
@@ -258,7 +264,12 @@ describe('file-watcher event handling', () => {
       expect(state.activityLog).toHaveLength(0);
     });
 
-    it('calls recordFileAccess', () => {
+    it('calls recordFileAccess for an attributed sensitive event', () => {
+      // ~/.ssh is nobody's cwd and nobody's self-config, so an owner has to be
+      // manufactured for this assertion to be about recordFileAccess at all.
+      const owner = { pid: 100, agent: 'Claude Code', category: 'ai', cwd: '/home/user/.ssh' };
+      state.getLatestAgents = () => [owner];
+      state.getLatestAiAgents = () => [owner];
       fileWatcher.handleWatcherEvent('created', '/home/user/.ssh/key');
       expect(state.recordFileAccess).toHaveBeenCalledWith(
         'Claude Code',
@@ -266,6 +277,15 @@ describe('file-watcher event handling', () => {
         true,
         'SSH keys/config',
       );
+    });
+
+    it('does NOT call recordFileAccess for an unattributed event', () => {
+      // Default fixture: one AI agent, no cwd → ~/.ssh/key has no owner. Baselines
+      // must not absorb an event we cannot attribute (C-01).
+      fileWatcher.handleWatcherEvent('created', '/home/user/.ssh/key');
+      expect(state.activityLog[0].attribution.status).toBe('unattributed');
+      expect(state.activityLog[0].sensitive).toBe(true);
+      expect(state.recordFileAccess).not.toHaveBeenCalled();
     });
 
     it('calls onFileEvent callback', () => {
@@ -281,11 +301,29 @@ describe('file-watcher event handling', () => {
       expect(state.activityLog.length).toBeLessThanOrEqual(10000);
     });
 
-    it('uses AI agent over generic agent when available', () => {
+    it('prefers the owning AI agent over a generic agent', () => {
+      // The AI agent OWNS the path (cwd containment); the generic one is a decoy.
+      // Previously this test passed with a single cwd-less AI agent, so it could
+      // not tell correct attribution from a blind fallback to aiAgents[0].
       state.getLatestAgents = () => [{ pid: 50, agent: 'Generic', category: 'other' }];
-      state.getLatestAiAgents = () => [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
+      state.getLatestAiAgents = () => [
+        { pid: 100, agent: 'Claude Code', category: 'ai', cwd: '/home/user' },
+      ];
       fileWatcher.handleWatcherEvent('modified', '/home/user/file.js');
       expect(state.activityLog[0].agent).toBe('Claude Code');
+      expect(state.activityLog[0].attribution.status).toBe('inferred');
+    });
+
+    it('does not fall back to a generic agent when no AI agent owns the path', () => {
+      state.getLatestAgents = () => [{ pid: 50, agent: 'Generic', category: 'other' }];
+      state.getLatestAiAgents = () => [
+        { pid: 100, agent: 'Claude Code', category: 'ai', cwd: '/home/user/elsewhere' },
+      ];
+      fileWatcher.handleWatcherEvent('modified', '/home/user/file.js');
+      const event = state.activityLog[0];
+      expect(event.agent).toBe('');
+      expect(event.pid).toBeNull();
+      expect(event.attribution).toEqual({ status: 'unattributed', evidence: ['no-owner-match'] });
     });
 
     it('attributes a self-config event to the owning agent, not aiAgents[0] (C-01)', () => {

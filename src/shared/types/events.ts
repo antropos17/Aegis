@@ -14,10 +14,45 @@
  */
 export type FileAction = 'created' | 'modified' | 'deleted' | 'accessed' | 'holding';
 
+/**
+ * How the owning agent was attached to a file event.
+ * - `confirmed`: resolved from a PID (Restart Manager holder / per-PID handle scan).
+ * - `inferred`: guessed from a path (own config dir or cwd containment); no PID proof.
+ * - `unattributed`: owner unknown — NO agent is substituted (C-01).
+ */
+export type AttributionStatus = 'confirmed' | 'inferred' | 'unattributed';
+
+/**
+ * Closed list of attribution evidence codes — mirrors `EVIDENCE_CODES` in
+ * src/main/attribution.js. PID-backed codes yield `confirmed`, heuristic codes
+ * yield `inferred`, negative codes yield `unattributed`.
+ */
+export type AttributionEvidence =
+  | 'rm-holder-pid'
+  | 'handle-scan-pid'
+  | 'self-config-path'
+  | 'cwd-containment'
+  | 'no-owner-match'
+  | 'no-ai-agents-online';
+
+/**
+ * Attribution record carried by a file event. Deliberately carries NO numeric
+ * confidence: the status is a hard three-way distinction, not a score to threshold.
+ */
+export interface Attribution {
+  readonly status: AttributionStatus;
+  readonly evidence: readonly AttributionEvidence[];
+}
+
 /** File access event from watcher or handle scan */
 export interface FileEvent {
+  /** Owning agent's display name, or `''` when the event is unattributed. */
   readonly agent: string;
-  readonly pid: number;
+  /**
+   * Owning agent's PID, or `null` when the event is unattributed. Never 0 for an
+   * unknown owner — pid 0 is used by synthetic WSL / local-runtime agents.
+   */
+  readonly pid: number | null;
   readonly parentEditor: string | null;
   readonly cwd: string | null;
   readonly file: string;
@@ -27,6 +62,8 @@ export interface FileEvent {
   readonly action: FileAction;
   readonly timestamp: number;
   readonly category: string;
+  /** Optional: absent on events emitted before v0.11.0 (older activity-log entries). */
+  readonly attribution?: Attribution;
 }
 
 /** Enriched network connection from scanNetworkConnections */

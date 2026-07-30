@@ -61,6 +61,34 @@ const fileWatchers = [];
 // ═══ RUNNING COUNTERS for getStats() — O(1) instead of O(n) ═══
 let totalSensitive = 0;
 let aiSensitive = 0;
+// ── Attribution counters (blindness metric) ──
+// How many events in the CURRENT activity log we could attach to an agent by PID
+// (confirmed), only by path heuristic (inferred), or not at all (unattributed).
+// attrUnattributedSensitive is the honest blindness number: sensitive accesses we
+// observed but could not blame on anyone.
+let attrConfirmed = 0;
+let attrInferred = 0;
+let attrUnattributed = 0;
+let attrUnattributedSensitive = 0;
+
+/**
+ * Move the attribution counters by `delta` for one event. Called with +1 on push
+ * and -1 on eviction so the counters always describe the current activity log.
+ * Events without an `attribution` field (pre-v0.11.0 entries) move nothing.
+ * @param {Object} ev - Activity log event.
+ * @param {number} delta - +1 when added, -1 when evicted.
+ */
+function bumpAttribution(ev, delta) {
+  const status = ev && ev.attribution && ev.attribution.status;
+  if (status === 'confirmed') {
+    attrConfirmed += delta;
+  } else if (status === 'inferred') {
+    attrInferred += delta;
+  } else if (status === 'unattributed') {
+    attrUnattributed += delta;
+    if (ev.sensitive) attrUnattributedSensitive += delta;
+  }
+}
 
 /** @param {Object} ev - Activity log event being added */
 function onActivityPush(ev) {
@@ -68,6 +96,7 @@ function onActivityPush(ev) {
     totalSensitive++;
     if (ev.category === 'ai') aiSensitive++;
   }
+  bumpAttribution(ev, 1);
 }
 
 /** @param {Object} ev - Activity log event being evicted */
@@ -76,6 +105,7 @@ function onActivityEvict(ev) {
     totalSensitive--;
     if (ev.category === 'ai') aiSensitive--;
   }
+  bumpAttribution(ev, -1);
 }
 
 /** Loads modules not needed until first scan cycle. Called after ready-to-show. */
@@ -117,6 +147,7 @@ function getStats() {
       otherAgentCount: 0,
       uniqueAgents: [],
       permissionDeniedScans: 0,
+      attribution: { confirmed: 0, inferred: 0, unattributed: 0, unattributedSensitive: 0 },
     };
   }
   const log = scanner.activityLog;
@@ -132,6 +163,12 @@ function getStats() {
     otherAgentCount: new Set(latestOtherAgents.map((a) => a.agent)).size,
     uniqueAgents: Array.from(scanner.uniqueAgentNames),
     permissionDeniedScans: scanner.permissionDeniedScans,
+    attribution: {
+      confirmed: attrConfirmed,
+      inferred: attrInferred,
+      unattributed: attrUnattributed,
+      unattributedSensitive: attrUnattributedSensitive,
+    },
   };
 }
 
