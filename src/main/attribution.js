@@ -55,6 +55,23 @@ const EVIDENCE_CODES = Object.freeze(Object.values(EVIDENCE));
 /** @type {Set<string>} Lookup set for the closed-list check. */
 const KNOWN_CODES = new Set(EVIDENCE_CODES);
 
+/**
+ * Human-facing label for an event with no known owner (`agent: ''`). Used
+ * wherever a main-process surface shows the name to a PERSON — tray body, CSV,
+ * HTML report, LLM prompt — so a blank never reads as a formatting bug.
+ *
+ * NOT for machine-readable output: a JSON export must keep the raw empty `agent`
+ * plus the attribution status, otherwise a downstream tool would group real
+ * activity under a fabricated agent name.
+ *
+ * The renderer keeps its own copy in lib/utils/grouped-feed-utils.ts — main is
+ * CJS and the renderer never imports from src/main, so the string cannot be
+ * shared across the process boundary. Keep the two in sync.
+ * @type {string}
+ * @since v0.11.0
+ */
+const UNKNOWN_SOURCE_LABEL = 'Unknown source';
+
 /** @type {Set<string>} PID-backed codes — any one of them means `confirmed`. */
 const PID_EVIDENCE = new Set([EVIDENCE.RM_HOLDER_PID, EVIDENCE.HANDLE_SCAN_PID]);
 
@@ -103,6 +120,7 @@ function makeAttribution(evidence) {
 module.exports = {
   EVIDENCE,
   EVIDENCE_CODES,
+  UNKNOWN_SOURCE_LABEL,
   deriveStatus,
   makeAttribution,
 };

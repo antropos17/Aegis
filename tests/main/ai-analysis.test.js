@@ -411,6 +411,43 @@ describe('ai-analysis', () => {
       expect(result.error).toContain('API key');
     });
 
+    it('keeps unattributed events out of the per-agent summary but labels them in the event list', async () => {
+      setupState({
+        activityLog: [
+          {
+            agent: 'Claude',
+            sensitive: true,
+            reason: 'SSH key',
+            file: '/home/user/a/.env',
+            action: 'read',
+            attribution: { status: 'confirmed', evidence: ['handle-scan-pid'] },
+          },
+          {
+            agent: '',
+            pid: null,
+            sensitive: true,
+            reason: 'SSH keys/config',
+            file: '/home/user/.ssh/id_rsa',
+            action: 'modified',
+            attribution: { status: 'unattributed', evidence: ['no-owner-match'] },
+          },
+        ],
+        agents: [{ agent: 'Claude', pid: 100 }],
+        netConns: [],
+      });
+      const req = mockHttpSuccess({ content: [{ text: '{"summary":"ok"}' }] });
+
+      await analysis.analyzeSessionActivity();
+
+      const body = req.write.mock.calls[0][0];
+      // Event list: labelled, never bare brackets.
+      expect(body).toContain('[Unknown source]');
+      expect(body).not.toContain('[] modified');
+      // Per-agent summary: no nameless bucket (would render as "  : 1 files").
+      expect(body).not.toMatch(/\\n\s*: \d+ files/);
+      expect(body).toContain('Claude:');
+    });
+
     it('returns structured session analysis on valid response', async () => {
       setupState({
         activityLog: [

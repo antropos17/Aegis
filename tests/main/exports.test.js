@@ -184,6 +184,45 @@ describe('exports', () => {
       expect(data.events[0].action).toBe('read');
     });
 
+    it('keeps the raw empty agent in JSON but exports the attribution status', async () => {
+      // JSON is machine-readable: inventing a display name here would make a
+      // downstream tool group real activity under an agent that does not exist.
+      const filePath = path.join(tmpDir, 'log.json');
+      initExporter({
+        activityLog: [
+          {
+            timestamp: 1700000000000,
+            agent: '',
+            pid: null,
+            file: '/home/user/.ssh/id_rsa',
+            sensitive: true,
+            reason: 'SSH keys/config',
+            action: 'modified',
+            attribution: { status: 'unattributed', evidence: ['no-owner-match'] },
+          },
+          {
+            timestamp: 1700000001000,
+            agent: 'Claude',
+            pid: 100,
+            file: '/a.js',
+            sensitive: false,
+            reason: '',
+            action: 'read',
+          },
+        ],
+      });
+
+      mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath });
+      await exporter.exportLog();
+
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      expect(data.events[0].agent).toBe('');
+      expect(data.events[0].agent).not.toBe('Unknown source');
+      expect(data.events[0].attribution).toBe('unattributed');
+      // Pre-v0.11.0 shape: no attribution field → explicit null, not undefined.
+      expect(data.events[1].attribution).toBeNull();
+    });
+
     it('defaults action to "accessed" when missing', async () => {
       const filePath = path.join(tmpDir, 'log.json');
       initExporter({
@@ -247,6 +286,33 @@ describe('exports', () => {
       expect(lines[1]).toContain('no');
       expect(lines[2]).toContain('write');
       expect(lines[2]).toContain('yes');
+    });
+
+    it('writes "Unknown source" instead of a blank cell for an unattributed event', async () => {
+      const filePath = path.join(tmpDir, 'log.csv');
+      initExporter({
+        activityLog: [
+          {
+            timestamp: 1700000000000,
+            agent: '',
+            pid: null,
+            file: '/home/user/.ssh/id_rsa',
+            sensitive: true,
+            reason: 'SSH keys/config',
+            action: 'modified',
+            attribution: { status: 'unattributed', evidence: ['no-owner-match'] },
+          },
+        ],
+        netConns: [],
+      });
+
+      mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath });
+      await exporter.exportCsv();
+
+      const row = fs.readFileSync(filePath, 'utf-8').split('\n')[1];
+      expect(row).toContain('Unknown source');
+      // A blank Agent Name cell would leave two commas back to back.
+      expect(row).not.toContain(',,');
     });
 
     it('includes network connections in CSV', async () => {
@@ -356,6 +422,33 @@ describe('exports', () => {
       const result = await exporter.generateReport();
       const html = fs.readFileSync(result.path, 'utf-8');
       expect(html).toContain('No file activity recorded');
+    });
+
+    it('labels unattributed events in the HTML report, in both table and bar chart', async () => {
+      initExporter({
+        activityLog: [
+          {
+            timestamp: Date.now(),
+            agent: '',
+            pid: null,
+            file: '/home/user/.ssh/id_rsa',
+            sensitive: true,
+            reason: 'SSH keys/config',
+            action: 'modified',
+            attribution: { status: 'unattributed', evidence: ['no-owner-match'] },
+          },
+        ],
+        netConns: [],
+      });
+
+      const result = await exporter.generateReport();
+      const html = fs.readFileSync(result.path, 'utf-8');
+      // Sensitive-events table row.
+      expect(html).toContain('Unknown source');
+      // Per-agent bar chart must not render a blank label either.
+      const chartLabels = [...html.matchAll(/font-weight:600">([^<]*)<\/td>/g)].map((m) => m[1]);
+      expect(chartLabels).toContain('Unknown source');
+      expect(chartLabels).not.toContain('');
     });
 
     it('HTML-escapes agent names to prevent XSS', async () => {

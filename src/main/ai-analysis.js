@@ -13,6 +13,7 @@
 'use strict';
 
 const https = require('https');
+const { UNKNOWN_SOURCE_LABEL } = require('./attribution');
 
 /** Max allowed lengths for untrusted fields */
 const FIELD_LIMITS = { agentName: 256, path: 1024, reason: 512 };
@@ -271,7 +272,7 @@ function analyzeSessionActivity() {
         .slice(-30)
         .map(
           (e) =>
-            `  - [${sanitizeField(e.agent, FIELD_LIMITS.agentName)}] ${e.action}: ${sanitizeField(e.file, FIELD_LIMITS.path)} (${sanitizeField(e.reason, FIELD_LIMITS.reason)})`,
+            `  - [${sanitizeField(e.agent || UNKNOWN_SOURCE_LABEL, FIELD_LIMITS.agentName)}] ${e.action}: ${sanitizeField(e.file, FIELD_LIMITS.path)} (${sanitizeField(e.reason, FIELD_LIMITS.reason)})`,
         )
         .join('\n') || '  (none)';
     const configDetails =
@@ -279,7 +280,7 @@ function analyzeSessionActivity() {
         .slice(-20)
         .map(
           (e) =>
-            `  - [${sanitizeField(e.agent, FIELD_LIMITS.agentName)}] ${e.action}: ${sanitizeField(e.file, FIELD_LIMITS.path)} (${sanitizeField(e.reason, FIELD_LIMITS.reason)})`,
+            `  - [${sanitizeField(e.agent || UNKNOWN_SOURCE_LABEL, FIELD_LIMITS.agentName)}] ${e.action}: ${sanitizeField(e.file, FIELD_LIMITS.path)} (${sanitizeField(e.reason, FIELD_LIMITS.reason)})`,
         )
         .join('\n') || '  (none)';
     const netDetails =
