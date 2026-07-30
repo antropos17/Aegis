@@ -6,7 +6,7 @@ Landing: aegisprotect.vercel.app | Demo: aegis-demo-ten.vercel.app
 npm run build:renderer    # Vite build (MUST pass before commit)
 npm run lint              # ESLint
 npm run format            # Prettier
-npm test                  # Vitest (707 tests, 44 files)
+npm test                  # Vitest (968 passed / 4 skipped = 972, 62 files)
 npm run dist              # Electron-builder NSIS installer
 
 ## Background Tasks (/loop)
@@ -17,7 +17,7 @@ npm run dist              # Electron-builder NSIS installer
 ## Critical Rules
 1. Read memory-bank/ai-mistakes.md before ANY code change
 2. Do ONLY what the prompt says — no extra features, no unrequested changes
-3. Main = CJS (require). Renderer = ESM (import). Max 300 lines/file
+3. Main = CJS (require). Renderer = ESM (import). 300 lines/file is a target for NEW files, not an invariant — 18 existing src files already exceed it (largest: file-watcher.js 632, ipc-handlers.js 498), tests go up to 691. Don't split an existing file just to hit the number; do extract when adding to one that's already over
 4. CSS: var() from tokens.css ONLY. Svelte 5 runes only ($state/$derived/$effect)
 5. Svelte MCP autofixer on all .svelte files. JSDoc on all exports
 6. Conventional commits. NEVER add "Co-Authored-By" or "Generated with Claude Code"
@@ -25,12 +25,13 @@ npm run dist              # Electron-builder NSIS installer
 8. TypeScript: new files in .ts, `npx eslint` + `npx tsc --noEmit` before commit, zero `any`
 
 ## Key Paths
-- src/main/ — 23 CommonJS modules (scanners, watchers, IPC, scoring, zip-writer)
-- src/renderer/ — 43 Svelte 5 components + 9 stores + 15 utils + tokens.css/global.css
-- src/shared/ — agent-database.json (110 agents), constants.js (68 rules), types/ (8 TS files)
+- src/main/ — 43 CommonJS modules (34 top-level + platform/ 7 + token-adapters/ 2)
+- src/renderer/ — 46 Svelte 5 components + 11 stores + 16 utils + tokens.css/global.css
+- src/shared/ — agent-database.json (110 agents), types/ (8 TS files), constants.js (ignore patterns, config paths; SENSITIVE_RULES deprecated)
+- rules/ — 73 active detection rules in 8 YAML files, validated by rules/_schema.json
 - memory-bank/ — ai-mistakes.md (READ FIRST), progress.md, architecture.md
-- .claude/skills/ — 9 skills: context, design-system, electron-main, svelte-patterns, testing, ship, pr-monitor, ci-monitor, prompt-craft
-- IPC: preload.js — 43 invoke + 6 push channels via contextBridge
+- .claude/skills/ — 11 skills: aegis-context, design-system, electron-main, svelte-patterns, testing, ship, pr-monitor, ci-monitor, prompt-craft, audit-check, commit-and-track
+- IPC: preload.js — 39 invoke + 9 push = 48 channels via contextBridge
 
 ## MCP & Skills
 - Context7 MCP: проверяй доку ПЕРЕД решениями | Svelte MCP: autofixer на .svelte
@@ -50,7 +51,7 @@ only the project-level settings.json `deny` (rm -rf, git push --force, .env read
 | architecture-mapper | prompt-only (bare Bash) | Structural map: main/renderer/preload split, detection pipeline, IPC channels, dead code, JS→TS completeness | Before a refactor or release when you need an architecture map |
 | security-reviewer | prompt-only (bare Bash) | Electron hardening, IPC surface, secrets-leak trace, Anthropic key handling, dep CVEs (RED/YELLOW/GREEN) | Before any release, dep bump, or IPC/preload/logging/export change |
 | test-auditor | prompt-only (bare Bash) | Coverage matrix, untested monitoring/IPC/cross-platform paths, weak/tautological tests | When you need what is actually tested vs untested |
-| consistency-reviewer | prompt-only (bare Bash) | Docs-vs-reality: verify 107 agents / 68 rules / <2s boot / CSP / JS-vs-TS / IPC counts | Before README, grant/investor material, or public release |
+| consistency-reviewer | prompt-only (bare Bash) | Docs-vs-reality: verify 110 agents / 73 rules / <2s boot / CSP / JS-vs-TS / IPC counts | Before README, grant/investor material, or public release |
 | researcher | prompt-only (write-block structural via `agent: Explore`; Bash unscoped) | Explore codebase, answer questions with file:line refs | Quick read-only investigation of how something works (`/research`) |
 | shipper | **no** — releases via `Bash(git *)` (push/merge) | Release workflow: verify loop, show diff, push/merge/tag, waits for confirmation | Shipping a version (`/ship`) |
 | ui-designer | **no** — has `Edit` | Implements Fancy UI Svelte components from the master plan | Any visual/CSS/Svelte component work (`/fancy-ui`) |

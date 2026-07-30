@@ -18,7 +18,7 @@ Requires Node.js 18+ and Windows 10/11 for full monitoring functionality. The El
 1. **Fork** the repository
 2. **Branch** from `master`: `git checkout -b feature/your-feature`
 3. **Implement** your changes following the code standards below
-4. **Test**: run `npm test` (707 tests across 44 files) and `npm start` — verify no console errors, all tabs render, existing features work
+4. **Test**: run `npm test` (968 tests across 62 files) and `npm start` — verify no console errors, all tabs render, existing features work
 5. **Commit** with [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
 6. **Push** your branch and open a **Pull Request** with a clear description of what changed and why
 
@@ -154,16 +154,27 @@ If the renderer needs data, register an IPC handler in `registerIpc()` and add t
 
 ## How to Add New Sensitive File Rules
 
-Edit `src/shared/constants.js` — add to the `SENSITIVE_RULES` array:
+Rules live in `rules/*.yaml` — one ruleset file per category, validated against `rules/_schema.json` and loaded by `src/main/rule-loader.js` with hot-reload. Add an entry to the ruleset for your category:
 
-```javascript
-{ pattern: /my-pattern/i, reason: 'Description shown in UI', category: 'my-category', severity: 'critical' }
+```yaml
+  - id: "SS007"
+    name: "SSH agent socket"
+    pattern: "ssh-agent"
+    reason: "Description shown in UI"
+    category: "ssh"
+    risk: critical
+    enabled: true
 ```
 
-- `pattern` — RegExp tested against the full file path
+- `id` — Unique rule id (2-letter category prefix + 3 digits)
+- `name` — Short rule name
+- `pattern` — Regex source string tested against the full file path
 - `reason` — Human-readable label displayed in the activity feed
-- `category` — Optional grouping (e.g., `agent-config`, `credential`)
-- `severity` — Optional: `critical`, `high`, `medium`, or `low`
+- `category` — Must be one of the 8 values in `_schema.json`: `ai-config`, `secrets`, `ssh`, `certificates`, `cloud`, `browser`, `devtools`, `crypto`
+- `risk` — `critical`, `high`, `medium`, or `low`
+- `enabled` — Set `false` to ship a rule disabled by default
+
+`SENSITIVE_RULES` in `src/shared/constants.js` is deprecated and not read at runtime — editing it has no effect on detection.
 
 ## Issue Labels
 
