@@ -142,6 +142,105 @@ describe('process-utils', () => {
     });
   });
 
+  describe('enrichWithParentChains() — PID-reuse cache poisoning', () => {
+    it('the same PID with a DIFFERENT process name misses the cache and gets a fresh startTime', async () => {
+      // The cache TTL is 60s. Keyed on pid alone, a pid recycled by another
+      // executable inside that window served the DEAD process's startTime — the
+      // one field instanceId is built from.
+      mockGetParentProcessMap.mockResolvedValueOnce(
+        new Map([
+          [100, { name: 'claude.exe', ppid: 200, startTime: 1717000000000 }],
+          [200, { name: 'code', ppid: 0, startTime: 1716999990000 }],
+        ]),
+      );
+      const dead = [{ pid: 100, agent: 'Claude Code', process: 'claude.exe' }];
+      await processUtils.enrichWithParentChains(dead);
+      expect(dead[0].startTime).toBe(1717000000000);
+
+      // Same tick window, same pid — now held by a different executable.
+      mockGetParentProcessMap.mockResolvedValueOnce(
+        new Map([[100, { name: 'node.exe', ppid: 300, startTime: 1717000500000 }]]),
+      );
+      const reused = [{ pid: 100, agent: 'opencode', process: 'node.exe' }];
+      await processUtils.enrichWithParentChains(reused);
+
+      expect(mockGetParentProcessMap).toHaveBeenCalledTimes(2); // cache MISS
+      expect(reused[0].startTime).toBe(1717000500000);
+      expect(reused[0].instanceId).not.toBe(dead[0].instanceId);
+    });
+
+    it('forceRefresh re-reads the map even for a cached pid + name', async () => {
+      mockGetParentProcessMap.mockResolvedValue(
+        new Map([
+          [100, { name: 'claude.exe', ppid: 200, startTime: 1717000000000 }],
+          [200, { name: 'code', ppid: 0 }],
+        ]),
+      );
+      const agents = [{ pid: 100, agent: 'Claude Code', process: 'claude.exe' }];
+      await processUtils.enrichWithParentChains(agents);
+      await processUtils.enrichWithParentChains(agents);
+      expect(mockGetParentProcessMap).toHaveBeenCalledTimes(1); // cached
+
+      await processUtils.enrichWithParentChains(agents, { forceRefresh: true });
+      expect(mockGetParentProcessMap).toHaveBeenCalledTimes(2);
+    });
+
+    it('a same-name reuse inside the TTL is the documented residual bound', async () => {
+      // Honest test of the KNOWN BOUND in _cacheKey: pid + SAME exe name still
+      // hits the cache, so the stale startTime survives until forceRefresh or TTL.
+      mockGetParentProcessMap.mockResolvedValueOnce(
+        new Map([[100, { name: 'claude.exe', ppid: 0, startTime: 1717000000000 }]]),
+      );
+      const first = [{ pid: 100, agent: 'Claude Code', process: 'claude.exe' }];
+      await processUtils.enrichWithParentChains(first);
+
+      mockGetParentProcessMap.mockResolvedValueOnce(
+        new Map([[100, { name: 'claude.exe', ppid: 0, startTime: 1717000500000 }]]),
+      );
+      const second = [{ pid: 100, agent: 'Claude Code', process: 'claude.exe' }];
+      await processUtils.enrichWithParentChains(second);
+      expect(mockGetParentProcessMap).toHaveBeenCalledTimes(1); // cache HIT
+      expect(second[0].startTime).toBe(1717000000000); // stale, by design
+
+      // forceRefresh — what scan-loop passes on a changed pid set — clears it.
+      await processUtils.enrichWithParentChains(second, { forceRefresh: true });
+      expect(second[0].startTime).toBe(1717000500000);
+    });
+  });
+
+  describe('enrichWithParentChains() — instanceId stamping', () => {
+    it('stamps instanceId + source os when the OS birth time is readable', async () => {
+      mockGetParentProcessMap.mockResolvedValue(
+        new Map([[100, { name: 'claude.exe', ppid: 0, startTime: 1717000000000 }]]),
+      );
+      const agents = [{ pid: 100, agent: 'Claude Code', process: 'claude.exe' }];
+      await processUtils.enrichWithParentChains(agents);
+      expect(agents[0].instanceId).toBe('100:1717000000000');
+      expect(agents[0].instanceIdSource).toBe('os');
+    });
+
+    it('stamps the honest unknown key when the platform withholds the birth time', async () => {
+      mockGetParentProcessMap.mockResolvedValue(new Map([[100, { name: 'claude', ppid: 0 }]]));
+      const agents = [{ pid: 100, agent: 'Claude Code', process: 'claude' }];
+      await processUtils.enrichWithParentChains(agents);
+      expect(agents[0].instanceId).toBe('100:u');
+      expect(agents[0].instanceIdSource).toBe('unknown');
+    });
+
+    it('stamps distinct synthetic keys for pid-0 agents', async () => {
+      mockGetParentProcessMap.mockResolvedValue(new Map());
+      const agents = [
+        { pid: 0, agent: 'Ollama', process: 'ollama' },
+        { pid: 0, agent: 'LM Studio', process: 'lm-studio' },
+      ];
+      await processUtils.enrichWithParentChains(agents);
+      expect(agents[0].instanceId).toBe('0:ollama');
+      expect(agents[1].instanceId).toBe('0:lm-studio');
+      expect(agents[0].instanceIdSource).toBe('synthetic');
+      expect(agents[1].startTime).toBeNull();
+    });
+  });
+
   describe('annotateHostApps()', () => {
     it('sets parentEditor/displayLabel for known editors', () => {
       const agents = [{ agent: 'Claude', parentChain: ['code'] }];

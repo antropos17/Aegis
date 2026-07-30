@@ -14,7 +14,19 @@ export interface ProcessInfo {
 export interface ParentProcessInfo {
   readonly name: string;
   readonly ppid: number;
+  /**
+   * OS process-creation time (epoch ms). Supplied by win32 only; darwin/linux map
+   * entries omit it, so the field is null there.
+   */
+  readonly startTime?: number | null;
 }
+
+/**
+ * Provenance of a {@link DetectedAgent.instanceId} — see main/process-identity.js.
+ * `os` = bound to an OS birth time (reuse-resistant); `synthetic` = named pid-0
+ * entity with no OS process; `unknown` = real pid whose birth time is unreadable.
+ */
+export type InstanceIdSource = 'os' | 'synthetic' | 'unknown';
 
 /** Raw TCP connection from Get-NetTCPConnection */
 export interface RawTcpConnection {
@@ -40,6 +52,21 @@ export interface DetectedAgent {
   readonly parentEditor?: string | null;
   readonly cwd?: string | null;
   readonly projectName?: string | null;
+  /**
+   * OS process-creation time (epoch ms), attached by
+   * `process-utils.enrichWithParentChains`. Null when the platform withholds it
+   * (darwin/linux today) or for synthetic pid-0 agents. Distinct from the
+   * AEGIS-observed session `firstSeen`.
+   */
+  readonly startTime?: number | null;
+  /**
+   * Process instance key, `pid` bound to `startTime` — the reuse-resistant
+   * identity. Stamped by `process-utils.enrichWithParentChains`; absent on a raw
+   * scanner result. See main/process-identity.js for the three value spaces.
+   */
+  readonly instanceId?: string;
+  /** Where {@link DetectedAgent.instanceId} came from. */
+  readonly instanceIdSource?: InstanceIdSource;
 }
 
 /** Result of a process scan cycle */

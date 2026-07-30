@@ -195,6 +195,14 @@ async function doProcessScan() {
     const result = await scanner.scanProcesses();
     setAgents(result.agents);
     const agents = result.agents;
+    // Process IDENTITY first. This attaches the OS birth time and the derived
+    // `instanceId`, which the session key is built from — so it MUST precede
+    // reconcile, or every session would key on a degraded `"<pid>:u"` and a
+    // recycled pid running the same executable would silently continue the dead
+    // process's session. `forceRefresh` on a changed pid set keeps a pid that is
+    // new to the scan from being identified out of a stale cache entry. No new
+    // spawn: on win32 this is the same `cim-parent` fetch the tick already pays.
+    await procUtil.enrichWithParentChains(agents, { forceRefresh: result.changed === true });
     // Eager-enter / lazy-exit session reconciliation: an agent seen in even ONE
     // scan logs session-start immediately, and a flickering or permission-denied
     // scan never spawns a duplicate session. See session-tracker.js.
@@ -207,7 +215,10 @@ async function doProcessScan() {
         action: 'started',
         path: '',
         severity: 'normal',
-        extra: { pid: s.pid, startTime: s.firstSeen },
+        // instanceId rides the EXISTING `extra` slot (audit-logger stores it as
+        // `details`), so the record's top-level field set — and therefore the hash
+        // chain — is unchanged and older files stay verifiable.
+        extra: { pid: s.pid, instanceId: s.instanceId, startTime: s.firstSeen },
       });
     for (const s of exited)
       audit.log('agent-exit', {
@@ -215,10 +226,9 @@ async function doProcessScan() {
         action: 'exited',
         path: '',
         severity: 'normal',
-        extra: { pid: s.pid },
+        extra: { pid: s.pid, instanceId: s.instanceId },
       });
     watcher.pruneKnownHandles(agents);
-    await procUtil.enrichWithParentChains(agents);
     procUtil.annotateHostApps(agents);
     await procUtil.annotateWorkingDirs(agents);
     // Surface extension-only (Kilo/Cline) and WSL-inner (grok/opencode) agents
