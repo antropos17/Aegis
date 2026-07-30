@@ -358,20 +358,37 @@ describe('file-watcher event handling', () => {
   });
 
   describe('pruneKnownHandles()', () => {
-    it('removes handles for inactive PIDs', () => {
-      state.knownHandles.set(100, new Set(['/a']));
-      state.knownHandles.set(200, new Set(['/b']));
-      state.knownHandles.set(300, new Set(['/c']));
+    it('removes handles for inactive instances', () => {
+      // Keys are instanceIds; an agent without a startTime degrades to '<pid>:u'
+      // (process-identity space 3) — the pre-instanceId behaviour.
+      state.knownHandles.set('100:u', new Set(['/a']));
+      state.knownHandles.set('200:u', new Set(['/b']));
+      state.knownHandles.set('300:u', new Set(['/c']));
       fileWatcher.pruneKnownHandles([{ pid: 100 }, { pid: 300 }]);
-      expect(state.knownHandles.has(100)).toBe(true);
-      expect(state.knownHandles.has(200)).toBe(false);
-      expect(state.knownHandles.has(300)).toBe(true);
+      expect(state.knownHandles.has('100:u')).toBe(true);
+      expect(state.knownHandles.has('200:u')).toBe(false);
+      expect(state.knownHandles.has('300:u')).toBe(true);
     });
 
     it('removes all when no active agents', () => {
-      state.knownHandles.set(100, new Set(['/a']));
+      state.knownHandles.set('100:u', new Set(['/a']));
       fileWatcher.pruneKnownHandles([]);
       expect(state.knownHandles.size).toBe(0);
+    });
+
+    // PID reuse: Windows recycles PIDs, so a bare pid is not an identity. The
+    // dedup store must key on instanceId (pid+startTime, process-identity.js):
+    // the LIVE instance's entry survives the prune, the DEAD instance of the
+    // SAME pid is dropped — otherwise the recycled pid inherits "already seen"
+    // and its first .ssh access never fires.
+    it('keeps the live instance entry and drops the dead instance of the same pid', () => {
+      state.knownHandles.set('100:111', new Set(['holding|/home/user/.ssh']));
+      state.knownHandles.set('100:222', new Set(['/a']));
+      fileWatcher.pruneKnownHandles([
+        { pid: 100, agent: 'Claude Code', startTime: 222, instanceId: '100:222' },
+      ]);
+      expect(state.knownHandles.has('100:222')).toBe(true);
+      expect(state.knownHandles.has('100:111')).toBe(false);
     });
   });
 });
@@ -416,6 +433,22 @@ describe('file-watcher scanFileHandles', () => {
 
       await fileWatcher.scanAllFileHandles(agents);
       expect(state.activityLog.length).toBe(firstLen);
+    });
+
+    // PID reuse: a NEW process on a recycled pid must NOT inherit the dead
+    // process's seen-set — its first sensitive access is a real event. gen1
+    // carries a stamped instanceId (the enriched-agent case), gen2 only a
+    // startTime (the derivation fallback) — both must key apart.
+    it('a reused pid does not inherit the dead instance seen-set', async () => {
+      mockGetFileHandles.mockResolvedValue(['/home/user/.ssh/id_rsa']);
+      const gen1 = [
+        { pid: 100, agent: 'Claude Code', category: 'ai', startTime: 111, instanceId: '100:111' },
+      ];
+      const gen2 = [{ pid: 100, agent: 'Claude Code', category: 'ai', startTime: 222 }];
+      const first = await fileWatcher.scanAllFileHandles(gen1);
+      const second = await fileWatcher.scanAllFileHandles(gen2);
+      expect(first).toHaveLength(1);
+      expect(second).toHaveLength(1); // new instance → first access fires again
     });
 
     it('returns empty on getFileHandles error', async () => {
@@ -612,6 +645,21 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
     const second = await fileWatcher.scanAllFileHandles(agents); // still holding
     expect(first).toHaveLength(1);
     expect(second).toHaveLength(0); // sustained hold → one event, not one-per-scan
+  });
+
+  // PID reuse under the RM path: a recycled pid holding the same group is a NEW
+  // instance — its hold must fire again, not be swallowed by the dead process's
+  // holding-dedup key.
+  it('a reused pid does not inherit the dead instance holding-dedup', async () => {
+    mockGetSensitiveHolders.mockResolvedValue([
+      { pid: 105, group: '/home/user/.ssh', reason: 'SSH keys/config' },
+    ]);
+    const gen1 = [{ pid: 105, agent: 'Agent5', category: 'ai', startTime: 111 }];
+    const gen2 = [{ pid: 105, agent: 'Agent5', category: 'ai', startTime: 222 }];
+    const first = await fileWatcher.scanAllFileHandles(gen1);
+    const second = await fileWatcher.scanAllFileHandles(gen2);
+    expect(first).toHaveLength(1);
+    expect(second).toHaveLength(1); // new instance on the recycled pid → real event
   });
 });
 
