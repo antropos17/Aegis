@@ -11,7 +11,7 @@ AEGIS is an independent AI oversight layer — a desktop app that monitors AI ag
 ```
 src/main/           Electron main process (CommonJS, require/module.exports)
 src/renderer/       Svelte 5 dashboard UI (ES modules, runes)
-src/shared/         Constants + agent-database.json (110 agent signatures) + types/ (8 .ts)
+src/shared/         Constants + agent-database.json (110 agents, 262 name signatures) + types/ (8 .ts)
 rules/              73 detection rules in 8 YAML files + _schema.json
 tests/              Vitest unit tests with v8 coverage
 ```
@@ -23,7 +23,7 @@ Key modules:
 - `src/main/llm-runtime-detector.js` — local LLM runtime detection (Ollama, LM Studio HTTP probes)
 - `src/main/cli.js` — CLI interface (`--scan-json`, `--version`, `--help`)
 - `src/main/platform/` — OS abstraction (win32.js, darwin.js, linux.js)
-- `src/shared/agent-database.json` — 110 known agent signatures
+- `src/shared/agent-database.json` — 110 known agents; their `names` arrays hold 262 process-name signatures in total
 - `src/main/rule-loader.js` — loads `rules/*.yaml` (73 rules, 8 categories) against `rules/_schema.json`, hot-reload
 - `src/shared/constants.js` — ignore patterns, editor lists, AGENT_CONFIG_PATHS. `SENSITIVE_RULES` (68) is deprecated and unread at runtime — editing it changes nothing
 
@@ -40,7 +40,7 @@ CI runs all three on every push and PR (`.github/workflows/ci.yml`).
 
 ## Code conventions
 
-- 300 lines/file is a target for NEW files, not an invariant — 18 existing src files already exceed it (largest: file-watcher.js 632, ipc-handlers.js 498), tests go up to 691. Don't split an existing file just to hit the number; do extract when adding to one that's already over
+- 300 lines/file is a target for NEW files, not an invariant — 18 existing src files already exceed it (largest: file-watcher.js 654, ipc-handlers.js 498), tests go up to 734. Don't split an existing file just to hit the number; do extract when adding to one that's already over
 - **Main process:** CommonJS (`require`/`module.exports`). Never use `import` in `src/main/`.
 - **Renderer:** ES modules (`import`/`export`). Never use `require()` in `src/renderer/`.
 - **Svelte 5 runes:** `$state`, `$derived`, `$effect`, `$props`. No legacy `let` reactivity.
@@ -54,8 +54,9 @@ CI runs all three on every push and PR (`.github/workflows/ci.yml`).
 ## Git conventions
 
 - **Conventional commits:** `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `style:`, `test:`
-- **Feature branches:** `feat/feature-name` → PR → squash merge to `master`
-- **Direct commits to master:** OK for `docs:` and `chore:` only
+- **Feature branches, always:** `feat/*` | `fix/*` | `chore/*` | `docs/*` → push → PR. One PR = one logical task.
+- **Merge commits only.** Squash and rebase are disabled on the repository, so `gh pr merge <n> --merge --delete-branch` is the only available method and every merge lands as a two-parent commit. Squash the noisy commits on your own branch *before* opening the PR — the merge will not do it for you.
+- **Direct commits to master are impossible, not merely discouraged.** `master` requires a pull request plus green `audit` / `build` / `lint` / `svelte-check` / `test`, with admin enforcement on, so a local commit on master cannot be pushed at all. `.claude/hooks/branch-guard.js` refuses edits on master before you reach that point.
 - **No Co-Authored-By lines.** No "Generated with" attribution in commits or PRs.
 
 ## What NOT to do

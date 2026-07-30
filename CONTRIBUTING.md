@@ -18,7 +18,7 @@ Requires Node.js 18+ and Windows 10/11 for full monitoring functionality. The El
 1. **Fork** the repository
 2. **Branch** from `master`: `git checkout -b feature/your-feature`
 3. **Implement** your changes following the code standards below
-4. **Test**: run `npm test` (968 tests across 62 files) and `npm start` — verify no console errors, all tabs render, existing features work
+4. **Test**: run `npm test` (1017 tests across 64 files) and `npm start` — verify no console errors, all tabs render, existing features work
 5. **Commit** with [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
 6. **Push** your branch and open a **Pull Request** with a clear description of what changed and why
 
@@ -43,7 +43,7 @@ When maintainers merge the Release PR → version bump + CHANGELOG + GitHub Rele
 - **JSDoc headers on all exported functions** — `@param`, `@returns`, `@since` tags required. Include `@file`, `@module`, `@description` at top of every file.
 - **300 line soft limit per file** — split into focused, single-responsibility modules when exceeding.
 - **`const` over `let`** when the binding doesn't change. Never use `var`.
-- **No external dependencies** without discussion — the project intentionally has only 1 runtime dependency (`chokidar`; `electron` is a devDependency). Adding a dependency requires justification.
+- **No external dependencies** without discussion — the project intentionally keeps `dependencies` to three: `ajv` (rule-schema validation), `chokidar` (file watching) and `js-yaml` (ruleset parsing). `electron` is a devDependency. Adding a dependency requires justification.
 
 ### Naming Conventions
 
@@ -55,7 +55,7 @@ When maintainers merge the Release PR → version bump + CHANGELOG + GitHub Rele
 ### TypeScript
 
 - **New files should be written in TypeScript** (`.ts`) — existing `.js` files will be migrated incrementally
-- **Main process** (`.js`): uses JSDoc annotations + `checkJs: true` for type safety without converting to `.ts`
+- **Main process** (`.js`): annotated with JSDoc, which editors use for IntelliSense. `checkJs` is **off** in `tsconfig.base.json`, so `tsc` resolves these files but does not type-check their bodies — the annotations document intent, they are not enforced by the typecheck gate
 - **Renderer** (`.ts`/`.svelte`): native TypeScript with ES modules
 - Shared type definitions live in `src/shared/types/` (types across 8 files)
 - Run `npm run typecheck` before opening a PR — zero type errors required. It checks both projects (`tsconfig.main.json` + `tsconfig.renderer.json`); a bare `npx tsc --noEmit` resolves the root solution file and checks nothing
@@ -80,7 +80,7 @@ Add an entry to the `agents` array:
 {
   "name": "My Agent",
   "displayName": "My Agent",
-  "processPatterns": ["myagent", "myagent.exe"],
+  "names": ["myagent", "myagent.exe"],
   "icon": "🤖",
   "color": "#FF6B6B",
   "vendor": "My Company",
@@ -96,14 +96,14 @@ Add an entry to the `agents` array:
 
 **Required fields:**
 - `name` / `displayName` — Agent identifier (must be unique)
-- `processPatterns` — Substrings matched against running process names (case-insensitive)
+- `names` — Substrings matched against running process names (case-insensitive). The field is `names`, not `processPatterns`; nothing in the codebase reads a `processPatterns` key
 
 **Important fields:**
 - `knownDomains` — Domains classified as "safe" when this agent connects to them. Without this, the agent's connections will be flagged as unknown.
 - `configPaths` — Directories to monitor for the Hudson Rock config protection feature. These directories are watched for unauthorized access.
 - `defaultTrust` — Initial trust score (0-100). Lower = more suspicious. Affects risk score multiplier.
 - `riskProfile` — `low`, `medium`, or `high`. Affects default permission assignments.
-- `category` — One of: `coding-assistant`, `ai-ide`, `cli-tool`, `autonomous-agent`, `desktop-agent`, `browser-agent`, `agent-framework`, `security-devops`, `ide-extension`, `local-llm-runtime`
+- `category` — One of the 11 in use: `agent-framework`, `ai-ide`, `autonomous-agent`, `browser-agent`, `cli-tool`, `coding-assistant`, `container-runtime`, `desktop-agent`, `ide-extension`, `local-llm-runtime`, `security-devops`
 
 ### Via the UI
 

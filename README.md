@@ -4,14 +4,14 @@
   <p align="center"><i>Open-source monitor that shows what AI coding agents actually do on your machine — at the OS level, no agent hooks required.</i></p>
 </p>
 
-**AEGIS sees every AI agent on your machine — even ones that don't cooperate.** It is an independent, OS-level observer that watches agent processes, file access, network activity, and behavioral anomalies in real time, regardless of how the agent was launched. Built on a JavaScript (ES modules / CommonJS) monitoring engine, with TypeScript in the renderer and shared types. **Open-source, local, no telemetry** — everything stays on your machine.
+**AEGIS sees every AI agent on your machine — even ones that don't cooperate.** It is an independent, OS-level observer that watches agent processes, file access, network activity, and behavioral anomalies in real time, regardless of how the agent was launched. Built on a CommonJS JavaScript monitoring engine, with TypeScript in the renderer and in the shared types. **Open-source, local, no telemetry** — everything stays on your machine.
 
 > "Kaspersky found 512 bugs in OpenClaw. So we built an EDR to monitor it."
 
 <p align="center">
   <a href="https://github.com/antropos17/Aegis/releases/latest"><img src="https://img.shields.io/github/v/release/antropos17/Aegis?include_prereleases&style=flat-square&label=Release" alt="Release"></a>
   <img src="https://img.shields.io/github/actions/workflow/status/antropos17/Aegis/ci.yml?style=flat-square&label=CI" alt="CI">
-  <img src="https://img.shields.io/badge/Tests-968%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-1017%20passing-brightgreen?style=flat-square" alt="Tests">
   <a href="#monitor-first"><img src="https://img.shields.io/badge/Mode-monitor--first-8a2be2?style=flat-square" alt="Monitor-first"></a>
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/Platform-Win%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform">
@@ -33,7 +33,7 @@
 ## What Does Aegis Monitor?
 
 - **Process Monitoring** — Tracks 110 known AI agent signatures with parent-child tree resolution and IDE host detection.
-- **File System Access** — Watches sensitive directories (`.ssh`, `.aws`, `.gnupg`, `.env`, cloud configs) and 27 AI agent config paths for unauthorized access.
+- **File System Access** — Watches sensitive directories (`.ssh`, `.aws`, `.gnupg`, `.env`, cloud configs) and 35 registered AI agent config paths for unauthorized access.
 - **Network Activity** — Logs outbound TCP connections per agent PID with reverse DNS and known-vs-unknown API endpoint classification.
 - **Behavioral Analysis** — Applies 73 detection rules across 8 categories with rolling 10-session baselines and 4-axis anomaly scoring.
 - **Trust Scoring** — Assigns real-time risk scores with trust grades (A+ through F) using time-decay algorithms and multi-dimensional threat assessment.
@@ -46,8 +46,8 @@
 | **512** | vulnerabilities found in OpenClaw by Kaspersky — autonomous agents ship with real security risks |
 | **0** | open-source EDR tools existed for AI agents before Aegis |
 | **110** | AI agent signatures in the detection database, from Claude Code to AutoGPT |
-| **73** | behavioral detection rules across 8 categories, with hot-reload and custom overrides |
-| **968** | tests passing, 0 failures — the monitoring engine is verified on every commit |
+| **73** | behavioral detection rules across 8 categories, hot-reloaded on edit |
+| **1017** | tests passing, 0 failures — the monitoring engine is verified on every commit |
 | **<2s** | cold boot to full dashboard — lightweight enough to run alongside the agents it monitors |
 
 AI agents now have deep access to your machine — files, commands, network. Every existing AI security tool is enterprise SaaS that monitors what humans send *to* AI. Nobody monitors what AI agents do *on local machines*. Aegis is the open-source answer.
@@ -67,7 +67,7 @@ AEGIS sits at a different layer. It is an **independent, OS-level observer**: it
 | Layer | How |
 |-------|-----|
 | **Processes** | 110 known AI agent signatures, parent-child tree resolution, IDE host detection |
-| **Files** | Watches `.ssh`, `.aws`, `.gnupg`, `.env*`, cloud configs, 27 AI agent config dirs |
+| **Files** | Watches `.ssh`, `.aws`, `.gnupg`, `.env*`, cloud configs, 35 registered AI agent config dirs |
 | **Network** | Outbound TCP per agent PID, reverse DNS, known API endpoints vs unknown |
 | **Behavior** | Rolling 10-session baselines, 4-axis anomaly scoring (Network/FS/Process/Baseline) |
 | **Local LLMs** | Ollama, LM Studio, vLLM, llama.cpp runtime detection |
@@ -140,15 +140,15 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
 
 **Export** — JSON, CSV, HTML reports, one-click ZIP archive, JSONL audit logging (daily rotation, 30-day retention)
 
-**i18n** — Internationalization with English base (110+ strings), community translations welcome
+**i18n** — Internationalization with English base (230 strings in `en.json`), community translations welcome
 
 **CLI** — `--scan-json` for scripting, `--version`, `--help`
 
 ## YAML Rulesets
 
 - 73 detection rules across 8 categories (AI config, secrets, SSH, cloud, browser, devtools, crypto, certificates)
-- JSON Schema validated, hot-reload without restart
-- Extend or override via `rules/custom/` directory
+- Validated against `rules/_schema.json`; editing a ruleset hot-reloads without a restart
+- Extend by adding a `.yaml` to `rules/`. Rule IDs must be unique — a duplicate ID is skipped, not overridden. A newly added file is picked up on the next reload or restart, since the watcher reacts to changes in existing top-level files
 
 ## Screenshots
 
@@ -205,7 +205,7 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
             └─────────────┘    └─────────────┘
 ```
 
-**Stack**: Electron 33, Svelte 5, Vite 7, Vitest (968 tests across 62 files). The monitoring engine is JavaScript (CommonJS); TypeScript is used in the renderer and shared types.
+**Stack**: Electron 33, Svelte 5, Vite 7, Vitest (1017 tests across 64 files). The monitoring engine is JavaScript (CommonJS); TypeScript is used in the renderer and shared types.
 
 ## Agent Database
 
@@ -240,7 +240,7 @@ Everything below is **planned**, not shipped. AEGIS today is monitor-only (see [
 
 ### What is Aegis?
 
-Aegis is an open-source endpoint detection and response (EDR) tool purpose-built for monitoring AI agents. It tracks processes, file access, network activity, and behavioral anomalies in real time, built on Electron 33 and Svelte 5. The monitoring engine is JavaScript (ES modules / CommonJS); TypeScript is used in the renderer and shared type definitions. All data stays local — no telemetry, no cloud dependency.
+Aegis is an open-source endpoint detection and response (EDR) tool purpose-built for monitoring AI agents. It tracks processes, file access, network activity, and behavioral anomalies in real time, built on Electron 33 and Svelte 5. The monitoring engine is CommonJS JavaScript; the renderer is ES modules, and TypeScript is used in the renderer and the shared type definitions. All data stays local — no telemetry, no cloud dependency.
 
 ### Why do AI agents need monitoring?
 
@@ -264,7 +264,7 @@ Aegis ships with 110 agent signatures across five categories: coding assistants 
 
 ### Can I use Aegis in production?
 
-Aegis is currently at v0.10.0-alpha and is recommended for development and testing environments. The core monitoring engine is stable with 968 tests passing, but production deployment features (auto-update, OS-level enforcement) are on the roadmap for v1.0.
+Aegis is currently at v0.10.0-alpha and is recommended for development and testing environments. The core monitoring engine is stable with 1017 tests passing, but production deployment features (auto-update, OS-level enforcement) are on the roadmap for v1.0.
 
 ### Is Aegis free?
 

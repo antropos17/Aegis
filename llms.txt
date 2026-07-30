@@ -11,7 +11,7 @@
 
 ## Key Features
 
-- Process monitoring with 110 known AI agent signatures and parent-child tree resolution
+- Process monitoring with 110 known AI agents (262 process-name signatures) and parent-child tree resolution
 - File system watching for sensitive directories (.ssh, .aws, .gnupg, .env, cloud configs)
 - Network activity logging with per-agent PID tracking and reverse DNS
 - Behavioral analysis with 73 detection rules across 8 categories
@@ -23,7 +23,7 @@
 ## Technical Details
 
 - **Stack**: Electron 33, Svelte 5, Vite 7, TypeScript
-- **Tests**: 968 passing, 4 skipped across 62 files (Vitest)
+- **Tests**: 1017 passing, 4 skipped across 64 files (Vitest)
 - **License**: MIT
 - **Version**: 0.10.0-alpha
 - **Platform**: Windows, macOS, Linux

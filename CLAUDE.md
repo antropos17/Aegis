@@ -6,7 +6,7 @@ Landing: aegisprotect.vercel.app | Demo: aegis-demo-ten.vercel.app
 npm run build:renderer    # Vite build (MUST pass before commit)
 npm run lint              # ESLint
 npm run format            # Prettier
-npm test                  # Vitest (1006 passed / 4 skipped = 1010, 63 files)
+npm test                  # Vitest (1017 passed / 4 skipped = 1021, 64 files)
 npm run dist              # Electron-builder NSIS installer
 
 ## Background Tasks (/loop)
@@ -17,7 +17,7 @@ npm run dist              # Electron-builder NSIS installer
 ## Critical Rules
 1. Read memory-bank/ai-mistakes.md before ANY code change
 2. Do ONLY what the prompt says — no extra features, no unrequested changes
-3. Main = CJS (require). Renderer = ESM (import). 300 lines/file is a target for NEW files, not an invariant — 18 existing src files already exceed it (largest: file-watcher.js 632, ipc-handlers.js 498), tests go up to 691. Don't split an existing file just to hit the number; do extract when adding to one that's already over
+3. Main = CJS (require). Renderer = ESM (import). 300 lines/file is a target for NEW files, not an invariant — 18 existing src files already exceed it (largest: file-watcher.js 654, ipc-handlers.js 498), tests go up to 734. Don't split an existing file just to hit the number; do extract when adding to one that's already over
 4. CSS: var() from tokens.css ONLY. Svelte 5 runes only ($state/$derived/$effect)
 5. Svelte MCP autofixer on all .svelte files. JSDoc on all exports
 6. Conventional commits. NEVER add "Co-Authored-By" or "Generated with Claude Code"

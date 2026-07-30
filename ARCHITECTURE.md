@@ -67,7 +67,7 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 
 #### 2. File & Data Access — `file-watcher.js` + `rule-loader.js`
 - **What it sees:** File create/modify/delete in sensitive directories, per-process file handles
-- **How:** chokidar watchers on `.ssh`, `.aws`, `.gnupg`, `.kube`, `.docker`, `.azure`, `.env*`, 27 agent config directories, project directory. PowerShell handle scanning (`handle64.exe` or `Get-Process` fallback).
+- **How:** chokidar watchers on `.ssh`, `.aws`, `.gnupg`, `.kube`, `.docker`, `.azure`, `.env*`, the 35 directories in `AGENT_CONFIG_PATHS` (minus those already covered as sensitive dirs), and the project directory. Open-handle detection is per-platform: Windows uses the Restart Manager (`rstrtmgr.dll`), macOS/Linux use `lsof` / `/proc`.
 - **Depth:** 73 sensitive file rules (from `rules/*.yaml`) with severity classification. AI agent config directory protection (Hudson Rock threat vector). 2-second debounce per path.
 - **Limitation:** chokidar cannot attribute events to specific processes. Handle scanning provides per-process attribution but runs on a timer.
 
@@ -77,21 +77,22 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 - **Depth:** Domain classification against 50+ known-safe vendor patterns (from agent database). Unknown domains flagged. Connection state tracking.
 - **Limitation:** Cannot inspect encrypted traffic. Sees endpoints but not payload.
 
-#### 4. Risk Engine — `risk-scoring.js` + `baselines.js`
-- **What it computes:** Per-agent risk scores (0-100+), trust grades (A+ through F), anomaly scores (0-100)
-- **Risk formula:** `Base = min(40, log2(1 + sensitiveFiles) * 8)` + `Network = min(30, unknownDomains * 12)` + `Anomaly = min(30, anomalyScore * 0.3)` → `Total = min(100, Base + Network + Anomaly)`
-- **Anomaly scoring:** 5 weighted factors — file volume (30pts), sensitive spike (25pts), new sensitive categories (20pts), new network endpoints (15pts), unusual timing (10pts)
+#### 4. Risk Engine — `src/renderer/lib/utils/risk-scoring.js` + `src/main/anomaly-detector.js` + `src/main/baselines.js`
+- **What it computes:** Per-agent risk scores (0-100), trust grades (A+ through F), anomaly scores (0-100)
+- **Where it runs:** risk scoring lives in the RENDERER (`lib/utils/risk-scoring.js`); there is no `src/main/risk-scoring.js`. Anomaly scoring and baselines are main-process modules.
+- **Risk formula:** a sum of six independently capped contributions, each saturating so no single signal can dominate — `min(40, sensitive * 5 * (1 / (1 + sensitive * 0.1)))` + `min(20, sshAwsFiles * 5)` + `min(20, unknownDomains * 8)` + `min(10, networkCount * 0.5)` + `min(5, configFiles * 0.5)` + `min(5, fileCount * 0.02)`, the total clamped to 100. The sensitive term is deliberately sub-linear: the `1 / (1 + sensitive * 0.1)` damping is what stops `sensitive * 10` from pinning the score at 100 on the first burst (ai-mistakes.md #10).
+- **Anomaly scoring:** 4 weighted dimensions, `composite = Σ(dimension.score × weight)` with `{network: 0.3, filesystem: 0.25, process: 0.25, baseline: 0.2}`. Individual signals such as file volume and sensitive-access spikes are sub-factors inside a dimension, not top-level weighted factors.
 - **Baselines:** Rolling averages over 10 sessions, persisted to `baselines.json`
 
 #### 5. AI Analysis — `ai-analysis.js`
 - **What it provides:** Structured threat assessment with executive summary, findings, risk rating, recommendations
-- **How:** Anthropic Messages API (`claude-sonnet-4-5-20250929`) with session data context
+- **How:** Anthropic Messages API (`claude-haiku-4-5-20251001`, both call sites in `ai-analysis.js`) with session data context
 - **Modes:** Per-agent analysis and full-session analysis
 - **Privacy:** Only triggered when user explicitly clicks the button. No background API calls.
 
 #### 6. Audit Trail — `audit-logger.js`
-- **What it logs:** 7 event types — file-access, network-connection, anomaly-alert, permission-deny, agent-enter, agent-exit, config-access
-- **Format:** Append-only JSONL. Each entry: `{timestamp, type, agent, action, path, severity, riskScore, details}`
+- **What it logs:** 6 event types are actually emitted — file-access, config-access, network-connection, anomaly-alert, agent-enter, agent-exit. A 7th, `permission-deny`, is listed in the logger's JSDoc and accepted by the renderer timeline, but no call site emits it.
+- **Format:** Append-only JSONL. Each entry: `{timestamp, type, agent, action, path, severity, riskScore, details, seq, hash}` — `seq` and `hash` are added at flush time by `audit-hashchain.js`, which makes each daily file an independent SHA-256 chain. The chain proves no record was EDITED; it cannot prove none was lost, since a record that never reached disk leaves no gap.
 - **Rotation:** New file per day (`aegis-audit-YYYY-MM-DD.json`), auto-delete after 30 days
 - **Performance:** Buffered writes — flush every 5 seconds or at 50 events
 
@@ -111,7 +112,7 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 | **Syscall Monitoring** | No kernel-level visibility into system calls | Windows Minifilter, macOS Endpoint Security, Linux eBPF |
 | **Memory Inspection** | Cannot inspect agent process memory | ReadProcessMemory API, `/proc/[pid]/mem` |
 | **Cross-device Correlation** | Single-machine visibility only | Local network discovery + shared audit format |
-| **Mac/Linux Support** | Process scanning is Windows-only | `ps aux`, `fanotify`, `ss`/`lsof` implementations |
+| **Mac/Linux parity** | Narrower than it looks: `platform/darwin.js` and `platform/linux.js` both implement `listProcesses()` (via `ps`) and `suspendProcess()`/`resumeProcess()` (via `posix-shared.js`), so process scanning and stop/resume are cross-platform. What is Windows-only is open-handle detection via the Restart Manager (`rstrtmgr.dll`); POSIX falls back to `lsof` / `/proc` | `fanotify` (Linux) and Endpoint Security (macOS) for richer file-access attribution |
 
 ## Module Dependency Diagram
 
@@ -188,79 +189,80 @@ Process Scan (every Ns)
 
 ### Invoke (Renderer → Main → Response)
 
+All 39 registered in `src/main/ipc-handlers.js` and exposed through `src/main/preload.js`. A
+channel absent from `preload.js` is unreachable from the renderer under `contextIsolation`,
+so this table is the complete surface — nothing else can be invoked.
+
 | Channel | Module | Purpose |
 |---|---|---|
-| `scan-processes` | process-scanner | Trigger manual process scan |
-| `get-stats` | main | File counts, agent counts, uptime |
+| `get-stats` | main | File counts, agent counts, uptime, attribution counters |
 | `get-resource-usage` | main | CPU, memory, heap metrics |
 | `get-settings` | config-manager | Read settings |
-| `save-settings` | config-manager | Persist settings + restart watchers |
-| `get-all-permissions` | config-manager | Full permission map + seen agents |
-| `get-agent-permissions` | config-manager | Per-agent permission state |
-| `save-agent-permissions` | config-manager | Persist permission map |
+| `save-settings` | config-manager + settings-validation | Validate, persist, restart watchers |
+| `get-all-permissions` | config-manager | Agent + instance permission maps and seen agents |
+| `save-agent-permissions` | config-manager | Persist per-agent permission map |
+| `save-instance-permissions` | config-manager | Persist per-instance permission map |
 | `reset-permissions-to-defaults` | config-manager | Reset all permissions |
-| `get-agent-baseline` | baselines | Per-agent session history + averages |
 | `analyze-agent` | ai-analysis | Per-agent AI threat analysis |
 | `analyze-session` | ai-analysis | Full session AI threat analysis |
 | `open-threat-report` | main | Write HTML to temp + open in browser |
-| `get-audit-stats` | audit-logger | Audit log statistics |
-| `open-audit-log-dir` | audit-logger | Open audit directory in explorer |
-| `export-full-audit` | audit-logger | Export all logs to single JSON |
+| `open-audit-log-dir` | audit-logger | Open audit directory in the file manager |
+| `export-full-audit` | audit-logger | Export all audit logs to a single JSON |
+| `get-audit-entries-before` | audit-logger | Paginated audit log entries (cursor) |
 | `export-log` | exports | JSON save dialog |
 | `export-csv` | exports | CSV save dialog |
 | `generate-report` | exports | HTML report → open in browser |
+| `export-zip` | zip-writer | One-click ZIP session export |
 | `get-agent-database` | process-scanner | Full agent signature database |
-| `get-project-dir` | main | Project root path |
 | `get-custom-agents` | config-manager | User-defined agent list |
 | `save-custom-agents` | config-manager | Persist custom agents |
-| `export-agent-database` | main | Export agents to JSON file |
-| `import-agent-database` | main | Import agents from JSON file |
-| `capture-screenshot` | main | Capture window as PNG |
-| `kill-process` | main | Terminate process by PID |
-| `suspend-process` | main | Suspend process via NtSuspendProcess |
-| `resume-process` | main | Resume process via NtResumeProcess |
-| `get-instance-permissions` | config-manager | Per-instance permission state |
-| `save-instance-permissions` | config-manager | Persist per-instance permissions |
-| `get-audit-entries-before` | audit-logger | Paginated audit log entries |
-| `get-log-stats` | logger | Structured log statistics |
-| `export-full-log` | logger | Export all structured logs |
-| `open-log-dir` | logger | Open log directory in explorer |
-| `test-notification` | main | Trigger test OS notification |
-| `export-config` | config-manager | Export settings to JSON file |
-| `import-config` | config-manager | Import settings from JSON file |
-| `reveal-in-explorer` | main | Open file location in file manager |
-| `get-local-models` | llm-runtime-detector | Local LLM model list |
-| `get-app-version` | main | Current app version string |
-| `export-zip` | zip-writer | One-click ZIP session export |
+| `export-agent-database` | main | Export agents to a JSON file |
+| `import-agent-database` | main | Import agents from a JSON file |
+| `export-config` | config-manager | Export settings to a JSON file |
+| `import-config` | config-manager | Import settings from a JSON file |
+| `kill-process` | platform | Terminate a monitored PID (own-PID guarded) |
+| `suspend-process` | platform | Suspend a monitored PID (own-PID guarded) |
+| `resume-process` | platform | Resume a monitored PID (own-PID guarded) |
+| `rules:getAll` | rule-loader | All loaded rules, serialized |
+| `rules:reload` | rule-loader | Force a reload, returns the new count |
+| `blocklist-add` | blocklist | Add a watchlist entry (alert-only) |
+| `blocklist-remove` | blocklist | Remove a watchlist entry |
+| `blocklist-list` | blocklist | Current watchlist |
 | `get-false-positives` | config-manager | List of false-positive entries |
-| `add-false-positive` | config-manager | Mark process as false positive |
-| `open-external-url` | main | Open URL in default browser |
+| `add-false-positive` | config-manager | Mark a process as a false positive |
+| `reveal-in-explorer` | main | Open a file's location in the file manager |
+| `open-external-url` | main | Open an http/https URL in the default browser |
+| `get-app-version` | main | Current app version string |
+| `test-notification` | main | Trigger a test OS notification |
+
+`kill-process`, `suspend-process` and `resume-process` each refuse AEGIS's own PID and any
+PID not in the current scan result — see the C-01 guards in `ipc-handlers.js`.
 
 ### Send (Renderer → Main, no response)
 
-| Channel | Purpose |
-|---|---|
-| `other-panel-expanded` | Toggle other-agent file scanning |
+None. `preload.js` wraps only `invoke()` and `on()`; it exposes no `ipcRenderer.send`, so
+there is no fire-and-forget path from the renderer.
 
 ### Push (Main → Renderer)
 
+All 9 subscribed via `ipcRenderer.on` in `preload.js`.
+
 | Channel | Purpose |
 |---|---|
-| `scan-results` | Updated agent list (periodic) |
-| `file-access` | New file access events |
+| `scan-batch` | One coalesced payload per scan: agents, stats, resourceUsage, anomalyScores |
+| `file-access` | New file access events (batched, 150ms) |
 | `stats-update` | Updated aggregate stats |
 | `network-update` | Network connections |
 | `resource-usage` | CPU/memory metrics |
-| `baseline-warnings` | Behavioral deviations |
-| `anomaly-scores` | Per-agent anomaly scores (0-100) |
-| `monitoring-paused` | Pause/resume state from tray |
-| `toggle-theme` | Theme toggle from tray menu |
-| `scan-status` | Scanner state (scanning/idle/error) |
+| `token-costs` | Per-agent token usage and cost estimates |
+| `scan-status` | Scanner state (scanning/idle) |
+| `rules:reloaded` | Rule hot-reload landed, with the new count |
+| `toggle-theme` | Theme toggle from the tray menu |
 
 ## Extension Points
 
 ### Adding a New Agent Signature
-Edit `agent-database.json` — add entry with `processPatterns`, `knownDomains`, `configPaths`, and trust/risk metadata. The process scanner, network monitor, and file watcher all consume this database automatically.
+Edit `agent-database.json` — append an entry to the `agents` array. The process-name field is `names` (an array of match strings), **not** `processPatterns`, which appears nowhere in the codebase. Alongside it: `id`, `displayName`, `category`, `knownDomains`, `configPaths`, and trust/risk metadata. The process scanner, network monitor, and file watcher all consume this database automatically.
 
 ### Adding New Sensitive File Rules
 Rules live in `rules/*.yaml` (one file per category), validated against `rules/_schema.json` and loaded by `rule-loader.js` with hot-reload. Add an entry to the ruleset matching the category:
@@ -280,19 +282,26 @@ Rules live in `rules/*.yaml` (one file per category), validated against `rules/_
 2. Wire in `main.js` via dependency injection
 3. Add IPC handler in `registerIpc()` if renderer needs access
 4. Add bridge method in `preload.js`
-5. Add audit logging via `aud.log(type, details)`
+5. Add audit logging via `audit.log(type, details)` (injected as `deps.audit` in `scan-loop.js`)
 
 ### Adding a New UI Panel
-1. Create `src/renderer/src/lib/components/NewPanel.svelte`
+1. Create `src/renderer/lib/components/NewPanel.svelte` (there is no `src/renderer/src/` directory)
 2. Import and place the component in the appropriate tab (e.g., `ShieldTab.svelte`, `ActivityTab.svelte`)
-3. Subscribe to IPC data via Svelte stores in `src/renderer/src/lib/stores/`
+3. Subscribe to IPC data via Svelte stores in `src/renderer/lib/stores/`
 4. Use scoped styles within the `.svelte` file (follows project CSS conventions)
 
 ### Adding Platform Support
-The main process modules abstract OS-specific operations:
-- `process-scanner.js` — Replace `tasklist` with `ps aux` for Unix
-- `file-watcher.js` — chokidar is cross-platform; handle scanning needs `lsof` fallback
-- `network-monitor.js` — Replace `Get-NetTCPConnection` with `ss` or `lsof -i`
+OS-specific operations already live behind `src/main/platform/`, which picks an
+implementation at load time — so this is about filling gaps in an existing abstraction,
+not introducing one. Add to the platform module, never branch on `process.platform` in a
+caller:
+- `platform/win32.js` — `tasklist /FO CSV /NH`, `Get-CimInstance` for parent chains and
+  `startTime`, `Get-NetTCPConnection`, Restart Manager handle detection, suspend/resume
+  via `NtSuspendProcess`/`NtResumeProcess` P/Invoke
+- `platform/darwin.js`, `platform/linux.js` — `listProcesses()` via `ps`, with the shared
+  POSIX pieces (including `SIGSTOP`/`SIGCONT` suspend/resume) in `platform/posix-shared.js`
+- `file-watcher.js` — chokidar is cross-platform; only open-handle detection is
+  platform-specific
 
 ## Privacy Architecture
 

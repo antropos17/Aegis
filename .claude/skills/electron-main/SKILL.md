@@ -5,7 +5,7 @@ description: Electron main process patterns for Aegis. CJS modules, platform abs
 # Electron Main Process
 
 ## Architecture
-- 43 CJS modules loaded directly by Node.js (34 top-level + 7 platform/ + 2 token-adapters/, NO build step)
+- 44 CJS modules loaded directly by Node.js (35 top-level + 7 platform/ + 2 token-adapters/, NO build step)
 - Platform dispatcher: src/main/platform/index.js → win32|darwin|linux
 - IPC: 39 invoke + 9 push = 48 channels, scan-batch consolidation
 - File watcher: chokidar 3.6, function-form ignored (NOT glob)
