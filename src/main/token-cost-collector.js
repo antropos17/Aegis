@@ -65,11 +65,16 @@ async function collectTokenCosts(agents) {
   // C-01: build the procs batch ONLY from agents whose OS birth-time is a real
   // epoch-ms number. The typeof check rejects both null (darwin/linux: not
   // surfaced) and undefined (not yet enriched) in a single predicate.
+  // identityByPid keeps the full agent object so the tracker can key the
+  // accounting by process INSTANCE (agent.instanceId, stamped upstream by
+  // enrichWithParentChains) instead of the recyclable bare pid.
   const procs = [];
+  const identityByPid = new Map();
   let droppedClaude = false;
   for (const a of list) {
     if (a && typeof a.startTime === 'number') {
       procs.push({ pid: a.pid, startTime: a.startTime });
+      identityByPid.set(a.pid, a);
     } else if (a && a.agent === CLAUDE_CODE_AGENT) {
       droppedClaude = true;
     }
@@ -102,8 +107,12 @@ async function collectTokenCosts(agents) {
     return [];
   }
 
-  // C-01: attribute each delta under the pid the SOURCE stamped on it.
-  for (const d of deltas) tokenTracker.trackTokens(d.pid, d);
+  // C-01: attribute each delta under the pid the SOURCE stamped on it, resolved
+  // to that pid's process INSTANCE from this tick's batch (subagent deltas are
+  // stamped with the MAIN pid, so the lookup always has a live entry). A miss
+  // falls back to the bare pid, which the tracker degrades honestly to its
+  // `"<pid>:u"` space rather than dropping the measured tokens.
+  for (const d of deltas) tokenTracker.trackTokens(identityByPid.get(d.pid) || d.pid, d);
   return deltas;
 }
 

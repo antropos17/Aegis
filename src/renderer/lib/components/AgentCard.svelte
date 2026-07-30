@@ -78,8 +78,17 @@
 
   let agentEvents = $derived($eventsByPid.get(agent.pid) || []);
 
-  /** Token + cost record for this agent's PID, from the `token-costs` push. */
-  let tokenRec = $derived($tokenCosts.find((r) => r.pid === agent.pid));
+  /**
+   * Token + cost record for this agent, from the `token-costs` push. Matched by
+   * process INSTANCE when both sides carry an instanceId — a recycled pid must
+   * not show a dead instance's frozen record. Pid matching is the fallback for
+   * records the tracker keyed from a bare pid (no instanceId on either side).
+   */
+  let tokenRec = $derived(
+    $tokenCosts.find((r) =>
+      agent.instanceId && r.instanceId ? r.instanceId === agent.instanceId : r.pid === agent.pid,
+    ),
+  );
 
   let lastFile = $derived.by(() => {
     const ev = agentEvents.find((e) => e.file);
