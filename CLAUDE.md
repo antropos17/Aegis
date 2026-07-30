@@ -6,7 +6,7 @@ Landing: aegisprotect.vercel.app | Demo: aegis-demo-ten.vercel.app
 npm run build:renderer    # Vite build (MUST pass before commit)
 npm run lint              # ESLint
 npm run format            # Prettier
-npm test                  # Vitest (968 passed / 4 skipped = 972, 62 files)
+npm test                  # Vitest (1006 passed / 4 skipped = 1010, 63 files)
 npm run dist              # Electron-builder NSIS installer
 
 ## Background Tasks (/loop)
@@ -25,9 +25,9 @@ npm run dist              # Electron-builder NSIS installer
 8. TypeScript: new files in .ts, `npx eslint` + `npx tsc --noEmit` before commit, zero `any`
 
 ## Key Paths
-- src/main/ — 43 CommonJS modules (34 top-level + platform/ 7 + token-adapters/ 2)
+- src/main/ — 44 CommonJS modules (35 top-level + platform/ 7 + token-adapters/ 2)
 - src/renderer/ — 46 Svelte 5 components + 11 stores + 16 utils + tokens.css/global.css
-- src/shared/ — agent-database.json (110 agents), types/ (8 TS files), constants.js (ignore patterns, config paths; SENSITIVE_RULES deprecated)
+- src/shared/ — agent-database.json (110 agents / 262 signatures), types/ (8 TS files), constants.js (ignore patterns, config paths; SENSITIVE_RULES deprecated)
 - rules/ — 73 active detection rules in 8 YAML files, validated by rules/_schema.json
 - memory-bank/ — ai-mistakes.md (READ FIRST), progress.md, architecture.md
 - .claude/skills/ — 11 skills: aegis-context, design-system, electron-main, svelte-patterns, testing, ship, pr-monitor, ci-monitor, prompt-craft, audit-check, commit-and-track
