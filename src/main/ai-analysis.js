@@ -234,6 +234,9 @@ function analyzeSessionActivity() {
     // Per-agent summary
     const agentSummaries = {};
     for (const ev of allEvents) {
+      // An unattributed event has no owner (agent ''), and an empty-keyed bucket
+      // would ship a nameless "agent" into the prompt sent to the model.
+      if (ev.attribution?.status === 'unattributed' || !ev.agent) continue;
       if (!agentSummaries[ev.agent])
         agentSummaries[ev.agent] = { files: 0, sensitive: 0, configAccess: 0, reasons: new Set() };
       agentSummaries[ev.agent].files++;

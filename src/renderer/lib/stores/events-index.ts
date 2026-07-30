@@ -17,6 +17,11 @@ import type { FileEvent } from '../../../shared/types';
 export const eventsByPid = derived(events, ($events: FileEvent[]) => {
   const map = new Map<number, FileEvent[]>();
   for (const evt of $events) {
+    // Skip by STATUS, before bucketing. The pid==null guard below is not enough
+    // on its own: synthetic agents (WSL, local LLM runtimes) are registered with
+    // pid 0, so any unattributed event that ever carried 0 would surface inside
+    // their agent card.
+    if (evt.attribution?.status === 'unattributed') continue;
     const pid = evt.pid;
     if (pid == null) continue;
     let list = map.get(pid);

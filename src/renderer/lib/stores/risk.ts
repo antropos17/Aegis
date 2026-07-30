@@ -91,6 +91,10 @@ export const enrichedAgents: Readable<EnrichedAgent[]> = derived(
     const eventsByPid = new Map<number, FileEvent[]>();
     const eventsByName = new Map<string, FileEvent[]>();
     for (const ev of allEvents) {
+      // An unattributed event belongs to no agent, so it must not raise anyone's
+      // sensitiveFiles / riskScore / trustGrade. Checked by STATUS, not by falsy
+      // agent/pid: the intent has to be readable and independently testable.
+      if (ev.attribution?.status === 'unattributed') continue;
       if (ev.selfAccess) continue;
       if (ev.pid) {
         let arr = eventsByPid.get(ev.pid);

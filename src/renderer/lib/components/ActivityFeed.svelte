@@ -4,6 +4,7 @@
   import { t } from '../i18n/index.js';
   import { getSeverity } from '../utils/timeline-utils';
   import { shortenPath } from '../utils/path-utils';
+  import { UNKNOWN_SOURCE } from '../utils/grouped-feed-utils';
 
   let { active = true, agentFilter = 'all', severityFilter = 'all', typeFilter = 'all' } = $props();
 
@@ -218,7 +219,7 @@
           ></span>
           <span class="feed-time">{formatRelativeTime(ev.timestamp)}</span>
           <span class="feed-agent" title={ev.userAgent ? `Process: ${ev.userAgent}` : ''}
-            >{ev.agent}</span
+            >{ev.agent || UNKNOWN_SOURCE}</span
           >
           <span class="feed-action">{ev.action || ev._type}</span>
           <button class="feed-path" title={ev.file} onclick={(e) => handlePathClick(ev, e)}

@@ -99,6 +99,7 @@ describe('scan-loop', () => {
         file: '/home/user/.bashrc',
         sensitive: true,
         reason: 'dotfile',
+        attribution: { status: 'confirmed', evidence: ['handle-scan-pid'] },
       });
 
       expect(auditLog).toHaveBeenCalledOnce();
@@ -107,7 +108,45 @@ describe('scan-loop', () => {
         action: 'read',
         path: '/home/user/.bashrc',
         severity: 'sensitive',
+        extra: { attribution: 'confirmed' },
       });
+    });
+
+    it('records the unattributed status so an empty agent is not read as a legacy entry', () => {
+      const auditLog = vi.fn();
+      scanLoop.init({ audit: { log: auditLog } });
+
+      scanLoop.logAuditForFile({
+        agent: '',
+        action: 'modified',
+        file: '/home/user/.ssh/id_rsa',
+        sensitive: true,
+        reason: 'SSH keys/config',
+        attribution: { status: 'unattributed', evidence: ['no-owner-match'] },
+      });
+
+      expect(auditLog).toHaveBeenCalledWith('file-access', {
+        agent: '',
+        action: 'modified',
+        path: '/home/user/.ssh/id_rsa',
+        severity: 'sensitive',
+        extra: { attribution: 'unattributed' },
+      });
+    });
+
+    it('omits extra for an event with no attribution (pre-v0.11.0 shape)', () => {
+      const auditLog = vi.fn();
+      scanLoop.init({ audit: { log: auditLog } });
+
+      scanLoop.logAuditForFile({
+        agent: 'Cursor',
+        action: 'read',
+        file: '/home/user/.bashrc',
+        sensitive: false,
+        reason: '',
+      });
+
+      expect(auditLog.mock.calls[0][1].extra).toBeUndefined();
     });
 
     it('logs config-access for AI agent config events', () => {
@@ -120,6 +159,7 @@ describe('scan-loop', () => {
         file: '/home/.copilot/config.json',
         sensitive: false,
         reason: 'AI agent config modification',
+        attribution: { status: 'inferred', evidence: ['self-config-path'] },
       });
 
       expect(auditLog).toHaveBeenCalledWith('config-access', {
@@ -127,6 +167,7 @@ describe('scan-loop', () => {
         action: 'write',
         path: '/home/.copilot/config.json',
         severity: 'normal',
+        extra: { attribution: 'inferred' },
       });
     });
   });
@@ -393,17 +434,15 @@ describe('scan-loop', () => {
         network: {
           isNetworkScanRunning: vi.fn().mockReturnValue(false),
           setNetworkScanRunning: vi.fn(),
-          scanNetworkConnections: vi
-            .fn()
-            .mockResolvedValue([
-              {
-                agent: 'Cursor',
-                remoteIp: '1.2.3.4',
-                remotePort: 443,
-                state: 'ESTABLISHED',
-                flagged: false,
-              },
-            ]),
+          scanNetworkConnections: vi.fn().mockResolvedValue([
+            {
+              agent: 'Cursor',
+              remoteIp: '1.2.3.4',
+              remotePort: 443,
+              state: 'ESTABLISHED',
+              flagged: false,
+            },
+          ]),
         },
       });
       scanLoop.init(deps);

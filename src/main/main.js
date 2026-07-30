@@ -328,7 +328,15 @@ function initDeferredSubsystems(userData) {
       const deduped = scanLoop.dedupFileEvent(ev);
       if (!deduped) return;
       fileAccessBatcher.push(deduped);
-      if (deduped.sensitive && deduped.category === 'ai') tray.notifySensitive([deduped]);
+      // An unattributed hit carries category 'other' (no agent to take it from),
+      // so the ai-only gate would silence exactly the crown-jewel case: a secret
+      // touched with no known owner. A vague alert beats no alert.
+      if (
+        deduped.sensitive &&
+        (deduped.category === 'ai' || deduped.attribution?.status === 'unattributed')
+      ) {
+        tray.notifySensitive([deduped]);
+      }
       statsUpdateBatcher.push(getStats());
       tray.updateTrayIcon();
       scanLoop.logAuditForFile(deduped);

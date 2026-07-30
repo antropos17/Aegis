@@ -129,9 +129,12 @@ function notifySensitive(events) {
   _state.lastNotificationTime = now;
   const f = se[0],
     more = se.length > 1 ? ` (+${se.length - 1} more)` : '';
+  // An unattributed event carries an empty agent name; without a label the body
+  // would open with a bare space and read as a formatting bug.
+  const source = f.agent || 'Unknown source';
   new Notification({
     title: 'AEGIS \u2014 Sensitive File Access',
-    body: `${f.agent} ${f.action || 'accessed'}: ${path.basename(f.file)}${more}\n${f.reason}`,
+    body: `${source} ${f.action || 'accessed'}: ${path.basename(f.file)}${more}\n${f.reason}`,
     urgency: 'critical',
   }).show();
 }

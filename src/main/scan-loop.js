@@ -80,6 +80,11 @@ function logAuditForFile(ev) {
     action: ev.action,
     path: ev.file,
     severity: ev.sensitive ? 'sensitive' : 'normal',
+    // Attribution rides inside the EXISTING `extra` slot (audit-logger stores it
+    // as `details`), so the record's field set — and therefore the hash chain —
+    // is unchanged. Without it an empty `agent` is indistinguishable from a
+    // pre-v0.11.0 entry when reading the JSONL back.
+    extra: ev.attribution ? { attribution: ev.attribution.status } : undefined,
   });
 }
 
