@@ -22,14 +22,14 @@ Read package.json for exact versions. NEVER hardcode.
 Electron 33, Svelte 5, Vite 7, TypeScript (incremental, allowJs:true, checkJs:true), chokidar.
 
 ## Architecture
-- Main process (Node.js): src/main/ — 23 CJS modules (scanners, watchers, IPC, scoring, logging)
-- Renderer (Svelte 5): src/renderer/ — 43 components + 9 stores + 15 utils via IPC bridge
-- Bridge: src/main/preload.js — contextBridge, 43 invoke + 6 push channels
+- Main process (Node.js): src/main/ — 43 CJS modules (34 top-level + 7 platform/ + 2 token-adapters/)
+- Renderer (Svelte 5): src/renderer/ — 46 components + 11 stores + 16 utils via IPC bridge
+- Bridge: src/main/preload.js — contextBridge, 39 invoke + 9 push = 48 channels
 - Data: src/shared/agent-database.json (110 agent signatures)
-- Config: src/shared/constants.js (68 rules across 8 categories)
-- Rules: src/main/rule-loader.js — loadRules() + categoryIndex Map for O(1) lookup by category
+- Rules: rules/*.yaml — 73 active rules across 8 categories, validated against rules/_schema.json
+- Rule loader: src/main/rule-loader.js — loadRules() + categoryIndex Map exposed via getRulesByCategory(); built and tested, but no production caller consumes it yet (C-16)
 - Types: src/shared/types/ — 8 .ts files
-- Tests: 707 pass, 4 skip across 44 files (Vitest, all ESM)
+- Tests: 968 pass, 4 skip (972 total) across 62 files (Vitest, all ESM)
 
 ## Key Components (Fancy UI — complete)
 - ShieldTab: bento grid with SummaryCards, RiskRing, ActivityFeed
@@ -45,7 +45,7 @@ Electron 33, Svelte 5, Vite 7, TypeScript (incremental, allowJs:true, checkJs:tr
 ## Key Files
 - src/renderer/lib/styles/tokens.css — 60+ design tokens (Fancy UI)
 - src/renderer/lib/styles/global.css — atmosphere, fonts, resets
-- src/shared/constants.js — ~70 SENSITIVE_RULES
+- src/shared/constants.js — ignore patterns, editor lists, AGENT_CONFIG_PATHS. SENSITIVE_RULES (68) is DEPRECATED and unused at runtime — classifySensitive() reads getAllRules() from rule-loader
 
 ## MCP
 - Context7: fresh docs for any library (append "use context7")
@@ -60,6 +60,9 @@ Electron 33, Svelte 5, Vite 7, TypeScript (incremental, allowJs:true, checkJs:tr
 - prompt-craft — prompt formula for Claude Code and Antigravity
 - pr-monitor — PR triage, contributor management, /loop monitoring
 - ci-monitor — CI watching, repo health, post-launch metrics
+- audit-check — pre-push / pre-release repo audit (format, build, lint, counts, git status)
+- commit-and-track — post-task gate: verify, stage only touched files, conventional commit, push to feature branch
+- ship — full deploy pipeline (manual invocation only)
 
 ## Commands
 - /audit — full health check via auditor agent

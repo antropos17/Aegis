@@ -33,7 +33,7 @@ Watches sensitive directories (.ssh, .aws, .gnupg, .env, cloud configs) and 27 A
 Logs outbound TCP connections per agent PID with reverse DNS and known-vs-unknown API endpoint classification.
 
 ### Behavioral Analysis
-Applies 68 detection rules across 8 categories (AI config, secrets, SSH, cloud, browser, devtools, crypto, certificates) with rolling 10-session baselines and 4-axis anomaly scoring (Network/FS/Process/Baseline).
+Applies 73 detection rules across 8 categories (AI config, secrets, SSH, cloud, browser, devtools, crypto, certificates) with rolling 10-session baselines and 4-axis anomaly scoring (Network/FS/Process/Baseline).
 
 ### Trust Scoring
 Assigns real-time risk scores with trust grades (A+ through F) using time-decay algorithms and multi-dimensional threat assessment.
@@ -45,7 +45,7 @@ Bento grid layout with RiskRing gauge, sparklines, TrustBadge, agent stats, acti
 JSON, CSV, HTML reports, one-click ZIP archive, JSONL audit logging with daily rotation and 30-day retention.
 
 ### YAML Rulesets
-68 detection rules, JSON Schema validated, hot-reload without restart. Extend or override via rules/custom/ directory.
+73 detection rules, JSON Schema validated, hot-reload without restart. Extend or override via rules/custom/ directory.
 
 ## Documentation
 
@@ -57,7 +57,7 @@ JSON, CSV, HTML reports, one-click ZIP archive, JSONL audit logging with daily r
 ## Technical Details
 
 - **Stack**: Electron 33, Svelte 5, Vite 7, TypeScript
-- **Tests**: 707 passing across 44 files (Vitest)
+- **Tests**: 968 passing, 4 skipped across 62 files (Vitest)
 - **License**: MIT
 - **Version**: 0.10.0-alpha
 - **Platform**: Windows, macOS, Linux

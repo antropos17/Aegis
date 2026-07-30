@@ -11,7 +11,8 @@ AEGIS is an independent AI oversight layer — a desktop app that monitors AI ag
 ```
 src/main/           Electron main process (CommonJS, require/module.exports)
 src/renderer/       Svelte 5 dashboard UI (ES modules, runes)
-src/shared/         Constants + agent-database.json (106 agent signatures)
+src/shared/         Constants + agent-database.json (110 agent signatures) + types/ (8 .ts)
+rules/              73 detection rules in 8 YAML files + _schema.json
 tests/              Vitest unit tests with v8 coverage
 ```
 
@@ -22,8 +23,9 @@ Key modules:
 - `src/main/llm-runtime-detector.js` — local LLM runtime detection (Ollama, LM Studio HTTP probes)
 - `src/main/cli.js` — CLI interface (`--scan-json`, `--version`, `--help`)
 - `src/main/platform/` — OS abstraction (win32.js, darwin.js, linux.js)
-- `src/shared/agent-database.json` — 106 known agent signatures
-- `src/shared/constants.js` — sensitive file rules (70+ patterns)
+- `src/shared/agent-database.json` — 110 known agent signatures
+- `src/main/rule-loader.js` — loads `rules/*.yaml` (73 rules, 8 categories) against `rules/_schema.json`, hot-reload
+- `src/shared/constants.js` — ignore patterns, editor lists, AGENT_CONFIG_PATHS. `SENSITIVE_RULES` (68) is deprecated and unread at runtime — editing it changes nothing
 
 ## Build & test
 
@@ -38,14 +40,14 @@ CI runs all three on every push and PR (`.github/workflows/ci.yml`).
 
 ## Code conventions
 
-- **Max 200 lines per file.** Split into focused modules when exceeding.
+- 300 lines/file is a target for NEW files, not an invariant — 18 existing src files already exceed it (largest: file-watcher.js 632, ipc-handlers.js 498), tests go up to 691. Don't split an existing file just to hit the number; do extract when adding to one that's already over
 - **Main process:** CommonJS (`require`/`module.exports`). Never use `import` in `src/main/`.
 - **Renderer:** ES modules (`import`/`export`). Never use `require()` in `src/renderer/`.
 - **Svelte 5 runes:** `$state`, `$derived`, `$effect`, `$props`. No legacy `let` reactivity.
 - **JSDoc** on all exported functions (`@param`, `@returns`, `@since`).
 - **DI pattern:** Modules expose `init(deps)` for wiring. Tests use `_setDepsForTest()` / `_resetForTest()`.
 - **Paths:** Always split with `/[/\\]/` — never hardcode `/` or `\\` alone.
-- **No TypeScript.** This project uses plain JS + JSDoc.
+- **TypeScript:** 31 `.ts` files exist (renderer stores/utils + `src/shared/types/`). New renderer files go in `.ts`, zero `any`, `npm run typecheck` before commit. `src/main/` stays plain JS + JSDoc until the tsc build step lands.
 - **Prettier:** semi, singleQuote, trailingComma: all, printWidth: 100, tabWidth: 2.
 - **CSS:** Scoped styles in `.svelte` files. Global tokens in `src/renderer/lib/styles/tokens.css`. Use `var()` references, not raw colors.
 
@@ -58,11 +60,11 @@ CI runs all three on every push and PR (`.github/workflows/ci.yml`).
 
 ## What NOT to do
 
-- Don't use TypeScript — project is plain JS + JSDoc
+- Don't convert `src/main/` to TypeScript — main stays plain JS + JSDoc until the tsc build step lands
 - Don't use `require()` in `src/renderer/` — ES modules only
 - Don't use `import` in `src/main/` — CommonJS only
 - Don't hardcode OS paths — use `src/main/platform/` abstraction
 - Don't skip tests — every new module needs a test file in `tests/`
 - Don't add features not explicitly requested
 - Don't modify files not mentioned in the task
-- Don't exceed 200 lines per file
+- Don't let a new file blow past 300 lines — extract instead

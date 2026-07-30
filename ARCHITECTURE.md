@@ -42,7 +42,7 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 │  └───────────────┬──────────────┘     └──────────────┬───────────────┘  │
 │                  │          preload.js                │                  │
 │                  └─────── (IPC bridge) ───────────────┘                  │
-│                     contextBridge API (54 channels)                     │
+│              contextBridge API (48 channels: 39 invoke + 9 push)        │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -60,15 +60,15 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 ### What's Covered Now
 
 #### 1. Process Intelligence — `process-scanner.js`
-- **What it sees:** All running processes matched against 106 agent signatures
+- **What it sees:** All running processes matched against 110 agent signatures
 - **How:** `tasklist /FO CSV /NH` on Windows, pattern matching against known process names
 - **Depth:** Parent-child process tree resolution via PowerShell (60s TTL cache), IDE host app detection (e.g., "Copilot inside VS Code"), PID tracking for enter/exit events
 - **Coverage:** ~95% of known AI agents. Unknown agents detected via wildcard patterns.
 
-#### 2. File & Data Access — `file-watcher.js` + `constants.js`
+#### 2. File & Data Access — `file-watcher.js` + `rule-loader.js`
 - **What it sees:** File create/modify/delete in sensitive directories, per-process file handles
 - **How:** chokidar watchers on `.ssh`, `.aws`, `.gnupg`, `.kube`, `.docker`, `.azure`, `.env*`, 27 agent config directories, project directory. PowerShell handle scanning (`handle64.exe` or `Get-Process` fallback).
-- **Depth:** 70+ sensitive file patterns with severity classification. AI agent config directory protection (Hudson Rock threat vector). 2-second debounce per path.
+- **Depth:** 73 sensitive file rules (from `rules/*.yaml`) with severity classification. AI agent config directory protection (Hudson Rock threat vector). 2-second debounce per path.
 - **Limitation:** chokidar cannot attribute events to specific processes. Handle scanning provides per-process attribution but runs on a timer.
 
 #### 3. Network Intelligence — `network-monitor.js`
@@ -263,10 +263,17 @@ Process Scan (every Ns)
 Edit `agent-database.json` — add entry with `processPatterns`, `knownDomains`, `configPaths`, and trust/risk metadata. The process scanner, network monitor, and file watcher all consume this database automatically.
 
 ### Adding New Sensitive File Rules
-Edit `src/shared/constants.js` — add to `SENSITIVE_RULES` array:
-```javascript
-{ pattern: /my-pattern/i, reason: 'Display reason', category: 'my-cat', severity: 'critical' }
+Rules live in `rules/*.yaml` (one file per category), validated against `rules/_schema.json` and loaded by `rule-loader.js` with hot-reload. Add an entry to the ruleset matching the category:
+```yaml
+  - id: "SS007"
+    name: "SSH agent socket"
+    pattern: "ssh-agent"
+    reason: "SSH agent socket"
+    category: "ssh"
+    risk: critical
+    enabled: true
 ```
+`category` must be one of the 8 values allowed by `_schema.json` (ai-config, secrets, ssh, certificates, cloud, browser, devtools, crypto). `SENSITIVE_RULES` in `src/shared/constants.js` is deprecated and not read at runtime — editing it has no effect.
 
 ### Adding a New Monitoring Module
 1. Create `src/main/new-module.js` with `init(state)` pattern
