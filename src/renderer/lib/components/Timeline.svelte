@@ -22,6 +22,7 @@
     AUDIT_EVENT_TYPES,
     pickTickInterval,
     auditToTimelineEvent,
+    formatAttribution,
     buildSummary,
     buildClusters,
     buildLinks,
@@ -250,7 +251,15 @@
   }
   function handleDotEnter(e, dot) {
     const countInfo = dot.count > 1 ? ` (${dot.count})` : '';
-    tooltipText = `${dot.time}  ${dot.agent}${countInfo}` + (dot.pid ? ` [${dot.pid}]` : '');
+    // Empty string for a pre-v1 entry, or for an event the ownership question does not
+    // apply to — appended only when there is something to say, so those dots keep exactly
+    // the tooltip they had before Event Schema v1. Interpolated as text by
+    // TimelineTooltip, never as markup.
+    const attribution = formatAttribution(dot.attribution);
+    tooltipText =
+      `${dot.time}  ${dot.agent}${countInfo}` +
+      (dot.pid ? ` [${dot.pid}]` : '') +
+      (attribution ? `  ${attribution}` : '');
     tooltipVisible = true;
     positionTooltip(e);
   }

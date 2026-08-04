@@ -13,6 +13,7 @@ const resourceMonitor = require('./resource-monitor');
 const tokenTracker = require('./token-tracker');
 const { collectTokenCosts } = require('./token-cost-collector');
 const blocklist = require('./blocklist');
+const { EVIDENCE, makeAttribution } = require('./attribution');
 
 let scanInterval = null;
 let fileScanInterval = null;
@@ -77,14 +78,19 @@ function logAuditForFile(ev) {
     ev.reason && ev.reason.startsWith('AI agent config') ? 'config-access' : 'file-access';
   deps.audit.log(type, {
     agent: ev.agent,
+    pid: ev.pid ?? null,
+    // FileEvent carries no instanceId. Deriving one here would mean resolving identity
+    // outside the tick that produced the event — exactly the cross-tick pid reuse
+    // ai-mistakes.md #19 is about. Null until file-watcher stamps it at the source.
+    instanceId: null,
     action: ev.action,
     path: ev.file,
     severity: ev.sensitive ? 'sensitive' : 'normal',
-    // Attribution rides inside the EXISTING `extra` slot (audit-logger stores it
-    // as `details`), so the record's field set — and therefore the hash chain —
-    // is unchanged. Without it an empty `agent` is indistinguishable from a
-    // pre-v0.11.0 entry when reading the JSONL back.
-    extra: ev.attribution ? { attribution: ev.attribution.status } : undefined,
+    // The FULL {status, evidence[]} at top level. v0 put only the derived status string
+    // in `details` and lost the evidence array, on the belief that a changed field set
+    // would break the hash chain. It does not: verifyChain rebuilds each record's
+    // preimage from that record's own fields, so v0 and v1 lines coexist in one file.
+    attribution: ev.attribution ?? null,
   });
 }
 
@@ -133,9 +139,20 @@ function doNetworkScan() {
         baselines.recordNetworkEndpoint(conn.agent, conn.remoteIp, conn.remotePort);
         audit.log('network-connection', {
           agent: conn.agent,
+          pid: conn.pid ?? null,
+          // NetworkConnection carries pid but no instanceId. Resolving one from the pid
+          // here would be a second lookup that could straddle scan ticks; left null
+          // until network-monitor carries the matched agent's identity through.
+          instanceId: null,
           action: conn.state,
           path: `${conn.remoteIp}:${conn.remotePort}`,
           severity: conn.flagged ? 'high' : 'normal',
+          // The owner came from the OS connection table and was matched inside this same
+          // call, so it is `confirmed` — the same strength as a handle-scan pid. An
+          // unmatched connection keeps no agent and says so.
+          attribution: makeAttribution([
+            conn.agent ? EVIDENCE.OS_TCP_OWNER_PID : EVIDENCE.NO_OWNER_MATCH,
+          ]),
           extra: { domain: conn.domain, flagged: conn.flagged },
         });
       }
@@ -212,21 +229,31 @@ async function doProcessScan() {
     for (const s of entered)
       audit.log('agent-enter', {
         agent: s.agent,
+        // pid and instanceId are TOP-LEVEL in v1. They were in `extra` on the belief that
+        // a changed field set would break the chain; it does not — each record's hash
+        // covers only its own fields, so v0 files stay verifiable regardless.
+        pid: s.pid,
+        instanceId: s.instanceId,
         action: 'started',
         path: '',
         severity: 'normal',
-        // instanceId rides the EXISTING `extra` slot (audit-logger stores it as
-        // `details`), so the record's top-level field set — and therefore the hash
-        // chain — is unchanged and older files stay verifiable.
-        extra: { pid: s.pid, instanceId: s.instanceId, startTime: s.firstSeen },
+        // No attribution: this event IS the scanner's own observation that a session
+        // began. There is no owner to resolve — the agent is the event's subject, not an
+        // inferred owner — so `null` means "question does not apply", NOT "owner unknown".
+        attribution: null,
+        extra: { startTime: s.firstSeen },
       });
     for (const s of exited)
       audit.log('agent-exit', {
         agent: s.agent,
+        pid: s.pid,
+        instanceId: s.instanceId,
         action: 'exited',
         path: '',
         severity: 'normal',
-        extra: { pid: s.pid, instanceId: s.instanceId },
+        // Same reasoning as agent-enter: the session tracker's own conclusion, no owner
+        // resolution step to describe.
+        attribution: null,
       });
     watcher.pruneKnownHandles(agents);
     procUtil.annotateHostApps(agents);
@@ -240,9 +267,18 @@ async function doProcessScan() {
       for (const d of deviations)
         audit.log('anomaly-alert', {
           agent: d.agent,
+          // A deviation is computed from a named behavioural baseline, not from a live
+          // process, so there is no pid or instanceId to record. Joining the name back to
+          // a process to fill these in would fabricate an identity the detector never
+          // observed.
+          pid: null,
+          instanceId: null,
           action: d.type,
           path: '',
           severity: 'high',
+          // `d.agent` is an INPUT to the deviation check, not the output of an attribution
+          // step. Stamping a status here would label a tautology.
+          attribution: null,
           extra: { message: d.message, anomalyScore: d.anomalyScore },
         });
     }

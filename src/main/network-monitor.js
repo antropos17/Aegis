@@ -189,7 +189,16 @@ async function scanNetworkConnections(agents) {
     const domain = cached ? cached.domain : null;
     const httpUnencrypted = c.port === 80;
     return {
-      agent: agent ? agent.agent : `PID ${c.pid}`,
+      // C-01: `''` for an unmatched connection, never a synthesized `PID <n>` label. This
+      // value reaches the audit log, where a fabricated name would be indistinguishable
+      // from a real agent — and under Event Schema v1 it would sit next to an attribution
+      // status, making a guess look like a resolved owner. Display surfaces substitute
+      // UNKNOWN_SOURCE_LABEL; machine output keeps the honest blank.
+      //
+      // Unreachable in practice: _getRawTcpConnections is called WITH these agents' pids,
+      // so every returned pid is in pidMap. Kept as a guard, not as a fallback that
+      // invents data.
+      agent: agent ? agent.agent : '',
       pid: c.pid,
       parentEditor: agent ? agent.parentEditor || null : null,
       cwd: agent ? agent.cwd || null : null,

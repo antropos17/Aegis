@@ -263,10 +263,14 @@ describe('attribution evidence is a closed list (case 8)', () => {
     fileWatcher._resetForTest();
   });
 
-  it('exposes exactly the six documented codes', () => {
+  it('exposes exactly the seven documented codes', () => {
+    // The list is closed on purpose and deriveStatus throws on anything outside it, so this
+    // assertion is the gate: adding a code means deciding its status here, in events.ts, and
+    // in PID_EVIDENCE/HEURISTIC_EVIDENCE — not just at a call site.
     expect([...EVIDENCE_CODES]).toEqual([
       'rm-holder-pid',
       'handle-scan-pid',
+      'os-tcp-owner-pid',
       'self-config-path',
       'cwd-containment',
       'no-owner-match',

@@ -1,0 +1,39 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node 'X:\\Future\\ESCAPE\\AEGIS\\.codex\\hooks\\branch-guard.js'",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit(src/**/*.svelte)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx prettier --check \"$TOOL_INPUT_path\" 2>/dev/null || echo 'Prettier warning: file not formatted'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Task complete. Remember: commit if done, /compact if >50% context.'",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -252,14 +252,19 @@ describe('network-monitor DI tests', () => {
       expect(results[1].flagged).toBe(true);
     });
 
-    it('uses PID label when agent not found in map', async () => {
+    it('keeps no agent name when the pid is not in the map (C-01)', async () => {
+      // Previously this synthesized `PID 999`. That name reaches the audit log, where a
+      // fabricated agent is indistinguishable from a real one — and under Event Schema v1
+      // it would sit beside an attribution status, dressing a guess as a resolved owner.
       mockGetRawTcp.mockResolvedValue([{ pid: 999, ip: '8.8.8.8', port: 53, state: 'ESTAB' }]);
       mockDnsReverse.mockResolvedValue(['dns.google']);
 
       const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
       const results = await networkMonitor.scanNetworkConnections(agents);
       expect(results).toHaveLength(1);
-      expect(results[0].agent).toBe('PID 999');
+      expect(results[0].agent).toBe('');
+      // The pid itself is still reported — it is an observation, not a guess.
+      expect(results[0].pid).toBe(999);
     });
   });
 

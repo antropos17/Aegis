@@ -6,7 +6,7 @@ Landing: aegisprotect.vercel.app | Demo: aegis-demo-ten.vercel.app
 npm run build:renderer    # Vite build (MUST pass before commit)
 npm run lint              # ESLint
 npm run format            # Prettier
-npm test                  # Vitest (1034 passed / 4 skipped = 1038, 65 files)
+npm test                  # Vitest (1048 passed / 4 skipped = 1052, 66 files)
 npm run dist              # Electron-builder NSIS installer
 
 ## Background Tasks (/loop)
@@ -17,7 +17,7 @@ npm run dist              # Electron-builder NSIS installer
 ## Critical Rules
 1. Read memory-bank/ai-mistakes.md before ANY code change
 2. Do ONLY what the prompt says — no extra features, no unrequested changes
-3. Main = CJS (require). Renderer = ESM (import). 300 lines/file is a target for NEW files, not an invariant — 18 existing src files already exceed it (largest: file-watcher.js 654, ipc-handlers.js 498), tests go up to 734. Don't split an existing file just to hit the number; do extract when adding to one that's already over
+3. Main = CJS (require). Renderer = ESM (import). 300 lines/file is a target for NEW files, not an invariant — 18 existing src files already exceed it (largest: file-watcher.js 654, audit-logger.js 600, ipc-handlers.js 503), tests go up to 734. Don't split an existing file just to hit the number; do extract when adding to one that's already over
 4. CSS: var() from tokens.css ONLY. Svelte 5 runes only ($state/$derived/$effect)
 5. Svelte MCP autofixer on all .svelte files. JSDoc on all exports
 6. Conventional commits. NEVER add "Co-Authored-By" or "Generated with Claude Code"
@@ -25,7 +25,7 @@ npm run dist              # Electron-builder NSIS installer
 8. TypeScript: new files in .ts, `npx eslint` + `npm run typecheck` before commit, zero `any`. Root tsconfig.json is a solution file (`files: []` + references) — a bare `npx tsc --noEmit` checks NOTHING and always exits 0; use `npm run typecheck` (both projects) or `npx tsc -b`
 
 ## Key Paths
-- src/main/ — 44 CommonJS modules (35 top-level + platform/ 7 + token-adapters/ 2)
+- src/main/ — 46 CommonJS modules (37 top-level + platform/ 7 + token-adapters/ 2)
 - src/renderer/ — 46 Svelte 5 components + 11 stores + 16 utils + tokens.css/global.css
 - src/shared/ — agent-database.json (110 agents / 262 signatures), types/ (8 TS files), constants.js (ignore patterns, config paths; SENSITIVE_RULES deprecated)
 - rules/ — 73 active detection rules in 8 YAML files, validated by rules/_schema.json

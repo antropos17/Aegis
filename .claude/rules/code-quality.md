@@ -2,7 +2,7 @@
 alwaysApply: true
 ---
 # Code Quality Rules
-- 300 lines/file is a target for NEW files, not an invariant — 18 existing src files already exceed it (largest: file-watcher.js 654, ipc-handlers.js 498), tests go up to 734. Don't split an existing file just to hit the number; do extract when adding to one that's already over
+- 300 lines/file is a target for NEW files, not an invariant — 18 existing src files already exceed it (largest: file-watcher.js 654, audit-logger.js 600, ipc-handlers.js 503), tests go up to 734. Don't split an existing file just to hit the number; do extract when adding to one that's already over
 - No `any` type. Use proper types from src/shared/types/
 - GPG signing on all commits
 - Verify after EVERY change: npm test && npm run build && npm run typecheck (NOT `npx tsc --noEmit` — the root tsconfig is a solution file and checks nothing)

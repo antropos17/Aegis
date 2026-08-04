@@ -40,7 +40,7 @@ CI runs all three on every push and PR (`.github/workflows/ci.yml`).
 
 ## Code conventions
 
-- 300 lines/file is a target for NEW files, not an invariant — 18 existing src files already exceed it (largest: file-watcher.js 654, ipc-handlers.js 498), tests go up to 734. Don't split an existing file just to hit the number; do extract when adding to one that's already over
+- 300 lines/file is a target for NEW files, not an invariant — 18 existing src files already exceed it (largest: file-watcher.js 654, audit-logger.js 600, ipc-handlers.js 503), tests go up to 734. Don't split an existing file just to hit the number; do extract when adding to one that's already over
 - **Main process:** CommonJS (`require`/`module.exports`). Never use `import` in `src/main/`.
 - **Renderer:** ES modules (`import`/`export`). Never use `require()` in `src/renderer/`.
 - **Svelte 5 runes:** `$state`, `$derived`, `$effect`, `$props`. No legacy `let` reactivity.

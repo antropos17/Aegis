@@ -51,13 +51,13 @@ Electron 33, Svelte 5, Vite 7, chokidar. TypeScript: `allowJs: true`, **`checkJs
 - Context7: fresh docs for any library (append "use context7")
 - Svelte MCP: list-sections, get-documentation, svelte-autofixer
 
-## Skills (.claude/skills/)
+## Skills (.Codex/skills/)
 - aegis-context — project overview, auto-invoked on any task
 - design-system — Fancy UI tokens, typography, glassmorphism, animation rules
 - electron-main — CJS modules, platform abstraction, IPC, file watchers
 - svelte-patterns — Svelte 5 runes, component patterns, template directives
 - testing — Vitest patterns, ESM imports, mocking, test structure
-- prompt-craft — prompt formula for Claude Code and Antigravity
+- prompt-craft — prompt formula for Codex and Antigravity
 - pr-monitor — PR triage, contributor management, /loop monitoring
 - ci-monitor — CI watching, repo health, post-launch metrics
 - audit-check — pre-push / pre-release repo audit (format, build, lint, counts, git status)
