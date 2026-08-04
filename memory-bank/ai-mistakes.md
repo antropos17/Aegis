@@ -51,6 +51,12 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     command proves the command ran, not that it inspected your change. Confirm coverage
     (`--listFiles`, file counts) or inject a deliberate failure and watch the gate go red —
     then revert it.
+22. Destroys a file with a side edit nobody asked for. The requested steps were done correctly;
+    the damage came from an adjacent "while I'm here" byte-level rewrite of `memory-bank/progress.md`
+    — at that point still untracked (it only entered git in `e7ba29d`), so there was no `git checkout`
+    to undo it and only an external editor snapshot brought the log back. Untracked files have no
+    safety net: git cannot restore what it never saw. Touch ONLY the bytes the prompt named. If a
+    file looks wrong in a way the task did not mention, report it and leave it alone.
 
 ## Rule
 NEVER change what was not asked. Do ONLY what the prompt says.
