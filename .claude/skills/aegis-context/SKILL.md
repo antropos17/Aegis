@@ -29,7 +29,7 @@ Electron 33, Svelte 5, Vite 7, chokidar. TypeScript: `allowJs: true`, **`checkJs
 - Rules: rules/*.yaml — 73 active rules across 8 categories, validated against rules/_schema.json
 - Rule loader: src/main/rule-loader.js — loadRules() + categoryIndex Map exposed via getRulesByCategory(); built and tested, but no production caller consumes it yet (C-16)
 - Types: src/shared/types/ — 8 .ts files
-- Tests: 1048 pass, 4 skip (1052 total) across 66 files (Vitest, all ESM)
+- Tests: 1075 pass, 4 skip (1079 total) across 68 files (Vitest, all ESM)
 
 ## Key Components (Fancy UI — complete)
 - ShieldTab: bento grid with SummaryCards, RiskRing, ActivityFeed

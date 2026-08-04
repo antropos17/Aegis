@@ -6,7 +6,7 @@ description: Vitest testing patterns for Aegis. ESM imports, mocking, test struc
 
 ## Stack
 - Vitest 4 + esbuild transform
-- 66 test files, 1048 pass, 4 skip (1052 total)
+- 68 test files, 1075 pass, 4 skip (1079 total)
 
 ## Structure
 - tests/ directory mirrors src/ structure
