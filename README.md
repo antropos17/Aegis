@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/antropos17/Aegis/releases/latest"><img src="https://img.shields.io/github/v/release/antropos17/Aegis?include_prereleases&style=flat-square&label=Release" alt="Release"></a>
   <img src="https://img.shields.io/github/actions/workflow/status/antropos17/Aegis/ci.yml?style=flat-square&label=CI" alt="CI">
-  <img src="https://img.shields.io/badge/Tests-1048%20passing-brightgreen?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-1075%20passing-brightgreen?style=flat-square" alt="Tests">
   <a href="#monitor-first"><img src="https://img.shields.io/badge/Mode-monitor--first-8a2be2?style=flat-square" alt="Monitor-first"></a>
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/Platform-Win%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform">
@@ -47,7 +47,7 @@
 | **0** | open-source EDR tools existed for AI agents before Aegis |
 | **110** | AI agent signatures in the detection database, from Claude Code to AutoGPT |
 | **73** | behavioral detection rules across 8 categories, hot-reloaded on edit |
-| **1048** | tests passing, 0 failures — the monitoring engine is verified on every commit |
+| **1075** | tests passing, 0 failures — the monitoring engine is verified on every commit |
 | **<2s** | cold boot to full dashboard — lightweight enough to run alongside the agents it monitors |
 
 AI agents now have deep access to your machine — files, commands, network. Every existing AI security tool is enterprise SaaS that monitors what humans send *to* AI. Nobody monitors what AI agents do *on local machines*. Aegis is the open-source answer.
@@ -205,7 +205,7 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
             └─────────────┘    └─────────────┘
 ```
 
-**Stack**: Electron 33, Svelte 5, Vite 7, Vitest (1048 tests across 66 files). The monitoring engine is JavaScript (CommonJS); TypeScript is used in the renderer and shared types.
+**Stack**: Electron 33, Svelte 5, Vite 7, Vitest (1075 tests across 68 files). The monitoring engine is JavaScript (CommonJS); TypeScript is used in the renderer and shared types.
 
 ## Agent Database
 
@@ -264,7 +264,7 @@ Aegis ships with 110 agent signatures across five categories: coding assistants 
 
 ### Can I use Aegis in production?
 
-Aegis is currently at v0.10.0-alpha and is recommended for development and testing environments. The core monitoring engine is stable with 1048 tests passing, but production deployment features (auto-update, OS-level enforcement) are on the roadmap for v1.0.
+Aegis is currently at v0.10.0-alpha and is recommended for development and testing environments. The core monitoring engine is stable with 1075 tests passing, but production deployment features (auto-update, OS-level enforcement) are on the roadmap for v1.0.
 
 ### Is Aegis free?
 
