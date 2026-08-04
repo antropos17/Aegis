@@ -267,6 +267,65 @@ if (!gotLock) {
 
 // ═══ LIFECYCLE ═══
 
+/**
+ * One-shot guard for {@link startWatchers}. The watcher set is created exactly
+ * once per app run: whichever branch of {@link startWatchersWhenLoaded} wins the
+ * load race, the other one is a no-op.
+ * @type {boolean}
+ */
+let watchersStarted = false;
+
+/**
+ * Create the watcher set exactly once: the chokidar file watchers (credential
+ * dirs, agent-config dirs, the app directory, `~/.env*`) plus the rules
+ * hot-reload watcher.
+ *
+ * `setupFileWatchers` is async — it stats every candidate directory before
+ * deciding what to watch — so the registered count is only meaningful after it
+ * resolves, and a rejection is invisible unless it is awaited. The guard flips
+ * BEFORE the await so a second call landing mid-setup cannot create a duplicate
+ * set.
+ * @returns {Promise<void>}
+ * @since v0.11.0-alpha
+ */
+async function startWatchers() {
+  if (watchersStarted) return;
+  watchersStarted = true;
+  try {
+    await watcher.setupFileWatchers();
+    watcher.setupRulesWatcher(sendToRenderer);
+    // One entry per watch-root GROUP (credential dirs / agent-config dirs / app
+    // dir / ~/.env*), so a group may cover several directories. This line is the
+    // discriminator for a silently dead file feed: absent means startup never
+    // reached here, zero means nothing at all is being observed.
+    logger.info('main', 'File watchers created', { watchRoots: fileWatchers.length });
+  } catch (err) {
+    logger.error('main', 'File watcher setup failed', { error: err.message });
+  }
+}
+
+/**
+ * Start the watchers as soon as the renderer has finished loading, WITHOUT
+ * depending on `did-finish-load` still being pending.
+ *
+ * The previous form registered `once('did-finish-load')` from inside the
+ * deferred init, which itself runs off `ready-to-show` → `setImmediate`. For a
+ * local `loadFile` the load completes first, so the listener was attached to an
+ * event that had already fired and never ran — file monitoring was silently dead
+ * from that point on. Reading `isLoading()` turns the race into an explicit
+ * branch; {@link watchersStarted} keeps both branches to a single watcher set.
+ * @param {Electron.WebContents} webContents - The main window's web contents.
+ * @returns {void}
+ * @since v0.11.0-alpha
+ */
+function startWatchersWhenLoaded(webContents) {
+  if (webContents.isLoading()) {
+    webContents.once('did-finish-load', () => startWatchers());
+  } else {
+    startWatchers();
+  }
+}
+
 /** Wires deferred modules and starts scanning. Called after ready-to-show. */
 function initDeferredSubsystems(userData) {
   loadDeferredModules();
@@ -366,10 +425,7 @@ function initDeferredSubsystems(userData) {
     onFlushError: (err) => logger.error('audit-logger', 'Flush failed', { error: err.message }),
   });
   baselines.loadBaselines();
-  mainWindow.webContents.once('did-finish-load', () => {
-    watcher.setupFileWatchers();
-    watcher.setupRulesWatcher(sendToRenderer);
-  });
+  startWatchersWhenLoaded(mainWindow.webContents);
   const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
   scanLoop.staggeredStartup(ms, monitoringPaused);
 
@@ -471,3 +527,29 @@ app.on('quit', () => {
   if (scanLoop) scanLoop.stopScanIntervals();
   fileWatchers.forEach((w) => w.close());
 });
+
+/** @internal Inject the file-watcher module, normally set by loadDeferredModules (for tests). */
+function _setWatcherForTest(mod) {
+  watcher = mod;
+}
+
+/** @internal Clear the one-shot guard and the registered watcher list (for tests). */
+function _resetWatchersForTest() {
+  watchersStarted = false;
+  fileWatchers.length = 0;
+}
+
+/** @internal The live array setupFileWatchers appends to — what startWatchers counts (for tests). */
+function _getWatchersForTest() {
+  return fileWatchers;
+}
+
+// Exported for the startup-ordering regression test only — nothing in the app
+// requires main.js. Electron runs it as the entry point.
+module.exports = {
+  startWatchers,
+  startWatchersWhenLoaded,
+  _setWatcherForTest,
+  _resetWatchersForTest,
+  _getWatchersForTest,
+};
