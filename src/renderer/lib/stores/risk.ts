@@ -11,6 +11,7 @@ import { calculateRiskScore, getTrustGrade, getTimeDecayWeight } from '../utils/
 import type {
   FileEvent,
   NetworkConnection,
+  NetworkVerdict,
   EnrichedAgent,
   RiskScoreInput,
   TrustGrade,
@@ -37,6 +38,23 @@ const API_DOMAIN_PATTERNS: readonly RegExp[] = [
  */
 function isApiDomain(domain: string): boolean {
   return API_DOMAIN_PATTERNS.some((p) => p.test(domain));
+}
+
+/**
+ * The verdict to score one connection under.
+ *
+ * The fallback covers records the classifier never saw — demo pools and scans cached by an
+ * older build — and reads exactly the rule NetworkPanel's `classify()` uses: a name that was
+ * not recognized IS the flagged case, and no name at all is `unknown`, not an accusation.
+ * A record with `flagged: false` and no verdict was allowlisted by the old boolean, so it
+ * contributes to neither count.
+ * @param conn - Network connection, with or without a verdict
+ * @returns The verdict to score this connection under
+ */
+function scoringVerdict(conn: NetworkConnection): NetworkVerdict {
+  if (conn.verdict) return conn.verdict;
+  if (!conn.flagged) return 'allowlisted';
+  return conn.domain ? 'flagged' : 'unknown';
 }
 
 /**
@@ -178,6 +196,10 @@ export const enrichedAgents: Readable<EnrichedAgent[]> = derived(
       const candidateConns: NetworkConnection[] =
         hasCwd && raw.pid ? connsByPid.get(raw.pid) || [] : connsByName.get(name) || [];
 
+      // Two disjoint counts, not one bucket: an endpoint that resolved and is on no
+      // allowlist is a different claim from one nobody could identify, and risk scoring
+      // weighs them differently. `conn.flagged` alone cannot tell them apart.
+      let flaggedDomains = 0;
       let unknownDomains = 0;
       let networkCount = 0;
       let httpUnencryptedCount = 0;
@@ -187,7 +209,9 @@ export const enrichedAgents: Readable<EnrichedAgent[]> = derived(
           if (parentEditor && conn.parentEditor !== parentEditor) continue;
         }
         networkCount++;
-        if (conn.flagged) unknownDomains++;
+        const verdict = scoringVerdict(conn);
+        if (verdict === 'flagged') flaggedDomains++;
+        else if (verdict === 'unknown') unknownDomains++;
         if (conn.httpUnencrypted) httpUnencryptedCount++;
         if (conn.domain && isApiDomain(conn.domain)) hasApiCalls = true;
       }
@@ -198,6 +222,7 @@ export const enrichedAgents: Readable<EnrichedAgent[]> = derived(
         configFiles,
         sshAwsFiles,
         networkCount,
+        flaggedDomains,
         unknownDomains,
         fileCount,
         httpUnencryptedCount,
@@ -214,7 +239,9 @@ export const enrichedAgents: Readable<EnrichedAgent[]> = derived(
         projectName,
         instanceKey: iKey,
         sensitiveFiles,
-        unknownDomains,
+        // The published field keeps the meaning it always had — "endpoints not confirmed
+        // as allowlisted" — so the split changes scoring only, not what consumers read.
+        unknownDomains: flaggedDomains + unknownDomains,
         anomalyScore,
         riskScore,
         trustGrade,

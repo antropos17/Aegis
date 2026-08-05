@@ -22,10 +22,33 @@ export function getTimeDecayWeight(timestampMs) {
 // ═══ RISK SCORE ═══
 
 /**
+ * Per-endpoint weights for the endpoint-identity factor.
+ *
+ * A `flagged` endpoint resolved to a name and that name is on no allowlist — an established
+ * identity nobody vouches for. An `unknown` endpoint produced no usable name at all, which
+ * is common and benign (plenty of hosts publish no PTR record) and is explicitly NOT an
+ * accusation. So flagged weighs 8 and unknown 3 — an unidentified endpoint still moves the
+ * score, at a little over a third of a flagged one.
+ *
+ * FLAGGED keeps the 8 the single pre-split count carried, so an agent whose endpoints are
+ * all flagged scores exactly what it scored before the split.
+ * @type {{ FLAGGED: number, UNKNOWN: number }}
+ * @since 0.10.0
+ */
+const ENDPOINT_WEIGHTS = { FLAGGED: 8, UNKNOWN: 3 };
+
+/** Shared ceiling for the endpoint-identity factor — unchanged by the flagged/unknown split. */
+const ENDPOINT_CEILING = 20;
+
+/**
  * Calculate risk score for an agent (0–100).
  * Diminishing returns for sensitive files, separate SSH/AWS signal,
  * capped contributions per factor to prevent instant-100.
- * @param {{ sensitiveFiles: number, configFiles: number, sshAwsFiles: number, networkCount: number, unknownDomains: number, fileCount: number, httpUnencryptedCount?: number }} agent
+ *
+ * `flaggedDomains` and `unknownDomains` are disjoint counts that share ONE ceiling
+ * ({@link ENDPOINT_CEILING}), so splitting them cannot inflate the total: the factor's
+ * maximum is what it always was.
+ * @param {{ sensitiveFiles?: number, configFiles?: number, sshAwsFiles?: number, networkCount?: number, flaggedDomains?: number, unknownDomains?: number, fileCount?: number, httpUnencryptedCount?: number }} agent
  * @returns {number} Risk score 0–100
  * @since 0.2.0
  */
@@ -34,6 +57,7 @@ export function calculateRiskScore(agent) {
   const config = agent.configFiles || 0;
   const sshAws = agent.sshAwsFiles || 0;
   const netConns = agent.networkCount || 0;
+  const flagged = agent.flaggedDomains || 0;
   const unknown = agent.unknownDomains || 0;
   const files = agent.fileCount || 0;
   const httpUnencrypted = agent.httpUnencryptedCount || 0;
@@ -41,7 +65,10 @@ export function calculateRiskScore(agent) {
   const sensitiveContrib = Math.min(40, sensitive * 5 * (1 / (1 + sensitive * 0.1)));
   const configContrib = Math.min(5, config * 0.5);
   const netContrib = Math.min(10, netConns * 0.5);
-  const unknownDomainContrib = Math.min(20, unknown * 8);
+  const endpointContrib = Math.min(
+    ENDPOINT_CEILING,
+    flagged * ENDPOINT_WEIGHTS.FLAGGED + unknown * ENDPOINT_WEIGHTS.UNKNOWN,
+  );
   const fileContrib = Math.min(5, files * 0.02);
   const sshAwsContrib = Math.min(20, sshAws * 5);
   const httpContrib = httpUnencrypted > 0 ? 15 : 0;
@@ -52,7 +79,7 @@ export function calculateRiskScore(agent) {
       sensitiveContrib +
         configContrib +
         netContrib +
-        unknownDomainContrib +
+        endpointContrib +
         fileContrib +
         sshAwsContrib +
         httpContrib,
