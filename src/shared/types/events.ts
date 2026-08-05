@@ -68,8 +68,10 @@ export interface FileEvent {
   readonly attribution?: Attribution;
   /**
    * `true` only on events fabricated by the browser demo engine
-   * (renderer/lib/stores/demo-data.js). Absent on everything the file watcher emits —
-   * absence is the observed case, presence is the claim. Mirrors `DetectedAgent._demo`.
+   * (renderer/lib/stores/demo-data.js, present only in a demo build). Absent on
+   * everything the file watcher emits — absence is the observed case, presence is the
+   * claim. Read it through `isDemoPayload()` (renderer/lib/stores/demo-provenance.js).
+   * Mirrors `DetectedAgent._demo`.
    */
   readonly _demo?: boolean;
 }
@@ -130,9 +132,10 @@ export interface NetworkConnection {
   readonly userAgent: string | null;
   /**
    * `true` only on connections fabricated by the browser demo engine
-   * (renderer/lib/stores/demo-data.js). Absent on everything the network monitor
-   * emits — absence is the observed case, presence is the claim. Mirrors
-   * `DetectedAgent._demo`.
+   * (renderer/lib/stores/demo-data.js, present only in a demo build). Absent on
+   * everything the network monitor emits — absence is the observed case, presence is the
+   * claim. Read it through `isDemoPayload()` (renderer/lib/stores/demo-provenance.js).
+   * Mirrors `DetectedAgent._demo`.
    */
   readonly _demo?: boolean;
 }

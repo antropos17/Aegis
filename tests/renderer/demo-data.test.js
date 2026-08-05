@@ -4,11 +4,12 @@ import {
   startDemoMode,
   buildStats,
   buildAnomalies,
-  isDemoPayload,
-  DEMO_MARK,
   _setDepsForTest,
   _resetDeps,
 } from '../../src/renderer/lib/stores/demo-data.js';
+// The marker and its predicate live apart from the engine: they must survive into a
+// production bundle that carries no demo data at all (see demo-provenance.js).
+import { isDemoPayload, DEMO_MARK } from '../../src/renderer/lib/stores/demo-provenance.js';
 import { DEMO_AGENTS_POOL, SCENARIOS } from '../../src/renderer/lib/stores/demo-pools.js';
 
 /** Create a fresh set of writable stores for each test. */

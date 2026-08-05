@@ -1,5 +1,14 @@
-/** @file Scenario engine for browser-only demo mode. Cycles through 4 threat phases. */
+/**
+ * @file Scenario engine for browser-only demo mode. Cycles through 4 threat phases.
+ *
+ * Reachable ONLY through the dynamic import in `stores/ipc.ts`, which is gated on the
+ * build-time literal `import.meta.env.VITE_DEMO_MODE`. The default build drops that
+ * branch, and with it this module and the fabricated pools it pulls in. Do not import
+ * it statically from anything the production bundle reaches — that would put the demo
+ * hostnames back into a release artifact.
+ */
 import { DEMO_AGENTS_POOL, DEMO_FILE_POOL, DEMO_DOMAIN_POOL, SCENARIOS } from './demo-pools.js';
+import { DEMO_MARK } from './demo-provenance.js';
 
 /** @param {number} min @param {number} max @returns {number} */
 function randInt(min, max) {
@@ -9,42 +18,6 @@ function randInt(min, max) {
 /** @param {Array} arr @returns {any} */
 function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
-}
-
-// ═══ Provenance marker ═══
-
-/**
- * Key stamped onto every payload this engine writes into a store.
- *
- * The renderer previously told demo from real only by `isDemoMode` (stores/ipc.ts) —
- * a build-time constant sitting BESIDE the data, never on it. A fabricated agent
- * record and a scanned one were byte-identical in shape, so no consumer and no test
- * could establish provenance from a payload alone. This key closes that: the claim
- * "this is simulated" now travels with the value it describes.
- *
- * Not stamped on the anomalies payload — that store is a bare `Record<agentName,
- * number>` (see ipc.ts `anomalies`), so a marker key would be indistinguishable from
- * an agent literally named `_demo`. Anomalies are only ever written alongside a
- * marked `stats` object, which is what {@link isDemoPayload} is read from instead.
- */
-export const DEMO_MARK = '_demo';
-
-/**
- * True when a payload carries the demo provenance marker.
- *
- * Deliberately strict on `=== true`: a payload that merely HAS the key (a truthy
- * string, a stray `0`) is not a claim this engine made, and treating it as one would
- * let unrelated data raise the demo indicator.
- * @param {unknown} payload - Any store value: an agent record, a file event, a
- *   network connection, or the stats object.
- * @returns {boolean}
- */
-export function isDemoPayload(payload) {
-  return (
-    typeof payload === 'object' &&
-    payload !== null &&
-    /** @type {Record<string, unknown>} */ (payload)[DEMO_MARK] === true
-  );
 }
 
 // ═══ DI hooks for testing ═══

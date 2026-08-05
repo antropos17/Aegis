@@ -58,29 +58,19 @@
     };
   }
 
-  /** Static result for demo mode (no Electron IPC). */
-  function demoResult() {
-    const agents = $enrichedAgents;
-    const agentName = mode === 'agent' && selectedAgent ? selectedAgent : 'all active agents';
-    const names = agents.map((a) => a.name).join(', ') || 'Claude Code, GitHub Copilot';
-    return {
-      summary: `Analysis of ${agentName}: ${agents.length} agent(s) monitored (${names}). File access patterns and network connections reviewed.`,
-      findings: [
-        'Sensitive file access detected: .env.local, .ssh/id_rsa, .aws/credentials',
-        'Normal code editing activity: src/, tests/, package.json',
-        'Suspicious outbound connection to data-collector-unknown.io:4444',
-        'All API traffic uses TLS on port 443',
-      ],
-      riskRating: agents.length > 3 ? 'HIGH' : 'MEDIUM',
-      riskJustification:
-        'Sensitive credential files accessed by multiple agents. Flagged network destination requires investigation.',
-      recommendations: [
-        'Review .ssh and .aws access — restrict to specific agents only',
-        'Block data-collector-unknown.io in firewall rules',
-        'Enable per-agent file access permissions in Rules tab',
-        'Consider rotating exposed credentials',
-      ],
-    };
+  /**
+   * Load the fabricated demo analysis. The condition is the raw build-time literal, not
+   * `isDemoBuild`, so the default build folds it to false and drops both the branch and
+   * `demo-analysis.js` — the module holding the fictional hostname this panel used to
+   * inline. Returns null in every build that carries no simulated data.
+   */
+  async function loadDemoAnalysis() {
+    if (import.meta.env.VITE_DEMO_MODE !== 'true') return null;
+    const { buildDemoAnalysis } = await import('../stores/demo-analysis.js');
+    return buildDemoAnalysis({
+      agents: $enrichedAgents,
+      agentName: mode === 'agent' && selectedAgent ? selectedAgent : 'all active agents',
+    });
   }
 
   async function runAnalysis() {
@@ -89,8 +79,17 @@
     result = null;
     try {
       if (!window.aegis) {
-        await new Promise((r) => setTimeout(r, 1200));
-        result = demoResult();
+        // No IPC bridge. In the demo build that means the simulated report; in a
+        // production build it means the analysis genuinely cannot run, and saying so is
+        // the only honest answer — a fabricated verdict here would read as a real one.
+        const demo = await loadDemoAnalysis();
+        if (demo) {
+          await new Promise((r) => setTimeout(r, 1200));
+          result = demo;
+        } else {
+          error =
+            'Threat analysis is unavailable: the desktop bridge is not connected, so there is nothing to analyse.';
+        }
       } else {
         const res =
           mode === 'session'
