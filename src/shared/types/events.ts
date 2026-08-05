@@ -66,6 +66,12 @@ export interface FileEvent {
   readonly category: string;
   /** Optional: absent on events emitted before v0.11.0 (older activity-log entries). */
   readonly attribution?: Attribution;
+  /**
+   * `true` only on events fabricated by the browser demo engine
+   * (renderer/lib/stores/demo-data.js). Absent on everything the file watcher emits —
+   * absence is the observed case, presence is the claim. Mirrors `DetectedAgent._demo`.
+   */
+  readonly _demo?: boolean;
 }
 
 /**
@@ -122,6 +128,13 @@ export interface NetworkConnection {
   readonly verdictReason?: NetworkVerdictReason;
   readonly httpUnencrypted: boolean;
   readonly userAgent: string | null;
+  /**
+   * `true` only on connections fabricated by the browser demo engine
+   * (renderer/lib/stores/demo-data.js). Absent on everything the network monitor
+   * emits — absence is the observed case, presence is the claim. Mirrors
+   * `DetectedAgent._demo`.
+   */
+  readonly _demo?: boolean;
 }
 
 /**

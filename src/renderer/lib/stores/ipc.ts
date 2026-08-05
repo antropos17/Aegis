@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
-import { writable } from 'svelte/store';
-import type { Writable } from 'svelte/store';
-import { startDemoMode } from './demo-data.js';
+import { writable, derived } from 'svelte/store';
+import type { Readable, Writable } from 'svelte/store';
+import { startDemoMode, isDemoPayload } from './demo-data.js';
 import type {
   DetectedAgent,
   FileEvent,
@@ -133,6 +133,26 @@ export const selectedAgentPid: Writable<number | null> = writable(null);
 
 /** True when running in a browser without Electron IPC. */
 export const isDemoMode: boolean = import.meta.env.VITE_DEMO_MODE === 'true' || !window.aegis;
+
+/**
+ * True while the stores actually hold fabricated data — read off the payloads
+ * themselves, not off {@link isDemoMode}.
+ *
+ * The distinction is the point. `isDemoMode` is decided once, at module evaluation,
+ * from a build flag and the presence of `window.aegis`; it describes the BUILD. This
+ * store describes the DATA, and only goes true because `demo-data.js` stamped its own
+ * output (`DEMO_MARK`). A payload therefore carries its own provenance, which is what
+ * makes "is this screen real?" answerable from a store value and assertable in a test.
+ *
+ * Reads the raw `agents` / `stats` stores, never `enrichedAgents`: risk enrichment
+ * spreads records and the marker must not depend on that survival. `agents` is seeded
+ * synchronously by the demo engine while `stats` lands a frame later, so checking both
+ * leaves no window in which fabricated agents are on screen unmarked.
+ */
+export const demoDataActive: Readable<boolean> = derived(
+  [agents, stats],
+  ([$agents, $stats]) => $agents.some((a) => isDemoPayload(a)) || isDemoPayload($stats),
+);
 
 if (!isDemoMode) {
   // Primary path: coalesce all store updates into a single microtask

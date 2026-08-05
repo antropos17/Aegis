@@ -17,7 +17,13 @@
   import { addToast } from './lib/stores/toast.js';
   import { pendingStop, requestStop, clearStop } from './lib/stores/process-action.js';
   import { t } from './lib/i18n/index.js';
-  import { agents, anomalies, isDemoMode, selectedAgentPid } from './lib/stores/ipc.js';
+  import {
+    agents,
+    anomalies,
+    demoDataActive,
+    isDemoMode,
+    selectedAgentPid,
+  } from './lib/stores/ipc.js';
   import { get } from 'svelte/store';
   import DemoBanner from './lib/components/DemoBanner.svelte';
   import {
@@ -329,7 +335,13 @@
   </main>
 </div>
 
-{#if isDemoMode}
+<!-- The demo indicator. `$demoDataActive` is the data-grounded half — it goes true
+     because the payloads in the stores are stamped, so the banner attests to what is on
+     screen rather than to how the bundle was built. `isDemoMode` is kept OR'd in, not
+     replaced: it is what the banner has always been gated on, and dropping it could
+     remove a warning that shows today (e.g. during the first frames, before any demo
+     payload has landed). Additive only. -->
+{#if $demoDataActive || isDemoMode}
   <DemoBanner />
 {/if}
 
