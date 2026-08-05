@@ -154,6 +154,14 @@
       "domain": "Domain",
       "port": "Port",
       "state": "State"
+    },
+    "reasons": {
+      "ip-allowlist": "Address is inside a published Anthropic IP range — no DNS needed",
+      "domain-allowlist": "Name resolves back to this address and is on the allowlist",
+      "domain-not-allowlisted": "Name resolves back to this address but is on no allowlist",
+      "ptr-missing": "No reverse-DNS name for this address — identity not established",
+      "ptr-unconfirmed": "Reverse-DNS name did not resolve back to this address — discarded",
+      "legacy": "Recorded before verdicts existed — class derived from the older flag"
     }
   },
   "rules": {
