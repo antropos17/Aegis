@@ -68,6 +68,33 @@ export interface FileEvent {
   readonly attribution?: Attribution;
 }
 
+/**
+ * Classification of a remote endpoint. A hard three-way distinction, like
+ * {@link AttributionStatus} — not a score, and not the old `flagged` boolean.
+ * - `allowlisted`: verified against published evidence (an operator IP range, or a
+ *   forward-confirmed name on the allowlist).
+ * - `unknown`: no usable identity was established. NOT an accusation — the absence of a
+ *   PTR record says nothing about the endpoint.
+ * - `flagged`: identity WAS established and it is on no allowlist.
+ */
+export type NetworkVerdict = 'allowlisted' | 'unknown' | 'flagged';
+
+/**
+ * Closed list of verdict reason codes — mirrors `VERDICT_REASONS` in
+ * src/main/network-monitor.js. Every verdict records which rule produced it.
+ * - `ip-allowlist`: remote address is inside a published operator IP range; no DNS was used.
+ * - `domain-allowlist`: forward-confirmed name is an allowlisted host or a subdomain of one.
+ * - `domain-not-allowlisted`: forward-confirmed name, on no allowlist.
+ * - `ptr-missing`: no PTR record, or the reverse lookup failed.
+ * - `ptr-unconfirmed`: a PTR name existed but did not resolve back to this address.
+ */
+export type NetworkVerdictReason =
+  | 'ip-allowlist'
+  | 'domain-allowlist'
+  | 'domain-not-allowlisted'
+  | 'ptr-missing'
+  | 'ptr-unconfirmed';
+
 /** Enriched network connection from scanNetworkConnections */
 export interface NetworkConnection {
   readonly agent: string;
@@ -79,7 +106,20 @@ export interface NetworkConnection {
   readonly remotePort: number;
   readonly domain: string;
   readonly state: string;
+  /**
+   * `true` for anything not `allowlisted` — i.e. it keeps its original meaning, "not
+   * confirmed as a known endpoint", so an unidentified endpoint is never shown as safe.
+   * Prefer {@link NetworkConnection.verdict}: this boolean cannot tell `unknown` from
+   * `flagged`, which is the distinction the classifier exists to make.
+   */
   readonly flagged: boolean;
+  /**
+   * Optional: absent on records emitted before the three-outcome classifier (demo pools,
+   * cached scans from an older build). Consumers must fall back rather than assume.
+   */
+  readonly verdict?: NetworkVerdict;
+  /** The rule that produced {@link NetworkConnection.verdict}. Absent wherever `verdict` is. */
+  readonly verdictReason?: NetworkVerdictReason;
   readonly httpUnencrypted: boolean;
   readonly userAgent: string | null;
 }

@@ -403,6 +403,54 @@ const SENSITIVE_RULES = [
   { pattern: /[\\\/]\.kube[\\\/]/i, reason: 'Kubernetes config' },
 ];
 
+/**
+ * @type {readonly string[]} Endpoint hosts Anthropic publishes as required for Claude Code.
+ * Source: https://code.claude.com/docs/en/network-config (retrieved 2026-08-04).
+ *
+ * This is an allowlist of NAMED SERVICES, not of infrastructure. A suffix that any tenant of
+ * a cloud provider can obtain in its reverse-DNS name (`googleusercontent.com`, `1e100.net`,
+ * `amazonaws.com`, `cloudfront.net`, `akamai.net`) must never appear here: matching it proves
+ * only that someone rents the machine, which is exactly what an exfiltration host also does.
+ * Entries are matched as an exact host or a subdomain of it — see network-monitor.isKnownDomain.
+ * @since 0.10.0
+ */
+const ALLOWLIST_DOMAINS = [
+  'api.anthropic.com',
+  'claude.ai',
+  'claude.com',
+  'platform.claude.com',
+  'mcp-proxy.anthropic.com',
+  'downloads.claude.ai',
+  'storage.googleapis.com',
+  'bridge.claudeusercontent.com',
+  'raw.githubusercontent.com',
+  'http-intake.logs.us5.datadoghq.com',
+  'browser-intake-us5-datadoghq.com',
+  'formulae.brew.sh',
+  'code.claude.com',
+  'registry.npmjs.org',
+];
+
+/**
+ * @type {readonly string[]} IP ranges (CIDR) Anthropic publishes for its API endpoints.
+ * Source: https://platform.claude.com/docs/en/api/ip-addresses (retrieved 2026-08-04).
+ *
+ * Checked numerically and BEFORE any DNS work: `api.anthropic.com` resolves into these ranges
+ * to addresses that carry no PTR record at all, so a name-based check can never confirm them.
+ * Membership in a published range is verifiable evidence; the presence of a PTR record is not.
+ *
+ * Both entries are the INBOUND ranges — the addresses where Anthropic RECEIVES connections,
+ * which is what an agent on this machine dials. The page also publishes an outbound range,
+ * `160.79.104.0/21`, used when Anthropic itself calls out (MCP connector, web search); it is
+ * a superset of the inbound /23 and would allowlist four times the address space for traffic
+ * this monitor never observes, so it is deliberately NOT here.
+ *  - `160.79.104.0/23` — inbound IPv4.
+ *  - `2607:6bc0::/48`  — inbound IPv6. Required on its own: an IPv6-preferring host reaches
+ *    the API over v6, where the v4 range can never match.
+ * @since 0.10.0
+ */
+const ALLOWLIST_IP_RANGES = ['160.79.104.0/23', '2607:6bc0::/48'];
+
 /** @type {readonly PermissionCategory[]} The six permission category identifiers */
 const PERMISSION_CATEGORIES = [
   'filesystem',
@@ -423,4 +471,6 @@ module.exports = {
   AGENT_SELF_CONFIG,
   SENSITIVE_RULES,
   PERMISSION_CATEGORIES,
+  ALLOWLIST_DOMAINS,
+  ALLOWLIST_IP_RANGES,
 };
