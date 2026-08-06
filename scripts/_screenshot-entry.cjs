@@ -1,6 +1,8 @@
 /**
  * Minimal Electron main process for screenshot capture.
- * Loads the demo build without preload — renderer auto-enters demo mode.
+ * Loads dist/demo without a preload script. The scenario data comes from the demo BUILD
+ * (`npm run build:demo`), not from the absent bridge — the default build carries no demo
+ * engine at all and would render the bridge-unavailable state here.
  */
 'use strict';
 const { app, BrowserWindow } = require('electron');

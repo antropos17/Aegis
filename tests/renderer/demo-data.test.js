@@ -7,7 +7,10 @@ import {
   _setDepsForTest,
   _resetDeps,
 } from '../../src/renderer/lib/stores/demo-data.js';
-import { SCENARIOS } from '../../src/renderer/lib/stores/demo-pools.js';
+// The marker and its predicate live apart from the engine: they must survive into a
+// production bundle that carries no demo data at all (see demo-provenance.js).
+import { isDemoPayload, DEMO_MARK } from '../../src/renderer/lib/stores/demo-provenance.js';
+import { DEMO_AGENTS_POOL, SCENARIOS } from '../../src/renderer/lib/stores/demo-pools.js';
 
 /** Create a fresh set of writable stores for each test. */
 function makeStores() {
@@ -184,6 +187,159 @@ describe('demo-data', () => {
       const calm = buildAnomalies({ activeAgents: agents, scenario: { name: 'calm' } });
       const crit = buildAnomalies({ activeAgents: agents, scenario: { name: 'critical' } });
       expect(calm.Bot).toBeLessThan(crit.Bot);
+    });
+  });
+
+  describe('demo provenance marker', () => {
+    // A record shaped exactly as the main process emits one — no marker key at all.
+    // This is the control: without it, "the marker is present on demo data" proves
+    // nothing, because a predicate that returns true for everything would also pass.
+    const REAL_AGENT = {
+      agent: 'Claude Code',
+      process: 'claude',
+      pid: 3421,
+      status: 'running',
+      category: 'coding-assistant',
+      parentEditor: null,
+      cwd: 'X:/Future/ESCAPE/AEGIS',
+      projectName: 'AEGIS',
+      startTime: 1754380000000,
+      instanceId: '3421:1754380000000',
+      instanceIdSource: 'os',
+    };
+    const REAL_EVENT = {
+      agent: 'Claude Code',
+      pid: 3421,
+      parentEditor: null,
+      cwd: 'X:/Future/ESCAPE/AEGIS',
+      file: 'X:/Future/ESCAPE/AEGIS/package.json',
+      sensitive: false,
+      selfAccess: false,
+      reason: '',
+      action: 'modified',
+      timestamp: 1754380001000,
+      category: 'coding-assistant',
+      attribution: { status: 'confirmed', evidence: ['handle-scan-pid'] },
+    };
+    const REAL_STATS = {
+      totalFiles: 812,
+      totalSensitive: 11,
+      uptimeMs: 840000,
+      monitoringStarted: 1754379000000,
+    };
+
+    describe('isDemoPayload()', () => {
+      it('rejects payloads the main process produces', () => {
+        expect(isDemoPayload(REAL_AGENT)).toBe(false);
+        expect(isDemoPayload(REAL_EVENT)).toBe(false);
+        expect(isDemoPayload(REAL_STATS)).toBe(false);
+      });
+
+      it('rejects non-objects and null', () => {
+        expect(isDemoPayload(null)).toBe(false);
+        expect(isDemoPayload(undefined)).toBe(false);
+        expect(isDemoPayload('_demo')).toBe(false);
+        expect(isDemoPayload(1)).toBe(false);
+      });
+
+      it('requires the marker to be exactly true, not merely truthy', () => {
+        expect(isDemoPayload({ [DEMO_MARK]: 'yes' })).toBe(false);
+        expect(isDemoPayload({ [DEMO_MARK]: 1 })).toBe(false);
+        expect(isDemoPayload({ [DEMO_MARK]: false })).toBe(false);
+        expect(isDemoPayload({ [DEMO_MARK]: true })).toBe(true);
+      });
+    });
+
+    it('marks every agent record seeded into the store', () => {
+      const stores = makeStores();
+      const cleanup = startDemoMode(stores);
+
+      const agents = get(stores.agents);
+      expect(agents.length).toBeGreaterThan(0);
+      agents.forEach((a) => expect(isDemoPayload(a)).toBe(true));
+
+      cleanup();
+    });
+
+    it('marks the agent records synchronously, before stats lands', () => {
+      // stats.set() is deferred a frame (rAF) while agents.set() is synchronous.
+      // Without a marker ON the agents, that gap is a window in which fabricated
+      // agents are on screen and nothing in the stores says so.
+      const stores = makeStores();
+      const cleanup = startDemoMode(stores);
+
+      expect(get(stores.stats)).toEqual({});
+      expect(get(stores.agents).some((a) => isDemoPayload(a))).toBe(true);
+
+      cleanup();
+    });
+
+    it('marks the stats payload', () => {
+      const stores = makeStores();
+      const cleanup = startDemoMode(stores);
+      vi.advanceTimersByTime(1); // flush staggered rAF fallback
+
+      expect(isDemoPayload(get(stores.stats))).toBe(true);
+
+      cleanup();
+    });
+
+    it('marks emitted file events and network connections', () => {
+      const stores = makeStores();
+      const cleanup = startDemoMode(stores);
+      vi.advanceTimersByTime(1); // flush staggered init
+      vi.advanceTimersByTime(2000); // emitterDelay → intervals registered
+      vi.advanceTimersByTime(5000); // file emitter (2s) + network emitter (5s)
+
+      const events = get(stores.events);
+      const network = get(stores.network);
+      expect(events.length).toBeGreaterThan(0);
+      expect(network.length).toBeGreaterThan(0);
+      events.forEach((e) => expect(isDemoPayload(e)).toBe(true));
+      network.forEach((n) => expect(isDemoPayload(n)).toBe(true));
+
+      cleanup();
+    });
+
+    it('re-marks after a scenario advance', () => {
+      const stores = makeStores();
+      const cleanup = startDemoMode(stores);
+      vi.advanceTimersByTime(1);
+      vi.advanceTimersByTime(SCENARIOS[0].duration); // calm → elevated
+
+      expect(get(stores.agents).every((a) => isDemoPayload(a))).toBe(true);
+      expect(isDemoPayload(get(stores.stats))).toBe(true);
+
+      cleanup();
+    });
+
+    it('does not write the marker onto the shared pool constants', () => {
+      const stores = makeStores();
+      const cleanup = startDemoMode(stores);
+      vi.advanceTimersByTime(1);
+      vi.advanceTimersByTime(SCENARIOS[0].duration);
+
+      DEMO_AGENTS_POOL.forEach((a) => expect(isDemoPayload(a)).toBe(false));
+
+      cleanup();
+    });
+
+    it('separates a demo store snapshot from a real one', () => {
+      // The exact predicate `demoDataActive` (stores/ipc.ts) applies to the raw
+      // agents/stats stores. Asserted here rather than by importing ipc.ts, which
+      // starts its own demo engine at module scope when window.aegis is absent.
+      const active = (agents, stats) =>
+        agents.some((a) => isDemoPayload(a)) || isDemoPayload(stats);
+
+      const stores = makeStores();
+      const cleanup = startDemoMode(stores);
+      vi.advanceTimersByTime(1);
+
+      expect(active(get(stores.agents), get(stores.stats))).toBe(true);
+      expect(active([REAL_AGENT], REAL_STATS)).toBe(false);
+      expect(active([], {})).toBe(false);
+
+      cleanup();
     });
   });
 });

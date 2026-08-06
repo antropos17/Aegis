@@ -217,6 +217,114 @@ describe('risk store — enrichedAgents', () => {
   });
 });
 
+/** One connection owned by Claude Code (pid 100), allowlisted unless overridden. */
+function conn(over: Record<string, unknown> = {}) {
+  return {
+    agent: 'Claude Code',
+    pid: 100,
+    parentEditor: null,
+    cwd: '/home/user/a',
+    category: 'ai',
+    remoteIp: '203.0.113.10',
+    remotePort: 443,
+    domain: 'api.anthropic.com',
+    state: 'ESTABLISHED',
+    flagged: false,
+    verdict: 'allowlisted',
+    verdictReason: 'domain-allowlist',
+    httpUnencrypted: false,
+    userAgent: 'claude',
+    ...over,
+  };
+}
+
+/** `n` copies of one connection shape, on distinct ports so nothing looks deduplicable. */
+function repeat(n: number, over: Record<string, unknown>) {
+  return Array.from({ length: n }, (_, i) => conn({ ...over, remotePort: 40000 + i }));
+}
+
+/** The risk score of the single enriched agent, for a given network snapshot. */
+function scoreFor(connections: unknown[]) {
+  inputs.agents.set([TWO_AGENTS[0]]);
+  inputs.network.set(connections);
+  return get(enrichedAgents)[0].riskScore;
+}
+
+const FLAGGED = { flagged: true, verdict: 'flagged', verdictReason: 'domain-not-allowlisted' };
+const UNKNOWN = {
+  flagged: true,
+  verdict: 'unknown',
+  verdictReason: 'ptr-missing',
+  domain: '',
+};
+
+describe('risk store — flagged vs unknown endpoints', () => {
+  it('N flagged endpoints score higher than the same N unknown ones', () => {
+    // One endpoint each, then two: below the shared ceiling the difference is visible.
+    expect(scoreFor(repeat(1, FLAGGED))).toBeGreaterThan(scoreFor(repeat(1, UNKNOWN)));
+    expect(scoreFor(repeat(2, FLAGGED))).toBeGreaterThan(scoreFor(repeat(2, UNKNOWN)));
+  });
+
+  it('an unknown endpoint still raises risk — absence of a name is not free', () => {
+    expect(scoreFor(repeat(1, UNKNOWN))).toBeGreaterThan(scoreFor(repeat(1, {})));
+  });
+
+  it('an allowlisted endpoint adds no endpoint risk, only connection count', () => {
+    inputs.agents.set([TWO_AGENTS[0]]);
+    inputs.network.set(repeat(2, {}));
+    const [claude] = get(enrichedAgents);
+    expect(claude.networkCount).toBe(2);
+    expect(claude.unknownDomains).toBe(0);
+  });
+
+  it('unknownDomains stays the total of both verdicts', () => {
+    inputs.agents.set([TWO_AGENTS[0]]);
+    inputs.network.set([...repeat(2, FLAGGED), ...repeat(3, UNKNOWN), ...repeat(1, {})]);
+    const [claude] = get(enrichedAgents);
+    expect(claude.unknownDomains).toBe(5);
+    expect(claude.networkCount).toBe(6);
+  });
+
+  it('the endpoint factor still cannot exceed its ceiling at high counts', () => {
+    // 50 + 50 endpoints: the endpoint factor caps at 20, the connection-count factor at
+    // 10, and nothing else is fed — so a split count cannot outscore a single one.
+    const mixed = scoreFor([...repeat(50, FLAGGED), ...repeat(50, UNKNOWN)]);
+    const allFlagged = scoreFor(repeat(100, FLAGGED));
+    expect(mixed).toBe(allFlagged);
+    expect(mixed).toBe(30);
+  });
+
+  it('records with no verdict still score: name → flagged, no name → unknown', () => {
+    const noVerdict = { verdict: undefined, verdictReason: undefined };
+    const legacyFlagged = repeat(2, { ...noVerdict, flagged: true, domain: 'tracker.example' });
+    const legacyUnknown = repeat(2, { ...noVerdict, flagged: true, domain: '' });
+    const legacySafe = repeat(2, { ...noVerdict, flagged: false });
+
+    const flaggedScore = scoreFor(legacyFlagged);
+    const unknownScore = scoreFor(legacyUnknown);
+    const safeScore = scoreFor(legacySafe);
+
+    expect(Number.isFinite(flaggedScore)).toBe(true);
+    expect(Number.isFinite(unknownScore)).toBe(true);
+    expect(flaggedScore).toBeGreaterThan(unknownScore);
+    expect(unknownScore).toBeGreaterThan(safeScore);
+    // A legacy record scores exactly like the verdict it falls back to.
+    expect(flaggedScore).toBe(scoreFor(repeat(2, FLAGGED)));
+    expect(unknownScore).toBe(scoreFor(repeat(2, UNKNOWN)));
+  });
+
+  it('a record with neither verdict nor flagged produces a number, not NaN', () => {
+    inputs.agents.set([TWO_AGENTS[0]]);
+    inputs.network.set([
+      { agent: 'Claude Code', pid: 100, remoteIp: '203.0.113.9', remotePort: 443 },
+    ]);
+    const [claude] = get(enrichedAgents);
+    expect(Number.isNaN(claude.riskScore)).toBe(false);
+    expect(claude.riskScore).toBe(1);
+    expect(claude.unknownDomains).toBe(0);
+  });
+});
+
 describe('events-index store — eventsByPid', () => {
   it('drops unattributed events before bucketing by pid', () => {
     inputs.events.set([fileEvent(), unattributed({ pid: 0 })]);

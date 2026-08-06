@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
-import { writable } from 'svelte/store';
-import type { Writable } from 'svelte/store';
-import { startDemoMode } from './demo-data.js';
+import { writable, derived } from 'svelte/store';
+import type { Readable, Writable } from 'svelte/store';
+import { isDemoPayload } from './demo-provenance.js';
 import type {
   DetectedAgent,
   FileEvent,
@@ -131,10 +131,79 @@ export const focusedAgentPid: Writable<number | null> = writable(null);
  */
 export const selectedAgentPid: Writable<number | null> = writable(null);
 
-/** True when running in a browser without Electron IPC. */
-export const isDemoMode: boolean = import.meta.env.VITE_DEMO_MODE === 'true' || !window.aegis;
+/**
+ * True only in a bundle built WITH the demo scenario engine (`npm run build:demo`, and
+ * the dev server, which serves the browser preview).
+ *
+ * A build-time literal, and the only gate on the demo engine. Vite replaces
+ * `import.meta.env.VITE_DEMO_MODE` with a string literal, so in the default build the
+ * comparison folds to `false` and Rollup drops every branch behind it — including the
+ * dynamic `import('./demo-data.js')` below, which is why `demo-pools.js` and its
+ * fictional hostnames never reach `dist/renderer`. Anything that fabricates data must be
+ * reached through this flag, never through a runtime check like `!window.aegis`: a
+ * runtime check keeps the import reachable and the pools shipped.
+ */
+export const isDemoBuild: boolean = import.meta.env.VITE_DEMO_MODE === 'true';
 
-if (!isDemoMode) {
+/** True when the Electron preload bridge (`window.aegis`) is present. */
+export const bridgeAvailable: boolean = !!window.aegis;
+
+/**
+ * True when no live IPC is available: a demo build, or any window without the preload
+ * bridge. Kept as the gate for desktop-only actions (export buttons, audit log) — the
+ * "Desktop app only" affordances it disables are exactly the ones that need the bridge.
+ *
+ * Broader than {@link isDemoBuild} on purpose, and no longer interchangeable with it: a
+ * production build with no bridge lands here too, and that case must NOT be told it is a
+ * demo. Read {@link isDemoBuild} when the question is "does this bundle carry simulated
+ * data", {@link liveDataUnavailable} when it is "is this window dead".
+ */
+export const isDemoMode: boolean = isDemoBuild || !bridgeAvailable;
+
+/**
+ * True when a production build is running without the preload bridge — the case that
+ * used to silently start the demo engine and fill the dashboard with fabricated agents.
+ * Nothing is scanned and nothing is substituted; the UI states this outright
+ * (App.svelte → BridgeUnavailableBanner).
+ */
+export const liveDataUnavailable: boolean = !isDemoBuild && !bridgeAvailable;
+
+/**
+ * True while the stores actually hold fabricated data — read off the payloads
+ * themselves, not off {@link isDemoMode}.
+ *
+ * The distinction is the point. `isDemoMode` is decided once, at module evaluation,
+ * from a build flag and the presence of `window.aegis`; it describes the BUILD. This
+ * store describes the DATA, and only goes true because `demo-data.js` stamped its own
+ * output (`DEMO_MARK`). A payload therefore carries its own provenance, which is what
+ * makes "is this screen real?" answerable from a store value and assertable in a test.
+ *
+ * Reads the raw `agents` / `stats` stores, never `enrichedAgents`: risk enrichment
+ * spreads records and the marker must not depend on that survival. `agents` is seeded
+ * synchronously by the demo engine while `stats` lands a frame later, so checking both
+ * leaves no window in which fabricated agents are on screen unmarked.
+ */
+export const demoDataActive: Readable<boolean> = derived(
+  [agents, stats],
+  ([$agents, $stats]) => $agents.some((a) => isDemoPayload(a)) || isDemoPayload($stats),
+);
+
+// The branch order matters, and the condition below is written as the raw literal
+// comparison rather than `isDemoBuild` so the whole block is statically removable: it is
+// what keeps `demo-data.js` (and the fabricated pools behind it) out of the default
+// bundle. See {@link isDemoBuild}.
+if (import.meta.env.VITE_DEMO_MODE === 'true') {
+  // Demo build only. The engine seeds agents synchronously once loaded (≥2 every
+  // scenario), so the live `populated` check drives the dashboard — no `firstScanDone`
+  // latch needed. The import costs one microtask before the first paint of data, which
+  // the demo's own 2s emitter delay already dwarfs.
+  import('./demo-data.js').then(({ startDemoMode }) => {
+    const cleanupDemo = startDemoMode({ agents, events, stats, network, anomalies, resourceUsage });
+    if (import.meta.hot) {
+      import.meta.hot.dispose(() => cleanupDemo());
+    }
+  });
+} else if (bridgeAvailable) {
   // Primary path: coalesce all store updates into a single microtask
   // so Svelte batches DOM repaints instead of 4 separate cascades.
   window.aegis!.onScanBatch((data) => {
@@ -165,12 +234,8 @@ if (!isDemoMode) {
   window.aegis!.getStats().then((data) => stats.set(data));
   window.aegis!.getResourceUsage().then((data) => resourceUsage.set(data));
   window.aegis!.getFalsePositives().then((data) => falsePositives.set(data || []));
-} else {
-  // Demo mode seeds agents synchronously (≥2 every scenario), so the live
-  // `populated` check drives the dashboard — no `firstScanDone` latch needed,
-  // and the original skeleton→populated flow is preserved.
-  const cleanupDemo = startDemoMode({ agents, events, stats, network, anomalies, resourceUsage });
-  if (import.meta.hot) {
-    import.meta.hot.dispose(() => cleanupDemo());
-  }
 }
+// No third branch: a production build with no preload bridge wires nothing and seeds
+// nothing. The stores stay empty and `liveDataUnavailable` is true — the UI says the
+// monitor is not running rather than filling the screen with fabricated agents, which is
+// what this branch used to do.

@@ -35,9 +35,49 @@
     { value: 'flagged', key: 'network.classes.flagged' },
   ];
 
+  /**
+   * Pill for each verdict the main process records. The names differ because the pill
+   * predates the verdict: `allowlisted` is shown as "safe".
+   * @type {Record<string, string>}
+   */
+  const VERDICT_CLASS = {
+    allowlisted: 'safe',
+    unknown: 'unknown',
+    flagged: 'flagged',
+  };
+
+  /**
+   * Class for one row, taken from the verdict the classifier recorded.
+   *
+   * The fallback covers records with no verdict — demo pools and scans cached by an older
+   * build. It reads the same evidence the old code did, but maps it the way the classifier
+   * would today: a name that was not recognized IS the flagged case, and no name at all is
+   * unknown, not an accusation. The old code had these two swapped.
+   * @param {{verdict?: string, flagged?: boolean, domain?: string}} conn
+   * @returns {'safe'|'unknown'|'flagged'}
+   */
   function classify(conn) {
+    const cls = VERDICT_CLASS[conn.verdict];
+    if (cls) return cls;
     if (!conn.flagged) return 'safe';
-    return conn.domain ? 'unknown' : 'flagged';
+    return conn.domain ? 'flagged' : 'unknown';
+  }
+
+  /**
+   * Why this row got its class, in words. A verdict nobody can check is the thing the
+   * classifier was rebuilt to remove, so the reason code always reaches the UI.
+   * @param {{verdict?: string, verdictReason?: string, remoteIp?: string, remotePort?: number}} conn
+   * @param {(key: string) => string} translate the `$t` translator, passed in so the title
+   *   re-renders when the language changes
+   * @returns {string}
+   */
+  function verdictTitle(conn, translate) {
+    const cls = classify(conn);
+    const code = conn.verdict ? conn.verdictReason : 'legacy';
+    const label = translate(`network.classes.${cls}`);
+    const endpoint = `${conn.remoteIp}:${conn.remotePort}`;
+    if (!code) return `${endpoint}\n${label}`;
+    return `${endpoint}\n${label} — ${translate(`network.reasons.${code}`)} (${code})`;
   }
 
   function classColor(cls) {
@@ -114,9 +154,11 @@
   {:else}
     {#each sorted as conn (`${conn.pid}-${conn.remoteIp}-${conn.remotePort}-${conn.state}`)}
       {@const cls = classify(conn)}
-      <div class="net-row">
+      <!-- The row title carries the endpoint AND the reason the verdict was reached; it
+           replaces the endpoint-only title that used to sit on the domain span. -->
+      <div class="net-row" title={verdictTitle(conn, $t)}>
         <span class="net-agent">{conn.agent}</span>
-        <span class="net-endpoint" title={`${conn.remoteIp}:${conn.remotePort}`}>
+        <span class="net-endpoint">
           {conn.domain || conn.remoteIp}
         </span>
         <span class="net-port">{conn.remotePort}</span>

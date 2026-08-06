@@ -24,6 +24,12 @@
  * PID-backed (→ `confirmed`):
  * - `rm-holder-pid` — Restart Manager reported this PID as holding the resource.
  * - `handle-scan-pid` — the per-PID handle scan was run FOR this agent's pid.
+ * - `os-tcp-owner-pid` — the OS connection table reported this PID as owning the socket
+ *   (`Get-NetTCPConnection -OwningProcess` on win32, `lsof` on POSIX) and that PID was in
+ *   the same scan tick's agent snapshot. Same strength as `handle-scan-pid`: both are
+ *   kernel-reported PID observations. The same-tick constraint holds by construction —
+ *   network-monitor builds its pid map from the agents passed into the very same call —
+ *   which is what keeps a recycled pid from being credited to a dead agent.
  *
  * Heuristic (→ `inferred`):
  * - `self-config-path` — the path matches this agent's OWN config dir.
@@ -38,6 +44,7 @@
 const EVIDENCE = Object.freeze({
   RM_HOLDER_PID: 'rm-holder-pid',
   HANDLE_SCAN_PID: 'handle-scan-pid',
+  OS_TCP_OWNER_PID: 'os-tcp-owner-pid',
   SELF_CONFIG_PATH: 'self-config-path',
   CWD_CONTAINMENT: 'cwd-containment',
   NO_OWNER_MATCH: 'no-owner-match',
@@ -73,7 +80,11 @@ const KNOWN_CODES = new Set(EVIDENCE_CODES);
 const UNKNOWN_SOURCE_LABEL = 'Unknown source';
 
 /** @type {Set<string>} PID-backed codes — any one of them means `confirmed`. */
-const PID_EVIDENCE = new Set([EVIDENCE.RM_HOLDER_PID, EVIDENCE.HANDLE_SCAN_PID]);
+const PID_EVIDENCE = new Set([
+  EVIDENCE.RM_HOLDER_PID,
+  EVIDENCE.HANDLE_SCAN_PID,
+  EVIDENCE.OS_TCP_OWNER_PID,
+]);
 
 /** @type {Set<string>} Heuristic codes — any one of them means `inferred`. */
 const HEURISTIC_EVIDENCE = new Set([EVIDENCE.SELF_CONFIG_PATH, EVIDENCE.CWD_CONTAINMENT]);

@@ -93,21 +93,29 @@ function totalDropped() {
  * Build the marker record for the pending window. Field set is IDENTICAL to a normal
  * audit entry so the canonical hash and every reader see one consistent shape.
  *
- * `agent` is `''` and there is no pid: no agent owns this record, and substituting one
- * would attribute a bookkeeping event to real software (C-01).
+ * `agent` is `''`, `pid`/`instanceId` are `null`, and `attribution` is `null`: no agent owns
+ * this record, so there is nothing to attribute and substituting an owner would credit a
+ * bookkeeping event to real software (C-01). `attribution: null` here means the question does
+ * not apply — not that the owner is unknown.
  * @param {string} nowIso - ISO timestamp for the marker itself.
+ * @param {number} schemaVersion - Event Schema version, supplied by the writer that owns the
+ *   record format (audit-logger) so the version lives in exactly one place.
  * @returns {Object} Marker record WITHOUT seq/hash — the caller chains it like any entry.
  * @since v0.11.0
  */
-function buildMarker(nowIso) {
+function buildMarker(nowIso, schemaVersion) {
   return {
+    schemaVersion,
     timestamp: nowIso,
     type: MARKER_TYPE,
     agent: '',
+    pid: null,
+    instanceId: null,
     action: '',
     path: '',
     severity: 'high',
     riskScore: 0,
+    attribution: null,
     details: {
       droppedCount: _pending,
       firstDropTs: _firstTs,

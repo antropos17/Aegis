@@ -17,9 +17,17 @@
   import { addToast } from './lib/stores/toast.js';
   import { pendingStop, requestStop, clearStop } from './lib/stores/process-action.js';
   import { t } from './lib/i18n/index.js';
-  import { agents, anomalies, isDemoMode, selectedAgentPid } from './lib/stores/ipc.js';
+  import {
+    agents,
+    anomalies,
+    demoDataActive,
+    isDemoBuild,
+    liveDataUnavailable,
+    selectedAgentPid,
+  } from './lib/stores/ipc.js';
   import { get } from 'svelte/store';
   import DemoBanner from './lib/components/DemoBanner.svelte';
+  import BridgeUnavailableBanner from './lib/components/BridgeUnavailableBanner.svelte';
   import {
     getSlideDirection,
     SLIDE_OFFSET_PX,
@@ -292,6 +300,10 @@
 <Header bind:optionsOpen />
 
 <div class="app-shell">
+  {#if liveDataUnavailable}
+    <BridgeUnavailableBanner />
+  {/if}
+
   <nav class="app-nav">
     <TabBar bind:activeTab />
   </nav>
@@ -329,7 +341,15 @@
   </main>
 </div>
 
-{#if isDemoMode}
+<!-- The demo indicator. `$demoDataActive` is the data-grounded half — it goes true
+     because the payloads in the stores are stamped, so the banner attests to what is on
+     screen rather than to how the bundle was built. `isDemoBuild` is OR'd in to cover the
+     first frames of a demo build, before the engine's first payload has landed. It
+     replaces the former `isDemoMode` here deliberately: `isDemoMode` is also true for a
+     production build with no bridge, which carries no simulated data at all and now shows
+     BridgeUnavailableBanner instead — claiming "Simulated scenario data" there would be a
+     false statement about an empty screen. -->
+{#if $demoDataActive || isDemoBuild}
   <DemoBanner />
 {/if}
 

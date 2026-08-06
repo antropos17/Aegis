@@ -103,12 +103,16 @@ describe('scan-loop', () => {
       });
 
       expect(auditLog).toHaveBeenCalledOnce();
+      // Event Schema v1: the FULL attribution object is top-level. v0 kept only the
+      // derived status string inside `extra`, losing the evidence array.
       expect(auditLog).toHaveBeenCalledWith('file-access', {
         agent: 'Cursor',
+        pid: null,
+        instanceId: null,
         action: 'read',
         path: '/home/user/.bashrc',
         severity: 'sensitive',
-        extra: { attribution: 'confirmed' },
+        attribution: { status: 'confirmed', evidence: ['handle-scan-pid'] },
       });
     });
 
@@ -127,14 +131,16 @@ describe('scan-loop', () => {
 
       expect(auditLog).toHaveBeenCalledWith('file-access', {
         agent: '',
+        pid: null,
+        instanceId: null,
         action: 'modified',
         path: '/home/user/.ssh/id_rsa',
         severity: 'sensitive',
-        extra: { attribution: 'unattributed' },
+        attribution: { status: 'unattributed', evidence: ['no-owner-match'] },
       });
     });
 
-    it('omits extra for an event with no attribution (pre-v0.11.0 shape)', () => {
+    it('reports attribution null, not a fabricated status, for a pre-v0.11.0 event', () => {
       const auditLog = vi.fn();
       scanLoop.init({ audit: { log: auditLog } });
 
@@ -146,6 +152,9 @@ describe('scan-loop', () => {
         reason: '',
       });
 
+      // `null` says the question is unanswered for this record. Substituting
+      // 'unattributed' would assert a determination nobody made.
+      expect(auditLog.mock.calls[0][1].attribution).toBeNull();
       expect(auditLog.mock.calls[0][1].extra).toBeUndefined();
     });
 
@@ -164,10 +173,12 @@ describe('scan-loop', () => {
 
       expect(auditLog).toHaveBeenCalledWith('config-access', {
         agent: 'Copilot',
+        pid: null,
+        instanceId: null,
         action: 'write',
         path: '/home/.copilot/config.json',
         severity: 'normal',
-        extra: { attribution: 'inferred' },
+        attribution: { status: 'inferred', evidence: ['self-config-path'] },
       });
     });
   });

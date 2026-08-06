@@ -1,5 +1,14 @@
-/** @file Scenario engine for browser-only demo mode. Cycles through 4 threat phases. */
+/**
+ * @file Scenario engine for browser-only demo mode. Cycles through 4 threat phases.
+ *
+ * Reachable ONLY through the dynamic import in `stores/ipc.ts`, which is gated on the
+ * build-time literal `import.meta.env.VITE_DEMO_MODE`. The default build drops that
+ * branch, and with it this module and the fabricated pools it pulls in. Do not import
+ * it statically from anything the production bundle reaches — that would put the demo
+ * hostnames back into a release artifact.
+ */
 import { DEMO_AGENTS_POOL, DEMO_FILE_POOL, DEMO_DOMAIN_POOL, SCENARIOS } from './demo-pools.js';
+import { DEMO_MARK } from './demo-provenance.js';
 
 /** @param {number} min @param {number} max @returns {number} */
 function randInt(min, max) {
@@ -27,6 +36,7 @@ export function _resetDeps() {
 /** @param {{activeAgents: Array, totalFiles: number, totalSensitive: number, monitoringStarted: number}} ctx */
 export function buildStats({ activeAgents, totalFiles, totalSensitive, monitoringStarted }) {
   return {
+    [DEMO_MARK]: true,
     totalFiles,
     totalSensitive,
     aiSensitive: Math.round(totalSensitive * 0.85),
@@ -64,8 +74,13 @@ export function startDemoMode({ agents, events, stats, network, anomalies, resou
     return SCENARIOS[scenarioIndex];
   }
 
+  // Copy, never hand out the pool objects: the marker must not be written onto the
+  // module-level constants, which the tests and every scenario tick share.
   function activeAgents() {
-    return DEMO_AGENTS_POOL.slice(0, currentScenario().agentCount);
+    return DEMO_AGENTS_POOL.slice(0, currentScenario().agentCount).map((a) => ({
+      ...a,
+      [DEMO_MARK]: true,
+    }));
   }
 
   // Seed initial state — stagger across frames to avoid reactivity cascade
@@ -121,6 +136,7 @@ export function startDemoMode({ agents, events, stats, network, anomalies, resou
           events.update((arr) => [
             ...arr.slice(-499),
             {
+              [DEMO_MARK]: true,
               agent: agent.agent,
               pid: agent.pid,
               parentEditor: agent.parentEditor,
@@ -155,6 +171,7 @@ export function startDemoMode({ agents, events, stats, network, anomalies, resou
           network.update((arr) => [
             ...arr.slice(-499),
             {
+              [DEMO_MARK]: true,
               agent: agent.agent,
               pid: agent.pid,
               parentEditor: agent.parentEditor,

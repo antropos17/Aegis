@@ -2,12 +2,27 @@
 
 import type { TrustGrade } from './agent';
 
-/** Input metrics for risk score calculation */
+/**
+ * Input metrics for risk score calculation.
+ *
+ * `flaggedDomains` and `unknownDomains` are DISJOINT counts, not a subset relation: an
+ * endpoint is counted in exactly one of them, and an allowlisted endpoint in neither. They
+ * mirror {@link NetworkVerdict} — an endpoint whose identity was established and found on no
+ * allowlist (`flagged`) is a stronger signal than one whose identity could not be
+ * established at all (`unknown`), and they must not weigh the same.
+ */
 export interface RiskScoreInput {
   readonly sensitiveFiles: number;
   readonly configFiles: number;
   readonly sshAwsFiles: number;
   readonly networkCount: number;
+  /** Endpoints with a forward-confirmed name that is on no allowlist (verdict `flagged`). */
+  readonly flaggedDomains: number;
+  /**
+   * Endpoints whose identity could not be established (verdict `unknown`). Since the split
+   * this is NO LONGER the count of everything non-allowlisted — that total is
+   * `flaggedDomains + unknownDomains`.
+   */
   readonly unknownDomains: number;
   readonly fileCount: number;
   readonly httpUnencryptedCount?: number;
@@ -87,6 +102,10 @@ export interface EnrichedAgent {
   readonly projectName: string | null;
   readonly instanceKey: string;
   readonly sensitiveFiles: number;
+  /**
+   * Endpoints not confirmed as allowlisted — `flagged` and `unknown` together. Unchanged by
+   * the scoring split: {@link RiskScoreInput} separates the two, this total does not.
+   */
   readonly unknownDomains: number;
   readonly anomalyScore: number;
   readonly riskScore: number;

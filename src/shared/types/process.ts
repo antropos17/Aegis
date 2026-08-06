@@ -67,6 +67,16 @@ export interface DetectedAgent {
   readonly instanceId?: string;
   /** Where {@link DetectedAgent.instanceId} came from. */
   readonly instanceIdSource?: InstanceIdSource;
+  /**
+   * `true` only on records fabricated by the browser demo engine
+   * (renderer/lib/stores/demo-data.js). ABSENT on everything the main process
+   * produces — a scanner has no way to set it, so absence is the observed case and
+   * presence is the claim. Read it through `isDemoPayload()`
+   * (renderer/lib/stores/demo-provenance.js), never by truthiness — the predicate lives
+   * apart from the engine so a production bundle can check provenance without carrying
+   * the demo data.
+   */
+  readonly _demo?: boolean;
 }
 
 /** Result of a process scan cycle */

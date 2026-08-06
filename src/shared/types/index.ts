@@ -26,6 +26,7 @@ export type {
   FileAction,
   FileEvent,
   NetworkConnection,
+  NetworkVerdict,
   DeviationWarningType,
   DeviationWarning,
 } from './events';

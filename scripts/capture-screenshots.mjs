@@ -41,7 +41,9 @@ async function main() {
   delete cleanEnv.ELECTRON_RUN_AS_NODE;
 
   // Launch minimal Electron app via _screenshot-entry.cjs.
-  // Without preload, window.aegis is undefined → renderer enters demo mode automatically.
+  // The populated tabs come from the DEMO BUILD, not from the missing preload: the demo
+  // engine is gated on the build-time flag `npm run build:demo` sets. Pointing this at
+  // dist/renderer instead would show the bridge-unavailable state and empty panels.
   const ENTRY = path.join(ROOT, 'scripts', '_screenshot-entry.cjs');
   const electronApp = await _electron.launch({
     args: ['--no-sandbox', ENTRY],

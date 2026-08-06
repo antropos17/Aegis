@@ -16,6 +16,7 @@ const fs = require('fs');
 const path = require('path');
 const hashchain = require('./audit-hashchain');
 const dropTracker = require('./audit-drop-tracker');
+const { normalizeAuditEntry } = require('./audit-normalize');
 
 let _logDir = '';
 let _buffer = [];
@@ -37,6 +38,20 @@ const RETENTION_DAYS = 30;
  * @type {number}
  */
 const BUFFER_CAP = 500;
+
+/**
+ * Event Schema version stamped on every record this module writes.
+ *
+ * Records without the field are v0 — but ONLY when they parse and their hash verifies. A
+ * line that fails JSON.parse is a corrupt write, not a legacy record, and a reader must
+ * never treat the two the same. The chain check, not this field, is the primary signal.
+ *
+ * A reader meeting `schemaVersion > 1` must NOT skip the record: seq is monotonic, so
+ * dropping one breaks every subsequent hash. Read the fields it recognises, verify the
+ * hash, and surface the rest as opaque.
+ * @type {number}
+ */
+const SCHEMA_VERSION = 1;
 
 /** @type {number} Effective cap; overridable via init({ bufferCap }) so tests can evict with a handful of entries. */
 let _bufferCap = BUFFER_CAP;
@@ -169,26 +184,48 @@ function getTodayLogPath() {
  *
  * Calling this NEVER guarantees durability — compare `totalEntries` against
  * `persistedEntries` for what actually reached disk.
- * @param {string} type - Event type (file-access, network-connection, anomaly-alert, permission-deny, agent-enter, agent-exit, config-access)
+ * Records are written in Event Schema v1: `schemaVersion: 1` plus `pid`, `instanceId` and
+ * `attribution` as TOP-LEVEL fields. Earlier code hid those inside `details` believing a
+ * changed field set would break the hash chain — it does not. `verifyChain()` rebuilds each
+ * record's preimage from that record's own stored fields, so a daily file holding both v0
+ * and v1 records verifies end to end. See src/shared/types/events.ts `AuditRecordV1`.
+ *
+ * `type` is not validated here on purpose: the union in events.ts is the enforced boundary
+ * for typed consumers, and this module's own tests pass arbitrary type strings.
+ * @param {string} type - One of the `AuditEventType` union in src/shared/types/events.ts
  * @param {Object} details - Event details
- * @param {string} [details.agent] - Agent name
+ * @param {string} [details.agent] - Agent display name; omit or `''` when unattributed
+ * @param {number|null} [details.pid] - OS pid. Omitted becomes `null`, NEVER 0 — pid 0 is a
+ *   real value meaning a synthetic (pid-less) agent
+ * @param {string|null} [details.instanceId] - Process identity; `null` when the call site
+ *   has none. Never derive one by joining on a name
+ * @param {Object|null} [details.attribution] - `{status, evidence[]}`, or omitted when the
+ *   ownership question does not APPLY to this event type — which is not the same as
+ *   `status: 'unattributed'` (question applies, owner unknown)
  * @param {string} [details.action] - Action performed
  * @param {string} [details.path] - File or network path
  * @param {string} [details.severity] - Event severity
- * @param {number} [details.riskScore] - Current risk score
+ * @param {number} [details.riskScore] - Vestigial; always 0 in v1
+ * @param {Object} [details.extra] - Event-specific extras, stored as the `details` field
  * @returns {void}
  * @since v0.2.0
  */
 function log(type, details) {
   if (!_logDir) return;
   const entry = {
+    schemaVersion: SCHEMA_VERSION,
     timestamp: new Date().toISOString(),
     type,
     agent: details.agent || '',
+    // `??` not `||`: pid 0 is a REAL value (synthetic agent), so `|| null` would erase it
+    // and `|| 0` would turn a missing pid into a false synthetic-agent claim.
+    pid: details.pid ?? null,
+    instanceId: details.instanceId ?? null,
     action: details.action || '',
     path: details.path || '',
     severity: details.severity || 'normal',
     riskScore: details.riskScore || 0,
+    attribution: details.attribution ?? null,
     details: details.extra || null,
   };
   // Whether the buffer was ALREADY at the cap before this push. Once it is, the
@@ -272,7 +309,7 @@ function flush() {
   // flush. If the disk never recovers and the process exits, it never reaches disk and
   // the file verifies clean with no on-disk trace of the loss.
   if (dropTracker.pendingCount() > 0) {
-    const marker = dropTracker.buildMarker(_now().toISOString());
+    const marker = dropTracker.buildMarker(_now().toISOString(), SCHEMA_VERSION);
     const markerHash = hashchain.computeHash(prevHash, marker);
     out.push(JSON.stringify({ ...marker, seq, hash: markerHash }));
     prevHash = markerHash;
@@ -405,7 +442,13 @@ function getStats() {
 
 /**
  * Export all audit logs into a single combined array.
- * @returns {Object[]} Array of all audit log entries.
+ *
+ * Records are returned RAW, exactly as stored — deliberately not passed through
+ * {@link normalizeAuditEntry}. This is the forensic path: a reader must be able to see the
+ * real field set each version wrote, and must receive every line (including
+ * `buffer-overflow-drop` markers) so the hash chain can be replayed. Use
+ * `normalizeAuditEntry` on the caller side if a uniform shape is wanted.
+ * @returns {Object[]} Array of all audit log entries, mixed schema versions possible.
  * @since v0.2.0
  */
 function exportAll() {
@@ -522,7 +565,10 @@ function getEntriesBefore(beforeTs, limit = 100) {
             entry.timestamp < beforeTs &&
             entry.type !== dropTracker.MARKER_TYPE
           ) {
-            results.push(entry);
+            // Normalized so the UI sees one field set regardless of which app version
+            // wrote the line. exportAll() deliberately does NOT do this: an export is
+            // forensic and must show exactly what is on disk.
+            results.push(normalizeAuditEntry(entry));
             if (results.length >= limit) return false;
           }
         } catch (_) {
@@ -549,4 +595,6 @@ module.exports = {
   getEntriesBefore,
   verifyChain: hashchain.verifyChain,
   getLogDir: () => _logDir,
+  normalizeAuditEntry,
+  SCHEMA_VERSION,
 };
