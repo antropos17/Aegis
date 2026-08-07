@@ -732,3 +732,202 @@ describe('file-watcher hot read-detect cycle (cross-cycle dedup)', () => {
     expect(fileWatcher.isHotReadScanActive()).toBe(false);
   });
 });
+
+// A FileEvent must carry the process-INSTANCE key of the agent it was attributed
+// to, taken from that tick's agent OBJECT — the renderer has nothing to correlate
+// events by otherwise, and a bare pid is not an identity on a system that recycles
+// pids. Three emit sites, one rule: the resolved owner's own `instanceId`, or
+// `null`. Every assertion below goes red if the stamp is dropped from its site.
+describe('file-watcher instanceId on FileEvent', () => {
+  describe('handleWatcherEvent() — the path with no PID of its own', () => {
+    let state;
+
+    beforeEach(() => {
+      state = makeState();
+      fileWatcher.init(state);
+      fileWatcher._resetForTest();
+    });
+
+    // `inferred` still means a real owner from this tick. Gating the stamp on
+    // `status === 'confirmed'` would silently drop the key on every cwd-matched
+    // event — chokidar's ENTIRE output, since it hands us a path and never a pid.
+    it('stamps the cwd-owner exact key on an inferred event', () => {
+      const owner = {
+        pid: 100,
+        agent: 'Claude Code',
+        category: 'ai',
+        cwd: '/home/user/project',
+        instanceId: '100:1700000000111',
+      };
+      state.getLatestAgents = () => [owner];
+      state.getLatestAiAgents = () => [owner];
+      fileWatcher.handleWatcherEvent('modified', '/home/user/project/index.js');
+      const event = state.activityLog[0];
+      expect(event.attribution.status).toBe('inferred');
+      expect(event.instanceId).toBe('100:1700000000111');
+    });
+
+    // The forbidden fallback, made reachable: two AI agents ARE online and one is
+    // sitting at index 0 — the event still belongs to neither. `null`, not
+    // `aiAgents[0].instanceId`, not a name match against 'Claude Code'.
+    it('leaves instanceId null on an unattributed event even with agents online', () => {
+      const agents = [
+        {
+          pid: 100,
+          agent: 'Claude Code',
+          category: 'ai',
+          cwd: '/home/user/project',
+          instanceId: '100:1700000000111',
+        },
+        {
+          pid: 200,
+          agent: 'opencode',
+          category: 'ai',
+          cwd: '/home/user/other',
+          instanceId: '200:1700000000222',
+        },
+      ];
+      state.getLatestAgents = () => agents;
+      state.getLatestAiAgents = () => agents;
+      fileWatcher.handleWatcherEvent('modified', '/home/user/unowned/data.txt');
+      const event = state.activityLog[0];
+      expect(event.attribution).toEqual({ status: 'unattributed', evidence: ['no-owner-match'] });
+      expect(event.agent).toBe('');
+      expect(event.pid).toBeNull();
+      expect(event.instanceId).toBeNull();
+      // and specifically NOT either agent's key
+      expect(event.instanceId).not.toBe('100:1700000000111');
+      expect(event.instanceId).not.toBe('200:1700000000222');
+    });
+
+    it('leaves instanceId null when no AI agent is online at all', () => {
+      state.getLatestAgents = () => [{ pid: 100, agent: 'chrome', category: 'other' }];
+      state.getLatestAiAgents = () => [];
+      fileWatcher.handleWatcherEvent('modified', '/home/user/.ssh/id_rsa');
+      const event = state.activityLog[0];
+      expect(event.attribution).toEqual({
+        status: 'unattributed',
+        evidence: ['no-ai-agents-online'],
+      });
+      expect(event.instanceId).toBeNull();
+    });
+
+    // The self-config owner is found by scanning ALL ai agents, so the winner can be
+    // any index. The key must follow the winner, not the scan order.
+    it('stamps the self-config owner key, not the first agent key', () => {
+      const agents = [
+        { pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:1700000000111' },
+        { pid: 200, agent: 'Cursor', category: 'ai', instanceId: '200:1700000000222' },
+      ];
+      state.getLatestAgents = () => agents;
+      state.getLatestAiAgents = () => agents;
+      fileWatcher.handleWatcherEvent('modified', '/home/user/.cursor/settings.json');
+      const event = state.activityLog[0];
+      expect(event.agent).toBe('Cursor');
+      expect(event.instanceId).toBe('200:1700000000222');
+    });
+  });
+
+  describe('scanFileHandles() — handle-scan-pid', () => {
+    let state;
+    let mockGetFileHandles;
+
+    beforeEach(() => {
+      mockGetFileHandles = vi.fn();
+      state = makeState();
+      fileWatcher.init(state);
+      fileWatcher._resetForTest();
+      fileWatcher._setDepsForTest({ getFileHandles: mockGetFileHandles });
+    });
+
+    it('stamps the scanned agent exact key on a confirmed event', async () => {
+      mockGetFileHandles.mockResolvedValue(['/home/user/.ssh/id_rsa']);
+      const agents = [
+        {
+          pid: 100,
+          agent: 'Claude Code',
+          category: 'ai',
+          startTime: 1700000000111,
+          instanceId: '100:1700000000111',
+        },
+      ];
+      const events = await fileWatcher.scanAllFileHandles(agents);
+      expect(events).toHaveLength(1);
+      expect(events[0].attribution.status).toBe('confirmed');
+      expect(events[0].instanceId).toBe('100:1700000000111');
+    });
+
+    // Read the key, never re-derive it. This agent has a pid AND a startTime, so
+    // buildInstanceId() would happily return '100:1700000000111' — a key the
+    // renderer never saw in scan-batch for this agent, joining to nothing. `null`
+    // is the honest answer, and this test fails for any implementation that
+    // derives instead of reads.
+    it('leaves instanceId null for an owner that carries no key of its own', async () => {
+      mockGetFileHandles.mockResolvedValue(['/home/user/.ssh/id_rsa']);
+      const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai', startTime: 1700000000111 }];
+      const events = await fileWatcher.scanAllFileHandles(agents);
+      expect(events).toHaveLength(1);
+      expect(events[0].instanceId).toBeNull();
+    });
+  });
+
+  describe('_scanRmHolders() — rm-holder-pid', () => {
+    let state;
+    let mockGetSensitiveHolders;
+
+    beforeEach(() => {
+      mockGetSensitiveHolders = vi.fn();
+      state = makeState();
+      fileWatcher.init(state);
+      fileWatcher._resetForTest();
+      fileWatcher._setDepsForTest({ getSensitiveHolders: mockGetSensitiveHolders });
+    });
+
+    it('stamps the holder agent key, not the first agent key (C-01)', async () => {
+      mockGetSensitiveHolders.mockResolvedValue([
+        { pid: 105, group: '/home/user/.ssh', reason: 'SSH keys/config' },
+      ]);
+      const agents = [
+        { pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:1700000000111' },
+        { pid: 105, agent: 'Agent5', category: 'ai', instanceId: '105:1700000000555' },
+      ];
+      const events = await fileWatcher.scanAllFileHandles(agents);
+      expect(events).toHaveLength(1);
+      expect(events[0].agent).toBe('Agent5');
+      expect(events[0].instanceId).toBe('105:1700000000555');
+    });
+
+    // The collision the whole migration exists to break: two live instances of ONE
+    // agent name. Same display name, same sensitive group, different keys — so the
+    // two events must not share one. A name-derived or first-match stamp collapses
+    // them and this fails.
+    it('gives two same-name instances two different keys', async () => {
+      mockGetSensitiveHolders.mockResolvedValue([
+        { pid: 100, group: '/home/user/.ssh', reason: 'SSH keys/config' },
+        { pid: 200, group: '/home/user/.ssh', reason: 'SSH keys/config' },
+      ]);
+      const agents = [
+        {
+          pid: 100,
+          agent: 'Claude Code',
+          category: 'ai',
+          cwd: '/home/user/projA',
+          instanceId: '100:1700000000111',
+        },
+        {
+          pid: 200,
+          agent: 'Claude Code',
+          category: 'ai',
+          cwd: '/home/user/projB',
+          instanceId: '200:1700000000222',
+        },
+      ];
+      const events = await fileWatcher.scanAllFileHandles(agents);
+      expect(events).toHaveLength(2);
+      expect(events.map((e) => e.agent)).toEqual(['Claude Code', 'Claude Code']);
+      expect(events[0].instanceId).toBe('100:1700000000111');
+      expect(events[1].instanceId).toBe('200:1700000000222');
+      expect(new Set(events.map((e) => e.instanceId)).size).toBe(2);
+    });
+  });
+});

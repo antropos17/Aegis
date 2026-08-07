@@ -324,6 +324,32 @@ function classifyConnection(ip) {
 }
 
 /**
+ * Read back the `instanceId` an agent object already carries, or `null`.
+ *
+ * READ, never re-derive: the value must be byte-identical to the one the renderer
+ * received for that agent in the same `scan-batch`, or the join it exists for
+ * silently lands on the wrong instance. Deriving a key here from the connection's
+ * pid would also be a SECOND identity resolution, one tick removed from the first —
+ * exactly the cross-tick pid reuse ai-mistakes.md #19 is about.
+ *
+ * `null` means the connection's pid matched no agent in this call (see the C-01
+ * note below), or the matched agent was never stamped upstream. Deliberately not
+ * papered over with a name match.
+ *
+ * file-watcher.js keeps its own copy — main is CJS with no shared helper module for
+ * this, and widening process-identity.js (whose exports all BUILD keys) to also read
+ * one back would blur what that module is for.
+ * @param {{instanceId?: string}|null|undefined} agent
+ * @returns {string|null}
+ * @since v0.12.0
+ */
+function instanceIdOf(agent) {
+  return agent && typeof agent.instanceId === 'string' && agent.instanceId
+    ? agent.instanceId
+    : null;
+}
+
+/**
  * Scan network connections for all given agents, resolve IPs, classify domains.
  * @param {Array} agents
  * @returns {Promise<Array>} Enriched connection objects
@@ -363,6 +389,10 @@ async function scanNetworkConnections(agents) {
       // invents data.
       agent: agent ? agent.agent : '',
       pid: c.pid,
+      // Same object, same call as the `agent` above — `pidMap` was built from the
+      // agents this scan was invoked with, which is what makes the OS_TCP_OWNER_PID
+      // evidence a same-tick observation rather than a later re-resolution.
+      instanceId: instanceIdOf(agent),
       parentEditor: agent ? agent.parentEditor || null : null,
       cwd: agent ? agent.cwd || null : null,
       category: agent ? agent.category : 'other',
