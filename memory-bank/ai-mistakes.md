@@ -32,6 +32,16 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
 ## PowerShell
 18. Uses && in PowerShell commands instead of ; or powershell.exe -NoProfile -Command wrapper
 
+## CI
+23. Regenerates package-lock.json with the LOCAL npm and breaks every CI job. The local
+    npm is 11.x; CI runs Node 20 with npm 10.8.2. npm 11 dedupes entries npm 10 still
+    requires — `svelte-check/node_modules/picomatch` was hoisted away, and every job died
+    at `npm ci` with "Missing: picomatch@4.0.5 from lock file" (commit `a6dccc7`, fixing
+    `a91f2e1`). The lockfile is CI's input, not yours: rebuild it from master with
+    `npx npm@10.8.2 install`, and verify with `npx npm@10.8.2 ci` exiting 0 before pushing.
+    A `npm install` that succeeds locally proves nothing about the resolver that will read
+    the file.
+
 ## Migrations
 19. Migrates ONE identity store to a new key and stops — when an identity key changes (bare pid → instanceId), sweep ALL sibling consumers in the same effort: session-tracker, file-watcher knownHandles AND token-tracker each held their own pid-keyed map (PR #180–182). A half-migrated identity is worse than none: the migrated store and the stale one silently disagree about who a process is.
 
