@@ -14,6 +14,7 @@ const tokenTracker = require('./token-tracker');
 const { collectTokenCosts } = require('./token-cost-collector');
 const blocklist = require('./blocklist');
 const { EVIDENCE, makeAttribution } = require('./attribution');
+const { identify } = require('./process-identity');
 
 let scanInterval = null;
 let fileScanInterval = null;
@@ -176,6 +177,18 @@ function doNetworkScan() {
  * agents (grok, opencode). Reads each detector's throttled cache synchronously —
  * the dir/WSL scans run in the background, never blocking this batch. Dedups by
  * agent name so a real process (if any) already in the list wins.
+ *
+ * These entries are appended AFTER `enrichWithParentChains` — the process
+ * scanner's only `instanceId` stamp — so they are stamped here instead, which is
+ * what makes "every agent in scan-batch carries an instanceId" true.
+ *
+ * The identity is derived from the DISPLAY name, with `process` deliberately
+ * withheld from `identify()`. For these detectors `process` is not the agent: the
+ * IDE detector emits the editor host exe (`code.exe` for BOTH Kilo Code and
+ * Cline) and the WSL detector emits the interpreter (`node` for several agents),
+ * so keying on it would collapse two distinct pid-0 agents onto one synthetic
+ * key — the exact collision the synthetic space exists to prevent. The display
+ * name IS the identity here, and it is what both detectors already dedup on.
  * @param {Array} agents @returns {void} @since v0.11.0-alpha
  */
 function injectDetectedExternalAgents(agents) {
@@ -184,7 +197,11 @@ function injectDetectedExternalAgents(agents) {
     ...wslDetector.getCachedWslAgents(),
   ];
   for (const ext of external) {
-    if (!agents.some((a) => a.agent === ext.agent)) agents.push(ext);
+    if (agents.some((a) => a.agent === ext.agent)) continue;
+    const identity = identify({ pid: ext.pid, agent: ext.agent });
+    ext.instanceId = identity.instanceId;
+    ext.instanceIdSource = identity.instanceIdSource;
+    agents.push(ext);
   }
 }
 

@@ -309,6 +309,208 @@ describe('scan-loop', () => {
     });
   });
 
+  // ── instanceId coverage across the WHOLE scan-batch payload ──
+
+  describe('scan-batch instanceId invariant', () => {
+    /**
+     * Deps whose `enrichWithParentChains` stamps identity exactly as the real one
+     * does — via the same `identify()` — so the test measures the INJECTION gap
+     * and not a stub that hands out keys for free.
+     * @param {Function} sendToRenderer
+     * @param {boolean} changed - the scanner's changed-pid-set flag
+     * @returns {Object}
+     */
+    function makeStampingDeps(sendToRenderer, changed = false) {
+      const { identify } = require_('../../src/main/process-identity.js');
+      return {
+        scanner: {
+          // A FRESH array per tick, which is what the real scanner returns — the
+          // injected synthetics live only in the previous tick's array and must
+          // never be carried back into the identity stamp. `mockResolvedValue`
+          // would hand out one shared array and quietly model the opposite.
+          scanProcesses: vi.fn().mockImplementation(async () => ({
+            agents: [
+              { agent: 'Claude Code', process: 'claude.exe', pid: 100, startTime: 1717000000000 },
+              { agent: 'Cursor', process: 'cursor.exe', pid: 200, startTime: 1717000100000 },
+            ],
+            changed,
+          })),
+        },
+        procUtil: {
+          enrichWithParentChains: vi.fn(async (agents) => {
+            for (const a of agents) {
+              const id = identify(a);
+              a.instanceId = id.instanceId;
+              a.instanceIdSource = id.instanceIdSource;
+            }
+          }),
+          annotateHostApps: vi.fn(),
+          annotateWorkingDirs: vi.fn().mockResolvedValue(),
+        },
+        watcher: { pruneKnownHandles: vi.fn(), scanAllFileHandles: vi.fn().mockResolvedValue([]) },
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: vi.fn().mockResolvedValue([]),
+        },
+        baselines: { recordNetworkEndpoint: vi.fn() },
+        anomaly: {
+          checkDeviations: vi.fn().mockReturnValue([]),
+          calculateAnomalyScore: vi.fn().mockReturnValue({ score: 0 }),
+        },
+        audit: { log: vi.fn() },
+        tray: { updateTrayIcon: vi.fn(), notifySensitive: vi.fn() },
+        logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+        sendToRenderer,
+        fileAccessBatcher: { push: vi.fn() },
+        statsUpdateBatcher: { push: vi.fn() },
+        getStats: vi.fn().mockReturnValue({}),
+        getResourceUsage: vi.fn().mockReturnValue({}),
+        getLatestAgents: vi.fn().mockReturnValue([]),
+        setAgents: vi.fn(),
+        setLatestNetConnections: vi.fn(),
+        getPreviousPids: vi.fn().mockReturnValue(new Map()),
+        setPreviousPids: vi.fn(),
+      };
+    }
+
+    /**
+     * Run one full process scan with both synthetic detectors stubbed, and return
+     * the `scan-batch` payload.
+     * @param {Array} ideAgents
+     * @param {Array} wslAgents
+     * @param {boolean} [changed]
+     * @returns {Promise<{batch: Object, deps: Object}>}
+     */
+    async function runScanWithSynthetics(ideAgents, wslAgents, changed = false) {
+      const ide = require_('../../src/main/ide-extension-detector.js');
+      const wsl = require_('../../src/main/wsl-detector.js');
+      const origIde = ide.getCachedExtensionAgents;
+      const origWsl = wsl.getCachedWslAgents;
+      ide.getCachedExtensionAgents = () => ideAgents;
+      wsl.getCachedWslAgents = () => wslAgents;
+      try {
+        const sendToRenderer = vi.fn();
+        const mockDeps = makeStampingDeps(sendToRenderer, changed);
+        scanLoop.init(mockDeps);
+        // A helper may be called twice in one test (the across-ticks case); drop
+        // the previous interval so each call runs exactly one scan.
+        scanLoop.stopScanIntervals();
+        scanLoop.startScanIntervals(5000);
+        await vi.advanceTimersByTimeAsync(5000);
+        const batchCall = sendToRenderer.mock.calls.find((c) => c[0] === 'scan-batch');
+        expect(batchCall).toBeTruthy();
+        return { batch: batchCall[1], deps: mockDeps };
+      } finally {
+        ide.getCachedExtensionAgents = origIde;
+        wsl.getCachedWslAgents = origWsl;
+      }
+    }
+
+    /**
+     * Both IDE-extension agents carry the SAME `process` (the editor host exe) —
+     * that is what the real detector emits, and the reason the synthetic key
+     * cannot be derived from `process`. Same for the two WSL agents' interpreter.
+     */
+    const IDE_SYNTHETICS = [
+      {
+        agent: 'Kilo Code',
+        process: 'code.exe',
+        pid: 0,
+        status: 'running',
+        category: 'ai',
+        parentEditor: 'VS Code',
+        detectionMethod: 'ide-extension',
+      },
+      {
+        agent: 'Cline',
+        process: 'code.exe',
+        pid: 0,
+        status: 'running',
+        category: 'ai',
+        parentEditor: 'VS Code',
+        detectionMethod: 'ide-extension',
+      },
+    ];
+    const WSL_SYNTHETICS = [
+      {
+        agent: 'grok',
+        process: 'node',
+        pid: 0,
+        status: 'running',
+        category: 'ai',
+        parentEditor: 'WSL',
+        host: 'wsl',
+        wslPid: 4211,
+        detectionMethod: 'wsl-process',
+      },
+      {
+        agent: 'opencode',
+        process: 'node',
+        pid: 0,
+        status: 'running',
+        category: 'ai',
+        parentEditor: 'WSL',
+        host: 'wsl',
+        wslPid: 4318,
+        detectionMethod: 'wsl-process',
+      },
+    ];
+
+    it('every agent in the scan-batch payload carries a non-empty instanceId', async () => {
+      const { batch } = await runScanWithSynthetics(
+        IDE_SYNTHETICS.map((a) => ({ ...a })),
+        WSL_SYNTHETICS.map((a) => ({ ...a })),
+      );
+
+      // The invariant is asserted over the WHOLE batch, and the count is pinned
+      // first so a batch that lost its synthetics cannot pass vacuously
+      // (memory-bank/ai-mistakes.md#21): 2 scanned + 2 IDE + 2 WSL.
+      expect(batch.agents).toHaveLength(6);
+      const missing = batch.agents
+        .filter((a) => typeof a.instanceId !== 'string' || a.instanceId.length === 0)
+        .map((a) => a.agent);
+      expect(missing).toEqual([]);
+      // And every source is one of the three declared value spaces.
+      for (const a of batch.agents) {
+        expect(['os', 'synthetic', 'unknown']).toContain(a.instanceIdSource);
+      }
+    });
+
+    it('two distinct pid-0 agents sharing a process name get distinct instanceIds', async () => {
+      const { batch } = await runScanWithSynthetics(
+        IDE_SYNTHETICS.map((a) => ({ ...a })),
+        WSL_SYNTHETICS.map((a) => ({ ...a })),
+      );
+
+      const byName = new Map(batch.agents.map((a) => [a.agent, a.instanceId]));
+      // Keyed on `process` these would all collapse: 0:code.exe twice, 0:node twice.
+      expect(byName.get('Kilo Code')).toBe('0:kilo-code');
+      expect(byName.get('Cline')).toBe('0:cline');
+      expect(byName.get('grok')).toBe('0:grok');
+      expect(byName.get('opencode')).toBe('0:opencode');
+      // No two agents in the batch share a key, synthetic or otherwise.
+      const ids = batch.agents.map((a) => a.instanceId);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it('the synthetic key is stable across ticks — a card does not churn', async () => {
+      const first = await runScanWithSynthetics(
+        IDE_SYNTHETICS.map((a) => ({ ...a })),
+        [],
+      );
+      const second = await runScanWithSynthetics(
+        IDE_SYNTHETICS.map((a) => ({ ...a })),
+        [],
+      );
+      const idsOf = (b) =>
+        b.agents.filter((a) => a.pid === 0).map((a) => `${a.agent}=${a.instanceId}`);
+      // Pinned literally, so two ticks of `undefined` cannot satisfy "stable".
+      expect(idsOf(first.batch)).toEqual(['Kilo Code=0:kilo-code', 'Cline=0:cline']);
+      expect(idsOf(second.batch)).toEqual(idsOf(first.batch));
+    });
+  });
+
   // ── cwd annotation forceRefresh wiring ──
 
   describe('annotateWorkingDirs forceRefresh wiring', () => {
