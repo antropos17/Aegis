@@ -257,7 +257,12 @@ async function doProcessScan() {
       });
     watcher.pruneKnownHandles(agents);
     procUtil.annotateHostApps(agents);
-    await procUtil.annotateWorkingDirs(agents);
+    // Same `forceRefresh` contract as the identity stamp at the top of this scan:
+    // a pid new to the set must not be annotated out of a cached entry belonging
+    // to the dead process that held that pid. `cwd` is the field the renderer's
+    // instance key is built from and the one CWD_CONTAINMENT attribution matches
+    // on, so a stale value there poisons both.
+    await procUtil.annotateWorkingDirs(agents, { forceRefresh: result.changed === true });
     // Surface extension-only (Kilo/Cline) and WSL-inner (grok/opencode) agents
     // before the batch so the renderer sees them; cache-backed, non-blocking.
     injectDetectedExternalAgents(agents);

@@ -309,6 +309,72 @@ describe('scan-loop', () => {
     });
   });
 
+  // ── cwd annotation forceRefresh wiring ──
+
+  describe('annotateWorkingDirs forceRefresh wiring', () => {
+    /** @param {boolean} changed @returns {Promise<Object>} the procUtil mock after one scan */
+    async function scanWithChanged(changed) {
+      const mockDeps = {
+        scanner: {
+          scanProcesses: vi
+            .fn()
+            .mockResolvedValue({ agents: [{ agent: 'Cursor', pid: 300 }], changed }),
+        },
+        procUtil: {
+          enrichWithParentChains: vi.fn().mockResolvedValue(),
+          annotateHostApps: vi.fn(),
+          annotateWorkingDirs: vi.fn().mockResolvedValue(),
+        },
+        watcher: { pruneKnownHandles: vi.fn(), scanAllFileHandles: vi.fn().mockResolvedValue([]) },
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: vi.fn().mockResolvedValue([]),
+        },
+        baselines: { recordNetworkEndpoint: vi.fn() },
+        anomaly: {
+          checkDeviations: vi.fn().mockReturnValue([]),
+          calculateAnomalyScore: vi.fn().mockReturnValue({ score: 0 }),
+        },
+        audit: { log: vi.fn() },
+        tray: { updateTrayIcon: vi.fn(), notifySensitive: vi.fn() },
+        logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+        sendToRenderer: vi.fn(),
+        fileAccessBatcher: { push: vi.fn() },
+        statsUpdateBatcher: { push: vi.fn() },
+        getStats: vi.fn().mockReturnValue({}),
+        getResourceUsage: vi.fn().mockReturnValue({}),
+        getLatestAgents: vi.fn().mockReturnValue([]),
+        setAgents: vi.fn(),
+        setLatestNetConnections: vi.fn(),
+        getPreviousPids: vi.fn().mockReturnValue(new Map()),
+        setPreviousPids: vi.fn(),
+      };
+      scanLoop.init(mockDeps);
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      return mockDeps.procUtil;
+    }
+
+    it('passes forceRefresh true when the scanned pid set changed, mirroring the identity stamp', async () => {
+      const procUtil = await scanWithChanged(true);
+      expect(procUtil.annotateWorkingDirs).toHaveBeenCalledWith(expect.any(Array), {
+        forceRefresh: true,
+      });
+      // The two calls agree — a tick that re-identifies must also re-read the cwd.
+      expect(procUtil.enrichWithParentChains).toHaveBeenCalledWith(expect.any(Array), {
+        forceRefresh: true,
+      });
+    });
+
+    it('passes forceRefresh false on an unchanged pid set, so the cache still serves', async () => {
+      const procUtil = await scanWithChanged(false);
+      expect(procUtil.annotateWorkingDirs).toHaveBeenCalledWith(expect.any(Array), {
+        forceRefresh: false,
+      });
+    });
+  });
+
   // ── getLatestLocalModels ──
 
   describe('getLatestLocalModels', () => {

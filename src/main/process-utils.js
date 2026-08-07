@@ -32,7 +32,8 @@ const parentChainCache = new Map();
 const PARENT_CHAIN_TTL = 60000;
 
 /**
- * Cache key for the parent-chain / startTime cache: pid PLUS the process name.
+ * Cache key for the parent-chain / startTime cache AND the cwd cache: pid PLUS
+ * the process name.
  *
  * A bare pid is not enough. Windows recycles PIDs, so a live TTL entry keyed on
  * pid alone serves the DEAD process's chain and — far worse — its `startTime`,
@@ -218,13 +219,30 @@ const CWD_CACHE_TTL = 60000;
  * Annotate agents with their working directories.
  * Sets `agent.cwd` (full path) and `agent.projectName` (basename).
  * Uses batched platform call (single PowerShell spawn on Windows).
+ *
+ * The cache is keyed by pid AND process name — the same {@link _cacheKey} the
+ * parent-chain cache uses, and for the same reason. A bare pid was not enough:
+ * a pid recycled inside the 60 s TTL served the DEAD process's `cwd`, and `cwd`
+ * is the field the renderer's instance key is built from and the field
+ * CWD_CONTAINMENT attribution matches on. Folding the name in turns a recycled
+ * pid belonging to a different executable into a cache MISS.
+ *
+ * KNOWN BOUND: identical to `_cacheKey`'s — a pid recycled by an executable with
+ * the SAME name still hits inside the TTL. `opts.forceRefresh` covers that case.
  * @param {Array} agents
+ * @param {Object} [opts]
+ * @param {boolean} [opts.forceRefresh=false] - when true, ignore cached entries and
+ *   re-read the working directories from the platform. Pass true when the scanned
+ *   pid set changed: a pid new to the set must never be annotated with a dead
+ *   process's directory. Costs one platform call — the same batched fetch an
+ *   uncached tick already pays.
  * @returns {Promise<void>}
  * @since v0.5.0
  */
-async function annotateWorkingDirs(agents) {
+async function annotateWorkingDirs(agents, opts = {}) {
   if (agents.length === 0) return;
 
+  const forceRefresh = opts.forceRefresh === true;
   const now = Date.now();
   // Prune stale entries
   if (cwdCache.size > 500) {
@@ -233,29 +251,42 @@ async function annotateWorkingDirs(agents) {
     }
   }
 
-  // Separate cached vs uncached PIDs
+  // One cache key per agent, resolved once. The name expression is the SAME one
+  // enrichWithParentChains uses, so the two caches cannot disagree about which
+  // name belongs to a pid.
+  const entries = agents.map((a) => ({
+    agent: a,
+    key: _cacheKey(a.pid, String(a.process || a.agent || '')),
+  }));
+
+  // Separate cached vs uncached entries. Agents can share a pid (the pid-0
+  // synthetics all do) while holding distinct keys, so the pid list handed to the
+  // platform is deduplicated — one entry per pid, in first-seen order.
   const uncachedPids = [];
-  for (const a of agents) {
-    const cached = cwdCache.get(a.pid);
-    if (!cached || now - cached.timestamp > CWD_CACHE_TTL) {
-      uncachedPids.push(a.pid);
-    }
+  const uncachedPidSet = new Set();
+  for (const e of entries) {
+    const cached = forceRefresh ? null : cwdCache.get(e.key);
+    if (cached && now - cached.timestamp <= CWD_CACHE_TTL) continue;
+    if (uncachedPidSet.has(e.agent.pid)) continue;
+    uncachedPidSet.add(e.agent.pid);
+    uncachedPids.push(e.agent.pid);
   }
 
-  // Single batched call for all uncached PIDs
+  // Single batched call for all uncached PIDs. The result is written back per
+  // AGENT, not per pid: the pid alone can no longer reconstruct the cache key.
   if (uncachedPids.length > 0) {
     const batchResults = await _getProcessCwds(uncachedPids);
-    for (const pid of uncachedPids) {
-      const cwd = batchResults.get(pid) || null;
-      cwdCache.set(pid, { cwd, timestamp: now });
+    for (const e of entries) {
+      if (!uncachedPidSet.has(e.agent.pid)) continue;
+      cwdCache.set(e.key, { cwd: batchResults.get(e.agent.pid) || null, timestamp: now });
     }
   }
 
-  for (const a of agents) {
-    const cached = cwdCache.get(a.pid);
+  for (const e of entries) {
+    const cached = cwdCache.get(e.key);
     const cwd = cached ? cached.cwd : null;
-    a.cwd = cwd;
-    a.projectName = cwd ? path.basename(cwd) : null;
+    e.agent.cwd = cwd;
+    e.agent.projectName = cwd ? path.basename(cwd) : null;
   }
 }
 
