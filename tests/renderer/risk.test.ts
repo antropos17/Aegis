@@ -217,6 +217,69 @@ describe('risk store — enrichedAgents', () => {
   });
 });
 
+describe('risk store — two instances of one agent (C1)', () => {
+  // SKIPPED BECAUSE IT IS RED ON PURPOSE — collision C1 in
+  // docs/current-state/IDENTITY-RECON.md §5. This is the assertion the whole identity
+  // migration exists to make true, written first and failing, so the goal is in the repo
+  // before the code that meets it. It is skipped rather than deleted so CI stays honest:
+  // a deliberately failing test in a red suite trains everyone to ignore red.
+  //
+  // UNSKIP AT: migration step 5 (§6) — risk.ts:109-152 correlation moves from
+  // eventsByPid/eventsByName to a single byInstance map keyed on `instanceId`, and the
+  // `hasCwd && raw.pid ? … : …` selectors at :168-169 and :196-197 become a direct
+  // byInstance.get(raw.instanceId). Steps 1-4 are landed; step 5 is renderer work and has
+  // not started. Remove the `.skip`, do not weaken the assertions.
+  it.skip('C1 KNOWN-RED: two Claude Code instances in different projects get separate risk histories', () => {
+    // Both records report `cwd: null`, and that IS the C1 precondition, not a
+    // convenience: on Windows `getProcessCwds` returns null whenever the working
+    // directory is not extractable, and `annotateWorkingDirs` then writes null.
+    // The two instances ARE in different projects — only the observation of that
+    // fact is missing. With cwd falsy, `instanceKey` (risk.ts:68-72) collapses
+    // both to the bare name, and the correlation selector (risk.ts:168-169,
+    // :196-197) falls to the name branch, so each instance is scored on BOTH
+    // event sets.
+    inputs.agents.set([
+      { agent: 'Claude Code', pid: 100, cwd: null, parentEditor: null, category: 'ai' },
+      { agent: 'Claude Code', pid: 200, cwd: null, parentEditor: null, category: 'ai' },
+    ]);
+    // The same agent NAME on both event sets is what puts them in one bucket —
+    // varying it would make the test pass for the wrong reason. Distinct file
+    // paths, so the 30s same-path dedup (risk.ts:185) eats nothing.
+    inputs.events.set([
+      [
+        fileEvent({
+          pid: 100,
+          cwd: '/home/user/project-a',
+          file: '/home/user/project-a/.ssh/id_rsa',
+          sensitive: true,
+          reason: 'SSH keys/config',
+        }),
+        fileEvent({
+          pid: 200,
+          cwd: '/home/user/project-b',
+          file: '/home/user/project-b/src/main.js',
+        }),
+      ],
+    ]);
+
+    const enriched = get(enrichedAgents);
+    // Setup invariants — these hold today. If one of them fails, the test is red
+    // for the wrong reason and the collision assertions below prove nothing.
+    expect(enriched).toHaveLength(2);
+    const [instanceA, instanceB] = enriched;
+    expect(instanceA.pid).toBe(100);
+    expect(instanceB.pid).toBe(200);
+    expect(instanceA.sensitiveFiles).toBeGreaterThan(0);
+    expect(instanceA.riskScore).toBeGreaterThan(0);
+
+    // The collision itself. Soft, so one run reports BOTH pinned sites rather
+    // than aborting on the first.
+    expect.soft(instanceB.instanceKey).not.toBe(instanceA.instanceKey);
+    expect.soft(instanceB.sensitiveFiles).toBe(0);
+    expect.soft(instanceB.riskScore).not.toBe(instanceA.riskScore);
+  });
+});
+
 /** One connection owned by Claude Code (pid 100), allowlisted unless overridden. */
 function conn(over: Record<string, unknown> = {}) {
   return {
