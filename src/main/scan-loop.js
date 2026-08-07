@@ -80,10 +80,9 @@ function logAuditForFile(ev) {
   deps.audit.log(type, {
     agent: ev.agent,
     pid: ev.pid ?? null,
-    // FileEvent carries no instanceId. Deriving one here would mean resolving identity
-    // outside the tick that produced the event — exactly the cross-tick pid reuse
-    // ai-mistakes.md #19 is about. Null until file-watcher stamps it at the source.
-    instanceId: null,
+    // Carried from the event, never re-derived: null means the event itself has no
+    // key (unattributed, or an owner that was never stamped).
+    instanceId: ev.instanceId ?? null,
     action: ev.action,
     path: ev.file,
     severity: ev.sensitive ? 'sensitive' : 'normal',
@@ -141,10 +140,9 @@ function doNetworkScan() {
         audit.log('network-connection', {
           agent: conn.agent,
           pid: conn.pid ?? null,
-          // NetworkConnection carries pid but no instanceId. Resolving one from the pid
-          // here would be a second lookup that could straddle scan ticks; left null
-          // until network-monitor carries the matched agent's identity through.
-          instanceId: null,
+          // Carried from the connection, never re-resolved from its pid: null means the
+          // socket matched no agent in that scan.
+          instanceId: conn.instanceId ?? null,
           action: conn.state,
           path: `${conn.remoteIp}:${conn.remotePort}`,
           severity: conn.flagged ? 'high' : 'normal',
