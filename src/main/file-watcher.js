@@ -27,7 +27,7 @@ const {
 } = require('../shared/constants');
 const { getAllRules, reloadRules } = require('./rule-loader');
 const { EVIDENCE, makeAttribution } = require('./attribution');
-const { buildInstanceId, readInstanceId } = require('./process-identity');
+const { readInstanceId } = require('./process-identity');
 const _platform = require('./platform');
 const { IGNORE_FILE_PATTERNS } = _platform;
 
@@ -348,18 +348,16 @@ async function filterExistingDirs(dirs) {
 }
 
 /**
- * Dedup key for _state.knownHandles: the agent's process INSTANCE, never its
- * bare pid. Windows recycles PIDs, so a pid-keyed store lets a new process
- * inherit a dead one's seen-set and silently lose its first sensitive access.
- * Uses the instanceId stamped upstream by procUtil.enrichWithParentChains and
- * derives one for un-enriched agents (same fallback as session-tracker).
- * @param {{pid?: number, process?: string, agent?: string, startTime?: number|null, instanceId?: string}} agent
- * @returns {string}
+ * Dedup key for _state.knownHandles: the agent's stamped process INSTANCE, never
+ * its bare pid and never a second local derivation. Windows recycles PIDs, so a
+ * pid-keyed store lets a new process inherit a dead one's seen-set. Reconstructing
+ * via buildInstanceId from partial fields can disagree with the scan-batch stamp
+ * (ai-mistakes.md #19) — so unstamped agents get no handle-dedup entry this tick.
+ * @param {{instanceId?: string}} agent
+ * @returns {string|null}
  */
 function handleKey(agent) {
-  return typeof agent.instanceId === 'string' && agent.instanceId
-    ? agent.instanceId
-    : buildInstanceId(agent);
+  return readInstanceId(agent);
 }
 
 /**
@@ -379,17 +377,25 @@ async function scanFileHandles(agent) {
 
   const kh = _state.knownHandles;
   const key = handleKey(agent);
-  if (!kh.has(key)) kh.set(key, new Set());
-  const known = kh.get(key);
+  // Stamped key → durable seen-set. Unstamped → still emit events (no silent drop)
+  // but do not invent a knownHandles key (no second identity resolution).
+  let known = null;
+  if (key) {
+    if (!kh.has(key)) kh.set(key, new Set());
+    known = kh.get(key);
+  }
   const newAccess = [];
   for (const f of files) {
-    if (shouldIgnore(f) || known.has(f)) continue;
-    known.add(f);
-    // Cap per-instance set at 500 — evict oldest entries
-    if (known.size > 500) {
-      const iter = known.values();
-      for (let i = 0; i < known.size - 500; i++) {
-        known.delete(iter.next().value);
+    if (shouldIgnore(f)) continue;
+    if (known && known.has(f)) continue;
+    if (known) {
+      known.add(f);
+      // Cap per-instance set at 500 — evict oldest entries
+      if (known.size > 500) {
+        const iter = known.values();
+        for (let i = 0; i < known.size - 500; i++) {
+          known.delete(iter.next().value);
+        }
       }
     }
     const reason = classifySensitive(f);
@@ -401,7 +407,7 @@ async function scanFileHandles(agent) {
       agent: agent.agent,
       pid,
       // The scan was run FOR this agent object, so the key is that object's own —
-      // no lookup, no tick boundary crossed.
+      // no lookup, no tick boundary crossed. Unstamped → null (honest).
       instanceId: readInstanceId(agent),
       parentEditor: agent.parentEditor || null,
       cwd: agent.cwd || null,
@@ -496,14 +502,16 @@ async function _scanRmHolders(agents, fetchHolders) {
     if (!agent) continue; // holder is not a tracked (in-scope) agent — drop
     const group = h.group;
     const key = handleKey(agent);
-    if (!kh.has(key)) kh.set(key, new Set());
-    const known = kh.get(key);
     const dedupKey = 'holding|' + group;
-    if (known.has(dedupKey)) continue;
-    known.add(dedupKey);
-    if (known.size > 500) {
-      const iter = known.values();
-      for (let i = 0; i < known.size - 500; i++) known.delete(iter.next().value);
+    if (key) {
+      if (!kh.has(key)) kh.set(key, new Set());
+      const known = kh.get(key);
+      if (known.has(dedupKey)) continue;
+      known.add(dedupKey);
+      if (known.size > 500) {
+        const iter = known.values();
+        for (let i = 0; i < known.size - 500; i++) known.delete(iter.next().value);
+      }
     }
     // Rule/self-config patterns anchor on a separator AFTER the dir name (e.g.
     // `\.claude[\\/]`), but a group is a bare DIR path with no trailing separator.
@@ -621,7 +629,11 @@ async function scanAllFileHandles(agents) {
  * @returns {void} @since v0.1.0
  */
 function pruneKnownHandles(activeAgents) {
-  const activeKeys = new Set(activeAgents.map(handleKey));
+  const activeKeys = new Set();
+  for (const a of activeAgents) {
+    const k = handleKey(a);
+    if (k) activeKeys.add(k);
+  }
   for (const key of _state.knownHandles.keys()) {
     if (!activeKeys.has(key)) _state.knownHandles.delete(key);
   }

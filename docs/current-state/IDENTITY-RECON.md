@@ -134,9 +134,9 @@ had the field.
 | 3.1 | `process-utils.js:51-53` `_cacheKey` | `` `${pid}|${name.toLowerCase()}` `` | ephemeral |
 | 3.2 | `process-utils.js:180-184` | `identify(a)` → `a.instanceId`, `a.instanceIdSource` | **the stamp** |
 | 3.3 | `process-utils.js:239-251, 254-259` `cwdCache` | **bare `a.pid`** — no name fold, no `forceRefresh` | ephemeral ⚠ **C7** |
-| 3.4 | `session-tracker.js:60, 81-84` | `` `${instanceId}|${process.toLowerCase()}` `` | ephemeral ✅ migrated |
-| 3.5 | `file-watcher.js:349-353` `handleKey` | `agent.instanceId` (fallback `buildInstanceId`) | ephemeral ✅ migrated |
-| 3.6 | `token-tracker.js:126, 191-197` `recordKey` | `proc.instanceId` (fallback `buildInstanceId({pid,startTime})`) | ephemeral ✅ migrated |
+| 3.4 | `session-tracker.js` `sessionKey` | stamped `instanceId\|process` only; unstamped agents skipped | ephemeral ✅ no re-derive |
+| 3.5 | `file-watcher.js` `handleKey` | stamped `instanceId` only (`readInstanceId`); null → no knownHandles key | ephemeral ✅ no re-derive |
+| 3.6 | `token-tracker.js` `recordKey` | stamped `instanceId`; bare pid → explicit `"<pid>:u"` only (no startTime re-derive) | ephemeral ✅ |
 | 3.7 | `scan-loop.js:56-73` `dedupFileEvent` | `` `${ev.agent}|${ev.file}` `` — display name | ephemeral ⚠ |
 | 3.8 | `scan-loop.js` anomaly scores | `scoresByInstance[a.instanceId]`; `scores[a.agent]` kept as the max for the renderer | ephemeral ✅ migrated (step 7) |
 | 3.9 | `config-manager.js` `getInstanceKey` → `shared/instance-key.js` `buildInstanceKey` | `` `${name}::${cwd}` `` → `` `${name}::${parentEditor}` `` → `name` | **durable** (settings.json) ✅ step 6 |
