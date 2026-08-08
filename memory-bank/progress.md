@@ -14,10 +14,11 @@ Version 0.10.0-alpha. 110 agents / 262 signatures in database. 73 rules across 8
 - **Audit records carry the key.** All 4 owner-bearing record types in `scan-loop.js` do (`agent-enter`, `agent-exit`, `file-access`/`config-access`, `network-connection`), and `anomaly-alert` joined them once deviations became per-instance (`975ed1a`). `buffer-overflow-drop` stays `null` — nobody owns it.
 - **`cwdCache` no longer serves a dead process's directory.** Keyed on `_cacheKey(pid, name)` like `parentChainCache`, with a `forceRefresh` path wired to the scanner's changed-pid-set flag — the same contract as the identity stamp. Closes **C7**, which poisoned the input to everything else: `cwd` is what the renderer's instance key is built from and what `CWD_CONTAINMENT` attribution matches on. Residual bound is documented and tested: a same-name reuse inside the 60 s TTL still hits, and `forceRefresh` is what covers it.
 
-**What remains (step 11 + later cleanup; steps 4–10 + C2 done):**
-- **C1–C2, C5–C6, step 8–10 CLOSED** (instance correlation, timeline, selection, ack).
-- **Step 6 is CLOSED.** Durable `instanceKey` is one shared `buildInstanceKey` in `src/shared/instance-key.js` (name::cwd → name::parentEditor → name). Main config-manager + renderer risk both use it. Not instanceId; not watchlist. Pinned by `tests/shared/instance-key.test.js`.
+**What remains (step 11 + residual buildInstanceId; steps 4–10 + C2 + attachModels done):**
+- **C1–C2, C5–C6, steps 6, 8–10 CLOSED.**
+- **attachModels order FIXED.** `enrichWithLocalModels` before `scan-batch`; pid-0 synthetics stamped via `identify({pid:0,agent:name})`; existing stamps preserved. Pinned by scan-loop attachModels suite.
 - **Step 11** — optional per-instance UI roll-up vs per-name defaults.
+- **Residual** — main `buildInstanceId` fallbacks on handleKey / session / token hot paths.
 - **Durable domains stay separate.** Permissions = instanceKey; watchlist = name; baselines profile = name; runtime = instanceId.
 
 **Open debts from step 7 — measurements for Bench to settle, not diagnosed bugs:**

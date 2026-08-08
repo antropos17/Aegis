@@ -535,6 +535,166 @@ describe('scan-loop', () => {
     });
   });
 
+  // ── attachModels order + instanceId stamp (local LLM runtimes) ──
+
+  describe('attachModels before scan-batch', () => {
+    /**
+     * Point llm-runtime-detector at fixed async results for this test, then restore.
+     * @param {{ollama?: {running:boolean,models:string[]}, lmstudio?: {running:boolean,models:string[]}}} responses
+     * @param {() => Promise<void>} body
+     */
+    async function withLlmDetectors(responses, body) {
+      const llm = require_('../../src/main/llm-runtime-detector.js');
+      const origO = llm.detectOllamaModels;
+      const origL = llm.detectLMStudioModels;
+      llm.detectOllamaModels = async () => responses.ollama || { running: false, models: [] };
+      llm.detectLMStudioModels = async () => responses.lmstudio || { running: false, models: [] };
+      try {
+        await body();
+      } finally {
+        llm.detectOllamaModels = origO;
+        llm.detectLMStudioModels = origL;
+      }
+    }
+
+    it('includes a stamped Ollama synthetic in the scan-batch (not a post-send ghost)', async () => {
+      await withLlmDetectors(
+        { ollama: { running: true, models: ['llama3'] }, lmstudio: { running: false, models: [] } },
+        async () => {
+          const sendToRenderer = vi.fn();
+          const deps = makeDeps({
+            scanner: {
+              scanProcesses: vi.fn().mockResolvedValue({
+                agents: [
+                  {
+                    agent: 'Claude Code',
+                    process: 'claude.exe',
+                    pid: 100,
+                    startTime: 1717000000000,
+                    instanceId: '100:1717000000000',
+                    instanceIdSource: 'os',
+                  },
+                ],
+                changed: false,
+              }),
+            },
+            sendToRenderer,
+          });
+          scanLoop.init(deps);
+          scanLoop.startScanIntervals(5000);
+          await vi.advanceTimersByTimeAsync(5000);
+
+          const batchCall = sendToRenderer.mock.calls.find((c) => c[0] === 'scan-batch');
+          expect(batchCall).toBeTruthy();
+          const ollama = batchCall[1].agents.find((a) => a.agent === 'Ollama');
+          expect(ollama).toBeTruthy();
+          expect(ollama.localModels).toEqual(['llama3']);
+          // Space 2 synthetic from display name (not process host, not name fabrication beyond identify).
+          expect(ollama.instanceId).toBe('0:ollama');
+          expect(ollama.instanceIdSource).toBe('synthetic');
+          // Distinct from the real scanned agent — same-name cross-association cannot apply.
+          expect(ollama.instanceId).not.toBe('100:1717000000000');
+        },
+      );
+    });
+
+    it('preserves an already-stamped instanceId when only attaching models', async () => {
+      await withLlmDetectors({ ollama: { running: true, models: ['mistral'] } }, async () => {
+        const stampedId = '4242:1717000999999';
+        const sendToRenderer = vi.fn();
+        const deps = makeDeps({
+          scanner: {
+            scanProcesses: vi.fn().mockResolvedValue({
+              agents: [
+                {
+                  agent: 'Ollama',
+                  process: 'ollama.exe',
+                  pid: 4242,
+                  startTime: 1717000999999,
+                  instanceId: stampedId,
+                  instanceIdSource: 'os',
+                },
+              ],
+              changed: false,
+            }),
+          },
+          // Parent-chain stub must NOT wipe the stamp (real path preserves it).
+          procUtil: {
+            enrichWithParentChains: vi.fn().mockResolvedValue(),
+            annotateHostApps: vi.fn(),
+            annotateWorkingDirs: vi.fn().mockResolvedValue(),
+          },
+          sendToRenderer,
+        });
+        scanLoop.init(deps);
+        scanLoop.startScanIntervals(5000);
+        await vi.advanceTimersByTimeAsync(5000);
+
+        const batch = sendToRenderer.mock.calls.find((c) => c[0] === 'scan-batch')[1];
+        const ollama = batch.agents.find((a) => a.agent === 'Ollama');
+        expect(ollama.localModels).toEqual(['mistral']);
+        // attachModels must not re-derive over an authoritative stamp (PID reuse / name traps).
+        expect(ollama.instanceId).toBe(stampedId);
+        expect(ollama.instanceIdSource).toBe('os');
+      });
+    });
+
+    it('stamps two concurrent local runtimes distinctly by name, not pid', async () => {
+      await withLlmDetectors(
+        {
+          ollama: { running: true, models: ['a'] },
+          lmstudio: { running: true, models: ['b'] },
+        },
+        async () => {
+          const sendToRenderer = vi.fn();
+          scanLoop.init(
+            makeDeps({
+              scanner: {
+                scanProcesses: vi.fn().mockResolvedValue({ agents: [], changed: false }),
+              },
+              sendToRenderer,
+            }),
+          );
+          scanLoop.startScanIntervals(5000);
+          await vi.advanceTimersByTimeAsync(5000);
+
+          const agents = sendToRenderer.mock.calls.find((c) => c[0] === 'scan-batch')[1].agents;
+          const ollama = agents.find((a) => a.agent === 'Ollama');
+          const lm = agents.find((a) => a.agent === 'LM Studio');
+          expect(ollama.instanceId).toBe('0:ollama');
+          expect(lm.instanceId).toBe('0:lm-studio');
+          expect(ollama.instanceId).not.toBe(lm.instanceId);
+          // Both are pid 0 — pid alone would collide; identity is not the bare pid.
+          expect(ollama.pid).toBe(0);
+          expect(lm.pid).toBe(0);
+        },
+      );
+    });
+
+    it('does not invent identity from name when the runtime is not running', async () => {
+      await withLlmDetectors(
+        { ollama: { running: false, models: [] }, lmstudio: { running: false, models: [] } },
+        async () => {
+          const sendToRenderer = vi.fn();
+          scanLoop.init(
+            makeDeps({
+              scanner: {
+                scanProcesses: vi.fn().mockResolvedValue({ agents: [], changed: false }),
+              },
+              sendToRenderer,
+            }),
+          );
+          scanLoop.startScanIntervals(5000);
+          await vi.advanceTimersByTimeAsync(5000);
+
+          const agents = sendToRenderer.mock.calls.find((c) => c[0] === 'scan-batch')[1].agents;
+          expect(agents.find((a) => a.agent === 'Ollama')).toBeUndefined();
+          expect(agents.find((a) => a.agent === 'LM Studio')).toBeUndefined();
+        },
+      );
+    });
+  });
+
   // ── cwd annotation forceRefresh wiring ──
 
   describe('annotateWorkingDirs forceRefresh wiring', () => {

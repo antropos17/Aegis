@@ -62,7 +62,7 @@ One stamp site, one derivation function.
 | `<pid>:u` on darwin / linux, **always** | `platform/linux.js` and `platform/darwin.js` contain no `startTime` at all — the only `startTime` in `src/main/platform/` is `win32.js:80,84,111`. The claim in the `process-identity.js` header is confirmed against the platform files, not quoted from the comment. | `grep startTime src/main/platform/` → win32 only |
 | `<pid>:u` on win32 | `Win32_Process.CreationDate` withheld (access denied); `win32.js:111` yields `null` | `process-utils.js:137` |
 | `0:u` | pid-0 entry with no `process` and no `agent` name | `process-identity.js:144`, `tests/main/process-identity.test.js:102-110` |
-| **absent entirely** | pid-0 synthetics injected into the batch *after* the stamp — see §2.1 | `scan-loop.js:263, 355-363` |
+| **absent entirely** | only if no stamp site ran (should not happen for scan-batch after attachModels fix) | historical gap: post-batch attachModels |
 
 ### 1.4 Same-name pid-reuse residue
 
@@ -91,30 +91,20 @@ Push channels are enumerated from `src/main/preload.js:28-97`. There is no separ
 | **stats** | `stats-update` | n/a — aggregate counters, no per-agent identity | `main.js:136+`, `scan-loop.js:380` |
 | **scan status** | `scan-status` | n/a — `{scanning: boolean}` | `scan-loop.js:48` |
 
-### 2.1 Where the pid-0 gap comes from
+### 2.1 Pid-0 synthetics and stamp order (updated)
 
-`doProcessScan` order (`scan-loop.js`):
+`doProcessScan` order after the attachModels fix:
 
 ```
-222  await procUtil.enrichWithParentChains(agents, …)   ← the ONLY instanceId stamp
-263  injectDetectedExternalAgents(agents)               ← Kilo Code, Cline, grok, opencode (pid 0)
-294  sendToRenderer('scan-batch', { agents, … })
-322  await enrichWithLocalModels(agents)                ← Ollama / LM Studio (pid 0)
+  enrichWithParentChains(agents)          ← stamp scanner agents (instanceId)
+  injectDetectedExternalAgents(agents)    ← stamp IDE/WSL pid-0 (identify agent name)
+  enrichWithLocalModels / attachModels    ← stamp Ollama/LM Studio pid-0; attach models
+  sendToRenderer('scan-batch', { agents })
 ```
 
-Two distinct consequences, and they are not the same:
-
-- Agents injected at **263** *do* reach the renderer and carry **no `instanceId`**.
-- Agents pushed at **322** (`attachModels`, `scan-loop.js:355-363`) are appended *after*
-  the IPC send has already serialised the array. The next tick's `scanner.scanProcesses()`
-  returns a fresh array, so they are dropped and re-appended after the send again.
-  `sendToRenderer` is a direct, synchronous `mainWindow.webContents.send`
-  (`main.js:175-183`), so the structured clone happens at the call — a later mutation of the
-  same array cannot reach it. **They never reach the renderer through `scan-batch` at all.**
-  They survive only in
-  `latestAgents` (`main.js:354-356`), which is read by the file/network scans and by the
-  kill/suspend/resume pid guard (`ipc-handlers.js:400,415,430`). `getLatestLocalModels`
-  (`scan-loop.js:475`) is exported and has no consumer anywhere in `src/`.
+Historical defect (closed): attachModels ran *after* sendToRenderer, so local-LLM
+synthetics never rode the structured clone and carried no instanceId. Injected IDE/WSL
+agents now stamp at inject; local LLM stamps at attach before the batch.
 
 ### 2.2 Audit entries (renderer reads these via `get-audit-entries-before`)
 
@@ -450,10 +440,12 @@ correct with only steps `1..k` applied.
     of scope for a correctness migration, listed so it is not mistaken for a leftover.
 
 **Deliberately excluded from the order:** `resource-usage` (§2, `preload.js:88-92` is not
-subscribed by any renderer file — decide whether to wire or delete before keying it) and
-`attachModels` (`scan-loop.js:340-364`, whose agents never reach `scan-batch`, §2.1). Both
-are pre-existing defects, not identity-key work; keying them would make them look
-intentional.
+subscribed by any renderer file — decide whether to wire or delete before keying it).
+
+**attachModels (local LLM) — FIXED:** `enrichWithLocalModels` runs after
+`injectDetectedExternalAgents` and **before** `scan-batch`. Synthetics are stamped with
+`identify({ pid: 0, agent: name })` (space 2); existing agents keep a present stamp.
+Post-send attach is gone so the UI/latestAgents receive models + instanceId.
 
 ---
 
