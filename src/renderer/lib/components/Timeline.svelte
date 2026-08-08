@@ -28,6 +28,7 @@
     buildClusters,
     buildLinks,
     buildTicks,
+    timelineDedupKey,
   } from '../utils/timeline-utils.ts';
   import TimelineCanvas from './TimelineCanvas.svelte';
   import TimelineControls from './TimelineControls.svelte';
@@ -117,8 +118,12 @@
   // ═══ DERIVED DATA ═══
   let allLiveEvents = $derived.by(() => {
     const fileEvs = cachedEvents.flat().map((ev) => ({ ...ev, _type: 'file' }));
+    // Carry stamped instanceId (and pid as metadata) so trajectory/dedup/focus use the
+    // same process identity as the rest of the renderer (C5) — never re-derive from pid.
     const netEvs = cachedNetwork.map((conn) => ({
       agent: conn.agent || 'Unknown',
+      pid: conn.pid,
+      instanceId: conn.instanceId ?? null,
       timestamp: conn.timestamp || Date.now(),
       _type: 'network',
       flagged: !!conn.flagged,
@@ -130,8 +135,10 @@
     // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const seen = new Set();
     const merged = [];
+    // Ordinal is only for null-identity uniqueness — process-owned keys use instanceId.
+    let ordinal = 0;
     for (const ev of [...historicalEvents, ...allLiveEvents]) {
-      const key = `${ev.timestamp}|${ev.agent}|${ev._type}`;
+      const key = timelineDedupKey(ev, ordinal++);
       if (!seen.has(key)) {
         seen.add(key);
         merged.push(ev);

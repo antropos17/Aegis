@@ -220,11 +220,11 @@ renderer therefore sees the durable key format directly.
 | 4.3.25 | `ThreatAnalysis.svelte:16-18` | `counts[a.name] = (counts[a.name] \|\| 0) + 1` |
 | 4.3.26 | `Header.svelte:17` | `new Set($enrichedAgents.map(a => a.name)).size` |
 | 4.3.27 | `FeedFilters.svelte:22` | `[...new Set(cachedAgents.map(a => a.name))]` |
-| 4.3.28 | `Timeline.svelte:133` | `` key = `${ev.timestamp}|${ev.agent}|${ev._type}` `` |
-| 4.3.29 | `Timeline.svelte` *(closed, step 8 focus write)* | was `focusedAgentPid.set(dot.pid)` → `focusInstanceId(dot)` into `focusedAgentInstanceId` (timeline agentKey paths remain step 9) |
-| 4.3.30 | `timeline-utils.ts:344-349` | `agent: ev.agent \|\| 'Unknown'`, `pid: ev.pid \|\| null`, `instanceId: ev.instanceId` |
-| 4.3.31 | `timeline-utils.ts:369, 376` | `agentKey: agents.length === 1 ? agents[0] : null` — the **name** |
-| 4.3.32 | `timeline-utils.ts:394-400` | `lastByAgent[dot.agentKey]` — connection lines |
+| 4.3.28 | `Timeline.svelte` *(closed, step 9)* | was `` `${ts}\|${agent}\|${_type}` `` → `timelineDedupKey(ev, ordinal)` |
+| 4.3.29 | `Timeline.svelte` *(closed, step 8+9)* | focus write: `focusInstanceId(dot)`; trajectory: instanceId agentKey |
+| 4.3.30 | `timeline-utils.ts` | display `agent` / metadata `pid`; identity `instanceId` |
+| 4.3.31 | `timeline-utils.ts` *(closed, step 9)* | was name `agentKey` → `clusterTrajectoryKey` (stamped instanceId) |
+| 4.3.32 | `timeline-utils.ts` *(closed, step 9)* | `buildLinks` walks instanceId agentKey only |
 | 4.3.33 | `App.svelte` *(closed, step 8)* | was `find(a => a.pid === pid)` → `resolveSelectedAgent(…, selectedAgentInstanceId)` |
 
 `NetworkPanel.svelte:106, 155` keys connections on
@@ -299,13 +299,17 @@ instance acknowledges every instance (`acknowledged.ts:17`), and
 `blocklistAdd({signature: agentKey})` with no pid creates an any-PID watchlist entry
 (`blocklist.js:195`: `entry.pid === null` matches every pid of that signature).
 
-### C5 — collide — timeline joins two instances into one trajectory
+### C5 — CLOSED (step 9) — timeline joins two instances into one trajectory
 
-`timeline-utils.ts:376` sets `agentKey` to the agent **name**, and `:394-400` draws
-connection lines between consecutive dots sharing that key. Two instances of the same agent
-produce a single interleaved path. Separately, `Timeline.svelte:133` dedups on
-`` `${ev.timestamp}|${ev.agent}|${ev._type}` `` — two instances acting in the same
-millisecond with the same type lose one event.
+The mechanism was: `buildClusters` set `agentKey` to the display name, and `buildLinks`
+drew paths on that key; `Timeline.svelte` deduped on `` `${timestamp}|${agent}|${_type}` ``.
+Two same-name instances shared one path and one dedup bucket.
+
+**Fix:** trajectory `agentKey` and cluster `instanceId` are the shared stamped
+`instanceId` only (`clusterTrajectoryKey`); missing/mixed → null (visible, no path).
+Dedup uses `timelineDedupKey` (instanceId segment, or unique ordinal when unowned so
+nulls do not collapse). Live network events carry `conn.instanceId`. No name/pid
+fallback.
 
 ### C6 — CLOSED (steps 4–5) — the event index was keyed on a recyclable pid
 
@@ -420,10 +424,12 @@ correct with only steps `1..k` applied.
    kill/suspend pid guards (`ipc-handlers.js`) are unchanged — out of renderer step 8.
    **Changes what the user sees.**
 
-9. **Timeline identity.** `timeline-utils.ts:376` sets `agentKey` from `instanceId` when
-   present, falling back to the name for historical audit rows that never carried one
-   (§2.2); `Timeline.svelte:133`'s dedup key gains the instance segment. **Changes what the
-   user sees** — two instances draw two paths. Closes **C5**.
+9. **DONE — Timeline identity (C5).** `agentKey` / cluster process identity is stamped
+   `instanceId` only (`clusterTrajectoryKey`); no name fallback for historical rows —
+   unowned events stay visible with `agentKey: null` and no path. Dedup is
+   `timelineDedupKey` (instance segment, or unique ordinal when unowned). Live network
+   events carry `instanceId`. Focus remains `focusInstanceId(dot)` (step 8). **Changes
+   what the user sees** — two instances draw two paths. Closes **C5**.
 
 10. **Acknowledgement per instance.** `AgentActions.svelte:25` derives `agentKey` from
     `agent.instanceId`; `acknowledged.ts` is unchanged (already `Set<string>`). The

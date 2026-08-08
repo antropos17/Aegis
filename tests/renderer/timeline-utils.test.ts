@@ -10,7 +10,12 @@ import { describe, it, expect } from 'vitest';
 import {
   auditToTimelineEvent,
   buildClusters,
+  buildLinks,
   formatAttribution,
+  timelineDedupKey,
+  timelineTrajectoryKey,
+  clusterTrajectoryKey,
+  readTimelineInstanceId,
   UNKNOWN_SOURCE_LABEL,
 } from '../../src/renderer/lib/utils/timeline-utils.ts';
 
@@ -108,7 +113,9 @@ describe('auditToTimelineEvent — Event Schema v1 fields survive', () => {
     expect(dot.count).toBe(2);
     expect(dot.pid).toBeNull();
     expect(dot.schemaVersion).toBeUndefined();
-    expect(dot.instanceId).toBeUndefined();
+    // Mixed stamps → no shared process identity (null, not a picked member's id).
+    expect(dot.instanceId).toBeNull();
+    expect(dot.agentKey).toBeNull();
   });
 });
 
@@ -209,6 +216,198 @@ describe('auditToTimelineEvent — pre-v1 entries are unchanged', () => {
 
     expect(ev.attribution).toBeNull();
     expect(formatAttribution(ev.attribution)).toBe('');
+  });
+});
+
+describe('timeline identity — C5 / IDENTITY-RECON step 9', () => {
+  // Trajectory and dedup used the display name (`agentKey = agents[0]`, dedup
+  // `timestamp|agent|_type`). Two Claude Code instances shared one path and one
+  // dedup bucket. Identity is now stamped instanceId only — never name or pid.
+
+  const ID_A = '5010:start-A';
+  const ID_B = '7440:start-B';
+  const ID_REUSE_A = '1234:start-A';
+  const ID_REUSE_B = '1234:start-B';
+
+  it('same-name concurrent instances get distinct trajectory keys and no shared link', () => {
+    // Same display name, different instanceIds, far enough in x to be separate dots
+    // (buildLinks only draws when |dx| > 3).
+    const events = [
+      clusterable({
+        agent: 'Claude Code',
+        instanceId: ID_A,
+        timestamp: 1_000_000,
+        pid: 5010,
+      }),
+      clusterable({
+        agent: 'Claude Code',
+        instanceId: ID_B,
+        timestamp: 1_000_050,
+        pid: 7440,
+      }),
+    ];
+    const clusters = buildClusters(events, tsToX);
+    expect(clusters).toHaveLength(2);
+    expect(clusters[0].agentKey).toBe(ID_A);
+    expect(clusters[1].agentKey).toBe(ID_B);
+    expect(clusters[0].agentKey).not.toBe(clusters[1].agentKey);
+    // Display name is still the presentation string — not the path key.
+    expect(clusters[0].agent).toBe('Claude Code');
+    expect(clusters[1].agent).toBe('Claude Code');
+    // No connection line between different instances (would have linked under name-keyed C5).
+    expect(buildLinks(clusters)).toHaveLength(0);
+  });
+
+  it('same-name events that cluster still do not share a trajectory key when instanceIds differ', () => {
+    // OLD bug: agentKey became 'Claude Code' because both names matched.
+    const [dot] = buildClusters(
+      [
+        clusterable({ agent: 'Claude Code', instanceId: ID_A }),
+        clusterable({ agent: 'Claude Code', instanceId: ID_B }),
+      ],
+      tsToX,
+    );
+    expect(dot.count).toBe(2);
+    expect(dot.agentKey).toBeNull();
+    expect(dot.instanceId).toBeNull();
+  });
+
+  it('PID reuse: equivalent-looking events with different instanceIds never dedup', () => {
+    const a = {
+      timestamp: 1_700_000_000_000,
+      agent: 'Claude Code',
+      pid: 1234,
+      instanceId: ID_REUSE_A,
+      _type: 'file' as const,
+    };
+    const b = {
+      timestamp: 1_700_000_000_000,
+      agent: 'Claude Code',
+      pid: 1234,
+      instanceId: ID_REUSE_B,
+      _type: 'file' as const,
+    };
+    // Under the old `timestamp|agent|_type` key these would be one entry.
+    expect(timelineDedupKey(a, 0)).not.toBe(timelineDedupKey(b, 1));
+    const seen = new Set<string>();
+    const kept: (typeof a)[] = [];
+    let ord = 0;
+    for (const ev of [a, b]) {
+      const key = timelineDedupKey(ev, ord++);
+      if (!seen.has(key)) {
+        seen.add(key);
+        kept.push(ev);
+      }
+    }
+    expect(kept).toHaveLength(2);
+  });
+
+  it('same-instance dedup still collapses true duplicates', () => {
+    const first = {
+      timestamp: 1_700_000_000_000,
+      agent: 'Claude Code',
+      instanceId: ID_A,
+      _type: 'file' as const,
+    };
+    const duplicate = { ...first };
+    expect(timelineDedupKey(first, 0)).toBe(timelineDedupKey(duplicate, 1));
+    const seen = new Set<string>();
+    let kept = 0;
+    let ord = 0;
+    for (const ev of [first, duplicate]) {
+      const key = timelineDedupKey(ev, ord++);
+      if (!seen.has(key)) {
+        seen.add(key);
+        kept++;
+      }
+    }
+    expect(kept).toBe(1);
+  });
+
+  it('null-identity events do not inherit a name/pid key and do not collapse each other', () => {
+    const u1 = {
+      timestamp: 1_700_000_000_000,
+      agent: '',
+      pid: null,
+      instanceId: null,
+      _type: 'file' as const,
+    };
+    const u2 = {
+      timestamp: 1_700_000_000_000,
+      agent: '',
+      pid: null,
+      instanceId: null,
+      _type: 'file' as const,
+    };
+    expect(timelineTrajectoryKey(u1)).toBeNull();
+    expect(readTimelineInstanceId(u1)).toBeNull();
+    // Shared null bucket would suppress one of them — ordinal keeps both.
+    expect(timelineDedupKey(u1, 0)).not.toBe(timelineDedupKey(u2, 1));
+    const [dot] = buildClusters(
+      [
+        clusterable({ agent: '', instanceId: null }),
+        clusterable({ agent: 'Claude Code', instanceId: null }),
+      ],
+      tsToX,
+    );
+    // Unowned cluster: no trajectory ownership, even if a display name is present.
+    expect(dot.agentKey).toBeNull();
+    expect(clusterTrajectoryKey([{ instanceId: null }, { instanceId: null }])).toBeNull();
+  });
+
+  it('single stamped instance keeps trajectory, display label, and focusable instanceId', () => {
+    const [dot] = buildClusters(
+      [clusterable({ agent: 'opencode', instanceId: ID_A, pid: 200, timestamp: 1_000_000 })],
+      tsToX,
+    );
+    expect(dot.count).toBe(1);
+    expect(dot.agent).toBe('opencode');
+    expect(dot.agentKey).toBe(ID_A);
+    expect(dot.instanceId).toBe(ID_A);
+    expect(timelineTrajectoryKey({ instanceId: ID_A })).toBe(ID_A);
+    // Same-instance multi-event cluster keeps the shared stamp (focus-safe).
+    const [same] = buildClusters(
+      [
+        clusterable({ agent: 'opencode', instanceId: ID_A }),
+        clusterable({ agent: 'opencode', instanceId: ID_A }),
+      ],
+      tsToX,
+    );
+    expect(same.count).toBe(2);
+    expect(same.agentKey).toBe(ID_A);
+    expect(same.instanceId).toBe(ID_A);
+  });
+
+  it('focus integration: trajectory key matches the instanceId focusInstanceId would read', () => {
+    // Step 8 Timeline focus uses focusInstanceId(dot) → stamped instanceId only.
+    const [dotA] = buildClusters(
+      [clusterable({ agent: 'Claude Code', instanceId: ID_A, pid: 10 })],
+      tsToX,
+    );
+    const [dotB] = buildClusters(
+      [clusterable({ agent: 'Claude Code', instanceId: ID_B, pid: 10 })],
+      tsToX,
+    );
+    expect(dotA.instanceId).toBe(ID_A);
+    expect(dotB.instanceId).toBe(ID_B);
+    // Same pid, different lifetimes — focus targets must stay distinct.
+    expect(dotA.instanceId).not.toBe(dotB.instanceId);
+    expect(dotA.agentKey).toBe(dotA.instanceId);
+    expect(dotB.agentKey).toBe(dotB.instanceId);
+  });
+
+  it('buildLinks draws a path only across the same instanceId', () => {
+    const clusters = buildClusters(
+      [
+        clusterable({ agent: 'Claude Code', instanceId: ID_A, timestamp: 1_000_000 }),
+        clusterable({ agent: 'Claude Code', instanceId: ID_A, timestamp: 1_000_100 }),
+        clusterable({ agent: 'Claude Code', instanceId: ID_B, timestamp: 1_000_050 }),
+      ],
+      tsToX,
+    );
+    const links = buildLinks(clusters);
+    // Two dots of ID_A are linked; ID_B does not join that path.
+    expect(links).toHaveLength(1);
   });
 });
 
