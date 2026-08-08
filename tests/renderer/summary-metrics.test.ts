@@ -1,10 +1,12 @@
 /**
- * SummaryCards metrics — F-W02 Total Agents, F-W01 Avg Risk Score.
+ * SummaryCards metrics — F-W02 Total Agents, F-W01 Avg Risk Score, F-W03 Events/min.
  */
 import { describe, it, expect } from 'vitest';
 import {
   countUniqueAgents,
   averageRiskScore,
+  eventsPerMinute,
+  EVENTS_PER_MIN_WINDOW_MS,
 } from '../../src/renderer/lib/utils/summary-metrics.ts';
 
 describe('countUniqueAgents (F-W02)', () => {
@@ -103,5 +105,68 @@ describe('averageRiskScore (F-W01)', () => {
     const after = averageRiskScore([{ riskScore: 10 }, { riskScore: 50 }]);
     expect(before).toBe(10);
     expect(after).toBe(30);
+  });
+});
+
+describe('eventsPerMinute (F-W03)', () => {
+  const NOW = 1_700_000_060_000;
+  const W = EVENTS_PER_MIN_WINDOW_MS; // 60_000
+  const recent = (offsetMs: number) => ({ timestamp: NOW + offsetMs });
+
+  it('returns 0 for no events', () => {
+    expect(eventsPerMinute([], NOW)).toBe(0);
+  });
+
+  it('counts one recent event', () => {
+    expect(eventsPerMinute([recent(-1_000)], NOW)).toBe(1);
+  });
+
+  it('counts multiple recent events', () => {
+    expect(eventsPerMinute([recent(-1_000), recent(-2_000), recent(-3_000)], NOW)).toBe(3);
+  });
+
+  it('excludes events older than the rolling window', () => {
+    expect(eventsPerMinute([recent(-W - 1), recent(-500)], NOW)).toBe(1);
+  });
+
+  it('includes the exact lower boundary (timestamp === now - windowMs)', () => {
+    // Inclusive lower bound: age-out is strictly older than the window.
+    expect(eventsPerMinute([recent(-W)], NOW)).toBe(1);
+  });
+
+  it('includes an event at exactly now', () => {
+    expect(eventsPerMinute([recent(0)], NOW)).toBe(1);
+  });
+
+  it('excludes future timestamps (clock skew cannot inflate the rate)', () => {
+    expect(eventsPerMinute([recent(1), recent(5_000), recent(-100)], NOW)).toBe(1);
+  });
+
+  it('ignores invalid / non-finite timestamps and non-objects', () => {
+    expect(
+      eventsPerMinute(
+        [
+          recent(-100),
+          { timestamp: NaN },
+          { timestamp: Infinity },
+          { timestamp: 'nope' },
+          null,
+          42,
+          {},
+        ],
+        NOW,
+      ),
+    ).toBe(1);
+  });
+
+  it('ages out when the same event list is viewed with a later now (no store mutation)', () => {
+    const events = [{ timestamp: NOW - 10_000 }];
+    expect(eventsPerMinute(events, NOW)).toBe(1);
+    // Advance wall clock past the window without changing the event array.
+    expect(eventsPerMinute(events, NOW + W + 1)).toBe(0);
+  });
+
+  it('flattens one level of nested event batches', () => {
+    expect(eventsPerMinute([[recent(-100), recent(-200)], recent(-300)], NOW)).toBe(3);
   });
 });

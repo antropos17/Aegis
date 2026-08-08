@@ -16,9 +16,10 @@ Version 0.10.0-alpha. 110 agents / 262 signatures in database. 73 rules across 8
 
 **What remains (step 11 optional; SummaryCards partial):**
 - **Identity hardening CLOSED** through residual buildInstanceId cleanup (`5809e91`).
-- **SummaryCards F-W02 + F-W01 FIXED:** Total Agents = unique display names via `countUniqueAgents` (name/agent field); Avg Risk Score = mean of enriched `riskScore` (not anomalies). Helpers in `summary-metrics.ts`.
+- **SummaryCards F-W02 + F-W01 FIXED:** Total Agents = unique display names; Avg Risk Score = mean of enriched `riskScore`.
+- **SummaryCards F-W03 FIXED:** Events/min uses pure `eventsPerMinute(events, now)` with shared `tick`/`startTick` so the rolling 60s window ages without new events.
 - **Step 11** — optional per-instance UI roll-up (deferred).
-- **SummaryCards remaining:** F-W03 Events/min, Sensitive Files label, System Uptime semantics.
+- **SummaryCards remaining:** Sensitive Files label, System Uptime semantics.
 
 **Open debts from step 7 — measurements for Bench to settle, not diagnosed bugs:**
 - **pid-0 synthetics from `attachModels` no longer reach baselines at all.** They live in `latestAgents` and are seen by the file and network scans, but no stamp site ever gives them an `instanceId` (`scan-loop.js` appends them AFTER the `scan-batch` send — IDENTITY-RECON §2.1), so the null-key policy drops every observation. Measure what they used to contribute; the fix, if wanted, is a stamp in `attachModels`, the same one `injectDetectedExternalAgents` already does.

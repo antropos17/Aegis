@@ -2,9 +2,13 @@
  * @file summary-metrics.ts — Pure metric helpers for SummaryCards
  * @module renderer/utils/summary-metrics
  * @description Keeps Total Agents / Avg Risk Score free of wrong-field and
- *   anomaly/risk mix-ups (CORRECTNESS F-W02 / F-W01).
+ *   anomaly/risk mix-ups (CORRECTNESS F-W02 / F-W01), and Events/min free of
+ *   hidden Date.now() (F-W03 — wall clock is an explicit `now` argument).
  * @since 0.10.0
  */
+
+/** Rolling window for "Events / min" (count of events in the last minute). */
+export const EVENTS_PER_MIN_WINDOW_MS = 60_000;
 
 /**
  * Count distinct agents for the "Total Agents" card.
@@ -50,4 +54,53 @@ export function averageRiskScore(agents: ReadonlyArray<{ readonly riskScore?: nu
   }
   if (scores.length === 0) return 0;
   return Math.round(scores.reduce((sum, s) => sum + s, 0) / scores.length);
+}
+
+/**
+ * Count of valid events whose timestamp falls in the rolling window
+ * `[now - windowMs, now]` (inclusive on both ends).
+ *
+ * Pure: no internal `Date.now()`. Future timestamps (`ts > now`) are excluded so
+ * clock skew cannot inflate the rate. Nested arrays (legacy event batches) are
+ * flattened one level.
+ *
+ * @param events - Event list (possibly nested once)
+ * @param now - Wall-clock ms (caller supplies reactive clock)
+ * @param windowMs - Window length; default 60_000
+ * @returns Non-negative integer count (never NaN)
+ * @since 0.10.0
+ */
+export function eventsPerMinute(
+  events: ReadonlyArray<unknown>,
+  now: number,
+  windowMs: number = EVENTS_PER_MIN_WINDOW_MS,
+): number {
+  if (!Array.isArray(events) || events.length === 0) return 0;
+  if (!Number.isFinite(now) || !Number.isFinite(windowMs) || windowMs < 0) return 0;
+  const cutoff = now - windowMs;
+  let count = 0;
+  for (const item of events) {
+    if (Array.isArray(item)) {
+      for (const inner of item) {
+        if (isEventInWindow(inner, now, cutoff)) count += 1;
+      }
+      continue;
+    }
+    if (isEventInWindow(item, now, cutoff)) count += 1;
+  }
+  return count;
+}
+
+/**
+ * @param ev - Candidate event
+ * @param now - Window end (inclusive)
+ * @param cutoff - Window start (inclusive)
+ * @returns Whether the event contributes to Events/min
+ */
+function isEventInWindow(ev: unknown, now: number, cutoff: number): boolean {
+  if (ev === null || typeof ev !== 'object') return false;
+  const ts = (ev as { timestamp?: unknown }).timestamp;
+  if (typeof ts !== 'number' || !Number.isFinite(ts)) return false;
+  if (ts > now) return false;
+  return ts >= cutoff;
 }

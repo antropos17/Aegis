@@ -1,7 +1,13 @@
 <script>
   import { events, stats } from '../stores/ipc.js';
   import { enrichedAgents } from '../stores/risk.js';
-  import { countUniqueAgents, averageRiskScore } from '../utils/summary-metrics.ts';
+  import { tick, startTick } from '../stores/tick.ts';
+  import {
+    countUniqueAgents,
+    averageRiskScore,
+    eventsPerMinute,
+    EVENTS_PER_MIN_WINDOW_MS,
+  } from '../utils/summary-metrics.ts';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
@@ -20,6 +26,17 @@
     localStats = $stats;
   });
 
+  // Shared 1s clock so Events/min ages out when the event store is quiet (F-W03).
+  $effect(() => {
+    if (!active) return;
+    return startTick();
+  });
+
+  let now = $derived.by(() => {
+    $tick; // reactive dependency — re-read wall clock each second
+    return Date.now();
+  });
+
   /* ── Derived metrics ── */
   // Distinct display names (enriched `name` / raw `agent`) — not instanceId count.
   let agentCount = $derived(countUniqueAgents(localAgents));
@@ -27,12 +44,8 @@
   // Mean of riskScore from the same domain AgentCard uses — never anomaly scores.
   let avgRiskScore = $derived(averageRiskScore(localAgents));
 
-  let eventsPerMin = $derived.by(() => {
-    const cutoff = Date.now() - 60_000;
-    return localEvents.filter(
-      (ev) => typeof ev === 'object' && ev !== null && ev.timestamp >= cutoff,
-    ).length;
-  });
+  // Rolling 60s count; `now` is explicit so aging does not require a new event.
+  let eventsPerMin = $derived(eventsPerMinute(localEvents, now, EVENTS_PER_MIN_WINDOW_MS));
 
   let sensitiveCount = $derived(localStats.totalSensitive || 0);
 
