@@ -202,9 +202,9 @@ renderer therefore sees the durable key format directly.
 | 4.3.7 | `AgentCard.svelte:87-91` | `agent.instanceId && r.instanceId ? r.instanceId === agent.instanceId : r.pid === agent.pid` (token match; selection is not this path) |
 | 4.3.8 | `AgentCard.svelte` *(closed, step 8)* | was `expandedPid = … agent.pid` → `toggleInstanceSelection(…)` |
 | 4.3.9 | `AgentCard.svelte` *(closed, step 8)* | was `onViewDetails` → `agent.pid` → `toggleInstanceSelection(null, agent)` |
-| 4.3.10 | `AgentActions.svelte:25` | `agentKey = agent.name \|\| agent.agent \|\| String(agent.pid ?? '')` |
-| 4.3.11 | `AgentActions.svelte:28, 67` | `$acknowledgedAgents.has(agentKey)` / `toggleAcknowledged(agentKey)` |
-| 4.3.12 | `AgentActions.svelte:41` | `blocklistAdd({ signature: agentKey })` — no pid |
+| 4.3.10 | `AgentActions.svelte` *(closed, step 10)* | was unified `agentKey` → `ackId` (instanceId) + `watchSig` (name) |
+| 4.3.11 | `AgentActions.svelte` *(closed, step 10)* | `$acknowledgedAgents.has(ackId)` / `toggleAcknowledged(ackId)` |
+| 4.3.12 | `AgentActions.svelte` | `blocklistAdd({ signature: watchSig, pid: null })` — durable name, intentional |
 | 4.3.13 | `PermissionsGrid.svelte:55-57` | `seen.has(a.instanceKey)` |
 | 4.3.14 | `PermissionsGrid.svelte:78-88` | `Object.keys(permissions)`; `key.split('::')[0]`, `[1]` |
 | 4.3.15 | `PermissionsGrid.svelte:95` | `selectedKey.includes('::') && !!permissions[selectedKey]` |
@@ -292,12 +292,16 @@ not displayed. `Radar.svelte:31-40`, `Reports.svelte:35-55`, `ThreatAnalysis.sve
 
 This is intentional grouping, not a keying bug — but it is why C1 is invisible to the user.
 
-### C4 — collide — acknowledgement and watchlist are per-name
+### C4 — CLOSED (ack half, step 10) — acknowledgement was per-name; watchlist stays name
 
-`AgentActions.svelte:25` derives `agentKey` from the display name. Acknowledging one
-instance acknowledges every instance (`acknowledged.ts:17`), and
-`blocklistAdd({signature: agentKey})` with no pid creates an any-PID watchlist entry
-(`blocklist.js:195`: `entry.pid === null` matches every pid of that signature).
+The mechanism was: one `agentKey` (display name, pid fallback) fed both
+`toggleAcknowledged` and `blocklistAdd`, so acknowledging one Claude Code marked every
+instance, and watchlist shared that key.
+
+**Fix:** `acknowledgementInstanceId(agent)` = stamped `instanceId` only (session
+`Set` in `acknowledged.ts`); `watchlistSignature(agent)` = display name only for
+durable `blocklistAdd({ signature, pid: null })`. Same-name restart keeps watchlist,
+loses acknowledgement. Null instanceId → ack button disabled / no-op.
 
 ### C5 — CLOSED (step 9) — timeline joins two instances into one trajectory
 
@@ -431,12 +435,11 @@ correct with only steps `1..k` applied.
    events carry `instanceId`. Focus remains `focusInstanceId(dot)` (step 8). **Changes
    what the user sees** — two instances draw two paths. Closes **C5**.
 
-10. **Acknowledgement per instance.** `AgentActions.svelte:25` derives `agentKey` from
-    `agent.instanceId`; `acknowledged.ts` is unchanged (already `Set<string>`). The
-    `blocklistAdd` call at `:41` **stays on the name** — the watchlist is durable
-    (`blocklist.js:124`) and an any-PID signature entry is its intended semantics; if
-    per-instance flagging is wanted it is a separate feature, not a key migration.
-    **Changes what the user sees.** Closes the acknowledgement half of **C4**.
+10. **DONE — Acknowledgement per instance (C4 ack half).** `acknowledgementInstanceId`
+    reads stamped `instanceId` only; session store keys match. Watchlist uses
+    `watchlistSignature` (display name) + `pid: null` any-PID entry — durable by design,
+    not migrated to instanceId. Null stamp → ack no-op / disabled. **Changes what the
+    user sees.** Closes the acknowledgement half of **C4**.
 
 11. **Per-name roll-up becomes a choice, not a default.** `AgentPanel.svelte:21-47`,
     `agent-stats-utils.ts:33-57`, `Radar`, `Reports`, `ThreatAnalysis`, `Header`,
@@ -472,7 +475,7 @@ intentional.
 | `tests/main/process-identity.test.js` | Complete for the three value spaces. Step 2 needs a new assertion at the *batch* level (every agent in `scan-batch` has a non-empty `instanceId`), which belongs in a scan-loop test, not here. |
 | `tests/main/file-watcher.test.js:362-388`, `440-445` | The `handleKey` migration template — mirror its structure for step 4's `eventsByInstance`. |
 | `tests/main/audit-schema-v1.test.js:79-87`, `117`, `224` | Asserts `instanceId: null` for the types listed in §2.2. Step 3 flips file and network to real values; these assertions must be updated deliberately, not deleted. Note `:79` passes `'0:Kilo Code'` verbatim — `identify()` would normalise it to `0:kilo-code`, so step 2 changes what a real detector emits even though this test (which injects the value) keeps passing. |
-| `tests/renderer/acknowledged.test.js` | Key-agnostic today (`Set<string>`); step 10 needs an instance-keyed case. |
+| `tests/renderer/acknowledged.test.js` | Keys are stamped instanceIds (step 10); `agent-action-keys.test.ts` pins the ack/watchlist split. |
 | `tests/renderer/grouped-feed-utils.test.ts` | Groups by `ev.agent`; unaffected until step 11, then must be rewritten. |
 
 ### 7.3 Missing coverage that the migration needs

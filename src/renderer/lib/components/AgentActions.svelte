@@ -4,46 +4,60 @@
    * @description Always-visible per-agent action row on AgentCard. Three advisory,
    *   UI-only actions — none stop, restrict, sandbox, or interfere with any
    *   process:
-   *     • Add to watchlist — flags the agent so a future scan raises an alert when
-   *       it reappears (alert-only; never acts at the OS level).
+   *     • Add to watchlist — durable name signature (alert-only; any-PID).
    *     • View details — expands the card's detail panel.
-   *     • Acknowledge — a session-only "I have seen this" triage mark.
+   *     • Acknowledge — session-only triage mark keyed by stamped instanceId (C4).
    * @since v0.10.0-alpha
    */
   import { addToast } from '../stores/toast.js';
   import { acknowledgedAgents, toggleAcknowledged } from '../stores/acknowledged.js';
+  import { acknowledgementInstanceId, watchlistSignature } from '../utils/agent-action-keys.ts';
 
   /**
    * @type {{
-   *   agent: { name?: string, agent?: string, pid?: number },
+   *   agent: {
+   *     name?: string,
+   *     agent?: string,
+   *     pid?: number,
+   *     instanceId?: string | null,
+   *   },
    *   onViewDetails: () => void,
    * }}
    */
   let { agent, onViewDetails } = $props();
 
-  /** Stable key for this agent — its display name (falls back to pid). */
-  let agentKey = $derived(agent.name || agent.agent || String(agent.pid ?? ''));
-
-  /** Reactive: is this agent currently acknowledged? */
-  let acknowledged = $derived($acknowledgedAgents.has(agentKey));
+  /**
+   * Live acknowledgement identity — stamped instanceId only. Never name/pid.
+   * Null when the agent carries no stamp (ack button stays inactive / no-op).
+   */
+  let ackId = $derived(acknowledgementInstanceId(agent));
 
   /**
-   * Add this agent to the alert-only watchlist via the existing IPC bridge.
-   * Passes `pid: null` so the signature (every instance of the agent) is flagged.
-   * Alert-only — this raises an alert if the agent reappears and nothing more.
+   * Durable watchlist signature — display name only (main/blocklist any-PID entry).
+   * Intentionally independent of ackId so same-name restarts stay watched without
+   * inheriting the dead instance's acknowledgement.
+   */
+  let watchSig = $derived(watchlistSignature(agent));
+
+  /** Reactive: is THIS process instance currently acknowledged? */
+  let acknowledged = $derived(ackId !== null && $acknowledgedAgents.has(ackId));
+
+  /**
+   * Add this agent name to the alert-only watchlist via the existing IPC bridge.
+   * Passes `pid: null` so every instance of the signature is flagged (durable).
    * @param {MouseEvent} e
    */
   async function addToWatchlist(e) {
     e.stopPropagation();
-    if (!agentKey) return;
+    if (!watchSig) return;
     if (!window.aegis?.blocklistAdd) return;
     const res = await window.aegis.blocklistAdd({
-      signature: agentKey,
+      signature: watchSig,
       pid: null,
       reason: 'Flagged from agent card',
     });
     if (res?.success) {
-      addToast(`Added ${agentKey} to watchlist — alert only`, 'success');
+      addToast(`Added ${watchSig} to watchlist — alert only`, 'success');
     } else {
       addToast(`Could not add to watchlist: ${res?.error ?? 'unknown error'}`, 'error');
     }
@@ -59,14 +73,17 @@
   }
 
   /**
-   * Acknowledge (or clear) this agent — a session-only renderer-side triage mark.
+   * Acknowledge (or clear) this process instance — session-only, instanceId-keyed.
+   * No-op when the agent has no stamped instanceId (no name/pid fallback).
    * @param {MouseEvent} e
    */
   function acknowledge(e) {
     e.stopPropagation();
-    const now = toggleAcknowledged(agentKey);
+    if (ackId === null) return;
+    const now = toggleAcknowledged(ackId);
+    const label = watchSig || ackId;
     addToast(
-      now ? `Acknowledged ${agentKey}` : `Acknowledgement cleared for ${agentKey}`,
+      now ? `Acknowledged ${label}` : `Acknowledgement cleared for ${label}`,
       'success',
       3000,
     );
@@ -81,6 +98,7 @@
     class:active={acknowledged}
     type="button"
     aria-pressed={acknowledged}
+    disabled={ackId === null}
     onclick={acknowledge}
   >
     {acknowledged ? 'Acknowledged' : 'Acknowledge'}
@@ -114,6 +132,10 @@
     border-color: var(--fancy-border-highlight);
     color: var(--fancy-text-1);
     background: var(--fancy-surface-hover);
+  }
+  .action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
   .action-btn.active {
     border-color: var(--fancy-info);
