@@ -141,15 +141,20 @@ export const tokenCosts: Writable<TokenCostRecord[]> = writable([]);
  */
 export const firstScanDone: Writable<boolean> = writable(false);
 
-/** PID of agent to highlight in AgentPanel (set by Timeline dot click) */
-export const focusedAgentPid: Writable<number | null> = writable(null);
+/**
+ * Canonical `instanceId` of the agent to highlight/scroll in AgentPanel
+ * (Timeline dot click, stats row click). Auto-clears after scroll-into-view.
+ * Never a pid — pid reuse must not transfer focus (IDENTITY-RECON §6 step 8).
+ */
+export const focusedAgentInstanceId: Writable<string | null> = writable(null);
 
 /**
- * PID of the currently selected (expanded) agent card. Persistent across the
- * session — the target for Command Palette kill/suspend actions. Distinct from
- * {@link focusedAgentPid}, which auto-clears after a scroll-into-view.
+ * Canonical `instanceId` of the currently selected (expanded) agent card.
+ * Persistent across the session — Command Palette kill/suspend resolve the live
+ * agent by this key, then use that record's pid for the process action.
+ * Distinct from {@link focusedAgentInstanceId}.
  */
-export const selectedAgentPid: Writable<number | null> = writable(null);
+export const selectedAgentInstanceId: Writable<string | null> = writable(null);
 
 /**
  * True only in a bundle built WITH the demo scenario engine (`npm run build:demo`, and

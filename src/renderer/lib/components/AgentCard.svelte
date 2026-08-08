@@ -5,7 +5,7 @@
    *   trust badge, spotlight hover, and expandable details. [F2.3]
    * @since v0.5.0
    */
-  import { focusedAgentPid, tokenCosts } from '../stores/ipc.js';
+  import { focusedAgentInstanceId, tokenCosts } from '../stores/ipc.js';
   import { eventsByInstance } from '../stores/events-index.ts';
   import AgentCardDetails from './AgentCardDetails.svelte';
   import AgentActions from './AgentActions.svelte';
@@ -14,16 +14,18 @@
   import { getRiskInfo } from '../utils/trust-badge-utils';
   import { addToast } from '../stores/toast.js';
   import { requestStop } from '../stores/process-action.js';
+  import { isAgentSelected, toggleInstanceSelection } from '../utils/agent-selection.ts';
   import { t } from '../i18n/index.js';
 
-  /** @type {{ agent: Object, expandedPid: number|null }} */
-  let { agent, expandedPid = $bindable(null) } = $props();
+  /** @type {{ agent: Object, expandedInstanceId: string|null }} */
+  let { agent, expandedInstanceId = $bindable(null) } = $props();
 
   let blinking = $state(false);
   let threatFlash = $state(false);
   let _prevRiskScore = -1;
   let cardEl = $state(null);
-  let expanded = $derived(expandedPid === agent.pid);
+  // Selection identity is stamped instanceId — never agent.pid (pid reuse).
+  let expanded = $derived(isAgentSelected(expandedInstanceId, agent));
 
   /** Risk info (color, label) derived from agent score */
   let risk = $derived(getRiskInfo(agent.riskScore ?? 0));
@@ -51,17 +53,17 @@
   });
 
   $effect(() => {
-    const pid = $focusedAgentPid;
-    if (pid === null) return;
-    if (pid === agent.pid) {
-      expandedPid = agent.pid;
+    const focusId = $focusedAgentInstanceId;
+    if (focusId === null) return;
+    if (isAgentSelected(focusId, agent)) {
+      expandedInstanceId = focusId;
       blinking = true;
       if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       const t1 = setTimeout(() => {
         blinking = false;
       }, 1200);
       const t2 = setTimeout(() => {
-        focusedAgentPid.set(null);
+        focusedAgentInstanceId.set(null);
       }, 50);
       return () => {
         clearTimeout(t1);
@@ -112,7 +114,8 @@
   });
 
   function toggle() {
-    expandedPid = expanded ? null : agent.pid;
+    // Keyless agents cannot become selected (no pid/name fallback).
+    expandedInstanceId = toggleInstanceSelection(expandedInstanceId, agent);
   }
 
   /**
@@ -215,7 +218,12 @@
 
   {#if lastFile}<div class="activity-hint">{$t('agents.last_file', { file: lastFile })}</div>{/if}
 
-  <AgentActions {agent} onViewDetails={() => (expandedPid = agent.pid)} />
+  <AgentActions
+    {agent}
+    onViewDetails={() => {
+      expandedInstanceId = toggleInstanceSelection(null, agent);
+    }}
+  />
 
   <div class="expand-body">
     <div class="expand-inner">

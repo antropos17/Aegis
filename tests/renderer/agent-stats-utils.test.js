@@ -21,6 +21,7 @@ describe('agent-stats-utils', () => {
       parentEditor: null,
       cwd: null,
       projectName: null,
+      instanceId: '1234:1700000000000',
       instanceKey: 'TestAgent',
       sensitiveFiles: 0,
       unknownDomains: 0,
@@ -42,6 +43,7 @@ describe('agent-stats-utils', () => {
       expect(rows[0].riskScore).toBe(25);
       expect(rows[0].fileCount).toBe(10);
       expect(rows[0].networkCount).toBe(5);
+      expect(rows[0].instanceId).toBe('1234:1700000000000');
     });
 
     it('groups agents by name — takes highest risk', () => {

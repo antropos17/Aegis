@@ -185,8 +185,8 @@ renderer therefore sees the durable key format directly.
 | # | Site | Key expression |
 |---|---|---|
 | 4.2.1 | `stores/events-index.ts` *(closed, step 4)* | was `Map<number, FileEvent[]>` keyed `evt.pid` → `Map<string, FileEvent[]>` keyed `evt.instanceId` (guards: `attribution.status === 'unattributed'` skipped, missing key skipped) |
-| 4.2.2 | `stores/ipc.ts:125` | `focusedAgentPid: Writable<number \| null>` |
-| 4.2.3 | `stores/ipc.ts:132` | `selectedAgentPid: Writable<number \| null>` |
+| 4.2.2 | `stores/ipc.ts` *(closed, step 8)* | was `focusedAgentPid: number` → `focusedAgentInstanceId: string \| null` |
+| 4.2.3 | `stores/ipc.ts` *(closed, step 8)* | was `selectedAgentPid: number` → `selectedAgentInstanceId: string \| null` |
 | 4.2.4 | `stores/acknowledged.ts:17` | `Writable<Set<string>>` of agent **display names** |
 
 ### 4.3 Components and utils — 33 sites
@@ -195,13 +195,13 @@ renderer therefore sees the durable key format directly.
 |---|---|---|
 | 4.3.1 | `AgentPanel.svelte:24-32` | `byName: Map<string, EnrichedAgent[]>` keyed `a.name` |
 | 4.3.2 | `AgentPanel.svelte:57` | `{#each grouped as agent (agent.name)}` |
-| 4.3.3 | `AgentPanel.svelte:58` | `bind:expandedPid={$selectedAgentPid}` — the *representative's* pid |
-| 4.3.4 | `AgentCard.svelte:26` | `expanded = expandedPid === agent.pid` |
-| 4.3.5 | `AgentCard.svelte:54-57` | `$focusedAgentPid === agent.pid` |
+| 4.3.3 | `AgentPanel.svelte` *(closed, step 8)* | was `bind:expandedPid={$selectedAgentPid}` → `bind:expandedInstanceId={$selectedAgentInstanceId}` |
+| 4.3.4 | `AgentCard.svelte` *(closed, step 8)* | was `expandedPid === agent.pid` → `isAgentSelected(expandedInstanceId, agent)` |
+| 4.3.5 | `AgentCard.svelte` *(closed, step 8)* | was `$focusedAgentPid === agent.pid` → `isAgentSelected($focusedAgentInstanceId, agent)` |
 | 4.3.6 | `AgentCard.svelte:82` *(closed, step 4)* | was `$eventsByPid.get(agent.pid)` → `$eventsByInstance.get(agent.instanceId)` |
-| 4.3.7 | `AgentCard.svelte:87-91` | `agent.instanceId && r.instanceId ? r.instanceId === agent.instanceId : r.pid === agent.pid` |
-| 4.3.8 | `AgentCard.svelte:112` | `expandedPid = expanded ? null : agent.pid` |
-| 4.3.9 | `AgentCard.svelte:215` | `onViewDetails={() => (expandedPid = agent.pid)}` |
+| 4.3.7 | `AgentCard.svelte:87-91` | `agent.instanceId && r.instanceId ? r.instanceId === agent.instanceId : r.pid === agent.pid` (token match; selection is not this path) |
+| 4.3.8 | `AgentCard.svelte` *(closed, step 8)* | was `expandedPid = … agent.pid` → `toggleInstanceSelection(…)` |
+| 4.3.9 | `AgentCard.svelte` *(closed, step 8)* | was `onViewDetails` → `agent.pid` → `toggleInstanceSelection(null, agent)` |
 | 4.3.10 | `AgentActions.svelte:25` | `agentKey = agent.name \|\| agent.agent \|\| String(agent.pid ?? '')` |
 | 4.3.11 | `AgentActions.svelte:28, 67` | `$acknowledgedAgents.has(agentKey)` / `toggleAcknowledged(agentKey)` |
 | 4.3.12 | `AgentActions.svelte:41` | `blocklistAdd({ signature: agentKey })` — no pid |
@@ -209,7 +209,7 @@ renderer therefore sees the durable key format directly.
 | 4.3.14 | `PermissionsGrid.svelte:78-88` | `Object.keys(permissions)`; `key.split('::')[0]`, `[1]` |
 | 4.3.15 | `PermissionsGrid.svelte:95` | `selectedKey.includes('::') && !!permissions[selectedKey]` |
 | 4.3.16 | `PermissionsGrid.svelte:112, 126-133` | `allEntries.find(e => e.key === selectedKey)`; `saveInstancePermissions({agentName, parentEditor, cwd})` |
-| 4.3.17 | `AgentStatsPanel.svelte:71-72` | `focusedAgentPid.set(pid)` — `row.pid` = representative's pid |
+| 4.3.17 | `AgentStatsPanel.svelte` *(closed, step 8)* | was `focusedAgentPid.set(pid)` → `focusedAgentInstanceId.set(focusInstanceId(row))` |
 | 4.3.18 | `AgentStatsPanel.svelte:97` | `{#each rows as row (row.name)}` |
 | 4.3.19 | `agent-stats-utils.ts:34-41` | `byName: Map<string, EnrichedAgent[]>` keyed `a.name` |
 | 4.3.20 | `grouped-feed-utils.ts:123` | `r.filter(ev => ev.agent === agentFilter)` |
@@ -221,11 +221,11 @@ renderer therefore sees the durable key format directly.
 | 4.3.26 | `Header.svelte:17` | `new Set($enrichedAgents.map(a => a.name)).size` |
 | 4.3.27 | `FeedFilters.svelte:22` | `[...new Set(cachedAgents.map(a => a.name))]` |
 | 4.3.28 | `Timeline.svelte:133` | `` key = `${ev.timestamp}|${ev.agent}|${ev._type}` `` |
-| 4.3.29 | `Timeline.svelte:274` | `if (dot.pid) focusedAgentPid.set(dot.pid)` |
+| 4.3.29 | `Timeline.svelte` *(closed, step 8 focus write)* | was `focusedAgentPid.set(dot.pid)` → `focusInstanceId(dot)` into `focusedAgentInstanceId` (timeline agentKey paths remain step 9) |
 | 4.3.30 | `timeline-utils.ts:344-349` | `agent: ev.agent \|\| 'Unknown'`, `pid: ev.pid \|\| null`, `instanceId: ev.instanceId` |
 | 4.3.31 | `timeline-utils.ts:369, 376` | `agentKey: agents.length === 1 ? agents[0] : null` — the **name** |
 | 4.3.32 | `timeline-utils.ts:394-400` | `lastByAgent[dot.agentKey]` — connection lines |
-| 4.3.33 | `App.svelte:189` | `get(enrichedAgents).find(a => a.pid === pid)` |
+| 4.3.33 | `App.svelte` *(closed, step 8)* | was `find(a => a.pid === pid)` → `resolveSelectedAgent(…, selectedAgentInstanceId)` |
 
 `NetworkPanel.svelte:106, 155` keys connections on
 `` `${c.pid}-${c.remoteIp}-${c.remotePort}-${c.state}` `` — a *connection* key, not an agent
@@ -411,12 +411,14 @@ correct with only steps `1..k` applied.
    Renderer: `anomaliesByInstance` store + `risk.ts` join on stamped `instanceId` only;
    name map kept for toasts/SummaryCards. Closed **C2**.
 
-8. **Selection and per-instance UI state.** `focusedAgentPid` / `selectedAgentPid`
-   (`ipc.ts:125`, `:132`) become `focusedAgentInstance` / `selectedAgentInstance`; the
-   consumers at §4.3.3–4.3.9, 4.3.17, 4.3.29, 4.3.33 follow. `App.svelte:189`'s
-   `find(a => a.pid === pid)` becomes an instance lookup; `ipc-handlers.js:400,415,430`'s
-   pid guard is tightened to match on instance. **Changes what the user sees** — expanding a
-   card in a two-instance group selects that instance, not the group representative.
+8. **DONE — Selection and per-instance UI state.** `focusedAgentInstanceId` /
+   `selectedAgentInstanceId` (`string | null`) replace the pid stores. Card expand,
+   focus/scroll, stats row click, timeline focus write, and command-palette resolve use
+   stamped `instanceId` only (`agent-selection.ts`). Process kill/suspend still pass the
+   **resolved live record's pid** to main IPC (OS needs a pid); they never re-find by pid.
+   Stale selection after the instance dies does not rebind on pid reuse. Main-process
+   kill/suspend pid guards (`ipc-handlers.js`) are unchanged — out of renderer step 8.
+   **Changes what the user sees.**
 
 9. **Timeline identity.** `timeline-utils.ts:376` sets `agentKey` from `instanceId` when
    present, falling back to the name for historical audit rows that never carried one

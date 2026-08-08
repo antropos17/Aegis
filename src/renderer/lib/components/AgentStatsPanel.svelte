@@ -6,13 +6,14 @@
    * @since v0.5.0
    */
   import { enrichedAgents } from '../stores/risk.js';
-  import { focusedAgentPid } from '../stores/ipc.js';
+  import { focusedAgentInstanceId } from '../stores/ipc.js';
   import {
     toStatsRows,
     sortRows,
     formatRelativeTime,
     riskColor,
   } from '../utils/agent-stats-utils.ts';
+  import { focusInstanceId } from '../utils/agent-selection.ts';
   import { tick, startTick } from '../stores/tick.ts';
 
   /** @type {{ active?: boolean }} */
@@ -65,11 +66,13 @@
   }
 
   /**
-   * Handle row click — focus agent in AgentPanel.
-   * @param {number} pid
+   * Handle row click — focus the exact live instance in AgentPanel.
+   * @param {{ instanceId?: string | null }} row
    */
-  function handleRowClick(pid) {
-    focusedAgentPid.set(pid);
+  function handleRowClick(row) {
+    const id = focusInstanceId(row);
+    if (id === null) return;
+    focusedAgentInstanceId.set(id);
   }
 </script>
 
@@ -95,7 +98,7 @@
     </thead>
     <tbody>
       {#each rows as row (row.name)}
-        <tr class="agent-row" onclick={() => handleRowClick(row.pid)}>
+        <tr class="agent-row" onclick={() => handleRowClick(row)}>
           <td class="col-agent">
             <span class="agent-name">{row.name}</span>
           </td>

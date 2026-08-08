@@ -6,7 +6,8 @@
    *   Delegates rendering to TimelineCanvas, TimelineControls, TimelineLegend, TimelineTooltip.
    * @since v0.1.0
    */
-  import { events, network, focusedAgentPid } from '../stores/ipc.js';
+  import { events, network, focusedAgentInstanceId } from '../stores/ipc.js';
+  import { focusInstanceId } from '../utils/agent-selection.ts';
   import {
     SVG_H,
     LANE_CRIT,
@@ -271,7 +272,9 @@
   }
   function handleDotClick(e, dot) {
     e.stopPropagation();
-    if (dot.pid) focusedAgentPid.set(dot.pid);
+    // Focus by stamped instanceId only — never pid (reuse would highlight the wrong card).
+    const id = focusInstanceId(dot);
+    if (id !== null) focusedAgentInstanceId.set(id);
   }
 
   let dragStartX = 0;
