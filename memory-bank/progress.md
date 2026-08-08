@@ -19,8 +19,9 @@ Version 0.10.0-alpha. 110 agents / 262 signatures in database. 73 rules across 8
 - **SummaryCards F-W02 + F-W01 FIXED:** Total Agents = unique display names; Avg Risk Score = mean of enriched `riskScore`.
 - **SummaryCards F-W03 FIXED:** Events/min uses pure `eventsPerMinute(events, now)` with shared `tick`/`startTick` so the rolling 60s window ages without new events.
 - **SummaryCards F-W06 FIXED:** Card label **Sensitive Alerts** (was "Sensitive Files"); value remains `stats.totalSensitive` = retained sensitive activity-log events (push/evict), not distinct paths. Matches tray/export "sensitive alerts" language.
+- **SummaryCards F-W07 FIXED:** Card label **Monitoring Duration** (was "System Uptime"); value = `now - stats.monitoringStarted` with shared 1s `tick` so it advances without stats pushes. Not OS uptime; Footer `UP` remains renderer-mount clock (intentional different unit).
 - **Step 11** — optional per-instance UI roll-up (deferred).
-- **SummaryCards remaining:** System Uptime semantics.
+- **SummaryCards remaining:** none evidenced after F-W01…F-W07 correctness blocks.
 
 **Open debts from step 7 — measurements for Bench to settle, not diagnosed bugs:**
 - **pid-0 synthetics from `attachModels` no longer reach baselines at all.** They live in `latestAgents` and are seen by the file and network scans, but no stamp site ever gives them an `instanceId` (`scan-loop.js` appends them AFTER the `scan-batch` send — IDENTITY-RECON §2.1), so the null-key policy drops every observation. Measure what they used to contribute; the fix, if wanted, is a stamp in `attachModels`, the same one `injectDetectedExternalAgents` already does.

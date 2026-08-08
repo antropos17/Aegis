@@ -1,6 +1,7 @@
 /**
  * SummaryCards metrics — F-W02 Total Agents, F-W01 Avg Risk Score, F-W03 Events/min,
- * F-W06 Sensitive Alerts (retained events, not distinct files).
+ * F-W06 Sensitive Alerts (retained events, not distinct files),
+ * F-W07 Monitoring Duration (session age, not OS uptime).
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -10,6 +11,9 @@ import {
   EVENTS_PER_MIN_WINDOW_MS,
   sensitiveAlertCount,
   SENSITIVE_SUMMARY_LABEL,
+  monitoringElapsedMs,
+  formatMonitoringDuration,
+  MONITORING_DURATION_LABEL,
 } from '../../src/renderer/lib/utils/summary-metrics.ts';
 
 describe('countUniqueAgents (F-W02)', () => {
@@ -225,5 +229,51 @@ describe('sensitiveAlertCount (F-W06)', () => {
   it('label matches retained-alert semantics, not "files"', () => {
     expect(SENSITIVE_SUMMARY_LABEL).toBe('Sensitive Alerts');
     expect(SENSITIVE_SUMMARY_LABEL.toLowerCase()).not.toContain('file');
+  });
+});
+
+describe('monitoringElapsedMs / formatMonitoringDuration (F-W07)', () => {
+  const STARTED = 1_700_000_000_000;
+
+  it('returns 0 when monitoringStarted is missing or invalid', () => {
+    expect(monitoringElapsedMs(undefined, STARTED + 5_000)).toBe(0);
+    expect(monitoringElapsedMs(null, STARTED + 5_000)).toBe(0);
+    expect(monitoringElapsedMs(NaN, STARTED + 5_000)).toBe(0);
+    expect(monitoringElapsedMs('nope', STARTED + 5_000)).toBe(0);
+    expect(monitoringElapsedMs(STARTED, NaN)).toBe(0);
+  });
+
+  it('computes elapsed ms from a known start timestamp', () => {
+    expect(monitoringElapsedMs(STARTED, STARTED + 90_000)).toBe(90_000);
+  });
+
+  it('returns 0 for future or equal start (clock skew / not started)', () => {
+    expect(monitoringElapsedMs(STARTED + 1_000, STARTED)).toBe(0);
+    expect(monitoringElapsedMs(STARTED, STARTED)).toBe(0);
+  });
+
+  it('advances when now advances without changing the start timestamp', () => {
+    // Same stats.monitoringStarted object field; only wall clock moves (F-W07).
+    const t0 = STARTED + 1_000;
+    const t1 = STARTED + 3_000;
+    expect(monitoringElapsedMs(STARTED, t0)).toBe(1_000);
+    expect(monitoringElapsedMs(STARTED, t1)).toBe(3_000);
+  });
+
+  it('formats HH:MM:SS boundaries', () => {
+    expect(formatMonitoringDuration(STARTED, STARTED)).toBe('00:00:00');
+    expect(formatMonitoringDuration(STARTED, STARTED + 1_000)).toBe('00:00:01');
+    expect(formatMonitoringDuration(STARTED, STARTED + 61_000)).toBe('00:01:01');
+    expect(formatMonitoringDuration(STARTED, STARTED + 3_661_000)).toBe('01:01:01');
+  });
+
+  it('truncates fractional elapsed ms toward zero for display', () => {
+    expect(monitoringElapsedMs(STARTED, STARTED + 1_500.9)).toBe(1_500);
+    expect(formatMonitoringDuration(STARTED, STARTED + 1_500.9)).toBe('00:00:01');
+  });
+
+  it('label is monitoring session age, not system/OS uptime', () => {
+    expect(MONITORING_DURATION_LABEL).toBe('Monitoring Duration');
+    expect(MONITORING_DURATION_LABEL.toLowerCase()).not.toContain('system');
   });
 });

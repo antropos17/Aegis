@@ -9,6 +9,8 @@
     EVENTS_PER_MIN_WINDOW_MS,
     sensitiveAlertCount,
     SENSITIVE_SUMMARY_LABEL,
+    formatMonitoringDuration,
+    MONITORING_DURATION_LABEL,
   } from '../utils/summary-metrics.ts';
 
   /** @type {{ active?: boolean }} */
@@ -28,7 +30,7 @@
     localStats = $stats;
   });
 
-  // Shared 1s clock so Events/min ages out when the event store is quiet (F-W03).
+  // Shared 1s clock: Events/min aging (F-W03) + monitoring duration ticks (F-W07).
   $effect(() => {
     if (!active) return;
     return startTick();
@@ -52,14 +54,9 @@
   // Retained sensitive activity-log events (main totalSensitive) — not distinct files.
   let sensitiveCount = $derived(sensitiveAlertCount(localStats.totalSensitive));
 
-  let uptimeStr = $derived.by(() => {
-    const ms = localStats.uptimeMs || 0;
-    const s = Math.floor(ms / 1000);
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sec = s % 60;
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-  });
+  // Monitoring session age from monitoringStarted + wall clock — not OS uptime,
+  // not frozen stats.uptimeMs (stalls without stats pushes).
+  let uptimeStr = $derived(formatMonitoringDuration(localStats.monitoringStarted, now));
 
   /* ── Trend tracking (compare current vs 30s-ago snapshot) ── */
   let prevAgentCount = $state(0);
@@ -218,9 +215,9 @@
     </span>
   </div>
 
-  <!-- Card 5: System Uptime -->
+  <!-- Card 5: Monitoring Duration (scanner.monitoringStarted session age) -->
   <div class="card">
-    <span class="card-label">System Uptime</span>
+    <span class="card-label">{MONITORING_DURATION_LABEL}</span>
     <span class="card-value card-value-uptime">{uptimeStr}</span>
     <span class="card-trend trend-flat">●</span>
   </div>
