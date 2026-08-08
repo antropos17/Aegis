@@ -1,31 +1,31 @@
 <script>
-  import { agents, events, anomalies, stats } from '../stores/ipc.js';
+  import { events, stats } from '../stores/ipc.js';
+  import { enrichedAgents } from '../stores/risk.js';
+  import { countUniqueAgents, averageRiskScore } from '../utils/summary-metrics.ts';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
 
   /* ── Local snapshots (only update when tab is active) ── */
+  // Enriched agents carry `name` (from DetectedAgent.agent) and authoritative riskScore.
+  // Raw `$agents` has only `agent` and no riskScore — that caused F-W02 / F-W01.
   let localAgents = $state([]);
   let localEvents = $state([]);
-  let localAnomalies = $state({});
   let localStats = $state({});
 
   $effect(() => {
     if (!active) return;
-    localAgents = $agents;
+    localAgents = $enrichedAgents;
     localEvents = $events;
-    localAnomalies = $anomalies;
     localStats = $stats;
   });
 
   /* ── Derived metrics ── */
-  let agentCount = $derived(new Set(localAgents.map((a) => a.name)).size);
+  // Distinct display names (enriched `name` / raw `agent`) — not instanceId count.
+  let agentCount = $derived(countUniqueAgents(localAgents));
 
-  let avgRiskScore = $derived.by(() => {
-    const scores = Object.values(localAnomalies).filter((s) => typeof s === 'number');
-    if (scores.length === 0) return 0;
-    return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-  });
+  // Mean of riskScore from the same domain AgentCard uses — never anomaly scores.
+  let avgRiskScore = $derived(averageRiskScore(localAgents));
 
   let eventsPerMin = $derived.by(() => {
     const cutoff = Date.now() - 60_000;

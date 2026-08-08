@@ -14,11 +14,11 @@ Version 0.10.0-alpha. 110 agents / 262 signatures in database. 73 rules across 8
 - **Audit records carry the key.** All 4 owner-bearing record types in `scan-loop.js` do (`agent-enter`, `agent-exit`, `file-access`/`config-access`, `network-connection`), and `anomaly-alert` joined them once deviations became per-instance (`975ed1a`). `buffer-overflow-drop` stays `null` — nobody owns it.
 - **`cwdCache` no longer serves a dead process's directory.** Keyed on `_cacheKey(pid, name)` like `parentChainCache`, with a `forceRefresh` path wired to the scanner's changed-pid-set flag — the same contract as the identity stamp. Closes **C7**, which poisoned the input to everything else: `cwd` is what the renderer's instance key is built from and what `CWD_CONTAINMENT` attribution matches on. Residual bound is documented and tested: a same-name reuse inside the 60 s TTL still hits, and `forceRefresh` is what covers it.
 
-**What remains (step 11 only; residual buildInstanceId hot-path fallbacks closed):**
-- **C1–C2, C5–C6, steps 6, 8–10 + attachModels CLOSED.**
-- **Residual hot-path buildInstanceId REMOVED** from handleKey / sessionKey / token recordKey object path. Stamp is read-only; unstamped agents skip session entry / knownHandles map (events still emit with null id). Token bare-number API keeps explicit `"<pid>:u"` degraded space only.
-- **Step 11** — optional per-instance UI roll-up vs per-name defaults.
-- **Durable domains stay separate.** Permissions = instanceKey; watchlist = name; baselines profile = name; runtime = instanceId.
+**What remains (step 11 optional; SummaryCards partial):**
+- **Identity hardening CLOSED** through residual buildInstanceId cleanup (`5809e91`).
+- **SummaryCards F-W02 + F-W01 FIXED:** Total Agents = unique display names via `countUniqueAgents` (name/agent field); Avg Risk Score = mean of enriched `riskScore` (not anomalies). Helpers in `summary-metrics.ts`.
+- **Step 11** — optional per-instance UI roll-up (deferred).
+- **SummaryCards remaining:** F-W03 Events/min, Sensitive Files label, System Uptime semantics.
 
 **Open debts from step 7 — measurements for Bench to settle, not diagnosed bugs:**
 - **pid-0 synthetics from `attachModels` no longer reach baselines at all.** They live in `latestAgents` and are seen by the file and network scans, but no stamp site ever gives them an `instanceId` (`scan-loop.js` appends them AFTER the `scan-batch` send — IDENTITY-RECON §2.1), so the null-key policy drops every observation. Measure what they used to contribute; the fix, if wanted, is a stamp in `attachModels`, the same one `injectDetectedExternalAgents` already does.
