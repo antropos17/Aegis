@@ -58,8 +58,20 @@ function scoringVerdict(conn: NetworkConnection): NetworkVerdict {
 }
 
 /**
- * Build an instance key for matching events/connections to a specific agent instance.
- * CWD takes priority as the most specific identifier.
+ * The DURABLE key an agent's saved permissions live under. Deliberately built from
+ * name + cwd + parentEditor, and deliberately NOT migrated to `instanceId`.
+ *
+ * DO NOT "FIX" THIS TO USE `instanceId`. It mirrors `getInstanceKey()` in
+ * main/config-manager.js byte for byte, and the string it returns is a key inside
+ * `agentPermissions` in settings.json — it outlives the process it names. `instanceId`
+ * is per-boot (`pid:startTime`), so writing one here would persist a key that can never
+ * match again, orphaning every saved permission on the next launch. Worse, with `cwd`
+ * and `parentEditor` both null, PermissionsGrid.save() takes its `saveAgentPermissions`
+ * branch and would write that per-boot key straight into settings.json.
+ *
+ * Correlating events to an agent is a DIFFERENT question with a different key — see
+ * `byInstance` below. This one answers "whose settings are these", not "who did that".
+ * IDENTITY-RECON.md §6 step 6.
  * @param name - Agent name
  * @param parentEditor - Parent editor name or null
  * @param cwd - Working directory or null
@@ -73,9 +85,18 @@ function instanceKey(name: string, parentEditor: string | null, cwd: string | nu
 
 /**
  * Enriched agents store — derives from agents, events, anomalies, network.
- * Each agent object gets: name, instanceKey, sensitiveFiles, unknownDomains,
+ * Each agent object gets: name, instanceId, instanceKey, sensitiveFiles, unknownDomains,
  * anomalyScore, riskScore, trustGrade, fileCount, networkCount.
- * Risk is calculated per-instance (using cwd/parentEditor), not per-name.
+ *
+ * Risk is calculated per process INSTANCE, correlated on the canonical `instanceId`
+ * stamped by the main process — not on the agent name, and not on a key rebuilt from
+ * cwd/parentEditor (see `byInstance` below).
+ *
+ * ONE EXCEPTION, and it is not an oversight: `anomalyScore` is still read as
+ * `$anomalies[name]`, because the main process builds that map per NAME
+ * (scan-loop.js `scores[a.agent]` over `baselines.js` `sessionData[agentName]`). Two
+ * instances of one agent therefore still share the anomaly term of their score.
+ * IDENTITY-RECON.md §5 C2 — closing it is step 7 and lives in main.
  */
 let _prevAgents: unknown = null;
 let _prevEvents: unknown = null;
@@ -105,52 +126,56 @@ export const enrichedAgents: Readable<EnrichedAgent[]> = derived(
 
     const allEvents: FileEvent[] = $events.flat();
 
-    // Pre-build lookup maps for O(1) event matching
-    const eventsByPid = new Map<number, FileEvent[]>();
-    const eventsByName = new Map<string, FileEvent[]>();
+    // ═══ THE CORRELATION KEY ═══
+    //
+    // Both maps are keyed on the canonical `instanceId` the main process stamped
+    // (main/process-identity.js), READ off the record — never a key rebuilt here from
+    // name, cwd or parentEditor. A rebuilt key is what collision C1 was: on Windows
+    // `cwd` is routinely null, so two Claude Code instances in two different projects
+    // produced the identical key and each was scored on BOTH event sets — one project's
+    // .ssh access raised the other project's card (IDENTITY-RECON.md §5).
+    //
+    // POLICY FOR A MISSING KEY (`instanceId` null on a record, or on an agent):
+    // quarantine, no fallback. A record with no key enters NO bucket and is joined to
+    // NOBODY — not by name, not by pid. Falling back to the name is precisely the
+    // collision this store just removed, and attributing an action to the wrong instance
+    // is worse than attributing it to none (shared/types/events.ts `FileEvent.instanceId`,
+    // ai-mistakes.md #19). An agent whose own `instanceId` is null likewise gets an empty
+    // list rather than a namesake's events.
+    //
+    // Quarantined does NOT mean hidden. The Activity feed and the Timeline read `$events`
+    // and `$network` directly and group by `ev.agent` (utils/grouped-feed-utils.ts
+    // `groupByAgent`, utils/timeline-utils.ts), so such a record is still listed and still
+    // counted there. What it stops doing is moving an agent's riskScore — the one thing it
+    // has no grounds to do.
+    //
+    // Reachable today for: unattributed events (no owner → no key, by construction), and
+    // owners that no stamp site reached (the `attachModels` pid-0 synthetics).
+    const eventsByInstance = new Map<string, FileEvent[]>();
     for (const ev of allEvents) {
       // An unattributed event belongs to no agent, so it must not raise anyone's
       // sensitiveFiles / riskScore / trustGrade. Checked by STATUS, not by falsy
       // agent/pid: the intent has to be readable and independently testable.
       if (ev.attribution?.status === 'unattributed') continue;
       if (ev.selfAccess) continue;
-      if (ev.pid) {
-        let arr = eventsByPid.get(ev.pid);
-        if (!arr) {
-          arr = [];
-          eventsByPid.set(ev.pid, arr);
-        }
-        arr.push(ev);
+      if (!ev.instanceId) continue;
+      let arr = eventsByInstance.get(ev.instanceId);
+      if (!arr) {
+        arr = [];
+        eventsByInstance.set(ev.instanceId, arr);
       }
-      if (ev.agent) {
-        let arr = eventsByName.get(ev.agent);
-        if (!arr) {
-          arr = [];
-          eventsByName.set(ev.agent, arr);
-        }
-        arr.push(ev);
-      }
+      arr.push(ev);
     }
 
-    const connsByPid = new Map<number, NetworkConnection[]>();
-    const connsByName = new Map<string, NetworkConnection[]>();
+    const connsByInstance = new Map<string, NetworkConnection[]>();
     for (const conn of $network) {
-      if (conn.pid) {
-        let arr = connsByPid.get(conn.pid);
-        if (!arr) {
-          arr = [];
-          connsByPid.set(conn.pid, arr);
-        }
-        arr.push(conn);
+      if (!conn.instanceId) continue;
+      let arr = connsByInstance.get(conn.instanceId);
+      if (!arr) {
+        arr = [];
+        connsByInstance.set(conn.instanceId, arr);
       }
-      if (conn.agent) {
-        let arr = connsByName.get(conn.agent);
-        if (!arr) {
-          arr = [];
-          connsByName.set(conn.agent, arr);
-        }
-        arr.push(conn);
-      }
+      arr.push(conn);
     }
 
     // Pre-build false-positive name set
@@ -162,11 +187,13 @@ export const enrichedAgents: Readable<EnrichedAgent[]> = derived(
       const cwd = raw.cwd || null;
       const projectName = raw.projectName || null;
       const iKey = instanceKey(name, parentEditor, cwd);
-      const hasCwd = !!cwd;
+      // Read, never derive: the value must be the identical string this agent carried in
+      // `scan-batch`, or the join lands on a different instance (ai-mistakes.md #19).
+      const instanceId = raw.instanceId || null;
 
-      // Use pre-built lookup instead of scanning all events
-      const candidateEvents: FileEvent[] =
-        hasCwd && raw.pid ? eventsByPid.get(raw.pid) || [] : eventsByName.get(name) || [];
+      // Direct lookup on the canonical key — no pid branch, no name branch, no refinement
+      // by parentEditor. An agent with no key of its own correlates to nothing.
+      const candidateEvents: FileEvent[] = instanceId ? eventsByInstance.get(instanceId) || [] : [];
 
       let sensitiveFiles = 0;
       let configFiles = 0;
@@ -176,10 +203,6 @@ export const enrichedAgents: Readable<EnrichedAgent[]> = derived(
 
       for (const ev of candidateEvents) {
         if (ev.selfAccess) continue;
-        // For name-based matches, verify parentEditor
-        if (!hasCwd || !raw.pid) {
-          if (parentEditor && ev.parentEditor !== parentEditor) continue;
-        }
         if (ev.file) {
           const prev = seen.get(ev.file);
           if (prev && ev.timestamp - prev < 30000) continue;
@@ -192,9 +215,10 @@ export const enrichedAgents: Readable<EnrichedAgent[]> = derived(
         if (/SSH|AWS/i.test(ev.reason)) sshAwsFiles += w;
       }
 
-      // Use pre-built lookup for network connections
-      const candidateConns: NetworkConnection[] =
-        hasCwd && raw.pid ? connsByPid.get(raw.pid) || [] : connsByName.get(name) || [];
+      // Same direct lookup for network connections.
+      const candidateConns: NetworkConnection[] = instanceId
+        ? connsByInstance.get(instanceId) || []
+        : [];
 
       // Two disjoint counts, not one bucket: an endpoint that resolved and is on no
       // allowlist is a different claim from one nobody could identify, and risk scoring
@@ -205,9 +229,6 @@ export const enrichedAgents: Readable<EnrichedAgent[]> = derived(
       let httpUnencryptedCount = 0;
       let hasApiCalls = false;
       for (const conn of candidateConns) {
-        if (!hasCwd || !raw.pid) {
-          if (parentEditor && conn.parentEditor !== parentEditor) continue;
-        }
         networkCount++;
         const verdict = scoringVerdict(conn);
         if (verdict === 'flagged') flaggedDomains++;
@@ -237,6 +258,10 @@ export const enrichedAgents: Readable<EnrichedAgent[]> = derived(
         parentEditor,
         cwd,
         projectName,
+        // Both keys are published, and they answer different questions: `instanceId` is
+        // the per-boot correlation key this store matched events on, `instanceKey` is the
+        // durable one PermissionsGrid saves under.
+        instanceId,
         instanceKey: iKey,
         sensitiveFiles,
         // The published field keeps the meaning it always had — "endpoints not confirmed
