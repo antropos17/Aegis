@@ -38,14 +38,20 @@ const WEIGHTS = { network: 0.3, filesystem: 0.25, process: 0.25, baseline: 0.2 }
  */
 
 /**
- * Calculate multi-dimensional anomaly score for an agent.
+ * Calculate multi-dimensional anomaly score for ONE process instance.
  * Returns composite 0-100 plus per-dimension breakdown.
  * composite = sum(dimension.score * dimension.weight)
- * @param {string} agentName
+ *
+ * Two keys meet here, and neither substitutes for the other: the live session
+ * bucket is looked up by `instanceId` (two same-named instances score separately),
+ * and the profile it is compared against is looked up by the NAME the bucket
+ * carries (a cross-session baseline cannot key on a per-boot value). An instance
+ * with no bucket scores 0 — never a namesake's bucket.
+ * @param {string} instanceId - the agent's own `instanceId`, read never derived.
  * @returns {AnomalyResult}
  * @since v0.3.0
  */
-function calculateAnomalyScore(agentName) {
+function calculateAnomalyScore(instanceId) {
   const zeroDim = (w) => ({ score: 0, weight: w, factors: [] });
   const zeroDims = {
     network: zeroDim(WEIGHTS.network),
@@ -54,8 +60,8 @@ function calculateAnomalyScore(agentName) {
     baseline: zeroDim(WEIGHTS.baseline),
   };
 
-  const sd = bl.getSessionData()[agentName];
-  const ab = bl.getBaselines().agents[agentName];
+  const sd = bl.getSessionData()[instanceId];
+  const ab = sd ? bl.getBaselines().agents[sd.agentName] : undefined;
   if (!sd || !ab || ab.sessionCount < 3) return { score: 0, dimensions: zeroDims };
 
   const net = scoreNetwork(sd, ab);
@@ -85,18 +91,27 @@ function calculateAnomalyScore(agentName) {
 
 /**
  * Check for behavioural deviations and return warnings.
- * @returns {Array<{agent:string, type:string, message:string, anomalyScore:number}>}
+ *
+ * Iterates the live buckets, which are per INSTANCE — so two same-named instances
+ * are checked separately and each gets its own "already warned" set. Every warning
+ * still reports the display NAME (that is what the audit log, the toast and the
+ * renderer read), and carries the instance key beside it.
+ * @returns {Array<{agent:string, instanceId:string, type:string, message:string, anomalyScore:number}>}
  * @since v0.1.0
  */
 function checkDeviations() {
   const warnings = [];
-  for (const [agentName, sd] of Object.entries(bl.getSessionData())) {
-    const ab = bl.getBaselines().agents[agentName];
+  for (const [instanceId, sd] of Object.entries(bl.getSessionData())) {
+    const agentName = sd.agentName;
+    const ab = agentName ? bl.getBaselines().agents[agentName] : undefined;
     if (!ab || ab.sessionCount < 3) continue;
-    if (!deviationWarningsSent[agentName]) deviationWarningsSent[agentName] = new Set();
-    const sent = deviationWarningsSent[agentName];
+    // Per instance, not per name: a restarted instance carries a new key and is
+    // entitled to its own warnings, and one instance's alert must not silence
+    // another's.
+    if (!deviationWarningsSent[instanceId]) deviationWarningsSent[instanceId] = new Set();
+    const sent = deviationWarningsSent[instanceId];
     const avg = ab.averages;
-    const { score: anomalyScore } = calculateAnomalyScore(agentName);
+    const { score: anomalyScore } = calculateAnomalyScore(instanceId);
 
     // File volume 3x above average
     if (avg.filesPerSession > 0 && sd.files.size > avg.filesPerSession * 3) {
@@ -105,6 +120,7 @@ function checkDeviations() {
         sent.add(key);
         warnings.push({
           agent: agentName,
+          instanceId,
           type: 'files',
           message: `${agentName} normally accesses ~${Math.round(avg.filesPerSession)} files, now ${sd.files.size}`,
           anomalyScore,
@@ -119,6 +135,7 @@ function checkDeviations() {
         sent.add(key);
         warnings.push({
           agent: agentName,
+          instanceId,
           type: 'sensitive',
           message: `${agentName}: sensitive file access (${sd.sensitiveCount}) is ${Math.round(sd.sensitiveCount / avg.sensitivePerSession)}x above average (${Math.round(avg.sensitivePerSession)})`,
           anomalyScore,
@@ -135,6 +152,7 @@ function checkDeviations() {
           sent.add(key);
           warnings.push({
             agent: agentName,
+            instanceId,
             type: 'new-sensitive',
             message: `${agentName} never accessed "${reason}" before`,
             anomalyScore,
@@ -155,6 +173,7 @@ function checkDeviations() {
           sent.add(key);
           warnings.push({
             agent: agentName,
+            instanceId,
             type: 'network',
             message: `${agentName}: connecting to new endpoint ${ep}`,
             anomalyScore,
@@ -172,6 +191,7 @@ function checkDeviations() {
         sent.add(key);
         warnings.push({
           agent: agentName,
+          instanceId,
           type: 'directories',
           message: `${agentName}: accessing ${newDirs.length} new directories not seen in previous sessions`,
           anomalyScore,
@@ -188,6 +208,7 @@ function checkDeviations() {
           sent.add(key);
           warnings.push({
             agent: agentName,
+            instanceId,
             type: 'timing',
             message: `${agentName}: activity at unusual hour (${String(h).padStart(2, '0')}:00) — not seen in previous sessions`,
             anomalyScore,

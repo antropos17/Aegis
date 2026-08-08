@@ -28,8 +28,14 @@ describe('anomaly-detector', () => {
     anomaly = require('../../src/main/anomaly-detector.js');
   });
 
-  function setupAgent(agentName, sessionOverrides, baselineOverrides) {
-    const sd = bl.ensureSessionData(agentName);
+  /**
+   * Seed one live INSTANCE bucket plus the name-keyed profile it is scored against.
+   * `instanceId` is the bucket key; `agentName` defaults to it so the existing
+   * single-instance cases stay unchanged, and the two-instance cases pass one name
+   * with two different keys — which is the whole point of the migration.
+   */
+  function setupAgent(instanceId, sessionOverrides, baselineOverrides, agentName = instanceId) {
+    const sd = bl.ensureSessionData(instanceId, agentName);
     // Merge session overrides
     if (sessionOverrides.files) sd.files = sessionOverrides.files;
     if (sessionOverrides.sensitiveCount !== undefined)
@@ -686,6 +692,97 @@ describe('anomaly-detector', () => {
       const second = anomaly.checkDeviations();
       expect(first.filter((w) => w.type === 'files').length).toBe(1);
       expect(second.filter((w) => w.type === 'files').length).toBe(0);
+    });
+  });
+
+  // ── C2: the anomaly term is per instance, not per name ──
+  describe('C2: two instances of one agent', () => {
+    // Two space-1 keys (`${pid}:${startTime}`), ONE display name — the reported case:
+    // two Claude Code windows in two projects.
+    const A = '1000:1700000000000';
+    const B = '2000:1700000009999';
+    const NAME = 'Claude Code';
+
+    /**
+     * A is quiet: one benign file, one endpoint the baseline has not seen.
+     * B is loud: 20 files, 12 of them sensitive, a new sensitive category, five
+     * directories nobody has seen, one new endpoint.
+     * The two differ in BEHAVIOUR, not only in key — two identical buckets would score
+     * equally even under distinct keys, and the test would pass for the wrong reason.
+     */
+    function seedTwoInstances(keyA, keyB) {
+      setupAgent(
+        keyA,
+        {
+          files: new Set(['/proj-a/one.js']),
+          sensitiveCount: 0,
+          sensitiveReasons: new Set(),
+          endpoints: new Set(['1.1.1.1:443']),
+          directories: new Set(),
+          activeHours: new Set(),
+        },
+        {},
+        NAME,
+      );
+      setupAgent(
+        keyB,
+        {
+          files: new Set(Array.from({ length: 20 }, (_, i) => `/proj-b/f${i}.js`)),
+          sensitiveCount: 12,
+          sensitiveReasons: new Set(['SSH key']),
+          endpoints: new Set(['9.9.9.9:443']),
+          directories: new Set([
+            '/proj-b/.ssh',
+            '/proj-b/.aws',
+            '/proj-b/.gnupg',
+            '/proj-b/.config',
+            '/proj-b/secrets',
+          ]),
+          activeHours: new Set(),
+        },
+        {},
+        NAME,
+      );
+    }
+
+    it('same name, two instanceIds → two separate anomaly scores', () => {
+      seedTwoInstances(A, B);
+
+      // Concrete values, not just "different": A = network 33 only (33*0.3 → 10);
+      // B = network 33, filesystem 100, process 40 (9.9+25+10 → 45).
+      expect(anomaly.calculateAnomalyScore(A).score).toBe(10);
+      expect(anomaly.calculateAnomalyScore(B).score).toBe(45);
+      // Give the two instances the SAME key and this file's first expectation goes red:
+      // one bucket, one score, which is exactly collision C2.
+      expect(anomaly.calculateAnomalyScore(A).score).not.toBe(
+        anomaly.calculateAnomalyScore(B).score,
+      );
+      // Both are scored against the ONE name-keyed profile — the baseline stays per name.
+      expect(Object.keys(bl.getBaselines().agents)).toEqual([NAME]);
+    });
+
+    it('the display name is never a bucket key, and never replaced by one in a warning', () => {
+      seedTwoInstances(A, B);
+      expect(bl.getSessionData()[NAME]).toBeUndefined();
+
+      const warnings = anomaly.checkDeviations();
+      const fileWarns = warnings.filter((w) => w.type === 'files');
+      // Only B is 3x above the file average, and the warning is attributed to its key.
+      expect(fileWarns).toHaveLength(1);
+      expect(fileWarns[0].agent).toBe(NAME);
+      expect(fileWarns[0].instanceId).toBe(B);
+      // The message keeps the human name — the loop key must not leak into user text.
+      expect(fileWarns[0].message).toContain(NAME);
+      expect(fileWarns[0].message).not.toContain(B);
+    });
+
+    it('one instance being warned does not silence the other', () => {
+      seedTwoInstances(A, B);
+      // Both instances see a new endpoint, so both must warn — the "already sent" set is
+      // per instance. A shared set would suppress the second.
+      const endpointWarns = anomaly.checkDeviations().filter((w) => w.type === 'network');
+      expect(endpointWarns.map((w) => w.instanceId).sort()).toEqual([A, B].sort());
+      expect(new Set(endpointWarns.map((w) => w.agent))).toEqual(new Set([NAME]));
     });
   });
 });

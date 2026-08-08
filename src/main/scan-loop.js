@@ -136,7 +136,15 @@ function doNetworkScan() {
             'Unencrypted HTTP connection detected: ' + (conn.domain || conn.remoteIp),
           );
         }
-        baselines.recordNetworkEndpoint(conn.agent, conn.remoteIp, conn.remotePort);
+        // Key first, name second — both from the connection this scan matched. A socket
+        // that matched no agent carries no key and enters no baseline, which also retires
+        // the phantom `sessionData['']` bucket the empty name used to create.
+        baselines.recordNetworkEndpoint(
+          conn.instanceId,
+          conn.agent,
+          conn.remoteIp,
+          conn.remotePort,
+        );
         audit.log('network-connection', {
           agent: conn.agent,
           pid: conn.pid ?? null,
@@ -287,12 +295,13 @@ async function doProcessScan() {
       for (const d of deviations)
         audit.log('anomaly-alert', {
           agent: d.agent,
-          // A deviation is computed from a named behavioural baseline, not from a live
-          // process, so there is no pid or instanceId to record. Joining the name back to
-          // a process to fill these in would fabricate an identity the detector never
-          // observed.
+          // A deviation is now computed from ONE INSTANCE's live session bucket
+          // (baselines.js `sessionData`, keyed on `instanceId`), so the key is a real
+          // observation the detector made and it is recorded. `pid` stays null: the
+          // detector never held a process object, and splitting the pid back out of the
+          // key would be parsing an identity instead of reading one.
           pid: null,
-          instanceId: null,
+          instanceId: d.instanceId ?? null,
           action: d.type,
           path: '',
           severity: 'high',
@@ -302,8 +311,32 @@ async function doProcessScan() {
           extra: { message: d.message, anomalyScore: d.anomalyScore },
         });
     }
+    // Anomaly scores are computed per INSTANCE now (baselines.js `sessionData` is keyed
+    // on `instanceId`), and go out in two shapes.
+    //
+    // `anomalyScoresByInstance` is the lossless one: one entry per live instance, under
+    // the same key that instance carries in this very batch, so a consumer can select a
+    // specific instance.
+    //
+    // `anomalyScores` stays keyed by NAME because the renderer still is: risk.ts reads
+    // `$anomalies[name]`, App.svelte prints the KEY as the agent name in its toast, and
+    // SummaryCards averages `Object.values(...)` — one union map would print
+    // `1234:1699887…` and double-count every instance. MAX, not sum or mean, is the
+    // aggregation: the name-keyed card draws the highest-risk instance as its
+    // representative (AgentPanel `_instances`), so max is the only value that matches
+    // what is on screen — a sum would invent a score no instance has, a mean would hide
+    // the one instance that is misbehaving. The information max discards is not lost, it
+    // is in `anomalyScoresByInstance`.
+    //
+    // An agent with no key scores 0 and still gets its name entry, exactly as an agent
+    // with no baseline always did — the name map's key set is unchanged.
     const scores = {};
-    for (const a of agents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent).score;
+    const scoresByInstance = {};
+    for (const a of agents) {
+      const score = a.instanceId ? anomaly.calculateAnomalyScore(a.instanceId).score : 0;
+      if (a.instanceId) scoresByInstance[a.instanceId] = score;
+      scores[a.agent] = Math.max(scores[a.agent] || 0, score);
+    }
 
     // Alert-only watchlist flag (synchronous): set agent.flagged so it rides the
     // scan-batch below. Advisory only — never stops or restricts any process (C-01:
@@ -316,6 +349,7 @@ async function doProcessScan() {
       stats: getStats(),
       resourceUsage: getResourceUsage(),
       anomalyScores: scores,
+      anomalyScoresByInstance: scoresByInstance,
     });
 
     // Token costs ride a separate channel. Pull any new measured per-PID token

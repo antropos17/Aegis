@@ -265,8 +265,11 @@ function handleWatcherEvent(action, filePath) {
   // An unattributed event enters NO agent's behaviour baseline: recording it under
   // an empty name would create a phantom agent in sessionData, which
   // checkDeviations() then iterates and warns about.
+  // The baseline bucket is keyed on the instance, so the key travels with the name —
+  // both taken from the event just built, never re-resolved. An owner that carries no
+  // key is not recorded at all (baselines.js `ensureSessionData`).
   if (attribution.status !== 'unattributed') {
-    _state.recordFileAccess(event.agent, filePath, event.sensitive, event.reason);
+    _state.recordFileAccess(event.instanceId, event.agent, filePath, event.sensitive, event.reason);
   }
   if (_state.onFileEvent) _state.onFileEvent(event);
 }
@@ -418,7 +421,7 @@ async function scanFileHandles(agent) {
       const evicted = _state.activityLog.shift();
       if (_state.onActivityEvict) _state.onActivityEvict(evicted);
     }
-    _state.recordFileAccess(agent.agent, f, event.sensitive, event.reason);
+    _state.recordFileAccess(event.instanceId, agent.agent, f, event.sensitive, event.reason);
   }
   return newAccess;
 }
@@ -539,7 +542,7 @@ async function _scanRmHolders(agents, fetchHolders) {
       const evicted = _state.activityLog.shift();
       if (_state.onActivityEvict) _state.onActivityEvict(evicted);
     }
-    _state.recordFileAccess(agent.agent, group, event.sensitive, event.reason);
+    _state.recordFileAccess(event.instanceId, agent.agent, group, event.sensitive, event.reason);
   }
   return newAccess;
 }

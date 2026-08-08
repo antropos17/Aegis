@@ -44,8 +44,15 @@ export interface AnomalyResult {
   readonly dimensions: Readonly<Record<AnomalyDimension, DimensionScore>>;
 }
 
-/** Per-agent session tracking data for baseline comparison */
+/** Per-INSTANCE session tracking data for baseline comparison */
 export interface SessionData {
+  /**
+   * Display name of the agent this bucket belongs to. The bucket itself is keyed
+   * by `instanceId` (baselines.js `sessionData`), so this field is the only way
+   * back to the cross-session profile in {@link Baselines}, which stays keyed on
+   * the name.
+   */
+  readonly agentName: string;
   readonly files: Set<string>;
   sensitiveCount: number;
   readonly directories: Set<string>;

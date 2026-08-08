@@ -267,12 +267,38 @@ describe('file-watcher event handling', () => {
     it('calls recordFileAccess for an attributed sensitive event', () => {
       // ~/.ssh is nobody's cwd and nobody's self-config, so an owner has to be
       // manufactured for this assertion to be about recordFileAccess at all.
-      const owner = { pid: 100, agent: 'Claude Code', category: 'ai', cwd: '/home/user/.ssh' };
+      const owner = {
+        pid: 100,
+        agent: 'Claude Code',
+        category: 'ai',
+        cwd: '/home/user/.ssh',
+        instanceId: '100:1700000000000',
+      };
+      state.getLatestAgents = () => [owner];
+      state.getLatestAiAgents = () => [owner];
+      fileWatcher.handleWatcherEvent('created', '/home/user/.ssh/key');
+      // Key first: the baseline bucket is per instance, and the key is the owner's own,
+      // carried from the event this call was built from.
+      expect(state.recordFileAccess).toHaveBeenCalledWith(
+        '100:1700000000000',
+        'Claude Code',
+        expect.stringContaining('.ssh'),
+        true,
+        'SSH keys/config',
+      );
+    });
+
+    it('passes a null key for an owner that was never stamped', () => {
+      // An owner with no instanceId (the attachModels pid-0 synthetics) is still passed
+      // through with its name — baselines.js applies the null-key policy and drops it,
+      // rather than the watcher deriving a key of its own (ai-mistakes.md #19).
+      const owner = { pid: 0, agent: 'Ollama', category: 'ai', cwd: '/home/user/.ssh' };
       state.getLatestAgents = () => [owner];
       state.getLatestAiAgents = () => [owner];
       fileWatcher.handleWatcherEvent('created', '/home/user/.ssh/key');
       expect(state.recordFileAccess).toHaveBeenCalledWith(
-        'Claude Code',
+        null,
+        'Ollama',
         expect.stringContaining('.ssh'),
         true,
         'SSH keys/config',
@@ -503,11 +529,19 @@ describe('file-watcher scanFileHandles', () => {
       expect(mockGetFileHandles).toHaveBeenCalledTimes(2);
     });
 
-    it('calls recordFileAccess for each new event', async () => {
+    it('calls recordFileAccess for each new event, keyed on the scanned instance', async () => {
       mockGetFileHandles.mockResolvedValue(['/home/user/a.js', '/home/user/b.js']);
-      const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
+      const agents = [
+        { pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:1700000000000' },
+      ];
       await fileWatcher.scanAllFileHandles(agents);
       expect(state.recordFileAccess).toHaveBeenCalledTimes(2);
+      // The scan was run FOR this agent object, so every call carries its key — two
+      // same-named instances therefore fill two different baseline buckets.
+      for (const call of state.recordFileAccess.mock.calls) {
+        expect(call[0]).toBe('100:1700000000000');
+        expect(call[1]).toBe('Claude Code');
+      }
     });
 
     it('runs at most FILE_SCAN_CONCURRENCY (5) handle scans concurrently, preserving attribution', async () => {
@@ -544,7 +578,7 @@ describe('file-watcher scanFileHandles', () => {
       state.isOtherPanelExpanded = () => true;
       // recordFileAccess (file-watcher.js:332) is NOT inside scanFileHandles' try/catch,
       // so a throw here propagates — the worker pool's try/catch must contain it.
-      state.recordFileAccess = vi.fn((agentName) => {
+      state.recordFileAccess = vi.fn((instanceId, agentName) => {
         if (agentName === 'B') throw new Error('downstream blew up');
       });
       const agents = [

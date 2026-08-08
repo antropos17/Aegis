@@ -704,4 +704,138 @@ describe('scan-loop', () => {
       expect(call[2].ms).toBeGreaterThanOrEqual(0);
     });
   });
+
+  // ── C2: anomaly scores leave the main process per instance ──
+
+  describe('anomaly scores in the scan batch', () => {
+    // Two instances of ONE agent name, plus a keyless pid-0 synthetic.
+    const A = '1000:1700000000000';
+    const B = '2000:1700000009999';
+    // The LOUD instance (B, score 45) is deliberately first: with it last, a
+    // last-writer-wins bug would also produce 45 and the max assertion below would pass
+    // for the wrong reason.
+    const AGENTS = [
+      { agent: 'Claude Code', pid: 2000, instanceId: B, category: 'ai' },
+      { agent: 'Claude Code', pid: 1000, instanceId: A, category: 'ai' },
+      { agent: 'Ollama', pid: 0, category: 'local-llm-runtime' },
+    ];
+
+    /** @returns {Promise<{batch: Object, deps: Object}>} */
+    async function runScan() {
+      const deps = makeDeps({
+        scanner: {
+          scanProcesses: vi
+            .fn()
+            .mockResolvedValue({ agents: AGENTS.map((a) => ({ ...a })), changed: false }),
+        },
+        anomaly: {
+          checkDeviations: vi.fn().mockReturnValue([]),
+          // Scores by INSTANCE key. A name reaching this stub would score 0, which is
+          // what makes the assertions below able to tell the two keyings apart.
+          calculateAnomalyScore: vi.fn((key) => ({
+            score: key === A ? 10 : key === B ? 45 : 0,
+          })),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      const batchCall = deps.sendToRenderer.mock.calls.find((c) => c[0] === 'scan-batch');
+      expect(batchCall).toBeTruthy();
+      return { batch: batchCall[1], deps };
+    }
+
+    it('emits one anomaly score per instance, keyed on instanceId', async () => {
+      const { batch, deps } = await runScan();
+      expect(batch.anomalyScoresByInstance).toEqual({ [A]: 10, [B]: 45 });
+      // The scorer is asked by key only — never by display name.
+      const askedFor = deps.anomaly.calculateAnomalyScore.mock.calls.map((c) => c[0]);
+      expect(askedFor).not.toContain('Claude Code');
+      expect(askedFor).not.toContain('Ollama');
+    });
+
+    it('keeps the name-keyed map for the renderer, aggregated as max', async () => {
+      const { batch } = await runScan();
+      // 45, not 10 and not 55: the highest-risk instance represents the name on the
+      // rolled-up card, and the per-instance values stay available above.
+      expect(batch.anomalyScores['Claude Code']).toBe(45);
+      // A keyless agent still gets its name entry at 0 — the key set is unchanged.
+      expect(batch.anomalyScores['Ollama']).toBe(0);
+    });
+
+    it('a keyless agent gets no per-instance entry', async () => {
+      const { batch } = await runScan();
+      expect(Object.keys(batch.anomalyScoresByInstance).sort()).toEqual([A, B].sort());
+    });
+
+    it('records a network endpoint under the connection instance key, name second', async () => {
+      const deps = makeDeps({
+        getLatestAgents: vi.fn().mockReturnValue([{ agent: 'Claude Code' }]),
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: vi.fn().mockResolvedValue([
+            {
+              agent: 'Claude Code',
+              instanceId: A,
+              remoteIp: '1.2.3.4',
+              remotePort: 443,
+              state: 'ESTABLISHED',
+              flagged: false,
+            },
+            // Matched no agent: no name, no key. It is passed through as-is, and
+            // baselines.js drops it rather than filing it under the empty name.
+            {
+              agent: '',
+              instanceId: null,
+              remoteIp: '9.9.9.9',
+              remotePort: 80,
+              state: 'ESTABLISHED',
+              flagged: true,
+            },
+          ]),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(deps.baselines.recordNetworkEndpoint.mock.calls).toEqual([
+        [A, 'Claude Code', '1.2.3.4', 443],
+        [null, '', '9.9.9.9', 80],
+      ]);
+    });
+
+    it('stamps the deviation instance key on the anomaly-alert audit entry', async () => {
+      const deps = makeDeps({
+        scanner: {
+          scanProcesses: vi
+            .fn()
+            .mockResolvedValue({ agents: AGENTS.map((a) => ({ ...a })), changed: false }),
+        },
+        anomaly: {
+          checkDeviations: vi.fn().mockReturnValue([
+            {
+              agent: 'Claude Code',
+              instanceId: B,
+              type: 'files',
+              message: 'Claude Code normally accesses ~2 files, now 20',
+              anomalyScore: 45,
+            },
+          ]),
+          calculateAnomalyScore: vi.fn().mockReturnValue({ score: 0 }),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+
+      const alert = deps.audit.log.mock.calls.find((c) => c[0] === 'anomaly-alert');
+      expect(alert).toBeTruthy();
+      expect(alert[1].agent).toBe('Claude Code');
+      expect(alert[1].instanceId).toBe(B);
+      // Still no pid: the detector held a bucket, never a process object.
+      expect(alert[1].pid).toBeNull();
+    });
+  });
 });
