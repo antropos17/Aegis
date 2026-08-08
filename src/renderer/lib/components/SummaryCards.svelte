@@ -7,6 +7,8 @@
     averageRiskScore,
     eventsPerMinute,
     EVENTS_PER_MIN_WINDOW_MS,
+    sensitiveAlertCount,
+    SENSITIVE_SUMMARY_LABEL,
   } from '../utils/summary-metrics.ts';
 
   /** @type {{ active?: boolean }} */
@@ -47,7 +49,8 @@
   // Rolling 60s count; `now` is explicit so aging does not require a new event.
   let eventsPerMin = $derived(eventsPerMinute(localEvents, now, EVENTS_PER_MIN_WINDOW_MS));
 
-  let sensitiveCount = $derived(localStats.totalSensitive || 0);
+  // Retained sensitive activity-log events (main totalSensitive) — not distinct files.
+  let sensitiveCount = $derived(sensitiveAlertCount(localStats.totalSensitive));
 
   let uptimeStr = $derived.by(() => {
     const ms = localStats.uptimeMs || 0;
@@ -203,9 +206,9 @@
     </span>
   </div>
 
-  <!-- Card 4: Sensitive Files -->
+  <!-- Card 4: Sensitive Alerts (retained sensitive log events, not distinct files) -->
   <div class="card">
-    <span class="card-label">Sensitive Files</span>
+    <span class="card-label">{SENSITIVE_SUMMARY_LABEL}</span>
     <span class="card-value card-value-sensitive">{displaySensitive}</span>
     <span class="card-trend {sensitiveTrendInfo.cls}">
       {sensitiveTrendInfo.arrow}

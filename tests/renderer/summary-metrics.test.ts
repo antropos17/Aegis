@@ -1,5 +1,6 @@
 /**
- * SummaryCards metrics — F-W02 Total Agents, F-W01 Avg Risk Score, F-W03 Events/min.
+ * SummaryCards metrics — F-W02 Total Agents, F-W01 Avg Risk Score, F-W03 Events/min,
+ * F-W06 Sensitive Alerts (retained events, not distinct files).
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -7,6 +8,8 @@ import {
   averageRiskScore,
   eventsPerMinute,
   EVENTS_PER_MIN_WINDOW_MS,
+  sensitiveAlertCount,
+  SENSITIVE_SUMMARY_LABEL,
 } from '../../src/renderer/lib/utils/summary-metrics.ts';
 
 describe('countUniqueAgents (F-W02)', () => {
@@ -168,5 +171,59 @@ describe('eventsPerMinute (F-W03)', () => {
 
   it('flattens one level of nested event batches', () => {
     expect(eventsPerMinute([[recent(-100), recent(-200)], recent(-300)], NOW)).toBe(3);
+  });
+});
+
+describe('sensitiveAlertCount (F-W06)', () => {
+  it('returns 0 when there is no sensitive activity', () => {
+    expect(sensitiveAlertCount(0)).toBe(0);
+    expect(sensitiveAlertCount(undefined)).toBe(0);
+    expect(sensitiveAlertCount(null)).toBe(0);
+  });
+
+  it('returns 1 for a single retained sensitive alert', () => {
+    expect(sensitiveAlertCount(1)).toBe(1);
+  });
+
+  it('preserves multi-alert totals (same path twice is two alerts in main)', () => {
+    // main onActivityPush ++ per sensitive event; path identity is not deduped.
+    // totalSensitive=2 may be one file accessed twice or two files once — both are
+    // two alerts. The card must not present this as "2 files".
+    expect(sensitiveAlertCount(2)).toBe(2);
+  });
+
+  it('preserves distinct-path multi-alert totals without collapsing to unique files', () => {
+    expect(sensitiveAlertCount(5)).toBe(5);
+  });
+
+  it('ignores non-finite and non-number inputs (malformed stats)', () => {
+    expect(sensitiveAlertCount(NaN)).toBe(0);
+    expect(sensitiveAlertCount(Infinity)).toBe(0);
+    expect(sensitiveAlertCount(-Infinity)).toBe(0);
+    expect(sensitiveAlertCount('3')).toBe(0);
+    expect(sensitiveAlertCount({})).toBe(0);
+  });
+
+  it('clamps negative and truncates fractional values', () => {
+    expect(sensitiveAlertCount(-1)).toBe(0);
+    expect(sensitiveAlertCount(3.9)).toBe(3);
+  });
+
+  it('reflects eviction / retention shrink (counter can drop without remediation)', () => {
+    // After onActivityEvict of a sensitive event, main sends a lower totalSensitive.
+    // The card must follow the retained-event counter, not a lifetime peak.
+    const beforeEvict = sensitiveAlertCount(10);
+    const afterEvict = sensitiveAlertCount(9);
+    expect(beforeEvict).toBe(10);
+    expect(afterEvict).toBe(9);
+  });
+
+  it('session restart / empty stats → 0 (in-memory counter, not durable)', () => {
+    expect(sensitiveAlertCount(0)).toBe(0);
+  });
+
+  it('label matches retained-alert semantics, not "files"', () => {
+    expect(SENSITIVE_SUMMARY_LABEL).toBe('Sensitive Alerts');
+    expect(SENSITIVE_SUMMARY_LABEL.toLowerCase()).not.toContain('file');
   });
 });

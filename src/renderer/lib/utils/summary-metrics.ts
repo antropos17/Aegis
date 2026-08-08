@@ -2,13 +2,22 @@
  * @file summary-metrics.ts — Pure metric helpers for SummaryCards
  * @module renderer/utils/summary-metrics
  * @description Keeps Total Agents / Avg Risk Score free of wrong-field and
- *   anomaly/risk mix-ups (CORRECTNESS F-W02 / F-W01), and Events/min free of
- *   hidden Date.now() (F-W03 — wall clock is an explicit `now` argument).
+ *   anomaly/risk mix-ups (CORRECTNESS F-W02 / F-W01), Events/min free of
+ *   hidden Date.now() (F-W03), and the sensitive card free of a "files"
+ *   mislabel on retained event counts (F-W06).
  * @since 0.10.0
  */
 
 /** Rolling window for "Events / min" (count of events in the last minute). */
 export const EVENTS_PER_MIN_WINDOW_MS = 60_000;
+
+/**
+ * SummaryCards label for `stats.totalSensitive`.
+ *
+ * Matches tray / HTML export product language ("sensitive alerts"). The value is
+ * retained sensitive **activity-log events**, not distinct file paths.
+ */
+export const SENSITIVE_SUMMARY_LABEL = 'Sensitive Alerts';
 
 /**
  * Count distinct agents for the "Total Agents" card.
@@ -103,4 +112,23 @@ function isEventInWindow(ev: unknown, now: number, cutoff: number): boolean {
   if (typeof ts !== 'number' || !Number.isFinite(ts)) return false;
   if (ts > now) return false;
   return ts >= cutoff;
+}
+
+/**
+ * Normalize `stats.totalSensitive` for the SummaryCards sensitive card.
+ *
+ * Authoritative unit (main `onActivityPush` / `onActivityEvict`): count of
+ * sensitive events **currently retained** in the main activity log (cap 10_000;
+ * may shrink under OOM trim). Each sensitive access increments once — the same
+ * path twice is two alerts. Not distinct files, not session-all-time after
+ * eviction, not filesystem existence.
+ *
+ * @param totalSensitive - Raw `stats.totalSensitive` (or unknown)
+ * @returns Non-negative integer count (never NaN)
+ * @since 0.10.0
+ */
+export function sensitiveAlertCount(totalSensitive: unknown): number {
+  if (typeof totalSensitive !== 'number' || !Number.isFinite(totalSensitive)) return 0;
+  if (totalSensitive <= 0) return 0;
+  return Math.trunc(totalSensitive);
 }
