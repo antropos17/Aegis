@@ -93,10 +93,14 @@ function instanceKey(name: string, parentEditor: string | null, cwd: string | nu
  * cwd/parentEditor (see `byInstance` below).
  *
  * ONE EXCEPTION, and it is not an oversight: `anomalyScore` is still read as
- * `$anomalies[name]`, because the main process builds that map per NAME
- * (scan-loop.js `scores[a.agent]` over `baselines.js` `sessionData[agentName]`). Two
- * instances of one agent therefore still share the anomaly term of their score.
- * IDENTITY-RECON.md §5 C2 — closing it is step 7 and lives in main.
+ * `$anomalies[name]`. Main now scores per INSTANCE — the live session bucket is keyed
+ * on `instanceId` (`baselines.js`), and the per-instance values ride the scan batch as
+ * `anomalyScoresByInstance` (`975ed1a`, IDENTITY-RECON.md §5 C2). The name-keyed map
+ * this store reads is the max over that name's instances, kept because this file is
+ * not the only consumer: App.svelte prints the map KEY as the agent name in its toast
+ * and SummaryCards averages the values. Two instances of one agent therefore still
+ * share the anomaly TERM here, now as the worse of the two rather than as one merged
+ * bucket — switching this read to `anomalyScoresByInstance` is renderer work.
  */
 let _prevAgents: unknown = null;
 let _prevEvents: unknown = null;

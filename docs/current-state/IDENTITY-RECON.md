@@ -85,7 +85,7 @@ Push channels are enumerated from `src/main/preload.js:28-97`. There is no separ
 | **process** (agents) | `scan-batch` → `data.agents` | **present** for scanner agents, **absent** for injected pid-0 synthetics | stamp `process-utils.js:183`; send `scan-loop.js:294-299`; injection *after* the stamp `scan-loop.js:263`; detector literals `ide-extension-detector.js:152-159`, `wsl-detector.js:120-127` — neither file mentions `instanceId` |
 | **file** | `file-access` (batched, `ipc-batcher.js`) | **absent** — not in the type, never set | type `src/shared/types/events.ts:50-77` has no `instanceId`; emitters `file-watcher.js:239-245`, `:391-402`, `:508-519` |
 | **network** | `network-update` | **absent** | `network-monitor.js:364-366` emits `{agent, pid, parentEditor, …}` only |
-| **anomaly** | *(no channel)* — rides inside `scan-batch` as `anomalyScores` | **absent by construction**: a `Record<agentName, number>` | `scan-loop.js:285-286`, consumed `ipc.ts:216` |
+| **anomaly** | *(no channel)* — rides inside `scan-batch` as `anomalyScores` + `anomalyScoresByInstance` | **present** in `anomalyScoresByInstance` (`Record<instanceId, number>`, step 7); `anomalyScores` stays a `Record<agentName, number>` for the renderer | `scan-loop.js` score block, consumed `ipc.ts:214` |
 | **resource** | `resource-usage` | **absent**, and the channel is **never subscribed** | shape `resource-monitor.js:23`, `:264-268` (pid only); send `scan-loop.js:313-315`; `preload.js:88-92` exposes `onResourceUsage`, and no file under `src/renderer/` calls it — the renderer's `resourceUsage` store holds the *app's own* memory/CPU from `main.js:124-133`, a different shape entirely |
 | **token** | `token-costs` | **present, and it IS the key** | `token-tracker.js:104` (`CostRecord.instanceId`), `:126` (`Map` keyed by it), `:191-197` (`recordKey`); renderer type `ipc.ts:64-73` |
 | **stats** | `stats-update` | n/a — aggregate counters, no per-agent identity | `main.js:136+`, `scan-loop.js:380` |
@@ -125,14 +125,15 @@ Populated per type:
 | Audit type | `instanceId` | Evidence |
 |---|---|---|
 | `agent-enter` / `agent-exit` | **real value** | `scan-loop.js:233`, `:250` (from `sessionTracker`) |
-| `file-access` / `config-access` | explicit `null` | `scan-loop.js:85` |
-| `network-connection` | explicit `null` | `scan-loop.js:145` |
-| `anomaly-alert` | explicit `null` | `scan-loop.js:274` |
+| `file-access` / `config-access` | **real value** when the event carries one, else `null` (step 3) | `scan-loop.js` `logAuditForFile` — `ev.instanceId ?? null` |
+| `network-connection` | **real value** when the connection matched an agent, else `null` (step 3) | `scan-loop.js` `doNetworkScan` — `conn.instanceId ?? null` |
+| `anomaly-alert` | **real value** (step 7) | `scan-loop.js` — `d.instanceId` from the per-instance deviation |
 | audit drop marker | explicit `null` | `audit-drop-tracker.js:113` |
 
-So `timeline-utils.ts` reads `entry.instanceId` (`:168`, `:182`) on a field that is non-null
-for exactly two of the five audit types, and always `undefined` for live (non-historical)
-events, which never had the field.
+So `timeline-utils.ts` reads `entry.instanceId` (`:168`, `:182`) on a field that is now
+non-null for four of the five audit types — only the drop marker, which nobody owns, keeps
+an explicit `null` — and always `undefined` for live (non-historical) events, which never
+had the field.
 
 ---
 
@@ -147,11 +148,11 @@ events, which never had the field.
 | 3.5 | `file-watcher.js:349-353` `handleKey` | `agent.instanceId` (fallback `buildInstanceId`) | ephemeral ✅ migrated |
 | 3.6 | `token-tracker.js:126, 191-197` `recordKey` | `proc.instanceId` (fallback `buildInstanceId({pid,startTime})`) | ephemeral ✅ migrated |
 | 3.7 | `scan-loop.js:56-73` `dedupFileEvent` | `` `${ev.agent}|${ev.file}` `` — display name | ephemeral ⚠ |
-| 3.8 | `scan-loop.js:285-286` anomaly scores | `scores[a.agent]` — display name | ephemeral ⚠ |
+| 3.8 | `scan-loop.js` anomaly scores | `scoresByInstance[a.instanceId]`; `scores[a.agent]` kept as the max for the renderer | ephemeral ✅ migrated (step 7) |
 | 3.9 | `config-manager.js:236-240` `getInstanceKey` | `` `${agentName}::${cwd}` `` → `` `${agentName}::${parentEditor}` `` → `agentName` | **durable** (settings.json) |
 | 3.10 | `blocklist.js:124, 187-195` | `(canonical signature, pid \| null)` | **durable** (settings.json `watchlist`) |
-| 3.11 | `baselines.js:63-65, 82, 97` | `sessionData[agentName]` | **durable** (baselines file) |
-| 3.12 | `anomaly-detector.js:48, 93-99` | `agentName` | derived from 3.11 |
+| 3.11 | `baselines.js` `sessionData` | `instanceId` (bucket carries `agentName`) | ephemeral ✅ migrated (step 7); `baselines.agents` stays **durable** on the name |
+| 3.12 | `anomaly-detector.js` | `instanceId` for the bucket, its `agentName` for the profile | derived from 3.11 ✅ |
 | 3.13 | `ipc-handlers.js:400-401, 415, 430` | `agents.some(a => a.pid === pid)` — bare pid guard for kill / suspend / resume | ephemeral ⚠ |
 | 3.14 | `resource-monitor.js:249-270` `_cache` | bare `pid`, 5 s TTL | ephemeral |
 
@@ -264,12 +265,20 @@ entry appears in the PermissionsGrid dropdown (`PermissionsGrid.svelte:55-57`), 
 cwd-level permission saved under the first key stops resolving
 (`config-manager.js:251-261`).
 
-### C2 — collide — the anomaly term is per-name by construction
+### C2 — CLOSED (step 7) — the anomaly term is per-name by construction
 
-`risk.ts:219` reads `$anomalies[name]`, and the main process builds that map as
-`scores[a.agent]` (`scan-loop.js:286`) on top of `sessionData[agentName]`
-(`baselines.js:63-65`). Even a perfect renderer key leaves this component of the risk score
-shared between two instances. Fixing the renderer key alone does **not** fix this.
+The mechanism was: `risk.ts` reads `$anomalies[name]`, and the main process built that map
+as `scores[a.agent]` on top of `sessionData[agentName]` (`baselines.js:63-65`), so two
+instances shared one live session bucket and one anomaly score. Even a perfect renderer key
+left this component of the risk score shared.
+
+The live bucket now keys on `instanceId` and carries its `agentName`; the persisted profile
+(`baselines.agents`) stays keyed on the name, and the on-disk format is unchanged. An agent
+with no key gets no bucket rather than a namesake's. `scan-batch` carries
+`anomalyScoresByInstance` (per `instanceId`) beside the name-keyed `anomalyScores`, now the
+max over that name's instances — the renderer is untouched and still reads the name map,
+so the term it shows is the worse of the two rather than one merged bucket. Moving that
+read onto the per-instance map is renderer work, not part of this step.
 
 ### C3 — collide — deliberate per-name UI roll-up hides everything above
 
@@ -394,13 +403,17 @@ correct with only steps `1..k` applied.
    **S1**. *Behaviour-preserving.* **Do not** move `PermissionsGrid` (§4.3.13–4.3.16) or
    `blocklist` (§3.10) to `instanceId`.
 
-7. **Anomaly scores become per-instance.** `baselines.js:63-65` and
-   `anomaly-detector.js:48, 93-99` key `sessionData` by instance instead of by name; the
+7. **DONE (`975ed1a`) — anomaly scores became per-instance.** `baselines.js` keys
+   `sessionData` by `instanceId` and stores `agentName` inside the bucket;
+   `anomaly-detector.js` looks the bucket up by key and its profile up by that name. The
    persisted `baselines.agents` map stays keyed by **name** (it is the cross-session profile
-   — that is what a baseline is), and only the live session bucket moves. `scan-loop.js:286`
-   emits `scores[instanceId]`; `risk.ts:219` reads it. **Changes what the user sees** and
-   requires a decision about existing baseline files. Closes **C2**. Independently
-   shippable, and the largest single behaviour change — keep it last among the data steps.
+   — that is what a baseline is), the on-disk format is unchanged, and pre-migration files
+   keep loading and matching. `finalizeSession` writes one record per instance, so the unit
+   of a persisted session matches the unit of the live bucket; until the launch-sized
+   records leave the 10-session window (`ceil(10/N)` launches) averages stay inflated and
+   deviations under-fire. `scan-loop.js` emits `anomalyScoresByInstance` beside the
+   name-keyed `anomalyScores` (max over that name's instances) — `risk.ts` was NOT touched
+   and still reads the name map. **Changed what the user sees.** Closed **C2**.
 
 8. **Selection and per-instance UI state.** `focusedAgentPid` / `selectedAgentPid`
    (`ipc.ts:125`, `:132`) become `focusedAgentInstance` / `selectedAgentInstance`; the
