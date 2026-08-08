@@ -31,6 +31,11 @@ export default defineConfig(({ mode, command }) => {
     build: {
       outDir: isDemo ? '../../dist/demo' : '../../dist/renderer',
       emptyOutDir: true,
+      // Convert project CJS helpers under src/shared (e.g. instance-key.js) so
+      // named ESM imports from the renderer resolve at Rollup time.
+      commonjsOptions: {
+        include: [/node_modules/, /src[\\/]shared[\\/]/],
+      },
       rollupOptions: {
         input: resolve(__dirname, 'src/renderer/index.html'),
       },

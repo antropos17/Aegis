@@ -18,6 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
 const { PERMISSION_CATEGORIES } = require('../shared/constants');
+const { buildInstanceKey } = require('../shared/instance-key');
 const logger = require('./logger');
 const safeStore = require('./safe-storage');
 
@@ -225,18 +226,17 @@ function getAgentPermissions(agentName) {
 }
 
 /**
- * Build the instance permission key for an agent.
- * CWD takes priority (most specific), then parentEditor, then name only.
+ * Build the durable permission key for an agent workspace context.
+ * Delegates to the single shared definition — never derives from pid/instanceId.
  * @param {string} agentName
- * @param {string|null} parentEditor
- * @param {string|null} cwd
+ * @param {string|null} [parentEditor]
+ * @param {string|null} [cwd]
  * @returns {string} e.g. "Claude Code::/path/to/project" or "Claude Code::VS Code" or "Claude Code"
  * @since v0.4.0
+ * @see shared/instance-key.js
  */
 function getInstanceKey(agentName, parentEditor, cwd) {
-  if (cwd) return `${agentName}::${cwd}`;
-  if (parentEditor) return `${agentName}::${parentEditor}`;
-  return agentName;
+  return buildInstanceKey(agentName, parentEditor, cwd);
 }
 
 /**

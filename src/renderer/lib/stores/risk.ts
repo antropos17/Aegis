@@ -8,6 +8,7 @@ import { derived } from 'svelte/store';
 import type { Readable } from 'svelte/store';
 import { agents, events, anomaliesByInstance, network, falsePositives } from './ipc.js';
 import { calculateRiskScore, getTrustGrade, getTimeDecayWeight } from '../utils/risk-scoring.js';
+import { buildInstanceKey } from '../../../shared/instance-key.js';
 import type {
   FileEvent,
   NetworkConnection,
@@ -55,32 +56,6 @@ function scoringVerdict(conn: NetworkConnection): NetworkVerdict {
   if (conn.verdict) return conn.verdict;
   if (!conn.flagged) return 'allowlisted';
   return conn.domain ? 'flagged' : 'unknown';
-}
-
-/**
- * The DURABLE key an agent's saved permissions live under. Deliberately built from
- * name + cwd + parentEditor, and deliberately NOT migrated to `instanceId`.
- *
- * DO NOT "FIX" THIS TO USE `instanceId`. It mirrors `getInstanceKey()` in
- * main/config-manager.js byte for byte, and the string it returns is a key inside
- * `agentPermissions` in settings.json — it outlives the process it names. `instanceId`
- * is per-boot (`pid:startTime`), so writing one here would persist a key that can never
- * match again, orphaning every saved permission on the next launch. Worse, with `cwd`
- * and `parentEditor` both null, PermissionsGrid.save() takes its `saveAgentPermissions`
- * branch and would write that per-boot key straight into settings.json.
- *
- * Correlating events to an agent is a DIFFERENT question with a different key — see
- * `byInstance` below. This one answers "whose settings are these", not "who did that".
- * IDENTITY-RECON.md §6 step 6.
- * @param name - Agent name
- * @param parentEditor - Parent editor name or null
- * @param cwd - Working directory or null
- * @returns Composite instance key
- */
-function instanceKey(name: string, parentEditor: string | null, cwd: string | null): string {
-  if (cwd) return `${name}::${cwd}`;
-  if (parentEditor) return `${name}::${parentEditor}`;
-  return name;
 }
 
 /**
@@ -186,7 +161,8 @@ export const enrichedAgents: Readable<EnrichedAgent[]> = derived(
       const parentEditor = raw.parentEditor || null;
       const cwd = raw.cwd || null;
       const projectName = raw.projectName || null;
-      const iKey = instanceKey(name, parentEditor, cwd);
+      // Durable permissions key (shared/instance-key.js) — never instanceId / pid.
+      const iKey = buildInstanceKey(name, parentEditor, cwd);
       // Read, never derive: the value must be the identical string this agent carried in
       // `scan-batch`, or the join lands on a different instance (ai-mistakes.md #19).
       const instanceId = raw.instanceId || null;

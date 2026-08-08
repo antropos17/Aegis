@@ -149,7 +149,7 @@ had the field.
 | 3.6 | `token-tracker.js:126, 191-197` `recordKey` | `proc.instanceId` (fallback `buildInstanceId({pid,startTime})`) | ephemeral ✅ migrated |
 | 3.7 | `scan-loop.js:56-73` `dedupFileEvent` | `` `${ev.agent}|${ev.file}` `` — display name | ephemeral ⚠ |
 | 3.8 | `scan-loop.js` anomaly scores | `scoresByInstance[a.instanceId]`; `scores[a.agent]` kept as the max for the renderer | ephemeral ✅ migrated (step 7) |
-| 3.9 | `config-manager.js:236-240` `getInstanceKey` | `` `${agentName}::${cwd}` `` → `` `${agentName}::${parentEditor}` `` → `agentName` | **durable** (settings.json) |
+| 3.9 | `config-manager.js` `getInstanceKey` → `shared/instance-key.js` `buildInstanceKey` | `` `${name}::${cwd}` `` → `` `${name}::${parentEditor}` `` → `name` | **durable** (settings.json) ✅ step 6 |
 | 3.10 | `blocklist.js:124, 187-195` | `(canonical signature, pid \| null)` | **durable** (settings.json `watchlist`) |
 | 3.11 | `baselines.js` `sessionData` | `instanceId` (bucket carries `agentName`) | ephemeral ✅ migrated (step 7); `baselines.agents` stays **durable** on the name |
 | 3.12 | `anomaly-detector.js` | `instanceId` for the bucket, its `agentName` for the profile | derived from 3.11 ✅ |
@@ -167,7 +167,7 @@ renderer therefore sees the durable key format directly.
 
 | # | Line | Key expression |
 |---|---|---|
-| 4.1.1 | `68-72` | `instanceKey(name, parentEditor, cwd)` → `` `${name}::${cwd}` `` / `` `${name}::${parentEditor}` `` / `name` |
+| 4.1.1 | `risk.ts` *(closed, step 6)* | was local `instanceKey()` → `buildInstanceKey` from `shared/instance-key.js` |
 | 4.1.2 | *(closed, step 5)* | was `eventsByPid` keyed `ev.pid` → `eventsByInstance` keyed `ev.instanceId` |
 | 4.1.3 | *(closed, step 5)* | was `eventsByName` keyed `ev.agent` → folded into `eventsByInstance` |
 | 4.1.4 | *(closed, step 5)* | was `connsByPid` keyed `conn.pid` → `connsByInstance` keyed `conn.instanceId` |
@@ -405,11 +405,13 @@ correct with only steps `1..k` applied.
    `riskScore` for the first time. Closed **C1** for file and network correlation; the
    anomaly term is step 7.
 
-6. **`instanceKey` (the durable key) is left in place and made honest.** `risk.ts:68-72` and
-   `config-manager.js:236-240` keep `name::cwd`; the two definitions are deduplicated into
-   `src/shared/`. With step 1 landed, `cwd` no longer flips between ticks, which closes
-   **S1**. *Behaviour-preserving.* **Do not** move `PermissionsGrid` (§4.3.13–4.3.16) or
-   `blocklist` (§3.10) to `instanceId`.
+6. **DONE — durable `instanceKey` honesty / shared definition.** Single helper
+   `buildInstanceKey(name, parentEditor, cwd)` in `src/shared/instance-key.js`. Main
+   `config-manager.getInstanceKey` and renderer `risk.ts` both call it — byte-identical
+   keys for settings.json. Contract: durable permissions/workspace scope only; not
+   runtime `instanceId`; not watchlist name; PID never included; concurrent same-name
+   with null cwd may share a key by design. Step 1 cwdCache honesty supports S1.
+   **Do not** move PermissionsGrid or blocklist to `instanceId`.
 
 7. **DONE (`975ed1a` + renderer half) — anomaly scores became per-instance end to end.**
    `baselines.js` keys `sessionData` by `instanceId` and stores `agentName` inside the

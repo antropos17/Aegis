@@ -118,10 +118,17 @@ export interface EnrichedAgent {
    * at `byInstance` in renderer/lib/stores/risk.ts.
    *
    * Distinct from {@link EnrichedAgent.instanceKey}, which is durable and stays on
-   * name+cwd. This one is per-boot and must never be persisted.
+   * name+cwd (+ optional parentEditor). This one is per-boot and must never be persisted.
    * @since v0.12.0
    */
   readonly instanceId: string | null;
+  /**
+   * Durable permissions / workspace key from `buildInstanceKey` in
+   * `shared/instance-key.js`: `name::cwd` → `name::parentEditor` → `name`.
+   * Survives restart; may be shared by concurrent same-name processes with no cwd.
+   * Never equal to `instanceId` by construction (different domains).
+   * @since v0.4.0
+   */
   readonly instanceKey: string;
   readonly sensitiveFiles: number;
   /**
