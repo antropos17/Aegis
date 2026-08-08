@@ -85,7 +85,7 @@ Push channels are enumerated from `src/main/preload.js:28-97`. There is no separ
 | **process** (agents) | `scan-batch` → `data.agents` | **present** for scanner agents, **absent** for injected pid-0 synthetics | stamp `process-utils.js:183`; send `scan-loop.js:294-299`; injection *after* the stamp `scan-loop.js:263`; detector literals `ide-extension-detector.js:152-159`, `wsl-detector.js:120-127` — neither file mentions `instanceId` |
 | **file** | `file-access` (batched, `ipc-batcher.js`) | **absent** — not in the type, never set | type `src/shared/types/events.ts:50-77` has no `instanceId`; emitters `file-watcher.js:239-245`, `:391-402`, `:508-519` |
 | **network** | `network-update` | **absent** | `network-monitor.js:364-366` emits `{agent, pid, parentEditor, …}` only |
-| **anomaly** | *(no channel)* — rides inside `scan-batch` as `anomalyScores` + `anomalyScoresByInstance` | **present** in `anomalyScoresByInstance` (`Record<instanceId, number>`, step 7); `anomalyScores` stays a `Record<agentName, number>` for the renderer | `scan-loop.js` score block, consumed `ipc.ts:214` |
+| **anomaly** | *(no channel)* — rides inside `scan-batch` as `anomalyScores` + `anomalyScoresByInstance` | **present** in both maps; risk reads `anomalyScoresByInstance` via `anomaliesByInstance` store; name map kept for toasts/SummaryCards | `scan-loop.js` score block; `ipc.ts` sets both stores; `risk.ts` joins on `instanceId` |
 | **resource** | `resource-usage` | **absent**, and the channel is **never subscribed** | shape `resource-monitor.js:23`, `:264-268` (pid only); send `scan-loop.js:313-315`; `preload.js:88-92` exposes `onResourceUsage`, and no file under `src/renderer/` calls it — the renderer's `resourceUsage` store holds the *app's own* memory/CPU from `main.js:124-133`, a different shape entirely |
 | **token** | `token-costs` | **present, and it IS the key** | `token-tracker.js:104` (`CostRecord.instanceId`), `:126` (`Map` keyed by it), `:191-197` (`recordKey`); renderer type `ipc.ts:64-73` |
 | **stats** | `stats-update` | n/a — aggregate counters, no per-agent identity | `main.js:136+`, `scan-loop.js:380` |
@@ -177,7 +177,7 @@ renderer therefore sees the durable key format directly.
 | 4.1.8 | *(closed, step 5)* | was `hasCwd && raw.pid ? eventsByPid.get(raw.pid) : eventsByName.get(name)` → `eventsByInstance.get(raw.instanceId)` |
 | 4.1.9 | *(closed, step 5)* | the name-branch `parentEditor` refinement is deleted — it existed only to patch that branch |
 | 4.1.10 | *(closed, step 5)* | was `hasCwd && raw.pid ? connsByPid.get(raw.pid) : connsByName.get(name)` → `connsByInstance.get(raw.instanceId)` |
-| 4.1.11 | `219` | `$anomalies[name]` |
+| 4.1.11 | *(closed, C2 renderer)* | was `$anomalies[name]` → `$anomaliesByInstance[instanceId]` (neutral 0 if key missing/null) |
 | 4.1.12 | `231, 240` | `fpNames.has(name)`; published field `instanceKey: iKey` (type `src/shared/types/risk.ts:103`) |
 
 ### 4.2 Stores — 4 sites
@@ -265,20 +265,20 @@ entry appears in the PermissionsGrid dropdown (`PermissionsGrid.svelte:55-57`), 
 cwd-level permission saved under the first key stops resolving
 (`config-manager.js:251-261`).
 
-### C2 — CLOSED (step 7) — the anomaly term is per-name by construction
+### C2 — CLOSED (step 7 main + renderer half) — the anomaly term was per-name by construction
 
-The mechanism was: `risk.ts` reads `$anomalies[name]`, and the main process built that map
-as `scores[a.agent]` on top of `sessionData[agentName]` (`baselines.js:63-65`), so two
-instances shared one live session bucket and one anomaly score. Even a perfect renderer key
-left this component of the risk score shared.
+The mechanism was: `risk.ts` read `$anomalies[name]`, and the main process built that map
+as `scores[a.agent]` on top of `sessionData[agentName]`, so two instances shared one live
+session bucket and one anomaly score. Even a perfect file/network key left this term shared.
 
-The live bucket now keys on `instanceId` and carries its `agentName`; the persisted profile
-(`baselines.agents`) stays keyed on the name, and the on-disk format is unchanged. An agent
-with no key gets no bucket rather than a namesake's. `scan-batch` carries
-`anomalyScoresByInstance` (per `instanceId`) beside the name-keyed `anomalyScores`, now the
-max over that name's instances — the renderer is untouched and still reads the name map,
-so the term it shows is the worse of the two rather than one merged bucket. Moving that
-read onto the per-instance map is renderer work, not part of this step.
+**Main (`975ed1a`):** the live bucket keys on `instanceId` and carries its `agentName`; the
+persisted profile (`baselines.agents`) stays on the name. `scan-batch` emits
+`anomalyScoresByInstance` beside name-keyed `anomalyScores` (max over that name's instances).
+
+**Renderer (this block):** `ipc.ts` stores the per-instance map in `anomaliesByInstance`;
+`risk.ts` reads only `$anomaliesByInstance[instanceId]`. No name fallback, no pid fallback,
+no re-derived key. Null/missing `instanceId` → neutral 0. The name-keyed `anomalies` store
+remains for App.svelte toasts and SummaryCards.
 
 ### C3 — collide — deliberate per-name UI roll-up hides everything above
 
@@ -403,17 +403,13 @@ correct with only steps `1..k` applied.
    **S1**. *Behaviour-preserving.* **Do not** move `PermissionsGrid` (§4.3.13–4.3.16) or
    `blocklist` (§3.10) to `instanceId`.
 
-7. **DONE (`975ed1a`) — anomaly scores became per-instance.** `baselines.js` keys
-   `sessionData` by `instanceId` and stores `agentName` inside the bucket;
-   `anomaly-detector.js` looks the bucket up by key and its profile up by that name. The
-   persisted `baselines.agents` map stays keyed by **name** (it is the cross-session profile
-   — that is what a baseline is), the on-disk format is unchanged, and pre-migration files
-   keep loading and matching. `finalizeSession` writes one record per instance, so the unit
-   of a persisted session matches the unit of the live bucket; until the launch-sized
-   records leave the 10-session window (`ceil(10/N)` launches) averages stay inflated and
-   deviations under-fire. `scan-loop.js` emits `anomalyScoresByInstance` beside the
-   name-keyed `anomalyScores` (max over that name's instances) — `risk.ts` was NOT touched
-   and still reads the name map. **Changed what the user sees.** Closed **C2**.
+7. **DONE (`975ed1a` + renderer half) — anomaly scores became per-instance end to end.**
+   `baselines.js` keys `sessionData` by `instanceId` and stores `agentName` inside the
+   bucket; `anomaly-detector.js` looks the bucket up by key and its profile up by that
+   name. The persisted `baselines.agents` map stays keyed by **name**. `scan-loop.js`
+   emits `anomalyScoresByInstance` beside name-keyed `anomalyScores` (max over instances).
+   Renderer: `anomaliesByInstance` store + `risk.ts` join on stamped `instanceId` only;
+   name map kept for toasts/SummaryCards. Closed **C2**.
 
 8. **Selection and per-instance UI state.** `focusedAgentPid` / `selectedAgentPid`
    (`ipc.ts:125`, `:132`) become `focusedAgentInstance` / `selectedAgentInstance`; the

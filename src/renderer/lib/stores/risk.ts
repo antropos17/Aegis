@@ -6,7 +6,7 @@
 
 import { derived } from 'svelte/store';
 import type { Readable } from 'svelte/store';
-import { agents, events, anomalies, network, falsePositives } from './ipc.js';
+import { agents, events, anomaliesByInstance, network, falsePositives } from './ipc.js';
 import { calculateRiskScore, getTrustGrade, getTimeDecayWeight } from '../utils/risk-scoring.js';
 import type {
   FileEvent,
@@ -84,7 +84,7 @@ function instanceKey(name: string, parentEditor: string | null, cwd: string | nu
 }
 
 /**
- * Enriched agents store — derives from agents, events, anomalies, network.
+ * Enriched agents store — derives from agents, events, anomaliesByInstance, network.
  * Each agent object gets: name, instanceId, instanceKey, sensitiveFiles, unknownDomains,
  * anomalyScore, riskScore, trustGrade, fileCount, networkCount.
  *
@@ -92,31 +92,27 @@ function instanceKey(name: string, parentEditor: string | null, cwd: string | nu
  * stamped by the main process — not on the agent name, and not on a key rebuilt from
  * cwd/parentEditor (see `byInstance` below).
  *
- * ONE EXCEPTION, and it is not an oversight: `anomalyScore` is still read as
- * `$anomalies[name]`. Main now scores per INSTANCE — the live session bucket is keyed
- * on `instanceId` (`baselines.js`), and the per-instance values ride the scan batch as
- * `anomalyScoresByInstance` (`975ed1a`, IDENTITY-RECON.md §5 C2). The name-keyed map
- * this store reads is the max over that name's instances, kept because this file is
- * not the only consumer: App.svelte prints the map KEY as the agent name in its toast
- * and SummaryCards averages the values. Two instances of one agent therefore still
- * share the anomaly TERM here, now as the worse of the two rather than as one merged
- * bucket — switching this read to `anomalyScoresByInstance` is renderer work.
+ * Anomaly contribution is the same join: `anomalyScoresByInstance[instanceId]` from
+ * the scan batch (main/scan-loop.js). The name-keyed `anomalies` store still exists for
+ * App.svelte toasts and SummaryCards; this store does not read it. An agent with no
+ * stamped `instanceId`, or whose key is absent from the map, gets a neutral 0 — never a
+ * namesake's score (IDENTITY-RECON.md §5 C2).
  */
 let _prevAgents: unknown = null;
 let _prevEvents: unknown = null;
-let _prevAnomalies: unknown = null;
+let _prevAnomaliesByInstance: unknown = null;
 let _prevNetwork: unknown = null;
 let _prevFp: unknown = null;
 let _cachedResult: EnrichedAgent[] = [];
 
 export const enrichedAgents: Readable<EnrichedAgent[]> = derived(
-  [agents, events, anomalies, network, falsePositives],
-  ([$agents, $events, $anomalies, $network, $fp]) => {
+  [agents, events, anomaliesByInstance, network, falsePositives],
+  ([$agents, $events, $anomaliesByInstance, $network, $fp]) => {
     // Reference equality cache — skip recompute if all inputs unchanged
     if (
       $agents === _prevAgents &&
       $events === _prevEvents &&
-      $anomalies === _prevAnomalies &&
+      $anomaliesByInstance === _prevAnomaliesByInstance &&
       $network === _prevNetwork &&
       $fp === _prevFp
     ) {
@@ -124,7 +120,7 @@ export const enrichedAgents: Readable<EnrichedAgent[]> = derived(
     }
     _prevAgents = $agents;
     _prevEvents = $events;
-    _prevAnomalies = $anomalies;
+    _prevAnomaliesByInstance = $anomaliesByInstance;
     _prevNetwork = $network;
     _prevFp = $fp;
 
@@ -241,7 +237,12 @@ export const enrichedAgents: Readable<EnrichedAgent[]> = derived(
         if (conn.domain && isApiDomain(conn.domain)) hasApiCalls = true;
       }
 
-      const anomalyScore = $anomalies[name] || 0;
+      // Read, never derive: only a stamped instanceId may select a score. No name map,
+      // no pid, no reconstructed key. Missing/null id → neutral 0 (quarantine).
+      const anomalyScore =
+        instanceId && typeof $anomaliesByInstance[instanceId] === 'number'
+          ? $anomaliesByInstance[instanceId]
+          : 0;
       const riskInput: RiskScoreInput = {
         sensitiveFiles,
         configFiles,

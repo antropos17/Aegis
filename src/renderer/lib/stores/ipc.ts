@@ -14,7 +14,16 @@ interface ScanBatchData {
   readonly agents?: DetectedAgent[];
   readonly stats?: Record<string, unknown>;
   readonly resourceUsage?: Record<string, unknown>;
+  /**
+   * Per-display-name anomaly scores (max over that name's live instances).
+   * Consumed by App.svelte toasts and SummaryCards — not by live risk correlation.
+   */
   readonly anomalyScores?: Record<string, number>;
+  /**
+   * Per-instance anomaly scores keyed by the same `instanceId` the agent carries in
+   * this batch. Source of truth for risk.ts anomaly contribution (IDENTITY-RECON C2).
+   */
+  readonly anomalyScoresByInstance?: Record<string, number>;
 }
 
 /** Scan-status push payload */
@@ -104,7 +113,18 @@ export const agents: Writable<DetectedAgent[]> = writable([]);
 export const events: Writable<FileEvent[]> = writable([]);
 export const stats: Writable<Record<string, unknown>> = writable({});
 export const network: Writable<NetworkConnection[]> = writable([]);
+/**
+ * Name-keyed anomaly scores (max over instances of that name). Still filled from
+ * `scan-batch.anomalyScores` for App.svelte toasts and SummaryCards. Live per-instance
+ * risk correlation reads {@link anomaliesByInstance} instead.
+ */
 export const anomalies: Writable<Record<string, number>> = writable({});
+/**
+ * Instance-keyed anomaly scores from `scan-batch.anomalyScoresByInstance`.
+ * Key = stamped `instanceId` string; value = that instance's anomaly score.
+ * Missing keys and null-identity agents contribute 0 in risk.ts — never a name lookup.
+ */
+export const anomaliesByInstance: Writable<Record<string, number>> = writable({});
 export const resourceUsage: Writable<Record<string, unknown>> = writable({});
 export const falsePositives: Writable<FalsePositiveEntry[]> = writable([]);
 export const scanActive: Writable<boolean> = writable(false);
@@ -212,6 +232,11 @@ if (import.meta.env.VITE_DEMO_MODE === 'true') {
       if (data.stats) stats.set(data.stats);
       if (data.resourceUsage) resourceUsage.set(data.resourceUsage);
       if (data.anomalyScores) anomalies.set(data.anomalyScores);
+      // Per-instance map rides the same batch; replace (not merge) so a dead instance
+      // does not keep a stale score after it leaves the agent list.
+      if (data.anomalyScoresByInstance) {
+        anomaliesByInstance.set(data.anomalyScoresByInstance);
+      }
       // A batch landed — the first scan has completed, even if it found nothing.
       firstScanDone.set(true);
     });
