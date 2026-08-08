@@ -55,6 +55,24 @@ export interface FileEvent {
    * unknown owner — pid 0 is used by synthetic WSL / local-runtime agents.
    */
   readonly pid: number | null;
+  /**
+   * Owning agent's process-INSTANCE key, copied verbatim from the agent object the
+   * emitting scan resolved on that same tick — the same string that agent carries in
+   * `scan-batch`, so the two can be joined. See `instanceId` in
+   * src/main/process-identity.js for the three value spaces.
+   *
+   * `null` is the documented value for an UNATTRIBUTED event: no owner was resolved,
+   * so no key is invented — not from a nearby agent, not from a name match, not by
+   * re-resolving the pid on a later tick (ai-mistakes.md #19). It is also `null` for
+   * the rarer case of an owner that carries no key of its own (the `attachModels`
+   * pid-0 synthetics, which are appended after every stamp site).
+   *
+   * An `inferred` event DOES carry a key: its owner is a real agent object from the
+   * same tick, and the status describes how ownership was argued, not what identity
+   * data was on hand. Do not read a non-null key as proof of `confirmed`.
+   * @since v0.12.0
+   */
+  readonly instanceId: string | null;
   readonly parentEditor: string | null;
   readonly cwd: string | null;
   readonly file: string;
@@ -107,6 +125,18 @@ export type NetworkVerdictReason =
 export interface NetworkConnection {
   readonly agent: string;
   readonly pid: number;
+  /**
+   * Owning agent's process-INSTANCE key, copied verbatim from the agent the scan
+   * matched this socket's owning pid to, inside that same call — never re-resolved
+   * from {@link NetworkConnection.pid} afterwards, which would be a second lookup
+   * able to straddle a pid recycle (ai-mistakes.md #19).
+   *
+   * `null` is the documented value when no agent owns the connection — the same
+   * C-01 rule that leaves {@link NetworkConnection.agent} as `''` rather than
+   * fabricating a name — or when the matched agent carries no key of its own.
+   * @since v0.12.0
+   */
+  readonly instanceId: string | null;
   readonly parentEditor: string | null;
   readonly cwd: string | null;
   readonly category: string;

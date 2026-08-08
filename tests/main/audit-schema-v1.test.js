@@ -9,6 +9,7 @@
  *   comments got wrong.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createRequire } from 'module';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -185,6 +186,188 @@ describe('event schema v1 — record shape', () => {
     const rawLegacy = auditLogger.exportAll().find((e) => e.agent === 'legacy');
     expect(rawLegacy.attribution).toBeUndefined();
     expect(rawLegacy.details.attribution).toBe('inferred');
+  });
+});
+
+// `instanceId` is only useful if the call sites actually populate it. The logger
+// stores whatever it is handed, so these drive the two scan-loop sites that build a
+// record out of a live event and assert what reaches the logger — the key when the
+// event has one, `null` when it does not.
+describe('event schema v1 — instanceId on the scan-loop call sites', () => {
+  const require_ = createRequire(import.meta.url);
+  let scanLoop;
+  let auditLog;
+
+  beforeEach(() => {
+    delete require_.cache[require_.resolve('../../src/main/scan-loop.js')];
+    scanLoop = require_('../../src/main/scan-loop.js');
+    auditLog = vi.fn();
+  });
+
+  /** @returns {Object} minimal deps for doNetworkScan */
+  function netDeps(connections) {
+    return {
+      audit: { log: auditLog },
+      baselines: { recordNetworkEndpoint: vi.fn() },
+      logger: { warn: vi.fn(), debug: vi.fn(), error: vi.fn() },
+      network: {
+        isNetworkScanRunning: () => false,
+        setNetworkScanRunning: vi.fn(),
+        scanNetworkConnections: vi.fn().mockResolvedValue(connections),
+      },
+      getLatestAgents: () => [{ agent: 'Claude Code', pid: 100 }],
+      setLatestNetConnections: vi.fn(),
+      sendToRenderer: vi.fn(),
+    };
+  }
+
+  /** @returns {Promise<void>} let the scanNetworkConnections promise chain settle */
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+  describe('file-access / config-access', () => {
+    // `logAuditForFile` reaches for nothing but the audit sink, so every test here
+    // drives it through the same minimal init.
+    beforeEach(() => {
+      scanLoop.init({ audit: { log: auditLog } });
+    });
+
+    it('carries the key the file event was stamped with', () => {
+      scanLoop.logAuditForFile({
+        agent: 'Claude Code',
+        pid: 100,
+        instanceId: '100:1700000000111',
+        action: 'accessed',
+        file: '/home/user/.ssh/id_rsa',
+        sensitive: true,
+        reason: 'SSH keys/config',
+        attribution: { status: 'confirmed', evidence: ['handle-scan-pid'] },
+      });
+      expect(auditLog.mock.calls[0][1].instanceId).toBe('100:1700000000111');
+    });
+
+    // An `inferred` event has a real owner from its own tick, so it has a real key.
+    // Gating the record on `confirmed` would blank every chokidar-sourced entry.
+    it('carries the key on an inferred config-access too', () => {
+      scanLoop.logAuditForFile({
+        agent: 'Cursor',
+        pid: 200,
+        instanceId: '200:1700000000222',
+        action: 'modified',
+        file: '/home/user/.cursor/settings.json',
+        sensitive: false,
+        reason: 'AI agent config — Cursor',
+        attribution: { status: 'inferred', evidence: ['self-config-path'] },
+      });
+      const [type, record] = auditLog.mock.calls[0];
+      expect(type).toBe('config-access');
+      expect(record.instanceId).toBe('200:1700000000222');
+    });
+
+    it('stays null for an unattributed event', () => {
+      scanLoop.logAuditForFile({
+        agent: '',
+        pid: null,
+        instanceId: null,
+        action: 'modified',
+        file: '/home/user/.ssh/id_rsa',
+        sensitive: true,
+        reason: 'SSH keys/config',
+        attribution: { status: 'unattributed', evidence: ['no-owner-match'] },
+      });
+      expect(auditLog.mock.calls[0][1].instanceId).toBeNull();
+    });
+
+    // A pre-v0.12.0 activity-log entry has no such field at all. `undefined` must not
+    // reach the record — the schema says `string | null`.
+    it('stays null for an event that predates the field', () => {
+      scanLoop.logAuditForFile({
+        agent: 'Claude Code',
+        action: 'read',
+        file: '/home/user/.bashrc',
+        sensitive: false,
+        reason: '',
+      });
+      expect(auditLog.mock.calls[0][1].instanceId).toBeNull();
+    });
+  });
+
+  describe('network-connection', () => {
+    it('carries the key the connection was stamped with', async () => {
+      scanLoop.init(
+        netDeps([
+          {
+            agent: 'Claude Code',
+            pid: 100,
+            instanceId: '100:1700000000111',
+            remoteIp: '1.2.3.4',
+            remotePort: 443,
+            state: 'ESTABLISHED',
+            flagged: false,
+            domain: 'api.anthropic.com',
+          },
+        ]),
+      );
+      scanLoop.doNetworkScan();
+      await settle();
+      expect(auditLog.mock.calls[0][1].instanceId).toBe('100:1700000000111');
+    });
+
+    it('stays null for a connection that matched no agent', async () => {
+      scanLoop.init(
+        netDeps([
+          {
+            agent: '',
+            pid: 999,
+            instanceId: null,
+            remoteIp: '8.8.8.8',
+            remotePort: 53,
+            state: 'ESTABLISHED',
+            flagged: true,
+            domain: '',
+          },
+        ]),
+      );
+      scanLoop.doNetworkScan();
+      await settle();
+      const record = auditLog.mock.calls[0][1];
+      expect(record.agent).toBe('');
+      expect(record.pid).toBe(999);
+      expect(record.instanceId).toBeNull();
+    });
+
+    // The reason the audit trail needed this at all: two live instances of one agent
+    // wrote two records that were indistinguishable once the pid was recycled.
+    it('writes two different keys for two same-name instances', async () => {
+      scanLoop.init(
+        netDeps([
+          {
+            agent: 'Claude Code',
+            pid: 100,
+            instanceId: '100:1700000000111',
+            remoteIp: '1.2.3.4',
+            remotePort: 443,
+            state: 'ESTABLISHED',
+            flagged: false,
+            domain: '',
+          },
+          {
+            agent: 'Claude Code',
+            pid: 200,
+            instanceId: '200:1700000000222',
+            remoteIp: '5.6.7.8',
+            remotePort: 443,
+            state: 'ESTABLISHED',
+            flagged: false,
+            domain: '',
+          },
+        ]),
+      );
+      scanLoop.doNetworkScan();
+      await settle();
+      const keys = auditLog.mock.calls.map((c) => c[1].instanceId);
+      expect(keys).toEqual(['100:1700000000111', '200:1700000000222']);
+      expect(new Set(keys).size).toBe(2);
+    });
   });
 });
 

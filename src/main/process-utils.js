@@ -32,7 +32,8 @@ const parentChainCache = new Map();
 const PARENT_CHAIN_TTL = 60000;
 
 /**
- * Cache key for the parent-chain / startTime cache: pid PLUS the process name.
+ * Cache key for the parent-chain / startTime cache AND the cwd cache: pid PLUS
+ * the process name.
  *
  * A bare pid is not enough. Windows recycles PIDs, so a live TTL entry keyed on
  * pid alone serves the DEAD process's chain and — far worse — its `startTime`,
@@ -50,6 +51,18 @@ const PARENT_CHAIN_TTL = 60000;
  */
 function _cacheKey(pid, name) {
   return `${pid}|${typeof name === 'string' ? name.toLowerCase() : ''}`;
+}
+
+/**
+ * The name segment {@link _cacheKey} is keyed on: the OS process name, falling back
+ * to the display name. One definition, so the parent-chain cache and the cwd cache
+ * can never disagree about which name belongs to a pid — a disagreement would make
+ * the two caches key the same process differently and silently halve their hit rate.
+ * @param {{process?: string, agent?: string}} agent
+ * @returns {string} the name, or '' when the agent carries neither.
+ */
+function _agentName(agent) {
+  return String(agent.process || agent.agent || '');
 }
 
 /**
@@ -170,7 +183,7 @@ async function enrichWithParentChains(agents, opts = {}) {
   // one wins here; harmless because pid 0 is absent from the OS process map (its
   // startTime is null either way) and identify() below reads each agent's OWN name.
   const names = new Map();
-  for (const a of agents) names.set(a.pid, String(a.process || a.agent || ''));
+  for (const a of agents) names.set(a.pid, _agentName(a));
   const chains = await getParentChains(pids, {
     names,
     forceRefresh: opts.forceRefresh === true,
@@ -218,13 +231,30 @@ const CWD_CACHE_TTL = 60000;
  * Annotate agents with their working directories.
  * Sets `agent.cwd` (full path) and `agent.projectName` (basename).
  * Uses batched platform call (single PowerShell spawn on Windows).
+ *
+ * The cache is keyed by pid AND process name — the same {@link _cacheKey} the
+ * parent-chain cache uses, and for the same reason. A bare pid was not enough:
+ * a pid recycled inside the 60 s TTL served the DEAD process's `cwd`, and `cwd`
+ * is the field the renderer's instance key is built from and the field
+ * CWD_CONTAINMENT attribution matches on. Folding the name in turns a recycled
+ * pid belonging to a different executable into a cache MISS.
+ *
+ * KNOWN BOUND: identical to `_cacheKey`'s — a pid recycled by an executable with
+ * the SAME name still hits inside the TTL. `opts.forceRefresh` covers that case.
  * @param {Array} agents
+ * @param {Object} [opts]
+ * @param {boolean} [opts.forceRefresh=false] - when true, ignore cached entries and
+ *   re-read the working directories from the platform. Pass true when the scanned
+ *   pid set changed: a pid new to the set must never be annotated with a dead
+ *   process's directory. Costs one platform call — the same batched fetch an
+ *   uncached tick already pays.
  * @returns {Promise<void>}
  * @since v0.5.0
  */
-async function annotateWorkingDirs(agents) {
+async function annotateWorkingDirs(agents, opts = {}) {
   if (agents.length === 0) return;
 
+  const forceRefresh = opts.forceRefresh === true;
   const now = Date.now();
   // Prune stale entries
   if (cwdCache.size > 500) {
@@ -233,29 +263,34 @@ async function annotateWorkingDirs(agents) {
     }
   }
 
-  // Separate cached vs uncached PIDs
-  const uncachedPids = [];
-  for (const a of agents) {
-    const cached = cwdCache.get(a.pid);
-    if (!cached || now - cached.timestamp > CWD_CACHE_TTL) {
-      uncachedPids.push(a.pid);
-    }
+  // One cache key per agent, resolved once, via the same `_agentName` the
+  // parent-chain cache keys on.
+  const entries = agents.map((a) => ({ agent: a, key: _cacheKey(a.pid, _agentName(a)) }));
+
+  // Pids with no live cache entry. Agents can share a pid (the pid-0 synthetics
+  // all do) while holding distinct keys, so the Set both collects and deduplicates
+  // — one platform lookup per pid, in first-seen order.
+  const uncachedPids = new Set();
+  for (const e of entries) {
+    const cached = forceRefresh ? null : cwdCache.get(e.key);
+    if (cached && now - cached.timestamp <= CWD_CACHE_TTL) continue;
+    uncachedPids.add(e.agent.pid);
   }
 
-  // Single batched call for all uncached PIDs
-  if (uncachedPids.length > 0) {
-    const batchResults = await _getProcessCwds(uncachedPids);
-    for (const pid of uncachedPids) {
-      const cwd = batchResults.get(pid) || null;
-      cwdCache.set(pid, { cwd, timestamp: now });
-    }
-  }
+  // Single batched call for all uncached PIDs.
+  const batchResults = uncachedPids.size > 0 ? await _getProcessCwds([...uncachedPids]) : null;
 
-  for (const a of agents) {
-    const cached = cwdCache.get(a.pid);
+  // The fetched result is written back per AGENT, not per pid — the pid alone can
+  // no longer reconstruct the cache key — and each entry is annotated in the same
+  // pass, reading the value just written.
+  for (const e of entries) {
+    if (batchResults && uncachedPids.has(e.agent.pid)) {
+      cwdCache.set(e.key, { cwd: batchResults.get(e.agent.pid) || null, timestamp: now });
+    }
+    const cached = cwdCache.get(e.key);
     const cwd = cached ? cached.cwd : null;
-    a.cwd = cwd;
-    a.projectName = cwd ? path.basename(cwd) : null;
+    e.agent.cwd = cwd;
+    e.agent.projectName = cwd ? path.basename(cwd) : null;
   }
 }
 

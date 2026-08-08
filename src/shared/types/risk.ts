@@ -44,8 +44,15 @@ export interface AnomalyResult {
   readonly dimensions: Readonly<Record<AnomalyDimension, DimensionScore>>;
 }
 
-/** Per-agent session tracking data for baseline comparison */
+/** Per-INSTANCE session tracking data for baseline comparison */
 export interface SessionData {
+  /**
+   * Display name of the agent this bucket belongs to. The bucket itself is keyed
+   * by `instanceId` (baselines.js `sessionData`), so this field is the only way
+   * back to the cross-session profile in {@link Baselines}, which stays keyed on
+   * the name.
+   */
+  readonly agentName: string;
   readonly files: Set<string>;
   sensitiveCount: number;
   readonly directories: Set<string>;
@@ -100,6 +107,21 @@ export interface EnrichedAgent {
   readonly parentEditor: string | null;
   readonly cwd: string | null;
   readonly projectName: string | null;
+  /**
+   * The canonical process-INSTANCE key, copied verbatim from the `scan-batch` record —
+   * never rebuilt here. This is what file events and network connections are correlated
+   * by; see main/process-identity.js for the three value spaces.
+   *
+   * `null` when the batch carried no key: a record from a build older than the stamp, or
+   * an agent that no stamp site ever reached (the `attachModels` pid-0 synthetics). Such
+   * an agent correlates to NOTHING rather than to a namesake — see the quarantine policy
+   * at `byInstance` in renderer/lib/stores/risk.ts.
+   *
+   * Distinct from {@link EnrichedAgent.instanceKey}, which is durable and stays on
+   * name+cwd. This one is per-boot and must never be persisted.
+   * @since v0.12.0
+   */
+  readonly instanceId: string | null;
   readonly instanceKey: string;
   readonly sensitiveFiles: number;
   /**
