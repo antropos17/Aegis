@@ -225,8 +225,13 @@ describe('event schema v1 — instanceId on the scan-loop call sites', () => {
   const settle = () => new Promise((resolve) => setImmediate(resolve));
 
   describe('file-access / config-access', () => {
-    it('carries the key the file event was stamped with', () => {
+    // `logAuditForFile` reaches for nothing but the audit sink, so every test here
+    // drives it through the same minimal init.
+    beforeEach(() => {
       scanLoop.init({ audit: { log: auditLog } });
+    });
+
+    it('carries the key the file event was stamped with', () => {
       scanLoop.logAuditForFile({
         agent: 'Claude Code',
         pid: 100,
@@ -243,7 +248,6 @@ describe('event schema v1 — instanceId on the scan-loop call sites', () => {
     // An `inferred` event has a real owner from its own tick, so it has a real key.
     // Gating the record on `confirmed` would blank every chokidar-sourced entry.
     it('carries the key on an inferred config-access too', () => {
-      scanLoop.init({ audit: { log: auditLog } });
       scanLoop.logAuditForFile({
         agent: 'Cursor',
         pid: 200,
@@ -260,7 +264,6 @@ describe('event schema v1 — instanceId on the scan-loop call sites', () => {
     });
 
     it('stays null for an unattributed event', () => {
-      scanLoop.init({ audit: { log: auditLog } });
       scanLoop.logAuditForFile({
         agent: '',
         pid: null,
@@ -277,7 +280,6 @@ describe('event schema v1 — instanceId on the scan-loop call sites', () => {
     // A pre-v0.12.0 activity-log entry has no such field at all. `undefined` must not
     // reach the record — the schema says `string | null`.
     it('stays null for an event that predates the field', () => {
-      scanLoop.init({ audit: { log: auditLog } });
       scanLoop.logAuditForFile({
         agent: 'Claude Code',
         action: 'read',

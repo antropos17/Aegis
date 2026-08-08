@@ -54,6 +54,18 @@ function _cacheKey(pid, name) {
 }
 
 /**
+ * The name segment {@link _cacheKey} is keyed on: the OS process name, falling back
+ * to the display name. One definition, so the parent-chain cache and the cwd cache
+ * can never disagree about which name belongs to a pid — a disagreement would make
+ * the two caches key the same process differently and silently halve their hit rate.
+ * @param {{process?: string, agent?: string}} agent
+ * @returns {string} the name, or '' when the agent carries neither.
+ */
+function _agentName(agent) {
+  return String(agent.process || agent.agent || '');
+}
+
+/**
  * Resolve parent process chains for a list of PIDs via platform adapter.
  * @param {number[]} pids
  * @param {Object} [opts]
@@ -171,7 +183,7 @@ async function enrichWithParentChains(agents, opts = {}) {
   // one wins here; harmless because pid 0 is absent from the OS process map (its
   // startTime is null either way) and identify() below reads each agent's OWN name.
   const names = new Map();
-  for (const a of agents) names.set(a.pid, String(a.process || a.agent || ''));
+  for (const a of agents) names.set(a.pid, _agentName(a));
   const chains = await getParentChains(pids, {
     names,
     forceRefresh: opts.forceRefresh === true,
@@ -251,38 +263,30 @@ async function annotateWorkingDirs(agents, opts = {}) {
     }
   }
 
-  // One cache key per agent, resolved once. The name expression is the SAME one
-  // enrichWithParentChains uses, so the two caches cannot disagree about which
-  // name belongs to a pid.
-  const entries = agents.map((a) => ({
-    agent: a,
-    key: _cacheKey(a.pid, String(a.process || a.agent || '')),
-  }));
+  // One cache key per agent, resolved once, via the same `_agentName` the
+  // parent-chain cache keys on.
+  const entries = agents.map((a) => ({ agent: a, key: _cacheKey(a.pid, _agentName(a)) }));
 
-  // Separate cached vs uncached entries. Agents can share a pid (the pid-0
-  // synthetics all do) while holding distinct keys, so the pid list handed to the
-  // platform is deduplicated — one entry per pid, in first-seen order.
-  const uncachedPids = [];
-  const uncachedPidSet = new Set();
+  // Pids with no live cache entry. Agents can share a pid (the pid-0 synthetics
+  // all do) while holding distinct keys, so the Set both collects and deduplicates
+  // — one platform lookup per pid, in first-seen order.
+  const uncachedPids = new Set();
   for (const e of entries) {
     const cached = forceRefresh ? null : cwdCache.get(e.key);
     if (cached && now - cached.timestamp <= CWD_CACHE_TTL) continue;
-    if (uncachedPidSet.has(e.agent.pid)) continue;
-    uncachedPidSet.add(e.agent.pid);
-    uncachedPids.push(e.agent.pid);
+    uncachedPids.add(e.agent.pid);
   }
 
-  // Single batched call for all uncached PIDs. The result is written back per
-  // AGENT, not per pid: the pid alone can no longer reconstruct the cache key.
-  if (uncachedPids.length > 0) {
-    const batchResults = await _getProcessCwds(uncachedPids);
-    for (const e of entries) {
-      if (!uncachedPidSet.has(e.agent.pid)) continue;
+  // Single batched call for all uncached PIDs.
+  const batchResults = uncachedPids.size > 0 ? await _getProcessCwds([...uncachedPids]) : null;
+
+  // The fetched result is written back per AGENT, not per pid — the pid alone can
+  // no longer reconstruct the cache key — and each entry is annotated in the same
+  // pass, reading the value just written.
+  for (const e of entries) {
+    if (batchResults && uncachedPids.has(e.agent.pid)) {
       cwdCache.set(e.key, { cwd: batchResults.get(e.agent.pid) || null, timestamp: now });
     }
-  }
-
-  for (const e of entries) {
     const cached = cwdCache.get(e.key);
     const cwd = cached ? cached.cwd : null;
     e.agent.cwd = cwd;

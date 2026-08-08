@@ -21,6 +21,53 @@ describe('scan-loop', () => {
     vi.useRealTimers();
   });
 
+  /**
+   * Fresh mock deps for one scan run — every collaborator `doProcessScan` reaches
+   * for, stubbed inert. Each caller overrides only the collaborator its assertions
+   * are about, so a new dependency in scan-loop is added here once instead of in
+   * every block that drives a scan.
+   * @param {Object} [overrides]
+   * @returns {Object}
+   */
+  function makeDeps(overrides = {}) {
+    return {
+      scanner: { scanProcesses: vi.fn().mockResolvedValue({ agents: [], changed: false }) },
+      procUtil: {
+        enrichWithParentChains: vi.fn().mockResolvedValue(),
+        annotateHostApps: vi.fn(),
+        annotateWorkingDirs: vi.fn().mockResolvedValue(),
+      },
+      watcher: {
+        pruneKnownHandles: vi.fn(),
+        scanAllFileHandles: vi.fn().mockResolvedValue([]),
+      },
+      network: {
+        isNetworkScanRunning: vi.fn().mockReturnValue(false),
+        setNetworkScanRunning: vi.fn(),
+        scanNetworkConnections: vi.fn().mockResolvedValue([]),
+      },
+      baselines: { recordNetworkEndpoint: vi.fn() },
+      anomaly: {
+        checkDeviations: vi.fn().mockReturnValue([]),
+        calculateAnomalyScore: vi.fn().mockReturnValue({ score: 0 }),
+      },
+      audit: { log: vi.fn() },
+      tray: { updateTrayIcon: vi.fn(), notifySensitive: vi.fn() },
+      logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+      sendToRenderer: vi.fn(),
+      fileAccessBatcher: { push: vi.fn() },
+      statsUpdateBatcher: { push: vi.fn() },
+      getStats: vi.fn().mockReturnValue({}),
+      getResourceUsage: vi.fn().mockReturnValue({}),
+      getLatestAgents: vi.fn().mockReturnValue([]),
+      setAgents: vi.fn(),
+      setLatestNetConnections: vi.fn(),
+      getPreviousPids: vi.fn().mockReturnValue(new Map()),
+      setPreviousPids: vi.fn(),
+      ...overrides,
+    };
+  }
+
   // ── dedupFileEvent ──
 
   describe('dedupFileEvent', () => {
@@ -322,7 +369,7 @@ describe('scan-loop', () => {
      */
     function makeStampingDeps(sendToRenderer, changed = false) {
       const { identify } = require_('../../src/main/process-identity.js');
-      return {
+      return makeDeps({
         scanner: {
           // A FRESH array per tick, which is what the real scanner returns — the
           // injected synthetics live only in the previous tick's array and must
@@ -347,31 +394,8 @@ describe('scan-loop', () => {
           annotateHostApps: vi.fn(),
           annotateWorkingDirs: vi.fn().mockResolvedValue(),
         },
-        watcher: { pruneKnownHandles: vi.fn(), scanAllFileHandles: vi.fn().mockResolvedValue([]) },
-        network: {
-          isNetworkScanRunning: vi.fn().mockReturnValue(false),
-          setNetworkScanRunning: vi.fn(),
-          scanNetworkConnections: vi.fn().mockResolvedValue([]),
-        },
-        baselines: { recordNetworkEndpoint: vi.fn() },
-        anomaly: {
-          checkDeviations: vi.fn().mockReturnValue([]),
-          calculateAnomalyScore: vi.fn().mockReturnValue({ score: 0 }),
-        },
-        audit: { log: vi.fn() },
-        tray: { updateTrayIcon: vi.fn(), notifySensitive: vi.fn() },
-        logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
         sendToRenderer,
-        fileAccessBatcher: { push: vi.fn() },
-        statsUpdateBatcher: { push: vi.fn() },
-        getStats: vi.fn().mockReturnValue({}),
-        getResourceUsage: vi.fn().mockReturnValue({}),
-        getLatestAgents: vi.fn().mockReturnValue([]),
-        setAgents: vi.fn(),
-        setLatestNetConnections: vi.fn(),
-        getPreviousPids: vi.fn().mockReturnValue(new Map()),
-        setPreviousPids: vi.fn(),
-      };
+      });
     }
 
     /**
@@ -516,42 +540,13 @@ describe('scan-loop', () => {
   describe('annotateWorkingDirs forceRefresh wiring', () => {
     /** @param {boolean} changed @returns {Promise<Object>} the procUtil mock after one scan */
     async function scanWithChanged(changed) {
-      const mockDeps = {
+      const mockDeps = makeDeps({
         scanner: {
           scanProcesses: vi
             .fn()
             .mockResolvedValue({ agents: [{ agent: 'Cursor', pid: 300 }], changed }),
         },
-        procUtil: {
-          enrichWithParentChains: vi.fn().mockResolvedValue(),
-          annotateHostApps: vi.fn(),
-          annotateWorkingDirs: vi.fn().mockResolvedValue(),
-        },
-        watcher: { pruneKnownHandles: vi.fn(), scanAllFileHandles: vi.fn().mockResolvedValue([]) },
-        network: {
-          isNetworkScanRunning: vi.fn().mockReturnValue(false),
-          setNetworkScanRunning: vi.fn(),
-          scanNetworkConnections: vi.fn().mockResolvedValue([]),
-        },
-        baselines: { recordNetworkEndpoint: vi.fn() },
-        anomaly: {
-          checkDeviations: vi.fn().mockReturnValue([]),
-          calculateAnomalyScore: vi.fn().mockReturnValue({ score: 0 }),
-        },
-        audit: { log: vi.fn() },
-        tray: { updateTrayIcon: vi.fn(), notifySensitive: vi.fn() },
-        logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-        sendToRenderer: vi.fn(),
-        fileAccessBatcher: { push: vi.fn() },
-        statsUpdateBatcher: { push: vi.fn() },
-        getStats: vi.fn().mockReturnValue({}),
-        getResourceUsage: vi.fn().mockReturnValue({}),
-        getLatestAgents: vi.fn().mockReturnValue([]),
-        setAgents: vi.fn(),
-        setLatestNetConnections: vi.fn(),
-        getPreviousPids: vi.fn().mockReturnValue(new Map()),
-        setPreviousPids: vi.fn(),
-      };
+      });
       scanLoop.init(mockDeps);
       scanLoop.startScanIntervals(5000);
       await vi.advanceTimersByTimeAsync(5000);
@@ -648,44 +643,6 @@ describe('scan-loop', () => {
   // ── timing instrumentation (logger.debug under module 'scan') ──
 
   describe('timing instrumentation', () => {
-    /** @param {Object} [overrides] @returns {Object} fresh mock deps for a scan run */
-    function makeDeps(overrides = {}) {
-      return {
-        scanner: { scanProcesses: vi.fn().mockResolvedValue({ agents: [], changed: false }) },
-        procUtil: {
-          enrichWithParentChains: vi.fn().mockResolvedValue(),
-          annotateHostApps: vi.fn(),
-          annotateWorkingDirs: vi.fn().mockResolvedValue(),
-        },
-        watcher: {
-          pruneKnownHandles: vi.fn(),
-          scanAllFileHandles: vi.fn().mockResolvedValue([]),
-        },
-        network: {
-          isNetworkScanRunning: vi.fn().mockReturnValue(false),
-          setNetworkScanRunning: vi.fn(),
-          scanNetworkConnections: vi.fn().mockResolvedValue([]),
-        },
-        baselines: { recordNetworkEndpoint: vi.fn() },
-        anomaly: {
-          checkDeviations: vi.fn().mockReturnValue([]),
-          calculateAnomalyScore: vi.fn().mockReturnValue({ score: 0 }),
-        },
-        audit: { log: vi.fn() },
-        tray: { updateTrayIcon: vi.fn(), notifySensitive: vi.fn() },
-        logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-        sendToRenderer: vi.fn(),
-        fileAccessBatcher: { push: vi.fn() },
-        statsUpdateBatcher: { push: vi.fn() },
-        getStats: vi.fn().mockReturnValue({}),
-        getResourceUsage: vi.fn().mockReturnValue({}),
-        getLatestAgents: vi.fn().mockReturnValue([]),
-        setAgents: vi.fn(),
-        setLatestNetConnections: vi.fn(),
-        ...overrides,
-      };
-    }
-
     it('emits scan/process debug timing with the batched agent count', async () => {
       const deps = makeDeps({
         scanner: {

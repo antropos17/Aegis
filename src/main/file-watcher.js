@@ -27,7 +27,7 @@ const {
 } = require('../shared/constants');
 const { getAllRules, reloadRules } = require('./rule-loader');
 const { EVIDENCE, makeAttribution } = require('./attribution');
-const { buildInstanceId } = require('./process-identity');
+const { buildInstanceId, readInstanceId } = require('./process-identity');
 const _platform = require('./platform');
 const { IGNORE_FILE_PATTERNS } = _platform;
 
@@ -173,32 +173,6 @@ function findOwningAgent(filePath, aiAgents) {
 }
 
 /**
- * Read back the `instanceId` an agent object already carries, or `null`.
- *
- * READ, never re-derive. The stamp exists so the renderer can join an event to the
- * agent it received in the SAME `scan-batch`, which means the value must be the
- * identical string that batch carried. `buildInstanceId()` would cheerfully produce
- * a well-formed key from whatever fields this object happens to hold — `0:code.exe`
- * where the batch says `0:kilo-code` (scan-loop.js `injectDetectedExternalAgents`
- * withholds `process` on purpose) — and a key that joins to nothing is worse than a
- * documented absence: `null` says "no key", a wrong key says "this other instance".
- *
- * `null` therefore covers two distinct cases, and neither may be papered over:
- * no owner was resolved (C-01 — an unattributed event keeps no agent, so it keeps
- * no key), or the resolved owner was never stamped upstream (`attachModels`
- * synthetics, scan-loop.js).
- * @param {{instanceId?: string}|null|undefined} agent - the agent resolved for THIS
- *   event, on THIS tick. Never a substitute, never a re-resolved pid.
- * @returns {string|null}
- * @since v0.12.0
- */
-function instanceIdOf(agent) {
-  return agent && typeof agent.instanceId === 'string' && agent.instanceId
-    ? agent.instanceId
-    : null;
-}
-
-/**
  * Build an ignore-filter function for chokidar's `ignored` option.
  * Uses function form (not glob) to avoid chokidar issue #773.
  * Handles both `/` and `\` separators for Windows compatibility.
@@ -270,7 +244,7 @@ function handleWatcherEvent(action, filePath) {
     // containment): its owner is a real agent from this tick, so it gets its real
     // key. Only a null owner yields a null key — never aiAgents[0], never a
     // name match.
-    instanceId: instanceIdOf(agent),
+    instanceId: readInstanceId(agent),
     parentEditor: (agent && agent.parentEditor) || null,
     cwd: (agent && agent.cwd) || null,
     file: filePath,
@@ -425,7 +399,7 @@ async function scanFileHandles(agent) {
       pid,
       // The scan was run FOR this agent object, so the key is that object's own —
       // no lookup, no tick boundary crossed.
-      instanceId: instanceIdOf(agent),
+      instanceId: readInstanceId(agent),
       parentEditor: agent.parentEditor || null,
       cwd: agent.cwd || null,
       file: f,
@@ -546,7 +520,7 @@ async function _scanRmHolders(agents, fetchHolders) {
       // From the agent `pidToAgent` matched for THIS holder, built from the agents
       // passed into this very call. Two instances sharing a name but not a pid
       // therefore stamp two different keys — which is the whole point.
-      instanceId: instanceIdOf(agent),
+      instanceId: readInstanceId(agent),
       parentEditor: agent.parentEditor || null,
       cwd: agent.cwd || null,
       file: group,
