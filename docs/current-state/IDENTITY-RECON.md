@@ -26,7 +26,9 @@ carries it for scanner-derived agents but not for the pid-0 synthetics injected 
 stamp; the remaining four carry none. The renderer's own key is
 `instanceKey = name::cwd → name::parentEditor → name` (`risk.ts:68-72`), which is a
 *different* key from `instanceId` in kind: it is derived from display attributes, not from
-an OS observation, and it is the key that collapses two projects into one.
+an OS observation. It was also the key events were correlated by, which is what collapsed
+two projects into one; step 5 moved correlation onto `instanceId` and left `instanceKey`
+as what it always was — the durable permissions key.
 
 ---
 
@@ -165,15 +167,15 @@ renderer therefore sees the durable key format directly.
 | # | Line | Key expression |
 |---|---|---|
 | 4.1.1 | `68-72` | `instanceKey(name, parentEditor, cwd)` → `` `${name}::${cwd}` `` / `` `${name}::${parentEditor}` `` / `name` |
-| 4.1.2 | `109, 117-124` | `eventsByPid`: `Map<number, FileEvent[]>` keyed `ev.pid` |
-| 4.1.3 | `110, 125-132` | `eventsByName`: `Map<string, FileEvent[]>` keyed `ev.agent` |
-| 4.1.4 | `135, 138-143` | `connsByPid` keyed `conn.pid` |
-| 4.1.5 | `136, 145-152` | `connsByName` keyed `conn.agent` |
+| 4.1.2 | *(closed, step 5)* | was `eventsByPid` keyed `ev.pid` → `eventsByInstance` keyed `ev.instanceId` |
+| 4.1.3 | *(closed, step 5)* | was `eventsByName` keyed `ev.agent` → folded into `eventsByInstance` |
+| 4.1.4 | *(closed, step 5)* | was `connsByPid` keyed `conn.pid` → `connsByInstance` keyed `conn.instanceId` |
+| 4.1.5 | *(closed, step 5)* | was `connsByName` keyed `conn.agent` → folded into `connsByInstance` |
 | 4.1.6 | `157` | `fpNames = new Set($fp.map(fp => fp.agentName))` |
 | 4.1.7 | `164` | `const iKey = instanceKey(name, parentEditor, cwd)` |
-| 4.1.8 | `168-169` | `hasCwd && raw.pid ? eventsByPid.get(raw.pid) : eventsByName.get(name)` |
-| 4.1.9 | `180-182` | name-branch refinement: `if (parentEditor && ev.parentEditor !== parentEditor) continue` |
-| 4.1.10 | `196-197` | `hasCwd && raw.pid ? connsByPid.get(raw.pid) : connsByName.get(name)` |
+| 4.1.8 | *(closed, step 5)* | was `hasCwd && raw.pid ? eventsByPid.get(raw.pid) : eventsByName.get(name)` → `eventsByInstance.get(raw.instanceId)` |
+| 4.1.9 | *(closed, step 5)* | the name-branch `parentEditor` refinement is deleted — it existed only to patch that branch |
+| 4.1.10 | *(closed, step 5)* | was `hasCwd && raw.pid ? connsByPid.get(raw.pid) : connsByName.get(name)` → `connsByInstance.get(raw.instanceId)` |
 | 4.1.11 | `219` | `$anomalies[name]` |
 | 4.1.12 | `231, 240` | `fpNames.has(name)`; published field `instanceKey: iKey` (type `src/shared/types/risk.ts:103`) |
 
@@ -181,7 +183,7 @@ renderer therefore sees the durable key format directly.
 
 | # | Site | Key expression |
 |---|---|---|
-| 4.2.1 | `stores/events-index.ts:17-38` | `Map<number, FileEvent[]>` keyed `evt.pid` (guard: `attribution.status === 'unattributed'` skipped, `pid == null` skipped) |
+| 4.2.1 | `stores/events-index.ts` *(closed, step 4)* | was `Map<number, FileEvent[]>` keyed `evt.pid` → `Map<string, FileEvent[]>` keyed `evt.instanceId` (guards: `attribution.status === 'unattributed'` skipped, missing key skipped) |
 | 4.2.2 | `stores/ipc.ts:125` | `focusedAgentPid: Writable<number \| null>` |
 | 4.2.3 | `stores/ipc.ts:132` | `selectedAgentPid: Writable<number \| null>` |
 | 4.2.4 | `stores/acknowledged.ts:17` | `Writable<Set<string>>` of agent **display names** |
@@ -195,7 +197,7 @@ renderer therefore sees the durable key format directly.
 | 4.3.3 | `AgentPanel.svelte:58` | `bind:expandedPid={$selectedAgentPid}` — the *representative's* pid |
 | 4.3.4 | `AgentCard.svelte:26` | `expanded = expandedPid === agent.pid` |
 | 4.3.5 | `AgentCard.svelte:54-57` | `$focusedAgentPid === agent.pid` |
-| 4.3.6 | `AgentCard.svelte:79` | `$eventsByPid.get(agent.pid)` |
+| 4.3.6 | `AgentCard.svelte:82` *(closed, step 4)* | was `$eventsByPid.get(agent.pid)` → `$eventsByInstance.get(agent.instanceId)` |
 | 4.3.7 | `AgentCard.svelte:87-91` | `agent.instanceId && r.instanceId ? r.instanceId === agent.instanceId : r.pid === agent.pid` |
 | 4.3.8 | `AgentCard.svelte:112` | `expandedPid = expanded ? null : agent.pid` |
 | 4.3.9 | `AgentCard.svelte:215` | `onViewDetails={() => (expandedPid = agent.pid)}` |
@@ -235,15 +237,23 @@ key, so it is listed here for completeness but not counted among the 49.
 Marked **collide** = two instances → one key; **split** = one instance → two keys across
 ticks.
 
-### C1 — collide — two projects, one risk history *(the reported case)*
+### C1 — CLOSED (step 5) — two projects, one risk history *(the reported case)*
 
-`risk.ts:68-72`. On Windows, `getProcessCwds` returns `null` whenever the working directory
-is not extractable, so `annotateWorkingDirs` (`process-utils.js:254-259`) sets `cwd = null`.
-Two Claude Code instances in different projects then both produce
-`instanceKey === 'Claude Code'`. Worse, `risk.ts:168-169` and `:196-197` fall to the
-**name** branch when `hasCwd` is false, so both agents receive the *same* candidate event
-and connection lists — identical `sensitiveFiles`, `riskScore`, `trustGrade`. One project's
-`.ssh` access raises the other project's card.
+The mechanism was: on Windows `getProcessCwds` returns `null` whenever the working
+directory is not extractable, so `annotateWorkingDirs` (`process-utils.js:254-259`) sets
+`cwd = null`; two Claude Code instances in different projects then both produced
+`instanceKey === 'Claude Code'`, and the correlation selectors fell to the **name** branch,
+so both agents received the *same* candidate event and connection lists — identical
+`sensitiveFiles`, `riskScore`, `trustGrade`. One project's `.ssh` access raised the other
+project's card.
+
+`risk.ts` now correlates on the canonical `instanceId` alone, through one
+`eventsByInstance` / `connsByInstance` pair, and derives no correlation key from name, cwd
+or parentEditor. A record with no key is quarantined rather than name-matched, and stays
+visible in the feed and Timeline. `instanceKey` (`:68-72`) is untouched and still
+`name::cwd` — it is the durable permissions key, not a correlation key (§6 step 6), so two
+cwd-less instances still share their saved permissions by design. **The anomaly term is
+not covered by this fix** — see C2.
 
 ### S1 — split — the same instance, two keys across ticks
 
@@ -288,18 +298,19 @@ produce a single interleaved path. Separately, `Timeline.svelte:133` dedups on
 `` `${ev.timestamp}|${ev.agent}|${ev._type}` `` — two instances acting in the same
 millisecond with the same type lose one event.
 
-### C6 — collide — `eventsByPid` is keyed on a recyclable pid
+### C6 — CLOSED (steps 4–5) — the event index was keyed on a recyclable pid
 
-`events-index.ts:26-32` and `risk.ts:117-124` bucket events by bare `ev.pid`. Windows
-recycles pids; a `FileEvent` stamped before the recycle lands in the new instance's card.
-The equivalent store in main was migrated to `instanceId` (`file-watcher.js:349-353`,
-PR #180–182) — the renderer has no counterpart. This is precisely the half-migration
-`memory-bank/ai-mistakes.md#19` warns about.
+`events-index.ts` and `risk.ts` bucketed events by bare `ev.pid`. Windows recycles pids, so
+a `FileEvent` stamped before the recycle landed in the new instance's card, while the
+equivalent store in main had already moved to `instanceId` (`file-watcher.js:349-353`,
+PR #180–182) — precisely the half-migration `memory-bank/ai-mistakes.md#19` warns about.
 
-The pid-0 sub-case (all synthetics share pid 0) is guarded at `events-index.ts:24` and
-`risk.ts:115` by `attribution.status === 'unattributed'`, and the handle scanners only emit
-for `pid > 0`, so an *attributed* pid-0 file event is not reachable today. The guard is a
-mitigation, not a key fix.
+Both stores now key on `evt.instanceId`, and `AgentCard.svelte` reads
+`$eventsByInstance.get(agent.instanceId)`. The pid-0 sub-case disappears with the pid: a
+synthetic correlates on its own `0:<name>` key (value space 2) through the same single
+lookup, with no special case. The `attribution.status === 'unattributed'` guard is kept in
+both stores — redundant with the key check today, and retained because the two say
+different things and are separately testable.
 
 ### C7 — collide — `cwdCache` is the one identity cache still on a bare pid
 
@@ -361,18 +372,21 @@ correct with only steps `1..k` applied.
    real values. *Main only, additive* — no renderer consumer yet. **This is the gate: without
    it the renderer has nothing to correlate events by.**
 
-4. **`eventsByPid` → `eventsByInstance`.** `events-index.ts:17-38` keys on
-   `evt.instanceId`; `AgentCard.svelte:79` reads `$eventsByInstance.get(agent.instanceId)`.
+4. **DONE (`222502f`) — `eventsByPid` → `eventsByInstance`.** `events-index.ts` keys on
+   `evt.instanceId`; `AgentCard.svelte` reads `$eventsByInstance.get(agent.instanceId)`.
    *Behaviour-preserving in the normal case, changes what the user sees after a pid recycle*
-   (events no longer bleed into the wrong card). Closes **C6**.
+   (events no longer bleed into the wrong card). Closed **C6**.
 
-5. **`risk.ts` correlation switches to `instanceId`.** Replace `eventsByPid` / `eventsByName`
-   and `connsByPid` / `connsByName` (`:109-152`) with a single `byInstance` map, and the
-   `hasCwd && raw.pid ? … : …` selector (`:168-169`, `:196-197`) with a direct
-   `byInstance.get(raw.instanceId)`. Keep the name map only as a fallback for events that
-   still carry no `instanceId` (pre-step-3 records replayed from the activity log).
-   **Changes what the user sees** — two instances in different projects get different
-   `riskScore` for the first time. Closes **C1**.
+5. **DONE (`222502f`) — `risk.ts` correlation switched to `instanceId`.** `eventsByPid` /
+   `eventsByName` and `connsByPid` / `connsByName` became one `eventsByInstance` /
+   `connsByInstance` pair, and the `hasCwd && raw.pid ? … : …` selectors became a direct
+   `.get(raw.instanceId)`; both `parentEditor` refinements went with the name branch they
+   patched. No name fallback was kept: a record with no `instanceId` is quarantined — it
+   joins nobody and stays visible in the feed and Timeline, which read `$events` directly.
+   `EnrichedAgent` now publishes `instanceId` beside the durable `instanceKey`.
+   **Changed what the user sees** — two instances in different projects get different
+   `riskScore` for the first time. Closed **C1** for file and network correlation; the
+   anomaly term is step 7.
 
 6. **`instanceKey` (the durable key) is left in place and made honest.** `risk.ts:68-72` and
    `config-manager.js:236-240` keep `name::cwd`; the two definitions are deduplicated into
@@ -428,8 +442,8 @@ intentional.
 | Test | Line | What it pins | Step that breaks it |
 |---|---|---|---|
 | `tests/renderer/agent-stats-utils.test.js` | `24` | `instanceKey: 'TestAgent'` — the bare-name form of the ad-hoc key | 6 (shape only), 11 |
-| `tests/renderer/risk.test.ts` | `68-69`, `119-120`, `190-191` | fixtures identified by `{agent, pid, cwd}` with **no `instanceId`**; correlation asserted through the pid/name branch | **5** (must be rewritten, not just extended) |
-| `tests/renderer/risk.test.ts` | `140-151`, `329-330` | pid-0 synthetics and the unattributed-event guard, asserted via pid | 4, 5 |
+| `tests/renderer/risk.test.ts` | *(rewritten in step 5)* | fixtures used to be `{agent, pid, cwd}` with **no `instanceId`** and asserted correlation through the pid/name branch; every fixture now carries the key it is joined on | **5** — done |
+| `tests/renderer/risk.test.ts` | *(rewritten in step 5)* | pid-0 synthetics and the unattributed-event guard are asserted via `instanceId` (`0:<name>`, and `null` for unattributed) | 4, 5 — done |
 | `tests/main/config-manager.test.js` | `81-105` | `'Claude::VS Code'`, `'Claude::/project'` and the cwd → editor → agent → default chain | **none — this is the durable key and must keep passing.** A step-6 change that breaks it is a bug in the step. |
 | `tests/main/ipc-handlers.test.js` | `42`, `183`, `338` | `'Claude::vscode'` split across `permissions` / `instancePermissions` | same — must keep passing |
 
@@ -450,9 +464,11 @@ intentional.
   (step 2's gate).
 - No test covers the `resource-usage` channel end-to-end — which is how it stayed
   unsubscribed.
-- No renderer test constructs two instances of the *same* agent with different `cwd` and
-  asserts distinct risk scores. That is the assertion the whole migration exists to make
-  true; it should be written first, red, before step 5.
+- ~~No renderer test constructs two instances of the *same* agent and asserts distinct risk
+  scores.~~ Written red before step 5, unskipped and green with it: `risk.test.ts`
+  "C1: two Claude Code instances in different projects get separate risk histories". Its
+  sensitivity was proven by injecting a shared key and watching it go red. The missing-key
+  quarantine has its own five cases in the same file.
 
 ---
 
