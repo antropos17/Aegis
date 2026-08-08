@@ -68,67 +68,106 @@ describe('scan-loop', () => {
     };
   }
 
-  // ── dedupFileEvent ──
+  // ── dedupFileEvent (F-E03: instanceId-scoped, not display-name) ──
 
   describe('dedupFileEvent', () => {
-    it('passes through first event for a key', () => {
-      const ev = { agent: 'Cursor', file: '/etc/passwd' };
+    it('passes through first event for a stamped instance', () => {
+      const ev = { agent: 'Cursor', instanceId: '1:aaa', file: '/etc/passwd' };
       const result = scanLoop.dedupFileEvent(ev);
       expect(result).not.toBeNull();
       expect(result.agent).toBe('Cursor');
       expect(result.repeatCount).toBe(1);
     });
 
-    it('suppresses duplicate within 30 seconds', () => {
-      const ev1 = { agent: 'Cursor', file: '/etc/passwd' };
+    it('A: same instance + same path within 30s is suppressed', () => {
+      const ev1 = { agent: 'Cursor', instanceId: '1:aaa', file: '/etc/passwd' };
       scanLoop.dedupFileEvent(ev1);
-      // Same agent + file within 30s
-      const ev2 = { agent: 'Cursor', file: '/etc/passwd' };
+      const ev2 = { agent: 'Cursor', instanceId: '1:aaa', file: '/etc/passwd' };
       const result = scanLoop.dedupFileEvent(ev2);
       expect(result).toBeNull();
     });
 
-    it('passes through after 30 second window', () => {
-      const ev1 = { agent: 'Cursor', file: '/etc/passwd' };
+    it('passes through after 30 second window for the same instance', () => {
+      const ev1 = { agent: 'Cursor', instanceId: '1:aaa', file: '/etc/passwd' };
       scanLoop.dedupFileEvent(ev1);
-      // Advance past 30s window
       vi.advanceTimersByTime(31000);
-      const ev2 = { agent: 'Cursor', file: '/etc/passwd' };
+      const ev2 = { agent: 'Cursor', instanceId: '1:aaa', file: '/etc/passwd' };
       const result = scanLoop.dedupFileEvent(ev2);
       expect(result).not.toBeNull();
       expect(result.repeatCount).toBe(1);
     });
 
-    it('allows different agents for the same file', () => {
-      const ev1 = { agent: 'Cursor', file: '/etc/passwd' };
-      const ev2 = { agent: 'Windsurf', file: '/etc/passwd' };
+    it('B: same display name, different instanceIds, same path — both survive', () => {
+      // Historical bug: key was `${ev.agent}|${ev.file}` → second Claude Code dropped.
+      const ev1 = { agent: 'Claude Code', instanceId: '100:t1', file: '/home/user/.ssh/id_rsa' };
+      const ev2 = { agent: 'Claude Code', instanceId: '200:t2', file: '/home/user/.ssh/id_rsa' };
       expect(scanLoop.dedupFileEvent(ev1)).not.toBeNull();
       expect(scanLoop.dedupFileEvent(ev2)).not.toBeNull();
     });
 
-    it('tracks repeat count across suppressed events', () => {
-      scanLoop.dedupFileEvent({ agent: 'A', file: 'x' });
-      // 3 suppressed duplicates
-      scanLoop.dedupFileEvent({ agent: 'A', file: 'x' });
-      scanLoop.dedupFileEvent({ agent: 'A', file: 'x' });
-      scanLoop.dedupFileEvent({ agent: 'A', file: 'x' });
+    it('C: recycled PID with new instanceId is not suppressed by the old lifetime', () => {
+      // Same pid number can reappear; stamped instanceId differs → independent buckets.
+      const oldLife = { agent: 'Cursor', pid: 42, instanceId: '42:startA', file: '/tmp/x' };
+      const newLife = { agent: 'Cursor', pid: 42, instanceId: '42:startB', file: '/tmp/x' };
+      expect(scanLoop.dedupFileEvent(oldLife)).not.toBeNull();
+      expect(scanLoop.dedupFileEvent(newLife)).not.toBeNull();
+    });
+
+    it('D: unattributed events for the same path do not collapse into a null bucket', () => {
+      // Historical bug: key was `''|path` for all unattributed → one observation
+      // suppressed all later independent unattributed hits within 30s.
+      const u1 = {
+        agent: '',
+        pid: null,
+        instanceId: null,
+        file: '/home/user/.aws/credentials',
+        attribution: { status: 'unattributed', evidence: ['no-ai-agents-online'] },
+      };
+      const u2 = {
+        agent: '',
+        pid: null,
+        instanceId: null,
+        file: '/home/user/.aws/credentials',
+        attribution: { status: 'unattributed', evidence: ['no-owner-match'] },
+      };
+      expect(scanLoop.dedupFileEvent(u1)).not.toBeNull();
+      expect(scanLoop.dedupFileEvent(u2)).not.toBeNull();
+      expect(u1.instanceId).toBeNull();
+      expect(u2.instanceId).toBeNull();
+    });
+
+    it('D: empty-string instanceId is treated as unattributed (no shared bucket)', () => {
+      const a = { agent: '', instanceId: '', file: '/tmp/secret' };
+      const b = { agent: '', instanceId: '', file: '/tmp/secret' };
+      expect(scanLoop.dedupFileEvent(a)).not.toBeNull();
+      expect(scanLoop.dedupFileEvent(b)).not.toBeNull();
+    });
+
+    it('E: same instance, different paths remain independent', () => {
+      const x = { agent: 'Cursor', instanceId: '1:aaa', file: '/path/x' };
+      const y = { agent: 'Cursor', instanceId: '1:aaa', file: '/path/y' };
+      expect(scanLoop.dedupFileEvent(x)).not.toBeNull();
+      expect(scanLoop.dedupFileEvent(y)).not.toBeNull();
+    });
+
+    it('tracks repeat count across suppressed same-instance events', () => {
+      scanLoop.dedupFileEvent({ agent: 'A', instanceId: 'id:A', file: 'x' });
+      scanLoop.dedupFileEvent({ agent: 'A', instanceId: 'id:A', file: 'x' });
+      scanLoop.dedupFileEvent({ agent: 'A', instanceId: 'id:A', file: 'x' });
+      scanLoop.dedupFileEvent({ agent: 'A', instanceId: 'id:A', file: 'x' });
       vi.advanceTimersByTime(31000);
-      const result = scanLoop.dedupFileEvent({ agent: 'A', file: 'x' });
+      const result = scanLoop.dedupFileEvent({ agent: 'A', instanceId: 'id:A', file: 'x' });
       expect(result).not.toBeNull();
       // count starts at 1 on first registration, then +1 per suppressed event
-      // 3 suppressed → count = 1 + 3 = 4
       expect(result.repeatCount).toBe(4);
     });
 
     it('cleans up stale entries beyond 500', () => {
-      // Fill up 501 unique keys, all old
       for (let i = 0; i < 501; i++) {
-        scanLoop.dedupFileEvent({ agent: 'A', file: `f${i}` });
+        scanLoop.dedupFileEvent({ agent: 'A', instanceId: 'id:A', file: `f${i}` });
       }
-      // Advance time so all entries are > 60s old
       vi.advanceTimersByTime(61000);
-      // This insertion triggers cleanup (size > 500)
-      const result = scanLoop.dedupFileEvent({ agent: 'A', file: 'trigger' });
+      const result = scanLoop.dedupFileEvent({ agent: 'A', instanceId: 'id:A', file: 'trigger' });
       expect(result).not.toBeNull();
     });
   });

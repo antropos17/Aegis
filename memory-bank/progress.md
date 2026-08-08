@@ -20,6 +20,8 @@ Version 0.10.0-alpha. 110 agents / 262 signatures in database. 73 rules across 8
 - **SummaryCards F-W03 FIXED:** Events/min uses pure `eventsPerMinute(events, now)` with shared `tick`/`startTick` so the rolling 60s window ages without new events.
 - **SummaryCards F-W06 FIXED:** Card label **Sensitive Alerts** (was "Sensitive Files"); value remains `stats.totalSensitive` = retained sensitive activity-log events (push/evict), not distinct paths. Matches tray/export "sensitive alerts" language.
 - **SummaryCards F-W07 FIXED:** Card label **Monitoring Duration** (was "System Uptime"); value = `now - stats.monitoringStarted` with shared 1s `tick` so it advances without stats pushes. Not OS uptime; Footer `UP` remains renderer-mount clock (intentional different unit).
+- **F-E02 FIXED:** `handleWatcherEvent` no longer drops when `latestAgents` is empty; only `shouldIgnore` + pause/debounce remain. Zero agents → honest unattributed (`no-ai-agents-online`). Mutation: restore empty-agent return → F-E02 test red.
+- **F-E03 FIXED:** `dedupFileEvent` keys on stamped `instanceId|file` (30s window unchanged); null/empty instanceId bypasses (no `''|file` collapse). Same name / different instances and dual unattributed survive. Mutation: name-based key → B + D tests red.
 - **Step 11** — optional per-instance UI roll-up (deferred).
 - **SummaryCards remaining:** none evidenced after F-W01…F-W07 correctness blocks.
 
