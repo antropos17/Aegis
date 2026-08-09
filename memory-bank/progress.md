@@ -26,7 +26,8 @@ Version 0.10.0-alpha. 110 agents / 262 signatures in database. 73 rules across 8
 - **Block 0.6 CLOSED (F-W05/W08–W11/S07):** AgentPanel/stats rep-only metrics (no silent group FILES/NET sum); File Act label for weighted fileCount; Header avg health vs RiskIndex Worst Risk; RiskIndex process/processes; risk-band classifier shared (`getRiskInfo` thresholds); attribution comment closed-registry wording (not “six”). Letter trust grades remain a distinct taxonomy.
 - **Step 11** — optional per-instance UI roll-up (deferred).
 - **SummaryCards remaining:** none evidenced after F-W01…F-W07 correctness blocks.
-- **Block 0 status:** CLOSED after 0.6 (next: Block B Sensor Health / DEGRADED).
+- **Block 0 status:** CLOSED after 0.6.
+- **Block B (Sensor Health / DEGRADED):** roadmap only — `docs/roadmap/sensor-health-degraded.md`. No product implementation yet. Next executable slice: **B1** sensor-health domain model.
 
 **Open debts from step 7 — measurements for Bench to settle, not diagnosed bugs:**
 - **pid-0 synthetics from `attachModels` no longer reach baselines at all.** They live in `latestAgents` and are seen by the file and network scans, but no stamp site ever gives them an `instanceId` (`scan-loop.js` appends them AFTER the `scan-batch` send — IDENTITY-RECON §2.1), so the null-key policy drops every observation. Measure what they used to contribute; the fix, if wanted, is a stamp in `attachModels`, the same one `injectDetectedExternalAgents` already does.
