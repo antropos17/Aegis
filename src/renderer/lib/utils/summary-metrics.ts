@@ -29,6 +29,12 @@ export const SENSITIVE_SUMMARY_LABEL = 'Sensitive Alerts';
 export const MONITORING_DURATION_LABEL = 'Monitoring Duration';
 
 /**
+ * Chip label for time-decayed `fileCount` (not a physical file count — F-W08).
+ * Matches i18n `agents.stat_files`.
+ */
+export const FILE_ACTIVITY_CHIP_LABEL = 'File Act';
+
+/**
  * Count distinct agents for the "Total Agents" card.
  *
  * Prefers enriched `name` (risk store), then raw DetectedAgent `agent`.

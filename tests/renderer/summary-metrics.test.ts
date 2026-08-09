@@ -14,6 +14,7 @@ import {
   monitoringElapsedMs,
   formatMonitoringDuration,
   MONITORING_DURATION_LABEL,
+  FILE_ACTIVITY_CHIP_LABEL,
 } from '../../src/renderer/lib/utils/summary-metrics.ts';
 
 describe('countUniqueAgents (F-W02)', () => {
@@ -275,5 +276,12 @@ describe('monitoringElapsedMs / formatMonitoringDuration (F-W07)', () => {
   it('label is monitoring session age, not system/OS uptime', () => {
     expect(MONITORING_DURATION_LABEL).toBe('Monitoring Duration');
     expect(MONITORING_DURATION_LABEL.toLowerCase()).not.toContain('system');
+  });
+});
+
+describe('FILE_ACTIVITY_CHIP_LABEL (F-W08)', () => {
+  it('does not claim a physical file count unit', () => {
+    expect(FILE_ACTIVITY_CHIP_LABEL).toBe('File Act');
+    expect(FILE_ACTIVITY_CHIP_LABEL.toLowerCase()).not.toBe('files');
   });
 });

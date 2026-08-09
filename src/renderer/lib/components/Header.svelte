@@ -3,14 +3,14 @@
   import { enrichedAgents } from '../stores/risk.js';
   import OptionsPanel from './OptionsPanel.svelte';
   import { t } from '../i18n/index.js';
+  import { fleetAverageHealth, FLEET_AVG_HEALTH_LABEL } from '../utils/fleet-risk.ts';
 
   let { optionsOpen = $bindable(false) } = $props();
 
+  // F-W09: average fleet health (100 − mean risk) — not the same as RiskIndex max risk.
   let shieldScore = $derived.by(() => {
-    const list = $enrichedAgents;
-    if (!list.length) return '--';
-    const avg = list.reduce((sum, a) => sum + a.riskScore, 0) / list.length;
-    return Math.max(0, Math.round(100 - avg));
+    const h = fleetAverageHealth($enrichedAgents.map((a) => a.riskScore ?? 0));
+    return h === null ? '--' : h;
   });
 
   let processCount = $derived($enrichedAgents.length);
@@ -19,6 +19,7 @@
 
   function getScoreClass(score) {
     if (typeof score !== 'number') return '';
+    // Health scale: higher is better (inverse of risk).
     if (score < 40) return 'danger';
     if (score < 70) return 'warn';
     return '';
@@ -31,7 +32,14 @@
   <div class="header-brand">{$t('brand.name')}</div>
 
   <div class="header-stats">
-    <span class="shield-score {scoreClass}">{shieldScore}</span>
+    <span
+      class="stat-text"
+      title="Average fleet health: 100 − mean process risk"
+      aria-label="Average fleet health {shieldScore}"
+    >
+      <span class="shield-score {scoreClass}">{shieldScore}</span>
+      {FLEET_AVG_HEALTH_LABEL}
+    </span>
     <span class="stat-sep">&middot;</span>
     <span class="stat-text"
       ><span class="stat-count">{uniqueAgentCount}</span>

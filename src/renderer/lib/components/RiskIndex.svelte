@@ -21,6 +21,11 @@
    */
 
   import { getRiskInfo, clampScore } from '../utils/trust-badge-utils';
+  import {
+    fleetWorstRisk,
+    processCardinalityNoun,
+    FLEET_WORST_RISK_TITLE,
+  } from '../utils/fleet-risk.ts';
 
   /** Minimal shape this component reads — matches the live agent objects. */
   interface AgentLike {
@@ -35,22 +40,24 @@
     showBreakdown?: boolean;
   }
 
-  const { agents = [], title = 'Risk Index', showBreakdown = true }: Props = $props();
+  // F-W09: default title encodes max/worst aggregation (not Header avg health).
+  const { agents = [], title = FLEET_WORST_RISK_TITLE, showBreakdown = true }: Props = $props();
 
-  /** Clamped per-agent scores; missing riskScore is treated as 0. */
+  /** Clamped per-process scores; missing riskScore is treated as 0. */
   const scores = $derived(agents.map((a) => clampScore(a?.riskScore ?? 0)));
 
-  /** Number of monitored agents. */
+  /** Process/instance row count (F-W11) — not unique display-agent count. */
   const total = $derived(agents.length);
+  const totalNoun = $derived(processCardinalityNoun(total));
 
   /** Explicit empty branch — never Math.max(...[]) → -Infinity. */
   const isEmpty = $derived(total === 0);
 
   /**
    * Headline index = worst-case (max). For an EDR this is the honest posture:
-   * one high-risk agent compromises the fleet, and a mean would mask it.
+   * one high-risk process compromises the fleet, and a mean would mask it.
    */
-  const index = $derived(isEmpty ? 0 : Math.max(...scores));
+  const index = $derived(fleetWorstRisk(scores));
 
   /** Risk info (level, label, color, glow) for the headline — single source. */
   const risk = $derived(getRiskInfo(index));
@@ -74,16 +81,16 @@
   ]);
 </script>
 
-<section class="risk-index" aria-label="Fleet risk index">
+<section class="risk-index" aria-label="Worst-case fleet risk">
   <header class="risk-index__head">
     <span class="risk-index__title">{title}</span>
-    <span class="risk-index__total">{total} {total === 1 ? 'agent' : 'agents'}</span>
+    <span class="risk-index__total">{total} {totalNoun}</span>
   </header>
 
   {#if isEmpty}
     <div class="risk-index__empty" role="status">
       <span class="risk-index__empty-dash">—</span>
-      <span class="risk-index__empty-text">No agents monitored</span>
+      <span class="risk-index__empty-text">No processes monitored</span>
     </div>
   {:else}
     <div

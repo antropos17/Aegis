@@ -3,6 +3,7 @@
   import { selectedAgentInstanceId } from '../stores/ipc.js';
   import AgentCard from './AgentCard.svelte';
   import { t } from '../i18n/index.js';
+  import { groupAgentsForPanel } from '../utils/agent-panel-utils.ts';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
@@ -14,37 +15,9 @@
     localAgents = $enrichedAgents;
   });
 
-  /**
-   * Group agents by name — pick the representative (highest risk) per name,
-   * aggregate totals, and attach process count.
-   */
-  let grouped = $derived.by(() => {
-    /** @type {Map<string, any[]>} */
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity
-    const byName = new Map();
-    for (const a of localAgents) {
-      let arr = byName.get(a.name);
-      if (!arr) {
-        arr = [];
-        byName.set(a.name, arr);
-      }
-      arr.push(a);
-    }
-    return [...byName.values()].map((instances) => {
-      const rep = instances.reduce((best, cur) =>
-        (cur.riskScore || 0) > (best.riskScore || 0) ? cur : best,
-      );
-      return {
-        ...rep,
-        fileCount: instances.reduce((s, a) => s + (a.fileCount || 0), 0),
-        networkCount: instances.reduce((s, a) => s + (a.networkCount || 0), 0),
-        _processCount: instances.length,
-        // Full per-PID list (riskiest first) — rendered on expand. The rep is
-        // included; the collapsed card's count badge already shows the total.
-        _instances: [...instances].sort((a, b) => (b.riskScore || 0) - (a.riskScore || 0)),
-      };
-    });
-  });
+  // F-W05: one population per card — representative (max risk) owns risk/file/net;
+  // multi-instance is only via _processCount / _instances (not summed activity).
+  let grouped = $derived(groupAgentsForPanel(localAgents));
 </script>
 
 <section class="agent-panel">

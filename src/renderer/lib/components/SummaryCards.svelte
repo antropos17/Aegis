@@ -12,6 +12,7 @@
     formatMonitoringDuration,
     MONITORING_DURATION_LABEL,
   } from '../utils/summary-metrics.ts';
+  import { getRiskInfo } from '../utils/trust-badge-utils.ts';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
@@ -156,14 +157,8 @@
   let epmTrendInfo = $derived(trendInfo(epmTrend));
   let sensitiveTrendInfo = $derived(trendInfo(sensitiveTrend, true));
 
-  /** Risk color by score */
-  let riskColor = $derived(
-    avgRiskScore >= 65
-      ? 'var(--fancy-danger)'
-      : avgRiskScore >= 35
-        ? 'var(--fancy-warning)'
-        : 'var(--fancy-accent)',
-  );
+  // F-W10: band colors from the single risk-band classifier (getRiskInfo).
+  let riskColor = $derived(getRiskInfo(avgRiskScore).color);
 </script>
 
 <div class="summary-cards">

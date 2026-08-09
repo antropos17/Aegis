@@ -23,8 +23,10 @@ Version 0.10.0-alpha. 110 agents / 262 signatures in database. 73 rules across 8
 - **F-E02 FIXED:** `handleWatcherEvent` no longer drops when `latestAgents` is empty; only `shouldIgnore` + pause/debounce remain. Zero agents → honest unattributed (`no-ai-agents-online`). Mutation: restore empty-agent return → F-E02 test red.
 - **F-E03 FIXED:** `dedupFileEvent` keys on stamped `instanceId|file` (30s window unchanged); null/empty instanceId bypasses (no `''|file` collapse). Same name / different instances and dual unattributed survive. Mutation: name-based key → B + D tests red.
 - **F-S01 FIXED (tests):** `tests/main/file-watcher-subscription.test.js` mocks `chokidar.watch`, runs production `setupFileWatchers`, asserts every watcher registers `add`/`change`/`unlink`, and fires callbacks into the real handler (created/modified/deleted). Production wiring already correct — no production change. Mutation: drop `watcher.on('change', …)` → subscription test red.
+- **Block 0.6 CLOSED (F-W05/W08–W11/S07):** AgentPanel/stats rep-only metrics (no silent group FILES/NET sum); File Act label for weighted fileCount; Header avg health vs RiskIndex Worst Risk; RiskIndex process/processes; risk-band classifier shared (`getRiskInfo` thresholds); attribution comment closed-registry wording (not “six”). Letter trust grades remain a distinct taxonomy.
 - **Step 11** — optional per-instance UI roll-up (deferred).
 - **SummaryCards remaining:** none evidenced after F-W01…F-W07 correctness blocks.
+- **Block 0 status:** CLOSED after 0.6 (next: Block B Sensor Health / DEGRADED).
 
 **Open debts from step 7 — measurements for Bench to settle, not diagnosed bugs:**
 - **pid-0 synthetics from `attachModels` no longer reach baselines at all.** They live in `latestAgents` and are seen by the file and network scans, but no stamp site ever gives them an `instanceId` (`scan-loop.js` appends them AFTER the `scan-batch` send — IDENTITY-RECON §2.1), so the null-key policy drops every observation. Measure what they used to contribute; the fix, if wanted, is a stamp in `attachModels`, the same one `injectDetectedExternalAgents` already does.

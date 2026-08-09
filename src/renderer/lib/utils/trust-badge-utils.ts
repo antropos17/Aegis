@@ -34,8 +34,18 @@ export function clampScore(score: number): number {
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
+/** Inclusive lower bound for medium risk band (0–100 scale). */
+export const RISK_BAND_MEDIUM_MIN = 35;
+
+/** Inclusive lower bound for high risk band (0–100 scale). */
+export const RISK_BAND_HIGH_MIN = 66;
+
 /**
- * Determine risk level, label, and CSS color token for a given score.
+ * Determine **risk band** level, label, and CSS color token for a given score.
+ *
+ * Authoritative low/medium/high classifier for badges and risk-band UI (F-W10).
+ * Not the same taxonomy as letter trust grades (`getTrustGrade` in risk-scoring).
+ *
  * - Low risk:    0–34  → green  (--fancy-accent)
  * - Medium risk: 35–65 → amber  (--fancy-warning)
  * - High risk:   66–100 → red   (--fancy-danger)
@@ -46,7 +56,7 @@ export function clampScore(score: number): number {
 export function getRiskInfo(score: number): RiskInfo {
   const clamped = clampScore(score);
 
-  if (clamped >= 66) {
+  if (clamped >= RISK_BAND_HIGH_MIN) {
     return {
       level: 'high',
       label: 'High Risk',
@@ -55,7 +65,7 @@ export function getRiskInfo(score: number): RiskInfo {
     };
   }
 
-  if (clamped >= 35) {
+  if (clamped >= RISK_BAND_MEDIUM_MIN) {
     return {
       level: 'medium',
       label: 'Medium',
