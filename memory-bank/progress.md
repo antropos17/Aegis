@@ -27,7 +27,8 @@ Version 0.10.0-alpha. 110 agents / 262 signatures in database. 73 rules across 8
 - **Step 11** — optional per-instance UI roll-up (deferred).
 - **SummaryCards remaining:** none evidenced after F-W01…F-W07 correctness blocks.
 - **Block 0 status:** CLOSED after 0.6.
-- **Block B (Sensor Health / DEGRADED):** roadmap only — `docs/roadmap/sensor-health-degraded.md`. No product implementation yet. Next executable slice: **B1** sensor-health domain model.
+- **Block B (Sensor Health / DEGRADED):** roadmap — `docs/roadmap/sensor-health-degraded.md`.
+- **B1 CLOSED:** pure `src/main/sensor-health.js` — states STARTING|HEALTHY|DEGRADED|FAILED|DISABLED|UNSUPPORTED; lossCount cumulative per health-record lifetime (not cleared by success); consecutiveFailures only on full failures; aggregate worst-of excludes DISABLED/UNSUPPORTED, empty → NONE. Tests + mutations (fail→HEALTHY, loss→HEALTHY, recovery reset, aggregate ignore FAILED). Sensors not wired yet. Next: **B2** file observation health.
 
 **Open debts from step 7 — measurements for Bench to settle, not diagnosed bugs:**
 - **pid-0 synthetics from `attachModels` no longer reach baselines at all.** They live in `latestAgents` and are seen by the file and network scans, but no stamp site ever gives them an `instanceId` (`scan-loop.js` appends them AFTER the `scan-batch` send — IDENTITY-RECON §2.1), so the null-key policy drops every observation. Measure what they used to contribute; the fix, if wanted, is a stamp in `attachModels`, the same one `injectDetectedExternalAgents` already does.
