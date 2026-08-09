@@ -139,9 +139,28 @@ function stopScanIntervals() {
 }
 
 function doNetworkScan() {
-  const { network, baselines, audit, logger, getLatestAgents, sendToRenderer } = deps;
+  const { network, baselines, audit, logger, getLatestAgents, sendToRenderer, scanner } = deps;
   const agents = getLatestAgents();
-  if (network.isNetworkScanRunning() || agents.length === 0) return;
+  if (network.isNetworkScanRunning()) return;
+  // B-S08 (narrow): still skip network when agents is empty, but distinguish
+  // confirmed-zero-agents (process HEALTHY empty) from process-observation-unavailable
+  // (process FAILED / unreliable). Full network health is B4 — do not mark S-NET here.
+  if (agents.length === 0) {
+    let reason = 'confirmed-zero-agents';
+    if (scanner && typeof scanner.isProcessPopulationReliable === 'function') {
+      if (!scanner.isProcessPopulationReliable()) {
+        reason = 'process-observation-unavailable';
+      }
+    } else if (
+      scanner &&
+      typeof scanner.getProcessSensorHealth === 'function' &&
+      scanner.getProcessSensorHealth().state !== 'HEALTHY'
+    ) {
+      reason = 'process-observation-unavailable';
+    }
+    logger.debug('scan', 'network-skip', { reason, agents: 0 });
+    return;
+  }
   network.setNetworkScanRunning(true);
   const t0 = performance.now();
   network
@@ -402,6 +421,12 @@ async function doProcessScan() {
       agents: agents.length,
     });
   } catch (err) {
+    // B-S02: hard failure (non-EPERM rethrow from scanProcesses, or later enrich throw).
+    // Compatibility still leaves latestAgents unchanged (setAgents only on success path);
+    // process health must record FAILED so empty fleet is not implied.
+    if (scanner && typeof scanner.noteProcessScanHardFailure === 'function') {
+      scanner.noteProcessScanHardFailure(err);
+    }
     logger.error('main', 'Process scan failed', { error: err.message });
   } finally {
     updateScanStatus(false);

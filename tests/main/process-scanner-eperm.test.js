@@ -20,6 +20,8 @@ describe('process-scanner EPERM handling', () => {
     const result = await scanner.scanProcesses();
     expect(result.agents).toEqual([]);
     expect(result.changed).toBe(false);
+    expect(result.reliable).toBe(false);
+    expect(scanner.getProcessSensorHealth().state).toBe('FAILED');
   });
 
   it('catches EACCES and returns empty agents', async () => {

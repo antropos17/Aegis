@@ -16,8 +16,65 @@
 const fs = require('fs');
 const path = require('path');
 const { IGNORE_PROCESS_PATTERNS, EDITOR_HOSTS } = require('../shared/constants');
+const sensorHealth = require('./sensor-health');
 const _platform = require('./platform');
 let _listProcesses = _platform.listProcesses;
+
+/** Authoritative process-enumeration sensor id (Block B3). One observation source. */
+const PROCESS_SENSOR_ID = 'process';
+
+/**
+ * Persistent health for process list enumeration. Survives poll ticks; reset only
+ * at module reinit / test reset — never recreated per scan.
+ * @type {import('./sensor-health').SensorHealth}
+ */
+let _processHealth = sensorHealth.createSensorHealth(PROCESS_SENSOR_ID);
+
+/**
+ * @param {unknown} err
+ * @returns {string}
+ */
+function healthErrorMessage(err) {
+  if (err == null) return 'unknown-error';
+  if (typeof err === 'string') return err.slice(0, 200);
+  const msg = err && err.message != null ? String(err.message) : String(err);
+  return msg.slice(0, 200);
+}
+
+/**
+ * Plain serializable snapshot for future B6 — callers must not mutate.
+ * @returns {object}
+ * @since 0.11.0
+ */
+function getProcessSensorHealth() {
+  return sensorHealth.toPlain(_processHealth);
+}
+
+/**
+ * Whether the latest process enumeration produced a trustworthy agent population.
+ * Compatibility: when false, `agents: []` means unknown, not confirmed empty fleet.
+ * @returns {boolean}
+ * @since 0.11.0
+ */
+function isProcessPopulationReliable() {
+  return _processHealth.state === sensorHealth.SENSOR_HEALTH_STATE.HEALTHY;
+}
+
+/**
+ * Record a hard process-scan failure that escaped scanProcesses (e.g. non-EPERM
+ * throw caught by scan-loop). Does not fabricate agents.
+ * @param {unknown} err
+ * @returns {void}
+ * @since 0.11.0
+ */
+function noteProcessScanHardFailure(err) {
+  const now = Date.now();
+  _processHealth = sensorHealth.markFailed(_processHealth, now, {
+    error: healthErrorMessage(err),
+    detail: 'hard-scan-failure',
+  });
+}
+
 /** @internal Override platform functions (for tests). */
 function _setPlatformForTest(overrides) {
   if (overrides.listProcesses) _listProcesses = overrides.listProcesses;
@@ -26,6 +83,7 @@ function _setPlatformForTest(overrides) {
 function _resetForTest() {
   lastProcessPidSet = '';
   permissionDeniedScans = 0;
+  _processHealth = sensorHealth.createSensorHealth(PROCESS_SENSOR_ID);
 }
 
 let _agentDb = null;
@@ -77,7 +135,10 @@ async function scanProcesses() {
   // A scan is "reliable" only when the process list was actually enumerated.
   // A permission-denied scan returns an empty list that must NOT be read as
   // "all agents exited" — the session tracker uses this flag to ignore it.
+  // Health is authoritative; `reliable` remains compatibility metadata and must
+  // never be false while health is HEALTHY (and never true while FAILED).
   let reliable = true;
+  const now = Date.now();
   try {
     processes = await _listProcesses();
     permissionDeniedScans = 0;
@@ -85,10 +146,20 @@ async function scanProcesses() {
     const code = err.code || '';
     const msg = (err.message || '').toLowerCase();
     if (code === 'EPERM' || code === 'EACCES' || msg.includes('access is denied')) {
+      // B-S01: full permission denial → no trustworthy population. Compatibility
+      // shape stays { agents: [], reliable: false }; health = FAILED (not empty fleet).
       permissionDeniedScans++;
       processes = [];
       reliable = false;
+      _processHealth = sensorHealth.markFailed(_processHealth, now, {
+        error: healthErrorMessage(err),
+        detail: 'permission-denied',
+      });
+      // Still run the empty path below for pid-set / peakAgents bookkeeping so
+      // callers keep a stable return shape. Do not markHealthy on this path.
     } else {
+      // Hard provider failure: leave health update to noteProcessScanHardFailure
+      // (scan-loop catch) so we do not double-increment consecutiveFailures.
       throw err;
     }
   }
@@ -127,6 +198,11 @@ async function scanProcesses() {
     .join(',');
   const changed = pidSetKey !== lastProcessPidSet;
   lastProcessPidSet = pidSetKey;
+  // Valid enumeration (including empty fleet) → HEALTHY. Cardinality is not health.
+  // Permission-denied path already marked FAILED and left reliable false.
+  if (reliable) {
+    _processHealth = sensorHealth.markHealthy(_processHealth, now);
+  }
   return { agents: unique, changed, reliable };
 }
 
@@ -141,6 +217,10 @@ module.exports = {
   },
   init,
   scanProcesses,
+  getProcessSensorHealth,
+  isProcessPopulationReliable,
+  noteProcessScanHardFailure,
+  PROCESS_SENSOR_ID,
   _setPlatformForTest,
   _resetForTest,
   knownHandles,
