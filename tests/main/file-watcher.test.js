@@ -510,18 +510,24 @@ describe('file-watcher scanFileHandles', () => {
       expect(state.knownHandles.size).toBe(0);
     });
 
-    it('returns empty on getFileHandles error', async () => {
+    it('returns empty on getFileHandles error but marks fs-handle FAILED (B-S03)', async () => {
       mockGetFileHandles.mockRejectedValue(new Error('permission denied'));
       const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
       const events = await fileWatcher.scanAllFileHandles(agents);
+      // Compatibility empty array — health must not look like successful empty.
       expect(events).toEqual([]);
+      const h = fileWatcher.getFileSensorHealth()['fs-handle'];
+      expect(h.state).toBe('FAILED');
+      expect(h.lastError).toMatch(/permission denied/);
+      expect(h.consecutiveFailures).toBeGreaterThanOrEqual(1);
     });
 
-    it('returns empty when getFileHandles returns empty', async () => {
+    it('returns empty when getFileHandles returns empty and marks HEALTHY', async () => {
       mockGetFileHandles.mockResolvedValue([]);
       const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
       const events = await fileWatcher.scanAllFileHandles(agents);
       expect(events).toEqual([]);
+      expect(fileWatcher.getFileSensorHealth()['fs-handle'].state).toBe('HEALTHY');
     });
 
     it('marks sensitive files in handle scan', async () => {

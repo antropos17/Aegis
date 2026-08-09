@@ -126,7 +126,7 @@ describe('file-watcher production subscription wiring (F-S01)', () => {
     expect(state.watchers).toEqual(fakeWatchers);
   });
 
-  it('subscribes every production evidence watcher to add, change, and unlink', async () => {
+  it('subscribes every production evidence watcher to add, change, unlink, error, ready', async () => {
     const state = makeState();
     fileWatcher.init(state);
     await fileWatcher.setupFileWatchers();
@@ -137,10 +137,14 @@ describe('file-watcher production subscription wiring (F-S01)', () => {
       expect(events).toContain('add');
       expect(events).toContain('change');
       expect(events).toContain('unlink');
+      expect(events).toContain('error'); // B2 health
+      expect(events).toContain('ready'); // B2 health
       // Exactly one registration per evidence event (no accidental duplicates per watcher).
       expect(events.filter((e) => e === 'add')).toHaveLength(1);
       expect(events.filter((e) => e === 'change')).toHaveLength(1);
       expect(events.filter((e) => e === 'unlink')).toHaveLength(1);
+      expect(events.filter((e) => e === 'error')).toHaveLength(1);
+      expect(events.filter((e) => e === 'ready')).toHaveLength(1);
     }
   });
 
@@ -216,5 +220,21 @@ describe('file-watcher production subscription wiring (F-S01)', () => {
 
     expect(state.activityLog).toHaveLength(0);
     expect(state.onFileEvent).not.toHaveBeenCalled();
+  });
+
+  it('B2: setup starts fs-chokidar STARTING; ready → HEALTHY; error → DEGRADED', async () => {
+    const state = makeState();
+    fileWatcher.init(state);
+    await fileWatcher.setupFileWatchers();
+    expect(fileWatcher.getFileSensorHealth()['fs-chokidar'].state).toBe('STARTING');
+
+    fakeWatchers[0].emit('ready');
+    expect(fileWatcher.getFileSensorHealth()['fs-chokidar'].state).toBe('HEALTHY');
+
+    fakeWatchers[0].emit('error', new Error('watch failed'));
+    const h = fileWatcher.getFileSensorHealth()['fs-chokidar'];
+    expect(h.state).toBe('DEGRADED');
+    expect(h.lastError).toMatch(/watch failed/);
+    expect(h.lossCount).toBe(0); // no quantitative loss signal from chokidar
   });
 });
