@@ -162,13 +162,12 @@ describe('platform/darwin', () => {
       expect(result).toEqual([]);
     });
 
-    it('returns empty array on lsof error', async () => {
+    it('rejects on lsof error (B-S05 — not silent empty)', async () => {
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
         cb(new Error('lsof failed'));
       });
 
-      const result = await darwin.getRawTcpConnections([100]);
-      expect(result).toEqual([]);
+      await expect(darwin.getRawTcpConnections([100])).rejects.toThrow('lsof failed');
     });
   });
 

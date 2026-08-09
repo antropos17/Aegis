@@ -19,8 +19,89 @@ const dns = require('dns');
 const fs = require('fs');
 const path = require('path');
 const _platform = require('./platform');
+const sensorHealth = require('./sensor-health');
 const { ALLOWLIST_DOMAINS, ALLOWLIST_IP_RANGES } = require('../shared/constants');
 const { readInstanceId } = require('./process-identity');
+
+/** Authoritative agent-scoped TCP observation sensor id (Block B4). */
+const NETWORK_SENSOR_ID = 'network';
+
+/**
+ * Persistent network health. Survives poll ticks; reset only at module reinit /
+ * test reset — never recreated per 30s interval.
+ * @type {import('./sensor-health').SensorHealth}
+ */
+let _networkHealth = sensorHealth.createSensorHealth(NETWORK_SENSOR_ID);
+
+/**
+ * @param {unknown} err
+ * @returns {string}
+ */
+function healthErrorMessage(err) {
+  if (err == null) return 'unknown-error';
+  if (typeof err === 'string') return err.slice(0, 200);
+  const msg = err && err.message != null ? String(err.message) : String(err);
+  return msg.slice(0, 200);
+}
+
+/**
+ * Plain serializable snapshot for future B6 — callers must not mutate.
+ * @returns {object}
+ * @since 0.11.0
+ */
+function getNetworkSensorHealth() {
+  return sensorHealth.toPlain(_networkHealth);
+}
+
+/**
+ * Orchestration-only skip (TCP provider not invoked).
+ *
+ * Sensor definition: agent-scoped network observation.
+ * - `confirmed-zero-agents`: process HEALTHY + empty fleet → vacuous scope complete → HEALTHY
+ * - `process-observation-unavailable`: cannot trust agent list → DEGRADED (not provider FAILED)
+ *
+ * lastSuccessAt advances only on confirmed-zero (scoped semantic success), not on
+ * process-unavailable skip.
+ *
+ * @param {'confirmed-zero-agents'|'process-observation-unavailable'|string} reason
+ * @returns {void}
+ * @since 0.11.0
+ */
+function noteNetworkSkip(reason) {
+  const now = Date.now();
+  if (reason === 'confirmed-zero-agents') {
+    _networkHealth = sensorHealth.markHealthy(_networkHealth, now, {
+      detail: 'confirmed-zero-agents',
+    });
+    return;
+  }
+  // process-observation-unavailable (and any unknown skip): must leave HEALTHY
+  _networkHealth = sensorHealth.markDegraded(_networkHealth, now, {
+    error:
+      reason === 'process-observation-unavailable'
+        ? 'process-observation-unavailable'
+        : healthErrorMessage(reason),
+    detail:
+      reason === 'process-observation-unavailable'
+        ? 'process-observation-unavailable'
+        : 'network-skip',
+  });
+}
+
+/**
+ * Hard provider failure when the throw path is outside scanNetworkConnections.
+ * Prefer the internal catch in scanNetworkConnections (avoids double-count).
+ * @param {unknown} err
+ * @returns {void}
+ * @since 0.11.0
+ */
+function noteNetworkScanHardFailure(err) {
+  const now = Date.now();
+  _networkHealth = sensorHealth.markFailed(_networkHealth, now, {
+    error: healthErrorMessage(err),
+    detail: 'provider-failure',
+  });
+}
 
 let _getRawTcpConnections = _platform.getRawTcpConnections;
 let _dnsReverse = (ip) => dns.promises.reverse(ip);
@@ -46,10 +127,11 @@ function _setDepsForTest(overrides) {
   if (overrides.dnsReverse) _dnsReverse = overrides.dnsReverse;
   if (overrides.dnsResolve) _dnsResolve = overrides.dnsResolve;
 }
-/** @internal Clear caches (for tests). */
+/** @internal Clear caches + health (for tests). */
 function _resetForTest() {
   dnsCache.clear();
   networkScanRunning = false;
+  _networkHealth = sensorHealth.createSensorHealth(NETWORK_SENSOR_ID);
 }
 
 let _agentDb = null;
@@ -326,67 +408,92 @@ function classifyConnection(ip) {
 
 /**
  * Scan network connections for all given agents, resolve IPs, classify domains.
+ *
+ * Health (B4): observation validity, not connection cardinality.
+ * - Successful provider run with zero relevant connections → HEALTHY empty
+ * - Provider throw → FAILED (rethrow; do not convert to silent HEALTHY [])
+ * - agents.length === 0 here is defensive only — orchestration must call
+ *   {@link noteNetworkSkip} so empty fleet is not confused with provider success
+ *
  * @param {Array} agents
  * @returns {Promise<Array>} Enriched connection objects
  * @since v0.1.0
  */
 async function scanNetworkConnections(agents) {
+  // Defensive: real empty-agent scheduling is scan-loop noteNetworkSkip.
+  // Do not mark HEALTHY — no TCP provider observation occurred.
   if (agents.length === 0) return [];
-  const pidMap = new Map();
-  for (const a of agents) pidMap.set(a.pid, a);
-  const raw = await _getRawTcpConnections(agents.map((a) => a.pid));
-  const seen = new Set();
-  const deduped = raw.filter((c) => {
-    if (isPrivateIp(c.ip)) return false;
-    const key = `${c.pid}:${c.ip}:${c.port}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-  // The IP allowlist is checked BEFORE any DNS work: an address inside a published
-  // operator range needs no name to be trusted, and asking for one would only make the
-  // verdict depend on whether that operator happens to publish PTR records.
-  const uniqueIps = [...new Set(deduped.map((c) => c.ip))].filter((ip) => !isAllowlistedIp(ip));
-  await Promise.all(uniqueIps.map((ip) => resolveIp(ip)));
-  return deduped.map((c) => {
-    const agent = pidMap.get(c.pid);
-    const { verdict, reason, domain } = classifyConnection(c.ip);
-    const httpUnencrypted = c.port === 80;
-    return {
-      // C-01: `''` for an unmatched connection, never a synthesized `PID <n>` label. This
-      // value reaches the audit log, where a fabricated name would be indistinguishable
-      // from a real agent — and under Event Schema v1 it would sit next to an attribution
-      // status, making a guess look like a resolved owner. Display surfaces substitute
-      // UNKNOWN_SOURCE_LABEL; machine output keeps the honest blank.
-      //
-      // Unreachable in practice: _getRawTcpConnections is called WITH these agents' pids,
-      // so every returned pid is in pidMap. Kept as a guard, not as a fallback that
-      // invents data.
-      agent: agent ? agent.agent : '',
-      pid: c.pid,
-      // Same object, same call as the `agent` above — `pidMap` was built from the
-      // agents this scan was invoked with, which is what makes the OS_TCP_OWNER_PID
-      // evidence a same-tick observation rather than a later re-resolution.
-      instanceId: readInstanceId(agent),
-      parentEditor: agent ? agent.parentEditor || null : null,
-      cwd: agent ? agent.cwd || null : null,
-      category: agent ? agent.category : 'other',
-      remoteIp: c.ip,
-      remotePort: c.port,
-      domain: domain || '',
-      state: c.state,
-      // Three outcomes, and the rule that produced each one. `verdict` is the honest
-      // answer; `flagged` is kept for the consumers that already read it (risk scoring,
-      // CSV/HTML export, ai-analysis, scan-loop severity) and keeps its original meaning:
-      // "not confirmed as an allowlisted endpoint". An `unknown` verdict therefore still
-      // sets it — an unidentified endpoint must not be displayed as safe.
-      verdict,
-      verdictReason: reason,
-      flagged: verdict !== 'allowlisted',
-      httpUnencrypted,
-      userAgent: agent ? agent.process || agent.agent : null,
-    };
-  });
+  const now = Date.now();
+  try {
+    const pidMap = new Map();
+    for (const a of agents) pidMap.set(a.pid, a);
+    const raw = await _getRawTcpConnections(agents.map((a) => a.pid));
+    if (!Array.isArray(raw)) {
+      throw new Error('tcp-provider-invalid-response');
+    }
+    const seen = new Set();
+    const deduped = raw.filter((c) => {
+      if (isPrivateIp(c.ip)) return false;
+      const key = `${c.pid}:${c.ip}:${c.port}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    // The IP allowlist is checked BEFORE any DNS work: an address inside a published
+    // operator range needs no name to be trusted, and asking for one would only make the
+    // verdict depend on whether that operator happens to publish PTR records.
+    const uniqueIps = [...new Set(deduped.map((c) => c.ip))].filter((ip) => !isAllowlistedIp(ip));
+    await Promise.all(uniqueIps.map((ip) => resolveIp(ip)));
+    const result = deduped.map((c) => {
+      const agent = pidMap.get(c.pid);
+      const { verdict, reason, domain } = classifyConnection(c.ip);
+      const httpUnencrypted = c.port === 80;
+      return {
+        // C-01: `''` for an unmatched connection, never a synthesized `PID <n>` label. This
+        // value reaches the audit log, where a fabricated name would be indistinguishable
+        // from a real agent — and under Event Schema v1 it would sit next to an attribution
+        // status, making a guess look like a resolved owner. Display surfaces substitute
+        // UNKNOWN_SOURCE_LABEL; machine output keeps the honest blank.
+        //
+        // Unreachable in practice: _getRawTcpConnections is called WITH these agents' pids,
+        // so every returned pid is in pidMap. Kept as a guard, not as a fallback that
+        // invents data.
+        agent: agent ? agent.agent : '',
+        pid: c.pid,
+        // Same object, same call as the `agent` above — `pidMap` was built from the
+        // agents this scan was invoked with, which is what makes the OS_TCP_OWNER_PID
+        // evidence a same-tick observation rather than a later re-resolution.
+        instanceId: readInstanceId(agent),
+        parentEditor: agent ? agent.parentEditor || null : null,
+        cwd: agent ? agent.cwd || null : null,
+        category: agent ? agent.category : 'other',
+        remoteIp: c.ip,
+        remotePort: c.port,
+        domain: domain || '',
+        state: c.state,
+        // Three outcomes, and the rule that produced each one. `verdict` is the honest
+        // answer; `flagged` is kept for the consumers that already read it (risk scoring,
+        // CSV/HTML export, ai-analysis, scan-loop severity) and keeps its original meaning:
+        // "not confirmed as an allowlisted endpoint". An `unknown` verdict therefore still
+        // sets it — an unidentified endpoint must not be displayed as safe.
+        verdict,
+        verdictReason: reason,
+        flagged: verdict !== 'allowlisted',
+        httpUnencrypted,
+        userAgent: agent ? agent.process || agent.agent : null,
+      };
+    });
+    // Valid enumeration (including empty after filters) → HEALTHY. Cardinality ≠ health.
+    _networkHealth = sensorHealth.markHealthy(_networkHealth, now);
+    return result;
+  } catch (err) {
+    // B-S05: full observation failure — never look like calm empty HEALTHY.
+    _networkHealth = sensorHealth.markFailed(_networkHealth, now, {
+      error: healthErrorMessage(err),
+      detail: 'provider-failure',
+    });
+    throw err;
+  }
 }
 
 /** @returns {boolean} Whether a network scan is in progress */
@@ -404,6 +511,10 @@ function setNetworkScanRunning(v) {
 
 module.exports = {
   scanNetworkConnections,
+  getNetworkSensorHealth,
+  noteNetworkSkip,
+  noteNetworkScanHardFailure,
+  NETWORK_SENSOR_ID,
   isKnownDomain,
   isAllowlistedIp,
   isPrivateIp,

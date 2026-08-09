@@ -121,12 +121,11 @@ describe('linux exec-based functions', () => {
       expect(results).toHaveLength(0);
     });
 
-    it('returns empty when both ss and lsof fail', async () => {
+    it('rejects when both ss and lsof fail (B-S05 — not silent empty)', async () => {
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
         cb(new Error('command not found'));
       });
-      const results = await linux.getRawTcpConnections([100]);
-      expect(results).toEqual([]);
+      await expect(linux.getRawTcpConnections([100])).rejects.toThrow('command not found');
     });
   });
 });

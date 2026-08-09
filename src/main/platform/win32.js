@@ -126,7 +126,7 @@ function getParentProcessMap() {
  * @returns {Promise<Array<{pid: number, ip: string, port: number, state: string}>>}
  */
 function getRawTcpConnections(pids) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const validPids = pids.filter((p) => Number.isInteger(p) && p > 0);
     if (validPids.length === 0) {
       resolve([]);
@@ -146,12 +146,14 @@ function getRawTcpConnections(pids) {
       ['-NoProfile', '-NonInteractive', '-Command', psScript],
       { timeout: 10000 },
       (err, stdout) => {
+        // B-S05: hard provider failure must reject so network health can mark FAILED.
+        // True empty tables ("[]" / blank stdout with success) still resolve [].
         if (err) {
-          resolve([]);
+          reject(err);
           return;
         }
         try {
-          const raw = stdout.trim();
+          const raw = (stdout || '').trim();
           if (!raw || raw === '[]') {
             resolve([]);
             return;
@@ -159,8 +161,8 @@ function getRawTcpConnections(pids) {
           let conns = JSON.parse(raw);
           if (!Array.isArray(conns)) conns = [conns];
           resolve(conns);
-        } catch (_) {
-          resolve([]);
+        } catch (parseErr) {
+          reject(parseErr instanceof Error ? parseErr : new Error('tcp-provider-parse-error'));
         }
       },
     );

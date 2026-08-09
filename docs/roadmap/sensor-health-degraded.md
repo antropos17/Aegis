@@ -267,6 +267,47 @@ When/if AEGIS attaches an ETW session (Phase C / later):
 
 **Current Block B must not claim ETW health exists.** Slice B4 covers **network poll** loss/failure first; ETW is a **future** extension of the same health fields.
 
+### ETW health / loss schema freeze (B4 — documentation only)
+
+**Live status (revalidated):** **No ETW implementation** in product `src/` — no OpenTrace/ProcessTrace, no EventsLost/BuffersLost readers, no native addon, no C# helper. Mentions remain roadmap/README/master-plan only.
+
+**Frozen future producer contract** (B1 fields only; no runtime code until ETW lands):
+
+| State | Meaning for an ETW session/provider |
+|-------|-------------------------------------|
+| **STARTING** | Session expected active but not yet proven operational |
+| **HEALTHY** | Session/provider operational; no unresolved known event/buffer loss on this health-record lifetime |
+| **DEGRADED** | Session operational but completeness impaired (e.g. newly observed EventsLost or BuffersLost &gt; 0) |
+| **FAILED** | Session/provider cannot continue valid observation |
+| **UNSUPPORTED** | Platform/environment cannot support producer by design |
+| **DISABLED** | Intentionally disabled |
+
+**Loss invariants (irrecoverable):**
+
+1. EventsLost and BuffersLost are **observation loss**, not generic command errors.
+2. Any positive newly observed loss → health **must not remain HEALTHY** (use `addLoss` / DEGRADED per B1).
+3. Lost observations are irrecoverable; later successful callbacks **must not** clear residual `lossCount` or fabricate replacement events.
+4. Do not synthesize network/process/file evidence for lost ETW records.
+5. B1 `lossCount` is cumulative for **one health-record lifetime**.
+
+**EventsLost / BuffersLost aggregation — UNKNOWN until producer selected:**
+
+- Source fields **must be retained separately** at the producer boundary (do not drop either counter).
+- Mapping into a single B1 `lossCount` must use a **mathematically justified non-overlapping** count.
+- Do **not** sum EventsLost+BuffersLost until Windows API semantics for the chosen session model are verified (risk of double-count).
+- `detail` / side fields may preserve both counters even when only one contributes to `lossCount`.
+
+**Session lifetime / reset:**
+
+- ETW health-record lifetime = **one ETW session instance**.
+- A **new session** → `createSensorHealth` (fresh record, lossCount 0).
+- Ordinary successful session callbacks do **not** clear residual loss.
+- If OS counters are cumulative per session, the adapter must track **deltas or authoritative totals without double-counting** the same lost unit twice.
+
+**Sensor IDs:** Runtime IDs (`etw-network`, `etw-process`, …) **deferred** until producer scope is chosen. Do not invent multiple IDs in advance.
+
+**No ETW product code in B4.**
+
 ---
 
 ## 6. Suspend / resume audit
@@ -415,13 +456,13 @@ Audit drops remain on **audit** stats path (already honest).
 - **Invariants:** unreliable empty scan must not present as healthy zero-fleet without DEGRADED; hard fail marks FAILED  
 - **Tests:** EPERM path; setAgents empty + health DEGRADED; mutation drop reliable flag handling  
 
-### B4 — Network (and future ETW) health
+### B4 — Network (and future ETW) health — **CLOSED** (implementation)
 
 - **Closes:** B-S05 (network), B-S08 remainder  
-- **Files:** `network-monitor.js`, `scan-loop.doNetworkScan`  
-- **Invariants:** catch → DEGRADED/FAILED; skip-for-no-agents documented vs capability fail  
-- **ETW:** placeholder field only if architecture freezes schema; **no ETW implementation**  
-- **Tests:** injected scan reject  
+- **Files:** `network-monitor.js`, `scan-loop.doNetworkScan`, platform `getRawTcpConnections`  
+- **Live contract:** sensorId `network`; valid empty TCP → HEALTHY; provider throw → FAILED; confirmed-zero skip → HEALTHY (agent-scoped); process-unavailable skip → DEGRADED  
+- **ETW:** schema freeze only (see §5); **no ETW implementation**  
+- **Tests:** `network-monitor-health.test.js` + platform reject paths
 
 ### B5 — Suspend / resume observation gap
 

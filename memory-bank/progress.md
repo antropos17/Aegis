@@ -39,7 +39,15 @@ Version 0.10.0-alpha. 110 agents / 262 signatures in database. 73 rules across 8
   - **API:** `getProcessSensorHealth()` plain JSON snapshot (B6-ready, no IPC). Identity/B2/IPC/renderer/powerMonitor/ETW unchanged.
   - **Mutations (restored):** omit EPERM markFailed → red; omit noteProcessScanHardFailure → red; omit markHealthy recovery → red; collapse network-skip reason → red.
   - **Gates:** 1341 pass / 4 skip / 81 files (+11 vs B2: 8 process-scanner-health + 3 scan-loop B-S08/B-S02); lint 0e/23w; typecheck 0; svelte-check 0; build 0.
-  - **Remaining Block B:** B4 network sensor health + ETW schema; B5 suspend/resume; B6 IPC; B7 renderer DEGRADED; B8 umbrella.
+  - **Remaining Block B (pre-B4):** B4 network sensor health + ETW schema; B5 suspend/resume; B6 IPC; B7 renderer DEGRADED; B8 umbrella.
+- **B4 CLOSED:** network sensor id `network` owned by `network-monitor.js` (persistent `_networkHealth`; poll does not recreate).
+  - **B-S05:** TCP provider hard failure rejects (win32/darwin/linux no longer silent `[]` on spawn/parse fail); `scanNetworkConnections` marks FAILED + rethrows; valid empty/non-empty → HEALTHY. No `addLoss` (no quantitative TCP loss counter).
+  - **B-S08 CLOSED:** skip reasons retained; `noteNetworkSkip('confirmed-zero-agents')` → HEALTHY (agent-scoped vacuous success, `lastSuccessAt` advances); `noteNetworkSkip('process-observation-unavailable')` → DEGRADED (leaves prior HEALTHY; does not advance lastSuccessAt). Process reliability via B3 `isProcessPopulationReliable()` only.
+  - **API:** `getNetworkSensorHealth()` plain JSON snapshot (B6-ready, no IPC).
+  - **ETW:** still **absent** in `src/`; schema freeze in `docs/roadmap/sensor-health-degraded.md` (states, irrecoverable loss, session lifetime, EventsLost/BuffersLost aggregation UNKNOWN until producer).
+  - **Mutations:** omit markFailed → red; process-unavailable→HEALTHY → red; success→FAILED → red; omit markHealthy recovery → red.
+  - **Gates:** 1353 pass / 4 skip / 82 files (+12 vs B3: 11 network-monitor-health + 1 scan-loop distinct-skip); lint 0e/23w; typecheck 0; svelte-check 0; build 0.
+  - **Remaining Block B:** B5 suspend/resume; B6 IPC; B7 UI; B8 umbrella.
 
 **Open debts from step 7 — measurements for Bench to settle, not diagnosed bugs:**
 - **pid-0 synthetics from `attachModels` no longer reach baselines at all.** They live in `latestAgents` and are seen by the file and network scans, but no stamp site ever gives them an `instanceId` (`scan-loop.js` appends them AFTER the `scan-batch` send — IDENTITY-RECON §2.1), so the null-key policy drops every observation. Measure what they used to contribute; the fix, if wanted, is a stamp in `attachModels`, the same one `injectDetectedExternalAgents` already does.

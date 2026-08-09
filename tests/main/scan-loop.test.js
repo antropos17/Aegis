@@ -892,6 +892,7 @@ describe('scan-loop', () => {
 
     it('B-S08: empty agents + unreliable process population logs process-unavailable skip', () => {
       const scanNet = vi.fn().mockResolvedValue([]);
+      const noteSkip = vi.fn();
       const deps = makeDeps({
         getLatestAgents: vi.fn().mockReturnValue([]),
         scanner: {
@@ -903,6 +904,7 @@ describe('scan-loop', () => {
           isNetworkScanRunning: vi.fn().mockReturnValue(false),
           setNetworkScanRunning: vi.fn(),
           scanNetworkConnections: scanNet,
+          noteNetworkSkip: noteSkip,
         },
       });
       scanLoop.init(deps);
@@ -913,10 +915,12 @@ describe('scan-loop', () => {
       );
       expect(skip).toBeTruthy();
       expect(skip[2].reason).toBe('process-observation-unavailable');
+      expect(noteSkip).toHaveBeenCalledWith('process-observation-unavailable');
     });
 
     it('B-S08: empty agents + reliable process population logs confirmed-zero skip', () => {
       const scanNet = vi.fn().mockResolvedValue([]);
+      const noteSkip = vi.fn();
       const deps = makeDeps({
         getLatestAgents: vi.fn().mockReturnValue([]),
         scanner: {
@@ -928,6 +932,7 @@ describe('scan-loop', () => {
           isNetworkScanRunning: vi.fn().mockReturnValue(false),
           setNetworkScanRunning: vi.fn(),
           scanNetworkConnections: scanNet,
+          noteNetworkSkip: noteSkip,
         },
       });
       scanLoop.init(deps);
@@ -937,6 +942,41 @@ describe('scan-loop', () => {
         (c) => c[0] === 'scan' && c[1] === 'network-skip',
       );
       expect(skip[2].reason).toBe('confirmed-zero-agents');
+      expect(noteSkip).toHaveBeenCalledWith('confirmed-zero-agents');
+    });
+
+    it('B-S08: confirmed-zero and process-unavailable skip reasons stay distinct', () => {
+      const noteSkip = vi.fn();
+      const baseNet = {
+        isNetworkScanRunning: vi.fn().mockReturnValue(false),
+        setNetworkScanRunning: vi.fn(),
+        scanNetworkConnections: vi.fn(),
+        noteNetworkSkip: noteSkip,
+      };
+      const depsUnrel = makeDeps({
+        getLatestAgents: vi.fn().mockReturnValue([]),
+        scanner: {
+          scanProcesses: vi.fn(),
+          isProcessPopulationReliable: vi.fn().mockReturnValue(false),
+        },
+        network: baseNet,
+      });
+      scanLoop.init(depsUnrel);
+      scanLoop.doNetworkScan();
+      const depsRel = makeDeps({
+        getLatestAgents: vi.fn().mockReturnValue([]),
+        scanner: {
+          scanProcesses: vi.fn(),
+          isProcessPopulationReliable: vi.fn().mockReturnValue(true),
+        },
+        network: baseNet,
+      });
+      scanLoop.init(depsRel);
+      scanLoop.doNetworkScan();
+      expect(noteSkip.mock.calls.map((c) => c[0])).toEqual([
+        'process-observation-unavailable',
+        'confirmed-zero-agents',
+      ]);
     });
 
     it('B-S02: hard process scan failure notes process health FAILED', async () => {

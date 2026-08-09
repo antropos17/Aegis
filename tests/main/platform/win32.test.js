@@ -195,12 +195,12 @@ describe('platform/win32', () => {
       expect(result).toEqual([conn]);
     });
 
-    it('returns empty on error', async () => {
+    it('rejects on provider error (B-S05 — not silent empty)', async () => {
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
         cb(new Error('PS error'));
       });
 
-      expect(await win32.getRawTcpConnections([100])).toEqual([]);
+      await expect(win32.getRawTcpConnections([100])).rejects.toThrow('PS error');
     });
 
     it('returns empty for "[]" output', async () => {
@@ -219,12 +219,12 @@ describe('platform/win32', () => {
       expect(await win32.getRawTcpConnections([100])).toEqual([]);
     });
 
-    it('returns empty for unparseable output', async () => {
+    it('rejects unparseable output (B-S05 — not silent empty)', async () => {
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
         cb(null, 'not json');
       });
 
-      expect(await win32.getRawTcpConnections([100])).toEqual([]);
+      await expect(win32.getRawTcpConnections([100])).rejects.toBeTruthy();
     });
   });
 

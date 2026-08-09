@@ -142,9 +142,9 @@ function doNetworkScan() {
   const { network, baselines, audit, logger, getLatestAgents, sendToRenderer, scanner } = deps;
   const agents = getLatestAgents();
   if (network.isNetworkScanRunning()) return;
-  // B-S08 (narrow): still skip network when agents is empty, but distinguish
-  // confirmed-zero-agents (process HEALTHY empty) from process-observation-unavailable
-  // (process FAILED / unreliable). Full network health is B4 — do not mark S-NET here.
+  // B-S08: agent-scoped network sensor — empty agents still skip the TCP provider,
+  // but health must distinguish confirmed-zero (process HEALTHY) from process-unknown.
+  // Process reliability is B3's API only — never agents.length alone.
   if (agents.length === 0) {
     let reason = 'confirmed-zero-agents';
     if (scanner && typeof scanner.isProcessPopulationReliable === 'function') {
@@ -159,6 +159,9 @@ function doNetworkScan() {
       reason = 'process-observation-unavailable';
     }
     logger.debug('scan', 'network-skip', { reason, agents: 0 });
+    if (typeof network.noteNetworkSkip === 'function') {
+      network.noteNetworkSkip(reason);
+    }
     return;
   }
   network.setNetworkScanRunning(true);
@@ -208,6 +211,15 @@ function doNetworkScan() {
       });
     })
     .catch((err) => {
+      // B-S05: provider failure health is owned by network-monitor.scanNetworkConnections
+      // (markFailed before rethrow). Fallback note only if the inject path omitted it.
+      if (
+        typeof network.noteNetworkScanHardFailure === 'function' &&
+        typeof network.getNetworkSensorHealth === 'function' &&
+        network.getNetworkSensorHealth().state !== 'FAILED'
+      ) {
+        network.noteNetworkScanHardFailure(err);
+      }
       logger.error('main', 'Network scan failed', { error: err.message });
     })
     .finally(() => {
