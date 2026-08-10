@@ -6,7 +6,7 @@
    * @since v0.5.0
    */
   import { focusedAgentPid, tokenCosts } from '../stores/ipc.js';
-  import { eventsByPid } from '../stores/events-index.ts';
+  import { eventsByInstance } from '../stores/events-index.ts';
   import AgentCardDetails from './AgentCardDetails.svelte';
   import AgentActions from './AgentActions.svelte';
   import Sparkline from './Sparkline.svelte';
@@ -76,7 +76,10 @@
     return agent.name;
   });
 
-  let agentEvents = $derived($eventsByPid.get(agent.pid) || []);
+  // Matched on the process INSTANCE, never on the pid: a recycled pid must not inherit a
+  // dead instance's activity. An agent carrying no instanceId gets an empty list rather
+  // than a namesake's events — stores/risk.ts `byInstance` states the policy.
+  let agentEvents = $derived(agent.instanceId ? $eventsByInstance.get(agent.instanceId) || [] : []);
 
   /**
    * Token + cost record for this agent, from the `token-costs` push. Matched by

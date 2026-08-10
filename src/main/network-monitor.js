@@ -20,6 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const _platform = require('./platform');
 const { ALLOWLIST_DOMAINS, ALLOWLIST_IP_RANGES } = require('../shared/constants');
+const { readInstanceId } = require('./process-identity');
 
 let _getRawTcpConnections = _platform.getRawTcpConnections;
 let _dnsReverse = (ip) => dns.promises.reverse(ip);
@@ -363,6 +364,10 @@ async function scanNetworkConnections(agents) {
       // invents data.
       agent: agent ? agent.agent : '',
       pid: c.pid,
+      // Same object, same call as the `agent` above — `pidMap` was built from the
+      // agents this scan was invoked with, which is what makes the OS_TCP_OWNER_PID
+      // evidence a same-tick observation rather than a later re-resolution.
+      instanceId: readInstanceId(agent),
       parentEditor: agent ? agent.parentEditor || null : null,
       cwd: agent ? agent.cwd || null : null,
       category: agent ? agent.category : 'other',

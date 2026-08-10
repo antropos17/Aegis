@@ -306,4 +306,71 @@ describe('process-utils', () => {
       expect(mockGetProcessCwds).toHaveBeenCalledWith([100, 200]);
     });
   });
+
+  describe('annotateWorkingDirs() — PID-reuse cache poisoning', () => {
+    it('the same PID with a DIFFERENT process name misses the cache and gets a fresh cwd', async () => {
+      // The cache TTL is 60s. Keyed on pid alone, a pid recycled by another
+      // executable inside that window served the DEAD process's cwd — the field
+      // the renderer's instance key is built from and CWD_CONTAINMENT matches on.
+      mockGetProcessCwds.mockResolvedValueOnce(new Map([[100, '/home/user/project-a']]));
+      const dead = [{ pid: 100, agent: 'Claude Code', process: 'claude.exe' }];
+      await processUtils.annotateWorkingDirs(dead);
+      expect(dead[0].cwd).toBe('/home/user/project-a');
+
+      // Same tick window, same pid — now held by a different executable.
+      mockGetProcessCwds.mockResolvedValueOnce(new Map([[100, '/home/user/project-b']]));
+      const reused = [{ pid: 100, agent: 'opencode', process: 'node.exe' }];
+      await processUtils.annotateWorkingDirs(reused);
+
+      expect(mockGetProcessCwds).toHaveBeenCalledTimes(2); // cache MISS
+      expect(reused[0].cwd).toBe('/home/user/project-b');
+      expect(reused[0].projectName).toBe('project-b');
+    });
+
+    it('forceRefresh re-reads the cwd even for a cached pid + name', async () => {
+      mockGetProcessCwds.mockResolvedValueOnce(new Map([[100, '/home/user/project-a']]));
+      const agents = [{ pid: 100, agent: 'Claude Code', process: 'claude.exe' }];
+      await processUtils.annotateWorkingDirs(agents);
+      await processUtils.annotateWorkingDirs(agents);
+      expect(mockGetProcessCwds).toHaveBeenCalledTimes(1); // cached
+
+      mockGetProcessCwds.mockResolvedValueOnce(new Map([[100, '/home/user/project-b']]));
+      await processUtils.annotateWorkingDirs(agents, { forceRefresh: true });
+      expect(mockGetProcessCwds).toHaveBeenCalledTimes(2);
+      expect(agents[0].cwd).toBe('/home/user/project-b');
+      expect(agents[0].projectName).toBe('project-b');
+    });
+
+    it('a same-name reuse inside the TTL is the documented residual bound', async () => {
+      // Honest test of the KNOWN BOUND shared with _cacheKey: pid + SAME exe name
+      // still hits the cache, so the stale cwd survives until forceRefresh or TTL.
+      mockGetProcessCwds.mockResolvedValueOnce(new Map([[100, '/home/user/project-a']]));
+      const first = [{ pid: 100, agent: 'Claude Code', process: 'claude.exe' }];
+      await processUtils.annotateWorkingDirs(first);
+
+      mockGetProcessCwds.mockResolvedValueOnce(new Map([[100, '/home/user/project-b']]));
+      const second = [{ pid: 100, agent: 'Claude Code', process: 'claude.exe' }];
+      await processUtils.annotateWorkingDirs(second);
+      expect(mockGetProcessCwds).toHaveBeenCalledTimes(1); // cache HIT
+      expect(second[0].cwd).toBe('/home/user/project-a'); // stale, by design
+
+      // forceRefresh — what a changed pid set warrants — clears it.
+      await processUtils.annotateWorkingDirs(second, { forceRefresh: true });
+      expect(second[0].cwd).toBe('/home/user/project-b');
+    });
+
+    it('deduplicates a pid shared by several agents in the batched platform call', async () => {
+      // pid-0 synthetics all share one pid but now hold distinct cache keys, so
+      // the pid must be sent to the platform once, not once per agent.
+      mockGetProcessCwds.mockResolvedValue(new Map());
+      const agents = [
+        { pid: 0, agent: 'Ollama', process: 'ollama' },
+        { pid: 0, agent: 'LM Studio', process: 'lm-studio' },
+      ];
+      await processUtils.annotateWorkingDirs(agents);
+      expect(mockGetProcessCwds).toHaveBeenCalledWith([0]);
+      expect(agents[0].cwd).toBeNull();
+      expect(agents[1].cwd).toBeNull();
+    });
+  });
 });

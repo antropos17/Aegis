@@ -154,8 +154,43 @@ function buildInstanceId(agent) {
   return identify(agent).instanceId;
 }
 
+/**
+ * Read back the `instanceId` an agent object already carries, or `null`.
+ *
+ * READ, never re-derive. The counterpart to {@link buildInstanceId}, and the reason
+ * both live here: the stamp exists so a consumer can join an event to the agent it
+ * received in the SAME `scan-batch`, which means the value must be the identical
+ * string that batch carried. `buildInstanceId()` would cheerfully produce a
+ * well-formed key from whatever fields the object happens to hold — `0:code.exe`
+ * where the batch says `0:kilo-code` (scan-loop.js `injectDetectedExternalAgents`
+ * withholds `process` on purpose) — and a key that joins to nothing is worse than a
+ * documented absence: `null` says "no key", a wrong key says "this other instance".
+ * Deriving one at a consumer would also be a SECOND identity resolution, one tick
+ * removed from the first — exactly the cross-tick pid reuse ai-mistakes.md #19 is
+ * about.
+ *
+ * `null` therefore covers two distinct cases, and neither may be papered over with
+ * a name match: no owner was resolved (C-01 — an unattributed event keeps no agent,
+ * so it keeps no key), or the resolved owner was never stamped upstream (the
+ * `attachModels` synthetics, scan-loop.js).
+ *
+ * A caller that needs a key unconditionally pairs this with `buildInstanceId` as an
+ * explicit `||` fallback, so the derivation stays visible at the call site instead
+ * of hiding inside the reader.
+ * @param {{instanceId?: string}|null|undefined} agent - the agent resolved for THIS
+ *   event, on THIS tick. Never a substitute, never a re-resolved pid.
+ * @returns {string|null}
+ * @since v0.12.0
+ */
+function readInstanceId(agent) {
+  return agent && typeof agent.instanceId === 'string' && agent.instanceId
+    ? agent.instanceId
+    : null;
+}
+
 module.exports = {
   INSTANCE_ID_SOURCES,
   identify,
   buildInstanceId,
+  readInstanceId,
 };

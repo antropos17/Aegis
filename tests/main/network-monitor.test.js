@@ -495,6 +495,91 @@ describe('network-monitor DI tests', () => {
     });
   });
 
+  // A NetworkConnection must carry the process-INSTANCE key of the agent whose pid
+  // the OS reported as owning the socket, read off that agent object inside this
+  // same call. Without it the renderer can only correlate connections by pid or by
+  // display name, and neither survives a pid recycle or a second instance.
+  describe('scanNetworkConnections() — instanceId', () => {
+    it('stamps the matched agent exact key', async () => {
+      mockGetRawTcp.mockResolvedValue([
+        { pid: 100, ip: '160.79.104.10', port: 443, state: 'ESTAB' },
+      ]);
+      const agents = [
+        {
+          pid: 100,
+          agent: 'Claude Code',
+          category: 'ai',
+          instanceId: '100:1700000000111',
+        },
+      ];
+      const results = await networkMonitor.scanNetworkConnections(agents);
+      expect(results).toHaveLength(1);
+      expect(results[0].agent).toBe('Claude Code');
+      expect(results[0].instanceId).toBe('100:1700000000111');
+    });
+
+    // Same C-01 rule that keeps `agent` blank: an unowned connection gets no key.
+    // The agent that IS online sits right there in the map and must not be borrowed.
+    it('leaves instanceId null when the pid matches no agent (C-01)', async () => {
+      mockGetRawTcp.mockResolvedValue([
+        { pid: 999, ip: '160.79.104.10', port: 443, state: 'ESTAB' },
+      ]);
+      const agents = [
+        { pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:1700000000111' },
+      ];
+      const results = await networkMonitor.scanNetworkConnections(agents);
+      expect(results).toHaveLength(1);
+      expect(results[0].agent).toBe('');
+      expect(results[0].instanceId).toBeNull();
+      expect(results[0].instanceId).not.toBe('100:1700000000111');
+    });
+
+    // Read, never re-derive: this agent has a pid and a startTime, so
+    // buildInstanceId() would return a plausible '100:1700000000111' — a key that
+    // appears in no scan-batch and joins to nothing.
+    it('leaves instanceId null for an agent that carries no key of its own', async () => {
+      mockGetRawTcp.mockResolvedValue([
+        { pid: 100, ip: '160.79.104.10', port: 443, state: 'ESTAB' },
+      ]);
+      const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai', startTime: 1700000000111 }];
+      const results = await networkMonitor.scanNetworkConnections(agents);
+      expect(results).toHaveLength(1);
+      expect(results[0].agent).toBe('Claude Code');
+      expect(results[0].instanceId).toBeNull();
+    });
+
+    // Two live instances of ONE agent name, each with its own socket. The display
+    // name is identical, so only the key separates them.
+    it('gives two same-name instances two different keys', async () => {
+      mockGetRawTcp.mockResolvedValue([
+        { pid: 100, ip: '160.79.104.10', port: 443, state: 'ESTAB' },
+        { pid: 200, ip: '160.79.104.11', port: 443, state: 'ESTAB' },
+      ]);
+      const agents = [
+        {
+          pid: 100,
+          agent: 'Claude Code',
+          category: 'ai',
+          cwd: '/home/user/projA',
+          instanceId: '100:1700000000111',
+        },
+        {
+          pid: 200,
+          agent: 'Claude Code',
+          category: 'ai',
+          cwd: '/home/user/projB',
+          instanceId: '200:1700000000222',
+        },
+      ];
+      const results = await networkMonitor.scanNetworkConnections(agents);
+      expect(results).toHaveLength(2);
+      expect(results.map((c) => c.agent)).toEqual(['Claude Code', 'Claude Code']);
+      expect(results[0].instanceId).toBe('100:1700000000111');
+      expect(results[1].instanceId).toBe('200:1700000000222');
+      expect(new Set(results.map((c) => c.instanceId)).size).toBe(2);
+    });
+  });
+
   describe('isNetworkScanRunning / setNetworkScanRunning', () => {
     it('tracks scan running state', () => {
       expect(networkMonitor.isNetworkScanRunning()).toBe(false);

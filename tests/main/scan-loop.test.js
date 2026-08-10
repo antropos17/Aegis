@@ -21,6 +21,53 @@ describe('scan-loop', () => {
     vi.useRealTimers();
   });
 
+  /**
+   * Fresh mock deps for one scan run — every collaborator `doProcessScan` reaches
+   * for, stubbed inert. Each caller overrides only the collaborator its assertions
+   * are about, so a new dependency in scan-loop is added here once instead of in
+   * every block that drives a scan.
+   * @param {Object} [overrides]
+   * @returns {Object}
+   */
+  function makeDeps(overrides = {}) {
+    return {
+      scanner: { scanProcesses: vi.fn().mockResolvedValue({ agents: [], changed: false }) },
+      procUtil: {
+        enrichWithParentChains: vi.fn().mockResolvedValue(),
+        annotateHostApps: vi.fn(),
+        annotateWorkingDirs: vi.fn().mockResolvedValue(),
+      },
+      watcher: {
+        pruneKnownHandles: vi.fn(),
+        scanAllFileHandles: vi.fn().mockResolvedValue([]),
+      },
+      network: {
+        isNetworkScanRunning: vi.fn().mockReturnValue(false),
+        setNetworkScanRunning: vi.fn(),
+        scanNetworkConnections: vi.fn().mockResolvedValue([]),
+      },
+      baselines: { recordNetworkEndpoint: vi.fn() },
+      anomaly: {
+        checkDeviations: vi.fn().mockReturnValue([]),
+        calculateAnomalyScore: vi.fn().mockReturnValue({ score: 0 }),
+      },
+      audit: { log: vi.fn() },
+      tray: { updateTrayIcon: vi.fn(), notifySensitive: vi.fn() },
+      logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+      sendToRenderer: vi.fn(),
+      fileAccessBatcher: { push: vi.fn() },
+      statsUpdateBatcher: { push: vi.fn() },
+      getStats: vi.fn().mockReturnValue({}),
+      getResourceUsage: vi.fn().mockReturnValue({}),
+      getLatestAgents: vi.fn().mockReturnValue([]),
+      setAgents: vi.fn(),
+      setLatestNetConnections: vi.fn(),
+      getPreviousPids: vi.fn().mockReturnValue(new Map()),
+      setPreviousPids: vi.fn(),
+      ...overrides,
+    };
+  }
+
   // ── dedupFileEvent ──
 
   describe('dedupFileEvent', () => {
@@ -309,6 +356,222 @@ describe('scan-loop', () => {
     });
   });
 
+  // ── instanceId coverage across the WHOLE scan-batch payload ──
+
+  describe('scan-batch instanceId invariant', () => {
+    /**
+     * Deps whose `enrichWithParentChains` stamps identity exactly as the real one
+     * does — via the same `identify()` — so the test measures the INJECTION gap
+     * and not a stub that hands out keys for free.
+     * @param {Function} sendToRenderer
+     * @param {boolean} changed - the scanner's changed-pid-set flag
+     * @returns {Object}
+     */
+    function makeStampingDeps(sendToRenderer, changed = false) {
+      const { identify } = require_('../../src/main/process-identity.js');
+      return makeDeps({
+        scanner: {
+          // A FRESH array per tick, which is what the real scanner returns — the
+          // injected synthetics live only in the previous tick's array and must
+          // never be carried back into the identity stamp. `mockResolvedValue`
+          // would hand out one shared array and quietly model the opposite.
+          scanProcesses: vi.fn().mockImplementation(async () => ({
+            agents: [
+              { agent: 'Claude Code', process: 'claude.exe', pid: 100, startTime: 1717000000000 },
+              { agent: 'Cursor', process: 'cursor.exe', pid: 200, startTime: 1717000100000 },
+            ],
+            changed,
+          })),
+        },
+        procUtil: {
+          enrichWithParentChains: vi.fn(async (agents) => {
+            for (const a of agents) {
+              const id = identify(a);
+              a.instanceId = id.instanceId;
+              a.instanceIdSource = id.instanceIdSource;
+            }
+          }),
+          annotateHostApps: vi.fn(),
+          annotateWorkingDirs: vi.fn().mockResolvedValue(),
+        },
+        sendToRenderer,
+      });
+    }
+
+    /**
+     * Run one full process scan with both synthetic detectors stubbed, and return
+     * the `scan-batch` payload.
+     * @param {Array} ideAgents
+     * @param {Array} wslAgents
+     * @param {boolean} [changed]
+     * @returns {Promise<{batch: Object, deps: Object}>}
+     */
+    async function runScanWithSynthetics(ideAgents, wslAgents, changed = false) {
+      const ide = require_('../../src/main/ide-extension-detector.js');
+      const wsl = require_('../../src/main/wsl-detector.js');
+      const origIde = ide.getCachedExtensionAgents;
+      const origWsl = wsl.getCachedWslAgents;
+      ide.getCachedExtensionAgents = () => ideAgents;
+      wsl.getCachedWslAgents = () => wslAgents;
+      try {
+        const sendToRenderer = vi.fn();
+        const mockDeps = makeStampingDeps(sendToRenderer, changed);
+        scanLoop.init(mockDeps);
+        // A helper may be called twice in one test (the across-ticks case); drop
+        // the previous interval so each call runs exactly one scan.
+        scanLoop.stopScanIntervals();
+        scanLoop.startScanIntervals(5000);
+        await vi.advanceTimersByTimeAsync(5000);
+        const batchCall = sendToRenderer.mock.calls.find((c) => c[0] === 'scan-batch');
+        expect(batchCall).toBeTruthy();
+        return { batch: batchCall[1], deps: mockDeps };
+      } finally {
+        ide.getCachedExtensionAgents = origIde;
+        wsl.getCachedWslAgents = origWsl;
+      }
+    }
+
+    /**
+     * Both IDE-extension agents carry the SAME `process` (the editor host exe) —
+     * that is what the real detector emits, and the reason the synthetic key
+     * cannot be derived from `process`. Same for the two WSL agents' interpreter.
+     */
+    const IDE_SYNTHETICS = [
+      {
+        agent: 'Kilo Code',
+        process: 'code.exe',
+        pid: 0,
+        status: 'running',
+        category: 'ai',
+        parentEditor: 'VS Code',
+        detectionMethod: 'ide-extension',
+      },
+      {
+        agent: 'Cline',
+        process: 'code.exe',
+        pid: 0,
+        status: 'running',
+        category: 'ai',
+        parentEditor: 'VS Code',
+        detectionMethod: 'ide-extension',
+      },
+    ];
+    const WSL_SYNTHETICS = [
+      {
+        agent: 'grok',
+        process: 'node',
+        pid: 0,
+        status: 'running',
+        category: 'ai',
+        parentEditor: 'WSL',
+        host: 'wsl',
+        wslPid: 4211,
+        detectionMethod: 'wsl-process',
+      },
+      {
+        agent: 'opencode',
+        process: 'node',
+        pid: 0,
+        status: 'running',
+        category: 'ai',
+        parentEditor: 'WSL',
+        host: 'wsl',
+        wslPid: 4318,
+        detectionMethod: 'wsl-process',
+      },
+    ];
+
+    it('every agent in the scan-batch payload carries a non-empty instanceId', async () => {
+      const { batch } = await runScanWithSynthetics(
+        IDE_SYNTHETICS.map((a) => ({ ...a })),
+        WSL_SYNTHETICS.map((a) => ({ ...a })),
+      );
+
+      // The invariant is asserted over the WHOLE batch, and the count is pinned
+      // first so a batch that lost its synthetics cannot pass vacuously
+      // (memory-bank/ai-mistakes.md#21): 2 scanned + 2 IDE + 2 WSL.
+      expect(batch.agents).toHaveLength(6);
+      const missing = batch.agents
+        .filter((a) => typeof a.instanceId !== 'string' || a.instanceId.length === 0)
+        .map((a) => a.agent);
+      expect(missing).toEqual([]);
+      // And every source is one of the three declared value spaces.
+      for (const a of batch.agents) {
+        expect(['os', 'synthetic', 'unknown']).toContain(a.instanceIdSource);
+      }
+    });
+
+    it('two distinct pid-0 agents sharing a process name get distinct instanceIds', async () => {
+      const { batch } = await runScanWithSynthetics(
+        IDE_SYNTHETICS.map((a) => ({ ...a })),
+        WSL_SYNTHETICS.map((a) => ({ ...a })),
+      );
+
+      const byName = new Map(batch.agents.map((a) => [a.agent, a.instanceId]));
+      // Keyed on `process` these would all collapse: 0:code.exe twice, 0:node twice.
+      expect(byName.get('Kilo Code')).toBe('0:kilo-code');
+      expect(byName.get('Cline')).toBe('0:cline');
+      expect(byName.get('grok')).toBe('0:grok');
+      expect(byName.get('opencode')).toBe('0:opencode');
+      // No two agents in the batch share a key, synthetic or otherwise.
+      const ids = batch.agents.map((a) => a.instanceId);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it('the synthetic key is stable across ticks — a card does not churn', async () => {
+      const first = await runScanWithSynthetics(
+        IDE_SYNTHETICS.map((a) => ({ ...a })),
+        [],
+      );
+      const second = await runScanWithSynthetics(
+        IDE_SYNTHETICS.map((a) => ({ ...a })),
+        [],
+      );
+      const idsOf = (b) =>
+        b.agents.filter((a) => a.pid === 0).map((a) => `${a.agent}=${a.instanceId}`);
+      // Pinned literally, so two ticks of `undefined` cannot satisfy "stable".
+      expect(idsOf(first.batch)).toEqual(['Kilo Code=0:kilo-code', 'Cline=0:cline']);
+      expect(idsOf(second.batch)).toEqual(idsOf(first.batch));
+    });
+  });
+
+  // ── cwd annotation forceRefresh wiring ──
+
+  describe('annotateWorkingDirs forceRefresh wiring', () => {
+    /** @param {boolean} changed @returns {Promise<Object>} the procUtil mock after one scan */
+    async function scanWithChanged(changed) {
+      const mockDeps = makeDeps({
+        scanner: {
+          scanProcesses: vi
+            .fn()
+            .mockResolvedValue({ agents: [{ agent: 'Cursor', pid: 300 }], changed }),
+        },
+      });
+      scanLoop.init(mockDeps);
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      return mockDeps.procUtil;
+    }
+
+    it('passes forceRefresh true when the scanned pid set changed, mirroring the identity stamp', async () => {
+      const procUtil = await scanWithChanged(true);
+      expect(procUtil.annotateWorkingDirs).toHaveBeenCalledWith(expect.any(Array), {
+        forceRefresh: true,
+      });
+      // The two calls agree — a tick that re-identifies must also re-read the cwd.
+      expect(procUtil.enrichWithParentChains).toHaveBeenCalledWith(expect.any(Array), {
+        forceRefresh: true,
+      });
+    });
+
+    it('passes forceRefresh false on an unchanged pid set, so the cache still serves', async () => {
+      const procUtil = await scanWithChanged(false);
+      expect(procUtil.annotateWorkingDirs).toHaveBeenCalledWith(expect.any(Array), {
+        forceRefresh: false,
+      });
+    });
+  });
+
   // ── getLatestLocalModels ──
 
   describe('getLatestLocalModels', () => {
@@ -380,44 +643,6 @@ describe('scan-loop', () => {
   // ── timing instrumentation (logger.debug under module 'scan') ──
 
   describe('timing instrumentation', () => {
-    /** @param {Object} [overrides] @returns {Object} fresh mock deps for a scan run */
-    function makeDeps(overrides = {}) {
-      return {
-        scanner: { scanProcesses: vi.fn().mockResolvedValue({ agents: [], changed: false }) },
-        procUtil: {
-          enrichWithParentChains: vi.fn().mockResolvedValue(),
-          annotateHostApps: vi.fn(),
-          annotateWorkingDirs: vi.fn().mockResolvedValue(),
-        },
-        watcher: {
-          pruneKnownHandles: vi.fn(),
-          scanAllFileHandles: vi.fn().mockResolvedValue([]),
-        },
-        network: {
-          isNetworkScanRunning: vi.fn().mockReturnValue(false),
-          setNetworkScanRunning: vi.fn(),
-          scanNetworkConnections: vi.fn().mockResolvedValue([]),
-        },
-        baselines: { recordNetworkEndpoint: vi.fn() },
-        anomaly: {
-          checkDeviations: vi.fn().mockReturnValue([]),
-          calculateAnomalyScore: vi.fn().mockReturnValue({ score: 0 }),
-        },
-        audit: { log: vi.fn() },
-        tray: { updateTrayIcon: vi.fn(), notifySensitive: vi.fn() },
-        logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-        sendToRenderer: vi.fn(),
-        fileAccessBatcher: { push: vi.fn() },
-        statsUpdateBatcher: { push: vi.fn() },
-        getStats: vi.fn().mockReturnValue({}),
-        getResourceUsage: vi.fn().mockReturnValue({}),
-        getLatestAgents: vi.fn().mockReturnValue([]),
-        setAgents: vi.fn(),
-        setLatestNetConnections: vi.fn(),
-        ...overrides,
-      };
-    }
-
     it('emits scan/process debug timing with the batched agent count', async () => {
       const deps = makeDeps({
         scanner: {
@@ -477,6 +702,140 @@ describe('scan-loop', () => {
       expect(call).toBeTruthy();
       expect(call[2]).toEqual({ ms: expect.any(Number) });
       expect(call[2].ms).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  // ── C2: anomaly scores leave the main process per instance ──
+
+  describe('anomaly scores in the scan batch', () => {
+    // Two instances of ONE agent name, plus a keyless pid-0 synthetic.
+    const A = '1000:1700000000000';
+    const B = '2000:1700000009999';
+    // The LOUD instance (B, score 45) is deliberately first: with it last, a
+    // last-writer-wins bug would also produce 45 and the max assertion below would pass
+    // for the wrong reason.
+    const AGENTS = [
+      { agent: 'Claude Code', pid: 2000, instanceId: B, category: 'ai' },
+      { agent: 'Claude Code', pid: 1000, instanceId: A, category: 'ai' },
+      { agent: 'Ollama', pid: 0, category: 'local-llm-runtime' },
+    ];
+
+    /** @returns {Promise<{batch: Object, deps: Object}>} */
+    async function runScan() {
+      const deps = makeDeps({
+        scanner: {
+          scanProcesses: vi
+            .fn()
+            .mockResolvedValue({ agents: AGENTS.map((a) => ({ ...a })), changed: false }),
+        },
+        anomaly: {
+          checkDeviations: vi.fn().mockReturnValue([]),
+          // Scores by INSTANCE key. A name reaching this stub would score 0, which is
+          // what makes the assertions below able to tell the two keyings apart.
+          calculateAnomalyScore: vi.fn((key) => ({
+            score: key === A ? 10 : key === B ? 45 : 0,
+          })),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      const batchCall = deps.sendToRenderer.mock.calls.find((c) => c[0] === 'scan-batch');
+      expect(batchCall).toBeTruthy();
+      return { batch: batchCall[1], deps };
+    }
+
+    it('emits one anomaly score per instance, keyed on instanceId', async () => {
+      const { batch, deps } = await runScan();
+      expect(batch.anomalyScoresByInstance).toEqual({ [A]: 10, [B]: 45 });
+      // The scorer is asked by key only — never by display name.
+      const askedFor = deps.anomaly.calculateAnomalyScore.mock.calls.map((c) => c[0]);
+      expect(askedFor).not.toContain('Claude Code');
+      expect(askedFor).not.toContain('Ollama');
+    });
+
+    it('keeps the name-keyed map for the renderer, aggregated as max', async () => {
+      const { batch } = await runScan();
+      // 45, not 10 and not 55: the highest-risk instance represents the name on the
+      // rolled-up card, and the per-instance values stay available above.
+      expect(batch.anomalyScores['Claude Code']).toBe(45);
+      // A keyless agent still gets its name entry at 0 — the key set is unchanged.
+      expect(batch.anomalyScores['Ollama']).toBe(0);
+    });
+
+    it('a keyless agent gets no per-instance entry', async () => {
+      const { batch } = await runScan();
+      expect(Object.keys(batch.anomalyScoresByInstance).sort()).toEqual([A, B].sort());
+    });
+
+    it('records a network endpoint under the connection instance key, name second', async () => {
+      const deps = makeDeps({
+        getLatestAgents: vi.fn().mockReturnValue([{ agent: 'Claude Code' }]),
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: vi.fn().mockResolvedValue([
+            {
+              agent: 'Claude Code',
+              instanceId: A,
+              remoteIp: '1.2.3.4',
+              remotePort: 443,
+              state: 'ESTABLISHED',
+              flagged: false,
+            },
+            // Matched no agent: no name, no key. It is passed through as-is, and
+            // baselines.js drops it rather than filing it under the empty name.
+            {
+              agent: '',
+              instanceId: null,
+              remoteIp: '9.9.9.9',
+              remotePort: 80,
+              state: 'ESTABLISHED',
+              flagged: true,
+            },
+          ]),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(deps.baselines.recordNetworkEndpoint.mock.calls).toEqual([
+        [A, 'Claude Code', '1.2.3.4', 443],
+        [null, '', '9.9.9.9', 80],
+      ]);
+    });
+
+    it('stamps the deviation instance key on the anomaly-alert audit entry', async () => {
+      const deps = makeDeps({
+        scanner: {
+          scanProcesses: vi
+            .fn()
+            .mockResolvedValue({ agents: AGENTS.map((a) => ({ ...a })), changed: false }),
+        },
+        anomaly: {
+          checkDeviations: vi.fn().mockReturnValue([
+            {
+              agent: 'Claude Code',
+              instanceId: B,
+              type: 'files',
+              message: 'Claude Code normally accesses ~2 files, now 20',
+              anomalyScore: 45,
+            },
+          ]),
+          calculateAnomalyScore: vi.fn().mockReturnValue({ score: 0 }),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+
+      const alert = deps.audit.log.mock.calls.find((c) => c[0] === 'anomaly-alert');
+      expect(alert).toBeTruthy();
+      expect(alert[1].agent).toBe('Claude Code');
+      expect(alert[1].instanceId).toBe(B);
+      // Still no pid: the detector held a bucket, never a process object.
+      expect(alert[1].pid).toBeNull();
     });
   });
 });

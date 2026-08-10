@@ -14,6 +14,7 @@ const tokenTracker = require('./token-tracker');
 const { collectTokenCosts } = require('./token-cost-collector');
 const blocklist = require('./blocklist');
 const { EVIDENCE, makeAttribution } = require('./attribution');
+const { identify } = require('./process-identity');
 
 let scanInterval = null;
 let fileScanInterval = null;
@@ -79,10 +80,9 @@ function logAuditForFile(ev) {
   deps.audit.log(type, {
     agent: ev.agent,
     pid: ev.pid ?? null,
-    // FileEvent carries no instanceId. Deriving one here would mean resolving identity
-    // outside the tick that produced the event — exactly the cross-tick pid reuse
-    // ai-mistakes.md #19 is about. Null until file-watcher stamps it at the source.
-    instanceId: null,
+    // Carried from the event, never re-derived: null means the event itself has no
+    // key (unattributed, or an owner that was never stamped).
+    instanceId: ev.instanceId ?? null,
     action: ev.action,
     path: ev.file,
     severity: ev.sensitive ? 'sensitive' : 'normal',
@@ -136,14 +136,21 @@ function doNetworkScan() {
             'Unencrypted HTTP connection detected: ' + (conn.domain || conn.remoteIp),
           );
         }
-        baselines.recordNetworkEndpoint(conn.agent, conn.remoteIp, conn.remotePort);
+        // Key first, name second — both from the connection this scan matched. A socket
+        // that matched no agent carries no key and enters no baseline, which also retires
+        // the phantom `sessionData['']` bucket the empty name used to create.
+        baselines.recordNetworkEndpoint(
+          conn.instanceId,
+          conn.agent,
+          conn.remoteIp,
+          conn.remotePort,
+        );
         audit.log('network-connection', {
           agent: conn.agent,
           pid: conn.pid ?? null,
-          // NetworkConnection carries pid but no instanceId. Resolving one from the pid
-          // here would be a second lookup that could straddle scan ticks; left null
-          // until network-monitor carries the matched agent's identity through.
-          instanceId: null,
+          // Carried from the connection, never re-resolved from its pid: null means the
+          // socket matched no agent in that scan.
+          instanceId: conn.instanceId ?? null,
           action: conn.state,
           path: `${conn.remoteIp}:${conn.remotePort}`,
           severity: conn.flagged ? 'high' : 'normal',
@@ -176,6 +183,18 @@ function doNetworkScan() {
  * agents (grok, opencode). Reads each detector's throttled cache synchronously —
  * the dir/WSL scans run in the background, never blocking this batch. Dedups by
  * agent name so a real process (if any) already in the list wins.
+ *
+ * These entries are appended AFTER `enrichWithParentChains` — the process
+ * scanner's only `instanceId` stamp — so they are stamped here instead, which is
+ * what makes "every agent in scan-batch carries an instanceId" true.
+ *
+ * The identity is derived from the DISPLAY name, with `process` deliberately
+ * withheld from `identify()`. For these detectors `process` is not the agent: the
+ * IDE detector emits the editor host exe (`code.exe` for BOTH Kilo Code and
+ * Cline) and the WSL detector emits the interpreter (`node` for several agents),
+ * so keying on it would collapse two distinct pid-0 agents onto one synthetic
+ * key — the exact collision the synthetic space exists to prevent. The display
+ * name IS the identity here, and it is what both detectors already dedup on.
  * @param {Array} agents @returns {void} @since v0.11.0-alpha
  */
 function injectDetectedExternalAgents(agents) {
@@ -184,7 +203,11 @@ function injectDetectedExternalAgents(agents) {
     ...wslDetector.getCachedWslAgents(),
   ];
   for (const ext of external) {
-    if (!agents.some((a) => a.agent === ext.agent)) agents.push(ext);
+    if (agents.some((a) => a.agent === ext.agent)) continue;
+    const identity = identify({ pid: ext.pid, agent: ext.agent });
+    ext.instanceId = identity.instanceId;
+    ext.instanceIdSource = identity.instanceIdSource;
+    agents.push(ext);
   }
 }
 
@@ -257,7 +280,12 @@ async function doProcessScan() {
       });
     watcher.pruneKnownHandles(agents);
     procUtil.annotateHostApps(agents);
-    await procUtil.annotateWorkingDirs(agents);
+    // Same `forceRefresh` contract as the identity stamp at the top of this scan:
+    // a pid new to the set must not be annotated out of a cached entry belonging
+    // to the dead process that held that pid. `cwd` is the field the renderer's
+    // instance key is built from and the one CWD_CONTAINMENT attribution matches
+    // on, so a stale value there poisons both.
+    await procUtil.annotateWorkingDirs(agents, { forceRefresh: result.changed === true });
     // Surface extension-only (Kilo/Cline) and WSL-inner (grok/opencode) agents
     // before the batch so the renderer sees them; cache-backed, non-blocking.
     injectDetectedExternalAgents(agents);
@@ -267,12 +295,13 @@ async function doProcessScan() {
       for (const d of deviations)
         audit.log('anomaly-alert', {
           agent: d.agent,
-          // A deviation is computed from a named behavioural baseline, not from a live
-          // process, so there is no pid or instanceId to record. Joining the name back to
-          // a process to fill these in would fabricate an identity the detector never
-          // observed.
+          // A deviation is now computed from ONE INSTANCE's live session bucket
+          // (baselines.js `sessionData`, keyed on `instanceId`), so the key is a real
+          // observation the detector made and it is recorded. `pid` stays null: the
+          // detector never held a process object, and splitting the pid back out of the
+          // key would be parsing an identity instead of reading one.
           pid: null,
-          instanceId: null,
+          instanceId: d.instanceId ?? null,
           action: d.type,
           path: '',
           severity: 'high',
@@ -282,8 +311,32 @@ async function doProcessScan() {
           extra: { message: d.message, anomalyScore: d.anomalyScore },
         });
     }
+    // Anomaly scores are computed per INSTANCE now (baselines.js `sessionData` is keyed
+    // on `instanceId`), and go out in two shapes.
+    //
+    // `anomalyScoresByInstance` is the lossless one: one entry per live instance, under
+    // the same key that instance carries in this very batch, so a consumer can select a
+    // specific instance.
+    //
+    // `anomalyScores` stays keyed by NAME because the renderer still is: risk.ts reads
+    // `$anomalies[name]`, App.svelte prints the KEY as the agent name in its toast, and
+    // SummaryCards averages `Object.values(...)` — one union map would print
+    // `1234:1699887…` and double-count every instance. MAX, not sum or mean, is the
+    // aggregation: the name-keyed card draws the highest-risk instance as its
+    // representative (AgentPanel `_instances`), so max is the only value that matches
+    // what is on screen — a sum would invent a score no instance has, a mean would hide
+    // the one instance that is misbehaving. The information max discards is not lost, it
+    // is in `anomalyScoresByInstance`.
+    //
+    // An agent with no key scores 0 and still gets its name entry, exactly as an agent
+    // with no baseline always did — the name map's key set is unchanged.
     const scores = {};
-    for (const a of agents) scores[a.agent] = anomaly.calculateAnomalyScore(a.agent).score;
+    const scoresByInstance = {};
+    for (const a of agents) {
+      const score = a.instanceId ? anomaly.calculateAnomalyScore(a.instanceId).score : 0;
+      if (a.instanceId) scoresByInstance[a.instanceId] = score;
+      scores[a.agent] = Math.max(scores[a.agent] || 0, score);
+    }
 
     // Alert-only watchlist flag (synchronous): set agent.flagged so it rides the
     // scan-batch below. Advisory only — never stops or restricts any process (C-01:
@@ -296,6 +349,7 @@ async function doProcessScan() {
       stats: getStats(),
       resourceUsage: getResourceUsage(),
       anomalyScores: scores,
+      anomalyScoresByInstance: scoresByInstance,
     });
 
     // Token costs ride a separate channel. Pull any new measured per-PID token

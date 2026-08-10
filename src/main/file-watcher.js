@@ -27,7 +27,7 @@ const {
 } = require('../shared/constants');
 const { getAllRules, reloadRules } = require('./rule-loader');
 const { EVIDENCE, makeAttribution } = require('./attribution');
-const { buildInstanceId } = require('./process-identity');
+const { buildInstanceId, readInstanceId } = require('./process-identity');
 const _platform = require('./platform');
 const { IGNORE_FILE_PATTERNS } = _platform;
 
@@ -238,6 +238,13 @@ function handleWatcherEvent(action, filePath) {
   const event = {
     agent: agent ? agent.agent : '',
     pid: agent ? agent.pid : null,
+    // Follows attribution, never leads it: `agent` is exactly the object
+    // findOwningAgent resolved above, so the key comes from the same decision — and
+    // from the same tick. That includes the `inferred` branch (self-config / cwd
+    // containment): its owner is a real agent from this tick, so it gets its real
+    // key. Only a null owner yields a null key — never aiAgents[0], never a
+    // name match.
+    instanceId: readInstanceId(agent),
     parentEditor: (agent && agent.parentEditor) || null,
     cwd: (agent && agent.cwd) || null,
     file: filePath,
@@ -258,8 +265,11 @@ function handleWatcherEvent(action, filePath) {
   // An unattributed event enters NO agent's behaviour baseline: recording it under
   // an empty name would create a phantom agent in sessionData, which
   // checkDeviations() then iterates and warns about.
+  // The baseline bucket is keyed on the instance, so the key travels with the name —
+  // both taken from the event just built, never re-resolved. An owner that carries no
+  // key is not recorded at all (baselines.js `ensureSessionData`).
   if (attribution.status !== 'unattributed') {
-    _state.recordFileAccess(event.agent, filePath, event.sensitive, event.reason);
+    _state.recordFileAccess(event.instanceId, event.agent, filePath, event.sensitive, event.reason);
   }
   if (_state.onFileEvent) _state.onFileEvent(event);
 }
@@ -390,6 +400,9 @@ async function scanFileHandles(agent) {
     const event = {
       agent: agent.agent,
       pid,
+      // The scan was run FOR this agent object, so the key is that object's own —
+      // no lookup, no tick boundary crossed.
+      instanceId: readInstanceId(agent),
       parentEditor: agent.parentEditor || null,
       cwd: agent.cwd || null,
       file: f,
@@ -408,7 +421,7 @@ async function scanFileHandles(agent) {
       const evicted = _state.activityLog.shift();
       if (_state.onActivityEvict) _state.onActivityEvict(evicted);
     }
-    _state.recordFileAccess(agent.agent, f, event.sensitive, event.reason);
+    _state.recordFileAccess(event.instanceId, agent.agent, f, event.sensitive, event.reason);
   }
   return newAccess;
 }
@@ -507,6 +520,10 @@ async function _scanRmHolders(agents, fetchHolders) {
     const event = {
       agent: agent.agent,
       pid: h.pid,
+      // From the agent `pidToAgent` matched for THIS holder, built from the agents
+      // passed into this very call. Two instances sharing a name but not a pid
+      // therefore stamp two different keys — which is the whole point.
+      instanceId: readInstanceId(agent),
       parentEditor: agent.parentEditor || null,
       cwd: agent.cwd || null,
       file: group,
@@ -525,7 +542,7 @@ async function _scanRmHolders(agents, fetchHolders) {
       const evicted = _state.activityLog.shift();
       if (_state.onActivityEvict) _state.onActivityEvict(evicted);
     }
-    _state.recordFileAccess(agent.agent, group, event.sensitive, event.reason);
+    _state.recordFileAccess(event.instanceId, agent.agent, group, event.sensitive, event.reason);
   }
   return newAccess;
 }

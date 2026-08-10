@@ -9,8 +9,20 @@ import { EVIDENCE_CODES, deriveStatus } from '../../src/main/attribution.js';
  */
 function makeMultiAgentState(overrides = {}) {
   const ai = [
-    { pid: 100, agent: 'Claude Code', category: 'ai', cwd: '/home/user/a' },
-    { pid: 200, agent: 'opencode', category: 'ai', cwd: '/home/user/b' },
+    {
+      pid: 100,
+      agent: 'Claude Code',
+      category: 'ai',
+      cwd: '/home/user/a',
+      instanceId: '100:1700000000000',
+    },
+    {
+      pid: 200,
+      agent: 'opencode',
+      category: 'ai',
+      cwd: '/home/user/b',
+      instanceId: '200:1700000005000',
+    },
   ];
   return {
     getCustomRules: () => [],
@@ -67,7 +79,10 @@ describe('file-watcher attribution — chokidar path (no PID available)', () => 
     expect(event.selfAccess).toBe(false);
     // Decision "inferred rides on equal terms": it DOES reach baselines.
     expect(state.recordFileAccess).toHaveBeenCalledTimes(1);
-    expect(state.recordFileAccess.mock.calls[0][0]).toBe('opencode');
+    // The inferred owner's OWN instance key leads, its name follows — the bucket is
+    // per instance, so a namesake in another project cannot inherit this record.
+    expect(state.recordFileAccess.mock.calls[0][0]).toBe('200:1700000005000');
+    expect(state.recordFileAccess.mock.calls[0][1]).toBe('opencode');
   });
 
   it('case 2b: a SENSITIVE file inside an agent cwd → inferred, and it feeds baselines', () => {
@@ -81,6 +96,7 @@ describe('file-watcher attribution — chokidar path (no PID available)', () => 
     expect(event.sensitive).toBe(true);
     expect(event.selfAccess).toBe(false);
     expect(state.recordFileAccess).toHaveBeenCalledWith(
+      '200:1700000005000',
       'opencode',
       expect.stringContaining('.env'),
       true,
