@@ -25,7 +25,7 @@
     fleetWorstRisk,
     processCardinalityNoun,
     FLEET_WORST_RISK_TITLE,
-  } from '../utils/fleet-risk.ts';
+  } from '../utils/fleet-risk';
 
   /** Minimal shape this component reads — matches the live agent objects. */
   interface AgentLike {
