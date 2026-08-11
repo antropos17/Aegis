@@ -1,5 +1,5 @@
 <script>
-  import { resourceUsage, stats, tokenCosts } from '../stores/ipc.js';
+  import { monitorResourceUsage, stats, tokenCosts } from '../stores/ipc.js';
   import { t } from '../i18n/index.js';
   import FooterMiniCharts from './FooterMiniCharts.svelte';
   import { tick, startTick } from '../stores/tick.ts';
@@ -22,7 +22,7 @@
   });
 
   $effect(() => {
-    const u = $resourceUsage;
+    const u = $monitorResourceUsage;
     if (!u || !u.cpuUser) return;
     heapMB = u.heapMB ?? '--';
   });

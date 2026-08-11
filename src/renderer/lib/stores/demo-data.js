@@ -63,7 +63,7 @@ export function buildAnomalies({ activeAgents, scenario }) {
 // ═══ Main engine ═══
 
 /** Starts demo mode scenario engine. Populates stores with simulated data. @returns {() => void} cleanup */
-export function startDemoMode({ agents, events, stats, network, anomalies, resourceUsage }) {
+export function startDemoMode({ agents, events, stats, network, anomalies, monitorResourceUsage }) {
   const intervals = [];
   let scenarioIndex = 0;
   let totalFiles = 142;
@@ -91,7 +91,7 @@ export function startDemoMode({ agents, events, stats, network, anomalies, resou
     stats.set(
       buildStats({ activeAgents: activeAgents(), totalFiles, totalSensitive, monitoringStarted }),
     );
-    resourceUsage.set({ memMB: 148, heapMB: 102, cpuUser: 31200, cpuSystem: 8400 });
+    monitorResourceUsage.set({ memMB: 148, heapMB: 102, cpuUser: 31200, cpuSystem: 8400 });
     raf(() => {
       anomalies.set(buildAnomalies({ activeAgents: activeAgents(), scenario: currentScenario() }));
     });
@@ -215,7 +215,7 @@ export function startDemoMode({ agents, events, stats, network, anomalies, resou
     // Resource usage — every 5s
     intervals.push(
       setInterval(() => {
-        resourceUsage.set({
+        monitorResourceUsage.set({
           memMB: _deps.randInt(120, 180),
           heapMB: _deps.randInt(80, 130),
           cpuUser: _deps.randInt(18000, 52000),

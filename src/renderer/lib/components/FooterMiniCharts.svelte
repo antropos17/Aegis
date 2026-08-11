@@ -4,16 +4,10 @@
   Reuses Sparkline.svelte (F2.1) at compact size.
 -->
 <script lang="ts">
-  import { resourceUsage } from '../stores/ipc.js';
+  import { monitorResourceUsage } from '../stores/ipc.js';
   import Sparkline from './Sparkline.svelte';
   import { createRingBuffer } from '../utils/ring-buffer';
   import { tick, startTick } from '../stores/tick';
-
-  interface ResourceUsageData {
-    cpuUser: number;
-    cpuSystem: number;
-    memMB: number;
-  }
 
   /** Ring buffers: 60 data points = 60 seconds of history */
   const HISTORY_SIZE = 60;
@@ -40,7 +34,7 @@
 
   $effect(() => {
     $tick; // subscribe — triggers each second
-    const u = $resourceUsage as unknown as ResourceUsageData;
+    const u = $monitorResourceUsage;
     if (!u || !u.cpuUser) return;
 
     // CPU percentage (delta-based)
