@@ -131,6 +131,23 @@ export default [
     },
   },
   {
+    // Node 22 strips TypeScript types by default, so a require() of a .ts path
+    // resolves silently instead of throwing the way it did on Node 20. Lint is
+    // the only gate left that can catch it.
+    files: ['**/*.js'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'CallExpression[callee.name="require"][arguments.0.type="Literal"][arguments.0.value=/\\.tsx?$/]',
+          message:
+            'require() of a .ts/.tsx path in a JavaScript file — use an ESM import instead. Node 22 type stripping makes this pass silently at runtime.',
+        },
+      ],
+    },
+  },
+  {
     files: ['src/renderer/**/*.ts'],
     languageOptions: {
       globals: { ...globals.browser },
