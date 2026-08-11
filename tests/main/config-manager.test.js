@@ -105,6 +105,27 @@ describe('config-manager', () => {
     expect(raw.agentPermissions['Claude::VS Code']).toEqual({ filesystem: 'allow' });
   });
 
+  it('instance permission keys match shared buildInstanceKey (cwd beats editor)', () => {
+    const { buildInstanceKey } = require('../../src/shared/instance-key.js');
+    configManager.init({ knownAgentNames: ['Claude'] });
+    configManager.loadSettings();
+
+    const cwdKey = buildInstanceKey('Claude', 'VS Code', '/repo');
+    const editorKey = buildInstanceKey('Claude', 'VS Code', null);
+    expect(cwdKey).toBe('Claude::/repo');
+    expect(editorKey).toBe('Claude::VS Code');
+
+    configManager.saveInstancePermissions('Claude', 'VS Code', { filesystem: 'cwd' }, '/repo');
+    configManager.saveInstancePermissions('Claude', 'VS Code', { filesystem: 'editor' }, null);
+
+    const raw = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+    expect(raw.agentPermissions[cwdKey].filesystem).toBe('cwd');
+    expect(raw.agentPermissions[editorKey].filesystem).toBe('editor');
+    expect(configManager.getInstancePermissions('Claude', 'VS Code', '/repo').filesystem).toBe(
+      'cwd',
+    );
+  });
+
   it('trackSeenAgent() adds to list, creates perms, is idempotent', () => {
     configManager.init({ knownAgentNames: ['Claude'] });
     configManager.loadSettings();

@@ -385,12 +385,14 @@ describe('file-watcher event handling', () => {
 
   describe('pruneKnownHandles()', () => {
     it('removes handles for inactive instances', () => {
-      // Keys are instanceIds; an agent without a startTime degrades to '<pid>:u'
-      // (process-identity space 3) — the pre-instanceId behaviour.
+      // Keys are stamped instanceIds only — unstamped agents do not keep keys alive.
       state.knownHandles.set('100:u', new Set(['/a']));
       state.knownHandles.set('200:u', new Set(['/b']));
       state.knownHandles.set('300:u', new Set(['/c']));
-      fileWatcher.pruneKnownHandles([{ pid: 100 }, { pid: 300 }]);
+      fileWatcher.pruneKnownHandles([
+        { pid: 100, instanceId: '100:u' },
+        { pid: 300, instanceId: '300:u' },
+      ]);
       expect(state.knownHandles.has('100:u')).toBe(true);
       expect(state.knownHandles.has('200:u')).toBe(false);
       expect(state.knownHandles.has('300:u')).toBe(true);
@@ -437,7 +439,7 @@ describe('file-watcher scanFileHandles', () => {
         '/home/user/project/file.js',
         '/home/user/.ssh/id_rsa',
       ]);
-      const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
+      const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:u' }];
       const events = await fileWatcher.scanAllFileHandles(agents);
       expect(events.length).toBeGreaterThanOrEqual(1);
       expect(state.activityLog.length).toBeGreaterThanOrEqual(1);
@@ -445,14 +447,14 @@ describe('file-watcher scanFileHandles', () => {
 
     it('skips ignored files from handle scan', async () => {
       mockGetFileHandles.mockResolvedValue(['/home/user/file.tmp', '/home/user/real.js']);
-      const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
+      const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:u' }];
       const events = await fileWatcher.scanAllFileHandles(agents);
       expect(events.every((e) => !e.file.endsWith('.tmp'))).toBe(true);
     });
 
     it('deduplicates via knownHandles', async () => {
       mockGetFileHandles.mockResolvedValue(['/home/user/file.js']);
-      const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
+      const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:u' }];
 
       await fileWatcher.scanAllFileHandles(agents);
       const firstLen = state.activityLog.length;
@@ -462,19 +464,31 @@ describe('file-watcher scanFileHandles', () => {
     });
 
     // PID reuse: a NEW process on a recycled pid must NOT inherit the dead
-    // process's seen-set — its first sensitive access is a real event. gen1
-    // carries a stamped instanceId (the enriched-agent case), gen2 only a
-    // startTime (the derivation fallback) — both must key apart.
+    // process's seen-set — its first sensitive access is a real event. Both
+    // gens carry authoritative stamps (no local buildInstanceId fallback).
     it('a reused pid does not inherit the dead instance seen-set', async () => {
       mockGetFileHandles.mockResolvedValue(['/home/user/.ssh/id_rsa']);
       const gen1 = [
         { pid: 100, agent: 'Claude Code', category: 'ai', startTime: 111, instanceId: '100:111' },
       ];
-      const gen2 = [{ pid: 100, agent: 'Claude Code', category: 'ai', startTime: 222 }];
+      const gen2 = [
+        { pid: 100, agent: 'Claude Code', category: 'ai', startTime: 222, instanceId: '100:222' },
+      ];
       const first = await fileWatcher.scanAllFileHandles(gen1);
       const second = await fileWatcher.scanAllFileHandles(gen2);
       expect(first).toHaveLength(1);
       expect(second).toHaveLength(1); // new instance → first access fires again
+    });
+
+    it('emits events for unstamped agents without inventing a knownHandles key', async () => {
+      mockGetFileHandles.mockResolvedValue(['/home/user/.ssh/id_rsa']);
+      const events = await fileWatcher.scanAllFileHandles([
+        { pid: 100, agent: 'Claude Code', category: 'ai', startTime: 222 },
+      ]);
+      expect(events).toHaveLength(1);
+      expect(events[0].instanceId).toBeNull();
+      // No fabricated map key from partial metadata.
+      expect(state.knownHandles.size).toBe(0);
     });
 
     it('returns empty on getFileHandles error', async () => {
@@ -621,8 +635,8 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
       { pid: 105, group: '/home/user/.ssh', reason: 'SSH keys/config' },
     ]);
     const agents = [
-      { pid: 100, agent: 'Claude Code', category: 'ai' },
-      { pid: 105, agent: 'Agent5', category: 'ai' },
+      { pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:u' },
+      { pid: 105, agent: 'Agent5', category: 'ai', instanceId: '105:u' },
     ];
     const events = await fileWatcher.scanAllFileHandles(agents);
     expect(events).toHaveLength(1);
@@ -640,7 +654,7 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
     mockGetSensitiveHolders.mockResolvedValue([
       { pid: 100, group: '/home/user/.claude', reason: 'AI agent config — Claude Code' },
     ]);
-    const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
+    const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:u' }];
     const events = await fileWatcher.scanAllFileHandles(agents);
     expect(events).toHaveLength(1);
     expect(events[0].selfAccess).toBe(true);
@@ -653,7 +667,9 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
     mockGetSensitiveHolders.mockResolvedValue([
       { pid: process.pid, group: '/home/user/.ssh', reason: 'SSH keys/config' },
     ]);
-    const agents = [{ pid: process.pid, agent: 'Self', category: 'ai' }];
+    const agents = [
+      { pid: process.pid, agent: 'Self', category: 'ai', instanceId: `${process.pid}:u` },
+    ];
     const events = await fileWatcher.scanAllFileHandles(agents);
     expect(events).toEqual([]);
   });
@@ -662,7 +678,7 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
     mockGetSensitiveHolders.mockResolvedValue([
       { pid: 9999, group: '/home/user/.aws', reason: 'AWS credentials' },
     ]);
-    const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
+    const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:u' }];
     const events = await fileWatcher.scanAllFileHandles(agents);
     expect(events).toEqual([]);
   });
@@ -674,7 +690,7 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
     mockGetSensitiveHolders.mockResolvedValue([
       { pid: 105, group: '/home/user/.ssh', reason: 'SSH keys/config' },
     ]);
-    const agents = [{ pid: 105, agent: 'Agent5', category: 'ai' }];
+    const agents = [{ pid: 105, agent: 'Agent5', category: 'ai', instanceId: '105:u' }];
     const first = await fileWatcher.scanAllFileHandles(agents);
     const second = await fileWatcher.scanAllFileHandles(agents); // still holding
     expect(first).toHaveLength(1);
@@ -688,8 +704,12 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
     mockGetSensitiveHolders.mockResolvedValue([
       { pid: 105, group: '/home/user/.ssh', reason: 'SSH keys/config' },
     ]);
-    const gen1 = [{ pid: 105, agent: 'Agent5', category: 'ai', startTime: 111 }];
-    const gen2 = [{ pid: 105, agent: 'Agent5', category: 'ai', startTime: 222 }];
+    const gen1 = [
+      { pid: 105, agent: 'Agent5', category: 'ai', startTime: 111, instanceId: '105:111' },
+    ];
+    const gen2 = [
+      { pid: 105, agent: 'Agent5', category: 'ai', startTime: 222, instanceId: '105:222' },
+    ];
     const first = await fileWatcher.scanAllFileHandles(gen1);
     const second = await fileWatcher.scanAllFileHandles(gen2);
     expect(first).toHaveLength(1);
@@ -707,7 +727,7 @@ describe('file-watcher hot read-detect cycle (cross-cycle dedup)', () => {
   let mockFull;
   let mockHot;
   const HOLDER = [{ pid: 105, group: '/home/user/.ssh', reason: 'SSH keys/config' }];
-  const AGENTS = [{ pid: 105, agent: 'Agent5', category: 'ai' }];
+  const AGENTS = [{ pid: 105, agent: 'Agent5', category: 'ai', instanceId: '105:u' }];
 
   beforeEach(() => {
     mockFull = vi.fn().mockResolvedValue(HOLDER);

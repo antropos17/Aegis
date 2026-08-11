@@ -174,9 +174,10 @@ function buildInstanceId(agent) {
  * so it keeps no key), or the resolved owner was never stamped upstream (the
  * `attachModels` synthetics, scan-loop.js).
  *
- * A caller that needs a key unconditionally pairs this with `buildInstanceId` as an
- * explicit `||` fallback, so the derivation stays visible at the call site instead
- * of hiding inside the reader.
+ * Hot-path consumers (handleKey, sessionKey, event stamps) must NOT pair this with
+ * `buildInstanceId` as a silent fallback — that is a second identity resolution.
+ * Prefer null / skip. Bare-pid token accounting may use space-3 `"<pid>:u"` only as
+ * an explicit degraded domain, never as a substitute for a missing stamp.
  * @param {{instanceId?: string}|null|undefined} agent - the agent resolved for THIS
  *   event, on THIS tick. Never a substitute, never a re-resolved pid.
  * @returns {string|null}

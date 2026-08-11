@@ -83,9 +83,8 @@ function saveBaselines() {
  * the first, which is how a recycled pid inherits a dead process's history
  * (ai-mistakes.md #19). The key is READ from the agent object the same tick
  * produced, or the observation is dropped — the same choice the renderer makes for
- * a keyless event (stores/risk.ts quarantine). Reachable today for the
- * `attachModels` pid-0 synthetics, which no stamp site reaches (scan-loop.js), and
- * for a network connection that matched no agent.
+ * a keyless event (stores/risk.ts quarantine). Reachable for a network connection
+ * that matched no agent (and any agent still missing a stamp).
  * @param {string} instanceId - the agent's own `instanceId`, read never derived.
  * @param {string} agentName - display name, stored for the finalize step.
  * @returns {Object|null} session bucket, or null when there is no key to file it under

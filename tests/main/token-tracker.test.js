@@ -57,7 +57,7 @@ describe('token-tracker', () => {
     });
 
     it('returns an honest all-zero record for an untracked instance', () => {
-      const rec = getCost({ pid: 9999, startTime: 111 });
+      const rec = getCost({ pid: 9999, instanceId: '9999:111' });
       expect(rec.instanceId).toBe('9999:111');
       expect(rec.pid).toBe(9999);
       expect(rec.totalTokens).toBe(0);
@@ -119,12 +119,13 @@ describe('token-tracker', () => {
     // The reason this module keys by instance at all: Windows recycles PIDs, so
     // a new process must never inherit a dead instance's accumulated record.
     it('keeps a recycled pid clean: 100:111 dead, 100:222 starts from zero', () => {
+      // Callers must pass the stamped instanceId — startTime alone is not re-derived.
       trackTokens(
-        { pid: 100, startTime: 111 },
+        { pid: 100, startTime: 111, instanceId: '100:111' },
         { model: KNOWN_MODEL, inputTokens: 1000, outputTokens: 100, estimated: true },
       );
       const fresh = trackTokens(
-        { pid: 100, startTime: 222 },
+        { pid: 100, startTime: 222, instanceId: '100:222' },
         { model: KNOWN_MODEL, inputTokens: 7, outputTokens: 3 },
       );
 
@@ -134,7 +135,7 @@ describe('token-tracker', () => {
       expect(fresh.estimated).toBe(false);
 
       // The dead instance's record is retained (session-total honesty), untouched.
-      const dead = getCost({ pid: 100, startTime: 111 });
+      const dead = getCost({ pid: 100, instanceId: '100:111' });
       expect(dead.instanceId).toBe('100:111');
       expect(dead.totalTokens).toBe(1100);
       expect(dead.estimated).toBe(true);
@@ -142,15 +143,16 @@ describe('token-tracker', () => {
       expect(getAllCosts()).toHaveLength(2);
     });
 
-    it('prefers a stamped instanceId over local derivation (same key as file-watcher handleKey)', () => {
+    it('prefers a stamped instanceId and does not re-derive from startTime', () => {
       trackTokens(
         { pid: 100, startTime: 111, instanceId: '100:999' },
         { model: KNOWN_MODEL, inputTokens: 10, outputTokens: 1 },
       );
 
       expect(getCost({ pid: 100, instanceId: '100:999' }).totalTokens).toBe(11);
-      // The derived key was never written — the stamped one won.
+      // Unstamped {pid,startTime} no longer invents 100:111 — degrades to 100:u (empty).
       expect(getCost({ pid: 100, startTime: 111 }).totalTokens).toBe(0);
+      expect(getCost({ pid: 100, startTime: 111 }).instanceId).toBe('100:u');
     });
 
     it('accumulates a bare-number caller into the degraded `<pid>:u` record', () => {
@@ -226,11 +228,11 @@ describe('token-tracker', () => {
   describe('getAllCosts', () => {
     it('returns one record per tracked instance, each carrying its instanceId', () => {
       trackTokens(
-        { pid: 100, startTime: 1 },
+        { pid: 100, startTime: 1, instanceId: '100:1' },
         { model: KNOWN_MODEL, inputTokens: 10, outputTokens: 1 },
       );
       trackTokens(
-        { pid: 200, startTime: 2 },
+        { pid: 200, startTime: 2, instanceId: '200:2' },
         { model: KNOWN_MODEL, inputTokens: 20, outputTokens: 2 },
       );
       const all = getAllCosts();

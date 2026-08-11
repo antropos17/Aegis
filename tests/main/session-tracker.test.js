@@ -25,7 +25,8 @@ function runScans(scans, startNow, grace) {
   return { allEntered, allExited };
 }
 
-const CURSOR = { pid: 100, agent: 'Cursor', process: 'cursor' };
+/** Stamped fixtures — reconcile no longer re-derives identity from bare pid. */
+const CURSOR = { pid: 100, agent: 'Cursor', process: 'cursor', instanceId: '100:u' };
 
 describe('session-tracker', () => {
   beforeEach(() => {
@@ -114,10 +115,15 @@ describe('session-tracker', () => {
   describe('reconcile — PID reuse', () => {
     it('a recycled PID belonging to a different agent starts a new session', () => {
       // pid 100 is Cursor, then after Cursor exits the OS reuses 100 for Copilot.
+      // Stamps differ (space 3 :u + process name in sessionKey).
       const { allEntered } = runScans(
         [
-          { agents: [{ pid: 100, agent: 'Cursor', process: 'cursor' }] },
-          { agents: [{ pid: 100, agent: 'Copilot', process: 'copilot' }] },
+          {
+            agents: [{ pid: 100, agent: 'Cursor', process: 'cursor', instanceId: '100:u' }],
+          },
+          {
+            agents: [{ pid: 100, agent: 'Copilot', process: 'copilot', instanceId: '100:u' }],
+          },
         ],
         0,
         2,
@@ -168,9 +174,8 @@ describe('session-tracker', () => {
         expect(second.entered[0].instanceId).toBe(`200:${STARTED + 36_000_000}`);
       });
 
-      it('derives instanceId itself when the scan layer did not stamp one', () => {
-        // Same reuse, but the agent objects carry only startTime (no instanceId) —
-        // session-tracker must still separate the two instances.
+      it('does not fabricate a session for agents without a stamped instanceId', () => {
+        // Second identity resolution is forbidden: unstamped agents are skipped.
         const bare = (startTime) => ({
           pid: 200,
           agent: 'Claude Code',
@@ -179,9 +184,9 @@ describe('session-tracker', () => {
         });
         const first = tracker.reconcile([bare(STARTED)], { now: 0, grace: 2 });
         const second = tracker.reconcile([bare(STARTED + 36_000_000)], { now: 10000, grace: 2 });
-        expect(first.entered).toHaveLength(1);
-        expect(second.entered).toHaveLength(1);
-        expect(second.entered[0].instanceId).not.toBe(first.entered[0].instanceId);
+        expect(first.entered).toHaveLength(0);
+        expect(second.entered).toHaveLength(0);
+        expect(tracker.activeCount()).toBe(0);
       });
 
       it('a same-birth-time re-sighting is still ONE session (no flicker split)', () => {
@@ -201,8 +206,8 @@ describe('session-tracker', () => {
     it('tracks distinct sessions independently', () => {
       const res = tracker.reconcile(
         [
-          { pid: 100, agent: 'Cursor', process: 'cursor' },
-          { pid: 200, agent: 'Claude Code', process: 'claude' },
+          { pid: 100, agent: 'Cursor', process: 'cursor', instanceId: '100:u' },
+          { pid: 200, agent: 'Claude Code', process: 'claude', instanceId: '200:u' },
         ],
         { now: 0, grace: 2 },
       );
@@ -213,20 +218,26 @@ describe('session-tracker', () => {
     it('one agent exiting does not affect the other', () => {
       tracker.reconcile(
         [
-          { pid: 100, agent: 'Cursor', process: 'cursor' },
-          { pid: 200, agent: 'Claude Code', process: 'claude' },
+          { pid: 100, agent: 'Cursor', process: 'cursor', instanceId: '100:u' },
+          { pid: 200, agent: 'Claude Code', process: 'claude', instanceId: '200:u' },
         ],
         { now: 0, grace: 2 },
       );
       // Cursor gone, Claude stays.
-      tracker.reconcile([{ pid: 200, agent: 'Claude Code', process: 'claude' }], {
-        now: 10000,
-        grace: 2,
-      });
-      const res = tracker.reconcile([{ pid: 200, agent: 'Claude Code', process: 'claude' }], {
-        now: 20000,
-        grace: 2,
-      });
+      tracker.reconcile(
+        [{ pid: 200, agent: 'Claude Code', process: 'claude', instanceId: '200:u' }],
+        {
+          now: 10000,
+          grace: 2,
+        },
+      );
+      const res = tracker.reconcile(
+        [{ pid: 200, agent: 'Claude Code', process: 'claude', instanceId: '200:u' }],
+        {
+          now: 20000,
+          grace: 2,
+        },
+      );
       expect(res.exited).toHaveLength(1);
       expect(res.exited[0].agent).toBe('Cursor');
       expect(tracker.activeCount()).toBe(1);
@@ -234,16 +245,20 @@ describe('session-tracker', () => {
   });
 
   describe('sessionKey', () => {
-    it('is identical for the same pid + process regardless of sighting time', () => {
-      expect(tracker.sessionKey({ pid: 100, process: 'cursor' })).toBe(
-        tracker.sessionKey({ pid: 100, process: 'Cursor' }),
+    it('is identical for the same stamped instance + process regardless of casing', () => {
+      expect(tracker.sessionKey({ pid: 100, process: 'cursor', instanceId: '100:u' })).toBe(
+        tracker.sessionKey({ pid: 100, process: 'Cursor', instanceId: '100:u' }),
       );
     });
 
-    it('differs when the process name differs for the same pid', () => {
-      expect(tracker.sessionKey({ pid: 100, process: 'cursor' })).not.toBe(
-        tracker.sessionKey({ pid: 100, process: 'copilot' }),
+    it('differs when the process name differs for the same stamped instance', () => {
+      expect(tracker.sessionKey({ pid: 100, process: 'cursor', instanceId: '100:u' })).not.toBe(
+        tracker.sessionKey({ pid: 100, process: 'copilot', instanceId: '100:u' }),
       );
+    });
+
+    it('returns null when instanceId is missing (no second derivation)', () => {
+      expect(tracker.sessionKey({ pid: 100, process: 'cursor' })).toBeNull();
     });
   });
 });

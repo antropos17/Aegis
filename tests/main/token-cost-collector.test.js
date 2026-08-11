@@ -24,9 +24,18 @@ const tokenFeed = require('../../src/main/token-feed.js');
 const tokenTracker = require('../../src/main/token-tracker.js');
 const { collectTokenCosts } = require('../../src/main/token-cost-collector.js');
 
-/** A scanned-agent stub. `name` defaults to a non-token agent so the procs-filter
- *  cases stay isolated from the Claude-Code honesty-warn path. */
-const agent = (pid, startTime, name = 'OtherAgent') => ({ agent: name, pid, startTime });
+/** A scanned-agent stub. Carries a stamped instanceId (production always does).
+ *  `name` defaults to a non-token agent so the procs-filter cases stay isolated
+ *  from the Claude-Code honesty-warn path. */
+const agent = (pid, startTime, name = 'OtherAgent') => ({
+  agent: name,
+  pid,
+  startTime,
+  instanceId:
+    typeof startTime === 'number' && Number.isFinite(startTime) && startTime > 0
+      ? `${pid}:${startTime}`
+      : undefined,
+});
 
 /** A measured per-PID usage delta as the claude-code adapter would emit one. */
 const delta = (pid, inputTokens) => ({

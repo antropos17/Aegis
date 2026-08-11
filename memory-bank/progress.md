@@ -14,15 +14,11 @@ Version 0.10.0-alpha. 110 agents / 262 signatures in database. 73 rules across 8
 - **Audit records carry the key.** All 4 owner-bearing record types in `scan-loop.js` do (`agent-enter`, `agent-exit`, `file-access`/`config-access`, `network-connection`), and `anomaly-alert` joined them once deviations became per-instance (`975ed1a`). `buffer-overflow-drop` stays `null` — nobody owns it.
 - **`cwdCache` no longer serves a dead process's directory.** Keyed on `_cacheKey(pid, name)` like `parentChainCache`, with a `forceRefresh` path wired to the scanner's changed-pid-set flag — the same contract as the identity stamp. Closes **C7**, which poisoned the input to everything else: `cwd` is what the renderer's instance key is built from and what `CWD_CONTAINMENT` attribution matches on. Residual bound is documented and tested: a same-name reuse inside the 60 s TTL still hits, and `forceRefresh` is what covers it.
 
-**What the renderer half still owes (steps 6, 11; steps 4–5, 7–10 + C2 done):**
-- **C1 is CLOSED** for file and network correlation (`222502f`).
-- **C6 is CLOSED** (`events-index` / AgentCard on `instanceId`).
-- **C2 is CLOSED end to end** (`f5d1bad` renderer half).
-- **Step 8 is CLOSED** (`c9ebb7a`) — selection/focus by `instanceId`.
-- **Step 9 / C5 is CLOSED** (`49546bb`) — timeline trajectory/dedup by `instanceId`.
-- **Step 10 / C4 ack half is CLOSED.** Ack keyed by stamped `instanceId` (`acknowledgementInstanceId` + session `Set`); watchlist stays durable name (`watchlistSignature` + `blocklistAdd` pid null). Same-name restart: watched yes, acknowledged no. Pinned by `agent-action-keys.test.ts`.
+**What remains (step 11 only; residual buildInstanceId hot-path fallbacks closed):**
+- **C1–C2, C5–C6, steps 6, 8–10 + attachModels CLOSED.**
+- **Residual hot-path buildInstanceId REMOVED** from handleKey / sessionKey / token recordKey object path. Stamp is read-only; unstamped agents skip session entry / knownHandles map (events still emit with null id). Token bare-number API keeps explicit `"<pid>:u"` degraded space only.
 - **Step 11** — optional per-instance UI roll-up vs per-name defaults.
-- **Durable keys do NOT move.** `agentPermissions`, `watchlist` and the persisted baselines stay on `name` + `cwd`.
+- **Durable domains stay separate.** Permissions = instanceKey; watchlist = name; baselines profile = name; runtime = instanceId.
 
 **Open debts from step 7 — measurements for Bench to settle, not diagnosed bugs:**
 - **pid-0 synthetics from `attachModels` no longer reach baselines at all.** They live in `latestAgents` and are seen by the file and network scans, but no stamp site ever gives them an `instanceId` (`scan-loop.js` appends them AFTER the `scan-batch` send — IDENTITY-RECON §2.1), so the null-key policy drops every observation. Measure what they used to contribute; the fix, if wanted, is a stamp in `attachModels`, the same one `injectDetectedExternalAgents` already does.
@@ -30,7 +26,7 @@ Version 0.10.0-alpha. 110 agents / 262 signatures in database. 73 rules across 8
 - **`typicalDirectories` qualifies at `dirCount[d] >= 2`** (`baselines.js` `recomputeAverages`). That threshold meant "seen in ≥2 launches"; two parallel same-named instances touching the same directory now satisfy it inside ONE launch, so directories become typical faster and new-directory anomalies fire less. Measure how fast.
 - **`sessionData` and `deviationWarningsSent` grew from O(names) to O(instances per launch)**, each bucket holding unbounded `files`/`directories` Sets, and nothing prunes either. Measure the live size over a long session before adding pruning — a prune that runs before `finalizeSession` would drop data instead of bounding it.
 
-**Verify gate (C2 + steps 8–10):** focused selection/timeline/ack + risk tests green; full suite + lint + typecheck + svelte-check + build:renderer green. `format:check` remains red repo-wide (pre-existing CRLF/LF).
+**Verify gate (steps 6–10):** focused instance-key + identity tests green; full suite + lint + typecheck + svelte-check + build:renderer green. `format:check` remains red repo-wide (pre-existing CRLF/LF).
 
 ## feat/event-schema-v1 — Event Schema v1 reaches the Timeline tooltip (2026-08-04, branch `feat/event-schema-v1`, commit `fe601cb`)
 **Attribution stops being a field only the audit file knows about — it is now visible on hover.** `formatAttribution()` (timeline-utils.ts) renders an attribution as text the tooltip appends after the existing `time  agent (count) [pid]` line: `confirmed via handle-scan-pid` / `inferred via cwd-containment` — the status plus the evidence codes that produced it, so a reader sees WHY the owner was decided, not just that it was. Deliberately carries no count of codes next to the status: the status is a three-way distinction, and a number beside it would read as a score.

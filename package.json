@@ -22,6 +22,9 @@
     "test:coverage": "vitest run --coverage",
     "prepare": "husky"
   },
+  "engines": {
+    "node": "22.x"
+  },
   "lint-staged": {
     "src/**/*.{js,ts,svelte,css,html}": "prettier --write",
     "*.{js,ts,json}": "prettier --write"

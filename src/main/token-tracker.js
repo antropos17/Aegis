@@ -181,19 +181,24 @@ function pidOf(proc) {
  * by every write AND read path, so a key mismatch between them is impossible by
  * construction (same invariant as file-watcher's `handleKey`).
  *
- * Prefers the `instanceId` stamped upstream by procUtil.enrichWithParentChains;
- * otherwise derives one from `{pid, startTime}`. A bare-number caller (or a ref
- * with no usable startTime) degrades to the `"<pid>:u"` space — exactly the
- * pre-instanceId behaviour, never an invented identity.
+ * Prefers the `instanceId` stamped upstream by procUtil.enrichWithParentChains.
+ * Does NOT re-derive from `{pid, startTime}` — that is a second identity resolution
+ * and can disagree with the scan-batch stamp (ai-mistakes.md #19).
+ *
+ * Bare-number callers (token-cost-collector miss path) degrade explicitly to the
+ * `"<pid>:u"` space — documented honest degradation, not a full OS instance claim.
  * @param {number|ProcRef} proc
- * @returns {string}
+ * @returns {string|null}
  */
 function recordKey(proc) {
-  if (typeof proc === 'number') return buildInstanceId({ pid: proc });
-  if (!proc || typeof proc !== 'object') return buildInstanceId({});
-  return typeof proc.instanceId === 'string' && proc.instanceId
-    ? proc.instanceId
-    : buildInstanceId({ pid: proc.pid, startTime: proc.startTime });
+  if (typeof proc === 'number') {
+    return Number.isInteger(proc) && proc > 0 ? buildInstanceId({ pid: proc }) : null;
+  }
+  if (!proc || typeof proc !== 'object') return null;
+  if (typeof proc.instanceId === 'string' && proc.instanceId) return proc.instanceId;
+  // Unstamped object: space-3 degradation by pid only — never invent birth-time identity.
+  if (Number.isInteger(proc.pid) && proc.pid > 0) return buildInstanceId({ pid: proc.pid });
+  return null;
 }
 
 /**
@@ -234,6 +239,7 @@ function trackTokens(proc, event) {
   if (!event || typeof event !== 'object') return null;
 
   const key = recordKey(proc);
+  if (!key) return null;
   const hasInput = isNonNegativeNumber(event.inputTokens);
   const hasOutput = isNonNegativeNumber(event.outputTokens);
   // No usable counts → record nothing. You cannot estimate from nothing, and
@@ -272,6 +278,7 @@ function trackTokens(proc, event) {
 function getCost(proc) {
   const key = recordKey(proc);
   const pid = pidOf(proc);
+  if (!key) return zeroRecord(isPositiveNumber(pid) ? pid : 0, '0:u');
   return records.get(key) || zeroRecord(isPositiveNumber(pid) ? pid : 0, key);
 }
 

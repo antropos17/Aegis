@@ -289,6 +289,11 @@ async function doProcessScan() {
     // Surface extension-only (Kilo/Cline) and WSL-inner (grok/opencode) agents
     // before the batch so the renderer sees them; cache-backed, non-blocking.
     injectDetectedExternalAgents(agents);
+    // Local LLM runtimes (Ollama / LM Studio) MUST be attached and stamped BEFORE
+    // scan-batch. Structured clone happens at sendToRenderer — a post-batch push
+    // never reaches the UI, and unstamped synthetics poison instance-keyed maps
+    // (baselines, risk, ack). Stamp is identify() space 2, same as injectDetectedExternalAgents.
+    await enrichWithLocalModels(agents);
     tray.updateTrayIcon();
     const deviations = anomaly.checkDeviations();
     if (deviations.length > 0) {
@@ -373,7 +378,6 @@ async function doProcessScan() {
       _lastTriggeredNetScan = Date.now();
       doNetworkScan();
     }
-    await enrichWithLocalModels(agents);
     logger.debug('scan', 'process', {
       ms: Math.round(performance.now() - t0),
       agents: agents.length,
@@ -389,6 +393,7 @@ async function doProcessScan() {
 /**
  * Probe Ollama/LM Studio APIs and enrich matching agents with localModels.
  * If runtime is responding but no matching agent in list, inject a synthetic agent.
+ * Always runs before scan-batch so the payload (and latestAgents) include models + stamps.
  * @param {Array} agents @since v0.4.0
  */
 async function enrichWithLocalModels(agents) {
@@ -399,22 +404,57 @@ async function enrichWithLocalModels(agents) {
   attachModels(agents, 'LM Studio', lmstudio);
 }
 
-/** @param {Array} agents @param {string} name @param {{running:boolean,models:string[]}} info */
+/**
+ * Stamp a missing instanceId without re-deriving a present one (read-if-stamped).
+ * Pid-0 uses the display name only — same contract as injectDetectedExternalAgents —
+ * so a host process field cannot collapse two distinct synthetic agents.
+ * @param {Object} agent
+ * @param {string} displayName
+ */
+function stampLocalRuntimeIfMissing(agent, displayName) {
+  if (typeof agent.instanceId === 'string' && agent.instanceId.length > 0) return;
+  const input =
+    agent.pid === 0
+      ? { pid: 0, agent: agent.agent || displayName }
+      : {
+          pid: agent.pid,
+          agent: agent.agent || displayName,
+          process: agent.process,
+          startTime: agent.startTime,
+        };
+  const identity = identify(input);
+  agent.instanceId = identity.instanceId;
+  agent.instanceIdSource = identity.instanceIdSource;
+}
+
+/**
+ * Attach model list to a matching agent, or inject a stamped pid-0 synthetic.
+ * Does not invent identity from name for an already-stamped agent.
+ * @param {Array} agents
+ * @param {string} name
+ * @param {{running:boolean,models:string[]}} info
+ */
 function attachModels(agents, name, info) {
   if (!info.running) return;
   const existing = agents.find((a) => a.agent === name);
   if (existing) {
     existing.localModels = info.models;
-  } else {
-    agents.push({
-      agent: name,
-      process: name.toLowerCase().replace(/\s/g, '-'),
-      pid: 0,
-      status: 'running',
-      category: 'local-llm-runtime',
-      localModels: info.models,
-    });
+    stampLocalRuntimeIfMissing(existing, name);
+    return;
   }
+  const synthetic = {
+    agent: name,
+    process: name.toLowerCase().replace(/\s/g, '-'),
+    pid: 0,
+    status: 'running',
+    category: 'local-llm-runtime',
+    localModels: info.models,
+  };
+  // Display name only (process withheld from identify) — mirrors injectDetectedExternalAgents.
+  const identity = identify({ pid: 0, agent: name });
+  synthetic.instanceId = identity.instanceId;
+  synthetic.instanceIdSource = identity.instanceIdSource;
+  agents.push(synthetic);
 }
 
 async function doFileScan() {

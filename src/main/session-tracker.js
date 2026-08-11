@@ -36,7 +36,7 @@
  */
 'use strict';
 
-const { buildInstanceId } = require('./process-identity');
+const { readInstanceId } = require('./process-identity');
 
 /**
  * Consecutive RELIABLE scans an active session may go unseen before it is
@@ -61,40 +61,26 @@ const DEFAULT_EXIT_GRACE = 2;
 const activeSessions = new Map();
 
 /**
- * Stable identity key for a detected agent: `instanceId` + lowercased process name.
+ * Stable identity key for a detected agent: stamped `instanceId` + lowercased process.
  *
- * COMPOSITE on purpose. `instanceId` alone would lose the name-level
- * discrimination wherever it degrades to `"<pid>:u"` (no OS birth time); the name
- * alone cannot separate two runs of the same executable on a recycled pid. Each
- * segment covers the other's blind spot.
+ * COMPOSITE on purpose. `instanceId` alone would lose the name-level discrimination
+ * wherever it degrades to `"<pid>:u"` (no OS birth time); the name alone cannot
+ * separate two runs of the same executable on a recycled pid.
  *
- * `instanceId` is normally stamped upstream by `procUtil.enrichWithParentChains`;
- * it is derived here when absent so this module stays usable standalone (and its
- * key format has exactly one definition).
+ * `instanceId` is READ only (process-identity.readInstanceId). Production always
+ * stamps via `enrichWithParentChains` before reconcile. An unstamped agent is
+ * skipped — a second local `buildInstanceId` here is a cross-tick identity resolution
+ * that can disagree with the scan-batch stamp (ai-mistakes.md #19).
  *
- * NOT keyed on firstSeen — keying on an AEGIS-observed timestamp would give every
- * reappearance a fresh identity and re-create the session on each flicker.
- * @param {{pid: number, agent?: string, process?: string, startTime?: number|null,
- *          instanceId?: string}} agent
- * @returns {string}
+ * NOT keyed on firstSeen — that would re-create sessions on every flicker.
+ * @param {{pid: number, agent?: string, process?: string, instanceId?: string}} agent
+ * @returns {string|null}
  */
 function sessionKey(agent) {
+  const id = readInstanceId(agent);
+  if (!id) return null;
   const proc = String(agent.process || agent.agent || '').toLowerCase();
-  return `${_instanceIdOf(agent)}|${proc}`;
-}
-
-/**
- * The agent's stamped `instanceId`, or a freshly derived one when the upstream
- * enrichment did not run (standalone use, tests). One definition, two callers —
- * `sessionKey` and the session record built in `reconcile` must never disagree.
- * @param {{pid: number, agent?: string, process?: string, startTime?: number|null,
- *          instanceId?: string}} agent
- * @returns {string}
- */
-function _instanceIdOf(agent) {
-  return typeof agent.instanceId === 'string' && agent.instanceId
-    ? agent.instanceId
-    : buildInstanceId(agent);
+  return `${id}|${proc}`;
 }
 
 /**
@@ -131,6 +117,8 @@ function reconcile(agents, opts = {}) {
 
   for (const a of agents) {
     const key = sessionKey(a);
+    if (!key) continue; // unstamped — no fabricated session identity
+    const instanceId = readInstanceId(a);
     seenKeys.add(key);
     const existing = activeSessions.get(key);
     if (existing) {
@@ -139,7 +127,7 @@ function reconcile(agents, opts = {}) {
     } else {
       const session = {
         pid: a.pid,
-        instanceId: _instanceIdOf(a),
+        instanceId,
         agent: a.agent,
         process: a.process || '',
         firstSeen: now,
