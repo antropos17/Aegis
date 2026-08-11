@@ -3,6 +3,8 @@ import {
   clampScore,
   getRiskInfo,
   getBadgeDimension,
+  RISK_BAND_MEDIUM_MIN,
+  RISK_BAND_HIGH_MIN,
 } from '../../src/renderer/lib/utils/trust-badge-utils.ts';
 
 describe('trust-badge-utils', () => {
@@ -29,21 +31,26 @@ describe('trust-badge-utils', () => {
     });
   });
 
-  describe('getRiskInfo()', () => {
+  describe('getRiskInfo() — authoritative risk bands (F-W10)', () => {
+    it('exports band thresholds used by the classifier', () => {
+      expect(RISK_BAND_MEDIUM_MIN).toBe(35);
+      expect(RISK_BAND_HIGH_MIN).toBe(66);
+    });
+
     it('returns low risk for scores 0–34', () => {
       expect(getRiskInfo(0).level).toBe('low');
       expect(getRiskInfo(20).level).toBe('low');
-      expect(getRiskInfo(34).level).toBe('low');
+      expect(getRiskInfo(RISK_BAND_MEDIUM_MIN - 1).level).toBe('low');
     });
 
     it('returns medium risk for scores 35–65', () => {
-      expect(getRiskInfo(35).level).toBe('medium');
+      expect(getRiskInfo(RISK_BAND_MEDIUM_MIN).level).toBe('medium');
       expect(getRiskInfo(50).level).toBe('medium');
-      expect(getRiskInfo(65).level).toBe('medium');
+      expect(getRiskInfo(RISK_BAND_HIGH_MIN - 1).level).toBe('medium');
     });
 
     it('returns high risk for scores 66–100', () => {
-      expect(getRiskInfo(66).level).toBe('high');
+      expect(getRiskInfo(RISK_BAND_HIGH_MIN).level).toBe('high');
       expect(getRiskInfo(80).level).toBe('high');
       expect(getRiskInfo(100).level).toBe('high');
     });

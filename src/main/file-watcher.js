@@ -203,8 +203,9 @@ function bindWatcherEvents(watcher) {
 function handleWatcherEvent(action, filePath) {
   if (!_state || _state.isMonitoringPaused()) return;
   filePath = path.resolve(filePath);
-  const agents = _state.getLatestAgents();
-  if (agents.length === 0 || shouldIgnore(filePath)) return;
+  // F-E02: ignore rules still drop noise; empty latestAgents must NOT drop evidence.
+  // No agents → honest unattributed (NO_AI_AGENTS_ONLINE), not "no event happened".
+  if (shouldIgnore(filePath)) return;
   const now = Date.now();
   const prev = watcherDebounce.get(filePath);
   if (prev && now - prev < 2000) return;

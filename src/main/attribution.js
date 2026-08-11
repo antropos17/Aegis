@@ -4,9 +4,10 @@
  * @description Attribution status + evidence for file events — answers ONE
  *   question: how do we know which agent a file event belongs to.
  *
- *   Three statuses, a CLOSED list of six evidence codes, and deliberately NO
- *   numeric confidence anywhere. A score invites "0.7 is probably fine" reasoning
- *   where the honest answer is a hard three-way distinction: resolved from a PID
+ *   Three statuses, a CLOSED list of evidence codes (see {@link EVIDENCE_CODES} —
+ *   only codes in that registry are accepted), and deliberately NO numeric
+ *   confidence anywhere. A score invites "0.7 is probably fine" reasoning where
+ *   the honest answer is a hard three-way distinction: resolved from a PID
  *   (`confirmed`), guessed from a path (`inferred`), or unknown (`unattributed`).
  *   An unattributed event keeps no agent at all — substituting one would poison
  *   that agent's baselines, risk score and audit trail (C-01).

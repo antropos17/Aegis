@@ -34,8 +34,11 @@ let latestLocalModels = {
   ollama: { running: false, models: [] },
   lmstudio: { running: false, models: [] },
 };
-// Event dedup — same agent + same file within 30s → suppress, track count
+// Event dedup — same stamped instanceId + same file within 30s → suppress, track count.
+// F-E03: never key on display name / PID / empty agent (cross-instance + unattributed collapse).
 const eventDedupMap = new Map();
+/** Dedup window for same instance + same path (ms). */
+const FILE_EVENT_DEDUP_WINDOW_MS = 30000;
 let activeScanCount = 0;
 let _lastTriggeredNetScan = 0;
 // C-02: reentrancy guard — block overlapping doProcessScan runs so a slow scan
@@ -51,14 +54,30 @@ function updateScanStatus(entering) {
 }
 
 /**
- * Dedup file events: same agent + same file within 30s → suppress.
- * @param {Object} ev @returns {Object|null} @since v0.3.0
+ * Dedup file events by stamped process instance + file path.
+ *
+ * Equivalence class (attributed): same non-empty `instanceId` + same `file` within
+ * 30s. Display name and PID must not define the key (F-E03).
+ *
+ * Unattributed (`instanceId` null/empty): bypass instance-scoped dedup entirely —
+ * do not use `null|file` / `''|file` (that collapses independent observations).
+ *
+ * @param {Object} ev
+ * @returns {Object|null}
+ * @since v0.3.0
  */
 function dedupFileEvent(ev) {
-  const key = `${ev.agent}|${ev.file}`;
+  const instanceId =
+    typeof ev.instanceId === 'string' && ev.instanceId.length > 0 ? ev.instanceId : null;
+  // F-E03: no genuine process key → no shared process bucket.
+  if (instanceId === null) {
+    if (ev.repeatCount == null) ev.repeatCount = 1;
+    return ev;
+  }
+  const key = `${instanceId}|${ev.file}`;
   const now = Date.now();
   const prev = eventDedupMap.get(key);
-  if (prev && now - prev.lastSent < 30000) {
+  if (prev && now - prev.lastSent < FILE_EVENT_DEDUP_WINDOW_MS) {
     prev.count++;
     return null;
   }

@@ -253,10 +253,29 @@ describe('file-watcher event handling', () => {
       expect(state.activityLog).toHaveLength(0);
     });
 
-    it('skips when no agents detected', () => {
+    it('F-E02: emits unattributed when zero agents (does not drop the observation)', () => {
       state.getLatestAgents = () => [];
+      state.getLatestAiAgents = () => [];
       fileWatcher.handleWatcherEvent('modified', '/home/user/file.js');
+      expect(state.activityLog).toHaveLength(1);
+      const event = state.activityLog[0];
+      expect(event.agent).toBe('');
+      expect(event.pid).toBeNull();
+      expect(event.instanceId).toBeNull();
+      expect(event.attribution).toEqual({
+        status: 'unattributed',
+        evidence: ['no-ai-agents-online'],
+      });
+      expect(state.onFileEvent).toHaveBeenCalledTimes(1);
+      expect(state.recordFileAccess).not.toHaveBeenCalled();
+    });
+
+    it('F-E02: still ignores noise paths when zero agents', () => {
+      state.getLatestAgents = () => [];
+      state.getLatestAiAgents = () => [];
+      fileWatcher.handleWatcherEvent('modified', '/home/user/file.tmp');
       expect(state.activityLog).toHaveLength(0);
+      expect(state.onFileEvent).not.toHaveBeenCalled();
     });
 
     it('skips ignored files', () => {

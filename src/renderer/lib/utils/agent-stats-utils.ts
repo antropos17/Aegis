@@ -4,6 +4,7 @@
  */
 
 import type { EnrichedAgent } from '../../../shared/types/risk';
+import { getRiskInfo } from './trust-badge-utils';
 
 /** Sortable column identifiers */
 export type SortColumn = 'agent' | 'risk' | 'files' | 'network' | 'lastSeen';
@@ -44,6 +45,7 @@ export function toStatsRows(agents: readonly EnrichedAgent[], now: number): Agen
   }
 
   return [...byName.values()].map((instances) => {
+    // F-W05: same population as AgentPanel — representative only, no group sums.
     const rep = instances.reduce((best, cur) =>
       (cur.riskScore || 0) > (best.riskScore || 0) ? cur : best,
     );
@@ -52,9 +54,9 @@ export function toStatsRows(agents: readonly EnrichedAgent[], now: number): Agen
       pid: rep.pid,
       instanceId: rep.instanceId ?? null,
       status: 'active' as const,
-      riskScore: Math.round(instances.reduce((s, a) => Math.max(s, a.riskScore || 0), 0)),
-      fileCount: instances.reduce((s, a) => s + Math.round(a.fileCount || 0), 0),
-      networkCount: instances.reduce((s, a) => s + (a.networkCount || 0), 0),
+      riskScore: Math.round(rep.riskScore || 0),
+      fileCount: Math.round(rep.fileCount || 0),
+      networkCount: rep.networkCount || 0,
       lastSeen: now,
       category: rep.category,
       trustGrade: rep.trustGrade,
@@ -109,13 +111,18 @@ export function formatRelativeTime(ms: number): string {
 }
 
 /**
- * Get CSS color variable for a risk score (matches AgentCard grade colors).
+ * Map a risk score to a stats-table color token.
+ *
+ * F-W10: band boundaries come from the single risk-band classifier
+ * (`getRiskInfo` — low / medium / high). Token choice is presentation only;
+ * letter trust grades (`getTrustGrade`) remain a separate concept.
+ *
  * @param score - Risk score 0-100
  * @returns CSS color string using design tokens
  */
 export function riskColor(score: number): string {
-  if (score <= 15) return 'var(--md-sys-color-tertiary)';
-  if (score <= 35) return 'var(--md-sys-color-primary)';
-  if (score <= 60) return 'var(--md-sys-color-secondary)';
-  return 'var(--md-sys-color-error)';
+  const level = getRiskInfo(score).level;
+  if (level === 'high') return 'var(--md-sys-color-error)';
+  if (level === 'medium') return 'var(--md-sys-color-secondary)';
+  return 'var(--md-sys-color-primary)';
 }

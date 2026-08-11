@@ -14,11 +14,19 @@ Version 0.10.0-alpha. 110 agents / 262 signatures in database. 73 rules across 8
 - **Audit records carry the key.** All 4 owner-bearing record types in `scan-loop.js` do (`agent-enter`, `agent-exit`, `file-access`/`config-access`, `network-connection`), and `anomaly-alert` joined them once deviations became per-instance (`975ed1a`). `buffer-overflow-drop` stays `null` — nobody owns it.
 - **`cwdCache` no longer serves a dead process's directory.** Keyed on `_cacheKey(pid, name)` like `parentChainCache`, with a `forceRefresh` path wired to the scanner's changed-pid-set flag — the same contract as the identity stamp. Closes **C7**, which poisoned the input to everything else: `cwd` is what the renderer's instance key is built from and what `CWD_CONTAINMENT` attribution matches on. Residual bound is documented and tested: a same-name reuse inside the 60 s TTL still hits, and `forceRefresh` is what covers it.
 
-**What remains (step 11 only; residual buildInstanceId hot-path fallbacks closed):**
-- **C1–C2, C5–C6, steps 6, 8–10 + attachModels CLOSED.**
-- **Residual hot-path buildInstanceId REMOVED** from handleKey / sessionKey / token recordKey object path. Stamp is read-only; unstamped agents skip session entry / knownHandles map (events still emit with null id). Token bare-number API keeps explicit `"<pid>:u"` degraded space only.
-- **Step 11** — optional per-instance UI roll-up vs per-name defaults.
-- **Durable domains stay separate.** Permissions = instanceKey; watchlist = name; baselines profile = name; runtime = instanceId.
+**What remains (step 11 optional; SummaryCards partial):**
+- **Identity hardening CLOSED** through residual buildInstanceId cleanup (`5809e91`).
+- **SummaryCards F-W02 + F-W01 FIXED:** Total Agents = unique display names; Avg Risk Score = mean of enriched `riskScore`.
+- **SummaryCards F-W03 FIXED:** Events/min uses pure `eventsPerMinute(events, now)` with shared `tick`/`startTick` so the rolling 60s window ages without new events.
+- **SummaryCards F-W06 FIXED:** Card label **Sensitive Alerts** (was "Sensitive Files"); value remains `stats.totalSensitive` = retained sensitive activity-log events (push/evict), not distinct paths. Matches tray/export "sensitive alerts" language.
+- **SummaryCards F-W07 FIXED:** Card label **Monitoring Duration** (was "System Uptime"); value = `now - stats.monitoringStarted` with shared 1s `tick` so it advances without stats pushes. Not OS uptime; Footer `UP` remains renderer-mount clock (intentional different unit).
+- **F-E02 FIXED:** `handleWatcherEvent` no longer drops when `latestAgents` is empty; only `shouldIgnore` + pause/debounce remain. Zero agents → honest unattributed (`no-ai-agents-online`). Mutation: restore empty-agent return → F-E02 test red.
+- **F-E03 FIXED:** `dedupFileEvent` keys on stamped `instanceId|file` (30s window unchanged); null/empty instanceId bypasses (no `''|file` collapse). Same name / different instances and dual unattributed survive. Mutation: name-based key → B + D tests red.
+- **F-S01 FIXED (tests):** `tests/main/file-watcher-subscription.test.js` mocks `chokidar.watch`, runs production `setupFileWatchers`, asserts every watcher registers `add`/`change`/`unlink`, and fires callbacks into the real handler (created/modified/deleted). Production wiring already correct — no production change. Mutation: drop `watcher.on('change', …)` → subscription test red.
+- **Block 0.6 CLOSED (F-W05/W08–W11/S07):** AgentPanel/stats rep-only metrics (no silent group FILES/NET sum); File Act label for weighted fileCount; Header avg health vs RiskIndex Worst Risk; RiskIndex process/processes; risk-band classifier shared (`getRiskInfo` thresholds); attribution comment closed-registry wording (not “six”). Letter trust grades remain a distinct taxonomy.
+- **Step 11** — optional per-instance UI roll-up (deferred).
+- **SummaryCards remaining:** none evidenced after F-W01…F-W07 correctness blocks.
+- **Block 0 status:** CLOSED after 0.6 (next: Block B Sensor Health / DEGRADED).
 
 **Open debts from step 7 — measurements for Bench to settle, not diagnosed bugs:**
 - **pid-0 synthetics from `attachModels` no longer reach baselines at all.** They live in `latestAgents` and are seen by the file and network scans, but no stamp site ever gives them an `instanceId` (`scan-loop.js` appends them AFTER the `scan-batch` send — IDENTITY-RECON §2.1), so the null-key policy drops every observation. Measure what they used to contribute; the fix, if wanted, is a stamp in `attachModels`, the same one `injectDetectedExternalAgents` already does.

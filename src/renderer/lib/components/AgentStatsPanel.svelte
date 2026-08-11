@@ -88,7 +88,7 @@
           Risk{sortArrow('risk')}
         </th>
         <th class="col-files" onclick={() => toggleSort('files')}>
-          Files{sortArrow('files')}
+          File Act{sortArrow('files')}
         </th>
         <th class="col-net" onclick={() => toggleSort('network')}>
           Network{sortArrow('network')}

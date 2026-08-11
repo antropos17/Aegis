@@ -90,7 +90,12 @@ export function calculateRiskScore(agent) {
 // ═══ TRUST GRADE ═══
 
 /**
- * Map a risk score to a trust grade.
+ * Map a risk score to a **letter trust grade** (A+…F).
+ *
+ * Distinct from risk **bands** (low/medium/high) in trust-badge-utils
+ * `getRiskInfo` — letter grades are finer-grained report/radar labels; bands
+ * drive badge color (F-W10). Do not treat thresholds as interchangeable.
+ *
  * @param {number} score - Risk score 0–100
  * @returns {string} Grade: A+, A, B+, B, C, D, or F
  * @since 0.2.0

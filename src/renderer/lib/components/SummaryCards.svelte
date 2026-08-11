@@ -1,49 +1,63 @@
 <script>
-  import { agents, events, anomalies, stats } from '../stores/ipc.js';
+  import { events, stats } from '../stores/ipc.js';
+  import { enrichedAgents } from '../stores/risk.js';
+  import { tick, startTick } from '../stores/tick.ts';
+  import {
+    countUniqueAgents,
+    averageRiskScore,
+    eventsPerMinute,
+    EVENTS_PER_MIN_WINDOW_MS,
+    sensitiveAlertCount,
+    SENSITIVE_SUMMARY_LABEL,
+    formatMonitoringDuration,
+    MONITORING_DURATION_LABEL,
+  } from '../utils/summary-metrics.ts';
+  import { getRiskInfo } from '../utils/trust-badge-utils.ts';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
 
   /* ── Local snapshots (only update when tab is active) ── */
+  // Enriched agents carry `name` (from DetectedAgent.agent) and authoritative riskScore.
+  // Raw `$agents` has only `agent` and no riskScore — that caused F-W02 / F-W01.
   let localAgents = $state([]);
   let localEvents = $state([]);
-  let localAnomalies = $state({});
   let localStats = $state({});
 
   $effect(() => {
     if (!active) return;
-    localAgents = $agents;
+    localAgents = $enrichedAgents;
     localEvents = $events;
-    localAnomalies = $anomalies;
     localStats = $stats;
   });
 
+  // Shared 1s clock: Events/min aging (F-W03) + monitoring duration ticks (F-W07).
+  $effect(() => {
+    if (!active) return;
+    return startTick();
+  });
+
+  let now = $derived.by(() => {
+    $tick; // reactive dependency — re-read wall clock each second
+    return Date.now();
+  });
+
   /* ── Derived metrics ── */
-  let agentCount = $derived(new Set(localAgents.map((a) => a.name)).size);
+  // Distinct display names (enriched `name` / raw `agent`) — not instanceId count.
+  let agentCount = $derived(countUniqueAgents(localAgents));
 
-  let avgRiskScore = $derived.by(() => {
-    const scores = Object.values(localAnomalies).filter((s) => typeof s === 'number');
-    if (scores.length === 0) return 0;
-    return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-  });
+  // Mean of riskScore from the same domain AgentCard uses — never anomaly scores.
+  let avgRiskScore = $derived(averageRiskScore(localAgents));
 
-  let eventsPerMin = $derived.by(() => {
-    const cutoff = Date.now() - 60_000;
-    return localEvents.filter(
-      (ev) => typeof ev === 'object' && ev !== null && ev.timestamp >= cutoff,
-    ).length;
-  });
+  // Rolling 60s count; `now` is explicit so aging does not require a new event.
+  let eventsPerMin = $derived(eventsPerMinute(localEvents, now, EVENTS_PER_MIN_WINDOW_MS));
 
-  let sensitiveCount = $derived(localStats.totalSensitive || 0);
+  // Retained sensitive activity-log events (main totalSensitive) — not distinct files.
+  let sensitiveCount = $derived(sensitiveAlertCount(localStats.totalSensitive));
 
-  let uptimeStr = $derived.by(() => {
-    const ms = localStats.uptimeMs || 0;
-    const s = Math.floor(ms / 1000);
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sec = s % 60;
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-  });
+  // Monitoring session age from monitoringStarted + wall clock — not OS uptime,
+  // not frozen stats.uptimeMs (stalls without stats pushes).
+  let uptimeStr = $derived(formatMonitoringDuration(localStats.monitoringStarted, now));
 
   /* ── Trend tracking (compare current vs 30s-ago snapshot) ── */
   let prevAgentCount = $state(0);
@@ -143,14 +157,8 @@
   let epmTrendInfo = $derived(trendInfo(epmTrend));
   let sensitiveTrendInfo = $derived(trendInfo(sensitiveTrend, true));
 
-  /** Risk color by score */
-  let riskColor = $derived(
-    avgRiskScore >= 65
-      ? 'var(--fancy-danger)'
-      : avgRiskScore >= 35
-        ? 'var(--fancy-warning)'
-        : 'var(--fancy-accent)',
-  );
+  // F-W10: band colors from the single risk-band classifier (getRiskInfo).
+  let riskColor = $derived(getRiskInfo(avgRiskScore).color);
 </script>
 
 <div class="summary-cards">
@@ -190,9 +198,9 @@
     </span>
   </div>
 
-  <!-- Card 4: Sensitive Files -->
+  <!-- Card 4: Sensitive Alerts (retained sensitive log events, not distinct files) -->
   <div class="card">
-    <span class="card-label">Sensitive Files</span>
+    <span class="card-label">{SENSITIVE_SUMMARY_LABEL}</span>
     <span class="card-value card-value-sensitive">{displaySensitive}</span>
     <span class="card-trend {sensitiveTrendInfo.cls}">
       {sensitiveTrendInfo.arrow}
@@ -202,9 +210,9 @@
     </span>
   </div>
 
-  <!-- Card 5: System Uptime -->
+  <!-- Card 5: Monitoring Duration (scanner.monitoringStarted session age) -->
   <div class="card">
-    <span class="card-label">System Uptime</span>
+    <span class="card-label">{MONITORING_DURATION_LABEL}</span>
     <span class="card-value card-value-uptime">{uptimeStr}</span>
     <span class="card-trend trend-flat">●</span>
   </div>

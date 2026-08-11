@@ -46,16 +46,30 @@ describe('agent-stats-utils', () => {
       expect(rows[0].instanceId).toBe('1234:1700000000000');
     });
 
-    it('groups agents by name — takes highest risk', () => {
+    it('groups agents by name — representative metrics only (F-W05)', () => {
       const agents = [
-        makeAgent({ pid: 100, riskScore: 10, fileCount: 5, networkCount: 2 }),
-        makeAgent({ pid: 200, riskScore: 40, fileCount: 8, networkCount: 3 }),
+        makeAgent({
+          pid: 100,
+          instanceId: '100:a',
+          riskScore: 10,
+          fileCount: 5,
+          networkCount: 2,
+        }),
+        makeAgent({
+          pid: 200,
+          instanceId: '200:b',
+          riskScore: 40,
+          fileCount: 8,
+          networkCount: 3,
+        }),
       ];
       const rows = toStatsRows(agents, NOW);
       expect(rows).toHaveLength(1);
       expect(rows[0].riskScore).toBe(40);
-      expect(rows[0].fileCount).toBe(13);
-      expect(rows[0].networkCount).toBe(5);
+      // Not sum 13 / 5 — same population as risk (rep instance).
+      expect(rows[0].fileCount).toBe(8);
+      expect(rows[0].networkCount).toBe(3);
+      expect(rows[0].instanceId).toBe('200:b');
     });
 
     it('returns empty array for no agents', () => {
@@ -155,20 +169,20 @@ describe('agent-stats-utils', () => {
     });
   });
 
-  describe('riskColor()', () => {
-    it('returns tertiary for low risk', () => {
-      expect(riskColor(10)).toContain('tertiary');
+  describe('riskColor() — uses getRiskInfo bands (F-W10)', () => {
+    it('returns primary for low risk band', () => {
+      expect(riskColor(10)).toContain('primary');
+      expect(riskColor(34)).toContain('primary');
     });
 
-    it('returns primary for moderate risk', () => {
-      expect(riskColor(25)).toContain('primary');
-    });
-
-    it('returns secondary for high risk', () => {
+    it('returns secondary for medium risk band', () => {
+      expect(riskColor(35)).toContain('secondary');
       expect(riskColor(50)).toContain('secondary');
+      expect(riskColor(65)).toContain('secondary');
     });
 
-    it('returns error for critical risk', () => {
+    it('returns error for high risk band', () => {
+      expect(riskColor(66)).toContain('error');
       expect(riskColor(80)).toContain('error');
     });
   });
