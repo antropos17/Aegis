@@ -1,6 +1,6 @@
 <script>
   import { enrichedAgents } from '../stores/risk.js';
-  import { selectedAgentPid } from '../stores/ipc.js';
+  import { selectedAgentInstanceId } from '../stores/ipc.js';
   import AgentCard from './AgentCard.svelte';
   import { t } from '../i18n/index.js';
 
@@ -55,7 +55,7 @@
   {:else}
     <div class="agent-list">
       {#each grouped as agent (agent.name)}
-        <AgentCard {agent} bind:expandedPid={$selectedAgentPid} />
+        <AgentCard {agent} bind:expandedInstanceId={$selectedAgentInstanceId} />
       {/each}
     </div>
   {/if}

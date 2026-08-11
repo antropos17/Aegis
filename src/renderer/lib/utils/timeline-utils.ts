@@ -246,6 +246,78 @@ export function buildSummary(events: TimelineEvent[]): {
 
 // ═══ DATA TRANSFORMS ═══
 
+/**
+ * Read a stamped process-instance key from a timeline event or dot. Never derives.
+ * Empty string is treated as missing.
+ * @param source - Event or cluster member that may carry instanceId
+ * @returns The stamped id, or null
+ * @since v0.12.0
+ */
+export function readTimelineInstanceId(
+  source: { readonly instanceId?: string | null } | null | undefined,
+): string | null {
+  if (!source) return null;
+  const id = source.instanceId;
+  return typeof id === 'string' && id.length > 0 ? id : null;
+}
+
+/**
+ * Trajectory / path ownership key for process-owned timeline dots (IDENTITY-RECON C5).
+ * Canonical stamped `instanceId` only — never name or pid. Missing identity → null
+ * (event stays visible; no connection line / no focusable process owner).
+ * @param source - Event or cluster member
+ * @returns Trajectory key or null
+ * @since v0.12.0
+ */
+export function timelineTrajectoryKey(
+  source: { readonly instanceId?: string | null } | null | undefined,
+): string | null {
+  return readTimelineInstanceId(source);
+}
+
+/**
+ * Dedup key for merging live + historical timeline streams.
+ *
+ * Process-owned events: timestamp + stamped instanceId + type so concurrent same-name
+ * instances and pid-reuse lifetimes never suppress each other.
+ *
+ * Unowned / null-identity events: include a unique ordinal so two null-identity events
+ * at the same ms never share a key and collapse (shared `"null"` would reintroduce C5).
+ * @param ev - Timeline event
+ * @param uniqueOrdinal - Stable index among the merge input (only used when unowned)
+ * @returns Dedup key string
+ * @since v0.12.0
+ */
+export function timelineDedupKey(
+  ev: { readonly timestamp?: number; readonly _type?: string; readonly instanceId?: string | null },
+  uniqueOrdinal: number,
+): string {
+  const ts = ev.timestamp ?? 0;
+  const type = ev._type ?? '';
+  const id = readTimelineInstanceId(ev);
+  if (id !== null) return `${ts}|i:${id}|${type}`;
+  return `${ts}|u:${uniqueOrdinal}|${type}`;
+}
+
+/**
+ * Trajectory key for a cluster group: the shared instanceId when every member
+ * carries the same non-null stamp; otherwise null (mixed or unowned).
+ * @param group - Cluster members
+ * @returns Shared instanceId or null
+ * @since v0.12.0
+ */
+export function clusterTrajectoryKey(
+  group: readonly { readonly instanceId?: string | null }[],
+): string | null {
+  if (group.length === 0) return null;
+  const first = readTimelineInstanceId(group[0]);
+  if (first === null) return null;
+  for (let i = 1; i < group.length; i++) {
+    if (readTimelineInstanceId(group[i]) !== first) return null;
+  }
+  return first;
+}
+
 export interface RawDot {
   x: number;
   y: number;
@@ -269,15 +341,20 @@ export interface ClusterDot {
   color: string;
   count: number;
   agent: string;
+  /**
+   * Trajectory ownership for connection lines (`buildLinks`). Canonical stamped
+   * `instanceId` when the cluster is process-owned and unanimous; null otherwise.
+   * Display name lives in {@link ClusterDot.agent} only — never here (C5).
+   */
   agentKey: string | null;
   pid: string | null;
   time: string;
   idx: number;
   sev: string;
   /**
-   * Identity of the single event behind this dot. A dot that clusters more than one event
-   * carries `undefined`, exactly as `pid` already does — identity is per-event and picking
-   * one would present one event's process as the group's.
+   * Process identity for focus/tooltip. Same rule as {@link ClusterDot.agentKey}:
+   * kept when every member of the cluster shares one non-null instanceId; dropped
+   * when the group is mixed or unowned (picking one would mis-attribute).
    * @since v0.12.0
    */
   schemaVersion?: number;
@@ -330,19 +407,24 @@ export interface Tick {
 
 /** Cluster nearby dots on the same lane. */
 export function buildClusters(
-  events: (TimelineEvent & { timestamp?: number; agent?: string; pid?: string })[],
+  events: (TimelineEvent & {
+    timestamp?: number;
+    agent?: string;
+    pid?: string | number | null;
+  })[],
   tsToX: (ts: number) => number,
 ): ClusterDot[] {
   if (events.length === 0) return [];
   const raw: RawDot[] = events.map((ev, idx) => {
     const sev = getSeverity(ev);
+    const pidVal = ev.pid;
     return {
       x: tsToX(ev.timestamp || 0),
       y: sevLane(sev),
       sev,
       color: sevColor(sev),
       agent: ev.agent || 'Unknown',
-      pid: ev.pid || null,
+      pid: pidVal === null || pidVal === undefined || pidVal === '' ? null : String(pidVal),
       time: formatTime(ev.timestamp || 0),
       idx,
       schemaVersion: ev.schemaVersion,
@@ -366,20 +448,22 @@ export function buildClusters(
       const ord: Record<string, number> = { critical: 3, high: 2, medium: 1, low: 0 };
       return (ord[b.sev] || 0) > (ord[a.sev] || 0) ? b : a;
     }, group[0]);
-    const agents = [...new Set(group.map((d) => d.agent))];
+    // Trajectory + focus identity: shared stamped instanceId only (C5). Display name
+    // stays on `agent` for the tooltip and is never used as a path key.
+    const traj = clusterTrajectoryKey(group);
     result.push({
       x: avgX,
       y: base.y,
       color: best.color,
       count: group.length,
       agent: group.length === 1 ? base.agent : `${group.length} events`,
-      agentKey: agents.length === 1 ? agents[0] : null,
+      agentKey: traj,
       pid: group.length === 1 ? base.pid : null,
       time: group.length === 1 ? base.time : `${group[0].time} — ${group[group.length - 1].time}`,
       idx: base.idx,
       sev: best.sev,
       schemaVersion: group.length === 1 ? base.schemaVersion : undefined,
-      instanceId: group.length === 1 ? base.instanceId : undefined,
+      instanceId: traj,
       attribution: clusterAttribution(group),
     });
     i = j;
@@ -387,17 +471,18 @@ export function buildClusters(
   return result;
 }
 
-/** Connection lines between sequential dots of the same agent. */
+/** Connection lines between sequential dots of the same process INSTANCE. */
 export function buildLinks(clusters: ClusterDot[]): Link[] {
   const result: Link[] = [];
-  const lastByAgent: Record<string, { x: number; y: number; color: string }> = {};
+  const lastByInstance: Record<string, { x: number; y: number; color: string }> = {};
   for (const dot of clusters) {
+    // agentKey is the stamped instanceId (or null) — never a display name after C5.
     if (!dot.agentKey) continue;
-    const prev = lastByAgent[dot.agentKey];
+    const prev = lastByInstance[dot.agentKey];
     if (prev && Math.abs(dot.x - prev.x) > 3) {
       result.push({ x1: prev.x, y1: prev.y, x2: dot.x, y2: dot.y, color: dot.color });
     }
-    lastByAgent[dot.agentKey] = { x: dot.x, y: dot.y, color: dot.color };
+    lastByInstance[dot.agentKey] = { x: dot.x, y: dot.y, color: dot.color };
   }
   return result;
 }

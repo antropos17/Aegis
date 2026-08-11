@@ -14,7 +14,16 @@ interface ScanBatchData {
   readonly agents?: DetectedAgent[];
   readonly stats?: Record<string, unknown>;
   readonly resourceUsage?: Record<string, unknown>;
+  /**
+   * Per-display-name anomaly scores (max over that name's live instances).
+   * Consumed by App.svelte toasts and SummaryCards — not by live risk correlation.
+   */
   readonly anomalyScores?: Record<string, number>;
+  /**
+   * Per-instance anomaly scores keyed by the same `instanceId` the agent carries in
+   * this batch. Source of truth for risk.ts anomaly contribution (IDENTITY-RECON C2).
+   */
+  readonly anomalyScoresByInstance?: Record<string, number>;
 }
 
 /** Scan-status push payload */
@@ -104,7 +113,18 @@ export const agents: Writable<DetectedAgent[]> = writable([]);
 export const events: Writable<FileEvent[]> = writable([]);
 export const stats: Writable<Record<string, unknown>> = writable({});
 export const network: Writable<NetworkConnection[]> = writable([]);
+/**
+ * Name-keyed anomaly scores (max over instances of that name). Still filled from
+ * `scan-batch.anomalyScores` for App.svelte toasts and SummaryCards. Live per-instance
+ * risk correlation reads {@link anomaliesByInstance} instead.
+ */
 export const anomalies: Writable<Record<string, number>> = writable({});
+/**
+ * Instance-keyed anomaly scores from `scan-batch.anomalyScoresByInstance`.
+ * Key = stamped `instanceId` string; value = that instance's anomaly score.
+ * Missing keys and null-identity agents contribute 0 in risk.ts — never a name lookup.
+ */
+export const anomaliesByInstance: Writable<Record<string, number>> = writable({});
 export const resourceUsage: Writable<Record<string, unknown>> = writable({});
 export const falsePositives: Writable<FalsePositiveEntry[]> = writable([]);
 export const scanActive: Writable<boolean> = writable(false);
@@ -121,15 +141,20 @@ export const tokenCosts: Writable<TokenCostRecord[]> = writable([]);
  */
 export const firstScanDone: Writable<boolean> = writable(false);
 
-/** PID of agent to highlight in AgentPanel (set by Timeline dot click) */
-export const focusedAgentPid: Writable<number | null> = writable(null);
+/**
+ * Canonical `instanceId` of the agent to highlight/scroll in AgentPanel
+ * (Timeline dot click, stats row click). Auto-clears after scroll-into-view.
+ * Never a pid — pid reuse must not transfer focus (IDENTITY-RECON §6 step 8).
+ */
+export const focusedAgentInstanceId: Writable<string | null> = writable(null);
 
 /**
- * PID of the currently selected (expanded) agent card. Persistent across the
- * session — the target for Command Palette kill/suspend actions. Distinct from
- * {@link focusedAgentPid}, which auto-clears after a scroll-into-view.
+ * Canonical `instanceId` of the currently selected (expanded) agent card.
+ * Persistent across the session — Command Palette kill/suspend resolve the live
+ * agent by this key, then use that record's pid for the process action.
+ * Distinct from {@link focusedAgentInstanceId}.
  */
-export const selectedAgentPid: Writable<number | null> = writable(null);
+export const selectedAgentInstanceId: Writable<string | null> = writable(null);
 
 /**
  * True only in a bundle built WITH the demo scenario engine (`npm run build:demo`, and
@@ -212,6 +237,11 @@ if (import.meta.env.VITE_DEMO_MODE === 'true') {
       if (data.stats) stats.set(data.stats);
       if (data.resourceUsage) resourceUsage.set(data.resourceUsage);
       if (data.anomalyScores) anomalies.set(data.anomalyScores);
+      // Per-instance map rides the same batch; replace (not merge) so a dead instance
+      // does not keep a stale score after it leaves the agent list.
+      if (data.anomalyScoresByInstance) {
+        anomaliesByInstance.set(data.anomalyScoresByInstance);
+      }
       // A batch landed — the first scan has completed, even if it found nothing.
       firstScanDone.set(true);
     });

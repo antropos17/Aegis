@@ -8,42 +8,46 @@ import {
 } from '../../src/renderer/lib/stores/acknowledged.js';
 
 describe('acknowledged store', () => {
+  // Keys are stamped instanceIds (C4), not display names.
+  const ID_A = '100:start-A';
+  const ID_B = '200:start-B';
+
   beforeEach(() => clearAcknowledged());
   afterEach(() => clearAcknowledged());
 
   it('starts empty', () => {
     expect(get(acknowledgedAgents).size).toBe(0);
-    expect(isAcknowledged('Claude Code')).toBe(false);
+    expect(isAcknowledged(ID_A)).toBe(false);
   });
 
   describe('toggleAcknowledged()', () => {
-    it('marks an agent acknowledged and returns true', () => {
-      const result = toggleAcknowledged('Claude Code');
+    it('marks a process instance acknowledged and returns true', () => {
+      const result = toggleAcknowledged(ID_A);
       expect(result).toBe(true);
-      expect(isAcknowledged('Claude Code')).toBe(true);
-      expect(get(acknowledgedAgents).has('Claude Code')).toBe(true);
+      expect(isAcknowledged(ID_A)).toBe(true);
+      expect(get(acknowledgedAgents).has(ID_A)).toBe(true);
     });
 
     it('un-marks on second toggle and returns false', () => {
-      toggleAcknowledged('Cursor');
-      const result = toggleAcknowledged('Cursor');
+      toggleAcknowledged(ID_B);
+      const result = toggleAcknowledged(ID_B);
       expect(result).toBe(false);
-      expect(isAcknowledged('Cursor')).toBe(false);
+      expect(isAcknowledged(ID_B)).toBe(false);
     });
 
-    it('tracks multiple agents independently', () => {
-      toggleAcknowledged('A');
-      toggleAcknowledged('B');
-      expect(isAcknowledged('A')).toBe(true);
-      expect(isAcknowledged('B')).toBe(true);
-      toggleAcknowledged('A');
-      expect(isAcknowledged('A')).toBe(false);
-      expect(isAcknowledged('B')).toBe(true);
+    it('tracks multiple instances independently', () => {
+      toggleAcknowledged(ID_A);
+      toggleAcknowledged(ID_B);
+      expect(isAcknowledged(ID_A)).toBe(true);
+      expect(isAcknowledged(ID_B)).toBe(true);
+      toggleAcknowledged(ID_A);
+      expect(isAcknowledged(ID_A)).toBe(false);
+      expect(isAcknowledged(ID_B)).toBe(true);
     });
 
     it('emits a new Set reference for reactivity', () => {
       const before = get(acknowledgedAgents);
-      toggleAcknowledged('X');
+      toggleAcknowledged(ID_A);
       const after = get(acknowledgedAgents);
       expect(after).not.toBe(before);
     });
@@ -51,8 +55,8 @@ describe('acknowledged store', () => {
 
   describe('clearAcknowledged()', () => {
     it('removes all marks', () => {
-      toggleAcknowledged('A');
-      toggleAcknowledged('B');
+      toggleAcknowledged(ID_A);
+      toggleAcknowledged(ID_B);
       expect(get(acknowledgedAgents).size).toBe(2);
       clearAcknowledged();
       expect(get(acknowledgedAgents).size).toBe(0);

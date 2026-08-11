@@ -11,6 +11,7 @@ vi.mock('../../src/renderer/lib/stores/ipc.js', async () => {
     agents: writable([]),
     events: writable([]),
     anomalies: writable({}),
+    anomaliesByInstance: writable({}),
     network: writable([]),
     falsePositives: writable([]),
   };
@@ -29,6 +30,7 @@ const inputs = ipc as unknown as {
   agents: { set: (v: unknown[]) => void };
   events: { set: (v: unknown[]) => void };
   anomalies: { set: (v: Record<string, number>) => void };
+  anomaliesByInstance: { set: (v: Record<string, number>) => void };
   network: { set: (v: unknown[]) => void };
   falsePositives: { set: (v: unknown[]) => void };
 };
@@ -102,6 +104,7 @@ beforeEach(() => {
   inputs.agents.set([]);
   inputs.events.set([]);
   inputs.anomalies.set({});
+  inputs.anomaliesByInstance.set({});
   inputs.network.set([]);
   inputs.falsePositives.set([]);
 });
@@ -533,6 +536,96 @@ describe('risk store — the missing-instanceId policy', () => {
     const [kilo] = get(enrichedAgents);
     expect(kilo.sensitiveFiles).toBeGreaterThan(0);
     expect(kilo.riskScore).toBeGreaterThan(0);
+  });
+});
+
+describe('risk store — anomalyScoresByInstance (C2 remainder)', () => {
+  // Main emits two maps on scan-batch (scan-loop.js): `anomalyScores` (name → max over
+  // that name's instances) and `anomalyScoresByInstance` (instanceId → score). Risk used
+  // to read the name map, so two Claude Code processes shared the WORSE anomaly term even
+  // after file/network correlation moved to instanceId (IDENTITY-RECON.md §5 C2). This
+  // suite pins the renderer half of that close: live anomaly contribution is keyed only
+  // on the stamped instanceId, never on the display name.
+
+  it('C2: two same-name instances get their own anomaly scores, not the name max', () => {
+    inputs.agents.set([
+      {
+        agent: 'Claude Code',
+        pid: 100,
+        instanceId: CLAUDE_ID,
+        cwd: null,
+        parentEditor: null,
+        category: 'ai',
+      },
+      {
+        agent: 'Claude Code',
+        pid: 200,
+        instanceId: SECOND_CLAUDE_ID,
+        cwd: null,
+        parentEditor: null,
+        category: 'ai',
+      },
+    ]);
+    // Name map carries the MAX (what main still emits for toasts / SummaryCards). If risk
+    // still read it, both instances would show 90.
+    inputs.anomalies.set({ 'Claude Code': 90 });
+    inputs.anomaliesByInstance.set({
+      [CLAUDE_ID]: 90,
+      [SECOND_CLAUDE_ID]: 12,
+    });
+
+    const enriched = get(enrichedAgents);
+    expect(enriched).toHaveLength(2);
+    const [instanceA, instanceB] = enriched;
+    expect(instanceA.instanceId).toBe(CLAUDE_ID);
+    expect(instanceB.instanceId).toBe(SECOND_CLAUDE_ID);
+    expect(instanceA.anomalyScore).toBe(90);
+    expect(instanceB.anomalyScore).toBe(12);
+    // Soft so both isolation claims report in one run.
+    expect.soft(instanceB.anomalyScore).not.toBe(instanceA.anomalyScore);
+    expect.soft(instanceB.anomalyScore).not.toBe(90);
+  });
+
+  it('C2: an agent without instanceId does not inherit a same-name anomaly score', () => {
+    inputs.agents.set([
+      {
+        agent: 'Claude Code',
+        pid: 100,
+        instanceId: CLAUDE_ID,
+        cwd: null,
+        parentEditor: null,
+        category: 'ai',
+      },
+      // No stamped key — attachModels / pre-stamp residue. Must not read the name map.
+      {
+        agent: 'Claude Code',
+        pid: 300,
+        cwd: null,
+        parentEditor: null,
+        category: 'ai',
+      },
+    ]);
+    inputs.anomalies.set({ 'Claude Code': 77 });
+    inputs.anomaliesByInstance.set({ [CLAUDE_ID]: 77 });
+
+    const [keyed, unkeyedAgent] = get(enrichedAgents);
+    expect(keyed.anomalyScore).toBe(77);
+    expect(unkeyedAgent.instanceId).toBe(null);
+    // Neutral contribution: no name fallback, no fabricated bucket.
+    expect(unkeyedAgent.anomalyScore).toBe(0);
+  });
+
+  it('C2 regression: a single keyed instance still receives its anomaly score', () => {
+    inputs.agents.set([TWO_AGENTS[0]]);
+    inputs.anomalies.set({ 'Claude Code': 45 });
+    inputs.anomaliesByInstance.set({ [CLAUDE_ID]: 45 });
+
+    const [claude] = get(enrichedAgents);
+    expect(claude.instanceId).toBe(CLAUDE_ID);
+    expect(claude.anomalyScore).toBe(45);
+    // File/network isolation from C1 is unchanged when only anomaly input is set.
+    expect(claude.sensitiveFiles).toBe(0);
+    expect(claude.riskScore).toBe(0);
   });
 });
 

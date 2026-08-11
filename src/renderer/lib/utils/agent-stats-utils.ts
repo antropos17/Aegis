@@ -15,6 +15,11 @@ export type SortDirection = 'asc' | 'desc';
 export interface AgentStatsRow {
   readonly name: string;
   readonly pid: number;
+  /**
+   * Canonical instance key of the representative process. Used for focus/scroll —
+   * never select by pid alone (IDENTITY-RECON §6 step 8).
+   */
+  readonly instanceId: string | null;
   readonly status: 'active' | 'idle';
   readonly riskScore: number;
   readonly fileCount: number;
@@ -45,6 +50,7 @@ export function toStatsRows(agents: readonly EnrichedAgent[], now: number): Agen
     return {
       name: rep.name,
       pid: rep.pid,
+      instanceId: rep.instanceId ?? null,
       status: 'active' as const,
       riskScore: Math.round(instances.reduce((s, a) => Math.max(s, a.riskScore || 0), 0)),
       fileCount: instances.reduce((s, a) => s + Math.round(a.fileCount || 0), 0),

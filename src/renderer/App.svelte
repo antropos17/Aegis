@@ -23,8 +23,9 @@
     demoDataActive,
     isDemoBuild,
     liveDataUnavailable,
-    selectedAgentPid,
+    selectedAgentInstanceId,
   } from './lib/stores/ipc.js';
+  import { resolveSelectedAgent } from './lib/utils/agent-selection.ts';
   import { get } from 'svelte/store';
   import DemoBanner from './lib/components/DemoBanner.svelte';
   import BridgeUnavailableBanner from './lib/components/BridgeUnavailableBanner.svelte';
@@ -161,11 +162,13 @@
    * @param {string} failLabel  Failure toast label, e.g. "Failed to suspend agent"
    */
   async function runSelectedAgentAction(method, doneLabel, failLabel) {
-    const pid = get(selectedAgentPid);
-    if (pid == null) {
+    // Selection is by instanceId; the OS action still needs the live pid.
+    const match = resolveSelectedAgent(get(enrichedAgents), get(selectedAgentInstanceId));
+    if (!match) {
       addToast('No agent selected — open an agent card first', 'warning');
       return;
     }
+    const pid = match.pid;
     if (!window.aegis) return;
     const result = await window.aegis[method](pid);
     if (result?.success) {
@@ -177,17 +180,16 @@
 
   /**
    * Open the stop-process confirmation for the currently selected agent
-   * (command-palette `agent:kill` entry point). Resolves the display name from
-   * the risk-enriched agents so the dialog reads honestly.
+   * (command-palette `agent:kill` entry point). Resolves the live record by
+   * stamped instanceId so a recycled pid cannot kill the wrong process.
    */
   function requestStopSelected() {
-    const pid = get(selectedAgentPid);
-    if (pid == null) {
+    const match = resolveSelectedAgent(get(enrichedAgents), get(selectedAgentInstanceId));
+    if (!match) {
       addToast('No agent selected — open an agent card first', 'warning');
       return;
     }
-    const match = get(enrichedAgents).find((a) => a.pid === pid);
-    requestStop(pid, match?.name || match?.agent || String(pid));
+    requestStop(match.pid, match.name || match.agent || String(match.pid));
   }
 
   /**

@@ -1,25 +1,25 @@
 /**
- * @file acknowledged.ts — session-local "acknowledged agents" triage marks.
+ * @file acknowledged.ts — session-local "acknowledged" triage marks.
  * @module renderer/stores/acknowledged
- * @description In-memory only. Acknowledging an agent is a cheap, renderer-side
- *   triage flag ("I have seen this") — it never persists, never touches the main
- *   process, and never changes monitoring in any way. Marks are keyed by the
- *   agent's display name and live only for the current session.
+ * @description In-memory only. Acknowledging a process is a cheap, renderer-side
+ *   triage flag ("I have seen this instance") — it never persists, never touches the
+ *   main process, and never changes monitoring. Marks are keyed by the agent's
+ *   stamped canonical `instanceId` and live only for the current session (C4).
  */
 
 import { writable, get } from 'svelte/store';
 import type { Writable } from 'svelte/store';
 
 /**
- * Reactive set of acknowledged agent keys (agent display name). In-memory and
- * session-only — never serialized, never sent to the main process.
+ * Reactive set of acknowledged process-instance keys (stamped `instanceId`).
+ * In-memory and session-only — never serialized, never sent to the main process.
  */
 export const acknowledgedAgents: Writable<Set<string>> = writable(new Set());
 
 /**
- * Toggle the acknowledged state for an agent key. Replaces the backing Set with
- * a fresh reference so the store notifies subscribers (reactivity).
- * @param key - Agent key (display name).
+ * Toggle the acknowledged state for a process instance. Replaces the backing Set
+ * with a fresh reference so the store notifies subscribers (reactivity).
+ * @param key - Canonical stamped `instanceId` (never a display name or pid).
  * @returns The resulting acknowledged state (true = now acknowledged).
  * @since v0.10.0-alpha
  */
@@ -40,9 +40,9 @@ export function toggleAcknowledged(key: string): boolean {
 }
 
 /**
- * Read whether an agent key is currently acknowledged (non-reactive snapshot).
+ * Read whether a process instance is currently acknowledged (non-reactive snapshot).
  * Components should prefer the reactive `$acknowledgedAgents.has(key)`.
- * @param key - Agent key (display name).
+ * @param key - Canonical stamped `instanceId`.
  * @returns True when acknowledged.
  * @since v0.10.0-alpha
  */

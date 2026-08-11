@@ -6,7 +6,8 @@
    *   Delegates rendering to TimelineCanvas, TimelineControls, TimelineLegend, TimelineTooltip.
    * @since v0.1.0
    */
-  import { events, network, focusedAgentPid } from '../stores/ipc.js';
+  import { events, network, focusedAgentInstanceId } from '../stores/ipc.js';
+  import { focusInstanceId } from '../utils/agent-selection.ts';
   import {
     SVG_H,
     LANE_CRIT,
@@ -27,6 +28,7 @@
     buildClusters,
     buildLinks,
     buildTicks,
+    timelineDedupKey,
   } from '../utils/timeline-utils.ts';
   import TimelineCanvas from './TimelineCanvas.svelte';
   import TimelineControls from './TimelineControls.svelte';
@@ -116,8 +118,12 @@
   // ═══ DERIVED DATA ═══
   let allLiveEvents = $derived.by(() => {
     const fileEvs = cachedEvents.flat().map((ev) => ({ ...ev, _type: 'file' }));
+    // Carry stamped instanceId (and pid as metadata) so trajectory/dedup/focus use the
+    // same process identity as the rest of the renderer (C5) — never re-derive from pid.
     const netEvs = cachedNetwork.map((conn) => ({
       agent: conn.agent || 'Unknown',
+      pid: conn.pid,
+      instanceId: conn.instanceId ?? null,
       timestamp: conn.timestamp || Date.now(),
       _type: 'network',
       flagged: !!conn.flagged,
@@ -129,8 +135,10 @@
     // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const seen = new Set();
     const merged = [];
+    // Ordinal is only for null-identity uniqueness — process-owned keys use instanceId.
+    let ordinal = 0;
     for (const ev of [...historicalEvents, ...allLiveEvents]) {
-      const key = `${ev.timestamp}|${ev.agent}|${ev._type}`;
+      const key = timelineDedupKey(ev, ordinal++);
       if (!seen.has(key)) {
         seen.add(key);
         merged.push(ev);
@@ -271,7 +279,9 @@
   }
   function handleDotClick(e, dot) {
     e.stopPropagation();
-    if (dot.pid) focusedAgentPid.set(dot.pid);
+    // Focus by stamped instanceId only — never pid (reuse would highlight the wrong card).
+    const id = focusInstanceId(dot);
+    if (id !== null) focusedAgentInstanceId.set(id);
   }
 
   let dragStartX = 0;

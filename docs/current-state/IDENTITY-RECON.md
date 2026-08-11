@@ -85,7 +85,7 @@ Push channels are enumerated from `src/main/preload.js:28-97`. There is no separ
 | **process** (agents) | `scan-batch` → `data.agents` | **present** for scanner agents, **absent** for injected pid-0 synthetics | stamp `process-utils.js:183`; send `scan-loop.js:294-299`; injection *after* the stamp `scan-loop.js:263`; detector literals `ide-extension-detector.js:152-159`, `wsl-detector.js:120-127` — neither file mentions `instanceId` |
 | **file** | `file-access` (batched, `ipc-batcher.js`) | **absent** — not in the type, never set | type `src/shared/types/events.ts:50-77` has no `instanceId`; emitters `file-watcher.js:239-245`, `:391-402`, `:508-519` |
 | **network** | `network-update` | **absent** | `network-monitor.js:364-366` emits `{agent, pid, parentEditor, …}` only |
-| **anomaly** | *(no channel)* — rides inside `scan-batch` as `anomalyScores` + `anomalyScoresByInstance` | **present** in `anomalyScoresByInstance` (`Record<instanceId, number>`, step 7); `anomalyScores` stays a `Record<agentName, number>` for the renderer | `scan-loop.js` score block, consumed `ipc.ts:214` |
+| **anomaly** | *(no channel)* — rides inside `scan-batch` as `anomalyScores` + `anomalyScoresByInstance` | **present** in both maps; risk reads `anomalyScoresByInstance` via `anomaliesByInstance` store; name map kept for toasts/SummaryCards | `scan-loop.js` score block; `ipc.ts` sets both stores; `risk.ts` joins on `instanceId` |
 | **resource** | `resource-usage` | **absent**, and the channel is **never subscribed** | shape `resource-monitor.js:23`, `:264-268` (pid only); send `scan-loop.js:313-315`; `preload.js:88-92` exposes `onResourceUsage`, and no file under `src/renderer/` calls it — the renderer's `resourceUsage` store holds the *app's own* memory/CPU from `main.js:124-133`, a different shape entirely |
 | **token** | `token-costs` | **present, and it IS the key** | `token-tracker.js:104` (`CostRecord.instanceId`), `:126` (`Map` keyed by it), `:191-197` (`recordKey`); renderer type `ipc.ts:64-73` |
 | **stats** | `stats-update` | n/a — aggregate counters, no per-agent identity | `main.js:136+`, `scan-loop.js:380` |
@@ -177,7 +177,7 @@ renderer therefore sees the durable key format directly.
 | 4.1.8 | *(closed, step 5)* | was `hasCwd && raw.pid ? eventsByPid.get(raw.pid) : eventsByName.get(name)` → `eventsByInstance.get(raw.instanceId)` |
 | 4.1.9 | *(closed, step 5)* | the name-branch `parentEditor` refinement is deleted — it existed only to patch that branch |
 | 4.1.10 | *(closed, step 5)* | was `hasCwd && raw.pid ? connsByPid.get(raw.pid) : connsByName.get(name)` → `connsByInstance.get(raw.instanceId)` |
-| 4.1.11 | `219` | `$anomalies[name]` |
+| 4.1.11 | *(closed, C2 renderer)* | was `$anomalies[name]` → `$anomaliesByInstance[instanceId]` (neutral 0 if key missing/null) |
 | 4.1.12 | `231, 240` | `fpNames.has(name)`; published field `instanceKey: iKey` (type `src/shared/types/risk.ts:103`) |
 
 ### 4.2 Stores — 4 sites
@@ -185,8 +185,8 @@ renderer therefore sees the durable key format directly.
 | # | Site | Key expression |
 |---|---|---|
 | 4.2.1 | `stores/events-index.ts` *(closed, step 4)* | was `Map<number, FileEvent[]>` keyed `evt.pid` → `Map<string, FileEvent[]>` keyed `evt.instanceId` (guards: `attribution.status === 'unattributed'` skipped, missing key skipped) |
-| 4.2.2 | `stores/ipc.ts:125` | `focusedAgentPid: Writable<number \| null>` |
-| 4.2.3 | `stores/ipc.ts:132` | `selectedAgentPid: Writable<number \| null>` |
+| 4.2.2 | `stores/ipc.ts` *(closed, step 8)* | was `focusedAgentPid: number` → `focusedAgentInstanceId: string \| null` |
+| 4.2.3 | `stores/ipc.ts` *(closed, step 8)* | was `selectedAgentPid: number` → `selectedAgentInstanceId: string \| null` |
 | 4.2.4 | `stores/acknowledged.ts:17` | `Writable<Set<string>>` of agent **display names** |
 
 ### 4.3 Components and utils — 33 sites
@@ -195,21 +195,21 @@ renderer therefore sees the durable key format directly.
 |---|---|---|
 | 4.3.1 | `AgentPanel.svelte:24-32` | `byName: Map<string, EnrichedAgent[]>` keyed `a.name` |
 | 4.3.2 | `AgentPanel.svelte:57` | `{#each grouped as agent (agent.name)}` |
-| 4.3.3 | `AgentPanel.svelte:58` | `bind:expandedPid={$selectedAgentPid}` — the *representative's* pid |
-| 4.3.4 | `AgentCard.svelte:26` | `expanded = expandedPid === agent.pid` |
-| 4.3.5 | `AgentCard.svelte:54-57` | `$focusedAgentPid === agent.pid` |
+| 4.3.3 | `AgentPanel.svelte` *(closed, step 8)* | was `bind:expandedPid={$selectedAgentPid}` → `bind:expandedInstanceId={$selectedAgentInstanceId}` |
+| 4.3.4 | `AgentCard.svelte` *(closed, step 8)* | was `expandedPid === agent.pid` → `isAgentSelected(expandedInstanceId, agent)` |
+| 4.3.5 | `AgentCard.svelte` *(closed, step 8)* | was `$focusedAgentPid === agent.pid` → `isAgentSelected($focusedAgentInstanceId, agent)` |
 | 4.3.6 | `AgentCard.svelte:82` *(closed, step 4)* | was `$eventsByPid.get(agent.pid)` → `$eventsByInstance.get(agent.instanceId)` |
-| 4.3.7 | `AgentCard.svelte:87-91` | `agent.instanceId && r.instanceId ? r.instanceId === agent.instanceId : r.pid === agent.pid` |
-| 4.3.8 | `AgentCard.svelte:112` | `expandedPid = expanded ? null : agent.pid` |
-| 4.3.9 | `AgentCard.svelte:215` | `onViewDetails={() => (expandedPid = agent.pid)}` |
-| 4.3.10 | `AgentActions.svelte:25` | `agentKey = agent.name \|\| agent.agent \|\| String(agent.pid ?? '')` |
-| 4.3.11 | `AgentActions.svelte:28, 67` | `$acknowledgedAgents.has(agentKey)` / `toggleAcknowledged(agentKey)` |
-| 4.3.12 | `AgentActions.svelte:41` | `blocklistAdd({ signature: agentKey })` — no pid |
+| 4.3.7 | `AgentCard.svelte:87-91` | `agent.instanceId && r.instanceId ? r.instanceId === agent.instanceId : r.pid === agent.pid` (token match; selection is not this path) |
+| 4.3.8 | `AgentCard.svelte` *(closed, step 8)* | was `expandedPid = … agent.pid` → `toggleInstanceSelection(…)` |
+| 4.3.9 | `AgentCard.svelte` *(closed, step 8)* | was `onViewDetails` → `agent.pid` → `toggleInstanceSelection(null, agent)` |
+| 4.3.10 | `AgentActions.svelte` *(closed, step 10)* | was unified `agentKey` → `ackId` (instanceId) + `watchSig` (name) |
+| 4.3.11 | `AgentActions.svelte` *(closed, step 10)* | `$acknowledgedAgents.has(ackId)` / `toggleAcknowledged(ackId)` |
+| 4.3.12 | `AgentActions.svelte` | `blocklistAdd({ signature: watchSig, pid: null })` — durable name, intentional |
 | 4.3.13 | `PermissionsGrid.svelte:55-57` | `seen.has(a.instanceKey)` |
 | 4.3.14 | `PermissionsGrid.svelte:78-88` | `Object.keys(permissions)`; `key.split('::')[0]`, `[1]` |
 | 4.3.15 | `PermissionsGrid.svelte:95` | `selectedKey.includes('::') && !!permissions[selectedKey]` |
 | 4.3.16 | `PermissionsGrid.svelte:112, 126-133` | `allEntries.find(e => e.key === selectedKey)`; `saveInstancePermissions({agentName, parentEditor, cwd})` |
-| 4.3.17 | `AgentStatsPanel.svelte:71-72` | `focusedAgentPid.set(pid)` — `row.pid` = representative's pid |
+| 4.3.17 | `AgentStatsPanel.svelte` *(closed, step 8)* | was `focusedAgentPid.set(pid)` → `focusedAgentInstanceId.set(focusInstanceId(row))` |
 | 4.3.18 | `AgentStatsPanel.svelte:97` | `{#each rows as row (row.name)}` |
 | 4.3.19 | `agent-stats-utils.ts:34-41` | `byName: Map<string, EnrichedAgent[]>` keyed `a.name` |
 | 4.3.20 | `grouped-feed-utils.ts:123` | `r.filter(ev => ev.agent === agentFilter)` |
@@ -220,12 +220,12 @@ renderer therefore sees the durable key format directly.
 | 4.3.25 | `ThreatAnalysis.svelte:16-18` | `counts[a.name] = (counts[a.name] \|\| 0) + 1` |
 | 4.3.26 | `Header.svelte:17` | `new Set($enrichedAgents.map(a => a.name)).size` |
 | 4.3.27 | `FeedFilters.svelte:22` | `[...new Set(cachedAgents.map(a => a.name))]` |
-| 4.3.28 | `Timeline.svelte:133` | `` key = `${ev.timestamp}|${ev.agent}|${ev._type}` `` |
-| 4.3.29 | `Timeline.svelte:274` | `if (dot.pid) focusedAgentPid.set(dot.pid)` |
-| 4.3.30 | `timeline-utils.ts:344-349` | `agent: ev.agent \|\| 'Unknown'`, `pid: ev.pid \|\| null`, `instanceId: ev.instanceId` |
-| 4.3.31 | `timeline-utils.ts:369, 376` | `agentKey: agents.length === 1 ? agents[0] : null` — the **name** |
-| 4.3.32 | `timeline-utils.ts:394-400` | `lastByAgent[dot.agentKey]` — connection lines |
-| 4.3.33 | `App.svelte:189` | `get(enrichedAgents).find(a => a.pid === pid)` |
+| 4.3.28 | `Timeline.svelte` *(closed, step 9)* | was `` `${ts}\|${agent}\|${_type}` `` → `timelineDedupKey(ev, ordinal)` |
+| 4.3.29 | `Timeline.svelte` *(closed, step 8+9)* | focus write: `focusInstanceId(dot)`; trajectory: instanceId agentKey |
+| 4.3.30 | `timeline-utils.ts` | display `agent` / metadata `pid`; identity `instanceId` |
+| 4.3.31 | `timeline-utils.ts` *(closed, step 9)* | was name `agentKey` → `clusterTrajectoryKey` (stamped instanceId) |
+| 4.3.32 | `timeline-utils.ts` *(closed, step 9)* | `buildLinks` walks instanceId agentKey only |
+| 4.3.33 | `App.svelte` *(closed, step 8)* | was `find(a => a.pid === pid)` → `resolveSelectedAgent(…, selectedAgentInstanceId)` |
 
 `NetworkPanel.svelte:106, 155` keys connections on
 `` `${c.pid}-${c.remoteIp}-${c.remotePort}-${c.state}` `` — a *connection* key, not an agent
@@ -265,20 +265,20 @@ entry appears in the PermissionsGrid dropdown (`PermissionsGrid.svelte:55-57`), 
 cwd-level permission saved under the first key stops resolving
 (`config-manager.js:251-261`).
 
-### C2 — CLOSED (step 7) — the anomaly term is per-name by construction
+### C2 — CLOSED (step 7 main + renderer half) — the anomaly term was per-name by construction
 
-The mechanism was: `risk.ts` reads `$anomalies[name]`, and the main process built that map
-as `scores[a.agent]` on top of `sessionData[agentName]` (`baselines.js:63-65`), so two
-instances shared one live session bucket and one anomaly score. Even a perfect renderer key
-left this component of the risk score shared.
+The mechanism was: `risk.ts` read `$anomalies[name]`, and the main process built that map
+as `scores[a.agent]` on top of `sessionData[agentName]`, so two instances shared one live
+session bucket and one anomaly score. Even a perfect file/network key left this term shared.
 
-The live bucket now keys on `instanceId` and carries its `agentName`; the persisted profile
-(`baselines.agents`) stays keyed on the name, and the on-disk format is unchanged. An agent
-with no key gets no bucket rather than a namesake's. `scan-batch` carries
-`anomalyScoresByInstance` (per `instanceId`) beside the name-keyed `anomalyScores`, now the
-max over that name's instances — the renderer is untouched and still reads the name map,
-so the term it shows is the worse of the two rather than one merged bucket. Moving that
-read onto the per-instance map is renderer work, not part of this step.
+**Main (`975ed1a`):** the live bucket keys on `instanceId` and carries its `agentName`; the
+persisted profile (`baselines.agents`) stays on the name. `scan-batch` emits
+`anomalyScoresByInstance` beside name-keyed `anomalyScores` (max over that name's instances).
+
+**Renderer (this block):** `ipc.ts` stores the per-instance map in `anomaliesByInstance`;
+`risk.ts` reads only `$anomaliesByInstance[instanceId]`. No name fallback, no pid fallback,
+no re-derived key. Null/missing `instanceId` → neutral 0. The name-keyed `anomalies` store
+remains for App.svelte toasts and SummaryCards.
 
 ### C3 — collide — deliberate per-name UI roll-up hides everything above
 
@@ -292,20 +292,28 @@ not displayed. `Radar.svelte:31-40`, `Reports.svelte:35-55`, `ThreatAnalysis.sve
 
 This is intentional grouping, not a keying bug — but it is why C1 is invisible to the user.
 
-### C4 — collide — acknowledgement and watchlist are per-name
+### C4 — CLOSED (ack half, step 10) — acknowledgement was per-name; watchlist stays name
 
-`AgentActions.svelte:25` derives `agentKey` from the display name. Acknowledging one
-instance acknowledges every instance (`acknowledged.ts:17`), and
-`blocklistAdd({signature: agentKey})` with no pid creates an any-PID watchlist entry
-(`blocklist.js:195`: `entry.pid === null` matches every pid of that signature).
+The mechanism was: one `agentKey` (display name, pid fallback) fed both
+`toggleAcknowledged` and `blocklistAdd`, so acknowledging one Claude Code marked every
+instance, and watchlist shared that key.
 
-### C5 — collide — timeline joins two instances into one trajectory
+**Fix:** `acknowledgementInstanceId(agent)` = stamped `instanceId` only (session
+`Set` in `acknowledged.ts`); `watchlistSignature(agent)` = display name only for
+durable `blocklistAdd({ signature, pid: null })`. Same-name restart keeps watchlist,
+loses acknowledgement. Null instanceId → ack button disabled / no-op.
 
-`timeline-utils.ts:376` sets `agentKey` to the agent **name**, and `:394-400` draws
-connection lines between consecutive dots sharing that key. Two instances of the same agent
-produce a single interleaved path. Separately, `Timeline.svelte:133` dedups on
-`` `${ev.timestamp}|${ev.agent}|${ev._type}` `` — two instances acting in the same
-millisecond with the same type lose one event.
+### C5 — CLOSED (step 9) — timeline joins two instances into one trajectory
+
+The mechanism was: `buildClusters` set `agentKey` to the display name, and `buildLinks`
+drew paths on that key; `Timeline.svelte` deduped on `` `${timestamp}|${agent}|${_type}` ``.
+Two same-name instances shared one path and one dedup bucket.
+
+**Fix:** trajectory `agentKey` and cluster `instanceId` are the shared stamped
+`instanceId` only (`clusterTrajectoryKey`); missing/mixed → null (visible, no path).
+Dedup uses `timelineDedupKey` (instanceId segment, or unique ordinal when unowned so
+nulls do not collapse). Live network events carry `conn.instanceId`. No name/pid
+fallback.
 
 ### C6 — CLOSED (steps 4–5) — the event index was keyed on a recyclable pid
 
@@ -403,36 +411,35 @@ correct with only steps `1..k` applied.
    **S1**. *Behaviour-preserving.* **Do not** move `PermissionsGrid` (§4.3.13–4.3.16) or
    `blocklist` (§3.10) to `instanceId`.
 
-7. **DONE (`975ed1a`) — anomaly scores became per-instance.** `baselines.js` keys
-   `sessionData` by `instanceId` and stores `agentName` inside the bucket;
-   `anomaly-detector.js` looks the bucket up by key and its profile up by that name. The
-   persisted `baselines.agents` map stays keyed by **name** (it is the cross-session profile
-   — that is what a baseline is), the on-disk format is unchanged, and pre-migration files
-   keep loading and matching. `finalizeSession` writes one record per instance, so the unit
-   of a persisted session matches the unit of the live bucket; until the launch-sized
-   records leave the 10-session window (`ceil(10/N)` launches) averages stay inflated and
-   deviations under-fire. `scan-loop.js` emits `anomalyScoresByInstance` beside the
-   name-keyed `anomalyScores` (max over that name's instances) — `risk.ts` was NOT touched
-   and still reads the name map. **Changed what the user sees.** Closed **C2**.
+7. **DONE (`975ed1a` + renderer half) — anomaly scores became per-instance end to end.**
+   `baselines.js` keys `sessionData` by `instanceId` and stores `agentName` inside the
+   bucket; `anomaly-detector.js` looks the bucket up by key and its profile up by that
+   name. The persisted `baselines.agents` map stays keyed by **name**. `scan-loop.js`
+   emits `anomalyScoresByInstance` beside name-keyed `anomalyScores` (max over instances).
+   Renderer: `anomaliesByInstance` store + `risk.ts` join on stamped `instanceId` only;
+   name map kept for toasts/SummaryCards. Closed **C2**.
 
-8. **Selection and per-instance UI state.** `focusedAgentPid` / `selectedAgentPid`
-   (`ipc.ts:125`, `:132`) become `focusedAgentInstance` / `selectedAgentInstance`; the
-   consumers at §4.3.3–4.3.9, 4.3.17, 4.3.29, 4.3.33 follow. `App.svelte:189`'s
-   `find(a => a.pid === pid)` becomes an instance lookup; `ipc-handlers.js:400,415,430`'s
-   pid guard is tightened to match on instance. **Changes what the user sees** — expanding a
-   card in a two-instance group selects that instance, not the group representative.
+8. **DONE — Selection and per-instance UI state.** `focusedAgentInstanceId` /
+   `selectedAgentInstanceId` (`string | null`) replace the pid stores. Card expand,
+   focus/scroll, stats row click, timeline focus write, and command-palette resolve use
+   stamped `instanceId` only (`agent-selection.ts`). Process kill/suspend still pass the
+   **resolved live record's pid** to main IPC (OS needs a pid); they never re-find by pid.
+   Stale selection after the instance dies does not rebind on pid reuse. Main-process
+   kill/suspend pid guards (`ipc-handlers.js`) are unchanged — out of renderer step 8.
+   **Changes what the user sees.**
 
-9. **Timeline identity.** `timeline-utils.ts:376` sets `agentKey` from `instanceId` when
-   present, falling back to the name for historical audit rows that never carried one
-   (§2.2); `Timeline.svelte:133`'s dedup key gains the instance segment. **Changes what the
-   user sees** — two instances draw two paths. Closes **C5**.
+9. **DONE — Timeline identity (C5).** `agentKey` / cluster process identity is stamped
+   `instanceId` only (`clusterTrajectoryKey`); no name fallback for historical rows —
+   unowned events stay visible with `agentKey: null` and no path. Dedup is
+   `timelineDedupKey` (instance segment, or unique ordinal when unowned). Live network
+   events carry `instanceId`. Focus remains `focusInstanceId(dot)` (step 8). **Changes
+   what the user sees** — two instances draw two paths. Closes **C5**.
 
-10. **Acknowledgement per instance.** `AgentActions.svelte:25` derives `agentKey` from
-    `agent.instanceId`; `acknowledged.ts` is unchanged (already `Set<string>`). The
-    `blocklistAdd` call at `:41` **stays on the name** — the watchlist is durable
-    (`blocklist.js:124`) and an any-PID signature entry is its intended semantics; if
-    per-instance flagging is wanted it is a separate feature, not a key migration.
-    **Changes what the user sees.** Closes the acknowledgement half of **C4**.
+10. **DONE — Acknowledgement per instance (C4 ack half).** `acknowledgementInstanceId`
+    reads stamped `instanceId` only; session store keys match. Watchlist uses
+    `watchlistSignature` (display name) + `pid: null` any-PID entry — durable by design,
+    not migrated to instanceId. Null stamp → ack no-op / disabled. **Changes what the
+    user sees.** Closes the acknowledgement half of **C4**.
 
 11. **Per-name roll-up becomes a choice, not a default.** `AgentPanel.svelte:21-47`,
     `agent-stats-utils.ts:33-57`, `Radar`, `Reports`, `ThreatAnalysis`, `Header`,
@@ -468,7 +475,7 @@ intentional.
 | `tests/main/process-identity.test.js` | Complete for the three value spaces. Step 2 needs a new assertion at the *batch* level (every agent in `scan-batch` has a non-empty `instanceId`), which belongs in a scan-loop test, not here. |
 | `tests/main/file-watcher.test.js:362-388`, `440-445` | The `handleKey` migration template — mirror its structure for step 4's `eventsByInstance`. |
 | `tests/main/audit-schema-v1.test.js:79-87`, `117`, `224` | Asserts `instanceId: null` for the types listed in §2.2. Step 3 flips file and network to real values; these assertions must be updated deliberately, not deleted. Note `:79` passes `'0:Kilo Code'` verbatim — `identify()` would normalise it to `0:kilo-code`, so step 2 changes what a real detector emits even though this test (which injects the value) keeps passing. |
-| `tests/renderer/acknowledged.test.js` | Key-agnostic today (`Set<string>`); step 10 needs an instance-keyed case. |
+| `tests/renderer/acknowledged.test.js` | Keys are stamped instanceIds (step 10); `agent-action-keys.test.ts` pins the ack/watchlist split. |
 | `tests/renderer/grouped-feed-utils.test.ts` | Groups by `ev.agent`; unaffected until step 11, then must be rewritten. |
 
 ### 7.3 Missing coverage that the migration needs
