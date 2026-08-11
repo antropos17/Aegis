@@ -131,6 +131,23 @@ export default [
     },
   },
   {
+    // Node 22 strips TypeScript types by default, so a require() of a .ts path
+    // resolves silently instead of throwing the way it did on Node 20. Lint is
+    // the only gate left that can catch it.
+    files: ['**/*.js'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'CallExpression[callee.name="require"][arguments.0.type="Literal"][arguments.0.value=/\\.tsx?$/]',
+          message:
+            'require() of a .ts/.tsx path in a JavaScript file — use an ESM import instead. Node 22 type stripping makes this pass silently at runtime.',
+        },
+      ],
+    },
+  },
+  {
     files: ['src/renderer/**/*.ts'],
     languageOptions: {
       globals: { ...globals.browser },
@@ -165,6 +182,36 @@ export default [
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': [
         'error',
+        {
+          argsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
+    },
+  },
+  {
+    // The lint gate walks tests/ and scripts/ so the require-of-.ts rule above
+    // reaches the directory the historical offender lived in. Both directories
+    // carry pre-existing violations that are properties of their role, not
+    // defects: script entrypoints (.mjs/.cjs) run without a declared globals
+    // set, and a test fixture deliberately embeds control characters. Scoped
+    // here only — src/ keeps both rules at full strength.
+    files: ['tests/**/*.{js,mjs,cjs,ts}', 'scripts/**/*.{js,mjs,cjs,ts}'],
+    rules: {
+      'no-undef': 'off',
+      'no-control-regex': 'off',
+    },
+  },
+  {
+    // TypeScript strictness is calibrated for src/. Tests and scripts keep the
+    // unused-vars signal as a warning, matching the plain no-unused-vars level
+    // the .js blocks above already use for these directories.
+    files: ['tests/**/*.ts', 'scripts/**/*.ts'],
+    rules: {
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
         {
           argsIgnorePattern: '^_',
           caughtErrorsIgnorePattern: '^_',
