@@ -28,8 +28,16 @@ const {
 const { getAllRules, reloadRules } = require('./rule-loader');
 const { EVIDENCE, makeAttribution } = require('./attribution');
 const { readInstanceId } = require('./process-identity');
+const sensorHealth = require('./sensor-health');
 const _platform = require('./platform');
 const { IGNORE_FILE_PATTERNS } = _platform;
+
+/** Stable filesystem sensor IDs (B2). Generic string ids — not a frozen registry. */
+const FS_SENSOR = Object.freeze({
+  CHOKIDAR: 'fs-chokidar',
+  HANDLE: 'fs-handle',
+  RM: 'fs-rm',
+});
 
 /**
  * Default directories to ignore in file watchers.
@@ -74,11 +82,102 @@ const _isRmAvailable = _platform.isRestartManagerAvailable;
 // knownHandles dedup already prevents double-emit (JS is single-threaded); this
 // only avoids a redundant concurrent spawn when both ticks coincide.
 let _rmScanInFlight = false;
+/** Optional test override for platform read-detection capability. */
+let _isReadDetectionAvailableOverride = undefined;
+
+/**
+ * Authoritative filesystem sensor-health records (B2). Lifetime = module process /
+ * until explicit reinit (setupFileWatchers for chokidar; _resetFsHealth for tests).
+ * @type {Record<string, import('./sensor-health').SensorHealth>}
+ */
+let _fsHealth = createInitialFsHealth();
+
+/**
+ * @returns {Record<string, object>}
+ */
+function createInitialFsHealth() {
+  const now = Date.now();
+  // Platform permanently without RM (darwin/linux) → UNSUPPORTED. Test overrides
+  // inject getSensitiveHolders later and re-create STARTING via _setDepsForTest.
+  const platformHasRm = typeof _platform.getSensitiveHolders === 'function';
+  const rm = platformHasRm
+    ? sensorHealth.createSensorHealth(FS_SENSOR.RM)
+    : sensorHealth.createUnsupported(FS_SENSOR.RM, {
+        detail: 'platform-no-rm',
+        now,
+      });
+  return {
+    [FS_SENSOR.CHOKIDAR]: sensorHealth.createSensorHealth(FS_SENSOR.CHOKIDAR),
+    [FS_SENSOR.HANDLE]: sensorHealth.createSensorHealth(FS_SENSOR.HANDLE),
+    [FS_SENSOR.RM]: rm,
+  };
+}
+
+/**
+ * Reset FS health records (tests / intentional reinit). Does not clear residual
+ * production loss mid-lifetime except by creating new records.
+ * @returns {void}
+ */
+function _resetFsHealth() {
+  _fsHealth = createInitialFsHealth();
+}
+
+/**
+ * @param {unknown} err
+ * @returns {string}
+ */
+function healthErrorMessage(err) {
+  if (err == null) return 'unknown-error';
+  if (typeof err === 'string') return err.slice(0, 200);
+  const msg = err && err.message != null ? String(err.message) : String(err);
+  return msg.slice(0, 200);
+}
+
+/**
+ * @returns {boolean}
+ */
+function handleCapabilityOk() {
+  if (typeof _isReadDetectionAvailableOverride === 'boolean') {
+    return _isReadDetectionAvailableOverride;
+  }
+  if (typeof _platform.isReadDetectionAvailable === 'function') {
+    return _platform.isReadDetectionAvailable();
+  }
+  // darwin/linux: lsof//proc always available — no probe.
+  return true;
+}
+
+/**
+ * Plain serializable snapshots for future B6 — callers must not mutate.
+ * @returns {Record<string, object>}
+ * @since 0.11.0
+ */
+function getFileSensorHealth() {
+  /** @type {Record<string, object>} */
+  const out = {};
+  for (const id of Object.values(FS_SENSOR)) {
+    out[id] = sensorHealth.toPlain(_fsHealth[id]);
+  }
+  return out;
+}
+
 /** @internal Override dependencies (for tests). */
 function _setDepsForTest(overrides) {
   if (overrides.getFileHandles) _getFileHandles = overrides.getFileHandles;
-  if (overrides.getSensitiveHolders) _getSensitiveHolders = overrides.getSensitiveHolders;
+  if (overrides.getSensitiveHolders) {
+    _getSensitiveHolders = overrides.getSensitiveHolders;
+    // Tests inject RM on platforms where it is UNSUPPORTED by default.
+    if (
+      _fsHealth[FS_SENSOR.RM] &&
+      _fsHealth[FS_SENSOR.RM].state === sensorHealth.SENSOR_HEALTH_STATE.UNSUPPORTED
+    ) {
+      _fsHealth[FS_SENSOR.RM] = sensorHealth.createSensorHealth(FS_SENSOR.RM);
+    }
+  }
   if (overrides.getHotSensitiveHolders) _getHotSensitiveHolders = overrides.getHotSensitiveHolders;
+  if (Object.prototype.hasOwnProperty.call(overrides, 'isReadDetectionAvailable')) {
+    _isReadDetectionAvailableOverride = overrides.isReadDetectionAvailable;
+  }
 }
 /** @internal Reset debounce state + opt out of the RM path (for tests). */
 function _resetForTest() {
@@ -86,6 +185,8 @@ function _resetForTest() {
   _getSensitiveHolders = undefined; // tests opt into RM explicitly via _setDepsForTest
   _getHotSensitiveHolders = undefined;
   _rmScanInFlight = false;
+  _isReadDetectionAvailableOverride = undefined;
+  _resetFsHealth();
 }
 
 const watcherDebounce = new Map();
@@ -198,6 +299,20 @@ function bindWatcherEvents(watcher) {
   watcher.on('add', (p) => handleWatcherEvent('created', p));
   watcher.on('change', (p) => handleWatcherEvent('modified', p));
   watcher.on('unlink', (p) => handleWatcherEvent('deleted', p));
+  // B2: chokidar may keep running after some errors — DEGRADED not FAILED.
+  // No lossCount: chokidar does not expose a quantitative lost-event counter.
+  watcher.on('error', (err) => {
+    const now = Date.now();
+    _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.CHOKIDAR], now, {
+      error: healthErrorMessage(err),
+      detail: 'chokidar-error',
+    });
+  });
+  // ready = successful initialization of this FSWatcher instance.
+  watcher.on('ready', () => {
+    const now = Date.now();
+    _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.markHealthy(_fsHealth[FS_SENSOR.CHOKIDAR], now);
+  });
 }
 
 function handleWatcherEvent(action, filePath) {
@@ -277,6 +392,8 @@ function handleWatcherEvent(action, filePath) {
 
 /** @returns {Promise<void>} @since v0.1.0 */
 async function setupFileWatchers() {
+  // Reinit chokidar health lifetime when production recreates the watcher set.
+  _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.createSensorHealth(FS_SENSOR.CHOKIDAR);
   const homeDir = os.homedir();
   const sensitiveDirCandidates = SENSITIVE_AGENT_DIRS.map((d) => path.join(homeDir, d));
   const sensitiveDirs = await filterExistingDirs(sensitiveDirCandidates);
@@ -362,8 +479,9 @@ function handleKey(agent) {
 }
 
 /**
+ * Per-agent handle observation.
  * @param {Object} agent
- * @returns {Promise<Array>}
+ * @returns {Promise<{ok: boolean, events: Array, error?: string}>}
  * @since v0.1.0
  */
 async function scanFileHandles(agent) {
@@ -371,10 +489,13 @@ async function scanFileHandles(agent) {
   let files;
   try {
     files = await _getFileHandles(pid);
-  } catch (_) {
-    return [];
+  } catch (err) {
+    // B-S03: empty events are compatibility only — ok:false means not a clean empty.
+    return { ok: false, events: [], error: healthErrorMessage(err) };
   }
-  if (!Array.isArray(files) || files.length === 0) return [];
+  if (!Array.isArray(files) || files.length === 0) {
+    return { ok: true, events: [] };
+  }
 
   const kh = _state.knownHandles;
   const key = handleKey(agent);
@@ -386,6 +507,8 @@ async function scanFileHandles(agent) {
     known = kh.get(key);
   }
   const newAccess = [];
+  // Event loop is outside getFileHandles try/catch so unexpected throws (e.g.
+  // recordFileAccess) propagate to the worker pool, which drops only this agent.
   for (const f of files) {
     if (shouldIgnore(f)) continue;
     if (known && known.has(f)) continue;
@@ -430,7 +553,7 @@ async function scanFileHandles(agent) {
     }
     _state.recordFileAccess(event.instanceId, agent.agent, f, event.sensitive, event.reason);
   }
-  return newAccess;
+  return { ok: true, events: newAccess };
 }
 
 /**
@@ -466,10 +589,21 @@ function rmEnabled() {
  * @since v0.10.0
  */
 async function scanViaRestartManager(agents, fetchHolders = _getSensitiveHolders) {
-  if (_rmScanInFlight) return []; // a full/hot RM scan is already running — skip
+  // B-S09: legitimate single-flight skip — not FAILED, not a success tick.
+  if (_rmScanInFlight) return [];
   _rmScanInFlight = true;
+  const now = Date.now();
   try {
-    return await _scanRmHolders(agents, fetchHolders);
+    const events = await _scanRmHolders(agents, fetchHolders);
+    _fsHealth[FS_SENSOR.RM] = sensorHealth.markHealthy(_fsHealth[FS_SENSOR.RM], now);
+    return events;
+  } catch (err) {
+    _fsHealth[FS_SENSOR.RM] = sensorHealth.markFailed(_fsHealth[FS_SENSOR.RM], now, {
+      error: healthErrorMessage(err),
+      detail: 'rm-fetch-failed',
+    });
+    // Compatibility empty array — health carries FAILED (B-S05 / B-S03 class).
+    return [];
   } finally {
     _rmScanInFlight = false;
   }
@@ -484,12 +618,8 @@ async function scanViaRestartManager(agents, fetchHolders = _getSensitiveHolders
  * @returns {Promise<Array>}
  */
 async function _scanRmHolders(agents, fetchHolders) {
-  let holders;
-  try {
-    holders = await fetchHolders();
-  } catch (_) {
-    return [];
-  }
+  // Let fetch failures propagate so scanViaRestartManager can mark FAILED.
+  const holders = await fetchHolders();
   if (!Array.isArray(holders) || holders.length === 0) return [];
   const toScan =
     _state && _state.isOtherPanelExpanded() ? agents : agents.filter((a) => a.category === 'ai');
@@ -590,16 +720,45 @@ async function scanHotFileHolders(agents) {
  * @since v0.1.0
  */
 async function scanAllFileHandles(agents) {
+  const now = Date.now();
   // win32 primary: honest read-detect via Restart Manager (no handle.exe needed).
   // Falls through to the legacy per-PID handle pool on darwin/linux, or on win32
   // when RM is unavailable (the PR-A getFileHandles→[] fallback still applies).
-  if (rmEnabled()) return scanViaRestartManager(agents);
+  if (rmEnabled()) {
+    // RM path owns observation this tick; handle sensor not sampled.
+    return scanViaRestartManager(agents);
+  }
+
+  // B-S04: capability blind — empty results are not HEALTHY clean observation.
+  if (!handleCapabilityOk()) {
+    _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.HANDLE], now, {
+      error: 'read-detection-unavailable',
+      detail: 'no-handle-binary-and-no-rm',
+    });
+    // Only degrade RM when it is an expected sensor (not platform-UNSUPPORTED).
+    if (
+      _fsHealth[FS_SENSOR.RM].state !== sensorHealth.SENSOR_HEALTH_STATE.UNSUPPORTED &&
+      !rmEnabled()
+    ) {
+      _fsHealth[FS_SENSOR.RM] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.RM], now, {
+        error: 'rm-unavailable',
+        detail: 'read-detection-unavailable',
+      });
+    }
+    return [];
+  }
+
   const toScan =
     _state && _state.isOtherPanelExpanded() ? agents : agents.filter((a) => a.category === 'ai');
+  if (toScan.length === 0) {
+    // No agents to probe — not a sensor failure (scan-loop skips earlier too).
+    return [];
+  }
   // Bounded-concurrency worker pool: at most FILE_SCAN_CONCURRENCY scanFileHandles()
   // run at once (each spawns one powershell/handle.exe). Results are stored by
   // original index, so the returned array stays in agent order — per-event agent
   // attribution (C-01) is stamped inside scanFileHandles and never cross-wired.
+  /** @type {Array<{ok: boolean, events: Array, error?: string}>} */
   const results = new Array(toScan.length);
   let next = 0;
   async function worker() {
@@ -607,17 +766,40 @@ async function scanAllFileHandles(agents) {
       const i = next++;
       try {
         results[i] = await scanFileHandles(toScan[i]);
-      } catch (_) {
-        // One agent's scan throwing (e.g. unguarded recordFileAccess) must not
-        // abort the batch — drop just this agent's events and pull the next.
-        results[i] = [];
+      } catch (err) {
+        // Unexpected throw outside scanFileHandles control — count as agent failure.
+        results[i] = { ok: false, events: [], error: healthErrorMessage(err) };
       }
     }
   }
   const poolSize = Math.min(FILE_SCAN_CONCURRENCY, toScan.length);
   await Promise.all(Array.from({ length: poolSize }, worker));
   const allNew = [];
-  for (const r of results) allNew.push(...r);
+  let failCount = 0;
+  let lastErr = null;
+  for (const r of results) {
+    if (!r) continue;
+    if (!r.ok) {
+      failCount += 1;
+      lastErr = r.error || lastErr;
+    }
+    allNew.push(...(r.events || []));
+  }
+  const t = Date.now();
+  if (failCount === toScan.length) {
+    _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markFailed(_fsHealth[FS_SENSOR.HANDLE], t, {
+      error: lastErr || 'handle-scan-failed',
+      detail: 'all-agents-failed',
+    });
+  } else if (failCount > 0) {
+    // Partial: keep successful events; health is DEGRADED (B2).
+    _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.HANDLE], t, {
+      error: lastErr || 'partial-handle-scan',
+      detail: `failed-${failCount}-of-${toScan.length}`,
+    });
+  } else {
+    _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markHealthy(_fsHealth[FS_SENSOR.HANDLE], t);
+  }
   return allNew;
 }
 
@@ -677,8 +859,11 @@ module.exports = {
   isSelfAccess,
   handleWatcherEvent,
   getIgnoredDirFilter,
+  getFileSensorHealth,
+  FS_SENSOR,
   DEFAULT_IGNORED_DIRS,
   FILE_SCAN_CONCURRENCY,
   _setDepsForTest,
   _resetForTest,
+  _resetFsHealth,
 };

@@ -26,7 +26,28 @@ Version 0.10.0-alpha. 110 agents / 262 signatures in database. 73 rules across 8
 - **Block 0.6 CLOSED (F-W05/W08–W11/S07):** AgentPanel/stats rep-only metrics (no silent group FILES/NET sum); File Act label for weighted fileCount; Header avg health vs RiskIndex Worst Risk; RiskIndex process/processes; risk-band classifier shared (`getRiskInfo` thresholds); attribution comment closed-registry wording (not “six”). Letter trust grades remain a distinct taxonomy.
 - **Step 11** — optional per-instance UI roll-up (deferred).
 - **SummaryCards remaining:** none evidenced after F-W01…F-W07 correctness blocks.
-- **Block 0 status:** CLOSED after 0.6 (next: Block B Sensor Health / DEGRADED).
+- **Block 0 status:** CLOSED after 0.6.
+- **Block B (Sensor Health / DEGRADED):** roadmap — `docs/roadmap/sensor-health-degraded.md`.
+- **B1 CLOSED:** pure `src/main/sensor-health.js` — states STARTING|HEALTHY|DEGRADED|FAILED|DISABLED|UNSUPPORTED; lossCount cumulative per health-record lifetime (not cleared by success); consecutiveFailures only on full failures; aggregate worst-of excludes DISABLED/UNSUPPORTED, empty → NONE. Tests + mutations (fail→HEALTHY, loss→HEALTHY, recovery reset, aggregate ignore FAILED).
+- **B2 CLOSED:** FS sensors `fs-chokidar` / `fs-handle` / `fs-rm` in `file-watcher.js` — chokidar ready→HEALTHY, error→DEGRADED (no fake lossCount); handle empty success→HEALTHY vs throw→FAILED (compat `[]`); read-detection unavailable→DEGRADED (B-S04); RM success/fail/single-flight skip; `getFileSensorHealth()` plain snapshots. Mutations: drop error health, drop markFailed, capability→HEALTHY.
+- **B3 CLOSED:** process enumeration sensor id `process` owned by `process-scanner.js` (one persistent `_processHealth`; not recreated per poll; reset only `_resetForTest` / module lifetime).
+  - **Empty vs unknown:** valid empty fleet (`agents: []`, `reliable: true`) → HEALTHY; EPERM/EACCES/full permission-denied → compat `agents: []` + `reliable: false` + health FAILED (not trustworthy empty); hard provider throw → scan-loop `noteProcessScanHardFailure` → FAILED (no double-mark inside rethrow path).
+  - **B-S01:** EPERM no longer can look like clean zero-fleet via health alone; `lastSuccessAt` not advanced on deny; recovery next valid scan → HEALTHY, failures reset.
+  - **B-S02:** hard catch path notes FAILED + increments consecutiveFailures; later success clears via markHealthy.
+  - **B-S08 partial:** network still skips when agents empty; logs `network-skip` reason `confirmed-zero-agents` vs `process-observation-unavailable` via `isProcessPopulationReliable()` — no network health / S-NET state machine (B4).
+  - **reliable:** compatibility metadata; health authoritative; `reliable:false` ⇔ not HEALTHY (`isProcessPopulationReliable` = state===HEALTHY). No `addLoss()` on process (no quantitative event-loss).
+  - **API:** `getProcessSensorHealth()` plain JSON snapshot (B6-ready, no IPC). Identity/B2/IPC/renderer/powerMonitor/ETW unchanged.
+  - **Mutations (restored):** omit EPERM markFailed → red; omit noteProcessScanHardFailure → red; omit markHealthy recovery → red; collapse network-skip reason → red.
+  - **Gates:** 1341 pass / 4 skip / 81 files (+11 vs B2: 8 process-scanner-health + 3 scan-loop B-S08/B-S02); lint 0e/23w; typecheck 0; svelte-check 0; build 0.
+  - **Remaining Block B (pre-B4):** B4 network sensor health + ETW schema; B5 suspend/resume; B6 IPC; B7 renderer DEGRADED; B8 umbrella.
+- **B4 CLOSED:** network sensor id `network` owned by `network-monitor.js` (persistent `_networkHealth`; poll does not recreate).
+  - **B-S05:** TCP provider hard failure rejects (win32/darwin/linux no longer silent `[]` on spawn/parse fail); `scanNetworkConnections` marks FAILED + rethrows; valid empty/non-empty → HEALTHY. No `addLoss` (no quantitative TCP loss counter).
+  - **B-S08 CLOSED:** skip reasons retained; `noteNetworkSkip('confirmed-zero-agents')` → HEALTHY (agent-scoped vacuous success, `lastSuccessAt` advances); `noteNetworkSkip('process-observation-unavailable')` → DEGRADED (leaves prior HEALTHY; does not advance lastSuccessAt). Process reliability via B3 `isProcessPopulationReliable()` only.
+  - **API:** `getNetworkSensorHealth()` plain JSON snapshot (B6-ready, no IPC).
+  - **ETW:** still **absent** in `src/`; schema freeze in `docs/roadmap/sensor-health-degraded.md` (states, irrecoverable loss, session lifetime, EventsLost/BuffersLost aggregation UNKNOWN until producer).
+  - **Mutations:** omit markFailed → red; process-unavailable→HEALTHY → red; success→FAILED → red; omit markHealthy recovery → red.
+  - **Gates:** 1353 pass / 4 skip / 82 files (+12 vs B3: 11 network-monitor-health + 1 scan-loop distinct-skip); lint 0e/23w; typecheck 0; svelte-check 0; build 0.
+  - **Remaining Block B:** B5 suspend/resume; B6 IPC; B7 UI; B8 umbrella.
 
 **Open debts from step 7 — measurements for Bench to settle, not diagnosed bugs:**
 - **pid-0 synthetics from `attachModels` no longer reach baselines at all.** They live in `latestAgents` and are seen by the file and network scans, but no stamp site ever gives them an `instanceId` (`scan-loop.js` appends them AFTER the `scan-batch` send — IDENTITY-RECON §2.1), so the null-key policy drops every observation. Measure what they used to contribute; the fix, if wanted, is a stamp in `attachModels`, the same one `injectDetectedExternalAgents` already does.

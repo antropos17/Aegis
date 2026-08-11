@@ -139,9 +139,31 @@ function stopScanIntervals() {
 }
 
 function doNetworkScan() {
-  const { network, baselines, audit, logger, getLatestAgents, sendToRenderer } = deps;
+  const { network, baselines, audit, logger, getLatestAgents, sendToRenderer, scanner } = deps;
   const agents = getLatestAgents();
-  if (network.isNetworkScanRunning() || agents.length === 0) return;
+  if (network.isNetworkScanRunning()) return;
+  // B-S08: agent-scoped network sensor — empty agents still skip the TCP provider,
+  // but health must distinguish confirmed-zero (process HEALTHY) from process-unknown.
+  // Process reliability is B3's API only — never agents.length alone.
+  if (agents.length === 0) {
+    let reason = 'confirmed-zero-agents';
+    if (scanner && typeof scanner.isProcessPopulationReliable === 'function') {
+      if (!scanner.isProcessPopulationReliable()) {
+        reason = 'process-observation-unavailable';
+      }
+    } else if (
+      scanner &&
+      typeof scanner.getProcessSensorHealth === 'function' &&
+      scanner.getProcessSensorHealth().state !== 'HEALTHY'
+    ) {
+      reason = 'process-observation-unavailable';
+    }
+    logger.debug('scan', 'network-skip', { reason, agents: 0 });
+    if (typeof network.noteNetworkSkip === 'function') {
+      network.noteNetworkSkip(reason);
+    }
+    return;
+  }
   network.setNetworkScanRunning(true);
   const t0 = performance.now();
   network
@@ -189,6 +211,15 @@ function doNetworkScan() {
       });
     })
     .catch((err) => {
+      // B-S05: provider failure health is owned by network-monitor.scanNetworkConnections
+      // (markFailed before rethrow). Fallback note only if the inject path omitted it.
+      if (
+        typeof network.noteNetworkScanHardFailure === 'function' &&
+        typeof network.getNetworkSensorHealth === 'function' &&
+        network.getNetworkSensorHealth().state !== 'FAILED'
+      ) {
+        network.noteNetworkScanHardFailure(err);
+      }
       logger.error('main', 'Network scan failed', { error: err.message });
     })
     .finally(() => {
@@ -402,6 +433,12 @@ async function doProcessScan() {
       agents: agents.length,
     });
   } catch (err) {
+    // B-S02: hard failure (non-EPERM rethrow from scanProcesses, or later enrich throw).
+    // Compatibility still leaves latestAgents unchanged (setAgents only on success path);
+    // process health must record FAILED so empty fleet is not implied.
+    if (scanner && typeof scanner.noteProcessScanHardFailure === 'function') {
+      scanner.noteProcessScanHardFailure(err);
+    }
     logger.error('main', 'Process scan failed', { error: err.message });
   } finally {
     updateScanStatus(false);

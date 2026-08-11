@@ -104,7 +104,7 @@ function getParentProcessMap() {
  * @returns {Promise<Array<{pid: number, ip: string, port: number, state: string}>>}
  */
 function getRawTcpConnections(pids) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     if (pids.length === 0) {
       resolve([]);
       return;
@@ -123,8 +123,9 @@ function getRawTcpConnections(pids) {
         ['-i', 'TCP', '-n', '-P', '-F', 'pcnT'],
         { timeout: 10000, maxBuffer: 4 * 1024 * 1024 },
         (lsofErr, lsofStdout) => {
+          // B-S05: both providers failed → reject (not silent empty calm).
           if (lsofErr) {
-            resolve([]);
+            reject(lsofErr);
             return;
           }
           resolve(parseLsofOutput(lsofStdout, pidSet));
