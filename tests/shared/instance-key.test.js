@@ -4,14 +4,18 @@
  */
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
+import {
+  acknowledgementInstanceId,
+  watchlistSignature,
+} from '../../src/renderer/lib/utils/agent-action-keys';
 
+// The two subjects below are CommonJS main/shared modules — createRequire is the
+// right loader for them. The renderer helper above is TypeScript and must come in
+// through an ESM import, which Vite transforms; a require() of a .ts path is parsed
+// by Node itself and only survives where type stripping is on.
 const require = createRequire(import.meta.url);
 const { buildInstanceKey } = require('../../src/shared/instance-key.js');
 const { buildInstanceId } = require('../../src/main/process-identity.js');
-const {
-  acknowledgementInstanceId,
-  watchlistSignature,
-} = require('../../src/renderer/lib/utils/agent-action-keys.ts');
 
 describe('buildInstanceKey — durable permissions key', () => {
   it('prefers cwd over parentEditor over bare name', () => {
