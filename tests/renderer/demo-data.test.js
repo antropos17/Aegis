@@ -20,7 +20,7 @@ function makeStores() {
     stats: writable({}),
     network: writable([]),
     anomalies: writable({}),
-    resourceUsage: writable({}),
+    monitorResourceUsage: writable(null),
   };
 }
 

@@ -9,11 +9,33 @@ import type {
   FalsePositiveEntry,
 } from '../../../shared/types';
 
+/**
+ * AEGIS's OWN main-process load, exactly as `getResourceUsage()` builds it
+ * (src/main/main.js) — `process.memoryUsage()` / `process.cpuUsage()`. It says
+ * nothing about the monitored agents.
+ *
+ * `cpuUser` / `cpuSystem` are CUMULATIVE microseconds since process start, not a
+ * percentage: a reader has to difference two samples over elapsed time to get a
+ * rate. That is what FooterMiniCharts does, and it is why the shape must not be
+ * "cleaned up" into a percentage here — the delta needs the running totals.
+ */
+interface MonitorResourceUsage {
+  /** Resident set size of the main process, MB. */
+  readonly memMB: number;
+  /** V8 `heapUsed` of the main process, MB. */
+  readonly heapMB: number;
+  /** Cumulative user CPU time since process start, microseconds. */
+  readonly cpuUser: number;
+  /** Cumulative system CPU time since process start, microseconds. */
+  readonly cpuSystem: number;
+}
+
 /** Payload shape for the scan-batch IPC push channel */
 interface ScanBatchData {
   readonly agents?: DetectedAgent[];
   readonly stats?: Record<string, unknown>;
-  readonly resourceUsage?: Record<string, unknown>;
+  /** AEGIS's own load — see {@link MonitorResourceUsage}. Not the agents'. */
+  readonly resourceUsage?: MonitorResourceUsage;
   /**
    * Per-display-name anomaly scores (max over that name's live instances).
    * Consumed by App.svelte toasts and SummaryCards — not by live risk correlation.
@@ -91,7 +113,7 @@ interface AegisIpcBridge {
   onTokenCosts(cb: (data: TokenCostRecord[]) => void): void;
   getStats(): Promise<Record<string, unknown>>;
   getAuditStats(): Promise<AuditStats>;
-  getResourceUsage(): Promise<Record<string, unknown>>;
+  getResourceUsage(): Promise<MonitorResourceUsage>;
   getFalsePositives(): Promise<FalsePositiveEntry[]>;
   killProcess(pid: number): Promise<ProcessActionResult>;
   suspendProcess(pid: number): Promise<ProcessActionResult>;
@@ -125,7 +147,22 @@ export const anomalies: Writable<Record<string, number>> = writable({});
  * Missing keys and null-identity agents contribute 0 in risk.ts — never a name lookup.
  */
 export const anomaliesByInstance: Writable<Record<string, number>> = writable({});
-export const resourceUsage: Writable<Record<string, unknown>> = writable({});
+/**
+ * AEGIS's OWN process load — the figures the footer draws (HEAP, and CPU/MEM via
+ * FooterMiniCharts). Filled from `scan-batch.resourceUsage` and the
+ * `get-resource-usage` seed, both of which originate in `getResourceUsage()`
+ * (src/main/main.js). `null` until the first payload lands.
+ *
+ * The name is deliberately NOT `resourceUsage` any more, and deliberately does not
+ * match the wire: the IPC field stays `resourceUsage` and the invoke channel stays
+ * `get-resource-usage`, because those names already mean "the app's own" on the main
+ * side and renaming them would churn their tests for nothing. The asymmetry is the
+ * price of making the RENDERER side unambiguous — a store called `resourceUsage`
+ * sitting next to a channel called `resource-usage` that carries the MONITORED
+ * AGENTS' load is exactly how that channel went a release and a half with a bridge
+ * method and no subscriber.
+ */
+export const monitorResourceUsage: Writable<MonitorResourceUsage | null> = writable(null);
 export const falsePositives: Writable<FalsePositiveEntry[]> = writable([]);
 export const scanActive: Writable<boolean> = writable(false);
 
@@ -223,7 +260,14 @@ if (import.meta.env.VITE_DEMO_MODE === 'true') {
   // latch needed. The import costs one microtask before the first paint of data, which
   // the demo's own 2s emitter delay already dwarfs.
   import('./demo-data.js').then(({ startDemoMode }) => {
-    const cleanupDemo = startDemoMode({ agents, events, stats, network, anomalies, resourceUsage });
+    const cleanupDemo = startDemoMode({
+      agents,
+      events,
+      stats,
+      network,
+      anomalies,
+      monitorResourceUsage,
+    });
     if (import.meta.hot) {
       import.meta.hot.dispose(() => cleanupDemo());
     }
@@ -235,7 +279,7 @@ if (import.meta.env.VITE_DEMO_MODE === 'true') {
     queueMicrotask(() => {
       if (data.agents) agents.set(data.agents);
       if (data.stats) stats.set(data.stats);
-      if (data.resourceUsage) resourceUsage.set(data.resourceUsage);
+      if (data.resourceUsage) monitorResourceUsage.set(data.resourceUsage);
       if (data.anomalyScores) anomalies.set(data.anomalyScores);
       // Per-instance map rides the same batch; replace (not merge) so a dead instance
       // does not keep a stale score after it leaves the agent list.
@@ -262,7 +306,7 @@ if (import.meta.env.VITE_DEMO_MODE === 'true') {
 
   // Fetch initial data
   window.aegis!.getStats().then((data) => stats.set(data));
-  window.aegis!.getResourceUsage().then((data) => resourceUsage.set(data));
+  window.aegis!.getResourceUsage().then((data) => monitorResourceUsage.set(data));
   window.aegis!.getFalsePositives().then((data) => falsePositives.set(data || []));
 }
 // No third branch: a production build with no preload bridge wires nothing and seeds
