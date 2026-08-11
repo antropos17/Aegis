@@ -3,6 +3,18 @@ name: Build Windows Installer
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build and upload the installer for (e.g. aegis-v0.11.0-alpha)'
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag to build and upload the installer for'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -11,11 +23,19 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
+      # `inputs` is null on a `release` event, so this falls through to the released tag.
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: echo "name=${{ inputs.tag || github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.tag.outputs.name }}
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - run: npm ci
@@ -33,4 +53,4 @@ jobs:
         run: |
           EXE=$(ls dist/*.exe)
           echo "Found installer: $EXE"
-          gh release upload "${{ github.event.release.tag_name }}" "$EXE" --clobber
+          gh release upload "${{ steps.tag.outputs.name }}" "$EXE" --clobber
