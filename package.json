@@ -12,7 +12,7 @@
     "dist": "electron-builder --publish never",
     "format": "prettier --write 'src/**/*.{js,ts,svelte,css,html}' '*.{js,ts,json}'",
     "format:check": "prettier --check 'src/**/*.{js,ts,svelte,css,html}' '*.{js,ts,json}'",
-    "lint": "npx eslint src/",
+    "lint": "npx eslint src/ tests/ scripts/",
     "typecheck": "tsc --noEmit -p tsconfig.main.json && tsc --noEmit -p tsconfig.renderer.json",
     "typecheck:main": "tsc --noEmit -p tsconfig.main.json",
     "typecheck:renderer": "tsc --noEmit -p tsconfig.renderer.json",
