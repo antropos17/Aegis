@@ -1142,4 +1142,212 @@ describe('scan-loop', () => {
       expect(alert[1].pid).toBeNull();
     });
   });
+
+  // ── per-agent resource push (`agent-resource-usage`) ──
+
+  describe('agent-resource-usage push', () => {
+    const MB = 1048576;
+
+    /**
+     * An exec whose CPU/RAM answer changes on every sampling call, so a figure in the
+     * payload proves WHICH sample produced it — the only way a cached record and a
+     * fresh one can be told apart. Sample n reports every pid at n MB. GPU absent.
+     * @returns {Function}
+     */
+    function makeVaryingExec() {
+      let sample = 0;
+      return vi.fn((cmd) => {
+        if (cmd === 'nvidia-smi') {
+          return Promise.reject(Object.assign(new Error('not found'), { code: 'ENOENT' }));
+        }
+        if (cmd === 'powershell.exe') {
+          sample++;
+          return Promise.resolve(
+            JSON.stringify(
+              [100, 200, 300, 400].map((pid) => ({
+                IDProcess: pid,
+                PercentProcessorTime: sample,
+                WorkingSet: sample * MB,
+              })),
+            ),
+          );
+        }
+        if (cmd === 'ps') {
+          sample++;
+          return Promise.resolve(
+            [100, 200, 300, 400].map((pid) => `${pid} ${sample}.0 ${sample * 1024}`).join('\n'),
+          );
+        }
+        return Promise.resolve('');
+      });
+    }
+
+    /**
+     * scan-loop requires resource-monitor at module scope, and the CJS cache hands both
+     * the same instance — so injecting here injects into the module under test. Returns
+     * the module so the test can reset it.
+     * @param {Function} exec
+     * @returns {Object}
+     */
+    function stubResourceMonitor(exec) {
+      const rm = require_('../../src/main/resource-monitor.js');
+      rm._resetForTest();
+      rm._setLoggerForTest({ warn: vi.fn() });
+      rm._setExecForTest(exec);
+      return rm;
+    }
+
+    afterEach(() => {
+      const rm = require_('../../src/main/resource-monitor.js');
+      rm._resetForTest();
+      // Leave an inert exec behind: the module survives this file's CJS cache clearing,
+      // and a real spawn from a later test would be a live process query in CI.
+      rm._setExecForTest(() => Promise.resolve(''));
+    });
+
+    /**
+     * Deps whose enrich stamps identity through the real `identify()`, over a fresh
+     * agent array per tick — `scanProcesses` is driven by the supplied factory so a
+     * test can change what the SECOND tick sees.
+     * @param {Function} sendToRenderer
+     * @param {Function} agentsForTick - () => Array, called once per scan
+     * @returns {Object}
+     */
+    function makeStampingDeps(sendToRenderer, agentsForTick) {
+      const { identify } = require_('../../src/main/process-identity.js');
+      return makeDeps({
+        scanner: {
+          scanProcesses: vi.fn().mockImplementation(async () => ({
+            agents: agentsForTick(),
+            changed: false,
+          })),
+        },
+        procUtil: {
+          enrichWithParentChains: vi.fn(async (agents) => {
+            for (const a of agents) {
+              const id = identify(a);
+              a.instanceId = id.instanceId;
+              a.instanceIdSource = id.instanceIdSource;
+            }
+          }),
+          annotateHostApps: vi.fn(),
+          annotateWorkingDirs: vi.fn().mockResolvedValue(),
+        },
+        sendToRenderer,
+      });
+    }
+
+    /** Every `agent-resource-usage` payload sent so far, oldest first. */
+    function pushes(sendToRenderer) {
+      return sendToRenderer.mock.calls
+        .filter((c) => c[0] === 'agent-resource-usage')
+        .map((c) => c[1]);
+    }
+
+    it('every emitted record carries the instanceId stamped on that same tick', async () => {
+      stubResourceMonitor(makeVaryingExec());
+      const sendToRenderer = vi.fn();
+      const deps = makeStampingDeps(sendToRenderer, () => [
+        { agent: 'Claude Code', process: 'claude.exe', pid: 100, startTime: 1717000000000 },
+        { agent: 'Cursor', process: 'cursor.exe', pid: 200, startTime: 1717000100000 },
+      ]);
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(1000);
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(0); // let the fire-and-forget push settle
+
+      const batch = sendToRenderer.mock.calls.find((c) => c[0] === 'scan-batch')[1];
+      const [records] = pushes(sendToRenderer);
+      expect(records).toBeTruthy();
+
+      // The keys in the payload are the keys the very same batch carries — not
+      // re-resolved, not name-matched.
+      const batchKeys = new Map(
+        batch.agents.filter((a) => a.pid > 0).map((a) => [a.pid, a.instanceId]),
+      );
+      expect(records.length).toBe(batchKeys.size);
+      for (const r of records) {
+        expect(r.instanceId).toBe(batchKeys.get(r.pid));
+        expect(typeof r.instanceId).toBe('string');
+      }
+    });
+
+    it('a recycled pid does not inherit the previous instance’s cached sample', async () => {
+      stubResourceMonitor(makeVaryingExec());
+      const sendToRenderer = vi.fn();
+      let tick = 0;
+      const deps = makeStampingDeps(sendToRenderer, () => {
+        tick++;
+        // Same pid, two lives: tick 2 is a DIFFERENT process wearing pid 100.
+        return [
+          {
+            agent: 'Claude Code',
+            process: 'claude.exe',
+            pid: 100,
+            startTime: tick === 1 ? 1717000000000 : 1717000999000,
+          },
+        ];
+      });
+      scanLoop.init(deps);
+      // 1s apart, well inside the 5s resource TTL — so a pid-keyed cache WOULD hit.
+      scanLoop.startScanIntervals(1000);
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(0);
+
+      const [first, second] = pushes(sendToRenderer);
+      expect(first[0].instanceId).toBe('100:1717000000000');
+      expect(second[0].instanceId).toBe('100:1717000999000');
+      // Distinct measurements: the second life was sampled afresh (2 MB), not served
+      // the first life's cached 1 MB.
+      expect(first[0].memMb).toBe(1);
+      expect(second[0].memMb).toBe(2);
+    });
+
+    it('unstamped agents ride along as separate null-key records, not one bucket', async () => {
+      stubResourceMonitor(makeVaryingExec());
+      const sendToRenderer = vi.fn();
+      // Default deps: enrichWithParentChains is inert, so nothing is stamped — the
+      // defensive case the payload shape has to survive.
+      const deps = makeDeps({
+        scanner: {
+          scanProcesses: vi.fn().mockImplementation(async () => ({
+            agents: [
+              { agent: 'Claude Code', process: 'claude.exe', pid: 300 },
+              { agent: 'Cursor', process: 'cursor.exe', pid: 400 },
+            ],
+            changed: false,
+          })),
+        },
+        sendToRenderer,
+      });
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(1000);
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(0);
+
+      const [records] = pushes(sendToRenderer);
+      const unkeyed = records.filter((r) => r.instanceId === null);
+      expect(unkeyed.map((r) => r.pid).sort()).toEqual([300, 400]);
+      expect(unkeyed).toHaveLength(2); // two rows, each keeping its own pid
+    });
+
+    it('synthetic pid-0 agents are not sampled — the OS has nothing to answer for them', async () => {
+      stubResourceMonitor(makeVaryingExec());
+      const sendToRenderer = vi.fn();
+      const deps = makeStampingDeps(sendToRenderer, () => [
+        { agent: 'Claude Code', process: 'claude.exe', pid: 100, startTime: 1717000000000 },
+        { agent: 'Kilo Code', process: 'code.exe', pid: 0 },
+      ]);
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(1000);
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(0);
+
+      const [records] = pushes(sendToRenderer);
+      expect(records.every((r) => r.pid > 0)).toBe(true);
+      expect(records.some((r) => r.pid === 100)).toBe(true);
+    });
+  });
 });

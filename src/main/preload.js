@@ -84,11 +84,14 @@ contextBridge.exposeInMainWorld('aegis', {
     ipcRenderer.on('scan-status', handler);
     return () => ipcRenderer.removeListener('scan-status', handler);
   },
-  // ── Per-PID resource usage + token costs (main → renderer push) ──
-  onResourceUsage: (cb) => {
+  // ── Per-agent resource usage + token costs (main → renderer push) ──
+  // `agent-resource-usage` carries the MONITORED AGENTS' load, keyed by instanceId.
+  // AEGIS's own load is a different measurement and travels separately, via
+  // `get-resource-usage` and the `resourceUsage` field of `scan-batch`.
+  onAgentResourceUsage: (cb) => {
     const handler = (_e, data) => cb(data);
-    ipcRenderer.on('resource-usage', handler);
-    return () => ipcRenderer.removeListener('resource-usage', handler);
+    ipcRenderer.on('agent-resource-usage', handler);
+    return () => ipcRenderer.removeListener('agent-resource-usage', handler);
   },
   onTokenCosts: (cb) => {
     const handler = (_e, data) => cb(data);

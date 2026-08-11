@@ -254,7 +254,7 @@ All 9 subscribed via `ipcRenderer.on` in `preload.js`.
 | `file-access` | New file access events (batched, 150ms) |
 | `stats-update` | Updated aggregate stats |
 | `network-update` | Network connections |
-| `resource-usage` | CPU/memory metrics |
+| `agent-resource-usage` | Per-agent CPU/RAM/GPU, one record per instance (keyed by `instanceId`, never pid). Distinct from `scan-batch.resourceUsage`, which is AEGIS's own load |
 | `token-costs` | Per-agent token usage and cost estimates |
 | `scan-status` | Scanner state (scanning/idle) |
 | `rules:reloaded` | Rule hot-reload landed, with the new count |
