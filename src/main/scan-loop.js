@@ -415,13 +415,29 @@ async function doProcessScan() {
     await collectTokenCosts(agents);
     sendToRenderer('token-costs', tokenTracker.getAllCosts());
 
-    // Per-PID CPU/RAM/GPU is fetched fire-and-forget AFTER the batch so its
+    // Per-agent CPU/RAM/GPU is fetched fire-and-forget AFTER the batch so its
     // spawn (~0.4–8s, 5s-cached) never delays getting agents on screen. The
-    // result is pushed on its own `resource-usage` channel, keyed by pid (C-01).
-    const resourcePids = agents.map((a) => a.pid).filter((p) => Number.isInteger(p) && p > 0);
+    // result is pushed on its own `agent-resource-usage` channel — named apart from
+    // the app's OWN load, which rides `scan-batch.resourceUsage` and is a different
+    // measurement entirely.
+    //
+    // The pid → instanceId pairing is read off THIS tick's `agents`, which the identity
+    // stamp above (procUtil.enrichWithParentChains) has already filled, and is captured
+    // here rather than re-resolved when the sample lands: a second lookup could straddle
+    // a pid recycle and label one process's load with another's key (ai-mistakes #19).
+    // pid ≤ 0 is dropped because the OS has nothing to sample for a synthetic agent, not
+    // because it lacks a key. An agent whose stamp is missing rides along with
+    // `instanceId: null` — unattributed, and kept distinct from every other such record
+    // rather than pooled under one key.
+    const resourceTargets = agents
+      .filter((a) => Number.isInteger(a.pid) && a.pid > 0)
+      .map((a) => ({
+        pid: a.pid,
+        instanceId: typeof a.instanceId === 'string' && a.instanceId !== '' ? a.instanceId : null,
+      }));
     resourceMonitor
-      .getResourcesForPids(resourcePids)
-      .then((resourceMap) => sendToRenderer('resource-usage', [...resourceMap.values()]))
+      .getResourcesForPids(resourceTargets)
+      .then((records) => sendToRenderer('agent-resource-usage', records))
       .catch((err) => logger.error('main', 'Resource usage scan failed', { error: err.message }));
 
     if (result.changed && Date.now() - _lastTriggeredNetScan > 15000) {
