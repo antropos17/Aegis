@@ -92,9 +92,13 @@ export function calculateRiskScore(agent) {
 /**
  * Map a risk score to a **letter trust grade** (A+…F).
  *
- * Distinct from risk **bands** (low/medium/high) in trust-badge-utils
- * `getRiskInfo` — letter grades are finer-grained report/radar labels; bands
- * drive badge color (F-W10). Do not treat thresholds as interchangeable.
+ * DISPLAY ONLY. A grade is printed as a letter — Reports' grade column, the
+ * Activity group badge — and decides nothing else. Every colour in the renderer,
+ * including the colour that letter is printed in, comes from the risk **bands**
+ * (low/medium/high) in trust-badge-utils `getRiskInfo`, reached via
+ * `pickByRiskBand`. The two threshold sets are not interchangeable and the
+ * grades are finer-grained: score 60 is grade D but band medium, which is
+ * exactly how the Radar once drew a red dot beside an amber badge (F-W10).
  *
  * @param {number} score - Risk score 0–100
  * @returns {string} Grade: A+, A, B+, B, C, D, or F

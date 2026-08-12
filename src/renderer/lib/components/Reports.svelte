@@ -2,6 +2,7 @@
   import { events, isDemoMode } from '../stores/ipc.js';
   import { enrichedAgents } from '../stores/risk.js';
   import { t } from '../i18n/index.js';
+  import { pickByRiskBand } from '../utils/trust-badge-utils';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
@@ -57,11 +58,21 @@
       .slice(0, 10);
   });
 
-  function gradeColor(grade) {
-    if (grade === 'A+' || grade === 'A') return 'var(--md-sys-color-tertiary)';
-    if (grade === 'B+' || grade === 'B') return 'var(--md-sys-color-primary)';
-    if (grade === 'C') return 'var(--md-sys-color-secondary)';
-    return 'var(--md-sys-color-error)';
+  /**
+   * Colour for the grade cell — low green, medium amber, high red.
+   *
+   * The cell still prints the LETTER; only the colour moved to the risk band,
+   * so the same score is never amber on the badge and red here (F-W10). Bands
+   * come from `getRiskInfo` through `pickByRiskBand`, never from the letter.
+   * @param {number} score - Risk score 0–100
+   * @returns {string} CSS colour token for the grade letter
+   */
+  function gradeColor(score) {
+    return pickByRiskBand(score, {
+      low: 'var(--md-sys-color-tertiary)',
+      medium: 'var(--md-sys-color-secondary)',
+      high: 'var(--md-sys-color-error)',
+    });
   }
 </script>
 
@@ -108,7 +119,7 @@
             <td class="td-num">{Math.round(agent.fileCount + agent.networkCount)}</td>
             <td class="td-num">{agent.riskScore}</td>
             <td>
-              <span class="grade" style:color={gradeColor(agent.trustGrade)}>
+              <span class="grade" style:color={gradeColor(agent.riskScore)}>
                 {agent.trustGrade}
               </span>
             </td>

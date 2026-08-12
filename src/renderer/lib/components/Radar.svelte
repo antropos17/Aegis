@@ -1,6 +1,7 @@
 <script>
   import { enrichedAgents } from '../stores/risk.js';
   import { theme } from '../stores/theme.js';
+  import { pickByRiskBand } from '../utils/trust-badge-utils';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
@@ -18,12 +19,16 @@
   /**
    * Deduped, position-resolved dot list derived from $enrichedAgents.
    * Holds everything that depends only on agent data — dedup pick, polar
-   * angle, normalized distance fraction, trust grade and label. The render
-   * loop reads this each frame but Svelte only recomputes it when the
+   * angle, normalized distance fraction, clamped risk score and label. The
+   * render loop reads this each frame but Svelte only recomputes it when the
    * enrichedAgents reference changes (~per scan), so the Map rebuild + hash
    * scan no longer runs at 60fps. Canvas-size (`r`) and theme-dependent
    * colour are still applied at draw time, keeping the visual identical.
-   * @type {{ distFrac: number, angle: number, trustGrade: string, label: string }[]}
+   *
+   * The dot carries the SCORE, not the agent's letter trust grade: the band a
+   * dot is coloured by has to be the band every other widget uses for that
+   * same score (F-W10).
+   * @type {{ distFrac: number, angle: number, score: number, label: string }[]}
    */
   const agentDots = $derived.by(() => {
     // Group by name — one dot per agent (highest risk wins)
@@ -48,7 +53,7 @@
       dots.push({
         distFrac,
         angle,
-        trustGrade: agent.trustGrade,
+        score,
         label: agent.name?.split(' ')[0] || '',
       });
     }
@@ -73,10 +78,22 @@
 
   // ═══ COLORS ═══
 
-  function dotColor(grade) {
-    if (['A+', 'A', 'B+', 'B'].includes(grade)) return tk.tertiary;
-    if (grade === 'C') return tk.secondary;
-    return tk.error;
+  /**
+   * Dot colour for a risk score — low green, medium amber, high red.
+   *
+   * Bands come from `getRiskInfo` through `pickByRiskBand`, the same classifier
+   * TrustBadge / RiskIndex / SummaryCards use, so one score is one colour across
+   * the screen. Canvas cannot read `var(--token)`, hence the resolved values off
+   * `tk` rather than the CSS strings `getRiskInfo` returns.
+   * @param {number} score - Risk score 0–100
+   * @returns {string} Resolved CSS colour for the dot
+   */
+  function dotColor(score) {
+    return pickByRiskBand(score, {
+      low: tk.tertiary,
+      medium: tk.secondary,
+      high: tk.error,
+    });
   }
 
   // ═══ DRAWING ═══
@@ -136,7 +153,7 @@
       const dist = dot.distFrac * r;
       const x = cx + Math.cos(dot.angle) * dist;
       const y = cy + Math.sin(dot.angle) * dist;
-      const color = dotColor(dot.trustGrade);
+      const color = dotColor(dot.score);
 
       ctx.save();
       ctx.shadowColor = color;
