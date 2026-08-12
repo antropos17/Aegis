@@ -28,6 +28,15 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
 ## Documentation
 16. Leaves outdated agent counts in README badges, CLAUDE.md and architecture docs
 17. Does not sync agent counts between README badges, CLAUDE.md and agent-database.json
+24. Repeats a hand-maintained counter instead of deriving it. No CI check computes these figures
+    from the tree — the `audit-check` skill derives the agent count and nothing else, and only when
+    someone runs it — so a count is true only until the next merge and NOTHING goes red when it
+    stops being true. `src/main/` was documented as 46 CJS modules (37 top-level); adding
+    `sensor-health.js` in `273dedc` (2026-08-09) made it 47/38, and the dead figure sat in EIGHT
+    files — CLAUDE.md, the aegis-context and electron-main SKILL.md under BOTH `.claude/skills/`
+    and `.agents/skills/`, memory-bank/architecture.md, STATE-RECON.md, and CORRECTNESS-AUDIT.md,
+    which had audited the number and recorded "match". Derive before quoting
+    (`git ls-files 'src/main/*.js'`), and assume the figure you were sent to fix has siblings.
 
 ## PowerShell
 18. Uses && in PowerShell commands instead of ; or powershell.exe -NoProfile -Command wrapper
