@@ -5,7 +5,7 @@
    *   trust badge, spotlight hover, and expandable details. [F2.3]
    * @since v0.5.0
    */
-  import { focusedAgentInstanceId, tokenCosts } from '../stores/ipc.js';
+  import { agentResourceByInstance, focusedAgentInstanceId, tokenCosts } from '../stores/ipc.js';
   import { eventsByInstance } from '../stores/events-index.ts';
   import AgentCardDetails from './AgentCardDetails.svelte';
   import AgentActions from './AgentActions.svelte';
@@ -93,6 +93,28 @@
     $tokenCosts.find((r) =>
       agent.instanceId && r.instanceId ? r.instanceId === agent.instanceId : r.pid === agent.pid,
     ),
+  );
+
+  /**
+   * CPU/RAM sample for THIS instance, from the `agent-resource-usage` push. Looked up
+   * strictly by `instanceId` — no pid fallback, unlike {@link tokenRec}: the resource
+   * push always carries the key when the monitor could resolve one, so a pid match here
+   * would only ever fire for a record that is deliberately unattributed, and would pin a
+   * stranger's CPU onto this card. An agent with no key gets no figures.
+   */
+  let resourceRec = $derived(
+    agent.instanceId ? ($agentResourceByInstance.get(agent.instanceId) ?? null) : null,
+  );
+
+  /**
+   * Formatted figures, or `null` for "no measurement". `null` covers BOTH no record for
+   * this instance and a record whose field the monitor could not read — the two are
+   * indistinguishable to a viewer and both render as absent. A measured zero is a real
+   * reading and formats normally: `0 %` means idle, not missing.
+   */
+  let cpuText = $derived(resourceRec && resourceRec.cpu != null ? `${resourceRec.cpu} %` : null);
+  let memText = $derived(
+    resourceRec && resourceRec.memMb != null ? `${resourceRec.memMb.toLocaleString()} MB` : null,
   );
 
   let lastFile = $derived.by(() => {
@@ -204,6 +226,22 @@
         <span class="stat-value">{agent.networkCount}</span>
       </span>
     {/if}
+    <span class="stat-chip" title={cpuText ? $t('agents.cpu_title') : $t('agents.no_sample_title')}>
+      <span class="stat-label">CPU</span>
+      {#if cpuText}
+        <span class="stat-value">{cpuText}</span>
+      {:else}
+        <span class="stat-absent">{$t('agents.not_sampled')}</span>
+      {/if}
+    </span>
+    <span class="stat-chip" title={memText ? $t('agents.mem_title') : $t('agents.no_sample_title')}>
+      <span class="stat-label">MEM</span>
+      {#if memText}
+        <span class="stat-value">{memText}</span>
+      {:else}
+        <span class="stat-absent">{$t('agents.not_sampled')}</span>
+      {/if}
+    </span>
     {#if tokenRec && tokenRec.totalTokens > 0}
       <span class="stat-chip">
         <span class="stat-label">{$t('agents.tokens')}</span>
@@ -338,6 +376,15 @@
     font-size: calc(11px * var(--aegis-ui-scale));
     font-weight: 600;
     color: var(--fancy-text-1);
+  }
+  /* "No measurement" — deliberately NOT a number and NOT the mono face the figures use,
+     so it cannot be misread as a reading of zero at a glance. */
+  .stat-absent {
+    font-family: var(--fancy-font-body);
+    font-size: calc(10px * var(--aegis-ui-scale));
+    font-weight: 400;
+    color: var(--fancy-text-2);
+    opacity: 0.7;
   }
 
   .activity-hint {
