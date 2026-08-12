@@ -47,6 +47,12 @@ const CLAUDE_ID = '100:1754380000000';
 const OPENCODE_ID = '200:1754380044000';
 /** A SECOND Claude Code — same name, same executable, different process. The C1 case. */
 const SECOND_CLAUDE_ID = '200:1754380090000';
+/**
+ * pid 100 AGAIN, after the OS freed it and handed it to a new process — the C6 case.
+ * Same pid and same name as {@link CLAUDE_ID}; only the birth-time segment differs, which
+ * is the whole point of binding the key to `startTime` (main/process-identity.js space 1).
+ */
+const RECYCLED_CLAUDE_ID = '100:1754380500000';
 
 /** A confirmed, non-sensitive file event owned by Claude Code (pid 100). */
 function fileEvent(over: Record<string, unknown> = {}) {
@@ -324,6 +330,83 @@ describe('risk store — two instances of one agent (C1)', () => {
     // (IDENTITY-RECON.md §6 step 6).
     expect(instanceA.instanceKey).toBe('Claude Code');
     expect(instanceB.instanceKey).toBe('Claude Code');
+  });
+});
+
+describe('risk store — a recycled pid (C6)', () => {
+  // C6's RISK-STORE half. The suite at the bottom of this file pins `eventsByInstance`,
+  // the index; this pins the same claim one level up, on the enriched object AgentCard
+  // actually renders — those are two stores and C6 names both (IDENTITY-RECON §5 C6).
+  //
+  // The fixture is deliberately degenerate: same pid, same display name, same null cwd and
+  // null parentEditor. Nothing derivable from the record tells the two processes apart —
+  // the ONLY discriminator is the `startTime` segment of the stamped `instanceId`. So this
+  // test goes red for a key collapsed back to the name AND for one collapsed back to the
+  // pid, which is stricter than C1: there the pids still differed and a pid-keyed store
+  // would have passed.
+  it('C6: same pid, different startTime → two instanceIds, two risk histories', () => {
+    inputs.agents.set([
+      {
+        agent: 'Claude Code',
+        pid: 100,
+        instanceId: CLAUDE_ID,
+        cwd: null,
+        parentEditor: null,
+        category: 'ai',
+      },
+      // The process that inherited pid 100 after the first one exited.
+      {
+        agent: 'Claude Code',
+        pid: 100,
+        instanceId: RECYCLED_CLAUDE_ID,
+        cwd: null,
+        parentEditor: null,
+        category: 'ai',
+      },
+    ]);
+    // DISTINCT file paths, and that is load-bearing: under a collapsed key both events land
+    // in one bucket, where the 30s same-path dedup (risk.ts `seen`) would silently eat the
+    // second one and the test could go green for the wrong reason. Both carry `timestamp:
+    // NOW` — the differing birth time belongs inside the instanceId string and nowhere
+    // else, or `getTimeDecayWeight` would decay the older event toward 0 and do this
+    // test's work for it.
+    inputs.events.set([
+      [
+        fileEvent({
+          pid: 100,
+          instanceId: CLAUDE_ID,
+          file: '/home/user/project-a/.ssh/id_rsa',
+          sensitive: true,
+          reason: 'SSH keys/config',
+        }),
+        fileEvent({
+          pid: 100,
+          instanceId: RECYCLED_CLAUDE_ID,
+          file: '/home/user/project-b/src/main.js',
+        }),
+      ],
+    ]);
+
+    const enriched = get(enrichedAgents);
+    // Setup invariants. If one fails, the assertions below prove nothing.
+    expect(enriched).toHaveLength(2);
+    const [dead, recycled] = enriched;
+    expect(dead.pid).toBe(100);
+    expect(recycled.pid).toBe(100);
+    expect(dead.instanceId).toBe(CLAUDE_ID);
+    expect(recycled.instanceId).toBe(RECYCLED_CLAUDE_ID);
+    expect(dead.sensitiveFiles).toBeGreaterThan(0);
+    expect(dead.riskScore).toBeGreaterThan(0);
+
+    // Soft, so one run reports every collapsed site rather than aborting on the first.
+    expect.soft(recycled.instanceId).not.toBe(dead.instanceId);
+    // The recycled process never touched a key, so it inherits none of that score.
+    expect.soft(recycled.sensitiveFiles).toBe(0);
+    expect.soft(recycled.riskScore).toBe(0);
+    expect.soft(recycled.trustGrade).toBe('A+');
+    // …and separation is not emptiness: it still has its OWN event. Without this the two
+    // assertions above would also pass for a store that simply dropped the recycled pid.
+    expect.soft(recycled.fileCount).toBeGreaterThan(0);
   });
 });
 
