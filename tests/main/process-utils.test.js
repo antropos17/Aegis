@@ -198,15 +198,20 @@ describe('process-utils', () => {
       expect(agents[0].parentChain).toEqual(['cursor.exe']);
     });
 
-    it('a same-name reuse sharing one birth-time millisecond is the residual bound', async () => {
+    it('a same-name reuse sharing one birth-time millisecond stays indistinguishable', async () => {
       // What the KNOWN BOUND in _cacheKey used to be — pid + SAME exe name serving
       // the dead process's startTime until forceRefresh or TTL — is gone: the fresh
       // birth time separates those instances with forceRefresh false (see the
-      // generation-proof describe above). What is left is genuine indistinguish-
-      // ability: two instances sharing a pid AND the same epoch-ms birth time. That
-      // is the millisecond bound documented in process-identity.js, not a cache
-      // defect, and it degrades to "two instances read as one", never to a wrong
-      // instance.
+      // generation-proof describe above).
+      //
+      // What remains is the millisecond resolution bound documented in
+      // process-identity.js. Two instances that share a pid AND an epoch-ms birth
+      // time collide on the generation token itself, so a generation-bound
+      // parentChain or cwd entry cannot tell them apart either and the first
+      // instance's cached data CAN be served to the second. That is observational
+      // indistinguishability at the resolution AEGIS reads, not a proof that stale
+      // instance data is impossible. It is out of scope here and the identity format
+      // is deliberately unchanged.
       mockGetParentProcessMap.mockResolvedValue(
         new Map([[100, { name: 'claude.exe', ppid: 0, startTime: 1717000000000 }]]),
       );
@@ -601,9 +606,45 @@ describe('process-utils', () => {
       await processUtils.enrichWithParentChains(genB);
       await processUtils.annotateWorkingDirs(genB);
 
+      expect(genB[0].startTime).toBe(1717000010700); // the generation this record carries
       expect(mockGetProcessCwds).toHaveBeenCalledTimes(2);
       expect(genB[0].cwd).toBe('/home/user/project-b');
       expect(genB[0].projectName).toBe('project-b');
+    });
+
+    it('never lets a generation established for another record stand in for an unenriched one', async () => {
+      // The generation must come from the observation the annotated record ITSELF
+      // carries, not from whatever the module cache happens to hold under the same
+      // pid|name key — that cache is shared by every record that ever used the key.
+      mockGetParentProcessMap.mockResolvedValueOnce(
+        new Map([[100, { name: 'claude.exe', ppid: 0, startTime: 1717000000000 }]]),
+      );
+      mockGetProcessCwds.mockResolvedValueOnce(new Map([[100, '/home/user/project-a']]));
+      const enriched = [{ pid: 100, agent: 'Claude Code', process: 'claude.exe' }];
+      await processUtils.enrichWithParentChains(enriched);
+      await processUtils.annotateWorkingDirs(enriched);
+      expect(enriched[0].cwd).toBe('/home/user/project-a');
+
+      // A later enrichment of a DIFFERENT record moves the module cache on to
+      // generation B. No cwd pass follows it.
+      mockGetParentProcessMap.mockResolvedValue(
+        new Map([[100, { name: 'claude.exe', ppid: 0, startTime: 1717000010700 }]]),
+      );
+      const other = [{ pid: 100, agent: 'Claude Code', process: 'claude.exe' }];
+      await processUtils.enrichWithParentChains(other);
+      expect(other[0].startTime).toBe(1717000010700);
+
+      // This record never passed through enrichment, so it carries no generation of
+      // its own — neither a proof nor an honest null. It gets exactly the TTL
+      // contract direct callers had before generations existed, and is NOT judged by
+      // a generation some other record established.
+      mockGetProcessCwds.mockResolvedValue(new Map([[100, '/home/user/project-b']]));
+      const unenriched = [{ pid: 100, agent: 'Claude Code', process: 'claude.exe' }];
+      await processUtils.annotateWorkingDirs(unenriched);
+
+      expect(unenriched[0].startTime).toBeUndefined();
+      expect(mockGetProcessCwds).toHaveBeenCalledTimes(1);
+      expect(unenriched[0].cwd).toBe('/home/user/project-a');
     });
 
     it('keeps the cwd cached across repeated observations of the same proven generation', async () => {

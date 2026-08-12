@@ -324,17 +324,26 @@ async function enrichWithParentChains(agents, opts = {}) {
 }
 
 /**
- * The generation {@link enrichWithParentChains} established for a cache key on this
- * pass, for consumers that must not observe a birth time themselves.
- * @param {string} key
- * @returns {number|null|undefined} epoch-ms when a fresh birth time proved the
- *   instance; `null` when the fresh observation withheld one (nothing is proven);
- *   `undefined` when no generation was established for this key at all.
+ * The generation ONE agent record carries out of its own enrichment pass.
+ *
+ * Read off the record, never out of `parentChainCache`. The cache is keyed by
+ * `pid|name` and is shared by every record that ever used that key, so a lookup
+ * there would answer with a generation some OTHER record established — possibly on
+ * an earlier tick — and a record that never went through enrichment at all would
+ * silently borrow it. `startTime` is written by {@link enrichWithParentChains} on
+ * every observation, so the record itself is the only honest source.
+ * @param {{startTime?: number|null}} agent
+ * @returns {number|null|undefined} epoch-ms when this record's own fresh observation
+ *   produced a usable birth time; `null` when enrichment ran for it and the platform
+ *   withheld one (nothing is proven); `undefined` when this record never passed
+ *   through enrichment, so no generation was established for it either way.
  */
-function _establishedGeneration(key) {
-  const entry = parentChainCache.get(key);
-  if (entry === undefined) return undefined;
-  return typeof entry.startTime === 'number' ? entry.startTime : null;
+function _recordGeneration(agent) {
+  const v = agent.startTime;
+  if (v === undefined) return undefined;
+  // Same usability test process-identity.js applies before building an `os` key, so
+  // a value that cannot identify an instance cannot prove one either.
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
 }
 
 /** Map editor host exe names (lowercase) to human-readable labels, derived from EDITORS */
@@ -380,18 +389,20 @@ const CWD_CACHE_TTL = 60000;
  *
  * A same-name recycled pid produces the same key, so on a platform that supplies
  * birth times the entry additionally carries the GENERATION it was fetched under,
- * and it is served only while that generation is still the one
- * {@link enrichWithParentChains} proved on this pass. This function performs NO
- * birth-time lookup of its own — it consumes what the identity stamp already
- * established, which is why scan-loop must keep running the stamp first.
+ * and it is served only while that generation is still the one THIS agent record
+ * carries from its own enrichment pass ({@link _recordGeneration}). This function
+ * performs NO birth-time lookup of its own — it consumes the observation the record
+ * already holds, which is why scan-loop must keep running the identity stamp first.
  *
  * Three cases, and the middle one is the honest degradation:
  *   - a number → the cwd must have been fetched under that same generation;
- *   - `null` (the fresh observation withheld the birth time) → nothing is proven,
- *     so the cwd is re-fetched rather than inherited from the old generation;
- *   - `undefined` (no generation was established for this key — every pid on
- *     linux/darwin, and any caller that skipped the stamp) → no generation exists
- *     to check against, and the plain TTL contract applies exactly as before.
+ *   - `null` (enrichment ran for this record and the fresh observation withheld the
+ *     birth time) → nothing is proven, so the cwd is re-fetched rather than
+ *     inherited from the old generation;
+ *   - `undefined` (this record never passed through enrichment — every pid on
+ *     linux/darwin, pid ≤ 0, and any direct caller that skipped the stamp) → the
+ *     record established no generation, so none is invented for it and the plain
+ *     TTL contract applies exactly as it did before generations existed.
  * @param {Array} agents
  * @param {Object} [opts]
  * @param {boolean} [opts.forceRefresh=false] - when true, ignore cached entries and
@@ -410,17 +421,14 @@ async function annotateWorkingDirs(agents, opts = {}) {
   _pruneStale(cwdCache, CWD_CACHE_TTL, now);
 
   // One cache key per agent, resolved once, via the same `_agentName` the
-  // parent-chain cache keys on, plus the generation that key is bound to. pid ≤ 0
-  // is not an OS process, so it has no generation — undefined leaves the synthetics
-  // on the plain TTL contract.
-  const entries = agents.map((a) => {
-    const key = _cacheKey(a.pid, _agentName(a));
-    return {
-      agent: a,
-      key,
-      generation: _providesStartTime && a.pid > 0 ? _establishedGeneration(key) : undefined,
-    };
-  });
+  // parent-chain cache keys on, plus the generation THAT RECORD carries. pid ≤ 0 is
+  // not an OS process, so it has no generation — undefined leaves the synthetics on
+  // the plain TTL contract.
+  const entries = agents.map((a) => ({
+    agent: a,
+    key: _cacheKey(a.pid, _agentName(a)),
+    generation: _providesStartTime && a.pid > 0 ? _recordGeneration(a) : undefined,
+  }));
 
   // Pids with no live, generation-proven cache entry. Agents can share a pid (the
   // pid-0 synthetics all do) while holding distinct keys, so the Set both collects
