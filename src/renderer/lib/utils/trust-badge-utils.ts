@@ -43,8 +43,10 @@ export const RISK_BAND_HIGH_MIN = 66;
 /**
  * Determine **risk band** level, label, and CSS color token for a given score.
  *
- * Authoritative low/medium/high classifier for badges and risk-band UI (F-W10).
- * Not the same taxonomy as letter trust grades (`getTrustGrade` in risk-scoring).
+ * The single classifier behind EVERY renderer color decision (F-W10) — badge,
+ * radar dot, risk ring, summary card, stats table, and the color of a grade
+ * letter. Letter trust grades (`getTrustGrade` in risk-scoring) are displayed
+ * as letters and never decide a color.
  *
  * - Low risk:    0–34  → green  (--fancy-accent)
  * - Medium risk: 35–65 → amber  (--fancy-warning)
@@ -80,6 +82,24 @@ export function getRiskInfo(score: number): RiskInfo {
     color: 'var(--fancy-accent)',
     glowColor: 'rgba(0, 255, 136, 0.4)',
   };
+}
+
+/**
+ * Pick the value a score's risk band maps to, classifying through {@link getRiskInfo}.
+ *
+ * The band comes from one place; the values stay the caller's own, because the
+ * media differ — a canvas needs a resolved color string, CSS needs `var(--token)`.
+ * Callers that need a color for a score route through this instead of banding the
+ * score themselves (F-W10: Radar once banded by letter grade, so score 60 drew a
+ * red dot beside an amber badge).
+ *
+ * @typeParam T - Value type each band maps to (color string, token, anything)
+ * @param score - Risk score 0–100
+ * @param byBand - One value per band
+ * @returns The value for this score's band
+ */
+export function pickByRiskBand<T>(score: number, byBand: Readonly<Record<RiskLevel, T>>): T {
+  return byBand[getRiskInfo(score).level];
 }
 
 /**
