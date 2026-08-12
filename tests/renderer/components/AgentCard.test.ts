@@ -73,7 +73,9 @@ describe('AgentCard — per-instance resource figures', () => {
     agentResourceUsage.set([
       { instanceId: '100:1717000000000', pid: 100, cpu: 2.9, memMb: 631, gpu: null },
     ]);
-    const { container } = render(AgentCard, { props: { agent: agent() } });
+    const { container } = render(AgentCard, {
+      props: { agent: agent(), expandedInstanceId: null },
+    });
 
     expect(chipFigure(container, 'CPU')).toBe('2.9 %');
     expect(chipFigure(container, 'MEM')).toBe('631 MB');
@@ -85,7 +87,9 @@ describe('AgentCard — per-instance resource figures', () => {
     agentResourceUsage.set([
       { instanceId: '100:1717000000000', pid: 100, cpu: 0, memMb: 0, gpu: null },
     ]);
-    const { container } = render(AgentCard, { props: { agent: agent() } });
+    const { container } = render(AgentCard, {
+      props: { agent: agent(), expandedInstanceId: null },
+    });
 
     expect(chipFigure(container, 'CPU')).toBe('0 %');
     expect(chipFigure(container, 'MEM')).toBe('0 MB');
@@ -99,7 +103,9 @@ describe('AgentCard — per-instance resource figures', () => {
     agentResourceUsage.set([
       { instanceId: '100:1717000000000', pid: 100, cpu: null, memMb: null, gpu: null },
     ]);
-    const { container } = render(AgentCard, { props: { agent: agent() } });
+    const { container } = render(AgentCard, {
+      props: { agent: agent(), expandedInstanceId: null },
+    });
 
     expect(chipAbsent(container, 'CPU')).toBe('no sample');
     expect(chipAbsent(container, 'MEM')).toBe('no sample');
@@ -111,7 +117,9 @@ describe('AgentCard — per-instance resource figures', () => {
     agentResourceUsage.set([
       { instanceId: '999:1717000000000', pid: 999, cpu: 50, memMb: 900, gpu: null },
     ]);
-    const { container } = render(AgentCard, { props: { agent: agent() } });
+    const { container } = render(AgentCard, {
+      props: { agent: agent(), expandedInstanceId: null },
+    });
 
     expect(chipAbsent(container, 'CPU')).toBe('no sample');
     expect(chipFigure(container, 'CPU')).toBeNull();
@@ -123,7 +131,9 @@ describe('AgentCard — per-instance resource figures', () => {
     agentResourceUsage.set([
       { instanceId: '100:OLD-LIFE', pid: 100, cpu: 77, memMb: 999, gpu: null },
     ]);
-    const { container } = render(AgentCard, { props: { agent: agent() } });
+    const { container } = render(AgentCard, {
+      props: { agent: agent(), expandedInstanceId: null },
+    });
 
     expect(chipAbsent(container, 'CPU')).toBe('no sample');
     expect(container.textContent).not.toContain('77');
@@ -133,7 +143,9 @@ describe('AgentCard — per-instance resource figures', () => {
     agentResourceUsage.set([
       { instanceId: '100:1717000000000', pid: 100, cpu: 2.9, memMb: 631, gpu: null },
     ]);
-    const { container } = render(AgentCard, { props: { agent: agent({ instanceId: null }) } });
+    const { container } = render(AgentCard, {
+      props: { agent: agent({ instanceId: null }), expandedInstanceId: null },
+    });
 
     expect(chipAbsent(container, 'CPU')).toBe('no sample');
   });
