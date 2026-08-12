@@ -31,12 +31,20 @@ Key modules:
 
 ```sh
 npm install
-npm test              # Vitest — all tests must pass
-npm run build:renderer # Vite build — must succeed
-npm run format:check  # Prettier — must be clean
+npm run build:renderer   # Vite build — must succeed
+npm run format:check     # Prettier — must be clean
+npm run lint             # ESLint — no errors
+npm run typecheck        # tsc, both projects
+npm run typecheck:svelte # svelte-check — a bare typecheck does NOT cover it
+npm test                 # Vitest — all tests must pass
 ```
 
-CI runs all three on every push and PR (`.github/workflows/ci.yml`).
+Six gates, not three. `.github/workflows/ci.yml` spreads them over five required jobs:
+`build` (build:renderer), `lint` (format:check + lint), `svelte-check` (typecheck +
+typecheck:svelte), `test` (test:coverage), and `audit`
+(`npm audit --audit-level=high --omit=dev`, dependency-scoped, no local diff equivalent).
+All five are required status checks on `master`, so skipping `typecheck:svelte` locally
+does not skip it — it just moves the failure to CI.
 
 ## Code conventions
 

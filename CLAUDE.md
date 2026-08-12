@@ -9,6 +9,17 @@ npm run format            # Prettier
 npm test                  # Vitest (1398 passed / 4 skipped = 1402, 84 files)
 npm run dist              # Electron-builder NSIS installer
 
+## Gates — SIX, not five (run all before commit)
+npm run build:renderer    # Vite build
+npm run format:check      # Prettier
+npm run lint              # ESLint
+npm run typecheck         # tsc, both projects
+npm run typecheck:svelte  # svelte-check — NOT covered by typecheck, the one usually skipped
+npm test                  # Vitest
+Each is a required CI job step on master, so skipping one locally only moves the red to CI.
+A seventh required check, `npm audit --audit-level=high --omit=dev`, scans dependencies
+rather than your diff and has no local pre-commit equivalent.
+
 ## Background Tasks (/loop)
 - /loop 30m — PR triage (pr-monitor skill)
 - /loop 2m — CI watcher post-push (ci-monitor skill)
@@ -22,7 +33,7 @@ npm run dist              # Electron-builder NSIS installer
 5. Svelte MCP autofixer on all .svelte files. JSDoc on all exports
 6. Conventional commits. NEVER add "Co-Authored-By" or "Generated with Claude Code"
 7. Git: powershell.exe -NoProfile -Command "cd 'X:\Future\ESCAPE\AEGIS'; git ..."
-8. TypeScript: new files in .ts, `npx eslint` + `npm run typecheck` before commit, zero `any`. Root tsconfig.json is a solution file (`files: []` + references) — a bare `npx tsc --noEmit` checks NOTHING and always exits 0; use `npm run typecheck` (both projects) or `npx tsc -b`
+8. TypeScript: new files in .ts, `npx eslint` + `npm run typecheck` + `npm run typecheck:svelte` before commit, zero `any`. Root tsconfig.json is a solution file (`files: []` + references) — a bare `npx tsc --noEmit` checks NOTHING and always exits 0; use `npm run typecheck` (both projects) or `npx tsc -b`
 
 ## Key Paths
 - src/main/ — 47 CommonJS modules (38 top-level + platform/ 7 + token-adapters/ 2)
