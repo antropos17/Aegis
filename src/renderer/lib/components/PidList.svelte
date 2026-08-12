@@ -8,6 +8,9 @@
    * @since v0.10.0-alpha
    */
 
+  import { agentResourceByInstance } from '../stores/ipc.js';
+  import { t } from '../i18n/index.js';
+
   /**
    * @type {{
    *   agent: { _instances?: Array<object>, pid: number, process?: string, name?: string },
@@ -22,6 +25,30 @@
    * @type {Array<{ pid: number, process?: string, cwd?: string, parentChain?: string, parentEditor?: string, riskScore?: number }>}
    */
   let instances = $derived(agent._instances?.length ? agent._instances : [agent]);
+
+  /**
+   * One row per instance, each carrying ITS OWN resource sample.
+   *
+   * This is where two instances of the same tool stop sharing a number: the card above
+   * is one per display NAME and shows the representative's figures, so a second Claude
+   * Code in another project would otherwise be invisible. The lookup is strictly by that
+   * instance's `instanceId` — never by pid, which the OS reissues, and never by name,
+   * which is what groups these rows in the first place.
+   *
+   * `cpuText`/`memText` are null for "no measurement", covering both a missing record and
+   * a null field on a present one. A measured zero formats as `0 %` and is NOT absent.
+   * @type {Array<{inst: object, cpuText: string|null, memText: string|null}>}
+   */
+  let rows = $derived(
+    instances.map((inst) => {
+      const rec = inst.instanceId ? ($agentResourceByInstance.get(inst.instanceId) ?? null) : null;
+      return {
+        inst,
+        cpuText: rec && rec.cpu != null ? `${rec.cpu} %` : null,
+        memText: rec && rec.memMb != null ? `${rec.memMb.toLocaleString()} MB` : null,
+      };
+    }),
+  );
 
   /**
    * Compact per-PID intervention buttons — muted, revealed on row hover.
@@ -64,10 +91,21 @@
 </script>
 
 <div class="pid-list">
-  {#each instances as inst (inst.pid)}
+  {#each rows as { inst, cpuText, memText } (inst.pid)}
     <div class="pid-row" title={pidTooltip(inst)}>
       <span class="pid-num">{inst.pid}</span>
       <span class="pid-proc">{inst.process || inst.name || ''}</span>
+      <span class="pid-res">
+        {#if cpuText || memText}
+          <span class="pid-res-val">{cpuText ?? $t('agents.not_sampled')}</span>
+          <span class="pid-res-sep">/</span>
+          <span class="pid-res-val">{memText ?? $t('agents.not_sampled')}</span>
+        {:else}
+          <span class="pid-res-absent" title={$t('agents.no_sample_title')}
+            >{$t('agents.not_sampled')}</span
+          >
+        {/if}
+      </span>
       <div class="pid-acts">
         {#each PID_ACTIONS as act (act.method)}
           <button
@@ -125,6 +163,27 @@
     white-space: nowrap;
     opacity: 0.85;
   }
+  .pid-res {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--aegis-space-1);
+    flex-shrink: 0;
+  }
+  .pid-res-val {
+    font-family: var(--fancy-font-mono);
+    color: var(--md-sys-color-on-surface);
+    opacity: 0.85;
+  }
+  .pid-res-sep {
+    opacity: 0.4;
+  }
+  /* Same rule as the card chips: absent is a word in the body face, never a figure. */
+  .pid-res-absent {
+    font-family: var(--fancy-font-body);
+    color: var(--md-sys-color-on-surface-variant);
+    opacity: 0.7;
+  }
+
   .pid-acts {
     display: flex;
     gap: var(--aegis-space-1);

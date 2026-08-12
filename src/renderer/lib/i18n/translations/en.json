@@ -127,7 +127,11 @@
     "stat_proc": "Proc",
     "stat_files": "File Act",
     "stat_net": "Net",
-    "tokens": "TOK"
+    "tokens": "TOK",
+    "not_sampled": "no sample",
+    "cpu_title": "CPU share of the whole machine, sampled per process instance",
+    "mem_title": "Resident memory of this process instance",
+    "no_sample_title": "No resource sample for this instance yet — this is missing data, not a load of zero"
   },
   "timeline": {
     "title": "Event Timeline",

@@ -34,6 +34,7 @@ const noop = () => {};
   onNetworkUpdate: noop,
   onScanStatus: noop,
   onTokenCosts: noop,
+  onAgentResourceUsage: noop,
   getStats: () => Promise.resolve({}),
   getResourceUsage: () => Promise.resolve({}),
   getFalsePositives: () => Promise.resolve([]),

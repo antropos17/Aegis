@@ -103,6 +103,33 @@ interface TokenCostRecord {
   readonly models: string[];
 }
 
+/**
+ * One monitored agent's sampled load, pushed on the `agent-resource-usage` channel.
+ * Mirrors `AgentResourceRecord` in the main process (resource-monitor.js).
+ *
+ * `instanceId` is the KEY and `pid` is display only — the OS reissues pids, so joining
+ * on one can attribute a dead process's load to whatever wears its number next.
+ *
+ * Two different nulls, and they must not be conflated:
+ * - `instanceId: null` — the sample could not be attributed to a keyed instance. Such
+ *   a record keeps its own pid and stays individually distinguishable
+ *   ({@link unattributedAgentResource}); it is never folded into a shared bucket.
+ * - `cpu` / `memMb` / `gpu` null — the process WAS the subject of a sample and the
+ *   figure could not be read (exited, denied, unparseable, or no nvidia-smi for gpu).
+ *   That is "not measured", which is categorically different from a measured zero and
+ *   must never be rendered as one.
+ */
+interface AgentResourceRecord {
+  readonly instanceId: string | null;
+  readonly pid: number;
+  /** 0–100 % of the whole machine, or null when not sampled. */
+  readonly cpu: number | null;
+  /** Resident memory in MB, or null when not sampled. */
+  readonly memMb: number | null;
+  /** GPU memory, or null when nvidia-smi is absent — never a fabricated 0. */
+  readonly gpu: { readonly memMb: number } | null;
+}
+
 /** Minimal type for the window.aegis IPC bridge exposed by preload.js */
 interface AegisIpcBridge {
   onScanBatch(cb: (data: ScanBatchData) => void): void;
@@ -111,6 +138,7 @@ interface AegisIpcBridge {
   onNetworkUpdate(cb: (data: NetworkConnection[]) => void): void;
   onScanStatus(cb: (data: ScanStatusData) => void): void;
   onTokenCosts(cb: (data: TokenCostRecord[]) => void): void;
+  onAgentResourceUsage(cb: (data: AgentResourceRecord[]) => void): void;
   getStats(): Promise<Record<string, unknown>>;
   getAuditStats(): Promise<AuditStats>;
   getResourceUsage(): Promise<MonitorResourceUsage>;
@@ -158,9 +186,10 @@ export const anomaliesByInstance: Writable<Record<string, number>> = writable({}
  * `get-resource-usage`, because those names already mean "the app's own" on the main
  * side and renaming them would churn their tests for nothing. The asymmetry is the
  * price of making the RENDERER side unambiguous — a store called `resourceUsage`
- * sitting next to a channel called `resource-usage` that carries the MONITORED
+ * sitting next to a channel then called `resource-usage` that carries the MONITORED
  * AGENTS' load is exactly how that channel went a release and a half with a bridge
- * method and no subscriber.
+ * method and no subscriber. That channel is now `agent-resource-usage` and lands in
+ * {@link agentResourceUsage}; the two are no longer one rename away from each other.
  */
 export const monitorResourceUsage: Writable<MonitorResourceUsage | null> = writable(null);
 export const falsePositives: Writable<FalsePositiveEntry[]> = writable([]);
@@ -168,6 +197,51 @@ export const scanActive: Writable<boolean> = writable(false);
 
 /** Per process-instance token + cost records, refreshed each scan via the `token-costs` push. */
 export const tokenCosts: Writable<TokenCostRecord[]> = writable([]);
+
+/**
+ * The MONITORED AGENTS' load, exactly as `agent-resource-usage` delivered it — raw and
+ * unindexed. Replaced (not merged) on every push, so a record cannot outlive the
+ * instance it describes.
+ *
+ * An ARRAY rather than a keyed object, and that is the point: keying here would need a
+ * single slot for every record whose `instanceId` is null, and all but the last would
+ * vanish. Read {@link agentResourceByInstance} to look one up and
+ * {@link unattributedAgentResource} for the ones that have no key.
+ */
+export const agentResourceUsage: Writable<AgentResourceRecord[]> = writable([]);
+
+/**
+ * Instance-keyed index over {@link agentResourceUsage} — the lookup a per-agent view
+ * should use. Records with no `instanceId` are ABSENT here by construction; they are not
+ * given a placeholder key, because a placeholder is a bucket and a bucket is how two
+ * unrelated processes end up sharing a number.
+ *
+ * A missing key means "no sample for this instance", which the UI must render as absent
+ * rather than as zero.
+ */
+export const agentResourceByInstance: Readable<Map<string, AgentResourceRecord>> = derived(
+  agentResourceUsage,
+  ($records) => {
+    const byInstance = new Map<string, AgentResourceRecord>();
+    for (const record of $records) {
+      if (typeof record.instanceId === 'string' && record.instanceId !== '') {
+        byInstance.set(record.instanceId, record);
+      }
+    }
+    return byInstance;
+  },
+);
+
+/**
+ * Samples that arrived without an instance key, each keeping its own pid and staying
+ * individually distinguishable. Kept as its own list so that "we sampled a process we
+ * could not identify" stays visible instead of being silently dropped by the index
+ * above — an unattributed measurement is data, not an error.
+ */
+export const unattributedAgentResource: Readable<AgentResourceRecord[]> = derived(
+  agentResourceUsage,
+  ($records) => $records.filter((record) => record.instanceId === null),
+);
 
 /**
  * True once the first scan batch has arrived from the main process. Monotonic
@@ -303,6 +377,11 @@ if (import.meta.env.VITE_DEMO_MODE === 'true') {
   });
   window.aegis!.onScanStatus((data) => scanActive.set(data?.scanning ?? false));
   window.aegis!.onTokenCosts((data) => tokenCosts.set(Array.isArray(data) ? data : []));
+  // Replace, never merge: a record kept past its push would keep drawing a number for an
+  // instance the monitor has stopped reporting.
+  window.aegis!.onAgentResourceUsage((data) =>
+    agentResourceUsage.set(Array.isArray(data) ? data : []),
+  );
 
   // Fetch initial data
   window.aegis!.getStats().then((data) => stats.set(data));
