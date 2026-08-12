@@ -9,16 +9,35 @@ npm run format            # Prettier
 npm test                  # Vitest (1398 passed / 4 skipped = 1402, 84 files)
 npm run dist              # Electron-builder NSIS installer
 
-## Gates — SIX, not five (run all before commit)
-npm run build:renderer    # Vite build
-npm run format:check      # Prettier
-npm run lint              # ESLint
-npm run typecheck         # tsc, both projects
-npm run typecheck:svelte  # svelte-check — NOT covered by typecheck, the one usually skipped
-npm test                  # Vitest
-Each is a required CI job step on master, so skipping one locally only moves the red to CI.
-A seventh required check, `npm audit --audit-level=high --omit=dev`, scans dependencies
-rather than your diff and has no local pre-commit equivalent.
+## Verification — three different counts, do not merge them
+**5 required status contexts** are what GitHub enforces on master. Proven with
+`gh api repos/antropos17/Aegis/branches/master/protection --jq '.required_status_checks'`
+→ contexts `[build, lint, svelte-check, test, audit]`, `strict: true` (branch must be up to
+date before merge). No rulesets add more: `/rulesets` and `/rules/branches/master` return `[]`.
+A context is a JOB, not a command — `lint` and `svelte-check` run two commands each.
+
+**7 verification commands** live inside those 5 jobs (`.github/workflows/ci.yml`):
+
+| required context | commands the job runs, after `npm ci` |
+|---|---|
+| build | `npm run build:renderer` |
+| lint | `npm run format:check`, then `npm run lint` |
+| svelte-check | `npm run typecheck`, then `npm run typecheck:svelte` |
+| test | `npm run test:coverage` |
+| audit | `npm audit --audit-level=high --omit=dev` |
+
+`format:check` is a STEP of `lint`, not a job and not a context of its own.
+
+## Local pre-merge set — the same 7 commands
+npm run build:renderer
+npm run format:check      # the checker; `npm run format` WRITES and is not a gate
+npm run lint
+npm run typecheck         # ONE command, TWO tsc projects: main.json && renderer.json
+npm run typecheck:svelte  # svelte-check; tsc never reads .svelte templates
+npm run test:coverage     # what CI runs — `npm test` (vitest run) is NOT the CI command
+npm audit --audit-level=high --omit=dev   # production deps only, not your diff
+Every job also runs `npm ci`, which is not `npm install` — see ai-mistakes 23 before
+regenerating a lockfile.
 
 ## Background Tasks (/loop)
 - /loop 30m — PR triage (pr-monitor skill)
