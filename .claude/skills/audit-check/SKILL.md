@@ -15,7 +15,7 @@ description: AEGIS-specific pre-push / pre-release repo audit. Runs format:check
 4. node -e "const d=require('./src/shared/agent-database.json');console.log('Agents:', d.agents.length)" — agent count
 5. grep -c "agent" README.md — verify README references
 6. git status — clean working tree?
-7. git ls-files | grep -E "^memory-bank/|^\.agent/" — no must-stay-untracked internals tracked? (.claude/agents/, .claude/skills/, .mcp.json are intentionally tracked — do NOT flag them)
+7. git ls-files | grep -E "^\.agent/" — no must-stay-untracked internals tracked? (.claude/agents/, .claude/skills/, .mcp.json are intentionally tracked — do NOT flag them; memory-bank/ is intentionally tracked too, since e7ba29d)
 8. Report pass/fail for each check
 
 ## Trigger

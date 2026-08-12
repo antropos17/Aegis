@@ -30,13 +30,32 @@ Key modules:
 ## Build & test
 
 ```sh
-npm install
-npm test              # Vitest — all tests must pass
-npm run build:renderer # Vite build — must succeed
-npm run format:check  # Prettier — must be clean
+npm ci                   # what CI installs with — NOT npm install, see the lockfile note below
+npm run build:renderer   # Vite build — must succeed
+npm run format:check     # Prettier — must be clean (the WRITING variant is npm run format)
+npm run lint             # ESLint — no errors
+npm run typecheck        # one command, two tsc projects: tsconfig.main.json && tsconfig.renderer.json
+npm run typecheck:svelte # svelte-check — reads .svelte templates, which tsc never does
+npm run test:coverage    # vitest run --coverage — this, not npm test, is what CI runs
+npm audit --audit-level=high --omit=dev   # production dependencies only
 ```
 
-CI runs all three on every push and PR (`.github/workflows/ci.yml`).
+Three counts, deliberately kept apart:
+
+- **5 required status contexts** — `build`, `lint`, `svelte-check`, `test`, `audit`. This is
+  what GitHub blocks a merge on, proven by
+  `gh api repos/antropos17/Aegis/branches/master/protection --jq '.required_status_checks'`
+  (`strict: true`, so the branch must also be up to date). `/rulesets` and
+  `/rules/branches/master` both return `[]` — nothing else is enforced.
+- **7 verification commands** inside those 5 jobs. The counts differ because `lint` runs
+  `format:check` then `lint`, and `svelte-check` runs `typecheck` then `typecheck:svelte`.
+  `format:check` is a step, not a job, and has no status context of its own.
+- **7 local pre-merge commands** — the block above, one per verification command.
+
+`npm test` (`vitest run`) is a convenience alias, not a gate: CI runs `npm run test:coverage`
+(`vitest run --coverage`). Same suite, plus v8 instrumentation and an lcov artifact. No
+coverage thresholds are configured in `vitest.config.js`, so coverage cannot fail a run that
+`npm test` would pass — but document what CI executes, not what is close to it.
 
 ## Code conventions
 
