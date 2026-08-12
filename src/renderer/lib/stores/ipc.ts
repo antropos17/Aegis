@@ -112,8 +112,8 @@ interface TokenCostRecord {
  *
  * Two different nulls, and they must not be conflated:
  * - `instanceId: null` — the sample could not be attributed to a keyed instance. Such
- *   a record keeps its own pid and stays individually distinguishable
- *   ({@link unattributedAgentResource}); it is never folded into a shared bucket.
+ *   a record keeps its own pid and stays individually distinguishable in
+ *   {@link agentResourceUsage}; it is never folded into a shared bucket.
  * - `cpu` / `memMb` / `gpu` null — the process WAS the subject of a sample and the
  *   figure could not be read (exited, denied, unparseable, or no nvidia-smi for gpu).
  *   That is "not measured", which is categorically different from a measured zero and
@@ -205,8 +205,8 @@ export const tokenCosts: Writable<TokenCostRecord[]> = writable([]);
  *
  * An ARRAY rather than a keyed object, and that is the point: keying here would need a
  * single slot for every record whose `instanceId` is null, and all but the last would
- * vanish. Read {@link agentResourceByInstance} to look one up and
- * {@link unattributedAgentResource} for the ones that have no key.
+ * vanish. Read {@link agentResourceByInstance} to look a keyed instance up; the records
+ * that have no key stay here, reachable by filtering on `instanceId === null`.
  */
 export const agentResourceUsage: Writable<AgentResourceRecord[]> = writable([]);
 
@@ -230,17 +230,6 @@ export const agentResourceByInstance: Readable<Map<string, AgentResourceRecord>>
     }
     return byInstance;
   },
-);
-
-/**
- * Samples that arrived without an instance key, each keeping its own pid and staying
- * individually distinguishable. Kept as its own list so that "we sampled a process we
- * could not identify" stays visible instead of being silently dropped by the index
- * above — an unattributed measurement is data, not an error.
- */
-export const unattributedAgentResource: Readable<AgentResourceRecord[]> = derived(
-  agentResourceUsage,
-  ($records) => $records.filter((record) => record.instanceId === null),
 );
 
 /**
