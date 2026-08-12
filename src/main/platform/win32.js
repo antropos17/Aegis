@@ -435,6 +435,15 @@ function getProcessCwds(pids) {
 }
 
 module.exports = {
+  /**
+   * `getParentProcessMap` entries carry `startTime`, the OS process birth time.
+   * process-utils reads it as the GENERATION of a pid: the proof that a cached
+   * parent chain or working directory still belongs to the process living under
+   * that pid. Only win32 supplies it — see the matching `false` in linux.js and
+   * darwin.js, which is why neither pays a per-scan map observation.
+   * @type {boolean}
+   */
+  providesStartTime: true,
   listProcesses,
   getParentProcessMap,
   getRawTcpConnections,
