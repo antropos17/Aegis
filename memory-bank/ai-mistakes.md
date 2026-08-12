@@ -43,11 +43,12 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
 
 ## CI
 23. Regenerates package-lock.json with the LOCAL npm and breaks every CI job. The local
-    npm is 11.x; CI runs Node 20 with npm 10.8.2. npm 11 dedupes entries npm 10 still
+    npm is 11.x; CI runs Node 22, and this repo pins no npm version — never assume the
+    resolver that reads your lockfile is the one that wrote it. npm 11 dedupes entries npm 10 still
     requires — `svelte-check/node_modules/picomatch` was hoisted away, and every job died
     at `npm ci` with "Missing: picomatch@4.0.5 from lock file" (commit `a6dccc7`, fixing
-    `a91f2e1`). The lockfile is CI's input, not yours: rebuild it from master with
-    `npx npm@10.8.2 install`, and verify with `npx npm@10.8.2 ci` exiting 0 before pushing.
+    `a91f2e1`). The lockfile is CI's input, not yours: rebuild it from master, and verify
+    with `npm ci` exiting 0 on Node 22 before pushing.
     A `npm install` that succeeds locally proves nothing about the resolver that will read
     the file.
 
