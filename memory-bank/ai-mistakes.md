@@ -77,6 +77,7 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     to undo it and only an external editor snapshot brought the log back. Untracked files have no
     safety net: git cannot restore what it never saw. Touch ONLY the bytes the prompt named. If a
     file looks wrong in a way the task did not mention, report it and leave it alone.
+    Corollary: a local `format:check` red on a Windows checkout (150 files, CRLF-only diffs, CI green) is a config gap, not a formatting one — `"endOfLine": "auto"` in .prettierrc clears it without touching a single source byte; never "fix" it with a repo-wide `prettier --write`.
 
 ## Verification
 25. **Confirmed good approach — a measurement gate that refuses or blocks beats one that annotates.**
