@@ -34,7 +34,6 @@
       "Bash(cat *)"
     ],
     "deny": [
-      "Bash(git push *)",
       "Bash(git merge *)",
       "Bash(git rebase *)",
       "Bash(npm publish *)",
