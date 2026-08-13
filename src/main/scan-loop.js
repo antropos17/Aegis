@@ -289,9 +289,22 @@ async function doProcessScan() {
     // `instanceId`, which the session key is built from — so it MUST precede
     // reconcile, or every session would key on a degraded `"<pid>:u"` and a
     // recycled pid running the same executable would silently continue the dead
-    // process's session. `forceRefresh` on a changed pid set keeps a pid that is
-    // new to the scan from being identified out of a stale cache entry. No new
-    // spawn: on win32 this is the same `cim-parent` fetch the tick already pays.
+    // process's session. That ordering is the correctness boundary: the fresh
+    // identity observation MUST finish before sessionTracker.reconcile below.
+    //
+    // Freshness does NOT come from `forceRefresh`. On win32 every non-empty pass
+    // observes the birth time from one new process map (process-utils.js
+    // `_stampFromFreshBirthTimes`) and stamps that observed value, cached or not;
+    // `forceRefresh` now only decides whether the parent CHAIN is re-walked from
+    // that already-fetched map instead of served from the cache entry, so it adds
+    // no provider call of its own.
+    //
+    // It is not free. `scanner.scanProcesses` enumerates with `tasklist`, and
+    // `getParentProcessMap` has no other caller on this tick, so a fully cached
+    // Windows pass now pays one `cim-parent` PowerShell observation it previously
+    // skipped. Measured for that provider call in PR #206 on one machine/sample:
+    // N=32, p50 1284 ms, p95 1459 ms, max 1657 ms — a sample, not a guaranteed
+    // runtime.
     await procUtil.enrichWithParentChains(agents, { forceRefresh: result.changed === true });
     // Eager-enter / lazy-exit session reconciliation: an agent seen in even ONE
     // scan logs session-start immediately, and a flickering or permission-denied

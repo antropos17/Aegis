@@ -4,7 +4,9 @@
  * @description The single authority for AEGIS's process INSTANCE key. Windows
  *   recycles PIDs, so a bare PID is not an identity: a new process can inherit a
  *   dead one's session, dedup sets and accumulated accounting. `instanceId` binds
- *   the PID to the OS process-creation time — a pair the OS never reissues.
+ *   the PID to the OS process-creation time — reuse-resistant AT THE RESOLUTION
+ *   that time is observed and stored at, not globally unique. What the pair does
+ *   not rule out is spelled out under TIME RESOLUTION below.
  *
  *   THREE VALUE SPACES, disjoint by construction (a value from one can never
  *   equal a value from another — the pid segment and the `u` marker separate them):
@@ -29,10 +31,24 @@
  *   on `instanceId|process`, so the process name still separates instances
  *   wherever space 3 applies.
  *
- *   TIME RESOLUTION — the bound on space 1, per platform. Two instances sharing
- *   BOTH a pid and a birth timestamp are indistinguishable; that is the only
- *   failure mode, and it degrades to space 3's behaviour (two instances read as
- *   one). No tie-breaker is added for it — that code would never run.
+ *   TIME RESOLUTION — the bound on space 1. The birth time is stored at whatever
+ *   resolution the platform reports it, so two instances that share BOTH a pid and
+ *   that stored timestamp build the SAME key and are observationally
+ *   indistinguishable to this scheme.
+ *
+ *   That is NOT a fall to space 3. The key stays `"<pid>:<epochMs>"`, its source
+ *   stays `'os'`, and nothing about it reads as degraded — what collided is the
+ *   GENERATION TOKEN itself. Generation-bound caches therefore cannot separate the
+ *   two either: process-utils.js proves a cached parent chain with
+ *   `cached.startTime === birthTime` and a cached cwd with
+ *   `cached.generation === e.generation`, and on a collision both comparisons pass,
+ *   so the first instance's chain, cwd, session and accounting can be served to the
+ *   second. Space 3 is the SEPARATE path — a birth time that could not be read at
+ *   all — and it is labelled `'unknown'` rather than silently equal. No tie-breaker
+ *   is added for the collision; the identity format is deliberately unchanged.
+ *
+ *   The stored resolution, and therefore how narrow that collision window is, per
+ *   platform:
  *     - win32: MILLISECONDS. `Win32_Process.CreationDate` →
  *       `ToUnixTimeMilliseconds()` (platform/win32.js `getParentProcessMap`).
  *       A collision needs the OS to free and reissue the same pid inside 1 ms.

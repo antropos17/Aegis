@@ -78,5 +78,35 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     safety net: git cannot restore what it never saw. Touch ONLY the bytes the prompt named. If a
     file looks wrong in a way the task did not mention, report it and leave it alone.
 
+## Caching
+25. Treats a cache KEY as proof that cached data is still fresh. A key is a LOCATOR —
+    it says which entry to look at, never that the entry still describes the thing it
+    was written about. Whenever correctness depends on the cached value still belonging
+    to the CURRENT generation of an external resource (an OS process under a recycled
+    pid, a file at a re-created inode, a remote row after a rewrite), the key alone
+    cannot decide it and neither can adding more fields to the key: two generations that
+    agree on every keyed field produce the same key by construction.
+    - Freshness evidence must come from a FRESH authoritative observation made on this
+      pass. A cached generation token certifying itself is circular — it always matches.
+    - Shared cached state must never be read as its own provenance. A downstream consumer
+      should take the generation off the record the current observation produced, not
+      re-read the shared cache: a cache entry is shared by every record that ever used
+      that key, so a record that never went through the observation would silently borrow
+      someone else's proof.
+    - Tests must cover same-key/different-generation (the entry is stale but reachable)
+      AND cross-record contamination (record B inherits record A's generation). A test
+      that only exercises cache-hit and cache-miss proves neither.
+    - Measure the steady-state provider-call and latency cost before calling the fix
+      "free" or "no extra I/O". Moving an observation from conditional to unconditional
+      adds a call on exactly the passes that used to be cheapest.
+    Precedent PR #206: `parentChainCache` was keyed `pid|name` and served the DEAD
+    process's `startTime` — the field `instanceId` is built from — to a same-name pid
+    reuse, so two instances shared one session, one dedup set and one token ledger.
+    The fix was one fresh `getParentProcessMap` observation per non-empty enrichment
+    pass, with the cached chain and cwd honoured only while the freshly observed birth
+    time still matches. Residual bound, documented not hidden: a pid reuse landing in the
+    same stored epoch-millisecond collides on the generation token itself and stays
+    indistinguishable (process-identity.js TIME RESOLUTION).
+
 ## Rule
 NEVER change what was not asked. Do ONLY what the prompt says.
