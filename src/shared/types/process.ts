@@ -10,7 +10,16 @@ export interface ProcessInfo {
   readonly pid: number;
 }
 
-/** Parent process info from Win32_Process CIM instance */
+/**
+ * Where a generation witness came from. `sequence` = the kernel SequenceNumber
+ * (Microsoft's documented PID-reuse detector); `createTime100ns` = process creation
+ * time in 100 ns ticks; `startTimeMs` = the epoch-ms birth time, stringified — what
+ * the emergency CIM observation can offer. The source is compared alongside the
+ * value, so witnesses of different provenance are never equal.
+ */
+export type GenerationWitnessSource = 'sequence' | 'createTime100ns' | 'startTimeMs';
+
+/** Parent process info from a snapshot observation (sidecar, or CIM fallback) */
 export interface ParentProcessInfo {
   readonly name: string;
   readonly ppid: number;
@@ -19,6 +28,15 @@ export interface ParentProcessInfo {
    * entries omit it, so the field is null there.
    */
   readonly startTime?: number | null;
+  /**
+   * Generation witness for this pid, always a string — 64-bit values that a JS
+   * number cannot hold without losing low digits. Present only when the snapshot
+   * sidecar served the observation; the CIM fallback omits it and process-utils
+   * derives a `startTimeMs` witness instead.
+   */
+  readonly witness?: string | null;
+  /** Provenance of {@link ParentProcessInfo.witness}. */
+  readonly witnessSource?: GenerationWitnessSource | null;
 }
 
 /**
@@ -67,6 +85,21 @@ export interface DetectedAgent {
   readonly instanceId?: string;
   /** Where {@link DetectedAgent.instanceId} came from. */
   readonly instanceIdSource?: InstanceIdSource;
+  /**
+   * Generation witness from THIS record's own enrichment pass — the proof that a
+   * cached parent chain or working directory still belongs to the process living
+   * under this pid. Gates cache reuse and nothing else: it is deliberately NOT part
+   * of {@link DetectedAgent.instanceId}, so two instances sharing a pid and a birth
+   * millisecond still collide on the identity even when the witness separates them.
+   *
+   * `null` = enrichment ran and the observation produced no witness (nothing is
+   * proven); absent = this record never passed through enrichment, so no generation
+   * was established for it either way. Never read from a cache — a cache entry is
+   * shared by every record that ever used its key.
+   */
+  readonly generationWitness?: string | null;
+  /** Provenance of {@link DetectedAgent.generationWitness}. */
+  readonly generationWitnessSource?: GenerationWitnessSource | null;
   /**
    * `true` only on records fabricated by the browser demo engine
    * (renderer/lib/stores/demo-data.js). ABSENT on everything the main process
