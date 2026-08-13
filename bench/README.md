@@ -55,10 +55,14 @@ npm run bench:s1                                         # the line above, witho
 
 The `--` is required; without it npm keeps the flags.
 
-Exit codes: **0** the run completed · **1** a step failed to execute · **2** the invocation or the
-scenario was wrong and nothing ran. A scenario is loaded and validated *before* the run directory
-exists, so a wrong scenario leaves no empty run behind; a step that fails happens after, and leaves
-the directory holding the catalogue of everything that did happen first.
+In arm A a run takes roughly three minutes: about ninety seconds of it is waiting for the sensor's
+scan cadence to settle, then the scenario, then three more scan ticks and a flush drain.
+
+Exit codes: **0** the run completed · **1** a step failed to execute, or the sensor could not be run
+or read · **2** the invocation or the scenario was wrong and nothing ran. A scenario is loaded and
+validated *before* the run directory exists, so a wrong scenario leaves no empty run behind; a step
+that fails happens after, and leaves the directory holding the catalogue of everything that did
+happen first.
 
 Arms, from §10 — a run is one scenario in one arm:
 
@@ -73,15 +77,17 @@ for a given deterministic scenario, and only then does A score the sensor agains
 
 ## Layout
 
-Present today (sub-blocks B2.1 and B2.2):
+Present today (sub-blocks B2.1, B2.2 and the arm-A capture):
 
 ```
 bench/
-  run.js                                    # create a run directory, execute a scenario
+  run.js                                    # create a run directory, execute a scenario, run the sensor
   scenario.schema.json                      # draft-07; the shape of a scenario
   lib/manifest.js                           # environment snapshot; absent facts stay absent
   lib/actor.js                              # executes steps, captures what happened
   lib/catalogue.js                          # writes expected.ndjson; refuses a line it did not observe
+  lib/sensor.js                             # runs AEGIS across a run; readiness, ticks, stop
+  lib/observed.js                           # writes observed.ndjson out of the product's audit log
   scenarios/S1-agent-lifecycle/scenario.json
   runs/                                     # run artefacts — gitignored, created on first run
   README.md
@@ -93,7 +99,6 @@ built — nothing below exists yet:
 | path | sub-block |
 |---|---|
 | `bench/lib/oracles/sysmon.js`, `bench/oracles/sysmon-bench.xml` | B2.3 |
-| `bench/lib/sut-capture.js` | B2.4 |
 | `bench/score.js`, `bench/lib/join.js`, `bench/lib/metrics.js` | B2.5 |
 | `bench/lib/oracles/procmon.js`, `bench/oracles/procmon-bench.pmc` | B2.6 |
 | `bench/report.js` | B2.9 |
@@ -153,6 +158,10 @@ see it present rather than only its start and its end — then terminated and de
 by construction: 45 KB, loopback only, and its `-n` count bounds its own lifetime if the actor dies
 before the terminate step.
 
+That 35 s is measured against the *configured* interval, which is why arm A waits for the sensor's
+cadence to settle before the first step rather than starting at its first completed scan — see
+[Arm A](#when-the-run-may-start-and-when-it-may-stop).
+
 ## The catalogue
 
 `expected.ndjson` is written by the actor **as a by-product of executing the steps**, one line per
@@ -187,6 +196,129 @@ succeeded. The catalogue that survives a failed run holds exactly the events tha
 Everything above is still only intent plus the fact of execution. The catalogue never confirms
 itself — every row is confirmed against an independent oracle before any metric counts it.
 
+## Arm A — what the sensor recorded
+
+In arm A with a scenario, `run.js` runs AEGIS itself across the steps and writes what it recorded to
+`observed.ndjson`, in the same ECS subset as the catalogue.
+
+The source is the product's own hash-chained audit log — `userData/audit-logs/aegis-audit-<day>.json`
+— and **not** a bench-only channel inside the main process. A capture path that exists only while
+the bench is running measures the bench. Nothing was added to `src/` for this: the run reads what
+AEGIS already writes when nobody is benching it.
+
+### Running the product
+
+AEGIS is started as `electron .` on a **run-scoped Electron profile** under the OS temp directory,
+via the stock `--user-data-dir` switch. That changes where the product writes, never how it observes,
+and it buys three things a bench needs: the audit file is written by this run alone, so its hash
+chain starts at GENESIS and a verdict on it is a verdict on our own records; the run does not inherit
+whatever `scanIntervalSec` the developer last saved, nor append to their real audit trail; and the
+single-instance lock lives in the profile, so a bench run does not collide with an AEGIS the user
+already has open. The profile is deliberately **not** inside the repository — `src/main/file-watcher.js`
+watches the project directory, so an audit write there would raise a file event, which is logged to
+the audit, which is a write.
+
+The run needs a built renderer (`npm run build:renderer`). Without `dist/renderer/index.html` the
+main window never reaches `ready-to-show`, the deferred subsystems that own the sensors never start,
+and the sensor refuses rather than letting the run act into a dead app.
+
+### When the run may start, and when it may stop
+
+Readiness is the sensor's own report, never a sleep. AEGIS logs `DEBUG [scan] process {ms, agents}`
+after a completed process-scan tick, and mirrors it to stderr while unpackaged. One such line means
+the sensor is alive. **Two of them under 20 s apart** mean something more, and it is what the run
+actually waits for: AEGIS spends its first minute on a startup schedule that scans at three times the
+configured interval, so a run that begins at the first tick acts into a ~37 s gap — and S1's subject,
+alive for 35 s, is then never in front of a scan at all. That is a harness artefact, and it produced
+an arm-A run that could not observe a process start or end no matter how well the sensor worked.
+
+Afterwards the sensor is given three more completed ticks. Not one: AEGIS reports a process end only
+after `session-tracker.js`'s grace of two consecutive scans that missed it, so 2 + 1 is the smallest
+number that lets the product reach its own conclusion.
+
+Stopping is a kill, and that is a limitation rather than a preference — AEGIS has no external
+graceful-shutdown path, since its window `close` handler calls `preventDefault()` and hides to tray,
+so only `taskkill /F` ends it and `/F` skips `before-quit → audit.shutdown()`. The kill is therefore
+preceded by a drain longer than the audit logger's 5 s flush interval, which is what makes the last
+records durable.
+
+`expected.ndjson` is written **after** the sensor is stopped. The run directory sits inside the
+watched project directory, so writing the catalogue while the sensor is live puts a file creation the
+harness made for itself into the sensor's own answer.
+
+### The mapping
+
+| audit record | ECS shape | what the audit does NOT carry |
+|---|---|---|
+| `agent-enter` | `process.start` | image name, executable path, OS birth time |
+| `agent-exit` | `process.end` | exit code, terminating signal |
+| `file-access` / `config-access` + `created` | `file.creation` | owner pid, size, hash |
+| `file-access` / `config-access` + `deleted` | `file.deletion` | owner pid |
+
+pid is the only join key the audit gives a process event; path is the only one it gives a file event.
+The display name AEGIS resolved (`"Claude Code"`) is **not** written into `process.name`: it is not
+the image name, and a join would read it as one. It rides `bench.agent`, next to `bench.instanceId`
+and the sensor's own `bench.attribution` verdict. `instanceId` encodes the OS birth time as
+`"<pid>:<ms>"` and is carried verbatim, never parsed — reconstructing an instant out of an identity
+string would be a derivation dressed as an observation.
+
+Everything the sensor observed with no home in that subset — network connections, anomaly alerts,
+`modified` and `accessed` file events — is not written, because a fifth shape would stop being the
+same subset as the catalogue. It is **tallied by type and action** in `observed.meta.json` and
+printed at the end of the run, so what was left out is visible rather than absent.
+
+The window is `[the first step, the sensor's stop] ± 250 ms`. It opens at the first step and not at
+the run's `startedAt`, because between the two the sensor is started and waited for, and its start-up
+burst is a fact about the machine rather than about this scenario. The epsilon is small on purpose:
+both processes read one clock and every audit timestamp is taken after the thing it describes, so
+both ends are inert by construction and a generous value would only pull that burst in.
+
+### What fails a run
+
+`bench/lib/observed.js` re-implements the chain check rather than importing
+`src/main/audit-hashchain.js`: a sensor is never its own oracle, and a disagreement between the two
+cannot be a finding if both sides run the same code. A unit test pins the re-implementation against
+records AEGIS actually wrote, hashes included.
+
+- **A broken chain** — an interior line that does not parse, a seq that is not its line number, a
+  hash that does not recompute. The run exits 1 and takes no record out of the file. Not "skip the
+  record and carry on": a quietly shortened observation set reads exactly like a sensor that saw less.
+- **A `buffer-overflow-drop` marker inside the window.** That is the product stating on disk that it
+  threw records away, from the interval the run is about to call observed.
+- **Zero observations.** An empty `observed.ndjson` is indistinguishable from "the sensor ran and saw
+  nothing", so none is written; the reason goes to `observed.meta.json` instead.
+- **A sensor that will not start.** Refused before any step runs — an arm-A run whose sensor never ran
+  is an arm-C run under the wrong name.
+
+The one thing that is not a refusal is an unparseable **last** line: the kill can land mid-append, and
+a torn trailing line leaves a valid prefix. It is dropped and the drop is recorded, so a run that may
+be missing one observation says so.
+
+### Reading a capture
+
+`observed.meta.json` is written in arm A whether the capture succeeded or refused, and holds the
+profile path, the audit files read, the window, every completed scan tick, the tally of what did not
+become an observed line, and the failure reason if there was one. Two of its fields answer questions
+a coverage number cannot answer by itself:
+
+- **`sensor.ticksWhileProcessAlive`** — scans that fell inside the scenario's own process lifetime.
+  Zero means the process was never in front of the sensor, and anything missing about it is not a
+  coverage result.
+- **`sensor.steadyCadence`** — false means the steps ran against the startup schedule, and every
+  figure from that run describes that regime rather than the configured one.
+
+### What the sensor cannot see, and why
+
+Two observations in arm A exist only because of where things sit, and both are worth knowing before a
+number is read as a property of the sensor:
+
+- **File creation and deletion are seen because the run directory is inside the repository.**
+  `src/main/file-watcher.js` watches the project directory to a depth of 5, and
+  `bench/runs/<id>/stage/claude.exe` is four levels down. A stage directory outside the repository
+  produces no file events at all.
+- **The readiness signal exists because the app runs from source.** `logger.js` mirrors to stderr only
+  while `isDev` — that is, `!app.isPackaged`. Benching a packaged build would need a different signal.
+
 ## Run artefacts
 
 One run is one directory under `bench/runs/`, named `<UTC instant>-<scenario>-<arm>`. The
@@ -195,9 +327,14 @@ machines' artefacts into one record.
 
 `manifest.json` is written today, and `expected.ndjson` plus a `stage/` directory whenever a
 scenario was named. `stage/` holds the binaries the scenario copied; S1 deletes its own, so the
-directory is normally left empty. The remaining files arrive with the sub-blocks that produce them:
-`oracle-sysmon.ndjson`, `oracle-procmon.ndjson`, `oracle-loss.json`, `sut.ndjson`,
-`matched.ndjson`, `metrics.json`.
+directory is normally left empty. In arm A there are two more: `observed.ndjson`, what the sensor
+recorded, and `observed.meta.json`, how it was run and what did not become a line of it. The
+remaining files arrive with the sub-blocks that produce them: `oracle-sysmon.ndjson`,
+`oracle-procmon.ndjson`, `oracle-loss.json`, `matched.ndjson`, `metrics.json`.
+
+The Electron profile a run created is **left behind** in the OS temp directory, and its path is in
+`observed.meta.json`. It holds the audit file `observed.ndjson` was derived from, which is the
+evidence for every line of it.
 
 ### Absent, never guessed
 
