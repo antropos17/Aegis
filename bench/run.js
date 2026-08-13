@@ -91,8 +91,9 @@ function parseArgs(argv) {
  * The timestamp keeps ISO-8601 ordering (run directories sort chronologically
  * as plain text) with `:` replaced, since it is illegal in a Windows path, and
  * the milliseconds dropped so two runs a second apart stay readable. Two runs
- * inside the same second collide — {@link createRunDir} refuses rather than
- * writing into an existing directory.
+ * of the same scenario and arm inside one second therefore build the same id —
+ * {@link createRunDir} refuses that, and {@link main} turns the refusal into
+ * the same exit 2 every other bad input gets.
  * @param {Date} now
  * @param {string} scenario
  * @param {string} arm
@@ -141,7 +142,21 @@ function main(argv) {
 
   const now = new Date();
   const runId = buildRunId(now, args.scenario, args.arm);
-  const dir = createRunDir(runId);
+  let dir;
+  try {
+    dir = createRunDir(runId);
+  } catch (err) {
+    // The likely case is EEXIST: the same scenario and arm inside one second.
+    // It fails legibly and with the same exit 2 as a bad flag — a bench loop
+    // must not end in a Node stack trace, and it must never be tempting to
+    // "fix" this by writing into a directory another run already owns.
+    console.error(
+      err.code === 'EEXIST'
+        ? `bench: run directory ${runId} already exists — a run never writes into one it did not create`
+        : `bench: could not create the run directory: ${err.message}`,
+    );
+    return 2;
+  }
   const record = manifest.collect({
     runId,
     scenario: args.scenario,
