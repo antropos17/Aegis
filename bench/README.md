@@ -58,8 +58,9 @@ The `--` is required; without it npm keeps the flags.
 In arm A a run takes roughly three minutes: about ninety seconds of it is waiting for the sensor's
 scan cadence to settle, then the scenario, then three more scan ticks and a flush drain.
 
-Exit codes: **0** the run completed · **1** a step failed to execute, or the sensor could not be run
-or read · **2** the invocation or the scenario was wrong and nothing ran. A scenario is loaded and
+Exit codes: **0** the run completed · **1** a step failed to execute, the sensor could not be run
+or read, or the run report could not be derived · **2** the invocation or the scenario was wrong and
+nothing ran. A scenario is loaded and
 validated *before* the run directory exists, so a wrong scenario leaves no empty run behind; a step
 that fails happens after, and leaves the directory holding the catalogue of everything that did
 happen first.
@@ -77,7 +78,7 @@ for a given deterministic scenario, and only then does A score the sensor agains
 
 ## Layout
 
-Present today (sub-blocks B2.1, B2.2 and the arm-A capture):
+Present today (sub-blocks B2.1, B2.2, the arm-A capture and the first join):
 
 ```
 bench/
@@ -88,6 +89,7 @@ bench/
   lib/catalogue.js                          # writes expected.ndjson; refuses a line it did not observe
   lib/sensor.js                             # runs AEGIS across a run; readiness, ticks, stop
   lib/observed.js                           # writes observed.ndjson out of the product's audit log
+  lib/join.js                               # joins the two, shapes run-report.json; no I/O at all
   scenarios/S1-agent-lifecycle/scenario.json
   runs/                                     # run artefacts — gitignored, created on first run
   README.md
@@ -99,7 +101,7 @@ built — nothing below exists yet:
 | path | sub-block |
 |---|---|
 | `bench/lib/oracles/sysmon.js`, `bench/oracles/sysmon-bench.xml` | B2.3 |
-| `bench/score.js`, `bench/lib/join.js`, `bench/lib/metrics.js` | B2.5 |
+| `bench/score.js`, `bench/lib/metrics.js` | B2.5 |
 | `bench/lib/oracles/procmon.js`, `bench/oracles/procmon-bench.pmc` | B2.6 |
 | `bench/report.js` | B2.9 |
 
@@ -319,6 +321,95 @@ number is read as a property of the sensor:
 - **The readiness signal exists because the app runs from source.** `logger.js` mirrors to stderr only
   while `isDev` — that is, `!app.isPackaged`. Benching a packaged build would need a different signal.
 
+## The join — `run-report.json`
+
+At the end of an arm-A run the catalogue and the observation set are joined, and the result is
+written to `run-report.json`: per category, how many events were expected, how many the sensor
+accounted for, and how long it took. This is the first row of the measurement matrix and it scores
+the sensor against the catalogue only — an unconfirmed catalogue, until B2.3's oracle confirms it.
+
+`bench/lib/join.js` **reads and writes nothing**. It takes two arrays and the window parameters and
+returns an object; `run.js` owns every byte that touches the disk. A unit test asserts the module
+requires no filesystem API at all, because a join that could reach for a fact it was not handed
+could also disagree with the files the report claims to be about.
+
+### What joins to what
+
+| category | key | why that key and no other |
+|---|---|---|
+| `process/start`, `process/end` | `process.pid` | pid is the only join key the audit gives a process event |
+| `file/creation`, `file/deletion` | `file.path`, case- and separator-normalised | path is the only one it gives a file event; the product does not persist the owner of a file event |
+
+**Nothing joins on a name.** AEGIS persists the display name it resolved — `"Claude Code"` — and
+never the image name, `claude.exe` (B2.3). They are different strings about different things, and a
+join that treated one as the other would manufacture matches out of a naming coincidence. The
+display name rides `bench.agent`, where no join reads it.
+
+Path normalisation folds separators to `\` and the whole string to lower case, because
+`X:/Future\AEGIS` and `x:\future\aegis` name one file on the platform the bench runs on. That is a
+Windows fact rather than a general one: a bench on another platform would need a different rule, not
+this one relaxed.
+
+The window is `[expected.@timestamp, expected.@timestamp + maxLatency]`. **One observed event cancels
+at most one expectation**, and one expectation is cancelled by at most one observation: every
+eligible pair is scored by its latency and taken in ascending order, so the nearest pairing wins and
+a later expectation may take an observation an earlier one could also have used. Ties break on file
+order, so the report is reproducible from the two files it was derived from.
+
+### Where `maxLatency` comes from
+
+`maxLatency` is **three scan intervals**, and the interval is read off the run rather than written
+into the code. Two sources, in order, each one a thing that happened:
+
+1. `scanIntervalSec` in the run-scoped profile's `settings.json` — the configuration the sensor
+   loaded. AEGIS writes that file as soon as it persists anything, and seeing an agent is enough.
+2. The median gap between the scan ticks the sensor itself reported **after its cadence settled**.
+   Only after: before that it is on the startup schedule at three times the configured interval, and
+   those gaps describe the wrong regime. No run has needed this source yet — every arm-A run so far
+   found the settings file — so it is pinned by a unit test rather than by a run.
+
+Neither answered → the interval is **absent and stays absent**. There is no third source, because
+the third source would be a literal. The report is still written, every recall in it reads
+`unavailable`, and the run exits 1: a recall figure is a statement about a window, and a window
+nobody derived is not one.
+
+It is not in `manifest.json`, and cannot be: `manifest.collect()` runs before the sensor starts, so
+the profile it would have to read does not exist yet, and a value copied out of the product's
+defaults would be `src/` contributing to its own measurement record. It is recorded in
+`observed.meta.json` as `sensor.scanInterval` — `{value, source}`, the manifest's own convention —
+and again in the report as `join.maxLatencySource`.
+
+Three intervals is **not** generous for `process/end`. AEGIS reports an end only after
+`session-tracker.js`'s grace of two consecutive scans that missed the process, so that category's
+floor is already two intervals plus the scan that concludes it. A `process/end` that lands past the
+bound is a miss produced by the window, which is why every miss in the report names the nearest
+observation there was and the signed distance to it — including a **negative** one. The actor stamps
+around the step and the audit stamps inside its own `log()` call, so an observation stamped a few
+milliseconds before its expectation is a stamping artefact, and the report says that instead of
+counting it as a sensor failure.
+
+### What the report says
+
+- **Per category** — `expected`, `matched`, `missed`, and `recall` both as the string `matched/expected`
+  and as a number. Where a number would be a lie the number is `null` and a `recallUnavailable`
+  line says why: a category the catalogue never expected is `0/0`, not a recall of 0.
+- **Latency** — every pair's `observedTs − expectedTs` in milliseconds, and per category a `p50` and
+  a `max` over the matched pairs. With one or two pairs — which is what one S1 run produces — the
+  `basis` field says those figures **are the points themselves, not statistics over a sample**.
+- **`unmatchedObserved`** — observations inside the run window that cancelled nothing, each with the
+  reason it could not. They are not debris: an unmatched observation is either sensor noise or
+  activity on the machine the scenario did not cause, and both are findings.
+- **`processObservable`** — `false` when no completed scan tick fell inside the scenario's own
+  process lifetime. Then the process categories read `0/N (structurally unobservable)` with a null
+  recall number: the process was never in front of the sensor, so this is not a coverage result and
+  it is named rather than dissolved into the general `missed`. **The run is still valid and still
+  exits 0** — what failed is the phase alignment, not the sensor, and not the run. If such a run
+  matched something anyway, the category carries a `note` saying the tick accounting and the
+  observation disagree.
+
+**There is no confidence figure in this report and there will not be one.** Every number it carries
+is a count of rows or a difference of two timestamps.
+
 ## Run artefacts
 
 One run is one directory under `bench/runs/`, named `<UTC instant>-<scenario>-<arm>`. The
@@ -327,10 +418,11 @@ machines' artefacts into one record.
 
 `manifest.json` is written today, and `expected.ndjson` plus a `stage/` directory whenever a
 scenario was named. `stage/` holds the binaries the scenario copied; S1 deletes its own, so the
-directory is normally left empty. In arm A there are two more: `observed.ndjson`, what the sensor
-recorded, and `observed.meta.json`, how it was run and what did not become a line of it. The
-remaining files arrive with the sub-blocks that produce them: `oracle-sysmon.ndjson`,
-`oracle-procmon.ndjson`, `oracle-loss.json`, `matched.ndjson`, `metrics.json`.
+directory is normally left empty. In arm A there are three more: `observed.ndjson`, what the sensor
+recorded; `observed.meta.json`, how it was run and what did not become a line of it; and
+`run-report.json`, the two joined. The remaining files arrive with the sub-blocks that produce them:
+`oracle-sysmon.ndjson`, `oracle-procmon.ndjson`, `oracle-loss.json`, `matched.ndjson`,
+`metrics.json`.
 
 The Electron profile a run created is **left behind** in the OS temp directory, and its path is in
 `observed.meta.json`. It holds the audit file `observed.ndjson` was derived from, which is the
