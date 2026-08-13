@@ -484,80 +484,95 @@ async function main(argv) {
   if (scenario) {
     console.log(`scenario ${scenario.id} — ${scenario.title}`);
 
-    // The sensor comes up BEFORE the first step, and a sensor that will not come
-    // up stops the run here: an arm-A run whose sensor never ran is an arm-C run
-    // under the wrong name, and its empty answer would read as a coverage miss.
-    /** @type {Object|null} */
+    /** @type {Object|null} The live sensor, from the moment it is started. */
     let handle = null;
-    if (args.arm === SENSOR_ARM) {
-      try {
-        handle = await sensor.start({ runId, log });
-      } catch (err) {
-        if (!(err instanceof sensor.SensorError)) throw err;
-        const metaPath = observed.writeMeta(dir, {
-          runId,
-          scenario: scenario.id,
-          arm: args.arm,
-          sensor: null,
-          window: null,
-          audit: null,
-          observed: null,
-          skipped: null,
-          failure: { stage: err.stage, reason: err.message },
-        });
-        console.error(`\nbench: ${err.message}`);
-        console.error(
-          `bench: nothing was executed — the scenario never ran, so this run holds a manifest and ` +
-            `the reason and no catalogue.\nbench: written ${metaPath}`,
-        );
-        return 1;
+    try {
+      // The sensor comes up BEFORE the first step, and a sensor that will not
+      // come up stops the run here: an arm-A run whose sensor never ran is an
+      // arm-C run under the wrong name, and its empty answer would read as a
+      // coverage miss.
+      if (args.arm === SENSOR_ARM) {
+        try {
+          handle = await sensor.start({ runId, log });
+        } catch (err) {
+          if (!(err instanceof sensor.SensorError)) throw err;
+          const metaPath = observed.writeMeta(dir, {
+            runId,
+            scenario: scenario.id,
+            arm: args.arm,
+            sensor: null,
+            window: null,
+            audit: null,
+            observed: null,
+            skipped: null,
+            failure: { stage: err.stage, reason: err.message },
+          });
+          console.error(`\nbench: ${err.message}`);
+          console.error(
+            `bench: nothing was executed — the scenario never ran, so this run holds a manifest ` +
+              `and the reason and no catalogue.\nbench: written ${metaPath}`,
+          );
+          return 1;
+        }
       }
-    }
 
-    const outcome = await actor.execute(scenario, { runDir: dir, log });
+      const outcome = await actor.execute(scenario, { runDir: dir, log });
 
-    /** @type {Object|null} */
-    let capture = null;
-    if (handle) {
-      capture = await captureSensor({
-        handle,
-        dir,
-        record: buildCaptureRecord({
+      /** @type {Object|null} */
+      let capture = null;
+      if (handle) {
+        capture = await captureSensor({
           handle,
-          runId,
-          scenario: scenario.id,
-          arm: args.arm,
-          window: { start: firstStepStartedAt(outcome.steps), end: null },
-          events: outcome.events,
-          ticksAfterRun: 0,
-        }),
-        scenarioOk: outcome.ok,
-        log,
-      });
-    }
+          dir,
+          record: buildCaptureRecord({
+            handle,
+            runId,
+            scenario: scenario.id,
+            arm: args.arm,
+            window: { start: firstStepStartedAt(outcome.steps), end: null },
+            events: outcome.events,
+            ticksAfterRun: 0,
+          }),
+          scenarioOk: outcome.ok,
+          log,
+        });
+      }
 
-    // Only now — the catalogue is a file inside the watched project directory,
-    // and writing it while the sensor is live would put a file creation the
-    // harness made for itself into the sensor's own answer.
-    const cataloguePath = catalogue.write(dir, outcome.events);
-    console.log(`written ${cataloguePath} (${outcome.events.length} expected event(s))`);
+      // Only now — the catalogue is a file inside the watched project directory,
+      // and writing it while the sensor is live would put a file creation the
+      // harness made for itself into the sensor's own answer.
+      const cataloguePath = catalogue.write(dir, outcome.events);
+      console.log(`written ${cataloguePath} (${outcome.events.length} expected event(s))`);
 
-    if (capture) {
-      const metaPath = observed.writeMeta(dir, capture.record);
-      console.log(`written ${metaPath}`);
-      reportCapture(capture.record);
-      if (!capture.ok) exitCode = 1;
-    }
+      if (capture) {
+        const metaPath = observed.writeMeta(dir, capture.record);
+        console.log(`written ${metaPath}`);
+        reportCapture(capture.record);
+        if (!capture.ok) exitCode = 1;
+      }
 
-    if (!outcome.ok) {
-      const failed = outcome.steps.find((s) => s.status === 'failed');
-      const skipped = outcome.steps.filter((s) => s.status === 'skipped').length;
-      console.error(
-        `\nbench: step "${failed.id}" (${failed.kind}) did not execute — ${failed.error}` +
-          `\nbench: ${skipped} later step(s) were skipped; the catalogue holds only the ` +
-          'events that actually happened',
-      );
-      exitCode = 1;
+      if (!outcome.ok) {
+        const failed = outcome.steps.find((s) => s.status === 'failed');
+        const skipped = outcome.steps.filter((s) => s.status === 'skipped').length;
+        console.error(
+          `\nbench: step "${failed.id}" (${failed.kind}) did not execute — ${failed.error}` +
+            `\nbench: ${skipped} later step(s) were skipped; the catalogue holds only the ` +
+            'events that actually happened',
+        );
+        exitCode = 1;
+      }
+    } finally {
+      // The net under every path above. `captureSensor` stops the sensor on each
+      // route it completes, so reaching here with a live one means something
+      // unforeseen threw — and a bench that dies must not leave the product it
+      // started running: a survivor holds the single-instance lock on its
+      // profile and keeps scanning and writing audit records for as long as the
+      // machine is up. No drain: nothing is going to read that audit file, and a
+      // failed run should end now.
+      if (handle && !handle.exit) {
+        console.error('bench: stopping the sensor after an unforeseen failure');
+        await sensor.stop(handle, { log, drainMs: 0 });
+      }
     }
   }
 
@@ -569,9 +584,18 @@ async function main(argv) {
 }
 
 if (require.main === module) {
-  main(process.argv.slice(2)).then((code) => {
-    process.exitCode = code;
-  });
+  main(process.argv.slice(2)).then(
+    (code) => {
+      process.exitCode = code;
+    },
+    (err) => {
+      // An unhandled rejection here would print a Node stack and exit 1 with no
+      // statement of what the run was doing. By the time this runs, `main`'s own
+      // finally has already stopped any sensor it started.
+      console.error(`bench: the run failed unexpectedly — ${(err && err.stack) || err}`);
+      process.exitCode = 1;
+    },
+  );
 }
 
 module.exports = {

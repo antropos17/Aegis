@@ -417,13 +417,14 @@ async function waitForTicks(handle, count, opts = {}) {
  * @param {Object} handle - From {@link start}.
  * @param {Object} [opts]
  * @param {function(string): void} [opts.log]
- * @param {number} [opts.drainMs] - Override, for tests.
+ * @param {number} [opts.drainMs] - Override. `0` skips the drain entirely, for
+ *   the paths where nothing is going to read the audit file afterwards.
  * @returns {Promise<Object>} The same handle, with `stoppedAt` set.
  */
 async function stop(handle, opts = {}) {
   const log = opts.log ?? (() => {});
   const drainMs = opts.drainMs ?? DRAIN_MS;
-  if (!handle.exit) {
+  if (!handle.exit && drainMs > 0) {
     log(`sensor  draining ${drainMs} ms so the audit logger's flush timer runs`);
     await new Promise((resolve) => setTimeout(resolve, drainMs));
   }
