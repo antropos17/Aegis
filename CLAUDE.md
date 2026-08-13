@@ -6,7 +6,8 @@ Landing: aegisprotect.vercel.app | Demo: aegis-demo-ten.vercel.app
 npm run build:renderer    # Vite build (MUST pass before commit)
 npm run lint              # ESLint
 npm run format            # Prettier
-npm test                  # Vitest (1399 passed / 4 skipped = 1403, 84 files)
+npm test                  # Vitest (1477 passed / 4 skipped = 1481, 89 files — measured 2026-08-12)
+npm run verify:gate       # Injection proof: break the witness gate, require the suite to go red
 npm run dist              # Electron-builder NSIS installer
 
 ## Verification — three different counts, do not merge them
@@ -55,7 +56,7 @@ regenerating a lockfile.
 8. TypeScript: new files in .ts, `npx eslint` + `npm run typecheck` + `npm run typecheck:svelte` before commit, zero `any`. Root tsconfig.json is a solution file (`files: []` + references) — a bare `npx tsc --noEmit` checks NOTHING and always exits 0; use `npm run typecheck` (both projects) or `npx tsc -b`
 
 ## Key Paths
-- src/main/ — 47 CommonJS modules (38 top-level + platform/ 7 + token-adapters/ 2)
+- src/main/ — 50 CommonJS modules (38 top-level + platform/ 10 + token-adapters/ 2)
 - src/renderer/ — 46 Svelte 5 components + 11 stores + 16 utils + tokens.css/global.css
 - src/shared/ — agent-database.json (110 agents / 262 signatures), types/ (8 TS files), constants.js (ignore patterns, config paths; SENSITIVE_RULES deprecated)
 - rules/ — 73 active detection rules in 8 YAML files, validated by rules/_schema.json

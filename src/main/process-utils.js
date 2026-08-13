@@ -55,9 +55,10 @@ const PARENT_CHAIN_TTL = 60000;
  *
  * The name is NOT the whole answer: a pid recycled by an executable with the SAME
  * name produces the same key. What separates those two instances is the GENERATION
- * — the freshly observed OS birth time, re-read on every enrichment pass. The key
- * addresses the entry; the generation decides whether the entry is still about the
- * process running under that pid right now (see {@link enrichWithParentChains}).
+ * WITNESS — freshly observed on every enrichment pass and never read back out of a
+ * cache. The key addresses the entry; the witness decides whether the entry is
+ * still about the process running under that pid right now (see
+ * {@link enrichWithParentChains} and {@link _witnessOf}).
  * @param {number} pid
  * @param {string} [name] - OS process name (or display name) observed for that pid.
  * @returns {string}
@@ -134,12 +135,63 @@ function _birthTimeOf(procMap, pid) {
 }
 
 /**
+ * The GENERATION WITNESS a process map carries for one pid: the strongest proof
+ * THIS observation can offer that a cached entry still describes the process
+ * living under that pid right now.
+ *
+ * Ordered, and the order is the whole point:
+ *   1. `entry.witness` — what the snapshot sidecar observed: the kernel
+ *      SequenceNumber where Windows supplies it (Microsoft documents it as the
+ *      PID-reuse detector), otherwise the creation time in 100 ns ticks. Always a
+ *      STRING. Both are 64-bit values a JS number cannot hold without dropping low
+ *      digits, and a witness that lost its low digits compares EQUAL across two
+ *      generations — precisely the failure it exists to prevent.
+ *   2. the epoch-ms birth time, stringified, source `startTimeMs` — what the
+ *      emergency CIM observation and every pre-sidecar map entry can offer. This is
+ *      the same proof PR #206 shipped, carried in the new shape, which is why
+ *      linux/darwin and the existing behaviour are untouched by the change.
+ *   3. null — nothing observable, so nothing proven. Never a substitute for a
+ *      value, and never taken from a cache.
+ *
+ * The SOURCE travels with the value and is compared alongside it, so two witnesses
+ * of different provenance are never equal by accident: a provider change can only
+ * invalidate cache entries, never falsely prove one.
+ * @param {Map<number, {startTime?: number|null, witness?: string|null,
+ *   witnessSource?: string|null}>} procMap
+ * @param {number} pid
+ * @returns {{value: string, source: string}|null}
+ * @since v0.12.0
+ */
+function _witnessOf(procMap, pid) {
+  const info = procMap.get(pid);
+  if (!info) return null;
+  if (
+    typeof info.witness === 'string' &&
+    info.witness.length > 0 &&
+    typeof info.witnessSource === 'string' &&
+    info.witnessSource.length > 0
+  ) {
+    return { value: info.witness, source: info.witnessSource };
+  }
+  const birthTime = _birthTimeOf(procMap, pid);
+  // The same usability test process-identity.js applies before building an `os`
+  // key: a value that cannot identify an instance cannot prove one either.
+  if (!Number.isFinite(birthTime) || birthTime <= 0) return null;
+  return { value: String(birthTime), source: 'startTimeMs' };
+}
+
+/**
  * Resolve parent process chains for a list of PIDs via platform adapter, TTL-cached.
  *
  * This is the chain-only helper: it answers from the cache when it can and fetches
  * a process map only for the pids it cannot answer. It carries no generation proof
  * and is not the identity path — {@link enrichWithParentChains} is, and on a
  * birth-time platform that path observes its own single map instead of calling here.
+ *
+ * The entries it writes therefore carry no witness. Nothing on win32 calls this
+ * today; if something did, those entries would simply never be proven and would be
+ * rebuilt — safe, only wasteful. An entry may never be reused on the strength of a
+ * proof it does not hold.
  * @param {number[]} pids
  * @param {Object} [opts]
  * @param {Map<number, string>} [opts.names] - pid → process name, used to key the
@@ -206,21 +258,27 @@ async function getParentChains(pids, opts = {}) {
 }
 
 /**
- * Stamp `parentChain` and `startTime` from ONE fresh process-map observation, on a
- * platform that supplies OS birth times. This is the generation proof.
+ * Stamp `parentChain`, `startTime` and the generation witness from ONE fresh
+ * process-map observation, on a platform that supplies OS birth times. This is the
+ * generation proof.
  *
  * Exactly one provider call per pass, and that single map serves everything: the
- * birth time that proves the generation, and every chain rebuild a miss or a
- * generation change needs. There is never a second fetch in one pass.
+ * witness that proves the generation, the birth time the identity is built from,
+ * and every chain rebuild a miss or a generation change needs. There is never a
+ * second fetch in one pass.
  *
- * A cached entry survives only while the FRESH birth time equals the one the entry
- * was written with. Same pid, same executable name, different birth time is a
- * different process instance, so its chain is rebuilt from this map and its cwd
- * loses its proof (see {@link annotateWorkingDirs}). `startTime` is always the
- * freshly observed value — a cached birth time never proves the current instance,
- * and when the fresh observation withholds it the agent gets null rather than the
- * stale number, degrading through the `<pid>:u` identity process-identity.js
- * already defines.
+ * A cached entry survives only while the FRESH witness — value AND source — equals
+ * the one the entry was written with. Same pid, same executable name, different
+ * witness is a different process instance, so its chain is rebuilt from this map
+ * and its cwd loses its proof (see {@link annotateWorkingDirs}).
+ *
+ * The witness gates the CACHE; it is not the identity. `startTime` is still the
+ * freshly observed epoch-ms and still the only input to `instanceId` — a cached
+ * birth time never proves the current instance, and when the fresh observation
+ * withholds it the agent gets null rather than the stale number, degrading through
+ * the `<pid>:u` identity process-identity.js already defines. A pid whose witness
+ * is readable while its birth time is not therefore keeps a working cache gate AND
+ * an honest `unknown` identity; the two answer different questions.
  *
  * pid ≤ 0 is not an OS process (the pid-0 synthetics), so there is no generation to
  * prove for it and the plain TTL contract applies.
@@ -238,18 +296,32 @@ async function _stampFromFreshBirthTimes(agents, forceRefresh) {
   for (const a of agents) {
     const key = _cacheKey(a.pid, _agentName(a));
     const birthTime = _birthTimeOf(procMap, a.pid);
+    const witness = _witnessOf(procMap, a.pid);
     const cached = forceRefresh ? undefined : parentChainCache.get(key);
     const live = cached !== undefined && now - cached.timestamp <= PARENT_CHAIN_TTL;
-    const proven = live && (a.pid <= 0 || (birthTime !== null && cached.startTime === birthTime));
+    const proven =
+      live &&
+      (a.pid <= 0 ||
+        (witness !== null &&
+          cached.witness === witness.value &&
+          cached.witnessSource === witness.source));
 
     if (proven) {
       a.parentChain = cached.chain;
     } else {
       const chain = _walkChain(procMap, a.pid);
-      parentChainCache.set(key, { chain, startTime: birthTime, timestamp: now });
+      parentChainCache.set(key, {
+        chain,
+        startTime: birthTime,
+        witness: witness ? witness.value : null,
+        witnessSource: witness ? witness.source : null,
+        timestamp: now,
+      });
       a.parentChain = chain;
     }
     a.startTime = birthTime;
+    a.generationWitness = witness ? witness.value : null;
+    a.generationWitnessSource = witness ? witness.source : null;
   }
 }
 
@@ -260,6 +332,11 @@ async function _stampFromFreshBirthTimes(agents, forceRefresh) {
  * per-pass process map here would buy nothing — there is no birth time in it to
  * prove a generation with — and would cost a `ps` spawn or a full /proc walk every
  * scan tick.
+ *
+ * No generation witness is stamped here, deliberately: the field stays `undefined`,
+ * which {@link annotateWorkingDirs} reads as "this record established no
+ * generation" and answers with the plain TTL contract. An invented witness would be
+ * a fabricated proof.
  * @param {Array} agents
  * @param {boolean} forceRefresh
  * @returns {Promise<void>}
@@ -291,13 +368,20 @@ async function _stampFromCachedChains(agents, forceRefresh) {
  * supplies no birth time, and null for an absent pid.
  *
  * WHERE IT COMES FROM decides whether `instanceId` means anything. On a platform
- * that supplies birth times, every pass makes ONE fresh process-map observation and
- * the birth time it reads is both the stamped value and the proof that the cached
- * `parentChain` (and, downstream, the cached cwd) still describes the process living
- * under that pid — see {@link _stampFromFreshBirthTimes}. Serving a CACHED birth
+ * that supplies birth times, every pass makes ONE fresh process-map observation:
+ * the birth time it reads is the stamped value, and the GENERATION WITNESS it reads
+ * alongside is the proof that the cached `parentChain` (and, downstream, the cached
+ * cwd) still describes the process living under that pid — see
+ * {@link _stampFromFreshBirthTimes} and {@link _witnessOf}. Serving a CACHED birth
  * time was the poisoning bug: a pid Windows had reissued to another process of the
  * same executable name kept the dead process's birth time, so both instances shared
  * one `instanceId`, and with it one session, one dedup set and one token ledger.
+ *
+ * `generationWitness` / `generationWitnessSource` are stamped here too. They gate
+ * cache reuse and NOTHING else: the `instanceId` format stays `pid:startTime(ms)`,
+ * so two instances that share a pid and a birth millisecond still collide on the
+ * identity even when a stronger witness can tell them apart. That bound is
+ * documented, not eliminated (process-identity.js TIME RESOLUTION).
  *
  * `instanceId` / `instanceIdSource` are derived from that startTime by
  * process-identity.js. This is the ONLY place they are stamped, so it must run
@@ -324,26 +408,28 @@ async function enrichWithParentChains(agents, opts = {}) {
 }
 
 /**
- * The generation ONE agent record carries out of its own enrichment pass.
+ * The generation witness ONE agent record carries out of its own enrichment pass.
  *
  * Read off the record, never out of `parentChainCache`. The cache is keyed by
  * `pid|name` and is shared by every record that ever used that key, so a lookup
  * there would answer with a generation some OTHER record established — possibly on
  * an earlier tick — and a record that never went through enrichment at all would
- * silently borrow it. `startTime` is written by {@link enrichWithParentChains} on
+ * silently borrow it. The witness is written by {@link enrichWithParentChains} on
  * every observation, so the record itself is the only honest source.
- * @param {{startTime?: number|null}} agent
- * @returns {number|null|undefined} epoch-ms when this record's own fresh observation
- *   produced a usable birth time; `null` when enrichment ran for it and the platform
- *   withheld one (nothing is proven); `undefined` when this record never passed
- *   through enrichment, so no generation was established for it either way.
+ * @param {{generationWitness?: string|null, generationWitnessSource?: string|null}} agent
+ * @returns {{value: string, source: string}|null|undefined} the pair when this
+ *   record's own fresh observation produced a witness; `null` when enrichment ran
+ *   for it and the observation produced none (nothing is proven); `undefined` when
+ *   this record never passed through enrichment, so no generation was established
+ *   for it either way.
+ * @since v0.12.0
  */
-function _recordGeneration(agent) {
-  const v = agent.startTime;
-  if (v === undefined) return undefined;
-  // Same usability test process-identity.js applies before building an `os` key, so
-  // a value that cannot identify an instance cannot prove one either.
-  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
+function _recordWitness(agent) {
+  const value = agent.generationWitness;
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || value.length === 0) return null;
+  const source = agent.generationWitnessSource;
+  return typeof source === 'string' && source.length > 0 ? { value, source } : null;
 }
 
 /** Map editor host exe names (lowercase) to human-readable labels, derived from EDITORS */
@@ -388,16 +474,17 @@ const CWD_CACHE_TTL = 60000;
  * pid belonging to a different executable into a cache MISS.
  *
  * A same-name recycled pid produces the same key, so on a platform that supplies
- * birth times the entry additionally carries the GENERATION it was fetched under,
- * and it is served only while that generation is still the one THIS agent record
- * carries from its own enrichment pass ({@link _recordGeneration}). This function
- * performs NO birth-time lookup of its own — it consumes the observation the record
- * already holds, which is why scan-loop must keep running the identity stamp first.
+ * birth times the entry additionally carries the GENERATION WITNESS it was fetched
+ * under, and it is served only while that witness is still the one THIS agent record
+ * carries from its own enrichment pass ({@link _recordWitness}). This function
+ * performs NO observation of its own — it consumes the one the record already holds,
+ * which is why scan-loop must keep running the identity stamp first.
  *
  * Three cases, and the middle one is the honest degradation:
- *   - a number → the cwd must have been fetched under that same generation;
- *   - `null` (enrichment ran for this record and the fresh observation withheld the
- *     birth time) → nothing is proven, so the cwd is re-fetched rather than
+ *   - a witness pair → the cwd must have been fetched under that same value AND
+ *     source;
+ *   - `null` (enrichment ran for this record and the fresh observation produced no
+ *     witness) → nothing is proven, so the cwd is re-fetched rather than
  *     inherited from the old generation;
  *   - `undefined` (this record never passed through enrichment — every pid on
  *     linux/darwin, pid ≤ 0, and any direct caller that skipped the stamp) → the
@@ -421,13 +508,13 @@ async function annotateWorkingDirs(agents, opts = {}) {
   _pruneStale(cwdCache, CWD_CACHE_TTL, now);
 
   // One cache key per agent, resolved once, via the same `_agentName` the
-  // parent-chain cache keys on, plus the generation THAT RECORD carries. pid ≤ 0 is
+  // parent-chain cache keys on, plus the witness THAT RECORD carries. pid ≤ 0 is
   // not an OS process, so it has no generation — undefined leaves the synthetics on
   // the plain TTL contract.
   const entries = agents.map((a) => ({
     agent: a,
     key: _cacheKey(a.pid, _agentName(a)),
-    generation: _providesStartTime && a.pid > 0 ? _recordGeneration(a) : undefined,
+    witness: _providesStartTime && a.pid > 0 ? _recordWitness(a) : undefined,
   }));
 
   // Pids with no live, generation-proven cache entry. Agents can share a pid (the
@@ -438,8 +525,11 @@ async function annotateWorkingDirs(agents, opts = {}) {
     const cached = forceRefresh ? null : cwdCache.get(e.key);
     const fresh = cached && now - cached.timestamp <= CWD_CACHE_TTL;
     const proven =
-      e.generation === undefined ||
-      (e.generation !== null && cached && cached.generation === e.generation);
+      e.witness === undefined ||
+      (e.witness !== null &&
+        cached &&
+        cached.witness === e.witness.value &&
+        cached.witnessSource === e.witness.source);
     if (fresh && proven) continue;
     uncachedPids.add(e.agent.pid);
   }
@@ -454,10 +544,11 @@ async function annotateWorkingDirs(agents, opts = {}) {
     if (batchResults && uncachedPids.has(e.agent.pid)) {
       cwdCache.set(e.key, {
         cwd: batchResults.get(e.agent.pid) || null,
-        // The generation this directory was read under. `undefined` (no generation
-        // established) stores as null, which no established generation ever matches
+        // The witness this directory was read under. `undefined` (no generation
+        // established) stores as null, which no established witness ever matches
         // — a value fetched without a proof never becomes one.
-        generation: e.generation === undefined ? null : e.generation,
+        witness: e.witness ? e.witness.value : null,
+        witnessSource: e.witness ? e.witness.source : null,
         timestamp: now,
       });
     }
