@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "id": "S1-agent-lifecycle",
+  "title": "Agent lifecycle — a process named like a known agent appears, lives across several scan ticks, and is terminated",
+  "arms": ["A", "B", "C"],
+  "oracles": ["sysmon"],
+  "proves": "That a process whose image name is one src/shared/agent-database.json claims to recognise can be created, observed for longer than one scan interval, and ended — with the pid, the absolute path and the instants recorded by the actor that created it. What a sensor or an oracle then reports is scored against that record; this scenario establishes the record, not the score.",
+  "expect": [
+    {
+      "id": "E1",
+      "description": "A binary appears on disk under the agent's name, in the run's own stage directory",
+      "category": "file",
+      "type": "creation"
+    },
+    {
+      "id": "E2",
+      "description": "A process starts from that binary and is assigned a pid by the OS",
+      "category": "process",
+      "type": "start"
+    },
+    {
+      "id": "E3",
+      "description": "That process ends, and ends because the actor terminated it rather than because it ran out on its own",
+      "category": "process",
+      "type": "end"
+    },
+    {
+      "id": "E4",
+      "description": "The staged binary is removed again, so a run leaves nothing named after an agent behind",
+      "category": "file",
+      "type": "deletion"
+    }
+  ],
+  "steps": [
+    {
+      "id": "stage-binary",
+      "kind": "copy-binary",
+      "expect": "E1",
+      "note": "ping.exe is the harmless binary: 45 KB, it touches nothing but the loopback interface, and the -n count below bounds its own lifetime, so an actor that dies before the terminate step cannot leave a process running forever. The name is verified against the database rather than typed in: claude.exe is one of the names agent-database.json gives claude-code, and the actor fails the run if it stops being one.",
+      "with": {
+        "from": "%SystemRoot%\\System32\\ping.exe",
+        "agentId": "claude-code",
+        "agentName": "claude.exe"
+      }
+    },
+    {
+      "id": "spawn-agent",
+      "kind": "spawn-process",
+      "expect": "E2",
+      "with": {
+        "fromStep": "stage-binary",
+        "args": ["-n", "600", "127.0.0.1"]
+      }
+    },
+    {
+      "id": "live-across-ticks",
+      "kind": "wait",
+      "note": "The sensor's default scan interval is 10 s (scanIntervalSec in src/main/config-manager.js), so 35 s covers at least three ticks. A process that starts and ends between two ticks would only prove that a start and an end can be seen; this scenario needs the process to be present at a scan, not merely to have existed.",
+      "with": {
+        "ms": 35000
+      }
+    },
+    {
+      "id": "terminate-agent",
+      "kind": "terminate-process",
+      "expect": "E3",
+      "with": {
+        "fromStep": "spawn-agent"
+      }
+    },
+    {
+      "id": "remove-binary",
+      "kind": "delete-file",
+      "expect": "E4",
+      "with": {
+        "fromStep": "stage-binary"
+      }
+    }
+  ]
+}

@@ -1,0 +1,251 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aegis.dev/schemas/bench-scenario.json",
+  "title": "AEGIS Bench V1 scenario",
+  "description": "Shape of bench/scenarios/<id>/scenario.json. Draft-07 because the repository pins ajv ^6, which understands no later draft. This schema owns the SHAPE of a scenario: which fields exist, which values are in a closed set, and which parameters each known step kind takes. It deliberately does not own the set of step kinds — only bench/lib/actor.js can execute a kind, so only the actor can say which kinds exist, and it rejects an unimplemented one by name before any step runs.",
+  "type": "object",
+  "required": ["schemaVersion", "id", "title", "arms", "oracles", "proves", "expect", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Scenario shape version. Bump when a field changes meaning."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^S[0-9]+-[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "description": "Scenario id, e.g. S1-agent-lifecycle. Must equal the name of the directory holding this file — a scenario that calls itself something other than where it lives would make a run directory name a lie."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One line a reader can hold in their head."
+    },
+    "arms": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "enum": ["A", "B", "C"] },
+      "description": "Run separations this scenario is meaningful in. A = sensor + Sysmon, B = Sysmon + Procmon without the sensor, C = sensor alone."
+    },
+    "oracles": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "enum": ["sysmon", "procmon"] },
+      "description": "Independent sources that must confirm this scenario's catalogue. The adapters arrive in sub-blocks B2.3 and B2.6; naming them here is a declaration of what a run will need, not a claim that it exists."
+    },
+    "proves": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What a passing run of this scenario establishes, in the author's own words. Written down so a number produced by the scenario cannot later be read as answering a question the scenario never asked."
+    },
+    "expect": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/definitions/expectation" },
+      "description": "The observable events this scenario intends to produce. Every expectation must be claimed by a step and every emitting step must claim one, so the intent and the execution can be compared instead of taken on trust."
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/step" },
+      "description": "Declarative steps, executed in order. Not a script: the catalogue is derived from what each step did, which is only possible while a step is a named kind with named parameters."
+    }
+  },
+  "definitions": {
+    "expectation": {
+      "type": "object",
+      "required": ["id", "description", "category", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^E[0-9]{1,3}$",
+          "description": "Expectation id, e.g. E1. Referenced by a step's `expect` and written into every catalogue line as bench.expect."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What is expected to become observable, in words."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["process", "file"],
+          "description": "ECS event.category of the expected event."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["start", "end", "creation", "deletion"],
+          "description": "ECS event.type of the expected event. The actor refuses to run a step whose kind emits a different category or type from the expectation it claims."
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "required": ["id", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "description": "Step id, unique within the scenario. Written into every catalogue line as bench.step, and used by later steps to refer back to what this one produced."
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Which step kind executes this step. The closed set lives in bench/lib/actor.js."
+        },
+        "expect": {
+          "type": "string",
+          "pattern": "^E[0-9]{1,3}$",
+          "description": "Expectation this step claims to satisfy. Required for a kind that emits an event, forbidden for a kind that does not — the actor enforces both."
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Why this step is shaped the way it is. Prose for the reader; the actor ignores it."
+        },
+        "with": {
+          "type": "object",
+          "description": "Parameters for the step kind. Each known kind's parameters are validated by the allOf branch below; a kind this schema has no branch for is rejected by the actor before it runs."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["kind"],
+            "properties": { "kind": { "const": "copy-binary" } }
+          },
+          "then": {
+            "required": ["with"],
+            "properties": {
+              "with": {
+                "type": "object",
+                "required": ["from", "agentId", "agentName"],
+                "additionalProperties": false,
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Absolute path of the binary to copy. %VAR% is expanded from the environment; an unset variable fails the run rather than resolving to an empty segment."
+                  },
+                  "agentId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "id of an agent in src/shared/agent-database.json."
+                  },
+                  "agentName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Name the copy is given. The actor verifies it is one of that agent's `names` in the database and fails the run if it is not, so the stimulus is drawn from the database rather than resembling it."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["kind"],
+            "properties": { "kind": { "const": "spawn-process" } }
+          },
+          "then": {
+            "required": ["with"],
+            "properties": {
+              "with": {
+                "type": "object",
+                "required": ["fromStep", "args"],
+                "additionalProperties": false,
+                "properties": {
+                  "fromStep": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "id of an earlier copy-binary step. Its copy is what gets spawned."
+                  },
+                  "args": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Arguments, verbatim. Written into the catalogue as process.args because they are exactly what the actor handed CreateProcess."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["kind"],
+            "properties": { "kind": { "const": "wait" } }
+          },
+          "then": {
+            "required": ["with"],
+            "properties": {
+              "with": {
+                "type": "object",
+                "required": ["ms"],
+                "additionalProperties": false,
+                "properties": {
+                  "ms": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 600000,
+                    "description": "How long to let the scenario run on. A wait emits no event: no oracle can confirm the passage of time, and a catalogue line nothing can confirm is decoration."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["kind"],
+            "properties": { "kind": { "const": "terminate-process" } }
+          },
+          "then": {
+            "required": ["with"],
+            "properties": {
+              "with": {
+                "type": "object",
+                "required": ["fromStep"],
+                "additionalProperties": false,
+                "properties": {
+                  "fromStep": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "id of an earlier spawn-process step. Its process is the one terminated."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["kind"],
+            "properties": { "kind": { "const": "delete-file" } }
+          },
+          "then": {
+            "required": ["with"],
+            "properties": {
+              "with": {
+                "type": "object",
+                "required": ["fromStep"],
+                "additionalProperties": false,
+                "properties": {
+                  "fromStep": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "id of an earlier copy-binary step. Its copy is the file removed."
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
