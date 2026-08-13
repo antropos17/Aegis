@@ -74,15 +74,28 @@ distinguishable PID reuse at generation-proof level · fail-honest fallback.
 **Block 1 does NOT:** migrate instanceId, or claim runtime identity is fully fixed.
 
 **Primitive chain (capability-gated at runtime, never build-number guessing):**
-1. Sidecar snapshot via NtQuerySystemInformation `SystemBasicProcessInformation` —
-   Win11 26100.4770+, per-process kernel `SequenceNumber` documented by Microsoft as the
-   PID-reuse detector (instead of CreateTime); faster/lighter class, no processor wakes.
-   External datapoint (2026-01): ~700x faster than WMI enumeration.
-2. Same sidecar, class-5 `SystemProcessInformation` fallback on all builds — CreateTime in
-   100ns ticks for every process in one snapshot, **no per-process handles** (the GetProcessTimes
-   26%-inaccessible problem does not apply here).
+1. **Not wired as of 2026-08-13 (Block 1) — see the generation-witness status note below.** Sidecar
+   snapshot via NtQuerySystemInformation `SystemBasicProcessInformation` — Win11 26100.4770+,
+   per-process kernel `SequenceNumber` documented by Microsoft as the PID-reuse detector (instead of
+   CreateTime); faster/lighter class, no processor wakes. External datapoint (2026-01): ~700x faster
+   than WMI enumeration.
+2. **The live witness path.** Same sidecar, class-5 `SystemProcessInformation` on all builds —
+   CreateTime in 100ns ticks for every process in one snapshot, **no per-process handles** (the
+   GetProcessTimes 26%-inaccessible problem does not apply here).
 3. Existing CIM Win32_Process.CreationDate — emergency fallback only (sidecar dead).
 4. Unknown birth time — fail-honest; never inherit a stale generation.
+
+**Generation-witness status (2026-08-13, Block 1 as shipped in PR-B):** the witness rides on
+`createTime100ns` — primitive 2, the class-5 `SystemProcessInformation` path — not on
+`SequenceNumber`. Primitive 1 stayed **unwired**: `SystemBasicProcessInformation`'s numeric
+info-class value is not published (MS Learn documents the struct and its 26100.4770 availability but
+no enum number), and the one secondary source that offers a value returns a 12-byte payload on build
+26200.8655 — plainly another class, caught by the sidecar's validation. Guessing a kernel info-class
+number is out. The class also carries **no CreateTime**, so even once its number is confirmed it
+could only ADD a second call for `seq` alongside the class-5 birth time, never replace it — and the
+wire, client and chooser already carry an optional `seq` field, so enabling it is a change to
+`sidecar/procsnap/` alone. `createTime100ns` is 10 000× finer than the epoch-ms it replaced; the
+same-pid + same-millisecond bound in the Invariant above is unchanged by any of this.
 
 **Witness storage:** string, always — ULONG64 SequenceNumber and 100ns CreateTime both exceed
 what JS numbers hold safely; JS must never swallow precision. Witness is a separate field that
