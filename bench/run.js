@@ -6,13 +6,15 @@
  *
  *   In **arm A** it also runs the AEGIS sensor across the scenario and writes
  *   what the sensor recorded to `observed.ndjson`, read back out of the
- *   product's own hash-chained audit log (`bench/lib/observed.js`). Arms B and C
- *   start nothing and write no observation set — arm C is defined as the sensor
+ *   product's own hash-chained audit log (`bench/lib/observed.js`), then joins
+ *   the two files and writes `run-report.json` (`bench/lib/join.js`) — recall and
+ *   latency per category, and the observations that cancelled nothing. Arms B and
+ *   C start nothing and write no observation set — arm C is defined as the sensor
  *   alone with no oracle, and measuring its overhead is a later block.
  *
- *   The oracle adapters (B2.6) are still a separate block: a run produces the
- *   record everything else will be scored against, and the sensor's answer next
- *   to it, and scores neither.
+ *   The oracle adapters (B2.6) are still a separate block: the report scores the
+ *   sensor against the catalogue and against nothing else, and the catalogue is
+ *   still unconfirmed until an oracle confirms it.
  *
  *   Order matters here, in three places.
  *
@@ -31,9 +33,9 @@
  *   would show up as a file creation in the sensor's own answer, a false
  *   positive the harness manufactured for itself.
  *
- *   Exit codes: 0 the run completed · 1 a step failed to execute, or the sensor
- *   could not be run or read · 2 the invocation or the scenario was wrong, and
- *   nothing ran.
+ *   Exit codes: 0 the run completed · 1 a step failed to execute, the sensor
+ *   could not be run or read, or the run report could not be derived · 2 the
+ *   invocation or the scenario was wrong, and nothing ran.
  *
  *   Usage:
  *     npm run bench:run
@@ -51,12 +53,30 @@ const path = require('path');
 
 const actor = require('./lib/actor');
 const catalogue = require('./lib/catalogue');
+const join = require('./lib/join');
 const manifest = require('./lib/manifest');
 const observed = require('./lib/observed');
 const sensor = require('./lib/sensor');
 
 /** @type {string} Where run directories are created. Gitignored. */
 const RUNS_DIR = path.join(manifest.ROOT, 'bench', 'runs');
+
+/**
+ * How many scan intervals a sensor is given to report something before the join
+ * stops calling it that expectation's observation.
+ *
+ * Three, and not fewer, because AEGIS reports a process end only after
+ * `session-tracker.js`'s grace of two consecutive scans that missed the process:
+ * the floor for `process/end` is already two intervals plus the scan that
+ * concludes it. It is not generous — a `process/end` that lands past the bound
+ * produces a miss that is a property of the window, which is why every miss in
+ * the report names its nearest candidate and the distance to it.
+ * @type {number}
+ */
+const MAX_LATENCY_INTERVALS = 3;
+
+/** @type {string} The settings file an Electron profile holds. */
+const SETTINGS_FILENAME = 'settings.json';
 
 /**
  * The one arm that runs the sensor. B is Sysmon and Procmon without it, and C
@@ -229,6 +249,93 @@ function processAliveWindow(events) {
 }
 
 /**
+ * The scan interval the sensor actually ran on, and where it was read.
+ *
+ * Not the manifest: `manifest.collect()` runs before the sensor exists, so the
+ * profile it would have to read has not been created yet — the manifest cannot
+ * carry this field honestly, and a value copied out of the product's defaults
+ * would be `src/` contributing to its own measurement record.
+ *
+ * Two sources, in order, and each one is a thing that happened rather than a
+ * constant:
+ *
+ * 1. `scanIntervalSec` in the run-scoped profile's `settings.json` — the
+ *    configuration the sensor loaded. AEGIS writes that file when it first
+ *    persists anything (seeing an agent is enough), so it normally exists by the
+ *    time a run ends, but nothing guarantees it.
+ * 2. The median gap between the scan ticks the sensor itself reported AFTER its
+ *    cadence settled. Only then: before that it is on the startup schedule at
+ *    three times the configured interval, and those gaps describe the wrong
+ *    regime.
+ *
+ * Neither one produced a number → the interval is ABSENT, and it stays absent.
+ * There is no third source, because the third source would be a literal.
+ * @param {Object} handle - The sensor handle, after it has been stopped.
+ * @returns {{value: number|null, source: string, unavailable?: string}} Seconds.
+ */
+function resolveScanInterval(handle) {
+  const settingsPath = path.join(handle.profileDir, SETTINGS_FILENAME);
+  try {
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    if (Number.isFinite(settings.scanIntervalSec) && settings.scanIntervalSec > 0) {
+      return { value: settings.scanIntervalSec, source: `scanIntervalSec in ${settingsPath}` };
+    }
+  } catch (_) {
+    // No settings file, or one that does not parse: the cadence is next.
+  }
+
+  if (handle.steadyCadence) {
+    const steady = handle.ticks.filter((t) => Date.parse(t) >= Date.parse(handle.steadyAt));
+    const gaps = [];
+    for (let i = 1; i < steady.length; i++) {
+      gaps.push(Date.parse(steady[i]) - Date.parse(steady[i - 1]));
+    }
+    gaps.sort((a, b) => a - b);
+    const median = gaps.length > 0 ? gaps[Math.ceil(gaps.length / 2) - 1] : null;
+    const seconds = median === null ? 0 : Math.round(median / 1000);
+    if (seconds > 0) {
+      return {
+        value: seconds,
+        source:
+          `the median gap (${median} ms) between the ${steady.length} scan ticks the sensor ` +
+          `reported after its cadence settled, rounded to whole seconds — ${settingsPath} ` +
+          'carried no usable scanIntervalSec',
+      };
+    }
+  }
+
+  return {
+    value: null,
+    source: `scanIntervalSec in ${settingsPath}, then the sensor's own settled scan cadence`,
+    unavailable:
+      `${settingsPath} carried no usable scanIntervalSec and the sensor never reported a settled ` +
+      'cadence to measure one from',
+  };
+}
+
+/**
+ * The join bound, from the interval — {@link MAX_LATENCY_INTERVALS} of them.
+ * @param {{value: number|null, source: string, unavailable?: string}} scanInterval
+ * @returns {{value: number|null, source: string, unavailable?: string}} Milliseconds.
+ */
+function maxLatencyFrom(scanInterval) {
+  if (scanInterval.value === null) {
+    return {
+      value: null,
+      source: scanInterval.source,
+      unavailable:
+        `the scan interval this run used could not be established — ${scanInterval.unavailable}. ` +
+        'A join window is derived from the run or it is absent; it is never defaulted, because ' +
+        'every recall figure in the report is a statement about that window',
+    };
+  }
+  return {
+    value: scanInterval.value * MAX_LATENCY_INTERVALS * 1000,
+    source: `${scanInterval.value} s × ${MAX_LATENCY_INTERVALS} scan intervals — ${scanInterval.source}`,
+  };
+}
+
+/**
  * Build the capture record — how the sensor was run and what did NOT become an
  * observation. Written in arm A whether the capture succeeded or refused: a run
  * directory holding no observations has to say why, or the next reader assumes
@@ -268,6 +375,9 @@ function buildCaptureRecord(opts) {
         "before-quit and the drain is what makes the last records durable via the logger's " +
         'own 5 s flush timer',
       exit: opts.handle.exit,
+      // Filled once the sensor has stopped: it is read off the profile the run
+      // created, which does not exist when the manifest is collected.
+      scanInterval: null,
       scanTicks: opts.handle.ticks,
       ticksRequestedAfterRun: sensor.POST_RUN_TICKS,
       ticksAfterRun: opts.ticksAfterRun,
@@ -295,7 +405,9 @@ function buildCaptureRecord(opts) {
  * @param {Object} opts.record - From {@link buildCaptureRecord}.
  * @param {boolean} opts.scenarioOk - Whether every step executed.
  * @param {function(string): void} opts.log
- * @returns {Promise<{record: Object, ok: boolean}>}
+ * @returns {Promise<{record: Object, ok: boolean, events: Object[]}>} The
+ *   observation set is handed back rather than read off disk again: the join runs
+ *   on the arrays this run produced, and `bench/lib/join.js` performs no I/O.
  */
 async function captureSensor(opts) {
   const { handle, record, log } = opts;
@@ -319,11 +431,12 @@ async function captureSensor(opts) {
   record.sensor.stoppedAt = handle.stoppedAt;
   record.sensor.exit = handle.exit;
   record.sensor.scanTicks = handle.ticks;
+  record.sensor.scanInterval = resolveScanInterval(handle);
   record.window.end = handle.stoppedAt;
   const alive = record.sensor.processAliveWindow;
   record.sensor.ticksWhileProcessAlive = sensor.ticksWithin(handle, alive.from, alive.to);
 
-  if (record.failure) return { record, ok: false };
+  if (record.failure) return { record, ok: false, events: [] };
 
   try {
     const captured = observed.capture({
@@ -343,11 +456,11 @@ async function captureSensor(opts) {
     record.observed = { path: observedPath, events: captured.events.length };
     log(`written ${observedPath} (${captured.events.length} observed event(s))`);
     for (const tail of captured.truncatedTails) log(`sensor  ${tail}`);
-    return { record, ok: true };
+    return { record, ok: true, events: captured.events };
   } catch (err) {
     if (!(err instanceof observed.ObservedError)) throw err;
     record.failure = { stage: err.stage, reason: err.message };
-    return { record, ok: false };
+    return { record, ok: false, events: [] };
   }
 }
 
@@ -407,6 +520,70 @@ function reportCapture(record) {
     );
     for (const line of lines) console.log(`  - ${line}`);
   }
+}
+
+/**
+ * Join the catalogue to the observation set and write the run report.
+ *
+ * Written after the sensor has stopped, for the same reason `expected.ndjson` is:
+ * the run directory sits inside the watched project directory, so a file created
+ * while the sensor is live becomes a file creation in the sensor's own answer.
+ * @param {Object} opts
+ * @param {string} opts.dir - Run directory.
+ * @param {string} opts.runId
+ * @param {string} opts.scenario
+ * @param {string} opts.arm
+ * @param {Object[]} opts.expected - The catalogue events, in memory.
+ * @param {Object} opts.capture - From {@link captureSensor}.
+ * @returns {Object} The report that was written.
+ */
+function writeReport(opts) {
+  const report = join.buildReport({
+    runId: opts.runId,
+    scenario: opts.scenario,
+    arm: opts.arm,
+    expected: opts.expected,
+    observed: opts.capture.events,
+    maxLatency: maxLatencyFrom(opts.capture.record.sensor.scanInterval),
+    ticksWhileProcessAlive: opts.capture.record.sensor.ticksWhileProcessAlive,
+  });
+  const file = path.join(opts.dir, join.REPORT_FILENAME);
+  fs.writeFileSync(file, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  console.log(`written ${file}`);
+  return report;
+}
+
+/**
+ * Say the report out loud: one line per category, and the two facts that decide
+ * whether its numbers may be read as coverage at all.
+ * @param {Object} report - From {@link writeReport}.
+ * @returns {void}
+ */
+function reportJoin(report) {
+  const bound = report.join.maxLatencyMs;
+  console.log(
+    `\njoin    [expected, expected + ${bound === null ? 'ABSENT' : `${bound} ms`}] — ` +
+      report.join.maxLatencySource,
+  );
+  for (const category of join.CATEGORIES) {
+    const block = report.categories[category];
+    const latency =
+      block.latencyMs.p50 === null ? 'no latency point' : `p50 ${block.latencyMs.p50} ms`;
+    console.log(`report  ${category.padEnd(14)} ${block.recall.padEnd(34)} ${latency}`);
+  }
+  if (report.processObservable === false) {
+    console.log(
+      'report  processObservable false — no scan tick fell inside the process lifetime, so the ' +
+        'process categories name a structural gap, not a coverage result',
+    );
+  }
+  console.log(
+    report.unmatchedObserved.length === 0
+      ? 'report  every observed event cancelled an expectation'
+      : `report  ${report.unmatchedObserved.length} observed event(s) cancelled no expectation — ` +
+          'listed in the report, where they are signal rather than debris',
+  );
+  if (report.join.unavailable) console.error(`\nbench: ${report.join.unavailable}`);
 }
 
 /**
@@ -551,6 +728,27 @@ async function main(argv) {
         if (!capture.ok) exitCode = 1;
       }
 
+      // Only with an observation set: a report joining the catalogue against
+      // nothing would print four zero recalls, which is exactly what a sensor
+      // that ran and saw nothing looks like. The reason is in observed.meta.json.
+      if (capture && capture.ok) {
+        const report = writeReport({
+          dir,
+          runId,
+          scenario: scenario.id,
+          arm: args.arm,
+          expected: outcome.events,
+          capture,
+        });
+        reportJoin(report);
+        if (report.join.unavailable) exitCode = 1;
+      } else if (capture) {
+        console.error(
+          `bench: no ${join.REPORT_FILENAME} was written — there is no observation set to join ` +
+            'the catalogue against, and a report over an absent one would read as four zero recalls',
+        );
+      }
+
       if (!outcome.ok) {
         const failed = outcome.steps.find((s) => s.status === 'failed');
         const skipped = outcome.steps.filter((s) => s.status === 'skipped').length;
@@ -599,14 +797,18 @@ if (require.main === module) {
 }
 
 module.exports = {
+  MAX_LATENCY_INTERVALS,
   NO_SCENARIO,
   RUNS_DIR,
   SENSOR_ARM,
+  SETTINGS_FILENAME,
   buildRunId,
   createRunDir,
   firstStepStartedAt,
   main,
+  maxLatencyFrom,
   parseArgs,
   prepareScenario,
   processAliveWindow,
+  resolveScanInterval,
 };
