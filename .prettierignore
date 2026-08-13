@@ -5,3 +5,8 @@ package-lock.json
 *.ico
 *.icns
 *.md
+
+# Bench run artefacts are generated measurements, not source. The format:check
+# glob covers bench/**/*.{js,json} so the harness is gated; without this line a
+# single local run would put machine-written JSON in front of the formatter.
+bench/runs

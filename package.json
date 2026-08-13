@@ -10,9 +10,9 @@
     "build:demo": "vite build --mode demo",
     "build": "electron-builder --publish never",
     "dist": "electron-builder --publish never",
-    "format": "prettier --write 'src/**/*.{js,ts,svelte,css,html}' '*.{js,ts,json}'",
-    "format:check": "prettier --check 'src/**/*.{js,ts,svelte,css,html}' '*.{js,ts,json}'",
-    "lint": "npx eslint src/ tests/ scripts/",
+    "format": "prettier --write 'src/**/*.{js,ts,svelte,css,html}' 'bench/**/*.{js,json}' '*.{js,ts,json}'",
+    "format:check": "prettier --check 'src/**/*.{js,ts,svelte,css,html}' 'bench/**/*.{js,json}' '*.{js,ts,json}'",
+    "lint": "npx eslint src/ tests/ scripts/ bench/",
     "typecheck": "tsc --noEmit -p tsconfig.main.json && tsc --noEmit -p tsconfig.renderer.json",
     "typecheck:main": "tsc --noEmit -p tsconfig.main.json",
     "typecheck:renderer": "tsc --noEmit -p tsconfig.renderer.json",
@@ -23,6 +23,7 @@
     "verify:gate": "node scripts/verify-witness-gate.mjs",
     "build:sidecar": "node scripts/build-sidecar.js",
     "bench:generation": "node scripts/bench-generation.js",
+    "bench:run": "node bench/run.js",
     "prepare": "husky"
   },
   "engines": {
