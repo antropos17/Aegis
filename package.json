@@ -20,6 +20,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "verify:gate": "node scripts/verify-witness-gate.mjs",
     "prepare": "husky"
   },
   "engines": {
