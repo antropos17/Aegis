@@ -24,6 +24,7 @@
     "build:sidecar": "node scripts/build-sidecar.js",
     "bench:generation": "node scripts/bench-generation.js",
     "bench:run": "node bench/run.js",
+    "bench:s1": "node bench/run.js --scenario S1-agent-lifecycle --arm A",
     "prepare": "husky"
   },
   "engines": {

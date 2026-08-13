@@ -1,13 +1,20 @@
 /**
  * @file bench/run.js
- * @description Bench V1 run entrypoint. Creates one run directory and writes
- *   its environment manifest.
+ * @description Bench V1 run entrypoint. Creates one run directory, writes its
+ *   environment manifest, and — when a scenario was named — executes that
+ *   scenario's steps and writes the expected-event catalogue they produced.
  *
- *   Sub-block B2.1 stops here on purpose: the scenario format (B2.2), the
- *   oracle adapters (B2.3, B2.6) and the SUT capture (B2.4) are separate
- *   blocks. What this file establishes is the run directory — the thing every
- *   later artefact is written into, and the reason a bench number can be traced
- *   back to a machine.
+ *   The oracle adapters (B2.3, B2.6) and the SUT capture (B2.4) are separate
+ *   blocks: a run currently produces the record everything else will be scored
+ *   against, and scores nothing itself.
+ *
+ *   Order matters here. A scenario is loaded and validated **before** the run
+ *   directory exists, so a scenario that is wrong fails without leaving an
+ *   empty run behind; a step that fails to execute happens after, and leaves
+ *   the directory with the catalogue of everything that did happen first.
+ *
+ *   Exit codes: 0 the run completed · 1 a step failed to execute · 2 the
+ *   invocation or the scenario was wrong, and nothing ran.
  *
  *   Usage:
  *     npm run bench:run
@@ -23,6 +30,8 @@
 const fs = require('fs');
 const path = require('path');
 
+const actor = require('./lib/actor');
+const catalogue = require('./lib/catalogue');
 const manifest = require('./lib/manifest');
 
 /** @type {string} Where run directories are created. Gitignored. */
@@ -43,11 +52,17 @@ const USAGE = `bench/run.js — create a Bench V1 run directory and write its ma
 
 Usage:  node bench/run.js [--scenario <id>] [--arm A|B|C]
 
-  --scenario <id>  Scenario label for the run directory. Default: ${NO_SCENARIO}
-                   (no scenario machinery exists before sub-block B2.2).
+  --scenario <id>  A directory under bench/scenarios/. Its scenario.json is
+                   validated and executed, and its expected-event catalogue is
+                   written to expected.ndjson. Default: ${NO_SCENARIO} —
+                   a run directory and a manifest, and nothing is executed.
   --arm <A|B|C>    A = sensor + Sysmon · B = Sysmon + Procmon, no sensor
-                   · C = sensor alone. Default: A.
-  --help           Show this message.`;
+                   · C = sensor alone. Default: A. The scenario decides which
+                   arms it is meaningful in.
+  --help           Show this message.
+
+Exit codes: 0 completed · 1 a step failed to execute · 2 bad invocation or bad
+scenario, nothing ran.`;
 
 /**
  * Parse `--key value` pairs. Unknown flags are an error rather than a silent
@@ -123,10 +138,30 @@ function createRunDir(runId) {
 }
 
 /**
- * @param {string[]} argv - `process.argv.slice(2)`
- * @returns {number} Process exit code.
+ * Load, validate and arm-check a scenario. Everything that can be known to be
+ * wrong about a scenario is known here — before a run directory exists.
+ * @param {string} id - Scenario directory name.
+ * @param {string} arm - The arm asked for on the command line.
+ * @returns {Object} The validated scenario.
+ * @throws {Error} With a message naming the field, the kind or the arm.
  */
-function main(argv) {
+function prepareScenario(id, arm) {
+  const { scenario } = actor.loadScenario(id);
+  actor.validateScenario(scenario);
+  actor.validateSteps(scenario);
+  if (!scenario.arms.includes(arm)) {
+    throw new Error(
+      `scenario "${id}" declares itself meaningful in arm(s) ${scenario.arms.join(', ')}, not ${arm}`,
+    );
+  }
+  return scenario;
+}
+
+/**
+ * @param {string[]} argv - `process.argv.slice(2)`
+ * @returns {Promise<number>} Process exit code.
+ */
+async function main(argv) {
   let args;
   try {
     args = parseArgs(argv);
@@ -138,6 +173,17 @@ function main(argv) {
   if (args.help) {
     console.log(USAGE);
     return 0;
+  }
+
+  /** @type {Object|null} */
+  let scenario = null;
+  if (args.scenario !== NO_SCENARIO) {
+    try {
+      scenario = prepareScenario(args.scenario, args.arm);
+    } catch (err) {
+      console.error(`bench: ${err.message}`);
+      return 2;
+    }
   }
 
   const now = new Date();
@@ -180,15 +226,44 @@ function main(argv) {
   console.log(`arm     ${args.arm} — ${manifest.ARM_DESCRIPTIONS[args.arm]}`);
   console.log(`dir     ${dir}`);
   console.log(`written ${manifestPath}`);
+
+  let exitCode = 0;
+  if (scenario) {
+    console.log(`scenario ${scenario.id} — ${scenario.title}`);
+    const outcome = await actor.execute(scenario, { runDir: dir, log: (m) => console.log(m) });
+    const cataloguePath = catalogue.write(dir, outcome.events);
+    console.log(`written ${cataloguePath} (${outcome.events.length} expected event(s))`);
+    if (!outcome.ok) {
+      const failed = outcome.steps.find((s) => s.status === 'failed');
+      const skipped = outcome.steps.filter((s) => s.status === 'skipped').length;
+      console.error(
+        `\nbench: step "${failed.id}" (${failed.kind}) did not execute — ${failed.error}` +
+          `\nbench: ${skipped} later step(s) were skipped; the catalogue holds only the ` +
+          'events that actually happened',
+      );
+      exitCode = 1;
+    }
+  }
+
   if (absent.length > 0) {
     console.log(`\n${absent.length} fact(s) recorded as ABSENT, not guessed:`);
     for (const line of absent) console.log(`  - ${line}`);
   }
-  return 0;
+  return exitCode;
 }
 
 if (require.main === module) {
-  process.exitCode = main(process.argv.slice(2));
+  main(process.argv.slice(2)).then((code) => {
+    process.exitCode = code;
+  });
 }
 
-module.exports = { NO_SCENARIO, RUNS_DIR, buildRunId, createRunDir, main, parseArgs };
+module.exports = {
+  NO_SCENARIO,
+  RUNS_DIR,
+  buildRunId,
+  createRunDir,
+  main,
+  parseArgs,
+  prepareScenario,
+};
