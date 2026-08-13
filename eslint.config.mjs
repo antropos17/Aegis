@@ -111,6 +111,30 @@ export default [
     },
   },
   {
+    // The bench harness is a Node CLI, same shape as scripts/: CommonJS, and
+    // stdout IS its interface, so no-console stays off. Nothing here may import
+    // from src/ — a sensor must not contribute to its own measurement record —
+    // which is a review rule, not something ESLint can enforce.
+    files: ['bench/**/*.js'],
+    languageOptions: {
+      globals: { ...globals.node },
+      sourceType: 'commonjs',
+    },
+    rules: {
+      'no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
+      'no-console': 'off',
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-useless-escape': 'off',
+    },
+  },
+  {
     files: ['tests/**/*.js'],
     languageOptions: {
       globals: { ...globals.node },

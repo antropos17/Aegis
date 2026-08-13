@@ -4,6 +4,9 @@ out/
 coverage/
 # Compiled snapshot sidecar — built from sidecar/procsnap, never committed
 build/sidecar/
+# Bench run artefacts — machine-specific measurements, written by bench/run.js.
+# The committed record of a run is a hand-written file in docs/bench/, never this.
+bench/runs/
 # Throwaway mutants written by scripts/verify-witness-gate.mjs (removed in a finally)
 src/main/.mutants/
 # `npx tsc -b` writes one per referenced project, next to the config
