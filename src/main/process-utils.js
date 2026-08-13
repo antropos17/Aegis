@@ -19,9 +19,12 @@ let _getParentProcessMap = _platform.getParentProcessMap;
 let _getProcessCwds = _platform.getProcessCwds;
 /**
  * Whether this platform's `getParentProcessMap` carries an OS birth time. Only
- * win32 does today (`Win32_Process.CreationDate`); linux and darwin omit it, and
- * neither may pay a per-scan subprocess or /proc walk to serve a Windows-only
- * generation check. The flag is what gates the generation proof below.
+ * win32 does today — from the snapshot sidecar's 100 ns creation time, floored to
+ * epoch-ms by `ticksToEpochMs` (platform/process-snapshot.js), with the CIM
+ * `Win32_Process.CreationDate` observation as the emergency fallback behind it.
+ * linux and darwin omit it, and neither may pay a per-scan subprocess or /proc
+ * walk to serve a Windows-only generation check. The flag is what gates the
+ * generation proof below.
  * @type {boolean}
  */
 let _providesStartTime = _platform.providesStartTime === true;

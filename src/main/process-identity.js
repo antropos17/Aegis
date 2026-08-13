@@ -33,8 +33,14 @@
  *   BOTH a pid and a birth timestamp are indistinguishable; that is the only
  *   failure mode, and it degrades to space 3's behaviour (two instances read as
  *   one). No tie-breaker is added for it — that code would never run.
- *     - win32: MILLISECONDS. `Win32_Process.CreationDate` →
- *       `ToUnixTimeMilliseconds()` (platform/win32.js `getParentProcessMap`).
+ *     - win32: MILLISECONDS. The snapshot sidecar reports each process's creation
+ *       time in 100 ns FILETIME ticks, and `ticksToEpochMs`
+ *       (platform/process-snapshot.js) floors them to the epoch-ms this key is
+ *       built from. The CIM `Win32_Process.CreationDate` path (platform/win32.js
+ *       `cimParentProcessMap`) produces the same millisecond and is the EMERGENCY
+ *       FALLBACK, not the source. The 100 ns observation is 10 000× finer than the
+ *       millisecond kept here, so this bound is a property of THIS KEY's format,
+ *       not of what the OS can observe.
  *       A collision needs the OS to free and reissue the same pid inside 1 ms.
  *     - linux: 10 ms would be available from `/proc/<pid>/stat` field 22 at the
  *       usual USER_HZ=100. The `/proc/stat` btime anchor carries up to ±1 s of
