@@ -20,6 +20,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "verify:gate": "node scripts/verify-witness-gate.mjs",
+    "build:sidecar": "node scripts/build-sidecar.js",
+    "bench:generation": "node scripts/bench-generation.js",
     "prepare": "husky"
   },
   "engines": {
@@ -33,9 +36,19 @@
     "appId": "com.aegis.oversight",
     "productName": "AEGIS - AI Monitoring & Threat Detection",
     "copyright": "Copyright © 2026 AEGIS Contributors",
+    "beforeBuild": "scripts/electron-builder-before-build.js",
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.png"
+      "icon": "assets/icon.png",
+      "extraResources": [
+        {
+          "from": "build/sidecar",
+          "to": "sidecar",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     },
     "mac": {
       "target": "dmg",

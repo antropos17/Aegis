@@ -2,6 +2,10 @@ node_modules/
 dist/
 out/
 coverage/
+# Compiled snapshot sidecar — built from sidecar/procsnap, never committed
+build/sidecar/
+# Throwaway mutants written by scripts/verify-witness-gate.mjs (removed in a finally)
+src/main/.mutants/
 # `npx tsc -b` writes one per referenced project, next to the config
 *.tsbuildinfo
 .env

@@ -8,6 +8,7 @@
 const { execFile } = require('child_process');
 const logger = require('../logger');
 const restartManager = require('./restart-manager');
+const snapshot = require('./process-snapshot');
 
 /**
  * Whether the handle.exe/handle64.exe binary is on PATH — the LEGACY read-detect
@@ -81,9 +82,16 @@ function listProcesses() {
  * CreationDate as a System.DateTime (Kind=Local), NOT a DMTF string (that is the
  * legacy Get-WmiObject shape) — so the [DateTimeOffset] cast is a direct, correct
  * UTC-epoch conversion. Null when the OS withholds CreationDate (rare/access).
+ *
+ * EMERGENCY FALLBACK ONLY since v0.12.0. This is the observation whose cost was
+ * measured at p50 1284 / p95 1459 / max 1657 ms (N=32, 486 processes, one machine
+ * and one sample) — the tax the snapshot sidecar exists to remove. It stays because
+ * a sidecar that is missing, incompatible or dead must not take identity down with
+ * it; it is not the hot path any more. Entries carry no generation witness, so
+ * process-utils derives one from `startTime` (see its `_witnessOf`).
  * @returns {Promise<Map<number, {name: string, ppid: number, startTime: number|null}>>}
  */
-function getParentProcessMap() {
+function cimParentProcessMap() {
   return new Promise((resolve) => {
     const psScript = [
       '$ErrorActionPreference="SilentlyContinue"',
@@ -118,6 +126,25 @@ function getParentProcessMap() {
       },
     );
   });
+}
+
+/**
+ * The ONE process-table observation a scan pass makes on Windows.
+ *
+ * Delegates the provider choice to process-snapshot.js — sidecar first, this
+ * module's CIM call as the emergency fallback, an empty map when neither can
+ * observe. The CIM function is passed IN rather than imported there, so the
+ * platform module stays the only place that knows how to talk to PowerShell and no
+ * require cycle (win32 → process-snapshot → win32) is created.
+ *
+ * The returned entries keep the shape callers already consume and may additionally
+ * carry `witness` / `witnessSource` when the sidecar served the pass.
+ * @returns {Promise<Map<number, {name: string, ppid: number, startTime: number|null,
+ *   witness?: string|null, witnessSource?: string|null}>>}
+ * @since v0.3.0
+ */
+function getParentProcessMap() {
+  return snapshot.getParentProcessMap({ cimFallback: cimParentProcessMap });
 }
 
 /**
@@ -436,16 +463,18 @@ function getProcessCwds(pids) {
 
 module.exports = {
   /**
-   * `getParentProcessMap` entries carry `startTime`, the OS process birth time.
-   * process-utils reads it as the GENERATION of a pid: the proof that a cached
-   * parent chain or working directory still belongs to the process living under
-   * that pid. Only win32 supplies it — see the matching `false` in linux.js and
-   * darwin.js, which is why neither pays a per-scan map observation.
+   * `getParentProcessMap` entries carry `startTime`, the OS process birth time,
+   * and — when the snapshot sidecar served the pass — a stronger `witness`.
+   * process-utils reads the witness as the GENERATION of a pid: the proof that a
+   * cached parent chain or working directory still belongs to the process living
+   * under that pid. Only win32 supplies either — see the matching `false` in
+   * linux.js and darwin.js, which is why neither pays a per-scan map observation.
    * @type {boolean}
    */
   providesStartTime: true,
   listProcesses,
   getParentProcessMap,
+  cimParentProcessMap,
   getRawTcpConnections,
   getFileHandles,
   getSensitiveHolders: restartManager.getSensitiveHolders,

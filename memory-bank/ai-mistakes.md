@@ -78,8 +78,24 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     safety net: git cannot restore what it never saw. Touch ONLY the bytes the prompt named. If a
     file looks wrong in a way the task did not mention, report it and leave it alone.
 
+## Verification
+25. **Confirmed good approach — a measurement gate that refuses or blocks beats one that annotates.**
+    Block 1's Generation v2 sidecar is trustworthy because every correctness check was built to STOP
+    the pipeline on disagreement, never to explain it away. (a) **Self-oracle at startup:** the
+    sidecar refuses to start unless its OWN record is in the snapshot with `CreateTime` EXACTLY equal
+    to `GetProcessTimes` on its own handle — a one-tick disagreement exits 2 and AEGIS falls back, so
+    a subtly-wrong reader can never be believed as if it were right. (b) **A parity check that gates
+    the block, not a footnote:** ms-parity required 542 of 542 comparable pids to agree EXACTLY
+    between sidecar and CIM, because a one-millisecond disagreement would split a live session's
+    identity and token ledger on a mid-session fallback — so it shipped as a blocking `--parity` gate,
+    never a "rounds to the same millisecond" annotation. (c) **A gate reads its evidence off the thing
+    it is proving, not shared state** (the contamination clause `verify:gate` kills): the cwd witness
+    gate reads provenance off the agent record, not out of the shared cache, or a mutant that leaks
+    cached state passes green. Lesson: when a plausible-but-wrong value could satisfy a check, make
+    the disagreement halt the work; a check that annotates around a doubt is decoration (cf. #21).
+
 ## Caching
-25. Treats a cache KEY as proof that cached data is still fresh. A key is a LOCATOR —
+26. Treats a cache KEY as proof that cached data is still fresh. A key is a LOCATOR —
     it says which entry to look at, never that the entry still describes the thing it
     was written about. Whenever correctness depends on the cached value still belonging
     to the CURRENT generation of an external resource (an OS process under a recycled
