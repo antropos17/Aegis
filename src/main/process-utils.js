@@ -17,15 +17,28 @@ const { EDITORS } = require('../shared/constants');
 
 let _getParentProcessMap = _platform.getParentProcessMap;
 let _getProcessCwds = _platform.getProcessCwds;
-/** @internal Override platform functions (for tests). */
+/**
+ * Whether this platform's `getParentProcessMap` carries an OS birth time. Only
+ * win32 does today (`Win32_Process.CreationDate`); linux and darwin omit it, and
+ * neither may pay a per-scan subprocess or /proc walk to serve a Windows-only
+ * generation check. The flag is what gates the generation proof below.
+ * @type {boolean}
+ */
+let _providesStartTime = _platform.providesStartTime === true;
+/** @internal Override platform functions AND the birth-time capability (for tests). */
 function _setPlatformForTest(overrides) {
   if (overrides.getParentProcessMap) _getParentProcessMap = overrides.getParentProcessMap;
   if (overrides.getProcessCwds) _getProcessCwds = overrides.getProcessCwds;
+  // Explicit boolean, not truthiness: `false` is a value a test must be able to
+  // pin, so both paths are exercised without depending on the CI host's OS.
+  if (typeof overrides.providesStartTime === 'boolean')
+    _providesStartTime = overrides.providesStartTime;
 }
-/** @internal Clear caches (for tests). */
+/** @internal Clear caches and restore the real platform capability (for tests). */
 function _resetForTest() {
   parentChainCache.clear();
   cwdCache.clear();
+  _providesStartTime = _platform.providesStartTime === true;
 }
 
 const parentChainCache = new Map();
@@ -40,10 +53,11 @@ const PARENT_CHAIN_TTL = 60000;
  * the one field `instanceId` is built from. Folding the name in turns a recycled
  * pid that belongs to a different executable into a cache MISS.
  *
- * KNOWN BOUND: a pid recycled by an executable with the SAME name still hits
- * inside the TTL. `forceRefresh` (passed by scan-loop whenever the scanned pid
- * SET changed) covers the common case; the residue is a same-name reuse on a tick
- * where the set is unchanged.
+ * The name is NOT the whole answer: a pid recycled by an executable with the SAME
+ * name produces the same key. What separates those two instances is the GENERATION
+ * — the freshly observed OS birth time, re-read on every enrichment pass. The key
+ * addresses the entry; the generation decides whether the entry is still about the
+ * process running under that pid right now (see {@link enrichWithParentChains}).
  * @param {number} pid
  * @param {string} [name] - OS process name (or display name) observed for that pid.
  * @returns {string}
@@ -66,15 +80,73 @@ function _agentName(agent) {
 }
 
 /**
- * Resolve parent process chains for a list of PIDs via platform adapter.
+ * Drop entries older than their TTL once a cache grows past 500 keys. Shared by
+ * both caches so neither can grow without bound on a long-running scan.
+ * @param {Map<string, {timestamp: number}>} cache
+ * @param {number} ttl
+ * @param {number} now
+ * @returns {void}
+ */
+function _pruneStale(cache, ttl, now) {
+  if (cache.size <= 500) return;
+  for (const [key, entry] of cache) {
+    if (now - entry.timestamp > ttl) cache.delete(key);
+  }
+}
+
+/**
+ * Walk one pid's parent chain inside an already-fetched process map. Depth 6,
+ * cycle-guarded, and it costs nothing: the map is the caller's, so a chain rebuild
+ * never adds a provider call.
+ * @param {Map<number, {name: string, ppid: number}>} procMap
+ * @param {number} pid
+ * @returns {string[]} parent names, nearest first.
+ */
+function _walkChain(procMap, pid) {
+  const chain = [];
+  let cur = pid;
+  const seen = new Set();
+  for (let i = 0; i < 6; i++) {
+    const info = procMap.get(cur);
+    if (!info) break;
+    const pp = info.ppid;
+    if (pp <= 0 || pp === cur || seen.has(pp)) break;
+    seen.add(pp);
+    const parentInfo = procMap.get(pp);
+    if (!parentInfo) break;
+    chain.push(parentInfo.name);
+    cur = pp;
+  }
+  return chain;
+}
+
+/**
+ * The OS birth time (epoch-ms) a process map carries for one pid, or null when the
+ * platform omits it (darwin/linux map entries) or the OS withheld it for this pid.
+ * Null is honest — never a substitute for a number, and never read from a cache.
+ * @param {Map<number, {startTime?: number|null}>} procMap
+ * @param {number} pid
+ * @returns {number|null}
+ */
+function _birthTimeOf(procMap, pid) {
+  const info = procMap.get(pid);
+  return info && typeof info.startTime === 'number' ? info.startTime : null;
+}
+
+/**
+ * Resolve parent process chains for a list of PIDs via platform adapter, TTL-cached.
+ *
+ * This is the chain-only helper: it answers from the cache when it can and fetches
+ * a process map only for the pids it cannot answer. It carries no generation proof
+ * and is not the identity path — {@link enrichWithParentChains} is, and on a
+ * birth-time platform that path observes its own single map instead of calling here.
  * @param {number[]} pids
  * @param {Object} [opts]
  * @param {Map<number, string>} [opts.names] - pid → process name, used to key the
  *   cache (see {@link _cacheKey}). Omitted names key as the empty string, which is
  *   consistent for a caller that never supplies them.
  * @param {boolean} [opts.forceRefresh=false] - when true, ignore cached entries for
- *   the requested pids and re-read the OS process map. Costs one platform call —
- *   the SAME `cim-parent` fetch the scan tick already pays for on win32.
+ *   the requested pids and re-read the OS process map. Costs one platform call.
  * @returns {Promise<Map<number, string[]>>} pid to parent-name chain
  * @since v0.1.0
  */
@@ -86,12 +158,7 @@ async function getParentChains(pids, opts = {}) {
   const keyOf = (pid) => _cacheKey(pid, names ? names.get(pid) : undefined);
 
   const now = Date.now();
-  // Prune stale entries when cache grows too large
-  if (parentChainCache.size > 500) {
-    for (const [key, entry] of parentChainCache) {
-      if (now - entry.timestamp > PARENT_CHAIN_TTL) parentChainCache.delete(key);
-    }
-  }
+  _pruneStale(parentChainCache, PARENT_CHAIN_TTL, now);
   const needLookup = pids.filter((pid) => {
     if (forceRefresh) return true;
     const cached = parentChainCache.get(keyOf(pid));
@@ -123,32 +190,15 @@ async function getParentChains(pids, opts = {}) {
 
   // Walk parent chains in JS for uncached PIDs
   for (const pid of needLookup) {
-    const chain = [];
-    let cur = pid;
-    const seen = new Set();
-    for (let i = 0; i < 6; i++) {
-      const info = procMap.get(cur);
-      if (!info) break;
-      const pp = info.ppid;
-      if (pp <= 0 || pp === cur || seen.has(pp)) break;
-      seen.add(pp);
-      const parentInfo = procMap.get(pp);
-      if (parentInfo) {
-        chain.push(parentInfo.name);
-      } else {
-        break;
-      }
-      cur = pp;
-    }
-    // Capture the OS process birth time (epoch-ms) for the agent's OWN pid from
-    // the same map fetch — zero extra spawn. Only win32 supplies it; darwin/linux
-    // map entries omit startTime, so the typeof guard yields null (honest).
-    // The cache entry is keyed by pid AND process name, so a pid recycled by a
-    // different executable no longer serves this startTime (see _cacheKey for the
-    // residual same-name bound).
-    const ownInfo = procMap.get(pid);
-    const startTime = ownInfo && typeof ownInfo.startTime === 'number' ? ownInfo.startTime : null;
-    parentChainCache.set(keyOf(pid), { chain, startTime, timestamp: now });
+    // The OS birth time (epoch-ms) for the agent's OWN pid comes from the same map
+    // fetch — zero extra spawn. Only win32 supplies it; darwin/linux map entries
+    // omit startTime, so this is null there (honest).
+    const chain = _walkChain(procMap, pid);
+    parentChainCache.set(keyOf(pid), {
+      chain,
+      startTime: _birthTimeOf(procMap, pid),
+      timestamp: now,
+    });
     result.set(pid, chain);
   }
 
@@ -156,13 +206,98 @@ async function getParentChains(pids, opts = {}) {
 }
 
 /**
+ * Stamp `parentChain` and `startTime` from ONE fresh process-map observation, on a
+ * platform that supplies OS birth times. This is the generation proof.
+ *
+ * Exactly one provider call per pass, and that single map serves everything: the
+ * birth time that proves the generation, and every chain rebuild a miss or a
+ * generation change needs. There is never a second fetch in one pass.
+ *
+ * A cached entry survives only while the FRESH birth time equals the one the entry
+ * was written with. Same pid, same executable name, different birth time is a
+ * different process instance, so its chain is rebuilt from this map and its cwd
+ * loses its proof (see {@link annotateWorkingDirs}). `startTime` is always the
+ * freshly observed value — a cached birth time never proves the current instance,
+ * and when the fresh observation withholds it the agent gets null rather than the
+ * stale number, degrading through the `<pid>:u` identity process-identity.js
+ * already defines.
+ *
+ * pid ≤ 0 is not an OS process (the pid-0 synthetics), so there is no generation to
+ * prove for it and the plain TTL contract applies.
+ * @param {Array} agents
+ * @param {boolean} forceRefresh - rebuild every chain from this map regardless of
+ *   what the cache holds.
+ * @returns {Promise<void>}
+ * @since v0.12.0
+ */
+async function _stampFromFreshBirthTimes(agents, forceRefresh) {
+  const procMap = await _getParentProcessMap();
+  const now = Date.now();
+  _pruneStale(parentChainCache, PARENT_CHAIN_TTL, now);
+
+  for (const a of agents) {
+    const key = _cacheKey(a.pid, _agentName(a));
+    const birthTime = _birthTimeOf(procMap, a.pid);
+    const cached = forceRefresh ? undefined : parentChainCache.get(key);
+    const live = cached !== undefined && now - cached.timestamp <= PARENT_CHAIN_TTL;
+    const proven = live && (a.pid <= 0 || (birthTime !== null && cached.startTime === birthTime));
+
+    if (proven) {
+      a.parentChain = cached.chain;
+    } else {
+      const chain = _walkChain(procMap, a.pid);
+      parentChainCache.set(key, { chain, startTime: birthTime, timestamp: now });
+      a.parentChain = chain;
+    }
+    a.startTime = birthTime;
+  }
+}
+
+/**
+ * Stamp `parentChain` and `startTime` on a platform that supplies NO birth time
+ * (linux, darwin). Unchanged behaviour: the TTL-bounded parent-chain cache answers,
+ * and a pass whose pids are all cached costs no provider call at all. Adding a
+ * per-pass process map here would buy nothing — there is no birth time in it to
+ * prove a generation with — and would cost a `ps` spawn or a full /proc walk every
+ * scan tick.
+ * @param {Array} agents
+ * @param {boolean} forceRefresh
+ * @returns {Promise<void>}
+ * @since v0.12.0
+ */
+async function _stampFromCachedChains(agents, forceRefresh) {
+  // pid → name for the cache key. Synthetic agents all share pid 0, so the last
+  // one wins here; harmless because pid 0 is absent from the OS process map (its
+  // startTime is null either way) and identify() reads each agent's OWN name.
+  const names = new Map();
+  for (const a of agents) names.set(a.pid, _agentName(a));
+  const chains = await getParentChains(
+    agents.map((a) => a.pid),
+    { names, forceRefresh },
+  );
+  for (const a of agents) {
+    a.parentChain = chains.get(a.pid) || [];
+    const entry = parentChainCache.get(_cacheKey(a.pid, names.get(a.pid)));
+    a.startTime = entry && typeof entry.startTime === 'number' ? entry.startTime : null;
+  }
+}
+
+/**
  * Attach parent-chain arrays, the OS process start-time AND the process instance
  * key to each agent object.
  *
  * `startTime` (epoch-ms, OS birth time) is distinct from `firstSeen`
- * (AEGIS-observed) and is read from the same cache `getParentChains` populates —
- * after the call every requested pid has an entry under the same key, so the read
- * is safe. Used by the token-feed PID-reuse guard; null on non-Windows or absent pid.
+ * (AEGIS-observed). Used by the token-feed PID-reuse guard; null on a platform that
+ * supplies no birth time, and null for an absent pid.
+ *
+ * WHERE IT COMES FROM decides whether `instanceId` means anything. On a platform
+ * that supplies birth times, every pass makes ONE fresh process-map observation and
+ * the birth time it reads is both the stamped value and the proof that the cached
+ * `parentChain` (and, downstream, the cached cwd) still describes the process living
+ * under that pid — see {@link _stampFromFreshBirthTimes}. Serving a CACHED birth
+ * time was the poisoning bug: a pid Windows had reissued to another process of the
+ * same executable name kept the dead process's birth time, so both instances shared
+ * one `instanceId`, and with it one session, one dedup set and one token ledger.
  *
  * `instanceId` / `instanceIdSource` are derived from that startTime by
  * process-identity.js. This is the ONLY place they are stamped, so it must run
@@ -170,32 +305,45 @@ async function getParentChains(pids, opts = {}) {
  * particular (see scan-loop.js).
  * @param {Array} agents
  * @param {Object} [opts]
- * @param {boolean} [opts.forceRefresh=false] - re-read the OS process map instead of
- *   trusting cached entries. Pass true when the scanned pid set changed: a pid new
- *   to the set must never be identified from a dead process's cached birth time.
+ * @param {boolean} [opts.forceRefresh=false] - rebuild every parent chain from the
+ *   observed map instead of trusting cached entries. The identity stamp no longer
+ *   depends on it: the birth time is re-observed on every pass either way.
  * @returns {Promise<void>}
  * @since v0.1.0
  */
 async function enrichWithParentChains(agents, opts = {}) {
   if (agents.length === 0) return;
-  const pids = agents.map((a) => a.pid);
-  // pid → name for the cache key. Synthetic agents all share pid 0, so the last
-  // one wins here; harmless because pid 0 is absent from the OS process map (its
-  // startTime is null either way) and identify() below reads each agent's OWN name.
-  const names = new Map();
-  for (const a of agents) names.set(a.pid, _agentName(a));
-  const chains = await getParentChains(pids, {
-    names,
-    forceRefresh: opts.forceRefresh === true,
-  });
+  const forceRefresh = opts.forceRefresh === true;
+  if (_providesStartTime) await _stampFromFreshBirthTimes(agents, forceRefresh);
+  else await _stampFromCachedChains(agents, forceRefresh);
   for (const a of agents) {
-    a.parentChain = chains.get(a.pid) || [];
-    const entry = parentChainCache.get(_cacheKey(a.pid, names.get(a.pid)));
-    a.startTime = entry && typeof entry.startTime === 'number' ? entry.startTime : null;
     const identity = identify(a);
     a.instanceId = identity.instanceId;
     a.instanceIdSource = identity.instanceIdSource;
   }
+}
+
+/**
+ * The generation ONE agent record carries out of its own enrichment pass.
+ *
+ * Read off the record, never out of `parentChainCache`. The cache is keyed by
+ * `pid|name` and is shared by every record that ever used that key, so a lookup
+ * there would answer with a generation some OTHER record established — possibly on
+ * an earlier tick — and a record that never went through enrichment at all would
+ * silently borrow it. `startTime` is written by {@link enrichWithParentChains} on
+ * every observation, so the record itself is the only honest source.
+ * @param {{startTime?: number|null}} agent
+ * @returns {number|null|undefined} epoch-ms when this record's own fresh observation
+ *   produced a usable birth time; `null` when enrichment ran for it and the platform
+ *   withheld one (nothing is proven); `undefined` when this record never passed
+ *   through enrichment, so no generation was established for it either way.
+ */
+function _recordGeneration(agent) {
+  const v = agent.startTime;
+  if (v === undefined) return undefined;
+  // Same usability test process-identity.js applies before building an `os` key, so
+  // a value that cannot identify an instance cannot prove one either.
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
 }
 
 /** Map editor host exe names (lowercase) to human-readable labels, derived from EDITORS */
@@ -239,8 +387,22 @@ const CWD_CACHE_TTL = 60000;
  * CWD_CONTAINMENT attribution matches on. Folding the name in turns a recycled
  * pid belonging to a different executable into a cache MISS.
  *
- * KNOWN BOUND: identical to `_cacheKey`'s — a pid recycled by an executable with
- * the SAME name still hits inside the TTL. `opts.forceRefresh` covers that case.
+ * A same-name recycled pid produces the same key, so on a platform that supplies
+ * birth times the entry additionally carries the GENERATION it was fetched under,
+ * and it is served only while that generation is still the one THIS agent record
+ * carries from its own enrichment pass ({@link _recordGeneration}). This function
+ * performs NO birth-time lookup of its own — it consumes the observation the record
+ * already holds, which is why scan-loop must keep running the identity stamp first.
+ *
+ * Three cases, and the middle one is the honest degradation:
+ *   - a number → the cwd must have been fetched under that same generation;
+ *   - `null` (enrichment ran for this record and the fresh observation withheld the
+ *     birth time) → nothing is proven, so the cwd is re-fetched rather than
+ *     inherited from the old generation;
+ *   - `undefined` (this record never passed through enrichment — every pid on
+ *     linux/darwin, pid ≤ 0, and any direct caller that skipped the stamp) → the
+ *     record established no generation, so none is invented for it and the plain
+ *     TTL contract applies exactly as it did before generations existed.
  * @param {Array} agents
  * @param {Object} [opts]
  * @param {boolean} [opts.forceRefresh=false] - when true, ignore cached entries and
@@ -256,24 +418,29 @@ async function annotateWorkingDirs(agents, opts = {}) {
 
   const forceRefresh = opts.forceRefresh === true;
   const now = Date.now();
-  // Prune stale entries
-  if (cwdCache.size > 500) {
-    for (const [key, entry] of cwdCache) {
-      if (now - entry.timestamp > CWD_CACHE_TTL) cwdCache.delete(key);
-    }
-  }
+  _pruneStale(cwdCache, CWD_CACHE_TTL, now);
 
   // One cache key per agent, resolved once, via the same `_agentName` the
-  // parent-chain cache keys on.
-  const entries = agents.map((a) => ({ agent: a, key: _cacheKey(a.pid, _agentName(a)) }));
+  // parent-chain cache keys on, plus the generation THAT RECORD carries. pid ≤ 0 is
+  // not an OS process, so it has no generation — undefined leaves the synthetics on
+  // the plain TTL contract.
+  const entries = agents.map((a) => ({
+    agent: a,
+    key: _cacheKey(a.pid, _agentName(a)),
+    generation: _providesStartTime && a.pid > 0 ? _recordGeneration(a) : undefined,
+  }));
 
-  // Pids with no live cache entry. Agents can share a pid (the pid-0 synthetics
-  // all do) while holding distinct keys, so the Set both collects and deduplicates
-  // — one platform lookup per pid, in first-seen order.
+  // Pids with no live, generation-proven cache entry. Agents can share a pid (the
+  // pid-0 synthetics all do) while holding distinct keys, so the Set both collects
+  // and deduplicates — one platform lookup per pid, in first-seen order.
   const uncachedPids = new Set();
   for (const e of entries) {
     const cached = forceRefresh ? null : cwdCache.get(e.key);
-    if (cached && now - cached.timestamp <= CWD_CACHE_TTL) continue;
+    const fresh = cached && now - cached.timestamp <= CWD_CACHE_TTL;
+    const proven =
+      e.generation === undefined ||
+      (e.generation !== null && cached && cached.generation === e.generation);
+    if (fresh && proven) continue;
     uncachedPids.add(e.agent.pid);
   }
 
@@ -285,7 +452,14 @@ async function annotateWorkingDirs(agents, opts = {}) {
   // pass, reading the value just written.
   for (const e of entries) {
     if (batchResults && uncachedPids.has(e.agent.pid)) {
-      cwdCache.set(e.key, { cwd: batchResults.get(e.agent.pid) || null, timestamp: now });
+      cwdCache.set(e.key, {
+        cwd: batchResults.get(e.agent.pid) || null,
+        // The generation this directory was read under. `undefined` (no generation
+        // established) stores as null, which no established generation ever matches
+        // — a value fetched without a proof never becomes one.
+        generation: e.generation === undefined ? null : e.generation,
+        timestamp: now,
+      });
     }
     const cached = cwdCache.get(e.key);
     const cwd = cached ? cached.cwd : null;

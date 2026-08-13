@@ -145,6 +145,14 @@ async function getProcessCwds(pids) {
 }
 
 module.exports = {
+  /**
+   * `getParentProcessMap` entries carry no `startTime` here — `ps` could supply one
+   * at second resolution, but it is not wired. process-utils reads this flag as "no
+   * generation is observable", which keeps its parent-chain and cwd caches on their
+   * plain TTL contract instead of paying a `ps` spawn every scan tick.
+   * @type {boolean}
+   */
+  providesStartTime: false,
   listProcesses,
   getParentProcessMap,
   getRawTcpConnections,
