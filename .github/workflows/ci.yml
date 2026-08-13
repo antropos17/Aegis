@@ -54,6 +54,12 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run test:coverage
+      # Injection proof, inside the existing job so no required status context
+      # changes: it breaks the generation-witness gate three ways and requires the
+      # witness suite to go red for each. A green suite otherwise only proves the
+      # suite ran (memory-bank/ai-mistakes.md #21).
+      - name: Verify the generation-witness gate is load-bearing
+        run: npm run verify:gate
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v7
