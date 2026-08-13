@@ -1,12 +1,14 @@
 # AEGIS — Independent AI Oversight Layer
-Electron 33 + Svelte 5 (runes) + Vite 7. Privacy-first AI agent monitor. v0.10.0-alpha
+Electron 33 + Svelte 5 (runes) + Vite 7. Privacy-first AI agent monitor.
+Version is not quoted here — it goes stale the moment it is bumped:
+`node -p "require('./package.json').version"`
 Landing: aegisprotect.vercel.app | Demo: aegis-demo-ten.vercel.app
 
 ## Commands
 npm run build:renderer    # Vite build (MUST pass before commit)
 npm run lint              # ESLint
 npm run format            # Prettier
-npm test                  # Vitest (1477 passed / 4 skipped = 1481, 89 files — measured 2026-08-12)
+npm test                  # Vitest — the suite prints its own counts; do not copy them here
 npm run verify:gate       # Injection proof: break the witness gate, require the suite to go red
 npm run dist              # Electron-builder NSIS installer
 
@@ -57,7 +59,8 @@ regenerating a lockfile.
 
 ## Key Paths
 - src/main/ — 50 CommonJS modules (38 top-level + platform/ 10 + token-adapters/ 2)
-- src/renderer/ — 46 Svelte 5 components + 11 stores + 16 utils + tokens.css/global.css
+- src/renderer/ — Svelte 5 components + stores + utils + tokens.css/global.css
+  (count: `git ls-files 'src/renderer/**/*.svelte' | wc -l`)
 - src/shared/ — agent-database.json (110 agents / 262 signatures), types/ (8 TS files), constants.js (ignore patterns, config paths; SENSITIVE_RULES deprecated)
 - rules/ — 73 active detection rules in 8 YAML files, validated by rules/_schema.json
 - memory-bank/ — ai-mistakes.md (READ FIRST), progress.md, architecture.md
