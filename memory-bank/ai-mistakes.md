@@ -111,5 +111,31 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     after, 0 real spawns, exactly 2 sampling calls where 13 had landed. The vacuity above is unchanged:
     the fix removed the noise, not the missing coverage.
 
+27. **Writes a comment that claims MORE than the mechanism guarantees, and the overclaim
+    outlives every rewrite that touches the same lines.** Three live cases, all found
+    2026-08-14 in one sweep, all of the same shape: a true narrow fact stated as a total one.
+    (a) `process-identity.js` said a pid+birth-timestamp merge "is the only failure mode".
+    It is the only way that KEY FORMAT loses a distinction; the opposite failure — one live
+    instance read with two different birth milliseconds across ticks, splitting its session
+    and token ledger across two keys — comes from source disagreement and is exactly what the
+    542/542 and 419/419 sidecar-vs-CIM parity gates exist to stop (#25). "Only" was doing work
+    the file could not back. (b) The same header said "a collision needs the OS to free and
+    reissue the same pid inside 1 ms". The stored millisecond is a FLOOR, so the real condition
+    is that both creation times land in the same millisecond bucket — 0.86 ms apart inside one
+    bucket collides, 0.1 ms apart across the boundary does not, which is precisely the pair
+    `tests/fixtures/bench/derived/D1-pid-reuse-same-ms/` models. (c) `bench/lib/report.js`'s
+    fingerprint recorded itself as "the bytes this process then executed": `join.js` is already
+    in the module cache when the hash is taken and `report.js` reads its own file while
+    executing, so it is a DISK read at load — under a concurrent edit it describes on-disk
+    bytes, not loader-cached ones. Same for a diagnostic: replay said a renderer match with
+    differing bytes meant "the deterministic contract failed", when the fingerprint pins two
+    files and explicitly does not cover the Node version, the platform, or anything else.
+    Two lessons. **Write the guarantee, not the impression** — say which surface the claim
+    covers and name what is left open, the way `RENDERER_COVERS` already did next door.
+    **An overclaim is not fixed by a rewrite that walks past it:** PR #206 rewrote the very
+    bullet holding (b) and left the sentence intact, and (a) sat two lines above untouched, so
+    both survived every later reader who had seen the file "recently corrected". Grep the
+    claim, not the file (cf. #24 — assume siblings; #20 — do not document what is not there).
+
 ## Rule
 NEVER change what was not asked. Do ONLY what the prompt says.

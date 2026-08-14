@@ -30,9 +30,9 @@
  *   wherever space 3 applies.
  *
  *   TIME RESOLUTION — the bound on space 1, per platform. Two instances sharing
- *   BOTH a pid and a birth timestamp are indistinguishable; that is the only
- *   failure mode, and it degrades to space 3's behaviour (two instances read as
- *   one). No tie-breaker is added for it — that code would never run.
+ *   BOTH a pid and a stored birth millisecond are indistinguishable, and degrade to
+ *   space 3's behaviour (two instances read as one). No tie-breaker is added for
+ *   that — the code would never run.
  *     - win32: MILLISECONDS. The snapshot sidecar reports each process's creation
  *       time in 100 ns FILETIME ticks, and `ticksToEpochMs`
  *       (platform/process-snapshot.js) floors them to the epoch-ms this key is
@@ -41,7 +41,12 @@
  *       FALLBACK, not the source. The 100 ns observation is 10 000× finer than the
  *       millisecond kept here, so this bound is a property of THIS KEY's format,
  *       not of what the OS can observe.
- *       A collision needs the OS to free and reissue the same pid inside 1 ms.
+ *       A collision needs the same pid reissued with a creation time that FLOORS
+ *       TO THE SAME stored millisecond — which is a bucket, not a sliding window:
+ *       two creations 0.86 ms apart inside one millisecond collide, two 0.1 ms
+ *       apart across the boundary do not. `tests/fixtures/bench/derived/
+ *       D1-pid-reuse-same-ms/` models that first pair, and what a pid-only join
+ *       can and cannot say about it.
  *     - linux: 10 ms would be available from `/proc/<pid>/stat` field 22 at the
  *       usual USER_HZ=100. The `/proc/stat` btime anchor carries up to ±1 s of
  *       systematic error, but it is identical for every process on the machine,
@@ -52,6 +57,15 @@
  *       would require the macOS pid counter to wrap (~99k spawns in that second).
  *       NOT WIRED: platform/darwin.js omits startTime, so darwin resolves to
  *       space 3.
+ *
+ *   That MERGE is the only way this FORMAT loses a distinction; it is not the only
+ *   way the key can be wrong. The opposite failure is a SPLIT, and it comes from
+ *   outside this file: one live instance read with two DIFFERENT birth milliseconds
+ *   across ticks resolves to two keys, and its session, dedup set and token
+ *   accounting split with it. That is a disagreement between birth-time SOURCES
+ *   rather than a property of the format, which is why the snapshot sidecar is held
+ *   to exact millisecond parity against CIM before it may be believed at all
+ *   (memory-bank/ai-mistakes.md #25) — the guard is there, not here.
  * @author AEGIS Contributors
  * @license MIT
  * @version 0.1.0

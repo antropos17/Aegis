@@ -21,9 +21,16 @@
  *   two files whose bytes decide a report's bytes — `./join.js` and this file — and
  *   freezes the result as {@link RENDERER_FINGERPRINT}. Once, at load, and never
  *   again: a bench run may execute for minutes against a dirty working tree, and a
- *   hash taken later would describe the file on disk rather than the code this
- *   process is running. Nothing else here touches the filesystem, the clock, the
- *   environment or `src/`.
+ *   hash taken later would describe a file the run had that long to change.
+ *
+ *   It is a read of the DISK, not of the loader, and the difference is worth stating
+ *   rather than glossing: `./join.js` is already in the module cache by the time this
+ *   read happens, and this file is being executed while it reads itself. So under a
+ *   concurrent edit of the working tree these digests describe the file bytes at that
+ *   moment, which can differ from the bytes Node compiled. Closing that gap would take
+ *   loader introspection; short of it, a disk read taken at load is the closest
+ *   observation available, and {@link RENDERER_SOURCE} says so in the record itself.
+ *   Nothing else here touches the filesystem, the clock, the environment or `src/`.
  *
  *   **What the fingerprint covers, and what it does not.** Those two files own the
  *   whole path from two event arrays to the bytes on disk: `join.js` builds the
@@ -91,10 +98,15 @@ const RENDERER_COVERS =
   'closure rather than a sample of it. NOT covered: the Node version, the platform, and every ' +
   'part of bench/run.js and bench/replay.js outside the serializer they both call';
 
-/** @type {string} When the hashes were taken — the distinction between the loaded code and a later file. */
+/** @type {string} When and from where the hashes were taken, and what that does and does not establish. */
 const RENDERER_SOURCE =
-  'sha256 over the bytes of those two files, read once while bench/lib/report.js was being loaded ' +
-  'into the process — the bytes this process then executed, not the file as it stood later';
+  'sha256 over the bytes of those two files, read from disk once while bench/lib/report.js was ' +
+  'being loaded into the process, and never again — a hash taken later would describe a file the ' +
+  'run had minutes to change. It is a disk observation and not a loader one: join.js is already ' +
+  'in the module cache when this read happens, and report.js reads its own file while executing. ' +
+  'Under a concurrent modification of the working tree these digests therefore describe the file ' +
+  'bytes at that moment, which can differ from the bytes Node compiled. Without loader ' +
+  'introspection that is the closest observation available';
 
 /** @type {RegExp} A lower-case sha256 digest, as `crypto` renders it. */
 const SHA256_HEX = /^[0-9a-f]{64}$/;

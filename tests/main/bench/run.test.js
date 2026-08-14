@@ -17,14 +17,28 @@ import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
+import join from '../../../bench/lib/join.js';
 import manifest from '../../../bench/lib/manifest.js';
 import report from '../../../bench/lib/report.js';
 import run from '../../../bench/run.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..', '..');
+
+/**
+ * A complete recorded arm-A run, read but never written by this file.
+ * @type {string}
+ */
+const RECORDING = path.join(
+  REPO,
+  'tests',
+  'fixtures',
+  'bench',
+  'runs',
+  '2026-08-13T19-26-29Z-S1-agent-lifecycle-A',
+);
 
 /** @type {string} A run-scoped profile directory, made fresh per test. */
 let profileDir;
@@ -159,6 +173,24 @@ describe('run — the report renderer the run records', () => {
     );
   });
 
+  // The load-time read is a DISK read, and the record has to say that rather than
+  // the stronger thing it is tempting to say. `join.js` is in the module cache
+  // before `report.js` opens it, and `report.js` reads its own file while it is
+  // executing, so under a concurrent edit of the tree the digests are the on-disk
+  // bytes at that instant and not the bytes Node compiled. Taking the hash at load
+  // buys the narrowest window available without loader introspection — it does not
+  // buy identity with the loaded bytes, and the string must not claim it does.
+  it('says the hashes are a disk observation, and claims no identity with the loaded bytes', () => {
+    const source = report.RENDERER_FINGERPRINT.source;
+    expect(source).toMatch(/read from disk once/);
+    expect(source).toMatch(/join\.js is already in the module cache when this read happens/);
+    expect(source).toMatch(/report\.js reads its own file while executing/);
+    expect(source).toMatch(/concurrent modification of the working tree/);
+    expect(source).toMatch(/can differ from the bytes Node compiled/);
+    expect(source).toMatch(/closest observation available/);
+    expect(source).not.toMatch(/the bytes this process then executed/);
+  });
+
   // The two below call the real `manifest.collect()`, which spawns `reg query`,
   // `tasklist` and three `git` invocations — that is the module's whole job, and
   // stubbing the probes would leave the placement of this field pinned against a
@@ -198,4 +230,110 @@ describe('run — the report renderer the run records', () => {
     },
     COLLECT_TIMEOUT_MS,
   );
+});
+
+/**
+ * `serializeReport` is the ONE definition of a report's bytes, and a replay's
+ * output is pinned to it by `tests/main/bench/replay.test.js`. The live run's
+ * output was not: `run.js` calls the same function from `writeReport`, and that
+ * held by inspection of a single line rather than by anything that could go red.
+ * A live report written with `JSON.stringify(report, null, 2)` and no trailing
+ * newline, or written as latin1, would have been a silent one-byte divergence
+ * between the two ways a report comes into existence — and the whole replay
+ * contract is a byte comparison against what a live run wrote.
+ *
+ * So this exercises the real write path: `run.writeReport` builds the report,
+ * serializes it and calls `fs.writeFileSync` exactly as a live run does, into a
+ * scratch directory, and the FILE'S BYTES are held against `serializeReport`'s
+ * output for the very object it returned. Nothing re-implements the serializer;
+ * the expectation is produced by the one definition under test.
+ *
+ * Its inputs are a real recorded run's own files — the catalogue, the observation
+ * set and the capture record `observed.meta.json`, which is the capture-record
+ * shape `writeReport` reads `sensor.scanInterval` and
+ * `sensor.ticksWhileProcessAlive` out of. The recording is opened read-only and
+ * nothing is written back into it.
+ *
+ * **What this does not cover**, stated rather than implied: the call from `main`
+ * to `writeReport`. `main` reaches it only through a completed arm-A capture — a
+ * started sensor, a stopped sensor and a read audit chain — which no unit test can
+ * stand up. That link is one call site with no branch in it; everything from the
+ * report object to the bytes on disk is what is pinned here.
+ */
+describe('run — the bytes the live run actually writes', () => {
+  /** @type {string} Where the report under test is written. Never the recording. */
+  let outDir;
+
+  beforeEach(() => {
+    outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-bench-write-parity-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(outDir, { recursive: true, force: true });
+  });
+
+  /**
+   * @param {string} name - An NDJSON file in the recording.
+   * @returns {Object[]} One ECS document per non-empty line.
+   */
+  function readRecordedNdjson(name) {
+    return fs
+      .readFileSync(path.join(RECORDING, name), 'utf8')
+      .split('\n')
+      .filter((line) => line.trim().length > 0)
+      .map((line) => JSON.parse(line));
+  }
+
+  /**
+   * Run the live write path into the scratch directory, with the console it
+   * prints its `written <file>` line on captured.
+   * @returns {{built: Object, bytes: Buffer, file: string}}
+   */
+  function writeLiveReport() {
+    const meta = JSON.parse(fs.readFileSync(path.join(RECORDING, 'observed.meta.json'), 'utf8'));
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    let built;
+    try {
+      built = run.writeReport({
+        dir: outDir,
+        runId: meta.runId,
+        scenario: meta.scenario,
+        arm: meta.arm,
+        expected: readRecordedNdjson('expected.ndjson'),
+        capture: { events: readRecordedNdjson('observed.ndjson'), record: meta },
+      });
+    } finally {
+      log.mockRestore();
+    }
+    const file = path.join(outDir, join.REPORT_FILENAME);
+    return { built, bytes: fs.readFileSync(file), file };
+  }
+
+  it('writes exactly serializeReport(report) — byte for byte, not merely equal JSON', () => {
+    const { built, bytes } = writeLiveReport();
+    const expected = Buffer.from(report.serializeReport(built), 'utf8');
+
+    expect(bytes.length).toBe(expected.length);
+    expect(bytes.equals(expected)).toBe(true);
+  });
+
+  it('wrote a whole report, so the comparison above is over a real payload', () => {
+    const { built, bytes } = writeLiveReport();
+
+    expect(built.runId).toBe('2026-08-13T19-26-29Z-S1-agent-lifecycle-A');
+    expect(built.schemaVersion).toBe(join.SCHEMA_VERSION);
+    expect(Object.keys(built.categories)).toEqual([...join.CATEGORIES]);
+    // Multi-byte UTF-8 is in those bytes — the report's source strings carry `—`,
+    // `×` and `∈` — so the comparison is over a payload where the write encoding
+    // is observable, not over an ASCII file where latin1 and utf8 agree.
+    expect(bytes.includes(Buffer.from('—', 'utf8'))).toBe(true);
+    expect(bytes.length).toBeGreaterThan(Buffer.byteLength(JSON.stringify(built)));
+  });
+
+  it('writes it under the one report name, into the directory it was given', () => {
+    const { file } = writeLiveReport();
+
+    expect(fs.readdirSync(outDir)).toEqual([join.REPORT_FILENAME]);
+    expect(path.dirname(file)).toBe(outDir);
+  });
 });
