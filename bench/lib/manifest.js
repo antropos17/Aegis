@@ -191,6 +191,15 @@ function oraclePlaceholders() {
  * @param {string} opts.scenario - Scenario id, or the no-scenario placeholder.
  * @param {string} opts.arm - One of {@link ARMS}.
  * @param {string} opts.startedAt - UTC ISO timestamp of the run start.
+ * @param {Object} [opts.reportRenderer] - `bench/lib/report.js`'s
+ *   `RENDERER_FINGERPRINT`: which report-renderer source bytes this process is
+ *   running. Handed in rather than taken here, so the manifest records the
+ *   renderer the run LOADED and not the file as it stood when this snapshot was
+ *   collected — the two differ whenever the tree is edited mid-run, which
+ *   `sensor.workingTreeDirty` says is a state this harness expects. A caller
+ *   that supplies none leaves the field null, and a null reads as
+ *   `legacy-unversioned` downstream: no fingerprint is ever reconstructed for a
+ *   run that recorded none.
  * @returns {Object} The manifest, ready to serialize.
  */
 function collect(opts) {
@@ -229,6 +238,11 @@ function collect(opts) {
         () => git(['status', '--porcelain']).length > 0,
       ),
     },
+    // Which source bytes rendered this run's report. Not a `{value, source}`
+    // probe: it is not a fact about this machine but the identity of the code
+    // that will write run-report.json, and `gitSha` above cannot stand in for
+    // it — a dirty tree names a commit the renderer is not.
+    reportRenderer: opts.reportRenderer ?? null,
     processCountAtStart: processCount(),
     oracles: oraclePlaceholders(),
   };

@@ -97,7 +97,7 @@ bench/
   lib/sensor.js                             # runs AEGIS across a run; readiness, ticks, stop
   lib/observed.js                           # writes observed.ndjson out of the product's audit log
   lib/join.js                               # joins the two, shapes run-report.json; no I/O at all
-  lib/report.js                             # the join bound and the printed summary, shared by both entrypoints
+  lib/report.js                             # the join bound, the report's exact bytes, the printed summary and the renderer fingerprint — shared by both entrypoints
   scenarios/S1-agent-lifecycle/scenario.json
   runs/                                     # run artefacts — gitignored, created on first run
   README.md
@@ -429,14 +429,14 @@ node bench/replay.js bench/runs/2026-08-13T19-26-29Z-S1-agent-lifecycle-A
 ```
 
 It reads four files out of that directory and hands the same two arrays and the same window
-parameters to the same `bench/lib/join.js` the live run used, so the report it produces **is** the
-report that run produced — byte for byte, because nothing in a report records the moment it was
-generated. No sensor is started, no scenario is loaded, no `src/` module and no `settings.json` is
-opened, and no built renderer is needed.
+parameters to the same `bench/lib/join.js` the live run used, so the report it produces is the
+report that run produced — byte for byte where the renderer is also the same one, because nothing
+in a report records the moment it was generated. No sensor is started, no scenario is loaded, no
+`src/` module and no `settings.json` is opened, and no built renderer is needed.
 
 | file | what replay takes from it |
 |---|---|
-| `manifest.json` | `runId`, `scenario`, `arm` — the run's identity |
+| `manifest.json` | `runId`, `scenario`, `arm` — the run's identity — and `reportRenderer`, which renderer produced its report |
 | `expected.ndjson` | the catalogue, one ECS document per line |
 | `observed.ndjson` | the observation set, in the same subset |
 | `observed.meta.json` | `sensor.scanInterval`, `sensor.ticksWhileProcessAlive`, and the same three identity fields, which the manifest is checked against |
@@ -480,19 +480,73 @@ is written. `--out <file>` puts the rebuild somewhere else. The recorded report 
 rebuild is being checked against, and a verification that overwrites its own target is not one.
 
 A difference is a real finding, and not always a defect: a report's bytes are a function of the
-recording **and of the `bench/lib/join.js` that renders it**. That has already happened once — the
+recording **and of the renderer that renders it**. That has already happened once — the
 `latencyMs.basis` string went from `"1 matched pair(s)"` to `"1 matched pair"` without
 `SCHEMA_VERSION` moving — so a run recorded before that change no longer rebuilds identically,
 while every number in it is unchanged. Replay states that instead of applying it.
 
+### The renderer that rendered it
+
+Which renderer produced a recorded report used to be unrecoverable. `sensor.gitSha` cannot answer
+it: every arm-A run so far was measured against a dirty tree, and `workingTreeDirty: true` says in
+so many words that the commit named is not the code that ran. So a run now records the renderer
+itself — `manifest.reportRenderer`, written by `bench/run.js` out of a fingerprint
+`bench/lib/report.js` freezes while it is being loaded:
+
+```json
+"reportRenderer": {
+  "schemaVersion": 1,
+  "algorithm": "sha256",
+  "joinSha256": "<64 hex>",
+  "reportHelperSha256": "<64 hex>",
+  "covers": "...",
+  "source": "..."
+}
+```
+
+Content hashes and not a commit, so a dirty tree is captured honestly rather than pointed at. Taken
+**once, at load**, and frozen: a bench run acts for minutes against a tree its author may still be
+editing, and a hash taken when the report is finally written would describe the file on disk
+instead of the code that rendered it.
+
+**What it covers:** `bench/lib/join.js` and `bench/lib/report.js` — the report object, the join
+window, and `serializeReport`, the single definition of a report's bytes that the live run and a
+replay both call. `join.js` requires nothing, so those two files are the whole closure rather than a
+sample of it. **What it does not cover:** the Node version, the platform, and everything in
+`bench/run.js` and `bench/replay.js` outside that shared serializer. The fingerprint is not a proof
+that two reports must be identical; it is the identity of the code that renders them.
+
+Replay reads the block back and prints **two verdicts, neither read off the other** — whether the
+rebuild reproduced the recorded bytes, and which renderer produced them:
+
+| verdict | what the recording says | what replay may claim |
+|---|---|---|
+| `renderer-match` | the fingerprint is this renderer's | byte equality here is historical byte equality: same inputs, same renderer, same bytes |
+| `renderer-skew` | the fingerprint names other source bytes | the byte comparison stands on its own. Identical bytes are still identical bytes; a difference is stated with skew named as a candidate explanation and not as its cause |
+| `legacy-unversioned` | no `reportRenderer` block at all | the same, minus even the candidate: the recorded report is still preserved evidence and equality with it is still directly observable, but which renderer wrote those bytes was never recorded, and nothing is invented retroactively to close the gap |
+
+The cell worth having is `renderer-match` with a **difference**: the renderer is ruled out, so what
+failed is the deterministic contract between those files and this renderer — and replay says that
+without inventing a second cause for it.
+
+`--out` writes exactly the report the current renderer built, and nothing else: no envelope, no
+provenance smuggled into the report shape, no `join.SCHEMA_VERSION` moved. What such a file is, is
+carried by where it is put and what it is called — see the goldens below.
+
 ### The committed recordings
 
-`bench/runs/` is gitignored, so two real arm-A runs are committed under `tests/fixtures/bench/`
+`bench/runs/` is gitignored, so two real arm-A runs are committed under `tests/fixtures/bench/runs/`
 instead: one complete run whose live-written report is the byte-for-byte target, and one recorded
 before `sensor.scanInterval` existed, which pins the refusal above against a real artefact rather
-than a synthetic one. They are inputs to `tests/main/bench/replay.test.js`, they are not accuracy
-figures, and `tests/fixtures/bench/README.md` carries their provenance and the maintenance contract
-that comes with a byte-exact golden file.
+than a synthetic one. Both predate `manifest.reportRenderer` and therefore classify as
+`legacy-unversioned`.
+
+They are **recordings**: nine files that are never regenerated, reformatted or corrected, and
+`tests/main/bench/fixture-immutability.test.js` holds each one against a committed sha256 and
+against the exact file set its run wrote. Where a golden for the current renderer is wanted, it is a
+separate derived artefact under `tests/fixtures/bench/goldens/`, named so that it cannot be mistaken
+for a recording. They are not accuracy figures, and `tests/fixtures/bench/README.md` carries their
+provenance and the maintenance contract.
 
 ## Run artefacts
 
@@ -530,3 +584,8 @@ Two fields worth knowing about:
 - **`sensor.workingTreeDirty`** means the measured sensor is not exactly the commit named in
   `sensor.gitSha`. It is recorded, not refused: running against uncommitted work is
   legitimate while building the harness, and dishonest only if left unsaid.
+- **`reportRenderer`** is the sha256 of the two files that turn this run into
+  `run-report.json`, frozen while they were loaded. It is not a `{value, source}` probe
+  because it is not a fact about this machine: it is the identity of the code that writes
+  the report, which `gitSha` above cannot supply for exactly the reason the line before this
+  one gives. See [The renderer that rendered it](#the-renderer-that-rendered-it).

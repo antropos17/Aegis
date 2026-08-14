@@ -16,6 +16,14 @@
  *   sensor against the catalogue and against nothing else, and the catalogue is
  *   still unconfirmed until an oracle confirms it.
  *
+ *   The manifest also records **which report renderer this process is running** —
+ *   `reportRenderer`, the sha256 of `bench/lib/join.js` and `bench/lib/report.js`
+ *   frozen while they were loaded. `sensor.gitSha` cannot stand in for it: a run
+ *   against a dirty tree names a commit whose bytes are not the ones rendering
+ *   the report, and every arm-A run so far has been exactly that. A replay reads
+ *   the block back and says whether the renderer it is running is the one that
+ *   produced the recorded report, separately from whether it reproduced its bytes.
+ *
  *   Order matters here, in three places.
  *
  *   A scenario is loaded and validated **before** the run directory exists, so a
@@ -58,9 +66,17 @@ const manifest = require('./lib/manifest');
 const observed = require('./lib/observed');
 // Destructured rather than taken as a namespace: `main` binds a local `report`
 // for the object it just built, and a namespace of the same name would be
-// shadowed exactly where these two are called. They live in `lib/report.js` so
-// that `bench/replay.js` can share them without loading this file's graph.
-const { MAX_LATENCY_INTERVALS, maxLatencyFrom, reportJoin } = require('./lib/report');
+// shadowed exactly where these are called. They live in `lib/report.js` so that
+// `bench/replay.js` can share them without loading this file's graph — above all
+// `serializeReport`, which is the one definition of a report's bytes, and
+// `RENDERER_FINGERPRINT`, which names the source those bytes came out of.
+const {
+  MAX_LATENCY_INTERVALS,
+  RENDERER_FINGERPRINT,
+  maxLatencyFrom,
+  reportJoin,
+  serializeReport,
+} = require('./lib/report');
 const sensor = require('./lib/sensor');
 
 /** @type {string} Where run directories are created. Gitignored. */
@@ -517,7 +533,7 @@ function writeReport(opts) {
     ticksWhileProcessAlive: opts.capture.record.sensor.ticksWhileProcessAlive,
   });
   const file = path.join(opts.dir, join.REPORT_FILENAME);
-  fs.writeFileSync(file, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(file, serializeReport(report), 'utf8');
   console.log(`written ${file}`);
   return report;
 }
@@ -573,6 +589,12 @@ async function main(argv) {
     scenario: args.scenario,
     arm: args.arm,
     startedAt: now.toISOString(),
+    // Frozen while `lib/report.js` was loading, a few milliseconds before this
+    // line — the renderer this process is running, not the file as it will
+    // stand when the report is written some minutes from now. Recorded in every
+    // arm: it names the code, and the code is the same whether or not this arm
+    // ends up rendering anything with it.
+    reportRenderer: RENDERER_FINGERPRINT,
   });
   const manifestPath = path.join(dir, 'manifest.json');
   fs.writeFileSync(manifestPath, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
