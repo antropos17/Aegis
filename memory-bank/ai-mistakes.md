@@ -95,5 +95,16 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     cached state passes green. Lesson: when a plausible-but-wrong value could satisfy a check, make
     the disagreement halt the work; a check that annotates around a doubt is decoration (cf. #21).
 
+26. **The `scan-loop.test.js:1275` recycled-pid flake is still live, and its green proves nothing about
+    identity (verified 2026-08-13 on `b2d55b7`, 40 runs).** 19/20 pass idle, 18/20 under a concurrent
+    full-suite load, always `expected 5 to be 1` on the `memMb` assertion — lower than the reported
+    ~3-in-7, not gone. It was recorded in no known-flakes note anywhere in the repo before this line.
+    The defect is cross-test leakage, not the assertion: `-t`-filtered the test passes 20/20 and ten
+    whole-suite runs pass 10/10, because resource-monitor's module-level exec is shared and a prior
+    test's fire-and-forget `getResourcesForPids` can still reach `makeVaryingExec`'s sample counter.
+    Per #21 it also cannot credit #206/#208 either way: `process-utils.js` is never loaded by this
+    file, `platform/process-snapshot.js` loads transitively but is never called, and both birth times
+    are literals in the test's own factory fed to the pure `identify()`.
+
 ## Rule
 NEVER change what was not asked. Do ONLY what the prompt says.
