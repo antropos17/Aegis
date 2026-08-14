@@ -590,10 +590,12 @@ async function main(argv) {
     arm: args.arm,
     startedAt: now.toISOString(),
     // Frozen while `lib/report.js` was loading, a few milliseconds before this
-    // line — the renderer this process is running, not the file as it will
-    // stand when the report is written some minutes from now. Recorded in every
-    // arm: it names the code, and the code is the same whether or not this arm
-    // ends up rendering anything with it.
+    // line — the renderer source bytes as they stood on disk at that instant,
+    // not the file as it will stand when the report is written some minutes
+    // from now. It is a disk read rather than a loader one, and the block's own
+    // `source` field says so. Recorded in every arm: it names the code, and the
+    // code is the same whether or not this arm ends up rendering anything with
+    // it.
     reportRenderer: RENDERER_FINGERPRINT,
   });
   const manifestPath = path.join(dir, 'manifest.json');
@@ -769,4 +771,10 @@ module.exports = {
   prepareScenario,
   processAliveWindow,
   resolveScanInterval,
+  // Exported for one reason: so a test can hold the bytes this function actually
+  // writes against `serializeReport`'s output. `main` reaches it only through a
+  // live arm-A capture — a started sensor, a stopped sensor and a read audit
+  // chain — so without this export the live write path's byte parity rests on a
+  // single call site nothing exercises.
+  writeReport,
 };

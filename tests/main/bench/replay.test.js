@@ -379,13 +379,25 @@ describe('replay — renderer provenance, kept apart from the bytes', () => {
     expect(result.out).not.toMatch(/renderer match/);
   });
 
-  it('match + differing bytes: skew is ruled OUT, and no other cause is invented', () => {
+  // What the fingerprint rules out is skew in the two files it hashes, and nothing
+  // beyond them: the Node version, the platform and every other line of run.js and
+  // replay.js are outside the covered set and are named as still open. A diagnostic
+  // that said "the deterministic contract failed" would claim the divergence is in
+  // the renderer, which is exactly the surface the fingerprint cannot speak for.
+  it('match + differing bytes: fingerprinted skew is ruled OUT, and no cause is picked', () => {
     const result = main([pinned(report.RENDERER_FINGERPRINT, true)]);
 
     expect(result.code).toBe(1);
     expect(result.err).toMatch(/the rebuilt report differs from/);
-    expect(result.err).toMatch(/renderer skew is NOT the explanation for the difference above/);
-    expect(result.err).toMatch(/no other cause is inferred here/);
+    expect(result.err).toMatch(/skew in the FINGERPRINTED source is ruled out/);
+    expect(result.err).toMatch(/that is the whole of what this block covers/);
+    expect(result.err).toMatch(
+      /left is the recording itself, or the surface the fingerprint does not cover/,
+    );
+    expect(result.err).toMatch(/the Node version, the platform, and any code outside those two/);
+    expect(result.err).toMatch(/None of them is picked here/);
+    // The claim it must no longer make: that renderer determinism itself failed.
+    expect(result.err).not.toMatch(/deterministic contract/);
   });
 
   it('skew + differing bytes: a candidate explanation, stated as one', () => {
@@ -771,9 +783,12 @@ describe('replay — isolation', () => {
     // The renderer fingerprint is taken while `lib/report.js` loads and frozen
     // there, which is why no join.js or report.js read appears here. That is the
     // property, not an accident of when this spy was installed: a hash taken now
-    // would describe the file on disk rather than the code this process is
-    // running, and the two differ on exactly the dirty tree every arm-A run so
-    // far was measured against. The load-time pair is proven below.
+    // would describe a file the process has had its whole lifetime to see
+    // changed, on exactly the dirty tree every arm-A run so far was measured
+    // against. Both reads are of the disk — the load-time one no less than a
+    // later one would be — so what the load timing buys is the earliest and
+    // narrowest window, not identity with the bytes Node compiled. The
+    // load-time pair is proven below.
     expect(read.some((p) => p.endsWith('join.js') || p.endsWith('report.js'))).toBe(false);
   });
 

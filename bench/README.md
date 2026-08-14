@@ -506,8 +506,15 @@ itself — `manifest.reportRenderer`, written by `bench/run.js` out of a fingerp
 
 Content hashes and not a commit, so a dirty tree is captured honestly rather than pointed at. Taken
 **once, at load**, and frozen: a bench run acts for minutes against a tree its author may still be
-editing, and a hash taken when the report is finally written would describe the file on disk
-instead of the code that rendered it.
+editing, and a hash taken when the report is finally written would describe a file the run had that
+long to change.
+
+What that read is, exactly: a read of the **disk**, not of the loader. `join.js` is already in the
+module cache by the time `report.js` hashes it, and `report.js` reads its own file while executing.
+So under a concurrent modification of the working tree the digests describe the file bytes at that
+moment, which can differ from the bytes Node compiled. Closing that gap would take loader
+introspection; short of it, a disk read taken at load is the closest observation available, and the
+block's own `source` field states it in those terms rather than claiming the loaded bytes.
 
 **What it covers:** `bench/lib/join.js` and `bench/lib/report.js` — the report object, the join
 window, and `serializeReport`, the single definition of a report's bytes that the live run and a
@@ -525,9 +532,10 @@ rebuild reproduced the recorded bytes, and which renderer produced them:
 | `renderer-skew` | the fingerprint names other source bytes | the byte comparison stands on its own. Identical bytes are still identical bytes; a difference is stated with skew named as a candidate explanation and not as its cause |
 | `legacy-unversioned` | no `reportRenderer` block at all | the same, minus even the candidate: the recorded report is still preserved evidence and equality with it is still directly observable, but which renderer wrote those bytes was never recorded, and nothing is invented retroactively to close the gap |
 
-The cell worth having is `renderer-match` with a **difference**: the renderer is ruled out, so what
-failed is the deterministic contract between those files and this renderer — and replay says that
-without inventing a second cause for it.
+The cell worth having is `renderer-match` with a **difference**: skew in the two fingerprinted files
+is ruled out — and that is the whole of what the fingerprint can rule out. What is left is the
+recording itself, or the surface the fingerprint does not cover: the Node version, the platform, and
+any code outside those two files. Replay says exactly that and picks none of them.
 
 `--out` writes exactly the report the current renderer built, and nothing else: no envelope, no
 provenance smuggled into the report shape, no `join.SCHEMA_VERSION` moved. What such a file is, is

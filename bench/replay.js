@@ -515,8 +515,11 @@ function emit(opts) {
  *   exactly all the same. The recorded report is preserved evidence and equality
  *   with it is directly observable; what is unknown on a legacy recording is the
  *   renderer's identity, not the bytes.
- * - **match, bytes differ** — renderer skew is NOT available as the explanation,
- *   and none is invented in its place.
+ * - **match, bytes differ** — skew in the two FINGERPRINTED files is ruled out, and
+ *   that is the whole of what the fingerprint can rule out. What is left is the
+ *   recording itself, or the surface the fingerprint does not cover — the Node
+ *   version, the platform, code outside those two files — and none of them is
+ *   picked here.
  * - **skew or legacy, bytes differ** — the divergence and the limited attribution
  *   are stated as two separate things, because a candidate cause is not a cause.
  * @param {Object} verdict - From `classifyRenderer()`.
@@ -546,9 +549,11 @@ function reportProvenance(verdict, outcome) {
       'renderer match — the recording pins the report-renderer source bytes and this replay ran ' +
         'the same ones' +
         (differs
-          ? ', so renderer skew is NOT the explanation for the difference above. What failed is ' +
-            'the deterministic contract between those files and this renderer, and no other ' +
-            'cause is inferred here'
+          ? ', so skew in the FINGERPRINTED source is ruled out as the explanation for the ' +
+            'difference above — and that is the whole of what this block covers. What is left ' +
+            'is the recording itself, or the surface the fingerprint does not cover: the Node ' +
+            'version, the platform, and any code outside those two files. None of them is ' +
+            'picked here'
           : reproduced),
     );
     return;
