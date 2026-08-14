@@ -159,11 +159,23 @@ NDJSON). Decide naming BEFORE freezing Bench Replay schema. OCSF = possible late
 - Bench before ANY numeric accuracy/confidence claim.
 - Method: generate an expected-event catalogue per scenario, confirm with independent oracles.
   Never diff two live streams. Never self-oracle.
-- Oracle columns are separate: Sysmon (EID 1/2/3/5/11/22) = security-event reference; Procmon =
-  file-IRP reference; Kernel-File ETW appears only as SUT when it is the sensor.
+- Oracle columns are separate: Sysmon (EID 1/2/3/5/11/22/**26**) = security-event reference;
+  Procmon = file-IRP reference; Kernel-File ETW appears only as SUT when it is the sensor.
+- **Ratified 2026-08-14 (B2.3).** (a) **EID 26 FileDeleteDetected** joins the oracle column: it is
+  the deletion observation that does NOT archive the file. **EID 23 FileDelete is never enabled
+  merely to observe a deletion** — Microsoft documents 23 as additionally saving the deleted file
+  into `ArchiveDirectory`, and the two are never collapsed into one semantic event. Whether an
+  installed binary requires or otherwise touches `ArchiveDirectory` when 26 is configured is
+  **LIVE-UNVALIDATED**: the docs settle neither, and no answer is invented offline. (b) ProcessGuid
+  may be retained and compared as an OPAQUE **equality** key between Sysmon events (EID 1 ↔ EID 5)
+  — an additional lifecycle-correlation fact BESIDE EID 1 ordinality, never a replacement for it,
+  and never a source of an `instanceId`.
 - Sysmon writes two timestamps (EventData UtcTime ms vs System TimeCreated FILETIME) diverging
   1-2 s — join on TimeCreated, record both. ProcessGuid is Sysmon-generated — never parse it.
-  Match by pid + start-time FILETIME, epsilon ~2 s.
+  Match by pid + start-time FILETIME, epsilon ~2 s. **That epsilon is a tolerance for comparing
+  Sysmon's own two representations. It is NOT guest-clock uncertainty**, which is unmeasured, and
+  the two must never be merged into one error bound. B2.3 declares no epsilon at all: it retains
+  both representations, computes no delta, and leaves matching to B2.5.
 - Environment: Hyper-V Gen2 gold image first; Windows Sandbox second (driver load and unattended
   teardown unverified; nested virt unsupported on GitHub runners). Pin the Windows build.
 - Run separation: A = sensor+Sysmon (coverage/latency) · B = Sysmon+Procmon without sensor

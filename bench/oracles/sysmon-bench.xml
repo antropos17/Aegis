@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+  bench/oracles/sysmon-bench.xml — the Sysmon configuration one Bench V1 run is
+  measured under (sub-block B2.3).
+
+  NOT YET ACCEPTED BY A SYSMON BINARY. This file has never been handed to
+  `sysmon -c` or `sysmon -i`, because no Sysmon binary is installed on the machine
+  it was written on. Everything below is derived from Microsoft's published
+  documentation; the installed binary is authoritative for the schema it actually
+  supports, and proving that it accepts this file is the live half of B2.3.
+
+  schemaversion="4.82" is the value Microsoft publishes in the example
+  configuration on BOTH current primary pages — learn.microsoft.com
+  /sysinternals/downloads/sysmon (2026-06-17) and
+  /windows/security/operating-system-security/sysmon/sysmon-configuration-files
+  (2026-02-03). Both state that this version "is independent from the Sysmon
+  binary version and allows the parsing of older configuration files", and that
+  the current one is obtained from the binary with `-? config` (`-s` prints the
+  full schema). So the number is documented rather than guessed — and whether the
+  binary a run installs accepts it is LIVE-UNVALIDATED until measured against
+  that binary, whose version, SHA-256 and `-s` output the live step records.
+
+  WHY EACH EVENT IS HERE. The set is RESEARCH-BASELINE section 10's oracle column
+  — 1/2/3/5/11/22 — plus 26, added by ratification on 2026-08-14. Nothing else is
+  enabled: no ImageLoad, no ProcessAccess, no registry, no pipes, no WMI. Those
+  are the high-volume events, none of them is in the oracle column, and an event
+  nobody scores is noise a bench pays for twice (collection cost, then the reader
+  who has to decide it is irrelevant).
+
+  EID 23 FileDelete is DELIBERATELY ABSENT. It is the archiving delete: Microsoft
+  states that "the deleted file is also saved in the ArchiveDirectory (which is
+  C:\Sysmon by default)" and that "under normal operating conditions this
+  directory might grow to an unreasonable size". EID 26 FileDeleteDetected is the
+  same observation "without saving the deleted files". A bench needs to see that a
+  deletion happened; it has no business copying the deleted file somewhere. The
+  two are never treated as interchangeable — `bench/lib/oracles/sysmon.js` refuses
+  to read a 23 as a 26.
+
+  Whether the installed binary requires, creates or otherwise touches
+  ArchiveDirectory when 26 is configured is NOT settled by the documentation —
+  both pages describe ArchiveDirectory only in terms of copy-on-delete — and no
+  answer is invented here. That is LIVE-UNVALIDATED.
+
+  WHY THE FILTERS LOOK LIKE THIS. `\bench\runs\` is the one path fragment every
+  artefact of every run shares: `bench/run.js` creates each run directory under
+  `bench/runs/<run id>/` and a scenario stages its binaries in `stage/` beneath
+  it. It is a property of the harness rather than of a machine or a scenario, so
+  it narrows collection to the run without a literal that only holds on one
+  checkout. A run directory's name is chosen at run time and cannot appear in a
+  committed file.
+
+  ProcessTerminate is the exception: it logs EVERYTHING. Narrowing it would mean
+  filtering on a field, and the only field list Microsoft publishes for EID 5 is
+  the prose "It provides the UtcTime, ProcessGuid and ProcessId of the process" —
+  none of which can be known before the run. A filter naming a field the
+  installed schema may not expose is a configuration that fails to load; logging
+  every termination and correlating it back by ProcessGuid is the shape that does
+  not depend on an unverified field. The cost is real and is stated rather than
+  hidden: on a busy host this is the noisiest thing here.
+
+  WHAT A FILTER COSTS. An event this configuration excludes is never emitted, so
+  it is not "lost" — but Sysmon publishes no filter-hit counter, so a run cannot
+  count what it declined to see either. `oracle-loss.json` records that
+  distinction as an explicit limit rather than reporting zero.
+-->
+
+<Sysmon schemaversion="4.82">
+  <!--
+    SHA256 only. The catalogue records file.hash.sha256 for every file it
+    creates (bench/lib/catalogue.js), so this is the one algorithm that lets the
+    oracle's ProcessCreate hash be compared with what the actor observed. The
+    other algorithms would be a second answer to a question already answered.
+  -->
+  <HashAlgorithms>SHA256</HashAlgorithms>
+
+  <EventFiltering>
+    <!-- EID 1 — the process-identity truth this whole bench rests on. -->
+    <ProcessCreate onmatch="include">
+      <Image name="bench-run-dir" condition="contains">\bench\runs\</Image>
+    </ProcessCreate>
+
+    <!-- EID 2 — in the oracle column; near-zero volume once path-scoped. -->
+    <FileCreateTime onmatch="include">
+      <TargetFilename name="bench-run-dir" condition="contains">\bench\runs\</TargetFilename>
+    </FileCreateTime>
+
+    <!--
+      EID 3 — the oracle column's network reference. Enabled and path-scoped, but
+      no offline test may read anything into it: NetworkConnect is emitted only
+      because this element is here, and S1's subject speaks ICMP, which is not a
+      TCP/UDP connection.
+    -->
+    <NetworkConnect onmatch="include">
+      <Image name="bench-run-dir" condition="contains">\bench\runs\</Image>
+    </NetworkConnect>
+
+    <!-- EID 5 — everything. See the note above on why it is not narrowed. -->
+    <ProcessTerminate onmatch="exclude" />
+
+    <!-- EID 11 — create/overwrite. Sysmon has no file-read event at all. -->
+    <FileCreate onmatch="include">
+      <TargetFilename name="bench-run-dir" condition="contains">\bench\runs\</TargetFilename>
+    </FileCreate>
+
+    <!-- EID 22 — DNS queries only, per the network canon. -->
+    <DnsQuery onmatch="include">
+      <Image name="bench-run-dir" condition="contains">\bench\runs\</Image>
+    </DnsQuery>
+
+    <!--
+      EID 26 — the deletion observation this bench uses. Ratified 2026-08-14 as
+      an addition to the oracle column precisely because it does not archive.
+    -->
+    <FileDeleteDetected onmatch="include">
+      <TargetFilename name="bench-run-dir" condition="contains">\bench\runs\</TargetFilename>
+    </FileDeleteDetected>
+  </EventFiltering>
+</Sysmon>

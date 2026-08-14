@@ -51,9 +51,15 @@ prose around the numbers survives a re-run — the precedent is
 npm run bench:run                                        # defaults: no-scenario, arm A
 npm run bench:run -- --scenario S1-agent-lifecycle --arm A
 npm run bench:s1                                         # the line above, without the -- trap
+npm run bench:run -- --scenario S1-agent-lifecycle --arm B   # oracle only: no sensor, no renderer
 node bench/replay.js bench/runs/<run id>                 # rebuild that run's report from its files
 node bench/replay.js bench/runs/<run id> --out <file>    # write the rebuild elsewhere
 ```
+
+Arm B needs no built renderer and starts no sensor: it executes the scenario and collects the
+Sysmon oracle. On a machine with no Sysmon installed it runs to completion, records the absence,
+and exits **1** — which is the honest outcome, not a harness failure. See
+[The Sysmon oracle](#the-sysmon-oracle--b23).
 
 The `--` is required; without it npm keeps the flags.
 
@@ -65,7 +71,8 @@ scan cadence to settle, then the scenario, then three more scan ticks and a flus
 [Replaying a recorded run](#replaying-a-recorded-run).
 
 Exit codes: **0** the run completed · **1** a step failed to execute, the sensor could not be run
-or read, or the run report could not be derived · **2** the invocation or the scenario was wrong and
+or read, the run report could not be derived, or an arm-B run collected no oracle record · **2** the
+invocation or the scenario was wrong and
 nothing ran. A scenario is loaded and
 validated *before* the run directory exists, so a wrong scenario leaves no empty run behind; a step
 that fails happens after, and leaves the directory holding the catalogue of everything that did
@@ -84,7 +91,8 @@ for a given deterministic scenario, and only then does A score the sensor agains
 
 ## Layout
 
-Present today (sub-blocks B2.1, B2.2, the arm-A capture and the first join):
+Present today (sub-blocks B2.1, B2.2, the arm-A capture, the first join and B2.3's Sysmon
+adapter):
 
 ```
 bench/
@@ -98,6 +106,8 @@ bench/
   lib/observed.js                           # writes observed.ndjson out of the product's audit log
   lib/join.js                               # joins the two, shapes run-report.json; no I/O at all
   lib/report.js                             # the join bound, the report's exact bytes, the printed summary and the renderer fingerprint — shared by both entrypoints
+  lib/oracles/sysmon.js                     # normalizes Sysmon EventRecord XML; writes oracle-sysmon.ndjson and oracle-loss.json
+  oracles/sysmon-bench.xml                  # the Sysmon config a run is measured under — never yet offered to a binary
   scenarios/S1-agent-lifecycle/scenario.json
   runs/                                     # run artefacts — gitignored, created on first run
   README.md
@@ -108,7 +118,6 @@ built — nothing below exists yet:
 
 | path | sub-block |
 |---|---|
-| `bench/lib/oracles/sysmon.js`, `bench/oracles/sysmon-bench.xml` | B2.3 |
 | `bench/score.js`, `bench/lib/metrics.js` | B2.5 |
 | `bench/lib/oracles/procmon.js`, `bench/oracles/procmon-bench.pmc` | B2.6 |
 | `bench/report.js` | B2.9 |
@@ -329,12 +338,146 @@ number is read as a property of the sensor:
 - **The readiness signal exists because the app runs from source.** `logger.js` mirrors to stderr only
   while `isDev` — that is, `!app.isPackaged`. Benching a packaged build would need a different signal.
 
+## The Sysmon oracle — B2.3
+
+The oracle column runs in the two arms whose definition includes Sysmon, **A and B**, and writes
+two files: `oracle-loss.json` always, and `oracle-sysmon.ndjson` when there is at least one record
+to put in it. It does not reach `run-report.json`: confirming the catalogue against the oracle is
+B2.5, and until then the report still scores the sensor against an unconfirmed catalogue.
+
+`bench/lib/oracles/sysmon.js` imports nothing from `src/` and nothing from `bench/lib/observed.js`
+either — that module is the sensor side, and an oracle sharing code with the thing it confirms
+stops being independent. The two path helpers are duplicated on purpose.
+
+### Three layers, and only two of them are proven
+
+| layer | what it is | status |
+|---|---|---|
+| RAW | a real `Microsoft-Windows-Sysmon/Operational` channel → `Get-WinEvent` → EventRecord XML | **LIVE-UNVALIDATED** |
+| NORMALIZED | EventRecord XML → canonical oracle record → `oracle-sysmon.ndjson` | proven offline |
+| DERIVED | matching the oracle against the catalogue, and any metric over it | B2.5 |
+
+`readChannelXml` is the ONE function that crosses the raw boundary, it is injectable, and **no
+test in this repository has ever executed it**: the machine this was built on runs Windows 11 Home
+with no Sysmon installed. A green suite is not a claim about EVTX ingestion. **No binary `.evtx`
+file is fabricated anywhere** — a synthetic EVTX container would test our imitation of the Windows
+Event Log rather than Windows. The normalizer is tested against clearly-labelled synthetic XML in
+the documented shape, and `tests/main/bench/oracle-sysmon.test.js` says so in its own docblock.
+
+Two design choices in the reader exist to keep .NET's clock out of the pipeline. It emits
+`$_.ToXml()` and never the `TimeCreated` property, which `Get-WinEvent` hands back as a `DateTime`
+with `Kind=Local`; and it does **not** filter by time, because a `-FilterHashtable`
+`StartTime`/`EndTime` would mean building .NET `DateTime`s out of our instants. The window is
+applied in JavaScript over the XML's own `System/TimeCreated@SystemTime`, where it is testable.
+
+### The event set
+
+RESEARCH-BASELINE §10's oracle column — 1/2/3/5/11/22 — plus **26 FileDeleteDetected**, ratified
+2026-08-14. Four have a shape in the catalogue's ECS subset; the rest are real observations the
+subset has no room for and are **tallied, not dropped**, exactly as `observed.js` tallies what the
+audit records that the subset cannot hold.
+
+| event | treatment |
+|---|---|
+| 1 ProcessCreate | `process/start` |
+| 5 ProcessTerminate | `process/end` |
+| 11 FileCreate | `file/creation` |
+| 26 FileDeleteDetected | `file/deletion` |
+| 2, 3, 22 | counted under `records.shapelessByEventId` |
+| 23 FileDelete | **never a deletion** — see below |
+| 255 Error | its own loss signal |
+| anything else | `refused.unsupportedEventId` |
+
+**23 is not 26.** Microsoft documents 23 as additionally saving the deleted file into
+`ArchiveDirectory`, and 26 as "similar behavior but without saving the deleted files". The bench
+config enables 26 and never 23, so a 23 arriving at the parser means the running configuration is
+not the one the manifest names — it is recorded as exactly that finding and never accepted as a
+deletion observation. Whether an installed binary requires or touches `ArchiveDirectory` when 26 is
+configured is **LIVE-UNVALIDATED**: neither primary page settles it, and nothing is invented here.
+
+### What a normalized record keeps
+
+Only what that event carried. A field the event did not expose is **omitted**, never nulled — the
+B2.2 convention. **Nothing is copied between events**: an EID 5 record gets no command line, no
+parent and no exit code, because Sysmon's terminate event has none, and the EID 1 that shares its
+`ProcessGuid` is not merged into it. `process.name` is `basename(Image)`, a string derivation of an
+observed field and the image name the product's own audit never persists.
+
+`ProcessGuid` is **opaque**. It is retained verbatim and compared only for EQUALITY between Sysmon
+events. It is never parsed, never decoded into a timestamp, and never turned into an AEGIS
+`instanceId`. Guid equality pairs an EID 5 to its EID 1; **pid is not a fallback key**, because two
+generations sharing one pid are two generations and pairing them by pid would manufacture a
+lifecycle the OS never had. A terminate whose guid matches no creation in the window is UNPAIRED,
+and two creations sharing one guid are AMBIGUOUS. That accounting lives beside the records, in
+`oracle-loss.json`, and is never written back into them. EID 1 ordinality remains the truth about
+process identity; guid equality is an additional fact beside it.
+
+### The two timestamps
+
+`System/TimeCreated@SystemTime` and EventData `UtcTime` are two representations written by two
+layers, and **no delta between them is computed here**. `@timestamp` is `SystemTime` truncated —
+never rounded — to the catalogue's millisecond format; the untruncated original stays in
+`bench.timeCreatedSystemTime` and Sysmon's own `UtcTime` stays verbatim in `bench.utcTime`, in
+Sysmon's own format, unparsed.
+
+A `SystemTime` that does not end in `Z` is **REFUSED, not converted**. The offset arithmetic that
+turns `…T08:00:00-04:00` into `…T12:00:00Z` is exactly the arithmetic that turns a reader's local
+time zone into four hours of apparent latency, so it does not exist in this module.
+
+**This module declares no epsilon.** The ~2 s figure in RESEARCH-BASELINE §10 is a tolerance for
+comparing Sysmon's own two representations; guest-clock uncertainty is a different quantity and is
+unmeasured. The two are never merged. The oracle window is `[the run's startedAt, the moment
+collection began]`, both read off the harness's own clock, so nothing the scenario caused can fall
+outside it and no tolerance has to be invented to pull it in.
+
+### `oracle-loss.json`
+
+Written on every path, including — especially including — the one where nothing was collected.
+**It never reports a loss of zero.** What can be counted is counted; what cannot be established
+offline is an explicit `{value: null, unavailable}`, the manifest's own convention.
+
+- **`records`** — read, normalized, out of window, and the shapeless tally. With no read at all it
+  is the absence itself, not a row of zeroes that would read as a clean collection.
+- **`refused`** — malformed documents, foreign providers, missing required fields, non-UTC
+  timestamps, and unsupported event ids. Each names an index and a reason.
+- **`config.filterAccounting`** — an event this config excludes is never emitted, so it is not
+  lost; but Sysmon publishes no filter-hit counter, so a run cannot count what it declined to see
+  either. Records intentionally filtered out and records that never occurred are indistinguishable
+  from here, and neither is reported as loss.
+- **`eventRecordIds`** — the collected ids, and the gaps. **A gap is not a loss count**: the id is
+  assigned per channel, and every Sysmon event this run did not collect legitimately consumes one.
+- **`sysmonErrors`** — EID 255, reported as itself and never folded into another count.
+- **`channelRetention`** — `null` with a reason. Whether the channel wrapped during a run would
+  come from the log configuration, and no such probe runs here. Absent, not zero.
+
+### Arm B is a PARTIAL calibration, and says so
+
+Arm B is defined as **Sysmon + Procmon**, and B2.6 does not exist. There is no new report field for
+that: the manifest's `oracles.procmon` entry is `unavailable` with the reason, `armDescription`
+names both oracles, and `run.js` sweeps `oracles` alongside `host` and `sensor` for absent facts
+and prints them at the end of the run. A B run therefore states which of the two columns it
+produced at the moment of measurement rather than looking complete.
+
+Arm B exits **1** when it collected no oracle record — it produces nothing else, so an empty
+oracle column is an empty run, exactly as an empty observation set is in arm A. Arm A keeps its own
+exit code: it still has a sensor column, and its missing oracle is recorded as an absent fact.
+
+`manifest.oracles.sysmon` is the reserved `{version, configPath, configSha256}` contract and
+nothing is added to it. `configSha256` is taken over the config file's **exact bytes** at
+`configPath` — never over the path, never as a committed constant, because `.gitattributes` puts
+this file under `text=auto` and a hard-coded digest would go red on a checkout with other line
+endings while naming the same configuration. `version` comes from a read-only probe for an
+installed Sysmon service and **is never invented**: no string off a web page, no default. Where the
+probe does not answer, the entry is absent with the reason, and the path and digest name the
+configuration the run *would* have used rather than evidence that it was applied.
+
 ## The join — `run-report.json`
 
 At the end of an arm-A run the catalogue and the observation set are joined, and the result is
 written to `run-report.json`: per category, how many events were expected, how many the sensor
 accounted for, and how long it took. This is the first row of the measurement matrix and it scores
-the sensor against the catalogue only — an unconfirmed catalogue, until B2.3's oracle confirms it.
+the sensor against the catalogue only. The catalogue is still **unconfirmed** here: B2.3 collects
+the oracle column into its own files, and reading that column against the catalogue is B2.5.
 
 `bench/lib/join.js` **reads and writes nothing**. It takes two arrays and the window parameters and
 returns an object; `run.js` owns every byte that touches the disk. A unit test asserts the module
@@ -566,9 +709,10 @@ machines' artefacts into one record.
 scenario was named. `stage/` holds the binaries the scenario copied; S1 deletes its own, so the
 directory is normally left empty. In arm A there are three more: `observed.ndjson`, what the sensor
 recorded; `observed.meta.json`, how it was run and what did not become a line of it; and
-`run-report.json`, the two joined. The remaining files arrive with the sub-blocks that produce them:
-`oracle-sysmon.ndjson`, `oracle-procmon.ndjson`, `oracle-loss.json`, `matched.ndjson`,
-`metrics.json`.
+`run-report.json`, the two joined. In arms A and B there is `oracle-loss.json`, and
+`oracle-sysmon.ndjson` whenever the oracle collected anything. The remaining files arrive with the
+sub-blocks that produce them: `oracle-procmon.ndjson` (B2.6), `matched.ndjson` and `metrics.json`
+(B2.5).
 
 The Electron profile a run created is **left behind** in the OS temp directory, and its path is in
 `observed.meta.json`. It holds the audit file `observed.ndjson` was derived from, which is the

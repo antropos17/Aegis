@@ -12,9 +12,15 @@
  *   C start nothing and write no observation set — arm C is defined as the sensor
  *   alone with no oracle, and measuring its overhead is a later block.
  *
- *   The oracle adapters (B2.6) are still a separate block: the report scores the
- *   sensor against the catalogue and against nothing else, and the catalogue is
- *   still unconfirmed until an oracle confirms it.
+ *   In the two arms whose definition includes Sysmon — A and B — it also runs the
+ *   **Sysmon oracle** (B2.3, `bench/lib/oracles/sysmon.js`) and writes
+ *   `oracle-loss.json` always and `oracle-sysmon.ndjson` when there was anything
+ *   to write. That does NOT yet reach `run-report.json`: the report still scores
+ *   the sensor against the catalogue and against nothing else, and confirming the
+ *   catalogue against the oracle column is B2.5. Procmon (B2.6) does not exist,
+ *   so an arm-B run is a PARTIAL calibration and its manifest says so — the
+ *   `oracles.procmon` entry is unavailable and is printed in the absent-facts
+ *   list at the end of the run.
  *
  *   The manifest also records **which report renderer this process is running** —
  *   `reportRenderer`, the sha256 of `bench/lib/join.js` and `bench/lib/report.js`
@@ -42,8 +48,9 @@
  *   positive the harness manufactured for itself.
  *
  *   Exit codes: 0 the run completed · 1 a step failed to execute, the sensor
- *   could not be run or read, or the run report could not be derived · 2 the
- *   invocation or the scenario was wrong, and nothing ran.
+ *   could not be run or read, the run report could not be derived, or an arm-B
+ *   run collected no oracle record · 2 the invocation or the scenario was wrong,
+ *   and nothing ran.
  *
  *   Usage:
  *     npm run bench:run
@@ -78,6 +85,7 @@ const {
   serializeReport,
 } = require('./lib/report');
 const sensor = require('./lib/sensor');
+const sysmon = require('./lib/oracles/sysmon');
 
 /** @type {string} Where run directories are created. Gitignored. */
 const RUNS_DIR = path.join(manifest.ROOT, 'bench', 'runs');
@@ -92,6 +100,21 @@ const SETTINGS_FILENAME = 'settings.json';
  * @type {string}
  */
 const SENSOR_ARM = 'A';
+
+/**
+ * The arms whose definition includes Sysmon: A is sensor + Sysmon, B is Sysmon +
+ * Procmon without the sensor. C is the sensor alone with no oracle at all, so it
+ * runs none and its manifest keeps the oracle placeholders.
+ *
+ * The two arms differ in what a missing oracle MEANS, and therefore in the exit
+ * code. Arm B produces nothing else: no oracle column is an empty run, and it
+ * exits 1 for the same reason arm A exits 1 on an empty observation set. Arm A
+ * still produces its sensor column and its report, so a missing oracle there is
+ * recorded as an absent fact — in the manifest, in `oracle-loss.json` and in the
+ * absent-facts list printed at the end — and does not change its exit code.
+ * @type {ReadonlyArray<string>}
+ */
+const ORACLE_ARMS = Object.freeze(['A', 'B']);
 
 /**
  * Scenario label used when none was named. Deliberately not `smoke` or
@@ -122,8 +145,14 @@ run-scoped Electron profile, and what it recorded is written to observed.ndjson
 next to the catalogue. It needs a built renderer: run \`npm run build:renderer\`
 first, or the sensor refuses to start and the run stops before acting.
 
-Exit codes: 0 completed · 1 a step failed to execute, or the sensor could not be
-run or read · 2 bad invocation or bad scenario, nothing ran.`;
+In arms A and B the Sysmon oracle (B2.3) is collected and oracle-loss.json is
+written; oracle-sysmon.ndjson is written only if it holds a record. Procmon
+(B2.6) does not exist, so arm B is a PARTIAL calibration — its manifest records
+oracles.procmon as unavailable and the run prints it as an absent fact.
+
+Exit codes: 0 completed · 1 a step failed to execute, the sensor could not be
+run or read, or an arm-B run collected no oracle record · 2 bad invocation or
+bad scenario, nothing ran.`;
 
 /**
  * Parse `--key value` pairs. Unknown flags are an error rather than a silent
@@ -539,6 +568,66 @@ function writeReport(opts) {
 }
 
 /**
+ * Run the Sysmon oracle across this run and write both of its artefacts.
+ *
+ * Called AFTER the sensor has been stopped and after the catalogue is written,
+ * for the reason those two are ordered that way: the run directory sits inside
+ * the watched project directory, so a file the harness creates while the sensor
+ * is live becomes a file creation in the sensor's own answer.
+ *
+ * The window is `[the run's startedAt, now]`. The start is the manifest instant,
+ * which precedes the sensor, the steps and everything the scenario causes; the
+ * end is taken here, after all of it. Both are read off the harness's own clock,
+ * which is why the oracle window carries no epsilon — see
+ * `bench/lib/oracles/sysmon.js`.
+ *
+ * `oracle-loss.json` is written on every path, including — especially including —
+ * the one where nothing was collected. `oracle-sysmon.ndjson` is written only
+ * when there is at least one record: an empty one would be indistinguishable
+ * from "the oracle ran and saw nothing", which is a different claim.
+ * @param {Object} opts
+ * @param {string} opts.dir - Run directory.
+ * @param {string} opts.runId
+ * @param {string} opts.scenario
+ * @param {string} opts.arm
+ * @param {string} opts.startedAt - The run's start instant.
+ * @param {Object} opts.config - The manifest's `oracles.sysmon` block.
+ * @param {function(Object): Object} [opts.read] - The raw channel boundary. A
+ *   live run passes none and the adapter uses its own; a test injects one, which
+ *   is the only way the bytes this function writes can be exercised without an
+ *   installed Sysmon.
+ * @returns {{events: Object[], loss: Object, ok: boolean}}
+ */
+function runOracle(opts) {
+  const result = sysmon.collect({
+    runId: opts.runId,
+    scenario: opts.scenario,
+    arm: opts.arm,
+    windowStart: opts.startedAt,
+    windowEnd: new Date().toISOString(),
+    config: opts.config,
+    read: opts.read,
+  });
+
+  const lossPath = sysmon.writeLoss(opts.dir, result.loss);
+  console.log(`written ${lossPath}`);
+
+  if (result.events.length > 0) {
+    const file = sysmon.write(opts.dir, result.events);
+    console.log(`written ${file} (${result.events.length} oracle record(s))`);
+  } else {
+    console.log(
+      `oracle  no ${sysmon.ORACLE_FILENAME} was written — an empty one would read as "the ` +
+        `oracle ran and saw nothing". Why it holds none is in ${sysmon.LOSS_FILENAME}`,
+    );
+  }
+  if (!result.ok) {
+    console.error(`\nbench: ${result.loss.collection.unavailable}`);
+  }
+  return result;
+}
+
+/**
  * @param {string[]} argv - `process.argv.slice(2)`
  * @returns {Promise<number>} Process exit code.
  */
@@ -584,11 +673,21 @@ async function main(argv) {
     );
     return 2;
   }
+  // Built before the manifest and only for the arms that run an oracle. The
+  // adapter owns these facts — which config file, and which binary if any is
+  // installed — and hands them over, exactly as `reportRenderer` is handed over
+  // rather than re-derived inside the manifest. Arm C runs no oracle and keeps
+  // the placeholders.
+  const oracles = ORACLE_ARMS.includes(args.arm)
+    ? { sysmon: sysmon.manifestBlock({ version: sysmon.probeVersion() }) }
+    : undefined;
+
   const record = manifest.collect({
     runId,
     scenario: args.scenario,
     arm: args.arm,
     startedAt: now.toISOString(),
+    oracles,
     // Frozen while `lib/report.js` was loading, a few milliseconds before this
     // line — the renderer source bytes as they stood on disk at that instant,
     // not the file as it will stand when the report is written some minutes
@@ -602,7 +701,15 @@ async function main(argv) {
   fs.writeFileSync(manifestPath, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
 
   const absent = [];
-  for (const [group, fields] of Object.entries({ host: record.host, sensor: record.sensor })) {
+  // `oracles` is swept with the rest: an oracle that did not answer is an absent
+  // fact about this run, and an arm-B run reads its own PARTIAL calibration out
+  // of this list — `oracles.procmon` is unavailable until B2.6 exists, so a B run
+  // says so at the moment of measurement instead of looking complete.
+  for (const [group, fields] of Object.entries({
+    host: record.host,
+    sensor: record.sensor,
+    oracles: record.oracles,
+  })) {
     for (const [name, entry] of Object.entries(fields)) {
       if (entry && entry.unavailable) absent.push(`${group}.${name}: ${entry.unavailable}`);
     }
@@ -680,6 +787,30 @@ async function main(argv) {
       // harness made for itself into the sensor's own answer.
       const cataloguePath = catalogue.write(dir, outcome.events);
       console.log(`written ${cataloguePath} (${outcome.events.length} expected event(s))`);
+
+      // Same ordering rule, same reason: after the sensor is stopped, so the two
+      // oracle artefacts cannot appear as file creations in the sensor's answer.
+      if (oracles) {
+        const oracle = runOracle({
+          dir,
+          runId,
+          scenario: scenario.id,
+          arm: args.arm,
+          startedAt: now.toISOString(),
+          config: oracles.sysmon,
+        });
+        // Arm B is the oracle and nothing else. A B run that collected no record
+        // produced no calibration column at all, which is the same kind of empty
+        // answer an arm-A run with no observation set gives — and it exits the
+        // same way. Arm A keeps its own exit code: it still has a sensor column.
+        if (args.arm !== SENSOR_ARM && (!oracle.ok || oracle.events.length === 0)) {
+          console.error(
+            `bench: arm ${args.arm} is defined as an oracle calibration and this run produced no ` +
+              `oracle record, so there is nothing to calibrate against — see ${sysmon.LOSS_FILENAME}`,
+          );
+          exitCode = 1;
+        }
+      }
 
       if (capture) {
         const metaPath = observed.writeMeta(dir, capture.record);
@@ -759,6 +890,7 @@ if (require.main === module) {
 module.exports = {
   MAX_LATENCY_INTERVALS,
   NO_SCENARIO,
+  ORACLE_ARMS,
   RUNS_DIR,
   SENSOR_ARM,
   SETTINGS_FILENAME,
@@ -771,6 +903,10 @@ module.exports = {
   prepareScenario,
   processAliveWindow,
   resolveScanInterval,
+  // Exported for the same reason `writeReport` is: `main` reaches it only through
+  // a completed scenario run, so without this export the bytes it writes rest on
+  // a call site nothing exercises.
+  runOracle,
   // Exported for one reason: so a test can hold the bytes this function actually
   // writes against `serializeReport`'s output. `main` reaches it only through a
   // live arm-A capture — a started sensor, a stopped sensor and a read audit
