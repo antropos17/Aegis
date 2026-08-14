@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 1,
+  "runId": "2026-08-13T19-26-29Z-S1-agent-lifecycle-A",
+  "scenario": "S1-agent-lifecycle",
+  "arm": "A",
+  "join": {
+    "maxLatencyMs": 30000,
+    "maxLatencySource": "10 s × 3 scan intervals — scanIntervalSec in C:\\Users\\murtu\\AppData\\Local\\Temp\\aegis-bench-2026-08-13T19-26-29Z-S1-agent-lifecycle-A\\settings.json",
+    "unavailable": null,
+    "window": "observed ∈ [expected.@timestamp, expected.@timestamp + maxLatencyMs]",
+    "keys": {
+      "process/start": "process.pid",
+      "process/end": "process.pid",
+      "file/creation": "file.path, case- and separator-normalised",
+      "file/deletion": "file.path, case- and separator-normalised"
+    },
+    "notJoinedOn": "a name. AEGIS persists the display name it resolved (\"Claude Code\"), never the image name (\"claude.exe\"), so the two sides hold different strings about different things and a name join would manufacture matches (B2.3)",
+    "cardinality": "one observed event cancels at most one expectation; where several pairings are eligible the nearest in time wins",
+    "noConfidenceFigure": "every number here is a count of rows or a difference of two timestamps. This report carries no confidence score and none is derived from it"
+  },
+  "processObservable": true,
+  "ticksWhileProcessAlive": 3,
+  "categories": {
+    "process/start": {
+      "expected": 1,
+      "matched": 1,
+      "missed": 0,
+      "recall": "1/1",
+      "recallValue": 1,
+      "latencyMs": {
+        "points": [
+          9989
+        ],
+        "p50": 9989,
+        "max": 9989,
+        "basis": "1 matched pair — p50 and max ARE those points, not statistics over a sample"
+      }
+    },
+    "process/end": {
+      "expected": 1,
+      "matched": 1,
+      "missed": 0,
+      "recall": "1/1",
+      "recallValue": 1,
+      "latencyMs": {
+        "points": [
+          14927
+        ],
+        "p50": 14927,
+        "max": 14927,
+        "basis": "1 matched pair — p50 and max ARE those points, not statistics over a sample"
+      }
+    },
+    "file/creation": {
+      "expected": 1,
+      "matched": 1,
+      "missed": 0,
+      "recall": "1/1",
+      "recallValue": 1,
+      "latencyMs": {
+        "points": [
+          12
+        ],
+        "p50": 12,
+        "max": 12,
+        "basis": "1 matched pair — p50 and max ARE those points, not statistics over a sample"
+      }
+    },
+    "file/deletion": {
+      "expected": 1,
+      "matched": 1,
+      "missed": 0,
+      "recall": "1/1",
+      "recallValue": 1,
+      "latencyMs": {
+        "points": [
+          104
+        ],
+        "p50": 104,
+        "max": 104,
+        "basis": "1 matched pair — p50 and max ARE those points, not statistics over a sample"
+      }
+    }
+  },
+  "matched": [
+    {
+      "category": "file/creation",
+      "key": "path:x:\\future\\escape\\aegis\\bench\\runs\\2026-08-13t19-26-29z-s1-agent-lifecycle-a\\stage\\claude.exe",
+      "latencyMs": 12,
+      "expected": {
+        "index": 0,
+        "@timestamp": "2026-08-13T19:28:03.835Z",
+        "step": "stage-binary",
+        "expect": "E1"
+      },
+      "observed": {
+        "index": 0,
+        "@timestamp": "2026-08-13T19:28:03.847Z",
+        "auditFile": "aegis-audit-2026-08-13.json",
+        "auditSeq": 22,
+        "auditType": "file-access",
+        "attribution": {
+          "status": "unattributed",
+          "evidence": [
+            "no-owner-match"
+          ]
+        }
+      }
+    },
+    {
+      "category": "file/deletion",
+      "key": "path:x:\\future\\escape\\aegis\\bench\\runs\\2026-08-13t19-26-29z-s1-agent-lifecycle-a\\stage\\claude.exe",
+      "latencyMs": 104,
+      "expected": {
+        "index": 3,
+        "@timestamp": "2026-08-13T19:28:38.944Z",
+        "step": "remove-binary",
+        "expect": "E4"
+      },
+      "observed": {
+        "index": 2,
+        "@timestamp": "2026-08-13T19:28:39.048Z",
+        "auditFile": "aegis-audit-2026-08-13.json",
+        "auditSeq": 26,
+        "auditType": "file-access",
+        "attribution": {
+          "status": "unattributed",
+          "evidence": [
+            "no-owner-match"
+          ]
+        }
+      }
+    },
+    {
+      "category": "process/start",
+      "key": "pid:6688",
+      "latencyMs": 9989,
+      "expected": {
+        "index": 1,
+        "@timestamp": "2026-08-13T19:28:03.933Z",
+        "step": "spawn-agent",
+        "expect": "E2"
+      },
+      "observed": {
+        "index": 1,
+        "@timestamp": "2026-08-13T19:28:13.922Z",
+        "auditFile": "aegis-audit-2026-08-13.json",
+        "auditSeq": 23,
+        "auditType": "agent-enter",
+        "agent": "Claude Code",
+        "instanceId": "6688:1786649283898"
+      }
+    },
+    {
+      "category": "process/end",
+      "key": "pid:6688",
+      "latencyMs": 14927,
+      "expected": {
+        "index": 2,
+        "@timestamp": "2026-08-13T19:28:38.943Z",
+        "step": "terminate-agent",
+        "expect": "E3"
+      },
+      "observed": {
+        "index": 3,
+        "@timestamp": "2026-08-13T19:28:53.870Z",
+        "auditFile": "aegis-audit-2026-08-13.json",
+        "auditSeq": 29,
+        "auditType": "agent-exit",
+        "agent": "Claude Code",
+        "instanceId": "6688:1786649283898"
+      }
+    }
+  ],
+  "missed": [],
+  "unmatchedObserved": []
+}

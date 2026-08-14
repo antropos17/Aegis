@@ -3,3 +3,9 @@
 
 # Normalize line endings
 * text=auto
+
+# Bench replay fixtures are byte-exact recordings of real runs, and the replay
+# tests assert byte equality against them. `* text=auto` above plus a Windows
+# checkout would hand those tests CRLF files that no rebuild can reproduce, so
+# these are excluded from conversion in both directions.
+tests/fixtures/bench/** -text
