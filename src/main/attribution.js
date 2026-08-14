@@ -62,14 +62,11 @@ const EVIDENCE = Object.freeze({
 /**
  * Every legal evidence code, in declaration order.
  *
- * The `AttributionEvidence` union in src/shared/types/events.ts mirrors the first
- * SEVEN codes. `population-unavailable` is **not yet in that union** — the typed
- * mirror is the second half of gap S in the app-state design and ships in the pass
- * that is allowed to edit `src/shared/`. Nothing breaks meanwhile: the renderer
- * switches on `attribution.status`, never on an individual code, and the write path
- * is guarded by {@link deriveStatus} rather than by the union. State it here rather
- * than let the old blanket "mirrors the union" sentence claim a parity that stopped
- * holding (ai-mistakes #27).
+ * The `AttributionEvidence` union in src/shared/types/events.ts mirrors all EIGHT
+ * codes, `population-unavailable` included. `tsc` cannot see this runtime list, so the
+ * two halves are held together by a test that reads events.ts and compares them
+ * member-for-member in declaration order — never by the compiler. The write path is
+ * guarded separately, by {@link deriveStatus} throwing on an unknown code.
  * @type {ReadonlyArray<string>}
  * @since v0.11.0
  */
