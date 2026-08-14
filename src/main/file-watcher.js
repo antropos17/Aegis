@@ -142,10 +142,15 @@ function createInitialFsHealth() {
 /**
  * Reset FS health records (tests / intentional reinit). Does not clear residual
  * production loss mid-lifetime except by creating new records.
+ *
+ * Drops the watch plan with them: the plan is what writes the chokidar record, so a
+ * plan that outlived its record would recompute W from roots the new record never
+ * saw registered.
  * @returns {void}
  */
 function _resetFsHealth() {
   _fsHealth = createInitialFsHealth();
+  _resetWatchPlan();
 }
 
 /**
@@ -368,24 +373,327 @@ function getIgnoredDirFilter(config) {
     );
 }
 
-function bindWatcherEvents(watcher) {
-  watcher.on('add', (p) => handleWatcherEvent('created', p));
-  watcher.on('change', (p) => handleWatcherEvent('modified', p));
-  watcher.on('unlink', (p) => handleWatcherEvent('deleted', p));
-  // B2: chokidar may keep running after some errors — DEGRADED not FAILED.
-  // No lossCount: chokidar does not expose a quantitative lost-event counter.
-  watcher.on('error', (err) => {
-    const now = Date.now();
-    _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.CHOKIDAR], now, {
-      error: healthErrorMessage(err),
-      detail: 'chokidar-error',
+// ── Watch-root registry (design §1) ─────────────────────────────────────────────
+// `fs-chokidar` is ONE health record over SEVERAL FSWatcher objects. Reading it off
+// whichever object spoke last made a single `ready` claim the whole mechanism healthy
+// and a single `error` condemn it. The registry separates INTENT (the plan, fixed
+// before the first registration) from OUTCOME (what each root actually did), and W is
+// derived from the whole plan.
+
+/**
+ * The four watch-root groups `setupFileWatchers` registers. Two are preflighted,
+ * two are unconditional — which is why the plan can never be empty (§1.2).
+ * @type {Readonly<Record<string, string>>}
+ * @since 0.12.0
+ */
+const WATCH_GROUP = Object.freeze({
+  CREDENTIAL_DIRS: 'credential-dirs',
+  AGENT_CONFIG_DIRS: 'agent-config-dirs',
+  PROJECT_DIR: 'project-dir',
+  ENV_FILES: 'env-files',
+});
+
+/**
+ * Lifecycle states of one watch root (§1.3).
+ *
+ * `not-applicable` is the ONLY exclusion from the plan, and it rests on a completed
+ * probe — never on a throw. `registration-failed`, `not-attempted` and `errored` are
+ * all terminal: nothing in this module recreates a watcher object (gap P).
+ * @type {Readonly<Record<string, string>>}
+ * @since 0.12.0
+ */
+const WATCH_ROOT_STATE = Object.freeze({
+  NOT_APPLICABLE: 'not-applicable',
+  PLANNED: 'planned',
+  NOT_ATTEMPTED: 'not-attempted',
+  REGISTRATION_FAILED: 'registration-failed',
+  REGISTERED: 'registered',
+  READY: 'ready',
+  ERRORED: 'errored',
+});
+
+/** States that name a planned root as unavailable — a CONFIRMED loss of coverage. */
+const UNAVAILABLE_ROOT_STATES = new Set([
+  WATCH_ROOT_STATE.ERRORED,
+  WATCH_ROOT_STATE.REGISTRATION_FAILED,
+  WATCH_ROOT_STATE.NOT_ATTEMPTED,
+]);
+
+/**
+ * @typedef {Object} WatchRoot
+ * @property {string} id - one of {@link WATCH_GROUP}
+ * @property {string} state - one of {@link WATCH_ROOT_STATE}
+ * @property {object|null} watcher - the LIVE FSWatcher object, or null if none exists
+ * @property {string|null} lastError
+ * @property {number} deliveredCount - callbacks this root has delivered
+ * @property {number|null} lastEventAt
+ */
+
+/**
+ * The plan: planned roots in registration order. Empty until `setupFileWatchers`
+ * builds it, and immutable in membership for the record lifetime.
+ * @type {Map<string, WatchRoot>}
+ */
+let _watchPlan = new Map();
+
+/** Groups a completed preflight proved absent — excluded from the plan (§1.2). */
+let _absentGroups = [];
+
+/** @returns {void} */
+function _resetWatchPlan() {
+  _watchPlan = new Map();
+  _absentGroups = [];
+}
+
+/**
+ * Fix the plan. Called once per health-record lifetime, AFTER both preflights and
+ * BEFORE the first `chokidar.watch` — a registration failure can then never shrink it.
+ * @param {Array<{id: string, applicable: boolean}>} groups - in registration order
+ * @returns {void}
+ */
+function buildWatchPlan(groups) {
+  _resetWatchPlan();
+  for (const g of groups) {
+    if (!g.applicable) {
+      _absentGroups.push(g.id);
+      continue;
+    }
+    _watchPlan.set(g.id, {
+      id: g.id,
+      state: WATCH_ROOT_STATE.PLANNED,
+      watcher: null,
+      lastError: null,
+      deliveredCount: 0,
+      lastEventAt: null,
     });
+  }
+}
+
+/**
+ * @param {string} id
+ * @param {object} watcher - the object `chokidar.watch` returned
+ * @returns {void}
+ */
+function markRootRegistered(id, watcher) {
+  const root = _watchPlan.get(id);
+  if (!root) return;
+  root.state = WATCH_ROOT_STATE.REGISTERED;
+  root.watcher = watcher;
+}
+
+/**
+ * `chokidar.watch` threw for this group — no watcher object exists for it.
+ * @param {string} id
+ * @param {unknown} err
+ * @returns {void}
+ */
+function markRootRegistrationFailed(id, err) {
+  const root = _watchPlan.get(id);
+  if (!root) return;
+  root.state = WATCH_ROOT_STATE.REGISTRATION_FAILED;
+  root.watcher = null;
+  root.lastError = healthErrorMessage(err);
+}
+
+/**
+ * Setup aborted before these groups were reached — their state is read off plan
+ * position, not off anything they did.
+ * @returns {void}
+ */
+function markUnreachedRootsNotAttempted() {
+  for (const root of _watchPlan.values()) {
+    if (root.state === WATCH_ROOT_STATE.PLANNED) {
+      root.state = WATCH_ROOT_STATE.NOT_ATTEMPTED;
+    }
+  }
+}
+
+/**
+ * `ready` fired for this root's watcher object.
+ * @param {string} id
+ * @returns {void}
+ */
+function markRootReady(id) {
+  const root = _watchPlan.get(id);
+  if (!root) return;
+  // §1.4 — `errored` is TERMINAL for this watcher object's lifetime. Whether chokidar
+  // closes itself on a fatal error or hangs silent is unresolved (roadmap U3), so
+  // nothing the same object says afterwards can be read as recovery. Only a NEW object
+  // clears it, and no code creates one today (gap P). Without this guard a root that
+  // errored during its initial walk and then emitted `ready` would count as clean
+  // coverage, and W would reach HEALTHY over a root nobody can vouch for.
+  if (root.state === WATCH_ROOT_STATE.ERRORED) return;
+  root.state = WATCH_ROOT_STATE.READY;
+  applyWatchPlaneHealth(Date.now());
+}
+
+/**
+ * An `error` event arrived for this root. The watcher OBJECT is kept: chokidar may
+ * still be partially operating, and W FAILED is a statement about object existence,
+ * never a count of errors (§1.5).
+ * @param {string} id
+ * @param {unknown} err
+ * @returns {void}
+ */
+function markRootErrored(id, err) {
+  const root = _watchPlan.get(id);
+  if (!root) return;
+  root.state = WATCH_ROOT_STATE.ERRORED;
+  root.lastError = healthErrorMessage(err);
+  applyWatchPlaneHealth(Date.now());
+}
+
+/**
+ * Record that this root delivered one callback. Reality only, and deliberately no
+ * state: a delivered `add`/`change`/`unlink` proves ONE callback arrived, never that
+ * a watcher recovered — §1.4 retracts that claim outright. So it does not clear
+ * `errored`, and it does not promote a `registered` root that never said `ready`.
+ * @param {string} id
+ * @returns {void}
+ */
+function noteRootDelivery(id) {
+  const root = _watchPlan.get(id);
+  if (!root) return;
+  root.deliveredCount += 1;
+  root.lastEventAt = Date.now();
+}
+
+/**
+ * W over the plan — ordered and total (§1.6). Rule 1 before 2 because a root can be
+ * both `errored` and the only live one; rule 2 before 3 because a confirmed failure
+ * outranks a not-yet.
+ * @returns {string} a {@link sensorHealth.SENSOR_HEALTH_STATE} value
+ * @throws {Error} when called with no plan — §1.2 asserts the plan is never empty.
+ */
+function deriveWatchPlaneState() {
+  const roots = [..._watchPlan.values()];
+  if (roots.length === 0) {
+    throw new Error('file-watcher: watch plan is empty');
+  }
+  // 1. Zero live watcher objects — PROVEN zero coverage: there is nothing to observe
+  //    with. This is the only source of FAILED. N `errored` roots are N unknowns, not
+  //    a proven death (§1.5), so error events never reach this line.
+  if (!roots.some((r) => r.watcher !== null)) {
+    return sensorHealth.SENSOR_HEALTH_STATE.FAILED;
+  }
+  // 2. Any planned root confirmed unavailable.
+  if (roots.some((r) => UNAVAILABLE_ROOT_STATES.has(r.state))) {
+    return sensorHealth.SENSOR_HEALTH_STATE.DEGRADED;
+  }
+  // 3. Some root has not proven readiness. A root stuck at `registered` whose `ready`
+  //    never fires holds W here forever — honest under U3, and out of HEALTHY.
+  if (
+    roots.some(
+      (r) => r.state === WATCH_ROOT_STATE.PLANNED || r.state === WATCH_ROOT_STATE.REGISTERED,
+    )
+  ) {
+    return sensorHealth.SENSOR_HEALTH_STATE.STARTING;
+  }
+  return sensorHealth.SENSOR_HEALTH_STATE.HEALTHY;
+}
+
+/**
+ * `<id>:<reason>` for every unavailable root, in PLAN order so the string does not
+ * depend on which event happened to land first.
+ * @returns {string}
+ */
+function unavailableRootSummary() {
+  const parts = [];
+  for (const root of _watchPlan.values()) {
+    if (UNAVAILABLE_ROOT_STATES.has(root.state)) {
+      parts.push(`${root.id}:${root.lastError || root.state}`);
+    }
+  }
+  return parts.join('; ').slice(0, 200);
+}
+
+/**
+ * Write the derived W into the existing `fs-chokidar` record. The record is the
+ * mechanism's health; the plan is where its state now comes from.
+ *
+ * STARTING is not written: `createSensorHealth` already starts the record there,
+ * sensor-health has no markStarting, and a plan only ever leaves STARTING forward —
+ * roots never return to `planned`/`registered`, and every unavailable state is
+ * terminal. Consequence worth naming: `lastSuccessAt` now advances only when EVERY
+ * planned root is ready, where before one `ready` advanced it for all of them.
+ * @param {number} now
+ * @returns {void}
+ */
+function applyWatchPlaneHealth(now) {
+  const state = deriveWatchPlaneState();
+  const rec = _fsHealth[FS_SENSOR.CHOKIDAR];
+  if (state === sensorHealth.SENSOR_HEALTH_STATE.FAILED) {
+    _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.markFailed(rec, now, {
+      error: unavailableRootSummary() || 'no-live-watcher',
+      detail: 'no-live-watcher',
+    });
+  } else if (state === sensorHealth.SENSOR_HEALTH_STATE.DEGRADED) {
+    // No lossCount: chokidar exposes no quantitative lost-event counter.
+    _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.markDegraded(rec, now, {
+      error: unavailableRootSummary(),
+      detail: 'watch-roots-unavailable',
+    });
+  } else if (state === sensorHealth.SENSOR_HEALTH_STATE.HEALTHY) {
+    _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.markHealthy(rec, now);
+  }
+}
+
+/**
+ * Plain serializable view of the plan — callers must not mutate. The live FSWatcher
+ * objects are deliberately not exposed; `hasLiveWatcher` is the only fact about them
+ * W is allowed to rest on.
+ * @returns {{state: string, groups: Array<object>, absentGroups: string[], liveWatcherCount: number, unavailableGroups: Array<{id: string, state: string, reason: string}>}}
+ * @since 0.12.0
+ */
+function getWatchPlan() {
+  const groups = [..._watchPlan.values()].map((r) => ({
+    id: r.id,
+    state: r.state,
+    hasLiveWatcher: r.watcher !== null,
+    lastError: r.lastError,
+    deliveredCount: r.deliveredCount,
+    lastEventAt: r.lastEventAt,
+  }));
+  return {
+    // Before setup has run there is no plan, and deriving from an empty one is the
+    // case §1.2 asserts away rather than branches on — so report the record's own
+    // starting state instead of throwing out of a getter.
+    state:
+      groups.length === 0 ? sensorHealth.SENSOR_HEALTH_STATE.STARTING : deriveWatchPlaneState(),
+    groups,
+    absentGroups: [..._absentGroups],
+    liveWatcherCount: groups.filter((g) => g.hasLiveWatcher).length,
+    unavailableGroups: groups
+      .filter((g) => UNAVAILABLE_ROOT_STATES.has(g.state))
+      .map((g) => ({ id: g.id, state: g.state, reason: g.lastError || g.state })),
+  };
+}
+
+/**
+ * @param {object} watcher - the FSWatcher this binding belongs to
+ * @param {string} rootId - the watch group it was registered for
+ * @returns {void}
+ */
+function bindWatcherEvents(watcher, rootId) {
+  // noteRootDelivery lives HERE, not in handleWatcherEvent: the handler is exported
+  // and called directly with no root context by the attribution/ignore suites.
+  watcher.on('add', (p) => {
+    noteRootDelivery(rootId);
+    handleWatcherEvent('created', p);
   });
-  // ready = successful initialization of this FSWatcher instance.
-  watcher.on('ready', () => {
-    const now = Date.now();
-    _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.markHealthy(_fsHealth[FS_SENSOR.CHOKIDAR], now);
+  watcher.on('change', (p) => {
+    noteRootDelivery(rootId);
+    handleWatcherEvent('modified', p);
   });
+  watcher.on('unlink', (p) => {
+    noteRootDelivery(rootId);
+    handleWatcherEvent('deleted', p);
+  });
+  // B2: chokidar may keep running after some errors — DEGRADED not FAILED, and the
+  // scope of the degradation is this ROOT, not the mechanism.
+  watcher.on('error', (err) => markRootErrored(rootId, err));
+  // ready = successful initialization of this FSWatcher instance — that one root.
+  watcher.on('ready', () => markRootReady(rootId));
 }
 
 function handleWatcherEvent(action, filePath) {
@@ -478,63 +786,113 @@ function handleWatcherEvent(action, filePath) {
   if (_state.onFileEvent) _state.onFileEvent(event);
 }
 
-/** @returns {Promise<void>} @since v0.1.0 */
+/**
+ * Register the production watch roots and record what each one actually did.
+ *
+ * The rejection is deliberately re-thrown after the plan is written: main.js already
+ * reports it (`File watcher setup failed`), and this module owns the plan (§10 step B).
+ * @returns {Promise<void>}
+ * @throws {Error} whatever `chokidar.watch` threw, after the plan records the abort.
+ * @since v0.1.0
+ */
 async function setupFileWatchers() {
-  // Reinit chokidar health lifetime when production recreates the watcher set.
-  _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.createSensorHealth(FS_SENSOR.CHOKIDAR);
   const homeDir = os.homedir();
-  const sensitiveDirCandidates = SENSITIVE_AGENT_DIRS.map((d) => path.join(homeDir, d));
-  const sensitiveDirs = await filterExistingDirs(sensitiveDirCandidates);
   const projectDir = path.join(__dirname, '..', '..');
-  if (sensitiveDirs.length > 0) {
-    const w = chokidar.watch(sensitiveDirs, {
-      persistent: true,
-      ignoreInitial: true,
-      usePolling: false,
-      followSymlinks: false,
-      depth: 1,
-    });
-    bindWatcherEvents(w);
-    _state.watchers.push(w);
-  }
+  // BOTH preflights complete before ANY registration (§1.2). The plan separates
+  // intent from outcome: a group may leave it only because a completed probe proved
+  // there is nothing to watch — never because a registration threw. Under the old
+  // order the second probe ran after the first `chokidar.watch`, so an abort in
+  // between produced a plan that had never heard of the agent-config group, and one
+  // ready root was enough to call the whole mechanism HEALTHY.
+  const sensitiveDirs = await filterExistingDirs(
+    SENSITIVE_AGENT_DIRS.map((d) => path.join(homeDir, d)),
+  );
   // AI agent config directories (Hudson Rock threat vector — critical)
   const sensitiveDirNames = new Set(SENSITIVE_AGENT_DIRS);
-  const agentConfigCandidates = AGENT_CONFIG_PATHS.filter((d) => !sensitiveDirNames.has(d)).map(
-    (d) => path.join(homeDir, d),
+  const agentConfigDirs = await filterExistingDirs(
+    AGENT_CONFIG_PATHS.filter((d) => !sensitiveDirNames.has(d)).map((d) => path.join(homeDir, d)),
   );
-  const agentConfigDirs = await filterExistingDirs(agentConfigCandidates);
-  if (agentConfigDirs.length > 0) {
-    const cw = chokidar.watch(agentConfigDirs, {
-      persistent: true,
-      ignoreInitial: true,
-      usePolling: false,
-      followSymlinks: false,
-      depth: 2,
-    });
-    bindWatcherEvents(cw);
-    _state.watchers.push(cw);
+  // Reinit chokidar health lifetime when production recreates the watcher set — and
+  // the plan with it, since the plan is what writes into that record.
+  _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.createSensorHealth(FS_SENSOR.CHOKIDAR);
+  buildWatchPlan([
+    { id: WATCH_GROUP.CREDENTIAL_DIRS, applicable: sensitiveDirs.length > 0 },
+    { id: WATCH_GROUP.AGENT_CONFIG_DIRS, applicable: agentConfigDirs.length > 0 },
+    // Unconditional: no preflight can exclude them, so the plan is never empty.
+    { id: WATCH_GROUP.PROJECT_DIR, applicable: true },
+    { id: WATCH_GROUP.ENV_FILES, applicable: true },
+  ]);
+  /** @type {string|null} The group whose registration is in flight. */
+  let attempted = null;
+  try {
+    const config = _state.getSettings ? _state.getSettings() : {};
+    const dirFilter = getIgnoredDirFilter(config);
+    /** Registration order IS plan order — `not-attempted` is read off plan position. */
+    const registrations = [
+      [
+        WATCH_GROUP.CREDENTIAL_DIRS,
+        () =>
+          chokidar.watch(sensitiveDirs, {
+            persistent: true,
+            ignoreInitial: true,
+            usePolling: false,
+            followSymlinks: false,
+            depth: 1,
+          }),
+      ],
+      [
+        WATCH_GROUP.AGENT_CONFIG_DIRS,
+        () =>
+          chokidar.watch(agentConfigDirs, {
+            persistent: true,
+            ignoreInitial: true,
+            usePolling: false,
+            followSymlinks: false,
+            depth: 2,
+          }),
+      ],
+      [
+        WATCH_GROUP.PROJECT_DIR,
+        () =>
+          chokidar.watch(projectDir, {
+            persistent: true,
+            ignoreInitial: true,
+            ignored: (filePath) => dirFilter(filePath) || /package-lock\.json$/.test(filePath),
+            usePolling: false,
+            followSymlinks: false,
+            depth: 5,
+          }),
+      ],
+      [
+        WATCH_GROUP.ENV_FILES,
+        () =>
+          chokidar.watch(path.join(homeDir, '.env*'), {
+            persistent: true,
+            ignoreInitial: true,
+            depth: 0,
+            usePolling: false,
+            followSymlinks: false,
+          }),
+      ],
+    ];
+    for (const [id, register] of registrations) {
+      if (!_watchPlan.has(id)) continue; // not-applicable — proven absent by preflight
+      attempted = id;
+      const w = register();
+      markRootRegistered(id, w);
+      bindWatcherEvents(w, id);
+      _state.watchers.push(w);
+    }
+  } catch (err) {
+    // §1.3: the group that threw is `registration-failed`; every planned group the
+    // loop never reached is `not-attempted`, read off plan position. Both are recorded
+    // before the rejection leaves this function.
+    if (attempted) markRootRegistrationFailed(attempted, err);
+    markUnreachedRootsNotAttempted();
+    applyWatchPlaneHealth(Date.now());
+    throw err;
   }
-  const config = _state.getSettings ? _state.getSettings() : {};
-  const dirFilter = getIgnoredDirFilter(config);
-  const pw = chokidar.watch(projectDir, {
-    persistent: true,
-    ignoreInitial: true,
-    ignored: (filePath) => dirFilter(filePath) || /package-lock\.json$/.test(filePath),
-    usePolling: false,
-    followSymlinks: false,
-    depth: 5,
-  });
-  bindWatcherEvents(pw);
-  _state.watchers.push(pw);
-  const ew = chokidar.watch(path.join(homeDir, '.env*'), {
-    persistent: true,
-    ignoreInitial: true,
-    depth: 0,
-    usePolling: false,
-    followSymlinks: false,
-  });
-  bindWatcherEvents(ew);
-  _state.watchers.push(ew);
+  applyWatchPlaneHealth(Date.now());
 }
 
 /**
@@ -964,8 +1322,11 @@ module.exports = {
   handleWatcherEvent,
   getIgnoredDirFilter,
   getFileSensorHealth,
+  getWatchPlan,
   noteFileScanSkip,
   FS_SENSOR,
+  WATCH_GROUP,
+  WATCH_ROOT_STATE,
   DEFAULT_IGNORED_DIRS,
   FILE_SCAN_CONCURRENCY,
   _setDepsForTest,

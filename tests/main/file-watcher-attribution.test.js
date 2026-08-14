@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { readFileSync } from 'fs';
 import fileWatcher from '../../src/main/file-watcher.js';
 import { EVIDENCE_CODES, deriveStatus } from '../../src/main/attribution.js';
 
@@ -283,8 +284,6 @@ describe('attribution evidence is a closed list (case 8)', () => {
     // The list is closed on purpose and deriveStatus throws on anything outside it, so this
     // assertion is the gate: adding a code means deciding its status here, in events.ts, and
     // in PID_EVIDENCE/HEURISTIC_EVIDENCE — not just at a call site.
-    // `population-unavailable` is the exception on the events.ts half: the typed mirror is
-    // the second part of gap S and ships in the pass allowed to edit src/shared/.
     expect([...EVIDENCE_CODES]).toEqual([
       'rm-holder-pid',
       'handle-scan-pid',
@@ -301,6 +300,25 @@ describe('attribution evidence is a closed list (case 8)', () => {
     // It must never read as PID proof or as a heuristic match: nothing was matched,
     // and the reason is that there was no trustworthy list to match against.
     expect(deriveStatus(['population-unavailable'])).toBe('unattributed');
+  });
+
+  it('the typed AttributionEvidence union mirrors EVIDENCE_CODES exactly', () => {
+    // The union is the enforced boundary for every TypeScript consumer, and `tsc` cannot
+    // see the runtime list — so nothing but this test connects the two halves of a closed
+    // list that lives in two languages. Order included: EVIDENCE_CODES is declaration
+    // order, and a mirror that agrees only as a set hides which code was appended where.
+    const src = readFileSync(new URL('../../src/shared/types/events.ts', import.meta.url), 'utf-8');
+    const union = src.match(/export type AttributionEvidence =([\s\S]*?);/);
+    expect(union).not.toBeNull();
+    // Strip the per-member JSDoc first: a comment may legally contain quoted text, and a
+    // naive literal scan would then read prose as a member.
+    const members = [
+      ...union[1]
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/.*$/gm, '')
+        .matchAll(/'([^']+)'/g),
+    ].map((m) => m[1]);
+    expect(members).toEqual([...EVIDENCE_CODES]);
   });
 
   it('every code emitted by real watcher events belongs to the closed list', async () => {
