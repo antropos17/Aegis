@@ -138,29 +138,60 @@ function stopScanIntervals() {
   }
 }
 
+/** Reason recorded by every surface that refuses to observe an untrusted population. */
+const SCOPE_UNAVAILABLE = 'process-observation-unavailable';
+
+/**
+ * Whether the agent population may be used as an observation scope right now.
+ *
+ * Reads the ProcessCapabilities contract (design §3) and NOTHING else — not the
+ * plane enum, not `agents.length`. The two older APIs are kept as an ordered
+ * fallback so a caller that injected only part of the scanner surface keeps working.
+ *
+ * A scanner exposing none of the three is treated as reliable: that is the shape a
+ * collaborator stub takes, and defaulting to "unknown" there would silently disable
+ * every sensor rather than gate a stale list.
+ * @param {Object|undefined} scanner
+ * @returns {boolean}
+ * @since 0.12.0
+ */
+function isPopulationReliable(scanner) {
+  if (!scanner) return true;
+  if (typeof scanner.getProcessCapabilities === 'function') {
+    return scanner.getProcessCapabilities().populationReliable === true;
+  }
+  if (typeof scanner.isProcessPopulationReliable === 'function') {
+    return scanner.isProcessPopulationReliable() === true;
+  }
+  if (typeof scanner.getProcessSensorHealth === 'function') {
+    return scanner.getProcessSensorHealth().state === 'HEALTHY';
+  }
+  return true;
+}
+
 function doNetworkScan() {
   const { network, baselines, audit, logger, getLatestAgents, sendToRenderer, scanner } = deps;
   const agents = getLatestAgents();
   if (network.isNetworkScanRunning()) return;
-  // B-S08: agent-scoped network sensor — empty agents still skip the TCP provider,
-  // but health must distinguish confirmed-zero (process HEALTHY) from process-unknown.
-  // Process reliability is B3's API only — never agents.length alone.
-  if (agents.length === 0) {
-    let reason = 'confirmed-zero-agents';
-    if (scanner && typeof scanner.isProcessPopulationReliable === 'function') {
-      if (!scanner.isProcessPopulationReliable()) {
-        reason = 'process-observation-unavailable';
-      }
-    } else if (
-      scanner &&
-      typeof scanner.getProcessSensorHealth === 'function' &&
-      scanner.getProcessSensorHealth().state !== 'HEALTHY'
-    ) {
-      reason = 'process-observation-unavailable';
-    }
-    logger.debug('scan', 'network-skip', { reason, agents: 0 });
+  // G′: the stale-population gate, evaluated BEFORE cardinality. After a hard
+  // enumeration failure `setAgents` never ran, so `latestAgents` still holds the
+  // previous population — querying the TCP table for those pids would resolve
+  // dead/recycled pids and stamp OS_TCP_OWNER_PID (`confirmed`) off an agent record
+  // the process sensor cannot vouch for. The list is NOT cleared (§2.3 — clearing
+  // re-creates B-S01); the consumer is gated instead.
+  if (!isPopulationReliable(scanner)) {
+    logger.debug('scan', 'network-skip', { reason: SCOPE_UNAVAILABLE, agents: agents.length });
     if (typeof network.noteNetworkSkip === 'function') {
-      network.noteNetworkSkip(reason);
+      network.noteNetworkSkip(SCOPE_UNAVAILABLE);
+    }
+    return;
+  }
+  // B-S08: agent-scoped network sensor — a reliable but empty population still skips
+  // the TCP provider, and that skip is a scoped SUCCESS, not a degradation.
+  if (agents.length === 0) {
+    logger.debug('scan', 'network-skip', { reason: 'confirmed-zero-agents', agents: 0 });
+    if (typeof network.noteNetworkSkip === 'function') {
+      network.noteNetworkSkip('confirmed-zero-agents');
     }
     return;
   }
@@ -560,8 +591,20 @@ function attachModels(agents, name, info) {
 }
 
 async function doFileScan() {
-  const { watcher, tray, logger, getStats, getLatestAgents } = deps;
+  const { watcher, tray, logger, getStats, getLatestAgents, scanner } = deps;
   const agents = getLatestAgents();
+  // G′: RM and the handle pool both map a live holder pid onto an agent record and
+  // stamp RM_HOLDER_PID / HANDLE_SCAN_PID — `confirmed` attribution. Against a
+  // population the process sensor cannot vouch for, that is a confirmed claim about
+  // a possibly-dead agent, written into the audit log. Do not scan, do not attribute;
+  // the ACTIVE read mechanism records the refusal (§2.4).
+  if (!isPopulationReliable(scanner)) {
+    logger.debug('scan', 'file-skip', { reason: SCOPE_UNAVAILABLE, agents: agents.length });
+    if (typeof watcher.noteFileScanSkip === 'function') {
+      watcher.noteFileScanSkip(SCOPE_UNAVAILABLE);
+    }
+    return;
+  }
   if (agents.length === 0) return;
   const t0 = performance.now();
   updateScanStatus(true);
@@ -594,8 +637,16 @@ async function doFileScan() {
  * @since v0.11.0-alpha
  */
 async function doHotReadScan() {
-  const { watcher, tray, logger, getStats, getLatestAgents } = deps;
+  const { watcher, tray, logger, getStats, getLatestAgents, scanner } = deps;
   const agents = getLatestAgents();
+  // G′: same holder→agent stamp as the 30s scan, ~3× more often. Same refusal.
+  if (!isPopulationReliable(scanner)) {
+    logger.debug('scan', 'hot-read-skip', { reason: SCOPE_UNAVAILABLE, agents: agents.length });
+    if (typeof watcher.noteFileScanSkip === 'function') {
+      watcher.noteFileScanSkip(SCOPE_UNAVAILABLE);
+    }
+    return;
+  }
   if (agents.length === 0) return;
   const t0 = performance.now();
   try {

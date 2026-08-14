@@ -103,6 +103,18 @@ describe('file-watcher production subscription wiring (F-S01)', () => {
   beforeEach(() => {
     installChokidarMock();
     fileWatcher = loadFileWatcher();
+    // F-S01 is about subscription wiring, not population health. A freshly loaded module
+    // reads the real process leaf, which sits at STARTING until a scan succeeds — under
+    // G′ that correctly suppresses owner inference. Vouch for the population so these
+    // tests exercise the wiring they are about; the gate has its own suite.
+    fileWatcher._setDepsForTest({
+      getProcessCapabilities: () => ({
+        populationState: 'HEALTHY',
+        populationReliable: true,
+        populationAsOf: null,
+        identityQuality: 'unknown',
+      }),
+    });
   });
 
   afterEach(() => {

@@ -333,6 +333,13 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
   // ── network leaf ──
 
   describe('network leaf', () => {
+    beforeEach(async () => {
+      // The network scan is gated on population reliability (G′), and a freshly reset
+      // process leaf sits at STARTING. One real enumeration puts it at HEALTHY so these
+      // tests reach the provider at all; the gate itself is proven in its own suite.
+      await scanner.scanProcesses();
+    });
+
     it('a renderer-send throw after a successful provider run leaves the record HEALTHY', async () => {
       const deps = makeDeps({
         getLatestAgents: vi.fn().mockReturnValue(NET_AGENTS),

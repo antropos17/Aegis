@@ -19,6 +19,12 @@ const { IGNORE_PROCESS_PATTERNS, EDITOR_HOSTS } = require('../shared/constants')
 const sensorHealth = require('./sensor-health');
 const _platform = require('./platform');
 let _listProcesses = _platform.listProcesses;
+// Identity-quality inputs, mirrored as overridable locals the same way process-utils.js
+// holds `providesStartTime` — so a test can state a platform's identity story without
+// pretending to be that platform.
+let _providesStartTime = _platform.providesStartTime === true;
+/** @type {(() => {state: string}) | null} Test override for the proc-snapshot leaf. */
+let _getSnapshotHealth = null;
 
 /** Authoritative process-enumeration sensor id (Block B3). One observation source. */
 const PROCESS_SENSOR_ID = 'process';
@@ -61,6 +67,81 @@ function isProcessPopulationReliable() {
 }
 
 /**
+ * Read the `proc-snapshot` leaf's state without going through the platform façade.
+ *
+ * `platform/win32.js` requires `process-snapshot.js` but does not re-export
+ * `getSnapshotHealth` — that re-export is gap F in the app-state design and is not
+ * part of this pass. The façade is tried FIRST so this fallback deletes itself the
+ * day F lands, and the submodule is required lazily so a POSIX host never loads the
+ * sidecar client for a question it has already answered via `providesStartTime`.
+ * @returns {string|null} The leaf state, or null when it cannot be read at all.
+ */
+function readSnapshotState() {
+  if (_getSnapshotHealth) return _getSnapshotHealth().state;
+  if (typeof _platform.getSnapshotHealth === 'function') {
+    return _platform.getSnapshotHealth().state;
+  }
+  try {
+    return require('./platform/process-snapshot').getSnapshotHealth().state;
+  } catch (_) {
+    // No snapshot module on this host — identity carries no witness.
+    return null;
+  }
+}
+
+/**
+ * Identity strength for the keys `identify()` is currently able to form.
+ *
+ * Annotation only: §3 of the design is explicit that nothing gates on this value.
+ * The socket→agent and holder→agent matches are by PID, and a birth witness plays
+ * no part in a PID match — so a degraded witness must never be allowed to suppress
+ * an observation.
+ *
+ * STARTING (no snapshot taken yet) maps to `unknown` with the same reasoning as
+ * FAILED: no witness has been read, so `identify()` has none to key on.
+ * @returns {'witnessed'|'birth-time'|'unknown'}
+ * @since 0.12.0
+ */
+function getIdentityQuality() {
+  // darwin/linux publish no birth time at all → identify() yields "<pid>:u".
+  if (_providesStartTime !== true) return 'unknown';
+  const state = readSnapshotState();
+  if (state === sensorHealth.SENSOR_HEALTH_STATE.HEALTHY) return 'witnessed';
+  // cim-fallback: _witnessOf drops to startTimeMs, so keys still form.
+  if (state === sensorHealth.SENSOR_HEALTH_STATE.DEGRADED) return 'birth-time';
+  return 'unknown';
+}
+
+/**
+ * @typedef {Object} ProcessCapabilities
+ * @property {'STARTING'|'HEALTHY'|'DEGRADED'|'FAILED'} populationState - the `process`
+ *   LEAF's state, never a plane roll-up
+ * @property {boolean} populationReliable - true iff populationState === 'HEALTHY'
+ * @property {number|null} populationAsOf - the leaf's lastSuccessAt: how old the list is
+ * @property {'witnessed'|'birth-time'|'unknown'} identityQuality - annotation, gates nothing
+ */
+
+/**
+ * The capability contract dependants consume — and the ONLY thing they may consume
+ * to decide whether an agent-scoped observation is allowed to run.
+ *
+ * Deliberately not the process PLANE enum: that value is a display roll-up, safe by
+ * accident for today's single cause of plane-DEGRADED and silently wrong the moment
+ * the `process` leaf itself can degrade. Dependent correctness must not be
+ * reverse-engineered out of a display value (design §3).
+ * @returns {ProcessCapabilities}
+ * @since 0.12.0
+ */
+function getProcessCapabilities() {
+  return {
+    populationState: /** @type {'STARTING'|'HEALTHY'|'DEGRADED'|'FAILED'} */ (_processHealth.state),
+    populationReliable: _processHealth.state === sensorHealth.SENSOR_HEALTH_STATE.HEALTHY,
+    populationAsOf: _processHealth.lastSuccessAt,
+    identityQuality: getIdentityQuality(),
+  };
+}
+
+/**
  * Record a hard process-scan failure that escaped scanProcesses (e.g. non-EPERM
  * throw caught by scan-loop). Does not fabricate agents.
  * @param {unknown} err
@@ -78,12 +159,18 @@ function noteProcessScanHardFailure(err) {
 /** @internal Override platform functions (for tests). */
 function _setPlatformForTest(overrides) {
   if (overrides.listProcesses) _listProcesses = overrides.listProcesses;
+  if (typeof overrides.providesStartTime === 'boolean') {
+    _providesStartTime = overrides.providesStartTime;
+  }
+  if (overrides.getSnapshotHealth) _getSnapshotHealth = overrides.getSnapshotHealth;
 }
 /** @internal Reset state (for tests). */
 function _resetForTest() {
   lastProcessPidSet = '';
   permissionDeniedScans = 0;
   _processHealth = sensorHealth.createSensorHealth(PROCESS_SENSOR_ID);
+  _providesStartTime = _platform.providesStartTime === true;
+  _getSnapshotHealth = null;
 }
 
 let _agentDb = null;
@@ -222,6 +309,7 @@ module.exports = {
   scanProcesses,
   getProcessSensorHealth,
   isProcessPopulationReliable,
+  getProcessCapabilities,
   noteProcessScanHardFailure,
   PROCESS_SENSOR_ID,
   _setPlatformForTest,
