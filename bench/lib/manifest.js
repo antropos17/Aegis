@@ -161,21 +161,30 @@ function processCount() {
 }
 
 /**
- * Placeholder oracle block. B2.3 fills `sysmon`, B2.6 fills `procmon` — each
- * with a version, the config path and that config's SHA-256, so a run can be
- * re-created. Until then the fields are present and explicitly null, because a
- * key that is simply missing reads as "we forgot" rather than "not yet wired".
+ * The oracle block, with a placeholder for every oracle a caller did not supply.
+ *
+ * Each entry is a version, the config path and that config's SHA-256, so a run
+ * can be re-created. `sysmon` is filled by B2.3's adapter and handed in;
+ * `procmon` has no adapter yet and keeps its placeholder, which is not a
+ * formality — it is where an arm-B run states that its calibration is PARTIAL.
+ * Arm B is defined as Sysmon **and** Procmon (see {@link ARM_DESCRIPTIONS}), so a
+ * B run whose `procmon` entry is unavailable is a run that produced one of the
+ * two oracle columns, and the manifest says which one is missing and why.
+ *
+ * A key that is simply absent would read as "we forgot" rather than "not yet
+ * wired", so every oracle is present whether or not it answered.
+ * @param {Object} [supplied] - Blocks handed in by the caller, keyed by oracle id.
  * @returns {Object}
  */
-function oraclePlaceholders() {
+function oraclePlaceholders(supplied) {
   return {
-    sysmon: {
+    sysmon: (supplied && supplied.sysmon) || {
       version: null,
       configPath: null,
       configSha256: null,
-      unavailable: 'oracle adapter not implemented — arrives in sub-block B2.3',
+      unavailable: 'oracle adapter not run for this arm — see armDescription',
     },
-    procmon: {
+    procmon: (supplied && supplied.procmon) || {
       version: null,
       configPath: null,
       configSha256: null,
@@ -200,6 +209,12 @@ function oraclePlaceholders() {
  *   that supplies none leaves the field null, and a null reads as
  *   `legacy-unversioned` downstream: no fingerprint is ever reconstructed for a
  *   run that recorded none.
+ * @param {Object} [opts.oracles] - Oracle blocks, keyed by oracle id, for the
+ *   oracles this arm actually runs. Handed in for the same reason
+ *   `reportRenderer` is: the adapter owns its own facts (which config, which
+ *   binary), and a manifest that re-derived them could disagree with the run.
+ *   Anything not supplied keeps its placeholder — see
+ *   {@link oraclePlaceholders}.
  * @returns {Object} The manifest, ready to serialize.
  */
 function collect(opts) {
@@ -244,7 +259,7 @@ function collect(opts) {
     // it — a dirty tree names a commit the renderer is not.
     reportRenderer: opts.reportRenderer ?? null,
     processCountAtStart: processCount(),
-    oracles: oraclePlaceholders(),
+    oracles: oraclePlaceholders(opts.oracles),
   };
 }
 
@@ -254,6 +269,9 @@ module.exports = {
   MANIFEST_SCHEMA_VERSION,
   ROOT,
   collect,
+  // Exported so the oracle placeholders can be pinned without spawning the three
+  // `git` calls, the `reg query` and the `tasklist` that `collect` runs.
+  oraclePlaceholders,
   probe,
   readRegistryValues,
 };
