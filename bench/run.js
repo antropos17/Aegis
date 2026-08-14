@@ -56,24 +56,15 @@ const catalogue = require('./lib/catalogue');
 const join = require('./lib/join');
 const manifest = require('./lib/manifest');
 const observed = require('./lib/observed');
+// Destructured rather than taken as a namespace: `main` binds a local `report`
+// for the object it just built, and a namespace of the same name would be
+// shadowed exactly where these two are called. They live in `lib/report.js` so
+// that `bench/replay.js` can share them without loading this file's graph.
+const { MAX_LATENCY_INTERVALS, maxLatencyFrom, reportJoin } = require('./lib/report');
 const sensor = require('./lib/sensor');
 
 /** @type {string} Where run directories are created. Gitignored. */
 const RUNS_DIR = path.join(manifest.ROOT, 'bench', 'runs');
-
-/**
- * How many scan intervals a sensor is given to report something before the join
- * stops calling it that expectation's observation.
- *
- * Three, and not fewer, because AEGIS reports a process end only after
- * `session-tracker.js`'s grace of two consecutive scans that missed the process:
- * the floor for `process/end` is already two intervals plus the scan that
- * concludes it. It is not generous — a `process/end` that lands past the bound
- * produces a miss that is a property of the window, which is why every miss in
- * the report names its nearest candidate and the distance to it.
- * @type {number}
- */
-const MAX_LATENCY_INTERVALS = 3;
 
 /** @type {string} The settings file an Electron profile holds. */
 const SETTINGS_FILENAME = 'settings.json';
@@ -314,28 +305,6 @@ function resolveScanInterval(handle) {
 }
 
 /**
- * The join bound, from the interval — {@link MAX_LATENCY_INTERVALS} of them.
- * @param {{value: number|null, source: string, unavailable?: string}} scanInterval
- * @returns {{value: number|null, source: string, unavailable?: string}} Milliseconds.
- */
-function maxLatencyFrom(scanInterval) {
-  if (scanInterval.value === null) {
-    return {
-      value: null,
-      source: scanInterval.source,
-      unavailable:
-        `the scan interval this run used could not be established — ${scanInterval.unavailable}. ` +
-        'A join window is derived from the run or it is absent; it is never defaulted, because ' +
-        'every recall figure in the report is a statement about that window',
-    };
-  }
-  return {
-    value: scanInterval.value * MAX_LATENCY_INTERVALS * 1000,
-    source: `${scanInterval.value} s × ${MAX_LATENCY_INTERVALS} scan intervals — ${scanInterval.source}`,
-  };
-}
-
-/**
  * Build the capture record — how the sensor was run and what did NOT become an
  * observation. Written in arm A whether the capture succeeded or refused: a run
  * directory holding no observations has to say why, or the next reader assumes
@@ -551,39 +520,6 @@ function writeReport(opts) {
   fs.writeFileSync(file, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
   console.log(`written ${file}`);
   return report;
-}
-
-/**
- * Say the report out loud: one line per category, and the two facts that decide
- * whether its numbers may be read as coverage at all.
- * @param {Object} report - From {@link writeReport}.
- * @returns {void}
- */
-function reportJoin(report) {
-  const bound = report.join.maxLatencyMs;
-  console.log(
-    `\njoin    [expected, expected + ${bound === null ? 'ABSENT' : `${bound} ms`}] — ` +
-      report.join.maxLatencySource,
-  );
-  for (const category of join.CATEGORIES) {
-    const block = report.categories[category];
-    const latency =
-      block.latencyMs.p50 === null ? 'no latency point' : `p50 ${block.latencyMs.p50} ms`;
-    console.log(`report  ${category.padEnd(14)} ${block.recall.padEnd(34)} ${latency}`);
-  }
-  if (report.processObservable === false) {
-    console.log(
-      'report  processObservable false — no scan tick fell inside the process lifetime, so the ' +
-        'process categories name a structural gap, not a coverage result',
-    );
-  }
-  console.log(
-    report.unmatchedObserved.length === 0
-      ? 'report  every observed event cancelled an expectation'
-      : `report  ${report.unmatchedObserved.length} observed event(s) cancelled no expectation — ` +
-          'listed in the report, where they are signal rather than debris',
-  );
-  if (report.join.unavailable) console.error(`\nbench: ${report.join.unavailable}`);
 }
 
 /**

@@ -51,12 +51,18 @@ prose around the numbers survives a re-run — the precedent is
 npm run bench:run                                        # defaults: no-scenario, arm A
 npm run bench:run -- --scenario S1-agent-lifecycle --arm A
 npm run bench:s1                                         # the line above, without the -- trap
+node bench/replay.js bench/runs/<run id>                 # rebuild that run's report from its files
+node bench/replay.js bench/runs/<run id> --out <file>    # write the rebuild elsewhere
 ```
 
 The `--` is required; without it npm keeps the flags.
 
 In arm A a run takes roughly three minutes: about ninety seconds of it is waiting for the sensor's
 scan cadence to settle, then the scenario, then three more scan ticks and a flush drain.
+
+`bench/replay.js` needs no sensor, no scenario and no built renderer: it rebuilds one recorded run's
+`run-report.json` out of the four files that run left behind, in well under a second. See
+[Replaying a recorded run](#replaying-a-recorded-run).
 
 Exit codes: **0** the run completed · **1** a step failed to execute, the sensor could not be run
 or read, or the run report could not be derived · **2** the invocation or the scenario was wrong and
@@ -83,6 +89,7 @@ Present today (sub-blocks B2.1, B2.2, the arm-A capture and the first join):
 ```
 bench/
   run.js                                    # create a run directory, execute a scenario, run the sensor
+  replay.js                                 # rebuild one recorded run's report from its files; no sensor
   scenario.schema.json                      # draft-07; the shape of a scenario
   lib/manifest.js                           # environment snapshot; absent facts stay absent
   lib/actor.js                              # executes steps, captures what happened
@@ -90,6 +97,7 @@ bench/
   lib/sensor.js                             # runs AEGIS across a run; readiness, ticks, stop
   lib/observed.js                           # writes observed.ndjson out of the product's audit log
   lib/join.js                               # joins the two, shapes run-report.json; no I/O at all
+  lib/report.js                             # the join bound and the printed summary, shared by both entrypoints
   scenarios/S1-agent-lifecycle/scenario.json
   runs/                                     # run artefacts — gitignored, created on first run
   README.md
@@ -409,6 +417,82 @@ counting it as a sensor failure.
 
 **There is no confidence figure in this report and there will not be one.** Every number it carries
 is a count of rows or a difference of two timestamps.
+
+## Replaying a recorded run
+
+A live run derives its report from arrays it is holding in memory when the sensor stops, which made
+a recorded run an archive rather than an input: the only way to get a report was to run the sensor
+again, on a machine, against a scenario. `bench/replay.js` makes the directory the input.
+
+```
+node bench/replay.js bench/runs/2026-08-13T19-26-29Z-S1-agent-lifecycle-A
+```
+
+It reads four files out of that directory and hands the same two arrays and the same window
+parameters to the same `bench/lib/join.js` the live run used, so the report it produces **is** the
+report that run produced — byte for byte, because nothing in a report records the moment it was
+generated. No sensor is started, no scenario is loaded, no `src/` module and no `settings.json` is
+opened, and no built renderer is needed.
+
+| file | what replay takes from it |
+|---|---|
+| `manifest.json` | `runId`, `scenario`, `arm` — the run's identity |
+| `expected.ndjson` | the catalogue, one ECS document per line |
+| `observed.ndjson` | the observation set, in the same subset |
+| `observed.meta.json` | `sensor.scanInterval`, `sensor.ticksWhileProcessAlive`, and the same three identity fields, which the manifest is checked against |
+
+The join window is **not re-derived here**. It is `sensor.scanInterval` exactly as the capture
+record wrote it, put through the same three-intervals rule a live run uses (`bench/lib/report.js`,
+which both entrypoints share so the bound has one definition). Two consequences:
+
+- A capture record that carries the interval as ABSENT produces a report whose every recall reads
+  `unavailable`, and exit **1** — which is what the live run wrote and what it exited.
+- A run recorded before that field existed is **refused**, not scored. The window is derived from
+  the run or it is absent; there is no third source, because the third source would be a literal.
+
+### What replay refuses
+
+Each of these exits **1** with a named reason and writes no report at all — a partial report over a
+directory nobody can fully read would be a report about a run nobody recorded.
+
+- Any of the four files missing, unreadable, or not parsing.
+- An NDJSON line that does not parse, named by file and line number. Not skipped: a dropped
+  catalogue line is an expectation that silently stops being expected, and a dropped observed line
+  credits the sensor with less than it recorded.
+- An event carrying no `@timestamp`, which `join.js` refuses for both sides.
+- `observed.meta.json` with no `sensor.scanInterval`, or no `sensor.ticksWhileProcessAlive` — an
+  absent tick count would quietly become "there was no process lifetime to speak about" instead of
+  the count the run measured.
+- `manifest.json` and `observed.meta.json` disagreeing on `runId`, `scenario` or `arm`: that
+  directory was assembled out of two runs, and a report joined across it would name one and count
+  the other.
+- An empty `observed.ndjson`. A live run never writes one, for the reason in
+  [What fails a run](#what-fails-a-run).
+
+What it does **not** refuse is a catalogue row whose category the report does not score. That row is
+listed under `missed` with that reason and counted as no coverage failure, exactly as in a live run.
+
+### A recorded report is evidence
+
+A run directory that already holds a `run-report.json` is **compared against, never overwritten**:
+the rebuild is reported as identical or as differing — with the first differing byte — and nothing
+is written. `--out <file>` puts the rebuild somewhere else. The recorded report is the evidence the
+rebuild is being checked against, and a verification that overwrites its own target is not one.
+
+A difference is a real finding, and not always a defect: a report's bytes are a function of the
+recording **and of the `bench/lib/join.js` that renders it**. That has already happened once — the
+`latencyMs.basis` string went from `"1 matched pair(s)"` to `"1 matched pair"` without
+`SCHEMA_VERSION` moving — so a run recorded before that change no longer rebuilds identically,
+while every number in it is unchanged. Replay states that instead of applying it.
+
+### The committed recordings
+
+`bench/runs/` is gitignored, so two real arm-A runs are committed under `tests/fixtures/bench/`
+instead: one complete run whose live-written report is the byte-for-byte target, and one recorded
+before `sensor.scanInterval` existed, which pins the refusal above against a real artefact rather
+than a synthetic one. They are inputs to `tests/main/bench/replay.test.js`, they are not accuracy
+figures, and `tests/fixtures/bench/README.md` carries their provenance and the maintenance contract
+that comes with a byte-exact golden file.
 
 ## Run artefacts
 
