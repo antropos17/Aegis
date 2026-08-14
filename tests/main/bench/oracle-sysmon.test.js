@@ -812,7 +812,19 @@ describe('sysmon oracle — the manifest block', () => {
       },
     });
     expect(probed.value).toBeNull();
-    expect(probed.unavailable).toMatch(/no Sysmon or Sysmon64 service is installed/);
+    // The reason depends on the platform, and BOTH branches are pinned rather
+    // than the assertion being loosened to whichever one this runner takes. The
+    // bench is Windows-only and CI runs on ubuntu-latest, so the non-Windows
+    // branch is the one the required `test` context actually executes — and a
+    // Windows fact on another platform must be absent WITH A REASON, never a
+    // bare "probe produced no value".
+    if (process.platform === 'win32') {
+      expect(probed.unavailable).toMatch(/no Sysmon or Sysmon64 service is installed/);
+    } else {
+      expect(probed.unavailable).toMatch(/this is not a Windows host/);
+      expect(probed.unavailable).toMatch(/Sysmon is a Windows facility/);
+    }
+    expect(probed.unavailable).not.toMatch(/^probe produced no value$/);
 
     const block = sysmon.manifestBlock({ version: probed });
     expect(block.version).toBeNull();

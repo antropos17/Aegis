@@ -950,7 +950,17 @@ function probeVersion(opts = {}) {
         { encoding: 'utf8', windowsHide: true },
       ));
   return manifest.probe(source, () => {
-    if (process.platform !== 'win32') return null;
+    // Named rather than returned as a bare `null`. `manifest.probe` turns a null
+    // into "probe produced no value", which is true and says nothing — and the
+    // bench's own rule is that a Windows fact on another platform is recorded as
+    // ABSENT WITH A REASON (bench/README.md, "Windows-only"). This is the reason.
+    if (process.platform !== 'win32') {
+      throw new Error(
+        `this is not a Windows host (process.platform is "${process.platform}"). Sysmon is a ` +
+          'Windows facility, so no version exists to probe for here — absent because the ' +
+          'platform cannot have one, not because a probe failed',
+      );
+    }
     const parsed = JSON.parse(exec(script));
     if (!parsed || typeof parsed.fileVersion !== 'string' || parsed.fileVersion.trim() === '') {
       return null;
