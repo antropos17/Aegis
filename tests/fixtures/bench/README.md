@@ -2,7 +2,12 @@
 
 Two real arm-A run directories, copied here **verbatim** from `bench/runs/`, which is
 gitignored. They are inputs to `tests/main/bench/replay.test.js`, and they are the only
-committed record of what a run directory contains.
+committed record of what a **recorded** run directory contains.
+
+`derived/` is the other kind of input: directories written by hand in the same four-file
+shape, which are models and not records of anything. They are labelled as such in every
+file, they are outside the immutability contract below, and
+[derived/README.md](derived/README.md) states what each one does and does not establish.
 
 They are **not** measurement claims. Both were produced on a developer workstation, and
 `bench/README.md` is explicit that no number from such a machine may be published as an
@@ -32,6 +37,7 @@ tidy:
 | `runs/2026-08-13T19-26-29Z-S1-agent-lifecycle-A/` | A complete S1 run, all five files. Its `run-report.json` is the file that live run wrote. |
 | `runs/2026-08-13T17-11-03Z-S1-agent-lifecycle-A/` | An earlier S1 run, recorded before `observed.meta.json` carried `sensor.scanInterval` and before `run-report.json` existed. Four files and no report, and replay must refuse it by name: the join window is derived from the run or it is absent, never defaulted. |
 | `goldens/2026-08-13T19-26-29Z-S1-agent-lifecycle-A.golden-report.current.json` | **Derived, not recorded.** What the renderer in this working tree makes of the recording above. Regenerable, and expected to move whenever a rendered string changes. |
+| `derived/D1-pid-reuse-same-ms/` | **Derived / modelled, not recorded.** A hand-written four-file input in which two modelled process generations share one pid and one stored birth millisecond — hence one `instanceId` — and differ only in a fixture-only generation witness. A pid-only replay of it reports `process/start 2/2` while pairing every expectation across generations. Windows PID reuse inside one millisecond was NOT reproduced; see [derived/README.md](derived/README.md). |
 
 The empty `stage/` directory each run leaves behind is not copied — it holds nothing
 replay reads, and git does not track empty directories.

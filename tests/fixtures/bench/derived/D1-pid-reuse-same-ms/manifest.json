@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "runId": "DERIVED-D1-pid-reuse-same-ms",
+  "scenario": "D1-pid-reuse-same-ms",
+  "arm": "DERIVED",
+  "armDescription": "not an arm. Arms A, B and C name ways of RUNNING a scenario, and nothing was run here — this directory was written by hand, in the four-file shape bench/replay.js reads.",
+  "derived": {
+    "kind": "derived-model",
+    "recorded": false,
+    "what": "A deterministic replay model of the PID-reuse / millisecond-identity bound. Two modelled process generations, A and B, share one pid and one stored birth millisecond, so they share one instanceId; they differ only in a generation witness finer than that millisecond.",
+    "notReproduced": "Windows PID reuse inside one millisecond was NOT reproduced, and cannot be forced deterministically. No process was created, no sensor ran, no audit chain was read.",
+    "notAMeasurement": "No number here is an accuracy figure, a collision rate, or Sysmon-confirmed evidence. The report this input produces is a characterisation of what a pid-only join can and cannot establish, and nothing else.",
+    "reportRendererAbsent": "This input carries no reportRenderer block because no renderer ever produced a report for it — it ships no run-report.json at all. bench/replay.js therefore classifies it legacy-unversioned, which is the honest reading: there is no recorded renderer identity to compare against.",
+    "readMeFirst": "README.md, in this directory"
+  }
+}
