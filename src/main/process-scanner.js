@@ -158,8 +158,11 @@ async function scanProcesses() {
       // Still run the empty path below for pid-set / peakAgents bookkeeping so
       // callers keep a stable return shape. Do not markHealthy on this path.
     } else {
-      // Hard provider failure: leave health update to noteProcessScanHardFailure
-      // (scan-loop catch) so we do not double-increment consecutiveFailures.
+      // Hard provider failure: leave the health write to noteProcessScanHardFailure,
+      // called from the catch that in scan-loop's doProcessScan encloses ONLY this call,
+      // so we do not double-increment consecutiveFailures. That catch is the boundary —
+      // a throw from anything downstream of this return value reaches a different handler
+      // and writes no process health at all.
       throw err;
     }
   }
