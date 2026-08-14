@@ -39,6 +39,12 @@
  * Negative (→ `unattributed`):
  * - `no-owner-match` — no self-config and no cwd containment matched any AI agent.
  * - `no-ai-agents-online` — no AI-category agent was online to own the event.
+ * - `population-unavailable` — the process sensor could not vouch for the agent
+ *   population at this instant, so no owner was even looked for. Deliberately NOT
+ *   `no-ai-agents-online` (which asserts nobody was online — possibly false, the
+ *   population is UNKNOWN, not empty) and not `no-owner-match` (which asserts a
+ *   match was attempted and failed). The path observation itself stays valid: what
+ *   is unavailable is the list of candidate owners, not the event.
  * @type {Readonly<Object<string, string>>}
  * @since v0.11.0
  */
@@ -50,11 +56,20 @@ const EVIDENCE = Object.freeze({
   CWD_CONTAINMENT: 'cwd-containment',
   NO_OWNER_MATCH: 'no-owner-match',
   NO_AI_AGENTS_ONLINE: 'no-ai-agents-online',
+  POPULATION_UNAVAILABLE: 'population-unavailable',
 });
 
 /**
- * Every legal evidence code, in declaration order. Mirrors the
- * `AttributionEvidence` union in src/shared/types/events.ts.
+ * Every legal evidence code, in declaration order.
+ *
+ * The `AttributionEvidence` union in src/shared/types/events.ts mirrors the first
+ * SEVEN codes. `population-unavailable` is **not yet in that union** — the typed
+ * mirror is the second half of gap S in the app-state design and ships in the pass
+ * that is allowed to edit `src/shared/`. Nothing breaks meanwhile: the renderer
+ * switches on `attribution.status`, never on an individual code, and the write path
+ * is guarded by {@link deriveStatus} rather than by the union. State it here rather
+ * than let the old blanket "mirrors the union" sentence claim a parity that stopped
+ * holding (ai-mistakes #27).
  * @type {ReadonlyArray<string>}
  * @since v0.11.0
  */

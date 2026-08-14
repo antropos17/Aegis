@@ -279,10 +279,12 @@ describe('attribution evidence is a closed list (case 8)', () => {
     fileWatcher._resetForTest();
   });
 
-  it('exposes exactly the seven documented codes', () => {
+  it('exposes exactly the eight documented codes', () => {
     // The list is closed on purpose and deriveStatus throws on anything outside it, so this
     // assertion is the gate: adding a code means deciding its status here, in events.ts, and
     // in PID_EVIDENCE/HEURISTIC_EVIDENCE — not just at a call site.
+    // `population-unavailable` is the exception on the events.ts half: the typed mirror is
+    // the second part of gap S and ships in the pass allowed to edit src/shared/.
     expect([...EVIDENCE_CODES]).toEqual([
       'rm-holder-pid',
       'handle-scan-pid',
@@ -291,7 +293,14 @@ describe('attribution evidence is a closed list (case 8)', () => {
       'cwd-containment',
       'no-owner-match',
       'no-ai-agents-online',
+      'population-unavailable',
     ]);
+  });
+
+  it('population-unavailable derives unattributed — it is a negative code', () => {
+    // It must never read as PID proof or as a heuristic match: nothing was matched,
+    // and the reason is that there was no trustworthy list to match against.
+    expect(deriveStatus(['population-unavailable'])).toBe('unattributed');
   });
 
   it('every code emitted by real watcher events belongs to the closed list', async () => {

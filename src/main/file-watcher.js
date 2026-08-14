@@ -39,6 +39,32 @@ const FS_SENSOR = Object.freeze({
   RM: 'fs-rm',
 });
 
+/** Reason recorded by every surface that refuses to observe an untrusted population. */
+const SCOPE_UNAVAILABLE_REASON = 'process-observation-unavailable';
+
+/**
+ * Reader for the ProcessCapabilities contract (design §3), resolved lazily.
+ *
+ * Required directly rather than injected through `_state`: that object is built in
+ * main.js and does not carry the contract, and §3 is explicit that a dependant must
+ * consume the capability struct — never a plane roll-up — to decide whether an
+ * agent-scoped observation may run. process-scanner requires nothing from here, so
+ * there is no cycle.
+ * @type {(() => {populationReliable: boolean}) | null}
+ */
+let _getProcessCapabilities = null;
+
+/**
+ * Whether the agent population may be used as an observation scope right now.
+ * @returns {boolean}
+ */
+function populationReliable() {
+  if (!_getProcessCapabilities) {
+    _getProcessCapabilities = require('./process-scanner').getProcessCapabilities;
+  }
+  return _getProcessCapabilities().populationReliable === true;
+}
+
 /**
  * Default directories to ignore in file watchers.
  * @type {string[]}
@@ -161,6 +187,41 @@ function getFileSensorHealth() {
   return out;
 }
 
+/**
+ * Orchestration-only skip: the read mechanisms were NOT run this tick because the
+ * agent population could not be trusted as an observation scope (design §2.4).
+ *
+ * Marks the ACTIVE read mechanism — RM when the RM path owns observation, the handle
+ * pool otherwise — because that is the sensor whose observation was actually lost.
+ * DEGRADED, never FAILED: no provider failed. Never HEALTHY: no read happened, so
+ * there is no scoped success to claim, and `lastSuccessAt` must not advance.
+ *
+ * The scoped-HEALTHY `confirmed-zero-in-scope` case is the effective-read-scope step
+ * and is deliberately NOT implemented here — it needs the mechanism's own filtered
+ * list, which this function never sees.
+ * @param {'process-observation-unavailable'|string} reason
+ * @returns {void}
+ * @since 0.12.0
+ */
+function noteFileScanSkip(reason) {
+  const now = Date.now();
+  const id = rmEnabled() ? FS_SENSOR.RM : FS_SENSOR.HANDLE;
+  const rec = _fsHealth[id];
+  // markDegraded throws from both states, and RM is UNSUPPORTED on every platform
+  // that has no Restart Manager — a skip must not turn that into an error.
+  if (
+    rec.state === sensorHealth.SENSOR_HEALTH_STATE.UNSUPPORTED ||
+    rec.state === sensorHealth.SENSOR_HEALTH_STATE.DISABLED
+  ) {
+    return;
+  }
+  const scoped = reason === SCOPE_UNAVAILABLE_REASON;
+  _fsHealth[id] = sensorHealth.markDegraded(rec, now, {
+    error: scoped ? SCOPE_UNAVAILABLE_REASON : healthErrorMessage(reason),
+    detail: scoped ? SCOPE_UNAVAILABLE_REASON : 'file-scan-skip',
+  });
+}
+
 /** @internal Override dependencies (for tests). */
 function _setDepsForTest(overrides) {
   if (overrides.getFileHandles) _getFileHandles = overrides.getFileHandles;
@@ -175,6 +236,7 @@ function _setDepsForTest(overrides) {
     }
   }
   if (overrides.getHotSensitiveHolders) _getHotSensitiveHolders = overrides.getHotSensitiveHolders;
+  if (overrides.getProcessCapabilities) _getProcessCapabilities = overrides.getProcessCapabilities;
   if (Object.prototype.hasOwnProperty.call(overrides, 'isReadDetectionAvailable')) {
     _isReadDetectionAvailableOverride = overrides.isReadDetectionAvailable;
   }
@@ -186,6 +248,17 @@ function _resetForTest() {
   _getHotSensitiveHolders = undefined;
   _rmScanInFlight = false;
   _isReadDetectionAvailableOverride = undefined;
+  // Same contract as the RM dep above: a test opts INTO the population gate via
+  // _setDepsForTest. The real process-scanner sits at STARTING until something drives
+  // a scan, which is honestly "cannot vouch" — but a test asserting attribution logic
+  // is not asserting population health, and making every one of them drive a process
+  // scan first would couple two unrelated sensors. Production never calls this.
+  _getProcessCapabilities = () => ({
+    populationState: 'HEALTHY',
+    populationReliable: true,
+    populationAsOf: null,
+    identityQuality: 'unknown',
+  });
   _resetFsHealth();
 }
 
@@ -332,7 +405,14 @@ function handleWatcherEvent(action, filePath) {
     if (watcherDebounce.size > 500) watcherDebounce.clear();
   }
   const reason = classifySensitive(filePath);
-  const aiAgents = _state.getLatestAiAgents();
+  // G′: chokidar KEEPS OBSERVING under an untrusted population — a path event is
+  // valid evidence regardless of who owns it, and dropping it would lose real
+  // filesystem activity to a process-sensor problem. What is unavailable is the list
+  // of candidate owners, so owner inference is what gets skipped: `latestAiAgents` is
+  // not read, `findOwningAgent` is not run, and the event carries no owner. `W` is
+  // unaffected — no health record is written here.
+  const scopeUsable = populationReliable();
+  const aiAgents = scopeUsable ? _state.getLatestAiAgents() : [];
   const owner = aiAgents.length > 0 ? findOwningAgent(filePath, aiAgents) : null;
   // C-01: chokidar hands us a PATH, never a PID — so this path can be `inferred`
   // at best, and MUST be `unattributed` when no owner matches. Substituting the
@@ -340,9 +420,17 @@ function handleWatcherEvent(action, filePath) {
   // baselines, risk score, tray alert and audit trail. `pid: null`, not 0 — pid 0
   // is taken by synthetic WSL / local-runtime agents, so 0 would collide with a
   // real agent card.
-  const evidence = owner
-    ? owner.evidence
-    : [aiAgents.length > 0 ? EVIDENCE.NO_OWNER_MATCH : EVIDENCE.NO_AI_AGENTS_ONLINE];
+  let evidence;
+  if (owner) {
+    evidence = owner.evidence;
+  } else if (!scopeUsable) {
+    // Says WHY there is no owner, and says it exactly: not "nobody was online"
+    // (which would assert a fact about a population we cannot read) and not "no
+    // owner matched" (which would assert a match was attempted).
+    evidence = [EVIDENCE.POPULATION_UNAVAILABLE];
+  } else {
+    evidence = [aiAgents.length > 0 ? EVIDENCE.NO_OWNER_MATCH : EVIDENCE.NO_AI_AGENTS_ONLINE];
+  }
   const attribution = makeAttribution(evidence);
   const agent = owner ? owner.agent : null;
   // D2: the self-access exemption belongs to the agent that OWNS the path, and is
@@ -589,6 +677,15 @@ function rmEnabled() {
  * @since v0.10.0
  */
 async function scanViaRestartManager(agents, fetchHolders = _getSensitiveHolders) {
+  // G′ invariant, not a scheduling decision: _scanRmHolders maps a live holder pid
+  // onto an agent record and stamps RM_HOLDER_PID — `confirmed` — into the audit log.
+  // That stamp must be impossible against a population the process sensor cannot
+  // vouch for, whoever called us. scan-loop refuses earlier and logs the skip; this
+  // guard is what makes the invariant hold rather than the schedule.
+  if (!populationReliable()) {
+    noteFileScanSkip(SCOPE_UNAVAILABLE_REASON);
+    return [];
+  }
   // B-S09: legitimate single-flight skip — not FAILED, not a success tick.
   if (_rmScanInFlight) return [];
   _rmScanInFlight = true;
@@ -721,6 +818,13 @@ async function scanHotFileHolders(agents) {
  */
 async function scanAllFileHandles(agents) {
   const now = Date.now();
+  // G′ invariant: the handle pool stamps HANDLE_SCAN_PID — `confirmed`, same strength
+  // as the RM holder pid — so it is gated by the same rule and for the same reason.
+  // Placed ahead of the RM delegation so both mechanisms are covered from one site.
+  if (!populationReliable()) {
+    noteFileScanSkip(SCOPE_UNAVAILABLE_REASON);
+    return [];
+  }
   // win32 primary: honest read-detect via Restart Manager (no handle.exe needed).
   // Falls through to the legacy per-PID handle pool on darwin/linux, or on win32
   // when RM is unavailable (the PR-A getFileHandles→[] fallback still applies).
@@ -860,6 +964,7 @@ module.exports = {
   handleWatcherEvent,
   getIgnoredDirFilter,
   getFileSensorHealth,
+  noteFileScanSkip,
   FS_SENSOR,
   DEFAULT_IGNORED_DIRS,
   FILE_SCAN_CONCURRENCY,
