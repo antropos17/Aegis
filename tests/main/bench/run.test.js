@@ -11,13 +11,20 @@
  *   The warmup tick in that fixture is what makes it a real test: counted, it
  *   would move the median off the configured interval.
  */
+import crypto from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
+import manifest from '../../../bench/lib/manifest.js';
+import report from '../../../bench/lib/report.js';
 import run from '../../../bench/run.js';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const REPO = path.resolve(HERE, '..', '..', '..');
 
 /** @type {string} A run-scoped profile directory, made fresh per test. */
 let profileDir;
@@ -107,4 +114,88 @@ describe('run — the join bound', () => {
     expect(bound.value).toBeNull();
     expect(bound.unavailable).toMatch(/never defaulted/);
   });
+});
+
+describe('run — the report renderer the run records', () => {
+  /**
+   * The digest, computed here with plain `crypto` over the file's bytes.
+   *
+   * Deliberately not `report.RENDERER_FILES` put through the same helper that
+   * produced the value under test: a fingerprint checked against its own
+   * producer agrees with itself no matter what either of them computes.
+   * @param {string} relative - Repository-relative path.
+   * @returns {string}
+   */
+  function sha256Of(relative) {
+    return crypto
+      .createHash('sha256')
+      .update(fs.readFileSync(path.join(REPO, relative)))
+      .digest('hex');
+  }
+
+  it('is the sha256 of exactly bench/lib/join.js and bench/lib/report.js', () => {
+    expect(report.RENDERER_FINGERPRINT.joinSha256).toBe(sha256Of('bench/lib/join.js'));
+    expect(report.RENDERER_FINGERPRINT.reportHelperSha256).toBe(sha256Of('bench/lib/report.js'));
+    expect(report.RENDERER_FINGERPRINT.algorithm).toBe('sha256');
+    expect(report.RENDERER_FINGERPRINT.schemaVersion).toBe(
+      report.RENDERER_FINGERPRINT_SCHEMA_VERSION,
+    );
+    expect(report.RENDERER_FINGERPRINT.unavailable).toBeUndefined();
+    expect(Object.keys(report.RENDERER_FILES)).toEqual(['joinSha256', 'reportHelperSha256']);
+  });
+
+  it('is frozen, so nothing can edit the record of what this process is running', () => {
+    expect(Object.isFrozen(report.RENDERER_FINGERPRINT)).toBe(true);
+  });
+
+  it('states what it does not cover, in the record itself and not only in a README', () => {
+    expect(report.RENDERER_FINGERPRINT.covers).toContain('bench/lib/join.js');
+    expect(report.RENDERER_FINGERPRINT.covers).toContain('bench/lib/report.js');
+    expect(report.RENDERER_FINGERPRINT.covers).toMatch(/NOT covered/);
+    expect(report.RENDERER_FINGERPRINT.covers).toMatch(/Node version/);
+    expect(report.RENDERER_FINGERPRINT.covers).toMatch(/platform/);
+    expect(report.RENDERER_FINGERPRINT.source).toMatch(
+      /while bench\/lib\/report\.js was being loaded/,
+    );
+  });
+
+  // The two below call the real `manifest.collect()`, which spawns `reg query`,
+  // `tasklist` and three `git` invocations — that is the module's whole job, and
+  // stubbing the probes would leave the placement of this field pinned against a
+  // manifest nothing wrote. They are therefore slow, and slower still under a
+  // loaded full-suite run, so the bound is stated rather than left at the 5 s
+  // default that a parallel suite can walk into (ai-mistakes #26).
+  const COLLECT_TIMEOUT_MS = 30_000;
+
+  it(
+    'goes into the manifest as handed in, not re-read there',
+    () => {
+      const record = manifest.collect({
+        runId: '2026-08-13T19-26-29Z-S1-agent-lifecycle-A',
+        scenario: 'S1-agent-lifecycle',
+        arm: 'A',
+        startedAt: '2026-08-13T19:26:29.876Z',
+        reportRenderer: report.RENDERER_FINGERPRINT,
+      });
+      expect(record.reportRenderer).toBe(report.RENDERER_FINGERPRINT);
+    },
+    COLLECT_TIMEOUT_MS,
+  );
+
+  it(
+    'is null in a manifest whose caller supplied none, and is never reconstructed',
+    () => {
+      const record = manifest.collect({
+        runId: '2026-08-13T19-26-29Z-S1-agent-lifecycle-A',
+        scenario: 'S1-agent-lifecycle',
+        arm: 'A',
+        startedAt: '2026-08-13T19:26:29.876Z',
+      });
+      expect(record.reportRenderer).toBeNull();
+      expect(report.classifyRenderer(record.reportRenderer).provenance).toBe(
+        report.RENDERER_PROVENANCE.LEGACY,
+      );
+    },
+    COLLECT_TIMEOUT_MS,
+  );
 });

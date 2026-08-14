@@ -26,12 +26,24 @@
  *   | `observed.ndjson` | the observation set, same subset |
  *   | `observed.meta.json` | `sensor.scanInterval`, `sensor.ticksWhileProcessAlive`, and the identity the manifest is checked against |
  *
- *   The output of a replay is a function of those files **and of the current
- *   `bench/lib/join.js`** — not of the files alone. A report rendered by an older
- *   join can therefore differ from its own rebuild without either being wrong,
- *   which is why a directory that already holds a report is COMPARED against
- *   rather than overwritten: the recorded evidence survives its own verification,
- *   and a difference is stated instead of being applied.
+ *   The output of a replay is a function of those files **and of the renderer
+ *   rendering them** — `bench/lib/join.js` and `bench/lib/report.js` — not of the
+ *   files alone. A report rendered by an older renderer can therefore differ from
+ *   its own rebuild without either being wrong, which is why a directory that
+ *   already holds a report is COMPARED against rather than overwritten: the
+ *   recorded evidence survives its own verification, and a difference is stated
+ *   instead of being applied.
+ *
+ *   **Two facts, never folded into one.** Whether the rebuild reproduces the
+ *   recorded report's bytes is one observation, made against the recorded file
+ *   itself. Which renderer originally produced those bytes is another, read out of
+ *   `manifest.reportRenderer` — `renderer-match` when this replay is running the
+ *   same source bytes, `renderer-skew` when it is not, `legacy-unversioned` when
+ *   the run recorded no fingerprint at all. Neither is inferred from the other:
+ *   identical bytes under skew are still identical bytes, a difference under a
+ *   match is still a difference, and a legacy recording's report is still the
+ *   evidence it always was — what is unknown there is the renderer's identity, not
+ *   the bytes.
  *
  *   Exit codes: 0 the report was rebuilt, and matched if one was already there ·
  *   1 a required file is missing or malformed, the run recorded no join window, or
@@ -50,7 +62,13 @@ const fs = require('fs');
 const path = require('path');
 
 const join = require('./lib/join');
-const { maxLatencyFrom, reportJoin } = require('./lib/report');
+const {
+  RENDERER_PROVENANCE,
+  classifyRenderer,
+  maxLatencyFrom,
+  reportJoin,
+  serializeReport,
+} = require('./lib/report');
 
 /**
  * The four names a run directory is replayed from.
@@ -64,7 +82,9 @@ const { maxLatencyFrom, reportJoin } = require('./lib/report');
  * @type {Readonly<Object<string, string>>}
  */
 const REQUIRED_FILES = Object.freeze({
-  'manifest.json': 'the environment snapshot the run wrote before it acted',
+  'manifest.json':
+    'the environment snapshot the run wrote before it acted, which also names the report renderer ' +
+    'it was running',
   'expected.ndjson': 'the expected-event catalogue the actor wrote as it executed',
   'observed.ndjson': "the observation set read out of the product's own audit log",
   'observed.meta.json':
@@ -103,6 +123,11 @@ recorded none is refused rather than joined against a default.
 A run directory that already holds a ${join.REPORT_FILENAME} is COMPARED against,
 not overwritten: the rebuild is printed as identical or as differing, and nothing
 is written.
+
+Two verdicts are printed, and neither is read off the other: whether the rebuild
+reproduced the recorded bytes, and whether the renderer that produced them is the
+one running now — renderer-match, renderer-skew, or legacy-unversioned for a run
+recorded before manifest.reportRenderer existed.
 
 Exit codes: 0 rebuilt, and matched if one was already there · 1 a required file is
 missing or malformed, the run recorded no join window, or the rebuild differs · 2
@@ -369,7 +394,12 @@ function loadRun(dir) {
     );
   }
 
-  return { dir, ...identity, expected, observed, ...window };
+  // Taken verbatim, and never validated into existence: a manifest written
+  // before this block existed carries none, and that absence is the whole
+  // content of the `legacy-unversioned` verdict.
+  const reportRenderer = manifest.reportRenderer ?? null;
+
+  return { dir, ...identity, expected, observed, ...window, reportRenderer };
 }
 
 /**
@@ -399,19 +429,6 @@ function rebuild(run) {
 }
 
 /**
- * The report's bytes, in the one form a run directory holds it in.
- *
- * Identical to what `bench/run.js` writes, and pinned there rather than described:
- * a replay whose serialization drifted by a newline would report a difference that
- * is about this function and not about the run.
- * @param {Object} report - From {@link rebuild}.
- * @returns {string}
- */
-function serialize(report) {
-  return `${JSON.stringify(report, null, 2)}\n`;
-}
-
-/**
  * Index of the first position at which two indexable sequences differ.
  *
  * Called on Buffers, so "byte-identical" is a claim about bytes and not about
@@ -433,11 +450,17 @@ function firstDifference(a, b) {
  * Put the rebuilt report where it belongs, or hold it up against the one already
  * there. A recorded report is never overwritten in place: it is the evidence the
  * rebuild is being checked against.
+ *
+ * This says whether the bytes agree and nothing more. Which renderer produced the
+ * recorded ones is a separate verdict, printed next to this one by
+ * {@link reportProvenance} — an explanation offered here would be one this
+ * function has no evidence for.
  * @param {Object} opts
  * @param {string} opts.dir - The run directory.
  * @param {string|null} opts.out - `--out`, when it was given.
- * @param {string} opts.bytes - From {@link serialize}.
- * @returns {boolean} Whether the rebuild differs from a report already recorded.
+ * @param {string} opts.bytes - From `serializeReport`.
+ * @returns {{mode: string, differs: boolean}} `mode` is `compared` when a
+ *   recorded report was held up against the rebuild, `written` otherwise.
  * @throws {ReplayError} When the file could not be written.
  */
 function emit(opts) {
@@ -451,7 +474,7 @@ function emit(opts) {
         `replay  identical to the ${join.REPORT_FILENAME} already in the run directory, byte ` +
           `for byte (${recorded.length} bytes) — nothing was written`,
       );
-      return false;
+      return { mode: 'compared', differs: false };
     }
     console.error(`\nbench: the rebuilt report differs from ${recordedPath}`);
     console.error(`bench: first difference at byte ${at}`);
@@ -459,11 +482,10 @@ function emit(opts) {
     console.error(`bench:   recorded ${excerpt(recorded)}`);
     console.error(`bench:   rebuilt  ${excerpt(rebuilt)}`);
     console.error(
-      'bench: nothing was written. Either the recording changed under the report, or the report ' +
-        'was rendered by a different bench/lib/join.js than the one replaying it — a report ' +
-        'carries a schemaVersion, and a string it renders can change without that number moving',
+      'bench: nothing was written. The recorded report is the evidence, and it stands as it was ' +
+        'recorded',
     );
-    return true;
+    return { mode: 'compared', differs: true };
   }
 
   const target = opts.out === null ? recordedPath : opts.out;
@@ -472,8 +494,96 @@ function emit(opts) {
   } catch (err) {
     throw new ReplayError('write-failed', `${target} could not be written: ${err.message}`);
   }
-  console.log(`written ${target}`);
-  return false;
+  console.log(
+    opts.out === null
+      ? `written ${target}`
+      : `written ${target} — rendered now, by this replay's own report renderer`,
+  );
+  return { mode: 'written', differs: false };
+}
+
+/**
+ * Say which renderer produced the recording, and — where a comparison was made —
+ * put that next to the byte verdict without letting either stand in for the
+ * other.
+ *
+ * The four readings this keeps apart:
+ *
+ * - **match, bytes identical** — historical report bytes reproduced exactly, by a
+ *   renderer the recording pins as the one that wrote them.
+ * - **skew or legacy, bytes identical** — historical report bytes reproduced
+ *   exactly all the same. The recorded report is preserved evidence and equality
+ *   with it is directly observable; what is unknown on a legacy recording is the
+ *   renderer's identity, not the bytes.
+ * - **match, bytes differ** — renderer skew is NOT available as the explanation,
+ *   and none is invented in its place.
+ * - **skew or legacy, bytes differ** — the divergence and the limited attribution
+ *   are stated as two separate things, because a candidate cause is not a cause.
+ * @param {Object} verdict - From `classifyRenderer()`.
+ * @param {{mode: string, differs: boolean}} outcome - From {@link emit}.
+ * @returns {void}
+ */
+function reportProvenance(verdict, outcome) {
+  const differs = outcome.mode === 'compared' && outcome.differs;
+  const say = differs ? (m) => console.error(`bench: ${m}`) : (m) => console.log(`replay  ${m}`);
+  const detail = differs
+    ? (m) => console.error(`bench:   ${m}`)
+    : (m) => console.log(`replay    ${m}`);
+
+  /**
+   * What the byte comparison established, appended to the identity verdict.
+   * Empty when the bytes differed: the difference has already been printed in
+   * full, and this line's job is then to say what may and may not be read into it.
+   * @type {string}
+   */
+  const reproduced =
+    outcome.mode === 'written'
+      ? '; no recorded report was held up against this rebuild'
+      : '; the historical report bytes were reproduced exactly';
+
+  if (verdict.provenance === RENDERER_PROVENANCE.MATCH) {
+    say(
+      'renderer match — the recording pins the report-renderer source bytes and this replay ran ' +
+        'the same ones' +
+        (differs
+          ? ', so renderer skew is NOT the explanation for the difference above. What failed is ' +
+            'the deterministic contract between those files and this renderer, and no other ' +
+            'cause is inferred here'
+          : reproduced),
+    );
+    return;
+  }
+
+  if (verdict.provenance === RENDERER_PROVENANCE.SKEW) {
+    say(
+      'renderer skew — the recording pins report-renderer source bytes this replay did not run' +
+        (differs
+          ? '. That is a fact about the two renderers, stated next to the byte difference above ' +
+            'rather than as its cause: it is a candidate explanation, and nothing here ' +
+            'establishes it'
+          : outcome.mode === 'written'
+            ? reproduced
+            : `${reproduced}, skew or no skew`),
+    );
+    if (verdict.reason) detail(verdict.reason);
+    for (const d of verdict.differences) {
+      detail(
+        `${d.file.padEnd(20)} recorded ${d.recorded === null ? 'ABSENT' : d.recorded} · ` +
+          `this tree ${d.current === null ? 'ABSENT' : d.current}`,
+      );
+    }
+    return;
+  }
+
+  say(
+    'legacy-unversioned — this recording carries no manifest.reportRenderer block, so which ' +
+      'report-renderer source bytes originally produced its report was never recorded' +
+      (differs
+        ? '. The byte difference above stands on its own, and no cause is attributed to it here'
+        : `${reproduced}, and those bytes are the evidence they always were — what this ` +
+          'recording never captured is the identity of the renderer that wrote them, not the ' +
+          'bytes themselves'),
+  );
 }
 
 /**
@@ -502,7 +612,7 @@ function main(argv) {
   const dir = path.resolve(args.dir);
   let run;
   let report;
-  let differs;
+  let outcome;
   try {
     run = loadRun(dir);
     report = rebuild(run);
@@ -513,7 +623,8 @@ function main(argv) {
         `${OBSERVED_FILENAME} (${run.observed.length} observed), ` +
         `${META_FILENAME}, ${MANIFEST_FILENAME} — no sensor, no product code, no settings file`,
     );
-    differs = emit({ dir, out: args.out, bytes: serialize(report) });
+    outcome = emit({ dir, out: args.out, bytes: serializeReport(report) });
+    reportProvenance(classifyRenderer(run.reportRenderer), outcome);
   } catch (err) {
     if (!(err instanceof ReplayError)) throw err;
     console.error(`bench: ${err.message}`);
@@ -530,7 +641,7 @@ function main(argv) {
     );
   }
 
-  if (differs) return 1;
+  if (outcome.differs) return 1;
   return report.join.unavailable ? 1 : 0;
 }
 
@@ -560,5 +671,5 @@ module.exports = {
   readNdjson,
   readWindow,
   rebuild,
-  serialize,
+  reportProvenance,
 };

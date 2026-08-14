@@ -15,14 +15,26 @@
  *     credits the sensor with less than it recorded;
  *   - a report rebuilt across two runs' files, naming one run and counting another.
  *
+ *   Two further blocks were added with the renderer fingerprint. **Provenance**
+ *   pins that a report's bytes and the identity of the renderer that produced
+ *   them are reported as two facts and never folded into one: identical bytes
+ *   under renderer skew are still identical bytes, a difference under a renderer
+ *   match is still a difference with no cause invented for it, and a recording
+ *   that pins no renderer is `legacy-unversioned` rather than retrofitted. **The
+ *   golden** pins the current renderer's own output as a separate committed
+ *   artefact, so that when a rendered string next changes the golden moves and
+ *   the recording does not.
+ *
  *   The last block is a gate on the module rather than on its output: replay must
- *   read nothing outside the run directory, and its module graph must not reach
- *   the sensor or the actor. An import-time dependency is invisible to an fs spy
- *   installed in a test body, so the graph is proven in a child process instead.
+ *   read nothing outside the run directory once it is running, and its module
+ *   graph must not reach the sensor or the actor. An import-time dependency is
+ *   invisible to an fs spy installed in a test body, so the graph — and the one
+ *   pair of reads that does happen at load — is proven in a child process instead.
  *
  *   The fixtures under `tests/fixtures/bench/` are two real arm-A runs, copied
- *   verbatim; `tests/fixtures/bench/README.md` states their provenance and the
- *   maintenance contract that comes with a byte-exact golden file.
+ *   verbatim; `tests/fixtures/bench/README.md` states their provenance, and
+ *   `tests/main/bench/fixture-immutability.test.js` is the gate that keeps them
+ *   the bytes those runs wrote.
  */
 import { execFileSync } from 'child_process';
 import fs from 'fs';
@@ -35,6 +47,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import catalogue from '../../../bench/lib/catalogue.js';
 import join from '../../../bench/lib/join.js';
 import observed from '../../../bench/lib/observed.js';
+import report from '../../../bench/lib/report.js';
 import replay from '../../../bench/replay.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -42,11 +55,28 @@ const REPO = path.resolve(HERE, '..', '..', '..');
 const REPLAY_SOURCE = path.join(REPO, 'bench', 'replay.js');
 const FIXTURES = path.join(REPO, 'tests', 'fixtures', 'bench', 'runs');
 
-/** @type {string} A complete arm-A run: four inputs and the report they produced. */
+/**
+ * A complete arm-A run: four inputs and the report they produced.
+ *
+ * The name is historical. This directory is a RECORDING — its `run-report.json`
+ * is the file that run wrote — and the current renderer's golden is the separate
+ * committed artefact at {@link CURRENT_RENDERER_GOLDEN}.
+ * @type {string}
+ */
 const GOLDEN = path.join(FIXTURES, '2026-08-13T19-26-29Z-S1-agent-lifecycle-A');
 
 /** @type {string} A real run recorded before `sensor.scanInterval` existed. */
 const PRE_INTERVAL = path.join(FIXTURES, '2026-08-13T17-11-03Z-S1-agent-lifecycle-A');
+
+/** @type {string} What THIS renderer makes of that recording — derived, and regenerable. */
+const CURRENT_RENDERER_GOLDEN = path.join(
+  REPO,
+  'tests',
+  'fixtures',
+  'bench',
+  'goldens',
+  '2026-08-13T19-26-29Z-S1-agent-lifecycle-A.golden-report.current.json',
+);
 
 /** @type {string} Scratch directory, made fresh per test. */
 let tmp;
@@ -148,6 +178,11 @@ function rebuildTo(dir, label) {
 }
 
 describe('replay — the report a live run wrote, rebuilt from its files', () => {
+  // A byte observation and only that. The recorded report is preserved evidence,
+  // so equality with it is directly observable and holds whatever the recording
+  // says about renderers — including nothing, which is this fixture's case. What
+  // that recording never captured is WHICH renderer wrote those bytes, and that
+  // is the separate verdict pinned under `renderer provenance` below.
   it('reproduces the recorded report byte for byte', () => {
     const rebuilt = rebuildTo(GOLDEN, 'rebuilt.json');
     expect(rebuilt.code).toBe(0);
@@ -220,6 +255,206 @@ describe('replay — determinism', () => {
 
     const recorded = fs.readFileSync(path.join(GOLDEN, join.REPORT_FILENAME));
     expect(fs.readFileSync(file).equals(recorded)).toBe(true);
+  });
+});
+
+describe('replay — the current-renderer golden', () => {
+  /**
+   * The golden is what THIS renderer makes of that recording, committed on its
+   * own outside the run directory. Today it is byte-identical to the recorded
+   * report, and that is a coincidence with a date on it: the moment a rendered
+   * string changes, this file is regenerated and the recording is not. Which of
+   * the two moved is then the finding, and neither has to be guessed at.
+   *
+   * `--out` is the only way to produce it, and it writes exactly the report —
+   * no envelope, no provenance smuggled into the report shape. What the artefact
+   * is, is carried by where it lives and what it is called.
+   */
+  it('is the report this renderer builds from that recording, byte for byte', () => {
+    const rebuilt = rebuildTo(GOLDEN, 'against-golden.json');
+    expect(rebuilt.code).toBe(0);
+
+    const produced = fs.readFileSync(rebuilt.file);
+    const committed = fs.readFileSync(CURRENT_RENDERER_GOLDEN);
+    expect(produced.length).toBe(committed.length);
+    expect(produced.equals(committed)).toBe(true);
+  });
+
+  it('is a report and nothing but a report — replay adds no field of its own', () => {
+    const golden = JSON.parse(fs.readFileSync(CURRENT_RENDERER_GOLDEN, 'utf8'));
+    expect(golden.schemaVersion).toBe(join.SCHEMA_VERSION);
+    expect(golden.runId).toBe('2026-08-13T19-26-29Z-S1-agent-lifecycle-A');
+    expect(Object.keys(golden)).toEqual(
+      Object.keys(JSON.parse(fs.readFileSync(path.join(GOLDEN, join.REPORT_FILENAME), 'utf8'))),
+    );
+  });
+
+  it('lives outside the recording, so a golden can move without a recording moving', () => {
+    expect(path.dirname(CURRENT_RENDERER_GOLDEN)).not.toBe(GOLDEN);
+    expect(path.basename(CURRENT_RENDERER_GOLDEN)).toMatch(/golden-report\.current\.json$/);
+    expect(fs.readdirSync(GOLDEN)).not.toContain(path.basename(CURRENT_RENDERER_GOLDEN));
+  });
+});
+
+describe('replay — renderer provenance, kept apart from the bytes', () => {
+  /** @type {Object} A fingerprint that is well-formed and is not this renderer's. */
+  const SKEWED = { ...report.RENDERER_FINGERPRINT, joinSha256: '0'.repeat(64) };
+
+  /**
+   * A copy of the recording whose manifest pins a renderer.
+   *
+   * The manifest is edited in the SCRATCH copy and never in the fixture: the two
+   * committed recordings pin no renderer, which is the honest state of both, and
+   * back-filling one would be inventing the fact this whole block exists to keep
+   * from being invented.
+   * @param {Object|null} block - What `manifest.reportRenderer` should hold.
+   * @param {boolean} [doctor] - Also alter the recorded report, so the rebuild differs from it.
+   * @returns {string} The copy's path.
+   */
+  function pinned(block, doctor = false) {
+    const dir = copyRun(GOLDEN);
+    const manifest = readJson(dir, replay.MANIFEST_FILENAME);
+    if (block === null) delete manifest.reportRenderer;
+    else manifest.reportRenderer = block;
+    writeJson(dir, replay.MANIFEST_FILENAME, manifest);
+    if (doctor) {
+      const file = path.join(dir, join.REPORT_FILENAME);
+      fs.writeFileSync(
+        file,
+        fs
+          .readFileSync(file, 'utf8')
+          .replace('"ticksWhileProcessAlive": 3', '"ticksWhileProcessAlive": 7'),
+        'utf8',
+      );
+    }
+    return dir;
+  }
+
+  it('match + identical bytes: the historical bytes, from the renderer that wrote them', () => {
+    const result = main([pinned(report.RENDERER_FINGERPRINT)]);
+
+    expect(result.code).toBe(0);
+    expect(result.out).toMatch(/identical to the run-report\.json already in the run directory/);
+    expect(result.out).toMatch(
+      /renderer match — the recording pins the report-renderer source bytes/,
+    );
+    expect(result.out).toMatch(/the historical report bytes were reproduced exactly/);
+  });
+
+  it('skew + identical bytes: the historical bytes all the same, and the skew named', () => {
+    const result = main([pinned(SKEWED)]);
+
+    expect(result.code).toBe(0);
+    expect(result.out).toMatch(/identical to the run-report\.json already in the run directory/);
+    expect(result.out).toMatch(
+      /renderer skew — the recording pins report-renderer source bytes this replay did not run/,
+    );
+    expect(result.out).toMatch(
+      /the historical report bytes were reproduced exactly, skew or no skew/,
+    );
+    expect(result.out).not.toMatch(/renderer match/);
+  });
+
+  it('names both digests under skew, so the reader sees what differed', () => {
+    const result = main([pinned(SKEWED)]);
+
+    expect(result.out).toMatch(
+      new RegExp(`bench/lib/join\\.js\\s+recorded ${'0'.repeat(64)} · this tree [0-9a-f]{64}`),
+    );
+    // report.js agreed, so it is not listed: the block names the files that differ.
+    expect(result.out).not.toMatch(/bench\/lib\/report\.js\s+recorded/);
+  });
+
+  it('legacy + identical bytes: the bytes are evidence, the renderer identity was never recorded', () => {
+    const result = main([GOLDEN]);
+
+    expect(result.code).toBe(0);
+    expect(result.out).toMatch(
+      /legacy-unversioned — this recording carries no manifest\.reportRenderer block/,
+    );
+    expect(result.out).toMatch(/the historical report bytes were reproduced exactly/);
+    expect(result.out).toMatch(
+      /what this recording never captured is the identity of the renderer/,
+    );
+    expect(result.out).not.toMatch(/renderer match/);
+  });
+
+  it('match + differing bytes: skew is ruled OUT, and no other cause is invented', () => {
+    const result = main([pinned(report.RENDERER_FINGERPRINT, true)]);
+
+    expect(result.code).toBe(1);
+    expect(result.err).toMatch(/the rebuilt report differs from/);
+    expect(result.err).toMatch(/renderer skew is NOT the explanation for the difference above/);
+    expect(result.err).toMatch(/no other cause is inferred here/);
+  });
+
+  it('skew + differing bytes: a candidate explanation, stated as one', () => {
+    const result = main([pinned(SKEWED, true)]);
+
+    expect(result.code).toBe(1);
+    expect(result.err).toMatch(/the rebuilt report differs from/);
+    expect(result.err).toMatch(/stated next to the byte difference above rather than as its cause/);
+    expect(result.err).toMatch(/candidate explanation, and nothing here establishes it/);
+  });
+
+  it('legacy + differing bytes: the divergence stands alone, with nothing attributed to it', () => {
+    const result = main([pinned(null, true)]);
+
+    expect(result.code).toBe(1);
+    expect(result.err).toMatch(/the rebuilt report differs from/);
+    expect(result.err).toMatch(
+      /The byte difference above stands on its own, and no cause is attributed to it here/,
+    );
+  });
+
+  it('reads a fingerprint of an unknown schema version as skew, never as a match', () => {
+    const result = main([pinned({ ...report.RENDERER_FINGERPRINT, schemaVersion: 99 })]);
+
+    expect(result.code).toBe(0);
+    expect(result.out).toMatch(/renderer skew/);
+    expect(result.out).toMatch(/is schema version 99, and this replay reads version 1/);
+    expect(result.out).not.toMatch(/renderer match/);
+  });
+
+  it('refuses to compare digests taken with two different algorithms', () => {
+    const result = main([pinned({ ...report.RENDERER_FINGERPRINT, algorithm: 'sha1' })]);
+
+    expect(result.out).toMatch(/renderer skew/);
+    expect(result.out).toMatch(/two digests of different algorithms cannot be compared/);
+  });
+
+  it('prints ABSENT for a digest the recording never captured', () => {
+    const result = main([pinned({ ...report.RENDERER_FINGERPRINT, joinSha256: null })]);
+
+    expect(result.out).toMatch(/renderer skew/);
+    expect(result.out).toMatch(/bench\/lib\/join\.js\s+recorded ABSENT · this tree [0-9a-f]{64}/);
+  });
+
+  it('is a verdict on the manifest alone: no report in the directory changes it', () => {
+    const dir = pinned(SKEWED);
+    fs.rmSync(path.join(dir, join.REPORT_FILENAME));
+
+    const result = main([dir]);
+    expect(result.code).toBe(0);
+    expect(result.out).toMatch(/renderer skew/);
+    expect(result.out).toMatch(/no recorded report was held up against this rebuild/);
+    expect(result.out).not.toMatch(/reproduced exactly/);
+  });
+
+  it('classifies without any of it: an absent block and a null one read the same', () => {
+    expect(report.classifyRenderer(undefined).provenance).toBe(report.RENDERER_PROVENANCE.LEGACY);
+    expect(report.classifyRenderer(null).provenance).toBe(report.RENDERER_PROVENANCE.LEGACY);
+    expect(report.classifyRenderer(report.RENDERER_FINGERPRINT).provenance).toBe(
+      report.RENDERER_PROVENANCE.MATCH,
+    );
+    expect(report.classifyRenderer(SKEWED).differences).toEqual([
+      {
+        field: 'joinSha256',
+        file: 'bench/lib/join.js',
+        recorded: '0'.repeat(64),
+        current: report.RENDERER_FINGERPRINT.joinSha256,
+      },
+    ]);
   });
 });
 
@@ -510,7 +745,7 @@ describe('replay — invocation', () => {
 });
 
 describe('replay — isolation', () => {
-  it('reads nothing outside the run directory it was given', () => {
+  it('reads nothing outside the run directory once it is running', () => {
     const dir = copyRun(GOLDEN, [join.REPORT_FILENAME]);
     const read = [];
     // Every spy calls through to the original: the point is to observe which paths
@@ -533,6 +768,39 @@ describe('replay — isolation', () => {
     const outside = read.filter((p) => !path.resolve(p).startsWith(path.resolve(dir)));
     expect(outside).toEqual([]);
     expect(read.some((p) => p.endsWith('settings.json'))).toBe(false);
+    // The renderer fingerprint is taken while `lib/report.js` loads and frozen
+    // there, which is why no join.js or report.js read appears here. That is the
+    // property, not an accident of when this spy was installed: a hash taken now
+    // would describe the file on disk rather than the code this process is
+    // running, and the two differ on exactly the dirty tree every arm-A run so
+    // far was measured against. The load-time pair is proven below.
+    expect(read.some((p) => p.endsWith('join.js') || p.endsWith('report.js'))).toBe(false);
+  });
+
+  it('reads exactly the two renderer files at load, and no run directory', () => {
+    const script =
+      'const fs=require("fs");const orig=fs.readFileSync;const seen=[];' +
+      'fs.readFileSync=(...a)=>{seen.push(String(a[0]));return orig(...a)};' +
+      'require(process.argv[1]);console.log(seen.join("\\n"));';
+    const seen = execFileSync(process.execPath, ['-e', script, REPLAY_SOURCE], {
+      encoding: 'utf8',
+    })
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    // Node's own CJS loader reads a module's source through this same call, so
+    // each of the three files may appear for that reason as well. What is pinned
+    // is the SET: the two renderer files are read while the process is loading,
+    // every path read then lives under bench/, and no run directory, settings
+    // file or src/ module is opened before a run directory has even been named.
+    const names = new Set(seen.map((file) => path.basename(file)));
+    expect(names.has('join.js')).toBe(true);
+    expect(names.has('report.js')).toBe(true);
+    expect([...names].every((n) => ['join.js', 'report.js', 'replay.js'].includes(n))).toBe(true);
+    for (const file of seen) {
+      expect(path.resolve(file).startsWith(path.join(REPO, 'bench'))).toBe(true);
+    }
   });
 
   it('loads a module graph that cannot reach the sensor or the actor', () => {
