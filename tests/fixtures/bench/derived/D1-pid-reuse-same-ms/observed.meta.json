@@ -1,0 +1,25 @@
+{
+  "runId": "DERIVED-D1-pid-reuse-same-ms",
+  "scenario": "D1-pid-reuse-same-ms",
+  "arm": "DERIVED",
+  "derived": {
+    "kind": "derived-model",
+    "recorded": false,
+    "capture": "No capture happened. bench/lib/observed.js never ran, no Electron profile existed, no aegis-audit-<day>.json was read and no hash chain was verified. Every field below is a modelling parameter, chosen so that bench/replay.js can read this directory at all.",
+    "notReproduced": "Windows PID reuse inside one millisecond was NOT reproduced.",
+    "readMeFirst": "README.md, in this directory"
+  },
+  "sensor": {
+    "scanInterval": {
+      "value": 10,
+      "source": "MODELLED — stipulated at the 10 s scanIntervalSec that src/main/config-manager.js defaults to and that bench/scenarios/S1-agent-lifecycle runs on. No settings.json was read, because none existed. It is written here because bench/lib/report.js maxLatencyFrom() derives the join window from it, and replay refuses a directory that carries none rather than defaulting one"
+    },
+    "ticksWhileProcessAlive": 2,
+    "ticksWhileProcessAliveSource": "MODELLED — any count above zero would do. It exists so the process categories are scored as coverage instead of being labelled structurally unobservable, which is the branch bench/lib/join.js takes at zero ticks with nothing matched. No scan tick was ever taken"
+  },
+  "observed": {
+    "events": 2,
+    "source": "MODELLED — the two process/start rows in observed.ndjson, written by hand. They carry no auditFile, auditSeq or auditType, because there was no audit record to read them off"
+  },
+  "failure": null
+}
