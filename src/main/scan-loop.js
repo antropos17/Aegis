@@ -168,58 +168,73 @@ function doNetworkScan() {
   const t0 = performance.now();
   network
     .scanNetworkConnections(agents)
-    .then((connections) => {
-      deps.setLatestNetConnections(connections);
-      for (const conn of connections) {
-        if (conn.httpUnencrypted) {
-          logger.warn(
-            'network',
-            'Unencrypted HTTP connection detected: ' + (conn.domain || conn.remoteIp),
+    .then(
+      (connections) => {
+        deps.setLatestNetConnections(connections);
+        for (const conn of connections) {
+          if (conn.httpUnencrypted) {
+            logger.warn(
+              'network',
+              'Unencrypted HTTP connection detected: ' + (conn.domain || conn.remoteIp),
+            );
+          }
+          // Key first, name second — both from the connection this scan matched. A socket
+          // that matched no agent carries no key and enters no baseline, which also retires
+          // the phantom `sessionData['']` bucket the empty name used to create.
+          baselines.recordNetworkEndpoint(
+            conn.instanceId,
+            conn.agent,
+            conn.remoteIp,
+            conn.remotePort,
           );
+          audit.log('network-connection', {
+            agent: conn.agent,
+            pid: conn.pid ?? null,
+            // Carried from the connection, never re-resolved from its pid: null means the
+            // socket matched no agent in that scan.
+            instanceId: conn.instanceId ?? null,
+            action: conn.state,
+            path: `${conn.remoteIp}:${conn.remotePort}`,
+            severity: conn.flagged ? 'high' : 'normal',
+            // The owner came from the OS connection table and was matched inside this same
+            // call, so it is `confirmed` — the same strength as a handle-scan pid. An
+            // unmatched connection keeps no agent and says so.
+            attribution: makeAttribution([
+              conn.agent ? EVIDENCE.OS_TCP_OWNER_PID : EVIDENCE.NO_OWNER_MATCH,
+            ]),
+            extra: { domain: conn.domain, flagged: conn.flagged },
+          });
         }
-        // Key first, name second — both from the connection this scan matched. A socket
-        // that matched no agent carries no key and enters no baseline, which also retires
-        // the phantom `sessionData['']` bucket the empty name used to create.
-        baselines.recordNetworkEndpoint(
-          conn.instanceId,
-          conn.agent,
-          conn.remoteIp,
-          conn.remotePort,
-        );
-        audit.log('network-connection', {
-          agent: conn.agent,
-          pid: conn.pid ?? null,
-          // Carried from the connection, never re-resolved from its pid: null means the
-          // socket matched no agent in that scan.
-          instanceId: conn.instanceId ?? null,
-          action: conn.state,
-          path: `${conn.remoteIp}:${conn.remotePort}`,
-          severity: conn.flagged ? 'high' : 'normal',
-          // The owner came from the OS connection table and was matched inside this same
-          // call, so it is `confirmed` — the same strength as a handle-scan pid. An
-          // unmatched connection keeps no agent and says so.
-          attribution: makeAttribution([
-            conn.agent ? EVIDENCE.OS_TCP_OWNER_PID : EVIDENCE.NO_OWNER_MATCH,
-          ]),
-          extra: { domain: conn.domain, flagged: conn.flagged },
+        sendToRenderer('network-update', connections);
+        logger.debug('scan', 'network', {
+          ms: Math.round(performance.now() - t0),
+          connections: connections.length,
         });
-      }
-      sendToRenderer('network-update', connections);
-      logger.debug('scan', 'network', {
-        ms: Math.round(performance.now() - t0),
-        connections: connections.length,
-      });
-    })
+      },
+      (err) => {
+        // Provider-observation ownership boundary (Stage-1 step A). This rejection handler
+        // is attached to `scanNetworkConnections` ITSELF, so it sees provider rejections
+        // only — a throw raised in the fulfilment continuation above (baselines, audit
+        // write, renderer send) cannot reach it and therefore cannot rewrite a successful
+        // TCP observation into FAILED.
+        //
+        // B-S05: provider failure health is owned by network-monitor.scanNetworkConnections
+        // (markFailed before rethrow). Fallback note only if the inject path omitted it.
+        if (
+          typeof network.noteNetworkScanHardFailure === 'function' &&
+          typeof network.getNetworkSensorHealth === 'function' &&
+          network.getNetworkSensorHealth().state !== 'FAILED'
+        ) {
+          network.noteNetworkScanHardFailure(err);
+        }
+        throw err;
+      },
+    )
     .catch((err) => {
-      // B-S05: provider failure health is owned by network-monitor.scanNetworkConnections
-      // (markFailed before rethrow). Fallback note only if the inject path omitted it.
-      if (
-        typeof network.noteNetworkScanHardFailure === 'function' &&
-        typeof network.getNetworkSensorHealth === 'function' &&
-        network.getNetworkSensorHealth().state !== 'FAILED'
-      ) {
-        network.noteNetworkScanHardFailure(err);
-      }
+      // Reached by BOTH a provider rejection (rethrown above, health already owned) and a
+      // downstream continuation throw (health deliberately untouched). Log only: the
+      // `network` leaf names the TCP observation, and delivery/persistence failures belong
+      // to the pipeline axis, which no leaf here represents.
       logger.error('main', 'Network scan failed', { error: err.message });
     })
     .finally(() => {
@@ -282,7 +297,24 @@ async function doProcessScan() {
   updateScanStatus(true);
   const t0 = performance.now();
   try {
-    const result = await scanner.scanProcesses();
+    // Provider-observation ownership boundary (Stage-1 step A). This inner try encloses
+    // ONLY the enumeration call: the `process` leaf names population enumeration, so a
+    // throw raised at or after `setAgents` below — enrichment, session reconcile, an audit
+    // write, anomaly processing, a renderer send — must not be able to write it. Without
+    // this split, `process = FAILED` proved nothing about whether the machine was
+    // enumerated. The provider throw is rethrown so the outer catch keeps the single log.
+    let result;
+    try {
+      result = await scanner.scanProcesses();
+    } catch (err) {
+      // B-S02: hard failure — a non-EPERM rethrow from scanProcesses (the EPERM path
+      // marks FAILED inside the scanner and returns normally, so it never lands here).
+      // Compatibility still leaves latestAgents unchanged: setAgents has not run.
+      if (scanner && typeof scanner.noteProcessScanHardFailure === 'function') {
+        scanner.noteProcessScanHardFailure(err);
+      }
+      throw err;
+    }
     setAgents(result.agents);
     const agents = result.agents;
     // Process IDENTITY first. This attaches the OS birth time and the derived
@@ -449,12 +481,10 @@ async function doProcessScan() {
       agents: agents.length,
     });
   } catch (err) {
-    // B-S02: hard failure (non-EPERM rethrow from scanProcesses, or later enrich throw).
-    // Compatibility still leaves latestAgents unchanged (setAgents only on success path);
-    // process health must record FAILED so empty fleet is not implied.
-    if (scanner && typeof scanner.noteProcessScanHardFailure === 'function') {
-      scanner.noteProcessScanHardFailure(err);
-    }
+    // Reached by BOTH a provider throw (rethrown above, health already owned by the inner
+    // catch) and a downstream pipeline throw (health deliberately untouched — the
+    // observation succeeded). Log only: no leaf here names delivery or persistence, and
+    // inventing one would answer a question this record was never asked.
     logger.error('main', 'Process scan failed', { error: err.message });
   } finally {
     updateScanStatus(false);
