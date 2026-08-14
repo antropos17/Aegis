@@ -105,6 +105,11 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     Per #21 it also cannot credit #206/#208 either way: `process-utils.js` is never loaded by this
     file, `platform/process-snapshot.js` loads transitively but is never called, and both birth times
     are literals in the test's own factory fed to the pure `identify()`.
+    **Fixed 2026-08-13 in #219** — root cause was this file stubbing resource-monitor's exec in ONE
+    describe block while every scanning test reached it, so the rest spawned real `powershell.exe`
+    that settled on real time and resumed inside a later test, against that test's exec. 40/40 green
+    after, 0 real spawns, exactly 2 sampling calls where 13 had landed. The vacuity above is unchanged:
+    the fix removed the noise, not the missing coverage.
 
 ## Rule
 NEVER change what was not asked. Do ONLY what the prompt says.

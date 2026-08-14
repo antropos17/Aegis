@@ -5,6 +5,35 @@ describe('scan-loop', () => {
   let scanLoop;
   const require_ = createRequire(import.meta.url);
 
+  /**
+   * Inert command runner for resource-monitor, installed for the WHOLE file.
+   *
+   * `doProcessScan` fires `resourceMonitor.getResourcesForPids` for every scanned
+   * pid > 0, so EVERY test here that drives a scan reaches it — not just the
+   * `agent-resource-usage` block that asserts on the result. Left unstubbed, that
+   * is the real `execFile`: a live `powershell.exe` / `nvidia-smi` per scanning
+   * test, in CI as much as locally.
+   *
+   * Those spawns settle on REAL time while the tests run on fake timers, so a
+   * chain started in one test resumes during whichever test happens to be running
+   * when the OS answers — and calls the exec THAT test installed. That is how a
+   * backlog of earlier scans landed on `makeVaryingExec` below and drove its
+   * sample counter past the value the test had just measured (`expected 5 to be
+   * 1`). An already-resolved promise keeps every chain inside the test that
+   * started it, and `_setExecForTest` is module-level state that `_resetForTest`
+   * deliberately does NOT restore, so it is re-armed on both sides of each test.
+   * @returns {Promise<string>}
+   */
+  const inertExec = () => Promise.resolve('');
+
+  /** Reset resource-monitor's module state and re-arm the inert exec. */
+  function isolateResourceMonitor() {
+    const rm = require_('../../src/main/resource-monitor.js');
+    rm._resetForTest();
+    rm._setLoggerForTest({ warn: vi.fn() });
+    rm._setExecForTest(inertExec);
+  }
+
   beforeEach(() => {
     vi.useFakeTimers();
     // Clear CJS cache so each test gets fresh module-level state
@@ -13,12 +42,20 @@ describe('scan-loop', () => {
     // Also clear llm-runtime-detector (required inside enrichWithLocalModels)
     const llmPath = require_.resolve('../../src/main/llm-runtime-detector.js');
     delete require_.cache[llmPath];
+    // resource-monitor survives that cache clear — it is required at scan-loop's
+    // module scope and holds the exec, so it is isolated explicitly instead.
+    isolateResourceMonitor();
     scanLoop = require_('../../src/main/scan-loop.js');
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     scanLoop.stopScanIntervals();
+    // Settle the fire-and-forget resource push INSIDE the test that started it,
+    // while its own exec is still the installed one. Pending timers are not run;
+    // this only drains microtasks, which is all an inert exec needs.
+    await vi.advanceTimersByTimeAsync(0);
     vi.useRealTimers();
+    isolateResourceMonitor();
   });
 
   /**
@@ -1196,14 +1233,6 @@ describe('scan-loop', () => {
       rm._setExecForTest(exec);
       return rm;
     }
-
-    afterEach(() => {
-      const rm = require_('../../src/main/resource-monitor.js');
-      rm._resetForTest();
-      // Leave an inert exec behind: the module survives this file's CJS cache clearing,
-      // and a real spawn from a later test would be a live process query in CI.
-      rm._setExecForTest(() => Promise.resolve(''));
-    });
 
     /**
      * Deps whose enrich stamps identity through the real `identify()`, over a fresh
