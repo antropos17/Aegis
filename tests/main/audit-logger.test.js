@@ -303,4 +303,118 @@ describe('audit-logger', () => {
     expect(seqs).toEqual([0, 1]);
     expect(auditLogger.verifyChain(fp).valid).toBe(true);
   });
+
+  // --- getEntriesBefore: clamped limit + validated beforeTs ------------------
+
+  describe('getEntriesBefore — bounded read path', () => {
+    const FAR_FUTURE = '9999-01-01T00:00:00.000Z';
+
+    /**
+     * Write `count` synthetic entries straight into YESTERDAY's audit file, bypassing
+     * log(). Yesterday, not a fixed past date: init() schedules cleanOldLogs() on the
+     * REAL clock, so a fixed date eventually sits past RETENTION_DAYS, where any await
+     * in a test body would let the sweep delete the fixture. Yesterday is always inside
+     * retention. getEntriesBefore only needs JSON lines with a timestamp — no seq/hash.
+     */
+    function seedEntries(count) {
+      const auditDir = path.join(tmpDir, 'audit-logs');
+      const d = new Date(Date.now() - 86400000);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const lines = [];
+      for (let i = 0; i < count; i++) {
+        const ms = String(i % 1000).padStart(3, '0');
+        lines.push(
+          JSON.stringify({ timestamp: `${dateStr}T00:00:00.${ms}Z`, type: 't', agent: `a${i}` }),
+        );
+      }
+      fs.writeFileSync(path.join(auditDir, `aegis-audit-${dateStr}.json`), lines.join('\n') + '\n');
+    }
+
+    it('exports the cap and keeps it at a sane, non-trivial value', () => {
+      expect(auditLogger.MAX_READ_LIMIT).toBe(500);
+    });
+
+    it('limit Infinity is clamped to the cap', () => {
+      auditLogger.init({ userDataPath: tmpDir });
+      seedEntries(520);
+      const entries = auditLogger.getEntriesBefore(FAR_FUTURE, Infinity);
+      expect(entries).toHaveLength(auditLogger.MAX_READ_LIMIT);
+    });
+
+    it('limit 10000 is clamped to the cap', () => {
+      auditLogger.init({ userDataPath: tmpDir });
+      seedEntries(520);
+      expect(auditLogger.getEntriesBefore(FAR_FUTURE, 10000)).toHaveLength(
+        auditLogger.MAX_READ_LIMIT,
+      );
+    });
+
+    it('limit -5 is clamped up to 1', () => {
+      auditLogger.init({ userDataPath: tmpDir });
+      seedEntries(10);
+      expect(auditLogger.getEntriesBefore(FAR_FUTURE, -5)).toHaveLength(1);
+    });
+
+    it("limit 'abc' falls back to the default of 100", () => {
+      auditLogger.init({ userDataPath: tmpDir });
+      seedEntries(120);
+      expect(auditLogger.getEntriesBefore(FAR_FUTURE, 'abc')).toHaveLength(100);
+    });
+
+    it('missing limit falls back to the default of 100', () => {
+      auditLogger.init({ userDataPath: tmpDir });
+      seedEntries(120);
+      expect(auditLogger.getEntriesBefore(FAR_FUTURE)).toHaveLength(100);
+    });
+
+    it('a fractional limit is floored to an integer', () => {
+      auditLogger.init({ userDataPath: tmpDir });
+      seedEntries(10);
+      expect(auditLogger.getEntriesBefore(FAR_FUTURE, 3.9)).toHaveLength(3);
+    });
+
+    it('a small valid limit passes through unclamped', () => {
+      auditLogger.init({ userDataPath: tmpDir });
+      seedEntries(10);
+      expect(auditLogger.getEntriesBefore(FAR_FUTURE, 5)).toHaveLength(5);
+    });
+
+    it('still flushes buffered entries into view on a valid read', () => {
+      // Validation was added BEFORE the flush() call — a valid cursor must still see
+      // entries that are only buffered, exactly as the paginated view relies on.
+      auditLogger.init({ userDataPath: tmpDir });
+      auditLogger.log('t', { agent: 'buffered' });
+      const entries = auditLogger.getEntriesBefore(FAR_FUTURE, 10);
+      expect(entries).toHaveLength(1);
+      expect(entries[0].agent).toBe('buffered');
+    });
+
+    // Each invalid-beforeTs case seeds real entries first, so the [] PROVES the
+    // validation path fired — a genuinely empty log would be indistinguishable
+    // otherwise. The explicit path warns with its own message; the generic catch
+    // (console.error '... getEntriesBefore failed') must stay silent.
+    for (const [label, bad] of [
+      ['null', null],
+      ['a number (42)', 42],
+      ["a malformed string ('not-a-timestamp')", 'not-a-timestamp'],
+    ]) {
+      it(`beforeTs ${label} returns [] via the explicit validated path, not the catch`, () => {
+        auditLogger.init({ userDataPath: tmpDir });
+        seedEntries(5);
+        // Spies go on AFTER init() and seeding, so they observe ONLY the call under
+        // test — the warn/error distinction below is about getEntriesBefore alone.
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+          expect(auditLogger.getEntriesBefore(bad, 100)).toEqual([]);
+          expect(warnSpy).toHaveBeenCalledTimes(1);
+          expect(warnSpy.mock.calls[0][0]).toContain('invalid beforeTs');
+          expect(errorSpy).not.toHaveBeenCalled();
+        } finally {
+          warnSpy.mockRestore();
+          errorSpy.mockRestore();
+        }
+      });
+    }
+  });
 });

@@ -40,6 +40,21 @@ const RETENTION_DAYS = 30;
 const BUFFER_CAP = 500;
 
 /**
+ * Default page size for {@link getEntriesBefore} when the caller passes no usable limit.
+ * @type {number}
+ */
+const DEFAULT_READ_LIMIT = 100;
+
+/**
+ * Hard ceiling on entries a single {@link getEntriesBefore} call can return. The limit
+ * arrives over IPC straight from the renderer, so it is untrusted input: without a cap,
+ * one call with `Infinity` (or any huge number) pulls the entire audit corpus into a
+ * single IPC response. Like {@link BUFFER_CAP} it is a COUNT, not a byte budget.
+ * @type {number}
+ */
+const MAX_READ_LIMIT = 500;
+
+/**
  * Event Schema version stamped on every record this module writes.
  *
  * Records without the field are v0 — but ONLY when they parse and their hash verifies. A
@@ -492,14 +507,6 @@ function shutdown() {
 }
 
 /**
- * Return up to `limit` audit entries with timestamps strictly before `beforeTs`.
- * Reads log files in reverse-chronological order for efficiency.
- * @param {string} beforeTs - ISO timestamp upper bound (exclusive)
- * @param {number} [limit=100] - Max entries to return
- * @returns {Object[]} Entries sorted oldest-first
- * @since v0.5.0
- */
-/**
  * Read lines from the end of a file without loading the whole thing.
  * Reads in reverse chunks and yields complete lines newest-first.
  * @param {string} filePath
@@ -535,7 +542,37 @@ function readLinesReverse(filePath, onLine, chunkSize = 4096) {
   }
 }
 
-function getEntriesBefore(beforeTs, limit = 100) {
+/**
+ * Return up to `limit` audit entries with timestamps strictly before `beforeTs`.
+ * Reads log files in reverse-chronological order for efficiency.
+ *
+ * Both parameters cross the IPC boundary raw (ipc-handlers.js passes them through), so
+ * both are validated HERE rather than at the handler — every caller gets the same
+ * guarantees:
+ * - `limit` is clamped to an integer in [1, {@link MAX_READ_LIMIT}]; anything
+ *   non-numeric (including missing) falls back to {@link DEFAULT_READ_LIMIT}. The
+ *   function is structurally unable to return more than {@link MAX_READ_LIMIT} entries.
+ * - a `beforeTs` that is not a `YYYY-MM-DD`-prefixed string returns `[]` via an explicit
+ *   early return that logs the reason. That path is deliberately distinct from the
+ *   generic read-failure catch below: a rejected cursor must never read as an empty log.
+ * @param {string} beforeTs - ISO timestamp upper bound (exclusive)
+ * @param {number} [limit=100] - Max entries to return (clamped, see above)
+ * @returns {Object[]} Entries sorted oldest-first
+ * @since v0.5.0
+ */
+function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT) {
+  if (typeof beforeTs !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(beforeTs)) {
+    const got =
+      typeof beforeTs === 'string'
+        ? `malformed string ${JSON.stringify(beforeTs.slice(0, 40))}`
+        : typeof beforeTs;
+    console.warn(`[audit-logger] getEntriesBefore: invalid beforeTs (${got}) — returning []`);
+    return [];
+  }
+  limit =
+    typeof limit === 'number' && !Number.isNaN(limit)
+      ? Math.min(MAX_READ_LIMIT, Math.max(1, Math.floor(limit)))
+      : DEFAULT_READ_LIMIT;
   flush();
   if (!_logDir) return [];
   const results = [];
@@ -597,4 +634,5 @@ module.exports = {
   getLogDir: () => _logDir,
   normalizeAuditEntry,
   SCHEMA_VERSION,
+  MAX_READ_LIMIT,
 };
