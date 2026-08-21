@@ -15,6 +15,7 @@
   } from '../utils/agent-stats-utils.ts';
   import { focusInstanceId } from '../utils/agent-selection.ts';
   import { tick, startTick } from '../stores/tick.ts';
+  import { populationUnknown } from '../stores/app-health.js';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
@@ -132,7 +133,9 @@
         </tr>
       {:else}
         <tr>
-          <td colspan="6" class="empty-state">No agents detected</td>
+          <td colspan="6" class="empty-state">
+            {#if $populationUnknown}Agent population unknown{:else}No agents detected{/if}
+          </td>
         </tr>
       {/each}
     </tbody>

@@ -1,6 +1,7 @@
 <script>
   import { enrichedAgents } from '../stores/risk.js';
   import { selectedAgentInstanceId } from '../stores/ipc.js';
+  import { populationUnknown } from '../stores/app-health.js';
   import AgentCard from './AgentCard.svelte';
   import { t } from '../i18n/index.js';
   import { groupAgentsForPanel } from '../utils/agent-panel-utils.ts';
@@ -23,7 +24,11 @@
 <section class="agent-panel">
   {#if grouped.length === 0}
     <div class="empty-state">
-      <span>{$t('agents.no_agents')}</span>
+      {#if $populationUnknown}
+        <span>{$t('agents.population_unknown')}</span>
+      {:else}
+        <span>{$t('agents.no_agents')}</span>
+      {/if}
     </div>
   {:else}
     <div class="agent-list">

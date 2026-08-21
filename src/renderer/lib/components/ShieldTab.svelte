@@ -1,6 +1,7 @@
 <script>
   import { fade } from 'svelte/transition';
   import { agents, firstScanDone } from '../stores/ipc.js';
+  import { populationUnknown } from '../stores/app-health.js';
   import { t } from '../i18n/index.js';
   import Radar from './Radar.svelte';
   import AgentPanel from './AgentPanel.svelte';
@@ -45,8 +46,13 @@
   {:else if empty}
     <div class="bento-empty panel" transition:fade={{ duration: 300 }}>
       <div class="empty-card">
-        <h2 class="empty-title">{$t('agents.no_agents')}</h2>
-        <p class="empty-hint">{$t('agents.no_agents_hint')}</p>
+        {#if $populationUnknown}
+          <h2 class="empty-title">{$t('agents.population_unknown')}</h2>
+          <p class="empty-hint">{$t('agents.population_unknown_hint')}</p>
+        {:else}
+          <h2 class="empty-title">{$t('agents.no_agents')}</h2>
+          <p class="empty-hint">{$t('agents.no_agents_hint')}</p>
+        {/if}
       </div>
     </div>
   {:else}

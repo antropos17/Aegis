@@ -120,6 +120,8 @@
   "agents": {
     "no_agents": "No AI agents detected",
     "no_agents_hint": "AEGIS is monitoring your system — detected AI agents will appear here automatically.",
+    "population_unknown": "Agent population unknown",
+    "population_unknown_hint": "The process sensor cannot currently enumerate running processes, so AEGIS cannot tell which AI agents are active. This is a sensor failure, not an empty system.",
     "pid": "PID {pid}",
     "last_file": "Last: {file}",
     "session_hours": "{h}h {m}m",
