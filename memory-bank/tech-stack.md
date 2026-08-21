@@ -5,21 +5,21 @@
 - Svelte 5 + Vite (frontend, renderer process)
 - Vanilla JS + CommonJS (backend, main process)
 
-## Почему Svelte
-- Компилируется в vanilla JS — нет runtime overhead
-- Scoped CSS — нет конфликтов стилей
-- $state/$derived — реактивность без boilerplate
-- Svelte MCP — Claude Code валидирует код автоматически
+## Why Svelte
+- Compiles to vanilla JS — no runtime overhead
+- Scoped CSS — no style conflicts
+- $state/$derived — reactivity without boilerplate
+- Svelte MCP — Claude Code validates the code automatically
 
-## Модульные системы
+## Module systems
 - Main process (src/main/): CommonJS — require/module.exports
 - Renderer (src/renderer/): ES modules — import/export (Svelte)
 
-## Зависимости
+## Dependencies
 - chokidar@3 — file watching
 - electron — desktop shell
 - svelte + vite + @sveltejs/vite-plugin-svelte — frontend build
 
-## Шрифты
+## Fonts
 - Outfit (headings)
 - DM Sans (body)

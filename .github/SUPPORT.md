@@ -15,4 +15,4 @@
 
 ## Security Vulnerabilities
 
-Please report security issues privately — see [SECURITY.md](SECURITY.md).
+Please report security issues privately — see [SECURITY.md](../SECURITY.md).

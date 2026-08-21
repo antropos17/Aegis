@@ -88,9 +88,9 @@ regenerating a lockfile.
 - IPC: preload.js — 40 invoke + 9 push = 49 channels via contextBridge
 
 ## MCP & Skills
-- Context7 MCP: проверяй доку ПЕРЕД решениями | Svelte MCP: autofixer на .svelte
-- Читай .claude/skills/ ПЕРЕД задачей. Логируй [SKILL: name] и [MCP: name]
-- НИКОГДА не угадывай API — всегда проверяй
+- Context7 MCP: check the docs BEFORE deciding | Svelte MCP: autofixer on .svelte
+- Read .claude/skills/ BEFORE a task. Log [SKILL: name] and [MCP: name]
+- NEVER guess an API — always verify
 
 ## Agent Fleet
 8 subagents in `.claude/agents/`. "read-only" reflects the **frontmatter**, not the
