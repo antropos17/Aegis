@@ -291,6 +291,13 @@ $ npx tsc --noEmit -p tsconfig.renderer.json --listFiles 2>/dev/null | grep -v n
 44 non-`node_modules` files type-checked — the project PR #184 fixed after it had been
 checking nothing.
 
+> **As of `b3ca4c0` (PR #243, 2026-08-21) this command prints 80.** At `743e330`
+> `tsconfig.renderer.json` included only `tests/renderer/components/**/*`; the include now
+> covers `tests/renderer/**/*`, which adds the 22 test files at the top level of
+> `tests/renderer`. The 44 above is what the gate covered on the tree this report was
+> written against and is left as recorded — as are the other figures in §6, which come
+> from the same session.
+
 ### Gate 4 — `npm run lint`
 
 ```
