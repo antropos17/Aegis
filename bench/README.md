@@ -173,6 +173,8 @@ forgotten in the other cannot go unvalidated.
 | `wait` | `ms` | nothing |
 | `terminate-process` | `fromStep` (a `spawn-process` step) | `process.end` |
 | `delete-file` | `fromStep` (a `copy-binary` step) | `file.deletion` |
+| `seed-secret-file` | `dir`, `name` | `file.creation` |
+| `hold-secret-file` | `fromStep` (a `copy-binary` step), `dir`, `name`, `ms` | `process.start` |
 
 `wait` emits nothing on purpose: no oracle can confirm the passage of time, and a catalogue row
 nothing can reach is decoration.
@@ -181,6 +183,70 @@ nothing can reach is decoration.
 `src/shared/agent-database.json` gives `agentId`, or the run fails — the stimulus is *drawn from*
 the database rather than resembling it. That file is read as an input datum and never as evidence:
 no claim about what happened comes from anything AEGIS ships.
+
+### The run-scoped home, and the two kinds that need it
+
+`platform/restart-manager.js` `buildSensitiveGroups` enumerates **`os.homedir()` and nothing
+else** — the credential dirs and the agent-config dirs directly under it, plus `~/.env*`. A file
+staged in a run's `stage/` is never a candidate, so the Restart Manager read-detect branch cannot
+be reached from a scenario at all unless the scan has something in scope. The only two ways to
+give it one are to seed the developer's REAL home, or to move the home.
+
+The bench moves the home. When a scenario holds a `seed-secret-file` step, `bench/run.js` creates
+`<run>/home/` and `bench/lib/sensor.js` points the sensor's `USERPROFILE` (and `HOME`) at it. On
+Windows `os.homedir()` reads `USERPROFILE`, so the product enumerates the run's own directory and
+the account's real `.ssh`, `.gnupg` and `.claude` are neither read, held, nor created by anything
+the run starts. It changes what the sensor observes, so it is recorded rather than assumed — the
+capture record carries it, and a run without one says so by its absence.
+
+`seed-secret-file` writes one file with fixed, inert bytes. **Nothing about the content makes it
+sensitive**; what does is the directory matching a rule the product already ships, which is the
+same thing that would make a real one sensitive. A directory the rules do not match is skipped by
+`buildSensitiveGroups` and the group never registers, so the scenario would prove nothing.
+
+`hold-secret-file` spawns the staged binary and has it HOLD that file open for `ms`. Three things
+about it are load-bearing:
+
+- **A hold, not a read.** The Restart Manager reports the processes holding a registered resource
+  at the instant it is asked — the product's own words are "a HOLD at the tick, NEVER a transient
+  open→read→close". A step that opened and closed the file would leave nothing for a tick to find.
+- **The holder is the staged binary, never the actor.** `_scanRmHolders` maps a holder pid onto an
+  agent and drops any pid that is not one, so an actor-held file would be observed by RM and then
+  correctly discarded.
+- **Its lifetime bounds itself**, the same guarantee ping's `-n` count gives `spawn-process`: an
+  actor that dies before cleanup cannot leave a process holding a file forever.
+
+### S2 — a Restart Manager hold
+
+`node.exe` is staged as `claude.exe`, an inert file is seeded into the run home's `.ssh`, and the
+staged process holds it open for 40 s while several scan ticks pass. It was recorded on
+2026-08-21: `file-access` / `holding`, `severity: sensitive`,
+`attribution: {status: "confirmed", evidence: ["rm-holder-pid"]}`, against the run's own
+`home/.ssh`.
+
+`.ssh` and not `.claude`, and the difference was measured rather than assumed. An earlier run of
+this scenario seeded `.claude`, and the record came back
+`evidence: ["rm-holder-pid", "self-config-path"]` with `severity: normal` — a holder named
+`claude.exe` holding its own config dir also trips the self-access exemption. Both records are
+correct product behaviour; only the second isolates the code the scenario is for.
+
+### What a scenario cannot reach, and why that is a finding
+
+Two attribution branches are **not reachable from any scenario**, and the reasons are properties
+of the product rather than limits of a machine. They are written here because a bench that quietly
+lacked coverage of them would read as one that had it.
+
+- **A network connection with no owning agent** (`no-owner-match` on the TCP path).
+  `network-monitor.js` calls `_getRawTcpConnections(agents.map((a) => a.pid))` — the table is
+  queried WITH the agents' own pids — and builds its `pidMap` from the same list, so every
+  returned row has an owner. The `agent: ''` branch says so itself: "Unreachable in practice …
+  Kept as a guard, not as a fallback that invents data." No scenario, no step kind and no machine
+  changes that. The trace FORMAT expresses the state, and a replay exercises it; what cannot exist
+  is a trace derived from a live run.
+- **`populationReliable: false`.** It is `state === HEALTHY` in `process-scanner.js`, so leaving it
+  needs the process sensor to fail. No step kind can cause that, and a run does not start until
+  the sensor reports a completed scan — at which point the leaf is HEALTHY by definition. Making
+  it reachable is a sensor-runner option, not a scenario.
 
 ### S1 — agent lifecycle
 

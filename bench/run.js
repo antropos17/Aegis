@@ -732,6 +732,14 @@ async function main(argv) {
     console.log(`scenario ${scenario.id} — ${scenario.title}`);
 
     /** @type {Object|null} The live sensor, from the moment it is started. */
+    // A run-scoped home exists exactly when a scenario seeds a secret file into one.
+    // Derived from the steps rather than declared separately: a scenario that needs
+    // one says so by holding the step that needs it, and one that does not is left
+    // observing the real home, unchanged.
+    const scenarioHomeDir = scenario.steps.some((step) => step.kind === 'seed-secret-file')
+      ? path.join(dir, actor.HOME_DIRNAME)
+      : undefined;
+
     let handle = null;
     try {
       // The sensor comes up BEFORE the first step, and a sensor that will not
@@ -740,7 +748,7 @@ async function main(argv) {
       // coverage miss.
       if (args.arm === SENSOR_ARM) {
         try {
-          handle = await sensor.start({ runId, log });
+          handle = await sensor.start({ runId, log, homeDir: scenarioHomeDir });
         } catch (err) {
           if (!(err instanceof sensor.SensorError)) throw err;
           const metaPath = observed.writeMeta(dir, {
@@ -763,7 +771,7 @@ async function main(argv) {
         }
       }
 
-      const outcome = await actor.execute(scenario, { runDir: dir, log });
+      const outcome = await actor.execute(scenario, { runDir: dir, homeDir: scenarioHomeDir, log });
 
       /** @type {Object|null} */
       let capture = null;

@@ -26,14 +26,20 @@
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "items": { "type": "string", "enum": ["A", "B", "C"] },
+      "items": {
+        "type": "string",
+        "enum": ["A", "B", "C"]
+      },
       "description": "Run separations this scenario is meaningful in. A = sensor + Sysmon, B = Sysmon + Procmon without the sensor, C = sensor alone."
     },
     "oracles": {
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "items": { "type": "string", "enum": ["sysmon", "procmon"] },
+      "items": {
+        "type": "string",
+        "enum": ["sysmon", "procmon"]
+      },
       "description": "Independent sources that must confirm this scenario's catalogue. The adapters arrive in sub-blocks B2.3 and B2.6; naming them here is a declaration of what a run will need, not a claim that it exists."
     },
     "proves": {
@@ -45,13 +51,17 @@
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "items": { "$ref": "#/definitions/expectation" },
+      "items": {
+        "$ref": "#/definitions/expectation"
+      },
       "description": "The observable events this scenario intends to produce. Every expectation must be claimed by a step and every emitting step must claim one, so the intent and the execution can be compared instead of taken on trust."
     },
     "steps": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/definitions/step" },
+      "items": {
+        "$ref": "#/definitions/step"
+      },
       "description": "Declarative steps, executed in order. Not a script: the catalogue is derived from what each step did, which is only possible while a step is a named kind with named parameters."
     }
   },
@@ -117,7 +127,11 @@
         {
           "if": {
             "required": ["kind"],
-            "properties": { "kind": { "const": "copy-binary" } }
+            "properties": {
+              "kind": {
+                "const": "copy-binary"
+              }
+            }
           },
           "then": {
             "required": ["with"],
@@ -150,7 +164,11 @@
         {
           "if": {
             "required": ["kind"],
-            "properties": { "kind": { "const": "spawn-process" } }
+            "properties": {
+              "kind": {
+                "const": "spawn-process"
+              }
+            }
           },
           "then": {
             "required": ["with"],
@@ -167,7 +185,9 @@
                   },
                   "args": {
                     "type": "array",
-                    "items": { "type": "string" },
+                    "items": {
+                      "type": "string"
+                    },
                     "description": "Arguments, verbatim. Written into the catalogue as process.args because they are exactly what the actor handed CreateProcess."
                   }
                 }
@@ -178,7 +198,11 @@
         {
           "if": {
             "required": ["kind"],
-            "properties": { "kind": { "const": "wait" } }
+            "properties": {
+              "kind": {
+                "const": "wait"
+              }
+            }
           },
           "then": {
             "required": ["with"],
@@ -202,7 +226,11 @@
         {
           "if": {
             "required": ["kind"],
-            "properties": { "kind": { "const": "terminate-process" } }
+            "properties": {
+              "kind": {
+                "const": "terminate-process"
+              }
+            }
           },
           "then": {
             "required": ["with"],
@@ -225,7 +253,11 @@
         {
           "if": {
             "required": ["kind"],
-            "properties": { "kind": { "const": "delete-file" } }
+            "properties": {
+              "kind": {
+                "const": "delete-file"
+              }
+            }
           },
           "then": {
             "required": ["with"],
@@ -239,6 +271,82 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "id of an earlier copy-binary step. Its copy is the file removed."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["kind"],
+            "properties": {
+              "kind": {
+                "const": "seed-secret-file"
+              }
+            }
+          },
+          "then": {
+            "required": ["with"],
+            "properties": {
+              "with": {
+                "type": "object",
+                "required": ["dir", "name"],
+                "additionalProperties": false,
+                "properties": {
+                  "dir": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[^\\/:*?\"<>|]+$",
+                    "description": "Directory name directly under the run-scoped home, e.g. '.claude'. One segment: the Restart Manager enumerates the home's immediate children and nothing deeper, so a nested path would create a directory no scan ever registers."
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[^\\/:*?\"<>|]+$",
+                    "description": "File name inside that directory. Its bytes are fixed and inert; what makes it sensitive is the directory matching a rule the product already ships."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["kind"],
+            "properties": {
+              "kind": {
+                "const": "hold-secret-file"
+              }
+            }
+          },
+          "then": {
+            "required": ["with"],
+            "properties": {
+              "with": {
+                "type": "object",
+                "required": ["fromStep", "dir", "name", "ms"],
+                "additionalProperties": false,
+                "properties": {
+                  "fromStep": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "id of the copy-binary step whose staged binary does the holding. It must be the staged binary and not the actor: _scanRmHolders maps a holder pid onto an agent and drops any pid that is not one."
+                  },
+                  "dir": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Directory of the seeded file, as given to seed-secret-file."
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Name of the seeded file, as given to seed-secret-file."
+                  },
+                  "ms": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "How long the handle is held. Bounds the holder’s own lifetime, so an actor that dies before cleanup cannot leave a process holding a file forever — the same guarantee ping’s -n count gives spawn-process. It must span several scan ticks, or no tick sees the hold."
                   }
                 }
               }

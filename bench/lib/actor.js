@@ -56,8 +56,30 @@ const AGENT_DATABASE_PATH = path.join(manifest.ROOT, 'src', 'shared', 'agent-dat
 /** @type {string} Subdirectory of a run holding the binaries it stages. */
 const STAGE_DIRNAME = 'stage';
 
+/**
+ * The run-scoped home directory's name inside a run directory.
+ *
+ * Created only for a scenario that seeds a secret file into it — see
+ * `KIND_IMPL['seed-secret-file']` for why the Restart Manager branch needs one.
+ * @type {string}
+ */
+const HOME_DIRNAME = 'home';
+
 /** @type {number} How long a terminated process is given to actually exit. */
 const EXIT_TIMEOUT_MS = 10000;
+
+/**
+ * The bytes a seeded secret file holds.
+ *
+ * Fixed and inert on purpose: nothing here is a credential, and nothing about the
+ * CONTENT makes the file sensitive. What makes it sensitive is the directory it sits
+ * in matching a rule the product already ships, which is the same thing that would
+ * make a real one sensitive.
+ * @type {string}
+ */
+const SEEDED_SECRET_BYTES = ['{"bench":"seeded secret file — inert, not a credential"}', ''].join(
+  '\n',
+);
 
 /**
  * The closed set of step kinds, mapped to the catalogue shape each emits.
@@ -71,6 +93,8 @@ const STEP_KINDS = Object.freeze({
   wait: null,
   'terminate-process': 'process.end',
   'delete-file': 'file.deletion',
+  'seed-secret-file': 'file.creation',
+  'hold-secret-file': 'process.start',
 });
 
 /** @type {ReadonlyArray<string>} Implemented kinds, in declaration order. */
@@ -85,6 +109,7 @@ const FROM_STEP_KIND = Object.freeze({
   'spawn-process': 'copy-binary',
   'terminate-process': 'spawn-process',
   'delete-file': 'copy-binary',
+  'hold-secret-file': 'copy-binary',
 });
 
 /** @type {import('ajv').ValidateFunction | null} Compiled once per process. */
@@ -414,6 +439,103 @@ const KIND_IMPL = Object.freeze({
     };
   },
 
+  /**
+   * Create one secret file inside the run's own home, so the Restart Manager path
+   * has something in scope to report a holder for.
+   *
+   * WHY A RUN-SCOPED HOME AT ALL. `platform/restart-manager.js` `buildSensitiveGroups`
+   * enumerates `os.homedir()` and nothing else — the credential dirs and the agent
+   * config dirs under it, plus `~/.env*`. A file staged in the run's `stage/` is never
+   * a candidate, so without redirecting the sensor's home the RM branch is unreachable
+   * from a bench scenario, and the only alternative would be seeding the developer's
+   * REAL home on a shared machine. `bench/lib/sensor.js` points the sensor's
+   * `USERPROFILE` at the run directory instead, and this step fills it.
+   *
+   * The file's bytes are fixed and inert. What makes it sensitive is the rules the
+   * product already ships — the directory name has to match one of them, or
+   * `buildSensitiveGroups` skips the group and the scenario proves nothing.
+   */
+  'seed-secret-file': async (step, ctx) => {
+    if (!ctx.homeDir) {
+      throw new Error(
+        'this step needs a run-scoped home, and the run did not create one. bench/run.js ' +
+          'creates it exactly when a scenario holds a seed-secret-file step',
+      );
+    }
+    const dir = path.join(ctx.homeDir, step.with.dir);
+    const dest = path.join(dir, step.with.name);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(dest, SEEDED_SECRET_BYTES, { flag: 'wx' });
+    const timestamp = new Date().toISOString();
+    return {
+      observed: {
+        timestamp,
+        pid: process.pid,
+        executable: process.execPath,
+        path: dest,
+        name: path.basename(dest),
+        directory: path.dirname(dest),
+        sizeBytes: fs.statSync(dest).size,
+        sha256: sha256File(dest),
+      },
+      result: { path: dest, name: path.basename(dest), directory: path.dirname(dest) },
+    };
+  },
+
+  /**
+   * Spawn the staged binary and have it HOLD the seeded file open.
+   *
+   * A hold, not a read. The Restart Manager reports the processes that hold a handle
+   * to a registered resource at the instant it is asked, which is what the product's
+   * own docs mean by "a HOLD at the tick, NEVER a transient open→read→close". A step
+   * that opened and closed the file would leave nothing for a tick to find.
+   *
+   * The holder must be the STAGED binary rather than the actor, because
+   * `_scanRmHolders` maps a holder pid onto an agent and drops any pid that is not
+   * one — the actor is not an agent, so an actor-held file would be observed by RM
+   * and then correctly discarded.
+   *
+   * Its lifetime is bounded by its own argument, the same guarantee `spawn-process`
+   * gets from ping's `-n` count: an actor that dies before cleanup cannot leave a
+   * process holding a file forever.
+   */
+  'hold-secret-file': async (step, ctx) => {
+    if (!ctx.homeDir) {
+      throw new Error('this step needs a run-scoped home, and the run did not create one');
+    }
+    const source = ctx.results.get(step.with.fromStep);
+    const target = path.join(ctx.homeDir, step.with.dir, step.with.name);
+    if (!fs.existsSync(target)) {
+      throw new Error(`${target} does not exist — seed it before holding it`);
+    }
+    const resolvedExec = path.resolve(source.path);
+    const resolvedStageDir = path.resolve(ctx.stageDir);
+    if (!resolvedExec.startsWith(resolvedStageDir + path.sep)) {
+      throw new Error(`executable path is outside the stage directory`);
+    }
+    const holdMs = step.with.ms;
+    const script =
+      "const fs=require('fs');fs.openSync(process.argv[1],'r');" +
+      `setTimeout(() => {}, ${holdMs});`;
+    const child = spawn(resolvedExec, ['-e', script, target], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    ctx.children.push(child);
+    const timestamp = await awaitSpawn(child);
+    return {
+      observed: {
+        timestamp,
+        pid: child.pid,
+        name: source.name,
+        executable: resolvedExec,
+        args: ['-e', script, target],
+        parentPid: process.pid,
+      },
+      result: { pid: child.pid, child, holding: target },
+    };
+  },
+
   'delete-file': async (step, ctx) => {
     const target = ctx.results.get(step.with.fromStep);
     fs.unlinkSync(target.path);
@@ -451,6 +573,8 @@ function cleanup(children, log) {
  * @param {Object} scenario - Through {@link validateScenario} and {@link validateSteps}.
  * @param {Object} opts
  * @param {string} opts.runDir - Absolute path of the run directory.
+ * @param {string} [opts.homeDir] - The run-scoped home the sensor was pointed at, for
+ *   scenarios that seed a secret file. Absent for every scenario that does not.
  * @param {string} [opts.agentDatabasePath] - Override, for tests.
  * @param {function(string): void} [opts.log] - Progress sink.
  * @returns {Promise<{ok: boolean, events: Object[], steps: Object[]}>}
@@ -459,6 +583,10 @@ async function execute(scenario, opts) {
   const log = opts.log ?? (() => {});
   const ctx = {
     stageDir: path.join(opts.runDir, STAGE_DIRNAME),
+    // The run-scoped home the sensor was pointed at, when this scenario asked for
+    // one. `null` for every scenario that did not: a step that needs it fails by
+    // name rather than falling back to the developer's real home directory.
+    homeDir: opts.homeDir ?? null,
     agentDatabasePath: opts.agentDatabasePath ?? AGENT_DATABASE_PATH,
     results: new Map(),
     children: [],
@@ -513,6 +641,7 @@ module.exports = {
   AGENT_DATABASE_PATH,
   EXIT_TIMEOUT_MS,
   FROM_STEP_KIND,
+  HOME_DIRNAME,
   KIND_NAMES,
   SCENARIOS_DIR,
   SCHEMA_PATH,
