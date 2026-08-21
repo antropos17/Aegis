@@ -383,10 +383,14 @@ async function doProcessScan() {
     //
     // It is not free. `scanner.scanProcesses` enumerates with `tasklist`, and
     // `getParentProcessMap` has no other caller on this tick, so a fully cached
-    // Windows pass now pays one `cim-parent` PowerShell observation it previously
-    // skipped. Measured for that provider call in PR #206 on one machine/sample:
-    // N=32, p50 1284 ms, p95 1459 ms, max 1657 ms — a sample, not a guaranteed
-    // runtime.
+    // Windows pass now pays one process-map observation it previously skipped. That
+    // observation is the snapshot sidecar's `snap` request; the `cim-parent`
+    // PowerShell observation is the EMERGENCY FALLBACK behind it, not the per-tick
+    // cost (platform/process-snapshot.js). Measured in
+    // docs/bench/generation-v2-2026-08-12.md, one machine / one sample / 519
+    // processes: sidecar warm p50 9.1 ms, p95 11.3 ms; cold spawn+handshake p50
+    // 67.3 ms; that run's CIM arm p50 1747.6 ms, p95 1873.6 ms, max 2144.0 ms.
+    // Samples, not guaranteed runtimes.
     await procUtil.enrichWithParentChains(agents, { forceRefresh: result.changed === true });
     // Read AFTER the identity stamp, never before. The snapshot leaf's health
     // describes the process-table observation `enrichWithParentChains` just made;

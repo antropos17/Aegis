@@ -35,8 +35,9 @@
  *     event and the new one a fresh session with its own `firstSeen`, EVEN WHEN both
  *     run the same executable — the same-name case that used to collapse into one
  *     never-ending session.
- *   - Withheld birth time (darwin/linux today, or an unreadable `CreationDate` on
- *     win32): `instanceId` degrades to `"<pid>:u"` and the process NAME in the
+ *   - Withheld birth time (darwin/linux today, or a win32 pass whose own
+ *     observation returned none for that pid, whichever provider served it):
+ *     `instanceId` degrades to `"<pid>:u"` and the process NAME in the
  *     composite key still separates a recycled pid belonging to a different agent —
  *     the pre-instanceId behaviour, unchanged.
  *   - Two instances colliding on BOTH pid and stored birth-time millisecond stay
