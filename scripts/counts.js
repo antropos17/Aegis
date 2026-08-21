@@ -557,6 +557,12 @@ const SCANNERS = [
   },
   {
     id: 'file-size-budget',
+    // Write the guarantee, not the impression (ai-mistakes #27). `size.largestSrc`
+    // reads only the FIRST pair of "largest: file-watcher.js 654, audit-logger.js 600,
+    // ipc-handlers.js 503" — this checks the largest file's line count, and neither the
+    // runners-up nor any of the three FILENAMES. A sweep that corrects only the leading
+    // number passes green while the line still names the wrong second and third files;
+    // CLAUDE.md:71 carries the correct triple to copy from.
     locate: new RegExp(
       `\\bexceeds?\\s+it\\b|${DIGITS}\\s+existing\\b|tests go up to\\b|\\blargest:`,
       'i',
