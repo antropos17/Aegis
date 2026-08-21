@@ -26,6 +26,7 @@
     "bench:generation": "node scripts/bench-generation.js",
     "bench:run": "node bench/run.js",
     "bench:s1": "node bench/run.js --scenario S1-agent-lifecycle --arm A",
+    "bench:replay": "node bench/trace/bench-replay.js",
     "prepare": "husky"
   },
   "engines": {

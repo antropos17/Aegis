@@ -673,7 +673,9 @@ loaded and is not named here is a change to this table:
 |---|---|---|---|
 | `src/main/audit-hashchain.js` | `trace/schema.js`, `trace/environment.js` | `canonical`, `computeHash` | one hashing algorithm rather than a third implementation of it |
 | `src/main/attribution.js` | `trace/environment.js` | `EVIDENCE_CODES` | the closed list is pinned into a trace, so a change to it is a refusal on READ instead of a silent diff |
-| `src/main/rule-loader.js` | `trace/environment.js` | `_loadRules` | the rules are digested AS THE PRODUCT COMPILES THEM; `_loadRules` is the entry point that does not populate the module cache, so observing an environment does not change it |
+| `src/main/rule-loader.js` | `trace/environment.js`; reloaded by `trace/wiring.js` | `_loadRules`; `reloadRules` | the rules are digested AS THE PRODUCT COMPILES THEM; `_loadRules` is the entry point that does not populate the module cache, so observing an environment does not change it. `reloadRules` is the product's own public reload |
+| `src/main/audit-logger.js`, `src/main/baselines.js`, `src/main/config-manager.js`, `src/main/file-watcher.js`, `src/main/network-monitor.js`, `src/main/scan-loop.js` | `trace/wiring.js` (lazily, inside `wireGraph` — replay AND recording) | the published seams: `init(state)`, `_setDepsForTest`, `_resetForTest`, `_setSettingsPathForTest`, `_setBaselinesPathForTest`, `audit.init`/`shutdown`, `dedupFileEvent`, `logAuditForFile`, `doNetworkScan` | this IS the system under test — there is nothing to replay or record without the detection code itself. Loaded lazily so requiring the orchestration declaration does not pull the product |
+| `src/main/platform/index.js` (transitively the platform module `pinnedSourceFiles` names — `win32.js` / `darwin.js` / `linux.js` — and that module's OWN dependency graph: on win32 `restart-manager.js`, `process-snapshot.js` and what they require; `posix-shared.js` elsewhere) | `trace/recorder.js` (lazily, only when a recording takes the default real providers) | `getFileHandles`, `getHotSensitiveHolders`, `getRawTcpConnections` | a recording wraps the REAL providers record-and-pass-through, and these are literally the un-injected defaults `file-watcher.js` and `network-monitor.js` hold. The two DNS defaults live in module-private closures and are MIRRORED in `recorder.js` instead — a named drift point, see "Recording a trace" |
 
 Deriving a trace from a recorded run is the one place that does NOT move: an audit file the
 product wrote is still verified with `lib/observed.js`'s own re-implementation, because that
@@ -845,6 +847,11 @@ decides what the local-time getters answer, which is what `audit-logger.js` buil
 AEGIS_TRACE_CLOCK_EPOCH_MS=<header.clock.epochMs> AEGIS_TRACE_TZ=<header.tz.name>   node --require bench/trace/preload.js bench/trace/replay-trace.js <trace dir> [--out <dir>]
 ```
 
+`npm run bench:replay -- <trace dir> [--out <dir>]` runs exactly that: the wrapper
+(`bench/trace/bench-replay.js`) reads the two values out of the trace's own header, sets the
+environment, and spawns the entrypoint under the preload. Every decision about the trace —
+validation, refusals, the verdict — stays in `replay-trace.js`.
+
 Both variables come out of the trace's own header, and the zone is passed back **verbatim**:
 the runtime canonicalizes zone names, so `TZ=Etc/UTC` makes `Intl` report `UTC`, and a header
 naming the alias would be refused for a difference that is not one. A header always carries what
@@ -901,11 +908,60 @@ The guard is one-sided, and that is worth stating: it lives under `tests/`, so a
 `scan-loop.js` learns about the harness when CI goes red rather than while typing. A comment at
 each product site pointing back here would close that half; it is two lines in `src/`.
 
+### Recording a trace
+
+Nothing else in this repository can produce a trace's records: an arm-A run writes only the
+product's DECISIONS — the audit log `lib/observed.js` reads back — never the sensors' INPUTS, so
+a trace cannot be derived from `observed.ndjson` or `observed.meta.json`; the information is
+simply not there. `trace/recorder.js` is the missing input tap. It wires the SAME product graph
+through the SAME published seams the replay uses (`wiring.wireGraph` is one function serving both
+postures), in the mirror posture: the providers are REAL, and every answer a sensor consumes is
+also written down, record-and-pass-through, bytes unchanged — the wrapper hands the product the
+provider's own return value and buffers a JSON snapshot of it.
+
+**What a recording is, and is not.** A recording is the system under test observing itself. It
+proves REPLAYABILITY — that the same bytes in produce the same verdicts out, checked by replaying
+the derived trace against the audit bytes the recording run itself wrote — and it proves nothing
+about accuracy: no independent oracle confirms that the sensors saw what a machine did, which is
+the measurement column's job and stays on the other side of the `src/` boundary. The committed
+suites drive the recorder over SCRIPTED providers (determinism is the point); the real-provider
+default (`src/main/platform`, plus a DNS mirror of `network-monitor.js`'s own module-private
+defaults — the one named drift point in this subtree) is exercised only by a live local recording.
+
+**A recording runs on the virtual clock**, under the same preload as a replay, and
+`setUpRecording` refuses without it. The product stamps `new Date().toISOString()` on every audit
+record, so a recording on the wall clock could never replay to its own verdicts byte for byte.
+Cadence therefore comes from the scripted session — `advanceClock` is recorded as
+`clock.advance`, exactly the record a replay moves its clock by — not from the machine's timers.
+
+**The tap appends; the writer derives.** During the run every observation is appended raw to
+`observations.ndjson`, one validated JSON line at a time, beside `recording.meta.json` (the clock
+epoch, the settings, and the environment OBSERVED AT RECORDING TIME — so the derived header pins
+the tree the recording actually ran against, and a tree edited between record and derive becomes
+a digest mismatch at replay, not a silently re-pinned header). `trace.ndjson` and
+`trace.header.json` are then derived OFFLINE by `deriveTrace` through the existing `writer.js` —
+chained, neutralized, validated — never streamed live. No new record kinds exist for recording:
+everything the recorder can observe is one of the six kinds `schema.js` already declares, every
+observation is validated against its kind BEFORE it is appended, and an answer the format cannot
+express (a handle scan that threw, a forward answer with no recorded reverse to hang it on) is
+marked unrecordable and fails `deriveTrace` by name — a recorder must not be able to produce a
+trace the reader refuses, and must not quietly drop what it could not record. The tap is proven
+inert the only way it can be: the same scripted session, with the tap and without, must write
+byte-identical audit logs (`tests/shared/bench-trace/recorder-roundtrip.test.js`).
+
+One consequence of neutralization is worth stating: a trace may be committed, so the writer
+rewrites the clone root and the OS account name in every record. A recording whose observed paths
+live under either of those therefore replays to a verdict naming the RECORDED tree, which is
+byte-identical to the recording's own audit log only when the session's paths sit outside both
+rewrites — the round-trip suite stages its session that way on purpose.
+
 ### Arriving later
 
 `trace/fingerprint.js` and `trace/verdict.js` (the run report and the byte comparison against a
-committed golden), and `trace/record-trace.js` (deriving a trace from a recorded run). Nothing in
-that list exists yet; it is here so the subtree's shape is legible, not so it reads as built.
+committed golden). Nothing in that list exists yet; it is here so the subtree's shape is legible,
+not so it reads as built. (`trace/record-trace.js` used to be listed here as "deriving a trace
+from a recorded run" — that derivation is impossible, see "Recording a trace" above, and the
+recorder that replaced it exists.)
 
 ## Replaying a recorded run
 
