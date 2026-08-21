@@ -9,20 +9,42 @@ import {
   resolveSelectedAgent,
   toggleInstanceSelection,
   focusInstanceId,
-} from '../../src/renderer/lib/utils/agent-selection.ts';
+} from '../../src/renderer/lib/utils/agent-selection';
+import type { EnrichedAgent } from '../../src/shared/types';
 
 const ID_A = '1234:start-A';
 const ID_B = '1234:start-B';
 const ID_OTHER = '9999:start-C';
 
+/**
+ * Live agent / focus source as the selection helpers receive it — the same four
+ * optional fields AgentActions.svelte declares for its `agent` prop, derived from the
+ * enriched record so a rename there turns these tests red. `instanceId` is optional
+ * because a keyless agent is modelled by leaving it out, which several tests pin.
+ */
+type AgentFixture = Partial<Pick<EnrichedAgent, 'name' | 'agent' | 'pid' | 'instanceId'>>;
+
+/**
+ * Gives a fixture its declared type without leaving it a fresh object literal at the
+ * call site. The helpers under test take deliberately narrow parameters, and the
+ * surplus `pid`/`name` fields are the point here — selection must ignore them, not
+ * reject them. Used only where a fixture carries a field the callee does not declare.
+ * @param agent - Live agent or focus-source fixture
+ * @returns The same object, typed as AgentFixture
+ */
+const fixture = (agent: AgentFixture): AgentFixture => agent;
+
 describe('agent-selection — PID reuse (step 8)', () => {
   it('does not rebind selection when a new process reuses the old pid', () => {
     // Process A was selected by its canonical instance key.
-    const selected = toggleInstanceSelection(null, {
-      pid: 1234,
-      instanceId: ID_A,
-      agent: 'Claude Code',
-    });
+    const selected = toggleInstanceSelection(
+      null,
+      fixture({
+        pid: 1234,
+        instanceId: ID_A,
+        agent: 'Claude Code',
+      }),
+    );
     expect(selected).toBe(ID_A);
 
     // A is gone; B appears with the same pid, different birth time → different instanceId.
@@ -52,7 +74,7 @@ describe('agent-selection — same name, distinct instances', () => {
 
 describe('agent-selection — null / missing instanceId', () => {
   it('cannot select a keyless agent via pid or name', () => {
-    const keyless = { pid: 300, agent: 'Claude Code', name: 'Claude Code' };
+    const keyless = fixture({ pid: 300, agent: 'Claude Code', name: 'Claude Code' });
     const keyed = { pid: 100, instanceId: ID_A, agent: 'Claude Code', name: 'Claude Code' };
 
     // Toggle on keyless leaves selection unchanged (no fabrication).
@@ -68,8 +90,8 @@ describe('agent-selection — null / missing instanceId', () => {
   });
 
   it('focusInstanceId refuses pid-only sources', () => {
-    expect(focusInstanceId({ pid: 1234 })).toBeNull();
-    expect(focusInstanceId({ pid: 1234, instanceId: ID_A })).toBe(ID_A);
+    expect(focusInstanceId(fixture({ pid: 1234 }))).toBeNull();
+    expect(focusInstanceId(fixture({ pid: 1234, instanceId: ID_A }))).toBe(ID_A);
     expect(focusInstanceId(null)).toBeNull();
   });
 });
@@ -96,8 +118,8 @@ describe('agent-selection — normal single-instance select / deselect', () => {
 
 describe('agent-selection — focus path is independent of selection', () => {
   it('focus and selection hold separate instance ids without pid coupling', () => {
-    const selected = toggleInstanceSelection(null, { instanceId: ID_A, pid: 10 });
-    const focused = focusInstanceId({ instanceId: ID_OTHER, pid: 10 });
+    const selected = toggleInstanceSelection(null, fixture({ instanceId: ID_A, pid: 10 }));
+    const focused = focusInstanceId(fixture({ instanceId: ID_OTHER, pid: 10 }));
     // Same pid on both sources would have collapsed them under the old stores.
     expect(selected).toBe(ID_A);
     expect(focused).toBe(ID_OTHER);

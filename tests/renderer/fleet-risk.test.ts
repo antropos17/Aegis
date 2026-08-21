@@ -8,7 +8,7 @@ import {
   processCardinalityNoun,
   FLEET_AVG_HEALTH_LABEL,
   FLEET_WORST_RISK_TITLE,
-} from '../../src/renderer/lib/utils/fleet-risk.ts';
+} from '../../src/renderer/lib/utils/fleet-risk';
 
 describe('fleetAverageHealth (F-W09 Header)', () => {
   it('returns null for empty', () => {
