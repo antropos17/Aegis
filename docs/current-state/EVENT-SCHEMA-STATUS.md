@@ -2,6 +2,12 @@ INCOMPLETE
 
 # Event Schema v1 — status of the uncommitted work on `feat/event-schema-v1`
 
+> **As of 2026-08-21:** this file is a dated snapshot of then-uncommitted work at `743e330`
+> and is kept as recorded — the INCOMPLETE verdict describes that tree, not master. The work
+> described here has since merged (PR #188) and shipped in v0.11.0-alpha, and attribution now
+> surfaces on the Timeline tooltip. For the current state of the schema and its consumers, see
+> [`CORRECTNESS-AUDIT.md`](CORRECTNESS-AUDIT.md) and `memory-bank/progress.md`.
+
 > Read-only status report. No source file, test, or config was touched. Nothing was
 > committed, stashed, checked out, reset, or cleaned. The only write this document made is
 > this file itself.
