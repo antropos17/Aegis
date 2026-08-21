@@ -145,7 +145,7 @@ Use it to evaluate AEGIS before deploying, demo the UI to your team, or develop 
 
 **CLI** — `--scan-json` for scripting, `--version`, `--help`
 
-## YAML Rulesets
+## YAML rulesets
 
 - 73 detection rules across 8 categories (AI config, secrets, SSH, cloud, browser, devtools, crypto, certificates)
 - Validated against `rules/_schema.json`; editing a ruleset hot-reloads without a restart
@@ -214,7 +214,7 @@ Use it to evaluate AEGIS before deploying, demo the UI to your team, or develop 
 
 **Stack**: Electron 33, Svelte 5, Vite 7, Vitest. The monitoring engine is JavaScript (CommonJS); TypeScript is used in the renderer and the shared types. CI gates every merge with build, lint, svelte-check, test and audit jobs; `npm run counts:check` re-derives every documented counter from the tree, and `npm run verify:gate` proves the identity witness against injected mutants.
 
-## Agent Database
+## Agent database
 
 110 agents in [`src/shared/agent-database.json`](src/shared/agent-database.json):
 
@@ -244,7 +244,7 @@ Everything below is **planned**, not shipped. AEGIS today is monitor-only (see [
 - [ ] Auto-update mechanism
 - [x] i18n / localization ([#53](https://github.com/antropos17/Aegis/issues/53))
 
-## Frequently Asked Questions
+## Frequently asked questions
 
 ### What is Aegis?
 
@@ -303,6 +303,6 @@ If Aegis is useful to you, consider giving it a star on GitHub — it helps othe
 
 [MIT](LICENSE)
 
-## Star History
+## Star history
 
 [![Star History Chart](https://api.star-history.com/image?repos=antropos17/Aegis&type=timeline&legend=top-left)](https://www.star-history.com/?repos=antropos17%2FAegis&type=timeline&legend=top-left)

@@ -1,6 +1,6 @@
-# Microsoft-Windows-Kernel-File ETW - static recon
+# Microsoft-Windows-Kernel-File ETW — static recon
 
-**STATUS: STATIC RECON FROZEN - SAFE TO FREEZE WITH WORDING CHANGES**
+**STATUS: STATIC RECON FROZEN — SAFE TO FREEZE WITH WORDING CHANGES**
 
 **Scope:** source-backed static research only. Provider behavior requiring target-machine
 observation stays hardware-gated and is not ratified here.
@@ -80,7 +80,7 @@ package-registry release data, and they are scoped accordingly.
   is not sufficient to claim delivery of Cleanup and Close 13/14, which are FILEIO events
   requiring keyword `0x20` in the verified manifest; an event-ID filter cannot restore an event
   the keyword mask never enabled. A configuration intentionally including FILEIO lifecycle events
-  would need that keyword, producing a candidate mask such as `0x1B0` - but neither that mask nor
+  would need that keyword, producing a candidate mask such as `0x1B0` — but neither that mask nor
   the necessity of events 10, 13 and 14 is ratified as the minimal correct configuration. `0x1B0`
   is a candidate, not the canonized answer.
 - Collection cost for File-read is not estimated from the callback rate of AEGIS-relevant
