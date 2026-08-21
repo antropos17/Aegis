@@ -43,9 +43,14 @@ const logger = require('./logger');
 const tray = require('./tray-icon');
 const ipc = require('./ipc-handlers');
 const { createBatcher } = require('./ipc-batcher');
+// Pure domain module — no I/O, no Electron, no timers — so it costs nothing to load
+// on the fast path to a visible window.
+const appHealth = require('./app-health');
 
 // ═══ DEFERRED (loaded after ready-to-show via loadDeferredModules) ═══
-let baselines, anomaly, scanner, procUtil, watcher, exporter, audit, scanLoop;
+// `network` is here rather than local to initDeferredSubsystems because getAppHealth()
+// reads its sensor leaf: a module the composer must ask cannot be a local const.
+let baselines, anomaly, scanner, procUtil, watcher, exporter, audit, scanLoop, network, platform;
 
 let mainWindow = null;
 let latestAgents = [],
@@ -118,6 +123,100 @@ function loadDeferredModules() {
   exporter = require('./exports');
   audit = require('./audit-logger');
   scanLoop = require('./scan-loop');
+  network = require('./network-monitor');
+  platform = require('./platform');
+}
+
+/**
+ * Compose the app-level health from the honest signals the sensor modules already
+ * publish. READ-ONLY: not one `mark*` call happens here. A leaf record is written only
+ * by the code that performed or refused the observation it names, and this is the
+ * display composer, not an observer.
+ *
+ * Total by construction, which matters because `statsUpdateBatcher.pushLazy` resolves
+ * `getStats` on the flush timer, where a throw would have nowhere to go. `bootPhase`
+ * is false until `loadDeferredModules` has run, and on that branch `deriveAppHealth`
+ * returns before it reads anything else — so the module reads below cannot happen
+ * against an undefined module.
+ *
+ * `monitoringPaused` is deliberately NOT passed: operator control is a separate
+ * dimension, and it travels beside this value in {@link getStats}, never inside it.
+ * @returns {Object} the plain {@link module:main/app-health}.AppHealth payload.
+ * @since v0.12.0
+ */
+function getAppHealth() {
+  if (!scanner || !watcher) {
+    const derived = appHealth.deriveAppHealth({ bootPhase: false });
+    return {
+      state: derived.state,
+      reasons: derived.reasons,
+      // Null, not a guessed 'STARTING': no leaf record exists yet, so there is no
+      // population state to report. A reader must be able to tell "not yet observed"
+      // from "observed and starting".
+      populationState: null,
+      populationReliable: false,
+      populationAsOf: null,
+      identityQuality: null,
+      identityDegraded: false,
+      sensors: { byId: {}, raw: null, effective: null, projections: [] },
+      watchPlan: null,
+    };
+  }
+  const capabilities = scanner.getProcessCapabilities();
+  const watchPlan = watcher.getWatchPlan();
+  const identityDegraded = scanner.isIdentityDegraded() === true;
+  const fsHealth = watcher.getFileSensorHealth();
+  // Every leaf that owns a record, RAW. Order is stable so the payload does not
+  // reshuffle between ticks for a reader diffing it.
+  const records = [
+    scanner.getProcessSensorHealth(),
+    ...Object.keys(fsHealth)
+      .sort()
+      .map((id) => fsHealth[id]),
+    network.getNetworkSensorHealth(),
+  ];
+  // win32 only (gap F). linux and darwin own no snapshot leaf and must not contribute
+  // a fabricated one — their `providesStartTime: false` already answers the question.
+  if (typeof platform.getSnapshotHealth === 'function') {
+    records.push(platform.getSnapshotHealth());
+  }
+  const derived = appHealth.deriveAppHealth({
+    bootPhase: true,
+    capabilities,
+    identityDegraded,
+    records,
+    watchPlan,
+  });
+  // Field copying, never a second derivation: `state` and `reasons` are taken from the
+  // pure module as they are. Re-deriving either here would be the two-sources-of-truth
+  // this whole split exists to prevent.
+  return {
+    state: derived.state,
+    reasons: derived.reasons,
+    // The FULL capability contract, not just the boolean. `populationReliable` is true
+    // iff `populationState === 'HEALTHY'`, so the boolean alone cannot tell a starting
+    // scanner from a failed one — see app-health.js and ai-mistakes #29. The renderer
+    // gates "population unknown" on `populationState`, never on `state === 'FAILED'`,
+    // which also has the defensive zero-coverage route.
+    populationState: capabilities.populationState,
+    populationReliable: capabilities.populationReliable,
+    populationAsOf: capabilities.populationAsOf,
+    identityQuality: capabilities.identityQuality,
+    identityDegraded,
+    sensors: {
+      // RAW records, untouched: an accepted birth-time fallback still reads DEGRADED
+      // here and in `raw`, and only `effective` reflects the projection.
+      byId: Object.fromEntries(records.map((r) => [r.sensorId, r])),
+      raw: derived.raw,
+      effective: derived.effective,
+      projections: derived.projections,
+    },
+    watchPlan: {
+      state: watchPlan.state,
+      liveWatcherCount: watchPlan.liveWatcherCount,
+      unavailableGroups: watchPlan.unavailableGroups,
+    },
+  };
 }
 
 /** @returns {Object} Process memory and CPU usage @since v0.1.0 */
@@ -132,7 +231,15 @@ function getResourceUsage() {
   };
 }
 
-/** @returns {Object} Monitoring statistics @since v0.1.0 */
+/**
+ * Monitoring statistics.
+ *
+ * `appHealth` and `monitoringPaused` are SIBLINGS and must stay that way: one answers
+ * "what can we still observe", the other "did the operator stop us". Folding the pause
+ * into the health enum would make a deliberate silence indistinguishable from a broken
+ * sensor, which is the false-clean this whole model exists to kill.
+ * @returns {Object} Monitoring statistics @since v0.1.0
+ */
 function getStats() {
   if (!scanner) {
     return {
@@ -148,6 +255,8 @@ function getStats() {
       uniqueAgents: [],
       permissionDeniedScans: 0,
       attribution: { confirmed: 0, inferred: 0, unattributed: 0, unattributedSensitive: 0 },
+      appHealth: getAppHealth(),
+      monitoringPaused,
     };
   }
   const log = scanner.activityLog;
@@ -169,6 +278,8 @@ function getStats() {
       unattributed: attrUnattributed,
       unattributedSensitive: attrUnattributedSensitive,
     },
+    appHealth: getAppHealth(),
+    monitoringPaused,
   };
 }
 
@@ -396,7 +507,10 @@ function initDeferredSubsystems(userData) {
       ) {
         tray.notifySensitive([deduped]);
       }
-      statsUpdateBatcher.push(getStats());
+      // Lazy on purpose: this fires per file event, and the batcher is 'latest' with a
+      // 1000 ms window — every payload but the last is discarded. Passing the producer
+      // builds exactly one, at flush.
+      statsUpdateBatcher.pushLazy(getStats);
       tray.updateTrayIcon();
       scanLoop.logAuditForFile(deduped);
     },
@@ -550,11 +664,16 @@ function _getWatchersForTest() {
   return fileWatchers;
 }
 
-// Exported for the startup-ordering regression test only — nothing in the app
-// requires main.js. Electron runs it as the entry point.
+// Exported for the startup-ordering and stats-shape regression tests only — nothing in
+// the app requires main.js. Electron runs it as the entry point.
 module.exports = {
   startWatchers,
   startWatchersWhenLoaded,
+  // Read-only. Exposed so a test can assert the payload SHAPE — that `appHealth` and
+  // `monitoringPaused` are siblings, and that the pre-`loadDeferredModules` branch
+  // answers BOOTING instead of throwing.
+  getStats,
+  getAppHealth,
   _setWatcherForTest,
   _resetWatchersForTest,
   _getWatchersForTest,

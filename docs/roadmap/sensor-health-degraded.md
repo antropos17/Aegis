@@ -1,6 +1,10 @@
 # Block B — Sensor Health / DEGRADED
 
-**Status:** Roadmap only (no product implementation)  
+**Status (as of 2026-08-21):** design document, partially implemented since it was written.
+B1 shipped (`src/main/sensor-health.js`); the filesystem sensors (chokidar / handle / Restart
+Manager) and the network sensor hold health records (B2 hooks, B4 — marked CLOSED in §10 below).
+The process-scan record and the renderer surfacing (B3 remainder, B6–B7) are not built:
+a degraded sensor is still invisible in the UI.  
 **Branch context:** `feat/identity-main` @ `6494710` (Block 0 closed)  
 **Date:** 2026-08-09  
 **Invariant:** *No evidence* must not automatically mean *clean*. Lost events are irrecoverable — never fabricate replacements.
@@ -382,6 +386,13 @@ detail?: string                // e.g. "read-detection unavailable"
 - Failure → increment consecutiveFailures; after N → FAILED (N TBD, e.g. 3)
 - Capability probe fail while monitoring on → DEGRADED or UNSUPPORTED
 - Operator pause → DISABLED for polled sensors; chokidar emit gated
+  - **As of 2026-08-21 this line is superseded and NOT implemented.** `monitoringPaused`
+    is an operator-control dimension orthogonal to health: nothing calls `markDisabled`
+    on pause, and the app-level model never reads the flag. Writing operator intent into
+    a leaf record would drop those sensors out of `participatesInGlobal` and push the
+    aggregate toward `AGGREGATE_NONE`, so pause would have changed the health model
+    rather than sat beside it. The flag travels as `stats.monitoringPaused`, a sibling of
+    `stats.appHealth`.
 - OS suspend gap → do not advance “healthy empty” streaks (B5)
 
 ### 7.4 Aggregate monitoring health
@@ -554,7 +565,10 @@ Block B is done when:
 1. Every inventory sensor that can false-clean has health reporting or documented UNSUPPORTED/DISABLED  
 2. Global DEGRADED/FAILED visible without log diving  
 3. Loss never maps to HEALTHY  
-4. Operator pause is DISABLED, not DEGRADED  
+4. Operator pause is DISABLED, not DEGRADED
+   — **as of 2026-08-21, superseded by the orthogonality decision (see §7.3).** Pause is
+   neither DISABLED nor DEGRADED: it is not a health state at all, and the stopping
+   condition it must satisfy instead is that a paused AEGIS never reads as a clean one.  
 5. Suspend/resume gap does not count as healthy empty observation  
 6. Non-vacuous tests + mutation proofs for critical paths  
 7. No fabricated events  

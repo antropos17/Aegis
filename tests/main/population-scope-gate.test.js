@@ -237,7 +237,7 @@ describe('stale-population scope gate — orchestration (step G′)', () => {
       logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
       sendToRenderer: vi.fn(),
       fileAccessBatcher: { push: vi.fn() },
-      statsUpdateBatcher: { push: vi.fn() },
+      statsUpdateBatcher: { push: vi.fn(), pushLazy: vi.fn() },
       getStats: vi.fn().mockReturnValue({}),
       getResourceUsage: vi.fn().mockReturnValue({}),
       getLatestAgents: vi.fn().mockReturnValue(STALE_AGENTS),
