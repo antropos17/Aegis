@@ -15,9 +15,12 @@ Two rules are non-negotiable and are the reason the harness is shaped this way:
 
 - **Never diff two live streams.** The catalogue is the fixed point; both the oracle and
   the sensor are scored against it, never against each other.
-- **A sensor is never its own oracle.** Nothing under `bench/` imports from `src/`. Where a
-  scenario needs ground truth about process identity, that truth comes from Sysmon EID 1
-  ordinality — never from the process-snapshot provider AEGIS itself reads.
+- **A sensor is never its own oracle.** Nothing in the MEASUREMENT column imports from `src/` —
+  see [Trace replay and the `src/` boundary](#trace-replay-and-the-src-boundary) for the
+  name-by-name split, and for the one subtree where the rule does not apply because it is the
+  system under test rather than a measurement of it. Where a scenario needs ground truth about
+  process identity, that truth comes from Sysmon EID 1 ordinality — never from the
+  process-snapshot provider AEGIS itself reads.
 
 The actor's catalogue states intent and the fact of execution. It never confirms itself:
 every row it writes is confirmed by an oracle before any metric counts it.
@@ -109,6 +112,10 @@ bench/
   lib/oracles/sysmon.js                     # normalizes Sysmon EventRecord XML; writes oracle-sysmon.ndjson and oracle-loss.json
   oracles/sysmon-bench.xml                  # the Sysmon config a run is measured under — never yet offered to a binary
   scenarios/S1-agent-lifecycle/scenario.json
+  trace/schema.js                           # the trace format: version, chain seed, the closed list of record kinds, every refusal
+  trace/environment.js                      # what a trace pins about the machine and the tree, and the comparison that refuses a mismatch
+  trace/writer.js                           # observations → chained records → the exact bytes a trace directory holds
+  trace/reader.js                           # reads a trace directory, or refuses it by name
   runs/                                     # run artefacts — gitignored, created on first run
   README.md
 ```
@@ -560,6 +567,172 @@ counting it as a sensor failure.
 
 **There is no confidence figure in this report and there will not be one.** Every number it carries
 is a count of rows or a difference of two timestamps.
+
+## Trace replay — the format
+
+Two different things in this repository are called replay, and they are not the same thing:
+
+| | what it replays | what it needs |
+|---|---|---|
+| `bench/replay.js` | one recorded RUN's `run-report.json`, rebuilt from the four files that run left behind | nothing from `src/`; no sensor, no scenario, no renderer |
+| `bench/trace/` | one recorded stream of OBSERVATIONS, pushed back through the product's own detection and attribution code | the `src/` modules named below, and a pinned environment |
+
+A **trace** is an INPUT: what the sensors saw. Event Schema v1 — the product's audit record —
+is the OUTPUT: what the product decided. Nothing in a trace describes a verdict, and the point
+of the format is that the same bytes in produce the same verdicts out, so two sensor versions
+can be diffed against one recording instead of against each other.
+
+### Trace replay and the `src/` boundary
+
+The rule the measurement column keeps is unchanged and is not weakened here: an oracle that
+shares code with the thing it confirms is not independent, so a disagreement between them
+cannot be a finding. Trace replay is not an oracle — it is the system under test, re-executed —
+so the rule is lifted for it, name by name and in both directions:
+
+| subtree | may import `src/` | why |
+|---|---|---|
+| `lib/oracles/*`, `lib/observed.js`, `lib/join.js`, `lib/catalogue.js`, `lib/actor.js`, `lib/manifest.js`, `lib/sensor.js`, `lib/report.js` | **no** | the measurement column; this is where `observed.js` re-implements the chain check rather than importing it |
+| `trace/*` | **yes, read-only** | there is nothing to replay without the detection code itself |
+
+What `trace/` loads today, exhaustively — a list, not a glob, so a module that starts being
+loaded and is not named here is a change to this table:
+
+| module | loaded by | what is used | why not a copy |
+|---|---|---|---|
+| `src/main/audit-hashchain.js` | `trace/schema.js`, `trace/environment.js` | `canonical`, `computeHash` | one hashing algorithm rather than a third implementation of it |
+| `src/main/attribution.js` | `trace/environment.js` | `EVIDENCE_CODES` | the closed list is pinned into a trace, so a change to it is a refusal on READ instead of a silent diff |
+| `src/main/rule-loader.js` | `trace/environment.js` | `_loadRules` | the rules are digested AS THE PRODUCT COMPILES THEM; `_loadRules` is the entry point that does not populate the module cache, so observing an environment does not change it |
+
+Deriving a trace from a recorded run is the one place that does NOT move: an audit file the
+product wrote is still verified with `lib/observed.js`'s own re-implementation, because that
+check is evidence about the sensor. The trace's own chain is our format, not a claim about the
+sensor, so it uses the algorithm above.
+
+### The chain seed is the trace format's own
+
+`trace.ndjson` is hash-chained the way a daily audit file is — `sha256(prevHash + canonical(record))`,
+one link per line, seq equal to the line number — with two deliberate differences:
+
+- **The seed.** `TRACE_GENESIS`, not the audit `GENESIS`. With a shared seed, keeping the two
+  chains apart would rest on the top-level-`seq` gate both of today's verifiers take before they
+  hash anything (`src/main/audit-hashchain.js` `verifyChain`, `lib/observed.js` `readChain`) — a
+  gate `bench/` neither owns nor can freeze. With distinct seeds, no record of one file is ever a
+  valid record of the other, at any position and under any future verifier. A verdict file keeps
+  the audit seed, because the product writes it.
+- **The preimage.** A trace's sequence number lives at `bench.seq` and is INSIDE the hash; the
+  audit rule deletes a top-level `seq` before hashing. Moving a record therefore breaks a trace
+  chain and is invisible to an audit chain.
+- **The scope.** An audit chain restarts every day, inside one daily file. A trace chain runs the
+  whole file; a trace has no days.
+
+One more difference, and it is the one most likely to be inherited by accident: `lib/observed.js`
+tolerates an unparseable LAST line of an audit file, because a live process appends to it and a
+`taskkill /F` can land mid-write. A trace is written once, offline, from a recording that already
+finished, so the same damage means the file is broken and is **refused**. A trace reader that
+inherited that tolerance would silently drop the final observation of every trace it read.
+
+### What a trace directory holds
+
+```
+<trace id>/
+  trace.header.json    # the environment this recording pins; pretty JSON
+  trace.ndjson         # the records, one per line, hash-chained
+```
+
+`.ndjson` and not `.jsonl` because every neighbouring artefact here is `.ndjson`; the bytes are
+the same format and a second extension in one directory reads as a second format.
+
+The **header** pins what a verdict silently depends on, and a reader compares every entry
+against the tree and the machine it is about to replay on:
+
+- `platform`, `pathSep`, `nodeVersion`, and `tz` — path resolution, the separator, the `win32`
+  branch of `findOwningAgent`, the audit file's own name and the baseline hour bucket all read
+  one of these.
+- `clock.epochMs` — where the virtual clock starts.
+- `digests` — content, not versions. A version string goes stale silently; a digest does not.
+  The rules are digested three ways: the per-file content, the **enumeration order**
+  (`classifySensitive` takes the FIRST matching rule, so the same files enumerated differently
+  are a different tree for this purpose), and the compiled rule objects the loader produced. The
+  agent database, `src/shared/constants.js`, `src/main/attribution.js` and the platform module
+  that would actually be loaded each get one. Line endings are folded to LF before hashing —
+  `.gitattributes` puts this tree under `text=auto`, so a byte digest would refuse a checkout
+  that holds exactly the same content. Nothing else is normalized.
+- `evidenceCodes` — the closed attribution list, in declaration order, compared element for
+  element.
+- `scope` — what this trace does NOT cover, in the manifest's own `{value, unavailable}`
+  convention. A missing key is a refusal, not a default: "this trace does not cover process
+  ticks" and "nobody said" must not collapse into one record.
+- `neutralization` — a trace may be committed, so the clone root and the OS account name are
+  rewritten (`lib/paths.js`, the same transform `manifest.js` applies). It is applied to EVERY
+  string in every record, not to a list of path-shaped fields: an agent's `cwd` and an event's
+  path have to move by one map, or `cwd-containment` stops matching and the trace quietly
+  measures a different attribution than the one recorded.
+
+### Record kinds
+
+The closed list lives in `trace/schema.js`, **not** in a JSON Schema — the same choice
+`lib/actor.js` makes for step kinds, and for the same reason: only the code that can execute a
+kind can say which kinds exist.
+
+| kind | what it carries | observation |
+|---|---|---|
+| `fs.event` | one chokidar event: `created` / `modified` / `deleted`, and a path | yes |
+| `handles.tick` | a per-pid handle scan, as the platform provider answered it | yes |
+| `rm.hot.tick` | a Restart Manager hot-cycle answer | yes |
+| `net.tick` | a TCP table read plus the DNS answers that resolved its addresses | yes |
+| `clock.advance` | the virtual clock moves forward | no |
+| `population.set` | the agent population the sensors are handed from here on | no |
+
+A kind marked **no** observed nothing. Those carry ECS `event.kind: "state"` and no
+`event.category` or `event.type`: ECS has no category for "the harness moved its clock", and
+inventing one would dress a replay parameter up as a measurement — the same reasoning that keeps
+`lib/actor.js`'s `wait` step out of the catalogue. The observation kinds additionally carry
+`bench.ambient`, holding `populationReliable` and `isOtherPanelExpanded`. Those are per-record
+and not per-header on purpose: `populationReliable` decides whether attribution may look for an
+owner at all, and it changes during a run.
+
+`handles.tick` and `rm.hot.tick` may appear in either order — they are independent.
+`scanAllFileHandles` diverts to the Restart Manager only when `getSensitiveHolders` is set
+(`rmEnabled`), phase 1 never injects it (a header's `scope.rmFullPath` records why), and
+`isHotReadScanActive` reads only `getHotSensitiveHolders`. What they DO share is
+`_state.knownHandles`, so a path one tick already reported produces no event from the
+other — the product's own words at `scanHotFileHolders`: "Shares _state.knownHandles with
+the full scan → cross-cycle dedup". A trace author needs to know that, because the silence
+it causes is the product working rather than the trace failing. It is a note, not a refusal:
+there is nothing here a reader could legitimately reject.
+
+The one-way switch is real, but it belongs to the FULL Restart Manager path —
+`scanAllFileHandles` under `getSensitiveHolders`, which `_setDepsForTest` assigns only on a
+truthy override and only `_resetForTest()` unsets, taking the watcher's debounce state with
+it. Phase 1 excludes that path and says so in `scope.rmFullPath`; it has no record kind, so
+there is no ordering for a reader to enforce.
+
+### Refusals
+
+Every refusal names one reason from a closed list in `trace/schema.js` and writes nothing: a
+trace half-read is an input nobody recorded, and a verdict derived from one would name a run that
+never existed. `schema-version`, `header-malformed`, `platform-mismatch`, `tz-mismatch`,
+`digest-mismatch`, `evidence-codes-mismatch`, `scope-incomplete`, `unknown-kind`,
+`record-malformed`, `chain-broken`, `envelope-mismatch`, `empty-trace`, `file-unreadable`.
+
+A trace declaring a HIGHER `traceSchemaVersion` is refused, which is the opposite of what a
+reader of the product's audit log must do — there `seq` is monotonic and skipping a record breaks
+every hash after it, so an unknown field set has to be read past. A trace is an input, and a
+partially understood input produces a verdict about some other input.
+
+A **platform mismatch is refused, never converted.** `path.resolve`, `path.sep` and the
+`process.platform === 'win32'` branch of `findOwningAgent` all differ, so a Windows trace
+replayed on Linux would only look faithful. The practical consequence is that the suites which
+can run in CI are the format, chain and refusal ones; verifying a recorded Windows trace stays a
+local command, exactly as the rest of the bench does.
+
+### Arriving later
+
+`trace/clock.js` and `trace/preload.js` (the virtual clock, installed before any `src/` module
+loads), `trace/harness.js` and `trace/replay-trace.js` (the replay proper), `trace/fingerprint.js`
+and `trace/verdict.js` (what a run outputs, and the byte comparison), and `trace/record-trace.js`
+(deriving a trace from a recorded run). Nothing in that list exists yet; it is here so the
+subtree's shape is legible, not so it reads as built.
 
 ## Replaying a recorded run
 

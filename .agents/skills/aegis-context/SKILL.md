@@ -22,7 +22,7 @@ Read package.json for exact versions. NEVER hardcode.
 Electron 33, Svelte 5, Vite 7, chokidar. TypeScript: `allowJs: true`, **`checkJs: false`** — `src/main/*.js` bodies are NOT type-checked, their JSDoc is documentation. Two projects (`tsconfig.main.json` CommonJS / `tsconfig.renderer.json` ESM) share `tsconfig.base.json`; root `tsconfig.json` is a solution file, so gate with `npm run typecheck`, never a bare `npx tsc --noEmit`.
 
 ## Architecture
-- Main process (Node.js): src/main/ — 51 CJS modules (39 top-level + 10 platform/ + 2 token-adapters/)
+- Main process (Node.js): src/main/ — 52 CJS modules (40 top-level + 10 platform/ + 2 token-adapters/)
 - Renderer (Svelte 5): src/renderer/ — 47 components + 13 stores + 21 utils via IPC bridge
 - Bridge: src/main/preload.js — contextBridge, 40 invoke + 9 push = 49 channels
 - Data: src/shared/agent-database.json (110 agents / 262 name signatures)
@@ -51,7 +51,7 @@ Electron 33, Svelte 5, Vite 7, chokidar. TypeScript: `allowJs: true`, **`checkJs
 - Context7: fresh docs for any library (append "use context7")
 - Svelte MCP: list-sections, get-documentation, svelte-autofixer
 
-## Skills (.Codex/skills/)
+## Skills (.agents/skills/)
 - aegis-context — project overview, auto-invoked on any task
 - design-system — Fancy UI tokens, typography, glassmorphism, animation rules
 - electron-main — CJS modules, platform abstraction, IPC, file watchers
