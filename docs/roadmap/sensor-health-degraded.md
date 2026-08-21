@@ -1,6 +1,10 @@
 # Block B — Sensor Health / DEGRADED
 
-**Status:** Roadmap only (no product implementation)  
+**Status (as of 2026-08-21):** design document, partially implemented since it was written.
+B1 shipped (`src/main/sensor-health.js`); the filesystem sensors (chokidar / handle / Restart
+Manager) and the network sensor hold health records (B2 hooks, B4 — marked CLOSED in §10 below).
+The process-scan record and the renderer surfacing (B3 remainder, B6–B7) are not built:
+a degraded sensor is still invisible in the UI.  
 **Branch context:** `feat/identity-main` @ `6494710` (Block 0 closed)  
 **Date:** 2026-08-09  
 **Invariant:** *No evidence* must not automatically mean *clean*. Lost events are irrecoverable — never fabricate replacements.
