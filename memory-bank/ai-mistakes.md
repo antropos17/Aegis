@@ -182,5 +182,38 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     it survives every reader who does not open the definition. Grep the definition, not the name
     (cf. #27 — write the guarantee, not the impression).
 
+30. **Narrows a pattern without an adversarial list of what the OLD one matched and the new
+    one does not — and then pins the narrowing with a must-match list that protects only what
+    someone happened to write down.** PR #249 rewrote SC003/SC005/SC006 to bound each keyword
+    with `[._-]` separator classes and to scope loose compounds to an extension allowlist. It
+    shipped with a table of what must stop firing and what must keep firing, an "accepted
+    residuals" section, and per-rule tests — and every one of those lists was built from the
+    false positives that had prompted the work, never from the far larger set of names the old
+    pattern used to match. `[\\/][^\\/]*password[^\\/]*$` matched any basename containing the
+    word at any extension; the replacement matched a bounded word at 17 listed extensions.
+    Everything in that difference left the ruleset silently, and nothing anywhere went red.
+    A reviewer found it later: `passwords.kdbx`, `password.db`, `passwords.xlsx`,
+    `1password_backup.csv` and `1password-export.1pux` — five ordinary password stores, all
+    critical-risk hits before #249, all unclassified after it.
+    **Two independent causes, and the report named only one.** (a) SEPARATOR BOUNDARY —
+    `(?:[^\\/]*[._-])?` can only end on `.`, `_` or `-`, so a digit adjacent to the keyword has
+    nothing to match and the whole prefix group is forced empty: reproduced in node against
+    master, `password_backup.csv` matched and `1password_backup.csv` did not. (b) EXTENSION
+    ALLOWLIST — the list held no password-manager format, so `.kdbx`, `.db`, `.xlsx` and
+    `.1pux` dropped out with their separators perfectly intact. Three of the five reported
+    misses never involved a digit at all, so the one-line diagnosis in the report covered two
+    of five and a fix that only widened the separator class would have left the other three
+    broken while reading as done.
+    **Three things follow.** (a) Before narrowing, build the adversarial list FIRST — sample
+    what the old pattern matched and the new one does not, and decide each entry in or out on
+    purpose. A residual you enumerated is a decision; a residual you never enumerated is a
+    regression waiting for someone else to report it. (b) A must-match list is not a sample,
+    it is the entire protected set: write every case into the test, spell out both path
+    separators, and read "not on the list" as "not protected" (cf. #21 — a passing gate proves
+    the command ran, not that it inspected your change). (c) Reproduce the report before
+    trusting its diagnosis. Running the five names through the real loader is what separated
+    the two causes; the summary sentence would have sent the fix at one of them (cf. #27 —
+    write the guarantee, not the impression).
+
 ## Rule
 NEVER change what was not asked. Do ONLY what the prompt says.

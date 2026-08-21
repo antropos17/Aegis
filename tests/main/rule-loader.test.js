@@ -328,4 +328,174 @@ describe('rule-loader', () => {
       expect(re.test('/home/user/github-token')).toBe(true);
     });
   });
+
+  describe('secrets rules — the narrowing pin, both directions (SC003 / SC005 / SC006)', () => {
+    const PROD_RULES_DIR = path.resolve(__dirname, '../../rules');
+
+    // PR #249 bound each keyword with [._-] separator classes and scoped the loose
+    // compounds to an extension allowlist. Two limits of that narrowing were never
+    // written down, so nothing went red when real password stores stopped matching:
+    //
+    //   1. SEPARATOR BOUNDARY — a digit next to the keyword is not a word
+    //      continuation, but `(?:[^\\/]*[._-])?` could only end on . _ or -, so the
+    //      leading "1" of `1password_backup.csv` had nothing to match and the whole
+    //      prefix group had to go empty. `password_backup.csv` matched; the same
+    //      name behind a digit did not.
+    //   2. EXTENSION ALLOWLIST — the list held no password-manager format, so
+    //      `passwords.kdbx`, `password.db` and `passwords.xlsx` dropped out with
+    //      their separators perfectly intact. Three of the five reported misses
+    //      never involved a digit at all.
+    //
+    // The two lists below ARE the contract. A pin protects only what it records, so
+    // they are written out in full — every pre-existing fixture from the block above,
+    // every path the audit reported, and both separators for each, because the rules
+    // are anchored on `[\\/]` and a Windows path is the ordinary case. Anything not
+    // on a list is not protected: add to the list, never assume by resemblance.
+
+    /**
+     * Every path a secrets rule MUST classify, with the rule that has to fire.
+     * @type {Array<{ id: string, path: string, note: string }>}
+     */
+    const MUST_MATCH = [
+      // The audit's five, posix and Windows — the regression this pin exists for.
+      { id: 'SC003', path: '/home/user/passwords.kdbx', note: 'KeePass store' },
+      { id: 'SC003', path: 'C:\\Users\\me\\passwords.kdbx', note: 'KeePass store' },
+      { id: 'SC003', path: '/home/user/password.db', note: 'password database' },
+      { id: 'SC003', path: 'C:\\Users\\me\\password.db', note: 'password database' },
+      { id: 'SC003', path: '/home/user/passwords.xlsx', note: 'spreadsheet of passwords' },
+      { id: 'SC003', path: 'C:\\Users\\me\\passwords.xlsx', note: 'spreadsheet of passwords' },
+      { id: 'SC003', path: '/home/user/1password_backup.csv', note: 'digit before the keyword' },
+      {
+        id: 'SC003',
+        path: 'C:\\Users\\me\\1password_backup.csv',
+        note: 'digit before the keyword',
+      },
+      {
+        id: 'SC003',
+        path: '/home/user/1password-export.1pux',
+        note: 'digit before the keyword AND a 1Password export extension',
+      },
+      {
+        id: 'SC003',
+        path: 'C:\\Users\\me\\1password-export.1pux',
+        note: 'digit before the keyword AND a 1Password export extension',
+      },
+      // The same boundary on the two rules widened alongside SC003.
+      { id: 'SC005', path: '/home/user/1secret.json', note: 'digit before the keyword' },
+      { id: 'SC006', path: '/home/user/oauth2token.json', note: 'digit before the keyword' },
+      // Everything #249 already had to keep firing.
+      { id: 'SC003', path: '/home/user/passwords.txt', note: 'pre-existing positive' },
+      {
+        id: 'SC003',
+        path: 'C:\\Users\\me\\Documents\\wifi-password.txt',
+        note: 'pre-existing positive',
+      },
+      { id: 'SC003', path: '/home/user/.password', note: 'pre-existing positive' },
+      { id: 'SC003', path: 'C:\\Users\\me\\db_password', note: 'pre-existing positive' },
+      { id: 'SC003', path: '/home/user/password.key', note: 'pre-existing positive' },
+      {
+        id: 'SC003',
+        path: 'C:\\Users\\me\\app\\password.properties',
+        note: 'pre-existing positive',
+      },
+      { id: 'SC005', path: '/run/secrets/db_password', note: 'pre-existing positive' },
+      { id: 'SC005', path: 'C:\\Users\\me\\.secrets\\api', note: 'pre-existing positive' },
+      { id: 'SC005', path: '/app/config/secrets.yaml', note: 'pre-existing positive' },
+      { id: 'SC005', path: '/home/user/.env.secret', note: 'pre-existing positive' },
+      {
+        id: 'SC005',
+        path: 'C:\\Users\\me\\AppData\\client_secret.json',
+        note: 'pre-existing positive',
+      },
+      { id: 'SC006', path: '/home/user/.npm_token', note: 'pre-existing positive' },
+      { id: 'SC006', path: '/home/user/api-token.txt', note: 'pre-existing positive' },
+      {
+        id: 'SC006',
+        path: 'C:\\Users\\me\\.config\\gh\\access_token.json',
+        note: 'pre-existing positive',
+      },
+      { id: 'SC006', path: '/home/user/github-token', note: 'pre-existing positive' },
+    ];
+
+    /**
+     * Every path that NO secrets rule may classify. `owner` is the rule whose word
+     * appears in the path — the whole ruleset is swept as well, so a widening that
+     * merely moves a false positive to a neighbouring rule still goes red.
+     * @type {Array<{ owner: string, path: string, note: string }>}
+     */
+    const MUST_NOT_MATCH = [
+      {
+        owner: 'SC006',
+        path: 'X:\\proj\\src\\renderer\\lib\\styles\\tokens.css',
+        note: "this repo's own design tokens — the file #249 was written for",
+      },
+      { owner: 'SC003', path: '/app/src/components/PasswordInput.svelte', note: 'UI component' },
+      { owner: 'SC003', path: 'C:\\proj\\src\\pages\\forgot-password.html', note: 'page' },
+      { owner: 'SC003', path: '/app/src/auth/password-reset.js', note: 'source file' },
+      { owner: 'SC003', path: '/docs/reset-password.md', note: 'documentation' },
+      { owner: 'SC005', path: '/app/src/pages/SecretSanta.tsx', note: 'English word, not a store' },
+      { owner: 'SC005', path: '/home/user/docs/secretary-notes.md', note: 'word prefix only' },
+      { owner: 'SC005', path: 'C:\\proj\\src\\SecretsManagerClient.ts', note: 'SDK client' },
+      { owner: 'SC006', path: '/app/src/nlp/tokenizer.py', note: 'word prefix only' },
+      {
+        owner: 'SC006',
+        path: '/app/src/main/token-adapters/usage.js',
+        note: 'word in a directory',
+      },
+      // C-05 basename anchoring, pinned in tests/main/file-watcher.test.js through
+      // classifySensitive(); recorded here too so the rules keep their half of it.
+      { owner: 'SC003', path: '/home/user/projects/password-manager/README.md', note: 'C-05 dir' },
+      { owner: 'SC004', path: '/home/user/code/credential-helper/index.js', note: 'C-05 dir' },
+      { owner: 'SC007', path: '/home/user/src/api_key_validator/test.js', note: 'C-05 dir' },
+    ];
+
+    /** Every rule ID in rules/secrets.yaml, for the whole-ruleset sweep. */
+    const SECRETS_IDS = ['SC001', 'SC002', 'SC003', 'SC004', 'SC005', 'SC006', 'SC007', 'SC008'];
+
+    it('every must-match path is classified by the rule that owns it', () => {
+      const rules = ruleLoader.reloadRules(PROD_RULES_DIR);
+      for (const { id, path: candidate, note } of MUST_MATCH) {
+        const rule = rules.get(id);
+        expect(rule, `${id} missing from the production ruleset`).toBeDefined();
+        expect(rule.pattern.test(candidate), `${id} must match ${candidate} (${note})`).toBe(true);
+      }
+    });
+
+    it('every must-not-match path is clear on the rule whose word it carries', () => {
+      const rules = ruleLoader.reloadRules(PROD_RULES_DIR);
+      for (const { owner, path: candidate, note } of MUST_NOT_MATCH) {
+        const rule = rules.get(owner);
+        expect(rule, `${owner} missing from the production ruleset`).toBeDefined();
+        expect(rule.pattern.test(candidate), `${owner} must NOT match ${candidate} (${note})`).toBe(
+          false,
+        );
+      }
+    });
+
+    it('no rule in the secrets ruleset fires on any must-not-match path', () => {
+      const rules = ruleLoader.reloadRules(PROD_RULES_DIR);
+      for (const { path: candidate, note } of MUST_NOT_MATCH) {
+        const fired = SECRETS_IDS.filter((id) => rules.get(id).pattern.test(candidate));
+        expect(fired, `${candidate} (${note}) fired: ${fired.join(', ')}`).toEqual([]);
+      }
+    });
+
+    it('the rewritten patterns stay polynomial on adversarial segments', () => {
+      const rules = ruleLoader.reloadRules(PROD_RULES_DIR);
+      // Only the prefix `[^\\/]*[._\d-]` and the suffix `[._-][^\\/]*` are quantified,
+      // and a required literal separates them — so a long run of separator/digit
+      // characters with no valid extension backtracks linearly, not exponentially.
+      // The budget is ~4 orders of magnitude above the measured cost (<0.1 ms each):
+      // it is here to catch a catastrophic rewrite, not to benchmark the machine.
+      const words = { SC003: 'password', SC005: 'secret', SC006: 'token' };
+      const started = Date.now();
+      for (const [id, word] of Object.entries(words)) {
+        const { pattern: re } = rules.get(id);
+        re.test('/home/user/' + '1._-'.repeat(8000) + '!');
+        re.test('/home/user/' + '1._-'.repeat(4000) + word + '.a'.repeat(4000));
+        re.test('/home/user/' + 'a._-'.repeat(4000) + word + '-' + '.z'.repeat(4000));
+      }
+      expect(Date.now() - started).toBeLessThan(2000);
+    });
+  });
 });
