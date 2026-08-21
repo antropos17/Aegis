@@ -128,14 +128,14 @@ providesStartTime=true on win32, false on linux/darwin.
   carrying NO pathname — only `FileObject`/`FileKey`; Create 12 = `FileObject`+`FileName`,
   NameCreate 10 = `FileKey`+`FileName`, Cleanup 13 / Close 14 exist; **no provider rundown event**.
 - **NOT FOUND — retire "PID from the event header".** Event 15's issuer is unestablished across
-  `EventHeader.ProcessId`, `ThreadId` (v0) / `IssuingThreadId` (v1) and possible PID-4 attribution.
-  A path comes only from correlating `FileObject`/`FileKey` with path-bearing events, whose lifetime
-  and reuse are unestablished too (legacy FileIo = labeled ANALOGY). No rundown event: files open
-  before session start stay `unresolved` — fail-honest, never fabricated, never upgraded.
+  `EventHeader.ProcessId`, `ThreadId`/`IssuingThreadId` (v0/v1) and possible PID-4 attribution;
+  never attribute or filter by it. A path comes only by correlating `FileObject`/`FileKey` with
+  path-bearing events, whose lifetime and reuse are unestablished (legacy FileIo = ANALOGY).
+  No rundown: files open before session start stay `unresolved` — fail-honest, never fabricated.
 - `EVENT_FILTER_TYPE_PID` on this GUID is unproven until reproduced on target hardware; machine-wide
   capture plus user-mode attribution is the required fallback, and event-ID filtering is applied
   after generation — it cuts delivered volume, not provider cost. Mask `0x190` covers 10/12/15 only;
-  13/14 need the FILEIO keyword `0x20`, so `0x1B0` is a CANDIDATE, not a ratified minimum.
+  13/14 need the FILEIO keyword `0x20`; `0x1B0` is a CANDIDATE, and 13/14's necessity is unratified.
 - Independent confirmation: deterministic scenario catalogue + Procmon (file-IRP) + controlled
   4663 with pre-set SACL. **The SUT's own provider is never its own oracle** (common-mode rule) —
   and no per-event oracle for 15 exists: Procmon proves file activity, not that 15 fired, and 4663
