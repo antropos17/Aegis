@@ -1,12 +1,18 @@
 /**
  * @file scripts/verify-witness-gate.mjs
- * @description Injection proof for the generation-witness gate in
- *   src/main/process-utils.js.
+ * @description Injection proof for the generation-witness gate AND for the
+ *   birth-time freshness contract in src/main/process-utils.js.
  *
  *   A green suite proves the suite ran, not that it inspected anything
- *   (memory-bank/ai-mistakes.md #21). This script breaks the gate on purpose — one
- *   mutant at a time, in a throwaway copy — and requires the witness suite to go
- *   RED for every mutant. A mutant that survives is reported and the script exits 1.
+ *   (memory-bank/ai-mistakes.md #21). This script breaks each on purpose — one
+ *   mutant at a time, in a throwaway copy — and requires the suites to go RED for
+ *   every mutant. A mutant that survives is reported and the script exits 1.
+ *
+ *   TWO PROPERTIES, not one. m1–m3 break the WITNESS comparison: whether a cached
+ *   parent chain or cwd may be reused. m4 breaks FRESHNESS: whether the birth time
+ *   `instanceId` is built from came from this pass's process map or from a cache
+ *   entry. They are separable — the witness gate was already load-bearing while the
+ *   freshness link was only asserted by tests — so a mutant exists for each.
  *
  *   Nothing under version control is modified: each mutant is written to
  *   `src/main/.mutants/` (gitignored, removed in a finally), and the suite is
@@ -26,8 +32,35 @@ import { fileURLToPath, pathToFileURL } from 'url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE = path.join(ROOT, 'src', 'main', 'process-utils.js');
 const MUTANT_DIR = path.join(ROOT, 'src', 'main', '.mutants');
-const TEST_FILE = path.join('tests', 'main', 'process-utils-witness.test.js');
+/**
+ * The suites every mutant is run against.
+ *
+ * A suite has KILLING POWER only if it resolves its module through
+ * `AEGIS_PU_UNDER_TEST`. One that hard-imports `src/main/process-utils.js` loads the
+ * REAL module and stays green whatever the mutant did — so listing it here buys a
+ * regression net for the control run and NOT one assertion of gate strength. Both
+ * kinds are run; only the override-aware ones are the gate, they are labelled as
+ * such in the report, and the script refuses to report anything at all if none is
+ * present. A mutant "killed" by a suite that never loaded it is precisely the
+ * green-proves-nothing failure this script exists to prevent
+ * (memory-bank/ai-mistakes.md #21).
+ * @type {string[]}
+ */
+const TEST_FILES = [
+  path.join('tests', 'main', 'process-utils-witness.test.js'),
+  path.join('tests', 'main', 'process-utils.test.js'),
+];
 const VITEST = path.join(ROOT, 'node_modules', 'vitest', 'vitest.mjs');
+
+/**
+ * Whether a suite resolves its module under test through `AEGIS_PU_UNDER_TEST`, and
+ * can therefore ever see a mutant.
+ * @param {string} relPath - repo-relative path to the suite.
+ * @returns {boolean}
+ */
+function honoursOverride(relPath) {
+  return fs.readFileSync(path.join(ROOT, relPath), 'utf8').includes('AEGIS_PU_UNDER_TEST');
+}
 
 /**
  * Each mutant is a named, surgical breakage of one clause of the gate. `find` must
@@ -88,6 +121,41 @@ const MUTANTS = [
       },
     ],
   },
+  {
+    id: 'm4-startTime-served-from-cache',
+    why: 'the stamped birth time comes from a cache entry instead of this pass’s map',
+    // Two edits, because the field this mutant reads no longer exists: PR #236 stopped
+    // writing `startTime` into the entry precisely so that no later pass could read one.
+    // Reinstating BOTH halves is what restores the pre-#236 shape and is the smallest
+    // mutation that makes the identity input cacheable again — a one-sided read would
+    // find `undefined`, fall through to `birthTime`, and "survive" by changing nothing.
+    // `cached` is bound before `proven`, so an entry the witness did NOT prove still
+    // answers: same pid, same executable name, a generation the gate rejected, and the
+    // dead process's birth time is stamped anyway. That is the poisoning bug itself.
+    edits: [
+      {
+        find: `      parentChainCache.set(key, {
+        chain,
+        witness: witness ? witness.value : null,
+        witnessSource: witness ? witness.source : null,
+        timestamp: now,
+      });`,
+        replace: `      parentChainCache.set(key, {
+        chain,
+        startTime: birthTime,
+        witness: witness ? witness.value : null,
+        witnessSource: witness ? witness.source : null,
+        timestamp: now,
+      });`,
+      },
+      {
+        find: '    a.startTime = birthTime;',
+        replace:
+          '    a.startTime = cached && typeof cached.startTime === ' +
+          "'number' ? cached.startTime : birthTime;",
+      },
+    ],
+  },
 ];
 
 /**
@@ -141,7 +209,7 @@ function runSuite(modulePath) {
   const env = { ...process.env };
   if (modulePath) env.AEGIS_PU_UNDER_TEST = pathToFileURL(modulePath).href;
   else delete env.AEGIS_PU_UNDER_TEST;
-  const res = spawnSync(process.execPath, [VITEST, 'run', '--project', 'main', TEST_FILE], {
+  const res = spawnSync(process.execPath, [VITEST, 'run', '--project', 'main', ...TEST_FILES], {
     cwd: ROOT,
     env,
     encoding: 'utf8',
@@ -158,6 +226,19 @@ function runSuite(modulePath) {
 const original = fs.readFileSync(SOURCE, 'utf8').replace(/\r\n/g, '\n');
 const results = [];
 let failed = false;
+
+// Which of the listed suites can actually see a mutant. Checked before anything is
+// run: if none can, every RED below would be somebody else's failure and every green
+// would mean nothing, so there is no result worth printing. Refuse rather than
+// annotate (memory-bank/ai-mistakes.md #25).
+const overrideAware = TEST_FILES.filter(honoursOverride);
+if (overrideAware.length === 0) {
+  console.error(
+    'No suite in TEST_FILES resolves AEGIS_PU_UNDER_TEST, so every mutant would run\n' +
+      'against the real module. There is no gate to report — refusing.',
+  );
+  process.exit(1);
+}
 
 try {
   fs.mkdirSync(MUTANT_DIR, { recursive: true });
@@ -195,6 +276,11 @@ try {
 }
 
 console.log('\nWitness-gate injection proof');
+console.log('  suites run:');
+for (const f of TEST_FILES) {
+  const role = honoursOverride(f) ? 'sees the mutant' : 'real module only — no killing power';
+  console.log(`    ${f} — ${role}`);
+}
 for (const r of results) {
   console.log(`  ${r.got.startsWith('green (SURV') ? '✗' : '✓'} ${r.id}: ${r.got}`);
 }
@@ -202,4 +288,7 @@ if (failed) {
   console.error('\nThe gate is not fully load-bearing — a break in it left the suite green.');
   process.exit(1);
 }
-console.log('\nEvery mutant was killed: the witness gate is load-bearing.');
+console.log(
+  `\nEvery mutant was killed by ${overrideAware.join(', ')}: the witness gate AND the` +
+    '\nbirth-time freshness link are load-bearing.',
+);
