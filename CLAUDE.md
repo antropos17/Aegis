@@ -81,7 +81,7 @@ regenerating a lockfile.
 - src/main/ — 52 CommonJS modules (40 top-level + platform/ 10 + token-adapters/ 2)
 - src/renderer/ — Svelte 5 components + stores + utils + tokens.css/global.css
   (count: `git ls-files 'src/renderer/**/*.svelte' | wc -l`)
-- src/shared/ — agent-database.json (110 agents / 262 signatures), types/ (8 TS files), constants.js (ignore patterns, config paths; SENSITIVE_RULES deprecated)
+- src/shared/ — agent-database.json (110 agents / 262 signatures), types/ (9 TS files), constants.js (ignore patterns, config paths; SENSITIVE_RULES deprecated)
 - rules/ — 73 active detection rules in 8 YAML files, validated by rules/_schema.json
 - memory-bank/ — ai-mistakes.md (READ FIRST), progress.md, architecture.md
 - .claude/skills/ — 11 skills: aegis-context, design-system, electron-main, svelte-patterns, testing, ship, pr-monitor, ci-monitor, prompt-craft, audit-check, commit-and-track

@@ -653,7 +653,9 @@ async function doFileScan() {
       tray.notifySensitive(events.filter((e) => e.sensitive && e.category === 'ai'));
       for (const ev of events) logAuditForFile(ev);
     }
-    deps.statsUpdateBatcher.push(getStats());
+    // Producer, not payload: the batcher is 'latest', so a payload built here would be
+    // discarded by the next push inside the same 1000 ms window.
+    deps.statsUpdateBatcher.pushLazy(getStats);
     tray.updateTrayIcon();
   } catch (err) {
     logger.error('main', 'File handle scan failed', { error: err.message });
@@ -693,7 +695,7 @@ async function doHotReadScan() {
       for (const ev of events) deps.fileAccessBatcher.push(ev);
       tray.notifySensitive(events.filter((e) => e.sensitive && e.category === 'ai'));
       for (const ev of events) logAuditForFile(ev);
-      deps.statsUpdateBatcher.push(getStats());
+      deps.statsUpdateBatcher.pushLazy(getStats);
       tray.updateTrayIcon();
     }
   } catch (err) {
