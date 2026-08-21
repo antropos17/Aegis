@@ -611,6 +611,177 @@ describe('scan-loop', () => {
     });
   });
 
+  // ── identity degradation freezes sessions instead of splitting them ──
+
+  describe('identity degradation during a snapshot outage', () => {
+    /**
+     * The predicate itself, exercised on the REAL process-scanner.
+     *
+     * It lives here rather than in `process-scanner.test.js` because this is the
+     * consumer that acts on it: nothing else in the codebase gates on identity
+     * quality (`getIdentityQuality` is annotation by design), so the contract and
+     * the only thing that reads it are asserted together.
+     */
+    describe('scanner.isIdentityDegraded()', () => {
+      let scanner;
+      let SENSOR_HEALTH_STATE;
+
+      beforeEach(() => {
+        scanner = require_('../../src/main/process-scanner.js');
+        SENSOR_HEALTH_STATE = require_('../../src/main/sensor-health.js').SENSOR_HEALTH_STATE;
+        scanner._resetForTest();
+      });
+
+      afterEach(() => {
+        // Module-level overrides — restore, or a later test inherits this
+        // platform's identity story.
+        scanner._resetForTest();
+      });
+
+      /**
+       * @param {boolean} providesStartTime
+       * @param {string} snapshotState
+       * @returns {boolean}
+       */
+      function degradedWith(providesStartTime, snapshotState) {
+        scanner._setPlatformForTest({
+          providesStartTime,
+          getSnapshotHealth: () => ({ state: snapshotState }),
+        });
+        return scanner.isIdentityDegraded();
+      }
+
+      it('a birth-time platform whose observation FAILED is degraded', () => {
+        expect(degradedWith(true, SENSOR_HEALTH_STATE.FAILED)).toBe(true);
+      });
+
+      it('a birth-time platform that has not observed yet is degraded', () => {
+        expect(degradedWith(true, SENSOR_HEALTH_STATE.STARTING)).toBe(true);
+      });
+
+      it('a healthy observation is not degraded', () => {
+        expect(degradedWith(true, SENSOR_HEALTH_STATE.HEALTHY)).toBe(false);
+      });
+
+      it('the CIM fallback is not degradation — the keys still form the same way', () => {
+        expect(degradedWith(true, SENSOR_HEALTH_STATE.DEGRADED)).toBe(false);
+      });
+
+      it('linux/darwin are NEVER degraded, whatever the snapshot leaf says', () => {
+        // `<pid>:u` is their steady state, not an outage. Reading their permanent
+        // `identityQuality: 'unknown'` as degradation would freeze session tracking
+        // on those platforms forever.
+        expect(degradedWith(false, SENSOR_HEALTH_STATE.FAILED)).toBe(false);
+        expect(degradedWith(false, SENSOR_HEALTH_STATE.STARTING)).toBe(false);
+        expect(degradedWith(false, SENSOR_HEALTH_STATE.HEALTHY)).toBe(false);
+      });
+    });
+
+    /**
+     * Deps for a birth-time platform whose process map can be taken away.
+     *
+     * `enrichWithParentChains` is faithful to `_stampFromFreshBirthTimes`: the birth
+     * time comes from THIS pass's map or is null, and `identify()` does the rest —
+     * so an emptied map produces `<pid>:u` here for the same reason it does in
+     * production. `isIdentityDegraded` answers off the same map, which is the
+     * coupling process-snapshot.js publishes (an empty map is a failed observation).
+     * @param {{map: Map<number, number>}} state - mutable, so a tick can take the
+     *   observation away between two `advanceTimersByTimeAsync` calls.
+     * @returns {Object}
+     */
+    function makeOutageDeps(state) {
+      const { identify } = require_('../../src/main/process-identity.js');
+      return makeDeps({
+        scanner: {
+          scanProcesses: vi.fn().mockImplementation(async () => ({
+            agents: [
+              { agent: 'Claude Code', process: 'claude.exe', pid: 100 },
+              { agent: 'Cursor', process: 'cursor.exe', pid: 200 },
+            ],
+            changed: false,
+            reliable: true,
+          })),
+          isIdentityDegraded: vi.fn(() => state.map.size === 0),
+        },
+        procUtil: {
+          enrichWithParentChains: vi.fn(async (agents) => {
+            for (const a of agents) {
+              a.startTime = state.map.has(a.pid) ? state.map.get(a.pid) : null;
+              const id = identify(a);
+              a.instanceId = id.instanceId;
+              a.instanceIdSource = id.instanceIdSource;
+            }
+          }),
+          annotateHostApps: vi.fn(),
+          annotateWorkingDirs: vi.fn().mockResolvedValue(),
+        },
+      });
+    }
+
+    /** The birth times the two agents keep for their whole life. */
+    const LIVE_MAP = () =>
+      new Map([
+        [100, 1717000000000],
+        [200, 1717000100000],
+      ]);
+
+    /**
+     * @param {Object} deps
+     * @param {string} type
+     * @returns {Array<Object>} the audit payloads of one kind, in order.
+     */
+    function auditOf(deps, type) {
+      return deps.audit.log.mock.calls.filter((c) => c[0] === type).map((c) => c[1]);
+    }
+
+    it('a snapshot outage emits no agent-exit and no duplicate agent-enter', async () => {
+      // session-tracker holds module state that this file's cache clear does not
+      // reach, so this block starts from an empty session set explicitly.
+      require_('../../src/main/session-tracker.js')._resetForTest();
+
+      const state = { map: LIVE_MAP() };
+      const deps = makeOutageDeps(state);
+      scanLoop.init(deps);
+      scanLoop.stopScanIntervals();
+      scanLoop.startScanIntervals(5000);
+
+      await vi.advanceTimersByTimeAsync(5000); // tick 1 — both agents enter
+      state.map = new Map(); // the provider falls over
+      await vi.advanceTimersByTimeAsync(5000); // tick 2 — keys would flip to :u
+      await vi.advanceTimersByTimeAsync(5000); // tick 3 — grace 2 would fire here
+      state.map = LIVE_MAP(); // the provider comes back
+      await vi.advanceTimersByTimeAsync(5000); // tick 4 — mirror pair would fire here
+
+      const entered = auditOf(deps, 'agent-enter');
+      expect(auditOf(deps, 'agent-exit')).toHaveLength(0);
+      expect(entered).toHaveLength(2);
+      expect(entered.map((e) => e.instanceId).sort()).toEqual([
+        '100:1717000000000',
+        '200:1717000100000',
+      ]);
+    });
+
+    it('the scan-batch still carries the honest degraded key while frozen', async () => {
+      // Freezing is about SESSION state. The batch is an observation and must keep
+      // reporting what was actually observed — `<pid>:u`, not a remembered key.
+      require_('../../src/main/session-tracker.js')._resetForTest();
+
+      const state = { map: LIVE_MAP() };
+      const deps = makeOutageDeps(state);
+      scanLoop.init(deps);
+      scanLoop.stopScanIntervals();
+      scanLoop.startScanIntervals(5000);
+
+      await vi.advanceTimersByTimeAsync(5000);
+      state.map = new Map();
+      await vi.advanceTimersByTimeAsync(5000);
+
+      const batches = deps.sendToRenderer.mock.calls.filter((c) => c[0] === 'scan-batch');
+      expect(batches).toHaveLength(2);
+      expect(batches[1][1].agents.map((a) => a.instanceId)).toEqual(['100:u', '200:u']);
+    });
+  });
+
   // ── attachModels order + instanceId stamp (local LLM runtimes) ──
 
   describe('attachModels before scan-batch', () => {
