@@ -67,26 +67,27 @@ function isProcessPopulationReliable() {
 }
 
 /**
- * Read the `proc-snapshot` leaf's state without going through the platform façade.
+ * Read the `proc-snapshot` leaf's state through the platform façade.
  *
- * `platform/win32.js` requires `process-snapshot.js` but does not re-export
- * `getSnapshotHealth` — that re-export is gap F in the app-state design and is not
- * part of this pass. The façade is tried FIRST so this fallback deletes itself the
- * day F lands, and the submodule is required lazily so a POSIX host never loads the
- * sidecar client for a question it has already answered via `providesStartTime`.
- * @returns {string|null} The leaf state, or null when it cannot be read at all.
+ * Gap F is closed: `platform/win32.js` now re-exports `getSnapshotHealth`, so the
+ * façade is the ONLY path and the former lazy `require('./platform/process-snapshot')`
+ * fallback is gone. That fallback reached around the abstraction to read a leaf the
+ * façade would not name; with the export in place, keeping it would leave a second
+ * path that can disagree with the first.
+ *
+ * `null` is returned where no façade publishes the leaf — linux and darwin, which own
+ * no snapshot. That branch answers nothing in practice: both set
+ * `providesStartTime: false`, and {@link getIdentityQuality} returns on that flag
+ * before it ever reaches here. It is the honest value for "this platform carries no
+ * witness", not a fallback.
+ * @returns {string|null} The leaf state, or null when no façade publishes one.
  */
 function readSnapshotState() {
   if (_getSnapshotHealth) return _getSnapshotHealth().state;
   if (typeof _platform.getSnapshotHealth === 'function') {
     return _platform.getSnapshotHealth().state;
   }
-  try {
-    return require('./platform/process-snapshot').getSnapshotHealth().state;
-  } catch (_) {
-    // No snapshot module on this host — identity carries no witness.
-    return null;
-  }
+  return null;
 }
 
 /**

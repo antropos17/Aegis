@@ -525,4 +525,44 @@ describe('platform/win32', () => {
       expect(Array.isArray(win32.IGNORE_FILE_PATTERNS)).toBe(true);
     });
   });
+
+  // Gap F: the façade publishes the `proc-snapshot` leaf, so process-scanner no
+  // longer reaches around it with a lazy require. Everything here is asserted through
+  // win32's OWN surface — the submodule is deliberately not imported. This file
+  // overrides `Module._load`, and `vi.resetModules()` does not clear the transitive
+  // CJS cache behind it, so an ESM `import` of process-snapshot.js would hand back a
+  // DIFFERENT instance than the one win32 requires (the same CJS-vs-ESM split
+  // platform/index.test.js documents) and the comparison would prove nothing.
+  describe('getSnapshotHealth (gap F)', () => {
+    it('the façade publishes the proc-snapshot leaf', () => {
+      expect(typeof win32.getSnapshotHealth).toBe('function');
+    });
+
+    it('returns a real SensorHealth record, not a stub', () => {
+      const rec = win32.getSnapshotHealth();
+      expect(rec.sensorId).toBe('proc-snapshot');
+      expect(['STARTING', 'HEALTHY', 'DEGRADED', 'FAILED', 'DISABLED', 'UNSUPPORTED']).toContain(
+        rec.state,
+      );
+      expect(typeof rec.lossCount).toBe('number');
+      expect(rec).toHaveProperty('lastSuccessAt');
+    });
+
+    it('reports the live leaf, not a value captured when the façade was built', async () => {
+      // A plain function reference reads the submodule's live binding, so each call
+      // returns a fresh plain record that reflects the most recent pass. Replacing the
+      // export with a value taken at export time reds both assertions below.
+      const before = win32.getSnapshotHealth();
+      expect(win32.getSnapshotHealth()).not.toBe(before);
+
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        cb(new Error('provider down'));
+      });
+      await win32.getParentProcessMap();
+
+      const after = win32.getSnapshotHealth();
+      expect(typeof after.lastAttemptAt).toBe('number');
+      expect(after.state).not.toBe('STARTING');
+    });
+  });
 });
