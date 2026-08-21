@@ -55,9 +55,18 @@ const PROJ = path.join(BASE, 'proj');
 function scriptedProviders() {
   return {
     getFileHandles: async (pid) => (pid === 4812 ? [path.join(PROJ, 'secrets', 'id_rsa')] : []),
-    getHotSensitiveHolders: async () => [
-      { pid: 4812, group: path.join(PROJ, 'creds'), reason: 'scripted-credential-store' },
-    ],
+    // Shaped like the platform: the hot Restart Manager source exists on win32 and
+    // NOWHERE else, and `file-watcher.js` holds the RM sensor at UNSUPPORTED on the
+    // other platforms — `scanViaRestartManager` cannot tick it there, by design
+    // (sensor-health refuses FAILED/HEALTHY from UNSUPPORTED). A POSIX session that
+    // scripted one anyway would be recording an observation its platform never
+    // makes, and the product rightly throws it out.
+    getHotSensitiveHolders:
+      process.platform === 'win32'
+        ? async () => [
+            { pid: 4812, group: path.join(PROJ, 'creds'), reason: 'scripted-credential-store' },
+          ]
+        : undefined,
     getRawTcpConnections: async () => [
       { pid: 4812, ip: '203.0.113.10', port: 443, state: 'Established' },
     ],
@@ -102,7 +111,8 @@ async function runSession(driver, epochMs) {
   // Past the scan loop's 30 s dedup window, exactly as a real cadence would be.
   driver.advanceClock(epochMs + 31_000);
   await driver.handlesTick();
-  await driver.rmHotTick();
+  // Only where the platform's own hot source exists — see scriptedProviders.
+  if (process.platform === 'win32') await driver.rmHotTick();
   driver.advanceClock(epochMs + 31_010);
   await driver.netTick();
   return driver.finish();

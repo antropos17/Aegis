@@ -949,6 +949,13 @@ trace the reader refuses, and must not quietly drop what it could not record. Th
 inert the only way it can be: the same scripted session, with the tap and without, must write
 byte-identical audit logs (`tests/shared/bench-trace/recorder-roundtrip.test.js`).
 
+A recording can only observe what its platform can produce. The hot Restart Manager source
+exists on win32 and nowhere else, and `file-watcher.js` holds the RM sensor at UNSUPPORTED on
+the other platforms — `scanViaRestartManager` refuses to tick it there (sensor-health allows
+neither HEALTHY nor FAILED from UNSUPPORTED), so an `rm.hot.tick` can be recorded on win32 only.
+That is the product's own rule, not the recorder's: a POSIX session scripting hot holders anyway
+would be recording an observation its platform never makes.
+
 One consequence of neutralization is worth stating: a trace may be committed, so the writer
 rewrites the clone root and the OS account name in every record. A recording whose observed paths
 live under either of those therefore replays to a verdict naming the RECORDED tree, which is

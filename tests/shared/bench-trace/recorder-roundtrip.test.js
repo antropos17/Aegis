@@ -79,19 +79,22 @@ describe('recording — what the run leaves behind', () => {
       .split('\n')
       .filter((l) => l.trim().length > 0);
     // The session's own shape: population, two fs events, a clock advance, a handles
-    // tick, an rm tick, a second advance, a net tick.
-    expect(lines.length).toBe(8);
+    // tick, an rm tick (win32 only — the hot Restart Manager source exists nowhere
+    // else, and the product refuses to tick an UNSUPPORTED sensor), a second
+    // advance, a net tick.
     const kinds = lines.map((l) => JSON.parse(l).kind);
-    expect(kinds).toEqual([
-      'population.set',
-      'fs.event',
-      'fs.event',
-      'clock.advance',
-      'handles.tick',
-      'rm.hot.tick',
-      'clock.advance',
-      'net.tick',
-    ]);
+    expect(kinds).toEqual(
+      [
+        'population.set',
+        'fs.event',
+        'fs.event',
+        'clock.advance',
+        'handles.tick',
+        process.platform === 'win32' ? 'rm.hot.tick' : null,
+        'clock.advance',
+        'net.tick',
+      ].filter(Boolean),
+    );
   });
 
   it('writes the product’s own audit records — the recording’s verdict', () => {
@@ -116,7 +119,7 @@ describe('recording — the derived trace', () => {
     expect(trace.header.id).toBe('T1-recorded-session');
     expect(trace.header.clock.epochMs).toBe(EPOCH_MS);
     expect(trace.header.provenance.source).toBe('bench/trace/recorder.js');
-    expect(trace.records.length).toBe(8);
+    expect(trace.records.length).toBe(process.platform === 'win32' ? 8 : 7);
   });
 
   it('derives offline from the raw file, refusing a second write of the same trace', () => {
