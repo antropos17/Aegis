@@ -131,15 +131,16 @@ providesStartTime=true on win32, false on linux/darwin.
   `EventHeader.ProcessId`, `ThreadId`/`IssuingThreadId` (v0/v1) and possible PID-4 attribution;
   never attribute or filter by it. A path comes only by correlating `FileObject`/`FileKey` with
   path-bearing events, whose lifetime and reuse are unestablished (legacy FileIo = ANALOGY).
-  No rundown: files open before session start stay `unresolved` — fail-honest, never fabricated.
+  No rundown: reads on files open before session start stay `unresolved` unless a later
+  path-bearing event rebuilds the mapping — fail-honest, never fabricated.
 - `EVENT_FILTER_TYPE_PID` on this GUID is unproven until reproduced on target hardware; machine-wide
-  capture plus user-mode attribution is the required fallback, and event-ID filtering is applied
-  after generation — it cuts delivered volume, not provider cost. Mask `0x190` covers 10/12/15 only;
-  13/14 need the FILEIO keyword `0x20`; `0x1B0` is a CANDIDATE, and 13/14's necessity is unratified.
-- Independent confirmation: deterministic scenario catalogue + Procmon (file-IRP) + controlled
-  4663 with pre-set SACL. **The SUT's own provider is never its own oracle** (common-mode rule) —
-  and no per-event oracle for 15 exists: Procmon proves file activity, not that 15 fired, and 4663
-  is not a per-Read oracle. Sysmon has NO file-read event; EID 11 = create/overwrite only.
+  capture plus user-mode attribution is the required fallback; event-ID filtering runs after
+  generation and may cut delivered volume, never provider cost. `0x190` is spec-consistent with
+  10/12/15; 13/14 need FILEIO keyword `0x20`; `0x1B0` is a CANDIDATE, 13/14's necessity unratified.
+- Independent confirmation: deterministic scenario catalogue + Procmon (file-IRP) + controlled 4663
+  with pre-set SACL. **The SUT's own provider is never its own oracle** (common-mode rule): no clean
+  independent per-event oracle for 15 was established — Procmon observes file activity, not that 15
+  fired; 4663 is no per-Read oracle. Sysmon has NO file-read event; EID 11 = create/overwrite only.
 - Bounded queue / backpressure / loss counters land in THIS block, before production ingestion.
   Policies: security events never dropped (spill to disk) · benign self-churn coalesced with
   automatic break on .ssh/.env/exe-write/unknown network · metrics latest-only. `EventsLost` /
