@@ -33,7 +33,8 @@
   },
   "lint-staged": {
     "src/**/*.{js,ts,svelte,css,html}": "prettier --write",
-    "*.{js,ts,json}": "prettier --write"
+    "bench/**/*.{js,json}": "prettier --write",
+    "./*.{js,ts,json}": "prettier --write"
   },
   "build": {
     "appId": "com.aegis.oversight",
