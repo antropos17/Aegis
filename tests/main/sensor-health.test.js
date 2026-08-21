@@ -17,6 +17,12 @@ import {
   aggregateSensorHealth,
   toPlain,
 } from '../../src/main/sensor-health.js';
+import {
+  APP_HEALTH_STATE,
+  PROJECTED_SENSOR_ID,
+  projectEffectiveRecords,
+  deriveAppHealth,
+} from '../../src/main/app-health.js';
 
 const T0 = 1_700_000_000_000;
 
@@ -285,6 +291,144 @@ describe('sensor-health (B1)', () => {
       ]);
       expect(agg.state).toBe(SENSOR_HEALTH_STATE.FAILED);
       expect(agg.failedSensorIds).toEqual(['bad']);
+    });
+  });
+
+  describe('lossCount validation', () => {
+    /**
+     * A record that is well-formed in every field except `lossCount`, which is
+     * replaced by the foreign value under test. Built from the factory so nothing
+     * else about the shape can be blamed for the rejection.
+     * @param {unknown} lossCount
+     * @returns {object}
+     */
+    function foreign(lossCount) {
+      return { ...createSensorHealth('proc-snapshot'), lossCount };
+    }
+
+    /**
+     * Every public entry point that takes a record funnels through the same
+     * assertion, so the rejection is a property of the boundary rather than of one
+     * function. With a valid `lossCount` each of these calls succeeds.
+     * @param {object} rec
+     * @returns {Array<() => unknown>}
+     */
+    function entryPoints(rec) {
+      return [
+        () => markHealthy(rec, T0),
+        () => markDegraded(rec, T0),
+        () => markFailed(rec, T0, { error: 'x' }),
+        () => markDisabled(rec, T0),
+        () => markUnsupported(rec, T0),
+        () => addLoss(rec, 1, T0),
+        () => aggregateSensorHealth([rec]),
+        () => toPlain(rec),
+      ];
+    }
+
+    const INVALID = [
+      {
+        label: 'absent',
+        build: () => {
+          const r = createSensorHealth('proc-snapshot');
+          delete r.lossCount;
+          return r;
+        },
+        shown: 'undefined undefined',
+      },
+      { label: 'undefined', build: () => foreign(undefined), shown: 'undefined undefined' },
+      { label: 'null', build: () => foreign(null), shown: 'object null' },
+      { label: '-1', build: () => foreign(-1), shown: 'number -1' },
+      { label: '1.5', build: () => foreign(1.5), shown: 'number 1.5' },
+      { label: "the string '0'", build: () => foreign('0'), shown: 'string "0"' },
+    ];
+
+    for (const { label, build, shown } of INVALID) {
+      it(`rejects lossCount ${label} at every entry point, naming the sensor and the value`, () => {
+        for (const call of entryPoints(build())) {
+          expect(call).toThrow('sensor-health: lossCount must be a non-negative integer');
+          expect(call).toThrow('proc-snapshot');
+          expect(call).toThrow(shown);
+        }
+      });
+    }
+
+    it('accepts lossCount 0 — an observed-clean lifetime', () => {
+      const rec = foreign(0);
+      expect(markHealthy(rec, T0).state).toBe(SENSOR_HEALTH_STATE.HEALTHY);
+      expect(aggregateSensorHealth([rec]).participatingCount).toBe(1);
+      expect(toPlain(rec).lossCount).toBe(0);
+    });
+
+    it('accepts lossCount 3 — residual loss is a valid record, not a malformed one', () => {
+      const rec = foreign(3);
+      const healthy = markHealthy(rec, T0);
+      expect(healthy.state).toBe(SENSOR_HEALTH_STATE.DEGRADED);
+      expect(healthy.lossCount).toBe(3);
+      expect(aggregateSensorHealth([rec]).participatingCount).toBe(1);
+    });
+  });
+
+  /**
+   * The consumer that made the gap observable (post-merge audit D-3). It lives here
+   * because the assertion being pinned is sensor-health's: app-health's projection
+   * gate is correct once the input is validated, and app-health.js is untouched.
+   */
+  describe('lossCount at the app-health boundary (D-3)', () => {
+    /** The accepted CIM fallback: the one shape the projection may rewrite. */
+    function fallbackInput(snapshotRecord) {
+      return {
+        bootPhase: true,
+        capabilities: {
+          populationState: SENSOR_HEALTH_STATE.HEALTHY,
+          populationReliable: true,
+          populationAsOf: T0,
+          identityQuality: 'birth-time',
+        },
+        identityDegraded: false,
+        records: [markHealthy(createSensorHealth('process'), T0), snapshotRecord],
+        watchPlan: {
+          state: SENSOR_HEALTH_STATE.HEALTHY,
+          liveWatcherCount: 4,
+          unavailableGroups: [],
+        },
+      };
+    }
+
+    /** DEGRADED `proc-snapshot`, `lossCount` replaced by the foreign value. */
+    function snapshot(lossCount) {
+      const rec = markDegraded(createSensorHealth(PROJECTED_SENSOR_ID), T0, {
+        detail: 'cim-fallback',
+      });
+      return { ...rec, lossCount };
+    }
+
+    it('rejects the foreign record at the assertion, before any projection logic runs', () => {
+      // `sensor-health:`, not `app-health:` — the throw comes from assertRecord inside
+      // `aggregateSensorHealth(records)`, which deriveAppHealth calls before it projects.
+      expect(() => deriveAppHealth(fallbackInput(snapshot(undefined)))).toThrow(
+        'sensor-health: lossCount must be a non-negative integer',
+      );
+      expect(() => deriveAppHealth(fallbackInput(snapshot(undefined)))).toThrow(
+        PROJECTED_SENSOR_ID,
+      );
+    });
+
+    it('the projection gate itself stays silent — the assertion is the only thing stopping D-3', () => {
+      const input = fallbackInput(snapshot(undefined));
+      const { records, projections } = projectEffectiveRecords(
+        input.records,
+        input.capabilities,
+        false,
+      );
+      expect(projections).toEqual([]);
+      expect(records[1].state).toBe(SENSOR_HEALTH_STATE.DEGRADED);
+    });
+
+    it('the same record with lossCount 0 is projected — only lossCount differs', () => {
+      const out = deriveAppHealth(fallbackInput(snapshot(0)));
+      expect(out.projections).toHaveLength(1);
+      expect(out.state).toBe(APP_HEALTH_STATE.HEALTHY);
     });
   });
 });

@@ -80,6 +80,25 @@ function assertNow(now) {
 }
 
 /**
+ * Render a rejected value for a thrown message. The `typeof` prefix is what keeps the
+ * string `'0'` distinguishable from the number `0`; plain interpolation renders both
+ * as `0` and would name the wrong defect.
+ * @param {unknown} v
+ * @returns {string}
+ */
+function describeValue(v) {
+  return typeof v === 'string' ? `string ${JSON.stringify(v)}` : `${typeof v} ${String(v)}`;
+}
+
+/**
+ * Structural gate for every record entering this module.
+ *
+ * `lossCount` is asserted HERE and not left to the consumer. `app-health`'s projection
+ * gate reads `rec.lossCount !== 0` and its `residual-loss` reason reads `lossCount > 0`
+ * — for `undefined` the first is true and the second is false, so a foreign record
+ * blocks the projection AND reports no loss: a conservative wrong answer that nothing
+ * says out loud (audit finding D-3). The gate is right once its input is a record; a
+ * value that is not one is this boundary's business.
  * @param {unknown} rec
  * @returns {SensorHealth}
  */
@@ -91,6 +110,13 @@ function assertRecord(rec) {
   assertSensorId(r.sensorId);
   if (!Object.values(SENSOR_HEALTH_STATE).includes(r.state)) {
     throw new Error(`sensor-health: invalid state "${r.state}"`);
+  }
+  // `Number.isInteger` is false for a missing field, a non-number, NaN and Infinity
+  // alike, so only the sign needs a second clause.
+  if (!Number.isInteger(r.lossCount) || r.lossCount < 0) {
+    throw new Error(
+      `sensor-health: lossCount must be a non-negative integer (sensor "${r.sensorId}", got ${describeValue(r.lossCount)})`,
+    );
   }
   return r;
 }
