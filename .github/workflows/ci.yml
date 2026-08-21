@@ -60,6 +60,16 @@ jobs:
       # suite ran (memory-bank/ai-mistakes.md #21).
       - name: Verify the generation-witness gate is load-bearing
         run: npm run verify:gate
+      # Derives the repo's countable facts from the tree and names every tracked file
+      # that declares a different number (memory-bank/ai-mistakes.md #24: nothing goes
+      # red when a hand-maintained count stops being true). REPORT-ONLY for now: the
+      # declarations it was written to catch are stale TODAY, and `test` is one of the
+      # five required contexts, so a failing step here would block every merge —
+      # including the docs sweep that clears the drift. Drop continue-on-error in the
+      # PR that lands that sweep; the full diff is in this step's log meanwhile.
+      - name: Check derived counts against declared ones
+        run: npm run counts:check
+        continue-on-error: true
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
