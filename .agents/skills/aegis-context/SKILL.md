@@ -22,8 +22,8 @@ Read package.json for exact versions. NEVER hardcode.
 Electron 33, Svelte 5, Vite 7, chokidar. TypeScript: `allowJs: true`, **`checkJs: false`** — `src/main/*.js` bodies are NOT type-checked, their JSDoc is documentation. Two projects (`tsconfig.main.json` CommonJS / `tsconfig.renderer.json` ESM) share `tsconfig.base.json`; root `tsconfig.json` is a solution file, so gate with `npm run typecheck`, never a bare `npx tsc --noEmit`.
 
 ## Architecture
-- Main process (Node.js): src/main/ — 46 CJS modules (37 top-level + 7 platform/ + 2 token-adapters/)
-- Renderer (Svelte 5): src/renderer/ — 46 components + 11 stores + 16 utils via IPC bridge
+- Main process (Node.js): src/main/ — 51 CJS modules (39 top-level + 10 platform/ + 2 token-adapters/)
+- Renderer (Svelte 5): src/renderer/ — 47 components + 13 stores + 21 utils via IPC bridge
 - Bridge: src/main/preload.js — contextBridge, 40 invoke + 9 push = 49 channels
 - Data: src/shared/agent-database.json (110 agents / 262 name signatures)
 - Rules: rules/*.yaml — 73 active rules across 8 categories, validated against rules/_schema.json
