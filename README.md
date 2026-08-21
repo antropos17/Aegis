@@ -153,7 +153,7 @@ Use it to evaluate AEGIS before deploying, demo the UI to your team, or develop 
 
 ## Screenshots
 
-> Captured at v0.10.0-alpha. Some labels have since been renamed ("System Uptime" → "Monitoring Duration", "Sensitive Files" → "Sensitive Alerts") — the renames are documented in the [correctness audit](docs/current-state/CORRECTNESS-AUDIT.md).
+> Captured from the demo build (`npm run build:demo`), 2026-08-21.
 
 <details><summary>📸 Shield — Real-time Overview</summary>
 <img src="docs/screenshots/01-shield.png" alt="Shield tab" width="800" />
