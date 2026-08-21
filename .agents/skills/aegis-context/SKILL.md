@@ -51,7 +51,7 @@ Electron 33, Svelte 5, Vite 7, chokidar. TypeScript: `allowJs: true`, **`checkJs
 - Context7: fresh docs for any library (append "use context7")
 - Svelte MCP: list-sections, get-documentation, svelte-autofixer
 
-## Skills (.Codex/skills/)
+## Skills (.agents/skills/)
 - aegis-context — project overview, auto-invoked on any task
 - design-system — Fancy UI tokens, typography, glassmorphism, animation rules
 - electron-main — CJS modules, platform abstraction, IPC, file watchers
