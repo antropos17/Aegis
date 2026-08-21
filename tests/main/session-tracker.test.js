@@ -112,6 +112,69 @@ describe('session-tracker', () => {
     });
   });
 
+  describe('reconcile — identity degradation (the SPLIT direction)', () => {
+    /** The same live process, keyed before and during a birth-time outage. */
+    const CLAUDE_OS = {
+      pid: 100,
+      agent: 'Claude Code',
+      process: 'claude',
+      instanceId: '100:1717000000000',
+    };
+    const CLAUDE_U = { pid: 100, agent: 'Claude Code', process: 'claude', instanceId: '100:u' };
+
+    it('a degraded scan neither ends the old session nor starts one under the new key', () => {
+      // The process never left. The snapshot provider did, so its key changed —
+      // which reconcile would otherwise read as "one agent exited, another arrived".
+      const entered = [];
+      const exited = [];
+      const tick = (agents, opts) => {
+        const res = tracker.reconcile(agents, { grace: 2, ...opts });
+        entered.push(...res.entered);
+        exited.push(...res.exited);
+      };
+
+      tick([CLAUDE_OS], { now: 0 });
+      expect(entered).toHaveLength(1);
+
+      // Three degraded ticks — one more than grace, so an aged-out session would
+      // have been reported by the third.
+      tick([CLAUDE_U], { now: 10000, identityDegraded: true });
+      tick([CLAUDE_U], { now: 20000, identityDegraded: true });
+      tick([CLAUDE_U], { now: 30000, identityDegraded: true });
+
+      // Recovery: the key is the one it always was, and the session it belongs to
+      // was still there to match it.
+      tick([CLAUDE_OS], { now: 40000 });
+
+      expect(entered).toHaveLength(1);
+      expect(entered[0].instanceId).toBe('100:1717000000000');
+      expect(exited).toHaveLength(0);
+      expect(tracker.activeCount()).toBe(1);
+    });
+
+    it('a degraded scan is not counted as a miss', () => {
+      tracker.reconcile([CLAUDE_OS], { now: 0, grace: 2 });
+      tracker.reconcile([], { now: 10000, identityDegraded: true, grace: 2 });
+      tracker.reconcile([], { now: 20000, identityDegraded: true, grace: 2 });
+      const res = tracker.reconcile([], { now: 30000, identityDegraded: true, grace: 2 });
+      expect(res.exited).toHaveLength(0);
+      expect(tracker.activeCount()).toBe(1);
+    });
+
+    it('the flag is opt-in: an absent identityDegraded reconciles exactly as before', () => {
+      // linux/darwin never set it — `<pid>:u` is their steady state, not an
+      // outage, and every enter/exit must still be reported there.
+      const { allEntered, allExited } = runScans(
+        [{ agents: [CURSOR] }, { agents: [] }, { agents: [] }],
+        0,
+        2,
+      );
+      expect(allEntered).toHaveLength(1);
+      expect(allExited).toHaveLength(1);
+      expect(tracker.activeCount()).toBe(0);
+    });
+  });
+
   describe('reconcile — PID reuse', () => {
     it('a recycled PID belonging to a different agent starts a new session', () => {
       // pid 100 is Cursor, then after Cursor exits the OS reuses 100 for Copilot.

@@ -113,6 +113,38 @@ function getIdentityQuality() {
 }
 
 /**
+ * Whether the identity keys this tick can form are degraded RELATIVE TO WHAT THIS
+ * PLATFORM PROVIDES.
+ *
+ * Deliberately not a bare `getIdentityQuality() === 'unknown'`. That value is
+ * `unknown` PERMANENTLY on linux and darwin — neither adapter publishes a birth time
+ * at all — so acting on it there would freeze session tracking forever on platforms
+ * where `<pid>:u` is the normal, documented steady state (process-identity.js space
+ * 3), not a fault. Degradation is a RELATIVE notion: it exists only where the
+ * platform declares a birth time and the observation that carries it failed.
+ *
+ * On such a platform `unknown` means the provider fell over between one tick and the
+ * next, so every live agent's key silently changes from `<pid>:<birthMs>` to
+ * `<pid>:u`. That is a SPLIT, not an exit — the failure process-identity.js's header
+ * names as the opposite of a merge — and it forks the session, the dedup set, the
+ * baselines and the token ledger along with the key.
+ *
+ * `birth-time` (the CIM fallback) is NOT degradation here: the keys still form in
+ * the same space with the same values, so nothing splits. Only a total loss of the
+ * observation counts.
+ *
+ * SCOPE OF THE GATE: unlike `identityQuality`, which is annotation and gates nothing
+ * (design §3), this IS acted on — by session reconciliation alone, and only to
+ * FREEZE state. It never suppresses an observation and never fabricates one: the
+ * scan batch keeps carrying the honest `<pid>:u` it observed.
+ * @returns {boolean}
+ * @since 0.12.0
+ */
+function isIdentityDegraded() {
+  return _providesStartTime === true && getIdentityQuality() === 'unknown';
+}
+
+/**
  * @typedef {Object} ProcessCapabilities
  * @property {'STARTING'|'HEALTHY'|'DEGRADED'|'FAILED'} populationState - the `process`
  *   LEAF's state, never a plane roll-up
@@ -310,6 +342,10 @@ module.exports = {
   getProcessSensorHealth,
   isProcessPopulationReliable,
   getProcessCapabilities,
+  // Published as its own function rather than as a fifth ProcessCapabilities field:
+  // that struct is the POPULATION contract every agent-scoped sensor gates on, and
+  // this answers a different question for exactly one consumer.
+  isIdentityDegraded,
   noteProcessScanHardFailure,
   PROCESS_SENSOR_ID,
   _setPlatformForTest,

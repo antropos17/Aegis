@@ -169,6 +169,25 @@ function isPopulationReliable(scanner) {
   return true;
 }
 
+/**
+ * Whether this tick's identity keys are degraded relative to what the platform can
+ * observe — a birth-time platform whose process-table observation produced nothing.
+ * See process-scanner.js `isIdentityDegraded` for why that is not the same question
+ * as `identityQuality === 'unknown'`.
+ *
+ * A scanner that does not publish the question is NOT degraded, and that default is
+ * the opposite of a guess: this flag freezes every session on the machine, so a
+ * collaborator stub that cannot answer must never be able to trigger it. The
+ * population gate above defaults the same way and for the same reason.
+ * @param {Object|undefined} scanner
+ * @returns {boolean}
+ * @since 0.12.0
+ */
+function isIdentityDegraded(scanner) {
+  if (!scanner || typeof scanner.isIdentityDegraded !== 'function') return false;
+  return scanner.isIdentityDegraded() === true;
+}
+
 function doNetworkScan() {
   const { network, baselines, audit, logger, getLatestAgents, sendToRenderer, scanner } = deps;
   const agents = getLatestAgents();
@@ -356,11 +375,29 @@ async function doProcessScan() {
     // new to the scan from being identified out of a stale cache entry. No new
     // spawn: on win32 this is the same `cim-parent` fetch the tick already pays.
     await procUtil.enrichWithParentChains(agents, { forceRefresh: result.changed === true });
+    // Read AFTER the identity stamp, never before. The snapshot leaf's health
+    // describes the process-table observation `enrichWithParentChains` just made;
+    // read at the top of the tick it would report the PREVIOUS pass's provider, and
+    // on the first tick a leaf that had never been written at all.
+    const identityDegraded = isIdentityDegraded(scanner);
+    if (identityDegraded) {
+      // A frozen reconcile emits nothing by design, so without this line an outage
+      // is indistinguishable from a quiet machine in the log.
+      logger.debug('scan', 'session-freeze', {
+        reason: 'identity-degraded',
+        agents: agents.length,
+      });
+    }
     // Eager-enter / lazy-exit session reconciliation: an agent seen in even ONE
     // scan logs session-start immediately, and a flickering or permission-denied
-    // scan never spawns a duplicate session. See session-tracker.js.
+    // scan never spawns a duplicate session. `identityDegraded` freezes the same way
+    // an unreliable scan does: when the birth-time observation is gone, every live
+    // agent's key changes without any process having started or stopped, and acting
+    // on that would report a fleet-wide exit that never happened. See
+    // session-tracker.js.
     const { entered, exited } = sessionTracker.reconcile(agents, {
       reliable: result.reliable !== false,
+      identityDegraded,
     });
     for (const s of entered)
       audit.log('agent-enter', {

@@ -12,6 +12,12 @@
  *     consecutive RELIABLE misses, so a one-tick disappearance (flicker, late
  *     `tasklist`, or a permission-denied scan) does NOT end it and reappearance
  *     does NOT create a duplicate session.
+ *   - A scan that observed nothing usable is FROZEN: it starts, ends and ages
+ *     nothing. Two things can be missing — the population (`reliable: false`, a
+ *     permission-denied enumeration) or the identity (`identityDegraded: true`, a
+ *     birth-time platform whose observation failed, so every key collapsed to
+ *     `<pid>:u`). Both are absences of evidence, and an absence of evidence must not
+ *     be written into the audit log as a fleet-wide exit.
  *
  *   Identity is `instanceId + process name`, where `instanceId` binds the pid to
  *   the OS process-creation time (process-identity.js). The snapshot scanner
@@ -95,6 +101,29 @@ function sessionKey(agent) {
  *   enumerate processes (e.g. permission-denied → empty list). An unreliable
  *   scan tells us nothing about who left, so it neither starts, ends, nor ages
  *   any session and returns no events.
+ * @param {boolean} [opts.identityDegraded=false] - true when the platform declares
+ *   an OS birth time but this tick's observation of it failed, so every live agent's
+ *   `instanceId` collapsed from `<pid>:<birthMs>` to `<pid>:u`
+ *   (process-scanner.js `isIdentityDegraded`). Handled EXACTLY like an unreliable
+ *   scan, and for the same reason: the keys moved, the processes did not.
+ *
+ *   GUARANTEE: across a degraded stretch and its recovery, no session is started,
+ *   ended or aged, so a provider outage produces no `agent-enter` and no
+ *   `agent-exit` — and every session resumes under the key it already had, because
+ *   that key was never replaced.
+ *
+ *   WHAT STAYS OPEN, and it is not small: while frozen, a REAL start or stop is
+ *   invisible too. An agent that exits during the outage is reported only once the
+ *   observation returns and it is missed for `grace` more reliable ticks; one that
+ *   starts during it enters late. That is the same trade the `reliable` flag already
+ *   makes for a permission-denied scan — a late true event over a fleet of false
+ *   ones — and it is bounded by the outage. It is NOT free: an outage that starts
+ *   before the first tick means nothing is tracked at all, where the pre-flag
+ *   behaviour would have tracked everything under `<pid>:u` keys.
+ *
+ *   Absent or false, reconcile behaves exactly as it always did — which is what
+ *   keeps linux and darwin untouched, where `<pid>:u` is the steady state and no
+ *   caller ever sets this.
  * @param {number} [opts.now] - injectable timestamp (ms) for tests.
  * @param {number} [opts.grace=DEFAULT_EXIT_GRACE] - consecutive reliable misses
  *   before a session is reported as exited.
@@ -104,13 +133,20 @@ function sessionKey(agent) {
  */
 function reconcile(agents, opts = {}) {
   const reliable = opts.reliable !== false;
+  const identityDegraded = opts.identityDegraded === true;
   const now = opts.now != null ? opts.now : Date.now();
   const grace = opts.grace != null ? opts.grace : DEFAULT_EXIT_GRACE;
 
-  // Unreliable scan: do not start, end, or age sessions. This is what kills the
-  // EPERM false-positive storm — a transient access-denied no longer ages out
-  // every live session into a spurious exit + re-enter pair.
-  if (!reliable) return { entered: [], exited: [] };
+  // Nothing observable happened: do not start, end, or age sessions.
+  //
+  // Two causes, one response, because the two are the same mistake seen from
+  // opposite sides. An unreliable scan lost the POPULATION — this is what kills the
+  // EPERM false-positive storm, where a transient access-denied aged out every live
+  // session into a spurious exit + re-enter pair. A degraded identity lost the KEY:
+  // the same processes come back under `<pid>:u`, which reads as the whole fleet
+  // exiting and an identically-named fleet arriving. Neither says anything about
+  // who left, so neither may be answered with an event.
+  if (!reliable || identityDegraded) return { entered: [], exited: [] };
 
   const entered = [];
   const seenKeys = new Set();
