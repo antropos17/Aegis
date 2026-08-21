@@ -251,5 +251,44 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     instances. They collide too only under the CIM emergency fallback, where
     `_witnessOf` derives the witness from that same stored millisecond.
 
+## Tooling
+32. **Two overlapping tool scopes that disagree silently corrupt whichever files only one of
+    them sees; align the scopes, and after any merge commit diff the file list against what
+    was intended.** The pre-commit hook (`.husky/pre-commit` runs `npx lint-staged`) and the
+    `lint` job's `format:check` step drive the same prettier with the same `.prettierrc`, so
+    they read as one mechanism. They were not one: `format:check` globs `src/**`, `bench/**`
+    and root-level `*.{js,ts,json}` and CHECKS, while lint-staged's `*.{js,ts,json}` was
+    matched with micromatch's `matchBase` — lint-staged turns it on for every pattern that
+    contains no slash (node_modules/lint-staged/README.md lines 334-340) — so the hook WROTE
+    every staged `.js`/`.ts`/`.json` at any depth. Measured against master `24912ed`: the hook
+    could rewrite 315 files where `format:check` gated 187. Of the 128 it saw alone, 117 were
+    under `tests/`, six were `scripts/*.js`, plus `rules/_schema.json`, `.codex/hooks.json`,
+    `.codex/hooks/branch-guard.js`, and two `.json` files under `src/` —
+    `src/shared/agent-database.json` and `src/renderer/lib/i18n/translations/en.json` — which
+    the `src/**/*.{js,ts,svelte,css,html}` extension list does not cover.
+    **The write side being wider than the check side IS the failure mode.** A gate narrower
+    than the writer cannot object to the writer's output: the reformat is valid Prettier, so
+    nothing goes red, and the only file at risk is the one no gate ever reads. It landed
+    twice. First on `tests/fixtures/bench` — byte-exact replay recordings that the hook
+    reflowed out of matching their rebuild, so `tests/main/bench/replay.test.js` compared a
+    rebuild against a file the formatter had edited. That was repaired with a
+    `.prettierignore` line, which fixes one directory and leaves the scope mismatch standing.
+    Second during the PR #207 merge commit, on two master-side files under
+    `tests/shared/bench-trace/` — files that merge was not changing at all, staged only
+    because a merge stages what it resolves. The workaround was restoring the bytes and
+    committing with `--no-verify`.
+    **Three things follow.** (a) When two tools share a job, make their scopes the SAME SET,
+    not merely similar ones: the fix was `./*.{js,ts,json}` (the documented root-only,
+    matchBase-free form, README line 339) plus the `bench/**/*.{js,json}` the hook had never
+    had — proven by running `git ls-files` through micromatch with lint-staged's own options
+    and diffing that against the set prettier resolves from the `format:check` globs. 187
+    files each, empty diff in both directions. (b) A per-file ignore entry is a symptom fix.
+    It buys the current directory and hides the next occurrence, which arrives somewhere else
+    (cf. #24 — derive the fact, do not restate it in one more place). (c) A merge commit
+    stages files you did not write. After every merge, diff the changed-file list against
+    what the merge was supposed to touch: this corruption lands on files absent from your own
+    diff, exactly where nobody is looking (cf. #22 — a side edit nobody asked for destroys a
+    file).
+
 ## Rule
 NEVER change what was not asked. Do ONLY what the prompt says.
