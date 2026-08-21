@@ -1,13 +1,13 @@
 # AEGIS Architecture
 
-## Main Process (src/main/) — 46 CommonJS modules (37 top-level + 7 platform/ + 2 token-adapters/)
+## Main Process (src/main/) — 51 CommonJS modules (39 top-level + 10 platform/ + 2 token-adapters/)
 
 Core modules:
 - main.js — orchestrator, module wiring, lifecycle
 - scan-loop.js — periodic scan intervals, staggered startup, event dedup
 - ipc-batcher.js — batches high-frequency IPC events (append/latest modes)
 - ipc-handlers.js — all IPC handlers (invoke + listeners)
-- preload.js — IPC bridge (window.aegis via contextBridge, 39 invoke + 9 events = 48 channels)
+- preload.js — IPC bridge (window.aegis via contextBridge, 40 invoke + 9 events = 49 channels)
 - process-scanner.js — AI agent detection (tasklist + pattern matching)
 - process-utils.js — parent chain resolution + editor annotation
 - file-watcher.js — chokidar watchers + handle scanning
@@ -26,7 +26,7 @@ Core modules:
 - tray-icon.js — system tray with procedural icon
 
 ## Renderer (src/renderer/) — Svelte 5 + Vite 7
-46 Svelte components, 11 stores, 16 utils, scoped CSS + tokens.css/global.css
+47 Svelte components, 13 stores, 21 utils, scoped CSS + tokens.css/global.css
 
 ### Components (src/renderer/lib/components/)
 - App.svelte — root layout, tab routing, settings modal

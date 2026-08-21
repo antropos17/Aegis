@@ -54,18 +54,21 @@ not evidence for `src/main/*.js` (`checkJs: false`).
 
 ---
 
-## Ground truth (counts re-measured at `d027f0c`, 2026-08-13)
+## Ground truth (counts re-measured at `fa85837`, 2026-08-21)
 
 The audit's original table compared documented figures against a 2026-08-08 tree and marked five
 rows "match". Four of those figures have since moved. The table below is a fresh measurement, not
-the audit's; each row carries the command that produced it.
+the audit's; each row carries the command that produced it. Every row except the attribution
+evidence codes is now re-derived on each CI run by `npm run counts:check`, which fails the `test`
+job when a tracked file declares a different number — those rows stop being a snapshot somebody
+has to remember to redo. The evidence-code row is not covered and still is one.
 
 | Quantity | Command | Measured |
 |---|---|---|
 | Agents | `node -p` over `src/shared/agent-database.json` | **110** |
 | Name signatures | sum of `names[]` in the same file | **262** |
 | Rules / YAML files | `- id:` matches in `rules/*.yaml`; `git ls-files 'rules/'` | **73** / **8** |
-| main CJS modules | `git ls-files 'src/main/'` split by depth | **50** = 38 top-level + 10 `platform/` + 2 `token-adapters/` |
+| main CJS modules | `git ls-files 'src/main/'` split by depth | **51** = 39 top-level + 10 `platform/` + 2 `token-adapters/` |
 | Svelte components | `git ls-files 'src/renderer/lib/components/*.svelte'` | **47** (plus `src/renderer/App.svelte` → **48** tracked `.svelte` in total) |
 | Renderer stores | `git ls-files 'src/renderer/lib/stores/'` | **13** files (4 of them demo-only) |
 | Renderer utils | `git ls-files 'src/renderer/lib/utils/'` | **21** files |
@@ -74,8 +77,8 @@ the audit's; each row carries the command that produced it.
 | Attribution evidence codes | `require('./src/main/attribution.js').EVIDENCE_CODES` | **7** |
 
 At audit time these read 46 main modules, 47 components (against 46 documented), 13 stores, 16
-utils. The main-module figure moved twice — see `ai-mistakes.md` #24, which names an earlier version
-of *this file* among the eight places a dead count sat.
+utils. The main-module figure has moved again since (46 → 50 → 51) — see `ai-mistakes.md` #24,
+which names an earlier version of *this file* among the eight places a dead count sat.
 
 **Dead / half-wired production surfaces, re-checked at `d027f0c`:**
 
