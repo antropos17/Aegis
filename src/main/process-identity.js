@@ -4,7 +4,9 @@
  * @description The single authority for AEGIS's process INSTANCE key. Windows
  *   recycles PIDs, so a bare PID is not an identity: a new process can inherit a
  *   dead one's session, dedup sets and accumulated accounting. `instanceId` binds
- *   the PID to the OS process-creation time — a pair the OS never reissues.
+ *   the PID to the OS process-creation time — reuse-resistant AT THE RESOLUTION
+ *   that time is observed and stored at, not globally unique. What the pair does
+ *   not rule out is spelled out under TIME RESOLUTION below.
  *
  *   THREE VALUE SPACES, disjoint by construction (a value from one can never
  *   equal a value from another — the pid segment and the `u` marker separate them):
@@ -30,9 +32,11 @@
  *   wherever space 3 applies.
  *
  *   TIME RESOLUTION — the bound on space 1, per platform. Two instances sharing
- *   BOTH a pid and a stored birth millisecond are indistinguishable, and degrade to
- *   space 3's behaviour (two instances read as one). No tie-breaker is added for
- *   that — the code would never run.
+ *   BOTH a pid and a stored birth millisecond build the SAME key and are read as
+ *   one — the same loss space 3 carries, but NOT a fall INTO space 3: the key stays
+ *   `"<pid>:<epochMs>"` and its source stays `'os'`, so a merged pair is labelled
+ *   exactly like a clean one, while space 3 announces itself as `'unknown'`. No
+ *   tie-breaker is added for that — the code would never run.
  *     - win32: MILLISECONDS. The snapshot sidecar reports each process's creation
  *       time in 100 ns FILETIME ticks, and `ticksToEpochMs`
  *       (platform/process-snapshot.js) floors them to the epoch-ms this key is

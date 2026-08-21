@@ -5,8 +5,10 @@
  *   process scan against the set of currently-active sessions using an
  *   eager-enter / lazy-exit rule:
  *
- *   - A (pid + process) seen for the FIRST time starts a session and is reported
- *     in `entered` immediately — so an agent visible in even ONE scan is recorded
+ *   - An (instanceId + process name) seen for the FIRST time starts a session and
+ *     is reported in `entered` immediately — that composite, built by
+ *     {@link sessionKey} from the stamp the scan batch carries, is the active-session
+ *     key; a bare pid never is. So an agent visible in even ONE scan is recorded
  *     before any dedup/grace logic can suppress it (single-tick safe).
  *   - A session not seen in a scan is only reported in `exited` after `grace`
  *     consecutive RELIABLE misses, so a one-tick disappearance (flicker, late
@@ -26,13 +28,23 @@
  *   BEFORE reconcile. Consequences:
  *
  *   - Where the platform supplies a birth time (win32), a recycled PID yields a
- *     different `instanceId` → the dead process gets its `exited` event and the new
- *     one a fresh session with its own `firstSeen`, EVEN WHEN both run the same
- *     executable. That same-name case used to collapse into one never-ending session.
- *   - Where it does not (darwin/linux today, or an unreadable birth time),
- *     `instanceId` degrades to `"<pid>:u"` and the process NAME in the composite key
- *     still separates a recycled pid belonging to a different agent — the
- *     pre-instanceId behaviour, unchanged.
+ *     different `instanceId` ON TWO CONDITIONS, both of which the enrichment pass
+ *     must actually meet: a usable birth time was freshly OBSERVED for that pid on
+ *     that pass, and it differs from the previous one at the epoch-MILLISECOND
+ *     resolution AEGIS stores. When they hold, the dead process gets its `exited`
+ *     event and the new one a fresh session with its own `firstSeen`, EVEN WHEN both
+ *     run the same executable — the same-name case that used to collapse into one
+ *     never-ending session.
+ *   - Withheld birth time (darwin/linux today, or a win32 pass whose own
+ *     observation returned none for that pid, whichever provider served it):
+ *     `instanceId` degrades to `"<pid>:u"` and the process NAME in the
+ *     composite key still separates a recycled pid belonging to a different agent —
+ *     the pre-instanceId behaviour, unchanged.
+ *   - Two instances colliding on BOTH pid and stored birth-time millisecond stay
+ *     indistinguishable to this identity scheme, so they share one session key
+ *     whenever the process name also matches. A different process name still gives
+ *     name-level discrimination through the composite. See process-identity.js
+ *     TIME RESOLUTION.
  *
  *   Each session also carries an AEGIS-observed `firstSeen` timestamp as its
  *   start-time field, distinct from the OS birth time inside `instanceId`.
