@@ -259,4 +259,73 @@ describe('rule-loader', () => {
       expect(grok.pattern.test('/home/user/.grok-build/settings.json')).toBe(true);
     });
   });
+
+  describe('secrets rules — path-word false positives (SC003 / SC005 / SC006)', () => {
+    const PROD_RULES_DIR = path.resolve(__dirname, '../../rules');
+
+    // Each rule was the top false-positive producer of its word: the old patterns
+    // matched a bare substring anywhere in the final path segment (SC005: anywhere in
+    // the path), so ordinary source files containing the word fired as critical hits.
+    // The rewritten patterns bound the word with [._-] separators (NOT \b — underscore
+    // is a word character, and api_token/client_secret are exactly the names that must
+    // keep firing) and scope loose compounds to secret-bearing data extensions.
+
+    /** @param {string} id @returns {RegExp} */
+    function pattern(id) {
+      ruleLoader.reloadRules(PROD_RULES_DIR);
+      const rule = ruleLoader.getRuleById(id, PROD_RULES_DIR);
+      expect(rule).toBeDefined();
+      return rule.pattern;
+    }
+
+    it('SC003 no longer fires on UI components and pages that merely mention "password"', () => {
+      const re = pattern('SC003');
+      expect(re.test('/app/src/components/PasswordInput.svelte')).toBe(false);
+      expect(re.test('C:\\proj\\src\\pages\\forgot-password.html')).toBe(false);
+      expect(re.test('/app/src/auth/password-reset.js')).toBe(false);
+      expect(re.test('/docs/reset-password.md')).toBe(false);
+    });
+
+    it('SC003 still fires on files that actually store passwords', () => {
+      const re = pattern('SC003');
+      expect(re.test('/home/user/passwords.txt')).toBe(true);
+      expect(re.test('C:\\Users\\me\\Documents\\wifi-password.txt')).toBe(true);
+      expect(re.test('/home/user/.password')).toBe(true);
+      expect(re.test('C:\\Users\\me\\db_password')).toBe(true);
+      expect(re.test('/home/user/password.key')).toBe(true);
+      expect(re.test('C:\\Users\\me\\app\\password.properties')).toBe(true);
+    });
+
+    it('SC005 no longer fires on segments that merely start with "secret"', () => {
+      const re = pattern('SC005');
+      expect(re.test('/app/src/pages/SecretSanta.tsx')).toBe(false);
+      expect(re.test('/home/user/docs/secretary-notes.md')).toBe(false);
+      expect(re.test('C:\\proj\\src\\SecretsManagerClient.ts')).toBe(false);
+    });
+
+    it('SC005 still fires on secret stores, and now catches client_secret.json', () => {
+      const re = pattern('SC005');
+      expect(re.test('/run/secrets/db_password')).toBe(true);
+      expect(re.test('C:\\Users\\me\\.secrets\\api')).toBe(true);
+      expect(re.test('/app/config/secrets.yaml')).toBe(true);
+      expect(re.test('/home/user/.env.secret')).toBe(true);
+      // The old pattern required "secret" straight after a slash and MISSED this one.
+      expect(re.test('C:\\Users\\me\\AppData\\client_secret.json')).toBe(true);
+    });
+
+    it("SC006 no longer fires on the project's own tokens.css or on tokenizers", () => {
+      const re = pattern('SC006');
+      expect(re.test('X:\\proj\\src\\renderer\\lib\\styles\\tokens.css')).toBe(false);
+      expect(re.test('/app/src/nlp/tokenizer.py')).toBe(false);
+      expect(re.test('/app/src/main/token-adapters/usage.js')).toBe(false);
+    });
+
+    it('SC006 still fires on credential token files', () => {
+      const re = pattern('SC006');
+      expect(re.test('/home/user/.npm_token')).toBe(true);
+      expect(re.test('/home/user/api-token.txt')).toBe(true);
+      expect(re.test('C:\\Users\\me\\.config\\gh\\access_token.json')).toBe(true);
+      expect(re.test('/home/user/github-token')).toBe(true);
+    });
+  });
 });
