@@ -113,8 +113,8 @@ describe('claude-code adapter — identity', () => {
 
 describe('pure parsers', () => {
   it('_encodeCwd collapses : \\ / . to - (verified live encoding)', () => {
-    expect(_encodeCwd('X:\\Future\\ESCAPE\\AEGIS')).toBe('X--Future-ESCAPE-AEGIS');
-    expect(_encodeCwd('C:\\Users\\murtu')).toBe('C--Users-murtu');
+    expect(_encodeCwd('X:\\dev\\project\\AEGIS')).toBe('X--dev-project-AEGIS');
+    expect(_encodeCwd('C:\\Users\\user')).toBe('C--Users-user');
     expect(_encodeCwd('/home/u/.config/app')).toBe('-home-u--config-app');
   });
 

@@ -3,7 +3,7 @@
 Read-only reconnaissance of every place that builds or consumes an agent identity key,
 in `src/main/` and `src/renderer/`. No source file was modified.
 
-**Repo root:** `X:\Future\ESCAPE\AEGIS`
+**Repo root:** `X:\dev\project\AEGIS`
 **Recon date:** 2026-08-06
 **Branch / HEAD:** `fix/js-yaml-5` @ `a6dccc7`
 **Working tree:** clean except one untracked file (`docs/current-state/NUMBERS-RECON.md`).

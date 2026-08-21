@@ -38,29 +38,29 @@ const RUNS = path.join(REPO, 'tests', 'fixtures', 'bench', 'runs');
 /**
  * Every recorded byte, by run directory and file name: `[sha256, length]`.
  *
- * Taken from the files as committed in PR #220, which are themselves byte-equal
- * to the untracked originals the two runs left in `bench/runs/`.
+ * Taken from the files as committed after the machine-identity redaction.
+ * Paths use `X:\dev\project\AEGIS` and `C:\Users\user`; host is platform only.
  * @type {Readonly<Object<string, Object<string, [string, number]>>>}
  */
 const RECORDED = Object.freeze({
   '2026-08-13T17-11-03Z-S1-agent-lifecycle-A': {
-    'expected.ndjson': ['218a147a1b5dda6c74e2b71719454f1c8f4de4d630416aea7f6b01b036550d98', 2121],
-    'manifest.json': ['9c52b49193129c4130da9755686f06c42ae6f669f72ee69898ca10d1f614f5b9', 2167],
+    'expected.ndjson': ['4aed1781f655c275d3e0f90be0c23fab1b058851d79ff740eb70d538ad6b843e', 2109],
+    'manifest.json': ['31d0824daa325e35fa688f410d5a5b438509862d2297756c6d96003d99d2ec1d', 1273],
     'observed.meta.json': [
-      'ddee0b3cfe65f6c6c37b3ba219f9356b6329b8e93cc3935291bdecae83a2d04d',
-      1948,
+      '4d130526ceba9a9cd76bce9a1095650629ec362aea96dca06a9ce80befdea67e',
+      1944,
     ],
-    'observed.ndjson': ['54a349b0d477ee309d74559e5429a7e78b533501c58a08e98d0dff0195e2fc5f', 2506],
+    'observed.ndjson': ['a9ef62cf95cd8548f374e1c7fe5ffc62e8791182723a25128ce84b97450d2326', 2494],
   },
   '2026-08-13T19-26-29Z-S1-agent-lifecycle-A': {
-    'expected.ndjson': ['9cf015de3c4afbb59d4f34763ba92fbed1d95a88fb290ccceda27a55b4d5e446', 2119],
-    'manifest.json': ['257206674bdecac1a786f174362e08898c5f3f866fdf76575840cb3d2f90ae5b', 2155],
+    'expected.ndjson': ['a744aff0f4318e5dc5a3c2a2442a2fca573ca3fbf89793e7b566e6b5ae301058', 2107],
+    'manifest.json': ['067f6039e0b398eacdcb77780ce61ea72005e256176343c167809604d958c225', 1261],
     'observed.meta.json': [
-      '436b8fc8a50b71dfe03929d279feb7eba92ac22794a59daac0d964e7668c439c',
-      2576,
+      '0c55de2254f25b9ea280e6d003939312f48a305f9ccab62f3ae9db6482007300',
+      2571,
     ],
-    'observed.ndjson': ['8df799f88f2968ed90d85846be3043a11f8b9c92211670592f2d64a3ac7dc242', 2003],
-    'run-report.json': ['fa8f4fe32260b93b68a117a112f05ed589a56014488c92546fd21dac1703b11a', 5251],
+    'observed.ndjson': ['c57d1698c3df34a3bf70e5568616da29116d7a1937ea49e6d8d6710d212c522c', 1995],
+    'run-report.json': ['a1a1e8a7746c66eb776511a289f17137b44ff63a1b22d8d80589b436fdfa383d', 5246],
   },
 });
 

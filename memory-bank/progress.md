@@ -319,7 +319,7 @@ READ-ONLY audit, no fixes/commits. Numbers parsed live from source, NOT from CLA
 - **LOC: 18,742** across 106 source files in `src/` (35 .js + 28 .ts + 43 .svelte). Tracked files total 268.
 - **Commits: 509** (`git log --oneline | wc -l`). HEAD = `63c6e60` (Merge PR #134).
 - **Master: GREEN** — branch `master`, working tree clean EXCEPT `aegis_landing.html` (untracked by design). `gh run list --branch master --json status,conclusion` (trust JSON not exit-code): latest run @ `63c6e60` = CI completed/success + Release Please completed/success.
-- **DRIFT (flagged, NOT fixed):** test count stale at **707** in CLAUDE.md:9, README badge:14, README:208, README:267 → actual **711**. (README:129 "68 rules, 568 tests" = historical v0.7.0-alpha release row, leave as-is.) Agent count 107 + SENSITIVE_RULES 68 (CLAUDE.md:30) + 70 YAML rules (README) all CONSISTENT — no drift. `PROJECT-KNOWLEDGE-AEGIS-v1.md` does NOT exist in repo or under X:\Future\ESCAPE — no such file to drift-check.
+- **DRIFT (flagged, NOT fixed):** test count stale at **707** in CLAUDE.md:9, README badge:14, README:208, README:267 → actual **711**. (README:129 "68 rules, 568 tests" = historical v0.7.0-alpha release row, leave as-is.) Agent count 107 + SENSITIVE_RULES 68 (CLAUDE.md:30) + 70 YAML rules (README) all CONSISTENT — no drift. `PROJECT-KNOWLEDGE-AEGIS-v1.md` does NOT exist in repo or under X:\dev\project — no such file to drift-check.
 
 ## Gate Plan — 3-step rollout (2026-06-03, ENTRY POINT for next chat)
 Code-verified, NOT from memory: `git log origin/master --oneline` → HEAD `abea37d`.

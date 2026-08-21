@@ -4,9 +4,9 @@ Read-only reconnaissance of the AEGIS repository. Facts only: every number below
 followed by the command that produced it. No code was changed, nothing was fixed,
 deleted or refactored.
 
-**Repo root:** `X:\Future\ESCAPE\AEGIS`
+**Repo root:** `X:\dev\project\AEGIS`
 **Recon date:** 2026-08-04
-**Shell:** Git Bash, `cd "X:/Future/ESCAPE/AEGIS"` before every command shown.
+**Shell:** Git Bash, `cd "X:/dev/project/AEGIS"` before every command shown.
 
 > **Working-tree caveat that applies to the whole document.** The tree was already
 > dirty when this recon started: 19 modified tracked files and 4 untracked paths,
@@ -673,7 +673,7 @@ const SENSITIVE_RULES = [
 
 ## 5. Gates — raw output
 
-All five run from `X:/Future/ESCAPE/AEGIS` against the dirty working tree described
+All five run from `X:/dev/project/AEGIS` against the dirty working tree described
 at the top of this document, i.e. including the 19 modified and 4 untracked paths.
 
 **Script substitutions, stated explicitly.** `package.json` has no `tsc main config` /
@@ -744,7 +744,7 @@ after it had been checking 0 files; it is now non-empty.
 
 ```
 $ npx eslint src/
-X:\Future\ESCAPE\AEGIS\src\main\audit-logger.js
+X:\dev\project\AEGIS\src\main\audit-logger.js
   103:5   warning  Unexpected console statement  no-console
   153:5   warning  Unexpected console statement  no-console
   368:13  warning  Unexpected console statement  no-console
@@ -753,7 +753,7 @@ X:\Future\ESCAPE\AEGIS\src\main\audit-logger.js
   476:5   warning  Unexpected console statement  no-console
   581:5   warning  Unexpected console statement  no-console
 
-X:\Future\ESCAPE\AEGIS\src\main\logger.js
+X:\dev\project\AEGIS\src\main\logger.js
    50:5   warning  Unexpected console statement  no-console
    73:5   warning  Unexpected console statement  no-console
   142:5   warning  Unexpected console statement  no-console
@@ -762,7 +762,7 @@ X:\Future\ESCAPE\AEGIS\src\main\logger.js
   206:5   warning  Unexpected console statement  no-console
   237:5   warning  Unexpected console statement  no-console
 
-X:\Future\ESCAPE\AEGIS\src\main\rule-loader.js
+X:\dev\project\AEGIS\src\main\rule-loader.js
    86:7   warning  Unexpected console statement  no-console
    92:7   warning  Unexpected console statement  no-console
   102:5   warning  Unexpected console statement  no-console
@@ -771,10 +771,10 @@ X:\Future\ESCAPE\AEGIS\src\main\rule-loader.js
   140:11  warning  Unexpected console statement  no-console
   146:7   warning  Unexpected console statement  no-console
 
-X:\Future\ESCAPE\AEGIS\src\renderer\App.svelte
+X:\dev\project\AEGIS\src\renderer\App.svelte
   287:9  warning  Unexpected console statement  no-console
 
-X:\Future\ESCAPE\AEGIS\src\renderer\lib\components\Timeline.svelte
+X:\dev\project\AEGIS\src\renderer\lib\components\Timeline.svelte
   104:7  warning  Unexpected console statement  no-console
 
 ✖ 23 problems (0 errors, 23 warnings)
@@ -792,7 +792,7 @@ $ NO_COLOR=1 npm run build:renderer
 > aegis@0.10.0-alpha build:renderer
 > vite build
 
-01:32:30 [vite-plugin-svelte] no Svelte config found at X:/Future/ESCAPE/AEGIS/src/renderer - using default configuration.
+01:32:30 [vite-plugin-svelte] no Svelte config found at X:/dev/project/AEGIS/src/renderer - using default configuration.
 vite v7.3.1 building client environment for production...
 transforming...
 ✓ 231 modules transformed.
@@ -826,11 +826,11 @@ $ npm run build
 
   • electron-builder  version=26.8.1 os=10.0.26200
   • loaded configuration  file=package.json ("build" field)
-  • executing @electron/rebuild  electronVersion=33.4.11 arch=x64 buildFromSource=false workspaceRoot=X:\Future\ESCAPE\AEGIS projectDir=./ appDir=./
+  • executing @electron/rebuild  electronVersion=33.4.11 arch=x64 buildFromSource=false workspaceRoot=X:\dev\project\AEGIS projectDir=./ appDir=./
   • installing native dependencies  arch=x64
   • completed installing native dependencies
   • packaging       platform=win32 arch=x64 electron=33.4.11 appOutDir=dist\win-unpacked
-  • searching for node modules  pm=npm searchDir=X:\Future\ESCAPE\AEGIS
+  • searching for node modules  pm=npm searchDir=X:\dev\project\AEGIS
 (node:21220) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
 (Use `node --trace-deprecation ...` to show where the warning was created)
   • duplicate dependency references  dependencies=["is-glob@4.0.3"]

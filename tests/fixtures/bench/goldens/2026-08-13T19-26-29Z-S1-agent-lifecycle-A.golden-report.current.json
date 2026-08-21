@@ -5,7 +5,7 @@
   "arm": "A",
   "join": {
     "maxLatencyMs": 30000,
-    "maxLatencySource": "10 s × 3 scan intervals — scanIntervalSec in C:\\Users\\murtu\\AppData\\Local\\Temp\\aegis-bench-2026-08-13T19-26-29Z-S1-agent-lifecycle-A\\settings.json",
+    "maxLatencySource": "10 s × 3 scan intervals — scanIntervalSec in C:\\Users\\user\\AppData\\Local\\Temp\\aegis-bench-2026-08-13T19-26-29Z-S1-agent-lifecycle-A\\settings.json",
     "unavailable": null,
     "window": "observed ∈ [expected.@timestamp, expected.@timestamp + maxLatencyMs]",
     "keys": {
@@ -85,7 +85,7 @@
   "matched": [
     {
       "category": "file/creation",
-      "key": "path:x:\\future\\escape\\aegis\\bench\\runs\\2026-08-13t19-26-29z-s1-agent-lifecycle-a\\stage\\claude.exe",
+      "key": "path:x:\\dev\\project\\aegis\\bench\\runs\\2026-08-13t19-26-29z-s1-agent-lifecycle-a\\stage\\claude.exe",
       "latencyMs": 12,
       "expected": {
         "index": 0,
@@ -109,7 +109,7 @@
     },
     {
       "category": "file/deletion",
-      "key": "path:x:\\future\\escape\\aegis\\bench\\runs\\2026-08-13t19-26-29z-s1-agent-lifecycle-a\\stage\\claude.exe",
+      "key": "path:x:\\dev\\project\\aegis\\bench\\runs\\2026-08-13t19-26-29z-s1-agent-lifecycle-a\\stage\\claude.exe",
       "latencyMs": 104,
       "expected": {
         "index": 3,

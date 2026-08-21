@@ -3,7 +3,7 @@
 Read-only reconnaissance. No source file and no test file was touched; the only path
 this document adds is itself.
 
-**Repo root:** `X:\Future\ESCAPE\AEGIS`
+**Repo root:** `X:\dev\project\AEGIS`
 **Recon date:** 2026-08-05
 **Version:** `0.10.0-alpha` (`package.json`)
 **Scope of "main screen":** the Shield tab (`App.svelte:316-317` → `ShieldTab.svelte`)

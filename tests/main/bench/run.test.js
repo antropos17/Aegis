@@ -60,6 +60,44 @@ function handle(over = {}) {
   return { profileDir, steadyCadence: false, steadyAt: null, ticks: [], ...over };
 }
 
+describe('manifest — recorded paths and host block', () => {
+  it('rewrites the clone root and the Users account segment, and leaves other strings alone', () => {
+    expect(manifest.neutralizePath(`${manifest.ROOT}\\bench\\runs\\x\\stage\\claude.exe`)).toBe(
+      `${manifest.RECORDED_REPO_ROOT}\\bench\\runs\\x\\stage\\claude.exe`,
+    );
+    expect(
+      manifest.neutralizePath('C:\\Users\\alice\\AppData\\Local\\Temp\\aegis-bench\\settings.json'),
+    ).toBe('C:\\Users\\user\\AppData\\Local\\Temp\\aegis-bench\\settings.json');
+    expect(manifest.neutralizePath('C:\\Program Files\\nodejs\\node.exe')).toBe(
+      'C:\\Program Files\\nodejs\\node.exe',
+    );
+  });
+
+  it('embeds the rewrite in a source sentence, so a scan-interval origin cannot leak a home path', () => {
+    const source = `scanIntervalSec in C:\\Users\\someone\\AppData\\Local\\Temp\\p\\settings.json`;
+    expect(manifest.neutralizePath(source)).toBe(
+      'scanIntervalSec in C:\\Users\\user\\AppData\\Local\\Temp\\p\\settings.json',
+    );
+  });
+
+  it('records host.platform and nothing else about the workstation', () => {
+    const record = manifest.collect({
+      runId: 'test-host-block',
+      scenario: 'S1-agent-lifecycle',
+      arm: 'A',
+      startedAt: '2026-08-13T19:26:29.876Z',
+    });
+    expect(Object.keys(record.host)).toEqual(['platform']);
+    expect(record.host.platform.source).toBe('process.platform');
+    expect(record.host.cpuModel).toBeUndefined();
+    expect(record.host.cpuCount).toBeUndefined();
+    expect(record.host.totalMemBytes).toBeUndefined();
+    expect(record.host.osVersion).toBeUndefined();
+    expect(record.host.windowsBuild).toBeUndefined();
+    expect(record.host.osRelease).toBeUndefined();
+  }, 30_000);
+});
+
 describe('run — the scan interval the join window is built from', () => {
   it('reads scanIntervalSec out of the profile the run created', () => {
     fs.writeFileSync(

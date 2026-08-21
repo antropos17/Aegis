@@ -31,7 +31,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const JOIN_SOURCE = path.resolve(HERE, '..', '..', '..', 'bench', 'lib', 'join.js');
 
 /** @type {string} A path in the shape the bench actually records. */
-const STAGE_EXE = 'X:\\Future\\ESCAPE\\AEGIS\\bench\\runs\\R\\stage\\claude.exe';
+const STAGE_EXE = 'X:\\dev\\project\\AEGIS\\bench\\runs\\R\\stage\\claude.exe';
 
 /** @type {{value: number, source: string}} 10 s × 3, as an arm-A run derives it. */
 const BOUND = Object.freeze({
@@ -402,7 +402,7 @@ describe('join — processObservable', () => {
 
 describe('join — path normalisation', () => {
   it('folds case and separators to one form', () => {
-    expect(join.normalizePath('X:/Future\\ESCAPE//AEGIS\\')).toBe('x:\\future\\escape\\aegis');
+    expect(join.normalizePath('X:/dev\\project//AEGIS\\')).toBe('x:\\dev\\project\\aegis');
     expect(join.normalizePath('X:\\')).toBe('x:\\');
     expect(join.normalizePath('  ')).toBeNull();
     expect(join.normalizePath(undefined)).toBeNull();
@@ -424,7 +424,7 @@ describe('join — path normalisation', () => {
           ts: '2026-08-13T17:27:22.290Z',
           category: 'file',
           type: 'deletion',
-          filePath: 'x:/future/escape/aegis/bench/runs/R/stage/CLAUDE.EXE',
+          filePath: 'x:/dev/project/aegis/bench/runs/R/stage/CLAUDE.EXE',
         }),
       ],
     );
@@ -432,7 +432,7 @@ describe('join — path normalisation', () => {
     expect(r.matched).toHaveLength(1);
     expect(r.matched[0].latencyMs).toBe(100);
     expect(r.matched[0].key).toBe(
-      'path:x:\\future\\escape\\aegis\\bench\\runs\\r\\stage\\claude.exe',
+      'path:x:\\dev\\project\\aegis\\bench\\runs\\r\\stage\\claude.exe',
     );
   });
 

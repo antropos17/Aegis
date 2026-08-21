@@ -137,5 +137,24 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     both survived every later reader who had seen the file "recently corrected". Grep the
     claim, not the file (cf. #24 — assume siblings; #20 — do not document what is not there).
 
+28. **`git grep --untracked` NARROWS the sweep while reading like a widening, and this repo is
+    shaped to be caught by it.** The flag switches git grep off the index and onto a working-tree
+    walk with the standard exclusions applied, so a TRACKED file living under an IGNORED path
+    drops out of a search that plain `git grep` would have answered. `.gitignore:22` ignores
+    `.claude/*` and un-ignores only `skills/`, `agents/`, `commands/`, `hooks/` and
+    `settings.json` — `.claude/rules/` is on none of those lines, yet
+    `.claude/rules/code-quality.md` is tracked and is a live rules file. Measured on git 2.52.0:
+    `git grep -n --untracked -F -e 'GPG signing on all commits'` returns NOTHING and exits 1,
+    while both `git grep -n -F -e ...` and `git ls-files -z | xargs -0 grep -n -F -e ...` return
+    `.claude/rules/code-quality.md:7` and exit 0. Adding `--no-exclude-standard` brings the hit
+    back, which is the proof that the exclusion moved and the file did not. An empty result is
+    the failure mode here: nothing goes red, and "I grepped the whole tree" is what gets written
+    down (cf. #21 — a command that ran is not a command that inspected your change).
+    **Verify against the index instead:** `git ls-files -z | xargs -0 grep -n <pattern>`
+    enumerates exactly what git is tracking, ignore rules and all, and `-z`/`-0` survive the
+    paths with spaces. Use it whenever the question is "does this string still exist anywhere in
+    the repo" — the sweep for siblings that #24 and #27 both demand is worth nothing if the walk
+    silently skips a directory.
+
 ## Rule
 NEVER change what was not asked. Do ONLY what the prompt says.

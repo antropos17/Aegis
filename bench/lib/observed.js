@@ -63,6 +63,7 @@ const fs = require('fs');
 const path = require('path');
 
 const catalogue = require('./catalogue');
+const { neutralizePath, neutralizeRecorded } = require('./paths');
 
 /** @type {string} Name of the observation set inside a run directory. */
 const OBSERVED_FILENAME = 'observed.ndjson';
@@ -349,8 +350,9 @@ function toEcs(record, scenario) {
   const fields = {};
   if (shape.category === 'file') {
     if (typeof record.path !== 'string' || record.path.trim() === '') return null;
-    const { name, directory } = splitPath(record.path);
-    fields.file = { path: record.path, name, directory };
+    const recordedPath = neutralizePath(record.path);
+    const { name, directory } = splitPath(recordedPath);
+    fields.file = { path: recordedPath, name, directory };
     const identity = processIdentity(record);
     if (identity) fields.process = identity;
   } else {
@@ -516,7 +518,7 @@ function write(runDir, events) {
  */
 function writeMeta(runDir, record) {
   const file = path.join(runDir, META_FILENAME);
-  fs.writeFileSync(file, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(file, `${JSON.stringify(neutralizeRecorded(record), null, 2)}\n`, 'utf8');
   return file;
 }
 

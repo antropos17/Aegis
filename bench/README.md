@@ -497,9 +497,9 @@ join that treated one as the other would manufacture matches out of a naming coi
 display name rides `bench.agent`, where no join reads it.
 
 Path normalisation folds separators to `\` and the whole string to lower case, because
-`X:/Future\AEGIS` and `x:\future\aegis` name one file on the platform the bench runs on. That is a
-Windows fact rather than a general one: a bench on another platform would need a different rule, not
-this one relaxed.
+`X:/dev\project\AEGIS` and `x:\dev\project\aegis` name one file on the platform the bench runs
+on. That is a Windows fact rather than a general one: a bench on another platform would need a
+different rule, not this one relaxed.
 
 The window is `[expected.@timestamp, expected.@timestamp + maxLatency]`. **One observed event cancels
 at most one expectation**, and one expectation is cancelled by at most one observation: every
@@ -692,7 +692,8 @@ before `sensor.scanInterval` existed, which pins the refusal above against a rea
 than a synthetic one. Both predate `manifest.reportRenderer` and therefore classify as
 `legacy-unversioned`.
 
-They are **recordings**: nine files that are never regenerated, reformatted or corrected, and
+They are **recordings**: nine files that carry one documented redaction of machine-identifying
+values and are otherwise never regenerated, reformatted or corrected, and
 `tests/main/bench/fixture-immutability.test.js` holds each one against a committed sha256 and
 against the exact file set its run wrote. Where a golden for the current renderer is wanted, it is a
 separate derived artefact under `tests/fixtures/bench/goldens/`, named so that it cannot be mistaken
@@ -700,6 +701,18 @@ for a recording. They are not accuracy figures, and `tests/fixtures/bench/README
 provenance and the maintenance contract.
 
 ## Run artefacts
+
+`bench/runs/` is gitignored. It is the raw local output of `bench/run.js` and is
+never the committed record. What the repository is allowed to hold is:
+
+- `bench/scenarios/` and `bench/scenario.schema.json` — the scripts
+- `tests/fixtures/bench/runs/` — redacted recordings used by replay tests
+- `tests/fixtures/bench/goldens/` — the current renderer's derived report
+- `docs/bench/` — gold-image write-ups, when those exist
+
+Paths written into those committed files go through `manifest.neutralizePath`:
+the clone root becomes `X:\dev\project\AEGIS` and `\Users\<account>\` becomes
+`\Users\user\`.
 
 One run is one directory under `bench/runs/`, named `<UTC instant>-<scenario>-<arm>`. The
 directory is created fresh and never written into twice, so a re-run cannot blend two
@@ -722,17 +735,16 @@ evidence for every line of it.
 
 Every manifest field is `{value, source}` when the probe succeeded and
 `{value: null, unavailable: <reason>, source}` when it did not. That distinction is the
-point: "this machine reported build 26200" and "we could not read the build" must not
-collapse into the same record. `run.js` prints the absent facts at the end of a run so a
+point: "this run started with 320 processes" and "we could not read the process count" must
+not collapse into the same record. `run.js` prints the absent facts at the end of a run so a
 degraded environment is visible at the moment of measurement rather than at analysis time.
 
 Two fields worth knowing about:
 
-- **`host.windowsBuild`** comes from `reg query`, not `os.release()`, because the UBR — the
-  component that separates two machines both calling themselves 26200 — exists only in the
-  registry. `productName` is recorded verbatim even when it disagrees with `os.version()`
-  (Windows 11 machines routinely report `Windows 10 <edition>` under that key). The manifest
-  records what each source said and never reconciles two sources into one invented answer.
+- **`host` is platform only.** CPU model, thread count, memory size, OS edition and
+  build number are not written. They identify a workstation and do not belong in a
+  file that can be committed. A published accuracy figure still names the gold-image
+  Windows build in `docs/bench/`, not in `manifest.json`.
 - **`sensor.workingTreeDirty`** means the measured sensor is not exactly the commit named in
   `sensor.gitSha`. It is recorded, not refused: running against uncommitted work is
   legitimate while building the harness, and dishonest only if left unsaid.

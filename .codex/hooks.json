@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node 'X:\\Future\\ESCAPE\\AEGIS\\.codex\\hooks\\branch-guard.js'",
+            "command": "node .codex/hooks/branch-guard.js",
             "timeout": 5
           }
         ]
