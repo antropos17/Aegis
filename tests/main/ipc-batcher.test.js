@@ -145,6 +145,149 @@ describe('ipc-batcher', () => {
     });
   });
 
+  // ── pushLazy ──
+
+  describe('pushLazy (latest mode)', () => {
+    it('ACCEPTANCE: N pushes inside one window build exactly ONE payload', () => {
+      // The whole point. `latest` discards every value but the last, so N eager
+      // getStats() calls compute N payloads to throw N-1 away. This is the counter that
+      // goes red if the call sites revert to push(getStats()).
+      const send = vi.fn();
+      const produce = vi.fn(() => ({ built: true }));
+      const b = createBatcher('stats-update', send, { intervalMs: 1000, mode: 'latest' });
+
+      for (let i = 0; i < 25; i++) b.pushLazy(produce);
+      expect(produce).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(1000);
+      expect(produce).toHaveBeenCalledOnce();
+      expect(send).toHaveBeenCalledOnce();
+      expect(send).toHaveBeenCalledWith('stats-update', { built: true });
+      b.destroy();
+    });
+
+    it('the eager form still costs one build per push — the contrast the change removes', () => {
+      const send = vi.fn();
+      const produce = vi.fn(() => ({ built: true }));
+      const b = createBatcher('stats-update', send, { intervalMs: 1000, mode: 'latest' });
+
+      for (let i = 0; i < 25; i++) b.push(produce());
+      expect(produce).toHaveBeenCalledTimes(25);
+
+      vi.advanceTimersByTime(1000);
+      expect(send).toHaveBeenCalledOnce();
+      b.destroy();
+    });
+
+    it('resolves at flush, never at push', () => {
+      const send = vi.fn();
+      let n = 0;
+      const b = createBatcher('ch', send, { intervalMs: 100, mode: 'latest' });
+      b.pushLazy(() => ++n);
+      vi.advanceTimersByTime(99);
+      expect(n).toBe(0);
+      vi.advanceTimersByTime(1);
+      expect(n).toBe(1);
+      expect(send).toHaveBeenCalledWith('ch', 1);
+      b.destroy();
+    });
+
+    it('is NOT a cache: the next window resolves the producer again', () => {
+      const send = vi.fn();
+      const produce = vi.fn(() => ({ tick: produce.mock.calls.length }));
+      const b = createBatcher('ch', send, { intervalMs: 100, mode: 'latest' });
+
+      b.pushLazy(produce);
+      vi.advanceTimersByTime(100);
+      b.pushLazy(produce);
+      vi.advanceTimersByTime(100);
+
+      expect(produce).toHaveBeenCalledTimes(2);
+      expect(send).toHaveBeenCalledTimes(2);
+      b.destroy();
+    });
+
+    it('an idle window after a flush sends nothing — no retained payload', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100, mode: 'latest' });
+      b.pushLazy(() => 'once');
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledOnce();
+
+      vi.advanceTimersByTime(1000);
+      expect(send).toHaveBeenCalledOnce();
+      b.destroy();
+    });
+
+    it('push after pushLazy wins, and the producer is never called', () => {
+      const send = vi.fn();
+      const produce = vi.fn(() => 'lazy');
+      const b = createBatcher('ch', send, { intervalMs: 100, mode: 'latest' });
+      b.pushLazy(produce);
+      b.push('eager');
+      vi.advanceTimersByTime(100);
+      expect(produce).not.toHaveBeenCalled();
+      expect(send).toHaveBeenCalledWith('ch', 'eager');
+      b.destroy();
+    });
+
+    it('pushLazy after push wins', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100, mode: 'latest' });
+      b.push('eager');
+      b.pushLazy(() => 'lazy');
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', 'lazy');
+      b.destroy();
+    });
+
+    it('destroy() flushes a pending producer exactly once', () => {
+      const send = vi.fn();
+      const produce = vi.fn(() => 'final');
+      const b = createBatcher('ch', send, { intervalMs: 100, mode: 'latest' });
+      b.pushLazy(produce);
+      b.destroy();
+      expect(produce).toHaveBeenCalledOnce();
+      expect(send).toHaveBeenCalledWith('ch', 'final');
+      b.destroy();
+      expect(send).toHaveBeenCalledOnce();
+    });
+
+    it('a producer pushed after destroy is dropped, like push', () => {
+      const send = vi.fn();
+      const produce = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100, mode: 'latest' });
+      b.destroy();
+      b.pushLazy(produce);
+      vi.advanceTimersByTime(1000);
+      expect(produce).not.toHaveBeenCalled();
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('refuses append mode: "last one wins" is what makes deferral free', () => {
+      const b = createBatcher('file-access', vi.fn(), { intervalMs: 100 });
+      expect(() => b.pushLazy(() => 1)).toThrow(/mode 'latest'/);
+      b.destroy();
+    });
+
+    it('refuses a non-function producer', () => {
+      const b = createBatcher('ch', vi.fn(), { intervalMs: 100, mode: 'latest' });
+      expect(() => b.pushLazy(/** @type {never} */ ({ not: 'a function' }))).toThrow(/producer/);
+      b.destroy();
+    });
+
+    it('a payload that IS a function still travels as a payload via push', () => {
+      // The producer lives in its own slot, so `push` of a function value is unchanged.
+      const send = vi.fn();
+      const payload = () => 'i am data';
+      const b = createBatcher('ch', send, { intervalMs: 100, mode: 'latest' });
+      b.push(payload);
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', payload);
+      b.destroy();
+    });
+  });
+
   // ── defaults ──
 
   describe('defaults', () => {

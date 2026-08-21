@@ -156,5 +156,31 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     the repo" — the sweep for siblings that #24 and #27 both demand is worth nothing if the walk
     silently skips a directory.
 
+29. **A boolean derived from an enum has DESTROYED states, and a derivation that reads the
+    boolean cannot get them back. Read the enum.** `getProcessCapabilities()` publishes both
+    `populationState` (STARTING | HEALTHY | DEGRADED | FAILED) and
+    `populationReliable: _processHealth.state === HEALTHY` — true for exactly one member, so
+    `false` means "one of the other three" and never says which. The app-health state machine was
+    designed, written up and REVIEWED with the rule `populationReliable === false → app FAILED`.
+    It reads as obviously right and is obviously wrong the moment the collapse is named: a
+    never-scanned process leaf sits at STARTING with the flag already false, so the rule declares
+    a NORMAL startup — every launch, in the window between `loadDeferredModules` and the first
+    3 s tick — a total observation failure. `population-scope-gate.test.js` had pinned the
+    premise in prose the whole time ("a never-scanned leaf is STARTING, not reliable, and has no
+    asOf"); nothing connected it to the new rule because the rule never mentioned STARTING.
+    The boolean was not wrong and did not need changing: it is the capability GATE agent-scoped
+    consumers read before observing, and it is correct for that. It is simply not expressive
+    enough to classify a lifecycle, and a lifecycle is what a state machine is.
+    **Three things follow.** (a) When a type offers an enum and a boolean over the same fact, a
+    DERIVATION takes the enum and a GATE may take the boolean — and say in the code which one it
+    is and why, or the next reader re-picks by convenience. (b) The discriminating test is the
+    one that separates the collapsed members: three cases (STARTING → starting, DEGRADED →
+    degraded, FAILED → failed) all carrying `false`, plus a mutant that restores
+    `if (!flag) return FAILED` and must go red on the first. A single "the flag is false → FAILED"
+    test passes under both versions and proves nothing. (c) A full design review is not a filter
+    for this class: the error lives in what a name suggests rather than in what any line says, so
+    it survives every reader who does not open the definition. Grep the definition, not the name
+    (cf. #27 — write the guarantee, not the impression).
+
 ## Rule
 NEVER change what was not asked. Do ONLY what the prompt says.

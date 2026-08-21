@@ -11,7 +11,7 @@ AEGIS is an independent AI oversight layer — a desktop app that monitors AI ag
 ```
 src/main/           Electron main process (CommonJS, require/module.exports)
 src/renderer/       Svelte 5 dashboard UI (ES modules, runes)
-src/shared/         Constants + agent-database.json (110 agents, 262 name signatures) + types/ (8 .ts)
+src/shared/         Constants + agent-database.json (110 agents, 262 name signatures) + types/ (9 .ts)
 rules/              73 detection rules in 8 YAML files + _schema.json
 tests/              Vitest unit tests with v8 coverage
 ```

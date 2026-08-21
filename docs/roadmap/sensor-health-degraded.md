@@ -382,6 +382,13 @@ detail?: string                // e.g. "read-detection unavailable"
 - Failure → increment consecutiveFailures; after N → FAILED (N TBD, e.g. 3)
 - Capability probe fail while monitoring on → DEGRADED or UNSUPPORTED
 - Operator pause → DISABLED for polled sensors; chokidar emit gated
+  - **As of 2026-08-21 this line is superseded and NOT implemented.** `monitoringPaused`
+    is an operator-control dimension orthogonal to health: nothing calls `markDisabled`
+    on pause, and the app-level model never reads the flag. Writing operator intent into
+    a leaf record would drop those sensors out of `participatesInGlobal` and push the
+    aggregate toward `AGGREGATE_NONE`, so pause would have changed the health model
+    rather than sat beside it. The flag travels as `stats.monitoringPaused`, a sibling of
+    `stats.appHealth`.
 - OS suspend gap → do not advance “healthy empty” streaks (B5)
 
 ### 7.4 Aggregate monitoring health
@@ -554,7 +561,10 @@ Block B is done when:
 1. Every inventory sensor that can false-clean has health reporting or documented UNSUPPORTED/DISABLED  
 2. Global DEGRADED/FAILED visible without log diving  
 3. Loss never maps to HEALTHY  
-4. Operator pause is DISABLED, not DEGRADED  
+4. Operator pause is DISABLED, not DEGRADED
+   — **as of 2026-08-21, superseded by the orthogonality decision (see §7.3).** Pause is
+   neither DISABLED nor DEGRADED: it is not a health state at all, and the stopping
+   condition it must satisfy instead is that a paused AEGIS never reads as a clean one.  
 5. Suspend/resume gap does not count as healthy empty observation  
 6. Non-vacuous tests + mutation proofs for critical paths  
 7. No fabricated events  
