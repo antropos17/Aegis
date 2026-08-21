@@ -76,9 +76,38 @@ const STAGE_STEP = {
   },
 };
 
+/**
+ * Remove a run directory once Windows has actually released it.
+ *
+ * `actor.execute()` kills what it spawned, but a kill is not synchronous: the holder
+ * can still own its handle — and its own image is still mapped — for a moment after.
+ * A plain `rmSync` here raced that and failed with EPERM under load, which turned a
+ * passing assertion into a red suite for a reason that had nothing to do with the
+ * step being tested.
+ *
+ * Retries, then gives up quietly. A temp directory the OS will reclaim is not a test
+ * result, and failing the case on it would report a cleanup problem as a defect in
+ * the code under test.
+ * @param {string} dir
+ * @returns {void}
+ */
+function removeWhenReleased(dir) {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch (_) {
+      const until = Date.now() + 50;
+      while (Date.now() < until) {
+        /* the handle is released by the OS, not by anything this loop can await */
+      }
+    }
+  }
+}
+
 afterEach(() => {
   while (created.length > 0) {
-    fs.rmSync(created.pop(), { recursive: true, force: true });
+    removeWhenReleased(created.pop());
   }
 });
 
