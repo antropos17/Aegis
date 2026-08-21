@@ -8,6 +8,12 @@ build/sidecar/
 # Never commit it: it is machine-local. The committed, redacted copies live in
 # tests/fixtures/bench/ (see that README). Gold-image numbers go in docs/bench/.
 bench/runs/
+# Replay output written by bench/trace/replay-trace.js (the product's own records, plus
+# the Electron profile they were written into). Unlike a run, a replay is a pure
+# function of the trace and the tree, so this is reproducible rather than evidence —
+# and it is replaced on every run. A verdict kept as a target lives in
+# tests/fixtures/bench/goldens/.
+bench/traces-runs/
 # Throwaway mutants written by scripts/verify-witness-gate.mjs (removed in a finally)
 src/main/.mutants/
 # `npx tsc -b` writes one per referenced project, next to the config

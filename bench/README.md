@@ -119,6 +119,9 @@ bench/
   trace/clock.js                            # the virtual clock as a value, and the switch that puts it in front of the real one
   trace/clock-env.js                        # which environment variables name a clock, and the bootstrap that applies them
   trace/preload.js                          # the `node --require` entrypoint; acts on load, throws loudly when the environment names no clock
+  trace/wiring.js                           # builds the product's module graph out of seams it already exports, and tears it down
+  trace/harness.js                          # pushes one trace through detection and attribution, record by record
+  trace/replay-trace.js                     # the replay entrypoint; writes the product's own records as verdict.ndjson
   runs/                                     # run artefacts — gitignored, created on first run
   README.md
 ```
@@ -681,7 +684,7 @@ kind can say which kinds exist.
 |---|---|---|
 | `fs.event` | one chokidar event: `created` / `modified` / `deleted`, and a path | yes |
 | `handles.tick` | a per-pid handle scan, as the platform provider answered it | yes |
-| `rm.hot.tick` | a Restart Manager hot-cycle answer | yes |
+| `rm.hot.tick` | a Restart Manager hot-cycle answer: `{pid, group, reason?}` per holder — `group`, not a path, because that is the field `_scanRmHolders` reads and writes into the event's `file` | yes |
 | `net.tick` | a TCP table read plus the DNS answers that resolved its addresses | yes |
 | `clock.advance` | the virtual clock moves forward | no |
 | `population.set` | the agent population the sensors are handed from here on | no |
@@ -770,12 +773,73 @@ The time zone is applied **before** the clock, and that order is load-bearing: `
 decides what the local-time getters answer, which is what `audit-logger.js` builds a daily file's
 *name* out of.
 
+### Replaying a trace
+
+```
+AEGIS_TRACE_CLOCK_EPOCH_MS=<header.clock.epochMs> AEGIS_TRACE_TZ=<header.tz.name>   node --require bench/trace/preload.js bench/trace/replay-trace.js <trace dir> [--out <dir>]
+```
+
+Both variables come out of the trace's own header, and the zone is passed back **verbatim**:
+the runtime canonicalizes zone names, so `TZ=Etc/UTC` makes `Intl` report `UTC`, and a header
+naming the alias would be refused for a difference that is not one. A header always carries what
+the runtime reported, so the round-trip holds.
+
+Exit codes follow `bench/run.js`: **2** the invocation was wrong and nothing ran · **1** the trace
+was refused or the replay could not complete · **0** the replay finished and the verdict was
+written.
+
+`--out` aside, a replay REPLACES its output directory, where `bench/run.js` refuses to write a run
+directory twice. The difference is what the two things are: a run observed a machine at an instant
+that will not come back, while a replay is a pure function of the trace and the tree — an older
+output is not evidence, it is a stale copy of something reproducible.
+
+**The verdict is the product's own bytes.** `verdict.ndjson` is a byte-for-byte copy of the daily
+audit file the replay's Electron profile received — Event Schema v1, hash-chained, `seq` and all.
+Re-emitting it from parsed objects would make the verdict a rendering of the product's output
+rather than the output, and the whole claim a trace replay makes is about those bytes.
+
+### How the product is driven, and the one duplication that had to be watched
+
+Every entry point the harness uses is one the product already exports: `init(state)`,
+`_setDepsForTest`, `_resetForTest`, `reloadRules(dir)`, `_setSettingsPathForTest`,
+`_setBaselinesPathForTest`, `audit.init` / `audit.shutdown`. **Nothing in `src/` is patched.** The
+watcher says as much about the entry point that matters most — the comment above
+`bindWatcherEvents` notes that `handleWatcherEvent` "is exported and called directly with no root
+context by the attribution/ignore suites".
+
+Every fact a sensor would have gone to the OS for is served from the record being replayed: the
+handle list, the Restart Manager holders, the TCP table, the DNS answers, and whether the process
+population may be trusted. A provider called with nothing recorded for it is **refused**, not
+answered with an empty list — the two are different observations.
+
+What could not be borrowed is the last step. `handleWatcherEvent` does not write to the audit log;
+it pushes onto `activityLog` and calls `_state.onFileEvent`. The path from a detection to an Event
+Schema v1 record is closed OUTSIDE the watcher, in three places, and none of them is exported:
+
+| site | what it does |
+|---|---|
+| `main.js`, the `onFileEvent` handler | `dedupFileEvent` → `logAuditForFile` |
+| `scan-loop.js` `doFileScan` | `scanAllFileHandles` → `dedupFileEvent` → `logAuditForFile` |
+| `scan-loop.js` `doHotReadScan` | `scanHotFileHolders` → `dedupFileEvent` → `logAuditForFile` |
+
+So the harness performs those steps itself, through the product's own exported `dedupFileEvent`
+and `logAuditForFile` — it re-implements neither the dedup nor the record shape. A hand-made copy
+drifts silently by default, which would leave the bench green while replaying yesterday's wiring,
+so the copy is **guarded structurally rather than by a promise**:
+`tests/shared/bench-trace/orchestration-drift.test.js` derives each sequence from the product's
+own source at test time and holds it against `harness.ORCHESTRATION`, and then drives the shipped
+harness with recording steps to check that the declaration describes what actually runs. Either
+side moving alone is red, and the suite includes a case proving the extractor can fail.
+
+The guard is one-sided, and that is worth stating: it lives under `tests/`, so a developer editing
+`scan-loop.js` learns about the harness when CI goes red rather than while typing. A comment at
+each product site pointing back here would close that half; it is two lines in `src/`.
+
 ### Arriving later
 
-`trace/harness.js` and `trace/replay-trace.js` (the replay proper), `trace/fingerprint.js` and
-`trace/verdict.js` (what a run outputs, and the byte comparison), and `trace/record-trace.js`
-(deriving a trace from a recorded run). Nothing in that list exists yet; it is here so the
-subtree's shape is legible, not so it reads as built.
+`trace/fingerprint.js` and `trace/verdict.js` (the run report and the byte comparison against a
+committed golden), and `trace/record-trace.js` (deriving a trace from a recorded run). Nothing in
+that list exists yet; it is here so the subtree's shape is legible, not so it reads as built.
 
 ## Replaying a recorded run
 

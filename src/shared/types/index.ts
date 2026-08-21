@@ -62,3 +62,15 @@ export type {
 } from './risk';
 
 export type { CommandCategory, CommandItem, ScoredCommand } from './command-palette';
+
+export type {
+  AppHealthState,
+  AppHealthReason,
+  SensorHealthState,
+  SensorHealth,
+  SensorHealthAggregate,
+  AppHealthProjection,
+  AppHealthSensors,
+  AppHealthWatchPlan,
+  AppHealth,
+} from './app-health';
