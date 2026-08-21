@@ -116,6 +116,9 @@ bench/
   trace/environment.js                      # what a trace pins about the machine and the tree, and the comparison that refuses a mismatch
   trace/writer.js                           # observations → chained records → the exact bytes a trace directory holds
   trace/reader.js                           # reads a trace directory, or refuses it by name
+  trace/clock.js                            # the virtual clock as a value, and the switch that puts it in front of the real one
+  trace/clock-env.js                        # which environment variables name a clock, and the bootstrap that applies them
+  trace/preload.js                          # the `node --require` entrypoint; acts on load, throws loudly when the environment names no clock
   runs/                                     # run artefacts — gitignored, created on first run
   README.md
 ```
@@ -726,11 +729,51 @@ replayed on Linux would only look faithful. The practical consequence is that th
 can run in CI are the format, chain and refusal ones; verifying a recorded Windows trace stays a
 local command, exactly as the rest of the bench does.
 
+### The virtual clock
+
+A replay reads the wall clock in more than twenty places, and one of them has no injection
+point at all: `src/main/audit-logger.js` stamps `new Date().toISOString()` on every record it
+writes. Its `init({now})` hook covers day rotation only. `src/main/baselines.js` reads
+`new Date().getHours()`. Both are globals, and a global has to move before the module that
+closes over it is compiled — which is why the clock arrives through `node --require` and not
+through a seam:
+
+```
+AEGIS_TRACE_CLOCK_EPOCH_MS=<header.clock.epochMs> AEGIS_TRACE_TZ=<header.tz.name>   node --require bench/trace/preload.js <entrypoint>
+```
+
+Nothing in `src/` is patched. `Date` is replaced by a **proxy** over the real constructor, so
+`Date.parse`, `Date.UTC`, `Date.prototype`, `instanceof` and calling `Date()` without `new` all
+keep working, and `new Date(x)` with an argument is untouched — it names an instant the caller
+already has. `performance.now()` reads as milliseconds since the clock's own epoch.
+
+`setTimeout` and `setInterval` are **not** touched. A replay never starts the product's scan
+intervals — cadence comes from the trace, as `clock.advance` records — and the one live timer
+left is the audit logger's flush, stopped by calling the product's own `shutdown()`.
+
+Time moves forward only, and only when a record says so. Going backwards is refused rather than
+clamped: holding the clock still instead would let the watcher's 2 s debounce and the scan
+loop's 30 s dedup window answer questions about an ordering the recording never had. Two
+observations may share a millisecond, because machines do that.
+
+**The failure this is shaped around is a preload that did not run.** A misspelled `--require`,
+an unset variable, a wrapper that dropped the flag — each looks exactly like a preload that
+worked, right up until the verdict cannot be reproduced. So the clock stamps a global marker and
+`isInstalled` / `installedEpochMs` refuse by name without it; `readEpochMs` accepts only a string
+of digits, because `Number('')` is `0` and `Number(' 12 ')` is `12`, so a lax parse would turn an
+unset variable into the Unix epoch and a typo into a plausible instant and both would *run*; and
+the throw is not caught, so Node exits non-zero before an entrypoint can produce a verdict on the
+wrong clock. The suite spawns the negative case — same script, no flag — because a gate that only
+ever exercises the working path proves the command ran, not that it inspected anything.
+
+The time zone is applied **before** the clock, and that order is load-bearing: `process.env.TZ`
+decides what the local-time getters answer, which is what `audit-logger.js` builds a daily file's
+*name* out of.
+
 ### Arriving later
 
-`trace/clock.js` and `trace/preload.js` (the virtual clock, installed before any `src/` module
-loads), `trace/harness.js` and `trace/replay-trace.js` (the replay proper), `trace/fingerprint.js`
-and `trace/verdict.js` (what a run outputs, and the byte comparison), and `trace/record-trace.js`
+`trace/harness.js` and `trace/replay-trace.js` (the replay proper), `trace/fingerprint.js` and
+`trace/verdict.js` (what a run outputs, and the byte comparison), and `trace/record-trace.js`
 (deriving a trace from a recorded run). Nothing in that list exists yet; it is here so the
 subtree's shape is legible, not so it reads as built.
 
