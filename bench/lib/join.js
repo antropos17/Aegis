@@ -104,7 +104,7 @@ class JoinError extends Error {
  * One comparable form of a Windows path.
  *
  * Separators collapse to `\` and the whole string folds to lower case, because
- * `X:/Future\\AEGIS` and `x:\future\aegis` name one file on the platform the
+ * `X:/dev\\project\\AEGIS` and `x:\dev\project\aegis` name one file on the platform the
  * bench runs on. Case folding is a Windows fact, not a general one — this module
  * is only ever handed paths the bench captured on Windows, and a POSIX bench
  * would need a different rule rather than this one relaxed.

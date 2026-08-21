@@ -15,7 +15,9 @@
  *   but a replay whose module graph can reach the sensor is one nobody can prove
  *   did not.
  *
- *   The only import here is `./join`, which reads and writes nothing.
+ *   Imports: `./join`, which reads and writes nothing, and `./paths` for the
+ *   recording-time path rewrite applied at serialize time. `./paths` does not
+ *   touch the filesystem, git, or the live-run graph.
  *
  *   **The one filesystem read.** While this module is being loaded, it hashes the
  *   two files whose bytes decide a report's bytes — `./join.js` and this file — and
@@ -48,6 +50,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
+const { neutralizeRecorded } = require('./paths');
 const join = require('./join');
 
 /**
@@ -252,7 +255,7 @@ function classifyRenderer(recorded, current = RENDERER_FINGERPRINT) {
  * @returns {string}
  */
 function serializeReport(report) {
-  return `${JSON.stringify(report, null, 2)}\n`;
+  return `${JSON.stringify(neutralizeRecorded(report), null, 2)}\n`;
 }
 
 /**

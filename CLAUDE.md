@@ -54,7 +54,7 @@ regenerating a lockfile.
 4. CSS: var() from tokens.css ONLY. Svelte 5 runes only ($state/$derived/$effect)
 5. Svelte MCP autofixer on all .svelte files. JSDoc on all exports
 6. Conventional commits. NEVER add "Co-Authored-By" or "Generated with Claude Code"
-7. Git: powershell.exe -NoProfile -Command "cd 'X:\Future\ESCAPE\AEGIS'; git ..."
+7. Git: powershell.exe -NoProfile -Command "cd 'X:\dev\project\AEGIS'; git ..."
 8. TypeScript: new files in .ts, `npx eslint` + `npm run typecheck` + `npm run typecheck:svelte` before commit, zero `any`. Root tsconfig.json is a solution file (`files: []` + references) — a bare `npx tsc --noEmit` checks NOTHING and always exits 0; use `npm run typecheck` (both projects) or `npx tsc -b`
 
 ## Key Paths

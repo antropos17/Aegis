@@ -4,8 +4,9 @@ out/
 coverage/
 # Compiled snapshot sidecar — built from sidecar/procsnap, never committed
 build/sidecar/
-# Bench run artefacts — machine-specific measurements, written by bench/run.js.
-# The committed record of a run is a hand-written file in docs/bench/, never this.
+# Raw bench run output written by bench/run.js (manifest, ndjson, reports).
+# Never commit it: it is machine-local. The committed, redacted copies live in
+# tests/fixtures/bench/ (see that README). Gold-image numbers go in docs/bench/.
 bench/runs/
 # Throwaway mutants written by scripts/verify-witness-gate.mjs (removed in a finally)
 src/main/.mutants/
@@ -65,3 +66,53 @@ aegis_landing.html
 *.cert
 *.crt
 .vscode/settings.json
+
+# Chromium/Chrome user-data profile written into the repository root.
+# NOT produced by AEGIS: the only --user-data-dir in this repo is
+# bench/lib/sensor.js:261, which points at os.tmpdir() (see profileDirFor).
+# A Chrome 151 profile landed here on 2026-08-15 from an external launch flag
+# — a browser started with --user-data-dir set to the clone root. Browser
+# profile data is not ours to publish, so keep a recurrence untracked and
+# visible as ignored rather than one `git add -A` away from a public commit.
+# Every rule is root-anchored: a bare `Default/` or `Variations` would also
+# swallow a same-named directory anywhere under src/ or tests/.
+/ActorSafetyLists/
+/AmountExtractionHeuristicRegexes/
+/BrowserMetrics/
+/CaptchaProviders/
+/CertificateRevocation/
+/component_crx_cache/
+/Crashpad/
+/Crowd Deny/
+/Default/
+/extensions_crx_cache/
+/FileTypePolicies/
+/FirstPartySetsPreloaded/
+/GPUPersistentCache/
+/GrShaderCache/
+/hyphen-data/
+/MEIPreload/
+/OnDeviceHeadSuggestModel/
+/optimization_guide_model_store/
+/OptimizationHints/
+/OriginTrials/
+/PKIMetadata/
+/PrivacySandboxAttestationsPreloaded/
+/RecoveryImproved/
+/Safe Browsing/
+/SafetyTips/
+/segmentation_platform/
+/ShaderCache/
+/SSLErrorAssistant/
+/Subresource Filter/
+/TrustTokenKeyCommitments/
+/WasmTtsEngine/
+/WidevineCdm/
+/ZxcvbnData/
+# These four land as plain files, not directories — no trailing slash, or the
+# rule silently matches nothing (`Variations` is Chrome's seed file).
+/first_party_sets.db*
+/Last Browser
+/Last Version
+/Local State
+/Variations

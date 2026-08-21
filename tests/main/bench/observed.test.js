@@ -2,11 +2,13 @@
  * @file tests/main/bench/observed.test.js
  * @description `observed.js` is the bench's oracle over the product's audit log,
  *   and an oracle that agrees only with itself proves nothing. So the first
- *   describe block below pins the chain re-implementation against BYTES AEGIS
- *   actually wrote — four consecutive records lifted verbatim out of a real
- *   arm-A run, with the hashes the product computed. Everything after it may use
- *   synthetic chains, because by then the hash function is the one under proof
- *   rather than the thing being assumed (memory-bank/ai-mistakes.md #21).
+ *   describe block below pins the chain re-implementation against four
+ *   consecutive records lifted from a real arm-A run. Clone-root paths in those
+ *   records are the recorded placeholder; hashes from seq 24 onward are
+ *   recomputed over that redacted preimage so the algorithm is still pinned
+ *   link by link. Everything after it may use synthetic chains, because by
+ *   then the hash function is the one under proof rather than the thing being
+ *   assumed (memory-bank/ai-mistakes.md #21).
  *
  *   The rest is about the refusals: a broken chain, a documented loss inside the
  *   window and an empty observation set each fail the run instead of quietly
@@ -22,8 +24,9 @@ import observed from '../../../bench/lib/observed.js';
 
 /**
  * Four consecutive records from `aegis-audit-2026-08-13.json`, written by AEGIS
- * 0.11.0-alpha during a real S1 run, verbatim including the hashes it computed.
- * seq 23 is only here to supply the previous hash that 24 chains from.
+ * 0.11.0-alpha during a real S1 run. Paths are the recorded placeholder;
+ * seq 23 still carries the product hash so 24 has a real predecessor.
+ * Hashes from 24 onward are recomputed over the redacted preimage.
  * @type {ReadonlyArray<Object>}
  */
 const PRODUCT_RECORDS = Object.freeze([
@@ -51,13 +54,13 @@ const PRODUCT_RECORDS = Object.freeze([
     pid: null,
     instanceId: null,
     action: 'created',
-    path: 'X:\\Future\\ESCAPE\\AEGIS\\bench\\runs\\2026-08-13T09-31-10Z-S1-agent-lifecycle-A\\manifest.json',
+    path: 'X:\\dev\\project\\AEGIS\\bench\\runs\\2026-08-13T09-31-10Z-S1-agent-lifecycle-A\\manifest.json',
     severity: 'normal',
     riskScore: 0,
     attribution: { status: 'unattributed', evidence: ['no-owner-match'] },
     details: null,
     seq: 24,
-    hash: '533e1972b46688e7131d7a7cb1fde4fa32550f6ad36fb4dbc02a68d83c207cb2',
+    hash: '1f12fe5d5b89ec3ef2d17b193d763d41129ceb9ae1aa049082ad134f3956a9e7',
   },
   {
     schemaVersion: 1,
@@ -67,13 +70,13 @@ const PRODUCT_RECORDS = Object.freeze([
     pid: null,
     instanceId: null,
     action: 'created',
-    path: 'X:\\Future\\ESCAPE\\AEGIS\\bench\\runs\\2026-08-13T09-31-10Z-S1-agent-lifecycle-A\\stage\\claude.exe',
+    path: 'X:\\dev\\project\\AEGIS\\bench\\runs\\2026-08-13T09-31-10Z-S1-agent-lifecycle-A\\stage\\claude.exe',
     severity: 'normal',
     riskScore: 0,
     attribution: { status: 'unattributed', evidence: ['no-owner-match'] },
     details: null,
     seq: 25,
-    hash: 'f178604fe029c69609b75e666658072becad0763ba79b34a18ec55c3649207ad',
+    hash: '7f270882d18c837dea4bd56a5e3a864051579a090a52f9fd73efe4e7d8cd962d',
   },
   {
     schemaVersion: 1,
@@ -89,7 +92,7 @@ const PRODUCT_RECORDS = Object.freeze([
     attribution: null,
     details: { startTime: 1786613494477 },
     seq: 26,
-    hash: '74fdf70bf09f694c7f7241bf1e95ca5bc3b4fc08cd9daf7ae6861ed256ec19c8',
+    hash: '57d93f763b85b2950c43d756cfcf27916a4b436a4b6200b0a5efbd11268f903a',
   },
 ]);
 
@@ -120,7 +123,7 @@ const PRODUCT_DELETION = Object.freeze({
   pid: null,
   instanceId: null,
   action: 'deleted',
-  path: 'X:\\Future\\ESCAPE\\AEGIS\\bench\\runs\\2026-08-13T09-31-10Z-S1-agent-lifecycle-A\\stage\\claude.exe',
+  path: 'X:\\dev\\project\\AEGIS\\bench\\runs\\2026-08-13T09-31-10Z-S1-agent-lifecycle-A\\stage\\claude.exe',
   severity: 'normal',
   riskScore: 0,
   attribution: { status: 'unattributed', evidence: ['no-owner-match'] },
@@ -318,10 +321,10 @@ describe('bench observed — mapping product records onto the catalogue subset',
       action: 'file-created',
     });
     expect(line.file).toEqual({
-      path: 'X:\\Future\\ESCAPE\\AEGIS\\bench\\runs\\2026-08-13T09-31-10Z-S1-agent-lifecycle-A\\stage\\claude.exe',
+      path: 'X:\\dev\\project\\AEGIS\\bench\\runs\\2026-08-13T09-31-10Z-S1-agent-lifecycle-A\\stage\\claude.exe',
       name: 'claude.exe',
       directory:
-        'X:\\Future\\ESCAPE\\AEGIS\\bench\\runs\\2026-08-13T09-31-10Z-S1-agent-lifecycle-A\\stage',
+        'X:\\dev\\project\\AEGIS\\bench\\runs\\2026-08-13T09-31-10Z-S1-agent-lifecycle-A\\stage',
     });
     // The product knows no owner for a watcher event, so no pid is written —
     // absent, never null (the B2.2 convention).

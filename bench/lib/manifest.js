@@ -4,12 +4,12 @@
  * @description Environment snapshot for one bench run.
  *
  *   A bench number is worth nothing without the machine it was measured on, so
- *   every run directory opens with a manifest. The rule this file is built
- *   around: **an absent fact is recorded as absent, never guessed.** Every
- *   entry is `{value, source}` when the probe succeeded and
- *   `{value: null, unavailable: <reason>, source}` when it did not — so a
- *   reader can tell "this machine reported build 26200" from "we could not
- *   read the build", which a bare `null` or a plausible default would merge.
+ *   every run directory opens with a manifest. The host block records
+ *   **platform only** — CPU model, thread count, memory size, OS edition and
+ *   build number identify a workstation and are not written. The rule for
+ *   everything that remains: **an absent fact is recorded as absent, never
+ *   guessed.** Every entry is `{value, source}` when the probe succeeded and
+ *   `{value: null, unavailable: <reason>, source}` when it did not.
  *
  *   Nothing here is imported from `src/`. The bench observes the sensor from
  *   outside; a shared module would make AEGIS a contributor to its own
@@ -22,14 +22,18 @@
 
 const { execFileSync } = require('child_process');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 
-/** @type {string} Repository root — this file is `bench/lib/`, two levels down. */
-const ROOT = path.resolve(__dirname, '..', '..');
+const {
+  RECORDED_REPO_ROOT,
+  RECORDED_USER,
+  ROOT,
+  neutralizePath,
+  neutralizeRecorded,
+} = require('./paths');
 
 /** @type {number} Manifest shape version. Bump when a field changes meaning. */
-const MANIFEST_SCHEMA_VERSION = 1;
+const MANIFEST_SCHEMA_VERSION = 2;
 
 /**
  * The three run separations of RESEARCH-BASELINE section 10. Kept here rather
@@ -110,32 +114,6 @@ function git(args) {
     encoding: 'utf8',
     windowsHide: true,
   }).trim();
-}
-
-/**
- * Windows build identity, from the registry rather than `os.release()`.
- *
- * `os.release()` gives `10.0.26200` and stops there; the UBR — the fourth
- * component that actually distinguishes two machines both calling themselves
- * 26200 — exists only in the registry. `productName` is recorded verbatim even
- * when it disagrees with `os.version()` (Windows 11 machines routinely report
- * `Windows 10 <edition>` under this key): the manifest records what each
- * source said, and never reconciles two sources into one invented answer.
- * @returns {{value: Object|null, source: string, unavailable?: string}}
- */
-function windowsBuild() {
-  const key = 'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion';
-  return probe(`reg query "${key}"`, () => {
-    if (process.platform !== 'win32') return null;
-    const v = readRegistryValues(key, ['CurrentBuild', 'UBR', 'DisplayVersion', 'ProductName']);
-    if (Object.keys(v).length === 0) return null;
-    return {
-      currentBuild: v.CurrentBuild ?? null,
-      ubr: v.UBR ?? null,
-      displayVersion: v.DisplayVersion ?? null,
-      productName: v.ProductName ?? null,
-    };
-  });
 }
 
 /**
@@ -226,15 +204,11 @@ function collect(opts) {
     armDescription: ARM_DESCRIPTIONS[opts.arm] ?? null,
     startedAt: opts.startedAt,
     host: {
+      // Platform only. CPU model, thread count, memory size, OS edition and
+      // build number identify a workstation and do not belong in a committed
+      // artefact. A published accuracy figure still names the gold-image build
+      // in docs/bench/, not here.
       platform: probe('process.platform', () => process.platform),
-      osRelease: probe('os.release()', () => os.release()),
-      osVersion: probe('os.version()', () => os.version()),
-      windowsBuild: windowsBuild(),
-      cpuModel: probe('os.cpus()[0].model', () => os.cpus()[0].model),
-      cpuCount: probe('os.cpus().length', () => os.cpus().length),
-      totalMemBytes: probe('os.totalmem()', () => os.totalmem()),
-      uptimeSec: probe('os.uptime()', () => Math.round(os.uptime())),
-      nodeVersion: probe('process.version', () => process.version),
     },
     sensor: {
       packageVersion: probe('package.json version', () => {
@@ -267,8 +241,12 @@ module.exports = {
   ARMS,
   ARM_DESCRIPTIONS,
   MANIFEST_SCHEMA_VERSION,
+  RECORDED_REPO_ROOT,
+  RECORDED_USER,
   ROOT,
   collect,
+  neutralizePath,
+  neutralizeRecorded,
   // Exported so the oracle placeholders can be pinned without spawning the three
   // `git` calls, the `reg query` and the `tasklist` that `collect` runs.
   oraclePlaceholders,
