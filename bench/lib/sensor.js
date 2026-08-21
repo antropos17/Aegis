@@ -223,11 +223,29 @@ async function start(opts) {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
 
+  // A RUN-SCOPED HOME, when the scenario asked for one.
+  //
+  // `platform/restart-manager.js` `buildSensitiveGroups` enumerates `os.homedir()`
+  // and nothing else, so the Restart Manager read-detect branch is only ever
+  // exercised against files under the account's real home. Pointing the sensor's
+  // `USERPROFILE` at the run directory keeps a bench run's RM scope inside the run:
+  // the mechanism is exercised faithfully, and the developer's real `.ssh`, `.gnupg`
+  // and `.claude` are neither read nor held by anything this run starts.
+  //
+  // It changes what the sensor observes, so it is RECORDED — `observed.meta.json`
+  // carries it, and a run without it says so by its absence rather than by omission.
+  if (opts.homeDir) {
+    fs.mkdirSync(opts.homeDir, { recursive: true });
+    env.USERPROFILE = opts.homeDir;
+    env.HOME = opts.homeDir;
+  }
+
   const handle = {
     /** @type {import('child_process').ChildProcess|null} */
     child: null,
     pid: null,
     profileDir,
+    homeDir: opts.homeDir ?? null,
     startedAt: new Date().toISOString(),
     readyAt: null,
     steadyAt: null,

@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "id": "S2-rm-holder",
+  "title": "Restart Manager holder — a process named like a known agent holds a secret file open across several scan ticks",
+  "arms": ["A"],
+  "oracles": ["sysmon"],
+  "proves": "That the Restart Manager read-detect branch can be reached from a bench scenario at all, and that a hold on a secret the holder does not own is observable while it is held — rm-holder-pid on its own, with no self-access exemption to confound it. The pid, the staged binary's absolute path, the seeded file's absolute path and the instants are recorded by the actor that caused them. What the sensor then reports is scored against that record; this scenario establishes the record, not the score. It proves nothing about a REAL credential directory: the home it seeds is the run's own.",
+  "expect": [
+    {
+      "id": "E1",
+      "description": "A binary appears on disk under the agent's name, in the run's own stage directory",
+      "category": "file",
+      "type": "creation"
+    },
+    {
+      "id": "E2",
+      "description": "A secret file appears in a rule-matching directory inside the run's own home. Whether the watcher delivers it is not something this scenario asserts: it sits deep inside the run directory, and two runs of this scenario have disagreed about it. The catalogue records that the file was created either way, and a miss here is reported as one rather than explained away.",
+      "category": "file",
+      "type": "creation"
+    },
+    {
+      "id": "E3",
+      "description": "A process starts from the staged binary, is assigned a pid by the OS, and holds that file open",
+      "category": "process",
+      "type": "start"
+    },
+    {
+      "id": "E4",
+      "description": "The staged binary is removed again, so a run leaves nothing named after an agent behind",
+      "category": "file",
+      "type": "deletion"
+    }
+  ],
+  "steps": [
+    {
+      "id": "stage-binary",
+      "kind": "copy-binary",
+      "expect": "E1",
+      "note": "node.exe rather than ping.exe, because this scenario needs the staged process to HOLD a handle rather than to merely exist, and ping cannot be told to hold a file. It is the same interpreter this bench already runs on, so a machine that can run the bench has one; when the path differs, copy-binary fails by name rather than staging something else. The name is verified against agent-database.json: the holder must be a process AEGIS recognises as an agent, because _scanRmHolders maps a holder pid onto an agent and drops any pid that is not one.",
+      "with": {
+        "from": "%ProgramFiles%\\nodejs\\node.exe",
+        "agentId": "claude-code",
+        "agentName": "claude.exe"
+      }
+    },
+    {
+      "id": "seed-secret",
+      "kind": "seed-secret-file",
+      "expect": "E2",
+      "note": "'.ssh' is one of the SECRET_DIRS that platform/restart-manager.js buildSensitiveGroups enumerates under the home, and rules/ssh.yaml gives it a reason. Deliberately NOT '.claude': a holder named claude.exe holding its own config dir also trips the self-access exemption, which clears `sensitive` and adds self-config-path as a second evidence code — a real behaviour, but one that confounds what this scenario is for. A directory the holder does not own isolates rm-holder-pid on its own. The home is the RUN's, not the account's: bench/lib/sensor.js points the sensor's USERPROFILE at the run directory, so nothing under the developer's real home is read, held, or created.",
+      "with": {
+        "dir": ".ssh",
+        "name": "id_rsa"
+      }
+    },
+    {
+      "id": "hold-secret",
+      "kind": "hold-secret-file",
+      "expect": "E3",
+      "note": "40 s, against a default scan interval of 10 s (scanIntervalSec in src/main/config-manager.js) and a hot read-detect cycle of ~10 s — so several ticks fall inside the hold. The Restart Manager reports the processes holding a registered resource at the instant it is asked, never a transient open-read-close, so a shorter hold would leave nothing for a tick to find.",
+      "with": {
+        "fromStep": "stage-binary",
+        "dir": ".ssh",
+        "name": "id_rsa",
+        "ms": 40000
+      }
+    },
+    {
+      "id": "live-across-ticks",
+      "kind": "wait",
+      "note": "Longer than the hold itself, so the full 30 s file scan and the ~10 s hot cycle both run while the handle is open AND the holder has exited by the time the next step removes the staged binary — on Windows a running image cannot be deleted, and a cleanup step that fails would fail the run.",
+      "with": {
+        "ms": 45000
+      }
+    },
+    {
+      "id": "remove-binary",
+      "kind": "delete-file",
+      "note": "Runs after the hold has expired, so the image is no longer mapped. Every emitting step must claim an expectation, and this one emits a deletion.",
+      "with": {
+        "fromStep": "stage-binary"
+      },
+      "expect": "E4"
+    }
+  ]
+}
