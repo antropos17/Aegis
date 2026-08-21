@@ -27,8 +27,8 @@
  *      #28 is about.
  *
  *   Every enumeration reads the INDEX (`git ls-files -z`), never a working-tree walk:
- *   `.claude/rules/` is tracked but lives under an ignored path, so a walk with the
- *   standard exclusions drops it (ai-mistakes #28). Note also that git pathspec
+ *   a tracked file under an ignored path drops out of a walk with the standard
+ *   exclusions (ai-mistakes #28). Note also that git pathspec
  *   globbing is fnmatch WITHOUT FNM_PATHNAME — `git ls-files 'src/main/*.js'` returns
  *   the whole subtree, not the top level — so every derivation lists a directory and
  *   splits the paths here rather than trusting a glob.
@@ -670,26 +670,6 @@ const ARCHIVAL_FILES = new Set(ARCHIVAL.map((a) => a.file));
  * @type {Array<{file: string, contains: string, why: string}>}
  */
 const SITE_EXEMPTIONS = [
-  {
-    file: '.claude/skills/prompt-craft/SKILL.md',
-    contains: 'Always include the 4 verification commands',
-    why: 'a prompt-template rule (a prompt must carry 4 VERIFY lines), not the CI command count',
-  },
-  {
-    file: '.agents/skills/prompt-craft/SKILL.md',
-    contains: 'Always include the 4 verification commands',
-    why: 'a prompt-template rule (a prompt must carry 4 VERIFY lines), not the CI command count',
-  },
-  {
-    file: '.claude/skills/prompt-craft/SKILL.md',
-    contains: 'already implemented in 3 components',
-    why: 'an example answer about three specific components, not the component inventory',
-  },
-  {
-    file: '.agents/skills/prompt-craft/SKILL.md',
-    contains: 'already implemented in 3 components',
-    why: 'an example answer about three specific components, not the component inventory',
-  },
   {
     file: 'ROADMAP.md',
     contains: 'hardcoded `rgba(255,255,255)` in 15 Svelte components',

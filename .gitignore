@@ -25,12 +25,9 @@ src/main/.mutants/
 Thumbs.db
 *.ps1
 cdp_*.js
-.claude/*
-!.claude/skills/
-!.claude/agents/
-!.claude/commands/
-!.claude/hooks/
-!.claude/settings.json
+# Local assistant tooling — kept on disk, not part of the public tree
+.claude/
+.agents/
 !.mcp.json
 aegis-log-*.json
 aegis-export-*.zip
