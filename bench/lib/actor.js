@@ -355,7 +355,12 @@ const KIND_IMPL = Object.freeze({
   'spawn-process': async (step, ctx) => {
     const source = ctx.results.get(step.with.fromStep);
     const args = step.with.args ?? [];
-    const child = spawn(source.path, args, { stdio: 'ignore', windowsHide: true });
+    const resolvedExec = path.resolve(source.path);
+    const resolvedStageDir = path.resolve(ctx.stageDir);
+    if (!resolvedExec.startsWith(resolvedStageDir + path.sep)) {
+      throw new Error(`executable path is outside the stage directory`);
+    }
+    const child = spawn(resolvedExec, args, { stdio: 'ignore', windowsHide: true });
     ctx.children.push(child);
     const timestamp = await awaitSpawn(child);
     return {
