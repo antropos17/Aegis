@@ -1,24 +1,22 @@
 <p align="center">
   <h1 align="center">AEGIS</h1>
-  <p align="center"><b>OS-level oversight for AI coding agents</b></p>
-  <p align="center"><i>Open-source monitor that shows what AI coding agents actually do on your machine — at the OS level, no agent hooks required.</i></p>
+  <p align="center"><b>Independent, OS-level observability for AI coding agents</b></p>
+  <p align="center"><i>Watches what AI agents actually do on your machine — processes, files, network — from outside the agents, no hooks required.</i></p>
 </p>
 
-**AEGIS sees every AI agent on your machine — even ones that don't cooperate.** It is an independent, OS-level observer that watches agent processes, file access, network activity, and behavioral anomalies in real time, regardless of how the agent was launched. Built on a CommonJS JavaScript monitoring engine, with TypeScript in the renderer and in the shared types. **Open-source, local, no telemetry** — everything stays on your machine.
-
-> "Kaspersky found 512 bugs in OpenClaw. So we built an EDR to monitor it."
+**AEGIS is an independent, OS-level observer for AI agents.** It watches agent processes, file access, and network activity regardless of how the agent was launched or whether it cooperates with monitoring — and it ties every observation to a specific agent *instance*, with the evidence for that attribution stated on the record. Built on a CommonJS JavaScript monitoring engine, with TypeScript in the renderer and the shared types. **Open-source, local, no telemetry** — everything stays on your machine.
 
 <p align="center">
   <a href="https://github.com/antropos17/Aegis/releases/latest"><img src="https://img.shields.io/github/v/release/antropos17/Aegis?include_prereleases&style=flat-square&label=Release" alt="Release"></a>
   <img src="https://img.shields.io/github/actions/workflow/status/antropos17/Aegis/ci.yml?style=flat-square&label=CI" alt="CI">
-  <img src="https://img.shields.io/badge/Tests-1075%20passing-brightgreen?style=flat-square" alt="Tests">
   <a href="#monitor-first"><img src="https://img.shields.io/badge/Mode-monitor--first-8a2be2?style=flat-square" alt="Monitor-first"></a>
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/Platform-Win%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform">
+  <img src="https://img.shields.io/badge/Platform-Windows%20%C2%B7%20macOS%2FLinux%20experimental-lightgrey?style=flat-square" alt="Platform">
 </p>
 
 <p align="center">
-  <img src="https://github.com/antropos17/Aegis/releases/download/aegis-v0.10.0-alpha/demo.gif" alt="AEGIS Demo" width="800">
+  <img src="https://github.com/antropos17/Aegis/releases/download/aegis-v0.10.0-alpha/demo.gif" alt="AEGIS Demo" width="800"><br>
+  <sub>Demo recorded at v0.10.0-alpha; some labels have been renamed since.</sub>
 </p>
 
 <p align="center">
@@ -30,63 +28,73 @@
 
 ---
 
-## What Does Aegis Monitor?
+## What AEGIS observes
 
-- **Process Monitoring** — Tracks 110 known AI agent signatures with parent-child tree resolution and IDE host detection.
-- **File System Access** — Watches sensitive directories (`.ssh`, `.aws`, `.gnupg`, `.env`, cloud configs) and 35 registered AI agent config paths for unauthorized access.
-- **Network Activity** — Logs outbound TCP connections per agent PID with reverse DNS and known-vs-unknown API endpoint classification.
-- **Behavioral Analysis** — Applies 73 detection rules across 8 categories with rolling 10-session baselines and 4-axis anomaly scoring.
-- **Trust Scoring** — Assigns real-time risk scores with trust grades (A+ through F) using time-decay algorithms and multi-dimensional threat assessment.
-- **Multi-Agent Dashboard** — Displays all 110 agents in a bento-grid dashboard with sparklines, risk rings, activity feeds, and expandable agent cards.
+| Layer | How |
+|-------|-----|
+| **Processes** | 110 agents (262 process-name signatures), parent-chain resolution, IDE host detection, WSL and IDE-extension discovery |
+| **Files** | chokidar watch on sensitive directories (`.ssh`, `.aws`, `.gnupg`, `.env*`, cloud configs) and the registered config paths of known agents; open-handle and Restart-Manager read detection on Windows |
+| **Network** | Outbound TCP per agent process, forward-confirmed reverse DNS, and a verdict per endpoint — `allowlisted`, `unknown`, or `flagged`; an unidentified endpoint is never displayed as safe |
+| **Behavior** | 73 detection rules across 8 categories (YAML, hot-reloaded), rolling 10-session baselines, anomaly scoring over four axes (network / filesystem / process / baseline) |
+| **Local LLMs** | Runtime probes for Ollama and LM Studio, including loaded models; other runtimes such as vLLM and llama.cpp are detected by process signature |
 
-## Why Aegis?
+The counted facts above are not hand-maintained: `npm run counts:check` re-derives every documented counter from the tree on each CI run and fails the build when a number in the docs drifts from reality.
 
-| | |
-|---|---|
-| **512** | vulnerabilities found in OpenClaw by Kaspersky — autonomous agents ship with real security risks |
-| **0** | open-source EDR tools existed for AI agents before Aegis |
-| **110** | AI agent signatures in the detection database, from Claude Code to AutoGPT |
-| **73** | behavioral detection rules across 8 categories, hot-reloaded on edit |
-| **1075** | tests passing, 0 failures — the monitoring engine is verified on every commit |
-| **<2s** | cold boot to full dashboard — lightweight enough to run alongside the agents it monitors |
+## The evidence graph
 
-AI agents now have deep access to your machine — files, commands, network. Every existing AI security tool is enterprise SaaS that monitors what humans send *to* AI. Nobody monitors what AI agents do *on local machines*. Aegis is the open-source answer.
+What separates AEGIS from a process viewer is not the sensors — it is that every event is attached to an agent **instance**, with evidence you can audit:
 
-## Why AEGIS is different
+- **Instance identity.** An agent is keyed as `pid` + OS birth time (`instanceId`), so a recycled PID is a new instance, not a continuation of the old one's history. Identity caching is gated by a witness, and CI runs an injection proof (`npm run verify:gate`, 4 mutants) that goes red if an identity could ever be served from a stale cache.
+- **Attribution with stated evidence.** Every audit record carries `pid`, `instanceId`, and an `attribution` object with one of three statuses — confirmed, inferred, or unattributed — backed by a closed registry of evidence codes. When AEGIS does not know which agent touched a file, it says *unattributed*; it never invents an owner.
+- **Tamper-evident log.** Audit events are hash-chained JSONL (Event Schema v1) with daily rotation, 30-day retention, and explicit loss markers when the write buffer overflows.
+- **Measured, not asserted.** The identity mechanism is benchmarked in-repo: provider birth-time parity was exact for every comparable process in both recorded runs (542/542 and 419/419), and the process-snapshot sidecar costs ~10 ms per scan where the fallback provider costs hundreds to thousands. Per-run tables, environments, and the stated gaps are in [docs/bench/](docs/bench/).
 
-Most AI-agent oversight tools work by **hooking inside the agent itself** — a Claude Code plugin, a Cursor extension, an SDK wrapper. Sage (Gen Digital), leash, and Microsoft's Agent Governance Toolkit all live *in* the agent's runtime. That has a structural blind spot: **they only see agents that installed their hook.** An agent launched a different way — a raw `python autogpt.py`, a binary you didn't wrap, a tool that simply doesn't cooperate — is invisible to them.
-
-AEGIS sits at a different layer. It is an **independent, OS-level observer**: it watches process, file, and network activity from outside the agents, so it catches *any* agent on the machine regardless of how it was started or whether it wants to be watched. Hook-based tools and AEGIS are complementary — one instruments the agents that opt in, the other sees the whole machine.
+Evidence: [`src/main/process-identity.js`](src/main/process-identity.js) · [`src/main/attribution.js`](src/main/attribution.js) · [correctness audit](docs/current-state/CORRECTNESS-AUDIT.md) · [bench 2026-08-12](docs/bench/generation-v2-2026-08-12.md) · [bench 2026-08-13](docs/bench/generation-v2-2026-08-13.md)
 
 ## Monitor-first
 
 > **AEGIS is a camera, not a guard.** It **observes and logs** — it does **not** block agents at the OS level today. There are no kernel hooks and no automatic enforcement. Process control (kill / suspend / resume) is **manual and user-invoked** only. Active blocking is on the [roadmap](#roadmap), not in the current release. Use AEGIS for visibility, auditing, and anomaly detection — pair it with sandboxing when you need enforcement.
 
-## What It Monitors
+## How AEGIS differs from in-agent oversight
 
-| Layer | How |
-|-------|-----|
-| **Processes** | 110 known AI agent signatures, parent-child tree resolution, IDE host detection |
-| **Files** | Watches `.ssh`, `.aws`, `.gnupg`, `.env*`, cloud configs, 35 registered AI agent config dirs |
-| **Network** | Outbound TCP per agent PID, reverse DNS, known API endpoints vs unknown |
-| **Behavior** | Rolling 10-session baselines, 4-axis anomaly scoring (Network/FS/Process/Baseline) |
-| **Local LLMs** | Ollama, LM Studio, vLLM, llama.cpp runtime detection |
+Most AI-agent oversight tools instrument the agent itself — a Claude Code plugin, an IDE extension, an SDK wrapper. That placement has a structural blind spot: an agent only shows up if it (or its user) installed the hook. A raw `python autogpt.py`, an unwrapped binary, or a tool that simply does not cooperate is invisible to in-agent instrumentation.
 
-## How It Compares
+AEGIS sits at the OS layer instead: it watches process, file, and network activity from outside the agents, so what it sees does not depend on the agent's cooperation — only on AEGIS's own coverage (see [known limits](#known-limits)). It is not the only tool observing agents locally — [AgentSight](https://github.com/eunomia-bpf/agentsight), for example, observes from the eBPF layer on Linux — and hook-based tools are complementary rather than competing: hooks see intent (prompts, tool calls) inside the agents that opted in, while AEGIS sees effects (processes, files, connections) for whatever runs on the machine, linked to agent instances without requiring cooperation.
 
-| | AEGIS | Lasso / Prompt Security / PromptArmor |
-|-|:-----:|:--------------------------------------:|
-| Runs locally | Yes | Cloud |
-| Open source | MIT | No |
-| Free | Yes | Enterprise |
-| Monitors file access | Yes | No |
-| Detects local LLMs | Yes | No |
+## Known limits
 
-> **AEGIS is the only open-source, local-first AI agent monitor.**
+A monitor you cannot calibrate is a monitor you cannot trust, so the limits are stated here rather than discovered later. The re-verified findings behind this list, each with an OPEN/CLOSED status, live in the [correctness audit](docs/current-state/CORRECTNESS-AUDIT.md); the short version:
+
+- **Coverage is signature- and heuristic-based.** Detection starts from 110 agents (262 process-name signatures) plus heuristics (WSL, IDE extensions, local LLM probes). An agent binary that matches none of these is not detected.
+- **Polling has a blind spot.** A process born and dead between scan ticks (~10 s) is never observed; the bench pages state this explicitly. Per-event capture via ETW is on the [roadmap](#roadmap), with a static recon already in [docs/recon/kernel-file-etw.md](docs/recon/kernel-file-etw.md).
+- **macOS/Linux identity is degraded.** Those platforms currently supply no OS birth time, so instance identity falls back to PID only and is unsafe under PID reuse. Token-cost tracking is Windows-only.
+- **UI event windows truncate silently.** The renderer keeps bounded event windows that can disagree with totals, and there is no truncation banner yet.
+- **Sensor health is tracked but not yet shown.** The main process records per-sensor health for the filesystem and network sensors, but the UI cannot yet distinguish a quiet machine from a dead sensor, and process-scan overruns are skipped without a counter.
+- **Audit loss markers need a successful flush.** If the process is killed while the disk is still failing, evicted audit entries can be lost without an on-disk marker.
+
+## What we deliberately do not claim
+
+Numbers appear in this README only when they are derived from the repository (and enforced by `npm run counts:check`) or measured with a written-down method. Some numbers people ask for do not exist yet, so we do not state them:
+
+- **Boot time.** No startup benchmark exists; the old "under two seconds" claim was removed rather than kept unmeasured.
+- **Detection or false-positive rates.** A scenario bench with an independent oracle exists (`bench/`, scored against Sysmon/Procmon), but it is Windows-only, covers one scenario, and does not run in CI — not a basis for a rate.
+- **Overhead.** AEGIS's own CPU/RAM cost has not been measured under a written-down method.
+- **Benchmark speedup headlines.** The measured snapshot-vs-fallback ratio moved from 193× to 51× between two days on the same machine; the durable claim is the weaker one — snapshot ~10 ms, fallback hundreds to thousands of ms — and that is the only form quoted here.
+- **Per-event confidence scores.** Deliberately absent from the product until a ground-truth bench exists.
+- **Test counts.** Hand-copied suite counts go stale silently; the suite prints its own counts, and CI runs it on every commit.
+
+## Why independent oversight
+
+AI agents run with deep access to files, credentials, and shell commands. The risk is not hypothetical: Kaspersky's write-up of the OpenClaw case reports that a security audit in January 2026 identified **512 vulnerabilities, eight of them critical**, and argues that the deeper problem is architectural — privileged local access combined with the ability to communicate externally ([Kaspersky, 2026-02-10](https://www.kaspersky.com/blog/openclaw-vulnerabilities-exposed/55263/)). Patching fixes bugs; it does not give you visibility into what an agent actually did on your machine. That visibility is the layer AEGIS adds.
 
 ## Download
 
-### From Source (all platforms)
+### Windows installer
+
+Starting with v0.11.0-alpha, releases ship a Windows NSIS installer — download the `.exe` from the [latest release](https://github.com/antropos17/Aegis/releases/latest).
+
+### From source (all platforms)
+
 ```bash
 git clone https://github.com/antropos17/Aegis.git
 cd Aegis
@@ -94,9 +102,9 @@ npm install
 npm start
 ```
 
-> Requires **Node.js 18+** and **npm 9+**. Windows 10/11 recommended. macOS/Linux experimental ([#37](https://github.com/antropos17/Aegis/issues/37)).
+> Requires **Node.js 22.x** (`engines` in `package.json`). Windows 10/11 recommended; macOS/Linux experimental ([#37](https://github.com/antropos17/Aegis/issues/37)) — see [known limits](#known-limits).
 
-### Try Without AI Agents
+### Try without AI agents
 
 Don't have AI agents running? Demo mode lets you explore the full dashboard with simulated data — no real monitoring, no real processes.
 
@@ -108,18 +116,11 @@ Demo mode runs a scenario engine that cycles through four threat phases — **ca
 
 Use it to evaluate AEGIS before deploying, demo the UI to your team, or develop new features without needing a live Windows environment.
 
-### Windows Installer
-
-Pre-built `.exe` installer is coming in a future release. Track progress in [Releases](https://github.com/antropos17/Aegis/releases).
-
-<!-- TODO: uncomment when CI builds .exe
-[![Download](https://img.shields.io/badge/Download-Windows%20Installer-00ff88?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/antropos17/Aegis/releases/latest)
--->
-
-### Release History
+### Release history
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v0.11.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.11.0-alpha) | 2026-08-11 | Windows installer, Event Schema v1 attribution, endpoint verdicts, sensor health records, WSL & IDE-extension detection |
 | [v0.10.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.10.0-alpha) | 2026-03-09 | Code cleanup, security hardening, command palette |
 | [v0.9.1-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.9.1-alpha) | 2026-03-08 | Dropdown dedup, skill paths, aegis-context optimized |
 | [v0.9.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.9.0-alpha) | 2026-03-08 | categoryIndex, prompt-craft skill, TS migration stores |
@@ -132,15 +133,15 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
 
 ## Features
 
-**Detection** — 110 agent signatures, parent chain resolution, config dir protection, per-agent risk scoring with trust grades (A+ through F), HTTP/User-Agent scoring, local LLM detection, false positive marking
+**Detection** — 110 agents (262 process-name signatures), parent-chain resolution, sensitive-path and agent-config watching, per-agent risk scoring with trust grades (A+ through F), local LLM detection, false-positive marking
 
-**Analysis** — Behavioral baselines with rolling averages, multi-dimensional anomaly detection, AI threat assessment via Anthropic API (opt-in), printable HTML threat reports
+**Analysis** — Behavioral baselines with rolling averages, multi-axis anomaly detection, AI threat assessment via the Anthropic API (opt-in), printable HTML threat reports
 
-**Dashboard** — Bento grid dashboard — RiskRing gauge, Sparklines, TrustBadge, agent stats, activity feed with filters, session timeline, agent cards with expandable details, protection presets (Paranoid/Strict/Balanced/Developer), dark/light theme, toast notifications, OOM protection, keyboard shortcuts (Ctrl+1-4)
+**Dashboard** — Bento-grid dashboard: RiskRing gauge, TrustBadge, activity feed with filters, session timeline with attribution tooltips, expandable agent cards, protection presets (Paranoid/Strict/Balanced/Developer), command palette (Ctrl+K), keyboard shortcuts (Ctrl+1-5), dark/light theme, toast notifications, OOM protection
 
-**Export** — JSON, CSV, HTML reports, one-click ZIP archive, JSONL audit logging (daily rotation, 30-day retention)
+**Export** — JSON, CSV, HTML reports, one-click ZIP archive, hash-chained JSONL audit log (daily rotation, 30-day retention)
 
-**i18n** — Internationalization with English base (230 strings in `en.json`), community translations welcome
+**i18n** — Internationalization with an English base (`en.json`); community translations welcome
 
 **CLI** — `--scan-json` for scripting, `--version`, `--help`
 
@@ -151,6 +152,8 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
 - Extend by adding a `.yaml` to `rules/`. Rule IDs must be unique — a duplicate ID is skipped, not overridden. A newly added file is picked up on the next reload or restart, since the watcher reacts to changes in existing top-level files
 
 ## Screenshots
+
+> Captured at v0.10.0-alpha. Some labels have since been renamed ("System Uptime" → "Monitoring Duration", "Sensitive Files" → "Sensitive Alerts") — the renames are documented in the [correctness audit](docs/current-state/CORRECTNESS-AUDIT.md).
 
 <details><summary>📸 Shield — Real-time Overview</summary>
 <img src="docs/screenshots/01-shield.png" alt="Shield tab" width="800" />
@@ -179,33 +182,37 @@ Pre-built `.exe` installer is coming in a future release. Track progress in [Rel
 ## Architecture
 
 ```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│   Process    │    │    File     │    │   Network   │    │     LLM     │
-│   Scanner    │    │   Watcher   │    │   Monitor   │    │  Detector   │
-│  (tasklist)  │    │ (chokidar)  │    │ (NetTCP+DNS)│    │(Ollama/LMS) │
-└──────┬───────┘    └──────┬──────┘    └──────┬──────┘    └──────┬──────┘
-       │                   │                  │                  │
-       └───────────┬───────┴──────────┬───────┘                  │
-                   │                  │                           │
-            ┌──────▼──────┐    ┌──────▼──────┐                   │
-            │  Baseline   │    │   Anomaly   │◄──────────────────┘
-            │   Engine    │    │  Detector   │
-            │(10-session) │    │  (4-axis)   │
-            └──────┬──────┘    └──────┬──────┘
-                   │                  │
-            ┌──────▼──────┐    ┌──────▼──────┐    ┌─────────────┐
-            │    Risk     │    │   Audit     │    │     CLI     │
-            │   Engine    │    │   Logger    │    │ (--scan-json│
-            │(time-decay) │    │  (JSONL/30d)│    │  --version) │
-            └──────┬──────┘    └──────┬──────┘    └─────────────┘
-                   │                  │
-            ┌──────▼──────┐    ┌──────▼──────┐
-            │  Dashboard  │    │ ZIP Writer  │
-            │ (Svelte IPC)│    │ (export)    │
-            └─────────────┘    └─────────────┘
+┌───────────────┐  ┌────────────────┐  ┌───────────────┐  ┌───────────────┐
+│   Process     │  │     File       │  │    Network    │  │  LLM Runtime  │
+│   Snapshot    │  │    Watcher     │  │    Monitor    │  │   Detector    │
+│ (sidecar with │  │  (chokidar +   │  │ (TCP + rDNS + │  │ (Ollama / LM  │
+│  CIM fallback)│  │  handle / RM)  │  │   verdicts)   │  │    Studio)    │
+└──────┬────────┘  └──────┬─────────┘  └──────┬────────┘  └──────┬────────┘
+       └──────────────┬───┴───────────────────┴──────────────────┘
+                      ▼
+        ┌───────────────────────────────┐
+        │   Identity & Attribution      │
+        │ instanceId = pid + birth time │
+        │ evidence codes, no guessing   │
+        └──────┬────────────────┬───────┘
+               ▼                ▼
+    ┌──────────────────┐  ┌─────────────────────┐
+    │   Baselines +    │  │    Audit Logger     │
+    │ Anomaly (4-axis) │  │  (Event Schema v1,  │
+    │   Risk Engine    │  │ hash-chained JSONL) │
+    └──────┬───────────┘  └──────┬──────────────┘
+           ▼                     ▼
+    ┌──────────────┐  ┌──────────────────┐  ┌───────────────┐
+    │  Dashboard   │  │     Exports      │  │      CLI      │
+    │ (Svelte IPC) │  │ (JSON/CSV/HTML/  │  │  (--scan-json │
+    │              │  │       ZIP)       │  │   --version)  │
+    └──────────────┘  └──────────────────┘  └───────────────┘
+
+  Per-sensor health records live in the main process; surfacing
+  them in the UI is on the roadmap.
 ```
 
-**Stack**: Electron 33, Svelte 5, Vite 7, Vitest (1075 tests across 68 files). The monitoring engine is JavaScript (CommonJS); TypeScript is used in the renderer and shared types.
+**Stack**: Electron 33, Svelte 5, Vite 7, Vitest. The monitoring engine is JavaScript (CommonJS); TypeScript is used in the renderer and the shared types. CI gates every merge with build, lint, svelte-check, test and audit jobs; `npm run counts:check` re-derives every documented counter from the tree, and `npm run verify:gate` proves the identity witness against injected mutants.
 
 ## Agent Database
 
@@ -225,12 +232,13 @@ Everything below is **planned**, not shipped. AEGIS today is monitor-only (see [
 
 - [ ] Active blocking — enforce rules on violation (today: observe & log only)
 - [ ] OS-level enforcement / kernel hooks (Windows Minifilter, macOS Endpoint Security, Linux eBPF)
+- [ ] Surface per-sensor health in the UI — main-process records exist ([design](docs/roadmap/sensor-health-degraded.md))
 - [ ] MITRE ATT&CK mapping for detection rules
 - [ ] ML-based anomaly detection (today: hard-coded heuristic weights)
 - [ ] TLS / encrypted-traffic visibility, with user consent (today: TCP endpoints only)
 - [ ] First-class macOS & Linux support (currently experimental — [#37](https://github.com/antropos17/Aegis/issues/37))
 - [ ] GPU monitoring for local inference detection
-- [ ] Per-process file attribution (ETW, fanotify)
+- [ ] Per-process file attribution (ETW, fanotify) — static recon: [docs/recon/kernel-file-etw.md](docs/recon/kernel-file-etw.md)
 - [ ] Container/VM detection (Docker, WSL)
 - [ ] Browser extension for web-based AI agents
 - [ ] Auto-update mechanism
@@ -240,19 +248,19 @@ Everything below is **planned**, not shipped. AEGIS today is monitor-only (see [
 
 ### What is Aegis?
 
-Aegis is an open-source endpoint detection and response (EDR) tool purpose-built for monitoring AI agents. It tracks processes, file access, network activity, and behavioral anomalies in real time, built on Electron 33 and Svelte 5. The monitoring engine is CommonJS JavaScript; the renderer is ES modules, and TypeScript is used in the renderer and the shared type definitions. All data stays local — no telemetry, no cloud dependency.
+Aegis is an open-source, OS-level monitor for AI agents. It tracks processes, file access, network activity, and behavioral anomalies in real time, built on Electron 33 and Svelte 5. The monitoring engine is CommonJS JavaScript; the renderer is ES modules, and TypeScript is used in the renderer and the shared type definitions. All data stays local — no telemetry, no cloud dependency.
 
 ### Why do AI agents need monitoring?
 
-Autonomous AI agents like OpenClaw, AutoGPT, and Devin have deep access to local files, credentials, and shell commands — yet run with minimal oversight. Kaspersky's analysis found 512 bugs in OpenClaw alone. Aegis provides the missing observability layer so you can see exactly what agents do on your machine.
+Autonomous AI agents like OpenClaw, AutoGPT, and Devin have deep access to local files, credentials, and shell commands — yet run with minimal oversight. The OpenClaw case is the concrete example: a security audit reported by [Kaspersky](https://www.kaspersky.com/blog/openclaw-vulnerabilities-exposed/55263/) identified 512 vulnerabilities in one popular agent. Aegis provides the independent observability layer, so you can see what agents actually do on your machine.
 
 ### How is Aegis different from traditional EDR?
 
-Traditional EDR tools (CrowdStrike, Sentinel One) monitor human-driven threats — malware, ransomware, phishing. Aegis is built specifically for AI agent behavior: it ships with 110 agent profiles, 73 detection rules tuned for agent-specific patterns, and behavioral baselines that track how each agent's activity changes over time.
+Traditional EDR tools monitor human-driven threats — malware, ransomware, phishing. Aegis is built specifically for AI-agent behavior: it ships with 110 agents (262 process-name signatures) in its detection database, 73 detection rules tuned for agent-specific patterns, and behavioral baselines that track how each agent's activity changes over time. It is also monitor-first: it observes and logs, and leaves enforcement to sandboxing.
 
 ### Does Aegis work with MCP tools?
 
-Yes. Aegis monitors any AI agent process running on your machine, including tools connected via the Model Context Protocol (MCP). If an MCP-connected tool spawns processes, accesses files, or makes network calls, Aegis will detect and score that activity.
+Aegis monitors processes, not protocols. If a tool connected via the Model Context Protocol (MCP) spawns processes, accesses files, or makes network calls, that activity is observed and attributed like any other — Aegis does not parse MCP traffic itself.
 
 ### Is Aegis a replacement for sandboxing?
 
@@ -260,11 +268,11 @@ No. Aegis is an observability layer, not a restriction layer. Sandboxes limit wh
 
 ### What agents does Aegis support?
 
-Aegis ships with 110 agent signatures across five categories: coding assistants (Claude Code, Copilot, Cursor), autonomous agents (OpenClaw, AutoGPT, CrewAI, Devin), desktop AI (Gemini, Apple Intelligence), frameworks (LangChain, AutoGen, MetaGPT), and local LLMs (Ollama, LM Studio, llama.cpp). You can add custom agents via the UI or JSON config.
+Aegis ships with 110 agents (262 process-name signatures) in its database, spanning coding assistants (Claude Code, Copilot, Cursor), autonomous agents (OpenClaw, AutoGPT, CrewAI, Devin), desktop AI (Gemini, Apple Intelligence), frameworks (LangChain, AutoGen, MetaGPT), and local LLM runtimes (Ollama, LM Studio, llama.cpp). You can add custom agents via the UI or the JSON config.
 
 ### Can I use Aegis in production?
 
-Aegis is currently at v0.10.0-alpha and is recommended for development and testing environments. The core monitoring engine is stable with 1075 tests passing, but production deployment features (auto-update, OS-level enforcement) are on the roadmap for v1.0.
+Aegis is alpha software (see [Releases](https://github.com/antropos17/Aegis/releases) for the current version) and is recommended for development and testing environments. It is monitor-first — it will not block anything — and production-deployment features such as auto-update and OS-level enforcement are on the [roadmap](#roadmap), not in the current release.
 
 ### Is Aegis free?
 
