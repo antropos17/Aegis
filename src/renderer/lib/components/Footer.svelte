@@ -2,6 +2,7 @@
   import { monitorResourceUsage, stats, tokenCosts } from '../stores/ipc.js';
   import { t } from '../i18n/index.js';
   import FooterMiniCharts from './FooterMiniCharts.svelte';
+  import SensorHealthChip from './SensorHealthChip.svelte';
   import { tick, startTick } from '../stores/tick.ts';
 
   let permDenied = $derived($stats.permissionDeniedScans || 0);
@@ -12,7 +13,17 @@
 
   let heapMB = $state('--');
   let scanInterval = $state('--');
-  let appVersion = $state('v0.8.0-alpha');
+  /**
+   * Empty until `getAppVersion()` answers, and NO literal default — not even a
+   * plausible one. A version string written here is a claim about the running build
+   * that this file cannot keep true: the default it replaces outlived three minor
+   * bumps and was still naming a long-dead alpha to any window whose bridge had not
+   * answered. Absent is honest; a stale number is not, and it never goes red.
+   * Deliberately not a placeholder either — the brand name renders alone until the
+   * real version lands, so nothing on screen is ever a version that is not this one.
+   */
+  let appVersion = $state('');
+  let versionLabel = $derived(appVersion ? `${$t('brand.name')} ${appVersion}` : $t('brand.name'));
 
   const appStart = Date.now();
   let uptimeMs = $derived($tick ? Date.now() - appStart : 0);
@@ -48,7 +59,7 @@
 </script>
 
 <footer class="footer">
-  <span class="footer-version">{$t('brand.name')} {appVersion}</span>
+  <span class="footer-version">{versionLabel}</span>
 
   <div class="footer-stats">
     <FooterMiniCharts />
@@ -76,6 +87,8 @@
         >
       </div>
     {/if}
+
+    <SensorHealthChip />
 
     {#if permDenied > 5}
       <div

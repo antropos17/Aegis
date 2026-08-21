@@ -5,7 +5,7 @@ and IPC architecture specific to this codebase.
 
 ---
 
-## Stack Versions (current as of v0.10.0-alpha)
+## Stack Versions (as of 2026-08-21 — authoritative versions live in `package.json`)
 
 | Dep | Version | Role |
 |-----|---------|------|
@@ -183,7 +183,7 @@ All nine, exactly as subscribed in `preload.js`. There is no `scan-results` or
 | `token-costs` | `tokenCosts` | `TokenCostRecord[]` |
 | `scan-status` | `scanActive` | `{ scanning: boolean }` |
 | `toggle-theme` | — | consumed directly in `App.svelte`, not via a store |
-| `resource-usage` | — | exposed by `preload.js` but **no renderer subscriber**; metrics arrive via `scan-batch` |
+| `agent-resource-usage` | `agentResourceUsage` | per-agent CPU/RAM samples keyed by `instanceId` (read by `AgentCard`) |
 | `rules:reloaded` | — | exposed by `preload.js` but **no renderer subscriber** |
 
 ### Invoke channels (renderer requests main)
@@ -295,7 +295,7 @@ Key token namespaces:
 
 ## Conventions
 
-- **300-line soft limit** per file — a target for NEW files, not an invariant; 18 existing `src/` files already exceed it. Not enforced by the linter
+- **300-line soft limit** per file — a target for NEW files, not an invariant; 31 existing `src/` files already exceed it. Not enforced by the linter
 - **JSDoc on all exported functions**: `@param`, `@returns`, `@since`
 - **Commit prefixes**: `feat:`, `fix:`, `docs:`, `refactor:`, `security:`
 - **IPC channel names**: `kebab-case`

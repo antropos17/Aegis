@@ -722,6 +722,53 @@ describe('process-utils', () => {
       expect(agents[0].instanceIdSource).toBe('unknown');
     });
 
+    it('never stamps a birth time the cache answered, even when the map carries one', async () => {
+      // The shape a future linux/darwin adapter produces the day it starts reading
+      // /proc/<pid>/stat field 22 (or `ps` lstart) WITHOUT flipping providesStartTime:
+      // the map carries a birth time, but this platform makes no per-pass observation
+      // to re-read it with. Serving the cached number here is the original poisoning
+      // bug, one adapter change away — a pid Windows-style recycled inside the 60 s
+      // TTL would keep the dead process's key.
+      mockGetParentProcessMap.mockResolvedValueOnce(
+        new Map([
+          [4242, { name: 'claude', ppid: 900, startTime: 1717000000000 }],
+          [900, { name: 'bash', ppid: 0, startTime: 1716999990000 }],
+        ]),
+      );
+      const first = [{ pid: 4242, agent: 'Claude Code', process: 'claude' }];
+      await processUtils.enrichWithParentChains(first);
+      expect(first[0].startTime).toBeNull();
+      expect(first[0].instanceId).toBe('4242:u');
+      expect(first[0].instanceIdSource).toBe('unknown');
+      expect(first[0].parentChain).toEqual(['bash']);
+
+      // The pid is reissued to another `claude` 10.7 s later — inside PARENT_CHAIN_TTL,
+      // so no timer is advanced and the entry written above is still live. This map is
+      // what the OS would report; the point of the call-count assertion below is that
+      // this pass never asks for it.
+      mockGetParentProcessMap.mockResolvedValue(
+        new Map([
+          [4242, { name: 'claude', ppid: 900, startTime: 1717000010700 }],
+          [900, { name: 'bash', ppid: 0, startTime: 1716999990000 }],
+        ]),
+      );
+      const second = [{ pid: 4242, agent: 'Claude Code', process: 'claude' }];
+      await processUtils.enrichWithParentChains(second);
+
+      expect(second[0].startTime).toBeNull();
+      expect(second[0].instanceId).toBe('4242:u');
+      expect(second[0].instanceIdSource).toBe('unknown');
+      expect(second[0].instanceId).not.toBe('4242:1717000000000');
+
+      // Cache HIT, not a fresh read that happened to agree: one provider call served
+      // both passes. Without this the test reads as a test of a value rather than of
+      // where the value came from, and could not tell "answered from the cache" from
+      // "asked the OS and the OS returned the stale number".
+      expect(mockGetParentProcessMap).toHaveBeenCalledTimes(1);
+      // The chain is still what the cache is FOR — it survives, the birth time does not.
+      expect(second[0].parentChain).toEqual(['bash']);
+    });
+
     it('keeps the cwd cache — there is no generation to gate it on', async () => {
       mockGetParentProcessMap.mockResolvedValue(new Map([[100, { name: 'claude', ppid: 0 }]]));
       mockGetProcessCwds.mockResolvedValue(new Map([[100, '/home/user/project-a']]));

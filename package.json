@@ -1,7 +1,7 @@
 {
   "name": "aegis",
   "version": "0.11.0-alpha",
-  "description": "Open-source endpoint detection and response (EDR) for AI agents. Monitor processes, files, network, and behavior of autonomous AI agents in real time.",
+  "description": "OS-level monitor for AI agents: observes processes, file access, and network activity on the local machine and attributes each event to an agent instance.",
   "main": "src/main/main.js",
   "scripts": {
     "start": "npm run build:renderer && node scripts/launch.js",
@@ -10,9 +10,9 @@
     "build:demo": "vite build --mode demo",
     "build": "electron-builder --publish never",
     "dist": "electron-builder --publish never",
-    "format": "prettier --write 'src/**/*.{js,ts,svelte,css,html}' '*.{js,ts,json}'",
-    "format:check": "prettier --check 'src/**/*.{js,ts,svelte,css,html}' '*.{js,ts,json}'",
-    "lint": "npx eslint src/ tests/ scripts/",
+    "format": "prettier --write 'src/**/*.{js,ts,svelte,css,html}' 'bench/**/*.{js,json}' '*.{js,ts,json}'",
+    "format:check": "prettier --check 'src/**/*.{js,ts,svelte,css,html}' 'bench/**/*.{js,json}' '*.{js,ts,json}'",
+    "lint": "npx eslint src/ tests/ scripts/ bench/",
     "typecheck": "tsc --noEmit -p tsconfig.main.json && tsc --noEmit -p tsconfig.renderer.json",
     "typecheck:main": "tsc --noEmit -p tsconfig.main.json",
     "typecheck:renderer": "tsc --noEmit -p tsconfig.renderer.json",
@@ -21,8 +21,11 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "verify:gate": "node scripts/verify-witness-gate.mjs",
+    "counts:check": "node scripts/counts.js",
     "build:sidecar": "node scripts/build-sidecar.js",
     "bench:generation": "node scripts/bench-generation.js",
+    "bench:run": "node bench/run.js",
+    "bench:s1": "node bench/run.js --scenario S1-agent-lifecycle --arm A",
     "prepare": "husky"
   },
   "engines": {

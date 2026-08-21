@@ -71,11 +71,11 @@ describe('zip-writer', () => {
   });
 
   it('preserves unicode filenames', () => {
-    const name = 'файл-данных.txt';
-    const zip = createZip([{ name, data: Buffer.from('данные') }]);
+    const name = 'données-fichier.txt';
+    const zip = createZip([{ name, data: Buffer.from('données') }]);
     const entries = extractZipEntries(zip);
     expect(entries[0].name).toBe(name);
-    expect(entries[0].data.toString()).toBe('данные');
+    expect(entries[0].data.toString()).toBe('données');
   });
 
   it('handles larger data (1KB)', () => {

@@ -77,6 +77,7 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     to undo it and only an external editor snapshot brought the log back. Untracked files have no
     safety net: git cannot restore what it never saw. Touch ONLY the bytes the prompt named. If a
     file looks wrong in a way the task did not mention, report it and leave it alone.
+    Corollary: a local `format:check` red on a Windows checkout (150 files, CRLF-only diffs, CI green) is a config gap, not a formatting one — `"endOfLine": "auto"` in .prettierrc clears it without touching a single source byte; never "fix" it with a repo-wide `prettier --write`.
 
 ## Verification
 25. **Confirmed good approach — a measurement gate that refuses or blocks beats one that annotates.**
@@ -94,8 +95,128 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     cached state passes green. Lesson: when a plausible-but-wrong value could satisfy a check, make
     the disagreement halt the work; a check that annotates around a doubt is decoration (cf. #21).
 
+26. **The `scan-loop.test.js:1275` recycled-pid flake is still live, and its green proves nothing about
+    identity (verified 2026-08-13 on `b2d55b7`, 40 runs).** 19/20 pass idle, 18/20 under a concurrent
+    full-suite load, always `expected 5 to be 1` on the `memMb` assertion — lower than the reported
+    ~3-in-7, not gone. It was recorded in no known-flakes note anywhere in the repo before this line.
+    The defect is cross-test leakage, not the assertion: `-t`-filtered the test passes 20/20 and ten
+    whole-suite runs pass 10/10, because resource-monitor's module-level exec is shared and a prior
+    test's fire-and-forget `getResourcesForPids` can still reach `makeVaryingExec`'s sample counter.
+    Per #21 it also cannot credit #206/#208 either way: `process-utils.js` is never loaded by this
+    file, `platform/process-snapshot.js` loads transitively but is never called, and both birth times
+    are literals in the test's own factory fed to the pure `identify()`.
+    **Fixed 2026-08-13 in #219** — root cause was this file stubbing resource-monitor's exec in ONE
+    describe block while every scanning test reached it, so the rest spawned real `powershell.exe`
+    that settled on real time and resumed inside a later test, against that test's exec. 40/40 green
+    after, 0 real spawns, exactly 2 sampling calls where 13 had landed. The vacuity above is unchanged:
+    the fix removed the noise, not the missing coverage.
+
+27. **Writes a comment that claims MORE than the mechanism guarantees, and the overclaim
+    outlives every rewrite that touches the same lines.** Three live cases, all found
+    2026-08-14 in one sweep, all of the same shape: a true narrow fact stated as a total one.
+    (a) `process-identity.js` said a pid+birth-timestamp merge "is the only failure mode".
+    It is the only way that KEY FORMAT loses a distinction; the opposite failure — one live
+    instance read with two different birth milliseconds across ticks, splitting its session
+    and token ledger across two keys — comes from source disagreement and is exactly what the
+    542/542 and 419/419 sidecar-vs-CIM parity gates exist to stop (#25). "Only" was doing work
+    the file could not back. (b) The same header said "a collision needs the OS to free and
+    reissue the same pid inside 1 ms". The stored millisecond is a FLOOR, so the real condition
+    is that both creation times land in the same millisecond bucket — 0.86 ms apart inside one
+    bucket collides, 0.1 ms apart across the boundary does not, which is precisely the pair
+    `tests/fixtures/bench/derived/D1-pid-reuse-same-ms/` models. (c) `bench/lib/report.js`'s
+    fingerprint recorded itself as "the bytes this process then executed": `join.js` is already
+    in the module cache when the hash is taken and `report.js` reads its own file while
+    executing, so it is a DISK read at load — under a concurrent edit it describes on-disk
+    bytes, not loader-cached ones. Same for a diagnostic: replay said a renderer match with
+    differing bytes meant "the deterministic contract failed", when the fingerprint pins two
+    files and explicitly does not cover the Node version, the platform, or anything else.
+    Two lessons. **Write the guarantee, not the impression** — say which surface the claim
+    covers and name what is left open, the way `RENDERER_COVERS` already did next door.
+    **An overclaim is not fixed by a rewrite that walks past it:** PR #206 rewrote the very
+    bullet holding (b) and left the sentence intact, and (a) sat two lines above untouched, so
+    both survived every later reader who had seen the file "recently corrected". Grep the
+    claim, not the file (cf. #24 — assume siblings; #20 — do not document what is not there).
+
+28. **`git grep --untracked` NARROWS the sweep while reading like a widening, and this repo is
+    shaped to be caught by it.** The flag switches git grep off the index and onto a working-tree
+    walk with the standard exclusions applied, so a TRACKED file living under an IGNORED path
+    drops out of a search that plain `git grep` would have answered. `.gitignore:22` ignores
+    `.claude/*` and un-ignores only `skills/`, `agents/`, `commands/`, `hooks/` and
+    `settings.json` — `.claude/rules/` is on none of those lines, yet
+    `.claude/rules/code-quality.md` is tracked and is a live rules file. Measured on git 2.52.0:
+    `git grep -n --untracked -F -e 'GPG signing on all commits'` returns NOTHING and exits 1,
+    while both `git grep -n -F -e ...` and `git ls-files -z | xargs -0 grep -n -F -e ...` return
+    `.claude/rules/code-quality.md:7` and exit 0. Adding `--no-exclude-standard` brings the hit
+    back, which is the proof that the exclusion moved and the file did not. An empty result is
+    the failure mode here: nothing goes red, and "I grepped the whole tree" is what gets written
+    down (cf. #21 — a command that ran is not a command that inspected your change).
+    **Verify against the index instead:** `git ls-files -z | xargs -0 grep -n <pattern>`
+    enumerates exactly what git is tracking, ignore rules and all, and `-z`/`-0` survive the
+    paths with spaces. Use it whenever the question is "does this string still exist anywhere in
+    the repo" — the sweep for siblings that #24 and #27 both demand is worth nothing if the walk
+    silently skips a directory.
+
+29. **A boolean derived from an enum has DESTROYED states, and a derivation that reads the
+    boolean cannot get them back. Read the enum.** `getProcessCapabilities()` publishes both
+    `populationState` (STARTING | HEALTHY | DEGRADED | FAILED) and
+    `populationReliable: _processHealth.state === HEALTHY` — true for exactly one member, so
+    `false` means "one of the other three" and never says which. The app-health state machine was
+    designed, written up and REVIEWED with the rule `populationReliable === false → app FAILED`.
+    It reads as obviously right and is obviously wrong the moment the collapse is named: a
+    never-scanned process leaf sits at STARTING with the flag already false, so the rule declares
+    a NORMAL startup — every launch, in the window between `loadDeferredModules` and the first
+    3 s tick — a total observation failure. `population-scope-gate.test.js` had pinned the
+    premise in prose the whole time ("a never-scanned leaf is STARTING, not reliable, and has no
+    asOf"); nothing connected it to the new rule because the rule never mentioned STARTING.
+    The boolean was not wrong and did not need changing: it is the capability GATE agent-scoped
+    consumers read before observing, and it is correct for that. It is simply not expressive
+    enough to classify a lifecycle, and a lifecycle is what a state machine is.
+    **Three things follow.** (a) When a type offers an enum and a boolean over the same fact, a
+    DERIVATION takes the enum and a GATE may take the boolean — and say in the code which one it
+    is and why, or the next reader re-picks by convenience. (b) The discriminating test is the
+    one that separates the collapsed members: three cases (STARTING → starting, DEGRADED →
+    degraded, FAILED → failed) all carrying `false`, plus a mutant that restores
+    `if (!flag) return FAILED` and must go red on the first. A single "the flag is false → FAILED"
+    test passes under both versions and proves nothing. (c) A full design review is not a filter
+    for this class: the error lives in what a name suggests rather than in what any line says, so
+    it survives every reader who does not open the definition. Grep the definition, not the name
+    (cf. #27 — write the guarantee, not the impression).
+
+30. **Narrows a pattern without an adversarial list of what the OLD one matched and the new
+    one does not — and then pins the narrowing with a must-match list that protects only what
+    someone happened to write down.** PR #249 rewrote SC003/SC005/SC006 to bound each keyword
+    with `[._-]` separator classes and to scope loose compounds to an extension allowlist. It
+    shipped with a table of what must stop firing and what must keep firing, an "accepted
+    residuals" section, and per-rule tests — and every one of those lists was built from the
+    false positives that had prompted the work, never from the far larger set of names the old
+    pattern used to match. `[\\/][^\\/]*password[^\\/]*$` matched any basename containing the
+    word at any extension; the replacement matched a bounded word at 17 listed extensions.
+    Everything in that difference left the ruleset silently, and nothing anywhere went red.
+    A reviewer found it later: `passwords.kdbx`, `password.db`, `passwords.xlsx`,
+    `1password_backup.csv` and `1password-export.1pux` — five ordinary password stores, all
+    critical-risk hits before #249, all unclassified after it.
+    **Two independent causes, and the report named only one.** (a) SEPARATOR BOUNDARY —
+    `(?:[^\\/]*[._-])?` can only end on `.`, `_` or `-`, so a digit adjacent to the keyword has
+    nothing to match and the whole prefix group is forced empty: reproduced in node against
+    master, `password_backup.csv` matched and `1password_backup.csv` did not. (b) EXTENSION
+    ALLOWLIST — the list held no password-manager format, so `.kdbx`, `.db`, `.xlsx` and
+    `.1pux` dropped out with their separators perfectly intact. Three of the five reported
+    misses never involved a digit at all, so the one-line diagnosis in the report covered two
+    of five and a fix that only widened the separator class would have left the other three
+    broken while reading as done.
+    **Three things follow.** (a) Before narrowing, build the adversarial list FIRST — sample
+    what the old pattern matched and the new one does not, and decide each entry in or out on
+    purpose. A residual you enumerated is a decision; a residual you never enumerated is a
+    regression waiting for someone else to report it. (b) A must-match list is not a sample,
+    it is the entire protected set: write every case into the test, spell out both path
+    separators, and read "not on the list" as "not protected" (cf. #21 — a passing gate proves
+    the command ran, not that it inspected your change). (c) Reproduce the report before
+    trusting its diagnosis. Running the five names through the real loader is what separated
+    the two causes; the summary sentence would have sent the fix at one of them (cf. #27 —
+    write the guarantee, not the impression).
+
 ## Caching
-26. Treats a cache KEY as proof that cached data is still fresh. A key is a LOCATOR —
+31. **Treats a cache KEY as proof that cached data is still fresh.** A key is a LOCATOR —
     it says which entry to look at, never that the entry still describes the thing it
     was written about. Whenever correctness depends on the cached value still belonging
     to the CURRENT generation of an external resource (an OS process under a recycled
@@ -120,9 +241,15 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     reuse, so two instances shared one session, one dedup set and one token ledger.
     The fix was one fresh `getParentProcessMap` observation per non-empty enrichment
     pass, with the cached chain and cwd honoured only while the freshly observed birth
-    time still matches. Residual bound, documented not hidden: a pid reuse landing in the
-    same stored epoch-millisecond collides on the generation token itself and stays
-    indistinguishable (process-identity.js TIME RESOLUTION).
+    time still matched. **The proof token was SUPERSEDED in #208:** that birth-time
+    comparison became a generation WITNESS compared on value AND source, today
+    `createTime100ns` from the snapshot sidecar (`SequenceNumber` is deliberately not
+    wired). Residual bound, documented not hidden, and narrower than #206 left it: a pid
+    reuse landing in the same stored epoch-millisecond still collides on the identity KEY
+    (process-identity.js TIME RESOLUTION), so session, dedup set and token ledger merge —
+    the chain and cwd caches no longer do, because the 100 ns witness separates the two
+    instances. They collide too only under the CIM emergency fallback, where
+    `_witnessOf` derives the witness from that same stored millisecond.
 
 ## Rule
 NEVER change what was not asked. Do ONLY what the prompt says.

@@ -39,6 +39,12 @@
  * Negative (→ `unattributed`):
  * - `no-owner-match` — no self-config and no cwd containment matched any AI agent.
  * - `no-ai-agents-online` — no AI-category agent was online to own the event.
+ * - `population-unavailable` — the process sensor could not vouch for the agent
+ *   population at this instant, so no owner was even looked for. Deliberately NOT
+ *   `no-ai-agents-online` (which asserts nobody was online — possibly false, the
+ *   population is UNKNOWN, not empty) and not `no-owner-match` (which asserts a
+ *   match was attempted and failed). The path observation itself stays valid: what
+ *   is unavailable is the list of candidate owners, not the event.
  * @type {Readonly<Object<string, string>>}
  * @since v0.11.0
  */
@@ -50,11 +56,17 @@ const EVIDENCE = Object.freeze({
   CWD_CONTAINMENT: 'cwd-containment',
   NO_OWNER_MATCH: 'no-owner-match',
   NO_AI_AGENTS_ONLINE: 'no-ai-agents-online',
+  POPULATION_UNAVAILABLE: 'population-unavailable',
 });
 
 /**
- * Every legal evidence code, in declaration order. Mirrors the
- * `AttributionEvidence` union in src/shared/types/events.ts.
+ * Every legal evidence code, in declaration order.
+ *
+ * The `AttributionEvidence` union in src/shared/types/events.ts mirrors all EIGHT
+ * codes, `population-unavailable` included. `tsc` cannot see this runtime list, so the
+ * two halves are held together by a test that reads events.ts and compares them
+ * member-for-member in declaration order — never by the compiler. The write path is
+ * guarded separately, by {@link deriveStatus} throwing on an unknown code.
  * @type {ReadonlyArray<string>}
  * @since v0.11.0
  */

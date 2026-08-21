@@ -7,18 +7,37 @@ import { get } from 'svelte/store';
 import {
   acknowledgementInstanceId,
   watchlistSignature,
-} from '../../src/renderer/lib/utils/agent-action-keys.ts';
+} from '../../src/renderer/lib/utils/agent-action-keys';
 import {
   acknowledgedAgents,
   toggleAcknowledged,
   isAcknowledged,
   clearAcknowledged,
 } from '../../src/renderer/lib/stores/acknowledged.js';
+import type { EnrichedAgent } from '../../src/shared/types';
 
 const ID_A = '5511:start-A';
 const ID_B = '7720:start-B';
 const ID_REUSE_A = '1234:start-A';
 const ID_REUSE_B = '1234:start-B';
+
+/**
+ * Card-shaped agent fixture — the four optional fields AgentActions.svelte declares
+ * for its `agent` prop, derived from the enriched record so a rename there turns
+ * these tests red. Every field is optional because a keyless or nameless agent is
+ * modelled by leaving one out, which is exactly what the assertions below pin.
+ */
+type AgentFixture = Partial<Pick<EnrichedAgent, 'name' | 'agent' | 'pid' | 'instanceId'>>;
+
+/**
+ * Gives a fixture its declared type without leaving it a fresh object literal at the
+ * call site. The helpers under test take deliberately narrow parameters, and the
+ * surplus `pid`/`name` fields are the point here — they must be ignored, not rejected.
+ * Used only where a fixture carries a field the callee does not declare.
+ * @param agent - Card-shaped fixture
+ * @returns The same object, typed as AgentFixture
+ */
+const fixture = (agent: AgentFixture): AgentFixture => agent;
 
 describe('agent-action-keys — identity split', () => {
   it('acknowledgement key is instanceId only; watchlist key is display name only', () => {
@@ -35,17 +54,19 @@ describe('agent-action-keys — identity split', () => {
   });
 
   it('null instanceId cannot fall back to name or pid for acknowledgement', () => {
-    const keyless = { name: 'Claude Code', agent: 'Claude Code', pid: 300 };
+    const keyless = fixture({ name: 'Claude Code', agent: 'Claude Code', pid: 300 });
     expect(acknowledgementInstanceId(keyless)).toBeNull();
-    expect(acknowledgementInstanceId({ instanceId: null, name: 'Claude Code' })).toBeNull();
-    expect(acknowledgementInstanceId({ instanceId: '', name: 'Claude Code' })).toBeNull();
+    expect(
+      acknowledgementInstanceId(fixture({ instanceId: null, name: 'Claude Code' })),
+    ).toBeNull();
+    expect(acknowledgementInstanceId(fixture({ instanceId: '', name: 'Claude Code' }))).toBeNull();
     // Watchlist still has a durable name.
     expect(watchlistSignature(keyless)).toBe('Claude Code');
   });
 
   it('watchlist signature never uses instanceId or bare pid', () => {
-    expect(watchlistSignature({ instanceId: ID_A, pid: 99 })).toBeNull();
-    expect(watchlistSignature({ agent: 'opencode', pid: 1 })).toBe('opencode');
+    expect(watchlistSignature(fixture({ instanceId: ID_A, pid: 99 }))).toBeNull();
+    expect(watchlistSignature(fixture({ agent: 'opencode', pid: 1 }))).toBe('opencode');
     expect(watchlistSignature({ name: 'Cursor' })).toBe('Cursor');
   });
 });
@@ -73,17 +94,21 @@ describe('acknowledgement by instance — C4', () => {
     expect(isAcknowledged(ID_REUSE_A)).toBe(true);
     // Process B: same pid, new birth → new instanceId.
     expect(isAcknowledged(ID_REUSE_B)).toBe(false);
-    expect(acknowledgementInstanceId({ pid: 1234, instanceId: ID_REUSE_B })).toBe(ID_REUSE_B);
+    expect(acknowledgementInstanceId(fixture({ pid: 1234, instanceId: ID_REUSE_B }))).toBe(
+      ID_REUSE_B,
+    );
   });
 
   it('same instanceId stays acknowledged across re-reads (not frame-local)', () => {
     toggleAcknowledged(ID_A);
     // Simulate a later scan batch re-deriving the same stamped id.
-    const again = acknowledgementInstanceId({
-      name: 'Claude Code',
-      instanceId: ID_A,
-      pid: 5511,
-    });
+    const again = acknowledgementInstanceId(
+      fixture({
+        name: 'Claude Code',
+        instanceId: ID_A,
+        pid: 5511,
+      }),
+    );
     expect(again).toBe(ID_A);
     expect(isAcknowledged(again!)).toBe(true);
     expect(get(acknowledgedAgents).has(ID_A)).toBe(true);
@@ -91,7 +116,7 @@ describe('acknowledgement by instance — C4', () => {
 
   it('null instance cannot steal a same-name agent acknowledgement', () => {
     toggleAcknowledged(ID_A);
-    const keyless = { name: 'Claude Code', pid: 300 };
+    const keyless = fixture({ name: 'Claude Code', pid: 300 });
     expect(acknowledgementInstanceId(keyless)).toBeNull();
     // Store still only has the stamped key.
     expect(isAcknowledged(ID_A)).toBe(true);
@@ -116,11 +141,13 @@ describe('acknowledgement by instance — C4', () => {
   });
 
   it('normal single-instance acknowledge / unacknowledge toggle', () => {
-    const id = acknowledgementInstanceId({
-      name: 'opencode',
-      instanceId: ID_A,
-      pid: 42,
-    })!;
+    const id = acknowledgementInstanceId(
+      fixture({
+        name: 'opencode',
+        instanceId: ID_A,
+        pid: 42,
+      }),
+    )!;
     expect(toggleAcknowledged(id)).toBe(true);
     expect(isAcknowledged(id)).toBe(true);
     expect(toggleAcknowledged(id)).toBe(false);

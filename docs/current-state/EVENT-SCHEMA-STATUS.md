@@ -2,6 +2,12 @@ INCOMPLETE
 
 # Event Schema v1 — status of the uncommitted work on `feat/event-schema-v1`
 
+> **As of 2026-08-21:** this file is a dated snapshot of then-uncommitted work at `743e330`
+> and is kept as recorded — the INCOMPLETE verdict describes that tree, not master. The work
+> described here has since merged (PR #188) and shipped in v0.11.0-alpha, and attribution now
+> surfaces on the Timeline tooltip. For the current state of the schema and its consumers, see
+> [`CORRECTNESS-AUDIT.md`](CORRECTNESS-AUDIT.md) and `memory-bank/progress.md`.
+
 > Read-only status report. No source file, test, or config was touched. Nothing was
 > committed, stashed, checked out, reset, or cleaned. The only write this document made is
 > this file itself.
@@ -291,12 +297,19 @@ $ npx tsc --noEmit -p tsconfig.renderer.json --listFiles 2>/dev/null | grep -v n
 44 non-`node_modules` files type-checked — the project PR #184 fixed after it had been
 checking nothing.
 
+> **As of `b3ca4c0` (PR #243, 2026-08-21) this command prints 80.** At `743e330`
+> `tsconfig.renderer.json` included only `tests/renderer/components/**/*`; the include now
+> covers `tests/renderer/**/*`, which adds the 22 test files at the top level of
+> `tests/renderer`. The 44 above is what the gate covered on the tree this report was
+> written against and is left as recorded — as are the other figures in §6, which come
+> from the same session.
+
 ### Gate 4 — `npm run lint`
 
 ```
 $ NO_COLOR=1 npm run lint
 
-X:\Future\ESCAPE\AEGIS\src\main\audit-logger.js
+X:\dev\project\AEGIS\src\main\audit-logger.js
   103:5   warning  Unexpected console statement  no-console
   153:5   warning  Unexpected console statement  no-console
   368:13  warning  Unexpected console statement  no-console
@@ -305,7 +318,7 @@ X:\Future\ESCAPE\AEGIS\src\main\audit-logger.js
   476:5   warning  Unexpected console statement  no-console
   581:5   warning  Unexpected console statement  no-console
 
-X:\Future\ESCAPE\AEGIS\src\main\logger.js
+X:\dev\project\AEGIS\src\main\logger.js
    50:5   warning  Unexpected console statement  no-console
    73:5   warning  Unexpected console statement  no-console
   142:5   warning  Unexpected console statement  no-console
@@ -314,7 +327,7 @@ X:\Future\ESCAPE\AEGIS\src\main\logger.js
   206:5   warning  Unexpected console statement  no-console
   237:5   warning  Unexpected console statement  no-console
 
-X:\Future\ESCAPE\AEGIS\src\main\rule-loader.js
+X:\dev\project\AEGIS\src\main\rule-loader.js
    86:7   warning  Unexpected console statement  no-console
    92:7   warning  Unexpected console statement  no-console
   102:5   warning  Unexpected console statement  no-console
@@ -323,10 +336,10 @@ X:\Future\ESCAPE\AEGIS\src\main\rule-loader.js
   140:11  warning  Unexpected console statement  no-console
   146:7   warning  Unexpected console statement  no-console
 
-X:\Future\ESCAPE\AEGIS\src\renderer\App.svelte
+X:\dev\project\AEGIS\src\renderer\App.svelte
   287:9  warning  Unexpected console statement  no-console
 
-X:\Future\ESCAPE\AEGIS\src\renderer\lib\components\Timeline.svelte
+X:\dev\project\AEGIS\src\renderer\lib\components\Timeline.svelte
   104:7  warning  Unexpected console statement  no-console
 
 ✖ 23 problems (0 errors, 23 warnings)
@@ -345,7 +358,7 @@ $ NO_COLOR=1 npm run build:renderer
 > aegis@0.10.0-alpha build:renderer
 > vite build
 
-01:47:28 [vite-plugin-svelte] no Svelte config found at X:/Future/ESCAPE/AEGIS/src/renderer - using default configuration.
+01:47:28 [vite-plugin-svelte] no Svelte config found at X:/dev/project/AEGIS/src/renderer - using default configuration.
 vite v7.3.1 building client environment for production...
 transforming...
 ✓ 231 modules transformed.

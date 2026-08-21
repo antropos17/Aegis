@@ -2,7 +2,7 @@
  * AgentPanel grouping — F-W05 population consistency.
  */
 import { describe, it, expect } from 'vitest';
-import { groupAgentsForPanel } from '../../src/renderer/lib/utils/agent-panel-utils.ts';
+import { groupAgentsForPanel } from '../../src/renderer/lib/utils/agent-panel-utils';
 
 describe('groupAgentsForPanel (F-W05)', () => {
   it('returns empty for no agents', () => {

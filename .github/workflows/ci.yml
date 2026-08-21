@@ -10,8 +10,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
           cache: 'npm'
@@ -21,8 +21,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
           cache: 'npm'
@@ -35,8 +35,8 @@ jobs:
   svelte-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
           cache: 'npm'
@@ -47,22 +47,30 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
           cache: 'npm'
       - run: npm ci
       - run: npm run test:coverage
       # Injection proof, inside the existing job so no required status context
-      # changes: it breaks the generation-witness gate three ways and requires the
-      # witness suite to go red for each. A green suite otherwise only proves the
-      # suite ran (memory-bank/ai-mistakes.md #21).
+      # changes: 4 mutants over TWO properties — m1-m3 break the generation-witness
+      # comparison, m4 breaks the birth-time freshness link — and the witness suite
+      # must go red for each. A green suite otherwise only proves the suite ran
+      # (memory-bank/ai-mistakes.md #21).
       - name: Verify the generation-witness gate is load-bearing
         run: npm run verify:gate
+      # Derives the repo's countable facts from the tree and fails on every tracked
+      # file that declares a different number (memory-bank/ai-mistakes.md #24: nothing
+      # went red when a hand-maintained count stopped being true). BLOCKING since the
+      # sweep that cleared the drift: `test` is a required context, so a stale count
+      # now stops the merge instead of being reported into a log nobody opens.
+      - name: Check derived counts against declared ones
+        run: npm run counts:check
       - name: Upload coverage
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-report
           path: coverage/
@@ -70,8 +78,8 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
           cache: 'npm'

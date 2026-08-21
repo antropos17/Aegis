@@ -1,0 +1,57 @@
+{
+  "runId": "2026-08-13T17-11-03Z-S1-agent-lifecycle-A",
+  "scenario": "S1-agent-lifecycle",
+  "arm": "A",
+  "sensor": {
+    "profileDir": "C:\\Users\\user\\AppData\\Local\\Temp\\aegis-bench-2026-08-13T17-11-03Z-S1-agent-lifecycle-A",
+    "pid": 31000,
+    "startedAt": "2026-08-13T17:11:03.738Z",
+    "readyAt": "2026-08-13T17:11:09.866Z",
+    "stoppedAt": "2026-08-13T17:12:43.372Z",
+    "readySignal": "first \"DEBUG [scan] process\" line on the app's own stderr",
+    "stopMethod": "taskkill /T /F after a 6000 ms drain. AEGIS has no external graceful-shutdown path (its window close handler hides to tray), so the kill skips before-quit and the drain is what makes the last records durable via the logger's own 5 s flush timer",
+    "exit": {
+      "code": 1,
+      "signal": null
+    },
+    "scanTicks": [
+      "2026-08-13T17:11:09.866Z",
+      "2026-08-13T17:11:47.179Z",
+      "2026-08-13T17:12:29.130Z",
+      "2026-08-13T17:12:37.370Z"
+    ],
+    "ticksRequestedAfterRun": 3,
+    "ticksAfterRun": 3,
+    "processAliveWindow": {
+      "from": "2026-08-13T17:11:09.998Z",
+      "to": "2026-08-13T17:11:45.012Z"
+    },
+    "ticksWhileProcessAlive": 0
+  },
+  "window": {
+    "start": "2026-08-13T17:11:09.868Z",
+    "end": "2026-08-13T17:12:43.372Z",
+    "epsilonMs": 250
+  },
+  "audit": {
+    "files": [
+      "C:\\Users\\user\\AppData\\Local\\Temp\\aegis-bench-2026-08-13T17-11-03Z-S1-agent-lifecycle-A\\audit-logs\\aegis-audit-2026-08-13.json"
+    ],
+    "verifiedRecords": 28,
+    "chain": "verified from GENESIS, re-derived by bench/lib/observed.js",
+    "truncatedTails": []
+  },
+  "observed": {
+    "path": "X:\\dev\\project\\AEGIS\\bench\\runs\\2026-08-13T17-11-03Z-S1-agent-lifecycle-A\\observed.ndjson",
+    "events": 4
+  },
+  "skipped": {
+    "outOfWindow": 18,
+    "unparsableTimestamp": 0,
+    "dropMarkersOutsideWindow": 0,
+    "byShapelessType": {
+      "network-connection/Established": 6
+    }
+  },
+  "failure": null
+}

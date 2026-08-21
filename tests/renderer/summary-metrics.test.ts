@@ -15,7 +15,15 @@ import {
   formatMonitoringDuration,
   MONITORING_DURATION_LABEL,
   FILE_ACTIVITY_CHIP_LABEL,
-} from '../../src/renderer/lib/utils/summary-metrics.ts';
+} from '../../src/renderer/lib/utils/summary-metrics';
+import type { DetectedAgent } from '../../src/shared/types';
+
+/**
+ * A raw scan row as the summary cards receive it before enrichment. `DetectedAgent`
+ * declares no `name` at all, so the field is optional here and left absent — that
+ * absence is the historical F-W02 collapse the test below reproduces.
+ */
+type RawAgentRow = Pick<DetectedAgent, 'agent' | 'pid'> & { readonly name?: string };
 
 describe('countUniqueAgents (F-W02)', () => {
   it('counts multiple agents that only carry the raw `agent` field', () => {
@@ -29,7 +37,7 @@ describe('countUniqueAgents (F-W02)', () => {
   });
 
   it('does not collapse to 1 when every row lacks .name (historical failure)', () => {
-    const agents = [
+    const agents: readonly RawAgentRow[] = [
       { agent: 'A', pid: 1 },
       { agent: 'B', pid: 2 },
     ];

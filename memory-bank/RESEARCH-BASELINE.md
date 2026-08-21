@@ -114,22 +114,51 @@ providesStartTime=true on win32, false on linux/darwin.
 - Sidecar = separate process, named pipe / stdio, length-prefixed frames. A native crash must
   never take down the Electron control/UI process.
 - Sidecar language is a **reversible implementation choice** — the wire boundary is the stable
-  contract. Block 1 physically picks one; the canon keeps it open (C#/TraceEvent vs Rust/ferrisetw
-  re-evaluated when the streaming sensor becomes real).
+  contract. Block 1 physically picks one; the canon keeps the choice formally open, but **not
+  neutral**. Per `docs/recon/kernel-file-etw.md` (DESIGN DECISION), for the Kernel-File streaming
+  sensor: **C#/TraceEvent is the preferred and implementation-evidenced option** — direct evidence
+  for session APIs, filtering surface, samples and parser behavior; **Rust/ferrisetw is NOT the
+  preferred candidate** — maintenance maturity and weaker implementation evidence, though its
+  `ByPids` issue is no provider-specific proof that this provider cannot be consumed correctly;
+  krabsetw stays an actively maintained native candidate whose equivalent Kernel-File real-time and
+  filter behavior was **not established** — never presented as equally evidenced. Package freshness
+  is not feature-parity evidence. The re-evaluation when the streaming sensor becomes real starts
+  from that preference, not from a blank slate; nothing here decides the Block 1 procsnap sidecar,
+  which carries no ETW.
 - Never cite Encore's 2-4 ms as one sidecar-boundary cost (it was a multi-hop path). Benchmark
   AEGIS's own IPC.
 
 ## 6. FILE-READ ATTRIBUTION (Block 3)
 
-- Sensor/SUT: Microsoft-Windows-Kernel-File ETW — Read event id 15, keyword
-  KERNEL_FILE_KEYWORD_READ 0x100, PID from event header; admin/SYSTEM, no PPL required,
-  very high volume.
-- Independent confirmation: deterministic scenario catalogue + Procmon (file-IRP) + controlled
-  4663 with pre-set SACL. **The SUT's own provider is never its own oracle** (common-mode rule).
-- Sysmon has NO file-read event; EID 11 = create/overwrite only.
+- Source of record: `docs/recon/kernel-file-etw.md`. No claim below outranks its label there.
+- Sensor/SUT: Microsoft-Windows-Kernel-File ETW `{edd08927-9cc4-4e65-b970-c2560fb5c289}`;
+  admin/SYSTEM, no PPL required, very high volume. **VERIFIED, scoped to the Windows 10 build 18990
+  manifest and no other build:** Read = event 15, `KERNEL_FILE_KEYWORD_READ` `0x100`, payload
+  carrying NO pathname — only `FileObject`/`FileKey`; Create 12 = `FileObject`+`FileName`,
+  NameCreate 10 = `FileKey`+`FileName`, Cleanup 13 / Close 14 exist; **no provider rundown event**.
+- **NOT FOUND — retire "PID from the event header".** Event 15's issuer is unestablished across
+  `EventHeader.ProcessId`, `ThreadId`/`IssuingThreadId` (v0/v1) and possible PID-4 attribution;
+  never attribute or filter by it. A path comes only by correlating `FileObject`/`FileKey` with
+  path-bearing events, whose lifetime and reuse are unestablished (legacy FileIo = ANALOGY).
+  No rundown: reads on files open before session start stay `unresolved` unless a later
+  path-bearing event rebuilds the mapping — fail-honest, never fabricated.
+- `EVENT_FILTER_TYPE_PID` on this GUID is unproven until reproduced on target hardware; machine-wide
+  capture plus user-mode attribution is the required fallback; event-ID filtering runs after
+  generation and may cut delivered volume, never provider cost. `0x190` is spec-consistent with
+  10/12/15; 13/14 need FILEIO keyword `0x20`; `0x1B0` is a CANDIDATE, 13/14's necessity unratified.
+- **Collection cost for File-read must NOT be estimated from the callback rate of AEGIS-relevant
+  processes** — PID-scoped enablement on this GUID is unproven and event-ID filtering runs after
+  generation, so an AEGIS-process rate is no proxy for provider cost; the real figures (idle, npm
+  and build event-15 rates; CPU/memory/buffer and loss counters under load) are HARDWARE-GATED.
+- Independent confirmation: deterministic scenario catalogue + Procmon (file-IRP) + controlled 4663
+  with pre-set SACL. **The SUT's own provider is never its own oracle** (common-mode rule): no clean
+  independent per-event oracle for 15 was established — Procmon observes file activity, not that 15
+  fired; 4663 is no per-Read oracle. Sysmon has NO file-read event; EID 11 = create/overwrite only.
 - Bounded queue / backpressure / loss counters land in THIS block, before production ingestion.
   Policies: security events never dropped (spill to disk) · benign self-churn coalesced with
-  automatic break on .ssh/.env/exe-write/unknown network · metrics latest-only.
+  automatic break on .ssh/.env/exe-write/unknown network · metrics latest-only. `EventsLost` /
+  `RealTimeBuffersLost` flag collection unreliability, never WHICH event was lost.
+- 13 HARDWARE-GATED items close only on the target machine: PID filter, issuer, Win11/2026 manifest.
 
 ## 7. NETWORK CANON
 
@@ -159,11 +188,25 @@ NDJSON). Decide naming BEFORE freezing Bench Replay schema. OCSF = possible late
 - Bench before ANY numeric accuracy/confidence claim.
 - Method: generate an expected-event catalogue per scenario, confirm with independent oracles.
   Never diff two live streams. Never self-oracle.
-- Oracle columns are separate: Sysmon (EID 1/2/3/5/11/22) = security-event reference; Procmon =
-  file-IRP reference; Kernel-File ETW appears only as SUT when it is the sensor.
+- Oracle columns are separate: Sysmon (EID 1/2/3/5/11/22/**26**) = security-event reference;
+  Procmon = independent file-IRP **confirmation column for file activity** — it does NOT prove that
+  Kernel-File emitted Read 15, so it is no per-event oracle for that event (section 6); Kernel-File
+  ETW appears only as SUT when it is the sensor.
+- **Ratified 2026-08-14 (B2.3).** (a) **EID 26 FileDeleteDetected** joins the oracle column: it is
+  the deletion observation that does NOT archive the file. **EID 23 FileDelete is never enabled
+  merely to observe a deletion** — Microsoft documents 23 as additionally saving the deleted file
+  into `ArchiveDirectory`, and the two are never collapsed into one semantic event. Whether an
+  installed binary requires or otherwise touches `ArchiveDirectory` when 26 is configured is
+  **LIVE-UNVALIDATED**: the docs settle neither, and no answer is invented offline. (b) ProcessGuid
+  may be retained and compared as an OPAQUE **equality** key between Sysmon events (EID 1 ↔ EID 5)
+  — an additional lifecycle-correlation fact BESIDE EID 1 ordinality, never a replacement for it,
+  and never a source of an `instanceId`.
 - Sysmon writes two timestamps (EventData UtcTime ms vs System TimeCreated FILETIME) diverging
   1-2 s — join on TimeCreated, record both. ProcessGuid is Sysmon-generated — never parse it.
-  Match by pid + start-time FILETIME, epsilon ~2 s.
+  Match by pid + start-time FILETIME, epsilon ~2 s. **That epsilon is a tolerance for comparing
+  Sysmon's own two representations. It is NOT guest-clock uncertainty**, which is unmeasured, and
+  the two must never be merged into one error bound. B2.3 declares no epsilon at all: it retains
+  both representations, computes no delta, and leaves matching to B2.5.
 - Environment: Hyper-V Gen2 gold image first; Windows Sandbox second (driver load and unattended
   teardown unverified; nested virt unsupported on GitHub runners). Pin the Windows build.
 - Run separation: A = sensor+Sysmon (coverage/latency) · B = Sysmon+Procmon without sensor

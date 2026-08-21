@@ -138,29 +138,79 @@ function stopScanIntervals() {
   }
 }
 
+/** Reason recorded by every surface that refuses to observe an untrusted population. */
+const SCOPE_UNAVAILABLE = 'process-observation-unavailable';
+
+/**
+ * Whether the agent population may be used as an observation scope right now.
+ *
+ * Reads the ProcessCapabilities contract (design §3) and NOTHING else — not the
+ * plane enum, not `agents.length`. The two older APIs are kept as an ordered
+ * fallback so a caller that injected only part of the scanner surface keeps working.
+ *
+ * A scanner exposing none of the three is treated as reliable: that is the shape a
+ * collaborator stub takes, and defaulting to "unknown" there would silently disable
+ * every sensor rather than gate a stale list.
+ * @param {Object|undefined} scanner
+ * @returns {boolean}
+ * @since 0.12.0
+ */
+function isPopulationReliable(scanner) {
+  if (!scanner) return true;
+  if (typeof scanner.getProcessCapabilities === 'function') {
+    return scanner.getProcessCapabilities().populationReliable === true;
+  }
+  if (typeof scanner.isProcessPopulationReliable === 'function') {
+    return scanner.isProcessPopulationReliable() === true;
+  }
+  if (typeof scanner.getProcessSensorHealth === 'function') {
+    return scanner.getProcessSensorHealth().state === 'HEALTHY';
+  }
+  return true;
+}
+
+/**
+ * Whether this tick's identity keys are degraded relative to what the platform can
+ * observe — a birth-time platform whose process-table observation produced nothing.
+ * See process-scanner.js `isIdentityDegraded` for why that is not the same question
+ * as `identityQuality === 'unknown'`.
+ *
+ * A scanner that does not publish the question is NOT degraded, and that default is
+ * the opposite of a guess: this flag freezes every session on the machine, so a
+ * collaborator stub that cannot answer must never be able to trigger it. The
+ * population gate above defaults the same way and for the same reason.
+ * @param {Object|undefined} scanner
+ * @returns {boolean}
+ * @since 0.12.0
+ */
+function isIdentityDegraded(scanner) {
+  if (!scanner || typeof scanner.isIdentityDegraded !== 'function') return false;
+  return scanner.isIdentityDegraded() === true;
+}
+
 function doNetworkScan() {
   const { network, baselines, audit, logger, getLatestAgents, sendToRenderer, scanner } = deps;
   const agents = getLatestAgents();
   if (network.isNetworkScanRunning()) return;
-  // B-S08: agent-scoped network sensor — empty agents still skip the TCP provider,
-  // but health must distinguish confirmed-zero (process HEALTHY) from process-unknown.
-  // Process reliability is B3's API only — never agents.length alone.
-  if (agents.length === 0) {
-    let reason = 'confirmed-zero-agents';
-    if (scanner && typeof scanner.isProcessPopulationReliable === 'function') {
-      if (!scanner.isProcessPopulationReliable()) {
-        reason = 'process-observation-unavailable';
-      }
-    } else if (
-      scanner &&
-      typeof scanner.getProcessSensorHealth === 'function' &&
-      scanner.getProcessSensorHealth().state !== 'HEALTHY'
-    ) {
-      reason = 'process-observation-unavailable';
-    }
-    logger.debug('scan', 'network-skip', { reason, agents: 0 });
+  // G′: the stale-population gate, evaluated BEFORE cardinality. After a hard
+  // enumeration failure `setAgents` never ran, so `latestAgents` still holds the
+  // previous population — querying the TCP table for those pids would resolve
+  // dead/recycled pids and stamp OS_TCP_OWNER_PID (`confirmed`) off an agent record
+  // the process sensor cannot vouch for. The list is NOT cleared (§2.3 — clearing
+  // re-creates B-S01); the consumer is gated instead.
+  if (!isPopulationReliable(scanner)) {
+    logger.debug('scan', 'network-skip', { reason: SCOPE_UNAVAILABLE, agents: agents.length });
     if (typeof network.noteNetworkSkip === 'function') {
-      network.noteNetworkSkip(reason);
+      network.noteNetworkSkip(SCOPE_UNAVAILABLE);
+    }
+    return;
+  }
+  // B-S08: agent-scoped network sensor — a reliable but empty population still skips
+  // the TCP provider, and that skip is a scoped SUCCESS, not a degradation.
+  if (agents.length === 0) {
+    logger.debug('scan', 'network-skip', { reason: 'confirmed-zero-agents', agents: 0 });
+    if (typeof network.noteNetworkSkip === 'function') {
+      network.noteNetworkSkip('confirmed-zero-agents');
     }
     return;
   }
@@ -168,58 +218,73 @@ function doNetworkScan() {
   const t0 = performance.now();
   network
     .scanNetworkConnections(agents)
-    .then((connections) => {
-      deps.setLatestNetConnections(connections);
-      for (const conn of connections) {
-        if (conn.httpUnencrypted) {
-          logger.warn(
-            'network',
-            'Unencrypted HTTP connection detected: ' + (conn.domain || conn.remoteIp),
+    .then(
+      (connections) => {
+        deps.setLatestNetConnections(connections);
+        for (const conn of connections) {
+          if (conn.httpUnencrypted) {
+            logger.warn(
+              'network',
+              'Unencrypted HTTP connection detected: ' + (conn.domain || conn.remoteIp),
+            );
+          }
+          // Key first, name second — both from the connection this scan matched. A socket
+          // that matched no agent carries no key and enters no baseline, which also retires
+          // the phantom `sessionData['']` bucket the empty name used to create.
+          baselines.recordNetworkEndpoint(
+            conn.instanceId,
+            conn.agent,
+            conn.remoteIp,
+            conn.remotePort,
           );
+          audit.log('network-connection', {
+            agent: conn.agent,
+            pid: conn.pid ?? null,
+            // Carried from the connection, never re-resolved from its pid: null means the
+            // socket matched no agent in that scan.
+            instanceId: conn.instanceId ?? null,
+            action: conn.state,
+            path: `${conn.remoteIp}:${conn.remotePort}`,
+            severity: conn.flagged ? 'high' : 'normal',
+            // The owner came from the OS connection table and was matched inside this same
+            // call, so it is `confirmed` — the same strength as a handle-scan pid. An
+            // unmatched connection keeps no agent and says so.
+            attribution: makeAttribution([
+              conn.agent ? EVIDENCE.OS_TCP_OWNER_PID : EVIDENCE.NO_OWNER_MATCH,
+            ]),
+            extra: { domain: conn.domain, flagged: conn.flagged },
+          });
         }
-        // Key first, name second — both from the connection this scan matched. A socket
-        // that matched no agent carries no key and enters no baseline, which also retires
-        // the phantom `sessionData['']` bucket the empty name used to create.
-        baselines.recordNetworkEndpoint(
-          conn.instanceId,
-          conn.agent,
-          conn.remoteIp,
-          conn.remotePort,
-        );
-        audit.log('network-connection', {
-          agent: conn.agent,
-          pid: conn.pid ?? null,
-          // Carried from the connection, never re-resolved from its pid: null means the
-          // socket matched no agent in that scan.
-          instanceId: conn.instanceId ?? null,
-          action: conn.state,
-          path: `${conn.remoteIp}:${conn.remotePort}`,
-          severity: conn.flagged ? 'high' : 'normal',
-          // The owner came from the OS connection table and was matched inside this same
-          // call, so it is `confirmed` — the same strength as a handle-scan pid. An
-          // unmatched connection keeps no agent and says so.
-          attribution: makeAttribution([
-            conn.agent ? EVIDENCE.OS_TCP_OWNER_PID : EVIDENCE.NO_OWNER_MATCH,
-          ]),
-          extra: { domain: conn.domain, flagged: conn.flagged },
+        sendToRenderer('network-update', connections);
+        logger.debug('scan', 'network', {
+          ms: Math.round(performance.now() - t0),
+          connections: connections.length,
         });
-      }
-      sendToRenderer('network-update', connections);
-      logger.debug('scan', 'network', {
-        ms: Math.round(performance.now() - t0),
-        connections: connections.length,
-      });
-    })
+      },
+      (err) => {
+        // Provider-observation ownership boundary (Stage-1 step A). This rejection handler
+        // is attached to `scanNetworkConnections` ITSELF, so it sees provider rejections
+        // only — a throw raised in the fulfilment continuation above (baselines, audit
+        // write, renderer send) cannot reach it and therefore cannot rewrite a successful
+        // TCP observation into FAILED.
+        //
+        // B-S05: provider failure health is owned by network-monitor.scanNetworkConnections
+        // (markFailed before rethrow). Fallback note only if the inject path omitted it.
+        if (
+          typeof network.noteNetworkScanHardFailure === 'function' &&
+          typeof network.getNetworkSensorHealth === 'function' &&
+          network.getNetworkSensorHealth().state !== 'FAILED'
+        ) {
+          network.noteNetworkScanHardFailure(err);
+        }
+        throw err;
+      },
+    )
     .catch((err) => {
-      // B-S05: provider failure health is owned by network-monitor.scanNetworkConnections
-      // (markFailed before rethrow). Fallback note only if the inject path omitted it.
-      if (
-        typeof network.noteNetworkScanHardFailure === 'function' &&
-        typeof network.getNetworkSensorHealth === 'function' &&
-        network.getNetworkSensorHealth().state !== 'FAILED'
-      ) {
-        network.noteNetworkScanHardFailure(err);
-      }
+      // Reached by BOTH a provider rejection (rethrown above, health already owned) and a
+      // downstream continuation throw (health deliberately untouched). Log only: the
+      // `network` leaf names the TCP observation, and delivery/persistence failures belong
+      // to the pipeline axis, which no leaf here represents.
       logger.error('main', 'Network scan failed', { error: err.message });
     })
     .finally(() => {
@@ -282,7 +347,24 @@ async function doProcessScan() {
   updateScanStatus(true);
   const t0 = performance.now();
   try {
-    const result = await scanner.scanProcesses();
+    // Provider-observation ownership boundary (Stage-1 step A). This inner try encloses
+    // ONLY the enumeration call: the `process` leaf names population enumeration, so a
+    // throw raised at or after `setAgents` below — enrichment, session reconcile, an audit
+    // write, anomaly processing, a renderer send — must not be able to write it. Without
+    // this split, `process = FAILED` proved nothing about whether the machine was
+    // enumerated. The provider throw is rethrown so the outer catch keeps the single log.
+    let result;
+    try {
+      result = await scanner.scanProcesses();
+    } catch (err) {
+      // B-S02: hard failure — a non-EPERM rethrow from scanProcesses (the EPERM path
+      // marks FAILED inside the scanner and returns normally, so it never lands here).
+      // Compatibility still leaves latestAgents unchanged: setAgents has not run.
+      if (scanner && typeof scanner.noteProcessScanHardFailure === 'function') {
+        scanner.noteProcessScanHardFailure(err);
+      }
+      throw err;
+    }
     setAgents(result.agents);
     const agents = result.agents;
     // Process IDENTITY first. This attaches the OS birth time and the derived
@@ -306,11 +388,29 @@ async function doProcessScan() {
     // N=32, p50 1284 ms, p95 1459 ms, max 1657 ms — a sample, not a guaranteed
     // runtime.
     await procUtil.enrichWithParentChains(agents, { forceRefresh: result.changed === true });
+    // Read AFTER the identity stamp, never before. The snapshot leaf's health
+    // describes the process-table observation `enrichWithParentChains` just made;
+    // read at the top of the tick it would report the PREVIOUS pass's provider, and
+    // on the first tick a leaf that had never been written at all.
+    const identityDegraded = isIdentityDegraded(scanner);
+    if (identityDegraded) {
+      // A frozen reconcile emits nothing by design, so without this line an outage
+      // is indistinguishable from a quiet machine in the log.
+      logger.debug('scan', 'session-freeze', {
+        reason: 'identity-degraded',
+        agents: agents.length,
+      });
+    }
     // Eager-enter / lazy-exit session reconciliation: an agent seen in even ONE
     // scan logs session-start immediately, and a flickering or permission-denied
-    // scan never spawns a duplicate session. See session-tracker.js.
+    // scan never spawns a duplicate session. `identityDegraded` freezes the same way
+    // an unreliable scan does: when the birth-time observation is gone, every live
+    // agent's key changes without any process having started or stopped, and acting
+    // on that would report a fleet-wide exit that never happened. See
+    // session-tracker.js.
     const { entered, exited } = sessionTracker.reconcile(agents, {
       reliable: result.reliable !== false,
+      identityDegraded,
     });
     for (const s of entered)
       audit.log('agent-enter', {
@@ -462,12 +562,10 @@ async function doProcessScan() {
       agents: agents.length,
     });
   } catch (err) {
-    // B-S02: hard failure (non-EPERM rethrow from scanProcesses, or later enrich throw).
-    // Compatibility still leaves latestAgents unchanged (setAgents only on success path);
-    // process health must record FAILED so empty fleet is not implied.
-    if (scanner && typeof scanner.noteProcessScanHardFailure === 'function') {
-      scanner.noteProcessScanHardFailure(err);
-    }
+    // Reached by BOTH a provider throw (rethrown above, health already owned by the inner
+    // catch) and a downstream pipeline throw (health deliberately untouched — the
+    // observation succeeded). Log only: no leaf here names delivery or persistence, and
+    // inventing one would answer a question this record was never asked.
     logger.error('main', 'Process scan failed', { error: err.message });
   } finally {
     updateScanStatus(false);
@@ -543,8 +641,20 @@ function attachModels(agents, name, info) {
 }
 
 async function doFileScan() {
-  const { watcher, tray, logger, getStats, getLatestAgents } = deps;
+  const { watcher, tray, logger, getStats, getLatestAgents, scanner } = deps;
   const agents = getLatestAgents();
+  // G′: RM and the handle pool both map a live holder pid onto an agent record and
+  // stamp RM_HOLDER_PID / HANDLE_SCAN_PID — `confirmed` attribution. Against a
+  // population the process sensor cannot vouch for, that is a confirmed claim about
+  // a possibly-dead agent, written into the audit log. Do not scan, do not attribute;
+  // the ACTIVE read mechanism records the refusal (§2.4).
+  if (!isPopulationReliable(scanner)) {
+    logger.debug('scan', 'file-skip', { reason: SCOPE_UNAVAILABLE, agents: agents.length });
+    if (typeof watcher.noteFileScanSkip === 'function') {
+      watcher.noteFileScanSkip(SCOPE_UNAVAILABLE);
+    }
+    return;
+  }
   if (agents.length === 0) return;
   const t0 = performance.now();
   updateScanStatus(true);
@@ -556,7 +666,9 @@ async function doFileScan() {
       tray.notifySensitive(events.filter((e) => e.sensitive && e.category === 'ai'));
       for (const ev of events) logAuditForFile(ev);
     }
-    deps.statsUpdateBatcher.push(getStats());
+    // Producer, not payload: the batcher is 'latest', so a payload built here would be
+    // discarded by the next push inside the same 1000 ms window.
+    deps.statsUpdateBatcher.pushLazy(getStats);
     tray.updateTrayIcon();
   } catch (err) {
     logger.error('main', 'File handle scan failed', { error: err.message });
@@ -577,8 +689,16 @@ async function doFileScan() {
  * @since v0.11.0-alpha
  */
 async function doHotReadScan() {
-  const { watcher, tray, logger, getStats, getLatestAgents } = deps;
+  const { watcher, tray, logger, getStats, getLatestAgents, scanner } = deps;
   const agents = getLatestAgents();
+  // G′: same holder→agent stamp as the 30s scan, ~3× more often. Same refusal.
+  if (!isPopulationReliable(scanner)) {
+    logger.debug('scan', 'hot-read-skip', { reason: SCOPE_UNAVAILABLE, agents: agents.length });
+    if (typeof watcher.noteFileScanSkip === 'function') {
+      watcher.noteFileScanSkip(SCOPE_UNAVAILABLE);
+    }
+    return;
+  }
   if (agents.length === 0) return;
   const t0 = performance.now();
   try {
@@ -588,7 +708,7 @@ async function doHotReadScan() {
       for (const ev of events) deps.fileAccessBatcher.push(ev);
       tray.notifySensitive(events.filter((e) => e.sensitive && e.category === 'ai'));
       for (const ev of events) logAuditForFile(ev);
-      deps.statsUpdateBatcher.push(getStats());
+      deps.statsUpdateBatcher.pushLazy(getStats);
       tray.updateTrayIcon();
     }
   } catch (err) {

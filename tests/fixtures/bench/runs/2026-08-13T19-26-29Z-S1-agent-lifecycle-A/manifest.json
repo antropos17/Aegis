@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "runId": "2026-08-13T19-26-29Z-S1-agent-lifecycle-A",
+  "scenario": "S1-agent-lifecycle",
+  "arm": "A",
+  "armDescription": "sensor + Sysmon — coverage and latency",
+  "startedAt": "2026-08-13T19:26:29.876Z",
+  "host": {
+    "platform": {
+      "value": "win32",
+      "source": "process.platform"
+    }
+  },
+  "sensor": {
+    "packageVersion": {
+      "value": "0.11.0-alpha",
+      "source": "package.json version"
+    },
+    "gitSha": {
+      "value": "7a27b5d5b3db4364bb1018bb1808605e17317b57",
+      "source": "git rev-parse HEAD"
+    },
+    "gitBranch": {
+      "value": "feat/bench-b2-5-join",
+      "source": "git rev-parse --abbrev-ref HEAD"
+    },
+    "workingTreeDirty": {
+      "value": true,
+      "source": "git status --porcelain"
+    }
+  },
+  "processCountAtStart": {
+    "value": 320,
+    "source": "tasklist /FO CSV /NH"
+  },
+  "oracles": {
+    "sysmon": {
+      "version": null,
+      "configPath": null,
+      "configSha256": null,
+      "unavailable": "oracle adapter not implemented — arrives in sub-block B2.3"
+    },
+    "procmon": {
+      "version": null,
+      "configPath": null,
+      "configSha256": null,
+      "unavailable": "oracle adapter not implemented — arrives in sub-block B2.6"
+    }
+  }
+}

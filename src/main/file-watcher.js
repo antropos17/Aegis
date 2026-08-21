@@ -10,6 +10,7 @@
  * @requires child_process
  * @requires ../shared/constants
  * @requires ./rule-loader
+ * @requires ./watch-root-registry
  * @author AEGIS Contributors
  * @license MIT
  * @version 0.3.0-alpha
@@ -29,6 +30,25 @@ const { getAllRules, reloadRules } = require('./rule-loader');
 const { EVIDENCE, makeAttribution } = require('./attribution');
 const { readInstanceId } = require('./process-identity');
 const sensorHealth = require('./sensor-health');
+// Watch-root registry (design §1) — the plan, its per-root state transitions, and the
+// W derived from it. Pure state: this module keeps ownership of the `fs-chokidar`
+// health record and is the only place a sensorHealth.mark* call may happen.
+const {
+  WATCH_GROUP,
+  WATCH_ROOT_STATE,
+  resetWatchPlan,
+  buildWatchPlan,
+  hasPlannedRoot,
+  markRootRegistered,
+  markRootRegistrationFailed,
+  markUnreachedRootsNotAttempted,
+  markRootReady,
+  markRootErrored,
+  noteRootDelivery,
+  deriveWatchPlaneState,
+  unavailableRootSummary,
+  getWatchPlan,
+} = require('./watch-root-registry');
 const _platform = require('./platform');
 const { IGNORE_FILE_PATTERNS } = _platform;
 
@@ -38,6 +58,32 @@ const FS_SENSOR = Object.freeze({
   HANDLE: 'fs-handle',
   RM: 'fs-rm',
 });
+
+/** Reason recorded by every surface that refuses to observe an untrusted population. */
+const SCOPE_UNAVAILABLE_REASON = 'process-observation-unavailable';
+
+/**
+ * Reader for the ProcessCapabilities contract (design §3), resolved lazily.
+ *
+ * Required directly rather than injected through `_state`: that object is built in
+ * main.js and does not carry the contract, and §3 is explicit that a dependant must
+ * consume the capability struct — never a plane roll-up — to decide whether an
+ * agent-scoped observation may run. process-scanner requires nothing from here, so
+ * there is no cycle.
+ * @type {(() => {populationReliable: boolean}) | null}
+ */
+let _getProcessCapabilities = null;
+
+/**
+ * Whether the agent population may be used as an observation scope right now.
+ * @returns {boolean}
+ */
+function populationReliable() {
+  if (!_getProcessCapabilities) {
+    _getProcessCapabilities = require('./process-scanner').getProcessCapabilities;
+  }
+  return _getProcessCapabilities().populationReliable === true;
+}
 
 /**
  * Default directories to ignore in file watchers.
@@ -116,10 +162,15 @@ function createInitialFsHealth() {
 /**
  * Reset FS health records (tests / intentional reinit). Does not clear residual
  * production loss mid-lifetime except by creating new records.
+ *
+ * Drops the watch plan with them: the plan is what writes the chokidar record, so a
+ * plan that outlived its record would recompute W from roots the new record never
+ * saw registered.
  * @returns {void}
  */
 function _resetFsHealth() {
   _fsHealth = createInitialFsHealth();
+  resetWatchPlan();
 }
 
 /**
@@ -161,6 +212,41 @@ function getFileSensorHealth() {
   return out;
 }
 
+/**
+ * Orchestration-only skip: the read mechanisms were NOT run this tick because the
+ * agent population could not be trusted as an observation scope (design §2.4).
+ *
+ * Marks the ACTIVE read mechanism — RM when the RM path owns observation, the handle
+ * pool otherwise — because that is the sensor whose observation was actually lost.
+ * DEGRADED, never FAILED: no provider failed. Never HEALTHY: no read happened, so
+ * there is no scoped success to claim, and `lastSuccessAt` must not advance.
+ *
+ * The scoped-HEALTHY `confirmed-zero-in-scope` case is the effective-read-scope step
+ * and is deliberately NOT implemented here — it needs the mechanism's own filtered
+ * list, which this function never sees.
+ * @param {'process-observation-unavailable'|string} reason
+ * @returns {void}
+ * @since 0.12.0
+ */
+function noteFileScanSkip(reason) {
+  const now = Date.now();
+  const id = rmEnabled() ? FS_SENSOR.RM : FS_SENSOR.HANDLE;
+  const rec = _fsHealth[id];
+  // markDegraded throws from both states, and RM is UNSUPPORTED on every platform
+  // that has no Restart Manager — a skip must not turn that into an error.
+  if (
+    rec.state === sensorHealth.SENSOR_HEALTH_STATE.UNSUPPORTED ||
+    rec.state === sensorHealth.SENSOR_HEALTH_STATE.DISABLED
+  ) {
+    return;
+  }
+  const scoped = reason === SCOPE_UNAVAILABLE_REASON;
+  _fsHealth[id] = sensorHealth.markDegraded(rec, now, {
+    error: scoped ? SCOPE_UNAVAILABLE_REASON : healthErrorMessage(reason),
+    detail: scoped ? SCOPE_UNAVAILABLE_REASON : 'file-scan-skip',
+  });
+}
+
 /** @internal Override dependencies (for tests). */
 function _setDepsForTest(overrides) {
   if (overrides.getFileHandles) _getFileHandles = overrides.getFileHandles;
@@ -175,6 +261,7 @@ function _setDepsForTest(overrides) {
     }
   }
   if (overrides.getHotSensitiveHolders) _getHotSensitiveHolders = overrides.getHotSensitiveHolders;
+  if (overrides.getProcessCapabilities) _getProcessCapabilities = overrides.getProcessCapabilities;
   if (Object.prototype.hasOwnProperty.call(overrides, 'isReadDetectionAvailable')) {
     _isReadDetectionAvailableOverride = overrides.isReadDetectionAvailable;
   }
@@ -186,6 +273,17 @@ function _resetForTest() {
   _getHotSensitiveHolders = undefined;
   _rmScanInFlight = false;
   _isReadDetectionAvailableOverride = undefined;
+  // Same contract as the RM dep above: a test opts INTO the population gate via
+  // _setDepsForTest. The real process-scanner sits at STARTING until something drives
+  // a scan, which is honestly "cannot vouch" — but a test asserting attribution logic
+  // is not asserting population health, and making every one of them drive a process
+  // scan first would couple two unrelated sensors. Production never calls this.
+  _getProcessCapabilities = () => ({
+    populationState: 'HEALTHY',
+    populationReliable: true,
+    populationAsOf: null,
+    identityQuality: 'unknown',
+  });
   _resetFsHealth();
 }
 
@@ -295,23 +393,70 @@ function getIgnoredDirFilter(config) {
     );
 }
 
-function bindWatcherEvents(watcher) {
-  watcher.on('add', (p) => handleWatcherEvent('created', p));
-  watcher.on('change', (p) => handleWatcherEvent('modified', p));
-  watcher.on('unlink', (p) => handleWatcherEvent('deleted', p));
-  // B2: chokidar may keep running after some errors — DEGRADED not FAILED.
-  // No lossCount: chokidar does not expose a quantitative lost-event counter.
-  watcher.on('error', (err) => {
-    const now = Date.now();
-    _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.CHOKIDAR], now, {
-      error: healthErrorMessage(err),
-      detail: 'chokidar-error',
+/**
+ * Write the derived W into the existing `fs-chokidar` record. The record is the
+ * mechanism's health; the plan is where its state now comes from.
+ *
+ * STARTING is not written: `createSensorHealth` already starts the record there,
+ * sensor-health has no markStarting, and a plan only ever leaves STARTING forward —
+ * roots never return to `planned`/`registered`, and every unavailable state is
+ * terminal. Consequence worth naming: `lastSuccessAt` now advances only when EVERY
+ * planned root is ready, where before one `ready` advanced it for all of them.
+ * @param {number} now
+ * @returns {void}
+ */
+function applyWatchPlaneHealth(now) {
+  const state = deriveWatchPlaneState();
+  const rec = _fsHealth[FS_SENSOR.CHOKIDAR];
+  if (state === sensorHealth.SENSOR_HEALTH_STATE.FAILED) {
+    _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.markFailed(rec, now, {
+      error: unavailableRootSummary() || 'no-live-watcher',
+      detail: 'no-live-watcher',
     });
+  } else if (state === sensorHealth.SENSOR_HEALTH_STATE.DEGRADED) {
+    // No lossCount: chokidar exposes no quantitative lost-event counter.
+    _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.markDegraded(rec, now, {
+      error: unavailableRootSummary(),
+      detail: 'watch-roots-unavailable',
+    });
+  } else if (state === sensorHealth.SENSOR_HEALTH_STATE.HEALTHY) {
+    _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.markHealthy(rec, now);
+  }
+}
+
+/**
+ * @param {object} watcher - the FSWatcher this binding belongs to
+ * @param {string} rootId - the watch group it was registered for
+ * @returns {void}
+ */
+function bindWatcherEvents(watcher, rootId) {
+  // noteRootDelivery lives HERE, not in handleWatcherEvent: the handler is exported
+  // and called directly with no root context by the attribution/ignore suites.
+  watcher.on('add', (p) => {
+    noteRootDelivery(rootId);
+    handleWatcherEvent('created', p);
   });
-  // ready = successful initialization of this FSWatcher instance.
+  watcher.on('change', (p) => {
+    noteRootDelivery(rootId);
+    handleWatcherEvent('modified', p);
+  });
+  watcher.on('unlink', (p) => {
+    noteRootDelivery(rootId);
+    handleWatcherEvent('deleted', p);
+  });
+  // B2: chokidar may keep running after some errors — DEGRADED not FAILED, and the
+  // scope of the degradation is this ROOT, not the mechanism. The registry moves the
+  // root and answers whether anything changed; writing the record is this module's job,
+  // and only on a real transition — W is derived over the plan, so re-deriving it for
+  // an event that named no planned root would read an empty plan and throw.
+  watcher.on('error', (err) => {
+    if (markRootErrored(rootId, healthErrorMessage(err))) applyWatchPlaneHealth(Date.now());
+  });
+  // ready = successful initialization of this FSWatcher instance — that one root. A
+  // `ready` on a root already `errored` moves nothing (§1.4 — terminal), so it writes
+  // no record either.
   watcher.on('ready', () => {
-    const now = Date.now();
-    _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.markHealthy(_fsHealth[FS_SENSOR.CHOKIDAR], now);
+    if (markRootReady(rootId)) applyWatchPlaneHealth(Date.now());
   });
 }
 
@@ -332,7 +477,14 @@ function handleWatcherEvent(action, filePath) {
     if (watcherDebounce.size > 500) watcherDebounce.clear();
   }
   const reason = classifySensitive(filePath);
-  const aiAgents = _state.getLatestAiAgents();
+  // G′: chokidar KEEPS OBSERVING under an untrusted population — a path event is
+  // valid evidence regardless of who owns it, and dropping it would lose real
+  // filesystem activity to a process-sensor problem. What is unavailable is the list
+  // of candidate owners, so owner inference is what gets skipped: `latestAiAgents` is
+  // not read, `findOwningAgent` is not run, and the event carries no owner. `W` is
+  // unaffected — no health record is written here.
+  const scopeUsable = populationReliable();
+  const aiAgents = scopeUsable ? _state.getLatestAiAgents() : [];
   const owner = aiAgents.length > 0 ? findOwningAgent(filePath, aiAgents) : null;
   // C-01: chokidar hands us a PATH, never a PID — so this path can be `inferred`
   // at best, and MUST be `unattributed` when no owner matches. Substituting the
@@ -340,9 +492,17 @@ function handleWatcherEvent(action, filePath) {
   // baselines, risk score, tray alert and audit trail. `pid: null`, not 0 — pid 0
   // is taken by synthetic WSL / local-runtime agents, so 0 would collide with a
   // real agent card.
-  const evidence = owner
-    ? owner.evidence
-    : [aiAgents.length > 0 ? EVIDENCE.NO_OWNER_MATCH : EVIDENCE.NO_AI_AGENTS_ONLINE];
+  let evidence;
+  if (owner) {
+    evidence = owner.evidence;
+  } else if (!scopeUsable) {
+    // Says WHY there is no owner, and says it exactly: not "nobody was online"
+    // (which would assert a fact about a population we cannot read) and not "no
+    // owner matched" (which would assert a match was attempted).
+    evidence = [EVIDENCE.POPULATION_UNAVAILABLE];
+  } else {
+    evidence = [aiAgents.length > 0 ? EVIDENCE.NO_OWNER_MATCH : EVIDENCE.NO_AI_AGENTS_ONLINE];
+  }
   const attribution = makeAttribution(evidence);
   const agent = owner ? owner.agent : null;
   // D2: the self-access exemption belongs to the agent that OWNS the path, and is
@@ -390,63 +550,113 @@ function handleWatcherEvent(action, filePath) {
   if (_state.onFileEvent) _state.onFileEvent(event);
 }
 
-/** @returns {Promise<void>} @since v0.1.0 */
+/**
+ * Register the production watch roots and record what each one actually did.
+ *
+ * The rejection is deliberately re-thrown after the plan is written: main.js already
+ * reports it (`File watcher setup failed`), and this module owns the plan (§10 step B).
+ * @returns {Promise<void>}
+ * @throws {Error} whatever `chokidar.watch` threw, after the plan records the abort.
+ * @since v0.1.0
+ */
 async function setupFileWatchers() {
-  // Reinit chokidar health lifetime when production recreates the watcher set.
-  _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.createSensorHealth(FS_SENSOR.CHOKIDAR);
   const homeDir = os.homedir();
-  const sensitiveDirCandidates = SENSITIVE_AGENT_DIRS.map((d) => path.join(homeDir, d));
-  const sensitiveDirs = await filterExistingDirs(sensitiveDirCandidates);
   const projectDir = path.join(__dirname, '..', '..');
-  if (sensitiveDirs.length > 0) {
-    const w = chokidar.watch(sensitiveDirs, {
-      persistent: true,
-      ignoreInitial: true,
-      usePolling: false,
-      followSymlinks: false,
-      depth: 1,
-    });
-    bindWatcherEvents(w);
-    _state.watchers.push(w);
-  }
+  // BOTH preflights complete before ANY registration (§1.2). The plan separates
+  // intent from outcome: a group may leave it only because a completed probe proved
+  // there is nothing to watch — never because a registration threw. Under the old
+  // order the second probe ran after the first `chokidar.watch`, so an abort in
+  // between produced a plan that had never heard of the agent-config group, and one
+  // ready root was enough to call the whole mechanism HEALTHY.
+  const sensitiveDirs = await filterExistingDirs(
+    SENSITIVE_AGENT_DIRS.map((d) => path.join(homeDir, d)),
+  );
   // AI agent config directories (Hudson Rock threat vector — critical)
   const sensitiveDirNames = new Set(SENSITIVE_AGENT_DIRS);
-  const agentConfigCandidates = AGENT_CONFIG_PATHS.filter((d) => !sensitiveDirNames.has(d)).map(
-    (d) => path.join(homeDir, d),
+  const agentConfigDirs = await filterExistingDirs(
+    AGENT_CONFIG_PATHS.filter((d) => !sensitiveDirNames.has(d)).map((d) => path.join(homeDir, d)),
   );
-  const agentConfigDirs = await filterExistingDirs(agentConfigCandidates);
-  if (agentConfigDirs.length > 0) {
-    const cw = chokidar.watch(agentConfigDirs, {
-      persistent: true,
-      ignoreInitial: true,
-      usePolling: false,
-      followSymlinks: false,
-      depth: 2,
-    });
-    bindWatcherEvents(cw);
-    _state.watchers.push(cw);
+  // Reinit chokidar health lifetime when production recreates the watcher set — and
+  // the plan with it, since the plan is what writes into that record.
+  _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.createSensorHealth(FS_SENSOR.CHOKIDAR);
+  buildWatchPlan([
+    { id: WATCH_GROUP.CREDENTIAL_DIRS, applicable: sensitiveDirs.length > 0 },
+    { id: WATCH_GROUP.AGENT_CONFIG_DIRS, applicable: agentConfigDirs.length > 0 },
+    // Unconditional: no preflight can exclude them, so the plan is never empty.
+    { id: WATCH_GROUP.PROJECT_DIR, applicable: true },
+    { id: WATCH_GROUP.ENV_FILES, applicable: true },
+  ]);
+  /** @type {string|null} The group whose registration is in flight. */
+  let attempted = null;
+  try {
+    const config = _state.getSettings ? _state.getSettings() : {};
+    const dirFilter = getIgnoredDirFilter(config);
+    /** Registration order IS plan order — `not-attempted` is read off plan position. */
+    const registrations = [
+      [
+        WATCH_GROUP.CREDENTIAL_DIRS,
+        () =>
+          chokidar.watch(sensitiveDirs, {
+            persistent: true,
+            ignoreInitial: true,
+            usePolling: false,
+            followSymlinks: false,
+            depth: 1,
+          }),
+      ],
+      [
+        WATCH_GROUP.AGENT_CONFIG_DIRS,
+        () =>
+          chokidar.watch(agentConfigDirs, {
+            persistent: true,
+            ignoreInitial: true,
+            usePolling: false,
+            followSymlinks: false,
+            depth: 2,
+          }),
+      ],
+      [
+        WATCH_GROUP.PROJECT_DIR,
+        () =>
+          chokidar.watch(projectDir, {
+            persistent: true,
+            ignoreInitial: true,
+            ignored: (filePath) => dirFilter(filePath) || /package-lock\.json$/.test(filePath),
+            usePolling: false,
+            followSymlinks: false,
+            depth: 5,
+          }),
+      ],
+      [
+        WATCH_GROUP.ENV_FILES,
+        () =>
+          chokidar.watch(path.join(homeDir, '.env*'), {
+            persistent: true,
+            ignoreInitial: true,
+            depth: 0,
+            usePolling: false,
+            followSymlinks: false,
+          }),
+      ],
+    ];
+    for (const [id, register] of registrations) {
+      if (!hasPlannedRoot(id)) continue; // not-applicable — proven absent by preflight
+      attempted = id;
+      const w = register();
+      markRootRegistered(id, w);
+      bindWatcherEvents(w, id);
+      _state.watchers.push(w);
+    }
+  } catch (err) {
+    // §1.3: the group that threw is `registration-failed`; every planned group the
+    // loop never reached is `not-attempted`, read off plan position. Both are recorded
+    // before the rejection leaves this function.
+    if (attempted) markRootRegistrationFailed(attempted, healthErrorMessage(err));
+    markUnreachedRootsNotAttempted();
+    applyWatchPlaneHealth(Date.now());
+    throw err;
   }
-  const config = _state.getSettings ? _state.getSettings() : {};
-  const dirFilter = getIgnoredDirFilter(config);
-  const pw = chokidar.watch(projectDir, {
-    persistent: true,
-    ignoreInitial: true,
-    ignored: (filePath) => dirFilter(filePath) || /package-lock\.json$/.test(filePath),
-    usePolling: false,
-    followSymlinks: false,
-    depth: 5,
-  });
-  bindWatcherEvents(pw);
-  _state.watchers.push(pw);
-  const ew = chokidar.watch(path.join(homeDir, '.env*'), {
-    persistent: true,
-    ignoreInitial: true,
-    depth: 0,
-    usePolling: false,
-    followSymlinks: false,
-  });
-  bindWatcherEvents(ew);
-  _state.watchers.push(ew);
+  applyWatchPlaneHealth(Date.now());
 }
 
 /**
@@ -589,6 +799,15 @@ function rmEnabled() {
  * @since v0.10.0
  */
 async function scanViaRestartManager(agents, fetchHolders = _getSensitiveHolders) {
+  // G′ invariant, not a scheduling decision: _scanRmHolders maps a live holder pid
+  // onto an agent record and stamps RM_HOLDER_PID — `confirmed` — into the audit log.
+  // That stamp must be impossible against a population the process sensor cannot
+  // vouch for, whoever called us. scan-loop refuses earlier and logs the skip; this
+  // guard is what makes the invariant hold rather than the schedule.
+  if (!populationReliable()) {
+    noteFileScanSkip(SCOPE_UNAVAILABLE_REASON);
+    return [];
+  }
   // B-S09: legitimate single-flight skip — not FAILED, not a success tick.
   if (_rmScanInFlight) return [];
   _rmScanInFlight = true;
@@ -721,6 +940,13 @@ async function scanHotFileHolders(agents) {
  */
 async function scanAllFileHandles(agents) {
   const now = Date.now();
+  // G′ invariant: the handle pool stamps HANDLE_SCAN_PID — `confirmed`, same strength
+  // as the RM holder pid — so it is gated by the same rule and for the same reason.
+  // Placed ahead of the RM delegation so both mechanisms are covered from one site.
+  if (!populationReliable()) {
+    noteFileScanSkip(SCOPE_UNAVAILABLE_REASON);
+    return [];
+  }
   // win32 primary: honest read-detect via Restart Manager (no handle.exe needed).
   // Falls through to the legacy per-PID handle pool on darwin/linux, or on win32
   // when RM is unavailable (the PR-A getFileHandles→[] fallback still applies).
@@ -860,7 +1086,11 @@ module.exports = {
   handleWatcherEvent,
   getIgnoredDirFilter,
   getFileSensorHealth,
+  getWatchPlan,
+  noteFileScanSkip,
   FS_SENSOR,
+  WATCH_GROUP,
+  WATCH_ROOT_STATE,
   DEFAULT_IGNORED_DIRS,
   FILE_SCAN_CONCURRENCY,
   _setDepsForTest,

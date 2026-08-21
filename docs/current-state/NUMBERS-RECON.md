@@ -1,9 +1,14 @@
 # NUMBERS-RECON — reading path of every number on the main screen
 
+> **As of 2026-08-21:** dated recon, kept as recorded. The wrong-output findings below were
+> subsequently fixed — every Tier-1 finding is CLOSED in
+> [`CORRECTNESS-AUDIT.md`](CORRECTNESS-AUDIT.md), which carries the per-finding disposition.
+> This file remains the record of what the main screen showed at recon time.
+
 Read-only reconnaissance. No source file and no test file was touched; the only path
 this document adds is itself.
 
-**Repo root:** `X:\Future\ESCAPE\AEGIS`
+**Repo root:** `X:\dev\project\AEGIS`
 **Recon date:** 2026-08-05
 **Version:** `0.10.0-alpha` (`package.json`)
 **Scope of "main screen":** the Shield tab (`App.svelte:316-317` → `ShieldTab.svelte`)

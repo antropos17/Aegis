@@ -103,6 +103,18 @@ describe('file-watcher production subscription wiring (F-S01)', () => {
   beforeEach(() => {
     installChokidarMock();
     fileWatcher = loadFileWatcher();
+    // F-S01 is about subscription wiring, not population health. A freshly loaded module
+    // reads the real process leaf, which sits at STARTING until a scan succeeds — under
+    // G′ that correctly suppresses owner inference. Vouch for the population so these
+    // tests exercise the wiring they are about; the gate has its own suite.
+    fileWatcher._setDepsForTest({
+      getProcessCapabilities: () => ({
+        populationState: 'HEALTHY',
+        populationReliable: true,
+        populationAsOf: null,
+        identityQuality: 'unknown',
+      }),
+    });
   });
 
   afterEach(() => {
@@ -222,13 +234,17 @@ describe('file-watcher production subscription wiring (F-S01)', () => {
     expect(state.onFileEvent).not.toHaveBeenCalled();
   });
 
-  it('B2: setup starts fs-chokidar STARTING; ready → HEALTHY; error → DEGRADED', async () => {
+  it('B2: setup starts fs-chokidar STARTING; ALL roots ready → HEALTHY; error → DEGRADED', async () => {
     const state = makeState();
     fileWatcher.init(state);
     await fileWatcher.setupFileWatchers();
     expect(fileWatcher.getFileSensorHealth()['fs-chokidar'].state).toBe('STARTING');
 
-    fakeWatchers[0].emit('ready');
+    // Step B: the record covers the whole watch plan, so readiness is total over it —
+    // one root's `ready` no longer speaks for the mechanism. The registry's own suite
+    // (file-watcher-watch-roots.test.js) pins the partial case; here the point is that
+    // the B2 record still ends up where B2 said it would.
+    for (const w of fakeWatchers) w.emit('ready');
     expect(fileWatcher.getFileSensorHealth()['fs-chokidar'].state).toBe('HEALTHY');
 
     fakeWatchers[0].emit('error', new Error('watch failed'));

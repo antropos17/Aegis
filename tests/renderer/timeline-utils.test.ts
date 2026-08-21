@@ -17,7 +17,7 @@ import {
   clusterTrajectoryKey,
   readTimelineInstanceId,
   UNKNOWN_SOURCE_LABEL,
-} from '../../src/renderer/lib/utils/timeline-utils.ts';
+} from '../../src/renderer/lib/utils/timeline-utils';
 
 /** Identity projection — buildClusters only needs a number back. */
 const tsToX = (ts: number) => ts;

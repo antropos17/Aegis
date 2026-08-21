@@ -35,7 +35,15 @@ export type AttributionEvidence =
   | 'self-config-path'
   | 'cwd-containment'
   | 'no-owner-match'
-  | 'no-ai-agents-online';
+  | 'no-ai-agents-online'
+  /**
+   * The process sensor could not vouch for the agent population at this instant, so no
+   * owner was looked for. Distinct from both other negative codes: `no-ai-agents-online`
+   * asserts nobody was online, `no-owner-match` asserts a match was attempted — here the
+   * population is UNKNOWN and no match ran. The path observation itself stays valid.
+   * @since v0.12.0
+   */
+  | 'population-unavailable';
 
 /**
  * Attribution record carried by a file event. Deliberately carries NO numeric

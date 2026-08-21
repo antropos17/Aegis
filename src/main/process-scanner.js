@@ -19,6 +19,12 @@ const { IGNORE_PROCESS_PATTERNS, EDITOR_HOSTS } = require('../shared/constants')
 const sensorHealth = require('./sensor-health');
 const _platform = require('./platform');
 let _listProcesses = _platform.listProcesses;
+// Identity-quality inputs, mirrored as overridable locals the same way process-utils.js
+// holds `providesStartTime` — so a test can state a platform's identity story without
+// pretending to be that platform.
+let _providesStartTime = _platform.providesStartTime === true;
+/** @type {(() => {state: string}) | null} Test override for the proc-snapshot leaf. */
+let _getSnapshotHealth = null;
 
 /** Authoritative process-enumeration sensor id (Block B3). One observation source. */
 const PROCESS_SENSOR_ID = 'process';
@@ -61,6 +67,114 @@ function isProcessPopulationReliable() {
 }
 
 /**
+ * Read the `proc-snapshot` leaf's state through the platform façade.
+ *
+ * Gap F is closed: `platform/win32.js` now re-exports `getSnapshotHealth`, so the
+ * façade is the ONLY path and the former lazy `require('./platform/process-snapshot')`
+ * fallback is gone. That fallback reached around the abstraction to read a leaf the
+ * façade would not name; with the export in place, keeping it would leave a second
+ * path that can disagree with the first.
+ *
+ * `null` is returned where no façade publishes the leaf — linux and darwin, which own
+ * no snapshot. That branch answers nothing in practice: both set
+ * `providesStartTime: false`, and {@link getIdentityQuality} returns on that flag
+ * before it ever reaches here. It is the honest value for "this platform carries no
+ * witness", not a fallback.
+ * @returns {string|null} The leaf state, or null when no façade publishes one.
+ */
+function readSnapshotState() {
+  if (_getSnapshotHealth) return _getSnapshotHealth().state;
+  if (typeof _platform.getSnapshotHealth === 'function') {
+    return _platform.getSnapshotHealth().state;
+  }
+  return null;
+}
+
+/**
+ * Identity strength for the keys `identify()` is currently able to form.
+ *
+ * Annotation only: §3 of the design is explicit that nothing gates on this value.
+ * The socket→agent and holder→agent matches are by PID, and a birth witness plays
+ * no part in a PID match — so a degraded witness must never be allowed to suppress
+ * an observation.
+ *
+ * STARTING (no snapshot taken yet) maps to `unknown` with the same reasoning as
+ * FAILED: no witness has been read, so `identify()` has none to key on.
+ * @returns {'witnessed'|'birth-time'|'unknown'}
+ * @since 0.12.0
+ */
+function getIdentityQuality() {
+  // darwin/linux publish no birth time at all → identify() yields "<pid>:u".
+  if (_providesStartTime !== true) return 'unknown';
+  const state = readSnapshotState();
+  if (state === sensorHealth.SENSOR_HEALTH_STATE.HEALTHY) return 'witnessed';
+  // cim-fallback: _witnessOf drops to startTimeMs, so keys still form.
+  if (state === sensorHealth.SENSOR_HEALTH_STATE.DEGRADED) return 'birth-time';
+  return 'unknown';
+}
+
+/**
+ * Whether the identity keys this tick can form are degraded RELATIVE TO WHAT THIS
+ * PLATFORM PROVIDES.
+ *
+ * Deliberately not a bare `getIdentityQuality() === 'unknown'`. That value is
+ * `unknown` PERMANENTLY on linux and darwin — neither adapter publishes a birth time
+ * at all — so acting on it there would freeze session tracking forever on platforms
+ * where `<pid>:u` is the normal, documented steady state (process-identity.js space
+ * 3), not a fault. Degradation is a RELATIVE notion: it exists only where the
+ * platform declares a birth time and the observation that carries it failed.
+ *
+ * On such a platform `unknown` means the provider fell over between one tick and the
+ * next, so every live agent's key silently changes from `<pid>:<birthMs>` to
+ * `<pid>:u`. That is a SPLIT, not an exit — the failure process-identity.js's header
+ * names as the opposite of a merge — and it forks the session, the dedup set, the
+ * baselines and the token ledger along with the key.
+ *
+ * `birth-time` (the CIM fallback) is NOT degradation here: the keys still form in
+ * the same space with the same values, so nothing splits. Only a total loss of the
+ * observation counts.
+ *
+ * SCOPE OF THE GATE: unlike `identityQuality`, which is annotation and gates nothing
+ * (design §3), this IS acted on — by session reconciliation alone, and only to
+ * FREEZE state. It never suppresses an observation and never fabricates one: the
+ * scan batch keeps carrying the honest `<pid>:u` it observed.
+ * @returns {boolean}
+ * @since 0.12.0
+ */
+function isIdentityDegraded() {
+  return _providesStartTime === true && getIdentityQuality() === 'unknown';
+}
+
+/**
+ * @typedef {Object} ProcessCapabilities
+ * @property {'STARTING'|'HEALTHY'|'DEGRADED'|'FAILED'} populationState - the `process`
+ *   LEAF's state, never a plane roll-up
+ * @property {boolean} populationReliable - true iff populationState === 'HEALTHY'
+ * @property {number|null} populationAsOf - the leaf's lastSuccessAt: how old the list is
+ * @property {'witnessed'|'birth-time'|'unknown'} identityQuality - annotation, gates nothing
+ */
+
+/**
+ * The capability contract dependants consume — and the ONLY thing they may consume
+ * to decide whether an agent-scoped observation is allowed to run.
+ *
+ * Deliberately not the process PLANE enum: that value is a display roll-up, safe by
+ * accident for today's single cause of plane-DEGRADED and silently wrong the moment
+ * the `process` leaf itself can degrade. Dependent correctness must not be
+ * reverse-engineered out of a display value (design §3).
+ * @returns {ProcessCapabilities}
+ * @since 0.12.0
+ */
+function getProcessCapabilities() {
+  return {
+    populationState: /** @type {'STARTING'|'HEALTHY'|'DEGRADED'|'FAILED'} */ (_processHealth.state),
+    populationReliable: _processHealth.state === sensorHealth.SENSOR_HEALTH_STATE.HEALTHY,
+    populationAsOf: _processHealth.lastSuccessAt,
+    identityQuality: getIdentityQuality(),
+  };
+}
+
+/**
  * Record a hard process-scan failure that escaped scanProcesses (e.g. non-EPERM
  * throw caught by scan-loop). Does not fabricate agents.
  * @param {unknown} err
@@ -78,12 +192,18 @@ function noteProcessScanHardFailure(err) {
 /** @internal Override platform functions (for tests). */
 function _setPlatformForTest(overrides) {
   if (overrides.listProcesses) _listProcesses = overrides.listProcesses;
+  if (typeof overrides.providesStartTime === 'boolean') {
+    _providesStartTime = overrides.providesStartTime;
+  }
+  if (overrides.getSnapshotHealth) _getSnapshotHealth = overrides.getSnapshotHealth;
 }
 /** @internal Reset state (for tests). */
 function _resetForTest() {
   lastProcessPidSet = '';
   permissionDeniedScans = 0;
   _processHealth = sensorHealth.createSensorHealth(PROCESS_SENSOR_ID);
+  _providesStartTime = _platform.providesStartTime === true;
+  _getSnapshotHealth = null;
 }
 
 let _agentDb = null;
@@ -158,8 +278,11 @@ async function scanProcesses() {
       // Still run the empty path below for pid-set / peakAgents bookkeeping so
       // callers keep a stable return shape. Do not markHealthy on this path.
     } else {
-      // Hard provider failure: leave health update to noteProcessScanHardFailure
-      // (scan-loop catch) so we do not double-increment consecutiveFailures.
+      // Hard provider failure: leave the health write to noteProcessScanHardFailure,
+      // called from the catch that in scan-loop's doProcessScan encloses ONLY this call,
+      // so we do not double-increment consecutiveFailures. That catch is the boundary —
+      // a throw from anything downstream of this return value reaches a different handler
+      // and writes no process health at all.
       throw err;
     }
   }
@@ -219,6 +342,11 @@ module.exports = {
   scanProcesses,
   getProcessSensorHealth,
   isProcessPopulationReliable,
+  getProcessCapabilities,
+  // Published as its own function rather than as a fifth ProcessCapabilities field:
+  // that struct is the POPULATION contract every agent-scoped sensor gates on, and
+  // this answers a different question for exactly one consumer.
+  isIdentityDegraded,
   noteProcessScanHardFailure,
   PROCESS_SENSOR_ID,
   _setPlatformForTest,

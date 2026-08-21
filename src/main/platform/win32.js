@@ -474,6 +474,23 @@ module.exports = {
   providesStartTime: true,
   listProcesses,
   getParentProcessMap,
+  /**
+   * The `proc-snapshot` leaf's health record, published through the façade because
+   * this module already owns the only path to it: `getParentProcessMap` above
+   * delegates the provider choice to process-snapshot.js, so the leaf describes an
+   * observation made on THIS module's behalf and belongs on THIS module's surface.
+   *
+   * A plain reference, not a wrapper: `getSnapshotHealth` reads the submodule's own
+   * `_health` binding and takes no receiver, so re-exporting it keeps reporting the
+   * live record — including after that module's `_resetForTest` rebinds it.
+   *
+   * win32 only. linux.js and darwin.js publish no snapshot leaf and must not grow a
+   * null-returning stub for one: they also set `providesStartTime: false`, and
+   * process-scanner's `getIdentityQuality` answers on that flag before it ever asks
+   * for a witness.
+   * @type {() => import('../sensor-health').SensorHealth}
+   */
+  getSnapshotHealth: snapshot.getSnapshotHealth,
   cimParentProcessMap,
   getRawTcpConnections,
   getFileHandles,
