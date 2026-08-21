@@ -236,7 +236,7 @@ describe('refusal — record shape and kind order', () => {
           input:
             kind === 'handles.tick'
               ? { byPid: { 4812: ['X:\dev\project\AEGIS\.env'] } }
-              : { holders: [{ pid: 4812, path: 'X:\dev\project\AEGIS\.env' }] },
+              : { holders: [{ pid: 4812, group: 'X:\dev\project\AEGIS\.env' }] },
           ambient: makeAmbient(),
         });
       return writer.chainRecords([

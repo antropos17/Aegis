@@ -220,7 +220,20 @@ const RECORD_KINDS = Object.freeze({
       for (const [i, h] of input.holders.entries()) {
         if (!isObject(h)) fail(`holders[${i}] must be an object`);
         if (!isPidLike(h.pid)) fail(`holders[${i}].pid must be a non-negative integer`);
-        if (!isNonEmptyString(h.path)) fail(`holders[${i}].path must be a non-empty string`);
+        // `group`, not `path`, and the name is the product's: `_scanRmHolders` reads
+        // `h.group` and writes it into the event's `file`. A holder group is a bare
+        // DIRECTORY with no trailing separator (or a single file), which is why the
+        // product matches it twice — once with a separator appended, once as-is.
+        // Calling the field `path` here would have recorded a shape no provider
+        // returns, and the harness would then have replayed an empty tick forever.
+        if (!isNonEmptyString(h.group)) fail(`holders[${i}].group must be a non-empty string`);
+        // Optional, and carried verbatim when present: the provider may already know
+        // why a group is sensitive, and `_scanRmHolders` prefers `h.reason` over
+        // re-classifying. Absent is not empty — an absent reason means the provider
+        // said nothing, and the product then classifies the group itself.
+        if (h.reason !== undefined && !isNonEmptyString(h.reason)) {
+          fail(`holders[${i}].reason must be a non-empty string when present`);
+        }
       }
     },
   }),

@@ -13,8 +13,8 @@
  *   instead of the separation quietly becoming one-legged.
  *
  *   Not pinned here: that every kind in the closed list has a harness that can
- *   execute it. There is no dispatcher yet — it arrives with the replay harness —
- *   and a parity test written against nothing would read as if it asserted parity.
+ *   execute it. That parity needs the dispatcher, so it lives beside it, in
+ *   `orchestration-drift.test.js`.
  */
 import { describe, it, expect } from 'vitest';
 
@@ -30,7 +30,7 @@ import { CLOCK_EPOCH_MS, makeAgent, makeAmbient, makeRecords } from './_make-tra
 const SAMPLE_INPUT = {
   'fs.event': { action: 'created', path: 'X:\\dev\\project\\AEGIS\\.env' },
   'handles.tick': { byPid: { 4812: ['X:\\dev\\project\\AEGIS\\.env'] } },
-  'rm.hot.tick': { holders: [{ pid: 4812, path: 'X:\\dev\\project\\AEGIS\\.env' }] },
+  'rm.hot.tick': { holders: [{ pid: 4812, group: 'X:\\dev\\project\\AEGIS\\.env' }] },
   'net.tick': {
     tcp: [{ pid: 4812, ip: '160.79.104.10', port: 443, state: 'Established' }],
     dns: { '160.79.104.10': { reverse: ['api.anthropic.com'], forward: ['160.79.104.10'] } },
