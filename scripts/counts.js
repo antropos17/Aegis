@@ -207,8 +207,14 @@ const mainAll = trackedUnder('src/main', (p) => p.endsWith('.js'));
 const mainTop = trackedTopLevel('src/main', (f) => f.endsWith('.js'));
 
 /**
- * The counted set. `key` is what a scanner emits, `command` is the hand-runnable
- * derivation printed in the report.
+ * The CHECKED set. Every entry here MUST be declared by at least one tracked prose
+ * file: the undeclared gate goes red when one is not, which is the invariant that
+ * keeps a counter from quietly ceasing to be checked. `key` is what a scanner emits,
+ * `command` is the hand-runnable derivation printed in the report.
+ *
+ * A counter earns a place here only if prose can restate its value and stay true for
+ * more than one commit. One that moves on an ordinary single-line edit belongs in
+ * `DERIVED_ONLY` below instead.
  * @type {Array<{key: string, label: string, value: number, command: string}>}
  */
 const COUNTERS = [
@@ -330,6 +336,29 @@ const COUNTERS = [
     command:
       "git ls-files -z src | grep -zv '\\.json$' | xargs -0 wc -l | awk '$1 > 300 && $2 != \"total\"' | wc -l",
   },
+];
+
+/**
+ * DERIVED-ONLY counters: printed on every run, declared by nothing, checked against
+ * nothing. They sit outside `COUNTERS`, so no scanner emits their keys and neither the
+ * stale gate nor the undeclared gate can ever see them. That is the whole mechanism:
+ * there is no skip flag on the declaration-matching path for anyone to forget to set.
+ *
+ * Write the guarantee, not the impression (ai-mistakes #27): moving a counter here
+ * REMOVES a guarantee. Nothing catches prose that restates one of these numbers
+ * wrongly, because prose is not meant to state them at all. The trade is deliberate.
+ * Each pins the exact length of ONE live file, so any commit that added or removed a
+ * single line in that file falsified every prose copy at once and turned a required
+ * status context red on a change that had nothing to do with the docs. That is the
+ * failure PR #241 made blocking, on files among the most frequently edited in the repo.
+ * A figure nobody may restate cannot drift, and `npm run counts:check` stays the one
+ * live answer.
+ *
+ * The bar is narrow and `size.over300` deliberately fails it: that one moves only when
+ * a file crosses the 300-line threshold, so it stays in `COUNTERS` and stays checked.
+ * @type {Array<{key: string, label: string, value: number, command: string}>}
+ */
+const DERIVED_ONLY = [
   {
     key: 'size.largestSrc',
     label: `largest src file (${sizes.largestSrc.file})`,
@@ -344,7 +373,11 @@ const COUNTERS = [
   },
 ];
 
-/** @type {Map<string, {key: string, label: string, value: number, command: string}>} */
+/**
+ * Checked counters only. A `DERIVED_ONLY` key is absent from this map by construction,
+ * which is what stops the stale gate from ever resolving one.
+ * @type {Map<string, {key: string, label: string, value: number, command: string}>}
+ */
 const BY_KEY = new Map(COUNTERS.map((c) => [c.key, c]));
 
 // ---------------------------------------------------------------------------
@@ -557,22 +590,14 @@ const SCANNERS = [
   },
   {
     id: 'file-size-budget',
-    // Write the guarantee, not the impression (ai-mistakes #27). `size.largestSrc`
-    // reads only the FIRST pair of "largest: file-watcher.js 654, audit-logger.js 600,
-    // ipc-handlers.js 503" — this checks the largest file's line count, and neither the
-    // runners-up nor any of the three FILENAMES. A sweep that corrects only the leading
-    // number passes green while the line still names the wrong second and third files;
-    // CLAUDE.md:71 carries the correct triple to copy from.
-    locate: new RegExp(
-      `\\bexceeds?\\s+it\\b|${DIGITS}\\s+existing\\b|tests go up to\\b|\\blargest:`,
-      'i',
-    ),
-    parse: (line) =>
-      pick(line, [
-        ['size.over300', new RegExp(`${DIGITS}\\s+existing\\b`, 'i')],
-        ['size.largestSrc', new RegExp(`largest:\\s*[\\w.-]+\\s+${DIGITS}`, 'i')],
-        ['size.largestTest', new RegExp(`tests go up to\\s+${DIGITS}`, 'i')],
-      ]),
+    // Write the guarantee, not the impression (ai-mistakes #27): this scanner covers
+    // `size.over300` and nothing else about file size. The exact length of the largest
+    // src file and of the largest test file is DERIVED_ONLY: prose is not meant to
+    // restate either, so there is deliberately no locator for them here and a line that
+    // does state one is NOT checked. Run `npm run counts:check` for those two figures
+    // rather than quoting them; having no declaration site is what stops them drifting.
+    locate: new RegExp(`\\bexceeds?\\s+it\\b|${DIGITS}\\s+existing\\b`, 'i'),
+    parse: (line) => pick(line, [['size.over300', new RegExp(`${DIGITS}\\s+existing\\b`, 'i')]]),
   },
 ];
 
@@ -800,6 +825,17 @@ for (const c of COUNTERS) {
   console.log(`  ${' '.repeat(20)}     declared at ${sites} site${sites === 1 ? '' : 's'}`);
 }
 
+head('Derived only — no declaration sites by design');
+console.log('  Printed on every run, checked against nothing. Each pins the exact length');
+console.log('  of one live file, so a one-line edit anywhere in it falsifies a prose copy.');
+console.log('  They sit outside COUNTERS: no scanner emits their keys, so neither the stale');
+console.log('  gate nor the undeclared gate applies. Quote this output, never the number.');
+for (const c of DERIVED_ONLY) {
+  console.log(`  ${c.key.padEnd(20)} = ${String(c.value).padStart(5)}   ${c.label}`);
+  console.log(`  ${' '.repeat(20)}     ${c.command}`);
+  console.log(`  ${' '.repeat(20)}     derived-only — no declaration sites by design`);
+}
+
 console.log(
   `\nDeclaration scan: ${scannedFiles} of ${TRACKED.length} tracked files, read from the index
 ` +
@@ -873,6 +909,8 @@ if (failed) {
 }
 
 console.log(
-  `\ncounts:check OK — ${COUNTERS.length} counters derived from the tree, ` +
-    `${declarations.length} declaration sites agree.`,
+  `\ncounts:check OK — ${COUNTERS.length} checked counters derived from the tree, ` +
+    `${declarations.length} declaration sites agree; ` +
+    `${DERIVED_ONLY.length} derived-only counters printed and declared nowhere by ` +
+    `design (${COUNTERS.length + DERIVED_ONLY.length} counters derived in total).`,
 );
