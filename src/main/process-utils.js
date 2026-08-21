@@ -48,13 +48,16 @@ const parentChainCache = new Map();
 const PARENT_CHAIN_TTL = 60000;
 
 /**
- * Cache key for the parent-chain / startTime cache AND the cwd cache: pid PLUS
- * the process name.
+ * Cache key for the parent-chain cache AND the cwd cache: pid PLUS the process name.
  *
- * A bare pid is not enough. Windows recycles PIDs, so a live TTL entry keyed on
- * pid alone serves the DEAD process's chain and — far worse — its `startTime`,
- * the one field `instanceId` is built from. Folding the name in turns a recycled
- * pid that belongs to a different executable into a cache MISS.
+ * A bare pid is not enough. Windows recycles PIDs, so a live TTL entry keyed on pid
+ * alone serves the DEAD process's chain and cwd. Folding the name in turns a
+ * recycled pid that belongs to a different executable into a cache MISS.
+ *
+ * `startTime` is NOT among the things this key addresses, and no longer can be:
+ * neither cache stores a birth time, because a hit can be served without the
+ * provider having been called at all (`getParentChains`). The one field
+ * `instanceId` is built from is re-observed per pass or is null.
  *
  * The name is NOT the whole answer: a pid recycled by an executable with the SAME
  * name produces the same key. What separates those two instances is the GENERATION
@@ -195,6 +198,20 @@ function _witnessOf(procMap, pid) {
  * today; if something did, those entries would simply never be proven and would be
  * rebuilt — safe, only wasteful. An entry may never be reused on the strength of a
  * proof it does not hold.
+ *
+ * They also carry no `startTime`, and that absence is the guarantee, not an
+ * omission: this function returns the cached chain on a full hit WITHOUT calling the
+ * provider (see the early return below), so any birth time stored alongside would be
+ * readable by a pass that made no observation at all. That is exactly the poisoning
+ * `enrichWithParentChains` exists to prevent, and the only way to make it
+ * unreachable rather than merely unused is for the value not to be here.
+ *
+ * What stays open: the CHAIN this returns is still a cached answer, and on a
+ * platform with no per-pass observation there is nothing to prove it belongs to the
+ * process living under that pid right now — a same-name reuse inside
+ * PARENT_CHAIN_TTL keeps the dead process's parent names. That is the plain TTL
+ * contract, unchanged, and it is bounded to the chain: the identity is not built
+ * from it.
  * @param {number[]} pids
  * @param {Object} [opts]
  * @param {Map<number, string>} [opts.names] - pid → process name, used to key the
@@ -243,17 +260,13 @@ async function getParentChains(pids, opts = {}) {
     }
   }
 
-  // Walk parent chains in JS for uncached PIDs
+  // Walk parent chains in JS for uncached PIDs. The entry holds the CHAIN and
+  // nothing else that an identity is built from: a birth time written here would be
+  // readable on a later pass that never called the provider, which is the one thing
+  // no cache may answer (see the header of this function).
   for (const pid of needLookup) {
-    // The OS birth time (epoch-ms) for the agent's OWN pid comes from the same map
-    // fetch — zero extra spawn. Only win32 supplies it; darwin/linux map entries
-    // omit startTime, so this is null there (honest).
     const chain = _walkChain(procMap, pid);
-    parentChainCache.set(keyOf(pid), {
-      chain,
-      startTime: _birthTimeOf(procMap, pid),
-      timestamp: now,
-    });
+    parentChainCache.set(keyOf(pid), { chain, timestamp: now });
     result.set(pid, chain);
   }
 
@@ -313,9 +326,12 @@ async function _stampFromFreshBirthTimes(agents, forceRefresh) {
       a.parentChain = cached.chain;
     } else {
       const chain = _walkChain(procMap, a.pid);
+      // No `startTime`: the birth time is stamped on the RECORD below, from this
+      // pass's map, and is never read back out of the cache. Storing it would leave
+      // a number a later pass could serve without observing anything — the shape
+      // this entry must not be able to take (see {@link getParentChains}).
       parentChainCache.set(key, {
         chain,
-        startTime: birthTime,
         witness: witness ? witness.value : null,
         witnessSource: witness ? witness.source : null,
         timestamp: now,
@@ -329,12 +345,30 @@ async function _stampFromFreshBirthTimes(agents, forceRefresh) {
 }
 
 /**
- * Stamp `parentChain` and `startTime` on a platform that supplies NO birth time
- * (linux, darwin). Unchanged behaviour: the TTL-bounded parent-chain cache answers,
- * and a pass whose pids are all cached costs no provider call at all. Adding a
- * per-pass process map here would buy nothing — there is no birth time in it to
- * prove a generation with — and would cost a `ps` spawn or a full /proc walk every
- * scan tick.
+ * Stamp `parentChain` on a platform that declares NO per-pass birth-time
+ * observation (`providesStartTime: false` — linux, darwin). The TTL-bounded
+ * parent-chain cache answers, and a pass whose pids are all cached costs no provider
+ * call at all. Adding a per-pass process map here would buy nothing — this platform
+ * declares no birth time to prove a generation with — and would cost a `ps` spawn or
+ * a full /proc walk every scan tick.
+ *
+ * WHAT THIS PATH GUARANTEES: `startTime` is `null` on every agent it touches, so the
+ * identity it feeds {@link identify} is always the honest `"<pid>:u"` of
+ * process-identity.js space 3. The guarantee is structural, not a consequence of
+ * what the adapter happens to return: this function never reads a birth time from
+ * anywhere, and {@link getParentChains} no longer stores one. A platform that starts
+ * populating `startTime` in its process map without also declaring
+ * `providesStartTime: true` therefore CANNOT reach an `os` key here — which is the
+ * point, because the map on such a pass may not have been fetched at all. Wiring a
+ * real birth time is one switch (`providesStartTime: true`), which routes to
+ * {@link _stampFromFreshBirthTimes} and its per-pass observation.
+ *
+ * WHAT STAYS OPEN: the cached `parentChain` itself carries no generation proof on
+ * this path, so a same-name pid reuse inside PARENT_CHAIN_TTL keeps the dead
+ * process's parent names until the entry expires. That bound is the plain TTL
+ * contract and is confined to the chain — `annotateHostApps` may mislabel the host
+ * editor for up to 60 s; the instance key cannot be wrong, because it does not read
+ * this cache.
  *
  * No generation witness is stamped here, deliberately: the field stays `undefined`,
  * which {@link annotateWorkingDirs} reads as "this record established no
@@ -347,8 +381,8 @@ async function _stampFromFreshBirthTimes(agents, forceRefresh) {
  */
 async function _stampFromCachedChains(agents, forceRefresh) {
   // pid → name for the cache key. Synthetic agents all share pid 0, so the last
-  // one wins here; harmless because pid 0 is absent from the OS process map (its
-  // startTime is null either way) and identify() reads each agent's OWN name.
+  // one wins here; harmless because identify() reads each agent's OWN name and no
+  // birth time is derived on this path at all.
   const names = new Map();
   for (const a of agents) names.set(a.pid, _agentName(a));
   const chains = await getParentChains(
@@ -357,8 +391,10 @@ async function _stampFromCachedChains(agents, forceRefresh) {
   );
   for (const a of agents) {
     a.parentChain = chains.get(a.pid) || [];
-    const entry = parentChainCache.get(_cacheKey(a.pid, names.get(a.pid)));
-    a.startTime = entry && typeof entry.startTime === 'number' ? entry.startTime : null;
+    // Unconditional. Not "null because the map had none" — null because this
+    // platform makes no per-pass observation, and a birth time nobody observed this
+    // pass is not a birth time this pass may stamp.
+    a.startTime = null;
   }
 }
 
