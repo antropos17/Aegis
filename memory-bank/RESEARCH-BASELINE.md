@@ -114,8 +114,17 @@ providesStartTime=true on win32, false on linux/darwin.
 - Sidecar = separate process, named pipe / stdio, length-prefixed frames. A native crash must
   never take down the Electron control/UI process.
 - Sidecar language is a **reversible implementation choice** — the wire boundary is the stable
-  contract. Block 1 physically picks one; the canon keeps it open (C#/TraceEvent vs Rust/ferrisetw
-  re-evaluated when the streaming sensor becomes real).
+  contract. Block 1 physically picks one; the canon keeps the choice formally open, but **not
+  neutral**. Per `docs/recon/kernel-file-etw.md` (DESIGN DECISION), for the Kernel-File streaming
+  sensor: **C#/TraceEvent is the preferred and implementation-evidenced option** — direct evidence
+  for session APIs, filtering surface, samples and parser behavior; **Rust/ferrisetw is NOT the
+  preferred candidate** — maintenance maturity and weaker implementation evidence, though its
+  `ByPids` issue is no provider-specific proof that this provider cannot be consumed correctly;
+  krabsetw stays an actively maintained native candidate whose equivalent Kernel-File real-time and
+  filter behavior was **not established** — never presented as equally evidenced. Package freshness
+  is not feature-parity evidence. The re-evaluation when the streaming sensor becomes real starts
+  from that preference, not from a blank slate; nothing here decides the Block 1 procsnap sidecar,
+  which carries no ETW.
 - Never cite Encore's 2-4 ms as one sidecar-boundary cost (it was a multi-hop path). Benchmark
   AEGIS's own IPC.
 
@@ -137,6 +146,10 @@ providesStartTime=true on win32, false on linux/darwin.
   capture plus user-mode attribution is the required fallback; event-ID filtering runs after
   generation and may cut delivered volume, never provider cost. `0x190` is spec-consistent with
   10/12/15; 13/14 need FILEIO keyword `0x20`; `0x1B0` is a CANDIDATE, 13/14's necessity unratified.
+- **Collection cost for File-read must NOT be estimated from the callback rate of AEGIS-relevant
+  processes** — PID-scoped enablement on this GUID is unproven and event-ID filtering runs after
+  generation, so an AEGIS-process rate is no proxy for provider cost; the real figures (idle, npm
+  and build event-15 rates; CPU/memory/buffer and loss counters under load) are HARDWARE-GATED.
 - Independent confirmation: deterministic scenario catalogue + Procmon (file-IRP) + controlled 4663
   with pre-set SACL. **The SUT's own provider is never its own oracle** (common-mode rule): no clean
   independent per-event oracle for 15 was established — Procmon observes file activity, not that 15
@@ -176,7 +189,9 @@ NDJSON). Decide naming BEFORE freezing Bench Replay schema. OCSF = possible late
 - Method: generate an expected-event catalogue per scenario, confirm with independent oracles.
   Never diff two live streams. Never self-oracle.
 - Oracle columns are separate: Sysmon (EID 1/2/3/5/11/22/**26**) = security-event reference;
-  Procmon = file-IRP reference; Kernel-File ETW appears only as SUT when it is the sensor.
+  Procmon = independent file-IRP **confirmation column for file activity** — it does NOT prove that
+  Kernel-File emitted Read 15, so it is no per-event oracle for that event (section 6); Kernel-File
+  ETW appears only as SUT when it is the sensor.
 - **Ratified 2026-08-14 (B2.3).** (a) **EID 26 FileDeleteDetected** joins the oracle column: it is
   the deletion observation that does NOT archive the file. **EID 23 FileDelete is never enabled
   merely to observe a deletion** — Microsoft documents 23 as additionally saving the deleted file
