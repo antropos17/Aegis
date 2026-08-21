@@ -14,7 +14,9 @@
     "scan": "SCAN",
     "up": "UP",
     "perm_warn": "PERM",
-    "tokens": "TOK"
+    "tokens": "TOK",
+    "sensors_degraded": "DEGRADED",
+    "sensors_failed": "FAILED"
   },
   "process_action": {
     "stop_title": "Stop process?",

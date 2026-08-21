@@ -26,7 +26,7 @@ Core modules:
 - tray-icon.js — system tray with procedural icon
 
 ## Renderer (src/renderer/) — Svelte 5 + Vite 7
-47 Svelte components, 13 stores, 21 utils, scoped CSS + tokens.css/global.css
+48 Svelte components, 14 stores, 21 utils, scoped CSS + tokens.css/global.css
 
 ### Components (src/renderer/lib/components/)
 - App.svelte — root layout, tab routing, settings modal
