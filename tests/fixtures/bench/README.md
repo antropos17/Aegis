@@ -1,8 +1,9 @@
 # Bench replay fixtures
 
-Two real arm-A run directories, copied here **verbatim** from `bench/runs/`, which is
-gitignored. They are inputs to `tests/main/bench/replay.test.js`, and they are the only
-committed record of what a **recorded** run directory contains.
+Two real arm-A run directories, copied here from `bench/runs/`, which is gitignored, and
+redacted once as the paragraph below states. They are inputs to
+`tests/main/bench/replay.test.js`, and they are the only committed record of what a
+**recorded** run directory contains.
 
 `derived/` is the other kind of input: directories written by hand in the same four-file
 shape, which are models and not records of anything. They are labelled as such in every
@@ -15,9 +16,14 @@ AEGIS accuracy figure — the condition for that is a Hyper-V Gen2 gold image wi
 Windows build. What these fixtures pin is the file contract and the arithmetic over it,
 not the sensor's accuracy.
 
-Nothing in them is edited. The machine paths (`C:\Users\...`, `X:\Future\...`) are the
-paths the run actually wrote, and rewriting them would destroy the property the tests
-assert: that a rebuild reproduces the recorded report byte for byte.
+Machine-identifying values have been redacted in place: the OS account name is
+`user`, and the clone root is `X:\dev\project\AEGIS`. Surrounding path structure
+is unchanged so path-parsing and join-key assertions still exercise the same
+shapes. Both manifests stay stamped `schemaVersion: 1` — the version that wrote
+them — while their host block now carries the v2 shape (`platform` only): the
+stamp names the recorder, not the redaction. After that one-time redaction the
+recordings stay immutable, and the tests assert that a rebuild reproduces the
+recorded report byte for byte.
 
 Two repository settings keep that property alive, and both are load-bearing rather than
 tidy:
@@ -45,8 +51,9 @@ replay reads, and git does not track empty directories.
 ## Recordings, and what they pin
 
 Those nine files under `runs/` are **recordings**. The observation is never rewritten by
-the interpretation, so none of them is ever regenerated, reformatted or corrected — not to
-make a test pass, not to adopt a renderer change, not for tidiness.
+the interpretation, so — the one-time redaction above aside — none of them is ever
+regenerated, reformatted or corrected: not to make a test pass, not to adopt a renderer
+change, not for tidiness.
 `tests/main/bench/fixture-immutability.test.js` holds every one of them against a committed
 sha256 and against the exact file set its run wrote, so a drift is a red test rather than a
 discovery months later.
@@ -54,10 +61,11 @@ discovery months later.
 What a recording pins is what that run did. What these two do **not** pin is which report
 renderer turned it into bytes, and the difference matters:
 
-- `run-report.json` in the 19-26-29 recording is the file the live run wrote. It is
-  byte-equal to the untracked original still sitting in `bench/runs/`, and its mtime is the
-  minute the sensor stopped. It is evidence, and a rebuild matching it byte for byte is a
-  directly observable fact about those bytes.
+- `run-report.json` in the 19-26-29 recording is the file the live run wrote. Apart from
+  the redacted account and clone-root segments it is byte-equal to the untracked original
+  still sitting in `bench/runs/`, and its mtime is the minute the sensor stopped. It is
+  evidence, and a rebuild matching it byte for byte is a directly observable fact about those
+  bytes.
 - The manifest names `sensor.gitSha` `7a27b5d5…` together with `sensor.workingTreeDirty:
   true`, and `bench/lib/join.js` was itself uncommitted when the run happened — it landed
   two hours later as `76525d7`. A commit plus "the tree was dirty" does not identify the

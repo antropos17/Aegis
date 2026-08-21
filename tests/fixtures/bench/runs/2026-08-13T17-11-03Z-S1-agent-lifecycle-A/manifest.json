@@ -9,43 +9,6 @@
     "platform": {
       "value": "win32",
       "source": "process.platform"
-    },
-    "osRelease": {
-      "value": "10.0.26200",
-      "source": "os.release()"
-    },
-    "osVersion": {
-      "value": "Windows 11 Home",
-      "source": "os.version()"
-    },
-    "windowsBuild": {
-      "value": {
-        "currentBuild": "26200",
-        "ubr": 8655,
-        "displayVersion": "25H2",
-        "productName": "Windows 10 Home"
-      },
-      "source": "reg query \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\""
-    },
-    "cpuModel": {
-      "value": "Intel(R) Core(TM) Ultra 9 185H",
-      "source": "os.cpus()[0].model"
-    },
-    "cpuCount": {
-      "value": 22,
-      "source": "os.cpus().length"
-    },
-    "totalMemBytes": {
-      "value": 33736028160,
-      "source": "os.totalmem()"
-    },
-    "uptimeSec": {
-      "value": 81971,
-      "source": "os.uptime()"
-    },
-    "nodeVersion": {
-      "value": "v24.11.1",
-      "source": "process.version"
     }
   },
   "sensor": {

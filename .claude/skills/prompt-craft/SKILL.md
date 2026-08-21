@@ -48,7 +48,7 @@ Branch from `master` always. Never work directly on master.
 
 Git command (Aegis uses PowerShell wrapper):
 ```
-powershell.exe -NoProfile -Command "cd 'X:\Future\ESCAPE\AEGIS'; git checkout master; git pull; git checkout -b feat/my-feature"
+powershell.exe -NoProfile -Command "cd 'X:\dev\project\AEGIS'; git checkout master; git pull; git checkout -b feat/my-feature"
 ```
 
 ### 2. TASK
@@ -182,7 +182,7 @@ These are non-negotiable in every prompt:
 
 1. **PowerShell wrapper** — All git commands via:
    ```
-   powershell.exe -NoProfile -Command "cd 'X:\Future\ESCAPE\AEGIS'; git ..."
+   powershell.exe -NoProfile -Command "cd 'X:\dev\project\AEGIS'; git ..."
    ```
    Never use && in PowerShell. Use ; to chain commands.
 

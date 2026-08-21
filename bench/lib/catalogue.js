@@ -35,6 +35,8 @@
 const fs = require('fs');
 const path = require('path');
 
+const { neutralizeRecorded } = require('./paths');
+
 /** @type {string} ECS version the field names below follow. */
 const ECS_VERSION = '8.11.0';
 
@@ -200,7 +202,7 @@ function buildEvent(opts) {
   // field for. It is merged into the bench block, never allowed to overwrite
   // the three keys that identify where the line came from.
   const { bench: benchExtra, ...fields } = shape.build(opts.observed);
-  return {
+  return neutralizeRecorded({
     '@timestamp': opts.observed.timestamp,
     ecs: { version: ECS_VERSION },
     event: {
@@ -216,7 +218,7 @@ function buildEvent(opts) {
       step: opts.step,
       expect: opts.expect,
     },
-  };
+  });
 }
 
 /**
@@ -227,7 +229,7 @@ function buildEvent(opts) {
  */
 function serialize(events) {
   if (events.length === 0) return '';
-  return `${events.map((e) => JSON.stringify(e)).join('\n')}\n`;
+  return `${events.map((e) => JSON.stringify(neutralizeRecorded(e))).join('\n')}\n`;
 }
 
 /**

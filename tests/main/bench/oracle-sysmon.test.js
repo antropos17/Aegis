@@ -132,9 +132,9 @@ function processCreateXml(over = {}) {
       UtcTime: '2026-08-14 12:01:00.121',
       ProcessGuid: over.processGuid || GUID_A,
       ProcessId: String(over.processId === undefined ? 7788 : over.processId),
-      Image: 'X:\\Future\\ESCAPE\\AEGIS\\bench\\runs\\R1\\stage\\claude.exe',
+      Image: 'X:\\dev\\project\\AEGIS\\bench\\runs\\R1\\stage\\claude.exe',
       CommandLine: '"X:\\...\\stage\\claude.exe" -n 600 127.0.0.1',
-      CurrentDirectory: 'X:\\Future\\ESCAPE\\AEGIS\\',
+      CurrentDirectory: 'X:\\dev\\project\\AEGIS\\',
       Hashes: 'SHA256=3F786850E387550FDAB836ED7E6DC881DE23001B',
       ParentProcessGuid: '{9f1c3a52-9999-68ad-0900-000000000c00}',
       ParentProcessId: '4242',
@@ -215,7 +215,7 @@ describe('sysmon oracle — ProcessCreate normalization', () => {
 
     expect(event.process.pid).toBe(7788);
     expect(event.process.executable).toBe(
-      'X:\\Future\\ESCAPE\\AEGIS\\bench\\runs\\R1\\stage\\claude.exe',
+      'X:\\dev\\project\\AEGIS\\bench\\runs\\R1\\stage\\claude.exe',
     );
     expect(event.process.name).toBe('claude.exe');
     expect(event.process.command_line).toBe('"X:\\...\\stage\\claude.exe" -n 600 127.0.0.1');
@@ -280,12 +280,12 @@ describe('sysmon oracle — ProcessTerminate normalization', () => {
 
   it('keeps Image when the record exposed one, because that is an observation', () => {
     const withImage = processTerminateXml({
-      data: { Image: 'X:\\Future\\ESCAPE\\AEGIS\\bench\\runs\\R1\\stage\\claude.exe' },
+      data: { Image: 'X:\\dev\\project\\AEGIS\\bench\\runs\\R1\\stage\\claude.exe' },
     });
     const { events } = normalize([withImage]);
 
     expect(events[0].process.executable).toBe(
-      'X:\\Future\\ESCAPE\\AEGIS\\bench\\runs\\R1\\stage\\claude.exe',
+      'X:\\dev\\project\\AEGIS\\bench\\runs\\R1\\stage\\claude.exe',
     );
     expect(events[0].process.name).toBe('claude.exe');
   });
@@ -457,7 +457,7 @@ describe('sysmon oracle — file events', () => {
         ProcessGuid: GUID_A,
         ProcessId: '4242',
         Image: 'C:\\Program Files\\nodejs\\node.exe',
-        TargetFilename: 'X:\\Future\\ESCAPE\\AEGIS\\bench\\runs\\R1\\stage\\claude.exe',
+        TargetFilename: 'X:\\dev\\project\\AEGIS\\bench\\runs\\R1\\stage\\claude.exe',
         ...(over.data || {}),
       },
     });
@@ -474,9 +474,9 @@ describe('sysmon oracle — file events', () => {
     expect(events[0].event.type).toEqual(['creation']);
     expect(events[0].event.action).toBe(catalogue.EVENT_SHAPES['file.creation'].action);
     expect(events[0].file).toEqual({
-      path: 'X:\\Future\\ESCAPE\\AEGIS\\bench\\runs\\R1\\stage\\claude.exe',
+      path: 'X:\\dev\\project\\AEGIS\\bench\\runs\\R1\\stage\\claude.exe',
       name: 'claude.exe',
-      directory: 'X:\\Future\\ESCAPE\\AEGIS\\bench\\runs\\R1\\stage',
+      directory: 'X:\\dev\\project\\AEGIS\\bench\\runs\\R1\\stage',
     });
     // Sysmon's own creation timestamp, kept verbatim in its own format and never
     // parsed into an instant.

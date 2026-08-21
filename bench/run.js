@@ -314,7 +314,10 @@ function resolveScanInterval(handle) {
   try {
     const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
     if (Number.isFinite(settings.scanIntervalSec) && settings.scanIntervalSec > 0) {
-      return { value: settings.scanIntervalSec, source: `scanIntervalSec in ${settingsPath}` };
+      return {
+        value: settings.scanIntervalSec,
+        source: `scanIntervalSec in ${manifest.neutralizePath(settingsPath)}`,
+      };
     }
   } catch (_) {
     // No settings file, or one that does not parse: the cadence is next.
@@ -334,7 +337,7 @@ function resolveScanInterval(handle) {
         value: seconds,
         source:
           `the median gap (${median} ms) between the ${steady.length} scan ticks the sensor ` +
-          `reported after its cadence settled, rounded to whole seconds — ${settingsPath} ` +
+          `reported after its cadence settled, rounded to whole seconds — ${manifest.neutralizePath(settingsPath)} ` +
           'carried no usable scanIntervalSec',
       };
     }
@@ -342,9 +345,9 @@ function resolveScanInterval(handle) {
 
   return {
     value: null,
-    source: `scanIntervalSec in ${settingsPath}, then the sensor's own settled scan cadence`,
+    source: `scanIntervalSec in ${manifest.neutralizePath(settingsPath)}, then the sensor's own settled scan cadence`,
     unavailable:
-      `${settingsPath} carried no usable scanIntervalSec and the sensor never reported a settled ` +
+      `${manifest.neutralizePath(settingsPath)} carried no usable scanIntervalSec and the sensor never reported a settled ` +
       'cadence to measure one from',
   };
 }
@@ -372,7 +375,7 @@ function buildCaptureRecord(opts) {
     scenario: opts.scenario,
     arm: opts.arm,
     sensor: {
-      profileDir: opts.handle.profileDir,
+      profileDir: manifest.neutralizePath(opts.handle.profileDir),
       pid: opts.handle.pid,
       startedAt: opts.handle.startedAt,
       readyAt: opts.handle.readyAt,

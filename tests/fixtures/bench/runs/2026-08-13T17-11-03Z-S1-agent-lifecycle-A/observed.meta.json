@@ -3,7 +3,7 @@
   "scenario": "S1-agent-lifecycle",
   "arm": "A",
   "sensor": {
-    "profileDir": "C:\\Users\\murtu\\AppData\\Local\\Temp\\aegis-bench-2026-08-13T17-11-03Z-S1-agent-lifecycle-A",
+    "profileDir": "C:\\Users\\user\\AppData\\Local\\Temp\\aegis-bench-2026-08-13T17-11-03Z-S1-agent-lifecycle-A",
     "pid": 31000,
     "startedAt": "2026-08-13T17:11:03.738Z",
     "readyAt": "2026-08-13T17:11:09.866Z",
@@ -35,14 +35,14 @@
   },
   "audit": {
     "files": [
-      "C:\\Users\\murtu\\AppData\\Local\\Temp\\aegis-bench-2026-08-13T17-11-03Z-S1-agent-lifecycle-A\\audit-logs\\aegis-audit-2026-08-13.json"
+      "C:\\Users\\user\\AppData\\Local\\Temp\\aegis-bench-2026-08-13T17-11-03Z-S1-agent-lifecycle-A\\audit-logs\\aegis-audit-2026-08-13.json"
     ],
     "verifiedRecords": 28,
     "chain": "verified from GENESIS, re-derived by bench/lib/observed.js",
     "truncatedTails": []
   },
   "observed": {
-    "path": "X:\\Future\\ESCAPE\\AEGIS\\bench\\runs\\2026-08-13T17-11-03Z-S1-agent-lifecycle-A\\observed.ndjson",
+    "path": "X:\\dev\\project\\AEGIS\\bench\\runs\\2026-08-13T17-11-03Z-S1-agent-lifecycle-A\\observed.ndjson",
     "events": 4
   },
   "skipped": {

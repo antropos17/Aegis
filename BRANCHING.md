@@ -26,13 +26,13 @@
 
 ```powershell
 # Create branch
-powershell.exe -NoProfile -Command "cd 'X:\Future\ESCAPE\AEGIS'; git checkout -b feat/feature-name"
+powershell.exe -NoProfile -Command "cd 'X:\dev\project\AEGIS'; git checkout -b feat/feature-name"
 
 # Make changes, commit
-powershell.exe -NoProfile -Command "cd 'X:\Future\ESCAPE\AEGIS'; git add file1 file2; git commit -m 'feat(scope): description'"
+powershell.exe -NoProfile -Command "cd 'X:\dev\project\AEGIS'; git add file1 file2; git commit -m 'feat(scope): description'"
 
 # Push branch
-powershell.exe -NoProfile -Command "cd 'X:\Future\ESCAPE\AEGIS'; git push origin feat/feature-name"
+powershell.exe -NoProfile -Command "cd 'X:\dev\project\AEGIS'; git push origin feat/feature-name"
 
 # Create PR
 gh pr create --title 'feat(scope): description' --base master

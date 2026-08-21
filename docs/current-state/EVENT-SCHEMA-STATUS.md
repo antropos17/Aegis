@@ -296,7 +296,7 @@ checking nothing.
 ```
 $ NO_COLOR=1 npm run lint
 
-X:\Future\ESCAPE\AEGIS\src\main\audit-logger.js
+X:\dev\project\AEGIS\src\main\audit-logger.js
   103:5   warning  Unexpected console statement  no-console
   153:5   warning  Unexpected console statement  no-console
   368:13  warning  Unexpected console statement  no-console
@@ -305,7 +305,7 @@ X:\Future\ESCAPE\AEGIS\src\main\audit-logger.js
   476:5   warning  Unexpected console statement  no-console
   581:5   warning  Unexpected console statement  no-console
 
-X:\Future\ESCAPE\AEGIS\src\main\logger.js
+X:\dev\project\AEGIS\src\main\logger.js
    50:5   warning  Unexpected console statement  no-console
    73:5   warning  Unexpected console statement  no-console
   142:5   warning  Unexpected console statement  no-console
@@ -314,7 +314,7 @@ X:\Future\ESCAPE\AEGIS\src\main\logger.js
   206:5   warning  Unexpected console statement  no-console
   237:5   warning  Unexpected console statement  no-console
 
-X:\Future\ESCAPE\AEGIS\src\main\rule-loader.js
+X:\dev\project\AEGIS\src\main\rule-loader.js
    86:7   warning  Unexpected console statement  no-console
    92:7   warning  Unexpected console statement  no-console
   102:5   warning  Unexpected console statement  no-console
@@ -323,10 +323,10 @@ X:\Future\ESCAPE\AEGIS\src\main\rule-loader.js
   140:11  warning  Unexpected console statement  no-console
   146:7   warning  Unexpected console statement  no-console
 
-X:\Future\ESCAPE\AEGIS\src\renderer\App.svelte
+X:\dev\project\AEGIS\src\renderer\App.svelte
   287:9  warning  Unexpected console statement  no-console
 
-X:\Future\ESCAPE\AEGIS\src\renderer\lib\components\Timeline.svelte
+X:\dev\project\AEGIS\src\renderer\lib\components\Timeline.svelte
   104:7  warning  Unexpected console statement  no-console
 
 ✖ 23 problems (0 errors, 23 warnings)
@@ -345,7 +345,7 @@ $ NO_COLOR=1 npm run build:renderer
 > aegis@0.10.0-alpha build:renderer
 > vite build
 
-01:47:28 [vite-plugin-svelte] no Svelte config found at X:/Future/ESCAPE/AEGIS/src/renderer - using default configuration.
+01:47:28 [vite-plugin-svelte] no Svelte config found at X:/dev/project/AEGIS/src/renderer - using default configuration.
 vite v7.3.1 building client environment for production...
 transforming...
 ✓ 231 modules transformed.

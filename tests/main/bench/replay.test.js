@@ -805,14 +805,21 @@ describe('replay — isolation', () => {
       .filter((line) => line.length > 0);
 
     // Node's own CJS loader reads a module's source through this same call, so
-    // each of the three files may appear for that reason as well. What is pinned
-    // is the SET: the two renderer files are read while the process is loading,
-    // every path read then lives under bench/, and no run directory, settings
-    // file or src/ module is opened before a run directory has even been named.
+    // each of the replay modules may appear for that reason as well. What is
+    // pinned is the SET: the two renderer files are read while the process is
+    // loading, every path read then lives under bench/, and no run directory,
+    // settings file or src/ module is opened before a run directory has even
+    // been named.
     const names = new Set(seen.map((file) => path.basename(file)));
     expect(names.has('join.js')).toBe(true);
     expect(names.has('report.js')).toBe(true);
-    expect([...names].every((n) => ['join.js', 'report.js', 'replay.js'].includes(n))).toBe(true);
+    // `paths.js` is the recording-time rewrite imported by `report.js`. It
+    // cannot reach the sensor or the actor; it is allowed in the load set
+    // because serialize must not write a clone path, and the rewrite cannot
+    // live in `manifest.js` without pulling git/registry probes into replay.
+    expect(
+      [...names].every((n) => ['join.js', 'paths.js', 'report.js', 'replay.js'].includes(n)),
+    ).toBe(true);
     for (const file of seen) {
       expect(path.resolve(file).startsWith(path.join(REPO, 'bench'))).toBe(true);
     }
@@ -831,7 +838,8 @@ describe('replay — isolation', () => {
     expect(loaded).not.toContain('sensor.js');
     expect(loaded).not.toContain('actor.js');
     expect(loaded).not.toContain('run.js');
-    expect([...loaded].sort()).toEqual(['join.js', 'replay.js', 'report.js']);
+    expect(loaded).not.toContain('manifest.js');
+    expect([...loaded].sort()).toEqual(['join.js', 'paths.js', 'replay.js', 'report.js']);
   });
 
   it('spells the four file names the way the modules that write them do', () => {

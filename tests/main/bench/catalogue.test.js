@@ -12,7 +12,7 @@ const OBSERVED_START = Object.freeze({
   timestamp: '2026-08-13T10:20:30.123Z',
   pid: 4242,
   name: 'claude.exe',
-  executable: 'X:\\Future\\ESCAPE\\AEGIS\\bench\\runs\\r\\stage\\claude.exe',
+  executable: 'X:\\dev\\project\\AEGIS\\bench\\runs\\r\\stage\\claude.exe',
   args: ['-n', '600', '127.0.0.1'],
   parentPid: 99,
 });
