@@ -347,6 +347,31 @@ function awaitExit(child, timeoutMs) {
 }
 
 /**
+ * Whether a resolved path sits INSIDE a resolved stage directory, by the path
+ * rules of the platform the comparison is for.
+ *
+ * win32 paths are case-insensitive, so the two operands are lowercased before the
+ * prefix check — a path that names a file inside the stage directory must not be
+ * rejected for disagreeing about the casing of a drive letter or a segment.
+ * Everywhere else the filesystem's own rule is case-sensitive and the comparison
+ * stays exact. One helper for both call sites, so the two guards cannot drift.
+ *
+ * Note the containment guard's operands both derive from the same `ctx.stageDir`
+ * today, so `execute()` cannot currently produce a case-variant pair — this fixes
+ * the guard's CONTRACT on win32, where the false rejection was latent.
+ * @param {string} resolvedPath - An absolute path, already through `path.resolve`.
+ * @param {string} resolvedStageDir - The stage directory, already through `path.resolve`.
+ * @param {string} [platform] - A `process.platform` value. Defaults to this one.
+ * @returns {boolean}
+ */
+function isInsideStageDir(resolvedPath, resolvedStageDir, platform = process.platform) {
+  const sep = platform === 'win32' ? '\\' : '/';
+  const child = platform === 'win32' ? resolvedPath.toLowerCase() : resolvedPath;
+  const parent = platform === 'win32' ? resolvedStageDir.toLowerCase() : resolvedStageDir;
+  return child.startsWith(parent + sep);
+}
+
+/**
  * The step kinds themselves. Each returns `{observed, result}`: `observed` is
  * what the catalogue writes, `result` is what later steps refer back to.
  * @type {Readonly<Object<string, function(Object, Object): Promise<Object>>>}
@@ -382,7 +407,7 @@ const KIND_IMPL = Object.freeze({
     const args = step.with.args ?? [];
     const resolvedExec = path.resolve(source.path);
     const resolvedStageDir = path.resolve(ctx.stageDir);
-    if (!resolvedExec.startsWith(resolvedStageDir + path.sep)) {
+    if (!isInsideStageDir(resolvedExec, resolvedStageDir)) {
       throw new Error(`executable path is outside the stage directory`);
     }
     const child = spawn(resolvedExec, args, { stdio: 'ignore', windowsHide: true });
@@ -510,7 +535,7 @@ const KIND_IMPL = Object.freeze({
     }
     const resolvedExec = path.resolve(source.path);
     const resolvedStageDir = path.resolve(ctx.stageDir);
-    if (!resolvedExec.startsWith(resolvedStageDir + path.sep)) {
+    if (!isInsideStageDir(resolvedExec, resolvedStageDir)) {
       throw new Error(`executable path is outside the stage directory`);
     }
     const holdMs = step.with.ms;
@@ -650,6 +675,7 @@ module.exports = {
   assertAgentName,
   execute,
   expandEnv,
+  isInsideStageDir,
   loadScenario,
   sha256File,
   validateScenario,

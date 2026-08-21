@@ -236,6 +236,45 @@ describe('bench actor — stimulus is drawn from the agent database', () => {
   });
 });
 
+describe('bench actor — stage-directory containment respects the platform’s casing rule', () => {
+  it('accepts a case-variant path INSIDE the stage directory on win32', () => {
+    // The regression this suite pins: win32 paths are case-insensitive, so a staged
+    // path differing only in casing (drive letter, any component) is still inside.
+    expect(actor.isInsideStageDir('x:\\run\\stage\\claude.exe', 'X:\\Run\\Stage', 'win32')).toBe(
+      true,
+    );
+    expect(actor.isInsideStageDir('X:\\RUN\\STAGE\\CLAUDE.EXE', 'x:\\run\\stage', 'win32')).toBe(
+      true,
+    );
+  });
+
+  it('is what the raw prefix check both call sites used to be got wrong', () => {
+    // The exact comparison spawn-process and hold-secret-file performed before the
+    // helper existed — kept here so the fixed behaviour above cannot be mistaken
+    // for the old one agreeing by accident.
+    expect('x:\\run\\stage\\claude.exe'.startsWith('X:\\Run\\Stage' + '\\')).toBe(false);
+  });
+
+  it('stays case-SENSITIVE off win32, where the filesystem’s own rule is', () => {
+    expect(actor.isInsideStageDir('/run/Stage/claude', '/run/stage', 'linux')).toBe(false);
+    expect(actor.isInsideStageDir('/run/stage/claude', '/run/stage', 'linux')).toBe(true);
+    expect(actor.isInsideStageDir('/run/stage/claude', '/run/stage', 'darwin')).toBe(true);
+  });
+
+  it('rejects a path outside the stage directory on every platform', () => {
+    expect(
+      actor.isInsideStageDir('X:\\run\\elsewhere\\claude.exe', 'X:\\run\\stage', 'win32'),
+    ).toBe(false);
+    expect(actor.isInsideStageDir('/run/elsewhere/claude', '/run/stage', 'linux')).toBe(false);
+    // Prefix-shaped but not contained: `stage2` begins with `stage` and must not pass.
+    expect(actor.isInsideStageDir('X:\\run\\stage2\\claude.exe', 'X:\\run\\stage', 'win32')).toBe(
+      false,
+    );
+    // The stage directory itself is not INSIDE the stage directory.
+    expect(actor.isInsideStageDir('X:\\run\\stage', 'X:\\run\\stage', 'win32')).toBe(false);
+  });
+});
+
 describe('bench actor — environment expansion and loading', () => {
   it('expands a variable that is set', () => {
     process.env.AEGIS_BENCH_FIXTURE = 'C:\\fixture';

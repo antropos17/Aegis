@@ -179,6 +179,109 @@ class Providers {
 }
 
 /**
+ * Wire the product's module graph, whatever the posture — replay or recording.
+ *
+ * The two postures differ ONLY in where the file and network providers point:
+ * a replay serves them from the trace ({@link setUp}), a recording serves the real
+ * ones wrapped record-and-pass-through (`./recorder.js`). Everything else — the
+ * settings path, the rules reload, the baselines path, the audit profile, the
+ * resets, the `state` object and the scan-loop wiring — must be the SAME lines,
+ * or the two postures would drive two subtly different products and the
+ * round-trip claim (a recording replays to its own verdicts) would compare
+ * nothing.
+ * @param {Object} opts
+ * @param {string} opts.runDir - Directory this graph writes into. Created here.
+ * @param {Object} [opts.settings] - Settings the sensors run under.
+ * @param {string} [opts.rulesDir] - Rules to load. Defaults to this checkout's.
+ * @param {Object} opts.fileWatcherDeps - `{getFileHandles, getHotSensitiveHolders}`.
+ * @param {Object} opts.networkMonitorDeps - `{getRawTcpConnections, dnsReverse, dnsResolve}`.
+ * @returns {Object} The wired graph: modules, ambient, and paths.
+ * @throws {import('./schema').TraceError} When a graph was already wired in this process.
+ */
+function wireGraph(opts) {
+  if (_wired) {
+    schema.refuse(
+      schema.REFUSAL.RECORD_MALFORMED,
+      'the product has already been wired in this process. `watcherDebounce`, `eventDedupMap`, ' +
+        '`dnsCache` and `activeSessions` are module state and not all of them have an external ' +
+        'reset, so a second pass would inherit the first one’s memory. Run one trace — replay ' +
+        'or recording — per process',
+    );
+  }
+
+  const profileDir = path.join(opts.runDir, 'profile');
+  fs.mkdirSync(profileDir, { recursive: true });
+
+  const modules = loadProductModules();
+  const ambient = new Ambient();
+
+  // Settings the sensors run under come from the caller, written where the product
+  // reads them. Never the developer's own settings file: `scanIntervalSec`, the
+  // ignore lists and the custom patterns all change what a sensor does.
+  modules.config._setSettingsPathForTest(path.join(opts.runDir, 'settings.json'));
+  modules.config.saveSettings(opts.settings || {});
+
+  // Rules from this checkout (whose digest the header pins). `reloadRules` is the
+  // product's own public reload, not a cache poke.
+  modules.ruleLoader.reloadRules(opts.rulesDir || path.join(schema.REPO_ROOT, 'rules'));
+
+  modules.baselines._setBaselinesPathForTest(path.join(opts.runDir, 'baselines.json'));
+  modules.audit.init({ userDataPath: profileDir });
+
+  modules.fileWatcher._resetForTest();
+  modules.networkMonitor._resetForTest();
+
+  modules.fileWatcher._setDepsForTest({
+    getFileHandles: opts.fileWatcherDeps.getFileHandles,
+    getHotSensitiveHolders: opts.fileWatcherDeps.getHotSensitiveHolders,
+    getProcessCapabilities: () => ambient.capabilities(),
+    // win32 probes the platform for this; both postures answer `true` instead, so
+    // the pool path is reached on every platform — and, just as load-bearing, a
+    // recording and its replay take the SAME branch.
+    isReadDetectionAvailable: true,
+  });
+
+  modules.networkMonitor._setDepsForTest(opts.networkMonitorDeps);
+
+  const state = {
+    getCustomRules: modules.config.getCustomSensitiveRules,
+    getLatestAgents: () => ambient.all(),
+    getLatestAiAgents: () => ambient.ai(),
+    isMonitoringPaused: () => false,
+    activityLog: [],
+    knownHandles: new Map(),
+    watchers: [],
+    recordFileAccess: modules.baselines.recordFileAccess,
+    onActivityPush: () => {},
+    onActivityEvict: () => {},
+    // Left unset on purpose. `main.js` wires the dedup → audit pipeline here, and the
+    // harness reproduces those lines explicitly so they are visible and can be held
+    // against the original. See `./harness.js` `ORCHESTRATION`.
+    onFileEvent: null,
+    isOtherPanelExpanded: () => ambient.isOtherPanelExpanded,
+  };
+  modules.fileWatcher.init(state);
+
+  modules.scanLoop.init({
+    scanner: { getProcessCapabilities: () => ambient.capabilities() },
+    network: modules.networkMonitor,
+    baselines: modules.baselines,
+    audit: modules.audit,
+    logger: silentLogger(),
+    tray: silentTray(),
+    fileAccessBatcher: silentBatcher(),
+    statsUpdateBatcher: silentBatcher(),
+    getStats: () => ({}),
+    getLatestAgents: () => ambient.all(),
+    setLatestNetConnections: () => {},
+    sendToRenderer: () => {},
+  });
+
+  _wired = true;
+  return { ambient, modules, profileDir, state };
+}
+
+/**
  * Wire the product for one replay.
  *
  * @param {Object} opts
@@ -227,98 +330,45 @@ function setUp(opts) {
     );
   }
 
-  const profileDir = path.join(opts.runDir, 'profile');
-  fs.mkdirSync(profileDir, { recursive: true });
-
-  const modules = loadProductModules();
-  const ambient = new Ambient();
   const providers = new Providers();
 
-  // Settings the sensors run under come from the header, written where the product
-  // reads them. Never the developer's own settings file: `scanIntervalSec`, the
-  // ignore lists and the custom patterns all change what a sensor does.
-  modules.config._setSettingsPathForTest(path.join(opts.runDir, 'settings.json'));
-  modules.config.saveSettings(opts.header.settings || {});
-
-  // Rules from the directory whose digest the header already matched. `reloadRules`
-  // is the product's own public reload, not a cache poke.
-  modules.ruleLoader.reloadRules(opts.rulesDir || path.join(schema.REPO_ROOT, 'rules'));
-
-  modules.baselines._setBaselinesPathForTest(path.join(opts.runDir, 'baselines.json'));
-  modules.audit.init({ userDataPath: profileDir });
-
-  modules.fileWatcher._resetForTest();
-  modules.networkMonitor._resetForTest();
-
-  modules.fileWatcher._setDepsForTest({
-    getFileHandles: (pid) =>
-      Promise.resolve(Providers.require('file handle', providers.handlesByPid)[String(pid)] || []),
-    getHotSensitiveHolders: () =>
-      Promise.resolve(Providers.require('Restart Manager holder', providers.rmHolders)),
-    getProcessCapabilities: () => ambient.capabilities(),
-    // win32 probes the platform for this; a replay answers from the trace instead, so
-    // the pool path is reached on every platform the recording was made on.
-    isReadDetectionAvailable: true,
-  });
-
-  modules.networkMonitor._setDepsForTest({
-    getRawTcpConnections: () => Promise.resolve(Providers.require('TCP table', providers.tcp)),
-    dnsReverse: (ip) => {
-      const answer = Providers.require('DNS', providers.dns)[ip];
-      // A recorded `null` means the lookup THREW, and the product distinguishes that
-      // from an empty answer. Replaying it as `[]` would turn "we never learned" into
-      // "the resolver said nothing", which is a different observation.
-      if (!answer || answer.reverse === null) return Promise.reject(new Error('recorded-failure'));
-      return Promise.resolve(answer.reverse);
+  const wired = wireGraph({
+    runDir: opts.runDir,
+    settings: opts.header.settings || {},
+    rulesDir: opts.rulesDir,
+    fileWatcherDeps: {
+      getFileHandles: (pid) =>
+        Promise.resolve(
+          Providers.require('file handle', providers.handlesByPid)[String(pid)] || [],
+        ),
+      getHotSensitiveHolders: () =>
+        Promise.resolve(Providers.require('Restart Manager holder', providers.rmHolders)),
     },
-    dnsResolve: (hostname) => {
-      const dns = Providers.require('DNS', providers.dns);
-      for (const answer of Object.values(dns)) {
-        if (answer.reverse && answer.reverse.includes(hostname)) {
-          if (answer.forward === null) return Promise.reject(new Error('recorded-failure'));
-          return Promise.resolve(answer.forward);
+    networkMonitorDeps: {
+      getRawTcpConnections: () => Promise.resolve(Providers.require('TCP table', providers.tcp)),
+      dnsReverse: (ip) => {
+        const answer = Providers.require('DNS', providers.dns)[ip];
+        // A recorded `null` means the lookup THREW, and the product distinguishes that
+        // from an empty answer. Replaying it as `[]` would turn "we never learned" into
+        // "the resolver said nothing", which is a different observation.
+        if (!answer || answer.reverse === null)
+          return Promise.reject(new Error('recorded-failure'));
+        return Promise.resolve(answer.reverse);
+      },
+      dnsResolve: (hostname) => {
+        const dns = Providers.require('DNS', providers.dns);
+        for (const answer of Object.values(dns)) {
+          if (answer.reverse && answer.reverse.includes(hostname)) {
+            if (answer.forward === null) return Promise.reject(new Error('recorded-failure'));
+            return Promise.resolve(answer.forward);
+          }
         }
-      }
-      return Promise.reject(new Error('recorded-failure'));
+        return Promise.reject(new Error('recorded-failure'));
+      },
     },
   });
 
-  const state = {
-    getCustomRules: modules.config.getCustomSensitiveRules,
-    getLatestAgents: () => ambient.all(),
-    getLatestAiAgents: () => ambient.ai(),
-    isMonitoringPaused: () => false,
-    activityLog: [],
-    knownHandles: new Map(),
-    watchers: [],
-    recordFileAccess: modules.baselines.recordFileAccess,
-    onActivityPush: () => {},
-    onActivityEvict: () => {},
-    // Left unset on purpose. `main.js` wires the dedup → audit pipeline here, and the
-    // harness reproduces those lines explicitly so they are visible and can be held
-    // against the original. See `./harness.js` `ORCHESTRATION`.
-    onFileEvent: null,
-    isOtherPanelExpanded: () => ambient.isOtherPanelExpanded,
-  };
-  modules.fileWatcher.init(state);
-
-  modules.scanLoop.init({
-    scanner: { getProcessCapabilities: () => ambient.capabilities() },
-    network: modules.networkMonitor,
-    baselines: modules.baselines,
-    audit: modules.audit,
-    logger: silentLogger(),
-    tray: silentTray(),
-    fileAccessBatcher: silentBatcher(),
-    statsUpdateBatcher: silentBatcher(),
-    getStats: () => ({}),
-    getLatestAgents: () => ambient.all(),
-    setLatestNetConnections: () => {},
-    sendToRenderer: () => {},
-  });
-
-  _wired = true;
-  return { ambient, modules, profileDir, providers, state };
+  return { ...wired, providers };
 }
 
 /**
@@ -357,4 +407,5 @@ module.exports = {
   silentLogger,
   silentTray,
   tearDown,
+  wireGraph,
 };
