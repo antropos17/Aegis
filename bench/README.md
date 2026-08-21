@@ -691,12 +691,21 @@ inventing one would dress a replay parameter up as a measurement — the same re
 and not per-header on purpose: `populationReliable` decides whether attribution may look for an
 owner at all, and it changes during a run.
 
-**`handles.tick` may not follow `rm.hot.tick`, and a reader refuses a trace where it does.**
-`scanAllFileHandles` short-circuits to the Restart Manager path whenever `getSensitiveHolders`
-is set, and `_setDepsForTest` assigns that provider only on a truthy override — nothing but
-`_resetForTest()` unsets it, and that also clears the watcher's debounce state. The switch is
-one-way, so a trace asking for the pool afterwards is asking for a replay nobody can run.
-Listing both kinds without saying so would be a promise the mechanism does not keep.
+`handles.tick` and `rm.hot.tick` may appear in either order — they are independent.
+`scanAllFileHandles` diverts to the Restart Manager only when `getSensitiveHolders` is set
+(`rmEnabled`), phase 1 never injects it (a header's `scope.rmFullPath` records why), and
+`isHotReadScanActive` reads only `getHotSensitiveHolders`. What they DO share is
+`_state.knownHandles`, so a path one tick already reported produces no event from the
+other — the product's own words at `scanHotFileHolders`: "Shares _state.knownHandles with
+the full scan → cross-cycle dedup". A trace author needs to know that, because the silence
+it causes is the product working rather than the trace failing. It is a note, not a refusal:
+there is nothing here a reader could legitimately reject.
+
+The one-way switch is real, but it belongs to the FULL Restart Manager path —
+`scanAllFileHandles` under `getSensitiveHolders`, which `_setDepsForTest` assigns only on a
+truthy override and only `_resetForTest()` unsets, taking the watcher's debounce state with
+it. Phase 1 excludes that path and says so in `scope.rmFullPath`; it has no record kind, so
+there is no ordering for a reader to enforce.
 
 ### Refusals
 
@@ -704,8 +713,7 @@ Every refusal names one reason from a closed list in `trace/schema.js` and write
 trace half-read is an input nobody recorded, and a verdict derived from one would name a run that
 never existed. `schema-version`, `header-malformed`, `platform-mismatch`, `tz-mismatch`,
 `digest-mismatch`, `evidence-codes-mismatch`, `scope-incomplete`, `unknown-kind`,
-`record-malformed`, `chain-broken`, `envelope-mismatch`, `kind-order`, `empty-trace`,
-`file-unreadable`.
+`record-malformed`, `chain-broken`, `envelope-mismatch`, `empty-trace`, `file-unreadable`.
 
 A trace declaring a HIGHER `traceSchemaVersion` is refused, which is the opposite of what a
 reader of the product's audit log must do — there `seq` is monotonic and skipping a record breaks

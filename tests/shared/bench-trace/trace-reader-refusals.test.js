@@ -219,66 +219,40 @@ describe('refusal — record shape and kind order', () => {
     expect(err.reason).toBe(schema.REFUSAL.UNKNOWN_KIND);
   });
 
-  it('kind-order: a handle-pool tick after a Restart Manager tick', () => {
-    const trace = 'T0-synthetic';
-    const unchained = [
-      writer.buildRecord({
-        trace,
-        seq: 0,
-        kind: 'population.set',
-        epochMs: CLOCK_EPOCH_MS,
-        input: { agents: [makeAgent()] },
-      }),
-      writer.buildRecord({
-        trace,
-        seq: 1,
-        kind: 'rm.hot.tick',
-        epochMs: CLOCK_EPOCH_MS + 1,
-        input: { holders: [{ pid: 4812, path: 'X:\\dev\\project\\AEGIS\\.env' }] },
-        ambient: makeAmbient(),
-      }),
-      writer.buildRecord({
-        trace,
-        seq: 2,
-        kind: 'handles.tick',
-        epochMs: CLOCK_EPOCH_MS + 2,
-        input: { byPid: { 4812: ['X:\\dev\\project\\AEGIS\\.env'] } },
-        ambient: makeAmbient(),
-      }),
-    ];
-    const err = refusalFrom(tempTrace({ records: writer.chainRecords(unchained) }));
-    expect(err.reason).toBe(schema.REFUSAL.KIND_ORDER);
-    expect(err.message).toContain('one-way');
-  });
-
-  it('kind-order: the same two kinds in the replayable order are accepted', () => {
-    const trace = 'T0-synthetic';
-    const unchained = [
-      writer.buildRecord({
-        trace,
-        seq: 0,
-        kind: 'population.set',
-        epochMs: CLOCK_EPOCH_MS,
-        input: { agents: [makeAgent()] },
-      }),
-      writer.buildRecord({
-        trace,
-        seq: 1,
-        kind: 'handles.tick',
-        epochMs: CLOCK_EPOCH_MS + 1,
-        input: { byPid: { 4812: ['X:\\dev\\project\\AEGIS\\.env'] } },
-        ambient: makeAmbient(),
-      }),
-      writer.buildRecord({
-        trace,
-        seq: 2,
-        kind: 'rm.hot.tick',
-        epochMs: CLOCK_EPOCH_MS + 2,
-        input: { holders: [{ pid: 4812, path: 'X:\\dev\\project\\AEGIS\\.env' }] },
-        ambient: makeAmbient(),
-      }),
-    ];
-    expect(refusalFrom(tempTrace({ records: writer.chainRecords(unchained) }))).toBeNull();
+  it('lets a handle-pool tick and a Restart Manager tick appear in either order', () => {
+    // Not an ordering rule, and deliberately so. `scanAllFileHandles` diverts to the
+    // Restart Manager only when `_getSensitiveHolders` is set (`rmEnabled`), phase 1
+    // never injects it — `scope.rmFullPath` records why — and `isHotReadScanActive`
+    // reads only `_getHotSensitiveHolders`. The two kinds are independent, and a
+    // refusal here would be guarding a constraint this path does not have.
+    const both = (first, second) => {
+      const trace = 'T0-synthetic';
+      const tick = (seq, kind) =>
+        writer.buildRecord({
+          trace,
+          seq,
+          kind,
+          epochMs: CLOCK_EPOCH_MS + seq,
+          input:
+            kind === 'handles.tick'
+              ? { byPid: { 4812: ['X:\dev\project\AEGIS\.env'] } }
+              : { holders: [{ pid: 4812, path: 'X:\dev\project\AEGIS\.env' }] },
+          ambient: makeAmbient(),
+        });
+      return writer.chainRecords([
+        writer.buildRecord({
+          trace,
+          seq: 0,
+          kind: 'population.set',
+          epochMs: CLOCK_EPOCH_MS,
+          input: { agents: [makeAgent()] },
+        }),
+        tick(1, first),
+        tick(2, second),
+      ]);
+    };
+    expect(refusalFrom(tempTrace({ records: both('rm.hot.tick', 'handles.tick') }))).toBeNull();
+    expect(refusalFrom(tempTrace({ records: both('handles.tick', 'rm.hot.tick') }))).toBeNull();
   });
 });
 

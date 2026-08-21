@@ -101,8 +101,6 @@ const REFUSAL = Object.freeze({
   CHAIN_BROKEN: 'chain-broken',
   /** A record's ECS envelope disagrees with the kind it declares. */
   ENVELOPE_MISMATCH: 'envelope-mismatch',
-  /** A `handles.tick` follows an `rm.hot.tick` — see {@link RECORD_KINDS}. */
-  KIND_ORDER: 'kind-order',
   /** The trace holds no records. */
   EMPTY_TRACE: 'empty-trace',
   /** A file of the trace is missing or unreadable. */
@@ -290,27 +288,26 @@ const RECORD_KINDS = Object.freeze({
 const KIND_NAMES = Object.freeze(Object.keys(RECORD_KINDS));
 
 /**
- * Kinds that may not follow one another, and why.
+ * A coupling a trace author has to know about, and it is NOT an ordering rule.
  *
- * `scanAllFileHandles` short-circuits to the Restart Manager path whenever
- * `_getSensitiveHolders` is set (`src/main/file-watcher.js` `rmEnabled`), and
- * `_setDepsForTest` assigns that provider only on a truthy override — nothing but
- * `_resetForTest()` can unset it, and that also clears the watcher's debounce map.
- * A trace that asked for the handle pool after the RM path would therefore be asking
- * for something the injection surface cannot give, and listing both kinds without
- * saying so would be a promise the mechanism does not keep.
- * @type {ReadonlyArray<{after: string, forbids: string, why: string}>}
+ * `scanHotFileHolders` and `scanAllFileHandles` share `_state.knownHandles`, so a
+ * hold one of them already reported will not re-fire from the other — the product
+ * says so itself (`src/main/file-watcher.js`, `scanHotFileHolders`: "Shares
+ * _state.knownHandles with the full scan → cross-cycle dedup"). A tick that carries a
+ * path an earlier tick already carried therefore produces NOTHING, and that silence
+ * is the product working, not the trace failing.
+ *
+ * Recorded as a note rather than enforced, because there is nothing here to refuse:
+ * the two kinds are independent. `scanAllFileHandles` diverts to the Restart Manager
+ * only when `_getSensitiveHolders` is set (`rmEnabled`), phase 1 never injects it —
+ * see a header's `scope.rmFullPath` — and `isHotReadScanActive` reads only
+ * `_getHotSensitiveHolders`. So the two may appear in either order, and a rule saying
+ * otherwise would be guarding a constraint this path does not have.
+ * @type {string}
  */
-const KIND_ORDER_RULES = Object.freeze([
-  Object.freeze({
-    after: 'rm.hot.tick',
-    forbids: 'handles.tick',
-    why:
-      'the Restart Manager provider injection is one-way: once set it cannot be unset ' +
-      'without also clearing the watcher debounce state, so a handle-pool tick after an ' +
-      'RM tick is not replayable',
-  }),
-]);
+const SHARED_HANDLE_STATE_NOTE =
+  'handles.tick and rm.hot.tick share _state.knownHandles, so a path one tick already ' +
+  'reported produces no event from the other';
 
 /**
  * The ECS envelope a record of this kind must carry.
@@ -442,11 +439,11 @@ module.exports = {
   FS_ACTIONS,
   HEADER_FILENAME,
   KIND_NAMES,
-  KIND_ORDER_RULES,
   RECORD_KINDS,
   REFUSAL,
   REFUSAL_REASONS,
   REPO_ROOT,
+  SHARED_HANDLE_STATE_NOTE,
   TRACE_FILENAME,
   TRACE_GENESIS,
   TRACE_SCHEMA_VERSION,

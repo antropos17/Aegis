@@ -102,35 +102,6 @@ function verifyChain(lines, label) {
 }
 
 /**
- * Enforce the ordering rules in `schema.KIND_ORDER_RULES`.
- *
- * These are not style: each one names a kind pair the injection surface cannot
- * actually deliver in that order, so a trace that asks for it is asking for a replay
- * nobody can run. Refusing on read is what keeps the kind table from reading as a
- * promise the mechanism does not keep.
- * @param {Object[]} records - Chain-verified records, in file order.
- * @returns {void}
- * @throws {import('./schema').TraceError} `kind-order` at the first violation.
- */
-function verifyKindOrder(records) {
-  /** @type {Map<string, number>} */
-  const firstSeen = new Map();
-  for (const record of records) {
-    const kind = record.bench.kind;
-    for (const rule of schema.KIND_ORDER_RULES) {
-      if (kind === rule.forbids && firstSeen.has(rule.after)) {
-        schema.refuse(
-          schema.REFUSAL.KIND_ORDER,
-          `seq ${record.bench.seq} is a ${rule.forbids} and seq ${firstSeen.get(rule.after)} was ` +
-            `an ${rule.after} — ${rule.why}`,
-        );
-      }
-    }
-    if (!firstSeen.has(kind)) firstSeen.set(kind, record.bench.seq);
-  }
-}
-
-/**
  * Read one trace directory.
  *
  * Order of refusals is the order a reader can act on them: the files exist and parse,
@@ -177,7 +148,6 @@ function readTrace(traceDir, opts = {}) {
 
   const records = verifyChain(lines, schema.TRACE_FILENAME);
   for (const record of records) schema.validateRecord(record, record.bench.seq);
-  verifyKindOrder(records);
 
   if (header.id !== records[0].bench.trace) {
     schema.refuse(
@@ -194,5 +164,4 @@ module.exports = {
   readJsonFile,
   readTrace,
   verifyChain,
-  verifyKindOrder,
 };
