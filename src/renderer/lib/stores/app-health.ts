@@ -1,10 +1,14 @@
 /**
  * @file app-health.ts — the app-health block of the stats payload, narrowed for the UI
  * @module renderer/stores/app-health
- * @description The renderer's ONLY reader of `stats.appHealth`. It answers one
- *   question — which sensors are degraded and which have failed — and it answers it
- *   from `appHealth.sensors.effective`, the id lists the main process publishes for
- *   exactly this purpose.
+ * @description The renderer's ONLY reader of `stats.appHealth`. It answers two
+ *   questions. Which sensors are degraded and which have failed — answered from
+ *   `appHealth.sensors.effective`, the id lists the main process publishes for
+ *   exactly this purpose. And whether the agent population is currently unknown —
+ *   answered from `appHealth.populationState`, the enum, being `'FAILED'`; never
+ *   from `populationReliable`, which collapses STARTING, DEGRADED and FAILED into
+ *   one `false` (ai-mistakes #29), and never from `appHealth.state`, whose FAILED
+ *   also has a defensive zero-coverage route.
  *
  *   `appHealth.reasons` is NOT a source of sensor names and must never be parsed for
  *   them. It is the aggregate-level explanation, a closed set of reason CODES
@@ -103,3 +107,32 @@ export function readUnhealthySensors(
  * @since 0.12.0
  */
 export const unhealthySensors: Readable<UnhealthySensors> = derived(stats, readUnhealthySensors);
+
+/**
+ * Whether the process-population sensor has FAILED, so an empty agent list is the
+ * absence of an observation rather than an observation of zero agents.
+ *
+ * Reads `appHealth.populationState` — the enum — and nothing else. `'STARTING'` and
+ * the BOOTING `null` are NOT unknown: boot is already covered by the skeleton /
+ * `firstScanDone` paths, and a starting scanner must not be painted as a failure.
+ * `populationReliable` would collapse STARTING, DEGRADED and FAILED into one `false`
+ * (ai-mistakes #29), and `appHealth.state === 'FAILED'` also has a defensive
+ * zero-coverage route — neither is read here.
+ * @param payload The `stats` store value, or any prefix of it.
+ * @returns True iff `appHealth.populationState` is `'FAILED'`.
+ * @since 0.12.0
+ */
+export function readPopulationUnknown(
+  payload: Record<string, unknown> | null | undefined,
+): boolean {
+  return pick(pick(payload, 'appHealth'), 'populationState') === 'FAILED';
+}
+
+/**
+ * Live population-unknown flag, refreshed with every stats payload.
+ *
+ * Derived from {@link stats} like {@link unhealthySensors} — the app-health block
+ * rides the stats surfaces and has no channel of its own.
+ * @since 0.12.0
+ */
+export const populationUnknown: Readable<boolean> = derived(stats, readPopulationUnknown);
