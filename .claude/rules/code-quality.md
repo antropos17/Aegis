@@ -17,7 +17,7 @@ alwaysApply: true
 - Feature branch → PR → merge --no-ff → delete branch
 - Один PR = одна логическая задача
 - Squash мелких коммитов перед PR (docs: 6 коммитов → 1)
-- Git via PowerShell: powershell.exe -NoProfile -Command "cd 'X:\Future\ESCAPE\AEGIS'; git ..."
+- Git via PowerShell: powershell.exe -NoProfile -Command "cd 'X:\dev\project\AEGIS'; git ..."
 - НИКОГДА не добавлять Co-Authored-By headers
 - Conventional commits: feat|fix|refactor|perf|chore|docs|test(scope): message
 
