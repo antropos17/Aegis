@@ -78,7 +78,7 @@ regenerating a lockfile.
 8. TypeScript: new files in .ts, `npx eslint` + `npm run typecheck` + `npm run typecheck:svelte` before commit, zero `any`. Root tsconfig.json is a solution file (`files: []` + references) — a bare `npx tsc --noEmit` checks NOTHING and always exits 0; use `npm run typecheck` (both projects) or `npx tsc -b`
 
 ## Key Paths
-- src/main/ — 52 CommonJS modules (40 top-level + platform/ 10 + token-adapters/ 2)
+- src/main/ — 53 CommonJS modules (41 top-level + platform/ 10 + token-adapters/ 2)
 - src/renderer/ — Svelte 5 components + stores + utils + tokens.css/global.css
   (count: `git ls-files 'src/renderer/**/*.svelte' | wc -l`)
 - src/shared/ — agent-database.json (110 agents / 262 signatures), types/ (9 TS files), constants.js (ignore patterns, config paths; SENSITIVE_RULES deprecated)

@@ -43,9 +43,12 @@ const logger = require('./logger');
 const tray = require('./tray-icon');
 const ipc = require('./ipc-handlers');
 const { createBatcher } = require('./ipc-batcher');
-// Pure domain module — no I/O, no Electron, no timers — so it costs nothing to load
-// on the fast path to a visible window.
+// Pure domain modules — no I/O, no Electron, no timers — so they cost nothing to load
+// on the fast path to a visible window. `file-access-batching` must be here rather than
+// deferred: the file-access batcher is built at module scope below, long before
+// loadDeferredModules runs.
 const appHealth = require('./app-health');
+const { FILE_ACCESS_BATCHER_OPTIONS } = require('./file-access-batching');
 
 // ═══ DEFERRED (loaded after ready-to-show via loadDeferredModules) ═══
 // `network` is here rather than local to initDeferredSubsystems because getAppHealth()
@@ -232,12 +235,32 @@ function getResourceUsage() {
 }
 
 /**
+ * Per-channel IPC delivery accounting, for the DISPLAY lane only.
+ *
+ * A SIBLING of `appHealth`, never a field inside it, and the reason is the same
+ * boundary the ipc-batcher module header draws: an eviction or a merge here is a frame
+ * the renderer never painted. It is not a sensor `lossCount` — nothing went unobserved —
+ * and it is not an audit drop — nothing went unrecorded. The activityLog ring and the
+ * audit-logger JSONL account for their own loss on their own lane. Filing these counters
+ * under app health would let a UI-throughput number read as an observation failure.
+ *
+ * Total by construction: the batcher exists from module load, so this answers with real
+ * values on BOTH `getStats` branches — the scanner-absent branch is not a shaped stub.
+ * @returns {{fileAccess: import('./ipc-batcher').BatcherStats}}
+ * @since v0.13.0
+ */
+function getIpcStats() {
+  return { fileAccess: fileAccessBatcher.getStats() };
+}
+
+/**
  * Monitoring statistics.
  *
  * `appHealth` and `monitoringPaused` are SIBLINGS and must stay that way: one answers
  * "what can we still observe", the other "did the operator stop us". Folding the pause
  * into the health enum would make a deliberate silence indistinguishable from a broken
- * sensor, which is the false-clean this whole model exists to kill.
+ * sensor, which is the false-clean this whole model exists to kill. `ipc` is a third
+ * sibling on the same principle — see {@link getIpcStats}.
  * @returns {Object} Monitoring statistics @since v0.1.0
  */
 function getStats() {
@@ -256,6 +279,10 @@ function getStats() {
       permissionDeniedScans: 0,
       attribution: { confirmed: 0, inferred: 0, unattributed: 0, unattributedSensitive: 0 },
       appHealth: getAppHealth(),
+      // Same expression as the loaded branch, not a zeroed lookalike: the batcher is a
+      // module-scope const, so it has been counting since before this branch was
+      // reachable and its numbers are real here too.
+      ipc: getIpcStats(),
       monitoringPaused,
     };
   }
@@ -279,6 +306,7 @@ function getStats() {
       unattributedSensitive: attrUnattributedSensitive,
     },
     appHealth: getAppHealth(),
+    ipc: getIpcStats(),
     monitoringPaused,
   };
 }
@@ -293,7 +321,10 @@ function sendToRenderer(channel, data) {
   }
 }
 
-const fileAccessBatcher = createBatcher('file-access', sendToRenderer, { intervalMs: 150 });
+// Options passed VERBATIM from file-access-batching.js — the flush window, the capacity
+// bound and the coalesce key live there as one frozen object so a test can drive the
+// production configuration itself rather than a re-assembled lookalike.
+const fileAccessBatcher = createBatcher('file-access', sendToRenderer, FILE_ACCESS_BATCHER_OPTIONS);
 const statsUpdateBatcher = createBatcher('stats-update', sendToRenderer, {
   intervalMs: 1000,
   mode: 'latest',
@@ -653,6 +684,21 @@ function _setWatcherForTest(mod) {
   watcher = mod;
 }
 
+/**
+ * @internal Inject the process-scanner module, normally set by loadDeferredModules
+ * (for tests).
+ *
+ * `getStats` branches on `scanner` alone while {@link getAppHealth} branches on
+ * `scanner || watcher`, so injecting a scanner and leaving `watcher` undefined reaches
+ * the LOADED stats branch with app health still on its own booting path. That is what
+ * makes both stats branches executable in a test instead of merely readable: a payload
+ * contract proven by running the code, not by matching the source (ai-mistakes #21).
+ * @param {Object|undefined} mod
+ */
+function _setScannerForTest(mod) {
+  scanner = mod;
+}
+
 /** @internal Clear the one-shot guard and the registered watcher list (for tests). */
 function _resetWatchersForTest() {
   watchersStarted = false;
@@ -669,12 +715,13 @@ function _getWatchersForTest() {
 module.exports = {
   startWatchers,
   startWatchersWhenLoaded,
-  // Read-only. Exposed so a test can assert the payload SHAPE — that `appHealth` and
-  // `monitoringPaused` are siblings, and that the pre-`loadDeferredModules` branch
-  // answers BOOTING instead of throwing.
+  // Read-only. Exposed so a test can assert the payload SHAPE — that `appHealth`,
+  // `ipc` and `monitoringPaused` are siblings, and that the pre-`loadDeferredModules`
+  // branch answers BOOTING instead of throwing.
   getStats,
   getAppHealth,
   _setWatcherForTest,
+  _setScannerForTest,
   _resetWatchersForTest,
   _getWatchersForTest,
 };

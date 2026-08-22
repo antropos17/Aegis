@@ -44,6 +44,8 @@ export default defineConfig({
         'src/main/process-utils.js',
         'src/main/process-scanner.js',
         'src/main/file-watcher.js',
+        'src/main/ipc-batcher.js',
+        'src/main/file-access-batching.js',
         'src/main/network-monitor.js',
         'src/main/platform/posix-shared.js',
         'src/main/platform/proc-snapshot-protocol.js',
