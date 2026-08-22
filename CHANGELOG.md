@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.13.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.12.0-alpha...aegis-v0.13.0-alpha) (2026-08-22)
+
+
+### Features
+
+* **ipc:** bound and coalesce the file-access display lane, surface its counters ([3d11071](https://github.com/antropos17/Aegis/commit/3d110712bfaa7dba92b04a7e7f2d99b9a4bcdcd0))
+* **ipc:** bound and coalesce the file-access display lane, surface its counters ([7c264e5](https://github.com/antropos17/Aegis/commit/7c264e5bc78c60e7a7605d44c665140c8287ab56))
+* **ipc:** bound the append buffer with capacity, coalescing and honest counters ([f2a26c7](https://github.com/antropos17/Aegis/commit/f2a26c74a5c3bd1adcace637fe2ed06794699288))
+* **ipc:** bound the append buffer with capacity, coalescing and honest counters ([681db0e](https://github.com/antropos17/Aegis/commit/681db0e9e17cc4a3aeaed8f5d6fc4cfdffbebfe1))
+
+
+### Documentation
+
+* **research:** record competitor-audit decisions in RESEARCH-BASELINE ([2a1c36a](https://github.com/antropos17/Aegis/commit/2a1c36a13e97b611f3e22b8a9e7a6e0c017a27b6))
+* **research:** record competitor-audit decisions in RESEARCH-BASELINE ([63ab60a](https://github.com/antropos17/Aegis/commit/63ab60a430a88916d53690ad11aea017fad5ebdb))
+
 ## [0.12.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.11.0-alpha...aegis-v0.12.0-alpha) (2026-08-21)
 
 
