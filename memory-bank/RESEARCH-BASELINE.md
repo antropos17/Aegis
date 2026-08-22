@@ -244,6 +244,11 @@ never code.
   also the top existential signal (platform absorption risk).
 - RootCause: **UNRESOLVED, out of the canonical set** (only an unrelated error-reporting crate
   found). ThreatFalcon: **deleted** (no primary source).
+- Justin0504/Aegis (arXiv:2603.12621, 2026-03-13; MIT; recorded 2026-08-22): pre-execution
+  tool-call firewall for agent SDKs — gateway, LLM-API forward proxy + MCP stdio proxy, budget
+  guards, compliance bundles, and a published Agent Threat Ontology v1 coverage page (10 tactics ×
+  40 techniques). Sits at the decision/enforcement point, not at OS observation (section 2).
+  Name collision only. Decisions in section 13.
 - Fastest-staling: Origin shipped-vs-claimed surface · AgentSight Windows support · Microsoft
   Windows/Defender agent-observability roadmap · AEGIS repo counts/HEAD.
 
@@ -264,6 +269,30 @@ session-tracker.js (verify status post-#206 first) · scripts/counts.js + red CI
 tests/renderer/** typecheck include (26 errors) · health state machine on honest signals (feeds
 Bench failure metrics — before/within Block 2) · danger-threshold drift 70/66/66 · demo data
 carries no instanceId.
+
+**Competitor audit, recorded 2026-08-22 — Justin0504/Aegis (arXiv:2603.12621).** Observed: a
+pre-execution tool-call firewall with a published ontology-coverage page (feature list in
+section 12). The pattern is borrowed; the taxonomy is not. Decisions:
+
+- **Adopted — honest coverage matrix.** Publish which agent-threat behaviors AEGIS detects and
+  which it does not, keyed by MITRE ATT&CK technique ID (the taxonomy the bench already uses,
+  section 10), every cell backed by an executable red/green bench scenario. Extends presentation
+  backlog item 5 (the user-mode sensor vs Sysmon matrix, section 10). ATT&CK over any
+  competitor ontology: prefer the existing standard.
+- **Adopted — Ed25519-signed release artifacts.** Every GitHub Release installer signed with a
+  project-pinned Ed25519 key; public key committed in-repo; signature verifiable offline.
+  Standard practice for security-tooling releases. Small standalone block, queued after the
+  bounded-pipeline block. Relation to the section 11 audit signer: not decided here.
+- **Adopted into spec, not scheduled — RFC 6962 transparency log.** A Merkle tree over the
+  hash-chained audit JSONL (section 11) with signed roots and inclusion proofs, so a third party
+  verifies "this record existed at this date" offline without trusting the operator. Folds into
+  the immutable-evidence backlog item (#220-221). JSONL stays canon; the tree is derived, like
+  the planned SQLite index (docs/recon/EXTERNAL-TECHNIQUES.md section 7).
+- **Policy — design-partner outreach.** Targets: operators of agent fleets and the detection
+  community. Never researcher-competitors or commercial neighbors. No sharing of weaknesses or
+  bench methodology with parties building competing products.
+- **Not adopted — outside frozen scope (section 3):** gateway, proxy/TLS interception, budget
+  guards, compliance bundles, plugin marketplace.
 
 ## 14. KILL LIST — never repeat
 
@@ -291,4 +320,6 @@ originhq.com + Business Wire 2025-09-25 + SACR ECP · github.com/eunomia-bpf/age
 arXiv:2508.02736 · github.com/Karib0u/rustinel · pipelab.org action-receipt spec ·
 microsoft/agent-governance-toolkit Tutorial 33 · EDR Telemetry Project · MITRE ATT&CK Evaluations ·
 arXiv:2605.16265 (AgentWall) · arXiv:2510.21236 (AgentBound) · arXiv:2605.17380 (Uber ADR) ·
-arXiv:2606.18190 (integrity matrix).
+arXiv:2606.18190 (integrity matrix) · github.com/Justin0504/Aegis + arXiv:2603.12621
+(pre-execution firewall; coverage-page pattern) · RFC 6962 (Certificate Transparency: Merkle log,
+signed roots, inclusion proofs).
