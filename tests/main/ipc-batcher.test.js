@@ -288,6 +288,555 @@ describe('ipc-batcher', () => {
     });
   });
 
+  // ── capacity (append mode) ──
+
+  describe('capacity (append mode)', () => {
+    it('bounds the buffer under a burst and counts exactly what it dropped', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 150, capacity: 3 });
+
+      for (let i = 1; i <= 10; i++) b.push(i);
+
+      expect(b.getStats()).toEqual({
+        pushed: 10,
+        coalesced: 0,
+        evicted: 7,
+        evictedSinceFlush: 7,
+        highWater: 3,
+        buffered: 3,
+      });
+
+      vi.advanceTimersByTime(150);
+      expect(send).toHaveBeenCalledOnce();
+      expect(send).toHaveBeenCalledWith('ch', [8, 9, 10]);
+      b.destroy();
+    });
+
+    it('evicts oldest-first: the pushed value always enters', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100, capacity: 1 });
+      b.push('a');
+      b.push('b');
+      b.push('c');
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', ['c']);
+      expect(b.getStats()).toMatchObject({ pushed: 3, evicted: 2, highWater: 1 });
+      b.destroy();
+    });
+
+    it('the flushed payload stays a FLAT array — the wire format is unchanged', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 50, capacity: 2 });
+      b.push('ev1');
+      b.push('ev2');
+      b.push('ev3');
+      vi.advanceTimersByTime(50);
+      expect(send.mock.calls[0][1]).toEqual(['ev2', 'ev3']);
+      expect(Array.isArray(send.mock.calls[0][1])).toBe(true);
+      b.destroy();
+    });
+
+    it('absent capacity is UNBOUNDED — today’s behaviour, pinned', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 150 });
+
+      for (let i = 0; i < 5000; i++) b.push(i);
+
+      expect(b.getStats()).toMatchObject({ pushed: 5000, evicted: 0, buffered: 5000 });
+      vi.advanceTimersByTime(150);
+      expect(send.mock.calls[0][1]).toHaveLength(5000);
+      b.destroy();
+    });
+
+    it('highWater is a LIFETIME maximum and does not fall back on flush', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100 });
+
+      for (let i = 0; i < 5; i++) b.push(i);
+      vi.advanceTimersByTime(100);
+      expect(b.getStats()).toMatchObject({ highWater: 5, buffered: 0 });
+
+      b.push('x');
+      b.push('y');
+      vi.advanceTimersByTime(100);
+      expect(b.getStats()).toMatchObject({ highWater: 5, buffered: 0 });
+      b.destroy();
+    });
+
+    it('highWater never exceeds capacity when one is set', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100, capacity: 4 });
+      for (let i = 0; i < 200; i++) b.push(i);
+      expect(b.getStats().highWater).toBe(4);
+      b.destroy();
+    });
+
+    it('evictedSinceFlush resets on a flush that SENT; evicted keeps counting', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100, capacity: 2 });
+
+      b.push(1);
+      b.push(2);
+      b.push(3); // 1 eviction
+      expect(b.getStats()).toMatchObject({ evicted: 1, evictedSinceFlush: 1 });
+
+      vi.advanceTimersByTime(100);
+      expect(b.getStats()).toMatchObject({ evicted: 1, evictedSinceFlush: 0 });
+
+      b.push(4);
+      b.push(5);
+      b.push(6);
+      b.push(7); // 2 more evictions
+      expect(b.getStats()).toMatchObject({ evicted: 3, evictedSinceFlush: 2 });
+
+      vi.advanceTimersByTime(100);
+      expect(b.getStats()).toMatchObject({ evicted: 3, evictedSinceFlush: 0 });
+      expect(send).toHaveBeenCalledTimes(2);
+      expect(send.mock.calls[0][1]).toEqual([2, 3]);
+      expect(send.mock.calls[1][1]).toEqual([6, 7]);
+      b.destroy();
+    });
+
+    it('a manual flush resets evictedSinceFlush exactly as the timer does', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100, capacity: 2 });
+      b.push(1);
+      b.push(2);
+      b.push(3);
+      b.flush();
+      expect(send).toHaveBeenCalledWith('ch', [2, 3]);
+      expect(b.getStats()).toMatchObject({ evicted: 1, evictedSinceFlush: 0 });
+
+      // A second flush finds an empty buffer, sends nothing, and moves no counter.
+      b.flush();
+      expect(send).toHaveBeenCalledOnce();
+      expect(b.getStats()).toMatchObject({ pushed: 3, evicted: 1, evictedSinceFlush: 0 });
+      b.destroy();
+    });
+
+    it('counters survive many flush cycles', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100, capacity: 2 });
+      for (let cycle = 0; cycle < 4; cycle++) {
+        b.push('a');
+        b.push('b');
+        b.push('c'); // 1 eviction per cycle
+        vi.advanceTimersByTime(100);
+      }
+      expect(send).toHaveBeenCalledTimes(4);
+      expect(b.getStats()).toEqual({
+        pushed: 12,
+        coalesced: 0,
+        evicted: 4,
+        evictedSinceFlush: 0,
+        highWater: 2,
+        buffered: 0,
+      });
+      b.destroy();
+    });
+  });
+
+  // ── coalescing (append mode) ──
+
+  describe('coalesceKey (append mode)', () => {
+    it('replaces the same-key entry IN PLACE — position preserved, last value wins', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100, coalesceKey: (v) => v.path });
+
+      b.push({ path: 'a.txt', n: 1 });
+      b.push({ path: 'b.txt', n: 2 });
+      b.push({ path: 'a.txt', n: 3 });
+
+      expect(b.getStats()).toMatchObject({ pushed: 3, coalesced: 1, buffered: 2, highWater: 2 });
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', [
+        { path: 'a.txt', n: 3 },
+        { path: 'b.txt', n: 2 },
+      ]);
+      b.destroy();
+    });
+
+    it('a coalesced push is still a push: coalesced is a SUBSET of pushed', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100, coalesceKey: () => 'same' });
+      b.push(1);
+      b.push(2);
+      b.push(3);
+      expect(b.getStats()).toMatchObject({ pushed: 3, coalesced: 2, buffered: 1, highWater: 1 });
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', [3]);
+      b.destroy();
+    });
+
+    it('a null key NEVER merges — two of them both travel', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100, coalesceKey: () => null });
+      b.push('x');
+      b.push('x');
+      b.push('x');
+      expect(b.getStats()).toMatchObject({ pushed: 3, coalesced: 0, buffered: 3 });
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', ['x', 'x', 'x']);
+      b.destroy();
+    });
+
+    it('mixes merging and non-merging values in one window', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, {
+        intervalMs: 100,
+        coalesceKey: (v) => (v.merge ? v.id : null),
+      });
+
+      b.push({ id: 'k', merge: true, n: 1 });
+      b.push({ id: 'k', merge: false, n: 2 });
+      b.push({ id: 'k', merge: true, n: 3 });
+
+      expect(b.getStats()).toMatchObject({ pushed: 3, coalesced: 1, buffered: 2 });
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', [
+        { id: 'k', merge: true, n: 3 },
+        { id: 'k', merge: false, n: 2 },
+      ]);
+      b.destroy();
+    });
+
+    it('a non-string key never merges either — undefined and a number both stay apart', () => {
+      const send = vi.fn();
+      const undef = createBatcher('ch', send, { intervalMs: 100, coalesceKey: () => undefined });
+      undef.push('a');
+      undef.push('a');
+      expect(undef.getStats()).toMatchObject({ coalesced: 0, buffered: 2 });
+      undef.destroy();
+
+      const numeric = createBatcher('ch', send, { intervalMs: 100, coalesceKey: () => 7 });
+      numeric.push('a');
+      numeric.push('a');
+      expect(numeric.getStats()).toMatchObject({ coalesced: 0, buffered: 2 });
+      numeric.destroy();
+    });
+
+    it('the key table resets with the buffer — a key from the last batch does not merge', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100, coalesceKey: (v) => v.path });
+      b.push({ path: 'a', n: 1 });
+      vi.advanceTimersByTime(100);
+      b.push({ path: 'a', n: 2 });
+      vi.advanceTimersByTime(100);
+
+      expect(send).toHaveBeenCalledTimes(2);
+      expect(send.mock.calls[0][1]).toEqual([{ path: 'a', n: 1 }]);
+      expect(send.mock.calls[1][1]).toEqual([{ path: 'a', n: 2 }]);
+      expect(b.getStats()).toMatchObject({ pushed: 2, coalesced: 0 });
+      b.destroy();
+    });
+
+    it('a throwing coalesceKey leaves the batcher exactly as it found it', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, {
+        intervalMs: 100,
+        coalesceKey: (v) => {
+          if (v === 'boom') throw new Error('key exploded');
+          return String(v);
+        },
+      });
+
+      b.push('ok');
+      expect(() => b.push('boom')).toThrow(/key exploded/);
+      expect(b.getStats()).toMatchObject({ pushed: 1, coalesced: 0, evicted: 0, buffered: 1 });
+
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', ['ok']);
+      b.destroy();
+    });
+  });
+
+  // ── coalescing × capacity ──
+
+  describe('coalescing and capacity together', () => {
+    it('a coalesced push does NOT evict, even at full capacity', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, {
+        intervalMs: 100,
+        capacity: 2,
+        coalesceKey: (v) => v.k,
+      });
+
+      b.push({ k: 'a', n: 1 });
+      b.push({ k: 'b', n: 2 }); // buffer is now full
+      b.push({ k: 'a', n: 3 }); // merges instead of overflowing
+
+      expect(b.getStats()).toEqual({
+        pushed: 3,
+        coalesced: 1,
+        evicted: 0,
+        evictedSinceFlush: 0,
+        highWater: 2,
+        buffered: 2,
+      });
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', [
+        { k: 'a', n: 3 },
+        { k: 'b', n: 2 },
+      ]);
+      b.destroy();
+    });
+
+    it('an eviction shifts the key table in step with the buffer', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, {
+        intervalMs: 100,
+        capacity: 2,
+        coalesceKey: (v) => v.k,
+      });
+
+      b.push({ k: 'a', n: 1 });
+      b.push({ k: 'b', n: 2 });
+      b.push({ k: 'c', n: 3 }); // evicts a → [b, c]
+      b.push({ k: 'b', n: 4 }); // must land on slot 0, not slot 1
+
+      expect(b.getStats()).toMatchObject({ pushed: 4, coalesced: 1, evicted: 1, buffered: 2 });
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', [
+        { k: 'b', n: 4 },
+        { k: 'c', n: 3 },
+      ]);
+      b.destroy();
+    });
+
+    it('an evicted key frees its slot: the same key returns as a NEW entry', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, {
+        intervalMs: 100,
+        capacity: 2,
+        coalesceKey: (v) => v.k,
+      });
+
+      b.push({ k: 'a', n: 1 });
+      b.push({ k: 'b', n: 2 });
+      b.push({ k: 'c', n: 3 }); // evicts a → [b, c]
+      b.push({ k: 'a', n: 4 }); // a is gone, so this appends and evicts b → [c, a]
+
+      expect(b.getStats()).toMatchObject({ pushed: 4, coalesced: 0, evicted: 2, buffered: 2 });
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', [
+        { k: 'c', n: 3 },
+        { k: 'a', n: 4 },
+      ]);
+      b.destroy();
+    });
+
+    it('coalescing keeps a bounded buffer inside its bound under a keyed burst', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, {
+        intervalMs: 150,
+        capacity: 4,
+        coalesceKey: (v) => `k${v % 3}`,
+      });
+
+      for (let i = 0; i < 300; i++) b.push(i);
+
+      // Three distinct keys, so the buffer never reaches capacity and nothing is evicted.
+      expect(b.getStats()).toEqual({
+        pushed: 300,
+        coalesced: 297,
+        evicted: 0,
+        evictedSinceFlush: 0,
+        highWater: 3,
+        buffered: 3,
+      });
+      vi.advanceTimersByTime(150);
+      expect(send).toHaveBeenCalledWith('ch', [297, 298, 299]);
+      b.destroy();
+    });
+  });
+
+  // ── getStats ──
+
+  describe('getStats', () => {
+    it('exposes exactly the six documented fields', () => {
+      const b = createBatcher('ch', vi.fn(), { intervalMs: 100 });
+      expect(Object.keys(b.getStats()).sort()).toEqual([
+        'buffered',
+        'coalesced',
+        'evicted',
+        'evictedSinceFlush',
+        'highWater',
+        'pushed',
+      ]);
+      b.destroy();
+    });
+
+    it('a fresh batcher reports all zeros', () => {
+      const b = createBatcher('ch', vi.fn(), { intervalMs: 100 });
+      expect(b.getStats()).toEqual({
+        pushed: 0,
+        coalesced: 0,
+        evicted: 0,
+        evictedSinceFlush: 0,
+        highWater: 0,
+        buffered: 0,
+      });
+      b.destroy();
+    });
+
+    it('counts pushes and highWater even with no new options passed', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100 });
+      b.push('a');
+      b.push('b');
+      expect(b.getStats()).toEqual({
+        pushed: 2,
+        coalesced: 0,
+        evicted: 0,
+        evictedSinceFlush: 0,
+        highWater: 2,
+        buffered: 2,
+      });
+      b.destroy();
+    });
+
+    it('stays readable after destroy, with the lifetime totals standing', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100, capacity: 2 });
+      b.push(1);
+      b.push(2);
+      b.push(3);
+      b.destroy();
+
+      expect(send).toHaveBeenCalledWith('ch', [2, 3]);
+      expect(b.getStats()).toEqual({
+        pushed: 3,
+        coalesced: 0,
+        evicted: 1,
+        evictedSinceFlush: 0,
+        highWater: 2,
+        buffered: 0,
+      });
+    });
+
+    it('a push refused because the batcher is destroyed is counted nowhere', () => {
+      const b = createBatcher('ch', vi.fn(), { intervalMs: 100, capacity: 1 });
+      b.destroy();
+      b.push('late');
+      expect(b.getStats()).toEqual({
+        pushed: 0,
+        coalesced: 0,
+        evicted: 0,
+        evictedSinceFlush: 0,
+        highWater: 0,
+        buffered: 0,
+      });
+    });
+
+    it('returns a snapshot, not a live view', () => {
+      const b = createBatcher('ch', vi.fn(), { intervalMs: 100 });
+      const before = b.getStats();
+      b.push('x');
+      expect(before).toMatchObject({ pushed: 0, buffered: 0 });
+      expect(b.getStats()).toMatchObject({ pushed: 1, buffered: 1 });
+      b.destroy();
+    });
+  });
+
+  // ── latest mode stats ──
+
+  describe('getStats (latest mode)', () => {
+    it('reports the same six fields with only the counters that can apply', () => {
+      const send = vi.fn();
+      const b = createBatcher('stats', send, { intervalMs: 100, mode: 'latest' });
+
+      expect(b.getStats()).toEqual({
+        pushed: 0,
+        coalesced: 0,
+        evicted: 0,
+        evictedSinceFlush: 0,
+        highWater: 0,
+        buffered: 0,
+      });
+
+      b.push({ n: 1 });
+      b.push({ n: 2 });
+      expect(b.getStats()).toEqual({
+        pushed: 2,
+        coalesced: 0,
+        evicted: 0,
+        evictedSinceFlush: 0,
+        highWater: 1,
+        buffered: 1,
+      });
+
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledOnce();
+      expect(send).toHaveBeenCalledWith('stats', { n: 2 });
+      expect(b.getStats()).toEqual({
+        pushed: 2,
+        coalesced: 0,
+        evicted: 0,
+        evictedSinceFlush: 0,
+        highWater: 1,
+        buffered: 0,
+      });
+      b.destroy();
+    });
+
+    it('a pending pushLazy producer moves no counter and reads buffered 0', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100, mode: 'latest' });
+      b.pushLazy(() => 'built');
+      expect(b.getStats()).toEqual({
+        pushed: 0,
+        coalesced: 0,
+        evicted: 0,
+        evictedSinceFlush: 0,
+        highWater: 0,
+        buffered: 0,
+      });
+
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', 'built');
+      expect(b.getStats().pushed).toBe(0);
+      b.destroy();
+    });
+  });
+
+  // ── option validation ──
+
+  describe('option validation', () => {
+    it('refuses a capacity that is not a positive integer', () => {
+      for (const bad of [0, -1, 1.5, '5', NaN, Infinity, null]) {
+        expect(() => createBatcher('ch', vi.fn(), { capacity: bad })).toThrow(
+          /capacity must be a positive integer/,
+        );
+      }
+    });
+
+    it('accepts capacity 1 — the smallest useful bound', () => {
+      const b = createBatcher('ch', vi.fn(), { intervalMs: 100, capacity: 1 });
+      expect(b.getStats().buffered).toBe(0);
+      b.destroy();
+    });
+
+    it('refuses a coalesceKey that is not a function', () => {
+      for (const bad of ['path', 42, {}, null]) {
+        expect(() => createBatcher('ch', vi.fn(), { coalesceKey: bad })).toThrow(
+          /coalesceKey must be a function/,
+        );
+      }
+    });
+
+    it('refuses capacity in latest mode: a one-slot buffer cannot overflow', () => {
+      expect(() => createBatcher('ch', vi.fn(), { mode: 'latest', capacity: 5 })).toThrow(
+        /capacity requires mode 'append'/,
+      );
+    });
+
+    it('refuses coalesceKey in latest mode: a one-slot buffer cannot merge', () => {
+      expect(() =>
+        createBatcher('ch', vi.fn(), { mode: 'latest', coalesceKey: () => 'k' }),
+      ).toThrow(/coalesceKey requires mode 'append'/);
+    });
+  });
+
   // ── defaults ──
 
   describe('defaults', () => {
