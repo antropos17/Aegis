@@ -16,6 +16,7 @@
   import { focusInstanceId } from '../utils/agent-selection.ts';
   import { tick, startTick } from '../stores/tick.ts';
   import { populationUnknown } from '../stores/app-health.js';
+  import { t } from '../i18n/index.js';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
@@ -82,19 +83,19 @@
     <thead>
       <tr>
         <th class="col-agent" onclick={() => toggleSort('agent')}>
-          Agent{sortArrow('agent')}
+          {$t('stats.columns.agent')}{sortArrow('agent')}
         </th>
-        <th class="col-status">Status</th>
+        <th class="col-status">{$t('stats.columns.status')}</th>
         <th class="col-risk" onclick={() => toggleSort('risk')}>
-          Risk{sortArrow('risk')}
+          {$t('stats.columns.risk')}{sortArrow('risk')}
         </th>
         <th class="col-files" onclick={() => toggleSort('files')}>
-          File Act{sortArrow('files')}
+          {$t('stats.columns.file_activity')}{sortArrow('files')}
         </th>
         <th class="col-net" onclick={() => toggleSort('network')}>
-          Network{sortArrow('network')}
+          {$t('stats.columns.network')}{sortArrow('network')}
         </th>
-        <th class="col-seen">Last Seen</th>
+        <th class="col-seen">{$t('stats.columns.last_seen')}</th>
       </tr>
     </thead>
     <tbody>
@@ -104,8 +105,8 @@
             <span class="agent-name">{row.name}</span>
           </td>
           <td class="col-status">
-            <span class="status-dot active" aria-label="active"></span>
-            active
+            <span class="status-dot active" aria-label={$t('stats.status_active')}></span>
+            {$t('stats.status_active')}
           </td>
           <td class="col-risk">
             <div class="risk-cell">
@@ -122,10 +123,10 @@
             </div>
           </td>
           <td class="col-files">
-            {row.fileCount} events
+            {$t('stats.events', { count: row.fileCount })}
           </td>
           <td class="col-net">
-            {row.networkCount} conn
+            {$t('stats.connections', { count: row.networkCount })}
           </td>
           <td class="col-seen">
             {formatRelativeTime(now - row.lastSeen)}
@@ -134,7 +135,11 @@
       {:else}
         <tr>
           <td colspan="6" class="empty-state">
-            {#if $populationUnknown}Agent population unknown{:else}No agents detected{/if}
+            {#if $populationUnknown}
+              {$t('agents.population_unknown')}
+            {:else}
+              {$t('stats.no_agents')}
+            {/if}
           </td>
         </tr>
       {/each}

@@ -60,3 +60,27 @@ describe('AgentStatsPanel — empty table under a HEALTHY population', () => {
     expect(container.textContent).not.toContain('Agent population unknown');
   });
 });
+
+describe('AgentStatsPanel — translated table labels', () => {
+  it('renders column, status, and count strings through the English catalogue', () => {
+    agents.set([
+      {
+        agent: 'Claude Code',
+        pid: 100,
+        process: 'claude.exe',
+        status: 'running',
+        instanceId: '100:1754380000000',
+        category: 'coding-assistant',
+      },
+    ]);
+
+    const { container } = render(AgentStatsPanel);
+
+    expect(container.querySelector('.col-agent')).toHaveTextContent('Agent');
+    expect(container.querySelector('.col-status')).toHaveTextContent('Status');
+    expect(container.querySelector('.status-dot')).toHaveAttribute('aria-label', 'active');
+    expect(container.querySelector('tbody .col-status')).toHaveTextContent('active');
+    expect(container.querySelector('tbody .col-files')).toHaveTextContent('0 events');
+    expect(container.querySelector('tbody .col-net')).toHaveTextContent('0 conn');
+  });
+});
