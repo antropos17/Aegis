@@ -31,6 +31,20 @@
     "reports": "Reports",
     "stats": "Stats"
   },
+  "stats": {
+    "columns": {
+      "agent": "Agent",
+      "status": "Status",
+      "risk": "Risk",
+      "file_activity": "File Act",
+      "network": "Network",
+      "last_seen": "Last Seen"
+    },
+    "status_active": "active",
+    "events": "{count} events",
+    "connections": "{count} conn",
+    "no_agents": "No agents detected"
+  },
   "demo": {
     "badge": "DEMO MODE",
     "description": "Simulated data only. No real agents are being monitored.",
