@@ -64,7 +64,7 @@ Core modules:
 - global.css — base styles, scrollbar, body gradients
 
 ## Shared (src/shared/)
-- constants.js — ignore patterns, editor lists, AGENT_CONFIG_PATHS. SENSITIVE_RULES (68) deprecated, unused at runtime
+- constants.js — ignore patterns, editor lists, AGENT_CONFIG_PATHS
 - rules/*.yaml (repo root, NOT src/shared) — 73 active detection rules across 8 categories, the real source of truth
 - src/main/rule-loader.js exports: getAllRules(), getRulesByCategory(category), getRuleById(id), reloadRules(), and loadRules aliased as _loadRules (test seam — not a public API)
 - agent-database.json — 110 agents / 262 name signatures

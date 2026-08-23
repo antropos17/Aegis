@@ -25,7 +25,7 @@ Key modules:
 - `src/main/platform/` — OS abstraction (win32.js, darwin.js, linux.js)
 - `src/shared/agent-database.json` — 110 known agents; their `names` arrays hold 262 process-name signatures in total
 - `src/main/rule-loader.js` — loads `rules/*.yaml` (73 rules, 8 categories) against `rules/_schema.json`, hot-reload
-- `src/shared/constants.js` — ignore patterns, editor lists, AGENT_CONFIG_PATHS. `SENSITIVE_RULES` (68) is deprecated and unread at runtime — editing it changes nothing
+- `src/shared/constants.js` — ignore patterns, editor lists, AGENT_CONFIG_PATHS
 
 ## Build & test
 
@@ -62,7 +62,7 @@ coverage thresholds are configured in `vitest.config.js`, so coverage cannot fai
 
 ## Code conventions
 
-- 300 lines/file is a target for NEW files, not an invariant — 31 existing src files already exceed it (`npm run counts:check` prints the current largest src and test files). Don't split an existing file just to hit the number; do extract when adding to one that's already over
+- 300 lines/file is a target for NEW files, not an invariant — 30 existing src files already exceed it (`npm run counts:check` prints the current largest src and test files). Don't split an existing file just to hit the number; do extract when adding to one that's already over
 - **Main process:** CommonJS (`require`/`module.exports`). Never use `import` in `src/main/`.
 - **Renderer:** ES modules (`import`/`export`). Never use `require()` in `src/renderer/`.
 - **Svelte 5 runes:** `$state`, `$derived`, `$effect`, `$props`. No legacy `let` reactivity.
