@@ -290,5 +290,46 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     diff, exactly where nobody is looking (cf. #22 — a side edit nobody asked for destroys a
     file).
 
+33. **`PUT /repos/{owner}/{repo}/topics` REPLACES the whole list; there is no add.** The
+    endpoint takes a `names` array and stores exactly that array, so a call assembled as
+    "the topics I want to add" deletes every topic missing from the payload. It answers 200
+    with the truncated list, which reads like success — nothing goes red, and the only
+    evidence of the loss is the repository page (cf. #21 — a command that ran is not a
+    command that inspected your change). On 2026-08-22 an additive-looking PUT dropped
+    `monitoring` and `security` from this repository; both were restored the same day, but
+    no gate produced that catch.
+    **How to apply:** GET the current list, union it with the additions on the client side,
+    PUT the union, then GET again and diff the result against the set you intended — the
+    read-back is the only proof the write did what you meant. The same shape recurs wherever
+    the request body IS the whole collection rather than a delta (issue labels, a
+    branch-protection object, a workflow `permissions` block), so check what the verb
+    replaces before assuming a call appends. The live topic list belongs in the API, not
+    restated here (cf. #24).
+
+## Review
+34. **Confirmed good approach — an external fork PR is four separate gates, and two of them
+    fire AFTER the review already looks finished.** Established on the first two fork PRs
+    this repository received, #274 and #273, both merged 2026-08-23.
+    (a) **CI approval is per HEAD SHA, not per PR.** A fork PR’s workflow run sits at
+    `conclusion: action_required` with `status: completed` until
+    `gh api repos/{owner}/{repo}/actions/runs/{id}/approve -X POST`; the approved run comes
+    back as `run_attempt: 2`. A run parked this way is indistinguishable from a slow one on
+    the PR page, so find it by head SHA rather than waiting.
+    (b) **Merging one PR invalidates the approval of every other open one.** master is
+    `strict: true`, so the moment #274 merged, #273 went `behind_by: 2` and CLEAN flipped to
+    BEHIND. `gh pr update-branch` fixes it while `maintainerCanModify` is true — and it
+    produces a NEW head SHA whose run is `action_required` at `run_attempt: 1` all over
+    again. The first approval does not carry over. This second round is the step that gets
+    missed, because by then the review reads as done.
+    (c) **That branch update is a merge commit, so audit its file list (#32c).** After
+    `update-branch` the diff against master must still name exactly the PR’s own files, and
+    each of them must be byte-identical to the pre-update head. A merge stages what it
+    resolves, including files the contributor never wrote.
+    (d) **A contributed test is a self-report until it is mutated.** Break one lookup the
+    test actually asserts, watch it go red, restore, and confirm the tree is byte-identical
+    again. Choose the target from the ASSERTIONS, not from the diff: on #273 the four
+    unasserted keys would have stayed green, and reading that as vacuity would have
+    condemned a sound test — it is partial coverage, which is a comment, not a rejection.
+
 ## Rule
 NEVER change what was not asked. Do ONLY what the prompt says.
