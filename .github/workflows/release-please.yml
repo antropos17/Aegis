@@ -31,3 +31,8 @@ jobs:
     uses: ./.github/workflows/release-build.yml
     with:
       tag: ${{ needs.release-please.outputs.tag_name }}
+    # A reusable workflow does not inherit the caller's secrets: without this line
+    # `secrets.AEGIS_RELEASE_SIGNING_KEY` is the empty string inside release-build.yml
+    # and every real release fails its signing guard. Only GITHUB_TOKEN crosses a
+    # workflow_call on its own.
+    secrets: inherit

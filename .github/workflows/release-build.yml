@@ -23,6 +23,24 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
+      # First step on purpose. A missing key costs a minute here instead of failing
+      # after a ten-minute build, and nothing can reach the Release before it passes.
+      #
+      # Secrets do NOT cross `workflow_call` on their own: on the release-please path
+      # this workflow is called as a reusable workflow, and without `secrets: inherit`
+      # in the caller the expression below is the empty string. That is precisely the
+      # failure this step exists to make loud rather than silently unsigned.
+      - name: Require the release signing key
+        shell: bash
+        env:
+          AEGIS_RELEASE_SIGNING_KEY: ${{ secrets.AEGIS_RELEASE_SIGNING_KEY }}
+        run: |
+          if [ -z "$AEGIS_RELEASE_SIGNING_KEY" ]; then
+            echo '::error::AEGIS_RELEASE_SIGNING_KEY is not available to this job - refusing to publish an unsigned release. On the release-please path the caller must pass secrets: inherit.'
+            exit 1
+          fi
+          echo "Release signing key is present."
+
       # `inputs` is null on a `release` event, so this falls through to the released tag.
       - name: Resolve release tag
         id: tag
@@ -46,11 +64,43 @@ jobs:
       - name: Build Windows .exe
         run: npx electron-builder --win --publish never
 
-      - name: Upload .exe to release
+      # Everything that gets uploaded is staged here first, so the set that is hashed
+      # is exactly the set that is published - not a superset of dist/ that happens to
+      # overlap with it.
+      - name: Stage release assets
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          cp dist/*.exe release-assets/
+          ls -l release-assets
+
+      - name: Sign the release manifest
+        shell: bash
+        env:
+          AEGIS_RELEASE_SIGNING_KEY: ${{ secrets.AEGIS_RELEASE_SIGNING_KEY }}
+          TAG: ${{ steps.tag.outputs.name }}
+        run: node scripts/release-sign.js --dir release-assets --tag "$TAG"
+
+      # The self-check that makes the signature worth anything: the manifest just
+      # produced by the SECRET is verified against the PUBLIC key committed in this
+      # repository, before a byte is uploaded. A secret that does not pair with the
+      # pinned key stops the release here instead of publishing a manifest that no
+      # downloader could ever verify (memory-bank/ai-mistakes.md #25).
+      - name: Verify the manifest against the committed public key
+        shell: bash
+        run: node scripts/release-verify.js --dir release-assets
+
+      - name: Upload the signed release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.name }}
         run: |
-          EXE=$(ls dist/*.exe)
-          echo "Found installer: $EXE"
-          gh release upload "${{ steps.tag.outputs.name }}" "$EXE" --clobber
+          shopt -s nullglob
+          assets=(release-assets/*)
+          if [ ${#assets[@]} -eq 0 ]; then
+            echo "::error::release-assets is empty - nothing to upload"
+            exit 1
+          fi
+          printf 'Uploading %s\n' "${assets[@]}"
+          gh release upload "$TAG" "${assets[@]}" --clobber
