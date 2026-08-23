@@ -83,18 +83,14 @@ AEGIS follows Electron security best practices:
 
 ### Known Limitations
 
-- **Monitor-only:** AEGIS currently observes but does not enforce at the OS level. Permission states (allow/monitor/block) affect UI display and alerting. True OS-level enforcement via kernel hooks is planned.
+- **Monitor-only:** AEGIS observes and does not enforce at the OS level. Permission states (allow/monitor/block) affect UI display and alerting. OS-level blocking by kernel driver is a deliberate non-goal.
 - **Audit logs are plaintext:** JSONL files in `userData/audit-logs/` are unencrypted. They contain file paths and agent names but not file contents.
 - **Process attribution:** chokidar file watchers cannot attribute events to specific processes. Handle-based scanning provides per-process attribution but runs on a timer, not in real-time.
-- **No TLS inspection:** Network monitoring sees connection endpoints but cannot inspect encrypted traffic. Deep packet inspection is planned for future versions.
+- **No TLS inspection:** Network monitoring sees connection endpoints only and cannot inspect encrypted traffic. TLS interception is a deliberate non-goal, not a pending feature.
 
 ## Supported Versions
 
-| Version     | Supported                          |
-|-------------|------------------------------------|
-| 0.10.x      | Current release — actively supported |
-| 0.7.x–0.9.x | Security fixes only                |
-| < 0.7.x     | End of life                        |
+Only the latest release on the [GitHub Releases page](https://github.com/antropos17/Aegis/releases) is supported. AEGIS is alpha software: older releases receive no security fixes. Always run the latest release.
 
 ## Credit
 
