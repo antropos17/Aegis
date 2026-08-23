@@ -20,8 +20,6 @@ When invoked:\r
 3. Verify each against code:\r
    - Agent signatures: count entries in agent-database.json; compare to the\r
      "107" (or whatever the docs say) claim.\r
-   - Sensitive rules: count SENSITIVE_RULES / patterns in constants.js; compare\r
-     to the "68" (or whatever the docs claim) figure.\r
    - "<2s boot": is there any benchmark/evidence, or is it unsubstantiated?\r
    - "CSP hardened": find the actual CSP and judge whether the claim holds.\r
    - JS vs TS: AGENTS.md says JS + JSDoc, other context says TS — determine\r

@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  SENSITIVE_RULES,
   AGENT_SELF_CONFIG,
   AGENT_CONFIG_PATHS,
   PERMISSION_CATEGORIES,
@@ -9,29 +8,6 @@ import {
 } from '../../src/shared/constants.js';
 
 describe('constants', () => {
-  describe('SENSITIVE_RULES', () => {
-    it('all patterns are valid RegExp', () => {
-      for (const rule of SENSITIVE_RULES) {
-        expect(rule.pattern).toBeInstanceOf(RegExp);
-        expect(typeof rule.reason).toBe('string');
-        expect(rule.reason.length).toBeGreaterThan(0);
-      }
-    });
-
-    it('agent config rules match expected paths', () => {
-      const agentConfigRules = SENSITIVE_RULES.filter((r) => r.category === 'agent-config');
-      expect(agentConfigRules.length).toBeGreaterThan(0);
-
-      const claudeRule = agentConfigRules.find((r) => r.reason.includes('Claude Code'));
-      expect(claudeRule).toBeDefined();
-      expect(claudeRule.pattern.test('/home/user/.claude/config.json')).toBe(true);
-
-      const cursorRule = agentConfigRules.find((r) => r.reason.includes('Cursor'));
-      expect(cursorRule).toBeDefined();
-      expect(cursorRule.pattern.test('/home/user/.cursor/settings.json')).toBe(true);
-    });
-  });
-
   describe('AGENT_SELF_CONFIG', () => {
     it('each matches its own config path', () => {
       expect(AGENT_SELF_CONFIG.claude.test('/home/.claude/config')).toBe(true);

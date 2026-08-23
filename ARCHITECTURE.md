@@ -276,7 +276,7 @@ Rules live in `rules/*.yaml` (one file per category), validated against `rules/_
     risk: critical
     enabled: true
 ```
-`category` must be one of the 8 values allowed by `_schema.json` (ai-config, secrets, ssh, certificates, cloud, browser, devtools, crypto). `SENSITIVE_RULES` in `src/shared/constants.js` is deprecated and not read at runtime — editing it has no effect.
+`category` must be one of the 8 values allowed by `_schema.json` (ai-config, secrets, ssh, certificates, cloud, browser, devtools, crypto).
 
 ### Adding a New Monitoring Module
 1. Create `src/main/new-module.js` with `init(state)` pattern

@@ -174,8 +174,6 @@ Rules live in `rules/*.yaml` — one ruleset file per category, validated agains
 - `risk` — `critical`, `high`, `medium`, or `low`
 - `enabled` — Set `false` to ship a rule disabled by default
 
-`SENSITIVE_RULES` in `src/shared/constants.js` is deprecated and not read at runtime — editing it has no effect on detection.
-
 ## Issue Labels
 
 When filing issues, use these labels:
