@@ -102,17 +102,17 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 
 ### What's NOT Covered Yet (Blind Spots → Future Work)
 
-| Blind Spot | Description | Planned Approach |
+| Blind Spot | Description | Planned Approach / Status |
 |---|---|---|
 | **UI Awareness** | Cannot see what AI agents display or interact with in UI | Accessibility API monitoring (no screen capture) |
 | **Container/VM Detection** | Detected — 7 container/VM agents added (Docker, WSL, Ollama, LM Studio, LocalAI, GPT4All, Jan) | Process pattern matching for containers + GPU monitoring |
-| **Sandbox Containment** | Monitor-only — cannot isolate or restrict agents | Job Objects (Windows), AppContainer, Linux namespaces |
+| **Sandbox Containment** | Monitor-only — cannot isolate or restrict agents | Non-goal: OS containment (Job Objects, AppContainer) is deliberately out of scope; pair AEGIS with external sandboxing |
 | **GPU Monitoring** | Cannot detect local inference processes | GPU utilization APIs, process GPU memory tracking |
-| **Deep Packet Inspection** | Sees TCP endpoints but not encrypted payloads | TLS interception proxy with user consent |
-| **Syscall Monitoring** | No kernel-level visibility into system calls | Windows Minifilter, macOS Endpoint Security, Linux eBPF |
-| **Memory Inspection** | Cannot inspect agent process memory | ReadProcessMemory API, `/proc/[pid]/mem` |
+| **Deep Packet Inspection** | Sees TCP endpoints but not encrypted payloads | Non-goal: TLS interception is deliberately out of scope; endpoints-only is the contract |
+| **Syscall Monitoring** | No kernel-level visibility into system calls | Kernel drivers (Minifilter/Endpoint Security/eBPF) are a non-goal; user-mode ETW telemetry is under evaluation |
+| **Memory Inspection** | Cannot inspect agent process memory | Non-goal: process-memory reading is deliberately out of scope |
 | **Cross-device Correlation** | Single-machine visibility only | Local network discovery + shared audit format |
-| **Mac/Linux parity** | Narrower than it looks: `platform/darwin.js` and `platform/linux.js` both implement `listProcesses()` (via `ps`) and `suspendProcess()`/`resumeProcess()` (via `posix-shared.js`), so process scanning and stop/resume are cross-platform. What is Windows-only is open-handle detection via the Restart Manager (`rstrtmgr.dll`); POSIX falls back to `lsof` / `/proc` | `fanotify` (Linux) and Endpoint Security (macOS) for richer file-access attribution |
+| **Mac/Linux parity** | Narrower than it looks: `platform/darwin.js` and `platform/linux.js` both implement `listProcesses()` (via `ps`) and `suspendProcess()`/`resumeProcess()` (via `posix-shared.js`), so process scanning and stop/resume are cross-platform. What is Windows-only is open-handle detection via the Restart Manager (`rstrtmgr.dll`); POSIX falls back to `lsof` / `/proc` | `fanotify` (Linux) for richer file-access attribution |
 
 ## Module Dependency Diagram
 
