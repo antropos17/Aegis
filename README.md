@@ -91,7 +91,7 @@ AI agents run with deep access to files, credentials, and shell commands. The ri
 
 ### Windows installer
 
-Starting with v0.11.0-alpha, releases ship a Windows NSIS installer — download the `.exe` from the [latest release](https://github.com/antropos17/Aegis/releases/latest). Each release also ships a signed manifest, so a download can be verified offline against the public key committed in this repository — see [Verifying an AEGIS release](docs/RELEASE-VERIFICATION.md).
+Starting with v0.11.0-alpha, releases ship a Windows NSIS installer — download the `.exe` from the [latest release](https://github.com/antropos17/Aegis/releases/latest). Releases from v0.13.0-alpha onward also ship a signed manifest, so a download can be verified offline against the public key committed in this repository — see [Verifying an AEGIS release](docs/RELEASE-VERIFICATION.md). Earlier releases ship no manifest and cannot be verified this way.
 
 ### From source (all platforms)
 
