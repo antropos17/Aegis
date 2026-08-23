@@ -230,12 +230,10 @@ Add custom agents via the UI or edit the JSON. See [AGENTS.md](AGENTS.md).
 
 Everything below is **planned**, not shipped. AEGIS today is monitor-only (see [Monitor-first](#monitor-first)).
 
-- [ ] Active blocking — enforce rules on violation (today: observe & log only)
-- [ ] OS-level enforcement / kernel hooks (Windows Minifilter, macOS Endpoint Security, Linux eBPF)
+- [ ] Active blocking — enforce rules on violation (userspace, pre-execution; kernel drivers are a non-goal) (today: observe & log only)
 - [ ] Surface per-sensor health in the UI — main-process records exist ([design](docs/roadmap/sensor-health-degraded.md))
 - [ ] MITRE ATT&CK mapping for detection rules
 - [ ] ML-based anomaly detection (today: hard-coded heuristic weights)
-- [ ] TLS / encrypted-traffic visibility, with user consent (today: TCP endpoints only)
 - [ ] First-class macOS & Linux support (currently experimental — [#37](https://github.com/antropos17/Aegis/issues/37))
 - [ ] GPU monitoring for local inference detection
 - [ ] Per-process file attribution (ETW, fanotify) — static recon: [docs/recon/kernel-file-etw.md](docs/recon/kernel-file-etw.md)
