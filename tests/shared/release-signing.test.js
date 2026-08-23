@@ -234,6 +234,25 @@ describe('release signing rejects tampering', () => {
     expect(verified.status).not.toBe(0);
   });
 
+  it('says the renamed file is the unmatched one when it was also altered', () => {
+    // The realistic bad case: GitHub renamed the asset on upload AND the copy the
+    // reader has was modified. The manifest row resolves by neither name nor hash, so
+    // "MISSING" alone would describe a file sitting right there in the directory.
+    const fixture = makeSignedFixture('renamed-and-tampered');
+    const renamed = path.join(fixture.dir, 'AEGIS.Setup.0.0.0.test.exe');
+    fs.renameSync(fixture.installer, renamed);
+    const bytes = fs.readFileSync(renamed);
+    bytes[0] ^= 0xff;
+    fs.writeFileSync(renamed, bytes);
+
+    const verified = run(VERIFY, ['--dir', fixture.dir, '--pubkey', publicKeyPath]);
+    expect(verified.output).toContain('MISSING');
+    expect(verified.output).toContain('present here but matching no manifest entry');
+    expect(verified.output).toContain('AEGIS.Setup.0.0.0.test.exe');
+    expect(verified.output).toContain('its bytes differ from what was signed');
+    expect(verified.status).not.toBe(0);
+  });
+
   it('fails when --file is pointed at something the manifest does not cover', () => {
     const fixture = makeSignedFixture('unsigned-file');
     const stray = path.join(fixture.dir, 'not-ours.exe');

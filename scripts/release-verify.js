@@ -405,20 +405,36 @@ function main() {
   }
 
   const { problems, unmatched } = checkAssets(entries, candidates);
+  const extras = unmatched.map((candidate) => candidate.label);
+  /** Context lines printed with the failures but not counted as failures themselves. */
+  const notes = [];
 
-  for (const extra of unmatched) {
-    if (explicit) {
-      problems.push('UNSIGNED  ' + extra.label + ' - matches no entry in the signed manifest');
-    } else {
-      // Not fatal: GitHub attaches auto-generated source archives to every Release and
-      // those are not produced or signed by CI.
-      console.log('  --  ' + extra.label + ' is present but NOT covered by the manifest');
+  if (explicit) {
+    for (const label of extras) {
+      problems.push('UNSIGNED  ' + label + ' - matches no entry in the signed manifest');
+    }
+  } else if (problems.length > 0 && extras.length > 0) {
+    // An asset that was renamed on upload AND altered afterwards lands here: its
+    // manifest row resolves by neither name nor hash, and the file the reader actually
+    // downloaded matches nothing. Reporting only MISSING about a file that is plainly
+    // sitting in the directory reads as a verifier bug rather than as tampering.
+    notes.push(
+      'NOTE  present here but matching no manifest entry: ' +
+        extras.join(', ') +
+        '. If one of these is your download of an asset reported MISSING above, its bytes differ from what was signed.',
+    );
+  } else {
+    // Not fatal: GitHub attaches auto-generated source archives to every Release and
+    // those are not produced or signed by CI.
+    for (const label of extras) {
+      console.log('  --  ' + label + ' is present but NOT covered by the manifest');
     }
   }
 
   if (problems.length > 0) {
     console.error('');
     for (const problem of problems) console.error('release-verify: ' + problem);
+    for (const note of notes) console.error('release-verify: ' + note);
     fail(problems.length + ' problem(s) against the signed manifest');
   }
 

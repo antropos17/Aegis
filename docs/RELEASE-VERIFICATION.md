@@ -120,7 +120,9 @@ and compare that digest with the matching `sha256` field in `manifest.json`.
 changed after signing — including a change as small as re-saving the file with different
 line endings. `HASH MISMATCH` or `SIZE MISMATCH` means the manifest is authentic but the
 asset next to it is not the file that was signed. `MISSING` means no file in the
-directory carries the recorded hash at all.
+directory carries the recorded hash at all — and when some file in the directory matches
+no manifest row either, the verifier adds a `NOTE` line naming it, because a download
+that was renamed on upload *and* altered afterwards shows up as exactly that pair.
 
 In every one of those cases, do not run the installer. Re-download from the Release page
 and check again; if it still fails, open an issue with the output.
