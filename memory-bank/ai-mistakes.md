@@ -52,6 +52,36 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     A `npm install` that succeeds locally proves nothing about the resolver that will read
     the file.
 
+35. **Confirmed good approach — a release-please PR's CI is PARKED, not slow, and one manual
+    approve per release is a budgeted step rather than a defect.** Measured 2026-08-23 shipping
+    `aegis-v0.13.0-alpha` (PR #265, merge `c6830ff`). A workflow run on a PR that GITHUB_TOKEN
+    opened is CREATED and then held: `status: completed`, `conclusion: action_required`, and
+    **zero jobs**. `gh pr view <n> --json statusCheckRollup` therefore answers `[]` — the five
+    required contexts are ABSENT, not pending, which is not a state that resolves by waiting,
+    and on the PR page it is indistinguishable from a queue that has not got to you yet. On the
+    `release-please--branches--master--components--aegis` branch,
+    `gh run list --branch <branch> --limit 100` answered 80 `action_required` against 5
+    `success`: parked is the DEFAULT for that branch, not an incident to re-diagnose each
+    release.
+    **No Actions setting changes it.** `repos/{owner}/{repo}/actions/permissions` is
+    `enabled: true, allowed_actions: all`, and `.../actions/permissions/workflow` publishes only
+    `default_workflow_permissions` and `can_approve_pull_request_reviews` — neither governs this.
+    The approval is a platform rule about token-authored events; stop hunting for the toggle and
+    budget the click instead.
+    **How to apply — find the run by HEAD SHA, never by list position or attempt number.**
+    `gh pr view <n> --json headRefOid`, match it in
+    `gh run list --branch <branch> --json databaseId,headSha`, then
+    `gh api repos/{owner}/{repo}/actions/runs/{id}/approve -X POST`. The attempt counter is not
+    a signal: the two approved runs on this branch came back `run_attempt: 2` (`13a27eb`,
+    0.13.0-alpha) and `run_attempt: 1` (`df863e4`, 0.12.0-alpha).
+    **Every `update-branch` resets the whole thing.** master is `strict: true`, so any merge
+    landing while the release PR is open turns it BEHIND, and the updated head is a NEW SHA whose
+    run is parked from scratch — the earlier approval does not carry over, and the green already
+    read describes a SHA that is no longer the head. Re-verify status after each update (cf.
+    #34(b), the identical second round on fork PRs, and #34(c) — that branch update is a merge
+    commit, so audit its file list; #21 — a command that ran is not a command that inspected your
+    change).
+
 ## Migrations
 19. Migrates ONE identity store to a new key and stops — when an identity key changes (bare pid → instanceId), sweep ALL sibling consumers in the same effort: session-tracker, file-watcher knownHandles AND token-tracker each held their own pid-keyed map (PR #180–182). A half-migrated identity is worse than none: the migrated store and the stale one silently disagree about who a process is.
 
