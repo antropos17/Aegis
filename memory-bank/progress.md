@@ -1,7 +1,9 @@
 # AEGIS Progress
 
 ## Status
-Version 0.10.0-alpha. 110 agents / 262 signatures in database. 73 rules across 8 YAML. build:renderer clean. 46 CJS modules in src/main. **Phase 1 P0 CLOSED — C-01…C-05 all DONE. instanceId rollout COMPLETE (PR #180–182). Identity migration: C1, C2 (main + renderer), C6, C7 closed. tsconfig debt CLOSED (#184), docs truth-synced (#185), audit buffer bounded (#186).**
+The current version lives in `package.json` (`node -p "require('./package.json').version"`).
+Agent, signature, rule and module counts are derived from the tree by `scripts/counts.js` (`npm run counts:check`), not pinned here.
+Entries in this file are appended chronologically, newest at the bottom.
 
 ## feat/identity-main — identity migration (branch `feat/identity-main`)
 **Steps 1–5 + 7 of `docs/current-state/IDENTITY-RECON.md` §6 (main stamp/carry + renderer correlation including anomaly).** Every identity value the main process emits is an OS-grounded instance key, or an honest `null`.
