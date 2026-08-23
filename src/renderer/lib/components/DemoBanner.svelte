@@ -7,7 +7,7 @@
   </span>
   <a
     class="demo-link"
-    href="https://github.com/anthropos17/Aegis"
+    href="https://github.com/antropos17/Aegis"
     target="_blank"
     rel="noopener noreferrer"
   >
