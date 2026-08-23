@@ -24,15 +24,17 @@
 
 ## For AI agents (Claude Code)
 
+Replace `<repo-root>` with the path to your local Aegis checkout before running these commands.
+
 ```powershell
 # Create branch
-powershell.exe -NoProfile -Command "cd 'X:\dev\project\AEGIS'; git checkout -b feat/feature-name"
+powershell.exe -NoProfile -Command "cd '<repo-root>'; git checkout -b feat/feature-name"
 
 # Make changes, commit
-powershell.exe -NoProfile -Command "cd 'X:\dev\project\AEGIS'; git add file1 file2; git commit -m 'feat(scope): description'"
+powershell.exe -NoProfile -Command "cd '<repo-root>'; git add file1 file2; git commit -m 'feat(scope): description'"
 
 # Push branch
-powershell.exe -NoProfile -Command "cd 'X:\dev\project\AEGIS'; git push origin feat/feature-name"
+powershell.exe -NoProfile -Command "cd '<repo-root>'; git push origin feat/feature-name"
 
 # Create PR
 gh pr create --title 'feat(scope): description' --base master
