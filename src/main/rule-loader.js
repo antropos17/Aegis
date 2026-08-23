@@ -5,8 +5,8 @@
  * @file rule-loader.js
  * @module main/rule-loader
  * @description Loads YAML ruleset files from rules/, validates against JSON Schema,
- *   and compiles pattern strings into RegExp objects. Provides the same contract
- *   as SENSITIVE_RULES in constants.js: { pattern: RegExp, reason: string }.
+ *   and compiles pattern strings into RegExp objects. Every loaded rule carries
+ *   at least { pattern: RegExp, reason: string } — full shape in LoadedRule.
  */
 
 const fs = require('fs');
