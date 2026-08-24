@@ -121,8 +121,18 @@ describe('bench/score.js — scoring a run directory', () => {
       'observed.ndjson',
       'oracle-loss.json',
       'oracle-sysmon.ndjson',
+      'steps.json',
     ]);
-    for (const input of written.inputs) expect(input.sha256).toMatch(/^[0-9a-f]{64}$/);
+    // Every file that WAS read carries a digest. The two this model does not hold
+    // are listed as absent with the reason, rather than left out of the list —
+    // a provenance record that silently omits what it did not read is a shorter
+    // list, not an honest one.
+    const absent = written.inputs.filter((input) => input.present === false);
+    expect(absent.map((input) => input.name).sort()).toEqual(['steps.json']);
+    for (const input of absent) expect(input.reason).toBeTruthy();
+    for (const input of written.inputs.filter((entry) => entry.present === undefined)) {
+      expect(input.sha256).toMatch(/^[0-9a-f]{64}$/);
+    }
   });
 
   it('says the whole score out loud, per category and per column', () => {
@@ -333,5 +343,94 @@ describe('bench/score.js — the measurement column imports nothing from src/', 
     visit(path.join(REPO, 'bench', 'score.js'));
     expect(graph.size).toBeGreaterThan(1);
     expect([...graph].some((file) => file.includes(`${path.sep}src${path.sep}`))).toBe(false);
+  });
+});
+
+describe('bench/score.js — steps.json, and the expectation nothing ever executed', () => {
+  /**
+   * Score one model and read the block back.
+   * @param {string} id
+   * @returns {Object}
+   */
+  function scenarioSteps(id) {
+    const target = path.join(tmp, `steps-${id}`);
+    expect(score.main([path.join(DERIVED, id), '--out', target])).toBe(0);
+    return JSON.parse(fs.readFileSync(path.join(target, metrics.METRICS_FILENAME), 'utf8'));
+  }
+
+  it('counts what each declared step did, instead of reporting the question unanswerable', () => {
+    const written = scenarioSteps('M4-step-failed-to-execute');
+    expect(written.scenarioSteps.value).toEqual({ declared: 4, ok: 2, failed: 1, skipped: 1 });
+    expect(written.scenarioSteps.source).toBe(metrics.STEPS_FILENAME);
+    expect(written.scenarioSteps.unavailable).toBeUndefined();
+  });
+
+  it('names the expectations no catalogue row can ever account for', () => {
+    const written = scenarioSteps('M4-step-failed-to-execute');
+    // Three steps claimed an expectation and one produced a row. Without this
+    // file, E2 and E3 are indistinguishable from expectations a sensor missed.
+    expect(written.scenarioSteps.expectations).toEqual({
+      claimed: 3,
+      emitted: 1,
+      notExecuted: 2,
+    });
+    expect(written.scenarioSteps.notExecuted.map((step) => [step.expect, step.status])).toEqual([
+      ['E2', 'failed'],
+      ['E3', 'skipped'],
+    ]);
+    expect(written.scenarioSteps.notExecuted[0].error).toMatch(/ENOENT/);
+    expect(written.scenarioSteps.meaning).toMatch(
+      /neither a sensor miss nor an unconfirmed catalogue row/,
+    );
+  });
+
+  it('leaves those expectations out of BOTH columns, in every category', () => {
+    const written = scenarioSteps('M4-step-failed-to-execute');
+    // The catalogue holds one row where the scenario declared three expectations.
+    // The two that never ran are not unconfirmed rows and not sensor misses:
+    // their categories are simply empty, and read 0/0 with no number.
+    expect(written.groundTruth['file/creation'].confirmationRate).toBe('1/1');
+    for (const category of ['process/start', 'file/deletion']) {
+      expect(written.groundTruth[category].catalogued).toBe(0);
+      expect(written.groundTruth[category].unconfirmedRows).toEqual([]);
+      expect(written.sensor[category].recall).toBe('0/0');
+      expect(written.sensor[category].recallValue).toBeNull();
+      expect(written.sensor[category].notDetected).toBe(0);
+    }
+  });
+
+  it('records the artefact as an honest absence when a run directory holds none', () => {
+    const written = scenarioSteps('M1-fully-confirmed');
+    expect(written.scenarioSteps.value).toBeNull();
+    expect(written.scenarioSteps.unavailable).toMatch(/holds no readable steps\.json/);
+    expect(written.scenarioSteps.unavailable).toMatch(
+      /rather than inferred from a catalogue that is shorter than its scenario/,
+    );
+    const absent = written.inputs.find((input) => input.name === metrics.STEPS_FILENAME);
+    expect(absent.present).toBe(false);
+  });
+
+  it('digests it into the provenance when it is there', () => {
+    const written = scenarioSteps('M4-step-failed-to-execute');
+    const input = written.inputs.find((entry) => entry.name === metrics.STEPS_FILENAME);
+    expect(input.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(input.present).toBeUndefined();
+  });
+
+  it('holds it to the same run identity as every other record', () => {
+    const dir = stage('M4-step-failed-to-execute');
+    patch(dir, metrics.STEPS_FILENAME, (steps) => ({ ...steps, runId: 'SOMEONE-ELSES-RUN' }));
+    expect(score.main([dir])).toBe(1);
+    expect(said(out)).toMatch(/disagree about "runId"/);
+    expect(said(out)).toMatch(/nothing was written/);
+    expect(fs.existsSync(path.join(dir, metrics.METRICS_FILENAME))).toBe(false);
+  });
+
+  it('refuses a steps.json that is there and does not parse', () => {
+    const dir = stage('M4-step-failed-to-execute', 'broken-steps');
+    fs.writeFileSync(path.join(dir, metrics.STEPS_FILENAME), '{ not json', 'utf8');
+    expect(score.main([dir])).toBe(1);
+    expect(said(out)).toMatch(/steps\.json is not valid JSON/);
+    expect(fs.existsSync(path.join(dir, metrics.METRICS_FILENAME))).toBe(false);
   });
 });

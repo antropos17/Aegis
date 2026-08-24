@@ -186,21 +186,24 @@ describe('bench/lib/metrics — what confirms a catalogue row', () => {
     expect(metrics.oracleKeyOf({ process: { pid: 900 } }, 'file/deletion')).toBeNull();
   });
 
-  it('folds an un-neutralized oracle path onto a neutralized catalogue path', () => {
-    // The catalogue and the capture are written through the recording rewrite and
-    // the oracle file is not (bench/lib/oracles/sysmon.js applies none), so on a
-    // live run the two columns name one file with two different roots. Built from
-    // the real clone root at test time, because a committed fixture cannot carry
-    // a path that is machine-dependent by definition.
+  it('folds a raw clone-root path onto the recorded one, whoever wrote it', () => {
+    // All three writers apply the recording rewrite themselves, so this fold is a
+    // no-op on their output — and it is kept because a path key that misses is
+    // indistinguishable from an oracle that saw nothing. Built from the real clone
+    // root at test time: a committed fixture cannot carry a path that is
+    // machine-dependent by definition.
     const tail = ['bench', 'runs', 'r1', 'stage', 'claude.exe'];
-    const oracleSide = path.join(paths.ROOT, ...tail);
-    const catalogueSide = path.join(paths.RECORDED_REPO_ROOT, ...tail);
-    expect(metrics.foldPath(oracleSide)).toBe(metrics.foldPath(catalogueSide));
+    const raw = path.join(paths.ROOT, ...tail);
+    const recorded = path.join(paths.RECORDED_REPO_ROOT, ...tail);
+    expect(metrics.foldPath(raw)).toBe(metrics.foldPath(recorded));
+    // Idempotent: folding an already-recorded path changes nothing.
+    expect(metrics.foldPath(metrics.foldPath(recorded))).toBe(metrics.foldPath(recorded));
     // The fold moves a root, not a name: two different files stay two files.
-    expect(metrics.foldPath(oracleSide)).not.toBe(
+    expect(metrics.foldPath(raw)).not.toBe(
       metrics.foldPath(path.join(paths.RECORDED_REPO_ROOT, 'bench', 'runs', 'r1', 'stage', 'x.exe')),
     );
-    expect(metrics.PATH_COMPARISON).toMatch(/FINDING, recorded and not fixed here/);
+    expect(metrics.PATH_COMPARISON).toMatch(/All three writers/);
+    expect(metrics.PATH_COMPARISON).not.toMatch(/FINDING/);
   });
 
   it('confirms nearest-first, one record per row, and never twice', () => {

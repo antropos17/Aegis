@@ -1186,3 +1186,155 @@ describe('sysmon oracle — the live boundary is untested and says so', () => {
     expect(xml).toMatch(/LIVE-UNVALIDATED/);
   });
 });
+
+/* --------------------------------------------------- the recording rewrite --- */
+
+describe('sysmon oracle — one path space with the catalogue', () => {
+  /** @type {ReadonlyArray<string>} The tail every artefact of a run shares. */
+  const TAIL = Object.freeze(['bench', 'runs', 'r1', 'stage', 'claude.exe']);
+
+  /**
+   * The absolute path this file WOULD have on the machine running the test —
+   * built from the real clone root, because a committed fixture cannot carry a
+   * path that is machine-dependent by definition.
+   * @type {string}
+   */
+  const REAL = path.join(manifest.ROOT, ...TAIL);
+
+  /**
+   * The same file, as a catalogue row records it. `catalogue.buildEvent` refuses
+   * a line whose observed fields are not credible, so this goes through the real
+   * builder rather than being hand-written.
+   * @returns {Object}
+   */
+  function catalogueRow() {
+    return catalogue.buildEvent({
+      scenario: 'S1-agent-lifecycle',
+      step: 'stage-binary',
+      expect: 'E1',
+      shape: 'file.creation',
+      observed: {
+        timestamp: '2026-08-14T12:01:00.123Z',
+        pid: 900,
+        executable: 'C:\\Program Files\\nodejs\\node.exe',
+        path: REAL,
+        name: 'claude.exe',
+        directory: path.dirname(REAL),
+        sizeBytes: 45056,
+        sha256: 'a'.repeat(64),
+      },
+    });
+  }
+
+  /**
+   * The same file, as a SYNTHETIC EID 11 reports it.
+   * @returns {Object}
+   */
+  function oracleRow() {
+    const { events } = normalize([
+      syntheticEventXml({
+        eventId: 11,
+        systemTime: '2026-08-14T12:01:00.1234567Z',
+        recordId: 5001,
+        data: {
+          RuleName: 'bench-run-dir',
+          UtcTime: '2026-08-14 12:01:00.123',
+          ProcessGuid: GUID_A,
+          ProcessId: '900',
+          Image: 'C:\\Program Files\\nodejs\\node.exe',
+          TargetFilename: REAL,
+          CreationUtcTime: '2026-08-14 12:01:00.123',
+        },
+      }),
+    ]);
+    return events[0];
+  }
+
+  it('records the neutralized path, byte-equal to what the catalogue writes', () => {
+    const oracle = oracleRow();
+    const expected = catalogueRow();
+
+    // The premise of the assertion: on this machine the raw path is NOT already
+    // neutral, so an adapter that skipped the rewrite would fail here.
+    expect(REAL).not.toBe(manifest.neutralizePath(REAL));
+    expect(expected.file.path).toBe(manifest.neutralizePath(REAL));
+
+    // The whole point of B2.5's confirmation join: one file, one string.
+    expect(oracle.file.path).toBe(expected.file.path);
+    expect(oracle.file.directory).toBe(expected.file.directory);
+    expect(oracle.file.name).toBe(expected.file.name);
+    expect(oracle.file.path).not.toContain(manifest.ROOT);
+  });
+
+  it('derives name and directory from the recorded path, not from the raw one', () => {
+    // Rewritten at BUILD and not only at serialize, the way observed.js rewrites
+    // before splitting: an in-memory record still naming the clone root would put
+    // this column in a different path space for any caller holding it.
+    const oracle = oracleRow();
+    expect(oracle.file.directory).toBe(path.dirname(manifest.neutralizePath(REAL)));
+    expect(JSON.stringify(oracle)).not.toContain(manifest.ROOT);
+  });
+
+  it('survives the round trip to disk unchanged, through the shared serializer', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-bench-oracle-neutral-'));
+    try {
+      const file = sysmon.write(dir, [oracleRow()]);
+      const line = JSON.parse(fs.readFileSync(file, 'utf8').trim());
+      expect(line.file.path).toBe(catalogueRow().file.path);
+      expect(fs.readFileSync(file, 'utf8')).not.toContain(manifest.ROOT);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('rewrites the loss accounting too, where a path hides inside a sentence', () => {
+    // oracle-loss.json carries paths in places a path-shaped field name would not
+    // find them: an EID 23 target, and the command line of the reader that ran.
+    const { tally } = normalize([
+      syntheticEventXml({
+        eventId: 23,
+        systemTime: '2026-08-14T12:02:00.0000000Z',
+        recordId: 5002,
+        data: {
+          UtcTime: '2026-08-14 12:02:00.000',
+          ProcessGuid: GUID_B,
+          ProcessId: '900',
+          TargetFilename: REAL,
+        },
+      }),
+    ]);
+    expect(tally.archivalDeletes[0].targetFilename).toBe(REAL);
+
+    const loss = sysmon.buildLoss({
+      runId: 'r1',
+      scenario: 'S1-agent-lifecycle',
+      arm: 'A',
+      window: { start: WINDOW_START, end: WINDOW_END },
+      config: { configPath: 'bench/oracles/sysmon-bench.xml', configSha256: 'x'.repeat(64) },
+      collection: { ran: true, reader: `powershell -File ${REAL}` },
+      tally,
+      events: [],
+    });
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-bench-loss-neutral-'));
+    try {
+      const bytes = fs.readFileSync(sysmon.writeLoss(dir, loss), 'utf8');
+      const onDisk = JSON.parse(bytes);
+      expect(onDisk.archivalDeletes.records[0].targetFilename).toBe(
+        manifest.neutralizePath(REAL),
+      );
+      expect(onDisk.collection.reader).toContain(manifest.neutralizePath(REAL));
+      expect(bytes).not.toContain(manifest.ROOT);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('moves a root and an account name and nothing else', () => {
+    // A rewrite that could merge two files into one name would manufacture
+    // confirmations. It replaces a prefix; it does not touch a basename.
+    const other = path.join(manifest.ROOT, 'bench', 'runs', 'r1', 'stage', 'cursor.exe');
+    expect(manifest.neutralizePath(REAL)).not.toBe(manifest.neutralizePath(other));
+    expect(manifest.neutralizePath(REAL).endsWith('\\stage\\claude.exe')).toBe(true);
+  });
+});
