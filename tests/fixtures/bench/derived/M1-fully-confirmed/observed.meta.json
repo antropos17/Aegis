@@ -1,0 +1,29 @@
+{
+  "runId": "DERIVED-M1-fully-confirmed",
+  "scenario": "M1-fully-confirmed",
+  "arm": "A",
+  "derived": {
+    "kind": "derived-model",
+    "recorded": false,
+    "capture": "No capture happened. bench/lib/observed.js never ran, no Electron profile existed, no aegis-audit-<day>.json was read and no hash chain was verified. Every field below is a modelling parameter, chosen so bench/score.js can read this directory at all.",
+    "readMeFirst": "README.md, in this directory"
+  },
+  "sensor": {
+    "scanInterval": {
+      "value": 10,
+      "source": "MODELLED — stipulated at the 10 s scanIntervalSec that src/main/config-manager.js defaults to. No settings.json was read, because none existed. It is written here because bench/lib/report.js maxLatencyFrom() derives the join window from it, and a directory carrying none is refused rather than defaulted"
+    },
+    "ticksWhileProcessAlive": 3,
+    "ticksWhileProcessAliveSource": "MODELLED — any count above zero would do. It exists so the process categories are scored as coverage instead of being labelled structurally unobservable. No scan tick was ever taken"
+  },
+  "window": {
+    "start": "2026-08-20T12:00:00.000Z",
+    "end": "2026-08-20T12:01:00.000Z",
+    "epsilonMs": 250
+  },
+  "observed": {
+    "events": 5,
+    "source": "MODELLED — the rows in observed.ndjson, written by hand"
+  },
+  "failure": null
+}

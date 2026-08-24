@@ -57,6 +57,8 @@ npm run bench:s1                                         # the line above, witho
 npm run bench:run -- --scenario S1-agent-lifecycle --arm B   # oracle only: no sensor, no renderer
 node bench/replay.js bench/runs/<run id>                 # rebuild that run's report from its files
 node bench/replay.js bench/runs/<run id> --out <file>    # write the rebuild elsewhere
+npm run bench:score -- bench/runs/<run id>               # confirm the catalogue, then score the sensor
+node bench/score.js bench/runs/<run id> --out <dir>      # write the score elsewhere
 ```
 
 Arm B needs no built renderer and starts no sensor: it executes the scenario and collects the
@@ -65,6 +67,10 @@ and exits **1** — which is the honest outcome, not a harness failure. See
 [The Sysmon oracle](#the-sysmon-oracle--b23).
 
 The `--` is required; without it npm keeps the flags.
+
+`bench/score.js` needs no sensor, no scenario, no oracle channel and no built renderer either:
+it reads one recorded run directory and writes `matched.ndjson` and `metrics.json` beside the files
+it derived them from. See [The metrics](#the-metrics--b25).
 
 In arm A a run takes roughly three minutes: about ninety seconds of it is waiting for the sensor's
 scan cadence to settle, then the scenario, then three more scan ticks and a flush drain.
@@ -94,13 +100,14 @@ for a given deterministic scenario, and only then does A score the sensor agains
 
 ## Layout
 
-Present today (sub-blocks B2.1, B2.2, the arm-A capture, the first join and B2.3's Sysmon
-adapter):
+Present today (sub-blocks B2.1, B2.2, the arm-A capture, the first join, B2.3's Sysmon
+adapter and B2.5's metrics):
 
 ```
 bench/
   run.js                                    # create a run directory, execute a scenario, run the sensor
   replay.js                                 # rebuild one recorded run's report from its files; no sensor
+  score.js                                  # confirm one recorded run's catalogue against the oracle, then score the sensor; no sensor, no channel
   scenario.schema.json                      # draft-07; the shape of a scenario
   lib/manifest.js                           # environment snapshot; absent facts stay absent
   lib/actor.js                              # executes steps, captures what happened
@@ -109,6 +116,7 @@ bench/
   lib/observed.js                           # writes observed.ndjson out of the product's audit log
   lib/join.js                               # joins the two, shapes run-report.json; no I/O at all
   lib/report.js                             # the join bound, the report's exact bytes, the printed summary and the renderer fingerprint — shared by both entrypoints
+  lib/metrics.js                            # confirms the catalogue against the oracle and scores the sensor over what came back confirmed; no I/O at all
   lib/oracles/sysmon.js                     # normalizes Sysmon EventRecord XML; writes oracle-sysmon.ndjson and oracle-loss.json
   oracles/sysmon-bench.xml                  # the Sysmon config a run is measured under — never yet offered to a binary
   scenarios/S1-agent-lifecycle/scenario.json
@@ -131,7 +139,6 @@ built — nothing below exists yet:
 
 | path | sub-block |
 |---|---|
-| `bench/score.js`, `bench/lib/metrics.js` | B2.5 |
 | `bench/lib/oracles/procmon.js`, `bench/oracles/procmon-bench.pmc` | B2.6 |
 | `bench/report.js` | B2.9 |
 
@@ -421,8 +428,10 @@ number is read as a property of the sensor:
 
 The oracle column runs in the two arms whose definition includes Sysmon, **A and B**, and writes
 two files: `oracle-loss.json` always, and `oracle-sysmon.ndjson` when there is at least one record
-to put in it. It does not reach `run-report.json`: confirming the catalogue against the oracle is
-B2.5, and until then the report still scores the sensor against an unconfirmed catalogue.
+to put in it. It does not reach `run-report.json`, and that has not changed: `run-report.json`
+still scores the sensor against an UNCONFIRMED catalogue and says so. Confirming the catalogue
+against this column is a separate artefact written by a separate entrypoint — `metrics.json`, from
+`bench/score.js`. See [The metrics](#the-metrics--b25).
 
 `bench/lib/oracles/sysmon.js` imports nothing from `src/` and nothing from `bench/lib/observed.js`
 either — that module is the sensor side, and an oracle sharing code with the thing it confirms
@@ -434,7 +443,7 @@ stops being independent. The two path helpers are duplicated on purpose.
 |---|---|---|
 | RAW | a real `Microsoft-Windows-Sysmon/Operational` channel → `Get-WinEvent` → EventRecord XML | **LIVE-UNVALIDATED** |
 | NORMALIZED | EventRecord XML → canonical oracle record → `oracle-sysmon.ndjson` | proven offline |
-| DERIVED | matching the oracle against the catalogue, and any metric over it | B2.5 |
+| DERIVED | matching the oracle against the catalogue, and any metric over it | built (B2.5), and no stronger than the layer above it |
 
 `readChannelXml` is the ONE function that crosses the raw boundary, it is injectable, and **no
 test in this repository has ever executed it**: the machine this was built on runs Windows 11 Home
@@ -555,8 +564,10 @@ configuration the run *would* have used rather than evidence that it was applied
 At the end of an arm-A run the catalogue and the observation set are joined, and the result is
 written to `run-report.json`: per category, how many events were expected, how many the sensor
 accounted for, and how long it took. This is the first row of the measurement matrix and it scores
-the sensor against the catalogue only. The catalogue is still **unconfirmed** here: B2.3 collects
-the oracle column into its own files, and reading that column against the catalogue is B2.5.
+the sensor against the catalogue only, and the catalogue is still **unconfirmed** here. That is not a
+gap left open: `run-report.json` is deliberately the sensor-versus-catalogue row of the matrix and
+nothing in it moved when B2.5 landed. Confirmation lives one artefact along, in `metrics.json` —
+see [The metrics](#the-metrics--b25) — where a recall figure is taken over the confirmed rows only.
 
 `bench/lib/join.js` **reads and writes nothing**. It takes two arrays and the window parameters and
 returns an object; `run.js` owns every byte that touches the disk. A unit test asserts the module
@@ -639,6 +650,246 @@ counting it as a sensor failure.
 
 **There is no confidence figure in this report and there will not be one.** Every number it carries
 is a count of rows or a difference of two timestamps.
+
+## The metrics — B2.5
+
+`bench/score.js` takes one recorded run directory and writes two files into it: `matched.ndjson`,
+one line per catalogue row carrying both of its verdicts, and `metrics.json`, the counts over them.
+`bench/lib/metrics.js` does the arithmetic and, like `join.js`, **reads and writes nothing** — a
+unit test asserts it names no filesystem API and that nothing under `src/` appears anywhere in its
+module graph.
+
+It needs no sensor, no scenario, no oracle channel and no built renderer, and it is a pure function
+of the bytes in the directory: the same run scored twice produces byte-identical output, because
+nothing about the moment of scoring reaches the files.
+
+### Two arcs, and there is no third
+
+```
+              expected.ndjson   (the catalogue — the fixed point)
+                  /                            \
+   confirmation  /                              \  visibility
+  oracle-sysmon.ndjson                      observed.ndjson
+```
+
+Both columns are scored against the catalogue and never against each other. **No figure anywhere in
+`metrics.json` is derived by matching the oracle against the sensor**, and one refinement was
+rejected on exactly that ground rather than left unmentioned — see
+[the rejected refinement](#the-refinement-that-was-rejected).
+
+The two arcs are independent in a way worth knowing: confirmation does not use the join window at
+all, so a run whose `sensor.scanInterval` came back absent still produces a complete confirmation
+column, with only the sensor column unavailable.
+
+### What confirms a catalogue row
+
+| category | Sysmon event | key | what that event cannot settle |
+|---|---|---|---|
+| `process/start` | 1 ProcessCreate | `process.pid` **and** `process.executable` | an EID 1 carrying no `Image` cannot satisfy the key and confirms nothing. **pid alone is not a fallback**: two generations sharing one pid are two generations |
+| `process/end` | 5 ProcessTerminate | `process.pid` alone | Microsoft's field list for EID 5 is `UtcTime`, `ProcessGuid`, `ProcessId` — there is no image to key on, and `sysmon-bench.xml` logs terminations machine-wide, so a same-pid coincidence inside the window cannot be separated. `ProcessGuid` is carried beside the confirmation as evidence and is never a key; pairing an EID 5 to its EID 1 is `oracle-loss.json`'s lifecycle accounting and is deliberately not re-derived |
+| `file/creation` | 11 FileCreate | `file.path` | EID 11 carries no hash, so the sha256 and size the catalogue observed are corroborated by nothing. It reports create and overwrite; an append produces no EID 11 |
+| `file/deletion` | 26 FileDeleteDetected | `file.path` | 23 is never read as a deletion — `lib/oracles/sysmon.js` refuses it at the source |
+
+These are **not** `join.js`'s keys. Those are the bounds of the audit, which persists a pid for a
+process event and a path for a file event and nothing else. The oracle is not information-starved in
+the same way, so `process/start` takes two independent fields and a same-pid coincidence cannot
+confirm it.
+
+**No window and no epsilon.** The oracle window is `[the run's startedAt, the moment collection
+began]` and the catalogue is written inside it, both ends read off the harness's own clock — so
+everything the scenario caused lies inside both columns by construction and nothing has to be pulled
+in by a tolerance. The ~2 s figure in RESEARCH-BASELINE §10 is a tolerance between Sysmon's *own two
+representations*; guest-clock uncertainty is a different quantity, it is unmeasured, and the two are
+never merged. Each confirmation records `stampDeltaMs`, oracle minus catalogue — an observation, and
+explicitly **not** a latency and not a measured clock offset. No bound anywhere is derived from it.
+
+**Cardinality**, the same rule the join uses: one oracle record confirms at most one catalogue row
+and one row is confirmed by at most one record; the smallest absolute stamp delta wins, ties break on
+file order.
+
+**Path comparison, and a finding.** `lib/catalogue.js` and `lib/observed.js` write every path
+through the recording rewrite in `lib/paths.js`; **`lib/oracles/sysmon.js` writes none.** So on a
+live run the catalogue names a staged binary under the recorded clone root and the oracle names it
+under the real one, and a comparison that skipped the rewrite would fail on every path key of every
+run while looking like an oracle that saw nothing. B2.5 closes it on the comparison side: both sides
+are folded through `neutralizePath` and then through `join.normalizePath`, over values read from
+disk, and neither file is modified. The write-side asymmetry is left standing on purpose — it belongs
+to the oracle writer and closing it changes that artefact's bytes — and is recorded in
+`metrics.json` under `oracle.pathComparison`, which also names the residual: the rewrite moves the
+clone root of the tree doing the scoring, so a run scored on a different machine holds oracle paths
+that cannot be folded onto its catalogue.
+
+### Oracle coverage bounds what may be scored at all
+
+A category is **measurable** in a run when the oracle collected, an event of this column observes
+that category, and the configuration **the run itself recorded** enabled that event —
+`oracle-loss.json` `config.enabledEventIds`, beside the config's sha256. The authority is that
+record and never `bench/oracles/sysmon-bench.xml`: the committed file can have changed since the run,
+and a coverage claim read off it would describe a configuration nothing was measured under.
+
+An unmeasurable category carries `null` in every figure and a `reasonCode`. **It is never scored 0.**
+A zero is a measurement, and no measurement was made — the same distinction `manifest.json` draws
+between "we read 320 processes" and "we could not read the process count".
+
+Two ways to be unobservable, and they are not the same:
+
+- **No event exists.** Sysmon has no file-read event at all: EID 11 reports create and overwrite and
+  nothing else, and no event in the §10 oracle column observes a read or an append. Were the
+  catalogue's ECS subset to grow a `file/read` or `file/append` shape, it would be **unmeasurable
+  under this oracle** — not undetected. `ORACLE_BLIND` in `lib/metrics.js` names both with the
+  reason, and the static set is checked *before* the configuration, so a category no event observes
+  never reads as one that could be switched on.
+- **The event exists and the run did not enable it.** That one names the EID and the config digest,
+  and says that the absence of a confirmation is evidence about the configuration rather than about
+  the machine.
+
+Where a run's configuration excludes a category and oracle records of it are in the file anyway, the
+coverage block carries a `contradiction` line: nothing is guessed, and no row is confirmed off a
+record the recorded configuration says could not have been emitted.
+
+### The lifecycle of a catalogue row
+
+| state | condition | where it counts |
+|---|---|---|
+| **confirmed** | exactly one oracle record confirmed it | `confirmed`; **the only rows that become ground truth** |
+| **unconfirmed** | the oracle collected, the category is measurable, and no record confirmed it | `unconfirmed`, listed with its reason; **excluded from every recall and precision denominator**, and never a sensor miss |
+| **unmeasurable** | its category is not measurable in this run | the whole category is `null` |
+
+The reason codes are a closed list: `oracle-not-collected`, `category-unmeasurable`,
+`category-not-scored`, `row-carries-no-oracle-key`, `no-oracle-record-for-key`,
+`oracle-record-taken-by-a-nearer-row`.
+
+**"Failed to execute" is not on that list, and cannot be.** A step that fails emits no catalogue row
+at all — see [The catalogue](#the-catalogue) — so it is a state of a *step* and never of a row.
+`lib/actor.js` returns a status per step and `run.js` prints it without writing it, so **no file in a
+run directory carries step outcomes**. `metrics.json` records that as an explicit
+`scenarioSteps: {value: null, unavailable: …}` naming the missing artefact, rather than inferring it
+from a catalogue that is shorter than its scenario. Closing it would be a `steps.json` written by
+`run.js`; that is not part of B2.5.
+
+Two oracle-side counts sit beside the row counts and are never folded into them:
+`oracleRecordsUnusable` (records of the category carrying no key — an EID 1 with no `Image`) and
+`oracleRecordsOutsideCatalogue` (records that confirmed no row: real observations the scenario did
+not claim).
+
+### The figures, per category
+
+Everything below is **per category**. There is no accuracy figure, no F1 and no headline number in
+`metrics.json`, and there will not be one — every figure is a count of rows or a ratio of two such
+counts.
+
+**Confirmation — how much of the catalogue an independent source stood behind.** This is what arm B
+exists to establish.
+
+```
+catalogued(c)       = catalogue rows of category c
+confirmed(c)        = rows an oracle record confirmed
+unconfirmed(c)      = catalogued(c) − confirmed(c)
+confirmationRate(c) = confirmed(c) / catalogued(c)
+```
+
+`null` when the category is unmeasurable, and `0/0` with no number when the catalogue holds no row of
+it — a rate over nothing is not 0.
+
+**Visibility — what the sensor did about the rows that ARE ground truth.** The vocabulary is MITRE
+ATT&CK Evaluations', borrowed rather than invented (§10).
+
+```
+groundTruth(c) = confirmed(c)                                   ← the denominator
+detected(c)    = ground-truth rows the sensor recorded inside
+                 [expected, expected + maxLatencyMs]            → detection category Telemetry
+notDetected(c) = groundTruth(c) − detected(c)                   → detection category None
+recall(c)      = detected(c) / groundTruth(c)
+latencyMs(c)   = p50 and max over the detected pairs, with the same `basis` string join.js uses
+```
+
+`General`, `Tactic` and `Technique` — the Evaluations' Analytic Coverage tier — are **not used**.
+What a bench run compares is the product's audit record against an expected event, which is
+telemetry; labelling it with an analytic tier would claim an interpretation nothing here measures.
+
+Every `None` carries a modifier saying which kind of `None` it is. `delayed-beyond-bound` is the
+Evaluations' `Delayed` under this bench's own window. The other two —
+`stamped-before-the-expectation` and `observation-taken-by-a-nearer-expectation` — have no
+Evaluations counterpart, so they are named locally and **marked as local** rather than dressed in a
+standard name they do not come from.
+
+**Precision — a LOWER bound, and labelled as one.**
+
+```
+truePositives(c)        = detected(c)
+matchedUnconfirmed(c)   = observations that cancelled an UNCONFIRMED row   ← excluded from both sides
+unaccounted(c)          = observations that cancelled nothing
+precisionDenominator(c) = truePositives(c) + unaccounted(c)
+precision(c)            = truePositives(c) / precisionDenominator(c)
+```
+
+The partition is exact by construction: every observation of the category is a true positive, a
+`matchedUnconfirmed`, or `unaccounted`.
+
+It is a lower bound because every unaccounted observation is charged against precision, and some of
+them are real machine activity the scenario did not cause rather than sensor noise. This bench does
+not separate the two.
+
+### The refinement that was rejected
+
+Splitting `unaccounted` into "real activity" and "sensor noise" by asking whether the **oracle** also
+saw each one would tighten the denominator and make precision a measurement rather than a bound.
+
+**It is refused.** That question is a diff of two live streams, and the catalogue is the fixed point
+precisely so that no metric is ever computed that way. The rejection is carried in `metrics.json`
+under `rejected.oracleVsSensorCorroboration`, so it is a decision on the record rather than a gap a
+later reader closes by accident.
+
+### What score.js refuses, and what it writes anyway
+
+A directory nobody can fully read produces **no output at all**, exits 1, and names the reason: a
+missing, unreadable or unparseable file · an NDJSON line that does not parse, by file and line
+number · `manifest.json`, `observed.meta.json` and `oracle-loss.json` disagreeing about `runId`,
+`scenario` or `arm` — that directory was assembled out of two runs, and a score across it would
+confirm one run's catalogue against another run's oracle · an accounting that counts normalized
+records with no `oracle-sysmon.ndjson` holding them · a capture record carrying no
+`sensor.scanInterval` or no `sensor.ticksWhileProcessAlive` · **arm C**, whose definition holds no
+oracle column at all, so a score over it would be the sensor marking its own work.
+
+Two absences are the opposite case and **are** written, because they are results:
+
+- **An oracle that ran and collected nothing.** Every category comes back unmeasurable, no row is
+  ground truth, and no sensor figure may be read as coverage. Exit 1. The absent
+  `oracle-sysmon.ndjson` is named in the provenance rather than left out of it — an empty file would
+  be indistinguishable from "the oracle ran and saw nothing", which is a different claim.
+- **A join window that could not be derived** (`sensor.scanInterval` present and `null`). The
+  confirmation column is complete; every sensor figure reads `unavailable`. Exit 1 — the same
+  outcome the live run and the replay give.
+
+**Arm B** is scored as a confirmation column with no sensor block at all: that is what the arm is.
+Its `matched.ndjson` rows carry the oracle verdict and a null detection category.
+
+### A recorded score is evidence
+
+A directory that already holds a `metrics.json` is **compared against, never overwritten**: the
+rebuild is reported as identical or as differing, with the first differing byte, and nothing is
+written. `--out <dir>` puts a fresh score somewhere else, which is how the committed fixtures under
+`tests/fixtures/bench/derived/` are scored without being touched. A verification that overwrites its
+own target is not one.
+
+`metrics.json` carries the sha256 of every file it was built from, so a score can be walked back to
+the exact bytes it was taken over. Digests and not modification times: a digest is a fact about the
+bytes and survives a copy, and nothing about the moment of scoring may reach the output.
+
+### What is committed, and what it does not establish
+
+Three DERIVED models under `tests/fixtures/bench/derived/` — `M1-fully-confirmed`,
+`M2-unconfirmed-rows` and `M3-category-unmeasurable` — are the inputs to the gates on all of the
+above. They are hand-written directories, not recordings: no process was created, no sensor ran, and
+**no Sysmon binary was installed, configured or queried**. The RAW layer of the oracle stays
+LIVE-UNVALIDATED and nothing here changes that; what these models pin is the arithmetic and the
+honesty conditions on it, never the accuracy of the sensor. Their own README states each case.
+
+`tests/main/bench/metrics-mutation.test.js` is the injection proof on the one rule the block turns
+on: it removes the confirmed-rows-only filter from a throwaway copy of `lib/metrics.js` and requires
+`M2`'s figures to move — recall from `1/1` to `2/3`, `notDetected` from `0` to `1`, the precision
+denominator from `2` to `3`. Those are the exact values `metrics.test.js` asserts, so the mutant
+turns committed assertions red rather than merely producing different numbers.
 
 ## Trace replay — the format
 
@@ -1133,8 +1384,9 @@ directory is normally left empty. In arm A there are three more: `observed.ndjso
 recorded; `observed.meta.json`, how it was run and what did not become a line of it; and
 `run-report.json`, the two joined. In arms A and B there is `oracle-loss.json`, and
 `oracle-sysmon.ndjson` whenever the oracle collected anything. The remaining files arrive with the
-sub-blocks that produce them: `oracle-procmon.ndjson` (B2.6), `matched.ndjson` and `metrics.json`
-(B2.5).
+sub-blocks that produce them: `oracle-procmon.ndjson` (B2.6). `matched.ndjson` and `metrics.json`
+are written by `bench/score.js` rather than by a run, so a run directory holds them only once it
+has been scored.
 
 The Electron profile a run created is **left behind** in the OS temp directory, and its path is in
 `observed.meta.json`. It holds the audit file `observed.ndjson` was derived from, which is the

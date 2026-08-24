@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "oracle": "sysmon",
+  "runId": "DERIVED-M3-category-unmeasurable",
+  "scenario": "M3-category-unmeasurable",
+  "arm": "A",
+  "derived": {
+    "kind": "derived-model",
+    "recorded": false,
+    "collection": "No collection happened. bench/lib/oracles/sysmon.js never ran, no PowerShell was spawned, no Microsoft-Windows-Sysmon/Operational channel was read and no EventRecord XML was parsed. Every field below is a modelling parameter.",
+    "readMeFirst": "README.md, in this directory"
+  },
+  "collection": {
+    "ran": true,
+    "channel": "Microsoft-Windows-Sysmon/Operational",
+    "reader": "MODELLED — no reader was invoked",
+    "window": {
+      "start": "2026-08-20T11:59:00.000Z",
+      "end": "2026-08-20T12:01:00.000Z"
+    },
+    "windowEpsilonMs": 0,
+    "windowBasis": "MODELLED to the shape a live run writes: both ends are instants the harness would have read off its own clock, so nothing the scenario caused can fall outside and no epsilon is applied."
+  },
+  "config": {
+    "path": "bench/oracles/sysmon-bench.xml",
+    "sha256": null,
+    "enabledEventIds": [
+      1,
+      2,
+      3,
+      5,
+      11,
+      22
+    ],
+    "enabledEventIdsSource": "MODELLED WITHOUT 26. This is the whole point of the model: the run was measured under a configuration that did not enable FileDeleteDetected, so the absence of a deletion confirmation is evidence about the configuration and not about the machine",
+    "archivalEventId": 23,
+    "filterAccounting": "an event this configuration excludes is never emitted, so it is not lost — but Sysmon publishes no filter-hit counter, so a run cannot count what it declined to see either."
+  },
+  "records": {
+    "read": 1,
+    "normalized": 1,
+    "outOfWindow": 0,
+    "shapelessByEventId": {},
+    "shapelessMeaning": "canonical oracle events with no shape in the catalogue ECS subset (2, 3, 22). This model writes none."
+  },
+  "refused": {
+    "malformed": [],
+    "foreignProvider": [],
+    "missingRequiredField": [],
+    "nonUtcTimestamp": [],
+    "unsupportedEventId": {}
+  },
+  "archivalDeletes": {
+    "count": 0,
+    "records": [],
+    "meaning": "EventID 23 FileDelete, which archives the deleted file. Never folded into EventID 26 and never accepted as a deletion observation."
+  },
+  "sysmonErrors": {
+    "count": 0,
+    "records": [],
+    "meaning": "EventID 255. A real loss signal, reported as itself and never merged."
+  },
+  "eventRecordIds": {
+    "collected": 1,
+    "first": 1000,
+    "last": 1000,
+    "gaps": [],
+    "meaning": "a gap is NOT a loss count. EventRecordID is assigned per channel, and every Sysmon event a run did not collect legitimately consumes one."
+  },
+  "channelRetention": {
+    "value": null,
+    "unavailable": "not measured. Whether the channel wrapped during a run would come from the log configuration, and no such probe runs here. Absent, not zero."
+  }
+}

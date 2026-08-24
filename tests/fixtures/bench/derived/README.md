@@ -1,23 +1,37 @@
-# Derived bench replay inputs
+# Derived bench inputs
 
 Everything under this directory is **DERIVED / MODELLED**, never **RECORDED**. These
-directories were written by hand in the four-file shape `bench/replay.js` reads
-(`manifest.json`, `expected.ndjson`, `observed.ndjson`, `observed.meta.json`). No process
-was created, no sensor ran, no audit chain was read, and no `run-report.json` is committed
-here — a replay writes one with `--out` to a throwaway path, so the input evidence and the
+directories were written by hand in the shape one of the two offline entrypoints reads:
+
+| shape | files | read by |
+|---|---|---|
+| replay input | `manifest.json`, `expected.ndjson`, `observed.ndjson`, `observed.meta.json` | `bench/replay.js` |
+| score input | those four plus `oracle-loss.json` and `oracle-sysmon.ndjson` | `bench/score.js` |
+
+No process was created, no sensor ran, no audit chain was read, no Sysmon binary was
+installed or queried, and no `run-report.json` or `metrics.json` is committed here — both
+entrypoints write theirs with `--out` to a throwaway path, so the input evidence and the
 derived output stay apart.
 
 The sibling `../runs/` tree is the opposite kind of thing: real arm-A runs, pinned byte for
 byte by `tests/main/bench/fixture-immutability.test.js`. Nothing in this directory is
 covered by that immutability contract, and nothing here may be moved into `runs/`.
 
-Every file carries the label. `manifest.json` and `observed.meta.json` each hold a
-`derived` block (`kind: "derived-model"`, `recorded: false`); every observed row carries
-`bench.source: "derived-model"` instead of the `"aegis-audit"` a capture writes, and no
-`auditFile` / `auditSeq` / `auditType`, because there was no audit record to read them off.
-Those three therefore come out `null` in any report built from this input — a visible
-marker that it is not a capture. Every modelled fact that AEGIS does **not** persist lives
-under a `bench.fixture*` name, so no field here can be mistaken for one the product writes.
+Every file carries the label. `manifest.json`, `observed.meta.json` and `oracle-loss.json`
+each hold a `derived` block (`kind: "derived-model"`, `recorded: false`); every observed
+**and** every oracle row carries `bench.source: "derived-model"` instead of the
+`"aegis-audit"` a capture writes or the `"sysmon-eventlog-xml"` the oracle adapter writes,
+and an observed row carries no `auditFile` / `auditSeq` / `auditType`, because there was no
+audit record to read them off. Those three therefore come out `null` in any report built
+from this input — a visible marker that it is not a capture. Every modelled fact that AEGIS
+does **not** persist lives under a `bench.fixture*` name, so no field here can be mistaken
+for one the product writes.
+
+The `arm` field differs between the two shapes on purpose. `bench/replay.js` never reads
+it, so `D1` writes the honest `"DERIVED"`. `bench/score.js` DOES read it — it decides which
+files a directory must hold and which column may be scored — so the `M*` models carry
+`"A"`, and each of their manifests holds an `armIsAShape` line saying that the value names a
+directory shape and never a run that happened.
 
 ---
 
@@ -147,3 +161,109 @@ reading, since there is no recorded renderer identity to compare against and no 
 bytes to compare with.
 
 `tests/main/bench/derived-pid-reuse.test.js` is the gate on all of the above.
+
+---
+
+## The `M*` models — B2.5 metrics
+
+Three score inputs, written together, that pin the three claims `bench/lib/metrics.js`
+rests on. They are read by `tests/main/bench/metrics.test.js`,
+`tests/main/bench/score.test.js` and `tests/main/bench/metrics-mutation.test.js`.
+
+| model | the claim it pins |
+|---|---|
+| `M1-fully-confirmed` | the reference shape: every catalogue row confirmed, every confirmed row seen |
+| `M2-unconfirmed-rows` | a row the oracle did not confirm leaves every recall AND precision denominator |
+| `M3-category-unmeasurable` | a category the run's own oracle configuration could not observe is `null`, never `0` |
+
+All three model an arm-A directory measured on the 10 s `scanIntervalSec` that
+`src/main/config-manager.js` defaults to, so the join window is 30 s throughout
+(`bench/lib/report.js`, three scan intervals). Every instant sits on 2026-08-20, which is
+what lets the suites assert that no instant in a score comes from the clock.
+
+### What none of them is
+
+- **Not a recorded run.** No process was created, no file was staged, no sensor started, no
+  Electron profile existed and no `aegis-audit-<day>.json` was read.
+- **Not Sysmon-confirmed evidence.** No Sysmon binary was installed, configured or queried,
+  no `Microsoft-Windows-Sysmon/Operational` channel was read, and no EventRecord XML was
+  parsed. Every `oracle-sysmon.ndjson` row here is a hand-written stand-in for what the
+  normalizer would produce, and says so in its own `bench.fixtureNote`. The RAW layer of
+  the Sysmon oracle stays **LIVE-UNVALIDATED**, and nothing in this directory changes that.
+- **Not an accuracy measurement.** No recall, precision or confirmation figure derived from
+  these directories is a statement about the AEGIS sensor. What they pin is the arithmetic
+  and the honesty conditions on it.
+
+### M1-fully-confirmed
+
+Five catalogue rows across all four scored categories — `file/creation` twice, so the
+confirmation pairing has to choose between two rows of one category rather than only ever
+seeing one. Five oracle records confirm all five; five observations detect all five.
+
+Every category comes back `confirmed = catalogued`, recall `n/n` and precision `n/n`. It is
+the control the other two are read against: a figure that moves in `M2` or `M3` moves
+because of what those models change and not because the pipeline cannot answer at all.
+
+The `process/end` row is confirmed on **pid alone** — Sysmon EID 5 exposes no image — and
+its `ProcessGuid` rides into `matched.ndjson` as evidence beside the confirmation, where no
+key reads it.
+
+### M2-unconfirmed-rows
+
+Four catalogue rows. Three are `file/creation` and they are the case:
+
+| row | oracle | sensor | what it must NOT become |
+|---|---|---|---|
+| `E1` `claude.exe` | confirmed | observed | — it is the one true positive |
+| `E2` `codex.exe` | **not confirmed** | **not observed** | a sensor **miss**. Nothing established the event happened |
+| `E3` `gemini.exe` | **not confirmed** | observed | a true positive, and equally not a false positive |
+
+Plus one observation of `stray.exe` that no catalogue row claims, which is the only thing
+precision may be charged for, and one confirmed-and-detected `process/start` so the model is
+not a single category.
+
+```
+file/creation   catalogued 3   confirmed 1   unconfirmed 2   confirmationRate 1/3
+                groundTruth 1  detected 1    notDetected 0   recall 1/1
+                observations 3 truePositives 1  matchedUnconfirmed 1  unaccounted 1
+                precisionDenominator 2        precision 1/2 (lower bound)
+```
+
+**`1/1` and not `1/3`, and not `1/2`.** The denominator is the confirmed row and nothing
+else. `E2` is not a miss and `E3`'s observation is neither a hit nor a false positive: the
+row it cancelled is not ground truth, so there is nothing for the observation to be right or
+wrong about. Both are reported by count and by reason under `groundTruth.unconfirmedRows`,
+never silently dropped.
+
+`tests/main/bench/metrics-mutation.test.js` removes that exclusion from a throwaway copy of
+`bench/lib/metrics.js` and requires this model's figures to move — recall to `2/3`,
+`notDetected` to `1`, the precision denominator to `3`. Those are the exact values
+`metrics.test.js` asserts, so the mutant turns committed assertions red rather than merely
+producing different numbers.
+
+### M3-category-unmeasurable
+
+Two catalogue rows, `file/creation` and `file/deletion`, both observed by the sensor. The
+model's whole content is one line of `oracle-loss.json`:
+
+```
+"enabledEventIds": [1, 2, 3, 5, 11, 22]
+```
+
+**26 is absent.** `FileDeleteDetected` is the only event in this oracle column that observes
+a deletion, so the run was measured under a configuration that could not have confirmed
+one. `file/deletion` therefore comes back `catalogued: 1` with `confirmed`, `unconfirmed`,
+`groundTruth`, `detected`, `recallValue` and `precisionValue` all **`null`**, and
+`confirmationRate: "unmeasurable — category-unmeasurable"`.
+
+The sensor **did** observe the deletion, and that changes nothing: with no independent
+confirmation that it happened, a recall of `1` would be as unfounded as a recall of `0`. The
+absence of a confirmation here is evidence about the configuration, not about the machine,
+and the coverage block says so with the event id it names.
+
+`file/creation` in the same run stays fully scored, so the unmeasurable cell is a cell and
+not a run-wide refusal.
+
+The authority is the configuration **the run recorded**, never `bench/oracles/sysmon-bench.xml`:
+that file can have changed since a run, and a coverage claim read off it would describe a
+configuration nothing was measured under.
