@@ -245,6 +245,34 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     the two causes; the summary sentence would have sent the fix at one of them (cf. #27 —
     write the guarantee, not the impression).
 
+36. **A test case that eats 2.9 s of a 5000 ms budget is not passing, it is scheduled —
+    record it as known noise BEFORE the next session rediscovers it.**
+    `tests/shared/bench-scenarios/actor-secret-hold.test.js` has now gone red twice across
+    sessions on cold full `npm run test:coverage` runs, both times as `Test timed out in
+    5000ms`, and both times it was green on the immediate rerun and green in isolation. It
+    was recorded in no known-flakes note anywhere in the repo, so each session met it as a
+    fresh red and spent the time suspecting its own diff (cf. #26 — the identical omission
+    for `scan-loop.test.js:1275`).
+    **The margin is measured, not guessed** (2026-08-23, master `e1f1615`, two isolated runs
+    of the file, 8/8 green both times): `hold-secret-file > spawns the staged binary against
+    the seeded file, and bounds its own lifetime` took 3183 ms and 2892 ms, while the other
+    seven cases together took ~320 ms. `vitest.config.js` sets no `testTimeout`, so the
+    budget is Vitest’s 5000 ms default and that one case is the only one anywhere near it.
+    What it spends is not work its assertions do: the two sibling cases that stage the same
+    binary and never spawn it took 152 ms each, and `hold-secret-file` awaits the child’s
+    `spawn` event only — never the 1500 ms hold — so nearly all of the ~2.9 s sits between
+    `spawn()` and that event, the OS launching a ~90 MB image `copy-binary` wrote moments
+    earlier. That is machine cost, and a cold whole-suite run (three projects across parallel
+    workers plus v8 coverage) is exactly what eats the ~1.8 s that is left.
+    **How to apply — rerun first, investigate second.** ONE failure of this test on a full
+    run is known noise: rerun before suspecting your diff, and do not read it as evidence
+    about the change under review. Investigate only if it fails TWICE IN A ROW on full runs,
+    or if it fails in isolation —
+    `npx vitest run tests/shared/bench-scenarios/actor-secret-hold.test.js --project main`
+    is the isolated command, and either of those is a different signal from this one. This
+    note RECORDS the flake and nothing more: the test, its timeouts and the vitest config
+    are untouched, and no green here is a claim about them (cf. #21).
+
 ## Caching
 31. **Treats a cache KEY as proof that cached data is still fresh.** A key is a LOCATOR —
     it says which entry to look at, never that the entry still describes the thing it
