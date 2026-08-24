@@ -11,10 +11,12 @@ package-lock.json
 # single local run would put machine-written JSON in front of the formatter.
 bench/runs
 
-# The same rule for the recordings committed as replay fixtures, and here it is
-# load-bearing rather than tidy: lint-staged runs `*.{js,ts,json}` with matchBase,
-# so every staged .json is formatted wherever it lives. Prettier rewrites
-# `"points": [\n 9989\n]` as `"points": [9989]`, and the byte-for-byte assertion
-# in tests/main/bench/replay.test.js is then comparing a rebuild against a file
-# the formatter edited.
+# The same rule for the recordings committed as replay fixtures, kept as a safety
+# net. Since #261 neither tool reaches them: lint-staged matches src/**, bench/**
+# and root-level files only, and format:check uses the same three globs, so
+# nothing under tests/** is currently in scope. The entry matters the day one of
+# those globs widens, because the fixtures must stay byte-exact — Prettier
+# rewrites `"points": [\n 9989\n]` as `"points": [9989]`, and the byte-for-byte
+# assertion in tests/main/bench/replay.test.js would then compare a rebuild
+# against a file the formatter edited.
 tests/fixtures/bench
