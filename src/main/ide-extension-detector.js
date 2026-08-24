@@ -21,10 +21,55 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const _platform = require('./platform');
+const sensorHealth = require('./sensor-health');
 
 let _listProcesses = _platform.listProcesses;
 let _readdir = (dir) => fs.promises.readdir(dir);
 let _homedir = () => os.homedir();
+
+/** Editor-extension discovery sensor id (Block B3, finding B-S12). */
+const IDE_EXTENSION_SENSOR_ID = 'ide-extension';
+
+/**
+ * Persistent health for extension discovery. Lifetime = module lifetime; reset only by
+ * {@link _resetForTest}, never recreated per refresh.
+ * @type {import('./sensor-health').SensorHealth}
+ */
+let _health = sensorHealth.createSensorHealth(IDE_EXTENSION_SENSOR_ID);
+
+/**
+ * Plain serializable snapshot for the app-health composer — callers must not mutate.
+ * @returns {object}
+ * @since 0.13.0
+ */
+function getIdeExtensionSensorHealth() {
+  return sensorHealth.toPlain(_health);
+}
+
+/**
+ * Short, secret-free token for a rejected observation: the error CODE, never the
+ * message. This module walks the user's home directory, and a message routinely
+ * carries the path that failed; the code (EACCES, EMFILE, ENOTDIR) is what separates
+ * the causes anyway.
+ * @param {unknown} err
+ * @returns {string}
+ */
+function errorCode(err) {
+  const code = err && /** @type {{code?: unknown}} */ (err).code;
+  return typeof code === 'string' && code.length > 0 ? code : 'unknown';
+}
+
+/**
+ * Whether a readdir rejection is the DEFINITE answer "this editor keeps no extensions
+ * directory" rather than "the directory was not read". Only these two codes are an
+ * answer; every other rejection leaves the question open.
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+function isDefiniteAbsence(err) {
+  const code = errorCode(err);
+  return code === 'ENOENT' || code === 'ENOTDIR';
+}
 
 /**
  * @internal Override dependencies (for tests).
@@ -44,6 +89,7 @@ function _resetForTest() {
   _cache = [];
   _lastRefresh = 0;
   _refreshing = false;
+  _health = sensorHealth.createSensorHealth(IDE_EXTENSION_SENSOR_ID);
 }
 
 // ═══ SIGNATURES ═══
@@ -128,21 +174,36 @@ async function detectExtensionAgents() {
   let procs;
   try {
     procs = await _listProcesses();
-  } catch (_) {
+  } catch (err) {
+    // B-S12: the observation is refused at its first step. With no process list there
+    // is no way to tell which editors are running, so nothing was learned about
+    // extension-hosted agents at all. The compatibility `[]` stays — it has never meant
+    // "no such agents", and the record is now what says so.
+    _health = sensorHealth.markFailed(_health, Date.now(), {
+      error: `process-list-unavailable:${errorCode(err)}`,
+      detail: 'process-list-unavailable',
+    });
     return [];
   }
   const running = new Set(procs.map((p) => p.name.toLowerCase()));
   const home = _homedir();
   const detected = [];
   const seenAgents = new Set();
+  /** @type {string[]} Running editors whose extensions dir was NOT read. */
+  const unreadable = [];
 
   for (const editor of EDITOR_EXT_HOSTS) {
     if (!editor.procNames.some((n) => running.has(n))) continue;
     let entries;
     try {
       entries = await _readdir(path.join(home, editor.extDir));
-    } catch (_) {
-      continue; // extensions dir absent for this editor
+    } catch (err) {
+      // ENOENT/ENOTDIR is a definite answer — this editor keeps no extensions dir — and
+      // stays the silent skip it always was. Every other rejection (EACCES, EMFILE, EIO)
+      // is the opposite: the directory exists and was not read, so the agents inside it
+      // were never looked for, and skipping silently is the B-S12 false-clean.
+      if (!isDefiniteAbsence(err)) unreadable.push(`${editor.label}:${errorCode(err)}`);
+      continue;
     }
     if (!Array.isArray(entries) || entries.length === 0) continue;
     for (const ext of AI_EXTENSIONS) {
@@ -161,6 +222,19 @@ async function detectExtensionAgents() {
         extensionId: ext.idPrefix,
       });
     }
+  }
+  if (unreadable.length > 0) {
+    // Partial observation: some running editors were inspected, at least one was not.
+    // DEGRADED, never FAILED — `consecutiveFailures` counts refused observations, and
+    // this one ran. `lastSuccessAt` deliberately does not advance either.
+    _health = sensorHealth.markDegraded(_health, Date.now(), {
+      error: `extensions-dir-unreadable:${unreadable.join(',')}`.slice(0, 200),
+      detail: 'extensions-dir-unreadable',
+    });
+  } else {
+    // Every running editor was either read or definitively has no extensions dir. An
+    // empty `detected` on this path IS a confirmed "no extension-hosted agents".
+    _health = sensorHealth.markHealthy(_health, Date.now());
   }
   return detected;
 }
@@ -181,7 +255,15 @@ function getCachedExtensionAgents() {
       .then((agents) => {
         _cache = agents;
       })
-      .catch(() => {})
+      .catch((err) => {
+        // `detectExtensionAgents` writes its own record on every path it can reach, so
+        // an escape to here is a throw from outside that logic — the refresh this tick
+        // asked for did not happen, and the cache below is now older than it looks.
+        _health = sensorHealth.markFailed(_health, Date.now(), {
+          error: `refresh-threw:${errorCode(err)}`,
+          detail: 'refresh-threw',
+        });
+      })
       .finally(() => {
         _lastRefresh = Date.now();
         _refreshing = false;
@@ -193,6 +275,8 @@ function getCachedExtensionAgents() {
 module.exports = {
   detectExtensionAgents,
   getCachedExtensionAgents,
+  getIdeExtensionSensorHealth,
+  IDE_EXTENSION_SENSOR_ID,
   EDITOR_EXT_HOSTS,
   AI_EXTENSIONS,
   _setDepsForTest,

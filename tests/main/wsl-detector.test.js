@@ -10,7 +10,13 @@ function mockExec(responses) {
     const key = args.join(' ');
     const r = responses[key];
     if (!r || r.err) {
-      cb(new Error(r ? r.err : 'unexpected: ' + key), '');
+      const e = new Error(r ? r.err : 'unexpected: ' + key);
+      // An errno-shaped label is carried as a real `code`. The detector's health
+      // taxonomy separates a spawn that never ran (ENOENT → nothing to observe here,
+      // by design) from one that ran and failed, and a message alone cannot say which
+      // happened — a mock that only sets the text pins neither.
+      if (r && /^E[A-Z]+$/.test(r.err)) e.code = r.err;
+      cb(e, '');
       return;
     }
     cb(null, r.stdout || '');

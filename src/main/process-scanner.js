@@ -246,7 +246,7 @@ function init(deps) {
  * Scan running processes via tasklist and match against AI_AGENTS.
  * Editor hosts (VS Code etc.) are skipped themselves, but their child
  * processes are scanned — matched children get parentEditor set.
- * @returns {Promise<{agents: Array, changed: boolean}>}
+ * @returns {Promise<{agents: Array, changed: boolean, reliable: boolean}>}
  * @since v0.2.0
  */
 async function scanProcesses() {
@@ -255,8 +255,9 @@ async function scanProcesses() {
   // A scan is "reliable" only when the process list was actually enumerated.
   // A permission-denied scan returns an empty list that must NOT be read as
   // "all agents exited" — the session tracker uses this flag to ignore it.
-  // Health is authoritative; `reliable` remains compatibility metadata and must
-  // never be false while health is HEALTHY (and never true while FAILED).
+  // Health is authoritative; `reliable` remains compatibility metadata and is true
+  // exactly when health is HEALTHY — never false while HEALTHY, never true while
+  // FAILED or DEGRADED.
   let reliable = true;
   const now = Date.now();
   try {
@@ -285,6 +286,30 @@ async function scanProcesses() {
       // and writes no process health at all.
       throw err;
     }
+  }
+  // An enumeration that returned WITHOUT an error and still carries no process is not
+  // a usable observation of the process table. A live OS always lists at least the
+  // process doing the asking, so an empty (or non-array) result means the provider
+  // answered and its answer cannot be trusted for completeness — `tasklist` writing an
+  // unparsable page, a redirected stdout, a `ps` whose header alone came back.
+  //
+  // DEGRADED, not FAILED: nothing refused the observation, so `consecutiveFailures`
+  // must not move (§7.1 — "running but incomplete"). Never HEALTHY: a zero-agent fleet
+  // derived from a process table nobody could read is the B-S01 false-clean by another
+  // route, and `lastSuccessAt` must not advance over it.
+  //
+  // `reliable` guards the branch. The permission-denied path above already marked
+  // FAILED and set `processes = []`; without the guard it would be re-marked here and
+  // demoted from FAILED to DEGRADED by its own empty list.
+  if (reliable && (!Array.isArray(processes) || processes.length === 0)) {
+    processes = [];
+    reliable = false;
+    _processHealth = sensorHealth.markDegraded(_processHealth, now, {
+      error: 'empty-process-table',
+      detail: 'empty-process-table',
+    });
+    // Falls through to the empty path below for the same reason the EPERM branch does:
+    // pid-set and peakAgents bookkeeping run, and the return shape stays stable.
   }
   const detected = [];
   for (const proc of processes) {
@@ -321,8 +346,11 @@ async function scanProcesses() {
     .join(',');
   const changed = pidSetKey !== lastProcessPidSet;
   lastProcessPidSet = pidSetKey;
-  // Valid enumeration (including empty fleet) → HEALTHY. Cardinality is not health.
-  // Permission-denied path already marked FAILED and left reliable false.
+  // Valid enumeration (including an empty AGENT fleet) → HEALTHY. Agent cardinality is
+  // not health: zero agents out of a process table that WAS read is a confirmed clean
+  // fleet. Zero PROCESSES is the different question the DEGRADED rung above answers.
+  // Permission-denied (FAILED) and empty-table (DEGRADED) both wrote the record already
+  // and left `reliable` false.
   if (reliable) {
     _processHealth = sensorHealth.markHealthy(_processHealth, now);
   }

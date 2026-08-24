@@ -1,12 +1,20 @@
 # Block B — Sensor Health / DEGRADED
 
-**Status (as of 2026-08-21):** design document, partially implemented since it was written.
-B1 shipped (`src/main/sensor-health.js`); the filesystem sensors (chokidar / handle / Restart
-Manager) and the network sensor hold health records (B2 hooks, B4 — marked CLOSED in §10 below).
-The process-scan record and the renderer surfacing (B3 remainder, B6–B7) are not built:
-a degraded sensor is still invisible in the UI.  
+**Status (as of 2026-08-23):** design document, largely implemented since it was written.
+**Closed:** B1 (`src/main/sensor-health.js`), B2 (chokidar / handle / Restart Manager), B3
+(process enumeration and the secondary detectors), B4 (network + the ETW schema freeze), B6
+(`stats.appHealth` on the existing stats payload) and B7 (footer chip + population-gated empty
+states). **Open:** B5 (suspend / resume) and B8 (the cross-sensor umbrella suite). Per-slice
+detail is in §10.
+
+*Correction, 2026-08-23.* Until this edit the header read "the process-scan record and the
+renderer surfacing (B3 remainder, B6–B7) are not built", and every word of it was already false:
+the process record landed in `7461209` (2026-08-09) and B6/B7 in `fa4b923`, `933abd9` and
+`2c52200` on 2026-08-21, the same day the line was dated. It is recorded rather than quietly
+deleted, because a stale status line is what sends the next reader to rebuild what already
+exists — which is precisely what it did.  
 **Branch context:** `feat/identity-main` @ `6494710` (Block 0 closed)  
-**Date:** 2026-08-09  
+**Date:** 2026-08-09 (status refreshed 2026-08-23)  
 **Invariant:** *No evidence* must not automatically mean *clean*. Lost events are irrecoverable — never fabricate replacements.
 
 This document reconstructs **live** sensing architecture from `src/`. Design leads from external recon (osquery publisher health, ETW loss counters, Electron `powerMonitor`) are **leads**, not claims that AEGIS already implements them.
@@ -444,7 +452,7 @@ Audit drops remain on **audit** stats path (already honest).
 
 ## 10. Implementation slices
 
-### B1 — Sensor-health domain model (main)
+### B1 — Sensor-health domain model (main) — **CLOSED** (`273dedc`)
 
 - **Closes:** foundation for all B-S*  
 - **Files (likely):** new `src/main/sensor-health.js` (+ tests); wire init from main  
@@ -452,20 +460,59 @@ Audit drops remain on **audit** stats path (already honest).
 - **Tests:** state machine table; lossCount>0 never HEALTHY  
 - **Stop:** model + unit tests only; no sensor hooks yet  
 
-### B2 — File observation health (chokidar + handles + RM)
+### B2 — File observation health (chokidar + handles + RM) — **CLOSED**
 
+- **Live contract:** leaves `fs-chokidar` / `fs-handle` / `fs-rm` in `file-watcher.js`; the
+  chokidar state is derived from the watch-root plan registry (`996629b`), and `fs-rm` is
+  UNSUPPORTED on a platform with no Restart Manager.
 - **Closes:** B-S03, B-S04, B-S06, B-S05 (file/hot), B-S09  
 - **Files:** `file-watcher.js`, platform probe surface, sensor-health hooks  
 - **Invariants:** handle `[]` after error → DEGRADED/FAILED not silent clean; chokidar `error` registered; read-detection capability reflected  
 - **Tests:** inject getFileHandles throw; mock watcher error; mutation remove error handler  
 - **Stop:** FS sensors report health; still may not ship UI  
 
-### B3 — Process / polling scanner health
+### B3 — Process / polling scanner health — **CLOSED**
 
 - **Closes:** B-S01, B-S02, B-S08 (partial), B-S12  
-- **Files:** `process-scanner.js`, `scan-loop.js`  
-- **Invariants:** unreliable empty scan must not present as healthy zero-fleet without DEGRADED; hard fail marks FAILED  
-- **Tests:** EPERM path; setAgents empty + health DEGRADED; mutation drop reliable flag handling  
+- **Files:** `process-scanner.js`, `scan-loop.js` (`7461209`, `28f77b1`); `ide-extension-detector.js`,
+  `wsl-detector.js`, `llm-runtime-detector.js` and the leaf registration in `main.getAppHealth`
+  (the B-S12 remainder, 2026-08-23)  
+- **Live contract — the `process` leaf** (`process-scanner.js`, one persistent record, never
+  recreated per poll): a valid enumeration → HEALTHY, and an empty AGENT fleet read out of a
+  process table that WAS enumerated is a confirmed clean fleet — agent cardinality is not health.
+  EPERM/EACCES → FAILED (`permission-denied`), compatibility shape stays `{agents: [], reliable:
+  false}`. A non-permission throw → FAILED via `noteProcessScanHardFailure`, called from the
+  scan-loop catch that encloses ONLY the provider call, so a downstream pipeline throw writes no
+  leaf. An enumeration that returns WITHOUT an error and carries no process at all → DEGRADED
+  (`empty-process-table`): a live OS lists at least the process doing the asking, so that is an
+  unread table, and a zero-agent fleet derived from it is the B-S01 false-clean by another route.
+  `reliable` is compatibility metadata and is true exactly when the leaf is HEALTHY.  
+- **Live contract — secondary detectors (B-S12):** four further leaves, deliberately NOT folded
+  into `process`. That leaf's state drives `populationReliable`, the gate every pid-scoped sensor
+  reads before observing, and a failed WSL probe says nothing about whether the pid list can be
+  trusted (cf. ai-mistakes #29).
+  `ide-extension`: process list unreadable → FAILED; a RUNNING editor whose extensions dir fails
+  to read for any reason other than ENOENT/ENOTDIR → DEGRADED (those two stay a definite absence);
+  otherwise HEALTHY.
+  `wsl`: non-win32, no `wsl.exe`, or a `wsl.exe` that RAN and reported no distribution →
+  UNSUPPORTED (out of the worst-of — the binary ships in System32 on stock Windows, and holding
+  every such machine DEGRADED would be a warning that is always on); a probe that produced no
+  verdict at all — a timeout kill, a spawn failure — → DEGRADED and, unlike before, **not cached**,
+  so the next 60 s cycle asks again; WSL present but its process list unreadable or empty →
+  DEGRADED; a list that was read → HEALTHY.
+  `llm-ollama` / `llm-lmstudio`: one record per PROBE, because the two run concurrently under one
+  `Promise.all` and a shared record would let the definite answer overwrite the uncertain one.
+  ECONNREFUSED and a completed response that is not this runtime's JSON are definite negatives
+  (HEALTHY — port 1234 collides with stock dev servers); a timeout or a broken transport is no
+  observation (DEGRADED).  
+- **Invariants:** an unreliable empty scan must not present as a healthy zero-fleet without
+  DEGRADED; a hard failure marks FAILED; no `addLoss` caller anywhere in this slice (no
+  quantitative loss counter exists for these sensors, so the cumulative-loss invariant is held by
+  the B1 model, not by new code); operator pause is not a health state (§7.3).  
+- **Tests:** `process-scanner-health.test.js`, `scan-loop-provider-health.test.js`,
+  `detector-health.test.js`. Mutations, each run red and reverted: drop the empty-table rung → 3
+  red; drop the ide-extension DEGRADED write → 3 red; collapse an llm timeout into a definite
+  answer → 3 red; restore the cached `false` on a transient WSL probe failure → 1 red.  
 
 ### B4 — Network (and future ETW) health — **CLOSED** (implementation)
 
@@ -483,15 +530,23 @@ Audit drops remain on **audit** stats path (already honest).
 - **Tests:** mock powerMonitor emit; fake timers — **no real sleep**  
 - **Stop:** gap flag + tests; not every metric rewritten  
 
-### B6 — IPC / stats propagation
+### B6 — IPC / stats propagation — **CLOSED** (`fa4b923`)
 
+- **Live contract:** `main.getStats()` carries `stats.appHealth` (state, reasons, the full
+  capability contract, `sensors.byId` / `raw` / `effective` / `projections`, `watchPlan`) on the
+  EXISTING stats payload — no new channel. `monitoringPaused` rides beside it, never inside it.
+  A leaf added to `getAppHealth`'s `records` array reaches the renderer with no renderer change.
 - **Closes:** delivery of B1–B5 to renderer  
 - **Files:** `main.getStats`, types, preload if needed (prefer same stats channel), `ipc.ts` types  
 - **Invariants:** no new channel unless proven necessary  
 - **Tests:** getStats shape; stats-update payload  
 
-### B7 — Minimal DEGRADED UI
+### B7 — Minimal DEGRADED UI — **CLOSED** (`2c52200`, `933abd9`)
 
+- **Live contract:** the footer chip names the degraded and failed sensors from
+  `sensors.effective.degradedSensorIds` / `failedSensorIds` — sensor IDS, generic, so a new leaf
+  appears there without a renderer edit — and the empty agent states gate on
+  `appHealth.populationState === 'FAILED'`, the enum, never on the collapsed boolean.
 - **Closes:** false confidence visuals  
 - **Files:** Footer and/or Header, tray-icon tooltip  
 - **Invariants:** DEGRADED/FAILED visible without opening AuditLog  
@@ -577,6 +632,12 @@ Block B is done when:
 
 ## 16. Next executable block
 
-**Implement B1 only:** `sensor-health` domain model + unit tests + (optional) empty mount in main without changing sensor outcomes.
+**Implement B5:** `powerMonitor` suspend / resume, the observation-gap flag, and the rule that a
+sleep gap is never credited as a healthy empty observation. Fake timers only — no real sleep (§11).
 
-Do not start B2+ until B1 is merged/green on the feature branch.
+Then B8, the cross-sensor umbrella suite (§10).
+
+*Refreshed 2026-08-23.* This section said "Implement B1 only … do not start B2+ until B1 is
+merged" for as long as B1 through B4, B6 and B7 were being merged past it. A "next block" line
+that names a finished block is not merely stale, it is an instruction — keep it moving with §10
+or delete it.

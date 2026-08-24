@@ -52,8 +52,22 @@ const { FILE_ACCESS_BATCHER_OPTIONS } = require('./file-access-batching');
 
 // ═══ DEFERRED (loaded after ready-to-show via loadDeferredModules) ═══
 // `network` is here rather than local to initDeferredSubsystems because getAppHealth()
-// reads its sensor leaf: a module the composer must ask cannot be a local const.
-let baselines, anomaly, scanner, procUtil, watcher, exporter, audit, scanLoop, network, platform;
+// reads its sensor leaf: a module the composer must ask cannot be a local const. The
+// three secondary detectors are here for the same one reason and no other — scan-loop
+// still requires them itself, and this file never calls their detection functions.
+let baselines,
+  anomaly,
+  scanner,
+  procUtil,
+  watcher,
+  exporter,
+  audit,
+  scanLoop,
+  network,
+  platform,
+  ideDetector,
+  wslDetector,
+  llmDetector;
 
 let mainWindow = null;
 let latestAgents = [],
@@ -128,6 +142,9 @@ function loadDeferredModules() {
   scanLoop = require('./scan-loop');
   network = require('./network-monitor');
   platform = require('./platform');
+  ideDetector = require('./ide-extension-detector');
+  wslDetector = require('./wsl-detector');
+  llmDetector = require('./llm-runtime-detector');
 }
 
 /**
@@ -169,6 +186,7 @@ function getAppHealth() {
   const watchPlan = watcher.getWatchPlan();
   const identityDegraded = scanner.isIdentityDegraded() === true;
   const fsHealth = watcher.getFileSensorHealth();
+  const llmHealth = llmDetector.getLlmRuntimeSensorHealth();
   // Every leaf that owns a record, RAW. Order is stable so the payload does not
   // reshuffle between ticks for a reader diffing it.
   const records = [
@@ -177,6 +195,16 @@ function getAppHealth() {
       .sort()
       .map((id) => fsHealth[id]),
     network.getNetworkSensorHealth(),
+    // Secondary agent discovery (B-S12): whether the SYNTHETIC half of the fleet —
+    // extension-hosted, WSL-inner and local-runtime agents — was actually looked for.
+    // Deliberately NOT folded into the `process` leaf: that leaf's state drives
+    // `populationReliable`, the gate every pid-scoped sensor reads before observing,
+    // and a failed WSL probe says nothing about whether the pid list can be trusted.
+    ideDetector.getIdeExtensionSensorHealth(),
+    wslDetector.getWslSensorHealth(),
+    ...Object.keys(llmHealth)
+      .sort()
+      .map((id) => llmHealth[id]),
   ];
   // win32 only (gap F). linux and darwin own no snapshot leaf and must not contribute
   // a fabricated one — their `providesStartTime: false` already answers the question.
