@@ -54,5 +54,5 @@
 
 - **Phase A:** Ship v0.4.0 — complete bugs + features, auto-updater
 - **Phase B:** scanner to child_process, ring buffers, container detection, GPU monitor, process tree fan-out
-- **Phase C:** ETW/eBPF native C++ addons (CPU 15% to 0.1%)
+- **Phase C:** ETW/eBPF sensors in a separate sidecar process, never native addons inside the Electron process — strangler pattern, JS/TS core stays; for the Windows ETW sensor C#/TraceEvent is preferred over Rust/ferrisetw (docs/recon/kernel-file-etw.md)
 - **Phase D:** daemon architecture, MCP interception, SIEM export
