@@ -69,7 +69,7 @@ coverage thresholds are configured in `vitest.config.js`, so coverage cannot fai
 - **JSDoc** on all exported functions (`@param`, `@returns`, `@since`).
 - **DI pattern:** Modules expose `init(deps)` for wiring. Tests use `_setDepsForTest()` / `_resetForTest()`.
 - **Paths:** Always split with `/[/\\]/` — never hardcode `/` or `\\` alone.
-- **TypeScript:** 31 `.ts` files exist (renderer stores/utils + `src/shared/types/`). New renderer files go in `.ts`, zero `any`, `npm run typecheck` before commit. `src/main/` stays plain JS + JSDoc until the tsc build step lands.
+- **TypeScript:** the `.ts` files live in renderer stores/utils and `src/shared/types/`. New renderer files go in `.ts`, zero `any`, `npm run typecheck` before commit. `src/main/` stays plain JS + JSDoc until the tsc build step lands.
 - **Prettier:** semi, singleQuote, trailingComma: all, printWidth: 100, tabWidth: 2.
 - **CSS:** Scoped styles in `.svelte` files. Global tokens in `src/renderer/lib/styles/tokens.css`. Use `var()` references, not raw colors.
 
