@@ -15,12 +15,22 @@
  *   In the two arms whose definition includes Sysmon — A and B — it also runs the
  *   **Sysmon oracle** (B2.3, `bench/lib/oracles/sysmon.js`) and writes
  *   `oracle-loss.json` always and `oracle-sysmon.ndjson` when there was anything
- *   to write. That does NOT yet reach `run-report.json`: the report still scores
- *   the sensor against the catalogue and against nothing else, and confirming the
- *   catalogue against the oracle column is B2.5. Procmon (B2.6) does not exist,
- *   so an arm-B run is a PARTIAL calibration and its manifest says so — the
- *   `oracles.procmon` entry is unavailable and is printed in the absent-facts
- *   list at the end of the run.
+ *   to write. That does NOT reach `run-report.json`, and it is not meant to: the
+ *   report is deliberately the sensor-versus-catalogue row of the matrix and
+ *   scores the sensor against the catalogue and against nothing else. Confirming
+ *   the catalogue against the oracle column is a separate artefact written by a
+ *   separate entrypoint — `metrics.json`, from `bench/score.js`, which no run
+ *   invokes. Procmon (B2.6) does not exist, so an arm-B run is a PARTIAL
+ *   calibration and its manifest says so — the `oracles.procmon` entry is
+ *   unavailable and is printed in the absent-facts list at the end of the run.
+ *
+ *   Whenever a scenario ran it also writes **`steps.json`**: what each declared
+ *   step of that scenario did. It exists because a step that fails to execute
+ *   emits no catalogue row at all — `bench/lib/catalogue.js` refuses to write one
+ *   — so a failure leaves the catalogue shorter than its scenario and nothing
+ *   else. Without the file, "failed to execute" is a state nothing in a run
+ *   directory records, and a scorer can only infer it from a length difference or
+ *   report it as unanswerable.
  *
  *   The manifest also records **which report renderer this process is running** —
  *   `reportRenderer`, the sha256 of `bench/lib/join.js` and `bench/lib/report.js`
@@ -70,6 +80,10 @@ const actor = require('./lib/actor');
 const catalogue = require('./lib/catalogue');
 const join = require('./lib/join');
 const manifest = require('./lib/manifest');
+// Loaded for one thing: the name and shape version of the artefact bench/score.js
+// reads back. The module is pure — it touches no filesystem API — so requiring it
+// here costs nothing and keeps steps.json spelled in exactly one place.
+const metrics = require('./lib/metrics');
 const observed = require('./lib/observed');
 // Destructured rather than taken as a namespace: `main` binds a local `report`
 // for the object it just built, and a namespace of the same name would be
@@ -571,6 +585,95 @@ function writeReport(opts) {
 }
 
 /**
+ * Write `steps.json`: what each declared step of the scenario actually did.
+ *
+ * It exists because **failing to execute is a state of a STEP, and never of a
+ * catalogue row.** `bench/lib/catalogue.js` refuses to write a line for a step
+ * that did not succeed — the catalogue holds exactly the events that happened —
+ * so a failed step leaves the catalogue SHORTER than its scenario and nothing
+ * else. Until this file existed, `bench/lib/actor.js` returned a status per step
+ * and this module printed it and threw it away, which left a scorer two bad
+ * choices: infer the failure from a length difference, or report the whole
+ * question as unanswerable. `bench/lib/metrics.js` did the second, by name.
+ *
+ * Two fields per step and not one, because they answer different questions:
+ * `emits` is what this KIND declares it produces (`bench/lib/actor.js`
+ * `STEP_KINDS`, the closed list only the actor can own), and `emitted` is what
+ * this RUN actually wrote — `null` for a step that failed, for one skipped after
+ * it, and for `wait`, which declares nothing on purpose because no oracle can
+ * confirm the passage of time.
+ *
+ * Neutralized on the way out, like every other committed artefact: a step's
+ * `error` is an OS message, and an `ENOENT` names an absolute path inside a
+ * sentence rather than in a path-shaped field.
+ *
+ * Written after the sensor is stopped, for the reason the catalogue is: the run
+ * directory sits inside the watched project directory, so a file the harness
+ * creates while the sensor is live becomes a file creation in the sensor's own
+ * answer.
+ * @param {Object} opts
+ * @param {string} opts.dir - Run directory.
+ * @param {string} opts.runId
+ * @param {Object} opts.scenario - The loaded, validated scenario.
+ * @param {string} opts.arm
+ * @param {Object[]} opts.steps - `outcome.steps` from `actor.execute`.
+ * @returns {string} Absolute path of the file written.
+ */
+function writeSteps(opts) {
+  // The expectation each step CLAIMED, off the scenario this run loaded and
+  // validated — not off the catalogue, which is the very thing a failed step is
+  // missing from.
+  const claimed = new Map(opts.scenario.steps.map((step) => [step.id, step]));
+  const steps = opts.steps.map((step) => {
+    const declared = claimed.get(step.id);
+    return {
+      id: step.id,
+      kind: step.kind,
+      status: step.status,
+      expect: (declared && declared.expect) || null,
+      emits: actor.STEP_KINDS[step.kind] ?? null,
+      emitted: step.status === 'ok' ? (step.emitted ?? null) : null,
+      startedAt: step.startedAt ?? null,
+      error: step.error ?? null,
+    };
+  });
+
+  const claiming = steps.filter((step) => step.expect !== null);
+  const record = {
+    schemaVersion: metrics.STEPS_SCHEMA_VERSION,
+    runId: opts.runId,
+    scenario: opts.scenario.id,
+    arm: opts.arm,
+    counts: {
+      declared: opts.scenario.steps.length,
+      ok: steps.filter((step) => step.status === 'ok').length,
+      failed: steps.filter((step) => step.status === 'failed').length,
+      skipped: steps.filter((step) => step.status === 'skipped').length,
+    },
+    expectations: {
+      claimed: claiming.length,
+      emitted: claiming.filter((step) => step.emitted !== null).length,
+      notExecuted: claiming.filter((step) => step.emitted === null).length,
+    },
+    meaning:
+      'a step that did not execute emits NO catalogue row — the catalogue holds exactly the ' +
+      'events that happened — so "failed to execute" is a state of a step and is recorded here, ' +
+      'beside the catalogue rather than inside it. An expectation counted under notExecuted is ' +
+      'not a sensor miss and not an unconfirmed row: nothing ever asked a sensor or an oracle ' +
+      'about it',
+    steps,
+  };
+
+  const file = path.join(opts.dir, metrics.STEPS_FILENAME);
+  fs.writeFileSync(
+    file,
+    `${JSON.stringify(manifest.neutralizeRecorded(record), null, 2)}\n`,
+    'utf8',
+  );
+  return file;
+}
+
+/**
  * Run the Sysmon oracle across this run and write both of its artefacts.
  *
  * Called AFTER the sensor has been stopped and after the catalogue is written,
@@ -799,6 +902,15 @@ async function main(argv) {
       const cataloguePath = catalogue.write(dir, outcome.events);
       console.log(`written ${cataloguePath} (${outcome.events.length} expected event(s))`);
 
+      // Beside the catalogue and never inside it: the catalogue holds the events
+      // that happened, and this holds what every DECLARED step did — including
+      // the ones that emitted nothing because they never ran.
+      const stepsPath = writeSteps({ dir, runId, scenario, arm: args.arm, steps: outcome.steps });
+      const notExecuted = outcome.steps.filter((step) => step.status !== 'ok').length;
+      console.log(
+        `written ${stepsPath} (${outcome.steps.length} step(s), ${notExecuted} that did not execute)`,
+      );
+
       // Same ordering rule, same reason: after the sensor is stopped, so the two
       // oracle artefacts cannot appear as file creations in the sensor's answer.
       if (oracles) {
@@ -918,6 +1030,10 @@ module.exports = {
   // a completed scenario run, so without this export the bytes it writes rest on
   // a call site nothing exercises.
   runOracle,
+  // Exported for the same reason `runOracle` is: `main` reaches it only through a
+  // completed scenario run, so without this export the bytes it writes rest on a
+  // call site nothing exercises.
+  writeSteps,
   // Exported for one reason: so a test can hold the bytes this function actually
   // writes against `serializeReport`'s output. `main` reaches it only through a
   // live arm-A capture — a started sensor, a stopped sensor and a read audit

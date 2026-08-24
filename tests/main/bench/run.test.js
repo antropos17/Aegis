@@ -375,3 +375,174 @@ describe('run — the bytes the live run actually writes', () => {
     expect(path.dirname(file)).toBe(outDir);
   });
 });
+
+/* --------------------------------------------------------- steps.json --- */
+
+describe('bench/run.js — steps.json records what each declared step did', () => {
+  /**
+   * A scenario shaped like S1: one staging step, a wait that emits nothing, and
+   * two more emitting steps. Only the fields `writeSteps` reads.
+   * @type {Object}
+   */
+  const SCENARIO = Object.freeze({
+    id: 'S1-agent-lifecycle',
+    steps: [
+      { id: 'stage-binary', kind: 'copy-binary', expect: 'E1' },
+      { id: 'live-across-ticks', kind: 'wait' },
+      { id: 'spawn-agent', kind: 'spawn-process', expect: 'E2' },
+      { id: 'remove-binary', kind: 'delete-file', expect: 'E3' },
+    ],
+  });
+
+  /**
+   * `actor.execute`'s own outcome shape for a run whose third step failed: the
+   * ones before it succeeded, the one after was skipped, and neither of the last
+   * two emitted anything.
+   * @type {Object[]}
+   */
+  const OUTCOME = Object.freeze([
+    {
+      id: 'stage-binary',
+      kind: 'copy-binary',
+      status: 'ok',
+      startedAt: '2026-08-20T12:00:00.000Z',
+      emitted: 'file.creation',
+    },
+    {
+      id: 'live-across-ticks',
+      kind: 'wait',
+      status: 'ok',
+      startedAt: '2026-08-20T12:00:00.100Z',
+      emitted: null,
+    },
+    {
+      id: 'spawn-agent',
+      kind: 'spawn-process',
+      status: 'failed',
+      startedAt: '2026-08-20T12:00:35.000Z',
+      error: `spawn ${path.join(manifest.ROOT, 'bench', 'runs', 'r1', 'stage', 'claude.exe')} ENOENT`,
+    },
+    { id: 'remove-binary', kind: 'delete-file', status: 'skipped' },
+  ]);
+
+  /**
+   * Write the record into a throwaway directory and read it back.
+   * @param {string} dir
+   * @returns {Object}
+   */
+  function writeAndRead(dir) {
+    const file = run.writeSteps({
+      dir,
+      runId: 'r1',
+      scenario: SCENARIO,
+      arm: 'A',
+      steps: [...OUTCOME],
+    });
+    expect(path.basename(file)).toBe('steps.json');
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  }
+
+  it('records one row per executed step, with the status the actor reported', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-bench-steps-'));
+    try {
+      const record = writeAndRead(dir);
+      expect(record.steps.map((step) => [step.id, step.status])).toEqual([
+        ['stage-binary', 'ok'],
+        ['live-across-ticks', 'ok'],
+        ['spawn-agent', 'failed'],
+        ['remove-binary', 'skipped'],
+      ]);
+      expect(record.counts).toEqual({ declared: 4, ok: 2, failed: 1, skipped: 1 });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('separates what a kind DECLARES it emits from what this run emitted', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-bench-steps-'));
+    try {
+      const record = writeAndRead(dir);
+      const byId = Object.fromEntries(record.steps.map((step) => [step.id, step]));
+
+      // Executed and emitting: the two agree.
+      expect(byId['stage-binary'].emits).toBe('file.creation');
+      expect(byId['stage-binary'].emitted).toBe('file.creation');
+
+      // `wait` declares nothing on purpose — no oracle can confirm the passage of
+      // time, so a catalogue row for it would be one nothing could ever reach.
+      expect(byId['live-across-ticks'].emits).toBeNull();
+      expect(byId['live-across-ticks'].emitted).toBeNull();
+      expect(byId['live-across-ticks'].expect).toBeNull();
+
+      // Did not execute: the kind still declares what it WOULD have produced, and
+      // `emitted` is null. That difference is the whole artefact.
+      expect(byId['spawn-agent'].emits).toBe('process.start');
+      expect(byId['spawn-agent'].emitted).toBeNull();
+      expect(byId['remove-binary'].emits).toBe('file.deletion');
+      expect(byId['remove-binary'].emitted).toBeNull();
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('counts the expectations that no catalogue row can ever account for', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-bench-steps-'));
+    try {
+      const record = writeAndRead(dir);
+      // Three steps claimed an expectation; one of them produced a catalogue row.
+      // The other two are the reason this file exists: without it, E2 and E3 look
+      // exactly like expectations a sensor failed to see.
+      expect(record.expectations).toEqual({ claimed: 3, emitted: 1, notExecuted: 2 });
+      expect(record.meaning).toMatch(/is a state of a step and is recorded here/);
+      expect(record.meaning).toMatch(/not a sensor miss and not an unconfirmed row/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('takes the expectation each step claimed off the SCENARIO, not the catalogue', () => {
+    // The catalogue is the very thing a failed step is missing from, so reading
+    // `expect` off it would lose exactly the rows this file is for.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-bench-steps-'));
+    try {
+      const record = writeAndRead(dir);
+      expect(record.steps.map((step) => step.expect)).toEqual(['E1', null, 'E2', 'E3']);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('neutralizes the path an OS error message carries inside a sentence', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-bench-steps-'));
+    try {
+      const file = run.writeSteps({
+        dir,
+        runId: 'r1',
+        scenario: SCENARIO,
+        arm: 'A',
+        steps: [...OUTCOME],
+      });
+      const bytes = fs.readFileSync(file, 'utf8');
+      const record = JSON.parse(bytes);
+      const failed = record.steps.find((step) => step.status === 'failed');
+      expect(failed.error).toContain('ENOENT');
+      expect(failed.error).toContain(manifest.RECORDED_REPO_ROOT);
+      expect(bytes).not.toContain(manifest.ROOT);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('carries the run identity, so a directory assembled from two runs is caught', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-bench-steps-'));
+    try {
+      const record = writeAndRead(dir);
+      expect(record.runId).toBe('r1');
+      expect(record.scenario).toBe('S1-agent-lifecycle');
+      expect(record.arm).toBe('A');
+      expect(record.schemaVersion).toBe(1);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

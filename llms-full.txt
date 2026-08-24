@@ -19,7 +19,7 @@ npm install
 npm start
 ```
 
-Building from source requires Node.js 20.19+ or 22.12+ — Vite 7 declares `^20.19.0 || >=22.12.0` and Vitest 4 declares `^20.0.0 || ^22.0.0 || >=24.0.0`, so Node 18 and 19 are excluded. npm 10+. The packaged app ships its own Node runtime inside Electron. Windows 10/11 recommended. macOS/Linux experimental.
+Building from source requires Node.js 22.x, as declared by `engines` in `package.json` and pinned in `.nvmrc` and CI. The tooling floor is lower but still excludes Node 18 and 19 — Vite 7 declares `^20.19.0 || >=22.12.0` and Vitest 4 declares `^20.0.0 || ^22.0.0 || >=24.0.0`. npm 10+. The packaged app ships its own Node runtime inside Electron. Windows 10/11 recommended. macOS/Linux experimental.
 
 ## Features
 
