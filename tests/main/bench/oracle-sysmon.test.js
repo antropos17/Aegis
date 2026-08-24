@@ -1332,9 +1332,19 @@ describe('sysmon oracle — one path space with the catalogue', () => {
 
   it('moves a root and an account name and nothing else', () => {
     // A rewrite that could merge two files into one name would manufacture
-    // confirmations. It replaces a prefix; it does not touch a basename.
+    // confirmations. It replaces a prefix; it does not touch what follows.
+    //
+    // Asserted without a literal separator: these suites run in CI on
+    // ubuntu-latest, where `path.join` builds `/` and the rewrite carries the
+    // separator of the root it replaced. The bench only RUNS on Windows; its
+    // unit tests are the part of it that does not.
     const other = path.join(manifest.ROOT, 'bench', 'runs', 'r1', 'stage', 'cursor.exe');
     expect(manifest.neutralizePath(REAL)).not.toBe(manifest.neutralizePath(other));
-    expect(manifest.neutralizePath(REAL).endsWith('\\stage\\claude.exe')).toBe(true);
+
+    const moved = manifest.neutralizePath(REAL);
+    expect(moved).not.toContain(manifest.ROOT);
+    // Everything after the root survives, separator style aside.
+    const tail = (value) => value.replace(/[\\/]+/g, '/').split('/').slice(-3).join('/');
+    expect(tail(moved)).toBe('r1/stage/claude.exe');
   });
 });
