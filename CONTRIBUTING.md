@@ -16,7 +16,7 @@ Requires Node.js 18+ and Windows 10/11 for full monitoring functionality. The El
 ## Workflow
 
 1. **Fork** the repository
-2. **Branch** from `master`: `git checkout -b feature/your-feature`
+2. **Branch** from `master`: `git checkout -b feat/your-feature` (see [BRANCHING.md](BRANCHING.md) for the full prefix list)
 3. **Implement** your changes following the code standards below
 4. **Test**: run `npm test` (1075 tests across 68 files) and `npm start` — verify no console errors, all tabs render, existing features work
 5. **Commit** with [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
@@ -179,12 +179,13 @@ Rules live in `rules/*.yaml` — one ruleset file per category, validated agains
 When filing issues, use these labels:
 
 - `bug` — Something broken or behaving incorrectly
-- `feature` — New capability or enhancement
+- `enhancement` — New capability or improvement to an existing one
 - `agent-database` — New agent signatures or updates to existing ones
 - `security` — Security-related issues (use responsible disclosure for vulnerabilities)
 - `documentation` — Docs improvements
 - `platform` — Mac/Linux support work
-- `kernel` — OS-level enforcement features
+
+The full set is on the repository's [labels page](https://github.com/antropos17/Aegis/labels); `good first issue` and `help wanted` mark issues that are open to contributors.
 
 ## Reporting Issues
 
