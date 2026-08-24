@@ -11,7 +11,7 @@ npm install
 npm start
 ```
 
-Requires Node.js 18+ and Windows 10/11 for full monitoring functionality. The Electron app launches a real-time dashboard that detects AI agents, monitors file access, scans network connections, and scores risk.
+Requires the Node.js version in `engines` in `package.json` (also pinned in `.nvmrc` and used by CI) and Windows 10/11 for full monitoring functionality. The Electron app launches a real-time dashboard that detects AI agents, monitors file access, scans network connections, and scores risk.
 
 ## Workflow
 
