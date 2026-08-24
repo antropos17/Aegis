@@ -175,8 +175,9 @@ rests on. They are read by `tests/main/bench/metrics.test.js`,
 | `M1-fully-confirmed` | the reference shape: every catalogue row confirmed, every confirmed row seen |
 | `M2-unconfirmed-rows` | a row the oracle did not confirm leaves every recall AND precision denominator |
 | `M3-category-unmeasurable` | a category the run's own oracle configuration could not observe is `null`, never `0` |
+| `M4-step-failed-to-execute` | a step that never ran is a state of a STEP: not a sensor miss, not an unconfirmed row |
 
-All three model an arm-A directory measured on the 10 s `scanIntervalSec` that
+All four model an arm-A directory measured on the 10 s `scanIntervalSec` that
 `src/main/config-manager.js` defaults to, so the join window is 30 s throughout
 (`bench/lib/report.js`, three scan intervals). Every instant sits on 2026-08-20, which is
 what lets the suites assert that no instant in a score comes from the clock.
@@ -267,3 +268,49 @@ not a run-wide refusal.
 The authority is the configuration **the run recorded**, never `bench/oracles/sysmon-bench.xml`:
 that file can have changed since a run, and a coverage claim read off it would describe a
 configuration nothing was measured under.
+
+### M4-step-failed-to-execute
+
+The one model whose scenario **did not finish**, and the only one that carries a
+`steps.json`.
+
+Four declared steps. One staged a binary and succeeded; a `wait` succeeded and emitted
+nothing, because no oracle can confirm the passage of time; the spawn **failed**; and the
+delete after it was **skipped**.
+
+```
+steps.json  counts        declared 4   ok 2   failed 1   skipped 1
+            expectations  claimed 3    emitted 1    notExecuted 2
+```
+
+So `expected.ndjson` holds **one** row where the scenario declared **three** expectations.
+That difference used to be the only trace a failure left in a run directory:
+`bench/lib/catalogue.js` refuses to write a line for a step that did not succeed — the
+catalogue holds exactly the events that happened — and `bench/run.js` printed the step
+statuses without writing them anywhere.
+
+**What the model pins is that E2 and E3 are counted, and counted in the right place.** They
+are:
+
+- **not sensor misses.** Nothing happened for a sensor to see. `process/start` and
+  `file/deletion` come back `0/0` with a null recall, because their categories are empty —
+  not `0/1`.
+- **not unconfirmed catalogue rows.** There is no row to be unconfirmed. Their categories'
+  `unconfirmedRows` lists are empty, and the oracle is not implicated in either.
+- **counted under `scenarioSteps.notExecuted`**, with the step id, the kind, the status and
+  the failure message.
+
+`ticksWhileProcessAlive` is modelled at **0**, and that is the honest value here rather than
+a convenience: the process step never executed, so there was no process lifetime for a scan
+tick to fall inside.
+
+The failure message is a modelled `ENOENT` naming an absolute path **inside a sentence**,
+which is why `steps.json` goes through the recording rewrite like every other committed
+artefact: a path-shaped field name would not have found it.
+
+### What M4 is NOT
+
+- **No step actually failed.** The failure is modelled. `bench/lib/actor.js` never ran, no
+  binary was copied and no process was spawned or refused.
+- **Not a finding about the actor.** Nothing here says a spawn is unreliable. The status
+  values were chosen to produce the one arrangement the artefact exists for.

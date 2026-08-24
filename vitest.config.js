@@ -65,7 +65,7 @@ export default defineConfig({
         'src/main/ipc-handlers.js',
         'src/renderer/lib/utils/risk-scoring.js',
         'src/renderer/lib/utils/threat-report.js',
-        'src/renderer/lib/stores/toast.js',
+        'src/renderer/lib/stores/toast.ts',
         'src/shared/constants.js',
       ],
     },

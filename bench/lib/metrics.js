@@ -68,6 +68,22 @@ const METRICS_FILENAME = 'metrics.json';
 const MATCHED_FILENAME = 'matched.ndjson';
 
 /**
+ * What each declared step of the scenario did, written by `bench/run.js`.
+ *
+ * The name lives here rather than in the writer for the reason
+ * `join.REPORT_FILENAME` does: `bench/run.js` writes the file and
+ * `bench/score.js` reads it, and neither entrypoint may load the other's module
+ * graph — a scorer that could reach the sensor is one nobody can prove did not.
+ * A pure module both of them already load is the one place the name can be
+ * spelled once.
+ * @type {string}
+ */
+const STEPS_FILENAME = 'steps.json';
+
+/** @type {number} Shape version of `steps.json`. Bump when a field changes meaning. */
+const STEPS_SCHEMA_VERSION = 1;
+
+/**
  * MITRE ATT&CK Evaluations detection categories, borrowed rather than invented
  * (RESEARCH-BASELINE section 10).
  *
@@ -231,21 +247,23 @@ class MetricsError extends Error {
 }
 
 /**
- * One comparable form of a path, for a comparison that crosses two writers.
+ * One comparable form of a path, for a comparison that crosses three writers.
  *
- * `bench/lib/catalogue.js` and `bench/lib/observed.js` write every path through
- * the recording rewrite in `./paths`; `bench/lib/oracles/sysmon.js` writes none.
- * So the catalogue names a run's binary under the recorded clone root and the
- * oracle names it under the real one, and a comparison that skipped the rewrite
- * would fail on EVERY path key of EVERY live run while looking like an oracle
- * that saw nothing.
+ * All three — `catalogue.js`, `observed.js` and `oracles/sysmon.js` — write every
+ * path through the recording rewrite in `./paths`, so the columns already agree
+ * on a path space by the time this module sees them and the rewrite below is a
+ * no-op on their output. It is applied anyway, and deliberately: the rewrite is
+ * idempotent, it costs one string scan per key, and it is what makes this
+ * comparison independent of whether a writer remembered. A key that misses is
+ * indistinguishable from an oracle that saw nothing, which is the worst failure
+ * shape available here — cheap insurance against it is worth taking.
  *
- * The rewrite is applied here, at comparison time, over values read from disk.
- * Neither file is modified: this module writes nothing. The residual bound is
- * that `neutralizePath` rewrites the clone root of the tree it is running in, so
- * a run scored on a different machine holds oracle paths nothing can fold — see
+ * It is applied at comparison time, over values read from disk. No file is
+ * modified: this module writes nothing. The residual bound is that
+ * `neutralizePath` rewrites the clone root of the tree it is running in, so it
+ * cannot fold a path some OTHER machine's writer left raw — see
  * `PATH_COMPARISON`.
- * @param {*} value - A path exactly as one of the two writers recorded it.
+ * @param {*} value - A path exactly as one of the three writers recorded it.
  * @returns {string|null} Null when there was no path to fold.
  */
 function foldPath(value) {
@@ -256,12 +274,13 @@ function foldPath(value) {
 /** @type {string} What {@link foldPath} does, and the bound it leaves, for the record. */
 const PATH_COMPARISON =
   'both sides are folded through the recording path rewrite (bench/lib/paths.js) and then through ' +
-  "the join's separator and case folding (bench/lib/join.js normalizePath). The catalogue and the " +
-  'capture are written already rewritten and the oracle file is not, so a comparison without the ' +
-  'first step would miss every path key of every live run. FINDING, recorded and not fixed here: ' +
-  'the asymmetry belongs to the oracle writer, and closing it there changes that artefact’s ' +
-  'bytes. RESIDUAL: the rewrite names the clone root of the tree doing the scoring, so a run ' +
-  'scored on a different machine holds oracle paths that cannot be folded onto its catalogue';
+  "the join's separator and case folding (bench/lib/join.js normalizePath). All three writers — " +
+  'catalogue.js, observed.js and oracles/sysmon.js — apply that rewrite themselves, so the columns ' +
+  'already share a path space and the first fold is a no-op on their output. It is applied anyway: ' +
+  'it is idempotent, and it makes this comparison independent of whether a writer remembered — a ' +
+  'path key that misses is indistinguishable from an oracle that saw nothing. RESIDUAL: the ' +
+  'rewrite names the clone root of the tree doing the scoring, so it cannot fold a path that some ' +
+  'other machine’s writer left raw';
 
 /** @type {string} What a stamp delta between the two columns is, and what it is not. */
 const STAMP_DELTA_MEANING =
@@ -895,6 +914,56 @@ function sensorBlock(opts) {
 }
 
 /**
+ * What the scenario's steps did, from the run's own `steps.json`.
+ *
+ * A step that failed to execute emits **no catalogue row** —
+ * `bench/lib/catalogue.js` refuses to write one, because the catalogue holds
+ * exactly the events that happened. So "failed to execute" is a state of a STEP
+ * and never of a row, and it is counted here rather than inferred from a
+ * catalogue that is shorter than its scenario.
+ *
+ * An expectation under `notExecuted` is neither a sensor miss nor an unconfirmed
+ * row: nothing ever asked a sensor or an oracle about it. It is reported beside
+ * the two columns and enters no denominator in either.
+ * @param {Object|null|undefined} steps - Parsed `steps.json`, or null when the
+ *   directory holds none.
+ * @returns {Object}
+ */
+function stepsBlock(steps) {
+  if (!steps || !Array.isArray(steps.steps)) {
+    return {
+      value: null,
+      source: STEPS_FILENAME,
+      unavailable:
+        `this run directory holds no readable ${STEPS_FILENAME}, so what each declared step did ` +
+        'is not recorded anywhere in it — a run from before bench/run.js wrote that file, or one ' +
+        'with no scenario to have steps. Absent, and named rather than inferred from a catalogue ' +
+        'that is shorter than its scenario',
+    };
+  }
+  const claiming = steps.steps.filter((step) => step && step.expect !== null);
+  return {
+    value: steps.counts ?? null,
+    source: STEPS_FILENAME,
+    expectations: steps.expectations ?? null,
+    notExecuted: claiming
+      .filter((step) => step.emitted === null || step.emitted === undefined)
+      .map((step) => ({
+        id: step.id ?? null,
+        kind: step.kind ?? null,
+        status: step.status ?? null,
+        expect: step.expect ?? null,
+        error: step.error ?? null,
+      })),
+    meaning:
+      'a step that did not execute emits NO catalogue row (bench/README.md, "The catalogue"), so ' +
+      '"failed to execute" is a state of a step and never of a row. An expectation listed under ' +
+      'notExecuted is neither a sensor miss nor an unconfirmed catalogue row — nothing ever asked ' +
+      'a sensor or an oracle about it — and it enters no denominator on either side',
+  };
+}
+
+/**
  * Score one completed run.
  *
  * @param {Object} opts
@@ -910,6 +979,9 @@ function sensorBlock(opts) {
  * @param {{value: number|null, source: string, unavailable?: string}} opts.maxLatency -
  *   The join bound, in `bench/lib/report.js`'s shape.
  * @param {number|null} opts.ticksWhileProcessAlive
+ * @param {Object|null} [opts.steps] - Parsed `steps.json`, or null when the run
+ *   directory holds none. Optional: a run recorded before that file existed is
+ *   scored, and says so.
  * @param {Array<Object>} opts.inputs - Provenance of the files this was built
  *   from, as `bench/score.js` read them.
  * @returns {{metrics: Object, matched: Object[]}}
@@ -1092,15 +1164,7 @@ function buildMetrics(opts) {
       ticksWhileProcessAlive: ticks ?? null,
       ...sensor,
     },
-    scenarioSteps: {
-      value: null,
-      unavailable:
-        'a step that failed to execute emits NO catalogue row (bench/README.md, "The catalogue"), ' +
-        'so it is a state of a step and never of a row, and it cannot be counted here. ' +
-        'bench/lib/actor.js returns a status per step and bench/run.js prints it without writing ' +
-        'it, so no file in a run directory carries it. Absent, and named rather than inferred ' +
-        'from a catalogue that is shorter than a scenario',
-    },
+    scenarioSteps: stepsBlock(opts.steps),
     rejected: REJECTED,
   };
 
@@ -1148,6 +1212,8 @@ module.exports = {
   PATH_COMPARISON,
   REJECTED,
   STAMP_DELTA_MEANING,
+  STEPS_FILENAME,
+  STEPS_SCHEMA_VERSION,
   UNCONFIRMED_REASON,
   VERDICT,
   assignConfirmations,
@@ -1163,5 +1229,6 @@ module.exports = {
   sensorBlock,
   serializeMatched,
   serializeMetrics,
+  stepsBlock,
   unconfirmedReason,
 };

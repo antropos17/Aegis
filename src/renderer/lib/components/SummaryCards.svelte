@@ -8,11 +8,10 @@
     eventsPerMinute,
     EVENTS_PER_MIN_WINDOW_MS,
     sensitiveAlertCount,
-    SENSITIVE_SUMMARY_LABEL,
     formatMonitoringDuration,
-    MONITORING_DURATION_LABEL,
   } from '../utils/summary-metrics.ts';
   import { getRiskInfo } from '../utils/trust-badge-utils.ts';
+  import { t } from '../i18n/index.js';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
@@ -164,7 +163,7 @@
 <div class="summary-cards">
   <!-- Card 1: Total Agents -->
   <div class="card">
-    <span class="card-label">Total Agents</span>
+    <span class="card-label">{$t('summary.total_agents')}</span>
     <span class="card-value">{displayAgents}</span>
     <span class="card-trend {agentTrendInfo.cls}">
       {agentTrendInfo.arrow}
@@ -176,7 +175,7 @@
 
   <!-- Card 2: Avg Risk Score -->
   <div class="card">
-    <span class="card-label">Avg Risk Score</span>
+    <span class="card-label">{$t('summary.avg_risk_score')}</span>
     <span class="card-value" style="color: {riskColor};">{displayRisk}</span>
     <span class="card-trend {riskTrendInfo.cls}">
       {riskTrendInfo.arrow}
@@ -188,7 +187,7 @@
 
   <!-- Card 3: Events / min -->
   <div class="card">
-    <span class="card-label">Events / min</span>
+    <span class="card-label">{$t('summary.events_per_min')}</span>
     <span class="card-value">{displayEpm}</span>
     <span class="card-trend {epmTrendInfo.cls}">
       {epmTrendInfo.arrow}
@@ -200,7 +199,7 @@
 
   <!-- Card 4: Sensitive Alerts (retained sensitive log events, not distinct files) -->
   <div class="card">
-    <span class="card-label">{SENSITIVE_SUMMARY_LABEL}</span>
+    <span class="card-label">{$t('summary.sensitive_alerts')}</span>
     <span class="card-value card-value-sensitive">{displaySensitive}</span>
     <span class="card-trend {sensitiveTrendInfo.cls}">
       {sensitiveTrendInfo.arrow}
@@ -212,7 +211,7 @@
 
   <!-- Card 5: Monitoring Duration (scanner.monitoringStarted session age) -->
   <div class="card">
-    <span class="card-label">{MONITORING_DURATION_LABEL}</span>
+    <span class="card-label">{$t('summary.monitoring_duration')}</span>
     <span class="card-value card-value-uptime">{uptimeStr}</span>
     <span class="card-trend trend-flat">●</span>
   </div>
