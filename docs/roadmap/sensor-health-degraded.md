@@ -74,8 +74,8 @@ Pause stops **polling intervals** and **drops live FS events**. Watchers are not
 | **S-PROC** | `process-scanner.js` + `scan-loop.doProcessScan` | Platform `listProcesses` (tasklist/CIM/ps) | Interval; reentrancy guard | Agent list, enter/exit, scan-batch | EPERM/EACCES → empty + `reliable:false`; other errors log + empty tick | Partial: `stats.permissionDeniedScans` if >5 consecutive; Header **Scanning/Idle** only |
 | **S-NET** | `network-monitor.js` + `doNetworkScan` | Platform TCP table (PS / lsof) | 30s (60s warmup); skip if no agents or scan in flight | `NetworkConnection[]`, audit `network-connection` | `.catch` logs error; leaves last connections until next success | No health; empty vs fail not distinguished on channel |
 | **S-FS-CHOKIDAR** | `file-watcher.setupFileWatchers` + `handleWatcherEvent` | chokidar `add`/`change`/`unlink` | Persistent watchers once started | `FileEvent` (created/modified/deleted), inferred/unattributed | Pause swallows; no `watcher.on('error')`; missing dirs skipped | No |
-| **S-FS-HANDLE** | `scanAllFileHandles` / `scanFileHandles` | handle.exe or modules; errors → `[]` | With file scan interval — only when RM is not the active mechanism (§10 B2 ownership) | `FileEvent` `accessed` / confirmed PID | Per-PID `catch → []`; binary missing short-circuits | Log only; probe sets internal flags |
-| **S-FS-RM** | `scanHotFileHolders` / RM holders | Restart Manager (win32) | ~10s hot + full cycle | `FileEvent` `holding` | RM unavailable; single-flight skip; catch logs | Startup probe logs once; **not** on IPC |
+| **S-FS-HANDLE** | `scanAllFileHandles` / `scanFileHandles` | handle.exe or modules; errors → `[]` | With file scan interval — only when RM is not the active mechanism (§10 B2 ownership); skip if the AI scope is empty (confirmed-zero, HEALTHY) | `FileEvent` `accessed` / confirmed PID | Per-PID `catch → []`; binary missing short-circuits | Log only; probe sets internal flags |
+| **S-FS-RM** | `scanHotFileHolders` / RM holders | Restart Manager (win32) | ~10s hot + full cycle; skip if no agents (confirmed-zero, HEALTHY) | `FileEvent` `holding` | RM unavailable; single-flight skip; catch logs | Startup probe logs once; **not** on IPC |
 | **S-IDE-EXT** | `ide-extension-detector.js` | FS walk of editor extension dirs | Background cache | Synthetic agents (pid 0) | Silent `.catch` empty cache | Appears as missing agents only |
 | **S-WSL** | `wsl-detector.js` | WSL enumeration | Background cache | Synthetic agents | Silent catch | Same |
 | **S-LLM** | `llm-runtime-detector.js` | HTTP probe Ollama/LM Studio | Each process scan | Synthetic local-runtime agents + models | Probe fail → no synthetic | Missing model agents |
@@ -486,6 +486,16 @@ Audit drops remain on **audit** stats path (already honest).
   handle binary, no RM) has no owner and both leaves stay DEGRADED (B-S04). Before this, the
   idle leaf stayed STARTING for the whole process and `appHealth.state` read SENSORS_STARTING
   on every stock Windows — ai-mistakes #42.
+  **Empty read scope (2026-08-25, #328):** a population the process leaf vouches for that
+  holds no agent — or none in the AI subset the pool probes — is an observed zero, not a
+  skipped tick. `noteFileScanSkip('confirmed-zero-agents')` marks the ACTIVE read leaf HEALTHY
+  with that detail and advances `lastSuccessAt`, the B4 network contract on the file side;
+  called from the empty-fleet returns of `doFileScan` / `doHotReadScan` and from the empty
+  AI scope inside `scanAllFileHandles`, and no provider is asked. The population gate decides
+  first (unreliable + empty stays `process-observation-unavailable` DEGRADED), B-S04 stands
+  above the zero (a blind pool is DEGRADED whether or not an agent is running), and ownership
+  is settled through the skip, so an idle win32 retires its idle leaf instead of leaving both
+  STARTING. The zero never latches: the next real scan writes over the detail.
 - **Closes:** B-S03, B-S04, B-S06, B-S05 (file/hot), B-S09  
 - **Files:** `file-watcher.js`, platform probe surface, sensor-health hooks  
 - **Invariants:** handle `[]` after error → DEGRADED/FAILED not silent clean; chokidar `error` registered; read-detection capability reflected  

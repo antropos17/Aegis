@@ -384,6 +384,14 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     the first observation entry and re-decided only when the mechanism switches; the leaf that
     returns to service starts a fresh STARTING lifetime. The shape to grep for is a
     `createSensorHealth(` whose write sites all sit behind a platform or capability branch.
+    **Second instance, same shape (2026-08-25, #328):** the writer also has to be reached. With
+    no AI agent running, `doFileScan` / `doHotReadScan` returned before any write and
+    `scanAllFileHandles` did the same on an empty AI scope, so the ACTIVE read leaf stayed
+    STARTING on every platform — and on win32 both leaves did, because the empty fleet never
+    reached an observation entry and ownership was never settled. The grep is a bare `return`
+    ahead of the leaf write on a path the population gate has already vouched for; the fix is
+    the network leaf's B4 contract on the file side, `noteFileScanSkip('confirmed-zero-agents')`
+    → HEALTHY, called from all three returns.
 
 ## Caching
 31. **Treats a cache KEY as proof that cached data is still fresh.** A key is a LOCATOR —
