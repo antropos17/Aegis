@@ -14,7 +14,8 @@ bench/runs/
 # and it is replaced on every run. A verdict kept as a target lives in
 # tests/fixtures/bench/goldens/.
 bench/traces-runs/
-# Throwaway mutants written by scripts/verify-witness-gate.mjs (removed in a finally)
+# Throwaway mutants written by scripts/verify-witness-gate.mjs and
+# scripts/verify-sequence-gate.mjs (each removes its own in a finally)
 src/main/.mutants/
 # `npx tsc -b` writes one per referenced project, next to the config
 *.tsbuildinfo

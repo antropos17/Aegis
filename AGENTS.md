@@ -39,6 +39,7 @@ npm run typecheck        # one command, two tsc projects: tsconfig.main.json && 
 npm run typecheck:svelte # svelte-check — reads .svelte templates, which tsc never does
 npm run test:coverage    # vitest run --coverage — this, not npm test, is what CI runs
 npm run verify:gate      # injection proof: 4 mutants must turn the witness suite red
+npm run verify:seq-gate  # injection proof: 4 sequence-engine mutants must turn the gate suite red
 npm run counts:check     # derived counts vs the numbers tracked files declare
 npm audit --audit-level=high --omit=dev   # production dependencies only
 ```
@@ -50,11 +51,11 @@ Three counts, deliberately kept apart:
   `gh api repos/antropos17/Aegis/branches/master/protection --jq '.required_status_checks'`
   (`strict: true`, so the branch must also be up to date). `/rulesets` and
   `/rules/branches/master` both return `[]` — nothing else is enforced.
-- **9 verification commands** inside those 5 jobs. The counts differ because `lint` runs
+- **10 verification commands** inside those 5 jobs. The counts differ because `lint` runs
   `format:check` then `lint`, `svelte-check` runs `typecheck` then `typecheck:svelte`, and
-  `test` runs `test:coverage`, `verify:gate`, then `counts:check`. `format:check` is a step,
-  not a job, and has no status context of its own.
-- **9 local pre-merge commands** — the block above, one per verification command.
+  `test` runs `test:coverage`, `verify:gate`, `verify:seq-gate`, then `counts:check`.
+  `format:check` is a step, not a job, and has no status context of its own.
+- **10 local pre-merge commands** — the block above, one per verification command.
 
 `npm test` (`vitest run`) is a convenience alias, not a gate: CI runs `npm run test:coverage`
 (`vitest run --coverage`). Same suite, plus v8 instrumentation and an lcov artifact. No

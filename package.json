@@ -21,6 +21,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "verify:gate": "node scripts/verify-witness-gate.mjs",
+    "verify:seq-gate": "node scripts/verify-sequence-gate.mjs",
     "counts:check": "node scripts/counts.js",
     "build:sidecar": "node scripts/build-sidecar.js",
     "bench:generation": "node scripts/bench-generation.js",
