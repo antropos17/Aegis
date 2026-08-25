@@ -130,6 +130,26 @@ const _isRmAvailable = _platform.isRestartManagerAvailable;
 let _rmScanInFlight = false;
 /** Optional test override for platform read-detection capability. */
 let _isReadDetectionAvailableOverride = undefined;
+/** Optional test override for Restart Manager availability (the probe's verdict). */
+let _isRmAvailableOverride = undefined;
+
+/**
+ * Why a read leaf is out of the worst-of: the OTHER mechanism observes for this
+ * process. Written into `detail` by {@link resolveReadMechanism}.
+ * @type {Readonly<{RM: string, POOL: string}>}
+ */
+const READ_OWNER_REASON = Object.freeze({
+  RM: 'rm-owns-observation',
+  POOL: 'pool-owns-observation',
+});
+
+/**
+ * The read leaf {@link resolveReadMechanism} marked UNSUPPORTED, or null when it
+ * marked none. Only its own mark is ever undone: `platform-no-rm` is a platform fact
+ * written by {@link createInitialFsHealth} and is never recreated from here.
+ * @type {string|null}
+ */
+let _inactiveReadLeaf = null;
 
 /**
  * Authoritative filesystem sensor-health records (B2). Lifetime = module process /
@@ -170,6 +190,7 @@ function createInitialFsHealth() {
  */
 function _resetFsHealth() {
   _fsHealth = createInitialFsHealth();
+  _inactiveReadLeaf = null;
   resetWatchPlan();
 }
 
@@ -230,6 +251,7 @@ function getFileSensorHealth() {
  */
 function noteFileScanSkip(reason) {
   const now = Date.now();
+  resolveReadMechanism(now);
   const id = rmEnabled() ? FS_SENSOR.RM : FS_SENSOR.HANDLE;
   const rec = _fsHealth[id];
   // markDegraded throws from both states, and RM is UNSUPPORTED on every platform
@@ -250,9 +272,11 @@ function noteFileScanSkip(reason) {
 /** @internal Override dependencies (for tests). */
 function _setDepsForTest(overrides) {
   if (overrides.getFileHandles) _getFileHandles = overrides.getFileHandles;
-  if (overrides.getSensitiveHolders) {
-    _getSensitiveHolders = overrides.getSensitiveHolders;
-    // Tests inject RM on platforms where it is UNSUPPORTED by default.
+  if (overrides.getSensitiveHolders) _getSensitiveHolders = overrides.getSensitiveHolders;
+  if (overrides.getHotSensitiveHolders) _getHotSensitiveHolders = overrides.getHotSensitiveHolders;
+  if (overrides.getSensitiveHolders || overrides.getHotSensitiveHolders) {
+    // Tests inject RM on platforms where it is UNSUPPORTED by default — either source
+    // ticks the RM leaf through scanViaRestartManager, so either needs it live.
     if (
       _fsHealth[FS_SENSOR.RM] &&
       _fsHealth[FS_SENSOR.RM].state === sensorHealth.SENSOR_HEALTH_STATE.UNSUPPORTED
@@ -260,10 +284,12 @@ function _setDepsForTest(overrides) {
       _fsHealth[FS_SENSOR.RM] = sensorHealth.createSensorHealth(FS_SENSOR.RM);
     }
   }
-  if (overrides.getHotSensitiveHolders) _getHotSensitiveHolders = overrides.getHotSensitiveHolders;
   if (overrides.getProcessCapabilities) _getProcessCapabilities = overrides.getProcessCapabilities;
   if (Object.prototype.hasOwnProperty.call(overrides, 'isReadDetectionAvailable')) {
     _isReadDetectionAvailableOverride = overrides.isReadDetectionAvailable;
+  }
+  if (Object.prototype.hasOwnProperty.call(overrides, 'isRestartManagerAvailable')) {
+    _isRmAvailableOverride = overrides.isRestartManagerAvailable;
   }
 }
 /** @internal Reset debounce state + opt out of the RM path (for tests). */
@@ -273,6 +299,7 @@ function _resetForTest() {
   _getHotSensitiveHolders = undefined;
   _rmScanInFlight = false;
   _isReadDetectionAvailableOverride = undefined;
+  _isRmAvailableOverride = undefined;
   // Same contract as the RM dep above: a test opts INTO the population gate via
   // _setDepsForTest. The real process-scanner sits at STARTING until something drives
   // a scan, which is honestly "cannot vouch" — but a test asserting attribution logic
@@ -775,8 +802,64 @@ async function scanFileHandles(agent) {
  */
 function rmEnabled() {
   if (typeof _getSensitiveHolders !== 'function') return false;
-  if (typeof _isRmAvailable === 'function' && !_isRmAvailable()) return false;
+  return rmAvailable();
+}
+
+/**
+ * The Restart Manager probe's verdict (`restart-manager._rmAvailable`): optimistic
+ * until the probe fails, so the first ticks may run under RM and a later verdict
+ * switches the read mechanism to the pool — the one switch reachable in production.
+ * @returns {boolean}
+ */
+function rmAvailable() {
+  if (typeof _isRmAvailableOverride === 'boolean') return _isRmAvailableOverride;
+  if (typeof _isRmAvailable === 'function') return _isRmAvailable();
   return true;
+}
+
+/**
+ * Which read leaf is NOT observing for this process, or null when none is idle.
+ *
+ * `fs-handle` idles whenever the RM path owns the full scan. `fs-rm` idles only when
+ * neither RM entry is usable AND the pool can actually read — a blind win32 (no
+ * handle binary, no RM) has no owner, and B-S04 marks both leaves DEGRADED as before.
+ * In production the two RM entries share one availability flag, so "hot without
+ * full" occurs only in the bench harness, which scripts the hot source beside the
+ * pool; there the RM leaf is live through the hot cycle and no leaf is idle.
+ * @returns {string|null}
+ */
+function inactiveReadLeaf() {
+  if (rmEnabled()) return FS_SENSOR.HANDLE;
+  if (!isHotReadScanActive() && handleCapabilityOk()) return FS_SENSOR.RM;
+  return null;
+}
+
+/**
+ * Settle read-mechanism ownership: the idle leaf is UNSUPPORTED (out of the worst-of,
+ * `detail` naming the owner), decided at the first observation entry and re-decided
+ * only when the mechanism changes — never rewritten tick by tick. A leaf that returns
+ * to service starts a fresh STARTING lifetime (`createSensorHealth`, the only way out
+ * of UNSUPPORTED), exactly as `_setDepsForTest` re-creates the RM leaf.
+ *
+ * Without this a leaf no code path writes on this platform stays STARTING for the
+ * whole process, and `deriveAppHealth` reads SENSORS_STARTING forever.
+ * @param {number} now
+ * @returns {void}
+ * @since 0.14.0
+ */
+function resolveReadMechanism(now) {
+  const next = inactiveReadLeaf();
+  if (next === _inactiveReadLeaf) return;
+  if (_inactiveReadLeaf !== null) {
+    _fsHealth[_inactiveReadLeaf] = sensorHealth.createSensorHealth(_inactiveReadLeaf);
+    _inactiveReadLeaf = null;
+  }
+  if (next !== null && _fsHealth[next].state !== sensorHealth.SENSOR_HEALTH_STATE.UNSUPPORTED) {
+    _fsHealth[next] = sensorHealth.markUnsupported(_fsHealth[next], now, {
+      detail: next === FS_SENSOR.HANDLE ? READ_OWNER_REASON.RM : READ_OWNER_REASON.POOL,
+    });
+    _inactiveReadLeaf = next;
+  }
 }
 
 /**
@@ -913,8 +996,7 @@ async function _scanRmHolders(agents, fetchHolders) {
  */
 function isHotReadScanActive() {
   if (typeof _getHotSensitiveHolders !== 'function') return false;
-  if (typeof _isRmAvailable === 'function' && !_isRmAvailable()) return false;
-  return true;
+  return rmAvailable();
 }
 
 /**
@@ -930,6 +1012,7 @@ function isHotReadScanActive() {
  */
 async function scanHotFileHolders(agents) {
   if (!isHotReadScanActive()) return [];
+  resolveReadMechanism(Date.now());
   return scanViaRestartManager(agents, _getHotSensitiveHolders);
 }
 
@@ -940,6 +1023,8 @@ async function scanHotFileHolders(agents) {
  */
 async function scanAllFileHandles(agents) {
   const now = Date.now();
+  // Ownership first, so the leaf a refusal below marks and the leaf left idle agree.
+  resolveReadMechanism(now);
   // G′ invariant: the handle pool stamps HANDLE_SCAN_PID — `confirmed`, same strength
   // as the RM holder pid — so it is gated by the same rule and for the same reason.
   // Placed ahead of the RM delegation so both mechanisms are covered from one site.
@@ -951,7 +1036,8 @@ async function scanAllFileHandles(agents) {
   // Falls through to the legacy per-PID handle pool on darwin/linux, or on win32
   // when RM is unavailable (the PR-A getFileHandles→[] fallback still applies).
   if (rmEnabled()) {
-    // RM path owns observation this tick; handle sensor not sampled.
+    // RM path owns observation this tick; the handle leaf is UNSUPPORTED
+    // (rm-owns-observation) by resolveReadMechanism, not sampled and not STARTING.
     return scanViaRestartManager(agents);
   }
 
