@@ -432,7 +432,7 @@ entry of `memory-bank/progress.md`), ahead of the index and without waiting for 
 
 ---
 
-## 12. Block 1 — what landed (2026-08-25, `feat/audit-index-block-1`)
+## 12. Block 1 — what landed (2026-08-25, `feat/audit-index-block-1`, PR #337)
 
 **Scope:** §2 engine, §4 schema, the writer at flush time (§3.1), the rebuild-from-JSONL path
 (§3.2, §3.5, §3.6), the capability gate, `getStats().index` (§10 q7). No renderer channel and no
