@@ -32,7 +32,7 @@
     "prepare": "husky"
   },
   "engines": {
-    "node": "22.x"
+    "node": "24.x"
   },
   "lint-staged": {
     "src/**/*.{js,ts,svelte,css,html}": "prettier --write",
