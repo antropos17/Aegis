@@ -450,6 +450,37 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     replaces before assuming a call appends. The live topic list belongs in the API, not
     restated here (cf. #24).
 
+41. **`git worktree remove` on a worktree whose `node_modules` is a junction recursed THROUGH the
+    junction and emptied the MAIN checkout's `node_modules`, then died with "Permission denied".**
+    Found 2026-08-25 cleaning up after #324. The worktree `X:\tmp\aegis-audit-index` had been set
+    up the #37 way — `git worktree add` from `origin/master` plus
+    `mklink /J node_modules X:\Future\ESCAPE\AEGIS\node_modules` — and the junction had just
+    resolved fine: `node scripts/counts.js` ran through it seconds earlier. `git worktree remove
+    X:\tmp\aegis-audit-index` then answered `error: failed to delete 'X:/tmp/aegis-audit-index':
+    Permission denied`, and the main checkout's `node_modules` held 0 entries where a minute
+    earlier `node_modules/js-yaml`, `vitest` and `electron/dist/electron.exe` were present. Git's
+    recursive delete on Windows does not stop at a junction: it walked into the link target,
+    deleted every package it could, stopped on a locked file, and left the worktree directory on
+    disk but deregistered (`git worktree list` no longer showed it). A sibling worktree with its
+    OWN `npm ci` (`X:\tmp\aegis-demo`, 434 entries) was untouched — nothing in it pointed at the
+    main tree.
+    **This is the mechanism behind two earlier readings that were wrong.** The 2026-08-24
+    observation "junction target empty — another session's `npm ci` must have emptied it" (the
+    reason #37's fallback of an own `npm ci` exists), and the "Permission denied" that
+    `git worktree remove` answered on #312 and #314, read then as the shell's cwd holding the
+    directory and worked around with `git worktree prune` plus a manual `Remove-Item`. All three
+    had the shape of #324 — a junctioned worktree being removed, "Permission denied" from git — and
+    on none of them was the main `node_modules` re-checked afterwards (cf. #21 — a command that
+    ran is not a command that inspected the result; #27 — the diagnosis claimed more than the
+    evidence covered).
+    **Rule: drop the junction FIRST, then remove the worktree.** `cmd /c rmdir
+    X:\tmp\<name>\node_modules` removes the link and nothing behind it; only then
+    `git worktree remove <path>` from a cwd outside the worktree, then `git branch -D`. **Remedy
+    when it has already happened:** `npm ci --no-audit --no-fund` in the main checkout — 643
+    packages in 16 s on this machine, exit 0, lockfile untouched (#23: never regenerate it) — and
+    confirm `node_modules/vitest/package.json` exists before trusting any gate that ran after the
+    removal. A worktree that ran its own `npm ci` needs nothing.
+
 ## Review
 34. **Confirmed good approach — an external fork PR is four separate gates, and two of them
     fire AFTER the review already looks finished.** Established on the first two fork PRs
