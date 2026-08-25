@@ -1,6 +1,6 @@
 # Audit index — a rebuildable SQLite projection over the hash-chained JSONL
 
-**Status (as of 2026-08-25): BLOCKED on Electron >= 35.** The engine this plan chooses is
+**Status (as of 2026-08-25): UNBLOCKED — Electron 43.4.1 (Node 24.18.1, `node:sqlite` Stability 1.2) merged to master on 2026-08-25 in #334; the plan below can start.** The record of the block, as it was written: the engine this plan chooses is
 `node:sqlite`, and the Node that ships inside the pinned Electron does not have it: `electron@33.4.11`
 (`node_modules/electron/package.json`) bundles **Node 20.18.3**
 (<https://releases.electronjs.org/release/v33.4.11>); the Node 20.x API index lists no SQLite module
@@ -13,7 +13,7 @@ end-of-life since 2025-04-29 (<https://endoflife.date/api/electron.json>). **Ord
 upgrade block lands first, this index after it.** A capability-gated module that never fires in the
 shipped app is dead code by this repository's rules (`memory-bank/ai-mistakes.md` #14), so the plan
 below is not started until `process.versions.node` inside the packaged app resolves `node:sqlite`.
-When the upgrade lands, refresh this header in the same PR (the lag `sensor-health-degraded.md`
+This header was refreshed in the upgrade PR, #334 (the lag `sensor-health-degraded.md`
 records is what a stale status line costs).
 **Branch context:** master @ `d1a80f8`; every `file:line` reference below was verified against that
 commit on 2026-08-25. Line numbers drift with every edit — treat them as the place to start reading,

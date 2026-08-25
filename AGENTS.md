@@ -4,7 +4,7 @@
 
 ## Project overview
 
-AEGIS is an independent AI oversight layer — a desktop app that monitors AI agents running on a user's local machine. Electron 33 + Svelte 5 + Vitest.
+AEGIS is an independent AI oversight layer — a desktop app that monitors AI agents running on a user's local machine. Electron 43 + Svelte 5 + Vitest.
 
 ## Architecture
 

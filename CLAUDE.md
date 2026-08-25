@@ -1,5 +1,5 @@
 # AEGIS — Independent AI Oversight Layer
-Electron 33 + Svelte 5 (runes) + Vite 7. Privacy-first AI agent monitor.
+Electron 43 + Svelte 5 (runes) + Vite 7. Privacy-first AI agent monitor.
 Version is not quoted here — it goes stale the moment it is bumped:
 `node -p "require('./package.json').version"`
 Landing: aegisprotect.vercel.app | Demo: aegis-demo-ten.vercel.app
