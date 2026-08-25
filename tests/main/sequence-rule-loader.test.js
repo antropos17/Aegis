@@ -40,9 +40,14 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** @param {string} dir @param {string} file @returns {string} */
+/**
+ * Line endings are normalised to LF: `* text=auto` hands a Windows checkout CRLF fixtures, and
+ * the one case that regex-replaces across `\n` boundaries would otherwise miss on Windows alone
+ * while staying green in CI. The loader itself is not what that case tests.
+ * @param {string} dir @param {string} file @returns {string}
+ */
 function read(dir, file) {
-  return fs.readFileSync(path.join(dir, file), 'utf8');
+  return fs.readFileSync(path.join(dir, file), 'utf8').replace(/\r\n/g, '\n');
 }
 
 /** js-yaml appends a source excerpt to a parse error; the first line is the whole assertion. */
