@@ -1,5 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fileWatcher from '../../src/main/file-watcher.js';
+import Module from 'module';
+import path from 'path';
+import { createRequire } from 'module';
 
 function makeState(overrides = {}) {
   return {
@@ -1008,5 +1011,187 @@ describe('file-watcher instanceId on FileEvent', () => {
       expect(events[1].instanceId).toBe('200:1700000000222');
       expect(new Set(events.map((e) => e.instanceId)).size).toBe(2);
     });
+  });
+});
+
+// ── Hot-reload watchers (docs/roadmap/sequence-rules.md §5 "Hot-reload") ────────
+//
+// Two chokidar watchers, one per rule directory, and the hole the second one closes:
+// an edit to a FLAT rule file must not reach the sequence reload (which resets the
+// engine and drops its open sequences), and an edit under `rules/sequences` must not
+// reload the flat rules. `chokidar.watch` and `./rule-loader` are replaced through
+// `Module._load` on a fresh native require of the module (the
+// file-watcher-subscription.test.js convention), so the handlers run against fakes
+// and no watcher touches the host filesystem.
+describe('file-watcher rules hot-reload watchers', () => {
+  const require_ = createRequire(import.meta.url);
+  const originalLoad = Module._load;
+  const fwPath = require_.resolve('../../src/main/file-watcher.js');
+  const RULES_DIR = path.join(path.dirname(fwPath), '..', '..', 'rules');
+  const SEQUENCES_DIR = path.join(RULES_DIR, 'sequences');
+
+  /** @type {Array<{paths: unknown, opts: Record<string, any>, emit: Function}>} */
+  let watchers;
+  /** @type {import('vitest').Mock} */
+  let reloadRules;
+  /** @type {Map<string, object>} */
+  let flatRules;
+  /** @type {typeof import('../../src/main/file-watcher.js')} */
+  let fw;
+
+  beforeEach(() => {
+    watchers = [];
+    flatRules = new Map([
+      ['FA001', {}],
+      ['FA002', {}],
+      ['SC003', {}],
+    ]);
+    // The flat reload changes the set it reloads, so `count` read AFTER it is distinguishable
+    // from one read before.
+    reloadRules = vi.fn(() => {
+      flatRules.set('SC004', {});
+    });
+    Module._load = function (request, parent) {
+      if (request === 'chokidar') {
+        return {
+          watch: (paths, opts) => {
+            const handlers = new Map();
+            const w = {
+              paths,
+              opts,
+              on(event, cb) {
+                handlers.set(event, cb);
+                return w;
+              },
+              emit(event, ...args) {
+                const cb = handlers.get(event);
+                if (cb) cb(...args);
+              },
+              close: () => {},
+            };
+            watchers.push(w);
+            return w;
+          },
+        };
+      }
+      if (request === './rule-loader' && parent && parent.filename === fwPath) {
+        return { getAllRules: () => flatRules, reloadRules };
+      }
+      return originalLoad.apply(this, arguments);
+    };
+    delete require_.cache[fwPath];
+    fw = require_('../../src/main/file-watcher.js');
+  });
+
+  afterEach(() => {
+    Module._load = originalLoad;
+    delete require_.cache[fwPath];
+  });
+
+  /**
+   * Both watchers installed on one `sendFn`, the way `startWatchers` installs them.
+   * @param {{sequenceCount?: () => number, reload?: () => number}} [deps]
+   * @returns {{sendFn: import('vitest').Mock, reload: import('vitest').Mock, flat: any, seq: any}}
+   */
+  function installBoth({ sequenceCount = () => 1, reload = () => 1 } = {}) {
+    const sendFn = vi.fn();
+    const reloadSpy = vi.fn(reload);
+    fw.setupRulesWatcher(sendFn, { sequenceCount });
+    fw.setupSequenceRulesWatcher(sendFn, { reload: reloadSpy });
+    return { sendFn, reload: reloadSpy, flat: watchers[0], seq: watchers[1] };
+  }
+
+  it('watches rules/ and rules/sequences with the same options — depth 0, function-form ignored', () => {
+    installBoth();
+
+    expect(watchers.map((w) => w.paths)).toEqual([RULES_DIR, SEQUENCES_DIR]);
+    for (const w of watchers) {
+      expect(w.opts).toMatchObject({
+        persistent: false,
+        ignoreInitial: true,
+        followSymlinks: false,
+        depth: 0,
+      });
+      expect(typeof w.opts.ignored).toBe('function');
+    }
+  });
+
+  it('an _-prefixed file is ignored by both watchers, a rule file is not', () => {
+    const { flat, seq } = installBoth();
+
+    expect(flat.opts.ignored(path.join(RULES_DIR, '_schema.json'))).toBe(true);
+    expect(flat.opts.ignored(path.join(RULES_DIR, 'file-access.yaml'))).toBe(false);
+    expect(seq.opts.ignored(path.join(SEQUENCES_DIR, '_draft.yaml'))).toBe(true);
+    expect(seq.opts.ignored(path.join(SEQUENCES_DIR, 'sequences.yaml'))).toBe(false);
+  });
+
+  it('a change under rules/sequences calls reload, leaves the flat rules alone and pushes sequenceCount', () => {
+    const { sendFn, reload, seq } = installBoth({ reload: () => 2 });
+
+    seq.emit('change', path.join(SEQUENCES_DIR, 'sequences.yaml'));
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(reloadRules).not.toHaveBeenCalled();
+    expect(sendFn).toHaveBeenCalledTimes(1);
+    expect(sendFn).toHaveBeenCalledWith('rules:reloaded', {
+      count: 3,
+      file: 'sequences.yaml',
+      sequenceCount: 2,
+    });
+  });
+
+  it('a change to a flat rule file reloads the flat rules and never calls the sequence reload', () => {
+    const { sendFn, reload, flat } = installBoth({ sequenceCount: () => 1 });
+
+    flat.emit('change', path.join(RULES_DIR, 'file-access.yaml'));
+
+    expect(reloadRules).toHaveBeenCalledTimes(1);
+    expect(reload).not.toHaveBeenCalled();
+    expect(sendFn).toHaveBeenCalledTimes(1);
+    // `count` is the size AFTER the reload (4, not the 3 the map held before it).
+    expect(sendFn).toHaveBeenCalledWith('rules:reloaded', {
+      count: 4,
+      file: 'file-access.yaml',
+      sequenceCount: 1,
+    });
+  });
+
+  it('the flat push reads the sequence figure at the time of the change, not at setup', () => {
+    let loaded = 1;
+    const { sendFn, flat } = installBoth({ sequenceCount: () => loaded });
+
+    loaded = 3;
+    flat.emit('change', path.join(RULES_DIR, 'file-access.yml'));
+
+    expect(sendFn).toHaveBeenCalledWith('rules:reloaded', {
+      count: 4,
+      file: 'file-access.yml',
+      sequenceCount: 3,
+    });
+  });
+
+  it('a .yml file under rules/sequences is a rule file too', () => {
+    const { sendFn, reload, seq } = installBoth({ reload: () => 1 });
+
+    seq.emit('change', path.join(SEQUENCES_DIR, 'more.yml'));
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(sendFn).toHaveBeenCalledWith('rules:reloaded', {
+      count: 3,
+      file: 'more.yml',
+      sequenceCount: 1,
+    });
+  });
+
+  it('a non-yaml file under either directory is ignored: no reload, no push', () => {
+    const { sendFn, reload, flat, seq } = installBoth();
+
+    flat.emit('change', path.join(RULES_DIR, 'README.md'));
+    seq.emit('change', path.join(SEQUENCES_DIR, 'notes.txt'));
+    seq.emit('change', path.join(SEQUENCES_DIR, 'sequences.yaml.bak'));
+
+    expect(reloadRules).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
+    expect(sendFn).not.toHaveBeenCalled();
   });
 });

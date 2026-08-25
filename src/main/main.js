@@ -70,6 +70,10 @@ let baselines,
   wslDetector,
   llmDetector;
 
+// How many sequence rules the engine holds — written by loadSequenceRules, read by the
+// `rules:reloaded` push of BOTH rule watchers (file-watcher.js) as `sequenceCount`.
+let sequenceRuleCount = 0;
+
 let mainWindow = null;
 let latestAgents = [],
   latestAiAgents = [],
@@ -482,7 +486,10 @@ async function startWatchers() {
   watchersStarted = true;
   try {
     await watcher.setupFileWatchers();
-    watcher.setupRulesWatcher(sendToRenderer);
+    // Two rule watchers, one per directory (roadmap §5 "Hot-reload"): the flat one never
+    // resets the sequence engine, the sequence one never reloads the flat rules.
+    watcher.setupRulesWatcher(sendToRenderer, { sequenceCount: getSequenceRuleCount });
+    watcher.setupSequenceRulesWatcher(sendToRenderer, { reload: reloadSequenceRules });
     // One entry per watch-root GROUP (credential dirs / agent-config dirs / app
     // dir / ~/.env*), so a group may cover several directories. This line is the
     // discriminator for a silently dead file feed: absent means startup never
@@ -589,6 +596,65 @@ function onSequenceDetection(detection) {
   logger.info('sequence-engine', `Sequence ${detection.ruleId} detected`, detection);
 }
 
+/**
+ * Reads `rules/sequences/` through the loader and remembers the count. The loader has
+ * already written one `sequence-loader` warn line per warning and per load error; this is
+ * the one-line summary a reader of the log finds first, on the warn level only when there
+ * is something to warn about.
+ * @param {string} message - the summary line: `Sequence rules loaded` at startup,
+ *   `Sequence rules reloaded` from the watcher.
+ * @returns {import('./sequence-rule-loader').SequenceLoadResult}
+ * @since v0.14.0
+ */
+function loadSequenceRules(message) {
+  const sequences = require('./sequence-rule-loader').loadDir();
+  const sequenceSummary = {
+    rules: sequences.rules.map((r) => r.id),
+    warnings: sequences.warnings.length,
+    loadErrors: sequences.loadErrors,
+  };
+  if (sequences.warnings.length > 0 || sequences.loadErrors > 0) {
+    logger.warn('sequence-loader', `${message} with notices`, {
+      ...sequenceSummary,
+      reasons: sequences.warnings.map((w) => w.reason),
+    });
+  } else {
+    logger.info('sequence-loader', message, sequenceSummary);
+  }
+  sequenceRuleCount = sequences.rules.length;
+  return sequences;
+}
+
+/**
+ * The `reload` the `rules/sequences` watcher calls (file-watcher.js
+ * `setupSequenceRulesWatcher`, roadmap §5 "Hot-reload"): the directory read again, the open
+ * sequences dropped and counted — `reset('reload')`, since they were opened against rules
+ * that may no longer exist — and the engine re-initialised with the new rules and the SAME
+ * consumer as startup. Before the deferred init has run there is no engine to reset and that
+ * init reads the directory itself, so the call answers the count it knows and does nothing.
+ * @returns {number} how many sequence rules the engine holds now.
+ * @since v0.14.0
+ */
+function reloadSequenceRules() {
+  if (!sequenceEngine) return sequenceRuleCount;
+  const sequences = loadSequenceRules('Sequence rules reloaded');
+  sequenceEngine.reset('reload');
+  sequenceEngine.init({
+    rules: sequences.rules,
+    onDetection: onSequenceDetection,
+  });
+  return sequenceRuleCount;
+}
+
+/**
+ * @returns {number} the sequence rules the engine holds — the `sequenceCount` field the flat
+ *   rule watcher puts on its `rules:reloaded` push.
+ * @since v0.14.0
+ */
+function getSequenceRuleCount() {
+  return sequenceRuleCount;
+}
+
 /** Wires deferred modules and starts scanning. Called after ready-to-show. */
 function initDeferredSubsystems(userData) {
   loadDeferredModules();
@@ -598,27 +664,11 @@ function initDeferredSubsystems(userData) {
   require('./platform').probeReadDetection?.();
   const network = require('./network-monitor');
   const analysis = require('./ai-analysis');
-  const sequenceLoader = require('./sequence-rule-loader');
 
-  // Sequence rules (docs/roadmap/sequence-rules.md §5): `rules/sequences/` is read ONCE
-  // here and the engine takes the compiled rules. The loader has already written one
-  // `sequence-loader` warn line per warning and per load error; this is the one-line
-  // summary a reader of the log finds first, on the warn level only when there is
-  // something to warn about.
-  const sequences = sequenceLoader.loadDir();
-  const sequenceSummary = {
-    rules: sequences.rules.map((r) => r.id),
-    warnings: sequences.warnings.length,
-    loadErrors: sequences.loadErrors,
-  };
-  if (sequences.warnings.length > 0 || sequences.loadErrors > 0) {
-    logger.warn('sequence-loader', 'Sequence rules loaded with notices', {
-      ...sequenceSummary,
-      reasons: sequences.warnings.map((w) => w.reason),
-    });
-  } else {
-    logger.info('sequence-loader', 'Sequence rules loaded', sequenceSummary);
-  }
+  // Sequence rules (docs/roadmap/sequence-rules.md §5): `rules/sequences/` is read here
+  // and the engine takes the compiled rules; the watcher in startWatchers reads it again
+  // on every change (reloadSequenceRules).
+  const sequences = loadSequenceRules('Sequence rules loaded');
   sequenceEngine.init({
     rules: sequences.rules,
     onDetection: onSequenceDetection,
