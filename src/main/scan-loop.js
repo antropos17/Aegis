@@ -113,6 +113,29 @@ function logAuditForFile(ev) {
   });
 }
 
+/**
+ * Offer one live carrier to the sequence engine — the taps of
+ * docs/roadmap/sequence-rules.md §5, fed the SAME record the audit / baseline call
+ * beside each tap receives, after the existing dedup. The engine is an injected
+ * collaborator like every other one here (`deps.sequenceEngine`, wired in main.js);
+ * absent — a test that stubs only the collaborator its assertions are about — the tap
+ * is a no-op and the scan runs as before.
+ *
+ * Deliberately no try/catch: `ingest` carries its own error boundary
+ * (sequence-engine.js — an unrecognised shape or a throwing matcher is counted and
+ * dropped, never rethrown), and a second boundary here would hide a defect of the
+ * first. Records without an `instanceId` (file and network events in Schema v1) are
+ * passed through unfiltered: the engine's null policy skips and COUNTS them, and a
+ * pre-filter here would turn that count into silence (roadmap §4).
+ * @param {Object} carrier - a `FileEvent`, a `NetworkConnection` or a session record.
+ * @returns {void}
+ * @since v0.14.0
+ */
+function ingestSequence(carrier) {
+  const engine = deps.sequenceEngine;
+  if (engine && typeof engine.ingest === 'function') engine.ingest(carrier);
+}
+
 function stopScanIntervals() {
   for (const t of startupTimers) clearTimeout(t);
   startupTimers = [];
@@ -254,6 +277,8 @@ function doNetworkScan() {
             ]),
             extra: { domain: conn.domain, flagged: conn.flagged },
           });
+          // Tap 3 (roadmap §5): the connection object itself, keyless ones included.
+          ingestSequence(conn);
         }
         sendToRenderer('network-update', connections);
         logger.debug('scan', 'network', {
@@ -416,7 +441,7 @@ async function doProcessScan() {
       reliable: result.reliable !== false,
       identityDegraded,
     });
-    for (const s of entered)
+    for (const s of entered) {
       audit.log('agent-enter', {
         agent: s.agent,
         // pid and instanceId are TOP-LEVEL in v1. They were in `extra` on the belief that
@@ -433,7 +458,11 @@ async function doProcessScan() {
         attribution: null,
         extra: { startTime: s.firstSeen },
       });
-    for (const s of exited)
+      // Tap 4 (roadmap §5): the session record as session-tracker returned it — no
+      // `lastSeen` on an enter, which is how the normalizer tells the two apart.
+      ingestSequence(s);
+    }
+    for (const s of exited) {
       audit.log('agent-exit', {
         agent: s.agent,
         pid: s.pid,
@@ -445,6 +474,10 @@ async function doProcessScan() {
         // resolution step to describe.
         attribution: null,
       });
+      // Tap 4 (roadmap §5): `lastSeen` present ⇒ `agent-exit`, which the engine first
+      // offers as a step and then uses to close the instance's open states.
+      ingestSequence(s);
+    }
     watcher.pruneKnownHandles(agents);
     procUtil.annotateHostApps(agents);
     // Same `forceRefresh` contract as the identity stamp at the top of this scan:
@@ -561,6 +594,12 @@ async function doProcessScan() {
       _lastTriggeredNetScan = Date.now();
       doNetworkScan();
     }
+    // Tap 5 (roadmap §5): once per process tick, after this tick's session taps —
+    // expired open sequences and stale exit marks leave without waiting for the next
+    // event of the same key. Same optional-collaborator shape as `ingestSequence`.
+    if (deps.sequenceEngine && typeof deps.sequenceEngine.sweep === 'function') {
+      deps.sequenceEngine.sweep();
+    }
     logger.debug('scan', 'process', {
       ms: Math.round(performance.now() - t0),
       agents: agents.length,
@@ -669,6 +708,8 @@ async function doFileScan() {
       for (const ev of events) deps.fileAccessBatcher.push(ev);
       tray.notifySensitive(events.filter((e) => e.sensitive && e.category === 'ai'));
       for (const ev of events) logAuditForFile(ev);
+      // Tap 2 (roadmap §5): the deduped handle-scan events, same list the audit saw.
+      for (const ev of events) ingestSequence(ev);
     }
     // Producer, not payload: the batcher is 'latest', so a payload built here would be
     // discarded by the next push inside the same 1000 ms window.
@@ -712,6 +753,8 @@ async function doHotReadScan() {
       for (const ev of events) deps.fileAccessBatcher.push(ev);
       tray.notifySensitive(events.filter((e) => e.sensitive && e.category === 'ai'));
       for (const ev of events) logAuditForFile(ev);
+      // Tap 2 (roadmap §5): the same dedup → batch → audit pipeline as doFileScan.
+      for (const ev of events) ingestSequence(ev);
       deps.statsUpdateBatcher.pushLazy(getStats);
       tray.updateTrayIcon();
     }
