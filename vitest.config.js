@@ -39,6 +39,8 @@ export default defineConfig({
       include: [
         'src/main/logger.js',
         'src/main/audit-logger.js',
+        'src/main/audit-index.js',
+        'src/main/audit-index-rebuild.js',
         'src/main/config-manager.js',
         'src/main/baselines.js',
         'src/main/process-utils.js',

@@ -17,8 +17,24 @@ const path = require('path');
 const hashchain = require('./audit-hashchain');
 const dropTracker = require('./audit-drop-tracker');
 const { normalizeAuditEntry } = require('./audit-normalize');
+const auditIndex = require('./audit-index');
+const indexRebuild = require('./audit-index-rebuild');
 
 let _logDir = '';
+/** @type {string} userData root, kept for the index which lives beside `audit-logs/`. */
+let _userDataPath = '';
+/** @type {function|undefined} Test seam forwarded to `auditIndex.open` (docs/roadmap/audit-index.md §2). */
+let _loadSqlite;
+/**
+ * Whether the deferred index open may still run. `init` arms it, `shutdown` disarms it: the open
+ * sits on a `setImmediate`, and a shutdown before that tick must leave no database behind.
+ * @type {boolean}
+ */
+let _indexArmed = false;
+/** @type {Promise<void>} Settles when the deferred `cleanOldLogs` + index open of the last init ran. */
+let _indexReady = Promise.resolve();
+/** @type {Promise<void>|null} The reconcile in flight, if any. */
+let _indexTask = null;
 let _buffer = [];
 let _flushTimer = null;
 let _onFlushError = null;
@@ -114,6 +130,8 @@ let _persistedEntries = 0;
  * @param {function} [opts.now] - Test seam: returns the current Date (defaults to real clock)
  * @param {number} [opts.bufferCap] - Test seam: max buffered entries before drop-oldest
  *   eviction (defaults to {@link BUFFER_CAP})
+ * @param {function} [opts.loadSqlite] - Test seam: replaces the index's `node:sqlite` loader,
+ *   so a runtime without the engine can be simulated (`() => null`)
  * @returns {void}
  * @since v0.2.0
  */
@@ -121,8 +139,10 @@ function init(opts) {
   _onFlushError = opts.onFlushError || null;
   if (opts.now) _now = opts.now;
   _bufferCap = opts.bufferCap != null ? opts.bufferCap : BUFFER_CAP;
+  _loadSqlite = opts.loadSqlite;
   // Drop counts describe THIS session — a new init must not inherit a previous one's.
   dropTracker.reset();
+  _userDataPath = opts.userDataPath;
   _logDir = path.join(opts.userDataPath, 'audit-logs');
   try {
     if (!fs.existsSync(_logDir)) fs.mkdirSync(_logDir, { recursive: true });
@@ -131,7 +151,58 @@ function init(opts) {
   }
   _seedCounters();
   _flushTimer = setInterval(flush, FLUSH_INTERVAL);
-  setImmediate(() => cleanOldLogs());
+  // Retention first, then the index: a file the sweep deletes is never indexed, and the
+  // reconcile that follows the open drops the rows of any file a previous sweep removed.
+  _indexArmed = true;
+  _indexReady = new Promise((resolve) =>
+    setImmediate(() => {
+      cleanOldLogs();
+      if (_indexArmed) _openIndex();
+      resolve();
+    }),
+  );
+}
+
+/**
+ * Open the index beside the log directory and, when it opened, reconcile it against the
+ * directory. Its own try/catch: nothing here may reach the JSONL path.
+ * @returns {void}
+ */
+function _openIndex() {
+  try {
+    const state = auditIndex.open({ userDataPath: _userDataPath, loadSqlite: _loadSqlite });
+    if (state === 'building') _indexTask = indexRebuild.schedule(_logDir);
+  } catch (err) {
+    console.error('[audit-logger] index open failed:', err.message);
+  }
+}
+
+/**
+ * Hand the batch a successful flush just wrote to the index — after the JSONL write, the chain
+ * state and the counters; inside its own try/catch. The index sees the SAME strings that went
+ * to disk. `offsetBefore` is derived from one stat after the write, so a torn write or a file
+ * the index does not account for shows up as a byte-offset mismatch and the file is re-read
+ * from disk (audit-index.js `append`).
+ * @param {string} fp - today's file path
+ * @param {number} bytes - bytes the write added
+ * @param {string[]} lines - the lines written
+ * @returns {void}
+ */
+function _indexAppend(fp, bytes, lines) {
+  try {
+    const st = fs.statSync(fp);
+    const applied = auditIndex.append({
+      file: path.basename(fp),
+      offsetBefore: st.size - bytes,
+      bytes,
+      lines,
+    });
+    if (!applied && auditIndex.status().state === 'building') {
+      _indexTask = indexRebuild.schedule(_logDir);
+    }
+  } catch (err) {
+    console.error('[audit-logger] index append failed:', err.message);
+  }
 }
 
 /**
@@ -350,8 +421,11 @@ function flush() {
     seq += 1;
   }
 
+  const text = out.join('\n') + '\n';
+  let written = false;
   try {
-    fs.appendFileSync(fp, out.join('\n') + '\n', 'utf-8');
+    fs.appendFileSync(fp, text, 'utf-8');
+    written = true;
     _prevHash = prevHash;
     _seq = seq;
     _chainDate = todayDate;
@@ -370,6 +444,10 @@ function flush() {
     // concatenation can exceed the cap. A no-op in the normal case.
     _trimToCap();
   }
+  // Canon first, projection last: the index is fed only once the lines are on disk and the
+  // chain has advanced, outside the write's try/catch so it can neither fail this write nor
+  // re-queue the batch, and it never touches the counters above.
+  if (written) _indexAppend(fp, Buffer.byteLength(text, 'utf-8'), out);
 }
 
 /**
@@ -416,7 +494,12 @@ function cleanOldLogs() {
  * are not necessarily the bounds of what the files contain.
  * @returns {{totalEntries: number, persistedEntries: number, droppedEntries: number,
  *   bufferDepth: number, totalSize: number, currentSize: number, firstEntry: string|null,
- *   lastEntry: string|null}}
+ *   lastEntry: string|null, index: {state: string, files: number, rows: number,
+ *   malformedLines: number, lastError: string|null}}}
+ *   `index` — the audit index (docs/roadmap/audit-index.md): `state` is `unavailable` on a
+ *   runtime without `node:sqlite`, `building` until the reconcile finishes, `ready`, `failed`
+ *   (with `lastError`) or `closed`; counts are read live from the tables. Additive, and not a
+ *   sensor: nothing about the app's health reads it.
  *   `totalEntries` — events handed to {@link log} this session plus records found on disk
  *   at init. It counts entries still in the buffer AND entries evicted under a full
  *   buffer that will never reach disk, so under overflow it permanently exceeds the real
@@ -438,6 +521,7 @@ function getStats() {
       currentSize: 0,
       firstEntry: null,
       lastEntry: null,
+      index: auditIndex.status(),
     };
   let totalSize = 0;
   let currentSize = 0;
@@ -464,6 +548,7 @@ function getStats() {
     currentSize,
     firstEntry: _firstEntry,
     lastEntry: _lastEntry,
+    index: auditIndex.status(),
   };
 }
 
@@ -506,16 +591,20 @@ function exportAll() {
 }
 
 /**
- * Stop the flush timer and flush remaining buffer.
+ * Stop the flush timer, flush the remaining buffer, then close the index — after the flush,
+ * so the last batch reaches the tables; disarmed first, so an open still pending on its
+ * `setImmediate` never runs after this.
  * @returns {void}
  * @since v0.2.0
  */
 function shutdown() {
+  _indexArmed = false;
   if (_flushTimer) {
     clearInterval(_flushTimer);
     _flushTimer = null;
   }
   flush();
+  auditIndex.close();
 }
 
 /**
@@ -701,4 +790,13 @@ module.exports = {
   normalizeAuditEntry,
   SCHEMA_VERSION,
   MAX_READ_LIMIT,
+  /**
+   * @internal Settles once the deferred open of the last `init` and any reconcile in flight
+   * have finished, so a test can inspect the tables (for tests).
+   * @returns {Promise<void>}
+   */
+  _awaitIndexForTest: async () => {
+    await _indexReady;
+    if (_indexTask) await _indexTask;
+  },
 };
