@@ -433,6 +433,47 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     `gh api repos/{owner}/{repo}/actions/runs/{id}/approve -X POST`; the approved run comes
     back as `run_attempt: 2`. A run parked this way is indistinguishable from a slow one on
     the PR page, so find it by head SHA rather than waiting.
+    **Correction 2026-08-25 — (a) generalised from two first-time contributors. Approval is
+    gated on CONTRIBUTOR CLASS, not on the PR being a fork: a fork PR whose author already
+    has a merged PR here starts CI unapproved, and the setting that says so is readable.**
+    Found merging #304/#305/#306 (all `MsfPablo`), where every head ran on its own — three
+    PRs in a row, and again after `update-branch`.
+    **The setting is the answer, and it is neither of the two #35 ruled out.**
+    `gh api repos/antropos17/Aegis/actions/permissions/fork-pr-contributor-approval`
+    → `{"approval_policy":"first_time_contributors"}` — the middle of GitHub’s three
+    options, so only an author who has not yet landed a commit in this repository needs the
+    click. The endpoints #35 checked govern something else and always will:
+    `.../actions/permissions` is `enabled: true, allowed_actions: all,
+    sha_pinning_required: false`, and `.../actions/permissions/workflow` publishes only
+    `default_workflow_permissions` and `can_approve_pull_request_reviews`.
+    **The discriminator is attempt 1’s conclusion, NOT `run_attempt`** — #35 already
+    recorded an approved run coming back `run_attempt: 1`, so the counter cannot answer
+    this. A parked run’s `/actions/runs/{id}/attempts/1` reads `conclusion: action_required`;
+    a run that was never parked has ONE attempt reading `success`, with
+    `run_started_at == created_at`. MsfPablo’s first run (`32719377298`, #298, head
+    `7f474b2`) has attempt 1 `action_required` and attempt 2 `success`. #304’s two runs —
+    `32764969825` (`a30a74c`) and `32797158207` (`565f2a2`, post-`update-branch`) — each
+    have one attempt, `success`, started the second they were created.
+    **The waiver switches on at the MERGE, not at the approval — measured to the second.**
+    `32719377298` was approved 2026-08-24T10:57:24Z; #298 merged 10:58:43Z; #301’s head
+    `de28147` was created 10:59:09Z — 26 s later — and ran unapproved, as did every MsfPablo
+    run after it (#299, #300, all three heads of #304/#305/#306 on 08-24, and all three
+    post-`update-branch` heads on 08-25: `565f2a2`, `c5e44d4`, `1635592`). "One approval
+    waives the rest" is refuted by the same census: `mig-builds` was parked twice (`0ef5ec3`
+    08-22, `10c9592` 08-23) and `anupamme` twice (`1c20505`, `d4e586b`, both 08-21), each
+    pair falling entirely before that author’s first merge.
+    **Census, so the condition is not read off one case.** Every fork-originated run the API
+    still returns — `gh api 'repos/antropos17/Aegis/actions/runs?event=pull_request&per_page=100&page=N'`
+    over all five pages, 409 `pull_request` runs, 21 of them from forks across six
+    contributors (anupamme, mig-builds, frobel0520, MsfPablo, ElshadHu, travisbreaks) —
+    splits 21/21 on one line: parked while its author had no merged PR here, unparked after.
+    `ElshadHu` crossed it at #26 (2026-02-19) and `travisbreaks` at #50 (2026-03-01), each
+    with the same before/after shape.
+    **What this does NOT retire.** (b) stands exactly as written, and this entry is why:
+    mig-builds was STILL first-time when #273 was updated — the PR merged one minute after
+    the second approval — so the second round was required, not redundant. (c) and (d) are
+    untouched. #35 is untouched too: a release-please PR is parked because GITHUB_TOKEN
+    authored the event, which no contributor history waives.
     (b) **Merging one PR invalidates the approval of every other open one.** master is
     `strict: true`, so the moment #274 merged, #273 went `behind_by: 2` and CLEAN flipped to
     BEHIND. `gh pr update-branch` fixes it while `maintainerCanModify` is true — and it

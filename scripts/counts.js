@@ -220,6 +220,20 @@ function deriveFileSizes() {
   };
 }
 
+/**
+ * The one derivation here that does not answer a number. `package.json` is the single
+ * source — CLAUDE.md's own header runs this command rather than quoting a version — and
+ * a semver string compares by identity exactly the way an integer does: everything
+ * downstream of a value is `!==` or `String()`.
+ * @returns {string} the `version` field of package.json.
+ */
+function deriveVersion() {
+  const pkg = /** @type {*} */ (JSON.parse(readTracked('package.json')));
+  if (typeof pkg.version !== 'string' || pkg.version === '')
+    throw new Error('package.json: no `version` string');
+  return pkg.version;
+}
+
 const mutants = deriveMutants();
 const ci = deriveCi();
 const preload = derivePreload();
@@ -227,6 +241,7 @@ const database = deriveAgentDatabase();
 const ruleset = deriveRules();
 const sequences = deriveSequences();
 const sizes = deriveFileSizes();
+const version = deriveVersion();
 
 const mainAll = trackedUnder('src/main', (p) => p.endsWith('.js'));
 const mainTop = trackedTopLevel('src/main', (f) => f.endsWith('.js'));
@@ -240,7 +255,15 @@ const mainTop = trackedTopLevel('src/main', (f) => f.endsWith('.js'));
  * A counter earns a place here only if prose can restate its value and stay true for
  * more than one commit. One that moves on an ordinary single-line edit belongs in
  * `DERIVED_ONLY` below instead.
- * @type {Array<{key: string, label: string, value: number, command: string}>}
+ *
+ * An entry may also carry `blocking: false`. It is derived, located, compared and
+ * printed like every other, and a disagreement is reported under its own heading — it
+ * simply does not exit 1. That is a THIRD position between "checked" and
+ * `DERIVED_ONLY`, not a skip flag: the counter keeps its declaration sites, so the
+ * undeclared gate and the unparseable gate still apply to it in full. `package.version`
+ * is the only one, and carries the reason at its entry.
+ * @type {Array<{key: string, label: string, value: number|string, command: string,
+ *   blocking?: boolean}>}
  */
 const COUNTERS = [
   {
@@ -375,6 +398,25 @@ const COUNTERS = [
     command:
       "git ls-files -z src | grep -zv '\\.json$' | xargs -0 wc -l | awk '$1 > 300 && $2 != \"total\"' | wc -l",
   },
+  {
+    key: 'package.version',
+    label: 'package.json version',
+    value: version,
+    command: 'node -p "require(\'./package.json\').version"',
+    // `blocking: false`, and the reason is release-please. Its release PR bumps
+    // `version` in package.json and touches neither llms file, so a blocking compare
+    // would turn the `test` context red on that PR and STAY red on master afterwards
+    // until somebody hand-edited prose — a required context failing on the one commit
+    // nobody authors by hand, which is the exact failure the DERIVED_ONLY block below
+    // was written about. Moving the version there instead would take its declaration
+    // sites away, and two files free to say anything is how llms.txt and llms-full.txt
+    // came to answer "see `version` in `package.json`" — true, and useless to a crawler
+    // reading either file standalone. So it is located, compared and reported, and only
+    // the exit code is withheld. Making it blocking is a release-please `extra-files`
+    // change (it would have to rewrite both prose sites in the bump commit), not a
+    // change here.
+    blocking: false,
+  },
 ];
 
 /**
@@ -415,7 +457,8 @@ const DERIVED_ONLY = [
 /**
  * Checked counters only. A `DERIVED_ONLY` key is absent from this map by construction,
  * which is what stops the stale gate from ever resolving one.
- * @type {Map<string, {key: string, label: string, value: number, command: string}>}
+ * @type {Map<string, {key: string, label: string, value: number|string, command: string,
+ *   blocking?: boolean}>}
  */
 const BY_KEY = new Map(COUNTERS.map((c) => [c.key, c]));
 
@@ -485,11 +528,30 @@ function pick(line, rules) {
 }
 
 /**
+ * `pick` for a counter whose value is not an integer. The capture is taken as written
+ * instead of going through `toInt`, which answers null for a semver and would drop the
+ * declaration silently — an absent site rather than a wrong one, which is the failure
+ * mode this file exists to prevent.
+ * @param {string} line
+ * @param {Array<[string, RegExp]>} rules
+ * @returns {Array<{key: string, value: string}>}
+ */
+function pickText(line, rules) {
+  /** @type {Array<{key: string, value: string}>} */
+  const found = [];
+  for (const [key, re] of rules) {
+    const m = line.match(re);
+    if (m && m[1]) found.push({ key, value: m[1] });
+  }
+  return found;
+}
+
+/**
  * Each scanner's `locate` is intentionally wider than its `parse`. When `locate`
  * fires and `parse` returns nothing, the site is reported as UNPARSEABLE and the run
  * goes red — a reworded declaration must never read as an absent one.
  * @type {Array<{id: string, locate: RegExp, parse: (line: string) =>
- *   Array<{key: string, value: number}>}>}
+ *   Array<{key: string, value: number|string}>}>}
  */
 const SCANNERS = [
   {
@@ -661,6 +723,25 @@ const SCANNERS = [
     locate: new RegExp(`\\bexceeds?\\s+it\\b|${DIGITS}\\s+existing\\b`, 'i'),
     parse: (line) => pick(line, [['size.over300', new RegExp(`${DIGITS}\\s+existing\\b`, 'i')]]),
   },
+  {
+    id: 'app-version',
+    // The declaration is a labelled prose field — `- **Version**: <semver>` in llms.txt
+    // and llms-full.txt, the two files a crawler reads standalone and cannot resolve a
+    // pointer out of. The locator is the LABEL alone, so a value that stops being a
+    // version ("latest", a range, a codename) locates, parses to nothing and goes red.
+    //
+    // One reword it cannot catch, stated rather than left to be discovered
+    // (ai-mistakes #27): `hasNumber()` gates every line before any scanner sees it, and
+    // "**Version**: see `version` in `package.json`" — the sentence this counter
+    // replaces — carries no digit and no spelled-out number, so it is skipped, not
+    // reported. What catches that reword is the UNDECLARED gate, and only once BOTH
+    // sites are gone; reword one and the other still declares the counter, and the run
+    // stays green. Widening `hasNumber` is not the fix — it is load-bearing for every
+    // scanner above, and loosening it turns each of them into a noise source.
+    locate: /\*\*Version\*\*\s*:/i,
+    parse: (line) =>
+      pickText(line, [['package.version', /\*\*Version\*\*\s*:\s*`?v?(\d+\.\d+\.\d+[\w.+-]*)`?/i]]),
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -794,7 +875,10 @@ function hasNumber(line) {
 // Scan.
 // ---------------------------------------------------------------------------
 
-/** @type {Array<{file: string, line: number, key: string, declared: number, text: string}>} */
+/**
+ * @type {Array<{file: string, line: number, key: string, declared: number|string,
+ *   text: string}>}
+ */
 const declarations = [];
 /** @type {Array<{file: string, line: number, scanner: string, text: string}>} */
 const unparseable = [];
@@ -849,7 +933,10 @@ for (const file of TRACKED) {
 // Compare and report.
 // ---------------------------------------------------------------------------
 
-const mismatches = declarations.filter((d) => BY_KEY.get(d.key).value !== d.declared);
+const disagreements = declarations.filter((d) => BY_KEY.get(d.key).value !== d.declared);
+const mismatches = disagreements.filter((d) => BY_KEY.get(d.key).blocking !== false);
+const drifted = disagreements.filter((d) => BY_KEY.get(d.key).blocking === false);
+const nonBlocking = COUNTERS.filter((c) => c.blocking === false);
 const undeclared = COUNTERS.filter((c) => !declarations.some((d) => d.key === c.key));
 const staleSiteExemptions = SITE_EXEMPTIONS.filter((_, i) => !usedSiteExemptions.has(i));
 const staleArchival = ARCHIVAL.filter((a) => !usedArchival.has(a.file));
@@ -864,7 +951,10 @@ for (const c of COUNTERS) {
   const sites = declarations.filter((d) => d.key === c.key).length;
   console.log(`  ${c.key.padEnd(20)} = ${String(c.value).padStart(5)}   ${c.label}`);
   console.log(`  ${' '.repeat(20)}     ${c.command}`);
-  console.log(`  ${' '.repeat(20)}     declared at ${sites} site${sites === 1 ? '' : 's'}`);
+  console.log(
+    `  ${' '.repeat(20)}     declared at ${sites} site${sites === 1 ? '' : 's'}` +
+      (c.blocking === false ? ' — reported, never blocking' : ''),
+  );
 }
 
 head('Derived only — no declaration sites by design');
@@ -894,6 +984,22 @@ for (const e of SITE_EXEMPTIONS) console.log(`    line      ${e.file} "${e.conta
 console.log(`    self      ${SELF_EXCLUSION.file} — ${SELF_EXCLUSION.why}`);
 
 let failed = false;
+
+if (drifted.length > 0) {
+  head(`Drift reported, not blocking (${drifted.length})`);
+  console.log(
+    '  These sites disagree with the tree and this run still exits 0, because their\n' +
+      '  counter is marked `blocking: false` for the reason recorded at its COUNTERS\n' +
+      '  entry. Nothing else will catch them: fix the prose.',
+  );
+  for (const d of drifted) {
+    const c = BY_KEY.get(d.key);
+    console.log(`  ${d.file}:${d.line}`);
+    console.log(`    ${d.key} declared ${d.declared}, derived ${c.value}  (${c.label})`);
+    console.log(`    ${c.command}`);
+    console.log(`    > ${d.text.slice(0, 160)}`);
+  }
+}
 
 if (mismatches.length > 0) {
   failed = true;
@@ -951,8 +1057,10 @@ if (failed) {
 }
 
 console.log(
-  `\ncounts:check OK — ${COUNTERS.length} checked counters derived from the tree, ` +
-    `${declarations.length} declaration sites agree; ` +
+  `\ncounts:check OK — ${COUNTERS.length} checked counters derived from the tree ` +
+    `(${nonBlocking.length} of them reported-only: ${nonBlocking.map((c) => c.key).join(', ')}), ` +
+    `${declarations.length - drifted.length} of ${declarations.length} declaration sites agree ` +
+    `and ${drifted.length} drifted without blocking; ` +
     `${DERIVED_ONLY.length} derived-only counters printed and declared nowhere by ` +
     `design (${COUNTERS.length + DERIVED_ONLY.length} counters derived in total).`,
 );
