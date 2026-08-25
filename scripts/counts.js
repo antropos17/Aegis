@@ -110,16 +110,19 @@ function readTracked(rel) {
 // re-run it by hand.
 // ---------------------------------------------------------------------------
 
-/** @returns {number} mutants in the `MUTANTS` array of the injection-proof script. */
-function deriveMutants() {
-  const src = readTracked('scripts/verify-witness-gate.mjs');
+/**
+ * @param {string} script - repo-relative path of an injection-proof script.
+ * @returns {number} mutants in its `MUTANTS` array.
+ */
+function deriveMutants(script) {
+  const src = readTracked(script);
   const start = src.indexOf('const MUTANTS = [');
-  if (start === -1) throw new Error('scripts/verify-witness-gate.mjs: no `const MUTANTS = [`');
+  if (start === -1) throw new Error(`${script}: no \`const MUTANTS = [\``);
   const end = src.indexOf('\n];', start);
-  if (end === -1) throw new Error('scripts/verify-witness-gate.mjs: MUTANTS array is unterminated');
+  if (end === -1) throw new Error(`${script}: MUTANTS array is unterminated`);
   const body = src.slice(start, end);
   const ids = body.match(/^ {4}id: '/gm);
-  if (!ids) throw new Error('scripts/verify-witness-gate.mjs: MUTANTS has no `id:` entries');
+  if (!ids) throw new Error(`${script}: MUTANTS has no \`id:\` entries`);
   return ids.length;
 }
 
@@ -234,7 +237,8 @@ function deriveVersion() {
   return pkg.version;
 }
 
-const mutants = deriveMutants();
+const mutants = deriveMutants('scripts/verify-witness-gate.mjs');
+const seqMutants = deriveMutants('scripts/verify-sequence-gate.mjs');
 const ci = deriveCi();
 const preload = derivePreload();
 const database = deriveAgentDatabase();
@@ -296,6 +300,13 @@ const COUNTERS = [
     value: mutants,
     command:
       "sed -n '/const MUTANTS = \\[/,/^\\];/p' scripts/verify-witness-gate.mjs | grep -c \"^    id: '\"",
+  },
+  {
+    key: 'seqGate.mutants',
+    label: 'verify:seq-gate mutants',
+    value: seqMutants,
+    command:
+      "sed -n '/const MUTANTS = \\[/,/^\\];/p' scripts/verify-sequence-gate.mjs | grep -c \"^    id: '\"",
   },
   {
     key: 'ci.commands',
@@ -497,6 +508,13 @@ const NUM = `\\b(\\d+|${WORD_ALT})\\b`;
  * contexts, 8 commands, 2 token-adapters) keep NUM.
  */
 const DIGITS = '\\b(\\d+)\\b';
+/**
+ * The noun that names the sequence-engine gate's mutants. `gate.mutants` is read off a
+ * bare `N mutants`; `seqGate.mutants` only off `N <this noun>`, so a count of one gate
+ * can never be read as the other (the separation `sequence-rules` keeps from
+ * `detection-rules`).
+ */
+const SEQ_MUTANT_NOUN = '(?:sequence-engine|sequence-gate|seq-gate|sequence)\\s+mutants?';
 
 /**
  * @param {string|undefined} token
@@ -584,6 +602,15 @@ const SCANNERS = [
         ['gate.mutants', new RegExp(`${NUM}\\s+mutants?\\b`, 'i')],
         ['gate.mutants', new RegExp(`\\bgate\\b[^.]{0,40}${NUM}\\s+ways\\b`, 'i')],
       ]),
+  },
+  {
+    id: 'verify-seq-gate-mutants',
+    // `verify-gate-mutants` above cannot fire on these lines: its `N mutants` needs
+    // the number directly before the noun, and here `sequence-engine` (or one of its
+    // siblings in SEQ_MUTANT_NOUN) always sits between them.
+    locate: new RegExp(`\\b${SEQ_MUTANT_NOUN}\\b`, 'i'),
+    parse: (line) =>
+      pick(line, [['seqGate.mutants', new RegExp(`${NUM}\\s+${SEQ_MUTANT_NOUN}\\b`, 'i')]]),
   },
   {
     id: 'ci-commands',

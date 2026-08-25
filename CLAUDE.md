@@ -10,6 +10,7 @@ npm run lint              # ESLint
 npm run format            # Prettier
 npm test                  # Vitest — the suite prints its own counts; do not copy them here
 npm run verify:gate       # Injection proof: 4 mutants (witness gate + birth-time freshness) must go red
+npm run verify:seq-gate   # Injection proof: 4 sequence-engine mutants (order, expiry, group key, caps) must go red
 npm run counts:check      # Every counted fact derived from the tree; a stale declaration is red
 npm run dist              # Electron-builder NSIS installer
 
@@ -20,20 +21,20 @@ npm run dist              # Electron-builder NSIS installer
 date before merge). No rulesets add more: `/rulesets` and `/rules/branches/master` return `[]`.
 A context is a JOB, not a command — `lint` and `svelte-check` run two commands each.
 
-**9 verification commands** live inside those 5 jobs (`.github/workflows/ci.yml`):
+**10 verification commands** live inside those 5 jobs (`.github/workflows/ci.yml`):
 
 | required context | commands the job runs, after `npm ci` |
 |---|---|
 | build | `npm run build:renderer` |
 | lint | `npm run format:check`, then `npm run lint` |
 | svelte-check | `npm run typecheck`, then `npm run typecheck:svelte` |
-| test | `npm run test:coverage`, `npm run verify:gate`, then `npm run counts:check` |
+| test | `npm run test:coverage`, `npm run verify:gate`, `npm run verify:seq-gate`, then `npm run counts:check` |
 | audit | `npm audit --audit-level=high --omit=dev` |
 
-`format:check` is a STEP of `lint`, and `verify:gate` and `counts:check` are STEPS of `test` —
-none is a job, and none is a context of its own.
+`format:check` is a STEP of `lint`, and `verify:gate`, `verify:seq-gate` and `counts:check` are
+STEPS of `test` — none is a job, and none is a context of its own.
 
-## Local pre-merge set — the same 9 commands
+## Local pre-merge set — the same 10 commands
 npm run build:renderer
 npm run format:check      # the checker; `npm run format` WRITES and is not a gate
 npm run lint
@@ -41,6 +42,7 @@ npm run typecheck         # ONE command, TWO tsc projects: main.json && renderer
 npm run typecheck:svelte  # svelte-check; tsc never reads .svelte templates
 npm run test:coverage     # what CI runs — `npm test` (vitest run) is NOT the CI command
 npm run verify:gate       # a STEP of the `test` job: a surviving mutant fails that context
+npm run verify:seq-gate   # a STEP of the `test` job: a surviving sequence-engine mutant fails it too
 npm run counts:check      # a STEP of the `test` job: derives every counted fact from the tree
 npm audit --audit-level=high --omit=dev   # production deps only, not your diff
 Every job also runs `npm ci`, which is not `npm install` — see ai-mistakes 23 before

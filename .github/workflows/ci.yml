@@ -61,6 +61,14 @@ jobs:
       # (memory-bank/ai-mistakes.md #21).
       - name: Verify the generation-witness gate is load-bearing
         run: npm run verify:gate
+      # The same proof for the sequence engine, inside the same job so no required
+      # status context changes: 4 sequence-engine mutants — m1 accepts a step at any
+      # index, m2 never expires a state, m3 collapses the state key to the rule, m4
+      # lifts both caps — and the gate suite must go red for each. The engine's own
+      # suite hard-imports the real module and runs as the control only: a kill by a
+      # suite that never loaded the mutant is not a kill (memory-bank/ai-mistakes.md #21).
+      - name: Verify the sequence-engine gate is load-bearing
+        run: npm run verify:seq-gate
       # Derives the repo's countable facts from the tree and fails on every tracked
       # file that declares a different number (memory-bank/ai-mistakes.md #24: nothing
       # went red when a hand-maintained count stopped being true). BLOCKING since the
