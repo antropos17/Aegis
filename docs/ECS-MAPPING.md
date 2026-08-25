@@ -240,3 +240,33 @@ That test is the only thing that goes red if they drift apart; there is no other
 The shared conventions — omit rather than null, `event.category`/`event.type` as arrays,
 `@timestamp` at the root, `ecs.version` on every document — are the same on both sides, and a row
 that changes one should change the other.
+
+---
+
+## 8. Index columns
+
+`src/main/audit-index.js` (docs/roadmap/audit-index.md) projects every audit JSONL line into a
+row of `audit_events`. The typed columns exist for WHERE and ORDER only — the answer a read path
+builds is `normalizeAuditEntry(JSON.parse(raw))`, so nothing here is a second mapping. Column
+names are the ECS paths of §4 with `.` → `_`, and every value is what `normalizeToEcs` produced
+over the v1 view of the record; "omit" in §4 becomes NULL here. The module is the source of
+truth; this table is the cross-reference.
+
+| column | ECS field (§4) | rule |
+|---|---|---|
+| `timestamp` | `@timestamp` | the record's ISO text as on disk; `''` when the line carries none |
+| `type` | — (internal discriminator) | as on disk; `''` when absent — no enum in the schema, a new audit type needs no index change |
+| `event_kind` / `event_category` / `event_type` / `event_action` | `event.kind` / `.category` / `.type` / `.action` (§3) | from `AUDIT_ROUTES`; arrays stored as their JSON (`'["file"]'`); an unknown type gives `event_action = type` and NULL elsewhere; a record the normalizer refuses gives NULL in all four |
+| `aegis_schema_version` | `aegis.schema_version` | NULL on a pre-v1 record — the absence is what marks v0 |
+| `aegis_agent_name` | `aegis.agent.name` | NULL for `''` (the unattributed marker) |
+| `process_pid` | `process.pid` | only a safe integer `> 0`; pid 0 and null → NULL |
+| `process_entity_id` | `process.entity_id` | verbatim |
+| `file_path` | `file.path` | `file-access` / `config-access` only; NULL for network |
+| `aegis_attribution_status` | `aegis.attribution.status` | NULL when there is no attribution |
+| `action`, `severity` | — carried, not mapped (§6) | internal names kept; `''` / `'normal'` defaults |
+| `seq` | — carried, not mapped (§6) | as written, NULL without a chain; the row's identity is `line_no`, never this |
+| `raw` | — | the line as on disk |
+
+Deliberately absent: `hash` and `prev_hash` (§6 lists both as carried, not mapped). The chain is
+verified against the file by `verifyChain`, never against the index — `tests/main/audit-index.test.js`
+pins the absence through `PRAGMA table_info`.

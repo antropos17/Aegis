@@ -1,6 +1,12 @@
 # Audit index — a rebuildable SQLite projection over the hash-chained JSONL
 
-**Status (as of 2026-08-25): UNBLOCKED — Electron 43.4.1 (Node 24.18.1, `node:sqlite` Stability 1.2) merged to master on 2026-08-25 in #334; the plan below can start.** The record of the block, as it was written: the engine this plan chooses is
+**Status (as of 2026-08-25): block 1 BUILT — the engine gate, the schema, the writer that projects
+JSONL lines into the index at flush time, and the rebuild-from-JSONL path, on
+`feat/audit-index-block-1` (§12 records what landed, where it deviates from §3, and the PR).
+Block 2 — the read path, `getEntriesBefore` dispatch, the fallback suite, the bench — is NOT
+started; §3.3, §5, §6, §8 tests 3/4/9 and M1/M4/M5 describe it.** Before block 1: UNBLOCKED —
+Electron 43.4.1 (Node 24.18.1, `node:sqlite` Stability 1.2) merged to master on 2026-08-25 in #334.
+The record of the block, as it was written: the engine this plan chooses is
 `node:sqlite`, and the Node that ships inside the pinned Electron does not have it: `electron@33.4.11`
 (`node_modules/electron/package.json`) bundles **Node 20.18.3**
 (<https://releases.electronjs.org/release/v33.4.11>); the Node 20.x API index lists no SQLite module
@@ -15,9 +21,12 @@ shipped app is dead code by this repository's rules (`memory-bank/ai-mistakes.md
 below is not started until `process.versions.node` inside the packaged app resolves `node:sqlite`.
 This header was refreshed in the upgrade PR, #334 (the lag `sensor-health-degraded.md`
 records is what a stale status line costs).
-**Branch context:** master @ `d1a80f8`; every `file:line` reference below was verified against that
-commit on 2026-08-25. Line numbers drift with every edit — treat them as the place to start reading,
-and re-verify before an edit that depends on one.
+**Branch context:** §1–§11 were verified against master @ `d1a80f8` (#323) on 2026-08-25 — BEFORE
+#331 and block 1 both moved `src/main/audit-logger.js`, so every `audit-logger.js:NNN` in §1, §3
+and §7 is off by tens of lines (`flush()` now sits past `:320`, the init seam that schedules
+`cleanOldLogs` past `:140`). §12 is against `f7bd134` (#334) plus block 1 itself. Line numbers
+drift with every edit — treat them as the place to start reading, and re-verify before an edit
+that depends on one.
 **Date:** 2026-08-25
 **§11 follow-ups:** landed 2026-08-25, ahead of the index — the JSONL read path now filters by
 `types` and opens the D+1 file. Where §3 says "the existing JSONL code, unchanged", it means that
@@ -420,3 +429,78 @@ entry of `memory-bank/progress.md`), ahead of the index and without waiting for 
   batch re-queued by a failing flush and written on a later day — the index (§3, keyed by timestamp)
   is what closes that. Pinned by `tests/main/audit-logger.test.js` "returns a day-D record that
   flush() wrote into the D+1 file".
+
+---
+
+## 12. Block 1 — what landed (2026-08-25, `feat/audit-index-block-1`, PR #337)
+
+**Scope:** §2 engine, §4 schema, the writer at flush time (§3.1), the rebuild-from-JSONL path
+(§3.2, §3.5, §3.6), the capability gate, `getStats().index` (§10 q7). No renderer channel and no
+read path: `getEntriesBefore` is untouched and still answers from the JSONL alone.
+
+**Files.** Added `src/main/audit-index.js` (engine gate, DDL, projection, `append`, `writeBatch`,
+`forget`, `status`, corruption handling) and `src/main/audit-index-rebuild.js` (streaming reader,
+`reconcile`, `schedule`); `src/main/audit-logger.js` gained the seams — `init({ loadSqlite })`,
+the deferred `cleanOldLogs` → index open → reconcile in ONE `setImmediate`, `flush` → `append`
+after the write, `getStats().index`, `shutdown` → `close`, `_awaitIndexForTest`;
+`tests/main/audit-index.test.js`; `vitest.config.js` (`coverage.include`); the `main.total` /
+`main.topLevel` sites (58 / 46) and the `size.over300` sites (36 — `audit-index.js` crossed the
+target: the SQL text and the JSDoc of the schema put it past 300, and rule 3 says bump, not split);
+`docs/ECS-MAPPING.md` §8.
+
+**Proven on the runtime, not on release notes:** `node_modules/electron/dist/electron.exe` 43.4.1
+carries Node 24.18.1 with `node:sqlite` (SQLite 3.53.1); the §4 schema, `WITHOUT ROWID` with the
+composite key, `ON DELETE CASCADE` (foreign keys enforced — `enableForeignKeyConstraints: true`
+is passed explicitly, not left to the default), `user_version`, `quick_check`, `json_extract` and
+WAL all answered as designed on that binary and on system Node 24.11.1. On a file that is not a
+database the constructor does NOT throw — the first statement does — which is where the open's
+inspection sits. The `ExperimentalWarning` (§10 q8): one line per process on system Node 24.11.1;
+none under `ELECTRON_RUN_AS_NODE=1` on 43.4.1; the in-app main process was not probed.
+
+**Deviations from §3, each a finding at implementation time:**
+
+- **§3.6 continuity on BYTES, not on `seq`.** `flush()` takes one `stat` after the write and
+  hands `append` the offset the write started at (`size − bytes`); the index compares it with
+  `indexed_bytes`. The plan's `firstSeq === indexed_lines` would fail on every later flush of a
+  file holding a repeated `seq` range — the interrupted-write-then-retry shape `verifyChain`'s own
+  docstring names — and re-index that file once per flush. On a mismatch the file's rows are
+  dropped, the index goes `'building'` and the reconcile re-reads the file from disk; there is no
+  "stale" column — the stale marker is the ABSENCE of the `audit_files` row plus the state.
+- **§3.5 "changed prefix" narrowed** to what the projection can see: `size < indexed_bytes` →
+  full; `size == indexed_bytes` with a moved mtime → full; grown with the byte before the resume
+  point being `\n` → resume; otherwise full. A same-length in-place edit inside the same
+  millisecond is invisible here BY DESIGN — content integrity is the chain's job.
+- **§3.5 `cleanOldLogs` → `forget` is NOT wired.** The sweep runs BEFORE the index opens, in the
+  same `setImmediate`, so a `forget` there would be a call on a closed index every time (ai-mistakes
+  #14); the reconcile's "row with no file" branch is the mechanism, and test T8 drives the organic
+  sequence (indexed → deleted by retention at the next init → rows gone).
+- **`line_no` counts a malformed line.** It is the ordinal of the non-empty line — the quantity
+  `verifyChain` reports `malformed JSON at line i` for — so a rejected line owns its ordinal and is
+  counted in `malformed_lines`, never stored. `indexed_lines` is therefore the next ORDINAL, which
+  §4's comment calls "the next expected seq"; the two agree only on a file whose chain is intact.
+- **A corrupt or out-of-version index is reported before it is discarded** (decided at the go):
+  `logger.warn('audit-index', …, { reason, file })` precedes the close and the unlink — a forensic
+  tool must not silently recreate its own store. T7 (`quick_check threw`) and T14 (`user_version 0,
+  expected 1`) each assert exactly one warn; a healthy reopen asserts none.
+- **The rebuild is asynchronous by batch, not by file:** ~2000 lines per transaction (the
+  `audit_files` accounting in the same transaction), a `setImmediate` yield between batches, and up
+  to three tail rounds that re-stat every file before the index is declared `'ready'` — lines
+  flushed while a batch was yielding are on disk, and the live `append` is skipped until then.
+
+**Chain breaks are reported, never repaired.** No column holds a hash; `verifyChain` is not
+called from the rebuild; a duplicated `seq` range is visible as `seq ≠ line_no` and nothing is
+dropped, renumbered or rewritten. The only writer of a daily file is still `flush()`.
+
+**Tests, red first:** the new suite could not load (module absent) and two `audit-logger.test.js`
+cases were red; after the modules, the first green run needed one fix in the writer (the parent
+`audit_files` row must exist before the first event row — the foreign key is enforced) and two
+fixture corrections in the suite (the ordinal rule above; T8 has to put the mismatch on TODAY's
+file, the only one `flush()` writes). Mutations M2/M3/M6/M7/M8, each red then reverted with an
+empty `git diff HEAD`, are in the PR body.
+
+**Estimate miss, recorded:** `audit-index.js` was planned at ~240 lines and is ~530 by `wc` — the
+DDL, the insert list and the JSDoc house style; with `audit-index-rebuild.js` (~220) and the
+`audit-logger.js` seams (~100) the block is ~850 lines of `src`, past the ~500 the plan budgeted.
+The cut line named at the go — the resume path — was not taken: the overrun is SQL text and
+comments, not logic, and the resume path is what keeps the current day file from being re-read in
+full on every start.

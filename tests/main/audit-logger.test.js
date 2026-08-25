@@ -463,9 +463,7 @@ describe('audit-logger', () => {
       seedEntries(30, (i) => (i < 5 ? 'file-access' : 'agent-enter'));
       const decoys = Array.from({ length: 16 }, (_, i) => `decoy-${i}`);
       // The 17th entry is the only one that matches anything — and it is the one dropped.
-      expect(auditLogger.getEntriesBefore(FAR_FUTURE, 100, [...decoys, 'file-access'])).toEqual(
-        [],
-      );
+      expect(auditLogger.getEntriesBefore(FAR_FUTURE, 100, [...decoys, 'file-access'])).toEqual([]);
     });
 
     // --- the D+1 file rule ---------------------------------------------------------
@@ -502,6 +500,27 @@ describe('audit-logger', () => {
       } finally {
         errorSpy.mockRestore();
       }
+    });
+  });
+
+  // --- the audit index (docs/roadmap/audit-index.md, block 1) --------------------------------
+
+  describe('audit index wiring', () => {
+    it('getStats() carries the index status as an additive field', async () => {
+      auditLogger.init({ userDataPath: tmpDir });
+      await auditLogger._awaitIndexForTest();
+      const { index } = auditLogger.getStats();
+      expect(index).toMatchObject({ files: 0, rows: 0, malformedLines: 0, lastError: null });
+      expect(['ready', 'unavailable']).toContain(index.state);
+    });
+
+    it('shutdown() closes the index after the final flush', async () => {
+      auditLogger.init({ userDataPath: tmpDir });
+      await auditLogger._awaitIndexForTest();
+      auditLogger.log('t', { agent: 'last' });
+      auditLogger.shutdown();
+      expect(auditLogger.getStats().index.state).toBe('closed');
+      expect(fs.readFileSync(todayFile(), 'utf-8')).toContain('last');
     });
   });
 });
