@@ -15,6 +15,7 @@
   import { addToast } from '../stores/toast.js';
   import { requestStop } from '../stores/process-action.js';
   import { isAgentSelected, toggleInstanceSelection } from '../utils/agent-selection.ts';
+  import { isAnomalyAlert } from '../utils/anomaly-toast-tracker.ts';
   import { t } from '../i18n/index.js';
 
   /** @type {{ agent: Object, expandedInstanceId: string|null }} */
@@ -22,7 +23,8 @@
 
   let blinking = $state(false);
   let threatFlash = $state(false);
-  let _prevRiskScore = -1;
+  /** The alert state on the previous run of the flash effect; `null` until the first. */
+  let _prevDanger = null;
   let cardEl = $state(null);
   // Selection identity is stamped instanceId — never agent.pid (pid reuse).
   let expanded = $derived(isAgentSelected(expandedInstanceId, agent));
@@ -36,20 +38,43 @@
   /** Risk history: use agent.riskHistory if available, else empty */
   let riskHistory = $derived(agent.riskHistory ?? []);
 
-  /** Danger border when risk >= 70 */
-  let isDanger = $derived((agent.riskScore ?? 0) >= 70);
+  /**
+   * The anomaly score the toast printed for this name: the max over the group's
+   * instances. The toast is keyed by NAME and carries the max over that name's instances
+   * (scan-loop.js), while the representative this card is spread from is the
+   * max-riskScore instance (agent-panel-utils) — not necessarily the one the score
+   * belongs to. A card rendered without a group reads its own score; no score is 0.
+   */
+  let cardAnomaly = $derived.by(() => {
+    const list =
+      Array.isArray(agent._instances) && agent._instances.length > 0 ? agent._instances : [agent];
+    let max = 0;
+    for (const inst of list) {
+      const score = inst?.anomalyScore;
+      if (typeof score === 'number' && score > max) max = score;
+    }
+    return max;
+  });
+
+  /**
+   * Danger border: the exposure model at 70 or over, OR an anomaly at the toast gate —
+   * the same `isAnomalyAlert` the toast tracker gates on, so whatever toasts alerts here.
+   * `riskScore` itself is not moved by the anomaly: the badge keeps its band.
+   */
+  let isDanger = $derived((agent.riskScore ?? 0) >= 70 || isAnomalyAlert(cardAnomaly));
 
   $effect(() => {
-    const score = agent.riskScore ?? 0;
-    if (_prevRiskScore !== -1 && score >= 70 && _prevRiskScore < 70) {
+    const danger = isDanger;
+    // A crossing, not a mount: the first run only records the state.
+    if (_prevDanger !== null && danger && !_prevDanger) {
       threatFlash = true;
       const timer = setTimeout(() => {
         threatFlash = false;
       }, 1000);
-      _prevRiskScore = score;
+      _prevDanger = danger;
       return () => clearTimeout(timer);
     }
-    _prevRiskScore = score;
+    _prevDanger = danger;
   });
 
   $effect(() => {
