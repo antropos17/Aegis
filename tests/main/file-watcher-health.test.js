@@ -301,4 +301,88 @@ describe('file-watcher health (B2)', () => {
       expect(snap['fs-handle'].detail).toBe('rm-owns-observation');
     });
   });
+
+  // An empty read scope under an OPEN population gate is a successful observation of
+  // zero — the scoped success the network leaf already records (§10 B4). The ACTIVE
+  // read leaf is HEALTHY with `confirmed-zero-agents`; no provider is asked. Without
+  // this an idle machine's read leaf stayed STARTING for the whole process (#328).
+  describe('confirmed-zero (empty read scope)', () => {
+    const AGENTS = [{ pid: 1, agent: 'Claude Code', category: 'ai', instanceId: '1:u' }];
+    const S = SENSOR_HEALTH_STATE;
+    const ZERO = 'confirmed-zero-agents';
+
+    it('a. pool owner: HEALTHY with the detail, lastSuccessAt advanced, the pool never spawned', () => {
+      const getFileHandles = vi.fn().mockResolvedValue([]);
+      fileWatcher._setDepsForTest({ getFileHandles, isReadDetectionAvailable: true });
+      fileWatcher.noteFileScanSkip(ZERO);
+      const h = fileWatcher.getFileSensorHealth()['fs-handle'];
+      expect(h.state).toBe(S.HEALTHY);
+      expect(h.detail).toBe(ZERO);
+      expect(h.lastSuccessAt).toBeTypeOf('number');
+      expect(h.lastError).toBeNull();
+      expect(h.consecutiveFailures).toBe(0);
+      expect(getFileHandles).not.toHaveBeenCalled();
+    });
+
+    it('b. RM owner: fs-rm HEALTHY with the detail, fs-handle retired, aggregate HEALTHY over one', () => {
+      const getSensitiveHolders = vi.fn().mockResolvedValue([]);
+      fileWatcher._setDepsForTest({ getSensitiveHolders });
+      fileWatcher.noteFileScanSkip(ZERO);
+      const snap = fileWatcher.getFileSensorHealth();
+      expect(snap['fs-rm'].state).toBe(S.HEALTHY);
+      expect(snap['fs-rm'].detail).toBe(ZERO);
+      expect(snap['fs-handle'].state).toBe(S.UNSUPPORTED);
+      expect(snap['fs-handle'].detail).toBe('rm-owns-observation');
+      expect(getSensitiveHolders).not.toHaveBeenCalled();
+      const agg = aggregateSensorHealth([snap['fs-handle'], snap['fs-rm']]);
+      expect(agg.state).toBe(S.HEALTHY);
+      expect(agg.participatingCount).toBe(1);
+    });
+
+    it('c. the pool with an empty AI scope (a synthetic-only fleet) is the same confirmed zero', async () => {
+      const getFileHandles = vi.fn().mockResolvedValue([]);
+      fileWatcher._setDepsForTest({ getFileHandles, isReadDetectionAvailable: true });
+      const events = await fileWatcher.scanAllFileHandles([
+        { pid: 0, agent: 'Ollama', category: 'local-llm-runtime', instanceId: 'ollama:s' },
+      ]);
+      expect(events).toEqual([]);
+      expect(getFileHandles).not.toHaveBeenCalled();
+      const h = fileWatcher.getFileSensorHealth()['fs-handle'];
+      expect(h.state).toBe(S.HEALTHY);
+      expect(h.detail).toBe(ZERO);
+    });
+
+    it('d. B-S04 wins: a blind pool reads DEGRADED, not a vacuous HEALTHY', () => {
+      fileWatcher._setDepsForTest({
+        getFileHandles: vi.fn().mockResolvedValue([]),
+        isReadDetectionAvailable: false,
+      });
+      fileWatcher.noteFileScanSkip(ZERO);
+      const h = fileWatcher.getFileSensorHealth()['fs-handle'];
+      expect(h.state).toBe(S.DEGRADED);
+      expect(h.lastError).toBe('read-detection-unavailable');
+      expect(h.detail).toBe('no-handle-binary-and-no-rm');
+      expect(h.lastSuccessAt).toBeNull();
+    });
+
+    it('e. nothing latches: the next real scan clears the detail, and a FAILED leaf recovers through a zero', async () => {
+      const getFileHandles = vi.fn().mockResolvedValue([]);
+      fileWatcher._setDepsForTest({ getFileHandles, isReadDetectionAvailable: true });
+      fileWatcher.noteFileScanSkip(ZERO);
+      await fileWatcher.scanAllFileHandles(AGENTS);
+      const after = fileWatcher.getFileSensorHealth()['fs-handle'];
+      expect(after.state).toBe(S.HEALTHY);
+      expect(after.detail).toBeNull();
+      expect(getFileHandles).toHaveBeenCalledTimes(1);
+
+      getFileHandles.mockRejectedValueOnce(new Error('down'));
+      await fileWatcher.scanAllFileHandles(AGENTS);
+      expect(fileWatcher.getFileSensorHealth()['fs-handle'].state).toBe(S.FAILED);
+      fileWatcher.noteFileScanSkip(ZERO);
+      const recovered = fileWatcher.getFileSensorHealth()['fs-handle'];
+      expect(recovered.state).toBe(S.HEALTHY);
+      expect(recovered.consecutiveFailures).toBe(0);
+      expect(recovered.detail).toBe(ZERO);
+    });
+  });
 });
