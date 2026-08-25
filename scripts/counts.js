@@ -264,8 +264,12 @@ const mainTop = trackedTopLevel('src/main', (f) => f.endsWith('.js'));
  * printed like every other, and a disagreement is reported under its own heading — it
  * simply does not exit 1. That is a THIRD position between "checked" and
  * `DERIVED_ONLY`, not a skip flag: the counter keeps its declaration sites, so the
- * undeclared gate and the unparseable gate still apply to it in full. `package.version`
- * is the only one, and carries the reason at its entry.
+ * undeclared gate and the unparseable gate still apply to it in full. NO entry carries
+ * it today: `package.version` was the only one, and it went blocking the moment
+ * release-please `extra-files` took over its two prose sites. The position is kept
+ * because a future counter can land in the same bind, and the report prints its two
+ * clauses only while something occupies it — an empty set stated out loud reads as an
+ * occupied one.
  * @type {Array<{key: string, label: string, value: number|string, command: string,
  *   blocking?: boolean}>}
  */
@@ -414,19 +418,27 @@ const COUNTERS = [
     label: 'package.json version',
     value: version,
     command: 'node -p "require(\'./package.json\').version"',
-    // `blocking: false`, and the reason is release-please. Its release PR bumps
-    // `version` in package.json and touches neither llms file, so a blocking compare
-    // would turn the `test` context red on that PR and STAY red on master afterwards
-    // until somebody hand-edited prose — a required context failing on the one commit
-    // nobody authors by hand, which is the exact failure the DERIVED_ONLY block below
-    // was written about. Moving the version there instead would take its declaration
-    // sites away, and two files free to say anything is how llms.txt and llms-full.txt
-    // came to answer "see `version` in `package.json`" — true, and useless to a crawler
-    // reading either file standalone. So it is located, compared and reported, and only
-    // the exit code is withheld. Making it blocking is a release-please `extra-files`
-    // change (it would have to rewrite both prose sites in the bump commit), not a
-    // change here.
-    blocking: false,
+    // BLOCKING, because release-please now carries the bump. `release-please-config.json`
+    // lists llms.txt and llms-full.txt as `extra-files` of type `generic`, and the
+    // generic updater rewrites the semver on any line holding the inline annotation
+    // `x-release-please-version` — so one release PR bumps `version` in package.json AND
+    // both `- **Version**: <semver>` prose sites in the same commit. That removes the
+    // reason the entry used to carry `blocking: false`: before the config existed, the
+    // release PR touched neither llms file, and a blocking compare would have turned the
+    // `test` context red on the one commit nobody authors by hand and kept master red
+    // until somebody hand-edited prose. Moving the version to DERIVED_ONLY instead would
+    // have taken its declaration sites away, and two files free to say anything is how
+    // llms.txt and llms-full.txt came to answer "see `version` in `package.json`" — true,
+    // and useless to a crawler reading either file standalone.
+    //
+    // What the annotation guarantees, and what it does not (ai-mistakes #27). The updater
+    // replaces the FIRST semver-looking match on the marked line with
+    // `version.toString()` — no leading `v`, which the `app-version` parser below
+    // tolerates either way. The guarantee therefore covers a line whose only
+    // `\d+\.\d+\.\d+` IS the version field, which both sites are: the label and the
+    // annotation carry no digits. Put the marker on a line holding an earlier number and
+    // release-please rewrites that number instead, leaving the field stale — this compare
+    // is what goes red then, which is the whole point of it being blocking again.
   },
 ];
 
@@ -1083,11 +1095,21 @@ if (failed) {
   process.exit(1);
 }
 
+// Both `blocking: false` clauses are printed only while a counter carries the flag.
+// With none, `(0 of them reported-only: )` and `and 0 drifted without blocking` are two
+// true sentences about an empty set, and a summary that keeps stating the position reads
+// as one where the position is still occupied.
+const reportedOnlyClause =
+  nonBlocking.length > 0
+    ? ` (${nonBlocking.length} of them reported-only: ${nonBlocking.map((c) => c.key).join(', ')})`
+    : '';
+const driftClause = nonBlocking.length > 0 ? ` and ${drifted.length} drifted without blocking` : '';
+
 console.log(
-  `\ncounts:check OK — ${COUNTERS.length} checked counters derived from the tree ` +
-    `(${nonBlocking.length} of them reported-only: ${nonBlocking.map((c) => c.key).join(', ')}), ` +
-    `${declarations.length - drifted.length} of ${declarations.length} declaration sites agree ` +
-    `and ${drifted.length} drifted without blocking; ` +
+  `\ncounts:check OK — ${COUNTERS.length} checked counters derived from the tree` +
+    `${reportedOnlyClause}, ` +
+    `${declarations.length - drifted.length} of ${declarations.length} declaration sites agree` +
+    `${driftClause}; ` +
     `${DERIVED_ONLY.length} derived-only counters printed and declared nowhere by ` +
     `design (${COUNTERS.length + DERIVED_ONLY.length} counters derived in total).`,
 );
