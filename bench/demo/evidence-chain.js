@@ -29,10 +29,14 @@
  *   outbound connection", `rules/sequences/sequences.yaml`). Its on-screen
  *   manifestation is the anomaly toast (the sequence score is 70, over the toast
  *   threshold of 50) plus the `sequence-detection` audit record. The agent
- *   card's risk band reflects `calculateRiskScore`, which does not fold the
- *   sequence score, so the card is NOT red from this chain alone — the still
- *   shows the toast with the staged agent's card in frame, and nothing is staged
- *   to force a colour the scoring model would not produce.
+ *   card's risk BADGE reflects `calculateRiskScore`, which does not fold the
+ *   sequence score, so the badge keeps its exposure band from this chain alone.
+ *   Since PR #333 the card's alert state is a second thing: a card whose
+ *   instance crosses the toast threshold carries the danger border while the
+ *   badge keeps its band. The four artifacts under docs/media were recorded
+ *   BEFORE #333 and show the card green beside the toast; nothing is staged to
+ *   force a colour the scoring model would not produce, and a rerun would now
+ *   show the border.
  *
  *   WHAT IS PRODUCED. `docs/media/evidence-chain.gif` (the real-time tail ending
  *   on the detection toast) and three PNG stills taken on real signals — the
