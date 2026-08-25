@@ -83,6 +83,7 @@ regenerating a lockfile.
   (count: `git ls-files 'src/renderer/**/*.svelte' | wc -l`)
 - src/shared/ — agent-database.json (110 agents / 262 signatures), types/ (9 TS files), constants.js (ignore patterns, config paths)
 - rules/ — 73 active detection rules in 8 YAML files, validated by rules/_schema.json
+- rules/sequences/ — 1 sequence correlation rule (SEQ001) in 1 sequence rule file, read by src/main/sequence-rule-loader.js; no engine consumes it yet (docs/roadmap/sequence-rules.md)
 - memory-bank/ — ai-mistakes.md (READ FIRST), progress.md, architecture.md
 - .claude/skills/ — 11 skills: aegis-context, design-system, electron-main, svelte-patterns, testing, ship, pr-monitor, ci-monitor, prompt-craft, audit-check, commit-and-track
 - IPC: preload.js — 40 invoke + 9 push = 49 channels via contextBridge

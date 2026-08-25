@@ -13,6 +13,7 @@ src/main/           Electron main process (CommonJS, require/module.exports)
 src/renderer/       Svelte 5 dashboard UI (ES modules, runes)
 src/shared/         Constants + agent-database.json (110 agents, 262 name signatures) + types/ (9 .ts)
 rules/              73 detection rules in 8 YAML files + _schema.json
+rules/sequences/    1 sequence correlation rule (SEQ001) in 1 sequence rule file; loaded, no consumer yet
 tests/              Vitest unit tests with v8 coverage
 ```
 

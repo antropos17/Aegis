@@ -1,12 +1,13 @@
 # Sequence rules — `temporal_ordered` correlations keyed on `process.entity_id`
 
-**Status (as of 2026-08-24):** partly implemented. `src/main/sequence-rule-loader.js`,
-`tests/main/sequence-rule-loader.test.js` and `tests/fixtures/sequences/` now exist and are green;
-`rules/sequences/` does not, and nothing named in §2–§7 does either, so every other file path below
-is still a target, not a claim. **Block 1 — LOADER LANDED, its rule file and counters still to
-come (§7 prompt 2). Block 2 — NOT STARTED. Block 3 — NOT STARTED.** When a block lands, refresh
-this header in the same PR (the lag the `sensor-health-degraded.md` correction records is what a
-stale status line costs).
+**Status (as of 2026-08-24):** Block 1 implemented. `src/main/sequence-rule-loader.js`,
+`tests/main/sequence-rule-loader.test.js`, `tests/fixtures/sequences/`,
+`rules/sequences/sequences.yaml` (1 sequence correlation rule, SEQ001, in 1 sequence rule file),
+`tests/main/sequence-rules-parity.test.js` and the `sequences.*` counters in `scripts/counts.js`
+now exist and are green. No engine, gate or wiring named in §2–§7 exists yet, so every file path
+below other than Block 1's is still a target, not a claim. **Block 1 — LANDED. Block 2 — NOT
+STARTED. Block 3 — NOT STARTED.** When a block lands, refresh this header in the same PR (the lag
+the `sensor-health-degraded.md` correction records is what a stale status line costs).
 **Branch context:** master @ `0611614`; every `file:line` reference below was verified against that
 commit on 2026-08-24. Line numbers drift with every edit to the file — treat them as the place to
 start reading, and re-verify before an edit that depends on one.
