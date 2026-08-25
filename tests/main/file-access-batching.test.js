@@ -26,6 +26,7 @@ import {
   FILE_ACCESS_BATCHER_OPTIONS,
   KEY_SEP,
   fileAccessCoalesceKey,
+  fileAccessRetain,
 } from '../../src/main/file-access-batching.js';
 
 /**
@@ -188,6 +189,35 @@ describe('fileAccessCoalesceKey', () => {
   });
 });
 
+describe('fileAccessRetain', () => {
+  it('retains a sensitive event', () => {
+    expect(fileAccessRetain(sensitiveEvent())).toBe(true);
+  });
+
+  it('does not retain benign self-churn', () => {
+    expect(fileAccessRetain(selfChurn())).toBe(false);
+  });
+
+  it('does not retain an ordinary non-sensitive event either', () => {
+    expect(fileAccessRetain(selfChurn({ selfAccess: false, reason: '' }))).toBe(false);
+  });
+
+  it('reads `sensitive === true` exactly — a merely truthy value is not a sensitive event', () => {
+    expect(fileAccessRetain(sensitiveEvent({ sensitive: 1 }))).toBe(false);
+    expect(fileAccessRetain(sensitiveEvent({ sensitive: 'yes' }))).toBe(false);
+    expect(fileAccessRetain(sensitiveEvent({ sensitive: 'true' }))).toBe(false);
+  });
+
+  it('is total: anything that is not an object answers false and never throws', () => {
+    // ipc-batcher resolves this on the push path before any counter moves, so a throw
+    // would leave the batcher mid-update — the same contract fileAccessCoalesceKey keeps.
+    for (const v of [null, undefined, 0, 1, '', 'x', true, false, Symbol('s'), () => {}]) {
+      expect(fileAccessRetain(v)).toBe(false);
+    }
+    expect(() => fileAccessRetain(undefined)).not.toThrow();
+  });
+});
+
 describe('FILE_ACCESS_BATCHER_OPTIONS', () => {
   it('carries the documented bounds and is frozen', () => {
     expect(FILE_ACCESS_CAPACITY).toBe(1000);
@@ -196,6 +226,7 @@ describe('FILE_ACCESS_BATCHER_OPTIONS', () => {
       intervalMs: 150,
       capacity: 1000,
       coalesceKey: fileAccessCoalesceKey,
+      retain: fileAccessRetain,
     });
     expect(Object.isFrozen(FILE_ACCESS_BATCHER_OPTIONS)).toBe(true);
   });
@@ -273,10 +304,7 @@ describe('file-access batcher under the production options', () => {
     vi.advanceTimersByTime(FILE_ACCESS_INTERVAL_MS);
     const payload = send.mock.calls[0][1];
     expect(payload).toHaveLength(2);
-    expect(payload.map((e) => e.instanceId)).toEqual([
-      '4321:1699887000000',
-      '9876:1699887000000',
-    ]);
+    expect(payload.map((e) => e.instanceId)).toEqual(['4321:1699887000000', '9876:1699887000000']);
     expect(batcher.getStats().coalesced).toBe(18);
     batcher.destroy();
   });
@@ -322,6 +350,51 @@ describe('file-access batcher under the production options', () => {
     expect(stats.evicted).toBe(0);
     expect(stats.buffered).toBe(1);
     expect(stats.coalesced).toBe(FILE_ACCESS_CAPACITY * 3 - 1);
+    batcher.destroy();
+  });
+
+  it('ACCEPTANCE: a sensitive event pushed FIRST survives a full-capacity burst of distinct self-churn', () => {
+    // The oldest entry is the one plain oldest-first eviction would drop. With the
+    // production `retain`, capacity pressure takes the oldest NON-sensitive frame instead,
+    // so the sensitive event is delivered and the drop lands on self-churn. Restore an
+    // unconditional `buf.shift()` in ipc-batcher and this case goes red.
+    const { send, batcher } = makeProductionBatcher();
+    const sensitive = sensitiveEvent();
+    batcher.push(sensitive);
+    // Distinct files → distinct keys → nothing merges, so capacity is what answers.
+    for (let i = 0; i < FILE_ACCESS_CAPACITY; i += 1) {
+      batcher.push(selfChurn({ file: `C:\\Users\\me\\.claude\\f${i}.json` }));
+    }
+
+    const stats = batcher.getStats();
+    expect(stats.pushed).toBe(FILE_ACCESS_CAPACITY + 1);
+    expect(stats.evicted).toBe(1);
+    expect(stats.retainedEvicted).toBe(0);
+    expect(stats.buffered).toBe(FILE_ACCESS_CAPACITY);
+
+    vi.advanceTimersByTime(FILE_ACCESS_INTERVAL_MS);
+    const payload = send.mock.calls[0][1];
+    expect(payload).toHaveLength(FILE_ACCESS_CAPACITY);
+    // Same object, still first: retention keeps position as well as presence.
+    expect(payload[0]).toBe(sensitive);
+    // The frame that went instead is the oldest self-churn, f0; f1 now leads the churn.
+    expect(payload[1].file).toBe('C:\\Users\\me\\.claude\\f1.json');
+    expect(payload[FILE_ACCESS_CAPACITY - 1].file).toBe(
+      `C:\\Users\\me\\.claude\\f${FILE_ACCESS_CAPACITY - 1}.json`,
+    );
+    batcher.destroy();
+  });
+
+  it('the honest bound: a window holding MORE sensitive events than capacity evicts a sensitive one, and counts it', () => {
+    const { batcher } = makeProductionBatcher();
+    for (let i = 0; i < FILE_ACCESS_CAPACITY + 1; i += 1) {
+      batcher.push(sensitiveEvent({ file: `C:\\Users\\me\\.aws\\cred${i}` }));
+    }
+    const stats = batcher.getStats();
+    expect(stats.pushed).toBe(FILE_ACCESS_CAPACITY + 1);
+    expect(stats.evicted).toBe(1);
+    expect(stats.retainedEvicted).toBe(1);
+    expect(stats.buffered).toBe(FILE_ACCESS_CAPACITY);
     batcher.destroy();
   });
 });
