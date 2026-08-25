@@ -1,0 +1,45 @@
+# Sequence rules — temporal_ordered correlations keyed on process.entity_id.
+# Format: docs/roadmap/sequence-rules.md §1. Loader: src/main/sequence-rule-loader.js
+# (loadDir) — a multi-document file of base detection documents plus the correlation
+# documents that order them. Rejection is per FILE: one bad document drops every rule here.
+#
+# v1 noise note for SEQ001: the network step matches ANY destination on port 443 or 80,
+# including the agent's own API host, which every agent talks to continuously. Negation
+# (`not`, a `filter` selection, `condition: selection and not filter`) is outside the
+# accepted subset, so that noise is expected in v1 and is not a defect of the engine.
+title: Credential file read
+name: cred_file_read
+logsource:
+  product: aegis
+  category: file
+detection:
+  selection:
+    event.action:
+      - file-accessed
+      - file-handle-held
+    file.path|re|i: '[\\/](?:[^\\/]*[._\d-])?(?:passwords?|credentials?)[^\\/]*$'
+  condition: selection
+---
+title: Outbound network connection
+name: outbound_conn
+logsource:
+  product: aegis
+  category: network
+detection:
+  selection:
+    destination.port:
+      - 443
+      - 80
+  condition: selection
+---
+title: Credential file read followed by outbound connection
+id: SEQ001
+level: high
+correlation:
+  type: temporal_ordered
+  rules:
+    - cred_file_read
+    - outbound_conn
+  group-by:
+    - process.entity_id
+  timespan: 5m
