@@ -179,6 +179,12 @@ function stopScanIntervals() {
 const SCOPE_UNAVAILABLE = 'process-observation-unavailable';
 
 /**
+ * Reason the file read leaf records when a trusted population is empty: a scoped
+ * success, the same string `doNetworkScan` hands the network leaf (§10 B4).
+ */
+const CONFIRMED_ZERO = 'confirmed-zero-agents';
+
+/**
  * Whether the agent population may be used as an observation scope right now.
  *
  * Reads the ProcessCapabilities contract (design §3) and NOTHING else — not the
@@ -765,7 +771,16 @@ async function doFileScan() {
     }
     return;
   }
-  if (agents.length === 0) return;
+  // #328: a trusted population with no agent is an observed zero, not a skipped tick —
+  // the ACTIVE read leaf records the scoped success the network leaf records at
+  // `doNetworkScan`, or it stays STARTING for as long as the machine stays idle.
+  if (agents.length === 0) {
+    logger.debug('scan', 'file-skip', { reason: CONFIRMED_ZERO, agents: 0 });
+    if (typeof watcher.noteFileScanSkip === 'function') {
+      watcher.noteFileScanSkip(CONFIRMED_ZERO);
+    }
+    return;
+  }
   const t0 = performance.now();
   updateScanStatus(true);
   try {
@@ -811,7 +826,14 @@ async function doHotReadScan() {
     }
     return;
   }
-  if (agents.length === 0) return;
+  // #328: the same observed zero as the 30 s scan, on the fs-rm leaf this cycle owns.
+  if (agents.length === 0) {
+    logger.debug('scan', 'hot-read-skip', { reason: CONFIRMED_ZERO, agents: 0 });
+    if (typeof watcher.noteFileScanSkip === 'function') {
+      watcher.noteFileScanSkip(CONFIRMED_ZERO);
+    }
+    return;
+  }
   const t0 = performance.now();
   try {
     const rawEvents = await watcher.scanHotFileHolders(agents);

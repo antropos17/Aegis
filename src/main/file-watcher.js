@@ -63,6 +63,13 @@ const FS_SENSOR = Object.freeze({
 const SCOPE_UNAVAILABLE_REASON = 'process-observation-unavailable';
 
 /**
+ * Reason recorded when a trusted population leaves the read scope empty: a successful
+ * observation of zero, the same string the network leaf writes (§10 B4) so one
+ * vocabulary reaches the chip and the logs.
+ */
+const CONFIRMED_ZERO_REASON = 'confirmed-zero-agents';
+
+/**
  * Reader for the ProcessCapabilities contract (design §3), resolved lazily.
  *
  * Required directly rather than injected through `_state`: that object is built in
@@ -234,18 +241,27 @@ function getFileSensorHealth() {
 }
 
 /**
- * Orchestration-only skip: the read mechanisms were NOT run this tick because the
- * agent population could not be trusted as an observation scope (design §2.4).
+ * Orchestration-only skip: the read mechanisms were NOT run this tick. Two reasons,
+ * two verdicts, and the population gate decides between them BEFORE cardinality does
+ * — in scan-loop's `doFileScan` / `doHotReadScan` and in `scanAllFileHandles` alike:
  *
- * Marks the ACTIVE read mechanism — RM when the RM path owns observation, the handle
- * pool otherwise — because that is the sensor whose observation was actually lost.
- * DEGRADED, never FAILED: no provider failed. Never HEALTHY: no read happened, so
- * there is no scoped success to claim, and `lastSuccessAt` must not advance.
+ * - `process-observation-unavailable`: the agent population could not be trusted as
+ *   an observation scope (design §2.4). DEGRADED, never FAILED — no provider failed.
+ *   Never HEALTHY: no read happened, so there is no scoped success to claim, and
+ *   `lastSuccessAt` must not advance.
+ * - `confirmed-zero-agents`: the population WAS read and the read scope is empty —
+ *   no agent at all, or none in the AI subset the pool probes. That is a successful
+ *   observation of zero: HEALTHY with the detail and `lastSuccessAt` advanced, the
+ *   scoped success the network leaf already records (§10 B4). B-S04 stands above
+ *   it — a pool that could not read even if an agent appeared is DEGRADED, not
+ *   vacuously HEALTHY — and a zero never latches: the next real scan writes over
+ *   the detail.
  *
- * The scoped-HEALTHY `confirmed-zero-in-scope` case is the effective-read-scope step
- * and is deliberately NOT implemented here — it needs the mechanism's own filtered
- * list, which this function never sees.
- * @param {'process-observation-unavailable'|string} reason
+ * Either verdict lands on the ACTIVE read mechanism — RM when the RM path owns
+ * observation, the handle pool otherwise — after `resolveReadMechanism` has settled
+ * which one that is, so an empty fleet that never reaches a scan still retires the
+ * idle leaf instead of leaving both STARTING (#328).
+ * @param {'confirmed-zero-agents'|'process-observation-unavailable'|string} reason
  * @returns {void}
  * @since 0.12.0
  */
@@ -254,12 +270,21 @@ function noteFileScanSkip(reason) {
   resolveReadMechanism(now);
   const id = rmEnabled() ? FS_SENSOR.RM : FS_SENSOR.HANDLE;
   const rec = _fsHealth[id];
-  // markDegraded throws from both states, and RM is UNSUPPORTED on every platform
-  // that has no Restart Manager — a skip must not turn that into an error.
+  // markHealthy and markDegraded both throw from these states, and RM is UNSUPPORTED
+  // on every platform that has no Restart Manager — a skip must not turn that into
+  // an error.
   if (
     rec.state === sensorHealth.SENSOR_HEALTH_STATE.UNSUPPORTED ||
     rec.state === sensorHealth.SENSOR_HEALTH_STATE.DISABLED
   ) {
+    return;
+  }
+  if (reason === CONFIRMED_ZERO_REASON) {
+    if (id === FS_SENSOR.HANDLE && !handleCapabilityOk()) {
+      markPoolBlind(now);
+      return;
+    }
+    _fsHealth[id] = sensorHealth.markHealthy(rec, now, { detail: CONFIRMED_ZERO_REASON });
     return;
   }
   const scoped = reason === SCOPE_UNAVAILABLE_REASON;
@@ -1017,6 +1042,32 @@ async function scanHotFileHolders(agents) {
 }
 
 /**
+ * B-S04: the pool cannot read (no handle binary) and no RM entry stands in for it, so
+ * neither an empty result nor an empty scope is a clean observation. DEGRADED on the
+ * handle leaf, and on the RM leaf too where it is an expected sensor rather than
+ * platform-UNSUPPORTED. Shared by the scan and the confirmed-zero skip, so a blind
+ * machine reads the same whether or not an agent is running.
+ * @param {number} now
+ * @returns {void}
+ */
+function markPoolBlind(now) {
+  _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.HANDLE], now, {
+    error: 'read-detection-unavailable',
+    detail: 'no-handle-binary-and-no-rm',
+  });
+  // Only degrade RM when it is an expected sensor (not platform-UNSUPPORTED).
+  if (
+    _fsHealth[FS_SENSOR.RM].state !== sensorHealth.SENSOR_HEALTH_STATE.UNSUPPORTED &&
+    !rmEnabled()
+  ) {
+    _fsHealth[FS_SENSOR.RM] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.RM], now, {
+      error: 'rm-unavailable',
+      detail: 'read-detection-unavailable',
+    });
+  }
+}
+
+/**
  * @param {Array} agents
  * @returns {Promise<Array>}
  * @since v0.1.0
@@ -1043,27 +1094,17 @@ async function scanAllFileHandles(agents) {
 
   // B-S04: capability blind — empty results are not HEALTHY clean observation.
   if (!handleCapabilityOk()) {
-    _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.HANDLE], now, {
-      error: 'read-detection-unavailable',
-      detail: 'no-handle-binary-and-no-rm',
-    });
-    // Only degrade RM when it is an expected sensor (not platform-UNSUPPORTED).
-    if (
-      _fsHealth[FS_SENSOR.RM].state !== sensorHealth.SENSOR_HEALTH_STATE.UNSUPPORTED &&
-      !rmEnabled()
-    ) {
-      _fsHealth[FS_SENSOR.RM] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.RM], now, {
-        error: 'rm-unavailable',
-        detail: 'read-detection-unavailable',
-      });
-    }
+    markPoolBlind(now);
     return [];
   }
 
   const toScan =
     _state && _state.isOtherPanelExpanded() ? agents : agents.filter((a) => a.category === 'ai');
   if (toScan.length === 0) {
-    // No agents to probe — not a sensor failure (scan-loop skips earlier too).
+    // Nothing in the pool's scope to probe: the population gate above vouched for the
+    // list, so this is an observed zero, not a skipped tick (scan-loop's own empty-fleet
+    // return records the same verdict one level up).
+    noteFileScanSkip(CONFIRMED_ZERO_REASON);
     return [];
   }
   // Bounded-concurrency worker pool: at most FILE_SCAN_CONCURRENCY scanFileHandles()

@@ -467,4 +467,67 @@ describe('app-health umbrella (B8)', () => {
       expect(h.getFileHandles).toHaveBeenCalledWith(CLAUDE.pid);
     });
   });
+
+  // The idle machine (#328): a process table that WAS read and holds no agent. The
+  // population is HEALTHY and every agent-scoped sensor's scope is empty, so each one
+  // records a scoped success — `confirmed-zero-agents`, the B4 network contract — and
+  // the app is HEALTHY with no reason, not SENSORS_STARTING until an agent appears.
+  describe('S10 — an empty fleet is a confirmed zero, not a startup', () => {
+    const NO_AGENTS = [{ name: 'chrome', pid: 1 }];
+
+    it('S10a. handle-pool path: HEALTHY with reasons [], the read leaf confirmed-zero, no provider asked', async () => {
+      h = createHarness(shims, { processes: NO_AGENTS });
+      const health = await h.bringUp();
+
+      expect(health.state).toBe(A.HEALTHY);
+      expect(health.reasons).toEqual([]);
+      expect(health.populationState).toBe(S.HEALTHY);
+      expect(health.populationReliable).toBe(true);
+      const ids = health.sensors.byId;
+      expect(ids.process.state).toBe(S.HEALTHY);
+      expect(ids['fs-handle'].state).toBe(S.HEALTHY);
+      expect(ids['fs-handle'].detail).toBe('confirmed-zero-agents');
+      expect(ids['fs-handle'].lastSuccessAt).toBeTypeOf('number');
+      // The harness platform carries no Restart Manager on any OS (installShims), so
+      // the RM leaf keeps the platform reason; `pool-owns-observation` is the leaf
+      // suite's to prove (file-watcher-health B).
+      expect(ids['fs-rm'].state).toBe(S.UNSUPPORTED);
+      expect(ids['fs-rm'].detail).toBe('platform-no-rm');
+      expect(ids.network.state).toBe(S.HEALTHY);
+      expect(ids.network.detail).toBe('confirmed-zero-agents');
+      // The zero was read off the process table; no provider was asked to confirm it.
+      expect(h.listProcesses).toHaveBeenCalled();
+      expect(h.getFileHandles).not.toHaveBeenCalled();
+      expect(h.getRawTcpConnections).not.toHaveBeenCalled();
+      expect(h.sessionTracker.activeCount()).toBe(0);
+      expect(h.auditTypes()).toEqual([]);
+      expect(h.expectSiblings().observationGap.state).toBe('NONE');
+
+      // The first agent: the pool is asked, and the zero did not latch.
+      h.listProcesses.mockResolvedValue([CLAUDE]);
+      await h.runStartup();
+      const after = h.health();
+      expect(h.getFileHandles).toHaveBeenCalledWith(CLAUDE.pid);
+      expect(after.sensors.byId['fs-handle'].state).toBe(S.HEALTHY);
+      expect(after.sensors.byId['fs-handle'].detail).toBeNull();
+      expect(after.state).toBe(A.HEALTHY);
+    });
+
+    it('S10b. Restart Manager path: fs-rm confirmed-zero and fs-handle retired — neither leaf STARTING', async () => {
+      h = createHarness(shims, { processes: NO_AGENTS });
+      const getSensitiveHolders = vi.fn(async () => []);
+      h.watcher._setDepsForTest({ getSensitiveHolders });
+      const health = await h.bringUp();
+
+      expect(getSensitiveHolders).not.toHaveBeenCalled();
+      expect(h.getFileHandles).not.toHaveBeenCalled();
+      const ids = health.sensors.byId;
+      expect(ids['fs-rm'].state).toBe(S.HEALTHY);
+      expect(ids['fs-rm'].detail).toBe('confirmed-zero-agents');
+      expect(ids['fs-handle'].state).toBe(S.UNSUPPORTED);
+      expect(ids['fs-handle'].detail).toBe('rm-owns-observation');
+      expect(health.state).toBe(A.HEALTHY);
+      expect(health.reasons).toEqual([]);
+    });
+  });
 });
