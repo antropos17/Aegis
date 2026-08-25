@@ -516,5 +516,29 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     unasserted keys would have stayed green, and reading that as vacuity would have
     condemned a sound test — it is partial coverage, which is a comment, not a rejection.
 
+40. **A session handoff listed debts as open that master had already closed, and each was
+    accepted into a plan before a blobless clone showed it done.** Found 2026-08-25, after
+    #315–#319 had merged. The handoff carried three debts as pending: the app-level health
+    state machine, the ai-mistakes #27 overclaim comments, and the design repo’s untracked
+    session junk. Each was closed before the session began. `src/main/app-health.js` landed
+    in `67536b3` (2026-08-21, inside `aegis-v0.12.0-alpha`) and
+    `docs/roadmap/sensor-health-degraded.md` had already cut its open list to B5 and B8.
+    `process-identity.js` was corrected in `0153aee` (2026-08-14) and `session-tracker.js`
+    in `eeb0b58` (2026-08-21, PR #207), and `git grep "only failure mode" origin/master --
+    src/main` returns nothing. The design repo’s `events.jsonl`, `.claude/`, `.1devtool/` and
+    `.playwright-mcp/` were never tracked and have been ignored since `907e5ab` (2026-08-14).
+    A fourth item — Ed25519 release signing, "status unknown, check `feat/release-signing`" —
+    named a branch that exists neither locally nor on origin: #275 (merge `c52fba0`) landed
+    the signing and `aegis-v0.13.0-alpha` exercised it. The handoff described an older tree
+    from memory, and a plan built on it would have re-done finished work or gone looking for
+    a branch that is not there (cf. #20 — do not document what is not there; #24 — derive,
+    do not repeat; #28 — the sweep must reach the tree it claims to describe).
+    **Rule: before assigning any inherited debt, `git show` / `git grep` the exact file on
+    `origin/master`; a debt with no grep hit is closed, not pending.** A blobless clone
+    (`git clone --filter=blob:none`) answers both, so the check costs less than the plan it
+    replaces; a named branch is checked the same way, with `git ls-remote --heads origin
+    <name>`. A handoff is a claim about the tree, and the tree is the only thing that can
+    confirm it.
+
 ## Rule
 NEVER change what was not asked. Do ONLY what the prompt says.
