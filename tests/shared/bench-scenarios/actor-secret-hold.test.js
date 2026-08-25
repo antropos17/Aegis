@@ -64,13 +64,47 @@ function execute(steps, opts) {
   return actor.execute({ id: 'T-unit', steps }, opts);
 }
 
-/** A `copy-binary` step staging this interpreter under an agent name. */
+/**
+ * The executable these cases stage, chosen for its SIZE.
+ *
+ * `process.execPath` was the obvious source and it cost this file ~3.6 s in the one
+ * case that LAUNCHES what it staged. Windows scans a freshly written PE in full the
+ * first time it is executed, and the interpreter is ~86 MB. Measured on this machine,
+ * `hold-secret-file`'s `spawn()` → `'spawn'` gap was 3472–3962 ms for a fresh copy of
+ * `node.exe`, 8 ms for the SECOND launch of that same copy, and 86–123 ms for a fresh
+ * copy of a 45–455 KB one. The cost is the loader's, it is paid per newly written
+ * file, and it left ~1000 ms of Vitest's 5000 ms default for everything else — which
+ * is why the case timed out on five cold full-suite runs and was green on every rerun.
+ *
+ * Nothing here needs an interpreter. Every assertion below is about the argv the
+ * actor built and the catalogue row it wrote, and no case runs the child: `execute()`
+ * kills what it spawned in its `finally`, before a hold script could open anything.
+ * Per this file's header, the branch itself is confirmed by a live arm-A run and by
+ * nothing a unit test can do. `bench/scenarios/S1-agent-lifecycle` already stages
+ * `ping.exe` for the same reason — a step that only has to LAUNCH is not choosy about
+ * what.
+ * @type {string[]} Candidates in preference order, per platform.
+ */
+const SMALL_EXECUTABLES =
+  process.platform === 'win32'
+    ? [path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'ping.exe')]
+    : ['/bin/true', '/usr/bin/true'];
+
+/**
+ * @type {string} What `copy-binary` copies. Falls back to the interpreter rather than
+ *   failing: a machine without any of the candidates still runs the cases correctly,
+ *   it only runs them slower.
+ */
+const STAGE_SOURCE =
+  SMALL_EXECUTABLES.find((candidate) => fs.existsSync(candidate)) ?? process.execPath;
+
+/** A `copy-binary` step staging that executable under an agent name. */
 const STAGE_STEP = {
   id: 'stage',
   kind: 'copy-binary',
   expect: 'E1',
   with: {
-    from: process.execPath,
+    from: STAGE_SOURCE,
     agentId: 'claude-code',
     agentName: 'claude.exe',
   },
