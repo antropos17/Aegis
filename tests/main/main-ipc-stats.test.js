@@ -57,7 +57,7 @@ process.argv = ['node', 'main.js'];
 const require_ = createRequire(import.meta.url);
 const main = require_('../../src/main/main.js');
 
-/** The six fields ipc-batcher's getStats() publishes, sorted. */
+/** The seven fields ipc-batcher's getStats() publishes, sorted. */
 const BATCHER_STATS_KEYS = [
   'buffered',
   'coalesced',
@@ -65,6 +65,7 @@ const BATCHER_STATS_KEYS = [
   'evictedSinceFlush',
   'highWater',
   'pushed',
+  'retainedEvicted',
 ];
 
 /** Only what the loaded `getStats` branch reads off the scanner. */
@@ -90,7 +91,7 @@ afterAll(() => {
 });
 
 describe('getStats().ipc — display-lane delivery accounting', () => {
-  it('the scanner-absent branch carries the full six-field batcher shape', () => {
+  it('the scanner-absent branch carries the full seven-field batcher shape', () => {
     const stats = main.getStats();
     expect(stats).toHaveProperty('ipc');
     expect(Object.keys(stats.ipc)).toEqual(['fileAccess']);
