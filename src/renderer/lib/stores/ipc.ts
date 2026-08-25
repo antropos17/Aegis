@@ -2,6 +2,7 @@
 import { writable, derived } from 'svelte/store';
 import type { Readable, Writable } from 'svelte/store';
 import { isDemoPayload } from './demo-provenance.js';
+import { appendWithRetention, fileEventRetain, EVENTS_CAPACITY } from './events-retention.js';
 import type {
   DetectedAgent,
   FileEvent,
@@ -161,6 +162,20 @@ declare global {
 
 export const agents: Writable<DetectedAgent[]> = writable([]);
 export const events: Writable<FileEvent[]> = writable([]);
+/**
+ * What the `events` cap has cost this window, cumulative since the renderer loaded, in
+ * the same two words as main's `BatcherStats`: `evicted` rows left the store,
+ * `retainedEvicted` of them were sensitive rows that went only because the store held
+ * nothing else (events-retention.ts). Both stay 0 until the cap is actually reached.
+ *
+ * A SIBLING of `stats.ipc.fileAccess`, never merged into it: that block counts frames
+ * main never SENT, over main's lifetime; this counts rows the renderer stopped SHOWING,
+ * over this window's. One number for both would say which lane lost nothing.
+ */
+export const eventsRetention: Writable<{ evicted: number; retainedEvicted: number }> = writable({
+  evicted: 0,
+  retainedEvicted: 0,
+});
 export const stats: Writable<Record<string, unknown>> = writable({});
 export const network: Writable<NetworkConnection[]> = writable([]);
 /**
@@ -355,9 +370,24 @@ if (import.meta.env.VITE_DEMO_MODE === 'true') {
   });
 
   // Individual channels for non-batch sources (file watcher, network monitor)
+  // Capped at EVENTS_CAPACITY with main's retain rule: the oldest NON-sensitive rows go
+  // first, a sensitive row only from a store that holds nothing else, and every drop is
+  // counted on `eventsRetention` — a credential read main just paid to deliver is not
+  // pushed off by project-directory noise here either.
   window.aegis!.onFileAccess((data) => {
     const batch = Array.isArray(data) ? data : [data];
-    events.update((arr) => [...arr.slice(-499), ...batch]);
+    let dropped = { evicted: 0, retainedEvicted: 0 };
+    events.update((arr) => {
+      const r = appendWithRetention(arr, batch, EVENTS_CAPACITY, fileEventRetain);
+      dropped = { evicted: r.evicted, retainedEvicted: r.retainedEvicted };
+      return r.next;
+    });
+    if (dropped.evicted > 0) {
+      eventsRetention.update((s) => ({
+        evicted: s.evicted + dropped.evicted,
+        retainedEvicted: s.retainedEvicted + dropped.retainedEvicted,
+      }));
+    }
   });
   window.aegis!.onStatsUpdate((data) => stats.set(data));
   window.aegis!.onNetworkUpdate((data) => {
