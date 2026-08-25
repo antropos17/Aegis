@@ -951,6 +951,23 @@ function _getWatchersForTest() {
   return fileWatchers;
 }
 
+/**
+ * @internal Run {@link loadDeferredModules} outside the Electron lifecycle (for tests).
+ *
+ * The loaded `getAppHealth` branch reads five deferred bindings the `_set*ForTest`
+ * hooks above never cover — `network`, `platform` and the three secondary detectors —
+ * so a test that wants the REAL composer over REAL leaves has exactly one door: the
+ * same require pass production runs after `ready-to-show`. Every require goes through
+ * Node's cache, so the test shapes each leaf through that module's own `_resetForTest`
+ * / `_setDepsForTest`, and decides what `./platform` resolves to for main.js with a
+ * `Module._load` interception installed before this runs (tests/main/helpers/
+ * health-umbrella-harness.js). Nothing here starts a scan, a watcher or a probe.
+ * @returns {void}
+ */
+function _loadDeferredModulesForTest() {
+  loadDeferredModules();
+}
+
 // Exported for the startup-ordering and stats-shape regression tests only — nothing in
 // the app requires main.js. Electron runs it as the entry point.
 module.exports = {
@@ -974,4 +991,5 @@ module.exports = {
   _setAuditForTest,
   _resetWatchersForTest,
   _getWatchersForTest,
+  _loadDeferredModulesForTest,
 };
