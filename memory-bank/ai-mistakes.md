@@ -54,24 +54,25 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     which had audited the number and recorded "match". Derive before quoting
     (`git ls-files 'src/main/*.js'`), and assume the figure you were sent to fix has siblings.
 
-39. **Two authority documents state the same rule with opposite force, and every PR that meets
-    the rule has to pick a side on its own.** `AGENTS.md` ("What NOT to do") says a new file
-    must not blow past 300 lines — extract instead; `CLAUDE.md` rule 3 says 300 lines/file is a
-    TARGET for new files, not an invariant, names the files already over it as derived by
-    `npm run counts:check`, and says not to split for the number. #308
-    (`src/main/sequence-rule-loader.js`) and #310 (`src/main/sequence-engine.js`) each landed a
-    new module over the line and each had to decide which sentence governed. Both chose
-    CLAUDE.md and bumped `size.over300` at its declaration sites — but the choice was made twice,
-    in two PR bodies, instead of once in the documents, and a reader who opens AGENTS.md first is
-    told to cut a state machine into pieces to satisfy a sentence the other document has already
-    retired (cf. #20 — a reader acts on what a document says; #24 — a fact with two homes
-    drifts).
-    **Decision, recorded so it is not re-made:** CLAUDE.md wins. 300 is a target for new files
-    and the reason to extract when adding to a file already over it, never a gate;
+39. **Two authority documents state the same rule with opposite force — and one of them
+    disagrees with itself — so every PR that meets the rule has to pick a side on its own.**
+    `CLAUDE.md` rule 3 says 300 lines/file is a TARGET for new files, not an invariant, names
+    the files already over it as derived by `npm run counts:check`, and says not to split for
+    the number. `AGENTS.md` "Code conventions" carries that same sentence, and its "What NOT to
+    do" list, lower in the same file, says a new file must not blow past 300 lines — extract
+    instead. #308 (`src/main/sequence-rule-loader.js`) and #310 (`src/main/sequence-engine.js`)
+    each landed a new module over the line and each had to decide which sentence governed. Both
+    chose rule 3 and bumped `size.over300` at its declaration sites — but the choice was made
+    twice, in two PR bodies, instead of once in the documents, and a reader who opens the
+    "What NOT to do" list first is told to cut a state machine into pieces to satisfy a sentence
+    the same file has already retired (cf. #20 — a reader acts on what a document says; #24 — a
+    fact with two homes drifts, and this one has three).
+    **Decision, recorded so it is not re-made:** CLAUDE.md rule 3 wins. 300 is a target for new
+    files and the reason to extract when adding to a file already over it, never a gate;
     `size.over300` stays a DERIVED counter that `counts:check` computes from the tree and is not
-    to become a limit; the AGENTS.md wording is to be aligned to CLAUDE.md rule 3 in the next
-    docs pass, which this entry does not perform. Until then, where the two disagree, rule 3 is
-    the sentence to cite.
+    to become a limit; the AGENTS.md "What NOT to do" bullet is to be aligned to rule 3 in the
+    next docs pass, which this entry does not perform. Until then, where the sentences disagree,
+    rule 3 is the one to cite.
 
 ## PowerShell
 18. Uses && in PowerShell commands instead of ; or powershell.exe -NoProfile -Command wrapper
