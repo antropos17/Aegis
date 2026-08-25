@@ -309,22 +309,38 @@ describe('audit-logger', () => {
   describe('getEntriesBefore — bounded read path', () => {
     const FAR_FUTURE = '9999-01-01T00:00:00.000Z';
 
+    /** The `YYYY-MM-DD` the logger names a file with — LOCAL date, the same formula as _todayDateStr. */
+    function localDateStr(d) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    /** `dateStr` moved by `days` — calendar arithmetic on the string, never on the clock. */
+    function shiftDateStr(dateStr, days) {
+      const d = new Date(`${dateStr}T00:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() + days);
+      return d.toISOString().slice(0, 10);
+    }
+
     /**
      * Write `count` synthetic entries straight into YESTERDAY's audit file, bypassing
      * log(). Yesterday, not a fixed past date: init() schedules cleanOldLogs() on the
      * REAL clock, so a fixed date eventually sits past RETENTION_DAYS, where any await
      * in a test body would let the sweep delete the fixture. Yesterday is always inside
      * retention. getEntriesBefore only needs JSON lines with a timestamp — no seq/hash.
+     * Line `i` is written with `typeOf(i)`; the lines ascend in time with `i`.
      */
-    function seedEntries(count) {
+    function seedEntries(count, typeOf = () => 't') {
       const auditDir = path.join(tmpDir, 'audit-logs');
-      const d = new Date(Date.now() - 86400000);
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const dateStr = localDateStr(new Date(Date.now() - 86400000));
       const lines = [];
       for (let i = 0; i < count; i++) {
         const ms = String(i % 1000).padStart(3, '0');
         lines.push(
-          JSON.stringify({ timestamp: `${dateStr}T00:00:00.${ms}Z`, type: 't', agent: `a${i}` }),
+          JSON.stringify({
+            timestamp: `${dateStr}T00:00:00.${ms}Z`,
+            type: typeOf(i),
+            agent: `a${i}`,
+          }),
         );
       }
       fs.writeFileSync(path.join(auditDir, `aegis-audit-${dateStr}.json`), lines.join('\n') + '\n');
@@ -416,5 +432,76 @@ describe('audit-logger', () => {
         }
       });
     }
+
+    // --- the `types` filter (docs/roadmap/audit-index.md §5) -----------------------
+
+    it('applies a types filter on the JSONL path — 25 newest unmatched lines do not hide older matches', () => {
+      auditLogger.init({ userDataPath: tmpDir });
+      // The five OLDEST lines are file-access; the 25 newest are agent-enter. Unfiltered, a
+      // limit of 25 returns the 25 agent-enter lines, and a renderer filtering client-side
+      // sees an empty batch and declares history exhausted with five matches still below.
+      seedEntries(30, (i) => (i < 5 ? 'file-access' : 'agent-enter'));
+      const entries = auditLogger.getEntriesBefore(FAR_FUTURE, 25, ['file-access']);
+      expect(entries).toHaveLength(5);
+      expect(entries.every((e) => e.type === 'file-access')).toBe(true);
+    });
+
+    for (const [label, types] of [
+      ['a bare string', 'file-access'],
+      ['an empty array', []],
+      ['an array with no string entries', [42, null]],
+    ]) {
+      it(`types given as ${label} is no filter at all`, () => {
+        auditLogger.init({ userDataPath: tmpDir });
+        seedEntries(30, (i) => (i < 5 ? 'file-access' : 'agent-enter'));
+        expect(auditLogger.getEntriesBefore(FAR_FUTURE, 100, types)).toHaveLength(30);
+      });
+    }
+
+    it('keeps only the first 16 filter entries', () => {
+      auditLogger.init({ userDataPath: tmpDir });
+      seedEntries(30, (i) => (i < 5 ? 'file-access' : 'agent-enter'));
+      const decoys = Array.from({ length: 16 }, (_, i) => `decoy-${i}`);
+      // The 17th entry is the only one that matches anything — and it is the one dropped.
+      expect(auditLogger.getEntriesBefore(FAR_FUTURE, 100, [...decoys, 'file-access'])).toEqual(
+        [],
+      );
+    });
+
+    // --- the D+1 file rule ---------------------------------------------------------
+
+    it('returns a day-D record that flush() wrote into the D+1 file', () => {
+      // A file is named with the LOCAL date of the flush; a record's timestamp is UTC at
+      // log() time. A record logged just before local midnight is flushed into the next
+      // day's file, and for a user east of UTC every record between local 00:00 and UTC
+      // 00:00 sits in the file after its UTC date — so a cursor inside day D opens D+1 too.
+      auditLogger.init({ userDataPath: tmpDir });
+      const dPlus1 = localDateStr(new Date(Date.now() - 86400000)); // yesterday: inside retention
+      const d = shiftDateStr(dPlus1, -1);
+      fs.writeFileSync(
+        path.join(tmpDir, 'audit-logs', `aegis-audit-${dPlus1}.json`),
+        [
+          JSON.stringify({ timestamp: `${d}T23:59:58.000Z`, type: 't', agent: 'straddle' }),
+          JSON.stringify({ timestamp: `${dPlus1}T00:00:03.000Z`, type: 't', agent: 'after' }),
+        ].join('\n') + '\n',
+      );
+      const got = auditLogger.getEntriesBefore(`${d}T23:59:59.000Z`, 10);
+      expect(got.map((e) => e.agent)).toEqual(['straddle']);
+    });
+
+    it('a cursor whose date is no calendar date keeps the plain file rule, not an empty log', () => {
+      auditLogger.init({ userDataPath: tmpDir });
+      seedEntries(5);
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        // Passes the shape check (`^\d{4}-\d{2}-\d{2}`) while `new Date()` of it is invalid.
+        // String-wise it sits above every real date, so all five seeded lines are below it:
+        // the answer is the five lines, never the generic catch's [].
+        expect(auditLogger.getEntriesBefore('2026-13-45T00:00:00.000Z', 10)).toHaveLength(5);
+        expect(errorSpy).not.toHaveBeenCalled();
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
   });
 });
