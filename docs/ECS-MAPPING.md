@@ -83,10 +83,11 @@ ECS document reads as a measured null. Empty containers are omitted too — ther
 | audit `agent-exit` | `event` | `[process]` | `[end]` | `agent-exit` |
 | audit `anomaly-alert` | `alert` | `[intrusion_detection]` | `[info]` | `anomaly-alert` |
 | audit `sequence-detection` | `alert` | `[intrusion_detection]` | `[info]` | `sequence-detection` |
+| audit `observation-gap` | `event` | `[host]` | `[info]` | `observation-gap` |
 | audit `permission-deny`, `buffer-overflow-drop`, any unknown type | `event` | *omitted* | *omitted* | the `type` string |
 | `FileEvent` with an action outside the closed union | `event` | `[file]` | *omitted* | *omitted* |
 
-Four of those rows are decisions rather than transcriptions:
+Five of those rows are decisions rather than transcriptions:
 
 - **`holding` is `info`, not `access`.** `file-watcher.js` emits `holding` for a point-in-time
   handle HOLD observed at the scan tick, and its own comment says it is explicitly not a read.
@@ -104,6 +105,16 @@ Four of those rows are decisions rather than transcriptions:
   the audit log stating that *other* records were lost, which is no categorization of the marker
   itself — in particular it is not ECS `pipeline_error`, which describes a failure to ingest *this*
   document. Both keep `event.action` equal to their type and claim nothing more.
+- **`observation-gap` is `host` / `info`, and an `event`, not an `alert`.** It is the record
+  `src/main/main.js` writes on Electron `powerMonitor` resume (Block B5,
+  `src/main/observation-gap.js`): the HOST was asleep, and nothing was observed in between. That is
+  a fact about the machine's observation continuity, not about any process, file or socket, so no
+  `process.*` or `file.*` branch is lifted from it — `pid`, `instanceId` and `attribution` are all
+  `null` on the record, and the ownership question does not apply. It is not `pipeline_error`
+  either: nothing failed to ingest, the machine was off. `details` carries the gap itself
+  (`suspendedAt`, `resumedAt`, `gapMs`, `suspendCount`, `monitoringPaused`, `activeSessions`),
+  under the aegis-specific branch this block does not map. It explains a hole in the log; it
+  never fills one.
 
 ---
 

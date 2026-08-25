@@ -100,6 +100,14 @@ const AUDIT_ROUTES = new Map([
       action: 'sequence-detection',
     },
   ],
+  // The OS suspend/resume gap main.js records on powerMonitor resume (Block B5). A fact
+  // about the HOST's observation continuity, not about any process, file or socket —
+  // so `host`/`info`, and not `pipeline_error`: nothing failed to ingest, the machine
+  // was asleep. Never an alert: a laptop closing its lid is not a detection.
+  [
+    'observation-gap',
+    { kind: 'event', categories: ['host'], type: 'info', action: 'observation-gap' },
+  ],
 ]);
 
 /**

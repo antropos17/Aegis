@@ -49,6 +49,12 @@ const { createBatcher } = require('./ipc-batcher');
 // loadDeferredModules runs.
 const appHealth = require('./app-health');
 const { FILE_ACCESS_BATCHER_OPTIONS } = require('./file-access-batching');
+// Pure as well (Block B5): `getStats` reads its snapshot on BOTH branches, and the
+// powerMonitor subscription below `app.whenReady` must exist before any sensor does —
+// a laptop can sleep during boot. `session-tracker` is here for one read, the active
+// session count the resume record carries; it is the module scan-loop reconciles with.
+const observationGap = require('./observation-gap');
+const sessionTracker = require('./session-tracker');
 
 // ═══ DEFERRED (loaded after ready-to-show via loadDeferredModules) ═══
 // `network` is here rather than local to initDeferredSubsystems because getAppHealth()
@@ -334,6 +340,7 @@ function getStats() {
       ipc: getIpcStats(),
       sequences: getSequenceStats(),
       monitoringPaused,
+      observationGap: observationGap.snapshot(),
     };
   }
   const log = scanner.activityLog;
@@ -359,6 +366,7 @@ function getStats() {
     ipc: getIpcStats(),
     sequences: getSequenceStats(),
     monitoringPaused,
+    observationGap: observationGap.snapshot(),
   };
 }
 
@@ -685,6 +693,7 @@ function initDeferredSubsystems(userData) {
     tray,
     logger,
     sequenceEngine,
+    observationGap,
     sendToRenderer,
     fileAccessBatcher,
     statsUpdateBatcher,
@@ -809,6 +818,33 @@ app.whenReady().then(() => {
     getAgentCount: () => latestAgents.length,
   });
   createWindow();
+  // Block B5 — the OS sleep gap. `powerMonitor` is usable only after `ready`, which is
+  // where this runs; the module is injected the emitter and a clock and owns the rest.
+  // On resume one `observation-gap` audit record explains the hole in the JSONL, ahead
+  // of any `agent-exit` a post-sleep reconcile may go on to write. `audit` is a
+  // deferred module: a resume before it loaded has no log to write to, and no log is
+  // fabricated later.
+  observationGap.attach(require('electron').powerMonitor, {
+    onGap: (gap) => {
+      const details = observationGap.buildGapAuditDetails(gap, {
+        monitoringPaused,
+        activeSessions: sessionTracker.activeCount(),
+      });
+      logger.info('power', 'resume', details);
+      if (!audit) return;
+      audit.log('observation-gap', {
+        agent: '',
+        pid: null,
+        instanceId: null,
+        action: 'os-resume',
+        path: '',
+        severity: 'normal',
+        // Null: the ownership question does not apply — the machine slept, no owner.
+        attribution: null,
+        extra: details,
+      });
+    },
+  });
   ipc.init({
     getWindow: () => mainWindow,
     getStats,

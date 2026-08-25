@@ -392,6 +392,15 @@ async function doProcessScan() {
     // write, anomaly processing, a renderer send — must not be able to write it. Without
     // this split, `process = FAILED` proved nothing about whether the machine was
     // enumerated. The provider throw is rethrown so the outer catch keeps the single log.
+    // B5 straddle witness: a SNAPSHOT of the observation gap taken before the provider
+    // await, compared with a second one after the identity stamp below. `suspendCount`
+    // moving between the two means the OS slept while this tick's evidence was being
+    // gathered — the list may describe the machine before the sleep, and every clock
+    // read from here on is after it. Deliberately not a live read of the module's
+    // state: the honest first tick AFTER resume also finds the flag armed, and a live
+    // read would freeze that tick too, which is the one that must clear it.
+    // Optional collaborator, same shape as `sequenceEngine`: absent, nothing here runs.
+    const gapBefore = deps.observationGap ? deps.observationGap.snapshot() : null;
     let result;
     try {
       result = await scanner.scanProcesses();
@@ -431,6 +440,10 @@ async function doProcessScan() {
     // 67.3 ms; that run's CIM arm p50 1747.6 ms, p95 1873.6 ms, max 2144.0 ms.
     // Samples, not guaranteed runtimes.
     await procUtil.enrichWithParentChains(agents, { forceRefresh: result.changed === true });
+    // The second half of the straddle witness — after the identity stamp, so a sleep
+    // inside `enrichWithParentChains` is caught as well as one inside the enumeration.
+    const gapStraddled =
+      gapBefore !== null && deps.observationGap.snapshot().suspendCount !== gapBefore.suspendCount;
     // Read AFTER the identity stamp, never before. The snapshot leaf's health
     // describes the process-table observation `enrichWithParentChains` just made;
     // read at the top of the tick it would report the PREVIOUS pass's provider, and
@@ -443,18 +456,33 @@ async function doProcessScan() {
         reason: 'identity-degraded',
         agents: agents.length,
       });
+    } else if (gapStraddled) {
+      logger.debug('scan', 'session-freeze', {
+        reason: 'suspend-straddle',
+        agents: agents.length,
+      });
     }
     // Eager-enter / lazy-exit session reconciliation: an agent seen in even ONE
     // scan logs session-start immediately, and a flickering or permission-denied
     // scan never spawns a duplicate session. `identityDegraded` freezes the same way
     // an unreliable scan does: when the birth-time observation is gone, every live
     // agent's key changes without any process having started or stopped, and acting
-    // on that would report a fleet-wide exit that never happened. See
-    // session-tracker.js.
+    // on that would report a fleet-wide exit that never happened. `gapStraddled`
+    // freezes for the third reason: the evidence predates a sleep that `now` does
+    // not, so no stamp this tick could write would be true. See session-tracker.js.
+    const reliable = result.reliable !== false;
     const { entered, exited } = sessionTracker.reconcile(agents, {
-      reliable: result.reliable !== false,
+      reliable,
       identityDegraded,
+      gapStraddled,
     });
+    // The ONLY thing that clears a resumed observation gap: a tick whose reconcile was
+    // not frozen. A permission-denied enumeration, a degraded identity or a straddled
+    // tick ran, but observed nothing — the gap stays armed until something does. Placed
+    // before the audit writes below so a downstream throw cannot leave a real
+    // observation uncredited.
+    const observed = reliable && !identityDegraded && !gapStraddled;
+    if (observed && deps.observationGap) deps.observationGap.noteObserved(Date.now());
     for (const s of entered) {
       audit.log('agent-enter', {
         agent: s.agent,
@@ -626,9 +654,22 @@ async function doProcessScan() {
     if (deps.sequenceEngine && typeof deps.sequenceEngine.sweep === 'function') {
       deps.sequenceEngine.sweep();
     }
+    // The first tick(s) after a resume are tagged with the gap they follow, and with
+    // whether THIS tick was the one that cleared it — so a log reader can tell a
+    // post-sleep tick from a quiet one, and a tick that observed from one that did not.
+    const postGap =
+      gapBefore !== null && gapBefore.state === 'RESUMED'
+        ? {
+            suspendedAt: gapBefore.suspendedAt,
+            resumedAt: gapBefore.resumedAt,
+            gapMs: gapBefore.gapMs,
+            cleared: observed,
+          }
+        : undefined;
     logger.debug('scan', 'process', {
       ms: Math.round(performance.now() - t0),
       agents: agents.length,
+      ...(postGap ? { postGap } : {}),
     });
   } catch (err) {
     // Reached by BOTH a provider throw (rethrown above, health already owned by the inner

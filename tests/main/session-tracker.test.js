@@ -161,6 +161,35 @@ describe('session-tracker', () => {
       expect(tracker.activeCount()).toBe(1);
     });
 
+    it('B5. a scan that straddled an OS sleep is frozen exactly like the other two', () => {
+      // Evidence gathered before the suspend, reconciled after the resume (B5 straddle):
+      // the `now` the tracker would stamp is on the far side of the sleep, so the
+      // tick may neither start, end nor age a session.
+      tracker.reconcile([CURSOR], { now: 1_000_000, grace: 2 });
+      const straddled = tracker.reconcile([], { now: 1_010_000, grace: 2, gapStraddled: true });
+      expect(straddled).toEqual({ entered: [], exited: [] });
+      const again = tracker.reconcile([], { now: 1_020_000, grace: 2, gapStraddled: true });
+      expect(again).toEqual({ entered: [], exited: [] });
+      expect(tracker.activeCount()).toBe(1);
+      // A new agent on a straddled tick is not entered either — no fabricated firstSeen.
+      const fresh = tracker.reconcile([{ ...CURSOR, pid: 7, instanceId: '7:u' }], {
+        now: 1_030_000,
+        grace: 2,
+        gapStraddled: true,
+      });
+      expect(fresh.entered).toHaveLength(0);
+      expect(tracker.activeCount()).toBe(1);
+    });
+
+    it('B5. a straddled tick is not counted as a miss', () => {
+      tracker.reconcile([CURSOR], { now: 1_000_000, grace: 2 });
+      tracker.reconcile([], { now: 1_010_000, grace: 2, gapStraddled: true });
+      // One reliable miss after the straddle: still within grace, no exit yet.
+      const res = tracker.reconcile([], { now: 1_020_000, grace: 2 });
+      expect(res.exited).toHaveLength(0);
+      expect(tracker.activeCount()).toBe(1);
+    });
+
     it('the flag is opt-in: an absent identityDegraded reconciles exactly as before', () => {
       // linux/darwin never set it — `<pid>:u` is their steady state, not an
       // outage, and every enter/exit must still be reported there.
