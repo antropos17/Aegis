@@ -89,6 +89,17 @@ const AUDIT_ROUTES = new Map([
     'anomaly-alert',
     { kind: 'alert', categories: ['intrusion_detection'], type: 'info', action: 'anomaly-alert' },
   ],
+  // A completed `temporal_ordered` sequence (roadmap sequence-rules §5): an alert on the
+  // `anomaly-alert` model, under its own action so the two detectors stay tellable apart.
+  [
+    'sequence-detection',
+    {
+      kind: 'alert',
+      categories: ['intrusion_detection'],
+      type: 'info',
+      action: 'sequence-detection',
+    },
+  ],
 ]);
 
 /**

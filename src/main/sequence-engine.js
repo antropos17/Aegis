@@ -9,11 +9,11 @@
  *   (rule, instanceId), so one instance's progress through one rule is one object and a noisy
  *   instance cannot crowd the others out of a rule.
  *
- *   NOTHING CONSUMES THIS YET. No tap calls `ingest`, no tick calls `sweep` and no `onDetection`
- *   is installed in production — the rule file (`rules/sequences/sequences.yaml`, SEQ001, since
- *   PR #309) and this machine are written and pinned before anything is wired to them, on the
- *   ecs-normalizer precedent (PR #294, landed before its first caller). The wiring is roadmap
- *   §7 block 3.
+ *   WIRING (roadmap §5, block 3). The five taps in `main.js` / `scan-loop.js` call `ingest`, the
+ *   process tick calls `sweep`, and `main.js` installs the `onDetection` that writes the
+ *   `sequence-detection` audit record; `scan-loop.js` reads {@link scoreFor} when it assembles
+ *   the per-instance anomaly scores, which is how a detection reaches the existing alert path
+ *   without a channel of its own. The rule file is `rules/sequences/sequences.yaml` (SEQ001).
  *
  *   TRANSITION ORDER on an event with key K under rule R — fixed, and covered case by case in
  *   `tests/main/sequence-engine.test.js`:
@@ -82,6 +82,18 @@
  *   (the ecs-normalizer convention), `attribution` is always present because `null` there is a
  *   statement. No array in the payload is shared with a live state.
  *
+ *   THE SCORE a detection leaves behind — {@link scoreFor}. The LAST detection on an instance
+ *   is remembered with its level and the clock reading it landed on; for `SCORE_HOLD_MS` after
+ *   it the instance scores critical 90 / high 70 / medium 55 / low 30 on the anomaly scale, and
+ *   `scan-loop.js` merges that with `Math.max` into the per-instance anomaly score, so the
+ *   renderer's existing threshold (50) raises the toast for anything medium and above with no
+ *   new channel. `informational` scores 0: a score is a claim of risk and that level makes
+ *   none. Last-wins on purpose: a later, lower detection re-arms the hold at ITS level, which
+ *   is the literal reading of "held after the last detection" and keeps one entry per instance.
+ *   The entry is dropped on the read that finds it past the hold and by `sweep()`, so the map
+ *   is bounded by the live instances the taps still see. `reset` keeps the entries — a reload
+ *   changes the rules, not what an instance did — and `init` clears them.
+ *
  *   ONE CLOCK, INJECTED. `observedAt = now()` at ingest, for both the window and the order: a
  *   `NetworkConnection` carries no timestamp at all (ECS-MAPPING §5) and a file event carries the
  *   `Date.now()` of its emission, so the two carrier scales are never mixed. Order is arrival
@@ -118,7 +130,7 @@
  * @requires ../shared/ecs-normalizer
  * @author AEGIS Contributors
  * @license MIT
- * @version 0.2.0
+ * @version 0.3.0
  * @since v0.14.0
  */
 
@@ -142,6 +154,21 @@ const MAX_OPEN_TOTAL = 1024;
 
 /** How long an exited key refuses a late open (roadmap §2). @type {number} */
 const EXIT_TTL_MS = 60000;
+
+/** How long the last detection keeps scoring its instance (roadmap §5). @type {number} */
+const SCORE_HOLD_MS = 10 * 60 * 1000;
+
+/**
+ * Level → the score the alert path merges (roadmap §5). `informational` and any label outside
+ * the loader's union are absent here and score 0.
+ * @type {ReadonlyMap<string, number>}
+ */
+const LEVEL_SCORE = new Map([
+  ['critical', 90],
+  ['high', 70],
+  ['medium', 55],
+  ['low', 30],
+]);
 
 /** The ECS action a session record's exit side projects. @type {string} */
 const EXIT_ACTION = 'agent-exit';
@@ -267,6 +294,9 @@ const _open = new Map();
 
 /** Keys that exited, each with the clock reading its refusal lasts to. @type {Map<string, number>} */
 const _recentlyExited = new Map();
+
+/** The LAST detection per key: its level and the clock reading it landed on. @type {Map<string, {level: string, at: number}>} */
+const _lastDetection = new Map();
 
 /** @type {RuleCounters & {skippedNullInstanceId: number}} */
 let _global = { ..._zeroCounters(), skippedNullInstanceId: 0 };
@@ -654,7 +684,7 @@ function _applyRule(rule, key, doc, categories, observedAt) {
         if (state.stepIndex === rule.steps.length - 1) {
           _drop(states, rule.id, key);
           _count(rule.id, 'completed');
-          _emit(rule, key, state);
+          _emit(rule, key, state, observedAt);
         } else {
           state.stepIndex++;
         }
@@ -682,14 +712,18 @@ function _applyRule(rule, key, doc, categories, observedAt) {
 }
 
 /**
- * Hands a completed sequence to the consumer. The callback is NOT wrapped: a consumer that
- * throws is a consumer defect, and swallowing it here would hide a lost detection.
+ * Records the detection for {@link scoreFor} and hands it to the consumer. The score is
+ * recorded FIRST and regardless of a consumer: the alert path reads it off this module, not off
+ * the audit record. The callback is NOT wrapped: a consumer that throws is a consumer defect,
+ * and swallowing it here would hide a lost detection.
  * @param {SequenceRule} rule
  * @param {string} key
  * @param {OpenSeq} state
+ * @param {number} observedAt - the clock reading of the completing event.
  * @returns {void}
  */
-function _emit(rule, key, state) {
+function _emit(rule, key, state, observedAt) {
+  _lastDetection.set(key, { level: rule.level, at: observedAt });
   if (_onDetection === null) return;
   _onDetection({
     ruleId: rule.id,
@@ -767,6 +801,7 @@ function init(options) {
   _maxOpenTotal = _positiveInt(opts.maxOpenTotal, MAX_OPEN_TOTAL);
   _open.clear();
   _recentlyExited.clear();
+  _lastDetection.clear();
   _openCount = 0;
   _peakOpen = 0;
   _global = { ..._zeroCounters(), skippedNullInstanceId: 0 };
@@ -833,8 +868,9 @@ function ingest(carrier) {
 }
 
 /**
- * Discards every state whose window has closed and every exit mark past its TTL, so memory does
- * not wait for the next event of the same key. Called once per tick by the scan loop (block 3).
+ * Discards every state whose window has closed, every exit mark past its TTL and every score
+ * past its hold, so memory does not wait for the next event — or the next score read — of the
+ * same key. Called once per tick by the scan loop (block 3).
  * @returns {void}
  * @since v0.14.0
  */
@@ -843,6 +879,9 @@ function sweep() {
   for (const rule of _rules) _sweepRule(rule, at);
   for (const [key, refusesUntil] of _recentlyExited) {
     if (at > refusesUntil) _recentlyExited.delete(key);
+  }
+  for (const [key, last] of _lastDetection) {
+    if (at - last.at > SCORE_HOLD_MS) _lastDetection.delete(key);
   }
 }
 
@@ -866,6 +905,29 @@ function reset(reason) {
   if (discarded > 0) {
     logger.info(LOG_MODULE, `discarded ${discarded} open sequence(s)`, { reason, discarded });
   }
+}
+
+/**
+ * The score the last detection on `instanceId` still earns on the anomaly scale — critical 90,
+ * high 70, medium 55, low 30 — for {@link SCORE_HOLD_MS} after it landed, inclusive of the
+ * boundary; 0 for any other level, for a key with no detection, for one past its hold (the
+ * entry is dropped on that read) and for a key that is not a string. Reads the injected clock.
+ * The alert path (`scan-loop.js`) merges this with `Math.max` into the per-instance anomaly
+ * score. Never throws and moves no counter.
+ * @param {unknown} instanceId - `carrier.instanceId` verbatim, as the taps carry it.
+ * @returns {number}
+ * @since v0.14.0
+ */
+function scoreFor(instanceId) {
+  if (!_isString(instanceId)) return 0;
+  const last = _lastDetection.get(instanceId);
+  if (last === undefined) return 0;
+  if (_now() - last.at > SCORE_HOLD_MS) {
+    _lastDetection.delete(instanceId);
+    return 0;
+  }
+  const score = LEVEL_SCORE.get(last.level);
+  return score === undefined ? 0 : score;
 }
 
 /**
@@ -895,5 +957,6 @@ module.exports = {
   ingest,
   sweep,
   reset,
+  scoreFor,
   getStats,
 };

@@ -1280,6 +1280,58 @@ describe('scan-loop', () => {
       expect(Object.keys(batch.anomalyScoresByInstance).sort()).toEqual([A, B].sort());
     });
 
+    /**
+     * The same two-instance scan with a sequence engine injected (roadmap §5 "Visibility").
+     * @param {Object} sequenceEngine
+     * @returns {Promise<{batch: Object, deps: Object}>}
+     */
+    async function runScanWithEngine(sequenceEngine) {
+      const deps = makeDeps({
+        scanner: {
+          scanProcesses: vi
+            .fn()
+            .mockResolvedValue({ agents: AGENTS.map((a) => ({ ...a })), changed: false }),
+        },
+        anomaly: {
+          checkDeviations: vi.fn().mockReturnValue([]),
+          calculateAnomalyScore: vi.fn((key) => ({
+            score: key === A ? 10 : key === B ? 45 : 0,
+          })),
+        },
+        sequenceEngine,
+      });
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      const batchCall = deps.sendToRenderer.mock.calls.find((c) => c[0] === 'scan-batch');
+      expect(batchCall).toBeTruthy();
+      return { batch: batchCall[1], deps };
+    }
+
+    it('merges the sequence-engine score per instance as max, asked by key only', async () => {
+      const sequenceEngine = {
+        ingest: vi.fn(),
+        sweep: vi.fn(),
+        // A (anomaly 10) carries a high detection, B (anomaly 45) a low one — so each
+        // instance is won by a DIFFERENT side of the max, and a merge that took either
+        // side alone would fail on one of them.
+        scoreFor: vi.fn((key) => (key === A ? 70 : key === B ? 30 : 0)),
+      };
+      const { batch } = await runScanWithEngine(sequenceEngine);
+
+      expect(batch.anomalyScoresByInstance).toEqual({ [A]: 70, [B]: 45 });
+      // The name-keyed card follows: 70 is now the highest-risk instance of the name.
+      expect(batch.anomalyScores['Claude Code']).toBe(70);
+      expect(batch.anomalyScores['Ollama']).toBe(0);
+      // Asked by instance key only — never by a display name, never for a keyless agent.
+      expect(sequenceEngine.scoreFor.mock.calls.map((c) => c[0]).sort()).toEqual([A, B].sort());
+    });
+
+    it('an engine without scoreFor leaves the anomaly scores exactly as the detector gave them', async () => {
+      const { batch } = await runScanWithEngine({ ingest: vi.fn(), sweep: vi.fn() });
+      expect(batch.anomalyScoresByInstance).toEqual({ [A]: 10, [B]: 45 });
+    });
+
     it('records a network endpoint under the connection instance key, name second', async () => {
       const deps = makeDeps({
         getLatestAgents: vi.fn().mockReturnValue([{ agent: 'Claude Code' }]),

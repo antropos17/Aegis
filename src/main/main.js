@@ -284,13 +284,28 @@ function getIpcStats() {
 }
 
 /**
+ * The sequence engine's counters and gauges (docs/roadmap/sequence-rules.md §3), or `null`
+ * before `loadDeferredModules` has required the engine. Null and not a zeroed lookalike:
+ * unlike the batcher behind {@link getIpcStats}, the engine does not exist yet on that
+ * branch, so there is no counter it could have moved, and a shaped zero would claim an
+ * observation that never happened. The same expression serves BOTH `getStats` branches.
+ * @returns {import('./sequence-engine').EngineStats|null}
+ * @since v0.14.0
+ */
+function getSequenceStats() {
+  return sequenceEngine ? sequenceEngine.getStats() : null;
+}
+
+/**
  * Monitoring statistics.
  *
  * `appHealth` and `monitoringPaused` are SIBLINGS and must stay that way: one answers
  * "what can we still observe", the other "did the operator stop us". Folding the pause
  * into the health enum would make a deliberate silence indistinguishable from a broken
  * sensor, which is the false-clean this whole model exists to kill. `ipc` is a third
- * sibling on the same principle — see {@link getIpcStats}.
+ * sibling on the same principle — see {@link getIpcStats} — and `sequences` a fourth
+ * ({@link getSequenceStats}), riding the existing `stats-update` / `scan-batch` pushes
+ * with no channel of its own.
  * @returns {Object} Monitoring statistics @since v0.1.0
  */
 function getStats() {
@@ -313,6 +328,7 @@ function getStats() {
       // module-scope const, so it has been counting since before this branch was
       // reachable and its numbers are real here too.
       ipc: getIpcStats(),
+      sequences: getSequenceStats(),
       monitoringPaused,
     };
   }
@@ -337,6 +353,7 @@ function getStats() {
     },
     appHealth: getAppHealth(),
     ipc: getIpcStats(),
+    sequences: getSequenceStats(),
     monitoringPaused,
   };
 }
@@ -536,6 +553,42 @@ function onFileEvent(ev) {
   sequenceEngine.ingest(deduped);
 }
 
+/**
+ * The `onDetection` consumer the sequence engine is initialised with (roadmap §5
+ * "Emission"): a completed sequence becomes a `sequence-detection` audit record ON THE
+ * EVENT — inside the ingest that completed it, not on the next tick — and one log line.
+ * The record is the engine's payload handed over field for field: `agent` / `pid` /
+ * `instanceId` are the first step's (already in the audit conventions, `''` and `null`
+ * for absent), `action` is the rule id, `severity` the rule level, `attribution` the
+ * weakest link across the steps, and `extra` carries the rule and every step's own
+ * attribution evidence. Nothing is re-derived here.
+ *
+ * Module-level rather than a closure inside {@link initDeferredSubsystems} so the record
+ * shape can be pinned with the audit sink injected (`_setAuditForTest`). Not wrapped: the
+ * engine documents a throwing consumer as a consumer defect, and `audit.log` does not
+ * throw on a shaped record.
+ * @param {import('./sequence-engine').SequenceDetection} detection
+ * @returns {void}
+ * @since v0.14.0
+ */
+function onSequenceDetection(detection) {
+  audit.log('sequence-detection', {
+    agent: detection.agent,
+    pid: detection.pid,
+    instanceId: detection.instanceId,
+    action: detection.ruleId,
+    severity: detection.level,
+    attribution: detection.attribution,
+    extra: {
+      ruleId: detection.ruleId,
+      title: detection.title,
+      timespan: detection.timespan,
+      steps: detection.steps,
+    },
+  });
+  logger.info('sequence-engine', `Sequence ${detection.ruleId} detected`, detection);
+}
+
 /** Wires deferred modules and starts scanning. Called after ready-to-show. */
 function initDeferredSubsystems(userData) {
   loadDeferredModules();
@@ -568,11 +621,7 @@ function initDeferredSubsystems(userData) {
   }
   sequenceEngine.init({
     rules: sequences.rules,
-    // Block 3 prompt 1: the detection is LOGGED and nothing else. The audit record
-    // (`sequence-detection`), the score merge and the `sequences` stats block are the
-    // next prompt (roadmap §5 "Emission").
-    onDetection: (detection) =>
-      logger.info('sequence-engine', `Sequence ${detection.ruleId} detected`, detection),
+    onDetection: onSequenceDetection,
   });
 
   scanLoop.init({
@@ -796,6 +845,15 @@ function _setSequenceEngineForTest(mod) {
   sequenceEngine = mod;
 }
 
+/**
+ * @internal Inject the audit logger, normally set by loadDeferredModules (for tests).
+ * A fake with `log` is enough to pin the `sequence-detection` record shape.
+ * @param {Object|undefined} mod
+ */
+function _setAuditForTest(mod) {
+  audit = mod;
+}
+
 /** @internal Clear the one-shot guard and the registered watcher list (for tests). */
 function _resetWatchersForTest() {
   watchersStarted = false;
@@ -815,15 +873,19 @@ module.exports = {
   // The watcher's per-event handler, exposed so the sequence-engine tap inside it can
   // be driven with a real dedup and a fake engine (tests/main/main-file-event-tap.test.js).
   onFileEvent,
+  // The engine's detection consumer, exposed so the `sequence-detection` record it
+  // writes can be pinned with a fake audit sink (tests/main/main-sequence-emission.test.js).
+  onSequenceDetection,
   // Read-only. Exposed so a test can assert the payload SHAPE — that `appHealth`,
-  // `ipc` and `monitoringPaused` are siblings, and that the pre-`loadDeferredModules`
-  // branch answers BOOTING instead of throwing.
+  // `ipc`, `sequences` and `monitoringPaused` are siblings, and that the
+  // pre-`loadDeferredModules` branch answers BOOTING instead of throwing.
   getStats,
   getAppHealth,
   _setWatcherForTest,
   _setScannerForTest,
   _setScanLoopForTest,
   _setSequenceEngineForTest,
+  _setAuditForTest,
   _resetWatchersForTest,
   _getWatchersForTest,
 };
