@@ -40,11 +40,17 @@ image. What each shows is described here, in prose, not on the pixels.
   the timeline shows neither the sequence detection nor the plain anomaly alert.
   The completed sequence surfaces on screen as the anomaly toast, and in the audit
   log as a `sequence-detection` record.
-- **The card is not red.** The card's risk band comes from the risk-scoring model,
-  which does not fold the sequence score into the risk score. A single synthetic
-  hold plus a single outbound connection does not reach the danger band, so the
-  card stays in its ordinary band. Nothing is staged to force a colour the model
-  would not produce; `still-3` shows the toast with the card in its true state.
+- **The card in these artifacts is green; since PR #333 it would not be.** The
+  card's risk _badge_ comes from the risk-scoring model, which does not fold the
+  sequence score into the risk score — a single synthetic hold plus a single
+  outbound connection does not reach the danger band, so the badge stays in its
+  ordinary band, and that is still true. What #333 changed is the card's alert
+  state: a card whose instance crosses the anomaly toast threshold
+  (`ANOMALY_TOAST_THRESHOLD`, the same gate the toast itself uses) now carries
+  the danger border while the badge keeps showing the exposure band. The four
+  artifacts under `docs/media/` were recorded before that change and show the
+  card green beside the toast. Nothing was staged to force a colour the model
+  would not produce, and the recording has not been redone.
 - **Nothing here is an attack.** The synthetic file is inert; the connection is a
   benign keep-alive to a public host, not exfiltration. The recording shows what
   is observed and attributed, and claims nothing more.

@@ -18,6 +18,34 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
 9. Does not deduplicate events — one file triggers 100+ alerts
 10. sensitive * 10 = linear growth without cap — risk instantly hits 100
 
+43. **Confirmed good approach — a renderer alert state reads the SAME number the toast reads
+    and gates it at ONE exported threshold; a behaviour score is never folded into the
+    exposure model.** Found 2026-08-25 in the evidence-chain recording (#325): SEQ001 closed,
+    `scoreFor` returned 70, `scan-loop.js` merged it as max into `anomalyScoresByInstance`,
+    App.svelte toasted `Anomaly: aider score 70` — and the card stayed green, because
+    `AgentCard.svelte` keyed `isDanger` and `threat-flash` on `riskScore` alone, which
+    `calculateRiskScore` never folds an anomaly into. Two screen elements were making claims
+    about two DIFFERENT numbers for one instance, and a reader takes them for one.
+    Fixed in #333: `anomaly-toast-tracker.ts` exports `ANOMALY_TOAST_THRESHOLD` (50) and
+    `isAnomalyAlert`, the tracker gates through them, and the card's `isDanger` is
+    `riskScore >= 70 || isAnomalyAlert(max anomalyScore over agent._instances)` — the group
+    max, because the toast is keyed by name and carries the max over that name's instances
+    while the representative is the max-`riskScore` instance and need not be the one the
+    score belongs to. The badge keeps its band on purpose: `riskScore` is an exposure model
+    with a ceiling per factor (#10), the anomaly score is a held level label (sequence) or a
+    deviation composite, and a bounded term that could flip a card from risk ~0 would have to
+    reach 70 on its own — dominating the ceiling and moving Header, RiskIndex, Reports, Radar
+    and the grade letter on a behaviour claim (cf. #10; F-W01 in progress.md separated the
+    two domains on purpose). Rule: when two surfaces report one fact, they read one value
+    through one gate; a second literal is a drift waiting to be reported — mutation m3 in
+    #333 (a literal 70 in the card while the toast gates at 50) is exactly that drift, and
+    the 49/50 test is what catches it.
+    **Noted, not fixed:** `AgentCard.svelte` draws the danger border at `riskScore >= 70`
+    while the high band starts at `RISK_BAND_HIGH_MIN = 66` (`trust-badge-utils.ts:41`;
+    `risk-ring-utils` flags its own `isDanger` at 66 too), so a risk of 66–69 reads
+    "High Risk" on the badge with no border. Out of #333's scope by decision; whoever aligns
+    it should take the band constant, not add a third number.
+
 ## General Behavior
 11. Adds features that were not requested (hamburger menus, animations, responsive)
 12. Forgets to update exports.js when adding a new IPC channel
