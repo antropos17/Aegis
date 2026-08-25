@@ -25,6 +25,22 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
 14. Creates dead code — functions that are never called
 15. Double-encodes UTF-8 — instead of – (en dash)
 
+37. **Two Claude Code sessions in ONE checkout share ONE working tree, so the second session's
+    uncommitted files sit on the first session's branch, and either commit sweeps the other's
+    work in.** First hit 2026-08-24, between block 1 prompt 2 (#309) and block 2 prompt 1 (#310)
+    of `docs/roadmap/sequence-rules.md`. A branch is a pointer, not a workspace: `git checkout`
+    in one session re-points the tree under the other, and an untracked file is on no branch at
+    all — it belongs to whichever branch is checked out when someone runs `git add`. Nothing
+    goes red. Each session sees its own diff plus a stranger's, reads the stranger's as noise,
+    and the next `git add .` lands both under one message (cf. #22 — untracked files have no
+    safety net; #32c — audit the file list of anything that stages what you did not write).
+    **Confirmed good approach:** every parallel session works in its own git worktree under
+    `X:\tmp` (`git worktree add X:\tmp\<name> -b <branch> master`), with a junction to the main
+    checkout's `node_modules` — or its own `npm ci` when that directory is not intact — merges
+    through its own PR, and removes the worktree after (`git worktree remove`). Git refuses to
+    check one branch out in two worktrees, so the isolation is enforced by the tool rather than
+    by discipline.
+
 ## Documentation
 16. Leaves outdated agent counts in README badges, CLAUDE.md and architecture docs
 17. Does not sync agent counts between README badges, CLAUDE.md and agent-database.json
@@ -37,6 +53,25 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     and `.agents/skills/`, memory-bank/architecture.md, STATE-RECON.md, and CORRECTNESS-AUDIT.md,
     which had audited the number and recorded "match". Derive before quoting
     (`git ls-files 'src/main/*.js'`), and assume the figure you were sent to fix has siblings.
+
+39. **Two authority documents state the same rule with opposite force, and every PR that meets
+    the rule has to pick a side on its own.** `AGENTS.md` ("What NOT to do") says a new file
+    must not blow past 300 lines — extract instead; `CLAUDE.md` rule 3 says 300 lines/file is a
+    TARGET for new files, not an invariant, names the files already over it as derived by
+    `npm run counts:check`, and says not to split for the number. #308
+    (`src/main/sequence-rule-loader.js`) and #310 (`src/main/sequence-engine.js`) each landed a
+    new module over the line and each had to decide which sentence governed. Both chose
+    CLAUDE.md and bumped `size.over300` at its declaration sites — but the choice was made twice,
+    in two PR bodies, instead of once in the documents, and a reader who opens AGENTS.md first is
+    told to cut a state machine into pieces to satisfy a sentence the other document has already
+    retired (cf. #20 — a reader acts on what a document says; #24 — a fact with two homes
+    drifts).
+    **Decision, recorded so it is not re-made:** CLAUDE.md wins. 300 is a target for new files
+    and the reason to extract when adding to a file already over it, never a gate;
+    `size.over300` stays a DERIVED counter that `counts:check` computes from the tree and is not
+    to become a limit; the AGENTS.md wording is to be aligned to CLAUDE.md rule 3 in the next
+    docs pass, which this entry does not perform. Until then, where the two disagree, rule 3 is
+    the sentence to cite.
 
 ## PowerShell
 18. Uses && in PowerShell commands instead of ; or powershell.exe -NoProfile -Command wrapper
@@ -272,6 +307,30 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     is the isolated command, and either of those is a different signal from this one. This
     note RECORDS the flake and nothing more: the test, its timeouts and the vitest config
     are untouched, and no green here is a claim about them (cf. #21).
+
+38. **A test that builds its input by regex-replacing `\n` over a fixture read from disk is red
+    on a Windows checkout and green on Linux CI, and two sessions in a row called it "known local
+    noise" — it was a test that did not test on this platform.**
+    `tests/main/sequence-rule-loader.test.js` › `two adjacent NETWORK steps carry no adjacency
+    warning` reads `tests/fixtures/sequences/warning/adjacent-file-steps.yaml` and rewrites it
+    with `/ {4}event\.action:\n(?: {6}- \S+\n)+ {4}file\.path\|re\|i: .*\n/`. `.gitattributes`
+    says `* text=auto`, so this checkout holds the fixture as CRLF (`git ls-files --eol` →
+    `i/lf w/crlf`), `- \S+\n` cannot match `\r\n`, the `file.*` selection survives the rewrite
+    to `category: network`, and the loader answers two `unsatisfiable-field` errors where the
+    case asserts zero. On an LF checkout — every CI runner — the regex matches and the case is
+    green, which is how #308 merged it. #309's PR body then reported the red as pre-existing and
+    CI-green, #310's did the same with the mechanism spelled out, and neither touched it — so on
+    this machine that case has failed at `loadErrors` on every run and has never reached the
+    warning assertion it exists for (cf. #21 — a passing gate proves the command ran, not that
+    it inspected your change; #26 and #36 — a red recorded nowhere is rediscovered every
+    session).
+    **Two rules follow.** (a) A test that reads a fixture and matches line ends normalises CRLF
+    FIRST — `.replace(/\r\n/g, '\n')` on the text it read — so the regex is about the format and
+    not about the checkout; a `-text` attribute on the fixture, the way `tests/fixtures/bench/**`
+    and `keys/**` already carry one, is the other honest form. (b) One red on the local run is
+    not noise until the cause is NAMED: "green in CI" and "not my diff" are both true of a test
+    that is broken on this platform, and only a red whose mechanism is written down may be filed
+    as noise. This entry records the defect; the test and the fixture are untouched here.
 
 ## Caching
 31. **Treats a cache KEY as proof that cached data is still fresh.** A key is a LOCATOR —
