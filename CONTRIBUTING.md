@@ -18,7 +18,7 @@ Requires the Node.js version in `engines` in `package.json` (also pinned in `.nv
 1. **Fork** the repository
 2. **Branch** from `master`: `git checkout -b feat/your-feature` (see [BRANCHING.md](BRANCHING.md) for the full prefix list)
 3. **Implement** your changes following the code standards below
-4. **Test**: run `npm test` (1075 tests across 68 files) and `npm start` — verify no console errors, all tabs render, existing features work
+4. **Test**: run `npm test` — the suite prints its own pass/skip and file counts — and `npm start`; verify no console errors, all tabs render, existing features work
 5. **Commit** with [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
 6. **Push** your branch and open a **Pull Request** with a clear description of what changed and why
 
@@ -57,7 +57,7 @@ When maintainers merge the Release PR → version bump + CHANGELOG + GitHub Rele
 - **New files should be written in TypeScript** (`.ts`) — existing `.js` files will be migrated incrementally
 - **Main process** (`.js`): annotated with JSDoc, which editors use for IntelliSense. `checkJs` is **off** in `tsconfig.base.json`, so `tsc` resolves these files but does not type-check their bodies — the annotations document intent, they are not enforced by the typecheck gate
 - **Renderer** (`.ts`/`.svelte`): native TypeScript with ES modules
-- Shared type definitions live in `src/shared/types/` (types across 8 files)
+- Shared type definitions live in `src/shared/types/` (`npm run counts:check` derives the file count)
 - Run `npm run typecheck` before opening a PR — zero type errors required. It checks both projects (`tsconfig.main.json` + `tsconfig.renderer.json`); a bare `npx tsc --noEmit` resolves the root solution file and checks nothing
 - **Zero `any`** — use proper types, generics, or `unknown` instead. ESLint warns on `any`
 - Explicit return types on exported functions (`@typescript-eslint/explicit-function-return-type`)

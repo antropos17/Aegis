@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
 const Ajv = require('ajv');
+const logger = require('./logger');
 
 /**
  * @typedef {import('../shared/types/config').SensitiveRule} SensitiveRule
@@ -83,13 +84,16 @@ function loadRules(rulesDir = DEFAULT_RULES_DIR) {
   const schemaPath = path.join(rulesDir, '_schema.json');
   if (!validateFn) {
     if (!fs.existsSync(schemaPath)) {
-      console.warn(`[rule-loader] Schema not found: ${schemaPath}`);
+      logger.warn('rule-loader', 'Schema not found', { schemaPath });
       return rules;
     }
     try {
       validateFn = initValidator(schemaPath);
     } catch (/** @type {*} */ err) {
-      console.warn(`[rule-loader] Failed to load schema: ${/** @type {Error} */ (err).message}`);
+      logger.warn('rule-loader', 'Failed to load schema', {
+        schemaPath,
+        error: /** @type {Error} */ (err).message,
+      });
       return rules;
     }
   }
@@ -99,7 +103,10 @@ function loadRules(rulesDir = DEFAULT_RULES_DIR) {
   try {
     files = fs.readdirSync(rulesDir).filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'));
   } catch (/** @type {*} */ err) {
-    console.warn(`[rule-loader] Failed to read directory: ${/** @type {Error} */ (err).message}`);
+    logger.warn('rule-loader', 'Failed to read directory', {
+      rulesDir,
+      error: /** @type {Error} */ (err).message,
+    });
     return rules;
   }
 
@@ -112,13 +119,13 @@ function loadRules(rulesDir = DEFAULT_RULES_DIR) {
 
       if (!validateFn(doc)) {
         const errors = validateFn.errors?.map((e) => `${e.dataPath} ${e.message}`).join('; ');
-        console.warn(`[rule-loader] Invalid ruleset ${file}: ${errors}`);
+        logger.warn('rule-loader', 'Invalid ruleset', { file, errors });
         continue;
       }
 
       for (const rawRule of doc.rules) {
         if (rules.has(rawRule.id)) {
-          console.warn(`[rule-loader] Duplicate rule ID "${rawRule.id}" in ${file} — skipping`);
+          logger.warn('rule-loader', 'Duplicate rule ID — skipping', { ruleId: rawRule.id, file });
           continue;
         }
 
@@ -137,13 +144,18 @@ function loadRules(rulesDir = DEFAULT_RULES_DIR) {
           };
           rules.set(loaded.id, loaded);
         } catch (/** @type {*} */ err) {
-          console.warn(
-            `[rule-loader] Invalid pattern in rule "${rawRule.id}" (${file}): ${/** @type {Error} */ (err).message}`,
-          );
+          logger.warn('rule-loader', 'Invalid pattern in rule', {
+            ruleId: rawRule.id,
+            file,
+            error: /** @type {Error} */ (err).message,
+          });
         }
       }
     } catch (/** @type {*} */ err) {
-      console.warn(`[rule-loader] Failed to parse ${file}: ${/** @type {Error} */ (err).message}`);
+      logger.warn('rule-loader', 'Failed to parse', {
+        file,
+        error: /** @type {Error} */ (err).message,
+      });
     }
   }
 
