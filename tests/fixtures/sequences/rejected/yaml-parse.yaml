@@ -1,0 +1,9 @@
+title: Broken
+name: broken
+logsource:
+  product: aegis
+   category: file
+detection:
+  selection:
+    file.path: x
+  condition: selection

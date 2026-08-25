@@ -13,6 +13,7 @@ src/main/           Electron main process (CommonJS, require/module.exports)
 src/renderer/       Svelte 5 dashboard UI (ES modules, runes)
 src/shared/         Constants + agent-database.json (110 agents, 262 name signatures) + types/ (9 .ts)
 rules/              73 detection rules in 8 YAML files + _schema.json
+rules/sequences/    1 sequence correlation rule (SEQ001) in 1 sequence rule file; loaded, no consumer yet
 tests/              Vitest unit tests with v8 coverage
 ```
 
@@ -62,7 +63,7 @@ coverage thresholds are configured in `vitest.config.js`, so coverage cannot fai
 
 ## Code conventions
 
-- 300 lines/file is a target for NEW files, not an invariant — 31 existing src files already exceed it (`npm run counts:check` prints the current largest src and test files). Don't split an existing file just to hit the number; do extract when adding to one that's already over
+- 300 lines/file is a target for NEW files, not an invariant — 33 existing src files already exceed it (`npm run counts:check` prints the current largest src and test files). Don't split an existing file just to hit the number; do extract when adding to one that's already over
 - **Main process:** CommonJS (`require`/`module.exports`). Never use `import` in `src/main/`.
 - **Renderer:** ES modules (`import`/`export`). Never use `require()` in `src/renderer/`.
 - **Svelte 5 runes:** `$state`, `$derived`, `$effect`, `$props`. No legacy `let` reactivity.
