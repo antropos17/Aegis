@@ -142,6 +142,18 @@ interface AegisIpcBridge {
   onAgentResourceUsage(cb: (data: AgentResourceRecord[]) => void): void;
   getStats(): Promise<Record<string, unknown>>;
   getAuditStats(): Promise<AuditStats>;
+  /**
+   * Paginated audit records strictly before `beforeTs` (ISO), oldest-first, exactly as
+   * `audit-logger.getEntriesBefore` returns them — every row through `normalizeAuditEntry`,
+   * so a v0 record carries the v1 field set minus `schemaVersion`. `types` is applied in
+   * the main process: a page holds `limit` MATCHING rows, and a renderer must not page
+   * through rows it would drop (that is how Timeline history used to end early).
+   */
+  getAuditEntriesBefore(
+    beforeTs: string,
+    limit: number,
+    types?: readonly string[],
+  ): Promise<Record<string, unknown>[]>;
   getResourceUsage(): Promise<MonitorResourceUsage>;
   getFalsePositives(): Promise<FalsePositiveEntry[]>;
   killProcess(pid: number): Promise<ProcessActionResult>;

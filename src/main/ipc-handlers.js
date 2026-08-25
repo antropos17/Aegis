@@ -269,8 +269,8 @@ ${findingsHtml}${recsHtml}
   // before .catch() was attached — and the panel never left its loading state outside
   // demo mode.
   ipcMain.handle('get-audit-stats', () => audit.getStats());
-  ipcMain.handle('get-audit-entries-before', (_e, beforeTs, limit) =>
-    audit.getEntriesBefore(beforeTs, limit),
+  ipcMain.handle('get-audit-entries-before', (_e, beforeTs, limit, types) =>
+    audit.getEntriesBefore(beforeTs, limit, types),
   );
   ipcMain.handle('open-audit-log-dir', () => {
     shell.openPath(audit.getLogDir());

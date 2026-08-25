@@ -19,6 +19,9 @@ records is what a stale status line costs).
 commit on 2026-08-25. Line numbers drift with every edit — treat them as the place to start reading,
 and re-verify before an edit that depends on one.
 **Date:** 2026-08-25
+**§11 follow-ups:** landed 2026-08-25, ahead of the index — the JSONL read path now filters by
+`types` and opens the D+1 file. Where §3 says "the existing JSONL code, unchanged", it means that
+code as it stands after them.
 **Invariant:** the daily JSONL is the only source of truth. The index is a projection that can be
 thrown away and rebuilt from it at any time; a missing or corrupt index is the current JSONL read
 path with no behaviour change; the hash chain is never verified against the index.
@@ -41,7 +44,7 @@ ordinal (`audit-hashchain.js:106` checks `entry.seq !== i`); retention 30 days (
 
 | Reader | Channel / call | Query shape |
 |---|---|---|
-| `get-audit-entries-before` (`src/main/ipc-handlers.js:272-274`) → `getEntriesBefore(beforeTs, limit)` (`audit-logger.js:563-623`) | `preload.js:57-58` → `Timeline.svelte:81-110` `loadOlderHistory`, `HISTORY_BATCH = 25` (`timeline-utils.ts:37`) | `timestamp < beforeTs` as a STRING comparison of ISO text (`:602`); `limit` clamped to [1, `MAX_READ_LIMIT`], default 100 (`:572-575`); `buffer-overflow-drop` markers excluded (`:603`); v0 records widened by `normalizeAuditEntry` (`:608`); files walked newest-first and a file whose date is later than the cursor's date is skipped (`:591`); inside a file `readLinesReverse` in 4 KB chunks (`:516-543`) with `JSON.parse` per line. Cost: O(lines after the cursor in that file). The TYPE filter runs in the renderer AFTER the fetch (`Timeline.svelte:97`, the four entries of `AUDIT_EVENT_TYPES`, `timeline-utils.ts:110-115`). |
+| `get-audit-entries-before` (`src/main/ipc-handlers.js`) → `getEntriesBefore(beforeTs, limit, types)` (`audit-logger.js`) | `preload.js` → `Timeline.svelte` `loadOlderHistory`, `HISTORY_BATCH = 25` (`timeline-utils.ts:37`), which passes `AUDIT_EVENT_TYPES` as `types` | `timestamp < beforeTs` as a STRING comparison of ISO text; `limit` clamped to [1, `MAX_READ_LIMIT`], default 100; `types` normalised by `_typeFilter` (not an array or empty → no filter; non-strings and names over 64 characters dropped; the first 16 kept) and applied WHILE reading, so a page holds `limit` MATCHING entries; `buffer-overflow-drop` markers excluded; v0 records widened by `normalizeAuditEntry`; files walked newest-first and a file dated after the day FOLLOWING the cursor's UTC date is skipped (`_nextDateStr` — the D+1 rule, §11); inside a file `readLinesReverse` in 4 KB chunks with `JSON.parse` per line. Cost: O(lines after the cursor in that file), plus one full reverse read of the D+1 file when it exists (~12 ms measured for a 7.3k-line day, §11). |
 | `get-audit-stats` (`ipc-handlers.js:271`) → `getStats()` (`:418-456`) | `AuditLog.svelte:10-31`; type `stores/ipc.ts:143` | In-memory counters seeded by a full read of every file at `init` (`_seedCounters`, `:129-170`), plus `readdir`/`stat` per call. |
 | `export-full-audit` (`ipc-handlers.js:280-296`) and `export-zip` (`:361-389`) → `exportAll()` (`:469-494`) | `AuditLog.svelte:92`, `App.svelte:288` | Every file, every line, RAW — markers included. The forensic path. |
 | `seedFromTail` (`audit-hashchain.js:132-150`) | from `flush()` after a restart or a day rollover | reads the whole of today's file for its last line. |
@@ -192,29 +195,30 @@ CREATE INDEX audit_events_entity   ON audit_events(process_entity_id, timestamp)
 - **The answer is `normalizeAuditEntry(JSON.parse(raw))`** — the same object the JSONL path returns,
   by construction; the typed columns exist for WHERE and ORDER only.
 - **Order of results:** `ORDER BY timestamp DESC, file DESC, line_no DESC LIMIT ?` — a seek on
-  `audit_events_ts`, O(limit). This is a DELIBERATE divergence from the JSONL path's file-then-line
-  order: entries logged before midnight and flushed after it sit in the file of day D+1, and
-  `audit-logger.js:591` skips that file for a cursor inside day D; the index finds them. Pinned by
-  test 9; the fallback path is left as it is.
+  `audit_events_ts`, O(limit). Ordering by `timestamp` rather than file-then-line is what makes the
+  rollover straddle a non-event for the index: entries logged before midnight and flushed after it
+  sit in the file of day D+1, and the index finds them by timestamp alone. Since 2026-08-25 the
+  JSONL path finds them too (the D+1 file rule, §11), so the two paths AGREE on this case — test 9
+  pins that agreement, not a divergence.
 
 ---
 
 ## 5. First channel and what the renderer gains
 
-`get-audit-entries-before` — with no new channel: the existing
-`ipcRenderer.invoke('get-audit-entries-before', beforeTs, limit, types)` gains an OPTIONAL third
-argument (`preload.js:57-58`, the same call, so `ipc.invoke` and `ipc.total` in `scripts/counts.js`
-do not move); `ipc-handlers.js:272-274` passes it through; `Timeline.svelte:92` sends
-`AUDIT_EVENT_TYPES`. Validation lives in `getEntriesBefore` beside the existing two: not an array, or
-empty → no filter; non-string entries dropped; at most 16 entries of at most 64 characters. **The JSONL
-path applies the filter too** (one check beside `:603`) — otherwise behaviour would depend on whether
-the index exists.
+`get-audit-entries-before` — with no new channel. **The third argument already exists** (landed
+2026-08-25 ahead of the index, §11): `ipcRenderer.invoke('get-audit-entries-before', beforeTs, limit,
+types)` (`preload.js`, the same call, so `ipc.invoke` and `ipc.total` in `scripts/counts.js` did not
+move); `ipc-handlers.js` passes it through; `Timeline.svelte` sends `AUDIT_EVENT_TYPES`;
+`AegisIpcBridge` (`stores/ipc.ts`) declares it. Validation lives in `getEntriesBefore` beside the
+existing two (`_typeFilter`): not an array, or empty → no filter; non-string entries and names over
+64 characters dropped; the first 16 kept; nothing left → no filter. **The JSONL path applies the
+filter** (one clause beside the marker exclusion), so behaviour does not depend on whether the index
+exists — the index's `queryBefore(beforeTs, limit, types)` must answer the SAME set, which is test 4.
 
-What the renderer gains: (a) 25 RELEVANT events per fetch instead of 25 arbitrary lines filtered on
-the client, which removes the false `historyExhausted` (§11); (b) for a cursor deep inside a large
-daily file, an O(limit) seek instead of a reverse read of the file's tail with `JSON.parse` on every
-line; (c) `flush()` before the read stays (`:576`), so buffered entries remain visible
-(`tests/main/audit-logger.test.js:382-390`).
+What the renderer gains from the index on top of that: for a cursor deep inside a large daily file,
+an O(limit) seek instead of a reverse read of the file's tail with `JSON.parse` on every line — and no
+extra read of the D+1 file (§11). `flush()` before the read stays, so buffered entries remain visible
+(`tests/main/audit-logger.test.js`, "still flushes buffered entries into view on a valid read").
 
 ---
 
@@ -259,18 +263,19 @@ its table goes into the PR body:
 
 **Change**
 
-- `src/main/audit-logger.js` (~55 lines): `init` opens the index on `setImmediate` after
+- `src/main/audit-logger.js` (~45 lines): `init` opens the index on `setImmediate` after
   `cleanOldLogs`; `flush` calls `append` after a successful `appendFileSync`; `getEntriesBefore`
-  dispatches and applies `types` inside the JSONL loop; `cleanOldLogs` calls `index.forget(file)`;
-  `shutdown` closes; `getStats` gains an additive `index` field.
-- `src/main/ipc-handlers.js:272-274` (~2), `src/main/preload.js:57-58` (~2),
-  `src/renderer/lib/components/Timeline.svelte:92` (~1), `src/renderer/lib/stores/ipc.ts` — declare
-  `getAuditEntriesBefore` on `AegisIpcBridge` (~3).
+  dispatches — the `types` normalisation (`_typeFilter`) and the JSONL-loop clause already exist, so
+  the SQL path receives the normalised Set; `cleanOldLogs` calls `index.forget(file)`; `shutdown`
+  closes; `getStats` gains an additive `index` field.
+- `src/main/ipc-handlers.js`, `src/main/preload.js`, `src/renderer/lib/components/Timeline.svelte`,
+  `src/renderer/lib/stores/ipc.ts`: nothing — the third argument, its pass-through and the
+  `AegisIpcBridge` declaration landed 2026-08-25 (§11).
 - `vitest.config.js:39-72` — both new modules on `coverage.include` (a module missing from that list
   is not measured — the B3 lesson in `memory-bank/progress.md`).
-- `tests/main/audit-logger.test.js` (+~60: the filter on the JSONL path, the dispatcher);
-  `tests/main/ipc-handlers.test.js:262-264` (+~8: `get-audit-entries-before` is NOT asserted among the
-  registered channels today — add it, and the pass-through of three arguments).
+- `tests/main/audit-logger.test.js` (+~30: the dispatcher — the JSONL filter and the D+1 rule are
+  already pinned there); `tests/main/ipc-handlers.test.js`: nothing — the registered-channel
+  assertion and the three-argument pass-through landed 2026-08-25 (§11).
 - Docs: `docs/ECS-MAPPING.md` — a new §8 "Index columns" (column ↔ ECS field, by reference to §4 and
   §6; the module stays the source of truth); `docs/recon/EXTERNAL-TECHNIQUES.md` §7 — "[since recon:
   built]"; `memory-bank/progress.md` — the block entry; this file's status header.
@@ -297,8 +302,8 @@ and `tests/main/audit-schema-v1.test.js:134-145` already write them):
 6. resume after an injected stop, and a full re-index of a file whose prefix changed;
 7. a corrupted database file → removed → rebuilt; during the rebuild the answer comes from JSONL;
 8. retention — the rows of a deleted file disappear;
-9. the rollover straddle: the index returns day-D records that live in the D+1 file; the JSONL path
-   does not (the documented divergence, §4);
+9. the rollover straddle: the index returns day-D records that live in the D+1 file, and its answer
+   equals the JSONL path's (the D+1 file rule, §11) — the agreement §4 describes;
 10. `process_pid`: 0 → NULL, null → NULL, 1234 → 1234; `process_entity_id` verbatim;
 11. ECS columns: `file-access` / `modified` → `event_action = 'file-modified'`,
     `event_category = '["file"]'`; an unknown type → `event_action = type`; a line with no `type` →
@@ -316,7 +321,9 @@ the way the B1–B4 entries in `memory-bank/progress.md` record theirs:
 - **M2 — index ahead of canon:** `append` moved before `appendFileSync` → the test "rows in the index
   never exceed lines on disk" (with `rmSync(auditDir)` forcing the write to fail) red.
 - **M3 — continuity check dropped** → test 5 red.
-- **M4 — `types` removed from the JSONL path** → test 4 red.
+- **M4 — `types` removed from the JSONL path** → test 4 red, and with it
+  `tests/main/audit-logger.test.js` "applies a types filter on the JSONL path" (the same mutation,
+  run once already on 2026-08-25 — §11).
 - **M5 — `ORDER BY line_no` instead of `timestamp`** → test 9 red.
 
 ---
@@ -354,7 +361,8 @@ Counter sites are edited by other work in flight; bump them after those PRs merg
    `fs` and `crypto` are. A literal reading leaves only WASM or a sidecar, which is materially
    different work.
 3. **Order by `timestamp` versus the JSONL file order** (rollover straddle, clock steps). Default:
-   `timestamp`, the divergence pinned by test 9.
+   `timestamp`. On the straddle the two paths agree since 2026-08-25 (§11) and test 9 pins that; what
+   this question still decides is a clock step INSIDE a file.
 4. **A third argument on the existing channel** versus an untouched channel with the filter left in
    the renderer. Default: extend the channel; the JSONL path honours the filter too.
 5. **Mutations by hand (recorded in the PR) versus a scripted `verify:index-gate`** on the model of
@@ -376,19 +384,39 @@ All ten defaults were accepted on 2026-08-25, with the order of question 1 as st
 
 ## 11. Follow-ups — independent of the index
 
-- **Timeline stops loading history on a batch of 25 unmatched rows.** `Timeline.svelte:81-110`
-  fetches `HISTORY_BATCH` rows, filters them on the client to the four `AUDIT_EVENT_TYPES`
-  (`:97`), and when `mapped.length === 0` sets `historyExhausted = true` (`:99-100`) — although the
-  JSONL below the cursor may hold plenty of matching rows. A stretch of 25 consecutive `agent-enter`,
-  `agent-exit`, `anomaly-alert` or `sequence-detection` records ends history loading for the rest of
-  the session. The fix is the component's own: treat an empty MAPPED batch as "advance the cursor and
-  fetch again" and mark exhaustion only when the FETCH returns nothing (`:93-94`), bounded by a retry
-  cap so a log with no matching rows at all terminates. The index's server-side filter (§5) makes the
-  case rarer; it does not make the renderer's logic right, so this is a separate fix with its own
-  test in `tests/renderer/components/`.
-- **`get-audit-entries-before` is not asserted in `tests/main/ipc-handlers.test.js:262-264`** among
-  the registered channels — the neighbouring audit channels are. Add the assertion regardless of
-  when the index lands.
-- **`audit-logger.js:591` skips the D+1 file for a cursor inside day D**, so entries buffered across
-  midnight are unreachable from the paginated view until the index exists. Recorded here as the
-  fallback path's known bound; not changed in that path (§3, "no behaviour change").
+All three landed 2026-08-25 on `fix/audit-history-filter-and-straddle` (the PR number is in the block
+entry of `memory-bank/progress.md`), ahead of the index and without waiting for it:
+
+- **Timeline stopped loading history on a batch of 25 unmatched rows.** `loadOlderHistory` fetched
+  `HISTORY_BATCH` raw rows, filtered them client-side to the four `AUDIT_EVENT_TYPES`, and read an
+  empty MAPPED batch as `historyExhausted` although the JSONL below the cursor held matches — any run
+  of 25 `agent-enter`, `agent-exit`, `anomaly-alert` or `sequence-detection` records ended history for
+  the session. Fixed server-side, as §5 specifies: the renderer passes `AUDIT_EVENT_TYPES` as the
+  third argument and the main process pages until it holds `limit` MATCHING rows; exhaustion is
+  decided only by an empty FETCH, and the next cursor is the oldest RAW row returned
+  (`historyCursor`), so a batch with nothing to show can never stall or refetch. Chosen over a
+  renderer-side retry loop because that loop is partial by construction — any cap leaves a longer
+  unmatched run declaring false exhaustion, and no cap means one IPC round trip plus a synchronous
+  main-thread reverse read per 25 raw lines. Pinned by `tests/main/audit-logger.test.js` "applies a
+  types filter on the JSONL path" (five old `file-access` below 25 newer `agent-enter`, limit 25 →
+  the five) and by `tests/renderer/components/Timeline.test.ts` "asks for the timeline event types
+  and renders the historical rows that come back" (the third argument equals `AUDIT_EVENT_TYPES`;
+  six dots, not one).
+- **`get-audit-entries-before` is asserted** among the registered channels in
+  `tests/main/ipc-handlers.test.js`, together with the pass-through of all three arguments.
+- **The D+1 file rule.** A file is named with the LOCAL date of the flush while a record's timestamp
+  is UTC at `log()` time, so a record whose UTC date is D can sit in the file of D+1 — flushed after
+  local midnight by the 5 s timer (the case this section first recorded), or, for any zone east of
+  UTC, logged between local 00:00 and UTC 00:00: in Baku (UTC+4) that is four hours of every day,
+  unreachable from a cursor inside D. Neither this machine (UTC−4) nor CI (UTC) shows the second
+  case, which is why only the first was noticed. The two skews do not stack, so the bound is exactly
+  one file: `getEntriesBefore` opens every file dated up to `_nextDateStr(cursor UTC date)` and
+  relies on the timestamp comparison; files strictly later stay skipped. A cursor whose date passes
+  the shape check but is no calendar date (`2026-13-45`) keeps the previous rule instead of reading
+  as an empty log. Cost, measured on the real module over the largest daily file on this machine
+  (2 334 591 B, 7 286 lines, cursor below every line — the D+1 profile): p50 12.4 ms (11.1–18.9 ms
+  over 7 runs) against 1.0 ms for a tail-25 read; the mislaid lines sit at the HEAD of D+1, where a
+  reverse read meets them last, which is why it is a full read. What no constant bound covers: a
+  batch re-queued by a failing flush and written on a later day — the index (§3, keyed by timestamp)
+  is what closes that. Pinned by `tests/main/audit-logger.test.js` "returns a day-D record that
+  flush() wrote into the D+1 file".

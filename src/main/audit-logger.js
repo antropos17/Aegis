@@ -55,6 +55,18 @@ const DEFAULT_READ_LIMIT = 100;
 const MAX_READ_LIMIT = 500;
 
 /**
+ * Bounds on the optional `types` filter of {@link getEntriesBefore}. Like `limit` it
+ * arrives over IPC raw, so its size is capped here: at most this many type names, each
+ * at most {@link MAX_TYPE_LENGTH} characters. Both are COUNTS of what is kept, not
+ * grounds for rejecting the call — see {@link _typeFilter}.
+ * @type {number}
+ */
+const MAX_TYPE_FILTER_ENTRIES = 16;
+
+/** @type {number} Longest type name a `types` filter entry may carry. */
+const MAX_TYPE_LENGTH = 64;
+
+/**
  * Event Schema version stamped on every record this module writes.
  *
  * Records without the field are v0 — but ONLY when they parse and their hash verifies. A
@@ -543,11 +555,46 @@ function readLinesReverse(filePath, onLine, chunkSize = 4096) {
 }
 
 /**
+ * Normalise the `types` argument of {@link getEntriesBefore} into a Set, or `null` for
+ * "no filter". Not an array, or empty → no filter; entries that are not strings, or are
+ * longer than {@link MAX_TYPE_LENGTH}, are dropped; the first
+ * {@link MAX_TYPE_FILTER_ENTRIES} survivors are kept. Nothing surviving is no filter —
+ * the same shape as an unusable `limit` falling back to the default instead of rejecting
+ * the call.
+ * @param {unknown} types
+ * @returns {Set<string>|null}
+ */
+function _typeFilter(types) {
+  if (!Array.isArray(types) || types.length === 0) return null;
+  const kept = types
+    .filter((t) => typeof t === 'string' && t.length <= MAX_TYPE_LENGTH)
+    .slice(0, MAX_TYPE_FILTER_ENTRIES);
+  return kept.length > 0 ? new Set(kept) : null;
+}
+
+/**
+ * The calendar day after `dateStr` (`YYYY-MM-DD`), computed in UTC so that no local
+ * zone or DST step can move it. `dateStr` has passed the shape check in
+ * {@link getEntriesBefore} but may still be no calendar date (`2026-13-45`): `Date` is
+ * then invalid and `toISOString` would throw, so the input comes back unchanged — the
+ * plain "skip files after the cursor date" rule — rather than surfacing through the
+ * generic read-failure catch as what looks like an empty log.
+ * @param {string} dateStr
+ * @returns {string}
+ */
+function _nextDateStr(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
  * Return up to `limit` audit entries with timestamps strictly before `beforeTs`.
  * Reads log files in reverse-chronological order for efficiency.
  *
- * Both parameters cross the IPC boundary raw (ipc-handlers.js passes them through), so
- * both are validated HERE rather than at the handler — every caller gets the same
+ * All three parameters cross the IPC boundary raw (ipc-handlers.js passes them through),
+ * so all three are validated HERE rather than at the handler — every caller gets the same
  * guarantees:
  * - `limit` is clamped to an integer in [1, {@link MAX_READ_LIMIT}]; anything
  *   non-numeric (including missing) falls back to {@link DEFAULT_READ_LIMIT}. The
@@ -555,12 +602,29 @@ function readLinesReverse(filePath, onLine, chunkSize = 4096) {
  * - a `beforeTs` that is not a `YYYY-MM-DD`-prefixed string returns `[]` via an explicit
  *   early return that logs the reason. That path is deliberately distinct from the
  *   generic read-failure catch below: a rejected cursor must never read as an empty log.
+ * - `types`, when given, keeps only entries whose `type` is in it, and the filter is
+ *   applied while reading so a page holds `limit` MATCHING entries: a caller that filtered
+ *   after the fetch would see an empty page across any run of `limit` unwanted records and
+ *   could not tell it from the end of the log. Normalised by {@link _typeFilter}.
+ *
+ * Which files are opened: every file dated up to and including the day AFTER the
+ * cursor's UTC date. A file is named with the LOCAL date of the flush that wrote it
+ * ({@link getTodayLogPath}) while a record's timestamp is UTC at log() time, so a record
+ * whose UTC date is D can sit in the file of D+1 — flushed after local midnight by the
+ * 5 s timer, or, for any zone east of UTC, logged between local 00:00 and UTC 00:00. It
+ * cannot sit in D+2 while the disk is writable: the flush lag needs the record logged at
+ * the end of a local day, where local date and UTC date are one day apart at most in the
+ * direction that keeps the file at D+1. What this bound does NOT cover is a batch
+ * re-queued by a failing flush and written on a later day (see {@link flush}). The cost is
+ * one extra reverse read of the D+1 file per call — its mislaid lines sit at the HEAD,
+ * where a reverse read meets them last — measured at ~12 ms for a 7.3k-line day.
  * @param {string} beforeTs - ISO timestamp upper bound (exclusive)
  * @param {number} [limit=100] - Max entries to return (clamped, see above)
+ * @param {string[]} [types] - Event types to keep; omitted or unusable → every type
  * @returns {Object[]} Entries sorted oldest-first
  * @since v0.5.0
  */
-function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT) {
+function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT, types) {
   if (typeof beforeTs !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(beforeTs)) {
     const got =
       typeof beforeTs === 'string'
@@ -573,12 +637,13 @@ function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT) {
     typeof limit === 'number' && !Number.isNaN(limit)
       ? Math.min(MAX_READ_LIMIT, Math.max(1, Math.floor(limit)))
       : DEFAULT_READ_LIMIT;
+  const typeFilter = _typeFilter(types);
   flush();
   if (!_logDir) return [];
   const results = [];
   try {
-    // Extract date from beforeTs to skip files that are entirely after the cursor
-    const beforeDate = beforeTs.slice(0, 10); // 'YYYY-MM-DD'
+    // The last file worth opening: the day after the cursor's UTC date (see the JSDoc).
+    const lastDate = _nextDateStr(beforeTs.slice(0, 10)); // 'YYYY-MM-DD'
     const files = fs
       .readdirSync(_logDir)
       .filter((f) => f.startsWith('aegis-audit-') && f.endsWith('.json'))
@@ -587,8 +652,8 @@ function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT) {
     for (const f of files) {
       const match = f.match(/aegis-audit-(\d{4}-\d{2}-\d{2})\.json/);
       if (!match) continue;
-      // Skip files for days strictly after the cursor date
-      if (match[1] > beforeDate) continue;
+      // Skip files for days strictly after the cursor date's successor
+      if (match[1] > lastDate) continue;
       const fp = path.join(_logDir, f);
       readLinesReverse(fp, (line) => {
         try {
@@ -600,7 +665,8 @@ function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT) {
           if (
             entry.timestamp &&
             entry.timestamp < beforeTs &&
-            entry.type !== dropTracker.MARKER_TYPE
+            entry.type !== dropTracker.MARKER_TYPE &&
+            (typeFilter === null || typeFilter.has(entry.type))
           ) {
             // Normalized so the UI sees one field set regardless of which app version
             // wrote the line. exportAll() deliberately does NOT do this: an export is

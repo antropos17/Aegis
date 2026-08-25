@@ -54,8 +54,8 @@ contextBridge.exposeInMainWorld('aegis', {
   exportAgentDatabase: () => ipcRenderer.invoke('export-agent-database'),
   importAgentDatabase: () => ipcRenderer.invoke('import-agent-database'),
   getAuditStats: () => ipcRenderer.invoke('get-audit-stats'),
-  getAuditEntriesBefore: (beforeTs, limit) =>
-    ipcRenderer.invoke('get-audit-entries-before', beforeTs, limit),
+  getAuditEntriesBefore: (beforeTs, limit, types) =>
+    ipcRenderer.invoke('get-audit-entries-before', beforeTs, limit, types),
   openAuditLogDir: () => ipcRenderer.invoke('open-audit-log-dir'),
   exportFullAudit: () => ipcRenderer.invoke('export-full-audit'),
   testNotification: () => ipcRenderer.invoke('test-notification'),

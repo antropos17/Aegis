@@ -89,6 +89,7 @@ const mockAudit = {
   })),
   getLogDir: vi.fn(() => '/logs'),
   exportAll: vi.fn(() => []),
+  getEntriesBefore: vi.fn(() => []),
 };
 
 const mockLogger = {
@@ -260,6 +261,7 @@ describe('ipc-handlers', () => {
     expect(registeredChannels).toContain('export-agent-database');
     expect(registeredChannels).toContain('import-agent-database');
     expect(registeredChannels).toContain('get-audit-stats');
+    expect(registeredChannels).toContain('get-audit-entries-before');
     expect(registeredChannels).toContain('open-audit-log-dir');
     expect(registeredChannels).toContain('export-full-audit');
     expect(registeredChannels).toContain('export-config');
@@ -329,6 +331,16 @@ describe('ipc-handlers', () => {
       expect(mockConfig.saveSettings).toHaveBeenCalledWith(newSettings);
       expect(mockConfig.applySettings).toHaveBeenCalled();
       expect(result).toEqual({ success: true });
+    });
+
+    it('get-audit-entries-before passes cursor, limit and types through untouched', () => {
+      // Validation of all three lives in getEntriesBefore, so the handler forwards them raw.
+      const handler = getHandler('get-audit-entries-before');
+      handler(null, '2026-08-25T00:00:00.000Z', 25, ['file-access', 'network-connection']);
+      expect(mockAudit.getEntriesBefore).toHaveBeenCalledWith('2026-08-25T00:00:00.000Z', 25, [
+        'file-access',
+        'network-connection',
+      ]);
     });
 
     it('get-all-permissions splits agent vs instance permissions', () => {
