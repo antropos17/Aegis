@@ -8,14 +8,17 @@ now exist and are green, and so do `src/main/sequence-engine.js` and
 `tests/main/sequence-engine.test.js` — the §2 state machine with the §3 caps and counters, the
 `agent-exit` cleanup with `recentlyExited`, the §4 null policy and the §5 detection payload with
 weakest-link attribution — now fed by the five §5 taps in `src/main/main.js` and
-`src/main/scan-loop.js` (engine init from the loader's rules, `sweep()` once per process tick;
-`onDetection` only logs for now). No gate and no emission named in §5–§7 exists yet — the mutation
-gate (§6) is prompt 3 of block 2, the audit record / score merge / `sequences` stats block are
-block 3 prompt 2 and the second watcher is prompt 3 — so every file path below other than Block
-1's, the engine module and the taps is still a target, not a claim. **Block 1 — LANDED. Block 2 —
-ENGINE CORE LANDED (§7 prompt 1); CAPS AND PAYLOAD LANDED (prompt 2); the mutation gate still to
-come (prompt 3). Block 3 — TAPS AND INIT LANDED (prompt 1); emission (prompt 2) and the
-`rules/sequences` watcher (prompt 3) pending.** When a block lands, refresh this header in the same PR
+`src/main/scan-loop.js` (engine init from the loader's rules, `sweep()` once per process tick),
+and now EMITTED: `onDetection` writes the `sequence-detection` audit record on the event
+(`'sequence-detection'` in the `AuditEventType` union, the `alert` row in `ecs-normalizer.js` and
+`docs/ECS-MAPPING.md`), `sequenceEngine.scoreFor(instanceId)` is merged as max into the
+per-instance anomaly scores in `scan-loop.js`, and `getStats()` carries the §3 counters as a
+`sequences` block. No gate named in §6–§7 exists yet — the mutation gate (§6) is prompt 3 of
+block 2 — and the second watcher is block 3 prompt 3, so those two file paths below are still a
+target, not a claim. **Block 1 — LANDED. Block 2 — ENGINE CORE LANDED (§7 prompt 1); CAPS AND
+PAYLOAD LANDED (prompt 2); the mutation gate still to come (prompt 3). Block 3 — TAPS AND INIT
+LANDED (prompt 1); EMISSION LANDED (prompt 2); the `rules/sequences` watcher (prompt 3)
+pending.** When a block lands, refresh this header in the same PR
 (the lag the `sensor-health-degraded.md` correction records is what a stale status line costs).
 **Branch context:** master @ `2e9e37f`; every `file:line` reference below was verified against that
 commit on 2026-08-24. Line numbers drift with every edit to the file — treat them as the place to

@@ -266,6 +266,30 @@ describe('normalizeToEcs — audit records', () => {
     expect(doc.process).toEqual({ entity_id: INSTANCE_ID });
   });
 
+  it('raises a sequence-detection to event.kind alert under its own action', () => {
+    // The record main.js writes for a completed sequence (roadmap §5 "Emission"): the rule id
+    // is the `action`, the level the `severity`, the steps ride in `details`.
+    const doc = normalizeToEcs(
+      auditRecord({
+        type: 'sequence-detection',
+        action: 'SEQ001',
+        severity: 'high',
+        attribution: { status: 'confirmed', evidence: ['handle-scan-pid'] },
+        details: { ruleId: 'SEQ001', title: 'Credential read', timespan: 300000, steps: [] },
+      }),
+    );
+    expect(doc.event).toEqual({
+      kind: 'alert',
+      category: ['intrusion_detection'],
+      type: ['info'],
+      action: 'sequence-detection',
+      risk_score: 0,
+    });
+    expect(doc.process).toEqual({ entity_id: INSTANCE_ID, pid: 4242 });
+    expect(doc.aegis.attribution).toEqual({ status: 'confirmed', evidence: ['handle-scan-pid'] });
+    expect('file' in doc).toBe(false);
+  });
+
   it('never rebuilds destination.* out of a network audit record display path', () => {
     const doc = normalizeToEcs(
       auditRecord({ type: 'network-connection', action: 'Established', path: '160.79.104.10:443' }),
