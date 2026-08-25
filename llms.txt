@@ -25,7 +25,7 @@
 - **Stack**: Electron 33, Svelte 5, Vite 7, TypeScript
 - **Tests**: Vitest; run `npm test` for current pass/skip and file counts
 - **License**: MIT
-- **Version**: 0.13.0-alpha
+- **Version**: 0.13.0-alpha <!-- x-release-please-version -->
 - **Platform**: Windows, macOS, Linux
 
 ## Links

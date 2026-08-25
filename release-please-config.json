@@ -14,7 +14,11 @@
       ],
       "bump-minor-pre-major": true,
       "prerelease": true,
-      "prerelease-type": "alpha"
+      "prerelease-type": "alpha",
+      "extra-files": [
+        { "type": "generic", "path": "llms.txt" },
+        { "type": "generic", "path": "llms-full.txt" }
+      ]
     }
   }
 }
