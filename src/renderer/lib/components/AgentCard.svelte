@@ -57,8 +57,9 @@
   });
 
   /**
-   * Danger border: the exposure model at 70 or over, OR an anomaly at the toast gate —
-   * the same `isAnomalyAlert` the toast tracker gates on, so whatever toasts alerts here.
+   * Danger border: the exposure model at 70 or over, OR an anomaly at the toast gate
+   * (`ANOMALY_TOAST_THRESHOLD`), read through the same `isAnomalyAlert` the toast tracker
+   * gates on — so whatever toasts alerts here, and no second threshold lives in this file.
    * `riskScore` itself is not moved by the anomaly: the badge keeps its band.
    */
   let isDanger = $derived((agent.riskScore ?? 0) >= 70 || isAnomalyAlert(cardAnomaly));
