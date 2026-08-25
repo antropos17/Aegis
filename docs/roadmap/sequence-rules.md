@@ -5,13 +5,14 @@
 `rules/sequences/sequences.yaml` (1 sequence correlation rule, SEQ001, in 1 sequence rule file),
 `tests/main/sequence-rules-parity.test.js` and the `sequences.*` counters in `scripts/counts.js`
 now exist and are green, and so do `src/main/sequence-engine.js` and
-`tests/main/sequence-engine.test.js` — the §2 state machine with no production caller. No gate
-and no wiring named in §3, §5–§7 exists yet, and neither do the caps, the `agent-exit` cleanup or
-the per-rule counters §3 specifies, so every file path below other than Block 1's and the engine
-module is still a target, not a claim. **Block 1 — LANDED. Block 2 — ENGINE CORE LANDED (§7 prompt
-1); caps, exit cleanup and the mutation gate still to come (prompts 2–3). Block 3 — NOT
-STARTED.** When a block lands, refresh this header in the same PR (the lag the
-`sensor-health-degraded.md` correction records is what a stale status line costs).
+`tests/main/sequence-engine.test.js` — the §2 state machine with the §3 caps and counters, the
+`agent-exit` cleanup with `recentlyExited`, the §4 null policy and the §5 detection payload with
+weakest-link attribution, still with no production caller. No gate and no wiring named in §5–§7
+exists yet — the mutation gate (§6) is prompt 3 of block 2 — so every file path below other than
+Block 1's and the engine module is still a target, not a claim. **Block 1 — LANDED. Block 2 —
+ENGINE CORE LANDED (§7 prompt 1); CAPS AND PAYLOAD LANDED (prompt 2); the mutation gate still to
+come (prompt 3). Block 3 — NOT STARTED.** When a block lands, refresh this header in the same PR
+(the lag the `sensor-health-degraded.md` correction records is what a stale status line costs).
 **Branch context:** master @ `2e9e37f`; every `file:line` reference below was verified against that
 commit on 2026-08-24. Line numbers drift with every edit to the file — treat them as the place to
 start reading, and re-verify before an edit that depends on one.
@@ -158,11 +159,13 @@ Transitions on an event with key K under rule R — the check order is fixed and
    step with `elapsed ≤ timespanMs` (boundary inclusive) → emit + delete (`completed++`). Advance
    takes priority over 3–4; one event satisfies exactly one step and never re-opens a sequence after
    its own completion;
-3. state exists, `stepIndex == 1`, and the event matches `step[0]` → slide (`openedAt` and
-   `evidence[0]` are replaced, `slid++`) — widens the window at no memory cost. At `stepIndex ≥ 2` a
-   repeated `step[0]` is ignored (`retriggerIgnored++`); the residual miss "A₁ … A₂ … B … C, A₁'s
-   window expired but A₂ + B + C would have fit" is a declared v1 bound and is pinned by a test
-   (ai-mistakes #27: write the guarantee, not the impression);
+3. state exists, `stepIndex == 1`, and the event matches `step[0]` → slide (`openedAt`,
+   `evidence[0]` and the actor are replaced, `slid++`) — widens the window at no memory cost. At
+   `stepIndex ≥ 2` a repeated `step[0]` is ignored (`retriggerIgnored++`); the residual miss is
+   "A₁ B₁ A₂ B₂ C under `[A, B, C]`, A₁'s window expired before C but A₂ + B₂ + C would have fit" —
+   A₂ arrives past step 1 and cannot widen the window. It is a declared v1 bound and is pinned by
+   a test, as is the shape that DOES fire: "A₁ A₂ B C" slides at A₂ and A₁'s expiry stops
+   mattering (#310; ai-mistakes #27: write the guarantee, not the impression);
 4. no state and the event matches `step[0]` → open, subject to the caps (§3), `opened++`.
 
 `agent-exit` is first evaluated as a step (it can complete a rule whose last step is the exit),

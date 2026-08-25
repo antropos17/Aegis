@@ -10,8 +10,10 @@
  *   only, grouped by `process.entity_id` only, over the ECS view `src/shared/ecs-normalizer.js`
  *   projects (`docs/ECS-MAPPING.md` §4 is the field dictionary).
  *
- *   NOTHING CONSUMES THIS YET, and no rule file exists — the loader fixes the format and its
- *   refusals before the engine is written against them, on the ecs-normalizer precedent (PR #294).
+ *   NOTHING CONSUMES THIS YET. The rule file exists — `rules/sequences/sequences.yaml` with
+ *   SEQ001, since PR #309 — and so does the §2 state machine, but no production caller loads
+ *   the one into the other: the format and its refusals were fixed first, on the ecs-normalizer
+ *   precedent (PR #294), and the wiring is roadmap §7 block 3.
  *   The top-level `rules/` gates are untouched by the subdirectory: `rule-loader.js` reads one
  *   level of `rules/` filtered on `.yaml`/`.yml`, and so do the parity baseline and
  *   `scripts/counts.js` `deriveRules()` — a directory entry named `sequences` passes none of them.
