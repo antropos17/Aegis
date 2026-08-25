@@ -1550,4 +1550,260 @@ describe('scan-loop', () => {
       expect(records.some((r) => r.pid === 100)).toBe(true);
     });
   });
+
+  // ── sequence-engine taps (docs/roadmap/sequence-rules.md §5) ──
+
+  describe('sequence-engine taps', () => {
+    /** A fake engine: the two calls the taps make, nothing else. */
+    function makeEngine() {
+      return { ingest: vi.fn(), sweep: vi.fn() };
+    }
+
+    /**
+     * Two file events of one instance on ONE path: the first passes `dedupFileEvent`
+     * and the second is dropped by the 30 s window — so a tap fed the RAW list would
+     * call ingest twice and a tap fed the deduped list exactly once.
+     * @returns {Array<Object>}
+     */
+    function twoEventsOnePath() {
+      return [
+        {
+          agent: 'Claude Code',
+          pid: 100,
+          instanceId: '100:1717000000000',
+          file: 'C:\\Users\\me\\passwords.txt',
+          action: 'holding',
+          sensitive: true,
+          category: 'ai',
+          attribution: { status: 'confirmed', evidence: ['handle-scan-pid'] },
+        },
+        {
+          agent: 'Claude Code',
+          pid: 100,
+          instanceId: '100:1717000000000',
+          file: 'C:\\Users\\me\\passwords.txt',
+          action: 'holding',
+          sensitive: true,
+          category: 'ai',
+          attribution: { status: 'confirmed', evidence: ['handle-scan-pid'] },
+        },
+      ];
+    }
+
+    it('tap 2: doFileScan ingests each event that passed dedup and none that dedup dropped', async () => {
+      const sequenceEngine = makeEngine();
+      const raw = twoEventsOnePath();
+      const deps = makeDeps({
+        getLatestAgents: vi.fn().mockReturnValue([{ agent: 'Claude Code' }]),
+        watcher: {
+          pruneKnownHandles: vi.fn(),
+          scanAllFileHandles: vi.fn().mockResolvedValue(raw),
+        },
+        sequenceEngine,
+      });
+      scanLoop.init(deps);
+      // staggeredStartup(_, paused=true): doProcessScan @3s, doFileScan @8s, no warmup
+      scanLoop.staggeredStartup(5000, true);
+      await vi.advanceTimersByTimeAsync(8000);
+
+      expect(sequenceEngine.ingest).toHaveBeenCalledTimes(1);
+      // The SAME record the audit call received — dedup stamps `repeatCount` on it.
+      expect(sequenceEngine.ingest).toHaveBeenCalledWith(raw[0]);
+      expect(sequenceEngine.ingest).not.toHaveBeenCalledWith(raw[1]);
+      expect(deps.audit.log.mock.calls.filter((c) => c[0] === 'file-access')).toHaveLength(1);
+    });
+
+    it('tap 2: doHotReadScan ingests the deduped hot-read events through the same tap', async () => {
+      const sequenceEngine = makeEngine();
+      const raw = twoEventsOnePath();
+      const deps = makeDeps({
+        getLatestAgents: vi.fn().mockReturnValue([{ agent: 'Claude Code' }]),
+        watcher: {
+          pruneKnownHandles: vi.fn(),
+          scanAllFileHandles: vi.fn().mockResolvedValue([]),
+          scanHotFileHolders: vi.fn().mockResolvedValue(raw),
+          isHotReadScanActive: vi.fn().mockReturnValue(true),
+        },
+        sequenceEngine,
+      });
+      scanLoop.init(deps);
+      // The hot-read interval is 10 s and only exists when the watcher reports it
+      // active; the process tick is pushed past it so the first hot read is the only
+      // scan that has run.
+      scanLoop.startScanIntervals(20000);
+      await vi.advanceTimersByTimeAsync(10000);
+
+      expect(deps.watcher.scanHotFileHolders).toHaveBeenCalledTimes(1);
+      expect(sequenceEngine.ingest).toHaveBeenCalledTimes(1);
+      expect(sequenceEngine.ingest).toHaveBeenCalledWith(raw[0]);
+      expect(sequenceEngine.ingest).not.toHaveBeenCalledWith(raw[1]);
+    });
+
+    it('tap 3: doNetworkScan ingests every connection it records, keyless ones included', async () => {
+      const sequenceEngine = makeEngine();
+      const connections = [
+        {
+          agent: 'Claude Code',
+          pid: 100,
+          instanceId: '100:1717000000000',
+          remoteIp: '1.2.3.4',
+          remotePort: 443,
+          state: 'ESTABLISHED',
+          flagged: false,
+        },
+        // Matched no agent: the engine's own null policy skips and counts it — the
+        // tap does not pre-filter (roadmap §4).
+        {
+          agent: '',
+          pid: null,
+          instanceId: null,
+          remoteIp: '9.9.9.9',
+          remotePort: 80,
+          state: 'ESTABLISHED',
+          flagged: true,
+        },
+      ];
+      const deps = makeDeps({
+        getLatestAgents: vi.fn().mockReturnValue([{ agent: 'Claude Code' }]),
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: vi.fn().mockResolvedValue(connections),
+        },
+        sequenceEngine,
+      });
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(sequenceEngine.ingest.mock.calls.map((c) => c[0])).toEqual(connections);
+      // Beside `recordNetworkEndpoint`: one ingest per endpoint recorded, same objects.
+      expect(deps.baselines.recordNetworkEndpoint).toHaveBeenCalledTimes(2);
+    });
+
+    /**
+     * Deps whose scanner returns a stamped agent on the ticks `present` says so, so
+     * session-tracker reports an enter on the first tick and — after the exit grace —
+     * an exit once the agent is gone.
+     * @param {Object} sequenceEngine
+     * @param {(tick: number) => boolean} present
+     * @returns {Object}
+     */
+    function makeSessionDeps(sequenceEngine, present) {
+      let tick = 0;
+      return makeDeps({
+        scanner: {
+          scanProcesses: vi.fn().mockImplementation(async () => {
+            tick++;
+            return {
+              agents: present(tick)
+                ? [
+                    {
+                      agent: 'Claude Code',
+                      process: 'claude.exe',
+                      pid: 100,
+                      startTime: 1717000000000,
+                      instanceId: '100:1717000000000',
+                      instanceIdSource: 'os',
+                      category: 'ai',
+                    },
+                  ]
+                : [],
+              changed: false,
+              reliable: true,
+            };
+          }),
+        },
+        sequenceEngine,
+      });
+    }
+
+    it('tap 4: doProcessScan ingests the session record of an agent that entered', async () => {
+      require_('../../src/main/session-tracker.js')._resetForTest();
+      const sequenceEngine = makeEngine();
+      const deps = makeSessionDeps(sequenceEngine, () => true);
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+
+      const enter = deps.audit.log.mock.calls.find((c) => c[0] === 'agent-enter');
+      expect(enter).toBeTruthy();
+      expect(sequenceEngine.ingest).toHaveBeenCalledTimes(1);
+      // What session-tracker returned, unchanged: `firstSeen` and NO `lastSeen`, which
+      // is how the normalizer tells an enter from an exit.
+      const [record] = sequenceEngine.ingest.mock.calls[0];
+      expect(record).toEqual({
+        pid: 100,
+        instanceId: '100:1717000000000',
+        agent: 'Claude Code',
+        process: 'claude.exe',
+        firstSeen: expect.any(Number),
+      });
+      expect(record).not.toHaveProperty('lastSeen');
+      expect(record.firstSeen).toBe(enter[1].extra.startTime);
+    });
+
+    it('tap 4: doProcessScan ingests the session record of an agent that exited', async () => {
+      const sessionTracker = require_('../../src/main/session-tracker.js');
+      sessionTracker._resetForTest();
+      const sequenceEngine = makeEngine();
+      // Present on tick 1 only; the exit is reported after DEFAULT_EXIT_GRACE misses.
+      const deps = makeSessionDeps(sequenceEngine, (tick) => tick === 1);
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(5000);
+      for (let i = 0; i < 1 + sessionTracker.DEFAULT_EXIT_GRACE; i++) {
+        await vi.advanceTimersByTimeAsync(5000);
+      }
+
+      const exit = deps.audit.log.mock.calls.find((c) => c[0] === 'agent-exit');
+      expect(exit).toBeTruthy();
+      // One enter, one exit — and the exit carrier carries `lastSeen`.
+      expect(sequenceEngine.ingest).toHaveBeenCalledTimes(2);
+      const [record] = sequenceEngine.ingest.mock.calls[1];
+      expect(record).toEqual({
+        pid: 100,
+        instanceId: '100:1717000000000',
+        agent: 'Claude Code',
+        process: 'claude.exe',
+        firstSeen: expect.any(Number),
+        lastSeen: expect.any(Number),
+      });
+      expect(record.instanceId).toBe(exit[1].instanceId);
+    });
+
+    it('tap 5: sweep runs exactly once per process tick, after the scans', async () => {
+      const sequenceEngine = makeEngine();
+      const deps = makeDeps({ sequenceEngine });
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(5000);
+
+      expect(sequenceEngine.sweep).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(sequenceEngine.sweep).toHaveBeenCalledTimes(1);
+      // The sweep follows the tick's session reconcile: the enter/exit taps have
+      // already run when it fires.
+      const sweepOrder = sequenceEngine.sweep.mock.invocationCallOrder[0];
+      const scanOrder = deps.scanner.scanProcesses.mock.invocationCallOrder[0];
+      expect(sweepOrder).toBeGreaterThan(scanOrder);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(sequenceEngine.sweep).toHaveBeenCalledTimes(2);
+    });
+
+    it('a scan without an injected engine still completes — the tap is a no-op', async () => {
+      const deps = makeDeps({
+        getLatestAgents: vi.fn().mockReturnValue([{ agent: 'Claude Code' }]),
+        watcher: {
+          pruneKnownHandles: vi.fn(),
+          scanAllFileHandles: vi.fn().mockResolvedValue(twoEventsOnePath()),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.staggeredStartup(5000, true);
+      await vi.advanceTimersByTimeAsync(8000);
+
+      expect(deps.logger.error).not.toHaveBeenCalled();
+      expect(deps.audit.log.mock.calls.filter((c) => c[0] === 'file-access')).toHaveLength(1);
+      expect(deps.sendToRenderer).toHaveBeenCalledWith('scan-batch', expect.any(Object));
+    });
+  });
 });
