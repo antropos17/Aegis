@@ -91,4 +91,4 @@ coverage thresholds are configured in `vitest.config.js`, so coverage cannot fai
 - Don't skip tests — every new module needs a test file in `tests/`
 - Don't add features not explicitly requested
 - Don't modify files not mentioned in the task
-- Don't let a new file blow past 300 lines — extract instead
+- Don't treat 300 lines/file as a hard limit — it is a target for NEW files, not an invariant (see Code conventions): never split an existing file just to hit it, and do extract when adding to one already over
