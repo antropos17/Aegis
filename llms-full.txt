@@ -19,7 +19,7 @@ npm install
 npm start
 ```
 
-Building from source requires Node.js 22.x, as declared by `engines` in `package.json` and pinned in `.nvmrc` and CI. The tooling floor is lower but still excludes Node 18 and 19 — Vite 7 declares `^20.19.0 || >=22.12.0` and Vitest 4 declares `^20.0.0 || ^22.0.0 || >=24.0.0`. npm 10+. The packaged app ships its own Node runtime inside Electron. Windows 10/11 recommended. macOS/Linux experimental.
+Building from source requires Node.js 24.x, as declared by `engines` in `package.json` and pinned in `.nvmrc` and CI. The tooling floor is lower but still excludes Node 18 and 19 — Vite 7 declares `^20.19.0 || >=22.12.0` and Vitest 4 declares `^20.0.0 || ^22.0.0 || >=24.0.0`. npm 10+. The packaged app ships its own Node runtime inside Electron. Windows 10/11 recommended. macOS/Linux experimental.
 
 ## Features
 
@@ -56,7 +56,7 @@ JSON, CSV, HTML reports, one-click ZIP archive, JSONL audit logging with daily r
 
 ## Technical Details
 
-- **Stack**: Electron 33, Svelte 5, Vite 7, TypeScript
+- **Stack**: Electron 43, Svelte 5, Vite 7, TypeScript
 - **Tests**: Vitest; run `npm test` for current pass/skip and file counts
 - **License**: MIT
 - **Version**: 0.13.0-alpha <!-- x-release-please-version -->

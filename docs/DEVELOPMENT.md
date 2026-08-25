@@ -11,7 +11,7 @@ and IPC architecture specific to this codebase.
 |-----|---------|------|
 | Svelte | 5.51+ | UI framework (runes mode) |
 | Vite | 7.3+ | Dev server + bundler for renderer |
-| Electron | 33 | Desktop shell + OS APIs |
+| Electron | 43 | Desktop shell + OS APIs |
 | Vitest | 4.0+ | Unit testing (Node env, jsdom available) |
 | chokidar | 3.6 | File system watcher (main process only) |
 | prettier | 3.8 | Code formatter — run before committing |
