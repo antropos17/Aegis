@@ -1,6 +1,6 @@
 # Sequence rules — `temporal_ordered` correlations keyed on `process.entity_id`
 
-**Status (as of 2026-08-24):** Block 1 implemented. `src/main/sequence-rule-loader.js`,
+**Status (as of 2026-08-25):** Block 1 implemented. `src/main/sequence-rule-loader.js`,
 `tests/main/sequence-rule-loader.test.js`, `tests/fixtures/sequences/`,
 `rules/sequences/sequences.yaml` (1 sequence correlation rule, SEQ001, in 1 sequence rule file),
 `tests/main/sequence-rules-parity.test.js` and the `sequences.*` counters in `scripts/counts.js`
@@ -13,11 +13,18 @@ and now EMITTED: `onDetection` writes the `sequence-detection` audit record on t
 (`'sequence-detection'` in the `AuditEventType` union, the `alert` row in `ecs-normalizer.js` and
 `docs/ECS-MAPPING.md`), `sequenceEngine.scoreFor(instanceId)` is merged as max into the
 per-instance anomaly scores in `scan-loop.js`, and `getStats()` carries the §3 counters as a
-`sequences` block. No gate named in §6–§7 exists yet — the mutation gate (§6) is prompt 3 of
-block 2 — and the second watcher is block 3 prompt 3, so those two file paths below are still a
-target, not a claim. **Block 1 — LANDED. Block 2 — ENGINE CORE LANDED (§7 prompt 1); CAPS AND
-PAYLOAD LANDED (prompt 2); the mutation gate still to come (prompt 3). Block 3 — TAPS AND INIT
-LANDED (prompt 1); EMISSION LANDED (prompt 2); the `rules/sequences` watcher (prompt 3)
+`sequences` block, and now HOT-RELOADED: a second chokidar watcher on `rules/sequences`
+(`setupSequenceRulesWatcher` in `src/main/file-watcher.js`, fed by `reloadSequenceRules` in
+`main.js`) re-reads the directory, `reset('reload')`s the engine and re-inits it with the new
+rules — a flat-rule edit never reaches that reset — and both watchers push `rules:reloaded` as
+`{ count, file, sequenceCount }`; `tests/main/sequence-integration.test.js` drives loader → tap →
+engine → emission → reload end to end. One cost, stated rather than hidden: the engine's `init` is
+a fresh engine, so the §3 counters restart at zero after a reload and the durable trace of the
+discard is the `discarded … reason: 'reload'` log line. No gate named in §6–§7 exists yet — the
+mutation gate (§6) is prompt 3 of block 2, so that file path below is still a target, not a claim.
+**Block 1 — LANDED. Block 2 — ENGINE CORE LANDED (§7 prompt 1); CAPS AND PAYLOAD LANDED
+(prompt 2); the mutation gate still to come (prompt 3). Block 3 — LANDED (taps and init, emission,
+hot-reload). All blocks complete except block 2 prompt 3 (mutation gate), which remains
 pending.** When a block lands, refresh this header in the same PR
 (the lag the `sensor-health-degraded.md` correction records is what a stale status line costs).
 **Branch context:** master @ `2e9e37f`; every `file:line` reference below was verified against that

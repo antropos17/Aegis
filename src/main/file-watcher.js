@@ -1049,25 +1049,80 @@ function pruneKnownHandles(activeAgents) {
 }
 
 /**
- * Watch the rules/ directory for YAML changes and hot-reload.
- * @param {(channel: string, data: object) => void} sendFn - Function to push events to renderer
+ * One chokidar watcher over ONE rule directory, no recursion, `_`-prefixed entries ignored
+ * (function-form `ignored`, not a glob — chokidar issue #773). Shared by the two rule
+ * watchers below so they cannot drift apart on their options.
+ * @param {string} dir
  * @returns {import('chokidar').FSWatcher}
- * @since v0.6.0
  */
-function setupRulesWatcher(sendFn) {
-  const rulesDir = path.join(__dirname, '..', '..', 'rules');
-  const rw = chokidar.watch(rulesDir, {
+function _watchRuleDir(dir) {
+  return chokidar.watch(dir, {
     ignored: (filePath) => path.basename(filePath).startsWith('_'),
     persistent: false,
     ignoreInitial: true,
     followSymlinks: false,
     depth: 0,
   });
+}
+
+/**
+ * @param {string} basename
+ * @returns {boolean} whether the changed entry is a rule file at all.
+ */
+function _isRuleFile(basename) {
+  return basename.endsWith('.yaml') || basename.endsWith('.yml');
+}
+
+/**
+ * Watch the rules/ directory for YAML changes and hot-reload the FLAT rules. `depth: 0`, so
+ * `rules/sequences/` is not this watcher's — {@link setupSequenceRulesWatcher} owns it — and
+ * an edit here never resets the sequence engine (docs/roadmap/sequence-rules.md §5
+ * "Hot-reload"). The push carries both figures: `count` from the reloaded flat set and
+ * `sequenceCount` read off `deps.sequenceCount` at the time of the change, so the renderer
+ * is never handed a flat count with no sequence figure beside it.
+ * @param {(channel: string, data: object) => void} sendFn - Function to push events to renderer
+ * @param {{sequenceCount: () => number}} deps - `sequenceCount` answers how many sequence
+ *   rules the engine currently holds (main.js owns that figure).
+ * @returns {import('chokidar').FSWatcher}
+ * @since v0.6.0
+ */
+function setupRulesWatcher(sendFn, { sequenceCount }) {
+  const rulesDir = path.join(__dirname, '..', '..', 'rules');
+  const rw = _watchRuleDir(rulesDir);
   rw.on('change', (filePath) => {
     const basename = path.basename(filePath);
-    if (!basename.endsWith('.yaml') && !basename.endsWith('.yml')) return;
+    if (!_isRuleFile(basename)) return;
     reloadRules();
-    sendFn('rules:reloaded', { count: getAllRules().size, file: basename });
+    sendFn('rules:reloaded', {
+      count: getAllRules().size,
+      file: basename,
+      sequenceCount: sequenceCount(),
+    });
+  });
+  return rw;
+}
+
+/**
+ * Watch rules/sequences/ for YAML changes and hot-reload the SEQUENCE rules — the second
+ * watcher of docs/roadmap/sequence-rules.md §5 "Hot-reload", same options as
+ * {@link setupRulesWatcher}. Only this one calls `deps.reload`, which main.js supplies as:
+ * load the directory again, reset the engine, re-init it with the new rules. The flat rules
+ * are NOT reloaded from here, and the push is the same `rules:reloaded` channel with the same
+ * three fields — `count` from the flat set as it stands, `sequenceCount` as `reload` returned it.
+ * @param {(channel: string, data: object) => void} sendFn - Function to push events to renderer
+ * @param {{reload: () => number}} deps - `reload` re-reads the sequence rules into the engine
+ *   and returns how many are loaded now.
+ * @returns {import('chokidar').FSWatcher}
+ * @since v0.14.0
+ */
+function setupSequenceRulesWatcher(sendFn, { reload }) {
+  const sequencesDir = path.join(__dirname, '..', '..', 'rules', 'sequences');
+  const rw = _watchRuleDir(sequencesDir);
+  rw.on('change', (filePath) => {
+    const basename = path.basename(filePath);
+    if (!_isRuleFile(basename)) return;
+    const sequenceCount = reload();
+    sendFn('rules:reloaded', { count: getAllRules().size, file: basename, sequenceCount });
   });
   return rw;
 }
@@ -1076,6 +1131,7 @@ module.exports = {
   init,
   setupFileWatchers,
   setupRulesWatcher,
+  setupSequenceRulesWatcher,
   scanAllFileHandles,
   scanHotFileHolders,
   isHotReadScanActive,
