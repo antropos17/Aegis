@@ -176,6 +176,30 @@ function deriveRules() {
 }
 
 /**
+ * Sequence correlations under `rules/sequences/` — the subdirectory `deriveRules()` never
+ * sees, because `trackedTopLevel` is one level deep. Each file is multi-document YAML: a
+ * correlation is a document carrying a `correlation` key, and the base documents it orders
+ * are not rules of their own (`src/main/sequence-rule-loader.js`).
+ * @returns {{total: number, files: number}}
+ */
+function deriveSequences() {
+  const files = trackedTopLevel(
+    'rules/sequences',
+    (f) => f.endsWith('.yaml') || f.endsWith('.yml'),
+  );
+  let total = 0;
+  for (const file of files) {
+    const docs = /** @type {unknown[]} */ (yaml.loadAll(readTracked(file)));
+    const correlations = docs.filter(
+      (d) => typeof d === 'object' && d !== null && !Array.isArray(d) && 'correlation' in d,
+    ).length;
+    if (correlations === 0) throw new Error(`${file}: no correlation document`);
+    total += correlations;
+  }
+  return { total, files: files.length };
+}
+
+/**
  * @returns {{over300: number, largestSrc: {file: string, lines: number},
  *   largestTest: {file: string, lines: number}}}
  */
@@ -201,6 +225,7 @@ const ci = deriveCi();
 const preload = derivePreload();
 const database = deriveAgentDatabase();
 const ruleset = deriveRules();
+const sequences = deriveSequences();
 const sizes = deriveFileSizes();
 
 const mainAll = trackedUnder('src/main', (p) => p.endsWith('.js'));
@@ -303,7 +328,21 @@ const COUNTERS = [
     key: 'rules.files',
     label: 'rule YAML files (= categories)',
     value: ruleset.files,
-    command: "git ls-files -z rules | tr '\\0' '\\n' | grep -c '\\.yaml$'",
+    // Anchored to the top level: `git ls-files rules` lists the whole subtree, and
+    // `rules/sequences/*.yaml` is counted by `sequences.files`, not here.
+    command: "git ls-files -z rules | tr '\\0' '\\n' | grep -c '^rules/[^/]*\\.yaml$'",
+  },
+  {
+    key: 'sequences.total',
+    label: 'sequence correlation rules under rules/sequences',
+    value: sequences.total,
+    command: "grep -c '^correlation:' rules/sequences/*.yaml | awk -F: '{s+=$NF} END {print s}'",
+  },
+  {
+    key: 'sequences.files',
+    label: 'sequence rule YAML files under rules/sequences',
+    value: sequences.files,
+    command: "git ls-files -z rules/sequences | tr '\\0' '\\n' | grep -cE '\\.ya?ml$'",
   },
   {
     key: 'renderer.components',
@@ -553,6 +592,29 @@ const SCANNERS = [
         ],
         ['rules.files', new RegExp(`(?:across|in)\\s+${DIGITS}\\s+(?:YAML|categories)\\b`, 'i')],
         ['rules.files', new RegExp(`,\\s*${DIGITS}\\s+categories\\b`, 'i')],
+      ]),
+  },
+  {
+    id: 'sequence-rules',
+    // NUM, not DIGITS: one rule and one file is exactly the count prose spells out. The
+    // `detection-rules` scanner above never fires on these lines — "sequence" sits between
+    // the number and "rules", and its parser allows only "active"/"detection" there — so
+    // the two counters cannot be read as each other. The negative lookahead keeps
+    // "1 sequence rule file" a declaration of `sequences.files` alone.
+    locate: new RegExp(`${NUM}\\s+sequence\\s+(?:correlation|rules?|YAML|files?)\\b`, 'i'),
+    parse: (line) =>
+      pick(line, [
+        [
+          'sequences.total',
+          new RegExp(
+            `${NUM}\\s+sequence\\s+(?:correlation\\s+)?rules?\\b(?!\\s+(?:YAML\\s+)?files?\\b)`,
+            'i',
+          ),
+        ],
+        [
+          'sequences.files',
+          new RegExp(`${NUM}\\s+sequence\\s+(?:rule\\s+)?(?:YAML\\s+)?files?\\b`, 'i'),
+        ],
       ]),
   },
   {

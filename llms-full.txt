@@ -57,9 +57,9 @@ JSON, CSV, HTML reports, one-click ZIP archive, JSONL audit logging with daily r
 ## Technical Details
 
 - **Stack**: Electron 33, Svelte 5, Vite 7, TypeScript
-- **Tests**: 1075 passing, 4 skipped across 68 files (Vitest)
+- **Tests**: Vitest; run `npm test` for current pass/skip and file counts
 - **License**: MIT
-- **Version**: 0.10.0-alpha
+- **Version**: see `version` in `package.json`
 - **Platform**: Windows, macOS, Linux
 
 ## Links

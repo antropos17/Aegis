@@ -1,0 +1,36 @@
+title: Credential file read
+name: Cred File Read
+logsource:
+  product: aegis
+  category: file
+detection:
+  selection:
+    event.action:
+      - file-accessed
+      - file-handle-held
+    file.path|re|i: '[\\/](?:[^\\/]*[._\d-])?(?:passwords?|credentials?)[^\\/]*$'
+  condition: selection
+---
+title: Outbound network connection
+name: outbound_conn
+logsource:
+  product: aegis
+  category: network
+detection:
+  selection:
+    destination.port:
+      - 443
+      - 80
+  condition: selection
+---
+title: Credential file read followed by outbound connection
+id: SEQ001
+level: high
+correlation:
+  type: temporal_ordered
+  rules:
+    - cred_file_read
+    - outbound_conn
+  group-by:
+    - process.entity_id
+  timespan: 5m

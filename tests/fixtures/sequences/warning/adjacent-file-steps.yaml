@@ -1,0 +1,23 @@
+title: Credential file read
+name: cred_file_read
+logsource:
+  product: aegis
+  category: file
+detection:
+  selection:
+    event.action:
+      - file-accessed
+      - file-handle-held
+    file.path|re|i: '[\\/](?:[^\\/]*[._\d-])?(?:passwords?|credentials?)[^\\/]*$'
+  condition: selection
+---
+title: Two credential reads in a row
+id: SEQ002
+correlation:
+  type: temporal_ordered
+  rules:
+    - cred_file_read
+    - cred_file_read
+  group-by:
+    - process.entity_id
+  timespan: 10m
