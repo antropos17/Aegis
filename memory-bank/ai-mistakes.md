@@ -359,6 +359,32 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     that is broken on this platform, and only a red whose mechanism is written down may be filed
     as noise. This entry records the defect; the test and the fixture are untouched here.
 
+42. **A health leaf created expected-active that no code path on this platform ever writes reads
+    as a permanent startup, and nothing goes red because SENSORS_STARTING looks like a launch,
+    not a fault.** Found 2026-08-25 reading `file-watcher.js` for the B8 umbrella suite.
+    `createInitialFsHealth` created `fs-handle` and `fs-rm` STARTING on win32. `scanAllFileHandles`
+    handed every tick to `scanViaRestartManager` while the Restart Manager was usable and
+    returned — the handle leaf was "not sampled", by its own comment — so it stayed STARTING for
+    the life of the process; with RM unavailable and a handle binary present the pool wrote
+    `fs-handle` every tick and `fs-rm` never (its only pool-side write sat inside the blind
+    B-S04 branch); and a closed population gate marked only the active leaf. `aggregateSensorHealth`
+    counts STARTING as participating and `deriveAppHealth` reads `sensor-starting` off the
+    aggregate, so on every stock Windows `appHealth.state` was SENSORS_STARTING from the first tick
+    to the last — B6 shipped it on the stats payload and B7's chip never rendered, because the chip
+    names degraded and failed ids only. Every leaf suite was green the whole time: each asserts
+    the leaf its own path writes, `app-health.test.js` is pure and takes hand-built records, and
+    no test fed the RAW records one platform actually produces through the real derivation
+    (cf. #21 — a passing gate proves the command ran, not that it inspected your change; #29 —
+    the discriminating case is the one the composition destroys; #27 — "not sampled" was written
+    down and read as a design, when it was the defect).
+    **Rule: a leaf created participating needs a writer on EVERY platform that creates it, or
+    it is UNSUPPORTED there — and one test per platform shape drives the real leaves through the
+    real aggregate.** Fixed on `fix/fs-read-mechanism-ownership`: `resolveReadMechanism` marks
+    the idle read leaf UNSUPPORTED (`rm-owns-observation` / `pool-owns-observation`), latched at
+    the first observation entry and re-decided only when the mechanism switches; the leaf that
+    returns to service starts a fresh STARTING lifetime. The shape to grep for is a
+    `createSensorHealth(` whose write sites all sit behind a platform or capability branch.
+
 ## Caching
 31. **Treats a cache KEY as proof that cached data is still fresh.** A key is a LOCATOR —
     it says which entry to look at, never that the entry still describes the thing it

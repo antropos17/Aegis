@@ -105,16 +105,16 @@ describe('app-health umbrella (B8)', () => {
       expect(stats.monitoringPaused).toBe(false);
     });
 
-    // The contract, written as the contract. Known red on master today: with the
-    // Restart Manager owning the file tick, `scanAllFileHandles` returns from the RM
-    // delegation and the `fs-handle` record is never written ("handle sensor not
-    // sampled", src/main/file-watcher.js:953-956), so the effective worst-of never
-    // leaves STARTING and `sensor-starting` holds the app at SENSORS_STARTING for the
-    // whole process life. `it.fails` names that mechanism rather than skipping the case
-    // (a skipped test is a green that proves nothing, ai-mistakes #21); the file-watcher
-    // fix lands from its own PR, and the day it merges this marker must be dropped.
-    it.fails(
-      'S1b. Restart Manager path: the same convergence — red until file-watcher.js:953-956 samples or retires fs-handle',
+    // The contract, written as the contract. Landed as `it.fails` (#329): with the
+    // Restart Manager owning the file tick, `scanAllFileHandles` returned from the RM
+    // delegation and the `fs-handle` record was never written ("handle sensor not
+    // sampled"), so the effective worst-of never left STARTING and `sensor-starting`
+    // held the app at SENSORS_STARTING for the whole process life. The file-watcher's
+    // read-mechanism ownership (ai-mistakes #42) retires the idle leaf instead —
+    // `fs-handle` is UNSUPPORTED / `rm-owns-observation` on the RM path — and this
+    // case is the composer-level proof of that contract.
+    it(
+      'S1b. Restart Manager path: the same convergence — the idle handle leaf is retired, not STARTING',
       async () => {
         h = createHarness(shims);
         const getSensitiveHolders = vi.fn(async () => []);
@@ -127,8 +127,10 @@ describe('app-health umbrella (B8)', () => {
         expect(getSensitiveHolders).toHaveBeenCalled();
         expect(h.getFileHandles).not.toHaveBeenCalled();
         expect(health.sensors.byId['fs-rm'].state).toBe(S.HEALTHY);
-        // The contract: a machine whose every mechanism observed is HEALTHY.
-        expect(health.sensors.byId['fs-handle'].state).not.toBe(S.STARTING);
+        // The contract: a machine whose every mechanism observed is HEALTHY. The
+        // handle leaf is retired for the RM owner, not sampled and not STARTING.
+        expect(health.sensors.byId['fs-handle'].state).toBe(S.UNSUPPORTED);
+        expect(health.sensors.byId['fs-handle'].detail).toBe('rm-owns-observation');
         expect(health.state).toBe(A.HEALTHY);
         expect(health.reasons).toEqual([]);
       },

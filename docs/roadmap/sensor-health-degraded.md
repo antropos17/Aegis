@@ -74,7 +74,7 @@ Pause stops **polling intervals** and **drops live FS events**. Watchers are not
 | **S-PROC** | `process-scanner.js` + `scan-loop.doProcessScan` | Platform `listProcesses` (tasklist/CIM/ps) | Interval; reentrancy guard | Agent list, enter/exit, scan-batch | EPERM/EACCES → empty + `reliable:false`; other errors log + empty tick | Partial: `stats.permissionDeniedScans` if >5 consecutive; Header **Scanning/Idle** only |
 | **S-NET** | `network-monitor.js` + `doNetworkScan` | Platform TCP table (PS / lsof) | 30s (60s warmup); skip if no agents or scan in flight | `NetworkConnection[]`, audit `network-connection` | `.catch` logs error; leaves last connections until next success | No health; empty vs fail not distinguished on channel |
 | **S-FS-CHOKIDAR** | `file-watcher.setupFileWatchers` + `handleWatcherEvent` | chokidar `add`/`change`/`unlink` | Persistent watchers once started | `FileEvent` (created/modified/deleted), inferred/unattributed | Pause swallows; no `watcher.on('error')`; missing dirs skipped | No |
-| **S-FS-HANDLE** | `scanAllFileHandles` / `scanFileHandles` | handle.exe or modules; errors → `[]` | With file scan interval | `FileEvent` `accessed` / confirmed PID | Per-PID `catch → []`; binary missing short-circuits | Log only; probe sets internal flags |
+| **S-FS-HANDLE** | `scanAllFileHandles` / `scanFileHandles` | handle.exe or modules; errors → `[]` | With file scan interval — only when RM is not the active mechanism (§10 B2 ownership) | `FileEvent` `accessed` / confirmed PID | Per-PID `catch → []`; binary missing short-circuits | Log only; probe sets internal flags |
 | **S-FS-RM** | `scanHotFileHolders` / RM holders | Restart Manager (win32) | ~10s hot + full cycle | `FileEvent` `holding` | RM unavailable; single-flight skip; catch logs | Startup probe logs once; **not** on IPC |
 | **S-IDE-EXT** | `ide-extension-detector.js` | FS walk of editor extension dirs | Background cache | Synthetic agents (pid 0) | Silent `.catch` empty cache | Appears as missing agents only |
 | **S-WSL** | `wsl-detector.js` | WSL enumeration | Background cache | Synthetic agents | Silent catch | Same |
@@ -475,6 +475,17 @@ Audit drops remain on **audit** stats path (already honest).
 - **Live contract:** leaves `fs-chokidar` / `fs-handle` / `fs-rm` in `file-watcher.js`; the
   chokidar state is derived from the watch-root plan registry (`996629b`), and `fs-rm` is
   UNSUPPORTED on a platform with no Restart Manager.
+  **Read-mechanism ownership (2026-08-25, found by B8):** the two read leaves are exclusive.
+  On a tick the RM path owns, `fs-handle` is UNSUPPORTED with `detail: rm-owns-observation`;
+  when the pool owns (no usable RM entry and a handle binary present), `fs-rm` is UNSUPPORTED
+  with `pool-owns-observation` (`platform-no-rm` is kept where it already stands). Decided by
+  `resolveReadMechanism` at the first observation entry — `scanAllFileHandles`,
+  `scanHotFileHolders`, `noteFileScanSkip` — and re-decided only when the mechanism switches
+  (the one production switch is RM→pool, the probe verdict landing after an optimistic first
+  tick); the leaf returning to service starts a fresh STARTING lifetime. A blind win32 (no
+  handle binary, no RM) has no owner and both leaves stay DEGRADED (B-S04). Before this, the
+  idle leaf stayed STARTING for the whole process and `appHealth.state` read SENSORS_STARTING
+  on every stock Windows — ai-mistakes #42.
 - **Closes:** B-S03, B-S04, B-S06, B-S05 (file/hot), B-S09  
 - **Files:** `file-watcher.js`, platform probe surface, sensor-health hooks  
 - **Invariants:** handle `[]` after error → DEGRADED/FAILED not silent clean; chokidar `error` registered; read-detection capability reflected  

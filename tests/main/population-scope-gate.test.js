@@ -596,9 +596,11 @@ describe('stale-population scope gate — file-watcher (step G′)', () => {
       fileWatcher.noteFileScanSkip('process-observation-unavailable');
 
       expect(fileWatcher.getFileSensorHealth()['fs-rm'].state).toBe(SENSOR_HEALTH_STATE.DEGRADED);
-      expect(fileWatcher.getFileSensorHealth()['fs-handle'].state).toBe(
-        SENSOR_HEALTH_STATE.STARTING,
-      );
+      // The pool is not the mechanism this process observes with, so its leaf is out of
+      // the worst-of — not STARTING, which would hold the app at SENSORS_STARTING forever.
+      const handle = fileWatcher.getFileSensorHealth()['fs-handle'];
+      expect(handle.state).toBe(SENSOR_HEALTH_STATE.UNSUPPORTED);
+      expect(handle.detail).toBe('rm-owns-observation');
     });
 
     it('marks the handle sensor when RM is not the active mechanism', () => {
