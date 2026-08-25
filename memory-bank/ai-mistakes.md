@@ -1,6 +1,6 @@
 # AI Mistakes Log — AEGIS
 
-Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
+Repeated mistakes by Claude Code — 45 numbered lessons, grouped by category (the newest is not at the bottom: #44–#45 sit under Tooling). READ BEFORE EVERY CHANGE.
 
 ## CSS / Styles
 1. Adds text-transform: uppercase to h2 globally — breaks settings/modal headers
@@ -542,6 +542,55 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     packages in 16 s on this machine, exit 0, lockfile untouched (#23: never regenerate it) — and
     confirm `node_modules/vitest/package.json` exists before trusting any gate that ran after the
     removal. A worktree that ran its own `npm ci` needs nothing.
+
+44. **A `;`-chained command carried on into `git commit --amend` after the conflict resolver
+    threw, and the merge commit was created WITH `<<<<<<<` markers — twice in a row — because
+    the CR probe that should have caught it lied.** Found 2026-08-25 merging `origin/master`
+    into `fix/fs-confirmed-zero-agents` (#335): `memory-bank/progress.md` conflicted, and the
+    conflict file is written CRLF on this checkout (`* text=auto`). `grep -c $'\r'
+    memory-bank/progress.md` in Git Bash printed `0`; `sed -n Np | od -c` showed no `\r`
+    either; only node told the truth — `(s.match(/\r/g)||[]).length` gave CR=617 / LF=617.
+    A resolver keyed on `lines.indexOf('<<<<<<< HEAD')` therefore never matched the
+    `<<<<<<< HEAD\r` line and threw — and `node resolve.js; grep ...; git add file;
+    git commit --amend` ran the add and the commit anyway, because `;` does not stop on
+    failure. The unpushed merge commit carried the markers; the second attempt, chained the
+    same way, carried them again. Nothing reached `origin/master` (`git grep -nE
+    "^<<<<<<< |^>>>>>>> " origin/master` is empty; `567ac5c` is the clean merge), but only
+    because the markers were noticed by eye before the push — no gate stood between the
+    commit and the remote (cf. #21 — a command that ran is not a command that inspected the
+    result; #38 — a `\n` regex over a CRLF file is red on this checkout only; #18 is the
+    mirror image: `&&` is the wrong operator in PowerShell 5.1, and `;` is the wrong one in
+    Git Bash).
+    **Rule: before ANY push after a merge, `git grep -nE "^<<<<<<< |^>>>>>>> " HEAD` must
+    return nothing (anchored — this entry quotes the marker in prose and must not trip the
+    gate); never chain a commit after a resolver with `;` — use `&&` so a thrown resolver
+    stops the chain before `git add`.** Probe line endings with node, compare marker lines after
+    `.replace(/\r$/, '')`, and write the resolver to a file rather than an inline `node -e`
+    (an inline `\n` in a regex misfired the same way).
+
+45. **`git worktree remove` answered "Permission denied" four times in one day on worktrees
+    with NO junction — a file locked by a lingering vitest/esbuild process, not a
+    `node_modules` deletion — and each time the worktree was already deregistered and the
+    main `node_modules` was intact.** Found 2026-08-25, first on the #331 cleanup:
+    `git worktree remove X:/tmp/aegis-audit-history` — a worktree that had run its own
+    `npm ci`, no link anywhere — printed `error: failed to delete '...': Permission denied`
+    and exited 0. `git worktree list` no longer showed it, the main checkout's `node_modules`
+    held the same 432 top-level entries before and after, and the directory was left partly
+    deleted on disk. Three more removals that day ended the same way. The message is the one
+    #41 records for the junction case, so it reads as "the main `node_modules` just got
+    emptied" — it is not proof of that: git's recursive delete stops on ANY locked file (a
+    node/esbuild process left over from the gate is enough) and reports the same error; the
+    two cases differ only in what the walk reached (cf. #27 — the diagnosis must not claim
+    more than the evidence covers).
+    **Rule: on "Permission denied" from `git worktree remove`, before doing anything else,
+    (1) confirm the main checkout's `node_modules` exists — count `ls node_modules` (≈430
+    entries for a full install) and check `node_modules/vitest/package.json` — and
+    (2) confirm the worktree is gone from `git worktree list`.** Only then
+    `Get-ChildItem -Recurse -Force` the leftover, confirm zero reparse points, and
+    `Remove-Item -Recurse -Force` it. The junction rule from #41 still stands: when a link
+    exists, `rmdir` it FIRST. GitHub deletes the remote branch on merge here, so a later
+    `git push origin --delete <branch>` fails with "failed to push some refs" — not an error
+    to chase (`git ls-remote --heads origin <branch>` → 0 lines).
 
 ## Review
 34. **Confirmed good approach — an external fork PR is four separate gates, and two of them
