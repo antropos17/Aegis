@@ -9,7 +9,9 @@
  *   `_state.onFileEvent`. The path from a detection to an Event Schema v1 record is
  *   closed OUTSIDE the watcher, in three places — `main.js`'s `onFileEvent`, and
  *   `scan-loop.js`'s `doFileScan` and `doHotReadScan`. None of those three is
- *   exported, so a replay has to perform the same steps itself.
+ *   reachable from a replay: the two scan-loop sites are not exported, and `main.js`
+ *   exports its handler only for its own test, behind a `require('electron')` a bench
+ *   cannot satisfy — so a replay has to perform the same steps itself.
  *
  *   That duplication is real, and it drifts silently by default: if an original grew
  *   a step, this file would keep replaying yesterday's wiring and the bench would stay
@@ -70,7 +72,7 @@ const ORCHESTRATION = Object.freeze({
  * @type {Readonly<Record<string, {file: string, anchor: string}>>}
  */
 const ORCHESTRATION_SITES = Object.freeze({
-  'fs.event': Object.freeze({ file: 'src/main/main.js', anchor: 'onFileEvent: (ev) =>' }),
+  'fs.event': Object.freeze({ file: 'src/main/main.js', anchor: 'function onFileEvent(ev) {' }),
   'handles.tick': Object.freeze({
     file: 'src/main/scan-loop.js',
     anchor: 'async function doFileScan(',
