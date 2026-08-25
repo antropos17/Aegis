@@ -1,0 +1,723 @@
+/**
+ * sequence-engine — the `temporal_ordered` state machine, driven by an INJECTED clock.
+ *
+ * The seam is `init({ now })`, not `vi.useFakeTimers()`: the engine reads the clock only through
+ * that function and schedules nothing, so a fake timer would advance a mechanism this module does
+ * not have while leaving `observedAt` untouched. Every case below sets `clock` explicitly, which
+ * is what makes the maxspan boundary an assertion rather than a race.
+ *
+ * The RULES are hand-built here and the CARRIERS are real: each event goes through the real
+ * `normalizeToEcs` projection inside `ingest`, so the category gate and the matchers see exactly
+ * what production would hand them. One case at the end drives a loader-compiled rule instead,
+ * which is what pins that the shape `sequence-rule-loader` produces is the shape this engine
+ * consumes.
+ *
+ * `logger` is pulled in through `createRequire` — the same native module instance the CJS module
+ * under test requires. An ESM `import` of the same path yields a DIFFERENT object and a spy on it
+ * never fires (the convention `sequence-rule-loader.test.js` records).
+ *
+ * Every counter asserted below is produced by the path under test (ai-mistakes #21): no case
+ * asserts a zero that the engine could not have moved anyway, and each counter is read from
+ * `getStats()` after the exact transition that owns it.
+ */
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createRequire } from 'module';
+import engine from '../../src/main/sequence-engine.js';
+import loader from '../../src/main/sequence-rule-loader.js';
+
+const require_ = createRequire(import.meta.url);
+const logger = require_('../../src/main/logger.js');
+
+/** The window every hand-built rule below uses unless it says otherwise. @type {number} */
+const SPAN = 60000;
+
+/** @type {number} */
+let clock = 0;
+
+/** @type {Array<Record<string, unknown>>} */
+let detections = [];
+
+/** @type {import('vitest').MockInstance} */
+let warnSpy;
+/** @type {import('vitest').MockInstance} */
+let infoSpy;
+
+const now = () => clock;
+
+/** @param {number} t @returns {void} */
+function at(t) {
+  clock = t;
+}
+
+/**
+ * @param {string} name
+ * @param {string} category
+ * @param {(doc: Record<string, any>) => boolean} matcher
+ * @returns {{name: string, category: string, matcher: (doc: Record<string, any>) => boolean}}
+ */
+function step(name, category, matcher) {
+  return { name, category, matcher };
+}
+
+/**
+ * @param {string} id
+ * @param {Array<{name: string, category: string, matcher: Function}>} steps
+ * @param {number} [timespanMs]
+ * @returns {Record<string, unknown>}
+ */
+function rule(id, steps, timespanMs = SPAN) {
+  return { id, title: `${id} — under test`, level: 'high', timespanMs, steps };
+}
+
+/** `event.action` is what the ECS projection carries for both file and process carriers. */
+const actionIs = (/** @type {string} */ want) => (doc) => doc.event.action === want;
+const portIs = (/** @type {number} */ want) => (doc) =>
+  doc.destination !== undefined && doc.destination.port === want;
+
+/** A file step matching an `accessed` event, the canonical first step. */
+const stepA = () => step('a_read', 'file', actionIs('file-accessed'));
+/** A network step matching an outbound 443, the canonical second step. */
+const stepB = () => step('b_conn', 'network', portIs(443));
+/** A second FILE step, for the three-step rules. */
+const stepC = () => step('c_write', 'file', actionIs('file-modified'));
+
+/**
+ * @param {string|null} instanceId
+ * @param {string} [action]
+ * @param {string} [file]
+ * @returns {Record<string, unknown>}
+ */
+function fileEvent(instanceId, action = 'accessed', file = 'C:\\work\\creds.txt') {
+  return { instanceId, file, action, timestamp: 1_700_000_000_000, agent: 'Claude Code' };
+}
+
+/**
+ * @param {string|null} instanceId
+ * @param {number} [remotePort]
+ * @returns {Record<string, unknown>}
+ */
+function netEvent(instanceId, remotePort = 443) {
+  return { instanceId, remoteIp: '203.0.113.5', remotePort, agent: 'Claude Code' };
+}
+
+/**
+ * Installs a ruleset on a zeroed engine. Every test starts from here, so no case can inherit a
+ * state or a counter from the one before it.
+ * @param {Array<Record<string, unknown>>} rules
+ * @returns {void}
+ */
+function start(rules) {
+  engine.init({ rules, onDetection: (d) => detections.push(d), now });
+}
+
+beforeEach(() => {
+  clock = 0;
+  detections = [];
+  warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+  infoSpy = vi.spyOn(logger, 'info').mockImplementation(() => {});
+});
+
+afterEach(() => {
+  // The createRequire instance is shared by every suite in this worker; an unrestored spy would
+  // leak into whichever file runs next (ai-mistakes #26).
+  vi.restoreAllMocks();
+  engine.init({ rules: [] });
+});
+
+describe('sequence-engine — order', () => {
+  it('A then B fires, and the detection carries the rule, the key and both evidence entries', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(1000);
+    engine.ingest(fileEvent('4242:900'));
+    at(31000);
+    engine.ingest(netEvent('4242:900'));
+
+    expect(detections).toHaveLength(1);
+    expect(detections[0]).toEqual({
+      ruleId: 'SEQ001',
+      title: 'SEQ001 — under test',
+      level: 'high',
+      instanceId: '4242:900',
+      openedAt: 1000,
+      completedAt: 31000,
+      elapsedMs: 30000,
+      evidence: [
+        {
+          step: 'a_read',
+          category: 'file',
+          observedAt: 1000,
+          action: 'file-accessed',
+          path: 'C:\\work\\creds.txt',
+        },
+        {
+          step: 'b_conn',
+          category: 'network',
+          observedAt: 31000,
+          action: 'network-connection',
+        },
+      ],
+    });
+    expect(engine.getStats()).toMatchObject({ opened: 1, completed: 1, openNow: 0 });
+  });
+
+  it('B then A does not fire — the second step cannot open a sequence', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(1000);
+    engine.ingest(netEvent('i1'));
+    at(2000);
+    engine.ingest(fileEvent('i1'));
+
+    expect(detections).toHaveLength(0);
+    expect(engine.getStats()).toMatchObject({ opened: 1, completed: 0, openNow: 1 });
+  });
+
+  it('A X B fires — an event matching no step leaves the sequence exactly where it was', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(1000);
+    engine.ingest(fileEvent('i1'));
+    at(2000);
+    engine.ingest(fileEvent('i1', 'modified')); // X: matches neither step of this rule
+    at(3000);
+    engine.ingest(netEvent('i1'));
+
+    expect(detections).toHaveLength(1);
+    // X is counted nowhere, and it did not slide the window: `openedAt` is still A's.
+    expect(detections[0].openedAt).toBe(1000);
+    expect(engine.getStats()).toMatchObject({ opened: 1, completed: 1, slid: 0 });
+  });
+
+  it('a rule [A, A] needs two events — one event never satisfies two steps', () => {
+    start([rule('SEQ002', [stepA(), stepA()])]);
+
+    at(1000);
+    engine.ingest(fileEvent('i1'));
+    expect(detections).toHaveLength(0);
+
+    at(2000);
+    engine.ingest(fileEvent('i1'));
+    expect(detections).toHaveLength(1);
+    expect(detections[0].evidence.map((e) => e.observedAt)).toEqual([1000, 2000]);
+  });
+
+  it('advance beats open — the second A completes [A, A] instead of opening a new sequence', () => {
+    start([rule('SEQ002', [stepA(), stepA()])]);
+
+    at(1000);
+    engine.ingest(fileEvent('i1'));
+    at(2000);
+    engine.ingest(fileEvent('i1'));
+
+    // opened stays at 1: had `open` won, this would read 2 and the sequence would still be open.
+    expect(engine.getStats()).toMatchObject({ opened: 1, completed: 1, slid: 0, openNow: 0 });
+  });
+
+  it('completion does not re-open on the event that completed it, and a later A opens again', () => {
+    start([rule('SEQ002', [stepA(), stepA()])]);
+
+    at(1000);
+    engine.ingest(fileEvent('i1'));
+    at(2000);
+    engine.ingest(fileEvent('i1'));
+    expect(engine.getStats()).toMatchObject({ opened: 1, openNow: 0 });
+
+    at(3000);
+    engine.ingest(fileEvent('i1'));
+    expect(engine.getStats()).toMatchObject({ opened: 2, completed: 1, openNow: 1 });
+    expect(detections).toHaveLength(1);
+  });
+
+  it('one event is offered to every rule — two rules on the same step 0 both open', () => {
+    start([rule('SEQ001', [stepA(), stepB()]), rule('SEQ003', [stepA(), stepC()])]);
+
+    at(1000);
+    engine.ingest(fileEvent('i1'));
+
+    expect(engine.getStats()).toMatchObject({ opened: 2, openNow: 2 });
+  });
+
+  it('a step matches only its own category — a matcher that accepts everything still does not', () => {
+    // The matcher answers true for any document; the step is `network` and the carrier projects
+    // `['file']`, so the category gate alone decides this case.
+    start([rule('SEQ004', [step('any_net', 'network', () => true), stepC()])]);
+
+    at(1000);
+    engine.ingest(fileEvent('i1'));
+
+    expect(engine.getStats()).toMatchObject({ opened: 0, openNow: 0 });
+  });
+
+  it('a projection with no ECS category matches no step at all', () => {
+    // `permission-deny` is outside the closed audit union, so `normalizeToEcs` emits an `event`
+    // branch with an `action` and NO `category` — the case the module header names.
+    start([rule('SEQ004', [step('any_step', 'file', () => true), stepB()])]);
+
+    at(1000);
+    engine.ingest({ instanceId: 'i1', type: 'permission-deny', timestamp: '2026-08-24T00:00:00Z' });
+
+    expect(engine.getStats()).toMatchObject({ opened: 0, ingestErrors: 0 });
+  });
+});
+
+describe('sequence-engine — the maxspan boundary', () => {
+  it('exactly timespan fires — the boundary is inclusive', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(1000);
+    engine.ingest(fileEvent('i1'));
+    at(1000 + SPAN);
+    engine.ingest(netEvent('i1'));
+
+    expect(detections).toHaveLength(1);
+    expect(detections[0].elapsedMs).toBe(SPAN);
+    expect(engine.getStats()).toMatchObject({ completed: 1, expired: 0 });
+  });
+
+  it('timespan + 1 ms expires, and that same B opens nothing', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(1000);
+    engine.ingest(fileEvent('i1'));
+    at(1000 + SPAN + 1);
+    engine.ingest(netEvent('i1'));
+
+    expect(detections).toHaveLength(0);
+    // `opened` stays 1: B is not step 0, so the discarded state is not replaced by a new one.
+    expect(engine.getStats()).toMatchObject({ opened: 1, expired: 1, completed: 0, openNow: 0 });
+  });
+
+  it('a new A after the expiry opens a fresh sequence, and it completes', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(1000);
+    engine.ingest(fileEvent('i1'));
+    at(1000 + SPAN + 1);
+    engine.ingest(fileEvent('i1')); // expires the first state, then opens on step 0
+    at(1000 + SPAN + 2);
+    engine.ingest(netEvent('i1'));
+
+    expect(detections).toHaveLength(1);
+    expect(detections[0].openedAt).toBe(1000 + SPAN + 1);
+    expect(engine.getStats()).toMatchObject({ opened: 2, expired: 1, completed: 1 });
+  });
+
+  it('a clock that runs backwards clamps the elapsed to 0 — there is no early expiry', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(500000);
+    engine.ingest(fileEvent('i1'));
+    at(400000); // the jump: `observedAt − openedAt` is −100000
+    engine.ingest(netEvent('i1'));
+
+    expect(detections).toHaveLength(1);
+    expect(detections[0].elapsedMs).toBe(0);
+    expect(engine.getStats()).toMatchObject({ expired: 0, completed: 1 });
+  });
+
+  it('sweep removes an idle expired state, and leaves a live one alone', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(1000);
+    engine.ingest(fileEvent('i1'));
+
+    at(1000 + SPAN);
+    engine.sweep();
+    expect(engine.getStats()).toMatchObject({ expired: 0, openNow: 1 });
+
+    at(1000 + SPAN + 1);
+    engine.sweep();
+    expect(engine.getStats()).toMatchObject({ expired: 1, openNow: 0 });
+  });
+
+  it('sweep is a no-op when nothing is open', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(999999);
+    engine.sweep();
+
+    expect(engine.getStats()).toMatchObject({ expired: 0, openNow: 0 });
+  });
+});
+
+describe('sequence-engine — group-by isolation', () => {
+  it('A(i1) A(i2) B(i1) B(i2) gives two detections with separate evidence', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(1000);
+    engine.ingest(fileEvent('i1', 'accessed', 'C:\\one\\creds.txt'));
+    at(2000);
+    engine.ingest(fileEvent('i2', 'accessed', 'C:\\two\\creds.txt'));
+    at(3000);
+    engine.ingest(netEvent('i1'));
+    at(4000);
+    engine.ingest(netEvent('i2'));
+
+    expect(detections.map((d) => d.instanceId)).toEqual(['i1', 'i2']);
+    expect(detections[0].evidence[0].path).toBe('C:\\one\\creds.txt');
+    expect(detections[1].evidence[0].path).toBe('C:\\two\\creds.txt');
+    expect(detections[0].evidence).not.toBe(detections[1].evidence);
+    expect(engine.getStats()).toMatchObject({ opened: 2, completed: 2, openNow: 0 });
+  });
+
+  it('A(i1) then B(i2) fires nothing — the group key is not shared', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(1000);
+    engine.ingest(fileEvent('i1'));
+    at(2000);
+    engine.ingest(netEvent('i2'));
+
+    expect(detections).toHaveLength(0);
+    expect(engine.getStats()).toMatchObject({ opened: 1, openNow: 1 });
+  });
+
+  it('one instance never holds more than one slot per rule, however many step-0 events it sends', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    for (let i = 1; i <= 5; i++) {
+      at(i * 1000);
+      engine.ingest(fileEvent('i1'));
+    }
+
+    // One open, four slides: the fifth A replaced the window rather than adding a slot.
+    expect(engine.getStats()).toMatchObject({ opened: 1, slid: 4, openNow: 1 });
+  });
+
+  it('the key is taken verbatim — two keys differing only in their birth time never merge', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(1000);
+    engine.ingest(fileEvent('4242:900'));
+    at(2000);
+    engine.ingest(netEvent('4242:901'));
+
+    expect(detections).toHaveLength(0);
+    expect(engine.getStats()).toMatchObject({ opened: 1, openNow: 1 });
+  });
+});
+
+describe('sequence-engine — slide and the residual it does not cover', () => {
+  it('slides at stepIndex 1: the window is measured from the LAST step 0, not the first', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(0);
+    engine.ingest(fileEvent('i1', 'accessed', 'C:\\first\\creds.txt'));
+    at(40000);
+    engine.ingest(fileEvent('i1', 'accessed', 'C:\\second\\creds.txt'));
+    at(90000); // 90 s after A₁ — outside its window; 50 s after A₂ — inside
+    engine.ingest(netEvent('i1'));
+
+    expect(detections).toHaveLength(1);
+    expect(detections[0].openedAt).toBe(40000);
+    // evidence[0] was REPLACED, not appended to: the slide widens the window at no memory cost.
+    expect(detections[0].evidence).toHaveLength(2);
+    expect(detections[0].evidence[0].path).toBe('C:\\second\\creds.txt');
+    expect(engine.getStats()).toMatchObject({ opened: 1, slid: 1, expired: 0, completed: 1 });
+  });
+
+  it('A₁ A₂ B C fires on a three-step rule — the slide repairs exactly this shape', () => {
+    // Roadmap §2 names `A₁ … A₂ … B … C, A₁'s window expired` as the residual miss. It is not
+    // one: A₂ arrives at stepIndex 1 and SLIDES, so A₁'s expiry stops mattering. Pinned here as
+    // the behaviour the code actually has (ai-mistakes #27 — write the guarantee, not the
+    // impression); the real residual is the next case.
+    start([rule('SEQ003', [stepA(), stepB(), stepC()])]);
+
+    at(0);
+    engine.ingest(fileEvent('i1'));
+    at(50000);
+    engine.ingest(fileEvent('i1'));
+    at(70000);
+    engine.ingest(netEvent('i1'));
+    at(90000); // 90 s after A₁, 40 s after A₂
+    engine.ingest(fileEvent('i1', 'modified'));
+
+    expect(detections).toHaveLength(1);
+    expect(detections[0].openedAt).toBe(50000);
+    expect(engine.getStats()).toMatchObject({ slid: 1, retriggerIgnored: 0, completed: 1 });
+  });
+
+  it('the residual: at stepIndex ≥ 2 a repeated step 0 is ignored, and A₂ B₂ C is lost', () => {
+    // `A₁ B₁ A₂ B₂ C` — A₂ arrives with the sequence already past step 1, so it cannot widen the
+    // window; B₂ matches neither the wanted step nor step 0 and is dropped with no counter (no
+    // STATE was dropped, which is what the invariant covers). C then finds an expired state.
+    // A declared v1 bound, not a defect: the fix is a second open slot per (rule, key).
+    start([rule('SEQ003', [stepA(), stepB(), stepC()])]);
+
+    at(0);
+    engine.ingest(fileEvent('i1'));
+    at(10000);
+    engine.ingest(netEvent('i1'));
+    at(20000);
+    engine.ingest(fileEvent('i1')); // A₂ — ignored at stepIndex 2
+    at(30000);
+    engine.ingest(netEvent('i1')); // B₂ — matches no step in this position
+    at(70000); // inside A₂'s window, outside A₁'s
+    engine.ingest(fileEvent('i1', 'modified'));
+
+    expect(detections).toHaveLength(0);
+    expect(engine.getStats()).toMatchObject({
+      opened: 1,
+      slid: 0,
+      retriggerIgnored: 1,
+      expired: 1,
+      completed: 0,
+      openNow: 0,
+    });
+  });
+});
+
+describe('sequence-engine — refusals, reset and stats', () => {
+  it('a null instanceId is counted and skipped, and never opens or advances', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(1000);
+    engine.ingest(fileEvent(null));
+    at(2000);
+    engine.ingest(fileEvent('i1'));
+    at(3000);
+    engine.ingest(netEvent(null)); // would have completed, had the key been read from anywhere
+
+    expect(detections).toHaveLength(0);
+    expect(engine.getStats()).toMatchObject({
+      skippedNullInstanceId: 2,
+      opened: 1,
+      completed: 0,
+      openNow: 1,
+    });
+  });
+
+  it('a carrier with no instanceId field at all falls under the same policy', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(1000);
+    engine.ingest({ file: 'C:\\work\\creds.txt', action: 'accessed', timestamp: 1 });
+
+    expect(engine.getStats()).toMatchObject({ skippedNullInstanceId: 1, ingestErrors: 0 });
+  });
+
+  it('an unrecognised carrier counts an ingest error, warns once, and throws nothing', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(1000);
+    expect(() => engine.ingest({ instanceId: 'i1', somethingElse: true })).not.toThrow();
+
+    expect(engine.getStats()).toMatchObject({ ingestErrors: 1, opened: 0 });
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toBe('sequence-engine');
+    expect(warnSpy.mock.calls[0][1]).toContain('unrecognised event shape');
+    expect(warnSpy.mock.calls[0][2]).toMatchObject({ reason: 'ingest-error' });
+  });
+
+  it('a non-object carrier is refused the same way, one step before the normalizer', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(1000);
+    expect(() => engine.ingest(null)).not.toThrow();
+    expect(() => engine.ingest('not an event')).not.toThrow();
+
+    expect(engine.getStats()).toMatchObject({ ingestErrors: 2, skippedNullInstanceId: 0 });
+    expect(warnSpy.mock.calls[0][1]).toContain('expected an event object');
+  });
+
+  it('the ingest warn is rate limited on the injected clock while the counter stays exact', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    at(1000);
+    engine.ingest({ instanceId: 'i1', somethingElse: true });
+    at(1000 + 59999);
+    engine.ingest({ instanceId: 'i1', somethingElse: true });
+    expect(engine.getStats()).toMatchObject({ ingestErrors: 2 });
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+
+    at(1000 + 60000);
+    engine.ingest({ instanceId: 'i1', somethingElse: true });
+    expect(engine.getStats()).toMatchObject({ ingestErrors: 3 });
+    expect(warnSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('reset discards every open sequence, counts them, and keeps the other counters', () => {
+    start([rule('SEQ001', [stepA(), stepB()]), rule('SEQ003', [stepA(), stepC()])]);
+
+    at(1000);
+    engine.ingest(fileEvent('i1'));
+    at(2000);
+    engine.ingest(fileEvent('i2'));
+    expect(engine.getStats()).toMatchObject({ opened: 4, openNow: 4 });
+
+    engine.reset('rules-reloaded');
+
+    expect(engine.getStats()).toMatchObject({ reloadDiscarded: 4, openNow: 0, opened: 4 });
+    expect(infoSpy).toHaveBeenCalledTimes(1);
+    expect(infoSpy.mock.calls[0][2]).toMatchObject({ reason: 'rules-reloaded', discarded: 4 });
+  });
+
+  it('a reset with nothing open counts nothing and logs nothing', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    engine.reset('rules-reloaded');
+
+    expect(engine.getStats()).toMatchObject({ reloadDiscarded: 0 });
+    expect(infoSpy).not.toHaveBeenCalled();
+  });
+
+  it('with no rules loaded ingest returns before every other check', () => {
+    engine.init({ rules: [], onDetection: (d) => detections.push(d), now });
+
+    at(1000);
+    engine.ingest(fileEvent(null));
+    engine.ingest({ instanceId: 'i1', somethingElse: true });
+
+    // Both counters stay 0: an engine with no ruleset does not project, does not count and does
+    // not warn — the length check is the whole cost per event.
+    expect(engine.getStats()).toMatchObject({ skippedNullInstanceId: 0, ingestErrors: 0 });
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('init with no argument yields an engine with no rules and zeroed counters', () => {
+    engine.init();
+
+    expect(engine.getStats()).toEqual({
+      opened: 0,
+      completed: 0,
+      expired: 0,
+      slid: 0,
+      retriggerIgnored: 0,
+      reloadDiscarded: 0,
+      ingestErrors: 0,
+      skippedNullInstanceId: 0,
+      openNow: 0,
+    });
+  });
+
+  it('a completion with no onDetection installed still counts and still deletes the state', () => {
+    engine.init({ rules: [rule('SEQ001', [stepA(), stepB()])], now });
+
+    at(1000);
+    engine.ingest(fileEvent('i1'));
+    at(2000);
+    engine.ingest(netEvent('i1'));
+
+    expect(engine.getStats()).toMatchObject({ completed: 1, openNow: 0 });
+  });
+
+  it('re-init zeroes the counters and drops the state without counting a reload', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+    at(1000);
+    engine.ingest(fileEvent('i1'));
+
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    expect(engine.getStats()).toMatchObject({ opened: 0, openNow: 0, reloadDiscarded: 0 });
+  });
+
+  it('getStats hands out a fresh object — a caller cannot move a counter', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+    at(1000);
+    engine.ingest(fileEvent('i1'));
+
+    const snapshot = engine.getStats();
+    snapshot.opened = 99;
+
+    expect(engine.getStats().opened).toBe(1);
+  });
+
+  it('evidence omits what the projection does not carry, rather than writing it as null', () => {
+    // `renamed` is outside the closed `FileAction` union, so the projection keeps the `file`
+    // category and invents no `event.action` — the absence-is-absence convention, end to end.
+    start([rule('SEQ004', [step('any_file', 'file', () => true), stepB()])]);
+
+    at(1000);
+    engine.ingest(fileEvent('i1', 'renamed'));
+    at(2000);
+    engine.ingest(netEvent('i1'));
+
+    expect(detections[0].evidence[0]).toEqual({
+      step: 'any_file',
+      category: 'file',
+      observedAt: 1000,
+      path: 'C:\\work\\creds.txt',
+    });
+  });
+
+  it('an evidence path is truncated to 256 characters', () => {
+    start([rule('SEQ001', [stepA(), stepB()])]);
+
+    const longPath = `C:\\work\\${'d'.repeat(400)}\\creds.txt`;
+    at(1000);
+    engine.ingest(fileEvent('i1', 'accessed', longPath));
+    at(2000);
+    engine.ingest(netEvent('i1'));
+
+    expect(detections[0].evidence[0].path).toHaveLength(256);
+    expect(detections[0].evidence[0].path).toBe(longPath.slice(0, 256));
+  });
+});
+
+describe('sequence-engine — against a loader-compiled rule', () => {
+  const SOURCE = [
+    'title: Credential file read',
+    'name: cred_file_read',
+    'logsource:',
+    '  product: aegis',
+    '  category: file',
+    'detection:',
+    '  selection:',
+    '    event.action: file-accessed',
+    '    file.path|contains: creds',
+    '  condition: selection',
+    '---',
+    'title: Outbound connection',
+    'name: outbound_conn',
+    'logsource:',
+    '  product: aegis',
+    '  category: network',
+    'detection:',
+    '  selection:',
+    '    destination.port: 443',
+    '  condition: selection',
+    '---',
+    'title: Credential read followed by an outbound connection',
+    'id: SEQ001',
+    'level: high',
+    'correlation:',
+    '  type: temporal_ordered',
+    '  rules:',
+    '    - cred_file_read',
+    '    - outbound_conn',
+    '  group-by:',
+    '    - process.entity_id',
+    '  timespan: 5m',
+  ].join('\n');
+
+  it('consumes the shape the loader produces, matchers and timespanMs included', () => {
+    const loaded = loader.loadFromString(SOURCE, 'engine-parity.yaml');
+    expect(loaded.loadErrors).toBe(0);
+    start(loaded.rules);
+
+    at(1000);
+    engine.ingest(fileEvent('i1', 'accessed', 'C:\\work\\creds.txt'));
+    at(1000 + 5 * 60 * 1000); // exactly the compiled timespan
+    engine.ingest(netEvent('i1'));
+
+    expect(detections).toHaveLength(1);
+    expect(detections[0]).toMatchObject({
+      ruleId: 'SEQ001',
+      level: 'high',
+      title: 'Credential read followed by an outbound connection',
+      elapsedMs: 5 * 60 * 1000,
+    });
+    expect(detections[0].evidence.map((e) => e.step)).toEqual(['cred_file_read', 'outbound_conn']);
+  });
+
+  it('a path the compiled selection does not match opens nothing', () => {
+    const loaded = loader.loadFromString(SOURCE, 'engine-parity.yaml');
+    start(loaded.rules);
+
+    at(1000);
+    engine.ingest(fileEvent('i1', 'accessed', 'C:\\work\\notes.txt'));
+
+    expect(engine.getStats()).toMatchObject({ opened: 0 });
+  });
+});
