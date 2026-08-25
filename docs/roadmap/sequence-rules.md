@@ -4,11 +4,15 @@
 `tests/main/sequence-rule-loader.test.js`, `tests/fixtures/sequences/`,
 `rules/sequences/sequences.yaml` (1 sequence correlation rule, SEQ001, in 1 sequence rule file),
 `tests/main/sequence-rules-parity.test.js` and the `sequences.*` counters in `scripts/counts.js`
-now exist and are green. No engine, gate or wiring named in §2–§7 exists yet, so every file path
-below other than Block 1's is still a target, not a claim. **Block 1 — LANDED. Block 2 — NOT
-STARTED. Block 3 — NOT STARTED.** When a block lands, refresh this header in the same PR (the lag
-the `sensor-health-degraded.md` correction records is what a stale status line costs).
-**Branch context:** master @ `0611614`; every `file:line` reference below was verified against that
+now exist and are green, and so do `src/main/sequence-engine.js` and
+`tests/main/sequence-engine.test.js` — the §2 state machine with no production caller. No gate
+and no wiring named in §3, §5–§7 exists yet, and neither do the caps, the `agent-exit` cleanup or
+the per-rule counters §3 specifies, so every file path below other than Block 1's and the engine
+module is still a target, not a claim. **Block 1 — LANDED. Block 2 — ENGINE CORE LANDED (§7 prompt
+1); caps, exit cleanup and the mutation gate still to come (prompts 2–3). Block 3 — NOT
+STARTED.** When a block lands, refresh this header in the same PR (the lag the
+`sensor-health-degraded.md` correction records is what a stale status line costs).
+**Branch context:** master @ `2e9e37f`; every `file:line` reference below was verified against that
 commit on 2026-08-24. Line numbers drift with every edit to the file — treat them as the place to
 start reading, and re-verify before an edit that depends on one.
 **Date:** 2026-08-24

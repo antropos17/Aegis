@@ -63,7 +63,7 @@ coverage thresholds are configured in `vitest.config.js`, so coverage cannot fai
 
 ## Code conventions
 
-- 300 lines/file is a target for NEW files, not an invariant — 32 existing src files already exceed it (`npm run counts:check` prints the current largest src and test files). Don't split an existing file just to hit the number; do extract when adding to one that's already over
+- 300 lines/file is a target for NEW files, not an invariant — 33 existing src files already exceed it (`npm run counts:check` prints the current largest src and test files). Don't split an existing file just to hit the number; do extract when adding to one that's already over
 - **Main process:** CommonJS (`require`/`module.exports`). Never use `import` in `src/main/`.
 - **Renderer:** ES modules (`import`/`export`). Never use `require()` in `src/renderer/`.
 - **Svelte 5 runes:** `$state`, `$derived`, `$effect`, `$props`. No legacy `let` reactivity.
