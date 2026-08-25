@@ -1385,3 +1385,135 @@ describe('sequence-engine — against a loader-compiled rule', () => {
     expect(engine.getStats()).toMatchObject({ opened: 0 });
   });
 });
+
+describe('sequence-engine — scoreFor, the score the alert path merges (roadmap §5)', () => {
+  /** The hold after the LAST detection on an instance — ten minutes on the injected clock. */
+  const HOLD = 10 * 60 * 1000;
+
+  /**
+   * SEQ001 at the given level. The level lives on the RULE, so a score per level needs a
+   * ruleset per level.
+   * @param {string} level
+   * @returns {Record<string, unknown>}
+   */
+  const levelled = (level) => ({ ...rule('SEQ001', [stepA(), stepB()]), level });
+
+  /**
+   * Completes SEQ001 for `key`: step A at `t`, step B one second later.
+   * @param {string} key
+   * @param {number} t
+   * @returns {void}
+   */
+  function complete(key, t) {
+    at(t);
+    engine.ingest(fileEvent(key));
+    at(t + 1000);
+    engine.ingest(netEvent(key));
+  }
+
+  it('maps the level of the last detection: critical 90, high 70, medium 55, low 30', () => {
+    for (const [level, score] of [
+      ['critical', 90],
+      ['high', 70],
+      ['medium', 55],
+      ['low', 30],
+    ]) {
+      start([levelled(/** @type {string} */ (level))]);
+      complete('i1', 1000);
+      expect(detections).toHaveLength(1);
+      expect(engine.scoreFor('i1'), `level ${level}`).toBe(score);
+      detections = [];
+    }
+  });
+
+  it('an instance with no detection scores 0, and so does an informational one', () => {
+    start([levelled('informational')]);
+    expect(engine.scoreFor('i1')).toBe(0);
+
+    complete('i1', 1000);
+
+    expect(detections).toHaveLength(1);
+    expect(engine.scoreFor('i1')).toBe(0);
+    expect(engine.scoreFor('never-seen')).toBe(0);
+  });
+
+  it('is keyed by instance — a detection on i1 leaves i2 at 0', () => {
+    start([levelled('high')]);
+    complete('i1', 1000);
+
+    expect(engine.scoreFor('i1')).toBe(70);
+    expect(engine.scoreFor('i2')).toBe(0);
+  });
+
+  it('holds the score to the ten-minute boundary inclusive and drops it one ms past', () => {
+    start([levelled('high')]);
+    complete('i1', 1000); // the detection lands at 2000
+
+    at(2000 + HOLD);
+    expect(engine.scoreFor('i1')).toBe(70);
+    at(2000 + HOLD + 1);
+    expect(engine.scoreFor('i1')).toBe(0);
+    // Gone, not merely hidden: the clock does not run backwards, but a reading that
+    // returns 0 must stay 0 on the next call at the same instant.
+    expect(engine.scoreFor('i1')).toBe(0);
+  });
+
+  it('a later detection re-arms the hold, and its level replaces the earlier one', () => {
+    start([
+      { ...rule('SEQ001', [stepA(), stepB()]), level: 'critical' },
+      { ...rule('SEQ003', [stepA(), stepC()]), level: 'low' },
+    ]);
+    // A at 1000 opens both; B at 2000 completes SEQ001 (critical).
+    complete('i1', 1000);
+    expect(engine.scoreFor('i1')).toBe(90);
+    // C at 5000 completes SEQ003 (low): the LAST detection decides the level and the hold.
+    at(5000);
+    engine.ingest(fileEvent('i1', 'modified'));
+    expect(detections).toHaveLength(2);
+    expect(engine.scoreFor('i1')).toBe(30);
+
+    at(2000 + HOLD + 1); // past the first detection's hold, inside the second's
+    expect(engine.scoreFor('i1')).toBe(30);
+    at(5000 + HOLD + 1);
+    expect(engine.scoreFor('i1')).toBe(0);
+  });
+
+  it('survives a reset — a reload changes the rules, not what an instance did', () => {
+    start([levelled('high')]);
+    complete('i1', 1000);
+
+    engine.reset('rules-reloaded');
+
+    expect(engine.scoreFor('i1')).toBe(70);
+  });
+
+  it('a fresh init starts with no scores', () => {
+    start([levelled('high')]);
+    complete('i1', 1000);
+    expect(engine.scoreFor('i1')).toBe(70);
+
+    start([levelled('high')]);
+
+    expect(engine.scoreFor('i1')).toBe(0);
+  });
+
+  it('a sweep past the hold drops the entry, so the score is 0 without a later read', () => {
+    start([levelled('high')]);
+    complete('i1', 1000);
+
+    at(2000 + HOLD + 1);
+    engine.sweep();
+    at(2000); // even a clock that jumped back finds nothing to score
+    expect(engine.scoreFor('i1')).toBe(0);
+  });
+
+  it('a non-string key scores 0 and moves no counter', () => {
+    start([levelled('high')]);
+    complete('i1', 1000);
+    const before = engine.getStats();
+
+    expect(engine.scoreFor(null)).toBe(0);
+    expect(engine.scoreFor(undefined)).toBe(0);
+    expect(engine.getStats()).toEqual(before);
+  });
+});

@@ -70,7 +70,7 @@ regenerating a lockfile.
 ## Critical Rules
 1. Read memory-bank/ai-mistakes.md before ANY code change
 2. Do ONLY what the prompt says — no extra features, no unrequested changes
-3. Main = CJS (require). Renderer = ESM (import). 300 lines/file is a target for NEW files, not an invariant — 33 existing src code files already exceed it (`git ls-files -z src | xargs -0 wc -l`, `.json` excluded; `npm run counts:check` prints the current largest src and test files). Don't split an existing file just to hit the number; do extract when adding to one that's already over
+3. Main = CJS (require). Renderer = ESM (import). 300 lines/file is a target for NEW files, not an invariant — 35 existing src code files already exceed it (`git ls-files -z src | xargs -0 wc -l`, `.json` excluded; `npm run counts:check` prints the current largest src and test files). Don't split an existing file just to hit the number; do extract when adding to one that's already over
 4. CSS: var() from tokens.css ONLY. Svelte 5 runes only ($state/$derived/$effect)
 5. Svelte MCP autofixer on all .svelte files. JSDoc on all exports
 6. Conventional commits. NEVER add "Co-Authored-By" or "Generated with Claude Code"

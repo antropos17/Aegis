@@ -136,6 +136,20 @@ function ingestSequence(carrier) {
   if (engine && typeof engine.ingest === 'function') engine.ingest(carrier);
 }
 
+/**
+ * The score the sequence engine still holds for one instance (roadmap §5 "Visibility"),
+ * or 0 with no engine or an engine without `scoreFor` — the same optional-collaborator
+ * shape as {@link ingestSequence}, so a test that stubs only the taps sees the anomaly
+ * scores exactly as the detector gave them.
+ * @param {string} instanceId
+ * @returns {number}
+ * @since v0.14.0
+ */
+function sequenceScoreFor(instanceId) {
+  const engine = deps.sequenceEngine;
+  return engine && typeof engine.scoreFor === 'function' ? engine.scoreFor(instanceId) : 0;
+}
+
 function stopScanIntervals() {
   for (const t of startupTimers) clearTimeout(t);
   startupTimers = [];
@@ -535,10 +549,22 @@ async function doProcessScan() {
     //
     // An agent with no key scores 0 and still gets its name entry, exactly as an agent
     // with no baseline always did — the name map's key set is unchanged.
+    //
+    // A completed sequence (roadmap §5 "Visibility") reaches the renderer on THIS value:
+    // the engine's `scoreFor(instanceId)` — 90/70/55/30 by level, held ten minutes after
+    // the last detection — is merged as max, so the existing toast threshold (50) and the
+    // risk store pick it up by instanceId with no channel of their own. Max, not sum: the
+    // two scores are two claims about the same instance, and the louder one is the one
+    // on screen.
     const scores = {};
     const scoresByInstance = {};
     for (const a of agents) {
-      const score = a.instanceId ? anomaly.calculateAnomalyScore(a.instanceId).score : 0;
+      const score = a.instanceId
+        ? Math.max(
+            anomaly.calculateAnomalyScore(a.instanceId).score,
+            sequenceScoreFor(a.instanceId),
+          )
+        : 0;
       if (a.instanceId) scoresByInstance[a.instanceId] = score;
       scores[a.agent] = Math.max(scores[a.agent] || 0, score);
     }

@@ -308,6 +308,32 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     is the isolated command, and either of those is a different signal from this one. This
     note RECORDS the flake and nothing more: the test, its timeouts and the vitest config
     are untouched, and no green here is a claim about them (cf. #21).
+    **Corrected 2026-08-24 in #317 — it was not machine cost, it was one measurable
+    thing and it is gone.** The gap between `spawn()` and the child's `'spawn'` event is
+    Windows scanning a freshly written PE in full the first time it is EXECUTED, and
+    `copy-binary` had just written an ~86 MB copy of `node.exe` for `hold-secret-file` to
+    launch. Measured isolated on the affected machine: a fresh 86 MB copy took 3812 ms to
+    reach `'spawn'`, the SECOND launch of that same copy 8 ms, a second fresh 86 MB copy
+    3754 ms, and a fresh copy of a 45–455 KB system binary 86–123 ms — the cost is per new
+    file and roughly proportional to its size, never per launch. The case's own phases,
+    five cold runs and five under a parallel `typecheck:svelte`: `copy-binary` 156–193 ms,
+    `seed-secret-file` 3–8 ms, `hold-secret-file` 3472–3962 ms, the cleanup kill 1–2 ms,
+    the `afterEach` removal 15–25 ms with its retry loop never once spinning — 3664–4159 ms
+    of a 5000 ms budget on an IDLE machine. The paragraph above reads the remainder as "a
+    cold whole-suite run is exactly what eats the ~1.8 s that is left"; there was no ~1.8 s
+    left to eat, and 2.9–3.2 s was the low end of that range, not its centre.
+    **The fix is the test's staging source, and no production code.** Nothing the file
+    asserts needs an interpreter — every assertion is about the argv the actor built and
+    the catalogue row it wrote, and no case runs the child, because `execute()` kills what
+    it spawned in its `finally` before a hold script could open anything — so `STAGE_STEP`
+    copies a small system executable (`ping.exe` on win32, the same source
+    `bench/scenarios/S1-agent-lifecycle` already stages; `/bin/true` elsewhere) and falls
+    back to `process.execPath` where no candidate exists. `bench/lib/actor.js`,
+    `vitest.config.js` and every timeout are untouched: raising the budget was the
+    fallback and it was not needed. After: the case is 87–120 ms (10/10 green — 5 cold,
+    5 loaded), the whole file 142–216 ms of test time against ~4.3 s before, and 365 ms
+    inside a full `test:coverage` run. **"Rerun first" is retired for this case** — a red
+    here is a signal again, and per #21 that is a claim about this case only.
 
 38. **A test that builds its input by regex-replacing `\n` over a fixture read from disk is red
     on a Windows checkout and green on Linux CI, and two sessions in a row called it "known local

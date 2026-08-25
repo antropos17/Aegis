@@ -82,6 +82,7 @@ ECS document reads as a measured null. Empty containers are omitted too — ther
 | audit `agent-enter` | `event` | `[process]` | `[start]` | `agent-enter` |
 | audit `agent-exit` | `event` | `[process]` | `[end]` | `agent-exit` |
 | audit `anomaly-alert` | `alert` | `[intrusion_detection]` | `[info]` | `anomaly-alert` |
+| audit `sequence-detection` | `alert` | `[intrusion_detection]` | `[info]` | `sequence-detection` |
 | audit `permission-deny`, `buffer-overflow-drop`, any unknown type | `event` | *omitted* | *omitted* | the `type` string |
 | `FileEvent` with an action outside the closed union | `event` | `[file]` | *omitted* | *omitted* |
 
