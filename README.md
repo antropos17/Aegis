@@ -212,7 +212,7 @@ Use it to evaluate AEGIS before deploying, demo the UI to your team, or develop 
   them in the UI is on the roadmap.
 ```
 
-**Stack**: Electron 33, Svelte 5, Vite 7, Vitest. The monitoring engine is JavaScript (CommonJS); TypeScript is used in the renderer and the shared types. CI gates every merge with build, lint, svelte-check, test and audit jobs; `npm run counts:check` re-derives every documented counter from the tree, and `npm run verify:gate` proves the identity witness against injected mutants.
+**Stack**: Electron 33, Svelte 5, Vite 7, Vitest. The monitoring engine is JavaScript (CommonJS); TypeScript is used in the renderer and the shared types. CI gates every merge with build, lint, svelte-check, test and audit jobs; `npm run counts:check` re-derives every documented counter from the tree, `npm run verify:gate` proves the identity witness against injected mutants, and `npm run verify:seq-gate` proves the sequence engine against injected mutants.
 
 ## Agent database
 
