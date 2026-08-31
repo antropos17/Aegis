@@ -109,8 +109,11 @@ npm start
 Don't have AI agents running? Demo mode lets you explore the full dashboard with simulated data — no real monitoring, no real processes.
 
 ```bash
-npm run build:demo && npm start
+npm run dev
+# then open http://localhost:5174
 ```
+
+The dev server carries the demo scenario engine — `vite.config.js` enables it whenever the command is `serve`, so the simulated dashboard renders without a separate build step and without Electron. For a static, shareable build (no dev server, no Electron), run `npm run build:demo` and serve the resulting `dist/demo` directory with any static file server (the build uses relative asset paths, so any host works).
 
 Demo mode runs a scenario engine that cycles through four threat phases — **calm → elevated → critical → reset** — with up to 12 simulated AI agents (Claude Code, Copilot, Cursor, and more). File access events, network connections, anomaly scores, and risk assessments are all generated in real time so every tab and feature is fully functional.
 
