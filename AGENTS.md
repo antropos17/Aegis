@@ -78,7 +78,7 @@ coverage thresholds are configured in `vitest.config.js`, so coverage cannot fai
 - **Conventional commits:** `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `style:`, `test:`
 - **Feature branches, always:** `feat/*` | `fix/*` | `chore/*` | `docs/*` → push → PR. One PR = one logical task.
 - **Merge commits only.** Squash and rebase are disabled on the repository, so `gh pr merge <n> --merge --delete-branch` is the only available method and every merge lands as a two-parent commit. Squash the noisy commits on your own branch *before* opening the PR — the merge will not do it for you.
-- **Direct commits to master are impossible, not merely discouraged.** `master` requires a pull request plus green `audit` / `build` / `lint` / `svelte-check` / `test`, with admin enforcement on, so a local commit on master cannot be pushed at all. `.claude/hooks/branch-guard.js` refuses edits on master before you reach that point.
+- **Direct commits to master are impossible, not merely discouraged.** `master` requires a pull request plus green `audit` / `build` / `lint` / `svelte-check` / `test`, with admin enforcement on, so a local commit on master cannot be pushed at all. `.codex/hooks/branch-guard.js` refuses edits on master before you reach that point.
 - **No Co-Authored-By lines.** No "Generated with" attribution in commits or PRs.
 
 ## What NOT to do
