@@ -1,0 +1,18 @@
+version: 2
+# Dependency updates for the npm tree at the repo root. Minor and patch updates
+# are grouped into a single weekly PR so a normal week produces one review
+# rather than one per package; major updates stay as separate PRs. Any lockfile
+# Dependabot rewrites goes through the same `npm ci` gate (Node per `engines`) as
+# every other PR, and master requires the five status contexts
+# (`build`, `lint`, `svelte-check`, `test`, `audit`) before merge, so nothing
+# lands unreviewed. See Aegis issue #268 for the rationale.
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch
