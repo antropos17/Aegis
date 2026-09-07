@@ -716,3 +716,18 @@ of the launch directory. Local verification: 45 existing export/IPC tests passed
 `format:check` and `build:renderer` passed, and lint reported zero errors (32 warnings).
 The native Windows dialog and a packaged installer were not exercised in this session.
 Audit-index blocks 1–2 remain complete; no further product task has been selected.
+
+## Release 0.14 preparation — PR queue and changelog (2026-09-07)
+
+PRs #340 and #341 merged the audit-format and demo-command corrections after updating
+each branch and passing all five required CI contexts. Superseded PR #339 and issue #281
+are closed. PR #338 added weekly Dependabot updates with minor/patch grouping; its five
+contexts passed and issue #268 closed. Master after these merges is `1ee871d`.
+
+The release notes now select release-please's built-in `github` changelog builder to
+avoid counting both a conventional commit and its merge commit. A generate-notes preview
+from `aegis-v0.13.0-alpha` to `1ee871d` produced 60 PR entries with 60 distinct PR numbers.
+The config validates against the v17.6.0 schema; local formatting, lint (zero errors,
+32 existing warnings) and renderer build passed. The notes now include maintenance and
+test PRs, and old released changelog sections stay intact. See RELEASE-VERIFICATION.md.
+This preparation does not authorize merging release PR #287 or publishing a tag.

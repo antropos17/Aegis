@@ -127,6 +127,23 @@ that was renamed on upload *and* altered afterwards shows up as exactly that pai
 In every one of those cases, do not run the installer. Re-download from the Release page
 and check again; if it still fails, open an issue with the output.
 
+## Release notes
+
+`release-please-config.json` uses `changelog-type: github`: GitHub generates the
+notes from merged pull requests between release tags. The default commit-based
+builder listed both a feature commit and its conventional merge commit, producing
+duplicate entries with this repository's merge-only workflow.
+
+New release sections use GitHub's PR list, contributor credits and comparison link.
+They include maintenance and test PRs too; the former commit-type sections and hidden
+types no longer apply. Existing released sections of `CHANGELOG.md` are preserved.
+Conventional commits still determine the version bump. Review the generated notes
+on the final release PR head before approving CI or publishing.
+
+This is the built-in
+[GitHub changelog builder](https://github.com/googleapis/release-please/blob/v17.6.0/docs/customizing.md#changelog-types),
+not a custom post-processing step.
+
 ## How the signature is produced
 
 `.github/workflows/release-build.yml` runs on every published Release and on the
