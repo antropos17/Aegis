@@ -1052,3 +1052,30 @@ detector; no matching agents were found. Evidence is in X:/tmp/aegis-wsl-recover
 No renderer, IPC contract, dependency, system setting or installed-app change was
 made. This addresses reliability in the existing WSL part of issue #8; Docker,
 Podman and multi-distribution coverage remain open. No release was published.
+
+## Session handoff — reject incomplete audit exports (2026-09-07)
+
+The core bug/performance audit is recorded outside Git at
+`X:/tmp/aegis-core-audit-20260907/audit.md`. The user's subsequent "что дальше"
+continues with its first correctness fix on `codex/audit-export-completeness`.
+`audit.exportAll()` now throws if a journal file cannot be read, a nonblank line
+contains invalid JSON, or the initial flush leaves buffered events or a pending
+loss marker. Both existing JSON and ZIP handlers return failure before offering
+a destination or writing an incomplete export. Error text excludes source paths
+and JSON contents. Valid legacy records and persisted loss markers remain raw;
+paginated history still tolerates malformed lines. Export remains synchronous.
+
+Six failure cases went red before the fix and passed afterward. Added coverage
+also checks recovery, marker-only flush failure, unchanged source bytes and both
+IPC error responses. The full suite passed with 2,696 tests and four skips across
+151 files. An isolated Node harness used the real audit logger and IPC handlers
+with a simulated EACCES on the second of two journal files: both exports failed,
+no save dialog opened, and an existing destination remained unchanged. Restoring
+the read allowed both records to export. Evidence is under
+`X:/tmp/aegis-export-fix-cTZqpq`, outside Git.
+
+Next core tasks from the audit: preserve last-observed WSL agents through an
+inconclusive refresh with explicit freshness, evaluate one fresh Windows process
+snapshot per pass, then move full-export preparation off the main event loop.
+The frontend remains user-owned separate work; no renderer, dependency, system
+setting, installed-app or release change is included here.

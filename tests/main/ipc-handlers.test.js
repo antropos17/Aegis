@@ -199,6 +199,28 @@ describe('ipc-handlers', () => {
     return handlers[channel];
   }
 
+  it.each(['export-full-audit', 'export-zip'])(
+    '%s reports incomplete history without offering or writing a partial file',
+    async (channel) => {
+      ipcHandlers.init({ getWindow: () => null });
+      ipcHandlers.register();
+      mockElectron.dialog.showSaveDialog.mockClear();
+      const write = vi.spyOn(fs, 'writeFileSync');
+      const message =
+        'Audit export incomplete: a log file could not be read or contains invalid JSON.';
+      mockAudit.exportAll.mockImplementationOnce(() => {
+        throw new Error(message);
+      });
+      try {
+        expect(await getHandler(channel)()).toEqual({ success: false, error: message });
+        expect(mockElectron.dialog.showSaveDialog).not.toHaveBeenCalled();
+        expect(write).not.toHaveBeenCalled();
+      } finally {
+        write.mockRestore();
+      }
+    },
+  );
+
   it('update operations only accept the owned main frame and never forward caller parameters', () => {
     const frame = {};
     const window = { isDestroyed: () => false, webContents: { mainFrame: frame } };
