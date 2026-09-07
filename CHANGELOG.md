@@ -4,6 +4,78 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 0.14.0-alpha (2026-09-07)
+
+## What's Changed
+* docs: link release verification from README, unpin progress.md Status by @antropos17 in https://github.com/antropos17/Aegis/pull/286
+* docs: fix manifest scope, supported versions, and non-goal wording by @antropos17 in https://github.com/antropos17/Aegis/pull/288
+* chore: remove deprecated SENSITIVE_RULES from constants.js by @antropos17 in https://github.com/antropos17/Aegis/pull/289
+* docs: purge cut approaches from roadmap and blind-spot table by @antropos17 in https://github.com/antropos17/Aegis/pull/290
+* chore: drop the dead sensitive-rule count from consistency-reviewer by @antropos17 in https://github.com/antropos17/Aegis/pull/291
+* chore: drop the dangling SENSITIVE_RULES reference from rule-loader's header by @antropos17 in https://github.com/antropos17/Aegis/pull/292
+* docs(memory-bank): record the 0.13.0-alpha release and the release-PR approval rule by @antropos17 in https://github.com/antropos17/Aegis/pull/293
+* feat(shared): project internal events onto an ECS view at the boundary by @antropos17 in https://github.com/antropos17/Aegis/pull/294
+* feat(health): sensor health for the secondary detectors, DEGRADED for an unread process table by @antropos17 in https://github.com/antropos17/Aegis/pull/295
+* docs: record the actor-secret-hold flake and name the ETW sidecar by @antropos17 in https://github.com/antropos17/Aegis/pull/296
+* feat(bench): B2.5 — confirm the catalogue against the oracle, then score the sensor by @antropos17 in https://github.com/antropos17/Aegis/pull/297
+* fix(bench): close the three B2.5 findings, and correct one of them by @antropos17 in https://github.com/antropos17/Aegis/pull/302
+* docs(memory-bank): record the ECS/health/B2.5 sessions and the corrected finding by @antropos17 in https://github.com/antropos17/Aegis/pull/303
+* fix(tooling): point coverage include at toast.ts, not toast.js by @MsfPablo in https://github.com/antropos17/Aegis/pull/298
+* fix(renderer): route SummaryCards labels through i18n by @MsfPablo in https://github.com/antropos17/Aegis/pull/301
+* docs: align the Node.js requirement with engines in package.json by @MsfPablo in https://github.com/antropos17/Aegis/pull/299
+* docs: name a branch prefix and issue labels that exist by @MsfPablo in https://github.com/antropos17/Aegis/pull/300
+* docs: record the sequence-rules plan as a roadmap document and log session #2 by @antropos17 in https://github.com/antropos17/Aegis/pull/307
+* feat(rules): load rules/sequences/ correlations with the full refusal matrix by @antropos17 in https://github.com/antropos17/Aegis/pull/308
+* feat(rules): land rules/sequences/sequences.yaml with SEQ001, its parity test and derived counters by @antropos17 in https://github.com/antropos17/Aegis/pull/309
+* feat(sequences): run the temporal_ordered state machine on an injected clock by @antropos17 in https://github.com/antropos17/Aegis/pull/310
+* docs: correct the .prettierignore fixtures comment after #261 by @MsfPablo in https://github.com/antropos17/Aegis/pull/304
+* docs: drop hand-maintained counts that sit outside the counts:check gate by @MsfPablo in https://github.com/antropos17/Aegis/pull/306
+* refactor(rules): route rule-loader warnings through the structured logger by @MsfPablo in https://github.com/antropos17/Aegis/pull/305
+* docs(memory-bank): record ai-mistakes #37-#39 and the #308-#310 progress entry by @antropos17 in https://github.com/antropos17/Aegis/pull/311
+* feat(sequences): bound the engine, close states on agent-exit and emit an attributed detection by @antropos17 in https://github.com/antropos17/Aegis/pull/312
+* feat(sequences): feed the engine through the five scan taps and init it from the loader by @antropos17 in https://github.com/antropos17/Aegis/pull/313
+* docs: fix the fork-PR approval condition, the 300-line rule and the version pointer by @antropos17 in https://github.com/antropos17/Aegis/pull/314
+* test(bench): stage a small executable in the actor secret-hold cases by @antropos17 in https://github.com/antropos17/Aegis/pull/317
+* feat(sequences): emit the detection as an audit record, merge its score and expose engine stats by @antropos17 in https://github.com/antropos17/Aegis/pull/316
+* fix(renderer): size summary cards by their strip, not the viewport by @antropos17 in https://github.com/antropos17/Aegis/pull/315
+* feat(sequences): hot-reload rules/sequences through a second watcher and prove the path end to end by @antropos17 in https://github.com/antropos17/Aegis/pull/318
+* test(sequences): prove the engine gate is load-bearing with four injected mutants by @antropos17 in https://github.com/antropos17/Aegis/pull/319
+* docs(memory-bank): record #315, #319 and the queue audit; refresh two stale sentences by @antropos17 in https://github.com/antropos17/Aegis/pull/320
+* chore(release): bump the llms version lines via release-please extra-files by @antropos17 in https://github.com/antropos17/Aegis/pull/321
+* feat(ipc): retain sensitive events under file-access batcher capacity pressure by @antropos17 in https://github.com/antropos17/Aegis/pull/322
+* feat(health): B5 — powerMonitor suspend/resume observation gap by @antropos17 in https://github.com/antropos17/Aegis/pull/323
+* docs(roadmap): add audit-index roadmap, blocked on Electron >= 35 by @antropos17 in https://github.com/antropos17/Aegis/pull/324
+* docs(media): capture the evidence chain to docs/media by @antropos17 in https://github.com/antropos17/Aegis/pull/325
+* docs(memory-bank): ai-mistakes #41 — git worktree remove deletes through a node_modules junction by @antropos17 in https://github.com/antropos17/Aegis/pull/326
+* feat(renderer): retain sensitive rows under the events store cap and count what fell off by @antropos17 in https://github.com/antropos17/Aegis/pull/327
+* test(health): B8 — the cross-sensor umbrella suite over the real composer by @antropos17 in https://github.com/antropos17/Aegis/pull/329
+* fix(health): read-mechanism ownership — the idle file read leaf is UNSUPPORTED, not STARTING forever by @antropos17 in https://github.com/antropos17/Aegis/pull/330
+* fix(audit): filter history by type in main and open the D+1 file for a cursor in day D by @antropos17 in https://github.com/antropos17/Aegis/pull/331
+* fix(renderer): agent card alerts on the same anomaly gate as the toast by @antropos17 in https://github.com/antropos17/Aegis/pull/333
+* fix(health): an empty fleet is a confirmed zero on the file read leaf, not STARTING forever by @antropos17 in https://github.com/antropos17/Aegis/pull/335
+* chore: Electron 33 -> 43.4.1, Node 22 -> 24 across CI, engines and docs by @antropos17 in https://github.com/antropos17/Aegis/pull/334
+* docs(memory-bank): ai-mistakes #44 and #45 — conflict markers past a ;-chain, Permission denied without a junction by @antropos17 in https://github.com/antropos17/Aegis/pull/336
+* feat(audit): audit index block 1 — node:sqlite projection written at flush, rebuilt from the JSONL by @antropos17 in https://github.com/antropos17/Aegis/pull/337
+* chore: adapt project harness to Codex CLI by @antropos17 in https://github.com/antropos17/Aegis/pull/342
+* fix: restrict project Codex sandbox permissions by @antropos17 in https://github.com/antropos17/Aegis/pull/343
+* fix: preserve branch guard exit code on Windows by @antropos17 in https://github.com/antropos17/Aegis/pull/344
+* docs: streamline project instructions for Astra by @antropos17 in https://github.com/antropos17/Aegis/pull/345
+* docs: record Codex migration and PowerShell hook lesson by @antropos17 in https://github.com/antropos17/Aegis/pull/346
+* feat: read audit history through the SQLite index by @antropos17 in https://github.com/antropos17/Aegis/pull/347
+* docs: save session handoff after audit index merge by @antropos17 in https://github.com/antropos17/Aegis/pull/348
+* fix: default export save dialogs to Downloads by @antropos17 in https://github.com/antropos17/Aegis/pull/349
+* docs: align the audit-trail format with AuditRecordV1 and name the v0 marker by @MsfPablo in https://github.com/antropos17/Aegis/pull/340
+* docs: point the demo Quick Start at the dev server, not the non-composing build:start pair by @MsfPablo in https://github.com/antropos17/Aegis/pull/341
+* chore(deps): add dependabot.yml for grouped weekly npm updates by @MsfPablo in https://github.com/antropos17/Aegis/pull/338
+* fix(release): generate changelog from merged pull requests by @antropos17 in https://github.com/antropos17/Aegis/pull/355
+* fix(packaging): include detection rules and runtime icon by @antropos17 in https://github.com/antropos17/Aegis/pull/356
+* fix(watchers): skip virtual ASAR watch roots by @antropos17 in https://github.com/antropos17/Aegis/pull/357
+
+## New Contributors
+* @MsfPablo made their first contribution in https://github.com/antropos17/Aegis/pull/298
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.13.0-alpha...aegis-v0.14.0-alpha
+
 ## [0.13.0-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.12.0-alpha...aegis-v0.13.0-alpha) (2026-08-23)
 
 
