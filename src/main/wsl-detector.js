@@ -100,6 +100,7 @@ function _resetForTest() {
   _availabilityCheckedAt = null;
   _cache = [];
   _lastRefresh = 0;
+  _lastObservedAt = null;
   _refreshing = false;
   _health = createInitialHealth();
 }
@@ -134,6 +135,7 @@ let _availabilityCheckedAt = null;
 /** @type {Array<Object>} Last detected synthetic agents */
 let _cache = [];
 let _lastRefresh = 0;
+let _lastObservedAt = null;
 let _refreshing = false;
 
 // ═══ INTERNAL ═══
@@ -306,7 +308,13 @@ function getCachedWslAgents() {
     _refreshing = true;
     detectWslAgents()
       .then((agents) => {
-        _cache = agents;
+        if (_health.state === sensorHealth.SENSOR_HEALTH_STATE.HEALTHY) {
+          _cache = agents;
+          _lastObservedAt = _health.lastSuccessAt;
+        } else if (_health.state === sensorHealth.SENSOR_HEALTH_STATE.UNSUPPORTED) {
+          _cache = [];
+          _lastObservedAt = null;
+        }
       })
       .catch((err) => {
         // `detectWslAgents` writes its own record on every path it can reach, so an
@@ -324,7 +332,18 @@ function getCachedWslAgents() {
         _refreshing = false;
       });
   }
-  return _cache;
+  // An unread list cannot establish an exit. Publish the last observation with
+  // its original time, explicitly stale during an outage or an overdue refresh.
+  // Copies keep scan enrichment from mutating the detector's observation cache.
+  const stale =
+    _health.state !== sensorHealth.SENSOR_HEALTH_STATE.HEALTHY ||
+    _lastObservedAt === null ||
+    now < _lastObservedAt ||
+    now - _lastObservedAt > REFRESH_TTL_MS;
+  return _cache.map((agent) => ({
+    ...agent,
+    discoveryObservation: { observedAt: _lastObservedAt, stale },
+  }));
 }
 
 module.exports = {

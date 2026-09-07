@@ -243,6 +243,73 @@ describe('wsl-detector', () => {
   });
 
   describe('getCachedWslAgents()', () => {
+    it.each(['ps-error', 'empty-ps', 'probe-error'])(
+      'retains a dated stale observation after %s and replaces it on recovery',
+      async (failure) => {
+        const clock = vi.spyOn(Date, 'now').mockReturnValue(1000);
+        let phase = 'healthy';
+        detector._setDepsForTest({
+          platform: 'win32',
+          execFile: (_cmd, args, _opts, cb) => {
+            const listing = args.join(' ') === LIST_KEY;
+            if (
+              phase === 'failed' &&
+              (listing ? failure === 'probe-error' : failure === 'ps-error')
+            )
+              return cb(Object.assign(new Error('fixture failure'), { code: 1 }), '');
+            if (listing) return cb(null, 'Ubuntu');
+            cb(null, phase === 'empty' ? '1 /sbin/init' : phase === 'failed' ? '' : '42 opencode');
+          },
+        });
+        detector.getCachedWslAgents();
+        await new Promise(setImmediate);
+        const first = detector.getCachedWslAgents();
+        expect(first[0].discoveryObservation).toEqual({ observedAt: 1000, stale: false });
+        first[0].agent = 'consumer mutation';
+        phase = 'failed';
+        clock.mockReturnValue(61001);
+        expect(detector.getCachedWslAgents()[0].discoveryObservation.stale).toBe(true);
+        await new Promise(setImmediate);
+        expect(detector.getCachedWslAgents()).toMatchObject([
+          { agent: 'opencode', discoveryObservation: { observedAt: 1000, stale: true } },
+        ]);
+        expect(detector.getWslSensorHealth().state).toBe('DEGRADED');
+        phase = 'healthy';
+        clock.mockReturnValue(121002);
+        detector.getCachedWslAgents();
+        await new Promise(setImmediate);
+        expect(detector.getCachedWslAgents()[0].discoveryObservation).toEqual({
+          observedAt: 121002,
+          stale: false,
+        });
+        phase = 'empty';
+        clock.mockReturnValue(181003);
+        detector.getCachedWslAgents();
+        await new Promise(setImmediate);
+        expect(detector.getCachedWslAgents()).toEqual([]);
+        expect(detector.getWslSensorHealth().state).toBe('HEALTHY');
+      },
+    );
+
+    it('clears a cached agent when distro absence is confirmed', async () => {
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(1000);
+      let installed = true;
+      detector._setDepsForTest({
+        platform: 'win32',
+        execFile: (_cmd, args, _opts, cb) =>
+          cb(null, args.join(' ') === LIST_KEY ? (installed ? 'Ubuntu' : '') : '42 opencode'),
+      });
+      detector.getCachedWslAgents();
+      await new Promise(setImmediate);
+      expect(detector.getCachedWslAgents()).toHaveLength(1);
+      installed = false;
+      clock.mockReturnValue(61001);
+      detector.getCachedWslAgents();
+      await new Promise(setImmediate);
+      expect(detector.getCachedWslAgents()).toEqual([]);
+      expect(detector.getWslSensorHealth().state).toBe('UNSUPPORTED');
+    });
+
     it('returns [] immediately, then caches after the background refresh', async () => {
       detector._setDepsForTest({
         platform: 'win32',

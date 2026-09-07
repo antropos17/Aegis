@@ -1079,3 +1079,18 @@ inconclusive refresh with explicit freshness, evaluate one fresh Windows process
 snapshot per pass, then move full-export preparation off the main event loop.
 The frontend remains user-owned separate work; no renderer, dependency, system
 setting, installed-app or release change is included here.
+
+## Session handoff — retain WSL observations during outages (2026-09-07)
+
+The user authorized all remaining core audit items. `codex/wsl-retain-observations`
+keeps the last successfully discovered WSL agents when enumeration is inconclusive.
+Published copies carry `discoveryObservation: { observedAt, stale }`; an overdue
+refresh or degraded sensor sets stale without advancing the observed timestamp.
+Successful enumeration replaces the cache, including a confirmed empty fleet;
+confirmed distro absence clears it. Copying records prevents enrichment or consumers
+from mutating the detector cache. The existing health channel still reports outages.
+No renderer work is included; the separate frontend can consume the new optional
+freshness metadata. Targeted WSL, health and scan-loop tests passed (115 tests).
+
+Remaining authorized audit work: one Windows process observation per scan,
+background/streaming full exports, and bounded lifecycle of baseline instance data.
