@@ -25,8 +25,8 @@
 const sensorHealth = require('./sensor-health');
 
 /**
- * The four watch-root groups `setupFileWatchers` registers. Two are preflighted,
- * two are unconditional — which is why the plan can never be empty (§1.2).
+ * The four watch-root groups `setupFileWatchers` considers. User directories are
+ * preflighted, the app tree is excluded inside ASAR, and env-files is unconditional.
  * @type {Readonly<Record<string, string>>}
  * @since 0.12.0
  */
@@ -41,7 +41,7 @@ const WATCH_GROUP = Object.freeze({
  * Lifecycle states of one watch root (§1.3).
  *
  * `not-applicable` is the ONLY exclusion from the plan, and it rests on a completed
- * probe — never on a throw. `registration-failed`, `not-attempted` and `errored` are
+ * probe or a known ASAR app tree — never on a throw. `registration-failed`, `not-attempted` and `errored` are
  * all terminal: nothing in this module recreates a watcher object (gap P).
  * @type {Readonly<Record<string, string>>}
  * @since 0.12.0

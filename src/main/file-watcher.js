@@ -20,6 +20,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const chokidar = require('chokidar');
+const DEFAULT_APP_DIR = path.join(__dirname, '..', '..');
+let _appDir = DEFAULT_APP_DIR;
 const {
   IGNORE_PATTERNS,
   AGENT_CONFIG_PATHS,
@@ -296,6 +298,7 @@ function noteFileScanSkip(reason) {
 
 /** @internal Override dependencies (for tests). */
 function _setDepsForTest(overrides) {
+  if (overrides.appDir) _appDir = overrides.appDir;
   if (overrides.getFileHandles) _getFileHandles = overrides.getFileHandles;
   if (overrides.getSensitiveHolders) _getSensitiveHolders = overrides.getSensitiveHolders;
   if (overrides.getHotSensitiveHolders) _getHotSensitiveHolders = overrides.getHotSensitiveHolders;
@@ -319,6 +322,7 @@ function _setDepsForTest(overrides) {
 }
 /** @internal Reset debounce state + opt out of the RM path (for tests). */
 function _resetForTest() {
+  _appDir = DEFAULT_APP_DIR;
   watcherDebounce.clear();
   _getSensitiveHolders = undefined; // tests opt into RM explicitly via _setDepsForTest
   _getHotSensitiveHolders = undefined;
@@ -613,7 +617,7 @@ function handleWatcherEvent(action, filePath) {
  */
 async function setupFileWatchers() {
   const homeDir = os.homedir();
-  const projectDir = path.join(__dirname, '..', '..');
+  const projectDir = _appDir;
   // BOTH preflights complete before ANY registration (§1.2). The plan separates
   // intent from outcome: a group may leave it only because a completed probe proved
   // there is nothing to watch — never because a registration threw. Under the old
@@ -634,8 +638,10 @@ async function setupFileWatchers() {
   buildWatchPlan([
     { id: WATCH_GROUP.CREDENTIAL_DIRS, applicable: sensitiveDirs.length > 0 },
     { id: WATCH_GROUP.AGENT_CONFIG_DIRS, applicable: agentConfigDirs.length > 0 },
-    // Unconditional: no preflight can exclude them, so the plan is never empty.
-    { id: WATCH_GROUP.PROJECT_DIR, applicable: true },
+    // ASAR contents are a virtual, read-only tree. fs.watch cannot observe them;
+    // registering them makes chokidar reject while its root may still report ready.
+    { id: WATCH_GROUP.PROJECT_DIR, applicable: path.extname(projectDir) !== '.asar' },
+    // Unconditional, so the plan is never empty even in an archived app.
     { id: WATCH_GROUP.ENV_FILES, applicable: true },
   ]);
   /** @type {string|null} The group whose registration is in flight. */
@@ -1180,9 +1186,11 @@ function pruneKnownHandles(activeAgents) {
  * (function-form `ignored`, not a glob — chokidar issue #773). Shared by the two rule
  * watchers below so they cannot drift apart on their options.
  * @param {string} dir
- * @returns {import('chokidar').FSWatcher}
+ * @returns {import('chokidar').FSWatcher|null} null for rules embedded in ASAR.
  */
 function _watchRuleDir(dir) {
+  // Embedded rules are loaded normally; hot reload applies to unpacked app trees.
+  if (path.extname(_appDir) === '.asar') return null;
   return chokidar.watch(dir, {
     ignored: (filePath) => path.basename(filePath).startsWith('_'),
     persistent: false,
@@ -1210,12 +1218,13 @@ function _isRuleFile(basename) {
  * @param {(channel: string, data: object) => void} sendFn - Function to push events to renderer
  * @param {{sequenceCount: () => number}} deps - `sequenceCount` answers how many sequence
  *   rules the engine currently holds (main.js owns that figure).
- * @returns {import('chokidar').FSWatcher}
+ * @returns {import('chokidar').FSWatcher|null} null for rules embedded in ASAR.
  * @since v0.6.0
  */
 function setupRulesWatcher(sendFn, { sequenceCount }) {
-  const rulesDir = path.join(__dirname, '..', '..', 'rules');
+  const rulesDir = path.join(_appDir, 'rules');
   const rw = _watchRuleDir(rulesDir);
+  if (!rw) return null;
   rw.on('change', (filePath) => {
     const basename = path.basename(filePath);
     if (!_isRuleFile(basename)) return;
@@ -1239,12 +1248,13 @@ function setupRulesWatcher(sendFn, { sequenceCount }) {
  * @param {(channel: string, data: object) => void} sendFn - Function to push events to renderer
  * @param {{reload: () => number}} deps - `reload` re-reads the sequence rules into the engine
  *   and returns how many are loaded now.
- * @returns {import('chokidar').FSWatcher}
+ * @returns {import('chokidar').FSWatcher|null} null for rules embedded in ASAR.
  * @since v0.14.0
  */
 function setupSequenceRulesWatcher(sendFn, { reload }) {
-  const sequencesDir = path.join(__dirname, '..', '..', 'rules', 'sequences');
+  const sequencesDir = path.join(_appDir, 'rules', 'sequences');
   const rw = _watchRuleDir(sequencesDir);
+  if (!rw) return null;
   rw.on('change', (filePath) => {
     const basename = path.basename(filePath);
     if (!_isRuleFile(basename)) return;
