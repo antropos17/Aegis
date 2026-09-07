@@ -44,7 +44,7 @@ function installChokidarMock() {
   });
 
   Module._load = function (request, parent, isMain) {
-    if (request === 'chokidar') {
+    if (request === 'chokidar' || request === './watch-worker-client') {
       return { watch: watchMock };
     }
     return originalLoad.apply(this, arguments);

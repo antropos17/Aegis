@@ -843,3 +843,28 @@ generation isolation, shutdown, and bounded event delivery with explicit loss
 reporting. No production source, dependency, installed app or release was changed
 by this investigation. The local probes used disposable profiles and synthetic
 history. A release of any subsequent fix still requires explicit authorization.
+
+## Session handoff — evidence watchers moved to workers (2026-09-07)
+
+The four possible evidence watch groups now use dedicated chokidar workers, with
+the packaged app retaining its three applicable groups. Main still owns attribution,
+audit and health. A generation guard excludes callbacks and preflight continuations
+from retired setups; close invalidates delivery before terminating native handles,
+and main shutdown closes the bridge before the audit logger.
+
+The bridge allows one 32-event batch in flight plus 512 pending events; both the
+pending queue and any batch are bounded to 1 MiB of UTF-8 path/envelope accounting.
+Overflow drops newest events, reports cumulative loss, increments the existing
+fs-chokidar lossCount and leaves the root degraded. Provider failures and unexpected
+worker exits report fixed error codes. Intentional close cancels remaining delivery.
+
+Full suite: 2,644 passed / 4 skipped across 146 files. Real filesystem worker tests
+exercise create/change/delete, ignore behavior, registration failure and restart;
+queue/client tests cover bounds, acknowledgements, loss and late callbacks. Typechecks,
+lint (32 existing warnings), build, counts and both mutation gates passed. A rebuilt
+Windows ASAR package reached healthy watch groups and SQLite ready. A normal packaged
+launch delivered 13 config callbacks with zero loss and then exited cleanly. The repeated local
+profile measured a 115 ms maximum main-thread gap (earlier existing-index run: 1,539 ms)
+and zero main-thread fs.watch calls. See docs/current-state/WINDOWS-STARTUP.md for the
+profiling method, debugger adjustment and limitations. The installed release remains
+unchanged; publishing this fix still needs explicit release authorization.

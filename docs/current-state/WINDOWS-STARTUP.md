@@ -4,7 +4,7 @@ The installed 0.14.0-alpha app has a reproducible source of main-thread pauses:
 chokidar creates thousands of native `fs.watch` subscriptions on that thread.
 This explains measured pauses after the window appears. The longer unresponsive
 episode observed during the installation smoke was not reproduced in full, so its
-cause remains open. No production performance fix has been applied by this investigation.
+cause remains open. The implementation below now moves evidence watchers into workers.
 
 ## Measurements
 
@@ -51,20 +51,48 @@ shutdown are outside the measurement. Main always runs first, so filesystem-cach
 order is a limitation. The comparison measures responsiveness, not event delivery,
 loss, or faster total setup. It is not a timing gate in CI.
 
-## Next implementation
+## Implementation — 2026-09-07
 
-Move native chokidar registration and watching into a worker, keeping the existing
-root options and observation scope. The main process should still own attribution,
-audit writes, rule evaluation and watch health. Preserve the current root lifecycle:
-registration alone cannot mean `ready`; worker errors and exits must degrade every
-affected root. Reinitialization and shutdown must retire the previous worker and
-reject messages from an older generation.
+Each applicable evidence watch group now owns a dedicated Node worker. Registration,
+native handles and chokidar run there; paths and event types cross to the main thread,
+which still owns attribution, audit writes, rule evaluation and watch health. Existing
+depth, symlink, polling, initial-event and project-ignore behavior is retained. The small
+development-only rule hot-reload watchers remain local; ASAR rules are not watched.
 
-Before adoption, verify real add/change/unlink delivery, readiness, registration
-failure, crash, close-before-ready and reinitialization. Design a bounded event queue
-with explicit loss reporting before bridging live traffic: moving registration must
-not introduce an unbounded backlog or silently discard observations. Repeat packaged
-startup measurements and existing watch-plan tests after that implementation.
+Each worker has at most 512 pending events with a 1 MiB UTF-8 path/envelope budget,
+plus one unacknowledged batch of at most 32 events (also at most 1 MiB). Native watcher
+internals and JavaScript object overhead are outside these bridge bounds. The main
+thread acknowledges after handling a batch. Overflow drops newest events and sends a
+cumulative count separately from event capacity; the client converts it to loss deltas.
+`fs-chokidar.lossCount` increases and the affected root remains errored after subsequent
+ready/events. Provider errors and unexpected worker exits also degrade the root. Only
+fixed error codes cross the bridge; no file contents or arbitrary error strings do.
+
+Closing invalidates callbacks immediately, then terminates the dedicated worker and
+its native handles. Reinitialization closes prior workers and guards callback/preflight
+continuations by generation. Shutdown invalidates delivery before closing the audit log.
+Intentional close cancels queued delivery; it does not drain observations past shutdown.
+
+Validation covers real worker add/change/unlink delivery, startup suppression, literal
+project ignore names, registration failure, error/exit reporting, close-before-ready,
+reinitialization races, count/byte queue bounds and sticky health loss. The existing
+watch-plan and application health suites pass. Full coverage: 2,644 passed, 4 skipped
+across 146 files; both typechecks, lint, renderer build and both mutation gates pass.
+
+A rebuilt Windows package loaded workers from ASAR and reached three healthy evidence
+watch groups, zero chokidar loss, and SQLite `ready`. A repeat on the synthetic-history
+profile recorded `ready-to-show` at 419 ms and a largest main-thread heartbeat gap of
+115 ms, compared with 514 ms / 1,539 ms on the earlier existing-index sample. Instrumented
+main-thread `fs.watch` calls fell from 4,812 to zero. These are individual local samples,
+not a platform-wide speed guarantee or proof of the original long episode's cause.
+For the profiled worker run, the harness cleared inherited worker `execArgv`: otherwise
+the parent's `--inspect-brk` kept workers paused. This adjustment is only in the local
+profiling harness. Normal packaged worker readiness was also checked without the
+debugger in Electron's Node mode. A final normal packaged launch (no startup debugger
+flags; diagnostics attached afterward) also reached three ready groups, delivered
+13 agent-config callbacks, recorded zero chokidar loss and had a ready SQLite index.
+It exited cleanly. This change has not been released or installed over the user's
+published 0.14.0-alpha application.
 
 Local diagnostic profiles and raw samples are under `X:/tmp/aegis-startup-20260907/`.
 They stay outside Git. The installed user's profile was not used as a fixture or

@@ -1,6 +1,6 @@
 # AEGIS Architecture
 
-## Main Process (src/main/) — 59 CommonJS modules (47 top-level + 10 platform/ + 2 token-adapters/)
+## Main Process (src/main/) — 62 CommonJS modules (50 top-level + 10 platform/ + 2 token-adapters/)
 
 Core modules:
 - main.js — orchestrator, module wiring, lifecycle
@@ -10,7 +10,9 @@ Core modules:
 - preload.js — IPC bridge (window.aegis via contextBridge, 40 invoke + 9 events = 49 channels)
 - process-scanner.js — AI agent detection (tasklist + pattern matching)
 - process-utils.js — parent chain resolution + editor annotation
-- file-watcher.js — chokidar watchers + handle scanning
+- file-watcher.js — watcher health, main-thread attribution + handle scanning
+- watch-worker-client.js / watch-worker-thread.js — dedicated chokidar worker per evidence watch group; close invalidates delivery before termination
+- watch-event-queue.js — bounded, acknowledged worker delivery; counted drop-newest overflow reaches sensor health
 - network-monitor.js — TCP scanning + DNS + domain classification
 - rule-loader.js — YAML rule loading + categoryIndex (Map<category, rules[]>) exposed via getRulesByCategory(); built and tested, but no production caller consumes it yet (C-16)
 - config-manager.js — settings persistence + permissions
