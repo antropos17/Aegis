@@ -40,12 +40,7 @@ export type AppHealthReason =
 
 /** Per-sensor leaf state. Mirrors `SENSOR_HEALTH_STATE` in `sensor-health.js`. */
 export type SensorHealthState =
-  | 'STARTING'
-  | 'HEALTHY'
-  | 'DEGRADED'
-  | 'FAILED'
-  | 'DISABLED'
-  | 'UNSUPPORTED';
+  'STARTING' | 'HEALTHY' | 'DEGRADED' | 'FAILED' | 'DISABLED' | 'UNSUPPORTED';
 
 /**
  * One sensor's health record, exactly as the owning module publishes it.

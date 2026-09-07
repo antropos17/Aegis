@@ -296,12 +296,7 @@ export interface NormalizedAttribution {
 
 /** Deviation warning type identifiers */
 export type DeviationWarningType =
-  | 'files'
-  | 'sensitive'
-  | 'new-sensitive'
-  | 'network'
-  | 'directories'
-  | 'timing';
+  'files' | 'sensitive' | 'new-sensitive' | 'network' | 'directories' | 'timing';
 
 /** Behavioural deviation warning from anomaly detector */
 export interface DeviationWarning {
