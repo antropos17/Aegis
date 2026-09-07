@@ -960,7 +960,7 @@ product task; implementing it has not been authorized by this verification step.
 
 The user's subsequent "давай" authorized implementation. The feature branch
 `codex/signed-auto-update` adds electron-updater 6.8.9, pinned for its custom-provider
-and positional installation contracts. The provider consumes the existing GitHub
+and positional installation contracts ([PR #367](https://github.com/antropos17/Aegis/pull/367)). The provider consumes the existing GitHub
 release API, `aegis-v` tags, Ed25519-signed manifest and SHA-256 installer entries.
 No release workflow changes or new YAML feeds are needed. The NSIS package includes
 the public key and generated app-update.yml cache configuration.
@@ -973,8 +973,9 @@ rechecks the installer bytes afterward, and never happens merely on app quit.
 Update IPC checks the owned webContents and main frame and accepts no operation
 arguments. Opt-out cancels downloading; failures expose fixed error codes.
 
-Local checks passed: renderer build, formatting, lint (zero errors; existing
-warnings), main/renderer TypeScript, Svelte check, coverage suite, both mutation
+Local checks passed: renderer build, formatting, lint (zero errors; 32 existing
+warnings), main/renderer TypeScript, Svelte check, coverage suite (2,682 passed,
+four skipped across 150 files), both mutation
 gates, counts and production dependency audit. Targeted tests cover tampering,
 channel/downgrade selection, consent, cancellation, duplicate actions, failed
 installation, IPC ownership, stale renderer snapshots and literal release notes.
@@ -994,9 +995,10 @@ Evidence, fixture profile, downloaded installer and candidate stay under
 `X:/tmp/aegis-updater-*`. The fixture was quit and its temporary inspector closed.
 The Start Menu shortcut again resolved to the test executable after a candidate
 launch; it was backed up, restored to the installed app and read back. This repeats
-the earlier package-test shortcut issue; its cause remains unestablished. A helper
-cleanup expression also raised a harness-only error before being corrected to use
-process.mainModule.require; the application renderer remained healthy.
+the earlier package-test shortcut issue; its cause remains unestablished. A transient
+Error window appeared during harness cleanup, but its contents were not captured.
+The helper's inspector cleanup was changed to use process.mainModule.require;
+subsequent runtime inspection and the Settings UI check passed.
 
 No release was published and the user's installed 0.14.1-alpha was not upgraded.
 The first release carrying this feature still needs manual installation. Windows
