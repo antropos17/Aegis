@@ -930,3 +930,28 @@ and concurrent user input; history preservation was verified directly from the f
 and runtime index instead. No application source or dependency changes were needed.
 Private backups, runtime evidence, retention checks and the old shortcut remain under
 `X:/tmp/aegis-0141-installed-upgrade` and must stay outside Git.
+
+## Session handoff — WSL observation recovered (2026-09-07)
+
+The installed app's WSL degradation was an actual Ubuntu startup failure outside
+AEGIS: `wsl.exe -e ps -eo pid=,args=` returned exit 4294967295 with
+`Wsl/Service/CreateInstance/MountDisk/HCS/E_ACCESSDENIED`. Listing distributions
+still succeeded. A clean WSL shutdown and a retry with Linux cwd `/` did not fix it.
+The distro VHDX was owned by BUILTIN\Administrators instead of the user's account,
+matching the WSL ownership problem described by its maintainer in
+https://github.com/microsoft/WSL/issues/41273#issuecomment-5211744425.
+
+The user ran the prepared repair script in an elevated PowerShell. It backed up
+the current security descriptor, changed only the VHDX owner to the user's account,
+and verified that access rules were unchanged. From the normal non-elevated Codex
+session, Ubuntu process enumeration then exited 0 and returned five process rows.
+The production detector reported HEALTHY with no matching WSL agents. After a normal
+launch of installed 0.14.1-alpha, its own WSL health record also read HEALTHY,
+lastError null and zero consecutive failures. The temporary diagnostic listener was
+closed afterward; the installed app remains running.
+
+No AEGIS source, dependency, WSL version or access rules changed. Diagnostic evidence,
+the owner-repair script and ACL backups are under
+`X:/tmp/aegis-wsl-owner-repair-20260907`, outside Git. The previous entries' WSL
+degradation is resolved for this machine. Auto-update issue #20 is the next proposed
+product task; implementing it has not been authorized by this verification step.
