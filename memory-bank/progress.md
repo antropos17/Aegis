@@ -868,3 +868,35 @@ profile measured a 115 ms maximum main-thread gap (earlier existing-index run: 1
 and zero main-thread fs.watch calls. See docs/current-state/WINDOWS-STARTUP.md for the
 profiling method, debugger adjustment and limitations. The installed release remains
 unchanged; publishing this fix still needs explicit release authorization.
+
+## Session handoff — 0.14.1-alpha published and verified (2026-09-07)
+
+The user authorized the next release after candidate preparation. Release PR #358
+merged at `c89d2a3a20ae245adcc17c72b0aaacf2fd27f869`; tag `aegis-v0.14.1-alpha`
+and its Windows installer are published. All five required PR contexts passed on
+`8fa1b3d787c82f359cc8e8dcf928d27f58648bf1` (run 34156123219), and master CI
+passed on the merge (run 34158258064). Release Please and its installer/signing
+workflow passed in run 34158258273. PR and merge trees are identical.
+
+The release installer was downloaded with manifest.json and manifest.json.sig to
+`X:/tmp/aegis-0141-published/downloads`. The committed Ed25519 public key verified
+the manifest, installer SHA-256 and byte length: 104,675,807 bytes,
+`aeac363ab0e2a45d287d6c60e77db833dbdb2ff84fb4b360c0c723f7c55f766e`.
+The extracted package reports 0.14.1-alpha, includes the process sidecar, and all
+184 packaged source/rule files match the release commit after CRLF normalization
+(175 differ only in line endings; .d.ts files are excluded by the builder).
+
+A normal launch of the executable extracted from the published installer, using a
+disposable profile, reached all three applicable watch groups healthy, delivered
+12 config callbacks, reported zero event loss and SQLite ready with no malformed
+lines, then quit cleanly. Diagnostics attached after startup without startup debug
+flags. Earlier candidate checks also passed with an empty profile, 11,000 synthetic
+history records, and a restart against the existing index. CI coverage counted
+2,645 passed / 3 skipped across 146 files on Linux.
+
+The user's installed app remains 0.14.0-alpha; the NSIS upgrade to 0.14.1-alpha was
+not executed. Visual appearance and an installed upgrade of this version remain
+unverified. Candidate evidence is in `X:/tmp/aegis-0141-candidate/RELEASE-CHECK.md`;
+published-package evidence is under `X:/tmp/aegis-0141-published`. Next practical
+step: install the published update and verify settings/history retention. Major
+dependency PRs #352/#353/#354 remain deferred for coordinated compatibility work.
