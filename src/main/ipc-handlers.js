@@ -13,7 +13,7 @@ const analysis = require('./ai-analysis');
 const exporter = require('./exports');
 const audit = require('./audit-logger');
 const { killProcess, suspendProcess, resumeProcess } = require('./platform');
-const zipWriter = require('./zip-writer');
+const { writeAuditExport } = require('./audit-export-stream');
 const { getAllRules, reloadRules } = require('./rule-loader');
 const blocklist = require('./blocklist');
 const logger = require('./logger');
@@ -297,7 +297,6 @@ ${findingsHtml}${recsHtml}
 
   ipcMain.handle('export-full-audit', async () => {
     try {
-      const all = audit.exportAll();
       const defaultName = `aegis-full-audit-${new Date().toISOString().slice(0, 10)}.json`;
       const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
         title: 'Export Full Audit Log',
@@ -305,8 +304,7 @@ ${findingsHtml}${recsHtml}
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
       if (!filePath) return { success: false };
-      fs.writeFileSync(filePath, JSON.stringify(all, null, 2));
-      return { success: true, path: filePath, count: all.length };
+      return await writeAuditExport({ filePath, files: audit.prepareExport() });
     } catch (error) {
       logger.error(`IPC export-full-audit failed: ${error.message}`);
       return { success: false, error: error.message };
@@ -379,19 +377,6 @@ ${findingsHtml}${recsHtml}
   // ── Zip export ──
   ipcMain.handle('export-zip', async () => {
     try {
-      const settingsCopy = { ...config.getSettings() };
-      delete settingsCopy.anthropicApiKey;
-      delete settingsCopy._encryptedApiKey;
-      delete settingsCopy.apiKey;
-      const entries = [
-        { name: 'audit-log.json', data: Buffer.from(JSON.stringify(audit.exportAll(), null, 2)) },
-        {
-          name: 'activity-log.json',
-          data: Buffer.from(JSON.stringify(scanner.activityLog.slice(-5000), null, 2)),
-        },
-        { name: 'config.json', data: Buffer.from(JSON.stringify(settingsCopy, null, 2)) },
-      ];
-      const zipBuf = zipWriter.createZip(entries);
       const defaultName = `aegis-export-${new Date().toISOString().slice(0, 10)}.zip`;
       const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
         title: 'Export All Data (ZIP)',
@@ -399,8 +384,23 @@ ${findingsHtml}${recsHtml}
         filters: [{ name: 'ZIP', extensions: ['zip'] }],
       });
       if (!filePath) return { success: false };
-      fs.writeFileSync(filePath, zipBuf);
-      return { success: true, path: filePath };
+      const settingsCopy = { ...config.getSettings() };
+      delete settingsCopy.anthropicApiKey;
+      delete settingsCopy._encryptedApiKey;
+      delete settingsCopy.apiKey;
+      const extraEntries = [
+        {
+          name: 'activity-log.json',
+          data: scanner.activityLog.slice(-5000),
+        },
+        { name: 'config.json', data: settingsCopy },
+      ];
+      return await writeAuditExport({
+        filePath,
+        files: audit.prepareExport(),
+        zip: true,
+        extraEntries,
+      });
     } catch (error) {
       logger.error(`IPC export-zip failed: ${error.message}`);
       return { success: false, error: error.message };

@@ -1116,3 +1116,32 @@ scans and UI work; it is not an application-wide speedup claim. Samples are in
 
 Remaining authorized audit work: streaming/background full exports and baseline
 instance lifecycle. Frontend and releases remain outside this work.
+
+## Session handoff — streamed full audit exports (2026-09-07)
+
+`codex/stream-audit-exports` moves JSON/ZIP exports to asynchronous, backpressured
+file processing. The save dialog precedes journal work. `prepareExport()` flushes
+and captures file byte ranges; the exporter reads only those ranges in 64 KiB
+chunks, yields between chunks and rejects records over 1 MiB. ZIP compression is
+asynchronous with CRC/data descriptors. Existing synchronous `exportAll()` remains
+for direct callers, but neither export IPC handler uses it. Both formats write a
+private temporary file beside the destination and rename only after successful
+read/parse/write/sync/close. Failures clean up the temporary file; overlapping
+exports and replacing source paths are rejected. Crash cleanup of temporary files
+and ZIP64 archives are not implemented. Paginated history is unchanged.
+
+The full suite passed: 2,718 tests, four skips, 153 files. Added malformed/missing/
+truncated/oversize source, recovery, failed replacement, source protection, snapshot
+cutoff, concurrency, event-loop yield, ZIP directory/CRC and IPC cancellation/key
+redaction checks. Format, build, lint, typecheck and counts passed. The new module
+updates the derived inventory to 66 main modules (54 top-level).
+
+On the same artificial 35.95 MiB/100,000-record journal as the audit, JSON finished
+in 312 ms (largest 5 ms timer gap 15.69 ms, sampled RSS increase 17.66 MiB); ZIP in
+468 ms (largest gap 6.38 ms, RSS increase 21.77 MiB). Earlier synchronous ZIP
+preparation blocked a timer for 588 ms and increased RSS by 174.65 MiB. These are
+single local Node samples with different RSS sampling methods, not guarantees.
+Python zipfile independently checked the ZIP CRCs and read all 100,000 records.
+Artifacts are under `X:/tmp/aegis-core-audit-20260907/stream-bench*`.
+
+Remaining authorized audit item: retire completed baseline instance data safely.

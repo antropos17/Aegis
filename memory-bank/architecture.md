@@ -1,6 +1,6 @@
 # AEGIS Architecture
 
-## Main Process (src/main/) — 65 CommonJS modules (53 top-level + 10 platform/ + 2 token-adapters/)
+## Main Process (src/main/) — 66 CommonJS modules (54 top-level + 10 platform/ + 2 token-adapters/)
 
 Core modules:
 - main.js — orchestrator, module wiring, lifecycle
