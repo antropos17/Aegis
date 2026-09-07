@@ -221,4 +221,10 @@ function checkDeviations() {
   return warnings;
 }
 
-module.exports = { calculateAnomalyScore, checkDeviations };
+/** Release warning deduplication for confirmed exits.
+ * @param {string[]} instanceIds @returns {void} @since 0.15.0 */
+function forgetInstances(instanceIds) {
+  for (const instanceId of instanceIds) delete deviationWarningsSent[instanceId];
+}
+
+module.exports = { calculateAnomalyScore, checkDeviations, forgetInstances };

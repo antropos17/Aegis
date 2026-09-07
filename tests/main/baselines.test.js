@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -12,6 +12,7 @@ describe('baselines', () => {
   let tmpDir;
 
   beforeEach(() => {
+    baselines.init();
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-baselines-test-'));
     baselines._setBaselinesPathForTest(path.join(tmpDir, 'baselines.json'));
 
@@ -144,6 +145,64 @@ describe('baselines', () => {
     baselines.finalizeSession();
     const bl = baselines.getBaselines();
     expect(bl.agents['Idle']).toBeUndefined();
+  });
+
+  it('retires only the exited instance and does not count it again at shutdown', () => {
+    baselines.recordFileAccess(CLAUDE_A, 'Claude', '/a/file.js', false);
+    baselines.recordFileAccess(CLAUDE_B, 'Claude', '/b/file.js', false);
+    baselines.finalizeInstances([{ instanceId: CLAUDE_A, lastSeen: 1 }]);
+    expect(Object.keys(baselines.getSessionData())).toEqual([CLAUDE_B]);
+    const first = baselines.getBaselines().agents.Claude.sessions[0];
+    expect(first.endTime).toBeGreaterThanOrEqual(first.startTime);
+    baselines.finalizeInstances([{ instanceId: CLAUDE_A }]);
+    baselines.finalizeSession();
+    baselines.finalizeSession();
+    expect(baselines.getBaselines().agents.Claude.sessionCount).toBe(2);
+    expect(baselines.getSessionData()).toEqual({});
+  });
+
+  it('uses live membership to reject late callbacks without retaining closed keys', () => {
+    const live = new Set([CLAUDE_A]);
+    baselines.init({ isInstanceActive: (key) => live.has(key) });
+    baselines.recordFileAccess(CLAUDE_A, 'Claude', '/first.js', false);
+    live.clear();
+    baselines.finalizeInstances([{ instanceId: CLAUDE_A }]);
+    baselines.recordFileAccess(CLAUDE_A, 'Claude', '/late.js', true);
+    baselines.recordNetworkEndpoint(CLAUDE_A, 'Claude', '1.2.3.4', 443);
+    expect(baselines.getSessionData()).toEqual({});
+    live.add(CLAUDE_B);
+    baselines.recordFileAccess(CLAUDE_B, 'Claude', '/new.js', false);
+    expect(Object.keys(baselines.getSessionData())).toEqual([CLAUDE_B]);
+    expect(baselines.getBaselines().agents.Claude.sessionCount).toBe(1);
+    baselines.init();
+  });
+
+  it('releases thousands of completed buckets while retaining only ten profile sessions', () => {
+    const exits = Array.from({ length: 2000 }, (_, i) => ({ instanceId: `fixture:${i}` }));
+    for (const { instanceId } of exits)
+      baselines.recordFileAccess(instanceId, 'Claude', '/fixture/shared.js', false);
+    baselines.finalizeInstances(exits);
+    expect(baselines.getSessionData()).toEqual({});
+    expect(baselines.getBaselines().agents.Claude.sessionCount).toBe(2000);
+    expect(baselines.getBaselines().agents.Claude.sessions).toHaveLength(10);
+  });
+
+  it('keeps the completed profile in memory after a failed save and retries without double counting', () => {
+    baselines.recordFileAccess(CLAUDE_A, 'Claude', '/fixture/file.js', false);
+    const write = vi.spyOn(fs, 'writeFileSync').mockImplementationOnce(() => {
+      throw Object.assign(new Error('fixture full disk'), { code: 'ENOSPC' });
+    });
+    try {
+      baselines.finalizeInstances([{ instanceId: CLAUDE_A }]);
+      expect(baselines.getBaselines().agents.Claude.sessionCount).toBe(1);
+      expect(baselines.getSessionData()).toEqual({});
+      baselines.finalizeSession();
+      const saved = JSON.parse(fs.readFileSync(path.join(tmpDir, 'baselines.json'), 'utf8'));
+      expect(saved.agents.Claude.sessionCount).toBe(1);
+      expect(saved.agents.Claude.sessions[0].totalFiles).toBe(1);
+    } finally {
+      write.mockRestore();
+    }
   });
 
   it('finalizeSession() files instance buckets under the agent NAME, one record each', () => {

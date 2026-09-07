@@ -40,6 +40,18 @@ const MAX_BASELINE_SESSIONS = 10;
 let baselines = { agents: {} };
 /** @type {Object<string, Object>} Live session buckets, keyed by `instanceId`. */
 const sessionData = {};
+let isInstanceActive = null;
+
+/**
+ * Gate live recording on the scan loop's current sessions, including exit grace.
+ * This rejects late callbacks without accumulating a tombstone for every old PID.
+ * @param {{isInstanceActive?: (instanceId: string) => boolean}} [deps]
+ * @returns {void}
+ * @since 0.15.0
+ */
+function init(deps = {}) {
+  isInstanceActive = deps.isInstanceActive || null;
+}
 
 /** @returns {void} @since v0.1.0 */
 function loadBaselines() {
@@ -92,6 +104,7 @@ function saveBaselines() {
  */
 function ensureSessionData(instanceId, agentName) {
   if (!instanceId) return null;
+  if (isInstanceActive && !isInstanceActive(instanceId)) return null;
   if (!sessionData[instanceId]) {
     sessionData[instanceId] = {
       agentName,
@@ -115,6 +128,7 @@ function ensureSessionData(instanceId, agentName) {
 function recordFileAccess(instanceId, agentName, filePath, isSensitive, reason) {
   const sd = ensureSessionData(instanceId, agentName);
   if (!sd) return;
+  sd.lastActivityAt = Date.now();
   sd.files.add(filePath);
   if (isSensitive) {
     sd.sensitiveCount++;
@@ -131,6 +145,7 @@ function recordFileAccess(instanceId, agentName, filePath, isSensitive, reason) 
 function recordNetworkEndpoint(instanceId, agentName, ip, port) {
   const sd = ensureSessionData(instanceId, agentName);
   if (!sd) return;
+  sd.lastActivityAt = Date.now();
   sd.endpoints.add(`${ip}:${port}`);
 }
 
@@ -162,30 +177,19 @@ function recomputeAverages(agentBaseline) {
 }
 
 /**
- * Persist every live bucket into its agent's cross-session profile.
- *
- * ONE RECORD PER INSTANCE, not per launch. The unit of a persisted session must be
- * the unit of the live bucket it is compared against: `scoring-utils.js` divides
- * `sd.files.size` (now one instance's activity) by `averages.filesPerSession` (the
- * mean of `sessions[].totalFiles`), and `anomaly-detector.js` fires at 3x that
- * ratio. Merging the buckets back by name here would leave per-instance activity
- * measured against launch-sized averages, and every instance would read as
- * permanently quiet. `sessionCount` therefore now grows by N per launch, where N is
- * the number of same-named instances that were active.
- *
- * TRANSITION, and it is not a bug: records written before this change are
- * launch-sized (all same-named instances merged into one). While they are still in
- * the window, `averages` is inflated and the deviation detector UNDER-fires. With k
- * old records left of MAX_BASELINE_SESSIONS (10), the effective trigger is
- * 3 * (k*N + (10-k)) / 10 times an instance's own typical volume instead of 3x — for
- * N=2 that is 6x immediately after the migration, decaying linearly to 3x. The last
- * old record leaves after 10 new ones, i.e. ceil(10/N) launches: 10 launches at
- * N=1, 5 at N=2, 4 at N=3. Self-correcting; no migration of the file is needed and
- * none is done.
- * @returns {void} @since v0.1.0
+ * Persist confirmed exits as one profile record per instance and release their
+ * detailed live sets. Profiles retain the last ten records per agent name. Older
+ * launch-sized records naturally leave that window as instances finish.
+ * Already-retired keys are ignored, so a repeated shutdown cannot duplicate them.
+ * @param {Array<{instanceId: string, lastSeen?: number}>} instances
+ * @returns {void}
+ * @since 0.15.0
  */
-function finalizeSession() {
-  for (const sd of Object.values(sessionData)) {
+function finalizeInstances(instances) {
+  for (const { instanceId, lastSeen } of instances) {
+    const sd = sessionData[instanceId];
+    if (!sd) continue;
+    delete sessionData[instanceId];
     if (sd.files.size === 0 && sd.sensitiveCount === 0 && sd.endpoints.size === 0) continue;
     // The bucket is instance-keyed; the profile is name-keyed. A bucket with no
     // name has nowhere to land — it is dropped rather than filed under a guess.
@@ -209,7 +213,7 @@ function finalizeSession() {
     ab.sessionCount++;
     ab.sessions.push({
       startTime: sd.startTime,
-      endTime: Date.now(),
+      endTime: Math.max(sd.startTime, sd.lastActivityAt || 0, lastSeen ?? Date.now()),
       totalFiles: sd.files.size,
       sensitiveFiles: sd.sensitiveCount,
       directories: [...sd.directories],
@@ -224,6 +228,12 @@ function finalizeSession() {
   saveBaselines();
 }
 
+/** Persist and release remaining instances at shutdown; repeated calls add no duplicates.
+ * @returns {void} @since v0.1.0 */
+function finalizeSession() {
+  finalizeInstances(Object.keys(sessionData).map((instanceId) => ({ instanceId })));
+}
+
 /** @returns {Object} @since v0.1.0 */ function getBaselines() {
   return baselines;
 }
@@ -232,6 +242,8 @@ function finalizeSession() {
 }
 
 module.exports = {
+  init,
+  finalizeInstances,
   loadBaselines,
   ensureSessionData,
   recordFileAccess,

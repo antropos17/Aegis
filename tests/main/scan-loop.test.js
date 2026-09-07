@@ -945,6 +945,39 @@ describe('scan-loop', () => {
   // ── cwd annotation forceRefresh wiring ──
 
   describe('annotateWorkingDirs forceRefresh wiring', () => {
+    it('retires baseline data only after reliable exit grace, and rejects late native records', async () => {
+      const sessions = require_('../../src/main/session-tracker.js');
+      sessions._resetForTest();
+      const agent = { agent: 'Fixture', process: 'fixture.exe', pid: 300, instanceId: '300:1000' };
+      const finalizeInstances = vi.fn();
+      const forgetInstances = vi.fn();
+      const initialize = vi.fn();
+      const scan = vi.fn().mockResolvedValue({ agents: [agent], reliable: true });
+      const d = makeDeps({ scanner: { scanProcesses: scan } });
+      d.baselines = { ...d.baselines, init: initialize, finalizeInstances };
+      d.anomaly.forgetInstances = forgetInstances;
+      scanLoop.init(d);
+      const valid = initialize.mock.calls[0][0].isInstanceActive;
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(valid(agent.instanceId)).toBe(true);
+      scan.mockResolvedValue({ agents: [], reliable: false });
+      await vi.advanceTimersByTimeAsync(20000);
+      expect(finalizeInstances).not.toHaveBeenCalled();
+      expect(valid(agent.instanceId)).toBe(true);
+      scan.mockResolvedValue({ agents: [], reliable: true });
+      for (let i = 1; i < sessions.DEFAULT_EXIT_GRACE; i++) {
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(finalizeInstances).not.toHaveBeenCalled();
+      }
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(finalizeInstances).toHaveBeenCalledOnce();
+      expect(finalizeInstances.mock.calls[0][0][0].instanceId).toBe(agent.instanceId);
+      expect(forgetInstances).toHaveBeenCalledWith([agent.instanceId]);
+      expect(valid(agent.instanceId)).toBe(false);
+      sessions._resetForTest();
+    });
+
     /** @param {boolean} changed @returns {Promise<Object>} the procUtil mock after one scan */
     async function scanWithChanged(changed, processMap) {
       const mockDeps = makeDeps({

@@ -478,6 +478,13 @@ async function doProcessScan() {
     // observation uncredited.
     const observed = reliable && !identityDegraded && !gapStraddled;
     if (observed && deps.observationGap) deps.observationGap.noteObserved(Date.now());
+    // Reconcile alone decides exits. Outages/suspend produce none, so no baseline
+    // is retired without reliable evidence. Persist once for the whole exit batch.
+    const retired = exited.filter((session) => !sessionTracker.hasInstance(session.instanceId));
+    if (retired.length > 0) {
+      deps.baselines?.finalizeInstances?.(retired);
+      anomaly.forgetInstances?.(retired.map((session) => session.instanceId));
+    }
     for (const s of entered) {
       audit.log('agent-enter', {
         agent: s.agent,
@@ -893,6 +900,13 @@ function staggeredStartup(intervalMs, paused) {
 /** @param {Object} injected @since v0.3.0 */
 function init(injected) {
   deps = injected;
+  deps.baselines?.init?.({
+    isInstanceActive: (instanceId) =>
+      sessionTracker.hasInstance(instanceId) ||
+      (deps.getLatestAgents?.() || []).some(
+        (agent) => agent.pid <= 0 && agent.instanceId === instanceId,
+      ),
+  });
 }
 
 /** @returns {{ollama: {running:boolean,models:string[]}, lmstudio: {running:boolean,models:string[]}}} */

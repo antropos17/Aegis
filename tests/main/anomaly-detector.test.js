@@ -68,6 +68,14 @@ describe('anomaly-detector', () => {
   }
 
   describe('calculateAnomalyScore', () => {
+    it('releases warning deduplication for a retired instance', () => {
+      setupAgent('Fixture', { files: new Set(Array.from({ length: 10 }, (_, i) => `f${i}`)) }, {});
+      const id = Object.keys(bl.getSessionData())[0];
+      expect(anomaly.checkDeviations().some((warning) => warning.type === 'files')).toBe(true);
+      expect(anomaly.checkDeviations()).toEqual([]);
+      anomaly.forgetInstances([id]);
+      expect(anomaly.checkDeviations().some((warning) => warning.type === 'files')).toBe(true);
+    });
     it('returns result with score 0 when no session data exists', () => {
       const result = anomaly.calculateAnomalyScore('Unknown');
       expect(result.score).toBe(0);
