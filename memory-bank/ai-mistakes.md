@@ -1,6 +1,6 @@
 # AI Mistakes Log — AEGIS
 
-Repeated mistakes by Claude Code — 45 numbered lessons, grouped by category (the newest is not at the bottom: #44–#45 sit under Tooling). READ BEFORE EVERY CHANGE.
+Repeated mistakes by Claude Code — 46 numbered lessons, grouped by category (the newest is not at the bottom: #46 sits under PowerShell). READ BEFORE EVERY CHANGE.
 
 ## CSS / Styles
 1. Adds text-transform: uppercase to h2 globally — breaks settings/modal headers
@@ -103,6 +103,23 @@ Repeated mistakes by Claude Code — 45 numbered lessons, grouped by category (t
     rule 3 is the one to cite.
 
 ## PowerShell
+46. **PowerShell `-Command` converted a blocking hook exit into a non-blocking hook error.**
+    Diagnosed 2026-09-07 in PR #344 (merge `8db8765`). The Codex branch guard wrote
+    `Cannot edit on master` to stderr and Node exited 2; its PowerShell launcher exited 1.
+    No exception occurred in the guard. The same payload returned 2 through Node directly,
+    1 through the old launcher, and 2 when the command ended with `; exit $LASTEXITCODE`.
+    PowerShell `-Command` maps a final native exit code other than 0 or 1 to 1 unless
+    explicitly propagated; this does not describe every PowerShell invocation mode.
+    **For command hooks, preserve the native status at the shell boundary.** Codex treats
+    exit 2 plus stderr as a blocking decision. The Windows override in `.codex/hooks.json`
+    now propagates it. Fresh CLI sessions after `/hooks` trust confirmed a feature-branch
+    edit succeeded and a master edit was blocked before approval. Capture actual stderr
+    and compare child and launcher status before concluding that a hook script threw.
+    [PowerShell exit-code semantics](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?view=powershell-5.1#-command).
+    Multiline PR bodies were also created successfully from PowerShell in this session:
+    write the here-string to a UTF-8 temporary file and pass `gh pr create --body-file`.
+    The body then bypasses native argument quoting; switching to Git Bash was unnecessary.
+
 18. Uses && in PowerShell commands instead of ; or powershell.exe -NoProfile -Command wrapper
 
 ## CI

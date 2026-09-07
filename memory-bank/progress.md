@@ -633,3 +633,26 @@ See git log for Steps 1-54. Previous progress.md content archived in git history
 - **Mutations, each applied by exact-string replacement with an asserted count, the two suites run RED, reverted with `git checkout --`, `git diff HEAD` empty:** M2 index fed BEFORE `appendFileSync` with the pre-write offset → 3 red (T5′, rows ≤ lines, T8); M3 byte-offset check dropped → 2 red (T5′, T8); M6 reconcile's orphan branch removed → 1 red (T8); M7 `enableForeignKeyConstraints: false` at both opens → 4 red (T5′, T6, T8, CASCADE); M8 gate ignores the `loadSqlite` seam → 1 red (T1).
 - **Gates on the branch (worktree with its own `npm ci`, Node 24.11.1):** `typecheck` 0, `typecheck:svelte` 0 errors, `build:renderer` 0, `format:check` 0, `lint` 0 errors, `verify:gate` and `verify:seq-gate` every mutant killed, `counts:check` OK (109/109 sites; `main.total` 58, `main.topLevel` 46, `size.over300` 36), `npm audit --audit-level=high --omit=dev` 0. **One environment finding, not a defect:** the first full run in the fresh worktree lost `population-scope-gate.test.js` and `scan-loop.test.js` to `Electron failed to install correctly` — Electron 42+ downloads its binary lazily (#334's own note), `npm ci` leaves no `node_modules/electron/dist`, and those two suites reach the real `require('electron')`; `node node_modules/electron/install.js` fixed it and both passed 100/100 in isolation before the final full run. A worktree that will run the whole suite needs that step after `npm ci`.
 - **Docs.** `docs/ECS-MAPPING.md` §8 "Index columns"; the roadmap's status header, branch-context note (§1–§11 line references pre-date #331 and this block) and §12; `memory-bank/architecture.md` two module lines and the counter; the three `size.over300` sites and the three `main.*` sites. Worktree `X:\tmp\aegis-audit-index-b1` from `origin/master f7bd134`, own `npm ci` (ai-mistakes #37, #41, #45); `origin/master` moved to `16e761e` (#336, ai-mistakes only) while the PR was open and was merged in with an anchored marker grep clean.
+
+## Codex harness migration completed (2026-09-07, PRs #342–#345; master `feb1436`)
+
+Codex CLI 0.153.4 was verified with the project hooks and GPT-6 Astra. PR #342 adapted
+hook payloads and launchers, removed literal escape artifacts from the agent definitions,
+and introduced the project config. PR #343 replaced full filesystem access with
+`workspace-write`, `on-request` approvals, and network access restricted to GitHub and its API.
+PR #344 (merge `8db8765`) fixed Windows hook exit propagation: PowerShell had converted
+Node's blocking exit 2 into exit 1. Fresh trusted-hook sessions applied a feature-branch
+edit and blocked an edit on master before approval. Lesson 46 in `ai-mistakes.md` records
+that shell boundary and the captured evidence.
+
+PR #345 (merge `feb1436`) made AGENTS.md canonical, reducing its Git blob from 6,685 to
+3,967 bytes; CLAUDE.md is a three-line pointer. The file now carries identity invariants,
+test and git-cycle authorisation, scoped human stopping points, testing calibration,
+writing style and instruction precedence. Sequence-rule consumption and branch-guard paths
+were corrected. Its PR body records that PR #339 is superseded. The five required CI
+contexts passed on each merged PR. After the final merge, master was clean and the local
+AGENTS.md blob matched HEAD; the desktop change card did not represent an uncommitted edit.
+
+Next product work: audit-index block 2 in `docs/roadmap/audit-index.md`. On this master,
+block 1's writer and rebuild are present; `getEntriesBefore` still reads JSONL. No read-path
+completion is claimed by this entry. Issue #332 remains in the ordinary queue.
