@@ -236,7 +236,7 @@ ${findingsHtml}${recsHtml}
       const merged = { ...scanner.agentDb, customAgents: config.getCustomAgents() };
       const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
         title: 'Export Agent Database',
-        defaultPath: 'aegis-agents.json',
+        defaultPath: path.join(app.getPath('downloads'), 'aegis-agents.json'),
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
       if (!filePath) return { success: false };
@@ -283,7 +283,7 @@ ${findingsHtml}${recsHtml}
       const defaultName = `aegis-full-audit-${new Date().toISOString().slice(0, 10)}.json`;
       const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
         title: 'Export Full Audit Log',
-        defaultPath: defaultName,
+        defaultPath: path.join(app.getPath('downloads'), defaultName),
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
       if (!filePath) return { success: false };
@@ -300,7 +300,7 @@ ${findingsHtml}${recsHtml}
     try {
       const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
         title: 'Export Config',
-        defaultPath: 'aegis-config.json',
+        defaultPath: path.join(app.getPath('downloads'), 'aegis-config.json'),
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
       if (!filePath) return { success: false };
@@ -376,7 +376,7 @@ ${findingsHtml}${recsHtml}
       const defaultName = `aegis-export-${new Date().toISOString().slice(0, 10)}.zip`;
       const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
         title: 'Export All Data (ZIP)',
-        defaultPath: defaultName,
+        defaultPath: path.join(app.getPath('downloads'), defaultName),
         filters: [{ name: 'ZIP', extensions: ['zip'] }],
       });
       if (!filePath) return { success: false };
