@@ -113,6 +113,43 @@ function logAuditForFile(ev) {
   });
 }
 
+/**
+ * Offer one live carrier to the sequence engine — the taps of
+ * docs/roadmap/sequence-rules.md §5, fed the SAME record the audit / baseline call
+ * beside each tap receives, after the existing dedup. The engine is an injected
+ * collaborator like every other one here (`deps.sequenceEngine`, wired in main.js);
+ * absent — a test that stubs only the collaborator its assertions are about — the tap
+ * is a no-op and the scan runs as before.
+ *
+ * Deliberately no try/catch: `ingest` carries its own error boundary
+ * (sequence-engine.js — an unrecognised shape or a throwing matcher is counted and
+ * dropped, never rethrown), and a second boundary here would hide a defect of the
+ * first. Records without an `instanceId` (file and network events in Schema v1) are
+ * passed through unfiltered: the engine's null policy skips and COUNTS them, and a
+ * pre-filter here would turn that count into silence (roadmap §4).
+ * @param {Object} carrier - a `FileEvent`, a `NetworkConnection` or a session record.
+ * @returns {void}
+ * @since v0.14.0
+ */
+function ingestSequence(carrier) {
+  const engine = deps.sequenceEngine;
+  if (engine && typeof engine.ingest === 'function') engine.ingest(carrier);
+}
+
+/**
+ * The score the sequence engine still holds for one instance (roadmap §5 "Visibility"),
+ * or 0 with no engine or an engine without `scoreFor` — the same optional-collaborator
+ * shape as {@link ingestSequence}, so a test that stubs only the taps sees the anomaly
+ * scores exactly as the detector gave them.
+ * @param {string} instanceId
+ * @returns {number}
+ * @since v0.14.0
+ */
+function sequenceScoreFor(instanceId) {
+  const engine = deps.sequenceEngine;
+  return engine && typeof engine.scoreFor === 'function' ? engine.scoreFor(instanceId) : 0;
+}
+
 function stopScanIntervals() {
   for (const t of startupTimers) clearTimeout(t);
   startupTimers = [];
@@ -140,6 +177,12 @@ function stopScanIntervals() {
 
 /** Reason recorded by every surface that refuses to observe an untrusted population. */
 const SCOPE_UNAVAILABLE = 'process-observation-unavailable';
+
+/**
+ * Reason the file read leaf records when a trusted population is empty: a scoped
+ * success, the same string `doNetworkScan` hands the network leaf (§10 B4).
+ */
+const CONFIRMED_ZERO = 'confirmed-zero-agents';
 
 /**
  * Whether the agent population may be used as an observation scope right now.
@@ -254,6 +297,8 @@ function doNetworkScan() {
             ]),
             extra: { domain: conn.domain, flagged: conn.flagged },
           });
+          // Tap 3 (roadmap §5): the connection object itself, keyless ones included.
+          ingestSequence(conn);
         }
         sendToRenderer('network-update', connections);
         logger.debug('scan', 'network', {
@@ -353,6 +398,15 @@ async function doProcessScan() {
     // write, anomaly processing, a renderer send — must not be able to write it. Without
     // this split, `process = FAILED` proved nothing about whether the machine was
     // enumerated. The provider throw is rethrown so the outer catch keeps the single log.
+    // B5 straddle witness: a SNAPSHOT of the observation gap taken before the provider
+    // await, compared with a second one after the identity stamp below. `suspendCount`
+    // moving between the two means the OS slept while this tick's evidence was being
+    // gathered — the list may describe the machine before the sleep, and every clock
+    // read from here on is after it. Deliberately not a live read of the module's
+    // state: the honest first tick AFTER resume also finds the flag armed, and a live
+    // read would freeze that tick too, which is the one that must clear it.
+    // Optional collaborator, same shape as `sequenceEngine`: absent, nothing here runs.
+    const gapBefore = deps.observationGap ? deps.observationGap.snapshot() : null;
     let result;
     try {
       result = await scanner.scanProcesses();
@@ -392,6 +446,10 @@ async function doProcessScan() {
     // 67.3 ms; that run's CIM arm p50 1747.6 ms, p95 1873.6 ms, max 2144.0 ms.
     // Samples, not guaranteed runtimes.
     await procUtil.enrichWithParentChains(agents, { forceRefresh: result.changed === true });
+    // The second half of the straddle witness — after the identity stamp, so a sleep
+    // inside `enrichWithParentChains` is caught as well as one inside the enumeration.
+    const gapStraddled =
+      gapBefore !== null && deps.observationGap.snapshot().suspendCount !== gapBefore.suspendCount;
     // Read AFTER the identity stamp, never before. The snapshot leaf's health
     // describes the process-table observation `enrichWithParentChains` just made;
     // read at the top of the tick it would report the PREVIOUS pass's provider, and
@@ -404,19 +462,34 @@ async function doProcessScan() {
         reason: 'identity-degraded',
         agents: agents.length,
       });
+    } else if (gapStraddled) {
+      logger.debug('scan', 'session-freeze', {
+        reason: 'suspend-straddle',
+        agents: agents.length,
+      });
     }
     // Eager-enter / lazy-exit session reconciliation: an agent seen in even ONE
     // scan logs session-start immediately, and a flickering or permission-denied
     // scan never spawns a duplicate session. `identityDegraded` freezes the same way
     // an unreliable scan does: when the birth-time observation is gone, every live
     // agent's key changes without any process having started or stopped, and acting
-    // on that would report a fleet-wide exit that never happened. See
-    // session-tracker.js.
+    // on that would report a fleet-wide exit that never happened. `gapStraddled`
+    // freezes for the third reason: the evidence predates a sleep that `now` does
+    // not, so no stamp this tick could write would be true. See session-tracker.js.
+    const reliable = result.reliable !== false;
     const { entered, exited } = sessionTracker.reconcile(agents, {
-      reliable: result.reliable !== false,
+      reliable,
       identityDegraded,
+      gapStraddled,
     });
-    for (const s of entered)
+    // The ONLY thing that clears a resumed observation gap: a tick whose reconcile was
+    // not frozen. A permission-denied enumeration, a degraded identity or a straddled
+    // tick ran, but observed nothing — the gap stays armed until something does. Placed
+    // before the audit writes below so a downstream throw cannot leave a real
+    // observation uncredited.
+    const observed = reliable && !identityDegraded && !gapStraddled;
+    if (observed && deps.observationGap) deps.observationGap.noteObserved(Date.now());
+    for (const s of entered) {
       audit.log('agent-enter', {
         agent: s.agent,
         // pid and instanceId are TOP-LEVEL in v1. They were in `extra` on the belief that
@@ -433,7 +506,11 @@ async function doProcessScan() {
         attribution: null,
         extra: { startTime: s.firstSeen },
       });
-    for (const s of exited)
+      // Tap 4 (roadmap §5): the session record as session-tracker returned it — no
+      // `lastSeen` on an enter, which is how the normalizer tells the two apart.
+      ingestSequence(s);
+    }
+    for (const s of exited) {
       audit.log('agent-exit', {
         agent: s.agent,
         pid: s.pid,
@@ -445,6 +522,10 @@ async function doProcessScan() {
         // resolution step to describe.
         attribution: null,
       });
+      // Tap 4 (roadmap §5): `lastSeen` present ⇒ `agent-exit`, which the engine first
+      // offers as a step and then uses to close the instance's open states.
+      ingestSequence(s);
+    }
     watcher.pruneKnownHandles(agents);
     procUtil.annotateHostApps(agents);
     // Same `forceRefresh` contract as the identity stamp at the top of this scan:
@@ -502,10 +583,22 @@ async function doProcessScan() {
     //
     // An agent with no key scores 0 and still gets its name entry, exactly as an agent
     // with no baseline always did — the name map's key set is unchanged.
+    //
+    // A completed sequence (roadmap §5 "Visibility") reaches the renderer on THIS value:
+    // the engine's `scoreFor(instanceId)` — 90/70/55/30 by level, held ten minutes after
+    // the last detection — is merged as max, so the existing toast threshold (50) and the
+    // risk store pick it up by instanceId with no channel of their own. Max, not sum: the
+    // two scores are two claims about the same instance, and the louder one is the one
+    // on screen.
     const scores = {};
     const scoresByInstance = {};
     for (const a of agents) {
-      const score = a.instanceId ? anomaly.calculateAnomalyScore(a.instanceId).score : 0;
+      const score = a.instanceId
+        ? Math.max(
+            anomaly.calculateAnomalyScore(a.instanceId).score,
+            sequenceScoreFor(a.instanceId),
+          )
+        : 0;
       if (a.instanceId) scoresByInstance[a.instanceId] = score;
       scores[a.agent] = Math.max(scores[a.agent] || 0, score);
     }
@@ -561,9 +654,28 @@ async function doProcessScan() {
       _lastTriggeredNetScan = Date.now();
       doNetworkScan();
     }
+    // Tap 5 (roadmap §5): once per process tick, after this tick's session taps —
+    // expired open sequences and stale exit marks leave without waiting for the next
+    // event of the same key. Same optional-collaborator shape as `ingestSequence`.
+    if (deps.sequenceEngine && typeof deps.sequenceEngine.sweep === 'function') {
+      deps.sequenceEngine.sweep();
+    }
+    // The first tick(s) after a resume are tagged with the gap they follow, and with
+    // whether THIS tick was the one that cleared it — so a log reader can tell a
+    // post-sleep tick from a quiet one, and a tick that observed from one that did not.
+    const postGap =
+      gapBefore !== null && gapBefore.state === 'RESUMED'
+        ? {
+            suspendedAt: gapBefore.suspendedAt,
+            resumedAt: gapBefore.resumedAt,
+            gapMs: gapBefore.gapMs,
+            cleared: observed,
+          }
+        : undefined;
     logger.debug('scan', 'process', {
       ms: Math.round(performance.now() - t0),
       agents: agents.length,
+      ...(postGap ? { postGap } : {}),
     });
   } catch (err) {
     // Reached by BOTH a provider throw (rethrown above, health already owned by the inner
@@ -659,7 +771,16 @@ async function doFileScan() {
     }
     return;
   }
-  if (agents.length === 0) return;
+  // #328: a trusted population with no agent is an observed zero, not a skipped tick —
+  // the ACTIVE read leaf records the scoped success the network leaf records at
+  // `doNetworkScan`, or it stays STARTING for as long as the machine stays idle.
+  if (agents.length === 0) {
+    logger.debug('scan', 'file-skip', { reason: CONFIRMED_ZERO, agents: 0 });
+    if (typeof watcher.noteFileScanSkip === 'function') {
+      watcher.noteFileScanSkip(CONFIRMED_ZERO);
+    }
+    return;
+  }
   const t0 = performance.now();
   updateScanStatus(true);
   try {
@@ -669,6 +790,8 @@ async function doFileScan() {
       for (const ev of events) deps.fileAccessBatcher.push(ev);
       tray.notifySensitive(events.filter((e) => e.sensitive && e.category === 'ai'));
       for (const ev of events) logAuditForFile(ev);
+      // Tap 2 (roadmap §5): the deduped handle-scan events, same list the audit saw.
+      for (const ev of events) ingestSequence(ev);
     }
     // Producer, not payload: the batcher is 'latest', so a payload built here would be
     // discarded by the next push inside the same 1000 ms window.
@@ -703,7 +826,14 @@ async function doHotReadScan() {
     }
     return;
   }
-  if (agents.length === 0) return;
+  // #328: the same observed zero as the 30 s scan, on the fs-rm leaf this cycle owns.
+  if (agents.length === 0) {
+    logger.debug('scan', 'hot-read-skip', { reason: CONFIRMED_ZERO, agents: 0 });
+    if (typeof watcher.noteFileScanSkip === 'function') {
+      watcher.noteFileScanSkip(CONFIRMED_ZERO);
+    }
+    return;
+  }
   const t0 = performance.now();
   try {
     const rawEvents = await watcher.scanHotFileHolders(agents);
@@ -712,6 +842,8 @@ async function doHotReadScan() {
       for (const ev of events) deps.fileAccessBatcher.push(ev);
       tray.notifySensitive(events.filter((e) => e.sensitive && e.category === 'ai'));
       for (const ev of events) logAuditForFile(ev);
+      // Tap 2 (roadmap §5): the same dedup → batch → audit pipeline as doFileScan.
+      for (const ev of events) ingestSequence(ev);
       deps.statsUpdateBatcher.pushLazy(getStats);
       tray.updateTrayIcon();
     }

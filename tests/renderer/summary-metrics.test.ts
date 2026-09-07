@@ -10,12 +10,11 @@ import {
   eventsPerMinute,
   EVENTS_PER_MIN_WINDOW_MS,
   sensitiveAlertCount,
-  SENSITIVE_SUMMARY_LABEL,
   monitoringElapsedMs,
   formatMonitoringDuration,
-  MONITORING_DURATION_LABEL,
   FILE_ACTIVITY_CHIP_LABEL,
 } from '../../src/renderer/lib/utils/summary-metrics';
+import en from '../../src/renderer/lib/i18n/translations/en.json';
 import type { DetectedAgent } from '../../src/shared/types';
 
 /**
@@ -236,8 +235,8 @@ describe('sensitiveAlertCount (F-W06)', () => {
   });
 
   it('label matches retained-alert semantics, not "files"', () => {
-    expect(SENSITIVE_SUMMARY_LABEL).toBe('Sensitive Alerts');
-    expect(SENSITIVE_SUMMARY_LABEL.toLowerCase()).not.toContain('file');
+    expect(en.summary.sensitive_alerts).toBe('Sensitive Alerts');
+    expect(en.summary.sensitive_alerts.toLowerCase()).not.toContain('file');
   });
 });
 
@@ -282,8 +281,8 @@ describe('monitoringElapsedMs / formatMonitoringDuration (F-W07)', () => {
   });
 
   it('label is monitoring session age, not system/OS uptime', () => {
-    expect(MONITORING_DURATION_LABEL).toBe('Monitoring Duration');
-    expect(MONITORING_DURATION_LABEL.toLowerCase()).not.toContain('system');
+    expect(en.summary.monitoring_duration).toBe('Monitoring Duration');
+    expect(en.summary.monitoring_duration.toLowerCase()).not.toContain('system');
   });
 });
 

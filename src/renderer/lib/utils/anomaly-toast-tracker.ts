@@ -42,13 +42,40 @@ export interface AnomalyToastTracker {
 // ═══ PUBLIC API ═══
 
 /**
+ * The inclusive score at which an anomaly toasts — and at which the agent card enters
+ * its alert state (AgentCard.svelte `isDanger`). ONE constant with two readers, so the
+ * toast and the card cannot say two different things about the same number: the score
+ * both read is `anomalyScoresByInstance` as scan-loop.js merges it (the baseline
+ * deviation composite and the sequence-engine hold, max), keyed by instance and, for
+ * the toast, max over a name's instances.
+ */
+export const ANOMALY_TOAST_THRESHOLD = 50;
+
+/**
+ * Whether a score crosses the toast gate. The tracker's own gate and the card's alert
+ * state both go through this function, which is what keeps them from drifting apart.
+ *
+ * @param score - Anything a scores map may hold. Only a number at or over the threshold
+ *   alerts; a string, `null`, `undefined` and `NaN` do not.
+ * @param threshold - Inclusive gate; {@link ANOMALY_TOAST_THRESHOLD} unless a caller
+ *   built its tracker on another one.
+ * @returns `true` when `score` is a number `>= threshold`.
+ */
+export function isAnomalyAlert(score: unknown, threshold = ANOMALY_TOAST_THRESHOLD): boolean {
+  return typeof score === 'number' && score >= threshold;
+}
+
+/**
  * Create a seed-then-diff anomaly-toast tracker.
  *
  * @param threshold - Minimum score (inclusive) for an agent to count as an
- *   anomaly. Defaults to `50`, matching the gate in App.svelte.
+ *   anomaly. Defaults to {@link ANOMALY_TOAST_THRESHOLD}, the gate App.svelte
+ *   toasts on and AgentCard alerts on.
  * @returns A tracker whose `ingest` returns only freshly-anomalous agent names.
  */
-export function createAnomalyToastTracker(threshold = 50): AnomalyToastTracker {
+export function createAnomalyToastTracker(
+  threshold = ANOMALY_TOAST_THRESHOLD,
+): AnomalyToastTracker {
   let prevKeys = new Set<string>();
   let initialized = false;
 
@@ -63,7 +90,7 @@ export function createAnomalyToastTracker(threshold = 50): AnomalyToastTracker {
       const fresh: string[] = [];
 
       for (const [agent, score] of entries) {
-        if (typeof score === 'number' && score >= threshold) {
+        if (isAnomalyAlert(score, threshold)) {
           currentKeys.add(agent);
           // On the seed (first non-empty) call, `initialized` is false → nothing
           // is reported, so anomalies present when scores first arrive do not

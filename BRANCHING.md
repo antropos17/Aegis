@@ -20,9 +20,9 @@
 4. **Direct commits to master are impossible, for anything — including typos, version bumps
    and CI config.** `master` requires a pull request plus green `audit` / `build` / `lint` /
    `svelte-check` / `test`, with admin enforcement on, so the push is rejected. The
-   `.claude/hooks/branch-guard.js` hook refuses edits on master before you get that far.
+   `.codex/hooks/branch-guard.js` hook refuses edits on master before you get that far.
 
-## For AI agents (Claude Code)
+## For AI agents (Codex CLI)
 
 Replace `<repo-root>` with the path to your local Aegis checkout before running these commands.
 

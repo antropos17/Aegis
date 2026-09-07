@@ -21,6 +21,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "verify:gate": "node scripts/verify-witness-gate.mjs",
+    "verify:seq-gate": "node scripts/verify-sequence-gate.mjs",
     "counts:check": "node scripts/counts.js",
     "build:sidecar": "node scripts/build-sidecar.js",
     "bench:generation": "node scripts/bench-generation.js",
@@ -31,7 +32,7 @@
     "prepare": "husky"
   },
   "engines": {
-    "node": "22.x"
+    "node": "24.x"
   },
   "lint-staged": {
     "src/**/*.{js,ts,svelte,css,html}": "prettier --write",
@@ -118,7 +119,7 @@
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^8.56.1",
     "@vitest/coverage-v8": "^4.0.18",
-    "electron": "^33.4.11",
+    "electron": "^43.4.1",
     "electron-builder": "^26.8.1",
     "eslint-plugin-svelte": "^3.15.0",
     "globals": "^17.3.0",

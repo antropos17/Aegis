@@ -535,6 +535,21 @@ describe('app-health', () => {
       );
     });
 
+    it('N4. an injected observationGap changes nothing either — time continuity is a sibling (B5)', () => {
+      const base = deriveAppHealth(input());
+      const armed = {
+        state: 'RESUMED',
+        suspendedAt: T0 - 60_000,
+        resumedAt: T0,
+        gapMs: 60_000,
+        clearedAt: null,
+        suspendCount: 1,
+        totalGapMs: 60_000,
+      };
+      expect(deriveAppHealth(input({ observationGap: armed }))).toEqual(base);
+      expect(deriveAppHealth({ ...input(), observationGap: armed })).toEqual(base);
+    });
+
     it('N3. no age-based rule: a stale lastSuccessAt derives the same state', () => {
       const fresh = deriveAppHealth(input());
       const stale = deriveAppHealth(

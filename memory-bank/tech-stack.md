@@ -1,7 +1,7 @@
 # AEGIS Tech Stack
 
 ## Core
-- Electron 33 (desktop framework)
+- Electron 43 (desktop framework)
 - Svelte 5 + Vite (frontend, renderer process)
 - Vanilla JS + CommonJS (backend, main process)
 

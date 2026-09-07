@@ -6,8 +6,10 @@
  *   WHY THE DUPLICATION EXISTS. `handleWatcherEvent` does not write to the audit log;
  *   the path from a detection to an Event Schema v1 record is closed outside the
  *   watcher, in `main.js`'s `onFileEvent` and in `scan-loop.js`'s `doFileScan` and
- *   `doHotReadScan`. None of those three is exported, so a replay performs the same
- *   steps itself — and a copy drifts silently by default. If an original grew a step,
+ *   `doHotReadScan`. None of those three is reachable from a replay (the scan-loop
+ *   sites are not exported; `main.js` exports its handler for its own test only, behind
+ *   an `electron` require), so a replay performs the same steps itself — and a copy
+ *   drifts silently by default. If an original grew a step,
  *   the harness would keep replaying yesterday's wiring while every suite stayed
  *   green, and the bench's green would stop meaning anything.
  *

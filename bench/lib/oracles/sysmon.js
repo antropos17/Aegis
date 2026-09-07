@@ -13,7 +13,15 @@
  *   that shared code with the thing it confirms would stop being independent. The
  *   two path helpers below are therefore a deliberate duplication.
  *
- *   ## Three layers, and only two of them are proven
+ *   What IS shared is `bench/lib/paths.js`, through `bench/lib/catalogue.js`: the
+ *   recording rewrite that turns the developer's clone root and OS account name
+ *   into the neutral ones every committed artefact carries. It belongs to neither
+ *   column — it decides what is written down, not what was observed — and it has
+ *   to be the same transform on both sides or the catalogue and this oracle would
+ *   name one file with two different strings and no path key would ever match. See
+ *   {@link toOracleRecord} and {@link writeLoss}.
+ *
+ *   ## Three layers, and where each one stands
  *
  *   **RAW — LIVE-UNVALIDATED.** A real `Microsoft-Windows-Sysmon/Operational`
  *   channel, read by Windows into EventRecord XML. {@link readChannelXml} is the
@@ -29,9 +37,14 @@
  *   fabricated anywhere in this repository: a synthetic EVTX container would test
  *   our imitation of the Windows Event Log rather than Windows.
  *
- *   **DERIVED — a later block.** Matching the oracle against the catalogue, and
- *   any metric over the result, is B2.5. This file scores nothing and compares
- *   nothing.
+ *   **DERIVED — built, and no stronger than the layer above it.** Matching the
+ *   oracle against the catalogue, and every metric over the result, lives in
+ *   `bench/lib/metrics.js` and `bench/score.js`. **This file scores nothing and
+ *   compares nothing**, and that is a boundary rather than a stage it has not
+ *   reached yet: it collects, normalizes and accounts for one channel read, and a
+ *   separate entrypoint reads what it wrote. A confirmation figure derived from
+ *   these records is bounded by the RAW layer above — a metric over records nobody
+ *   has ever collected from an installed binary is arithmetic, not evidence.
  *
  *   ## What is retained, and what is refused
  *
@@ -83,6 +96,10 @@ const path = require('path');
 
 const catalogue = require('../catalogue');
 const manifest = require('../manifest');
+// The recording rewrite, from the module that owns it. Not a second copy: two
+// spellings of one transform are exactly the pair that drifts, and a drift here
+// puts the catalogue and the oracle in different path spaces (ai-mistakes #24).
+const { neutralizeRecorded } = require('../paths');
 
 /** @type {string} Oracle id, as scenarios name it in their `oracles` array. */
 const ORACLE_ID = 'sysmon';
@@ -543,6 +560,21 @@ function ecsFields(eventId, data) {
 
 /**
  * Turn one parsed record into a canonical oracle record.
+ *
+ * The record comes back in the RECORDING path space, not the machine's: every
+ * string in it goes through `bench/lib/paths.js`, the same rewrite
+ * `catalogue.buildEvent` applies to a catalogue row and `observed.js` applies to
+ * an observation. It is applied HERE, at build, rather than only at serialize
+ * time, for the reason `observed.js` rewrites before deriving `name` and
+ * `directory`: an in-memory record that still named the developer's clone root
+ * would put this column in a different path space from the catalogue for any
+ * caller holding it, and a path key that misses is indistinguishable from an
+ * oracle that saw nothing.
+ *
+ * The rewrite moves a clone root and an account name and touches nothing else, so
+ * it cannot merge two files into one name — but it is a RECORDING transform and
+ * the record is therefore what this run wrote down, not a byte-exact transcript
+ * of what Sysmon emitted. The untouched original is on the channel.
  * @param {Object} parsed - From {@link parseEventXml}.
  * @param {string} scenario - Scenario id.
  * @returns {Object} An ECS document in the catalogue's subset.
@@ -561,7 +593,7 @@ function toOracleRecord(parsed, scenario) {
       );
     }
   }
-  return {
+  return neutralizeRecorded({
     '@timestamp': normalizeSystemTime(system.timeCreated),
     ecs: { version: catalogue.ECS_VERSION },
     event: {
@@ -575,7 +607,7 @@ function toOracleRecord(parsed, scenario) {
     },
     ...ecsFields(system.eventId, data),
     bench: benchBlock(parsed, scenario),
-  };
+  });
 }
 
 /**
@@ -1228,13 +1260,20 @@ function write(runDir, events) {
 
 /**
  * Write the collection and loss accounting into a run directory.
+ *
+ * Neutralized as a whole, the way `observed.js` writes its capture record: this
+ * file carries paths in places a path-shaped field name would not find them —
+ * `archivalDeletes[].targetFilename` is an absolute path off the channel, a
+ * reader that refused carries the OS error message that names one, and
+ * `collection.reader` is the command line that was run. Walking every string is
+ * the only rule that covers a path which landed inside a sentence.
  * @param {string} runDir - Absolute path of the run directory.
  * @param {Object} loss - From {@link buildLoss}.
  * @returns {string} Absolute path of the file written.
  */
 function writeLoss(runDir, loss) {
   const file = path.join(runDir, LOSS_FILENAME);
-  fs.writeFileSync(file, `${JSON.stringify(loss, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(file, `${JSON.stringify(neutralizeRecorded(loss), null, 2)}\n`, 'utf8');
   return file;
 }
 

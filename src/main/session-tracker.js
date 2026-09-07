@@ -15,11 +15,12 @@
  *     `tasklist`, or a permission-denied scan) does NOT end it and reappearance
  *     does NOT create a duplicate session.
  *   - A scan that observed nothing usable is FROZEN: it starts, ends and ages
- *     nothing. Two things can be missing — the population (`reliable: false`, a
- *     permission-denied enumeration) or the identity (`identityDegraded: true`, a
+ *     nothing. Three things can be missing — the population (`reliable: false`, a
+ *     permission-denied enumeration), the identity (`identityDegraded: true`, a
  *     birth-time platform whose observation failed, so every key collapsed to
- *     `<pid>:u`). Both are absences of evidence, and an absence of evidence must not
- *     be written into the audit log as a fleet-wide exit.
+ *     `<pid>:u`) or the time (`gapStraddled: true`, a list read before an OS sleep
+ *     and reconciled after it). All are absences of evidence, and an absence of
+ *     evidence must not be written into the audit log as a fleet-wide exit.
  *
  *   Identity is `instanceId + process name`, where `instanceId` binds the pid to
  *   the OS process-creation time (process-identity.js). The snapshot scanner
@@ -136,6 +137,13 @@ function sessionKey(agent) {
  *   Absent or false, reconcile behaves exactly as it always did — which is what
  *   keeps linux and darwin untouched, where `<pid>:u` is the steady state and no
  *   caller ever sets this.
+ * @param {boolean} [opts.gapStraddled=false] - true when the scan's evidence was
+ *   gathered on the far side of an OS sleep: the provider was awaited across a
+ *   `powerMonitor` suspend/resume pair (scan-loop.js, Block B5). The list may describe
+ *   the machine as it was before the sleep, and `now` is after it, so a `lastSeen` or
+ *   `firstSeen` stamped here would place a pre-sleep sighting after the gap. Handled
+ *   EXACTLY like the two flags above — no enter, no exit, no aging — and for the same
+ *   reason: absence of evidence is not evidence of an exit.
  * @param {number} [opts.now] - injectable timestamp (ms) for tests.
  * @param {number} [opts.grace=DEFAULT_EXIT_GRACE] - consecutive reliable misses
  *   before a session is reported as exited.
@@ -146,19 +154,22 @@ function sessionKey(agent) {
 function reconcile(agents, opts = {}) {
   const reliable = opts.reliable !== false;
   const identityDegraded = opts.identityDegraded === true;
+  const gapStraddled = opts.gapStraddled === true;
   const now = opts.now != null ? opts.now : Date.now();
   const grace = opts.grace != null ? opts.grace : DEFAULT_EXIT_GRACE;
 
   // Nothing observable happened: do not start, end, or age sessions.
   //
-  // Two causes, one response, because the two are the same mistake seen from
-  // opposite sides. An unreliable scan lost the POPULATION — this is what kills the
+  // Three causes, one response, because all three are the same mistake seen from
+  // different sides. An unreliable scan lost the POPULATION — this is what kills the
   // EPERM false-positive storm, where a transient access-denied aged out every live
   // session into a spurious exit + re-enter pair. A degraded identity lost the KEY:
   // the same processes come back under `<pid>:u`, which reads as the whole fleet
-  // exiting and an identically-named fleet arriving. Neither says anything about
-  // who left, so neither may be answered with an event.
-  if (!reliable || identityDegraded) return { entered: [], exited: [] };
+  // exiting and an identically-named fleet arriving. A straddled scan lost the TIME:
+  // the list was read before an OS sleep and `now` is after it, so every stamp this
+  // tick could write would date a pre-sleep sighting to the far side of the gap. None
+  // says anything about who left, so none may be answered with an event.
+  if (!reliable || identityDegraded || gapStraddled) return { entered: [], exited: [] };
 
   const entered = [];
   const seenKeys = new Set();

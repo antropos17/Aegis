@@ -1,6 +1,6 @@
 # AI Mistakes Log — AEGIS
 
-Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
+Repeated mistakes by Claude Code — 46 numbered lessons, grouped by category (the newest is not at the bottom: #46 sits under PowerShell). READ BEFORE EVERY CHANGE.
 
 ## CSS / Styles
 1. Adds text-transform: uppercase to h2 globally — breaks settings/modal headers
@@ -18,12 +18,56 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
 9. Does not deduplicate events — one file triggers 100+ alerts
 10. sensitive * 10 = linear growth without cap — risk instantly hits 100
 
+43. **Confirmed good approach — a renderer alert state reads the SAME number the toast reads
+    and gates it at ONE exported threshold; a behaviour score is never folded into the
+    exposure model.** Found 2026-08-25 in the evidence-chain recording (#325): SEQ001 closed,
+    `scoreFor` returned 70, `scan-loop.js` merged it as max into `anomalyScoresByInstance`,
+    App.svelte toasted `Anomaly: aider score 70` — and the card stayed green, because
+    `AgentCard.svelte` keyed `isDanger` and `threat-flash` on `riskScore` alone, which
+    `calculateRiskScore` never folds an anomaly into. Two screen elements were making claims
+    about two DIFFERENT numbers for one instance, and a reader takes them for one.
+    Fixed in #333: `anomaly-toast-tracker.ts` exports `ANOMALY_TOAST_THRESHOLD` (50) and
+    `isAnomalyAlert`, the tracker gates through them, and the card's `isDanger` is
+    `riskScore >= 70 || isAnomalyAlert(max anomalyScore over agent._instances)` — the group
+    max, because the toast is keyed by name and carries the max over that name's instances
+    while the representative is the max-`riskScore` instance and need not be the one the
+    score belongs to. The badge keeps its band on purpose: `riskScore` is an exposure model
+    with a ceiling per factor (#10), the anomaly score is a held level label (sequence) or a
+    deviation composite, and a bounded term that could flip a card from risk ~0 would have to
+    reach 70 on its own — dominating the ceiling and moving Header, RiskIndex, Reports, Radar
+    and the grade letter on a behaviour claim (cf. #10; F-W01 in progress.md separated the
+    two domains on purpose). Rule: when two surfaces report one fact, they read one value
+    through one gate; a second literal is a drift waiting to be reported — mutation m3 in
+    #333 (a literal 70 in the card while the toast gates at 50) is exactly that drift, and
+    the 49/50 test is what catches it.
+    **Noted, not fixed:** `AgentCard.svelte` draws the danger border at `riskScore >= 70`
+    while the high band starts at `RISK_BAND_HIGH_MIN = 66` (`trust-badge-utils.ts:41`;
+    `risk-ring-utils` flags its own `isDanger` at 66 too), so a risk of 66–69 reads
+    "High Risk" on the badge with no border. Out of #333's scope by decision; whoever aligns
+    it should take the band constant, not add a third number.
+
 ## General Behavior
 11. Adds features that were not requested (hamburger menus, animations, responsive)
 12. Forgets to update exports.js when adding a new IPC channel
 13. Writes vanilla JS patterns — renderer uses Svelte 5 with $state/$derived/$effect runes, NOT vanilla JS
 14. Creates dead code — functions that are never called
 15. Double-encodes UTF-8 — instead of – (en dash)
+
+37. **Two Claude Code sessions in ONE checkout share ONE working tree, so the second session's
+    uncommitted files sit on the first session's branch, and either commit sweeps the other's
+    work in.** First hit 2026-08-24, between block 1 prompt 2 (#309) and block 2 prompt 1 (#310)
+    of `docs/roadmap/sequence-rules.md`. A branch is a pointer, not a workspace: `git checkout`
+    in one session re-points the tree under the other, and an untracked file is on no branch at
+    all — it belongs to whichever branch is checked out when someone runs `git add`. Nothing
+    goes red. Each session sees its own diff plus a stranger's, reads the stranger's as noise,
+    and the next `git add .` lands both under one message (cf. #22 — untracked files have no
+    safety net; #32c — audit the file list of anything that stages what you did not write).
+    **Confirmed good approach:** every parallel session works in its own git worktree under
+    `X:\tmp` (`git worktree add X:\tmp\<name> -b <branch> master`), with a junction to the main
+    checkout's `node_modules` — or its own `npm ci` when that directory is not intact — merges
+    through its own PR, and removes the worktree after (`git worktree remove`). Git refuses to
+    check one branch out in two worktrees, so the isolation is enforced by the tool rather than
+    by discipline.
 
 ## Documentation
 16. Leaves outdated agent counts in README badges, CLAUDE.md and architecture docs
@@ -38,7 +82,44 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     which had audited the number and recorded "match". Derive before quoting
     (`git ls-files 'src/main/*.js'`), and assume the figure you were sent to fix has siblings.
 
+39. **Two authority documents state the same rule with opposite force — and one of them
+    disagrees with itself — so every PR that meets the rule has to pick a side on its own.**
+    `CLAUDE.md` rule 3 says 300 lines/file is a TARGET for new files, not an invariant, names
+    the files already over it as derived by `npm run counts:check`, and says not to split for
+    the number. `AGENTS.md` "Code conventions" carries that same sentence, and its "What NOT to
+    do" list, lower in the same file, says a new file must not blow past 300 lines — extract
+    instead. #308 (`src/main/sequence-rule-loader.js`) and #310 (`src/main/sequence-engine.js`)
+    each landed a new module over the line and each had to decide which sentence governed. Both
+    chose rule 3 and bumped `size.over300` at its declaration sites — but the choice was made
+    twice, in two PR bodies, instead of once in the documents, and a reader who opens the
+    "What NOT to do" list first is told to cut a state machine into pieces to satisfy a sentence
+    the same file has already retired (cf. #20 — a reader acts on what a document says; #24 — a
+    fact with two homes drifts, and this one has three).
+    **Decision, recorded so it is not re-made:** CLAUDE.md rule 3 wins. 300 is a target for new
+    files and the reason to extract when adding to a file already over it, never a gate;
+    `size.over300` stays a DERIVED counter that `counts:check` computes from the tree and is not
+    to become a limit; the AGENTS.md "What NOT to do" bullet is to be aligned to rule 3 in the
+    next docs pass, which this entry does not perform. Until then, where the sentences disagree,
+    rule 3 is the one to cite.
+
 ## PowerShell
+46. **PowerShell `-Command` converted a blocking hook exit into a non-blocking hook error.**
+    Diagnosed 2026-09-07 in PR #344 (merge `8db8765`). The Codex branch guard wrote
+    `Cannot edit on master` to stderr and Node exited 2; its PowerShell launcher exited 1.
+    No exception occurred in the guard. The same payload returned 2 through Node directly,
+    1 through the old launcher, and 2 when the command ended with `; exit $LASTEXITCODE`.
+    PowerShell `-Command` maps a final native exit code other than 0 or 1 to 1 unless
+    explicitly propagated; this does not describe every PowerShell invocation mode.
+    **For command hooks, preserve the native status at the shell boundary.** Codex treats
+    exit 2 plus stderr as a blocking decision. The Windows override in `.codex/hooks.json`
+    now propagates it. Fresh CLI sessions after `/hooks` trust confirmed a feature-branch
+    edit succeeded and a master edit was blocked before approval. Capture actual stderr
+    and compare child and launcher status before concluding that a hook script threw.
+    [PowerShell exit-code semantics](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?view=powershell-5.1#-command).
+    Multiline PR bodies were also created successfully from PowerShell in this session:
+    write the here-string to a UTF-8 temporary file and pass `gh pr create --body-file`.
+    The body then bypasses native argument quoting; switching to Git Bash was unnecessary.
+
 18. Uses && in PowerShell commands instead of ; or powershell.exe -NoProfile -Command wrapper
 
 ## CI
@@ -272,6 +353,90 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     is the isolated command, and either of those is a different signal from this one. This
     note RECORDS the flake and nothing more: the test, its timeouts and the vitest config
     are untouched, and no green here is a claim about them (cf. #21).
+    **Corrected 2026-08-24 in #317 — it was not machine cost, it was one measurable
+    thing and it is gone.** The gap between `spawn()` and the child's `'spawn'` event is
+    Windows scanning a freshly written PE in full the first time it is EXECUTED, and
+    `copy-binary` had just written an ~86 MB copy of `node.exe` for `hold-secret-file` to
+    launch. Measured isolated on the affected machine: a fresh 86 MB copy took 3812 ms to
+    reach `'spawn'`, the SECOND launch of that same copy 8 ms, a second fresh 86 MB copy
+    3754 ms, and a fresh copy of a 45–455 KB system binary 86–123 ms — the cost is per new
+    file and roughly proportional to its size, never per launch. The case's own phases,
+    five cold runs and five under a parallel `typecheck:svelte`: `copy-binary` 156–193 ms,
+    `seed-secret-file` 3–8 ms, `hold-secret-file` 3472–3962 ms, the cleanup kill 1–2 ms,
+    the `afterEach` removal 15–25 ms with its retry loop never once spinning — 3664–4159 ms
+    of a 5000 ms budget on an IDLE machine. The paragraph above reads the remainder as "a
+    cold whole-suite run is exactly what eats the ~1.8 s that is left"; there was no ~1.8 s
+    left to eat, and 2.9–3.2 s was the low end of that range, not its centre.
+    **The fix is the test's staging source, and no production code.** Nothing the file
+    asserts needs an interpreter — every assertion is about the argv the actor built and
+    the catalogue row it wrote, and no case runs the child, because `execute()` kills what
+    it spawned in its `finally` before a hold script could open anything — so `STAGE_STEP`
+    copies a small system executable (`ping.exe` on win32, the same source
+    `bench/scenarios/S1-agent-lifecycle` already stages; `/bin/true` elsewhere) and falls
+    back to `process.execPath` where no candidate exists. `bench/lib/actor.js`,
+    `vitest.config.js` and every timeout are untouched: raising the budget was the
+    fallback and it was not needed. After: the case is 87–120 ms (10/10 green — 5 cold,
+    5 loaded), the whole file 142–216 ms of test time against ~4.3 s before, and 365 ms
+    inside a full `test:coverage` run. **"Rerun first" is retired for this case** — a red
+    here is a signal again, and per #21 that is a claim about this case only.
+
+38. **A test that builds its input by regex-replacing `\n` over a fixture read from disk is red
+    on a Windows checkout and green on Linux CI, and two sessions in a row called it "known local
+    noise" — it was a test that did not test on this platform.**
+    `tests/main/sequence-rule-loader.test.js` › `two adjacent NETWORK steps carry no adjacency
+    warning` reads `tests/fixtures/sequences/warning/adjacent-file-steps.yaml` and rewrites it
+    with `/ {4}event\.action:\n(?: {6}- \S+\n)+ {4}file\.path\|re\|i: .*\n/`. `.gitattributes`
+    says `* text=auto`, so this checkout holds the fixture as CRLF (`git ls-files --eol` →
+    `i/lf w/crlf`), `- \S+\n` cannot match `\r\n`, the `file.*` selection survives the rewrite
+    to `category: network`, and the loader answers two `unsatisfiable-field` errors where the
+    case asserts zero. On an LF checkout — every CI runner — the regex matches and the case is
+    green, which is how #308 merged it. #309's PR body then reported the red as pre-existing and
+    CI-green, #310's did the same with the mechanism spelled out, and neither touched it — so on
+    this machine that case has failed at `loadErrors` on every run and has never reached the
+    warning assertion it exists for (cf. #21 — a passing gate proves the command ran, not that
+    it inspected your change; #26 and #36 — a red recorded nowhere is rediscovered every
+    session).
+    **Two rules follow.** (a) A test that reads a fixture and matches line ends normalises CRLF
+    FIRST — `.replace(/\r\n/g, '\n')` on the text it read — so the regex is about the format and
+    not about the checkout; a `-text` attribute on the fixture, the way `tests/fixtures/bench/**`
+    and `keys/**` already carry one, is the other honest form. (b) One red on the local run is
+    not noise until the cause is NAMED: "green in CI" and "not my diff" are both true of a test
+    that is broken on this platform, and only a red whose mechanism is written down may be filed
+    as noise. This entry records the defect; the test and the fixture are untouched here.
+
+42. **A health leaf created expected-active that no code path on this platform ever writes reads
+    as a permanent startup, and nothing goes red because SENSORS_STARTING looks like a launch,
+    not a fault.** Found 2026-08-25 reading `file-watcher.js` for the B8 umbrella suite.
+    `createInitialFsHealth` created `fs-handle` and `fs-rm` STARTING on win32. `scanAllFileHandles`
+    handed every tick to `scanViaRestartManager` while the Restart Manager was usable and
+    returned — the handle leaf was "not sampled", by its own comment — so it stayed STARTING for
+    the life of the process; with RM unavailable and a handle binary present the pool wrote
+    `fs-handle` every tick and `fs-rm` never (its only pool-side write sat inside the blind
+    B-S04 branch); and a closed population gate marked only the active leaf. `aggregateSensorHealth`
+    counts STARTING as participating and `deriveAppHealth` reads `sensor-starting` off the
+    aggregate, so on every stock Windows `appHealth.state` was SENSORS_STARTING from the first tick
+    to the last — B6 shipped it on the stats payload and B7's chip never rendered, because the chip
+    names degraded and failed ids only. Every leaf suite was green the whole time: each asserts
+    the leaf its own path writes, `app-health.test.js` is pure and takes hand-built records, and
+    no test fed the RAW records one platform actually produces through the real derivation
+    (cf. #21 — a passing gate proves the command ran, not that it inspected your change; #29 —
+    the discriminating case is the one the composition destroys; #27 — "not sampled" was written
+    down and read as a design, when it was the defect).
+    **Rule: a leaf created participating needs a writer on EVERY platform that creates it, or
+    it is UNSUPPORTED there — and one test per platform shape drives the real leaves through the
+    real aggregate.** Fixed on `fix/fs-read-mechanism-ownership`: `resolveReadMechanism` marks
+    the idle read leaf UNSUPPORTED (`rm-owns-observation` / `pool-owns-observation`), latched at
+    the first observation entry and re-decided only when the mechanism switches; the leaf that
+    returns to service starts a fresh STARTING lifetime. The shape to grep for is a
+    `createSensorHealth(` whose write sites all sit behind a platform or capability branch.
+    **Second instance, same shape (2026-08-25, #328):** the writer also has to be reached. With
+    no AI agent running, `doFileScan` / `doHotReadScan` returned before any write and
+    `scanAllFileHandles` did the same on an empty AI scope, so the ACTIVE read leaf stayed
+    STARTING on every platform — and on win32 both leaves did, because the empty fleet never
+    reached an observation entry and ownership was never settled. The grep is a bare `return`
+    ahead of the leaf write on a path the population gate has already vouched for; the fix is
+    the network leaf's B4 contract on the file side, `noteFileScanSkip('confirmed-zero-agents')`
+    → HEALTHY, called from all three returns.
 
 ## Caching
 31. **Treats a cache KEY as proof that cached data is still fresh.** A key is a LOCATOR —
@@ -364,6 +529,86 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     replaces before assuming a call appends. The live topic list belongs in the API, not
     restated here (cf. #24).
 
+41. **`git worktree remove` on a worktree whose `node_modules` is a junction recursed THROUGH the
+    junction and emptied the MAIN checkout's `node_modules`, then died with "Permission denied".**
+    Found 2026-08-25 cleaning up after #324. The worktree `X:\tmp\aegis-audit-index` had been set
+    up the #37 way — `git worktree add` from `origin/master` plus
+    `mklink /J node_modules X:\Future\ESCAPE\AEGIS\node_modules` — and the junction had just
+    resolved fine: `node scripts/counts.js` ran through it seconds earlier. `git worktree remove
+    X:\tmp\aegis-audit-index` then answered `error: failed to delete 'X:/tmp/aegis-audit-index':
+    Permission denied`, and the main checkout's `node_modules` held 0 entries where a minute
+    earlier `node_modules/js-yaml`, `vitest` and `electron/dist/electron.exe` were present. Git's
+    recursive delete on Windows does not stop at a junction: it walked into the link target,
+    deleted every package it could, stopped on a locked file, and left the worktree directory on
+    disk but deregistered (`git worktree list` no longer showed it). A sibling worktree with its
+    OWN `npm ci` (`X:\tmp\aegis-demo`, 434 entries) was untouched — nothing in it pointed at the
+    main tree.
+    **This is the mechanism behind two earlier readings that were wrong.** The 2026-08-24
+    observation "junction target empty — another session's `npm ci` must have emptied it" (the
+    reason #37's fallback of an own `npm ci` exists), and the "Permission denied" that
+    `git worktree remove` answered on #312 and #314, read then as the shell's cwd holding the
+    directory and worked around with `git worktree prune` plus a manual `Remove-Item`. All three
+    had the shape of #324 — a junctioned worktree being removed, "Permission denied" from git — and
+    on none of them was the main `node_modules` re-checked afterwards (cf. #21 — a command that
+    ran is not a command that inspected the result; #27 — the diagnosis claimed more than the
+    evidence covered).
+    **Rule: drop the junction FIRST, then remove the worktree.** `cmd /c rmdir
+    X:\tmp\<name>\node_modules` removes the link and nothing behind it; only then
+    `git worktree remove <path>` from a cwd outside the worktree, then `git branch -D`. **Remedy
+    when it has already happened:** `npm ci --no-audit --no-fund` in the main checkout — 643
+    packages in 16 s on this machine, exit 0, lockfile untouched (#23: never regenerate it) — and
+    confirm `node_modules/vitest/package.json` exists before trusting any gate that ran after the
+    removal. A worktree that ran its own `npm ci` needs nothing.
+
+44. **A `;`-chained command carried on into `git commit --amend` after the conflict resolver
+    threw, and the merge commit was created WITH `<<<<<<<` markers — twice in a row — because
+    the CR probe that should have caught it lied.** Found 2026-08-25 merging `origin/master`
+    into `fix/fs-confirmed-zero-agents` (#335): `memory-bank/progress.md` conflicted, and the
+    conflict file is written CRLF on this checkout (`* text=auto`). `grep -c $'\r'
+    memory-bank/progress.md` in Git Bash printed `0`; `sed -n Np | od -c` showed no `\r`
+    either; only node told the truth — `(s.match(/\r/g)||[]).length` gave CR=617 / LF=617.
+    A resolver keyed on `lines.indexOf('<<<<<<< HEAD')` therefore never matched the
+    `<<<<<<< HEAD\r` line and threw — and `node resolve.js; grep ...; git add file;
+    git commit --amend` ran the add and the commit anyway, because `;` does not stop on
+    failure. The unpushed merge commit carried the markers; the second attempt, chained the
+    same way, carried them again. Nothing reached `origin/master` (`git grep -nE
+    "^<<<<<<< |^>>>>>>> " origin/master` is empty; `567ac5c` is the clean merge), but only
+    because the markers were noticed by eye before the push — no gate stood between the
+    commit and the remote (cf. #21 — a command that ran is not a command that inspected the
+    result; #38 — a `\n` regex over a CRLF file is red on this checkout only; #18 is the
+    mirror image: `&&` is the wrong operator in PowerShell 5.1, and `;` is the wrong one in
+    Git Bash).
+    **Rule: before ANY push after a merge, `git grep -nE "^<<<<<<< |^>>>>>>> " HEAD` must
+    return nothing (anchored — this entry quotes the marker in prose and must not trip the
+    gate); never chain a commit after a resolver with `;` — use `&&` so a thrown resolver
+    stops the chain before `git add`.** Probe line endings with node, compare marker lines after
+    `.replace(/\r$/, '')`, and write the resolver to a file rather than an inline `node -e`
+    (an inline `\n` in a regex misfired the same way).
+
+45. **`git worktree remove` answered "Permission denied" four times in one day on worktrees
+    with NO junction — a file locked by a lingering vitest/esbuild process, not a
+    `node_modules` deletion — and each time the worktree was already deregistered and the
+    main `node_modules` was intact.** Found 2026-08-25, first on the #331 cleanup:
+    `git worktree remove X:/tmp/aegis-audit-history` — a worktree that had run its own
+    `npm ci`, no link anywhere — printed `error: failed to delete '...': Permission denied`
+    and exited 0. `git worktree list` no longer showed it, the main checkout's `node_modules`
+    held the same 432 top-level entries before and after, and the directory was left partly
+    deleted on disk. Three more removals that day ended the same way. The message is the one
+    #41 records for the junction case, so it reads as "the main `node_modules` just got
+    emptied" — it is not proof of that: git's recursive delete stops on ANY locked file (a
+    node/esbuild process left over from the gate is enough) and reports the same error; the
+    two cases differ only in what the walk reached (cf. #27 — the diagnosis must not claim
+    more than the evidence covers).
+    **Rule: on "Permission denied" from `git worktree remove`, before doing anything else,
+    (1) confirm the main checkout's `node_modules` exists — count `ls node_modules` (≈430
+    entries for a full install) and check `node_modules/vitest/package.json` — and
+    (2) confirm the worktree is gone from `git worktree list`.** Only then
+    `Get-ChildItem -Recurse -Force` the leftover, confirm zero reparse points, and
+    `Remove-Item -Recurse -Force` it. The junction rule from #41 still stands: when a link
+    exists, `rmdir` it FIRST. GitHub deletes the remote branch on merge here, so a later
+    `git push origin --delete <branch>` fails with "failed to push some refs" — not an error
+    to chase (`git ls-remote --heads origin <branch>` → 0 lines).
+
 ## Review
 34. **Confirmed good approach — an external fork PR is four separate gates, and two of them
     fire AFTER the review already looks finished.** Established on the first two fork PRs
@@ -373,6 +618,47 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     `gh api repos/{owner}/{repo}/actions/runs/{id}/approve -X POST`; the approved run comes
     back as `run_attempt: 2`. A run parked this way is indistinguishable from a slow one on
     the PR page, so find it by head SHA rather than waiting.
+    **Correction 2026-08-25 — (a) generalised from two first-time contributors. Approval is
+    gated on CONTRIBUTOR CLASS, not on the PR being a fork: a fork PR whose author already
+    has a merged PR here starts CI unapproved, and the setting that says so is readable.**
+    Found merging #304/#305/#306 (all `MsfPablo`), where every head ran on its own — three
+    PRs in a row, and again after `update-branch`.
+    **The setting is the answer, and it is neither of the two #35 ruled out.**
+    `gh api repos/antropos17/Aegis/actions/permissions/fork-pr-contributor-approval`
+    → `{"approval_policy":"first_time_contributors"}` — the middle of GitHub’s three
+    options, so only an author who has not yet landed a commit in this repository needs the
+    click. The endpoints #35 checked govern something else and always will:
+    `.../actions/permissions` is `enabled: true, allowed_actions: all,
+    sha_pinning_required: false`, and `.../actions/permissions/workflow` publishes only
+    `default_workflow_permissions` and `can_approve_pull_request_reviews`.
+    **The discriminator is attempt 1’s conclusion, NOT `run_attempt`** — #35 already
+    recorded an approved run coming back `run_attempt: 1`, so the counter cannot answer
+    this. A parked run’s `/actions/runs/{id}/attempts/1` reads `conclusion: action_required`;
+    a run that was never parked has ONE attempt reading `success`, with
+    `run_started_at == created_at`. MsfPablo’s first run (`32719377298`, #298, head
+    `7f474b2`) has attempt 1 `action_required` and attempt 2 `success`. #304’s two runs —
+    `32764969825` (`a30a74c`) and `32797158207` (`565f2a2`, post-`update-branch`) — each
+    have one attempt, `success`, started the second they were created.
+    **The waiver switches on at the MERGE, not at the approval — measured to the second.**
+    `32719377298` was approved 2026-08-24T10:57:24Z; #298 merged 10:58:43Z; #301’s head
+    `de28147` was created 10:59:09Z — 26 s later — and ran unapproved, as did every MsfPablo
+    run after it (#299, #300, all three heads of #304/#305/#306 on 08-24, and all three
+    post-`update-branch` heads on 08-25: `565f2a2`, `c5e44d4`, `1635592`). "One approval
+    waives the rest" is refuted by the same census: `mig-builds` was parked twice (`0ef5ec3`
+    08-22, `10c9592` 08-23) and `anupamme` twice (`1c20505`, `d4e586b`, both 08-21), each
+    pair falling entirely before that author’s first merge.
+    **Census, so the condition is not read off one case.** Every fork-originated run the API
+    still returns — `gh api 'repos/antropos17/Aegis/actions/runs?event=pull_request&per_page=100&page=N'`
+    over all five pages, 409 `pull_request` runs, 21 of them from forks across six
+    contributors (anupamme, mig-builds, frobel0520, MsfPablo, ElshadHu, travisbreaks) —
+    splits 21/21 on one line: parked while its author had no merged PR here, unparked after.
+    `ElshadHu` crossed it at #26 (2026-02-19) and `travisbreaks` at #50 (2026-03-01), each
+    with the same before/after shape.
+    **What this does NOT retire.** (b) stands exactly as written, and this entry is why:
+    mig-builds was STILL first-time when #273 was updated — the PR merged one minute after
+    the second approval — so the second round was required, not redundant. (c) and (d) are
+    untouched. #35 is untouched too: a release-please PR is parked because GITHUB_TOKEN
+    authored the event, which no contributor history waives.
     (b) **Merging one PR invalidates the approval of every other open one.** master is
     `strict: true`, so the moment #274 merged, #273 went `behind_by: 2` and CLEAN flipped to
     BEHIND. `gh pr update-branch` fixes it while `maintainerCanModify` is true — and it
@@ -388,6 +674,30 @@ Repeated mistakes by Claude Code. READ BEFORE EVERY CHANGE.
     again. Choose the target from the ASSERTIONS, not from the diff: on #273 the four
     unasserted keys would have stayed green, and reading that as vacuity would have
     condemned a sound test — it is partial coverage, which is a comment, not a rejection.
+
+40. **A session handoff listed debts as open that master had already closed, and each was
+    accepted into a plan before a blobless clone showed it done.** Found 2026-08-25, after
+    #315–#319 had merged. The handoff carried three debts as pending: the app-level health
+    state machine, the ai-mistakes #27 overclaim comments, and the design repo’s untracked
+    session junk. Each was closed before the session began. `src/main/app-health.js` landed
+    in `67536b3` (2026-08-21, inside `aegis-v0.12.0-alpha`) and
+    `docs/roadmap/sensor-health-degraded.md` had already cut its open list to B5 and B8.
+    `process-identity.js` was corrected in `0153aee` (2026-08-14) and `session-tracker.js`
+    in `eeb0b58` (2026-08-21, PR #207), and `git grep "only failure mode" origin/master --
+    src/main` returns nothing. The design repo’s `events.jsonl`, `.claude/`, `.1devtool/` and
+    `.playwright-mcp/` were never tracked and have been ignored since `907e5ab` (2026-08-14).
+    A fourth item — Ed25519 release signing, "status unknown, check `feat/release-signing`" —
+    named a branch that exists neither locally nor on origin: #275 (merge `c52fba0`) landed
+    the signing and `aegis-v0.13.0-alpha` exercised it. The handoff described an older tree
+    from memory, and a plan built on it would have re-done finished work or gone looking for
+    a branch that is not there (cf. #20 — do not document what is not there; #24 — derive,
+    do not repeat; #28 — the sweep must reach the tree it claims to describe).
+    **Rule: before assigning any inherited debt, `git show` / `git grep` the exact file on
+    `origin/master`; a debt with no grep hit is closed, not pending.** A blobless clone
+    (`git clone --filter=blob:none`) answers both, so the check costs less than the plan it
+    replaces; a named branch is checked the same way, with `git ls-remote --heads origin
+    <name>`. A handoff is a claim about the tree, and the tree is the only thing that can
+    confirm it.
 
 ## Rule
 NEVER change what was not asked. Do ONLY what the prompt says.

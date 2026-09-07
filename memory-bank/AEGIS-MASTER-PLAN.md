@@ -42,7 +42,7 @@ find src/main -name '*.js' | xargs wc -l | tail -1
 # commit / date
 git rev-parse --short HEAD ; date +%F
 ```
-- Electron 33 · Svelte 5 (runes) · Vite 7 · main = JavaScript/CommonJS · renderer/shared = TS · chokidar 3 · ajv · js-yaml · Vitest 4
+- Electron 43 · Svelte 5 (runes) · Vite 7 · main = JavaScript/CommonJS · renderer/shared = TS · chokidar 3 · ajv · js-yaml · Vitest 4
 
 ---
 

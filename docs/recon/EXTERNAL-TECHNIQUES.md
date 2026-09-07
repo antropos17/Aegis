@@ -213,6 +213,11 @@ Findings only where an external approach is **stronger** than inventing our own.
 
 ## 7. SQLite as rebuildable index over hash-chained JSONL
 
+> **[since recon: built]** The audit index writer and rebuild landed in PR #337.
+> History now reads the ready projection through `getEntriesBefore`, with JSONL fallback
+> on unavailability or query failure. `scripts/bench-audit-index.mjs` measures both paths;
+> `docs/roadmap/audit-index.md` records the contract and verification. FTS remains separate.
+
 ### 7.1 AgentSight: SQLite session store + query CLI (index pattern)
 
 - **Technique:** Materialize events into SQLite tables (`llm_calls`, `token_usage`, `audit_events`, …) for `report` / `token` / `audit` / `export` / `list` queries; treat DB as disposable projection.

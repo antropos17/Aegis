@@ -285,9 +285,12 @@ function assertInput(input) {
  * `doFileScan` and `doHotReadScan` all refuse and `handleWatcherEvent` stops inferring
  * owners, so the claim "we can see which agents are running" is false. `zero-coverage`
  * is a defensive invariant that closes totality and is NOT reachable today: every leaf
- * but `fs-rm` is created participating on every platform, nothing calls `markDisabled`,
- * and the projection rewrites rather than drops. A single leaf in FAILED — `network`,
- * `fs-rm`, `proc-snapshot`, `fs-chokidar` — reaches DEGRADED, never FAILED.
+ * but `fs-rm` is created participating on every platform, and the only way a leaf
+ * leaves participation afterwards is the file-watcher's read-mechanism ownership
+ * (`fs-handle` or `fs-rm` UNSUPPORTED while the other observes) — `process` and
+ * `network` always participate, nothing calls `markDisabled`, and the projection
+ * rewrites rather than drops. A single leaf in FAILED — `network`, `fs-rm`,
+ * `proc-snapshot`, `fs-chokidar` — reaches DEGRADED, never FAILED.
  *
  * ORTHOGONALITY. `monitoringPaused` is absent from {@link AppHealthInput} on purpose:
  * operator control is a separate dimension and travels beside this value, never inside

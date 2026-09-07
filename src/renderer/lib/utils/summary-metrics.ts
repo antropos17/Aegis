@@ -13,22 +13,6 @@
 export const EVENTS_PER_MIN_WINDOW_MS = 60_000;
 
 /**
- * SummaryCards label for `stats.totalSensitive`.
- *
- * Matches tray / HTML export product language ("sensitive alerts"). The value is
- * retained sensitive **activity-log events**, not distinct file paths.
- */
-export const SENSITIVE_SUMMARY_LABEL = 'Sensitive Alerts';
-
-/**
- * SummaryCards label for elapsed time since `scanner.monitoringStarted`.
- *
- * Matches HTML export language ("MONITORING DURATION"). Not OS uptime, not
- * Electron process.uptime, not Footer "UP" (renderer mount clock).
- */
-export const MONITORING_DURATION_LABEL = 'Monitoring Duration';
-
-/**
  * Chip label for time-decayed `fileCount` (not a physical file count — F-W08).
  * Matches i18n `agents.stat_files`.
  */

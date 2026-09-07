@@ -707,17 +707,28 @@ explicitly **not** a latency and not a measured clock offset. No bound anywhere 
 and one row is confirmed by at most one record; the smallest absolute stamp delta wins, ties break on
 file order.
 
-**Path comparison, and a finding.** `lib/catalogue.js` and `lib/observed.js` write every path
-through the recording rewrite in `lib/paths.js`; **`lib/oracles/sysmon.js` writes none.** So on a
-live run the catalogue names a staged binary under the recorded clone root and the oracle names it
-under the real one, and a comparison that skipped the rewrite would fail on every path key of every
-run while looking like an oracle that saw nothing. B2.5 closes it on the comparison side: both sides
-are folded through `neutralizePath` and then through `join.normalizePath`, over values read from
-disk, and neither file is modified. The write-side asymmetry is left standing on purpose — it belongs
-to the oracle writer and closing it changes that artefact's bytes — and is recorded in
-`metrics.json` under `oracle.pathComparison`, which also names the residual: the rewrite moves the
-clone root of the tree doing the scoring, so a run scored on a different machine holds oracle paths
-that cannot be folded onto its catalogue.
+**Path comparison.** All three writers put every path through the recording rewrite in
+`lib/paths.js` before it reaches disk — `lib/catalogue.js` and `lib/observed.js` at build and at
+serialize, `lib/oracles/sysmon.js` at build (`toOracleRecord`) and through the same shared
+serializer at write, plus `writeLoss` for the accounting. So the three columns already agree on a
+path space, and the fold `lib/metrics.js` applies is a no-op on their output.
+
+It is applied anyway, and that is a decision rather than an oversight: the rewrite is idempotent,
+it costs one string scan per key, and it makes the comparison independent of whether a writer
+remembered. **A path key that misses is indistinguishable from an oracle that saw nothing** — the
+worst failure shape available here, because it reads as evidence about the machine when it is a
+defect in the harness. `metrics.json` states it under `oracle.pathComparison`, with the residual:
+the rewrite names the clone root of the tree doing the scoring, so it cannot fold a path that some
+other machine's writer left raw.
+
+*Correction, recorded rather than quietly fixed.* The B2.5 report named this asymmetry as a live
+defect in the oracle writer. It was a **false positive**: `sysmon.write` has always gone through
+`catalogue.serialize`, which neutralizes, so `oracle-sysmon.ndjson` was never in a different path
+space. The finding came from grepping one file for the word rather than following the call
+(memory-bank/ai-mistakes.md #21). What was genuinely raw was **`oracle-loss.json`**, which
+`writeLoss` wrote unrewritten — it carries an absolute path in `archivalDeletes[].targetFilename`,
+in a reader command line, and inside any OS error message a failed read produced. That is closed,
+and the in-memory record is now rewritten at build too, so no caller holding one sees a raw root.
 
 ### Oracle coverage bounds what may be scored at all
 
@@ -760,17 +771,68 @@ The reason codes are a closed list: `oracle-not-collected`, `category-unmeasurab
 `oracle-record-taken-by-a-nearer-row`.
 
 **"Failed to execute" is not on that list, and cannot be.** A step that fails emits no catalogue row
-at all — see [The catalogue](#the-catalogue) — so it is a state of a *step* and never of a row.
-`lib/actor.js` returns a status per step and `run.js` prints it without writing it, so **no file in a
-run directory carries step outcomes**. `metrics.json` records that as an explicit
-`scenarioSteps: {value: null, unavailable: …}` naming the missing artefact, rather than inferring it
-from a catalogue that is shorter than its scenario. Closing it would be a `steps.json` written by
-`run.js`; that is not part of B2.5.
+at all — see [The catalogue](#the-catalogue) — so it is a state of a *step* and never of a row. It
+is recorded in **`steps.json`**, beside the catalogue rather than inside it, and `metrics.json`
+reads it back into `scenarioSteps`. See [steps.json](#stepsjson--what-each-declared-step-did).
 
 Two oracle-side counts sit beside the row counts and are never folded into them:
 `oracleRecordsUnusable` (records of the category carrying no key — an EID 1 with no `Image`) and
 `oracleRecordsOutsideCatalogue` (records that confirmed no row: real observations the scenario did
 not claim).
+
+### `steps.json` — what each declared step did
+
+The catalogue holds exactly the events that happened: `lib/catalogue.js` refuses to write a line for
+a step that did not succeed, so a run whose third step failed leaves a catalogue **shorter than its
+scenario** and nothing else. That difference used to be the only trace a failure left in a run
+directory — `lib/actor.js` returned a status per step and `run.js` printed it and threw it away —
+which gave a scorer two bad choices: infer the failure from a length difference, or report the whole
+question as unanswerable. It reported it as unanswerable, by name.
+
+`run.js` now writes `steps.json` beside the catalogue, on the same ordering rule and for the same
+reason: after the sensor is stopped, so a file the harness creates for itself does not become a file
+creation in the sensor's own answer.
+
+| field | what it is |
+|---|---|
+| `counts` | `declared` (steps in the scenario), `ok`, `failed`, `skipped` |
+| `expectations` | `claimed` (steps naming an expectation), `emitted`, `notExecuted` |
+| `steps[].status` | `ok` · `failed` · `skipped`, exactly as `lib/actor.js` reported it |
+| `steps[].expect` | the expectation the step claimed, read off the **scenario** |
+| `steps[].emits` | what this KIND declares it produces (`lib/actor.js` `STEP_KINDS`) |
+| `steps[].emitted` | what this RUN wrote — `null` for a step that did not execute |
+| `steps[].error` | the failure message, for a step that failed |
+
+**`emits` and `emitted` are two fields because they answer two questions.** `emits` is the closed
+declaration only the actor can own; `emitted` is the observation. They agree for a step that ran, and
+they differ for exactly the steps this file exists for. `wait` declares `null` on purpose: no oracle
+can confirm the passage of time, so a catalogue row for it would be one nothing could ever reach.
+
+`expect` is read off the **scenario `run.js` loaded and validated**, never off the catalogue — the
+catalogue is the very thing a failed step is missing from, so reading it there would lose precisely
+the rows the file is for.
+
+It is neutralized like every other committed artefact, and that is load-bearing here rather than
+routine: a step's `error` is an OS message, and an `ENOENT` carries an absolute path inside a
+sentence rather than in a path-shaped field. Walking every string is the only rule that finds it.
+
+#### What it changes in a score
+
+`metrics.json` reads it back into `scenarioSteps`: the counts, the expectation totals, and the list
+of steps that claimed an expectation and produced no row. Where a run directory holds none — one
+recorded before this file existed, or one with no scenario to have steps — the block stays an
+explicit `{value: null, unavailable: …}` naming the artefact, rather than inferring anything from a
+catalogue's length. `score.js` reads it as optional, digests it into the provenance when it is there,
+records its absence with the reason when it is not, and holds it to the same run-identity agreement
+as `manifest.json` and `oracle-loss.json`: a `steps.json` that names another run means the directory
+was assembled out of two.
+
+**An expectation under `notExecuted` enters no denominator on either side.** It is not a sensor miss:
+nothing happened for a sensor to see. It is not an unconfirmed catalogue row: there is no row. Both
+columns are silent about it by construction, and this is where it is counted instead of vanishing.
+
+`tests/fixtures/bench/derived/M4-step-failed-to-execute/` is the model — one step failed, the next
+was skipped, and the catalogue holds one row where the scenario declared three expectations.
 
 ### The figures, per category
 
@@ -1378,8 +1440,8 @@ One run is one directory under `bench/runs/`, named `<UTC instant>-<scenario>-<a
 directory is created fresh and never written into twice, so a re-run cannot blend two
 machines' artefacts into one record.
 
-`manifest.json` is written today, and `expected.ndjson` plus a `stage/` directory whenever a
-scenario was named. `stage/` holds the binaries the scenario copied; S1 deletes its own, so the
+`manifest.json` is written today, and `expected.ndjson` plus `steps.json` plus a `stage/` directory
+whenever a scenario was named. `stage/` holds the binaries the scenario copied; S1 deletes its own, so the
 directory is normally left empty. In arm A there are three more: `observed.ndjson`, what the sensor
 recorded; `observed.meta.json`, how it was run and what did not become a line of it; and
 `run-report.json`, the two joined. In arms A and B there is `oracle-loss.json`, and
