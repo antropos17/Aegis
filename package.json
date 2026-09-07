@@ -127,7 +127,7 @@
     "globals": "^17.12.0",
     "husky": "^9.1.7",
     "jsdom": "^28.1.0",
-    "lint-staged": "^16.3.1",
+    "lint-staged": "^17.4.1",
     "prettier": "^3.9.6",
     "prettier-plugin-svelte": "^3.5.0",
     "sharp": "^0.35.4",
