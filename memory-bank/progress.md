@@ -1022,3 +1022,33 @@ The Vite dev server could not render the existing CommonJS instance-key import, 
 visual verification used the built preview. No keyboard handler or monitoring code
 changed, and no tests were added for this presentation change. Release publication
 and the installed application remain outside this task.
+
+## Session handoff — core focus and WSL recovery (2026-09-07)
+
+User direction: work on core functionality and reliability. The frontend is being
+developed separately by the user and will be merged later; do not edit renderer
+components or styles for subsequent core tasks.
+
+`codex/wsl-probe-recovery` fixes the availability gate in the existing WSL detector.
+Previously a missing executable, empty distribution list or any non-zero listing
+exit cached false for the entire application lifetime. Now conclusive availability
+answers expire after 60 seconds and the next background refresh probes again. A
+retry from a confirmed absence starts a fresh health record. Numeric non-zero exits
+are inconclusive and report DEGRADED without caching absence; only ENOENT or a
+successful empty list establish UNSUPPORTED on Windows. Non-Windows remains
+UNSUPPORTED. This changes health reporting on unconfigured WSL installations that
+reject the list command: they now expose the probe failure instead of being assumed
+absent. Existing process enumeration still covers the default distribution only.
+
+Six regression cases failed before the fix and passed afterward: recovery from
+empty/missing availability, removal after a positive cache, an inconclusive retry
+from UNSUPPORTED, and recovery from exit 1 or 4294967295. The full suite passed with
+2,687 tests and four skips across 150 files. Renderer build, format, lint (zero
+errors; 32 existing warnings), type checks, both mutation gates, counts and the
+production audit passed. A standalone Windows process injected one probe failure,
+then used real wsl.exe on the next call: DEGRADED → HEALTHY without resetting the
+detector; no matching agents were found. Evidence is in X:/tmp/aegis-wsl-recovery-*.
+
+No renderer, IPC contract, dependency, system setting or installed-app change was
+made. This addresses reliability in the existing WSL part of issue #8; Docker,
+Podman and multi-distribution coverage remain open. No release was published.

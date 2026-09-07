@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import detector from '../../src/main/wsl-detector.js';
 
 /**
@@ -28,6 +28,7 @@ const LIST_KEY = '-l -q';
 
 afterEach(() => {
   detector._resetForTest();
+  vi.restoreAllMocks();
 });
 
 describe('wsl-detector', () => {
@@ -80,6 +81,67 @@ describe('wsl-detector', () => {
   });
 
   describe('isWslAvailable()', () => {
+    it.each(['empty', 'ENOENT'])(
+      'rechecks cached absence (%s) and resumes detection after one minute',
+      async (absence) => {
+        const clock = vi.spyOn(Date, 'now').mockReturnValue(1000);
+        let available = false;
+        const execFile = vi.fn((_cmd, args, _opts, cb) => {
+          if (args.join(' ') === LIST_KEY) {
+            if (available) return cb(null, 'Ubuntu\n');
+            if (absence === 'ENOENT')
+              return cb(Object.assign(new Error('missing'), { code: 'ENOENT' }), '');
+            return cb(null, '');
+          }
+          cb(null, '42 opencode serve');
+        });
+        detector._setDepsForTest({ platform: 'win32', execFile });
+        expect(await detector.detectWslAgents()).toEqual([]);
+        expect(detector.getWslSensorHealth().state).toBe('UNSUPPORTED');
+        available = true;
+        clock.mockReturnValue(60999);
+        expect(await detector.detectWslAgents()).toEqual([]);
+        expect(execFile).toHaveBeenCalledOnce();
+        clock.mockReturnValue(61000);
+        expect(await detector.detectWslAgents()).toMatchObject([{ agent: 'opencode', pid: 0 }]);
+        expect(detector.getWslSensorHealth().state).toBe('HEALTHY');
+        expect(execFile).toHaveBeenCalledTimes(3);
+      },
+    );
+
+    it('rechecks a previously available distribution and does not run ps after removal', async () => {
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(1000);
+      let listed = 'Ubuntu\n';
+      const execFile = vi.fn((_cmd, _args, _opts, cb) => cb(null, listed));
+      detector._setDepsForTest({ platform: 'win32', execFile });
+      expect(await detector.isWslAvailable()).toBe(true);
+      listed = '';
+      clock.mockReturnValue(61000);
+      expect(await detector.detectWslAgents()).toEqual([]);
+      expect(detector.getWslSensorHealth().state).toBe('UNSUPPORTED');
+      expect(execFile.mock.calls.map((call) => call[1])).toEqual([
+        ['-l', '-q'],
+        ['-l', '-q'],
+      ]);
+    });
+
+    it('reports an inconclusive retry after cached absence as degraded', async () => {
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(1000);
+      const execFile = vi.fn((_cmd, _args, _opts, cb) => cb(null, ''));
+      detector._setDepsForTest({ platform: 'win32', execFile });
+      await detector.isWslAvailable();
+      execFile.mockImplementation((_cmd, _args, _opts, cb) =>
+        cb(Object.assign(new Error('private distro path'), { killed: true }), ''),
+      );
+      clock.mockReturnValue(61000);
+      expect(await detector.isWslAvailable()).toBe(false);
+      expect(detector.getWslSensorHealth()).toMatchObject({
+        state: 'DEGRADED',
+        lastError: 'wsl-probe-failed:timeout',
+      });
+      expect(JSON.stringify(detector.getWslSensorHealth())).not.toContain('private');
+    });
+
     it('returns false on non-win32 platforms', async () => {
       detector._setDepsForTest({ platform: 'linux', execFile: mockExec({}) });
       expect(await detector.isWslAvailable()).toBe(false);

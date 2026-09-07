@@ -48,8 +48,8 @@ function createInitialHealth() {
 }
 
 /**
- * Persistent health for WSL enumeration. Lifetime = module lifetime; reset only by
- * {@link _resetForTest}, never recreated per refresh.
+ * Persistent health for WSL enumeration. Ordinary failures preserve the record;
+ * reprobing after confirmed absence starts a new record so UNSUPPORTED can recover.
  * @type {import('./sensor-health').SensorHealth}
  */
 let _health = createInitialHealth();
@@ -78,17 +78,6 @@ function errorCode(err) {
 }
 
 /**
- * Whether the binary RAN and reported a condition, as opposed to never producing a
- * verdict. A numeric `code` is an exit status; a string `code` (ENOENT, EACCES) or
- * none at all (a timeout kill) means the spawn itself failed.
- * @param {unknown} err
- * @returns {boolean}
- */
-function ranButFailed(err) {
-  return typeof (err && /** @type {{code?: unknown}} */ (err).code) === 'number';
-}
-
-/**
  * @internal Override dependencies (for tests).
  * @param {{ execFile?: Function, platform?: string }} overrides
  */
@@ -108,6 +97,7 @@ function _resetForTest() {
   _execFile = execFile;
   _getPlatform = () => process.platform;
   _wslAvailable = null;
+  _availabilityCheckedAt = null;
   _cache = [];
   _lastRefresh = 0;
   _refreshing = false;
@@ -137,8 +127,10 @@ const WSL_SIGNATURES = [
 /** @type {number} How long an enumeration stays fresh (ms) — WSL spawn is heavy */
 const REFRESH_TTL_MS = 60000;
 
-/** @type {boolean|null} Cached WSL availability (null = not yet probed) */
+/** @type {boolean|null} Cached WSL availability (null = no conclusive cached answer) */
 let _wslAvailable = null;
+/** @type {number|null} Time of the last conclusive availability probe. */
+let _availabilityCheckedAt = null;
 /** @type {Array<Object>} Last detected synthetic agents */
 let _cache = [];
 let _lastRefresh = 0;
@@ -207,7 +199,8 @@ function parsePsOutput(stdout) {
 // ═══ PUBLIC API ═══
 
 /**
- * Whether WSL is installed with at least one distro. Cached after first probe.
+ * Whether WSL is installed with at least one distro. Conclusive answers expire
+ * after one minute so installation, removal and recovery need no app restart.
  * `wsl.exe -l -q` emits UTF-16LE; decoded as UTF-8 it interleaves a null byte
  * between characters, so we strip null bytes before the emptiness check (we only
  * need existence, not exact distro names).
@@ -215,27 +208,29 @@ function parsePsOutput(stdout) {
  * @since v0.11.0-alpha
  */
 async function isWslAvailable() {
-  if (_wslAvailable !== null) return _wslAvailable;
   if (_getPlatform() !== 'win32') {
-    _wslAvailable = false;
     return false;
   }
+  const age = _availabilityCheckedAt === null ? null : Date.now() - _availabilityCheckedAt;
+  if (_wslAvailable !== null && age !== null && age >= 0 && age < REFRESH_TTL_MS)
+    return _wslAvailable;
+  _wslAvailable = null;
+  // Availability can change on Windows. Re-enter the health state machine when
+  // probing again after a previously confirmed absence (UNSUPPORTED is terminal).
+  if (_health.state === sensorHealth.SENSOR_HEALTH_STATE.UNSUPPORTED)
+    _health = createInitialHealth();
   const { ok, stdout, err } = await run('wsl.exe', ['-l', '-q']);
   if (!ok) {
-    if (errorCode(err) === 'ENOENT' || ranButFailed(err)) {
-      // Two DEFINITE answers, one state. ENOENT: no `wsl.exe` on this machine at all.
-      // A numeric exit status: `wsl.exe` ran and refused, and on `-l -q` that is "no
-      // installed distributions" — the stock Windows shape, since the binary ships in
-      // System32 whether or not WSL was ever set up. Nothing exists to enumerate BY
-      // DESIGN, so the leaf is UNSUPPORTED and leaves the worst-of, rather than holding
-      // the whole app DEGRADED over a condition that is not a fault.
+    if (errorCode(err) === 'ENOENT') {
+      // Missing executable is a definite absence for this probe, not forever.
       _wslAvailable = false;
+      _availabilityCheckedAt = Date.now();
       _health = sensorHealth.markUnsupported(_health, Date.now(), {
-        detail: errorCode(err) === 'ENOENT' ? 'wsl-not-installed' : 'wsl-no-distro',
+        detail: 'wsl-not-installed',
       });
       return false;
     }
-    // The spawn produced no verdict: a timeout kill, EACCES, EAGAIN. NOT cached — a
+    // Non-zero exits, timeouts and access errors do not establish absence. NOT cached — a
     // cached `false` is what turned one bad probe into a blind spot for the rest of the
     // process life, and the 60s refresh will ask again. DEGRADED, because for as long
     // as this lasts a WSL-hosted agent would be missing from the fleet unannounced.
@@ -247,9 +242,9 @@ async function isWslAvailable() {
   }
   const hasDistro = stdout.split(NUL_CHAR).join('').trim().length > 0;
   _wslAvailable = hasDistro;
+  _availabilityCheckedAt = Date.now();
   if (!hasDistro) {
-    // `wsl.exe` answered with an empty list: installed, no distro. Definite, permanent
-    // for this process life, and not a fault.
+    // A successful empty list confirms no distro at this probe, until its TTL expires.
     _health = sensorHealth.markUnsupported(_health, Date.now(), { detail: 'wsl-no-distro' });
   }
   // A distro exists: availability is not the observation this sensor names, so no

@@ -260,7 +260,7 @@ describe('wsl sensor health (B-S12)', () => {
     });
     expect(await wsl.detectWslAgents()).toEqual([]);
     expect(await wsl.detectWslAgents()).toEqual([]);
-    // A definite, permanent answer: asked once, not once per cycle.
+    // Repeated calls within the availability TTL reuse the definite answer.
     expect(calls.filter((k) => k === LIST_KEY)).toHaveLength(1);
     const h = wsl.getWslSensorHealth();
     expect(h.state).toBe(S.UNSUPPORTED);
@@ -268,19 +268,23 @@ describe('wsl sensor health (B-S12)', () => {
     expect(h.consecutiveFailures).toBe(0);
   });
 
-  it('wsl.exe that RAN and exited non-zero is UNSUPPORTED (no distro), not degraded', async () => {
-    // The stock Windows shape: the binary ships in System32 whether or not WSL was set
-    // up, and answers `-l -q` with a non-zero exit. Reading that as degradation would
-    // hold every such machine permanently DEGRADED.
-    wsl._setDepsForTest({
-      platform: 'win32',
-      execFile: mockExec({ [LIST_KEY]: { code: 1 } }),
-    });
-    expect(await wsl.detectWslAgents()).toEqual([]);
-    const h = wsl.getWslSensorHealth();
-    expect(h.state).toBe(S.UNSUPPORTED);
-    expect(h.detail).toBe('wsl-no-distro');
-  });
+  it.each([1, 4294967295])(
+    'a numeric exit %s is an inconclusive probe and can recover',
+    async (code) => {
+      const responses = { [LIST_KEY]: { code }, [PS_KEY]: { stdout: '42 opencode' } };
+      wsl._setDepsForTest({
+        platform: 'win32',
+        execFile: mockExec(responses),
+      });
+      expect(await wsl.detectWslAgents()).toEqual([]);
+      const h = wsl.getWslSensorHealth();
+      expect(h.state).toBe(S.DEGRADED);
+      expect(h.lastError).toBe(`wsl-probe-failed:exit${code}`);
+      responses[LIST_KEY] = { stdout: 'Ubuntu\n' };
+      expect(await wsl.detectWslAgents()).toMatchObject([{ agent: 'opencode', pid: 0 }]);
+      expect(wsl.getWslSensorHealth().state).toBe(S.HEALTHY);
+    },
+  );
 
   it('an empty distro list is UNSUPPORTED (no distro)', async () => {
     wsl._setDepsForTest({
