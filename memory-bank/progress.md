@@ -900,3 +900,33 @@ unverified. Candidate evidence is in `X:/tmp/aegis-0141-candidate/RELEASE-CHECK.
 published-package evidence is under `X:/tmp/aegis-0141-published`. Next practical
 step: install the published update and verify settings/history retention. Major
 dependency PRs #352/#353/#354 remain deferred for coordinated compatibility work.
+
+## Session handoff — installed 0.14.1-alpha upgrade (2026-09-07)
+
+The published, signature-verified 0.14.1-alpha NSIS installer upgraded the per-user
+installation under `%LOCALAPPDATA%/Programs/aegis`. Before installation, the app was
+stopped and both its profile (1,397 files) and installation (79 files) were copied
+to `X:/tmp/aegis-0141-installed-upgrade`; all copied SHA-256 hashes matched.
+
+Windows registers 0.14.1-alpha, and installed app.asar matches the archive extracted
+from the signed release installer. Settings JSON values remain identical. All
+existing audit bytes were preserved: seven daily files are unchanged and today's
+file only gained appended events. The installed executable reached three healthy
+file-watch groups, delivered 32 config callbacks, reported zero loss and SQLite
+ready with 11,367 rows and no malformed lines, and quit cleanly. A subsequent normal
+launch created a new installed-app process and exposed Shield with version
+0.14.1-alpha. The app remains running. WSL enumeration remains degraded as before.
+
+The installer's initial launch unexpectedly followed a Start Menu shortcut pointing
+to the earlier extracted test executable. The installed binary itself was correct.
+The shortcut was backed up, repaired to point at the installed executable, and read
+back; the Desktop shortcut already pointed there. The extracted process was stopped
+before testing the installed binary. The origin of the stale shortcut is not established;
+future packaged-app smoke checks should verify existing shortcut targets afterward.
+
+A populated Shield screenshot was observed on the installed app. Reports navigation
+was not completed because UI automation encountered geometry/minimized-window errors
+and concurrent user input; history preservation was verified directly from the files
+and runtime index instead. No application source or dependency changes were needed.
+Private backups, runtime evidence, retention checks and the old shortcut remain under
+`X:/tmp/aegis-0141-installed-upgrade` and must stay outside Git.
