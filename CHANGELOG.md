@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 0.14.1-alpha (2026-09-07)
+
+## What's Changed
+* build(deps): bump the npm-minor-patch group across 1 directory with 12 updates by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/350
+* build(deps-dev): bump lint-staged from 16.3.2 to 17.4.1 by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/351
+* fix(deps): clear development dependency audit findings by @antropos17 in https://github.com/antropos17/Aegis/pull/359
+* docs: record installed Windows upgrade verification by @antropos17 in https://github.com/antropos17/Aegis/pull/360
+* chore: measure Windows watcher startup pauses by @antropos17 in https://github.com/antropos17/Aegis/pull/361
+* perf: move evidence file watchers off the main thread by @antropos17 in https://github.com/antropos17/Aegis/pull/362
+
+## New Contributors
+* @dependabot[bot] made their first contribution in https://github.com/antropos17/Aegis/pull/350
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.14.0-alpha...aegis-v0.14.1-alpha
+
 ## 0.14.0-alpha (2026-09-07)
 
 ## What's Changed
