@@ -88,7 +88,7 @@ describe('audit index history and fallback', () => {
       expect(hashchain.verifyChain(path.join(logDir(), file)).valid).toBe(true);
   });
 
-  it('normalizes v0, skips malformed lines and markers, and preserves the raw export', async () => {
+  it('keeps partial history readable while rejecting a malformed full export', async () => {
     const rows = [
       event(`${today}T08:00:00.000Z`, 'file-access', {
         details: { pid: 42, attribution: 'confirmed' },
@@ -113,7 +113,7 @@ describe('audit index history and fallback', () => {
       status: 'confirmed',
       evidence: null,
     });
-    expect(audit.exportAll()).toEqual(rows.filter((r) => typeof r !== 'string'));
+    expect(() => audit.exportAll()).toThrow('Audit export incomplete');
   });
 
   it('binds type values and shares validation and limits with the JSONL reader', async () => {

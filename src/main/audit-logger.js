@@ -561,11 +561,17 @@ function getStats() {
  * real field set each version wrote, and must receive every line (including
  * `buffer-overflow-drop` markers) so the hash chain can be replayed. Use
  * `normalizeAuditEntry` on the caller side if a uniform shape is wanted.
+ * A failed read, malformed JSON line, or pending flush aborts the export: returning
+ * an earlier subset would make both export IPC handlers report incomplete history
+ * as successfully saved. Errors omit source paths and record contents.
  * @returns {Object[]} Array of all audit log entries, mixed schema versions possible.
+ * @throws {Error} When the complete retained history cannot be exported.
  * @since v0.2.0
  */
 function exportAll() {
   flush();
+  if (_buffer.length > 0 || dropTracker.pendingCount() > 0)
+    throw new Error('Audit export incomplete: some events could not be saved to the journal.');
   const all = [];
   if (!_logDir) return all;
   try {
@@ -576,17 +582,14 @@ function exportAll() {
     for (const f of files) {
       const content = fs.readFileSync(path.join(_logDir, f), 'utf-8');
       for (const line of content.split('\n')) {
-        if (line.trim()) {
-          try {
-            all.push(JSON.parse(line));
-          } catch (_) {
-            /* skip malformed line */
-          }
-        }
+        if (line.trim()) all.push(JSON.parse(line));
       }
     }
-  } catch (err) {
-    console.error('[audit-logger] exportAll failed:', err.message);
+  } catch {
+    // JSON parser and filesystem errors can quote journal contents or local paths.
+    throw new Error(
+      'Audit export incomplete: a log file could not be read or contains invalid JSON.',
+    );
   }
   return all;
 }
