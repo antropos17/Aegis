@@ -11,12 +11,7 @@ export type PermissionState = 'monitor' | 'block' | 'allow';
 
 /** Permission category identifiers (six dimensions) */
 export type PermissionCategory =
-  | 'filesystem'
-  | 'sensitive'
-  | 'network'
-  | 'terminal'
-  | 'clipboard'
-  | 'screen';
+  'filesystem' | 'sensitive' | 'network' | 'terminal' | 'clipboard' | 'screen';
 
 /** Permission map: category to state */
 export type PermissionMap = Record<PermissionCategory, PermissionState>;
