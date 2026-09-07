@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node -e \"const fs=require('fs'),cp=require('child_process'),path=require('path');const e=JSON.parse(fs.readFileSync(0,'utf8'));const root=cp.execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8'}).trim();const files=[...String(e.tool_input?.command||'').matchAll(/^[*]{3} (?:Add File|Update File|Move to): (.+)$/gm)].map(m=>path.resolve(e.cwd||process.cwd(),m[1].trim())).filter(p=>path.relative(root,p).replace(/\\\\/g,'/').startsWith('src/')&&p.endsWith('.svelte')&&fs.existsSync(p));if(files.length){const r=cp.spawnSync(process.execPath,[require.resolve('prettier/bin/prettier.cjs',{paths:[root]}),'--check',...new Set(files)],{encoding:'utf8'});if(r.status!==0)console.log(JSON.stringify({systemMessage:'Prettier warning: file not formatted or check failed'}));}\"",
+            "command": "node -e \"const fs=require('fs'),cp=require('child_process'),path=require('path');const e=JSON.parse(fs.readFileSync(0,'utf8'));const root=cp.execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8'}).trim();const files=[...String(e.tool_input?.command||'').matchAll(/^[*]{3} (?:Add File|Update File|Move to): (.+)$/gm)].map(m=>path.resolve(e.cwd||process.cwd(),m[1].trim())).filter(p=>path.relative(root,p).split(path.sep).join('/').startsWith('src/')&&p.endsWith('.svelte')&&fs.existsSync(p));if(files.length){const r=cp.spawnSync(process.execPath,[require.resolve('prettier/bin/prettier.cjs',{paths:[root]}),'--check',...new Set(files)],{encoding:'utf8'});if(r.status!==0)console.log(JSON.stringify({systemMessage:'Prettier warning: file not formatted or check failed'}));}\"",
             "timeout": 10
           }
         ]
