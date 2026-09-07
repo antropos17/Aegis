@@ -77,6 +77,7 @@ describe('complete audit exports', () => {
       });
       audit.log('file-access', { agent: 'fixture' });
       expect(() => audit.exportAll()).toThrow('Audit export incomplete');
+      expect(() => audit.prepareExport()).toThrow('Audit export incomplete');
       append.mockRestore();
       const rows = audit.exportAll();
       expect(rows.map((entry) => entry.type)).toEqual([

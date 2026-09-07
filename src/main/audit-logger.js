@@ -595,6 +595,33 @@ function exportAll() {
 }
 
 /**
+ * Capture the retained journal's byte ranges after flushing, for a streamed export.
+ * Later appends are outside this export; unavailable sources abort it.
+ * @returns {Array<{path: string, size: number, ino: number, dev: number}>}
+ * @since 0.15.0
+ */
+function prepareExport() {
+  flush();
+  if (_buffer.length > 0 || dropTracker.pendingCount() > 0)
+    throw new Error('Audit export incomplete: some events could not be saved to the journal.');
+  try {
+    if (!_logDir) throw new Error('uninitialized');
+    return fs
+      .readdirSync(_logDir)
+      .filter((name) => name.startsWith('aegis-audit-') && name.endsWith('.json'))
+      .sort()
+      .map((name) => {
+        const filePath = path.join(_logDir, name);
+        const stat = fs.statSync(filePath);
+        if (!stat.isFile()) throw new Error('not-a-file');
+        return { path: filePath, size: stat.size, ino: stat.ino, dev: stat.dev };
+      });
+  } catch {
+    throw new Error('Audit export incomplete: the journal files could not be read.');
+  }
+}
+
+/**
  * Stop the flush timer, flush the remaining buffer, then close the index — after the flush,
  * so the last batch reaches the tables; disarmed first, so an open still pending on its
  * `setImmediate` never runs after this.
@@ -795,6 +822,7 @@ module.exports = {
   shutdown,
   getStats,
   exportAll,
+  prepareExport,
   getEntriesBefore,
   verifyChain: hashchain.verifyChain,
   getLogDir: () => _logDir,

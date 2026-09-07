@@ -53,6 +53,7 @@ const mockConfig = {
 };
 
 const mockScanner = {
+  activityLog: [],
   scanProcesses: vi.fn(() => Promise.resolve({ agents: [{ agent: 'Claude', pid: 100 }] })),
   agentDb: { agents: [] },
 };
@@ -89,8 +90,10 @@ const mockAudit = {
   })),
   getLogDir: vi.fn(() => '/logs'),
   exportAll: vi.fn(() => []),
+  prepareExport: vi.fn(() => []),
   getEntriesBefore: vi.fn(() => []),
 };
+const mockStreamExport = { writeAuditExport: vi.fn(async () => ({ success: true })) };
 
 const mockLogger = {
   getStats: vi.fn(() => ({
@@ -120,6 +123,7 @@ const baselinesPath = path.resolve(__dirname, '../../src/main/baselines.js');
 const analysisPath = path.resolve(__dirname, '../../src/main/ai-analysis.js');
 const exporterPath = path.resolve(__dirname, '../../src/main/exports.js');
 const auditPath = path.resolve(__dirname, '../../src/main/audit-logger.js');
+const streamExportPath = path.resolve(__dirname, '../../src/main/audit-export-stream.js');
 const loggerPath = path.resolve(__dirname, '../../src/main/logger.js');
 const platformPath = path.resolve(__dirname, '../../src/main/platform/index.js');
 const ipcPath = path.resolve(__dirname, '../../src/main/ipc-handlers.js');
@@ -144,6 +148,7 @@ Module._load = function (request, parent, _isMain) {
       return mockExporter;
     if (resolved === auditPath.replace(/\.js$/, '') || resolved + '.js' === auditPath)
       return mockAudit;
+    if (resolved + '.js' === streamExportPath) return mockStreamExport;
     if (resolved === loggerPath.replace(/\.js$/, '') || resolved + '.js' === loggerPath)
       return mockLogger;
     if (
@@ -200,24 +205,37 @@ describe('ipc-handlers', () => {
   }
 
   it.each(['export-full-audit', 'export-zip'])(
-    '%s reports incomplete history without offering or writing a partial file',
+    '%s reports incomplete history without writing a partial file',
     async (channel) => {
       ipcHandlers.init({ getWindow: () => null });
       ipcHandlers.register();
       mockElectron.dialog.showSaveDialog.mockClear();
+      mockElectron.dialog.showSaveDialog.mockResolvedValue({ filePath: '/fixture/export.json' });
       const write = vi.spyOn(fs, 'writeFileSync');
       const message =
         'Audit export incomplete: a log file could not be read or contains invalid JSON.';
-      mockAudit.exportAll.mockImplementationOnce(() => {
+      mockAudit.prepareExport.mockImplementationOnce(() => {
         throw new Error(message);
       });
       try {
         expect(await getHandler(channel)()).toEqual({ success: false, error: message });
-        expect(mockElectron.dialog.showSaveDialog).not.toHaveBeenCalled();
+        expect(mockElectron.dialog.showSaveDialog).toHaveBeenCalledOnce();
         expect(write).not.toHaveBeenCalled();
       } finally {
         write.mockRestore();
       }
+    },
+  );
+
+  it.each(['export-full-audit', 'export-zip'])(
+    '%s does no journal work after cancellation',
+    async (channel) => {
+      ipcHandlers.init({ getWindow: () => null });
+      ipcHandlers.register();
+      mockElectron.dialog.showSaveDialog.mockResolvedValue({});
+      mockAudit.prepareExport.mockClear();
+      expect(await getHandler(channel)()).toEqual({ success: false });
+      expect(mockAudit.prepareExport).not.toHaveBeenCalled();
     },
   );
 
@@ -242,6 +260,30 @@ describe('ipc-handlers', () => {
         'evil.exe',
       );
       expect(updates[method]).toHaveBeenCalledExactlyOnceWith();
+    }
+  });
+
+  it('streams the ZIP with bounded activity and sanitized settings', async () => {
+    ipcHandlers.init({ getWindow: () => null });
+    ipcHandlers.register();
+    mockElectron.dialog.showSaveDialog.mockResolvedValue({ filePath: '/fixture/export.zip' });
+    mockConfig.getSettings.mockReturnValue({
+      anthropicApiKey: 'fixture',
+      _encryptedApiKey: 'fixture',
+      apiKey: 'fixture',
+      theme: 'dark',
+    });
+    mockScanner.activityLog = Array.from({ length: 5100 }, (_, i) => ({ i }));
+    mockStreamExport.writeAuditExport.mockClear();
+    try {
+      expect(await getHandler('export-zip')()).toEqual({ success: true });
+      const options = mockStreamExport.writeAuditExport.mock.calls[0][0];
+      expect(options.extraEntries[0].data).toHaveLength(5000);
+      expect(options.extraEntries[0].data[0]).toEqual({ i: 100 });
+      expect(options.extraEntries[1]).toEqual({ name: 'config.json', data: { theme: 'dark' } });
+      expect(options.zip).toBe(true);
+    } finally {
+      mockScanner.activityLog = [];
     }
   });
 

@@ -7,6 +7,8 @@
 'use strict';
 
 const zlib = require('zlib');
+const { Readable } = require('node:stream');
+const { pipeline } = require('node:stream/promises');
 
 // ── CRC-32 lookup table ──
 const CRC_TABLE = new Uint32Array(256);
@@ -109,4 +111,82 @@ function createZip(entries) {
   return Buffer.concat(parts);
 }
 
-module.exports = { createZip };
+/**
+ * Write a ZIP incrementally with asynchronous compression and data descriptors.
+ * Each input and compressed chunk is backpressured by the destination write.
+ * @param {Array<{name: string, chunks: AsyncIterable<Buffer|string>|Iterable<Buffer|string>}>} entries
+ * @param {(chunk: Buffer) => Promise<void>} write
+ * @returns {Promise<void>}
+ * @since 0.15.0
+ */
+async function writeZip(entries, write) {
+  let offset = 0;
+  const centrals = [];
+  const emit = async (chunk) => {
+    if (offset + chunk.length >= 0xffffffff) throw new Error('ZIP64 is required for this export.');
+    await write(chunk);
+    offset += chunk.length;
+  };
+  for (const entry of entries) {
+    const start = offset;
+    const name = Buffer.from(entry.name, 'utf8');
+    if (name.length > 65535 || entries.length > 65535) throw new Error('ZIP limits exceeded.');
+    const local = Buffer.alloc(30 + name.length);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x808, 6); // UTF-8 + trailing data descriptor
+    local.writeUInt16LE(8, 8);
+    local.writeUInt16LE(name.length, 26);
+    name.copy(local, 30);
+    await emit(local);
+    let crc = 0xffffffff;
+    let size = 0;
+    let compressed = 0;
+    async function* counted() {
+      for await (const value of entry.chunks) {
+        const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
+        size += chunk.length;
+        if (size >= 0xffffffff) throw new Error('ZIP64 is required for this export.');
+        for (const byte of chunk) crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+        yield chunk;
+      }
+    }
+    await pipeline(Readable.from(counted()), zlib.createDeflateRaw(), async (source) => {
+      for await (const chunk of source) {
+        compressed += chunk.length;
+        await emit(chunk);
+      }
+    });
+    crc = (crc ^ 0xffffffff) >>> 0;
+    const descriptor = Buffer.alloc(16);
+    descriptor.writeUInt32LE(0x08074b50, 0);
+    descriptor.writeUInt32LE(crc, 4);
+    descriptor.writeUInt32LE(compressed, 8);
+    descriptor.writeUInt32LE(size, 12);
+    await emit(descriptor);
+    const central = Buffer.alloc(46 + name.length);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0x808, 8);
+    central.writeUInt16LE(8, 10);
+    central.writeUInt32LE(crc, 16);
+    central.writeUInt32LE(compressed, 20);
+    central.writeUInt32LE(size, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt32LE(start, 42);
+    name.copy(central, 46);
+    centrals.push(central);
+  }
+  const directoryOffset = offset;
+  for (const central of centrals) await emit(central);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(offset - directoryOffset, 12);
+  end.writeUInt32LE(directoryOffset, 16);
+  await emit(end);
+}
+
+module.exports = { createZip, writeZip };
