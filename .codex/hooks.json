@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .codex/hooks/branch-guard.js",
+            "command": "node -e \"const cp=require('child_process');const root=cp.execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8'}).trim();const r=cp.spawnSync(process.execPath,[require('path').join(root,'.codex/hooks/branch-guard.js')],{stdio:'inherit'});process.exit(r.status===null?1:r.status);\"",
             "timeout": 5
           }
         ]
@@ -14,11 +14,11 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Edit(src/**/*.svelte)",
+        "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
-            "command": "npx prettier --check \"$TOOL_INPUT_path\" 2>/dev/null || echo 'Prettier warning: file not formatted'",
+            "command": "node -e \"const fs=require('fs'),cp=require('child_process'),path=require('path');const e=JSON.parse(fs.readFileSync(0,'utf8'));const root=cp.execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8'}).trim();const files=[...String(e.tool_input?.command||'').matchAll(/^[*]{3} (?:Add File|Update File|Move to): (.+)$/gm)].map(m=>path.resolve(e.cwd||process.cwd(),m[1].trim())).filter(p=>path.relative(root,p).replace(/\\\\/g,'/').startsWith('src/')&&p.endsWith('.svelte')&&fs.existsSync(p));if(files.length){const r=cp.spawnSync(process.execPath,[require.resolve('prettier/bin/prettier.cjs',{paths:[root]}),'--check',...new Set(files)],{encoding:'utf8'});if(r.status!==0)console.log(JSON.stringify({systemMessage:'Prettier warning: file not formatted or check failed'}));}\"",
             "timeout": 10
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'Task complete. Remember: commit if done, /compact if >50% context.'",
+            "command": "node -e \"console.log(JSON.stringify({systemMessage:'Task complete. Remember: commit if done, /compact if >50% context.'}))\"",
             "timeout": 3
           }
         ]

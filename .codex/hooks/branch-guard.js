@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// PreToolUse(Edit|Write) branch-guard for AEGIS.
+// Codex PreToolUse(apply_patch; Edit|Write aliases) branch-guard for AEGIS.
 //
 // Blocks edits to TRACKED, in-repo files while the project repo is on `master`,
 // so all work goes through a feature branch (GitHub-Flow rule).
 //
 // Two skips run BEFORE the block (the bug this hook fixes):
 //   1. OUT-OF-REPO  — the edited path is not under the project repo root
-//                     (e.g. ~/.claude/settings.json). The master-branch guard
+//                     (e.g. ~/.codex/config.toml). The master-branch guard
 //                     has no business gating files outside the repo.
 //   2. GITIGNORED   — the path is under the repo root but git-ignored
 //                     (e.g. memory-bank/ working notes). Ignored files are not
@@ -14,17 +14,21 @@
 //
 // Input: a PreToolUse event as JSON on stdin (the only supported mechanism —
 //        there are no $TOOL_INPUT_* env vars). Shape:
-//        { "tool_input": { "file_path": "..." }, "cwd": "..." }
+//        { "hook_event_name": "PreToolUse", "tool_name": "apply_patch",
+//          "tool_input": { "command": "*** Begin Patch\n..." }, "cwd": "..." }
+// Codex supplies the session cwd in the payload and as the working directory;
+// it does not document a project-root environment variable for command hooks.
 // Block: exit code 2 + a plain-language message on stderr (the canonical form).
 // Allow: exit code 0.
 //
-// Run as a hook:  node "${CLAUDE_PROJECT_DIR}/.claude/hooks/branch-guard.js"
+// Registered in .codex/hooks.json beside the project .codex/config.toml.
 // Test the logic: require this module and call decide() with mock rows, OR pipe
-//                 a mock event:  echo '{...}' | node .claude/hooks/branch-guard.js
+//                 a mock event:  echo '{...}' | node .codex/hooks/branch-guard.js
 
 'use strict';
 
 const { execFileSync } = require('child_process');
+const path = require('path');
 
 /**
  * Normalize a filesystem path for cross-platform prefix comparison.
@@ -87,7 +91,7 @@ function decide(filePath, cwd, branch) {
   if (!topLevel) return { block: false, reason: 'cwd is not a git repo' };
 
   const root = normPath(topLevel);
-  const edited = normPath(filePath);
+  const edited = normPath(path.resolve(cwd, filePath));
 
   // Skip 1: out-of-repo. Trailing-slash boundary so AEGIS != AEGIS-other.
   if (edited !== root && !edited.startsWith(root + '/')) {
@@ -123,15 +127,24 @@ function main() {
     process.exit(0); // unparseable -> fail open (never block on malformed input)
   }
 
-  const filePath = event && event.tool_input && event.tool_input.file_path;
-  const cwd = (event && event.cwd) || process.env.CLAUDE_PROJECT_DIR || process.cwd();
+  const cwd = (event && event.cwd) || process.cwd();
+  const input = event && event.tool_input;
+  const patch = input && input.command;
+  const filePaths =
+    typeof patch === 'string'
+      ? [...patch.matchAll(/^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)\r?$/gm)].map(
+          (match) => match[1].replace(/\r$/, ''),
+        )
+      : [];
 
-  const { block } = decide(filePath, cwd);
-  if (block) {
-    process.stderr.write(
-      `Cannot edit on master: ${filePath}\nCreate a feature branch first (feat/* | fix/* | chore/* | docs/*).`,
-    );
-    process.exit(2);
+  for (const filePath of filePaths) {
+    const { block } = decide(filePath, cwd);
+    if (block) {
+      process.stderr.write(
+        `Cannot edit on master: ${filePath}\nCreate a feature branch first (feat/* | fix/* | chore/* | docs/*).`,
+      );
+      process.exit(2);
+    }
   }
   process.exit(0);
 }
