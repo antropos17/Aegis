@@ -1,6 +1,6 @@
 {
   "name": "aegis",
-  "version": "0.13.0-alpha",
+  "version": "0.14.0-alpha",
   "description": "OS-level monitor for AI agents: observes processes, file access, and network activity on the local machine and attributes each event to an agent instance.",
   "main": "src/main/main.js",
   "scripts": {
