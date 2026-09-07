@@ -67,6 +67,8 @@ export interface DetectedAgent {
   readonly pid: number;
   readonly status: 'running';
   readonly category: string;
+  /** Last successful external discovery; stale observations do not establish current liveness. */
+  readonly discoveryObservation?: { readonly observedAt: number | null; readonly stale: boolean };
   readonly parentEditor?: string | null;
   readonly cwd?: string | null;
   readonly projectName?: string | null;
