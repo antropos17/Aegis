@@ -1005,3 +1005,20 @@ The first release carrying this feature still needs manual installation. Windows
 x64 is the supported update target; SHA-256-only cached downloads are fetched again
 after an app restart, and automatic rollback/backups are not implemented. The next
 release remains a separate user-authorized step; major dependency PRs stay deferred.
+
+## Session handoff — tab shortcut hints, issue #77 (2026-09-07)
+
+After the user asked to continue development, `codex/tab-shortcut-hints` adds visible
+Ctrl+1 through Ctrl+5 hints beneath the five navigation labels. The current handler
+already supports these combinations; the older issue mentions only four tabs.
+The accessibility shortcut metadata now lists both the existing plain digit and
+Control+digit alternatives. Colors, spacing and the mono font use existing tokens.
+
+Renderer and demo builds, formatting, lint and Svelte checks passed. The Svelte
+autofixer reported no issues; its suggestions concern existing indicator effects.
+The built web preview was inspected at 1280x720 and each Ctrl+1–5 combination selected
+the matching tab. The preview correctly showed NO DATA without the desktop bridge.
+The Vite dev server could not render the existing CommonJS instance-key import, so
+visual verification used the built preview. No keyboard handler or monitoring code
+changed, and no tests were added for this presentation change. Release publication
+and the installed application remain outside this task.
