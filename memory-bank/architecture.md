@@ -1,6 +1,6 @@
 # AEGIS Architecture
 
-## Main Process (src/main/) — 58 CommonJS modules (46 top-level + 10 platform/ + 2 token-adapters/)
+## Main Process (src/main/) — 59 CommonJS modules (47 top-level + 10 platform/ + 2 token-adapters/)
 
 Core modules:
 - main.js — orchestrator, module wiring, lifecycle
@@ -23,6 +23,7 @@ Core modules:
 - ai-analysis.js — Anthropic API threat analysis
 - audit-logger.js — persistent JSONL audit trail (the canon; hash-chained per daily file)
 - audit-index.js — `node:sqlite` projection of the audit JSONL, fed at flush time strictly after the line is on disk, capability-gated (`state: 'unavailable'` without the engine); never the source of truth, no hash columns (docs/roadmap/audit-index.md)
+- audit-index-query.js — bounded timestamp-ordered history queries with bound type filters; audit-logger falls back to JSONL when the index is unavailable or fails
 - audit-index-rebuild.js — rebuild/reconcile of the index from the daily files after `cleanOldLogs` on every init, resumed from `indexed_bytes`, ~2000-line transactions between `setImmediate` yields
 - exports.js — JSON/CSV/HTML report export
 - tray-icon.js — system tray with procedural icon

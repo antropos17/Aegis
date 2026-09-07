@@ -6,7 +6,7 @@ Explicit user instructions take precedence over anything in AGENTS.md or a skill
 
 ## Project facts
 
-`src/main/` contains 58 main modules: 46 top-level + platform/ 10 + token-adapters/ 2. Platform-specific operations live in `src/main/platform/`. `src/main/preload.js` exposes 40 invoke + 9 push = 49 IPC channels through contextBridge. `src/shared/types/` contains 9 TS files. These counts are derived by `npm run counts:check`.
+`src/main/` contains 59 main modules: 47 top-level + platform/ 10 + token-adapters/ 2. Platform-specific operations live in `src/main/platform/`. `src/main/preload.js` exposes 40 invoke + 9 push = 49 IPC channels through contextBridge. `src/shared/types/` contains 9 TS files. These counts are derived by `npm run counts:check`.
 
 A birth time is observed on the pass that stamps it or is `null`; no cache stores one. A snapshot outage freezes sessions and never splits them. For changes touching identity stamping, the audit chain, or the Windows git worktree flow, `memory-bank/ai-mistakes.md` holds the relevant failure history.
 

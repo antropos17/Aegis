@@ -201,6 +201,7 @@ function _indexAppend(fp, bytes, lines) {
       _indexTask = indexRebuild.schedule(_logDir);
     }
   } catch (err) {
+    auditIndex.setState('failed', new Error('audit-index: flush projection failed'));
     console.error('[audit-logger] index append failed:', err.message);
   }
 }
@@ -680,7 +681,9 @@ function _nextDateStr(dateStr) {
 
 /**
  * Return up to `limit` audit entries with timestamps strictly before `beforeTs`.
- * Reads log files in reverse-chronological order for efficiency.
+ * Uses the ready SQLite projection; otherwise reads JSONL in the same call.
+ * The index orders by timestamp, then file and line ordinal; the fallback preserves
+ * file/line order, so a clock step can change which records a bounded page selects.
  *
  * All three parameters cross the IPC boundary raw (ipc-handlers.js passes them through),
  * so all three are validated HERE rather than at the handler — every caller gets the same
@@ -729,6 +732,11 @@ function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT, types) {
   const typeFilter = _typeFilter(types);
   flush();
   if (!_logDir) return [];
+  try {
+    if (auditIndex.isReady()) return auditIndex.queryBefore(beforeTs, limit, typeFilter);
+  } catch (_) {
+    // The index records its failure without raw audit data; canon remains readable.
+  }
   const results = [];
   try {
     // The last file worth opening: the day after the cursor's UTC date (see the JSDoc).
