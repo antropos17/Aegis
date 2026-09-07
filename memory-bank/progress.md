@@ -707,3 +707,12 @@ this handoff does not start that fix. The user is moving to a new project chat.
 For Windows shell work, lesson 46 in `memory-bank/ai-mistakes.md` records explicit native
 exit-code propagation with `exit $LASTEXITCODE`. Multiline gh bodies use a UTF-8 file and
 `--body-file`; Git Bash is not required. AGENTS.md remains the canonical project guidance.
+
+## Issue #332 — export dialog Downloads paths (2026-09-07)
+
+All six save dialogs in `exports.js` and `ipc-handlers.js` now join their existing file
+names to `app.getPath('downloads')`. This supplies an absolute default path independent
+of the launch directory. Local verification: 45 existing export/IPC tests passed,
+`format:check` and `build:renderer` passed, and lint reported zero errors (32 warnings).
+The native Windows dialog and a packaged installer were not exercised in this session.
+Audit-index blocks 1–2 remain complete; no further product task has been selected.
