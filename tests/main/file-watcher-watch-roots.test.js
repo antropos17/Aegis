@@ -174,6 +174,31 @@ describe('chokidar watch-root registry (step B)', () => {
     restoreChokidar();
   });
 
+  it.each([true, false])(
+    'keeps user roots live without watching ASAR (user dirs: %s)',
+    async (present) => {
+      vi.restoreAllMocks();
+      stubPreflight(present);
+      const appDir = path.join(os.tmpdir(), 'resources', 'app.asar');
+      fileWatcher._setDepsForTest({ appDir });
+
+      await fileWatcher.setupFileWatchers();
+      expect(ids(fileWatcher.getWatchPlan())).toEqual(
+        present ? ['credential-dirs', 'agent-config-dirs', 'env-files'] : ['env-files'],
+      );
+      expect(fileWatcher.getWatchPlan().absentGroups).toContain('project-dir');
+      expect(fileWatcher.setupRulesWatcher(vi.fn(), { sequenceCount: () => 1 })).toBeNull();
+      expect(fileWatcher.setupSequenceRulesWatcher(vi.fn(), { reload: vi.fn() })).toBeNull();
+      expect(fakeWatchers).toHaveLength(present ? 3 : 1);
+      expect(fakeWatchers.flatMap((w) => w._paths).some((p) => p.includes('app.asar'))).toBe(false);
+
+      readyAll();
+      expect(fileWatcher.getWatchPlan().state).toBe('HEALTHY');
+      fakeWatchers[0].emit('error', new Error('user root unavailable'));
+      expect(fileWatcher.getWatchPlan().state).toBe('DEGRADED');
+    },
+  );
+
   describe('the plan (§1.2)', () => {
     it('is complete at the first registration, and every root is still only planned', async () => {
       await fileWatcher.setupFileWatchers();

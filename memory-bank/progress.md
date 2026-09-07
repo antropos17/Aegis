@@ -745,3 +745,21 @@ rebuild from master plus this fix completed; the same packaged-runtime probe ret
 or lockfile change was needed. Formatting, lint (zero errors, 32 existing warnings) and
 renderer build passed. Rebuild the final 0.14 candidate after this fix merges; the old
 candidate is not releasable despite its green five-context CI.
+
+## Archived watch roots — second packaged smoke finding (2026-09-07)
+
+The next live packaged smoke loaded the rules and reached SQLite `ready`, but chokidar
+rejected its attempts to watch inside `app.asar` with unhandled `reading 'close'` errors.
+The app-directory root and both rule hot-reload watchers pointed into that virtual tree.
+
+`file-watcher.js` now excludes the ASAR app tree from its watch plan and returns no
+hot-reload watcher for embedded rules. Unpacked trees retain both rule watchers; user
+credential/config directories and home env-file watching remain active in either case.
+The registry comments now describe that explicit not-applicable case.
+
+Two archive cases failed before the fix and passed after, including user-root readiness
+and degradation on a real watcher's error. Six affected suites passed (138 passed, 4
+skipped); format, lint, typecheck, counts and renderer build passed. A rebuilt, live
+packaged app then reported three ready user watch groups, `project-dir` absent, SQLite
+`ready`, and no unhandled errors in its captured startup stderr. The final 0.14 candidate
+must include this fix and be rebuilt before release approval.
