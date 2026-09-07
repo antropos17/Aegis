@@ -102,7 +102,7 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
     scanner = require_('../../src/main/process-scanner.js');
     listProcesses = vi.fn().mockResolvedValue([{ name: 'chrome', pid: 1 }]);
     scanner._resetForTest();
-    scanner._setPlatformForTest({ listProcesses });
+    scanner._setPlatformForTest({ listProcesses, providesStartTime: false });
     scanner.init({ trackSeenAgent: vi.fn() });
     scanner.peakAgents = 0;
 
