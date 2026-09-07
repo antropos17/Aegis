@@ -232,6 +232,13 @@ function activeCount() {
   return activeSessions.size;
 }
 
+/** Whether an instance is still active, including the reliable-miss grace window.
+ * @param {string} instanceId @returns {boolean} @since 0.15.0 */
+function hasInstance(instanceId) {
+  for (const session of activeSessions.values()) if (session.instanceId === instanceId) return true;
+  return false;
+}
+
 /** @internal Reset module state (for tests). @returns {void} */
 function _resetForTest() {
   activeSessions.clear();
@@ -240,6 +247,7 @@ function _resetForTest() {
 module.exports = {
   reconcile,
   activeCount,
+  hasInstance,
   sessionKey,
   DEFAULT_EXIT_GRACE,
   _resetForTest,

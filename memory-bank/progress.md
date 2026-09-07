@@ -1145,3 +1145,33 @@ Python zipfile independently checked the ZIP CRCs and read all 100,000 records.
 Artifacts are under `X:/tmp/aegis-core-audit-20260907/stream-bench*`.
 
 Remaining authorized audit item: retire completed baseline instance data safely.
+
+## Session handoff — retire completed baseline instances (2026-09-07)
+
+`codex/retire-baseline-instances` archives confirmed native process exits into the
+existing ten-record per-agent profile, deletes their detailed live sets and frees
+their anomaly-warning deduplication. The scan loop retires only the exits returned
+by reliable session reconciliation, after the existing grace window. An outage or
+suspend freezes reconciliation and cannot trigger cleanup. Still-active instances
+sharing a key are excluded from retirement.
+
+Baseline recording uses a live-membership predicate (tracked sessions including
+grace, or currently surfaced pid-0 synthetics) to reject late callbacks without an
+ever-growing closed-key list. Shutdown archives only remaining buckets, so repeated
+shutdown/finalization does not double-count. Profile end times include the latest
+observed activity. Synthetic instances still have no native session exit and retain
+their existing shutdown finalization. Token cost totals are untouched.
+
+The full suite passed with 2,723 tests and four skips across 153 files; a subsequent
+additional failed-save/retry test also passed with the whole baseline test file.
+Build, format, lint, both type checks, both mutation gates and counts passed. Tests
+cover 2,000 completed instances leaving zero live buckets and ten profile records,
+selective retirement, warning cleanup, repeated shutdown, grace/outage wiring,
+rejection of late callbacks and save recovery without duplicate profile records.
+Failed saves retain the rolling profile in memory for a later save; crash durability
+of that profile remains limited by the existing persistence mechanism.
+
+All four follow-up items from the core audit are implemented. Earlier completed
+PRs in this batch: #371 WSL freshness, #372 shared Windows observation, #373 streamed
+exports. No release or installed-app update was requested; the separately developed
+frontend remains untouched.
