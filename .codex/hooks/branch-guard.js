@@ -20,6 +20,9 @@
 // it does not document a project-root environment variable for command hooks.
 // Block: exit code 2 + a plain-language message on stderr (the canonical form).
 // Allow: exit code 0.
+// The Windows hook launcher must end with `exit $LASTEXITCODE`: PowerShell
+// otherwise maps a native exit 2 to exit 1, which Codex treats as a hook error
+// rather than a blocking decision that prevents the edit.
 //
 // Registered in .codex/hooks.json beside the project .codex/config.toml.
 // Test the logic: require this module and call decide() with mock rows, OR pipe
