@@ -302,6 +302,7 @@ describe('ipc-batcher', () => {
         coalesced: 0,
         evicted: 7,
         evictedSinceFlush: 7,
+        retainedEvicted: 0,
         highWater: 3,
         buffered: 3,
       });
@@ -429,6 +430,7 @@ describe('ipc-batcher', () => {
         coalesced: 0,
         evicted: 4,
         evictedSinceFlush: 0,
+        retainedEvicted: 0,
         highWater: 2,
         buffered: 0,
       });
@@ -570,6 +572,7 @@ describe('ipc-batcher', () => {
         coalesced: 1,
         evicted: 0,
         evictedSinceFlush: 0,
+        retainedEvicted: 0,
         highWater: 2,
         buffered: 2,
       });
@@ -641,6 +644,7 @@ describe('ipc-batcher', () => {
         coalesced: 297,
         evicted: 0,
         evictedSinceFlush: 0,
+        retainedEvicted: 0,
         highWater: 3,
         buffered: 3,
       });
@@ -650,10 +654,190 @@ describe('ipc-batcher', () => {
     });
   });
 
+  // ── retain (append mode) ──
+
+  describe('retain (append mode)', () => {
+    it('evicts the oldest NON-retained entry first — the retained one keeps its place', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, {
+        intervalMs: 100,
+        capacity: 3,
+        retain: (v) => v.keep === true,
+      });
+
+      b.push({ id: 'r1', keep: true });
+      b.push({ id: 'n1', keep: false });
+      b.push({ id: 'n2', keep: false }); // full
+      b.push({ id: 'n3', keep: false }); // evicts n1, the oldest non-retained — not r1
+
+      expect(b.getStats()).toMatchObject({
+        pushed: 4,
+        evicted: 1,
+        retainedEvicted: 0,
+        buffered: 3,
+      });
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', [
+        { id: 'r1', keep: true },
+        { id: 'n2', keep: false },
+        { id: 'n3', keep: false },
+      ]);
+      b.destroy();
+    });
+
+    it('a buffer that is ALL retained evicts its oldest entry, and counts it as retainedEvicted', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100, capacity: 2, retain: () => true });
+      b.push('a');
+      b.push('b');
+      b.push('c'); // nothing non-retained to take, so the oldest retained goes
+      expect(b.getStats()).toMatchObject({
+        pushed: 3,
+        evicted: 1,
+        retainedEvicted: 1,
+        buffered: 2,
+      });
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', ['b', 'c']);
+      b.destroy();
+    });
+
+    it('ACCEPTANCE: retained entries at the head survive a non-retained burst three times the capacity', () => {
+      // The discriminating case. Plain oldest-first eviction drops r1 and r2 on the first
+      // two overflows; retention takes the oldest NON-retained entry every time instead,
+      // so the two retained entries are still there after twelve pushes into four slots.
+      // Restore an unconditional `buf.shift()` and this case goes red.
+      const send = vi.fn();
+      const b = createBatcher('ch', send, {
+        intervalMs: 100,
+        capacity: 4,
+        retain: (v) => v.keep === true,
+      });
+
+      b.push({ id: 'r1', keep: true });
+      b.push({ id: 'r2', keep: true });
+      for (let i = 1; i <= 12; i += 1) b.push({ id: `n${i}`, keep: false });
+
+      expect(b.getStats()).toMatchObject({
+        pushed: 14,
+        evicted: 10,
+        retainedEvicted: 0,
+        buffered: 4,
+        highWater: 4,
+      });
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', [
+        { id: 'r1', keep: true },
+        { id: 'r2', keep: true },
+        { id: 'n11', keep: false },
+        { id: 'n12', keep: false },
+      ]);
+      b.destroy();
+    });
+
+    it('an eviction from the MIDDLE keeps the key table in step with the buffer', () => {
+      // With retention the evicted slot is no longer always slot 0, so the key table must
+      // lose the same index the buffer lost, or a later merge lands on the wrong entry.
+      const send = vi.fn();
+      const b = createBatcher('ch', send, {
+        intervalMs: 100,
+        capacity: 3,
+        coalesceKey: (v) => v.k,
+        retain: (v) => v.keep === true,
+      });
+
+      b.push({ k: 'a', keep: true, n: 1 });
+      b.push({ k: 'b', keep: false, n: 2 });
+      b.push({ k: 'c', keep: false, n: 3 }); // full: [a, b, c]
+      b.push({ k: 'd', keep: false, n: 4 }); // evicts b (slot 1): [a, c, d]
+      b.push({ k: 'c', keep: false, n: 5 }); // must merge onto slot 1 (c), not slot 2 (d)
+
+      expect(b.getStats()).toMatchObject({ pushed: 5, coalesced: 1, evicted: 1, buffered: 3 });
+
+      b.push({ k: 'e', keep: false, n: 6 }); // evicts c (slot 1, the oldest non-retained): [a, d, e]
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', [
+        { k: 'a', keep: true, n: 1 },
+        { k: 'd', keep: false, n: 4 },
+        { k: 'e', keep: false, n: 6 },
+      ]);
+      b.destroy();
+    });
+
+    it('a merge re-evaluates retain on the replacement value', () => {
+      // A retained entry replaced by a non-retained value of the same key must become
+      // evictable: the flag describes the value that is buffered NOW, not the first one.
+      const send = vi.fn();
+      const b = createBatcher('ch', send, {
+        intervalMs: 100,
+        capacity: 2,
+        coalesceKey: (v) => v.k,
+        retain: (v) => v.keep === true,
+      });
+
+      b.push({ k: 'a', keep: true, n: 1 });
+      b.push({ k: 'b', keep: false, n: 2 }); // full: [a, b]
+      b.push({ k: 'a', keep: false, n: 3 }); // merge: a is no longer retained
+      b.push({ k: 'c', keep: false, n: 4 }); // evicts slot 0 (a), the oldest non-retained: [b, c]
+
+      expect(b.getStats()).toMatchObject({
+        pushed: 4,
+        coalesced: 1,
+        evicted: 1,
+        retainedEvicted: 0,
+        buffered: 2,
+      });
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', [
+        { k: 'b', keep: false, n: 2 },
+        { k: 'c', keep: false, n: 4 },
+      ]);
+      b.destroy();
+    });
+
+    it('a throwing retain leaves the batcher exactly as it found it', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, {
+        intervalMs: 100,
+        capacity: 2,
+        retain: (v) => {
+          if (v === 'boom') throw new Error('retain exploded');
+          return false;
+        },
+      });
+
+      b.push('ok');
+      expect(() => b.push('boom')).toThrow(/retain exploded/);
+      expect(b.getStats()).toMatchObject({
+        pushed: 1,
+        evicted: 0,
+        retainedEvicted: 0,
+        buffered: 1,
+      });
+
+      vi.advanceTimersByTime(100);
+      expect(send).toHaveBeenCalledWith('ch', ['ok']);
+      b.destroy();
+    });
+
+    it('without capacity, retain never fires and changes nothing', () => {
+      const send = vi.fn();
+      const b = createBatcher('ch', send, { intervalMs: 100, retain: () => false });
+      for (let i = 0; i < 50; i += 1) b.push(i);
+      expect(b.getStats()).toMatchObject({
+        pushed: 50,
+        evicted: 0,
+        retainedEvicted: 0,
+        buffered: 50,
+      });
+      b.destroy();
+    });
+  });
+
   // ── getStats ──
 
   describe('getStats', () => {
-    it('exposes exactly the six documented fields', () => {
+    it('exposes exactly the seven documented fields', () => {
       const b = createBatcher('ch', vi.fn(), { intervalMs: 100 });
       expect(Object.keys(b.getStats()).sort()).toEqual([
         'buffered',
@@ -662,6 +846,7 @@ describe('ipc-batcher', () => {
         'evictedSinceFlush',
         'highWater',
         'pushed',
+        'retainedEvicted',
       ]);
       b.destroy();
     });
@@ -673,6 +858,7 @@ describe('ipc-batcher', () => {
         coalesced: 0,
         evicted: 0,
         evictedSinceFlush: 0,
+        retainedEvicted: 0,
         highWater: 0,
         buffered: 0,
       });
@@ -689,6 +875,7 @@ describe('ipc-batcher', () => {
         coalesced: 0,
         evicted: 0,
         evictedSinceFlush: 0,
+        retainedEvicted: 0,
         highWater: 2,
         buffered: 2,
       });
@@ -709,6 +896,7 @@ describe('ipc-batcher', () => {
         coalesced: 0,
         evicted: 1,
         evictedSinceFlush: 0,
+        retainedEvicted: 0,
         highWater: 2,
         buffered: 0,
       });
@@ -723,6 +911,7 @@ describe('ipc-batcher', () => {
         coalesced: 0,
         evicted: 0,
         evictedSinceFlush: 0,
+        retainedEvicted: 0,
         highWater: 0,
         buffered: 0,
       });
@@ -741,7 +930,7 @@ describe('ipc-batcher', () => {
   // ── latest mode stats ──
 
   describe('getStats (latest mode)', () => {
-    it('reports the same six fields with only the counters that can apply', () => {
+    it('reports the same seven fields with only the counters that can apply', () => {
       const send = vi.fn();
       const b = createBatcher('stats', send, { intervalMs: 100, mode: 'latest' });
 
@@ -750,6 +939,7 @@ describe('ipc-batcher', () => {
         coalesced: 0,
         evicted: 0,
         evictedSinceFlush: 0,
+        retainedEvicted: 0,
         highWater: 0,
         buffered: 0,
       });
@@ -761,6 +951,7 @@ describe('ipc-batcher', () => {
         coalesced: 0,
         evicted: 0,
         evictedSinceFlush: 0,
+        retainedEvicted: 0,
         highWater: 1,
         buffered: 1,
       });
@@ -773,6 +964,7 @@ describe('ipc-batcher', () => {
         coalesced: 0,
         evicted: 0,
         evictedSinceFlush: 0,
+        retainedEvicted: 0,
         highWater: 1,
         buffered: 0,
       });
@@ -788,6 +980,7 @@ describe('ipc-batcher', () => {
         coalesced: 0,
         evicted: 0,
         evictedSinceFlush: 0,
+        retainedEvicted: 0,
         highWater: 0,
         buffered: 0,
       });
@@ -834,6 +1027,20 @@ describe('ipc-batcher', () => {
       expect(() =>
         createBatcher('ch', vi.fn(), { mode: 'latest', coalesceKey: () => 'k' }),
       ).toThrow(/coalesceKey requires mode 'append'/);
+    });
+
+    it('refuses a retain that is not a function', () => {
+      for (const bad of ['sensitive', 42, {}, null]) {
+        expect(() => createBatcher('ch', vi.fn(), { retain: bad })).toThrow(
+          /retain must be a function/,
+        );
+      }
+    });
+
+    it('refuses retain in latest mode: a one-slot buffer never chooses what to evict', () => {
+      expect(() => createBatcher('ch', vi.fn(), { mode: 'latest', retain: () => true })).toThrow(
+        /retain requires mode 'append'/,
+      );
     });
   });
 

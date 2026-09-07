@@ -110,16 +110,19 @@ function readTracked(rel) {
 // re-run it by hand.
 // ---------------------------------------------------------------------------
 
-/** @returns {number} mutants in the `MUTANTS` array of the injection-proof script. */
-function deriveMutants() {
-  const src = readTracked('scripts/verify-witness-gate.mjs');
+/**
+ * @param {string} script - repo-relative path of an injection-proof script.
+ * @returns {number} mutants in its `MUTANTS` array.
+ */
+function deriveMutants(script) {
+  const src = readTracked(script);
   const start = src.indexOf('const MUTANTS = [');
-  if (start === -1) throw new Error('scripts/verify-witness-gate.mjs: no `const MUTANTS = [`');
+  if (start === -1) throw new Error(`${script}: no \`const MUTANTS = [\``);
   const end = src.indexOf('\n];', start);
-  if (end === -1) throw new Error('scripts/verify-witness-gate.mjs: MUTANTS array is unterminated');
+  if (end === -1) throw new Error(`${script}: MUTANTS array is unterminated`);
   const body = src.slice(start, end);
   const ids = body.match(/^ {4}id: '/gm);
-  if (!ids) throw new Error('scripts/verify-witness-gate.mjs: MUTANTS has no `id:` entries');
+  if (!ids) throw new Error(`${script}: MUTANTS has no \`id:\` entries`);
   return ids.length;
 }
 
@@ -176,6 +179,30 @@ function deriveRules() {
 }
 
 /**
+ * Sequence correlations under `rules/sequences/` — the subdirectory `deriveRules()` never
+ * sees, because `trackedTopLevel` is one level deep. Each file is multi-document YAML: a
+ * correlation is a document carrying a `correlation` key, and the base documents it orders
+ * are not rules of their own (`src/main/sequence-rule-loader.js`).
+ * @returns {{total: number, files: number}}
+ */
+function deriveSequences() {
+  const files = trackedTopLevel(
+    'rules/sequences',
+    (f) => f.endsWith('.yaml') || f.endsWith('.yml'),
+  );
+  let total = 0;
+  for (const file of files) {
+    const docs = /** @type {unknown[]} */ (yaml.loadAll(readTracked(file)));
+    const correlations = docs.filter(
+      (d) => typeof d === 'object' && d !== null && !Array.isArray(d) && 'correlation' in d,
+    ).length;
+    if (correlations === 0) throw new Error(`${file}: no correlation document`);
+    total += correlations;
+  }
+  return { total, files: files.length };
+}
+
+/**
  * @returns {{over300: number, largestSrc: {file: string, lines: number},
  *   largestTest: {file: string, lines: number}}}
  */
@@ -196,12 +223,29 @@ function deriveFileSizes() {
   };
 }
 
-const mutants = deriveMutants();
+/**
+ * The one derivation here that does not answer a number. `package.json` is the single
+ * source — CLAUDE.md's own header runs this command rather than quoting a version — and
+ * a semver string compares by identity exactly the way an integer does: everything
+ * downstream of a value is `!==` or `String()`.
+ * @returns {string} the `version` field of package.json.
+ */
+function deriveVersion() {
+  const pkg = /** @type {*} */ (JSON.parse(readTracked('package.json')));
+  if (typeof pkg.version !== 'string' || pkg.version === '')
+    throw new Error('package.json: no `version` string');
+  return pkg.version;
+}
+
+const mutants = deriveMutants('scripts/verify-witness-gate.mjs');
+const seqMutants = deriveMutants('scripts/verify-sequence-gate.mjs');
 const ci = deriveCi();
 const preload = derivePreload();
 const database = deriveAgentDatabase();
 const ruleset = deriveRules();
+const sequences = deriveSequences();
 const sizes = deriveFileSizes();
+const version = deriveVersion();
 
 const mainAll = trackedUnder('src/main', (p) => p.endsWith('.js'));
 const mainTop = trackedTopLevel('src/main', (f) => f.endsWith('.js'));
@@ -215,7 +259,19 @@ const mainTop = trackedTopLevel('src/main', (f) => f.endsWith('.js'));
  * A counter earns a place here only if prose can restate its value and stay true for
  * more than one commit. One that moves on an ordinary single-line edit belongs in
  * `DERIVED_ONLY` below instead.
- * @type {Array<{key: string, label: string, value: number, command: string}>}
+ *
+ * An entry may also carry `blocking: false`. It is derived, located, compared and
+ * printed like every other, and a disagreement is reported under its own heading — it
+ * simply does not exit 1. That is a THIRD position between "checked" and
+ * `DERIVED_ONLY`, not a skip flag: the counter keeps its declaration sites, so the
+ * undeclared gate and the unparseable gate still apply to it in full. NO entry carries
+ * it today: `package.version` was the only one, and it went blocking the moment
+ * release-please `extra-files` took over its two prose sites. The position is kept
+ * because a future counter can land in the same bind, and the report prints its two
+ * clauses only while something occupies it — an empty set stated out loud reads as an
+ * occupied one.
+ * @type {Array<{key: string, label: string, value: number|string, command: string,
+ *   blocking?: boolean}>}
  */
 const COUNTERS = [
   {
@@ -248,6 +304,13 @@ const COUNTERS = [
     value: mutants,
     command:
       "sed -n '/const MUTANTS = \\[/,/^\\];/p' scripts/verify-witness-gate.mjs | grep -c \"^    id: '\"",
+  },
+  {
+    key: 'seqGate.mutants',
+    label: 'verify:seq-gate mutants',
+    value: seqMutants,
+    command:
+      "sed -n '/const MUTANTS = \\[/,/^\\];/p' scripts/verify-sequence-gate.mjs | grep -c \"^    id: '\"",
   },
   {
     key: 'ci.commands',
@@ -303,7 +366,21 @@ const COUNTERS = [
     key: 'rules.files',
     label: 'rule YAML files (= categories)',
     value: ruleset.files,
-    command: "git ls-files -z rules | tr '\\0' '\\n' | grep -c '\\.yaml$'",
+    // Anchored to the top level: `git ls-files rules` lists the whole subtree, and
+    // `rules/sequences/*.yaml` is counted by `sequences.files`, not here.
+    command: "git ls-files -z rules | tr '\\0' '\\n' | grep -c '^rules/[^/]*\\.yaml$'",
+  },
+  {
+    key: 'sequences.total',
+    label: 'sequence correlation rules under rules/sequences',
+    value: sequences.total,
+    command: "grep -c '^correlation:' rules/sequences/*.yaml | awk -F: '{s+=$NF} END {print s}'",
+  },
+  {
+    key: 'sequences.files',
+    label: 'sequence rule YAML files under rules/sequences',
+    value: sequences.files,
+    command: "git ls-files -z rules/sequences | tr '\\0' '\\n' | grep -cE '\\.ya?ml$'",
   },
   {
     key: 'renderer.components',
@@ -335,6 +412,33 @@ const COUNTERS = [
     value: sizes.over300,
     command:
       "git ls-files -z src | grep -zv '\\.json$' | xargs -0 wc -l | awk '$1 > 300 && $2 != \"total\"' | wc -l",
+  },
+  {
+    key: 'package.version',
+    label: 'package.json version',
+    value: version,
+    command: 'node -p "require(\'./package.json\').version"',
+    // BLOCKING, because release-please now carries the bump. `release-please-config.json`
+    // lists llms.txt and llms-full.txt as `extra-files` of type `generic`, and the
+    // generic updater rewrites the semver on any line holding the inline annotation
+    // `x-release-please-version` — so one release PR bumps `version` in package.json AND
+    // both `- **Version**: <semver>` prose sites in the same commit. That removes the
+    // reason the entry used to carry `blocking: false`: before the config existed, the
+    // release PR touched neither llms file, and a blocking compare would have turned the
+    // `test` context red on the one commit nobody authors by hand and kept master red
+    // until somebody hand-edited prose. Moving the version to DERIVED_ONLY instead would
+    // have taken its declaration sites away, and two files free to say anything is how
+    // llms.txt and llms-full.txt came to answer "see `version` in `package.json`" — true,
+    // and useless to a crawler reading either file standalone.
+    //
+    // What the annotation guarantees, and what it does not (ai-mistakes #27). The updater
+    // replaces the FIRST semver-looking match on the marked line with
+    // `version.toString()` — no leading `v`, which the `app-version` parser below
+    // tolerates either way. The guarantee therefore covers a line whose only
+    // `\d+\.\d+\.\d+` IS the version field, which both sites are: the label and the
+    // annotation carry no digits. Put the marker on a line holding an earlier number and
+    // release-please rewrites that number instead, leaving the field stale — this compare
+    // is what goes red then, which is the whole point of it being blocking again.
   },
 ];
 
@@ -376,7 +480,8 @@ const DERIVED_ONLY = [
 /**
  * Checked counters only. A `DERIVED_ONLY` key is absent from this map by construction,
  * which is what stops the stale gate from ever resolving one.
- * @type {Map<string, {key: string, label: string, value: number, command: string}>}
+ * @type {Map<string, {key: string, label: string, value: number|string, command: string,
+ *   blocking?: boolean}>}
  */
 const BY_KEY = new Map(COUNTERS.map((c) => [c.key, c]));
 
@@ -415,6 +520,13 @@ const NUM = `\\b(\\d+|${WORD_ALT})\\b`;
  * contexts, 8 commands, 2 token-adapters) keep NUM.
  */
 const DIGITS = '\\b(\\d+)\\b';
+/**
+ * The noun that names the sequence-engine gate's mutants. `gate.mutants` is read off a
+ * bare `N mutants`; `seqGate.mutants` only off `N <this noun>`, so a count of one gate
+ * can never be read as the other (the separation `sequence-rules` keeps from
+ * `detection-rules`).
+ */
+const SEQ_MUTANT_NOUN = '(?:sequence-engine|sequence-gate|seq-gate|sequence)\\s+mutants?';
 
 /**
  * @param {string|undefined} token
@@ -446,11 +558,30 @@ function pick(line, rules) {
 }
 
 /**
+ * `pick` for a counter whose value is not an integer. The capture is taken as written
+ * instead of going through `toInt`, which answers null for a semver and would drop the
+ * declaration silently — an absent site rather than a wrong one, which is the failure
+ * mode this file exists to prevent.
+ * @param {string} line
+ * @param {Array<[string, RegExp]>} rules
+ * @returns {Array<{key: string, value: string}>}
+ */
+function pickText(line, rules) {
+  /** @type {Array<{key: string, value: string}>} */
+  const found = [];
+  for (const [key, re] of rules) {
+    const m = line.match(re);
+    if (m && m[1]) found.push({ key, value: m[1] });
+  }
+  return found;
+}
+
+/**
  * Each scanner's `locate` is intentionally wider than its `parse`. When `locate`
  * fires and `parse` returns nothing, the site is reported as UNPARSEABLE and the run
  * goes red — a reworded declaration must never read as an absent one.
  * @type {Array<{id: string, locate: RegExp, parse: (line: string) =>
- *   Array<{key: string, value: number}>}>}
+ *   Array<{key: string, value: number|string}>}>}
  */
 const SCANNERS = [
   {
@@ -483,6 +614,15 @@ const SCANNERS = [
         ['gate.mutants', new RegExp(`${NUM}\\s+mutants?\\b`, 'i')],
         ['gate.mutants', new RegExp(`\\bgate\\b[^.]{0,40}${NUM}\\s+ways\\b`, 'i')],
       ]),
+  },
+  {
+    id: 'verify-seq-gate-mutants',
+    // `verify-gate-mutants` above cannot fire on these lines: its `N mutants` needs
+    // the number directly before the noun, and here `sequence-engine` (or one of its
+    // siblings in SEQ_MUTANT_NOUN) always sits between them.
+    locate: new RegExp(`\\b${SEQ_MUTANT_NOUN}\\b`, 'i'),
+    parse: (line) =>
+      pick(line, [['seqGate.mutants', new RegExp(`${NUM}\\s+${SEQ_MUTANT_NOUN}\\b`, 'i')]]),
   },
   {
     id: 'ci-commands',
@@ -556,6 +696,29 @@ const SCANNERS = [
       ]),
   },
   {
+    id: 'sequence-rules',
+    // NUM, not DIGITS: one rule and one file is exactly the count prose spells out. The
+    // `detection-rules` scanner above never fires on these lines — "sequence" sits between
+    // the number and "rules", and its parser allows only "active"/"detection" there — so
+    // the two counters cannot be read as each other. The negative lookahead keeps
+    // "1 sequence rule file" a declaration of `sequences.files` alone.
+    locate: new RegExp(`${NUM}\\s+sequence\\s+(?:correlation|rules?|YAML|files?)\\b`, 'i'),
+    parse: (line) =>
+      pick(line, [
+        [
+          'sequences.total',
+          new RegExp(
+            `${NUM}\\s+sequence\\s+(?:correlation\\s+)?rules?\\b(?!\\s+(?:YAML\\s+)?files?\\b)`,
+            'i',
+          ),
+        ],
+        [
+          'sequences.files',
+          new RegExp(`${NUM}\\s+sequence\\s+(?:rule\\s+)?(?:YAML\\s+)?files?\\b`, 'i'),
+        ],
+      ]),
+  },
+  {
     id: 'renderer-inventory',
     // `(?<!Svelte )` keeps CLAUDE.md's "Svelte 5 components + stores + utils" — a list
     // of directories carrying no counts at all — from reading as "5 components".
@@ -598,6 +761,25 @@ const SCANNERS = [
     // rather than quoting them; having no declaration site is what stops them drifting.
     locate: new RegExp(`\\bexceeds?\\s+it\\b|${DIGITS}\\s+existing\\b`, 'i'),
     parse: (line) => pick(line, [['size.over300', new RegExp(`${DIGITS}\\s+existing\\b`, 'i')]]),
+  },
+  {
+    id: 'app-version',
+    // The declaration is a labelled prose field — `- **Version**: <semver>` in llms.txt
+    // and llms-full.txt, the two files a crawler reads standalone and cannot resolve a
+    // pointer out of. The locator is the LABEL alone, so a value that stops being a
+    // version ("latest", a range, a codename) locates, parses to nothing and goes red.
+    //
+    // One reword it cannot catch, stated rather than left to be discovered
+    // (ai-mistakes #27): `hasNumber()` gates every line before any scanner sees it, and
+    // "**Version**: see `version` in `package.json`" — the sentence this counter
+    // replaces — carries no digit and no spelled-out number, so it is skipped, not
+    // reported. What catches that reword is the UNDECLARED gate, and only once BOTH
+    // sites are gone; reword one and the other still declares the counter, and the run
+    // stays green. Widening `hasNumber` is not the fix — it is load-bearing for every
+    // scanner above, and loosening it turns each of them into a noise source.
+    locate: /\*\*Version\*\*\s*:/i,
+    parse: (line) =>
+      pickText(line, [['package.version', /\*\*Version\*\*\s*:\s*`?v?(\d+\.\d+\.\d+[\w.+-]*)`?/i]]),
   },
 ];
 
@@ -732,7 +914,10 @@ function hasNumber(line) {
 // Scan.
 // ---------------------------------------------------------------------------
 
-/** @type {Array<{file: string, line: number, key: string, declared: number, text: string}>} */
+/**
+ * @type {Array<{file: string, line: number, key: string, declared: number|string,
+ *   text: string}>}
+ */
 const declarations = [];
 /** @type {Array<{file: string, line: number, scanner: string, text: string}>} */
 const unparseable = [];
@@ -787,7 +972,10 @@ for (const file of TRACKED) {
 // Compare and report.
 // ---------------------------------------------------------------------------
 
-const mismatches = declarations.filter((d) => BY_KEY.get(d.key).value !== d.declared);
+const disagreements = declarations.filter((d) => BY_KEY.get(d.key).value !== d.declared);
+const mismatches = disagreements.filter((d) => BY_KEY.get(d.key).blocking !== false);
+const drifted = disagreements.filter((d) => BY_KEY.get(d.key).blocking === false);
+const nonBlocking = COUNTERS.filter((c) => c.blocking === false);
 const undeclared = COUNTERS.filter((c) => !declarations.some((d) => d.key === c.key));
 const staleSiteExemptions = SITE_EXEMPTIONS.filter((_, i) => !usedSiteExemptions.has(i));
 const staleArchival = ARCHIVAL.filter((a) => !usedArchival.has(a.file));
@@ -802,7 +990,10 @@ for (const c of COUNTERS) {
   const sites = declarations.filter((d) => d.key === c.key).length;
   console.log(`  ${c.key.padEnd(20)} = ${String(c.value).padStart(5)}   ${c.label}`);
   console.log(`  ${' '.repeat(20)}     ${c.command}`);
-  console.log(`  ${' '.repeat(20)}     declared at ${sites} site${sites === 1 ? '' : 's'}`);
+  console.log(
+    `  ${' '.repeat(20)}     declared at ${sites} site${sites === 1 ? '' : 's'}` +
+      (c.blocking === false ? ' — reported, never blocking' : ''),
+  );
 }
 
 head('Derived only — no declaration sites by design');
@@ -832,6 +1023,22 @@ for (const e of SITE_EXEMPTIONS) console.log(`    line      ${e.file} "${e.conta
 console.log(`    self      ${SELF_EXCLUSION.file} — ${SELF_EXCLUSION.why}`);
 
 let failed = false;
+
+if (drifted.length > 0) {
+  head(`Drift reported, not blocking (${drifted.length})`);
+  console.log(
+    '  These sites disagree with the tree and this run still exits 0, because their\n' +
+      '  counter is marked `blocking: false` for the reason recorded at its COUNTERS\n' +
+      '  entry. Nothing else will catch them: fix the prose.',
+  );
+  for (const d of drifted) {
+    const c = BY_KEY.get(d.key);
+    console.log(`  ${d.file}:${d.line}`);
+    console.log(`    ${d.key} declared ${d.declared}, derived ${c.value}  (${c.label})`);
+    console.log(`    ${c.command}`);
+    console.log(`    > ${d.text.slice(0, 160)}`);
+  }
+}
 
 if (mismatches.length > 0) {
   failed = true;
@@ -888,9 +1095,21 @@ if (failed) {
   process.exit(1);
 }
 
+// Both `blocking: false` clauses are printed only while a counter carries the flag.
+// With none, `(0 of them reported-only: )` and `and 0 drifted without blocking` are two
+// true sentences about an empty set, and a summary that keeps stating the position reads
+// as one where the position is still occupied.
+const reportedOnlyClause =
+  nonBlocking.length > 0
+    ? ` (${nonBlocking.length} of them reported-only: ${nonBlocking.map((c) => c.key).join(', ')})`
+    : '';
+const driftClause = nonBlocking.length > 0 ? ` and ${drifted.length} drifted without blocking` : '';
+
 console.log(
-  `\ncounts:check OK — ${COUNTERS.length} checked counters derived from the tree, ` +
-    `${declarations.length} declaration sites agree; ` +
+  `\ncounts:check OK — ${COUNTERS.length} checked counters derived from the tree` +
+    `${reportedOnlyClause}, ` +
+    `${declarations.length - drifted.length} of ${declarations.length} declaration sites agree` +
+    `${driftClause}; ` +
     `${DERIVED_ONLY.length} derived-only counters printed and declared nowhere by ` +
     `design (${COUNTERS.length + DERIVED_ONLY.length} counters derived in total).`,
 );

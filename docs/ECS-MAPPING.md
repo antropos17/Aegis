@@ -82,10 +82,12 @@ ECS document reads as a measured null. Empty containers are omitted too — ther
 | audit `agent-enter` | `event` | `[process]` | `[start]` | `agent-enter` |
 | audit `agent-exit` | `event` | `[process]` | `[end]` | `agent-exit` |
 | audit `anomaly-alert` | `alert` | `[intrusion_detection]` | `[info]` | `anomaly-alert` |
+| audit `sequence-detection` | `alert` | `[intrusion_detection]` | `[info]` | `sequence-detection` |
+| audit `observation-gap` | `event` | `[host]` | `[info]` | `observation-gap` |
 | audit `permission-deny`, `buffer-overflow-drop`, any unknown type | `event` | *omitted* | *omitted* | the `type` string |
 | `FileEvent` with an action outside the closed union | `event` | `[file]` | *omitted* | *omitted* |
 
-Four of those rows are decisions rather than transcriptions:
+Five of those rows are decisions rather than transcriptions:
 
 - **`holding` is `info`, not `access`.** `file-watcher.js` emits `holding` for a point-in-time
   handle HOLD observed at the scan tick, and its own comment says it is explicitly not a read.
@@ -103,6 +105,16 @@ Four of those rows are decisions rather than transcriptions:
   the audit log stating that *other* records were lost, which is no categorization of the marker
   itself — in particular it is not ECS `pipeline_error`, which describes a failure to ingest *this*
   document. Both keep `event.action` equal to their type and claim nothing more.
+- **`observation-gap` is `host` / `info`, and an `event`, not an `alert`.** It is the record
+  `src/main/main.js` writes on Electron `powerMonitor` resume (Block B5,
+  `src/main/observation-gap.js`): the HOST was asleep, and nothing was observed in between. That is
+  a fact about the machine's observation continuity, not about any process, file or socket, so no
+  `process.*` or `file.*` branch is lifted from it — `pid`, `instanceId` and `attribution` are all
+  `null` on the record, and the ownership question does not apply. It is not `pipeline_error`
+  either: nothing failed to ingest, the machine was off. `details` carries the gap itself
+  (`suspendedAt`, `resumedAt`, `gapMs`, `suspendCount`, `monitoringPaused`, `activeSessions`),
+  under the aegis-specific branch this block does not map. It explains a hole in the log; it
+  never fills one.
 
 ---
 
@@ -228,3 +240,39 @@ That test is the only thing that goes red if they drift apart; there is no other
 The shared conventions — omit rather than null, `event.category`/`event.type` as arrays,
 `@timestamp` at the root, `ecs.version` on every document — are the same on both sides, and a row
 that changes one should change the other.
+
+---
+
+## 8. Index columns
+
+`src/main/audit-index.js` (docs/roadmap/audit-index.md) projects every audit JSONL line into a
+row of `audit_events`. The typed columns exist for WHERE and ORDER only — the answer a read path
+builds is `normalizeAuditEntry(JSON.parse(raw))`, so nothing here is a second mapping. Column
+names are the ECS paths of §4 with `.` → `_`, and every value is what `normalizeToEcs` produced
+over the v1 view of the record; "omit" in §4 becomes NULL here. The module is the source of
+truth; this table is the cross-reference.
+
+| column | ECS field (§4) | rule |
+|---|---|---|
+| `timestamp` | `@timestamp` | the record's ISO text as on disk; `''` when the line carries none |
+| `type` | — (internal discriminator) | as on disk; `''` when absent — no enum in the schema, a new audit type needs no index change |
+| `event_kind` / `event_category` / `event_type` / `event_action` | `event.kind` / `.category` / `.type` / `.action` (§3) | from `AUDIT_ROUTES`; arrays stored as their JSON (`'["file"]'`); an unknown type gives `event_action = type` and NULL elsewhere; a record the normalizer refuses gives NULL in all four |
+| `aegis_schema_version` | `aegis.schema_version` | NULL on a pre-v1 record — the absence is what marks v0 |
+| `aegis_agent_name` | `aegis.agent.name` | NULL for `''` (the unattributed marker) |
+| `process_pid` | `process.pid` | only a safe integer `> 0`; pid 0 and null → NULL |
+| `process_entity_id` | `process.entity_id` | verbatim |
+| `file_path` | `file.path` | `file-access` / `config-access` only; NULL for network |
+| `aegis_attribution_status` | `aegis.attribution.status` | NULL when there is no attribution |
+| `action`, `severity` | — carried, not mapped (§6) | internal names kept; `''` / `'normal'` defaults |
+| `seq` | — carried, not mapped (§6) | as written, NULL without a chain; the row's identity is `line_no`, never this |
+| `raw` | — | the line as on disk |
+
+Deliberately absent: `hash` and `prev_hash` (§6 lists both as carried, not mapped). The chain is
+verified against the file by `verifyChain`, never against the index — `tests/main/audit-index.test.js`
+pins the absence through `PRAGMA table_info`.
+
+History reads now use `audit-index-query.js` through `audit-logger.getEntriesBefore`.
+The SQL query excludes loss markers, binds type filters, and normalizes the selected raw
+records. An explicit empty-string type filter checks the raw JSON type as well: the
+projection uses an empty string for absent types, which must remain distinguishable.
+Exports and chain verification continue to read JSONL.

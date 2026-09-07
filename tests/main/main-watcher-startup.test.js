@@ -97,6 +97,7 @@ describe('main — watcher startup ordering', () => {
     watcherMock = {
       setupFileWatchers: vi.fn(async () => {}),
       setupRulesWatcher: vi.fn(),
+      setupSequenceRulesWatcher: vi.fn(),
     };
     main._setWatcherForTest(watcherMock);
     vi.restoreAllMocks();
@@ -119,6 +120,12 @@ describe('main — watcher startup ordering', () => {
     await flush();
     expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(1);
     expect(watcherMock.setupRulesWatcher).toHaveBeenCalledTimes(1);
+    // The second rule watcher (rules/sequences) is installed beside the first, with the
+    // reload main.js owns — a function, so a change can reach the engine reset.
+    expect(watcherMock.setupSequenceRulesWatcher).toHaveBeenCalledTimes(1);
+    expect(watcherMock.setupSequenceRulesWatcher.mock.calls[0][1]).toEqual({
+      reload: expect.any(Function),
+    });
   });
 
   it('starts the watchers when the load has ALREADY finished (the regressed case)', async () => {

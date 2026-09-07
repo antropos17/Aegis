@@ -95,6 +95,7 @@ const SCORED_FILES = Object.freeze({
   [sysmon.ORACLE_FILENAME]: 'the oracle column, one ECS document per line',
   [OBSERVED_FILENAME]: 'what the sensor recorded, in the same ECS subset',
   [META_FILENAME]: 'how the sensor was run, and the scan interval the join window is derived from',
+  [metrics.STEPS_FILENAME]: 'what each declared step of the scenario did, and which never ran',
 });
 
 /** @type {ReadonlyArray<string>} The fields all three of a run's records carry, and must agree on. */
@@ -393,6 +394,29 @@ function loadRun(dir) {
     { name: sysmon.LOSS_FILENAME, record: loss.value },
   ];
 
+  // Optional by design, and read the way `oracle-sysmon.ndjson` is: a run recorded
+  // before bench/run.js wrote it, or one with no scenario to have steps, is scored
+  // and says the artefact is absent. A file that IS there and cannot be parsed is
+  // a broken directory and is refused like any other — and it carries the run's
+  // identity, so it joins the agreement check rather than sitting outside it.
+  /** @type {Object|null} */
+  let steps = null;
+  if (fs.existsSync(path.join(dir, metrics.STEPS_FILENAME))) {
+    const read = readJson(dir, metrics.STEPS_FILENAME);
+    steps = read.value;
+    inputs.push(inputRecord(metrics.STEPS_FILENAME, read.text));
+    identityRecords.push({ name: metrics.STEPS_FILENAME, record: steps });
+  } else {
+    inputs.push({
+      name: metrics.STEPS_FILENAME,
+      present: false,
+      reason:
+        'this run directory holds none. A step that did not execute emits no catalogue row, so ' +
+        'without this file what each step did is recorded nowhere — and it is reported as absent ' +
+        'rather than inferred from a catalogue shorter than its scenario',
+    });
+  }
+
   if (arm === SENSOR_ARM) {
     const meta = readJson(dir, META_FILENAME);
     inputs.push(inputRecord(META_FILENAME, meta.text));
@@ -414,6 +438,7 @@ function loadRun(dir) {
     observed,
     maxLatency,
     ticksWhileProcessAlive,
+    steps,
     inputs,
   };
 }
@@ -546,6 +571,7 @@ function main(argv) {
       observed: run.observed,
       maxLatency: run.maxLatency,
       ticksWhileProcessAlive: run.ticksWhileProcessAlive,
+      steps: run.steps,
       inputs: run.inputs,
     });
   } catch (err) {

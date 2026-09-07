@@ -17,8 +17,24 @@ const path = require('path');
 const hashchain = require('./audit-hashchain');
 const dropTracker = require('./audit-drop-tracker');
 const { normalizeAuditEntry } = require('./audit-normalize');
+const auditIndex = require('./audit-index');
+const indexRebuild = require('./audit-index-rebuild');
 
 let _logDir = '';
+/** @type {string} userData root, kept for the index which lives beside `audit-logs/`. */
+let _userDataPath = '';
+/** @type {function|undefined} Test seam forwarded to `auditIndex.open` (docs/roadmap/audit-index.md §2). */
+let _loadSqlite;
+/**
+ * Whether the deferred index open may still run. `init` arms it, `shutdown` disarms it: the open
+ * sits on a `setImmediate`, and a shutdown before that tick must leave no database behind.
+ * @type {boolean}
+ */
+let _indexArmed = false;
+/** @type {Promise<void>} Settles when the deferred `cleanOldLogs` + index open of the last init ran. */
+let _indexReady = Promise.resolve();
+/** @type {Promise<void>|null} The reconcile in flight, if any. */
+let _indexTask = null;
 let _buffer = [];
 let _flushTimer = null;
 let _onFlushError = null;
@@ -53,6 +69,18 @@ const DEFAULT_READ_LIMIT = 100;
  * @type {number}
  */
 const MAX_READ_LIMIT = 500;
+
+/**
+ * Bounds on the optional `types` filter of {@link getEntriesBefore}. Like `limit` it
+ * arrives over IPC raw, so its size is capped here: at most this many type names, each
+ * at most {@link MAX_TYPE_LENGTH} characters. Both are COUNTS of what is kept, not
+ * grounds for rejecting the call — see {@link _typeFilter}.
+ * @type {number}
+ */
+const MAX_TYPE_FILTER_ENTRIES = 16;
+
+/** @type {number} Longest type name a `types` filter entry may carry. */
+const MAX_TYPE_LENGTH = 64;
 
 /**
  * Event Schema version stamped on every record this module writes.
@@ -102,6 +130,8 @@ let _persistedEntries = 0;
  * @param {function} [opts.now] - Test seam: returns the current Date (defaults to real clock)
  * @param {number} [opts.bufferCap] - Test seam: max buffered entries before drop-oldest
  *   eviction (defaults to {@link BUFFER_CAP})
+ * @param {function} [opts.loadSqlite] - Test seam: replaces the index's `node:sqlite` loader,
+ *   so a runtime without the engine can be simulated (`() => null`)
  * @returns {void}
  * @since v0.2.0
  */
@@ -109,8 +139,10 @@ function init(opts) {
   _onFlushError = opts.onFlushError || null;
   if (opts.now) _now = opts.now;
   _bufferCap = opts.bufferCap != null ? opts.bufferCap : BUFFER_CAP;
+  _loadSqlite = opts.loadSqlite;
   // Drop counts describe THIS session — a new init must not inherit a previous one's.
   dropTracker.reset();
+  _userDataPath = opts.userDataPath;
   _logDir = path.join(opts.userDataPath, 'audit-logs');
   try {
     if (!fs.existsSync(_logDir)) fs.mkdirSync(_logDir, { recursive: true });
@@ -119,7 +151,59 @@ function init(opts) {
   }
   _seedCounters();
   _flushTimer = setInterval(flush, FLUSH_INTERVAL);
-  setImmediate(() => cleanOldLogs());
+  // Retention first, then the index: a file the sweep deletes is never indexed, and the
+  // reconcile that follows the open drops the rows of any file a previous sweep removed.
+  _indexArmed = true;
+  _indexReady = new Promise((resolve) =>
+    setImmediate(() => {
+      cleanOldLogs();
+      if (_indexArmed) _openIndex();
+      resolve();
+    }),
+  );
+}
+
+/**
+ * Open the index beside the log directory and, when it opened, reconcile it against the
+ * directory. Its own try/catch: nothing here may reach the JSONL path.
+ * @returns {void}
+ */
+function _openIndex() {
+  try {
+    const state = auditIndex.open({ userDataPath: _userDataPath, loadSqlite: _loadSqlite });
+    if (state === 'building') _indexTask = indexRebuild.schedule(_logDir);
+  } catch (err) {
+    console.error('[audit-logger] index open failed:', err.message);
+  }
+}
+
+/**
+ * Hand the batch a successful flush just wrote to the index — after the JSONL write, the chain
+ * state and the counters; inside its own try/catch. The index sees the SAME strings that went
+ * to disk. `offsetBefore` is derived from one stat after the write, so a torn write or a file
+ * the index does not account for shows up as a byte-offset mismatch and the file is re-read
+ * from disk (audit-index.js `append`).
+ * @param {string} fp - today's file path
+ * @param {number} bytes - bytes the write added
+ * @param {string[]} lines - the lines written
+ * @returns {void}
+ */
+function _indexAppend(fp, bytes, lines) {
+  try {
+    const st = fs.statSync(fp);
+    const applied = auditIndex.append({
+      file: path.basename(fp),
+      offsetBefore: st.size - bytes,
+      bytes,
+      lines,
+    });
+    if (!applied && auditIndex.status().state === 'building') {
+      _indexTask = indexRebuild.schedule(_logDir);
+    }
+  } catch (err) {
+    auditIndex.setState('failed', new Error('audit-index: flush projection failed'));
+    console.error('[audit-logger] index append failed:', err.message);
+  }
 }
 
 /**
@@ -338,8 +422,11 @@ function flush() {
     seq += 1;
   }
 
+  const text = out.join('\n') + '\n';
+  let written = false;
   try {
-    fs.appendFileSync(fp, out.join('\n') + '\n', 'utf-8');
+    fs.appendFileSync(fp, text, 'utf-8');
+    written = true;
     _prevHash = prevHash;
     _seq = seq;
     _chainDate = todayDate;
@@ -358,6 +445,10 @@ function flush() {
     // concatenation can exceed the cap. A no-op in the normal case.
     _trimToCap();
   }
+  // Canon first, projection last: the index is fed only once the lines are on disk and the
+  // chain has advanced, outside the write's try/catch so it can neither fail this write nor
+  // re-queue the batch, and it never touches the counters above.
+  if (written) _indexAppend(fp, Buffer.byteLength(text, 'utf-8'), out);
 }
 
 /**
@@ -404,7 +495,12 @@ function cleanOldLogs() {
  * are not necessarily the bounds of what the files contain.
  * @returns {{totalEntries: number, persistedEntries: number, droppedEntries: number,
  *   bufferDepth: number, totalSize: number, currentSize: number, firstEntry: string|null,
- *   lastEntry: string|null}}
+ *   lastEntry: string|null, index: {state: string, files: number, rows: number,
+ *   malformedLines: number, lastError: string|null}}}
+ *   `index` — the audit index (docs/roadmap/audit-index.md): `state` is `unavailable` on a
+ *   runtime without `node:sqlite`, `building` until the reconcile finishes, `ready`, `failed`
+ *   (with `lastError`) or `closed`; counts are read live from the tables. Additive, and not a
+ *   sensor: nothing about the app's health reads it.
  *   `totalEntries` — events handed to {@link log} this session plus records found on disk
  *   at init. It counts entries still in the buffer AND entries evicted under a full
  *   buffer that will never reach disk, so under overflow it permanently exceeds the real
@@ -426,6 +522,7 @@ function getStats() {
       currentSize: 0,
       firstEntry: null,
       lastEntry: null,
+      index: auditIndex.status(),
     };
   let totalSize = 0;
   let currentSize = 0;
@@ -452,6 +549,7 @@ function getStats() {
     currentSize,
     firstEntry: _firstEntry,
     lastEntry: _lastEntry,
+    index: auditIndex.status(),
   };
 }
 
@@ -494,16 +592,20 @@ function exportAll() {
 }
 
 /**
- * Stop the flush timer and flush remaining buffer.
+ * Stop the flush timer, flush the remaining buffer, then close the index — after the flush,
+ * so the last batch reaches the tables; disarmed first, so an open still pending on its
+ * `setImmediate` never runs after this.
  * @returns {void}
  * @since v0.2.0
  */
 function shutdown() {
+  _indexArmed = false;
   if (_flushTimer) {
     clearInterval(_flushTimer);
     _flushTimer = null;
   }
   flush();
+  auditIndex.close();
 }
 
 /**
@@ -543,11 +645,48 @@ function readLinesReverse(filePath, onLine, chunkSize = 4096) {
 }
 
 /**
+ * Normalise the `types` argument of {@link getEntriesBefore} into a Set, or `null` for
+ * "no filter". Not an array, or empty → no filter; entries that are not strings, or are
+ * longer than {@link MAX_TYPE_LENGTH}, are dropped; the first
+ * {@link MAX_TYPE_FILTER_ENTRIES} survivors are kept. Nothing surviving is no filter —
+ * the same shape as an unusable `limit` falling back to the default instead of rejecting
+ * the call.
+ * @param {unknown} types
+ * @returns {Set<string>|null}
+ */
+function _typeFilter(types) {
+  if (!Array.isArray(types) || types.length === 0) return null;
+  const kept = types
+    .filter((t) => typeof t === 'string' && t.length <= MAX_TYPE_LENGTH)
+    .slice(0, MAX_TYPE_FILTER_ENTRIES);
+  return kept.length > 0 ? new Set(kept) : null;
+}
+
+/**
+ * The calendar day after `dateStr` (`YYYY-MM-DD`), computed in UTC so that no local
+ * zone or DST step can move it. `dateStr` has passed the shape check in
+ * {@link getEntriesBefore} but may still be no calendar date (`2026-13-45`): `Date` is
+ * then invalid and `toISOString` would throw, so the input comes back unchanged — the
+ * plain "skip files after the cursor date" rule — rather than surfacing through the
+ * generic read-failure catch as what looks like an empty log.
+ * @param {string} dateStr
+ * @returns {string}
+ */
+function _nextDateStr(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
  * Return up to `limit` audit entries with timestamps strictly before `beforeTs`.
- * Reads log files in reverse-chronological order for efficiency.
+ * Uses the ready SQLite projection; otherwise reads JSONL in the same call.
+ * The index orders by timestamp, then file and line ordinal; the fallback preserves
+ * file/line order, so a clock step can change which records a bounded page selects.
  *
- * Both parameters cross the IPC boundary raw (ipc-handlers.js passes them through), so
- * both are validated HERE rather than at the handler — every caller gets the same
+ * All three parameters cross the IPC boundary raw (ipc-handlers.js passes them through),
+ * so all three are validated HERE rather than at the handler — every caller gets the same
  * guarantees:
  * - `limit` is clamped to an integer in [1, {@link MAX_READ_LIMIT}]; anything
  *   non-numeric (including missing) falls back to {@link DEFAULT_READ_LIMIT}. The
@@ -555,12 +694,29 @@ function readLinesReverse(filePath, onLine, chunkSize = 4096) {
  * - a `beforeTs` that is not a `YYYY-MM-DD`-prefixed string returns `[]` via an explicit
  *   early return that logs the reason. That path is deliberately distinct from the
  *   generic read-failure catch below: a rejected cursor must never read as an empty log.
+ * - `types`, when given, keeps only entries whose `type` is in it, and the filter is
+ *   applied while reading so a page holds `limit` MATCHING entries: a caller that filtered
+ *   after the fetch would see an empty page across any run of `limit` unwanted records and
+ *   could not tell it from the end of the log. Normalised by {@link _typeFilter}.
+ *
+ * Which files are opened: every file dated up to and including the day AFTER the
+ * cursor's UTC date. A file is named with the LOCAL date of the flush that wrote it
+ * ({@link getTodayLogPath}) while a record's timestamp is UTC at log() time, so a record
+ * whose UTC date is D can sit in the file of D+1 — flushed after local midnight by the
+ * 5 s timer, or, for any zone east of UTC, logged between local 00:00 and UTC 00:00. It
+ * cannot sit in D+2 while the disk is writable: the flush lag needs the record logged at
+ * the end of a local day, where local date and UTC date are one day apart at most in the
+ * direction that keeps the file at D+1. What this bound does NOT cover is a batch
+ * re-queued by a failing flush and written on a later day (see {@link flush}). The cost is
+ * one extra reverse read of the D+1 file per call — its mislaid lines sit at the HEAD,
+ * where a reverse read meets them last — measured at ~12 ms for a 7.3k-line day.
  * @param {string} beforeTs - ISO timestamp upper bound (exclusive)
  * @param {number} [limit=100] - Max entries to return (clamped, see above)
+ * @param {string[]} [types] - Event types to keep; omitted or unusable → every type
  * @returns {Object[]} Entries sorted oldest-first
  * @since v0.5.0
  */
-function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT) {
+function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT, types) {
   if (typeof beforeTs !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(beforeTs)) {
     const got =
       typeof beforeTs === 'string'
@@ -573,12 +729,18 @@ function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT) {
     typeof limit === 'number' && !Number.isNaN(limit)
       ? Math.min(MAX_READ_LIMIT, Math.max(1, Math.floor(limit)))
       : DEFAULT_READ_LIMIT;
+  const typeFilter = _typeFilter(types);
   flush();
   if (!_logDir) return [];
+  try {
+    if (auditIndex.isReady()) return auditIndex.queryBefore(beforeTs, limit, typeFilter);
+  } catch (_) {
+    // The index records its failure without raw audit data; canon remains readable.
+  }
   const results = [];
   try {
-    // Extract date from beforeTs to skip files that are entirely after the cursor
-    const beforeDate = beforeTs.slice(0, 10); // 'YYYY-MM-DD'
+    // The last file worth opening: the day after the cursor's UTC date (see the JSDoc).
+    const lastDate = _nextDateStr(beforeTs.slice(0, 10)); // 'YYYY-MM-DD'
     const files = fs
       .readdirSync(_logDir)
       .filter((f) => f.startsWith('aegis-audit-') && f.endsWith('.json'))
@@ -587,8 +749,8 @@ function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT) {
     for (const f of files) {
       const match = f.match(/aegis-audit-(\d{4}-\d{2}-\d{2})\.json/);
       if (!match) continue;
-      // Skip files for days strictly after the cursor date
-      if (match[1] > beforeDate) continue;
+      // Skip files for days strictly after the cursor date's successor
+      if (match[1] > lastDate) continue;
       const fp = path.join(_logDir, f);
       readLinesReverse(fp, (line) => {
         try {
@@ -600,7 +762,8 @@ function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT) {
           if (
             entry.timestamp &&
             entry.timestamp < beforeTs &&
-            entry.type !== dropTracker.MARKER_TYPE
+            entry.type !== dropTracker.MARKER_TYPE &&
+            (typeFilter === null || typeFilter.has(entry.type))
           ) {
             // Normalized so the UI sees one field set regardless of which app version
             // wrote the line. exportAll() deliberately does NOT do this: an export is
@@ -635,4 +798,13 @@ module.exports = {
   normalizeAuditEntry,
   SCHEMA_VERSION,
   MAX_READ_LIMIT,
+  /**
+   * @internal Settles once the deferred open of the last `init` and any reconcile in flight
+   * have finished, so a test can inspect the tables (for tests).
+   * @returns {Promise<void>}
+   */
+  _awaitIndexForTest: async () => {
+    await _indexReady;
+    if (_indexTask) await _indexTask;
+  },
 };

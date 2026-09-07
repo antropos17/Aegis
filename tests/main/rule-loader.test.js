@@ -2,6 +2,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import path from 'path';
 import ruleLoader from '../../src/main/rule-loader.js';
 
+// rule-loader holds the CommonJS module.exports object; the ESM default import
+// is a distinct interop wrapper, so spying on it would not intercept the calls.
+const logger = require('../../src/main/logger.js');
+
 const FIXTURES_DIR = path.resolve(__dirname, '../fixtures/rules');
 const EMPTY_DIR = path.resolve(__dirname, '../fixtures/rules-empty');
 
@@ -72,14 +76,12 @@ describe('rule-loader', () => {
 
   describe('invalid YAML', () => {
     it('skips files with validation errors and warns', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
       ruleLoader.reloadRules(FIXTURES_DIR);
 
-      const warnings = warnSpy.mock.calls
-        .map((c) => c[0])
-        .filter((m) => m.includes('Invalid ruleset'));
+      const warnings = warnSpy.mock.calls.filter((c) => c[1] === 'Invalid ruleset');
       expect(warnings.length).toBeGreaterThan(0);
-      expect(warnings[0]).toContain('invalid-test.yaml');
+      expect(warnings[0][2].file).toBe('invalid-test.yaml');
 
       warnSpy.mockRestore();
     });
@@ -97,12 +99,12 @@ describe('rule-loader', () => {
       // To test duplicates we need a fixture with dupe IDs.
       // valid-test.yaml has unique IDs, so this test verifies
       // the mechanism works with existing fixtures (no dupes = no warn).
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
       ruleLoader.reloadRules(FIXTURES_DIR);
 
-      const dupeWarnings = warnSpy.mock.calls
-        .map((c) => c[0])
-        .filter((m) => m.includes('Duplicate rule ID'));
+      const dupeWarnings = warnSpy.mock.calls.filter(
+        (c) => c[1] === 'Duplicate rule ID — skipping',
+      );
       // No duplicates in our fixtures — this confirms no false positives
       expect(dupeWarnings.length).toBe(0);
 

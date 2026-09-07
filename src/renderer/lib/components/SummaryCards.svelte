@@ -8,11 +8,10 @@
     eventsPerMinute,
     EVENTS_PER_MIN_WINDOW_MS,
     sensitiveAlertCount,
-    SENSITIVE_SUMMARY_LABEL,
     formatMonitoringDuration,
-    MONITORING_DURATION_LABEL,
   } from '../utils/summary-metrics.ts';
   import { getRiskInfo } from '../utils/trust-badge-utils.ts';
+  import { t } from '../i18n/index.js';
 
   /** @type {{ active?: boolean }} */
   let { active = true } = $props();
@@ -164,7 +163,7 @@
 <div class="summary-cards">
   <!-- Card 1: Total Agents -->
   <div class="card">
-    <span class="card-label">Total Agents</span>
+    <span class="card-label">{$t('summary.total_agents')}</span>
     <span class="card-value">{displayAgents}</span>
     <span class="card-trend {agentTrendInfo.cls}">
       {agentTrendInfo.arrow}
@@ -176,7 +175,7 @@
 
   <!-- Card 2: Avg Risk Score -->
   <div class="card">
-    <span class="card-label">Avg Risk Score</span>
+    <span class="card-label">{$t('summary.avg_risk_score')}</span>
     <span class="card-value" style="color: {riskColor};">{displayRisk}</span>
     <span class="card-trend {riskTrendInfo.cls}">
       {riskTrendInfo.arrow}
@@ -188,7 +187,7 @@
 
   <!-- Card 3: Events / min -->
   <div class="card">
-    <span class="card-label">Events / min</span>
+    <span class="card-label">{$t('summary.events_per_min')}</span>
     <span class="card-value">{displayEpm}</span>
     <span class="card-trend {epmTrendInfo.cls}">
       {epmTrendInfo.arrow}
@@ -200,7 +199,7 @@
 
   <!-- Card 4: Sensitive Alerts (retained sensitive log events, not distinct files) -->
   <div class="card">
-    <span class="card-label">{SENSITIVE_SUMMARY_LABEL}</span>
+    <span class="card-label">{$t('summary.sensitive_alerts')}</span>
     <span class="card-value card-value-sensitive">{displaySensitive}</span>
     <span class="card-trend {sensitiveTrendInfo.cls}">
       {sensitiveTrendInfo.arrow}
@@ -212,17 +211,24 @@
 
   <!-- Card 5: Monitoring Duration (scanner.monitoringStarted session age) -->
   <div class="card">
-    <span class="card-label">{MONITORING_DURATION_LABEL}</span>
+    <span class="card-label">{$t('summary.monitoring_duration')}</span>
     <span class="card-value card-value-uptime">{uptimeStr}</span>
     <span class="card-trend trend-flat">●</span>
   </div>
 </div>
 
 <style>
-  /* ── Summary Cards Grid (F1.3) ── */
+  /* ── Summary Cards Grid (F1.3) ──
+     The strip sits in the middle bento column, which is ~350px at the default
+     1200x800 window — far narrower than the viewport — so the column count is
+     driven by the strip's own width, not by viewport breakpoints. 102px is the
+     measured floor: the timer "00:00:00" at its 16px minimum is 81.93px wide plus
+     17.33px of card padding/border (99.3px), and the longest label word
+     "MONITORING" is 77.18px + 17.33px (94.5px). Cards that do not fit wrap to a
+     second row instead of shrinking below that floor. */
   .summary-cards {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(102px, 1fr));
     gap: var(--fancy-space-sm);
     width: 100%;
     height: 100%;
@@ -238,6 +244,7 @@
     justify-content: center;
     gap: var(--fancy-space-xs);
     position: relative;
+    container-type: inline-size;
     padding: var(--fancy-space-md) var(--fancy-space-sm);
 
     background: #0d0d10;
@@ -252,8 +259,9 @@
       transform var(--fancy-transition-normal) var(--fancy-ease);
 
     cursor: default;
-    overflow: hidden;
-    min-width: 0;
+    /* Never hidden: the spotlight ::before is already bounded by its own inset
+       and border-radius, and hidden clips the label and timer (ai-mistakes #3). */
+    overflow: visible;
   }
 
   /* Spotlight hover glow */
@@ -290,6 +298,7 @@
     color: #9ea3ac;
     text-transform: uppercase;
     letter-spacing: 0.08em;
+    text-align: center;
     order: -1;
   }
 
@@ -307,11 +316,13 @@
     color: var(--fancy-danger);
   }
 
+  /* HH:MM:SS never wraps or truncates: the size follows the card's own content
+     width (100cqi), not the viewport. Eight DM Mono glyphs at 0.04em measure
+     5.12em, so 100cqi / 5.3 keeps ~3% of slack at every card width. */
   .card-value-uptime {
-    font-size: clamp(16px, 3.5vw, 22px);
+    font-size: clamp(16px, calc(100cqi / 5.3), 22px);
     letter-spacing: 0.04em;
     white-space: nowrap;
-    min-width: 0;
   }
 
   /* ── Trend arrow ── */
@@ -340,34 +351,5 @@
 
   .trend-num {
     font-size: 10px;
-  }
-
-  /* ── Responsive: 5 → 3 → 2 → 1 ── */
-  @media (max-width: 1100px) {
-    .summary-cards {
-      grid-template-columns: repeat(3, 1fr);
-    }
-  }
-
-  @media (max-width: 900px) {
-    .summary-cards {
-      grid-template-columns: repeat(2, 1fr);
-    }
-  }
-
-  @media (max-width: 500px) {
-    .summary-cards {
-      grid-template-columns: 1fr;
-      padding: var(--fancy-space-xs);
-      gap: var(--fancy-space-xs);
-    }
-
-    .card-value {
-      font-size: 22px;
-    }
-
-    .card-value-uptime {
-      font-size: clamp(14px, 4vw, 18px);
-    }
   }
 </style>

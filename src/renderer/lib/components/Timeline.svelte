@@ -75,6 +75,15 @@
   let historicalEvents = $state([]);
   let loadingHistory = $state(false);
   let historyExhausted = $state(false);
+  /**
+   * Cursor for the next history fetch: the timestamp of the oldest RAW record the last
+   * fetch returned, not of the oldest mapped one. The main process filters by
+   * AUDIT_EVENT_TYPES, so the two coincide; should a batch ever come back holding nothing
+   * the timeline shows, the raw cursor still moves past it instead of refetching the same
+   * rows — or, as before, calling history exhausted while older matching rows sat below.
+   * @type {string|null}
+   */
+  let historyCursor = $state(null);
   let pendingScrollAdjust = $state(false);
   let prevMinT = $state(0);
 
@@ -84,21 +93,27 @@
     prevMinT = minT;
     try {
       const oldest =
-        historicalEvents.length > 0
-          ? new Date(historicalEvents[0].timestamp).toISOString()
-          : allLiveEvents.length > 0
-            ? new Date(allLiveEvents[0].timestamp).toISOString()
-            : new Date().toISOString();
-      const entries = await window.aegis.getAuditEntriesBefore(oldest, HISTORY_BATCH);
+        historyCursor ??
+        (allLiveEvents.length > 0
+          ? new Date(allLiveEvents[0].timestamp).toISOString()
+          : new Date().toISOString());
+      // The type filter is the main process's job (audit-logger.getEntriesBefore): fetching
+      // HISTORY_BATCH raw rows and dropping the wrong types here turned any run of 25
+      // agent-enter / agent-exit records into "history exhausted". History is exhausted
+      // only when the FETCH returns nothing.
+      const entries = await window.aegis.getAuditEntriesBefore(
+        oldest,
+        HISTORY_BATCH,
+        AUDIT_EVENT_TYPES,
+      );
       if (entries.length === 0) {
         historyExhausted = true;
       } else {
+        historyCursor = entries[0].timestamp;
         const mapped = entries
           .filter((e) => AUDIT_EVENT_TYPES.includes(e.type))
           .map(auditToTimelineEvent);
-        if (mapped.length === 0) {
-          historyExhausted = true;
-        } else {
+        if (mapped.length > 0) {
           pendingScrollAdjust = true;
           historicalEvents = [...mapped, ...historicalEvents];
         }

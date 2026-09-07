@@ -1,0 +1,29 @@
+{
+  "runId": "DERIVED-M4-step-failed-to-execute",
+  "scenario": "M4-step-failed-to-execute",
+  "arm": "A",
+  "derived": {
+    "kind": "derived-model",
+    "recorded": false,
+    "capture": "No capture happened. bench/lib/observed.js never ran, no Electron profile existed, no aegis-audit-<day>.json was read and no hash chain was verified. Every field below is a modelling parameter, chosen so bench/score.js can read this directory at all.",
+    "readMeFirst": "README.md, in the parent directory"
+  },
+  "sensor": {
+    "scanInterval": {
+      "value": 10,
+      "source": "MODELLED — stipulated at the 10 s scanIntervalSec that src/main/config-manager.js defaults to. No settings.json was read, because none existed. It is written here because bench/lib/report.js maxLatencyFrom() derives the join window from it, and a directory carrying none is refused rather than defaulted"
+    },
+    "ticksWhileProcessAlive": 0,
+    "ticksWhileProcessAliveSource": "MODELLED at zero, and it is the honest value for this model: the process step never executed, so there was no process lifetime for a scan tick to fall inside. No scan tick was ever taken"
+  },
+  "window": {
+    "start": "2026-08-20T12:00:00.000Z",
+    "end": "2026-08-20T12:01:00.000Z",
+    "epsilonMs": 250
+  },
+  "observed": {
+    "events": 1,
+    "source": "MODELLED — the row in observed.ndjson, written by hand"
+  },
+  "failure": null
+}

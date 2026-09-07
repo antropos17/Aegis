@@ -248,8 +248,9 @@ describe('normalizeToEcs — audit records', () => {
     expect(doc.event.category).toEqual(['configuration', 'file']);
     expect(doc.event.type).toEqual(['change']);
     expect(doc.file).toEqual({ path: 'C:/Users/u/.claude/settings.json' });
-    expect(normalizeToEcs(auditRecord({ type: 'file-access', action: 'modified' })).event.category)
-      .toEqual(['file']);
+    expect(
+      normalizeToEcs(auditRecord({ type: 'file-access', action: 'modified' })).event.category,
+    ).toEqual(['file']);
   });
 
   it('raises an anomaly-alert to event.kind alert', () => {
@@ -266,6 +267,65 @@ describe('normalizeToEcs — audit records', () => {
     expect(doc.process).toEqual({ entity_id: INSTANCE_ID });
   });
 
+  it('raises a sequence-detection to event.kind alert under its own action', () => {
+    // The record main.js writes for a completed sequence (roadmap §5 "Emission"): the rule id
+    // is the `action`, the level the `severity`, the steps ride in `details`.
+    const doc = normalizeToEcs(
+      auditRecord({
+        type: 'sequence-detection',
+        action: 'SEQ001',
+        severity: 'high',
+        attribution: { status: 'confirmed', evidence: ['handle-scan-pid'] },
+        details: { ruleId: 'SEQ001', title: 'Credential read', timespan: 300000, steps: [] },
+      }),
+    );
+    expect(doc.event).toEqual({
+      kind: 'alert',
+      category: ['intrusion_detection'],
+      type: ['info'],
+      action: 'sequence-detection',
+      risk_score: 0,
+    });
+    expect(doc.process).toEqual({ entity_id: INSTANCE_ID, pid: 4242 });
+    expect(doc.aegis.attribution).toEqual({ status: 'confirmed', evidence: ['handle-scan-pid'] });
+    expect('file' in doc).toBe(false);
+  });
+
+  it('routes an observation-gap to event.category host, type info, under its own action', () => {
+    // The record main.js writes on powerMonitor resume (Block B5): no agent, no pid, no
+    // owner question, and the gap itself in `details`.
+    const doc = normalizeToEcs(
+      auditRecord({
+        type: 'observation-gap',
+        agent: '',
+        pid: null,
+        instanceId: null,
+        action: 'os-resume',
+        attribution: null,
+        details: {
+          cause: 'os-suspend',
+          suspendedAt: '2026-08-23T09:55:00.000Z',
+          resumedAt: AUDIT_ISO,
+          gapMs: 300000,
+          suspendCount: 1,
+          monitoringPaused: false,
+          activeSessions: 2,
+        },
+      }),
+    );
+    expect(doc.event).toEqual({
+      kind: 'event',
+      category: ['host'],
+      type: ['info'],
+      action: 'observation-gap',
+      risk_score: 0,
+    });
+    expect(doc['@timestamp']).toBe(AUDIT_ISO);
+    expect('process' in doc).toBe(false);
+    expect('file' in doc).toBe(false);
+    expect('attribution' in doc.aegis).toBe(false);
+  });
+
   it('never rebuilds destination.* out of a network audit record display path', () => {
     const doc = normalizeToEcs(
       auditRecord({ type: 'network-connection', action: 'Established', path: '160.79.104.10:443' }),
@@ -276,7 +336,11 @@ describe('normalizeToEcs — audit records', () => {
   });
 
   it('states an uncategorizable type and claims nothing else about it', () => {
-    for (const type of ['permission-deny', 'buffer-overflow-drop', 'something-a-later-build-adds']) {
+    for (const type of [
+      'permission-deny',
+      'buffer-overflow-drop',
+      'something-a-later-build-adds',
+    ]) {
       const ev = normalizeToEcs(auditRecord({ type })).event;
       expect(ev).toEqual({ kind: 'event', action: type, risk_score: 0 });
       expect('category' in ev).toBe(false);

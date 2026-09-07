@@ -1,9 +1,9 @@
 /**
  * Block B2 — filesystem sensor health wiring.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fileWatcher from '../../src/main/file-watcher.js';
-import { SENSOR_HEALTH_STATE } from '../../src/main/sensor-health.js';
+import { SENSOR_HEALTH_STATE, aggregateSensorHealth } from '../../src/main/sensor-health.js';
 
 function makeState(overrides = {}) {
   return {
@@ -184,6 +184,205 @@ describe('file-watcher health (B2)', () => {
       release();
       await Promise.all([p1, p2]);
       expect(calls).toBe(1); // second was single-flight skip
+    });
+  });
+
+  // Exactly one of the two read leaves observes on a given tick; the other is
+  // UNSUPPORTED with a detail naming the owner. Without this a leaf no code path
+  // writes stays STARTING for the whole process and the app reads SENSORS_STARTING
+  // forever — the B8 cross-sensor regression.
+  describe('read-mechanism ownership (RM vs handle pool)', () => {
+    const AGENTS = [{ pid: 1, agent: 'Claude Code', category: 'ai', instanceId: '1:u' }];
+    const S = SENSOR_HEALTH_STATE;
+    const T0 = 1700000000000;
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('A. RM owns: one tick leaves fs-rm HEALTHY and fs-handle UNSUPPORTED, out of the worst-of', async () => {
+      fileWatcher._setDepsForTest({ getSensitiveHolders: vi.fn().mockResolvedValue([]) });
+      await fileWatcher.scanAllFileHandles(AGENTS);
+      const snap = fileWatcher.getFileSensorHealth();
+      expect(snap['fs-rm'].state).toBe(S.HEALTHY);
+      expect(snap['fs-handle'].state).toBe(S.UNSUPPORTED);
+      expect(snap['fs-handle'].detail).toBe('rm-owns-observation');
+      const agg = aggregateSensorHealth([snap['fs-handle'], snap['fs-rm']]);
+      expect(agg.state).toBe(S.HEALTHY);
+      expect(agg.participatingCount).toBe(1);
+      expect(agg.totalCount).toBe(2);
+    });
+
+    it('B. pool owns: one tick leaves fs-handle HEALTHY and fs-rm UNSUPPORTED', async () => {
+      fileWatcher._setDepsForTest({
+        getFileHandles: vi.fn().mockResolvedValue([]),
+        isReadDetectionAvailable: true,
+      });
+      await fileWatcher.scanAllFileHandles(AGENTS);
+      const snap = fileWatcher.getFileSensorHealth();
+      expect(snap['fs-handle'].state).toBe(S.HEALTHY);
+      expect(snap['fs-rm'].state).toBe(S.UNSUPPORTED);
+      // A platform with no Restart Manager keeps its own reason (createInitialFsHealth);
+      // only a platform that HAS one is told the pool owns observation.
+      expect(snap['fs-rm'].detail).toBe(
+        process.platform === 'win32' ? 'pool-owns-observation' : 'platform-no-rm',
+      );
+      const agg = aggregateSensorHealth([snap['fs-handle'], snap['fs-rm']]);
+      expect(agg.state).toBe(S.HEALTHY);
+      expect(agg.participatingCount).toBe(1);
+    });
+
+    it('C. RM→pool switch: fs-handle returns in a fresh lifetime, fs-rm leaves the worst-of', async () => {
+      const getFileHandles = vi.fn().mockResolvedValue([]);
+      fileWatcher._setDepsForTest({
+        getSensitiveHolders: vi.fn().mockResolvedValue([]),
+        getFileHandles,
+        isReadDetectionAvailable: true,
+      });
+      await fileWatcher.scanAllFileHandles(AGENTS);
+      expect(fileWatcher.getFileSensorHealth()['fs-handle'].state).toBe(S.UNSUPPORTED);
+      expect(getFileHandles).not.toHaveBeenCalled();
+
+      // The probe result arriving after the first tick (restart-manager._rmAvailable).
+      fileWatcher._setDepsForTest({ isRestartManagerAvailable: false });
+      await fileWatcher.scanAllFileHandles(AGENTS);
+      expect(getFileHandles).toHaveBeenCalled();
+      const snap = fileWatcher.getFileSensorHealth();
+      expect(snap['fs-handle'].state).toBe(S.HEALTHY);
+      expect(snap['fs-handle'].consecutiveFailures).toBe(0);
+      expect(snap['fs-handle'].lastSuccessAt).toBeTypeOf('number');
+      expect(snap['fs-rm'].state).toBe(S.UNSUPPORTED);
+      expect(snap['fs-rm'].detail).toBe('pool-owns-observation');
+    });
+
+    it('D. hot-only RM beside the pool (the bench harness shape): no leaf is inactive', async () => {
+      fileWatcher._setDepsForTest({
+        getHotSensitiveHolders: vi.fn().mockResolvedValue([]),
+        getFileHandles: vi.fn().mockResolvedValue([]),
+        isReadDetectionAvailable: true,
+      });
+      await fileWatcher.scanAllFileHandles(AGENTS);
+      await fileWatcher.scanHotFileHolders(AGENTS);
+      const snap = fileWatcher.getFileSensorHealth();
+      expect(snap['fs-handle'].state).toBe(S.HEALTHY);
+      expect(snap['fs-rm'].state).toBe(S.HEALTHY);
+    });
+
+    it('E. the decision is latched: a second RM tick does not rewrite the inactive leaf', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(T0);
+      fileWatcher._setDepsForTest({ getSensitiveHolders: vi.fn().mockResolvedValue([]) });
+      await fileWatcher.scanAllFileHandles(AGENTS);
+      const first = fileWatcher.getFileSensorHealth()['fs-handle'];
+      expect(first.lastAttemptAt).toBe(T0);
+
+      vi.setSystemTime(T0 + 5000);
+      await fileWatcher.scanAllFileHandles(AGENTS);
+      expect(fileWatcher.getFileSensorHealth()['fs-rm'].lastAttemptAt).toBe(T0 + 5000);
+      expect(fileWatcher.getFileSensorHealth()['fs-handle']).toEqual(first);
+    });
+
+    it('F. a closed population gate on the first tick still settles ownership', async () => {
+      fileWatcher._setDepsForTest({
+        getSensitiveHolders: vi.fn().mockResolvedValue([]),
+        getProcessCapabilities: () => ({
+          populationState: S.STARTING,
+          populationReliable: false,
+          populationAsOf: null,
+          identityQuality: 'unknown',
+        }),
+      });
+      const events = await fileWatcher.scanAllFileHandles(AGENTS);
+      expect(events).toEqual([]);
+      const snap = fileWatcher.getFileSensorHealth();
+      expect(snap['fs-rm'].state).toBe(S.DEGRADED);
+      expect(snap['fs-rm'].detail).toBe('process-observation-unavailable');
+      expect(snap['fs-handle'].state).toBe(S.UNSUPPORTED);
+      expect(snap['fs-handle'].detail).toBe('rm-owns-observation');
+    });
+  });
+
+  // An empty read scope under an OPEN population gate is a successful observation of
+  // zero — the scoped success the network leaf already records (§10 B4). The ACTIVE
+  // read leaf is HEALTHY with `confirmed-zero-agents`; no provider is asked. Without
+  // this an idle machine's read leaf stayed STARTING for the whole process (#328).
+  describe('confirmed-zero (empty read scope)', () => {
+    const AGENTS = [{ pid: 1, agent: 'Claude Code', category: 'ai', instanceId: '1:u' }];
+    const S = SENSOR_HEALTH_STATE;
+    const ZERO = 'confirmed-zero-agents';
+
+    it('a. pool owner: HEALTHY with the detail, lastSuccessAt advanced, the pool never spawned', () => {
+      const getFileHandles = vi.fn().mockResolvedValue([]);
+      fileWatcher._setDepsForTest({ getFileHandles, isReadDetectionAvailable: true });
+      fileWatcher.noteFileScanSkip(ZERO);
+      const h = fileWatcher.getFileSensorHealth()['fs-handle'];
+      expect(h.state).toBe(S.HEALTHY);
+      expect(h.detail).toBe(ZERO);
+      expect(h.lastSuccessAt).toBeTypeOf('number');
+      expect(h.lastError).toBeNull();
+      expect(h.consecutiveFailures).toBe(0);
+      expect(getFileHandles).not.toHaveBeenCalled();
+    });
+
+    it('b. RM owner: fs-rm HEALTHY with the detail, fs-handle retired, aggregate HEALTHY over one', () => {
+      const getSensitiveHolders = vi.fn().mockResolvedValue([]);
+      fileWatcher._setDepsForTest({ getSensitiveHolders });
+      fileWatcher.noteFileScanSkip(ZERO);
+      const snap = fileWatcher.getFileSensorHealth();
+      expect(snap['fs-rm'].state).toBe(S.HEALTHY);
+      expect(snap['fs-rm'].detail).toBe(ZERO);
+      expect(snap['fs-handle'].state).toBe(S.UNSUPPORTED);
+      expect(snap['fs-handle'].detail).toBe('rm-owns-observation');
+      expect(getSensitiveHolders).not.toHaveBeenCalled();
+      const agg = aggregateSensorHealth([snap['fs-handle'], snap['fs-rm']]);
+      expect(agg.state).toBe(S.HEALTHY);
+      expect(agg.participatingCount).toBe(1);
+    });
+
+    it('c. the pool with an empty AI scope (a synthetic-only fleet) is the same confirmed zero', async () => {
+      const getFileHandles = vi.fn().mockResolvedValue([]);
+      fileWatcher._setDepsForTest({ getFileHandles, isReadDetectionAvailable: true });
+      const events = await fileWatcher.scanAllFileHandles([
+        { pid: 0, agent: 'Ollama', category: 'local-llm-runtime', instanceId: 'ollama:s' },
+      ]);
+      expect(events).toEqual([]);
+      expect(getFileHandles).not.toHaveBeenCalled();
+      const h = fileWatcher.getFileSensorHealth()['fs-handle'];
+      expect(h.state).toBe(S.HEALTHY);
+      expect(h.detail).toBe(ZERO);
+    });
+
+    it('d. B-S04 wins: a blind pool reads DEGRADED, not a vacuous HEALTHY', () => {
+      fileWatcher._setDepsForTest({
+        getFileHandles: vi.fn().mockResolvedValue([]),
+        isReadDetectionAvailable: false,
+      });
+      fileWatcher.noteFileScanSkip(ZERO);
+      const h = fileWatcher.getFileSensorHealth()['fs-handle'];
+      expect(h.state).toBe(S.DEGRADED);
+      expect(h.lastError).toBe('read-detection-unavailable');
+      expect(h.detail).toBe('no-handle-binary-and-no-rm');
+      expect(h.lastSuccessAt).toBeNull();
+    });
+
+    it('e. nothing latches: the next real scan clears the detail, and a FAILED leaf recovers through a zero', async () => {
+      const getFileHandles = vi.fn().mockResolvedValue([]);
+      fileWatcher._setDepsForTest({ getFileHandles, isReadDetectionAvailable: true });
+      fileWatcher.noteFileScanSkip(ZERO);
+      await fileWatcher.scanAllFileHandles(AGENTS);
+      const after = fileWatcher.getFileSensorHealth()['fs-handle'];
+      expect(after.state).toBe(S.HEALTHY);
+      expect(after.detail).toBeNull();
+      expect(getFileHandles).toHaveBeenCalledTimes(1);
+
+      getFileHandles.mockRejectedValueOnce(new Error('down'));
+      await fileWatcher.scanAllFileHandles(AGENTS);
+      expect(fileWatcher.getFileSensorHealth()['fs-handle'].state).toBe(S.FAILED);
+      fileWatcher.noteFileScanSkip(ZERO);
+      const recovered = fileWatcher.getFileSensorHealth()['fs-handle'];
+      expect(recovered.state).toBe(S.HEALTHY);
+      expect(recovered.consecutiveFailures).toBe(0);
+      expect(recovered.detail).toBe(ZERO);
     });
   });
 });

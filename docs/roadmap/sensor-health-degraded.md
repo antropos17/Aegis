@@ -1,11 +1,11 @@
 # Block B — Sensor Health / DEGRADED
 
-**Status (as of 2026-08-23):** design document, largely implemented since it was written.
+**Status (as of 2026-08-25):** design document, largely implemented since it was written.
 **Closed:** B1 (`src/main/sensor-health.js`), B2 (chokidar / handle / Restart Manager), B3
-(process enumeration and the secondary detectors), B4 (network + the ETW schema freeze), B6
-(`stats.appHealth` on the existing stats payload) and B7 (footer chip + population-gated empty
-states). **Open:** B5 (suspend / resume) and B8 (the cross-sensor umbrella suite). Per-slice
-detail is in §10.
+(process enumeration and the secondary detectors), B4 (network + the ETW schema freeze), B5
+(`src/main/observation-gap.js` — the OS suspend / resume gap), B6 (`stats.appHealth` on the
+existing stats payload) and B7 (footer chip + population-gated empty states). **Open:** B8 (the
+cross-sensor umbrella suite). Per-slice detail is in §10.
 
 *Correction, 2026-08-23.* Until this edit the header read "the process-scan record and the
 renderer surfacing (B3 remainder, B6–B7) are not built", and every word of it was already false:
@@ -61,7 +61,7 @@ Pause stops **polling intervals** and **drops live FS events**. Watchers are not
 |------------|-------------------------|--------|
 | **ETW** | **No** | Roadmap / README / master-plan only |
 | **osquery** | **No** | Recon inspiration only |
-| **Electron `powerMonitor`** | **No** | Not imported anywhere under `src/` |
+| **Electron `powerMonitor`** | **Yes** (since B5, 2026-08-25) | Subscribed in `main.js` after `app.ready`; the gap machine is `src/main/observation-gap.js` (§10 B5). "No" until then |
 | chokidar FS watch | Yes | File write evidence |
 | Polling process/network/handles | Yes | Primary sensors |
 
@@ -74,8 +74,8 @@ Pause stops **polling intervals** and **drops live FS events**. Watchers are not
 | **S-PROC** | `process-scanner.js` + `scan-loop.doProcessScan` | Platform `listProcesses` (tasklist/CIM/ps) | Interval; reentrancy guard | Agent list, enter/exit, scan-batch | EPERM/EACCES → empty + `reliable:false`; other errors log + empty tick | Partial: `stats.permissionDeniedScans` if >5 consecutive; Header **Scanning/Idle** only |
 | **S-NET** | `network-monitor.js` + `doNetworkScan` | Platform TCP table (PS / lsof) | 30s (60s warmup); skip if no agents or scan in flight | `NetworkConnection[]`, audit `network-connection` | `.catch` logs error; leaves last connections until next success | No health; empty vs fail not distinguished on channel |
 | **S-FS-CHOKIDAR** | `file-watcher.setupFileWatchers` + `handleWatcherEvent` | chokidar `add`/`change`/`unlink` | Persistent watchers once started | `FileEvent` (created/modified/deleted), inferred/unattributed | Pause swallows; no `watcher.on('error')`; missing dirs skipped | No |
-| **S-FS-HANDLE** | `scanAllFileHandles` / `scanFileHandles` | handle.exe or modules; errors → `[]` | With file scan interval | `FileEvent` `accessed` / confirmed PID | Per-PID `catch → []`; binary missing short-circuits | Log only; probe sets internal flags |
-| **S-FS-RM** | `scanHotFileHolders` / RM holders | Restart Manager (win32) | ~10s hot + full cycle | `FileEvent` `holding` | RM unavailable; single-flight skip; catch logs | Startup probe logs once; **not** on IPC |
+| **S-FS-HANDLE** | `scanAllFileHandles` / `scanFileHandles` | handle.exe or modules; errors → `[]` | With file scan interval — only when RM is not the active mechanism (§10 B2 ownership); skip if the AI scope is empty (confirmed-zero, HEALTHY) | `FileEvent` `accessed` / confirmed PID | Per-PID `catch → []`; binary missing short-circuits | Log only; probe sets internal flags |
+| **S-FS-RM** | `scanHotFileHolders` / RM holders | Restart Manager (win32) | ~10s hot + full cycle; skip if no agents (confirmed-zero, HEALTHY) | `FileEvent` `holding` | RM unavailable; single-flight skip; catch logs | Startup probe logs once; **not** on IPC |
 | **S-IDE-EXT** | `ide-extension-detector.js` | FS walk of editor extension dirs | Background cache | Synthetic agents (pid 0) | Silent `.catch` empty cache | Appears as missing agents only |
 | **S-WSL** | `wsl-detector.js` | WSL enumeration | Background cache | Synthetic agents | Silent catch | Same |
 | **S-LLM** | `llm-runtime-detector.js` | HTTP probe Ollama/LM Studio | Each process scan | Synthetic local-runtime agents + models | Probe fail → no synthetic | Missing model agents |
@@ -110,7 +110,8 @@ Pause stops **polling intervals** and **drops live FS events**. Watchers are not
 - No `lastSuccessAt` / `lastAttemptAt` / `consecutiveFailures` per sensor
 - No published lost-event counters for FS/network (only audit buffer drops)
 - No global DEGRADED tray/renderer state for observation integrity
-- No `powerMonitor` suspend/resume handling
+- No `powerMonitor` suspend/resume handling — *closed by B5 (2026-08-25): `stats.observationGap`,
+  a sibling of `appHealth`, see §10*
 - No ETW session / EventsLost / BuffersLost
 - No osquery-style publisher table
 
@@ -326,7 +327,9 @@ When/if AEGIS attaches an ETW session (Phase C / later):
 
 ### 6.1 Current support
 
-**None** in product code. No `powerMonitor` import.
+**None** in product code. No `powerMonitor` import. — *True when written; since B5 (2026-08-25)
+`main.js` subscribes `powerMonitor` `suspend` / `resume` after `app.ready` and
+`src/main/observation-gap.js` holds the gap machine. The live contract is in §10 B5.*
 
 (Note: IPC `suspend-process` / `resume-process` are **agent process control**, not OS sleep.)
 
@@ -402,6 +405,13 @@ detail?: string                // e.g. "read-detection unavailable"
     rather than sat beside it. The flag travels as `stats.monitoringPaused`, a sibling of
     `stats.appHealth`.
 - OS suspend gap → do not advance “healthy empty” streaks (B5)
+  - **As of 2026-08-25, implemented — and NOT as a leaf state.** No tick runs while the OS
+    sleeps, so the leaves and `lastSuccessAt` never move during a gap by construction; the one
+    place a sleep could be credited as an observation is the tick whose provider `await`
+    straddled it, and that tick's session reconcile is frozen (`gapStraddled`, the third freeze
+    cause beside `reliable: false` and `identityDegraded`). The gap itself is
+    `stats.observationGap`, a sibling of `appHealth` like `monitoringPaused`, cleared only by
+    the first tick whose reconcile was not frozen. See §10 B5.
 
 ### 7.4 Aggregate monitoring health
 
@@ -465,6 +475,27 @@ Audit drops remain on **audit** stats path (already honest).
 - **Live contract:** leaves `fs-chokidar` / `fs-handle` / `fs-rm` in `file-watcher.js`; the
   chokidar state is derived from the watch-root plan registry (`996629b`), and `fs-rm` is
   UNSUPPORTED on a platform with no Restart Manager.
+  **Read-mechanism ownership (2026-08-25, found by B8):** the two read leaves are exclusive.
+  On a tick the RM path owns, `fs-handle` is UNSUPPORTED with `detail: rm-owns-observation`;
+  when the pool owns (no usable RM entry and a handle binary present), `fs-rm` is UNSUPPORTED
+  with `pool-owns-observation` (`platform-no-rm` is kept where it already stands). Decided by
+  `resolveReadMechanism` at the first observation entry — `scanAllFileHandles`,
+  `scanHotFileHolders`, `noteFileScanSkip` — and re-decided only when the mechanism switches
+  (the one production switch is RM→pool, the probe verdict landing after an optimistic first
+  tick); the leaf returning to service starts a fresh STARTING lifetime. A blind win32 (no
+  handle binary, no RM) has no owner and both leaves stay DEGRADED (B-S04). Before this, the
+  idle leaf stayed STARTING for the whole process and `appHealth.state` read SENSORS_STARTING
+  on every stock Windows — ai-mistakes #42.
+  **Empty read scope (2026-08-25, #328):** a population the process leaf vouches for that
+  holds no agent — or none in the AI subset the pool probes — is an observed zero, not a
+  skipped tick. `noteFileScanSkip('confirmed-zero-agents')` marks the ACTIVE read leaf HEALTHY
+  with that detail and advances `lastSuccessAt`, the B4 network contract on the file side;
+  called from the empty-fleet returns of `doFileScan` / `doHotReadScan` and from the empty
+  AI scope inside `scanAllFileHandles`, and no provider is asked. The population gate decides
+  first (unreliable + empty stays `process-observation-unavailable` DEGRADED), B-S04 stands
+  above the zero (a blind pool is DEGRADED whether or not an agent is running), and ownership
+  is settled through the skip, so an idle win32 retires its idle leaf instead of leaving both
+  STARTING. The zero never latches: the next real scan writes over the detail.
 - **Closes:** B-S03, B-S04, B-S06, B-S05 (file/hot), B-S09  
 - **Files:** `file-watcher.js`, platform probe surface, sensor-health hooks  
 - **Invariants:** handle `[]` after error → DEGRADED/FAILED not silent clean; chokidar `error` registered; read-detection capability reflected  
@@ -522,13 +553,64 @@ Audit drops remain on **audit** stats path (already honest).
 - **ETW:** schema freeze only (see §5); **no ETW implementation**  
 - **Tests:** `network-monitor-health.test.js` + platform reject paths
 
-### B5 — Suspend / resume observation gap
+### B5 — Suspend / resume observation gap — **CLOSED** (2026-08-25)
 
 - **Closes:** B-S07 (clarity vs pause), B-S10  
-- **Files:** `main.js` + `powerMonitor`; sensor-health gap flag; optional rate freeze hooks  
-- **Invariants:** sleep gap not counted as healthy empty observation; pause remains DISABLED  
-- **Tests:** mock powerMonitor emit; fake timers — **no real sleep**  
-- **Stop:** gap flag + tests; not every metric rewritten  
+- **Files:** `src/main/observation-gap.js` (new, pure: no Electron, no timers, injected clock
+  and an injected `{on}` for `powerMonitor`); `main.js` (subscription after `app.ready`, the
+  `observationGap` sibling on BOTH `getStats` branches, the `observation-gap` audit record on
+  resume); `scan-loop.js` (straddle witness + first-tick tag); `session-tracker.js`
+  (`gapStraddled`); `src/shared/types/events.ts`, `src/shared/ecs-normalizer.js`,
+  `docs/ECS-MAPPING.md` (the audit type and its `host` / `info` route)  
+- **Live contract — the representation.** `stats.observationGap` =
+  `{ state: NONE | SUSPENDED | RESUMED, suspendedAt, resumedAt, gapMs, clearedAt, suspendCount,
+  totalGapMs }`, a SIBLING of `appHealth` and `monitoringPaused`, never inside either. Not a
+  sensor-health leaf: a leaf names one sensor's observation and joins the worst-of, and no sensor
+  is broken by a sleep. Not an app-health reason: that module derives from a snapshot with no
+  stored machine and no clock, and a gap is a stored event with two ends. `suspendedAt` is
+  `null` and `gapMs` is `null` when the resume arrived without a seen suspend — the flag still
+  arms; a gap of unknown length is still a gap.  
+- **Live contract — the rule.** No tick runs while the OS sleeps (Node timers do not fire),
+  so the leaves and `lastSuccessAt` never move during a gap by construction; the ONE place a
+  sleep could be credited as an observation is the process tick whose provider `await`
+  straddled it. scan-loop takes a SNAPSHOT of `suspendCount` before `scanner.scanProcesses()`
+  and compares it with one taken after `enrichWithParentChains` — never a live read, which
+  would also freeze the honest first tick after resume — and a count that moved freezes the
+  session reconcile (`gapStraddled`, handled exactly like `reliable: false` and
+  `identityDegraded`: no enter, no exit, no aging) with a `scan/session-freeze
+  reason: suspend-straddle` log line. `process-scanner` takes its `now` BEFORE its await, so
+  the leaf a straddled tick writes carries the pre-sleep `lastSuccessAt` / `populationAsOf`;
+  pinned by test. RESUMED clears to NONE from the first tick whose reconcile was not frozen
+  and from nothing else — a permission-denied enumeration, a degraded identity or a straddle
+  after resume leaves it armed. Post-resume ticks log `postGap: { suspendedAt, resumedAt,
+  gapMs, cleared }`.  
+- **Live contract — the record.** One `observation-gap` audit record per resume (not per
+  suspend: the 5 s flush may not run before the OS freezes, and it would only reach disk after
+  the resume anyway): `action: os-resume`, no agent, `pid` / `instanceId` / `attribution`
+  `null`, `details: { cause: os-suspend, suspendedAt, resumedAt, gapMs, suspendCount,
+  monitoringPaused, activeSessions }`. It is written from the resume handler, so it sits in the
+  JSONL AHEAD of any `agent-exit` a post-sleep reconcile goes on to write after `grace` misses;
+  the exit still names the last PRE-sleep sighting. `monitoringPaused` on the record is B5's
+  answer to B-S07: a pause across a sleep leaves the flag armed (no tick runs), and the record
+  says why the silence continued.  
+- **Invariants:** sleep gap not counted as healthy empty observation; pause stays orthogonal
+  (§7.3) and is not read by the gap machine; nothing fabricated — the flag explains a hole, it
+  never fills one.  
+- **Tests:** `observation-gap.test.js` (the machine, `attach` on an `EventEmitter`, the record
+  builder), `scan-loop-observation-gap.test.js` (real scan-loop / scanner / session-tracker under
+  fake timers: clear, straddle in the enumeration, straddle in the identity stamp, EPERM and
+  identity-degraded leave it armed, `observation-gap` before `agent-exit`, absent collaborator),
+  `main-observation-gap-stats.test.js` (the sibling on the pre-load branch, `appHealth` key set
+  unchanged), `session-tracker.test.js` (+2), `app-health.test.js` N4 (an injected gap is not an
+  input), `ecs-normalizer.test.js` (+1). Fake timers only — **no real sleep**.  
+- **Residuals, on the record (not rewritten, per the stop line):** monitoring duration and
+  `uptimeMs` still include the sleep (`totalGapMs` rides beside them for a future UI slice);
+  events/min, file decay, baseline session windows and open sequence windows age across a sleep
+  — an expiry is not a credit, and extending a window would be fabrication (§15.7); handle / RM
+  / network scans that straddle a sleep stamp their records at write time, the existing
+  contract (`docs/ECS-MAPPING.md` §5); `latestNetConnections` holds pre-sleep sockets for at most
+  one network interval; intervals are not stopped on suspend and not restarted on resume, so
+  the design does not depend on U2. `lock-screen` / `shutdown` are not subscribed.  
 
 ### B6 — IPC / stats propagation — **CLOSED** (`fa4b923`)
 
@@ -606,7 +688,7 @@ Audit drops remain on **audit** stats path (already honest).
 | ID | Question |
 |----|----------|
 | U1 | Exact N for consecutiveFailures → FAILED (propose 3; measure false positives later) |
-| U2 | Node timer behavior after long Windows sleep (burst vs coalesce) — verify on target OS during B5 |
+| U2 | Node timer behavior after long Windows sleep (burst vs coalesce) — verify on target OS during B5. *B5 (2026-08-25): still unverified on the target OS, and the design no longer depends on it — whatever fires after resume, the flag clears from the first tick whose reconcile was not frozen, and a burst of ticks is a burst of real observations.* |
 | U3 | Whether chokidar closes itself on fatal error or hangs silent — confirm with injected error in B2 |
 | U4 | Exact Win32 ETW stats API binding when ETW lands (not Block B) |
 | U5 | Should network still scan system-wide when agent list empty-but-DEGRADED? Product choice in B3/B4 |
@@ -624,7 +706,9 @@ Block B is done when:
    — **as of 2026-08-21, superseded by the orthogonality decision (see §7.3).** Pause is
    neither DISABLED nor DEGRADED: it is not a health state at all, and the stopping
    condition it must satisfy instead is that a paused AEGIS never reads as a clean one.  
-5. Suspend/resume gap does not count as healthy empty observation  
+5. Suspend/resume gap does not count as healthy empty observation
+   — **as of 2026-08-25, held by B5 (§10): the straddled tick is frozen, the flag clears only
+   from a reconciled tick, and the gap is a sibling of the health value, not a member of it.**  
 6. Non-vacuous tests + mutation proofs for critical paths  
 7. No fabricated events  
 
@@ -632,10 +716,12 @@ Block B is done when:
 
 ## 16. Next executable block
 
-**Implement B5:** `powerMonitor` suspend / resume, the observation-gap flag, and the rule that a
-sleep gap is never credited as a healthy empty observation. Fake timers only — no real sleep (§11).
+**Implement B8:** the cross-sensor umbrella suite (§10) — a multi-sensor worst-of global driven
+through the real leaves, a mutation proof per critical health registration, and the Block B
+stopping checklist (§15) walked with evidence. B5 landed 2026-08-25 (§10).
 
-Then B8, the cross-sensor umbrella suite (§10).
+*Refreshed 2026-08-25:* this section pointed at B5 until B5 merged; it now points at B8, the
+last open slice.
 
 *Refreshed 2026-08-23.* This section said "Implement B1 only … do not start B2+ until B1 is
 merged" for as long as B1 through B4, B6 and B7 were being merged past it. A "next block" line

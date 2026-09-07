@@ -1,0 +1,9 @@
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+
+[sandbox_workspace_write]
+network_access = true
+
+[features.network_proxy]
+enabled = true
+domains = { "github.com" = "allow", "api.github.com" = "allow" }

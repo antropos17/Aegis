@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "runId": "DERIVED-M4-step-failed-to-execute",
+  "scenario": "M4-step-failed-to-execute",
+  "arm": "A",
+  "derived": {
+    "kind": "derived-model",
+    "recorded": false,
+    "execution": "No step was executed. bench/lib/actor.js never ran, no binary was copied, no process was spawned and no file was deleted. Every status below is a modelling parameter, written in the shape bench/run.js writeSteps() produces.",
+    "readMeFirst": "README.md, in the parent directory"
+  },
+  "counts": {
+    "declared": 4,
+    "ok": 2,
+    "failed": 1,
+    "skipped": 1
+  },
+  "expectations": {
+    "claimed": 3,
+    "emitted": 1,
+    "notExecuted": 2
+  },
+  "meaning": "a step that did not execute emits NO catalogue row — the catalogue holds exactly the events that happened — so \"failed to execute\" is a state of a step and is recorded here, beside the catalogue rather than inside it. An expectation counted under notExecuted is not a sensor miss and not an unconfirmed row: nothing ever asked a sensor or an oracle about it",
+  "steps": [
+    {
+      "id": "stage-claude",
+      "kind": "copy-binary",
+      "status": "ok",
+      "expect": "E1",
+      "emits": "file.creation",
+      "emitted": "file.creation",
+      "startedAt": "2026-08-20T12:00:00.000Z",
+      "error": null
+    },
+    {
+      "id": "live-across-ticks",
+      "kind": "wait",
+      "status": "ok",
+      "expect": null,
+      "emits": null,
+      "emitted": null,
+      "startedAt": "2026-08-20T12:00:00.100Z",
+      "error": null
+    },
+    {
+      "id": "spawn-claude",
+      "kind": "spawn-process",
+      "status": "failed",
+      "expect": "E2",
+      "emits": "process.start",
+      "emitted": null,
+      "startedAt": "2026-08-20T12:00:35.000Z",
+      "error": "MODELLED — spawn X:\\dev\\project\\AEGIS\\bench\\runs\\DERIVED-M4-step-failed-to-execute\\stage\\claude.exe ENOENT"
+    },
+    {
+      "id": "remove-claude",
+      "kind": "delete-file",
+      "status": "skipped",
+      "expect": "E3",
+      "emits": "file.deletion",
+      "emitted": null,
+      "startedAt": null,
+      "error": null
+    }
+  ]
+}
