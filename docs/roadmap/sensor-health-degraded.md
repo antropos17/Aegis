@@ -525,12 +525,15 @@ Audit drops remain on **audit** stats path (already honest).
   `ide-extension`: process list unreadable → FAILED; a RUNNING editor whose extensions dir fails
   to read for any reason other than ENOENT/ENOTDIR → DEGRADED (those two stay a definite absence);
   otherwise HEALTHY.
-  `wsl`: non-win32, no `wsl.exe`, or a `wsl.exe` that RAN and reported no distribution →
-  UNSUPPORTED (out of the worst-of — the binary ships in System32 on stock Windows, and holding
-  every such machine DEGRADED would be a warning that is always on); a probe that produced no
-  verdict at all — a timeout kill, a spawn failure — → DEGRADED and, unlike before, **not cached**,
-  so the next 60 s cycle asks again; WSL present but its process list unreadable or empty →
-  DEGRADED; a list that was read → HEALTHY.
+  `wsl`: non-win32, missing `wsl.exe` (ENOENT), or a successful empty distribution list →
+  UNSUPPORTED (out of the worst-of). On Windows, conclusive availability answers expire
+  after 60 s so a later installation/removal is observed without restarting AEGIS. A retry
+  after UNSUPPORTED starts a fresh health record. Any other failed availability probe,
+  including a numeric non-zero exit, → DEGRADED and is **not cached**: an exit status alone
+  cannot establish that no distribution is installed. This also means an unconfigured WSL
+  executable that rejects the command is reported as an inconclusive probe, rather than
+  assumed absent. The next refresh asks again. WSL present but its process list unreadable
+  or empty → DEGRADED; a list that was read → HEALTHY.
   `llm-ollama` / `llm-lmstudio`: one record per PROBE, because the two run concurrently under one
   `Promise.all` and a shared record would let the definite answer overwrite the uncertain one.
   ECONNREFUSED and a completed response that is not this runtime's JSON are definite negatives
