@@ -199,6 +199,30 @@ describe('ipc-handlers', () => {
     return handlers[channel];
   }
 
+  it('update operations only accept the owned main frame and never forward caller parameters', () => {
+    const frame = {};
+    const window = { isDestroyed: () => false, webContents: { mainFrame: frame } };
+    const updates = { snapshot: vi.fn(), check: vi.fn(), download: vi.fn(), install: vi.fn() };
+    ipcHandlers.init({ getWindow: () => window, updates });
+    ipcHandlers.register();
+    for (const [channel, method] of [
+      ['status', 'snapshot'],
+      ['check', 'check'],
+      ['download', 'download'],
+      ['install', 'install'],
+    ]) {
+      const handler = getHandler(`updates:${channel}`);
+      expect(() => handler({ sender: {}, senderFrame: frame })).toThrow('denied');
+      expect(() => handler({ sender: window.webContents, senderFrame: {} })).toThrow('denied');
+      handler(
+        { sender: window.webContents, senderFrame: frame },
+        'https://attacker.invalid',
+        'evil.exe',
+      );
+      expect(updates[method]).toHaveBeenCalledExactlyOnceWith();
+    }
+  });
+
   it('init stores injected deps', () => {
     ipcHandlers.init({
       getWindow: () => null,

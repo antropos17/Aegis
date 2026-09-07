@@ -17,6 +17,15 @@ contextBridge.exposeInMainWorld('aegis', {
   exportCsv: () => ipcRenderer.invoke('export-csv'),
   generateReport: () => ipcRenderer.invoke('generate-report'),
   getSettings: () => ipcRenderer.invoke('get-settings'),
+  getUpdateStatus: () => ipcRenderer.invoke('updates:status'),
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  downloadUpdate: () => ipcRenderer.invoke('updates:download'),
+  installUpdate: () => ipcRenderer.invoke('updates:install'),
+  onUpdateStatus: (cb) => {
+    const handler = (_e, data) => cb(data);
+    ipcRenderer.on('updates:status', handler);
+    return () => ipcRenderer.removeListener('updates:status', handler);
+  },
   saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
   analyzeAgent: (name) => ipcRenderer.invoke('analyze-agent', name),
   analyzeSession: () => ipcRenderer.invoke('analyze-session'),

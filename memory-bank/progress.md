@@ -955,3 +955,51 @@ the owner-repair script and ACL backups are under
 `X:/tmp/aegis-wsl-owner-repair-20260907`, outside Git. The previous entries' WSL
 degradation is resolved for this machine. Auto-update issue #20 is the next proposed
 product task; implementing it has not been authorized by this verification step.
+
+## Session handoff — signed Windows updates, issue #20 (2026-09-07)
+
+The user's subsequent "давай" authorized implementation. The feature branch
+`codex/signed-auto-update` adds electron-updater 6.8.9, pinned for its custom-provider
+and positional installation contracts. The provider consumes the existing GitHub
+release API, `aegis-v` tags, Ed25519-signed manifest and SHA-256 installer entries.
+No release workflow changes or new YAML feeds are needed. The NSIS package includes
+the public key and generated app-update.yml cache configuration.
+
+Automatic checks/downloads default to off and require a saved boolean preference.
+When enabled, checks start after 30 seconds and repeat every six hours. Settings has
+manual check/download/restart controls and plain-text release notes; the dashboard
+shows available/downloading/ready notices. Installation needs native confirmation,
+rechecks the installer bytes afterward, and never happens merely on app quit.
+Update IPC checks the owned webContents and main frame and accepts no operation
+arguments. Opt-out cancels downloading; failures expose fixed error codes.
+
+Local checks passed: renderer build, formatting, lint (zero errors; existing
+warnings), main/renderer TypeScript, Svelte check, coverage suite, both mutation
+gates, counts and production dependency audit. Targeted tests cover tampering,
+channel/downgrade selection, consent, cancellation, duplicate actions, failed
+installation, IPC ownership, stale renderer snapshots and literal release notes.
+The clean npm ci completed with zero reported vulnerabilities.
+
+A full Windows NSIS candidate was built outside Git. In the packaged Electron
+runtime, the real provider reported the installed version current; an isolated
+updater instance with a simulated older currentVersion then downloaded the actual
+published 0.14.1-alpha installer (104,675,807 bytes) into a disposable cache and
+verified its signed digest. Declining the test confirmation preserved ready state;
+installation was disabled in the harness. The real Settings button separately
+passed through preload/main IPC and visibly reached "You're up to date". The first
+real request exposed GitHub's HTTP 415 for an octet-stream API Accept header; the
+provider now requests GitHub JSON for the release list and has a regression check.
+
+Evidence, fixture profile, downloaded installer and candidate stay under
+`X:/tmp/aegis-updater-*`. The fixture was quit and its temporary inspector closed.
+The Start Menu shortcut again resolved to the test executable after a candidate
+launch; it was backed up, restored to the installed app and read back. This repeats
+the earlier package-test shortcut issue; its cause remains unestablished. A helper
+cleanup expression also raised a harness-only error before being corrected to use
+process.mainModule.require; the application renderer remained healthy.
+
+No release was published and the user's installed 0.14.1-alpha was not upgraded.
+The first release carrying this feature still needs manual installation. Windows
+x64 is the supported update target; SHA-256-only cached downloads are fetched again
+after an app restart, and automatic rollback/backups are not implemented. The next
+release remains a separate user-authorized step; major dependency PRs stay deferred.

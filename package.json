@@ -75,6 +75,7 @@
       "deleteAppDataOnUninstall": false
     },
     "files": [
+      "keys/aegis-release-pubkey.pub",
       "src/**/*",
       "dist/renderer/**/*",
       "rules/**/*",
@@ -83,7 +84,14 @@
     ],
     "extraMetadata": {
       "main": "src/main/main.js"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "antropos17",
+        "repo": "Aegis"
+      }
+    ]
   },
   "repository": {
     "type": "git",
@@ -140,7 +148,9 @@
   "dependencies": {
     "ajv": "^6.14.0",
     "chokidar": "^3.6.0",
-    "js-yaml": "^5.4.1"
+    "electron-updater": "6.8.9",
+    "js-yaml": "^5.4.1",
+    "semver": "^7.7.4"
   },
   "overrides": {
     "picomatch@<=2.3.1": "^2.3.2"

@@ -242,7 +242,7 @@ Everything below is **planned**, not shipped. AEGIS today is monitor-only (see [
 - [ ] Per-process file attribution (ETW, fanotify) — static recon: [docs/recon/kernel-file-etw.md](docs/recon/kernel-file-etw.md)
 - [ ] Container/VM detection (Docker, WSL)
 - [ ] Browser extension for web-based AI agents
-- [ ] Auto-update mechanism
+- [x] Signed Windows auto-updates (implemented; first release requires a manual install)
 - [x] i18n / localization ([#53](https://github.com/antropos17/Aegis/issues/53))
 
 ## Frequently asked questions

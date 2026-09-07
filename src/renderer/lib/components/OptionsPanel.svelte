@@ -9,6 +9,7 @@
   import { isDemoMode } from '../stores/ipc.js';
   import SettingsAppearance from './SettingsAppearance.svelte';
   import SettingsMonitoring from './SettingsMonitoring.svelte';
+  import SettingsUpdates from './SettingsUpdates.svelte';
   import { t } from '../i18n/index.js';
 
   let { open = $bindable(false) } = $props();
@@ -17,6 +18,7 @@
   let localScale = $state($uiScale);
   let scanInterval = $state(10);
   let notifications = $state(true);
+  let automaticUpdatesEnabled = $state(false);
   let apiKey = $state('');
   let customPatterns = $state('');
   let ignoreBuildDirs = $state(true);
@@ -35,6 +37,7 @@
               if (!s) return;
               scanInterval = s.scanIntervalSec ?? 10;
               notifications = s.notificationsEnabled ?? true;
+              automaticUpdatesEnabled = s.automaticUpdatesEnabled === true;
               apiKey = s.anthropicApiKey ?? '';
               customPatterns = (s.customSensitivePatterns || []).join('\n');
               ignoreBuildDirs = s.ignoreCommonBuildDirs !== false;
@@ -78,6 +81,7 @@
         uiScale: localScale,
         scanIntervalSec: scanInterval,
         notificationsEnabled: notifications,
+        automaticUpdatesEnabled,
         anthropicApiKey: apiKey.trim(),
         customSensitivePatterns: patterns,
         ignoreCommonBuildDirs: ignoreBuildDirs,
@@ -131,6 +135,8 @@
         bind:ignoreBuildDirs
         bind:ignoredDirectories
       />
+
+      <SettingsUpdates bind:automaticUpdatesEnabled />
 
       <div class="config-actions">
         <button

@@ -14,6 +14,7 @@ const SETTINGS_WHITELIST = new Set([
   'customSensitivePatterns',
   'startMinimized',
   'autoStartWithWindows',
+  'automaticUpdatesEnabled',
   'anthropicApiKey',
   'darkMode',
   'uiScale',
@@ -43,6 +44,9 @@ function validateSettings(obj) {
   const unknownKeys = Object.keys(obj).filter((k) => !SETTINGS_WHITELIST.has(k));
   if (unknownKeys.length > 0) {
     return { valid: false, error: `Unknown settings keys: ${unknownKeys.join(', ')}` };
+  }
+  if ('automaticUpdatesEnabled' in obj && typeof obj.automaticUpdatesEnabled !== 'boolean') {
+    return { valid: false, error: 'automaticUpdatesEnabled must be a boolean' };
   }
   if ('scanIntervalSec' in obj) {
     if (typeof obj.scanIntervalSec !== 'number' || obj.scanIntervalSec <= 0) {
