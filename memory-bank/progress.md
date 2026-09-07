@@ -731,3 +731,17 @@ The config validates against the v17.6.0 schema; local formatting, lint (zero er
 32 existing warnings) and renderer build passed. The notes now include maintenance and
 test PRs, and old released changelog sections stay intact. See RELEASE-VERIFICATION.md.
 This preparation does not authorize merging release PR #287 or publishing a tag.
+
+## Packaged runtime assets — release smoke finding (2026-09-07)
+
+Building release PR #287 at `190036c` exposed a packaging defect: `build.files` omitted
+`rules/` and `assets/icon.png`, although the runtime resolves both under the app root.
+The produced `app.asar` had neither directory. Running the packaged executable in Node
+mode and calling its own loaders returned 0 flat rules, 0 sequence rules and no icon.
+
+The packaging allowlist now includes `rules/**/*` and `assets/icon.png`. A Windows NSIS
+rebuild from master plus this fix completed; the same packaged-runtime probe returned
+73 flat rules, 1 sequence rule, zero sequence errors and an existing icon. No dependency
+or lockfile change was needed. Formatting, lint (zero errors, 32 existing warnings) and
+renderer build passed. Rebuild the final 0.14 candidate after this fix merges; the old
+candidate is not releasable despite its green five-context CI.

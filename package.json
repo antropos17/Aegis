@@ -77,6 +77,8 @@
     "files": [
       "src/**/*",
       "dist/renderer/**/*",
+      "rules/**/*",
+      "assets/icon.png",
       "package.json"
     ],
     "extraMetadata": {
