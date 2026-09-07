@@ -656,3 +656,30 @@ AGENTS.md blob matched HEAD; the desktop change card did not represent an uncomm
 Next product work: audit-index block 2 in `docs/roadmap/audit-index.md`. On this master,
 block 1's writer and rebuild are present; `getEntriesBefore` still reads JSONL. No read-path
 completion is claimed by this entry. Issue #332 remains in the ordinary queue.
+
+## Audit index block 2 — history read path (2026-09-07, `feat/audit-index-read-path`)
+
+`getEntriesBefore` now uses the ready SQLite projection after validation and flush, with
+JSONL fallback in the same call for unavailable/building/failed state or query errors.
+`audit-index-query.js` holds bound, cached statements; raw records retain v0 normalization,
+type filtering, marker exclusion and oldest-first presentation. A failed post-write stat
+invalidates the index so a persisted record remains visible. Errors from raw JSON decoding
+are not copied into status. Exports and hash verification still read canonical JSONL.
+
+The new fallback suite has 15 cases; it passed inside the final full coverage run. Deliberate removal of fallback, JSONL filtering, timestamp ordering and post-write
+invalidation made the new suite fail, and original source bytes were restored after each.
+Full test:coverage, both typechecks, formatting, lint and renderer build passed; lint had
+existing warnings only. counts:check passes with the extracted query module included.
+
+The disposable benchmark compared both paths on 200,000 generated records, 50 calls per
+cursor/limit/filter case, with intact chains verified before injecting one malformed line.
+On Electron 43.4.1's Node 24.18.1, a middle-file page of 25 entries measured p50 13.559 ms
+for JSONL and 0.075 ms for SQLite; initial rebuild took 2,626.847 ms and a 50-entry index
+append 2.402 ms. Resume after a committed-batch interruption matched the complete rows
+and file accounting. The runtime was launched with ELECTRON_RUN_AS_NODE=1; no UI timing
+is inferred. System Node results and the storage/RSS costs are in audit-index.md §13.
+
+Timestamp order is the roadmap's chosen behavior. Clock reversals and multi-day delayed
+flushes can select a different page under the unchanged JSONL fallback, which retains
+file/line order and its D+1 bound. A failed query keeps fallback active until reinitialization.
+No workflow, dependency, IPC, renderer, identity or hash-chain format change was needed.

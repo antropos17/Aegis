@@ -270,3 +270,9 @@ truth; this table is the cross-reference.
 Deliberately absent: `hash` and `prev_hash` (§6 lists both as carried, not mapped). The chain is
 verified against the file by `verifyChain`, never against the index — `tests/main/audit-index.test.js`
 pins the absence through `PRAGMA table_info`.
+
+History reads now use `audit-index-query.js` through `audit-logger.getEntriesBefore`.
+The SQL query excludes loss markers, binds type filters, and normalizes the selected raw
+records. An explicit empty-string type filter checks the raw JSON type as well: the
+projection uses an empty string for absent types, which must remain distinguishable.
+Exports and chain verification continue to read JSONL.

@@ -40,6 +40,7 @@ export default defineConfig({
         'src/main/logger.js',
         'src/main/audit-logger.js',
         'src/main/audit-index.js',
+        'src/main/audit-index-query.js',
         'src/main/audit-index-rebuild.js',
         'src/main/config-manager.js',
         'src/main/baselines.js',

@@ -1,10 +1,10 @@
 # Audit index — a rebuildable SQLite projection over the hash-chained JSONL
 
-**Status (as of 2026-08-25): block 1 BUILT — the engine gate, the schema, the writer that projects
-JSONL lines into the index at flush time, and the rebuild-from-JSONL path, on
-`feat/audit-index-block-1` (§12 records what landed, where it deviates from §3, and the PR).
-Block 2 — the read path, `getEntriesBefore` dispatch, the fallback suite, the bench — is NOT
-started; §3.3, §5, §6, §8 tests 3/4/9 and M1/M4/M5 describe it.** Before block 1: UNBLOCKED —
+**Status (2026-09-07): blocks 1 and 2 are built.** The writer and rebuild landed in
+PR #337; the ready-index history query, JSONL fallback, integration suite and disposable
+benchmark are recorded in §13. §12 preserves the block-1 implementation record.
+
+**Historical runtime decision.** Before block 1: UNBLOCKED —
 Electron 43.4.1 (Node 24.18.1, `node:sqlite` Stability 1.2) merged to master on 2026-08-25 in #334.
 The record of the block, as it was written: the engine this plan chooses is
 `node:sqlite`, and the Node that ships inside the pinned Electron does not have it: `electron@33.4.11`
@@ -203,8 +203,7 @@ CREATE INDEX audit_events_entity   ON audit_events(process_entity_id, timestamp)
   recorded"), a v1 record's is in `raw`.
 - **The answer is `normalizeAuditEntry(JSON.parse(raw))`** — the same object the JSONL path returns,
   by construction; the typed columns exist for WHERE and ORDER only.
-- **Order of results:** `ORDER BY timestamp DESC, file DESC, line_no DESC LIMIT ?` — a seek on
-  `audit_events_ts`, O(limit). Ordering by `timestamp` rather than file-then-line is what makes the
+- **Order of results:** `ORDER BY timestamp DESC, file DESC, line_no DESC LIMIT ?` — a bounded query using the timestamp indexes. Ordering by `timestamp` rather than file-then-line is what makes the
   rollover straddle a non-event for the index: entries logged before midnight and flushed after it
   sit in the file of day D+1, and the index finds them by timestamp alone. Since 2026-08-25 the
   JSONL path finds them too (the D+1 file rule, §11), so the two paths AGREE on this case — test 9
@@ -225,7 +224,7 @@ filter** (one clause beside the marker exclusion), so behaviour does not depend 
 exists — the index's `queryBefore(beforeTs, limit, types)` must answer the SAME set, which is test 4.
 
 What the renderer gains from the index on top of that: for a cursor deep inside a large daily file,
-an O(limit) seek instead of a reverse read of the file's tail with `JSON.parse` on every line — and no
+an indexed seek instead of a reverse read of the file's tail with `JSON.parse` on every line — and no
 extra read of the D+1 file (§11). `flush()` before the read stays, so buffered entries remain visible
 (`tests/main/audit-logger.test.js`, "still flushes buffered entries into view on a valid read").
 
@@ -504,3 +503,57 @@ DDL, the insert list and the JSDoc house style; with `audit-index-rebuild.js` (~
 The cut line named at the go — the resume path — was not taken: the overrun is SQL text and
 comments, not logic, and the resume path is what keeps the current day file from being re-read in
 full on every start.
+
+
+## 13. Block 2 — history reads through the index (2026-09-07)
+
+`audit-index-query.js` owns prepared history statements, cached per connection and filter
+length. Cursors, limits and type names are bound parameters. `audit-index.js` exposes a
+constant-time readiness check and the query boundary; `audit-logger.getEntriesBefore`
+validates inputs and flushes first, then tries the ready index. An unavailable, building,
+closed or failed index uses the existing JSONL reader in the same call. A query/decoding
+failure closes the index and publishes a generic error without raw audit contents; the
+next initialization reconciles it again. A failed post-write stat now invalidates the
+projection too, so a newly persisted record cannot be hidden behind a stale ready flag.
+
+Returned objects come from `normalizeAuditEntry(JSON.parse(raw))`. Loss markers are
+excluded even when named in a filter; absent types remain distinct from an explicit
+empty-string filter. The selected page is reversed for the existing oldest-first IPC
+contract. No renderer or IPC change was needed. Exports and chain verification keep their
+JSONL inputs, and neither the schema nor the JSONL writer format changed.
+
+The SQL query orders by timestamp with file and line ordinal as tie breakers. The fallback
+retains file/line order and its D+1 file bound. Clock reversals or records flushed several
+days late can therefore select a different page while the fallback is active; ordinary
+chronological records and the midnight straddle agree. This preserves the timestamp
+choice in §10 question 3 without rewriting the fallback's behavior.
+
+`tests/main/audit-index-fallback.test.js` exercises real log/flush traffic, v0 normalization,
+malformed lines, markers, filter/limit validation, injection-shaped type names, cursor
+exclusion, the midnight straddle, clock steps, every unavailable state, corrupt/missing
+startup files, actual SQL/JSON decoding failures, live append and continuity rebuilding.
+The healthy-page test asserts no JSONL file opens. The query helper is in coverage.include.
+
+`node scripts/bench-audit-index.mjs` generates disposable chained daily files, verifies the
+chains before adding a deliberate malformed line, compares both query paths on every
+cursor/limit/filter combination, and records p50/p95, rebuild/resume, memory, append cost
+and storage. Resume is interrupted after a committed batch and compared with full rows
+and accounting. The fixture and output are not committed. Timing is reported without a
+CI threshold. `--rows=` and `--samples=` allow a smaller diagnostic run.
+
+Measured on this Windows host with 200,000 generated records and 50 samples per case.
+Electron was run with `ELECTRON_RUN_AS_NODE=1`; these are runtime measurements,
+not a packaged-app UI measurement. Values below are milliseconds.
+
+| Runtime | Middle / 25 / unfiltered p50 JSONL | p50 SQLite | Rebuild | Resume | Append 50 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Node 24.11.1 | 16.891 | 0.050 | 5218.753 | 3997.521 | 2.676 |
+| Electron 43.4.1 / Node 24.18.1 | 13.559 | 0.075 | 2626.847 | 2590.455 | 2.402 |
+
+Generated JSONL: 63,955,157 bytes; checkpointed index after the append: 154,636,288 bytes. Peak RSS sampled during the first rebuild was 293,384,192 bytes on system Node and 177,606,656 bytes on Electron. The full case table is recorded in the PR body.
+
+Mutation checks ran against the native modules the integration suite loads: M1 removed
+the readiness/fallback boundary (11 failures), M4 removed the JSONL types clause (3),
+M5 replaced timestamp order with file/line order (1), and the additional post-write-stat
+mutation removed failed-state invalidation (1). Each source file was restored byte for
+byte after its run. No new CI context or mutation script was added.

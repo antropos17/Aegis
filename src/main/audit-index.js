@@ -30,6 +30,7 @@ const path = require('path');
 const logger = require('./logger');
 const { normalizeAuditEntry } = require('./audit-normalize');
 const { normalizeToEcs } = require('../shared/ecs-normalizer');
+const historyQuery = require('./audit-index-query');
 
 /**
  * Schema version stored in `PRAGMA user_version`. NOT the record's `SCHEMA_VERSION` in
@@ -440,6 +441,32 @@ function forget(file) {
   return true;
 }
 
+/** @returns {boolean} Whether history can use the projection. @since v0.14.0 */
+function isReady() {
+  return _state === 'ready' && _db !== null;
+}
+
+/**
+ * Query the ready index; an error closes it so subsequent reads use JSONL.
+ * @param {string} beforeTs
+ * @param {number} limit
+ * @param {Set<string>|null} types
+ * @returns {Object[]} normalized history, oldest first
+ * @throws when unavailable or the query fails; the caller falls back in the same call
+ * @since v0.14.0
+ */
+function queryBefore(beforeTs, limit, types) {
+  if (!isReady()) throw new Error('audit-index: history is not ready');
+  try {
+    return historyQuery.queryBefore(_db, beforeTs, limit, types);
+  } catch (_) {
+    // JSON.parse errors can quote raw audit data. Do not publish them in status/logs.
+    const error = new Error('audit-index: history query failed; using JSONL');
+    _fail(error);
+    throw error;
+  }
+}
+
 /**
  * Every `audit_files` row, for the reconcile.
  * @returns {Array<{file: string, file_date: string, indexed_bytes: number, indexed_lines: number,
@@ -517,6 +544,8 @@ module.exports = {
   open,
   close,
   append,
+  isReady,
+  queryBefore,
   writeBatch,
   forget,
   files,
