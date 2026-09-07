@@ -7,7 +7,8 @@
           {
             "type": "command",
             "command": "node -e \"const cp=require('child_process');const root=cp.execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8'}).trim();const r=cp.spawnSync(process.execPath,[require('path').join(root,'.codex/hooks/branch-guard.js')],{stdio:'inherit'});process.exit(r.status===null?1:r.status);\"",
-            "timeout": 5
+            "timeout": 5,
+            "commandWindows": "node -e \"const cp=require('child_process');const root=cp.execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8'}).trim();const r=cp.spawnSync(process.execPath,[require('path').join(root,'.codex/hooks/branch-guard.js')],{stdio:'inherit'});process.exit(r.status===null?1:r.status);\"; exit $LASTEXITCODE"
           }
         ]
       }
