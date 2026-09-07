@@ -42,6 +42,7 @@ const config = require('./config-manager');
 const logger = require('./logger');
 const tray = require('./tray-icon');
 const ipc = require('./ipc-handlers');
+let updates;
 const { createBatcher } = require('./ipc-batcher');
 // Pure domain modules — no I/O, no Electron, no timers — so they cost nothing to load
 // on the fast path to a visible window. `file-access-batching` must be here rather than
@@ -791,6 +792,34 @@ app.whenReady().then(() => {
   logger.init({ userDataPath: userData, isDev: !app.isPackaged });
   logger.info('main', 'App starting', { version: app.getVersion(), platform: process.platform });
   config.loadSettings();
+  updates = require('./app-updates').createUpdateManager({
+    supported: app.isPackaged && process.platform === 'win32' && process.arch === 'x64',
+    getSettings: config.getSettings,
+    onChange: (state) => sendToRenderer('updates:status', state),
+    createUpdater: () => {
+      const { NsisUpdater } = require('electron-updater');
+      const { SignedReleaseProvider } = require('./update-provider');
+      return new NsisUpdater({ provider: 'custom', updateProvider: SignedReleaseProvider });
+    },
+    confirmInstall: async (version) => {
+      if (!mainWindow || mainWindow.isDestroyed()) return false;
+      const { response } = await require('electron').dialog.showMessageBox(mainWindow, {
+        type: 'question',
+        title: 'Update AEGIS',
+        message: `Install AEGIS ${version} and restart?`,
+        detail:
+          'Monitoring will pause while the update is installed. Your settings and history will be kept.',
+        buttons: ['Restart and install', 'Later'],
+        defaultId: 1,
+        cancelId: 1,
+      });
+      return response === 0;
+    },
+    prepareQuit: (value = true) => {
+      isQuitting = value;
+    },
+  });
+  updates.schedule();
   tray.init({
     tray: null,
     currentTrayColor: 'green',
@@ -846,6 +875,7 @@ app.whenReady().then(() => {
     },
   });
   ipc.init({
+    updates,
     getWindow: () => mainWindow,
     getStats,
     getResourceUsage,
@@ -870,6 +900,7 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+  updates?.dispose();
   if (oomIntervalId) {
     clearInterval(oomIntervalId);
     oomIntervalId = null;

@@ -65,6 +65,7 @@ const DEFAULT_SETTINGS = {
   customSensitivePatterns: [],
   startMinimized: false,
   autoStartWithWindows: false,
+  automaticUpdatesEnabled: false,
   anthropicApiKey: '',
   darkMode: false,
   uiScale: 1,

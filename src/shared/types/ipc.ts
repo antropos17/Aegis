@@ -6,6 +6,10 @@
 
 /** IPC invoke channel names (renderer -> main, request-response) */
 export type IpcInvokeChannel =
+  | 'updates:status'
+  | 'updates:check'
+  | 'updates:download'
+  | 'updates:install'
   | 'get-stats'
   | 'get-resource-usage'
   | 'export-log'
@@ -50,6 +54,7 @@ export type IpcInvokeChannel =
  * rather than as proof the channel does not exist.
  */
 export type IpcEventChannel =
+  | 'updates:status'
   | 'file-access'
   | 'stats-update'
   | 'network-update'
@@ -73,4 +78,22 @@ export interface IpcResult {
   readonly error?: string;
   readonly path?: string;
   readonly count?: number;
+}
+
+/** Public updater state. Executable paths and network options never reach the renderer. */
+export interface UpdateStatus {
+  readonly status:
+    | 'idle'
+    | 'unsupported'
+    | 'checking'
+    | 'up-to-date'
+    | 'available'
+    | 'downloading'
+    | 'ready'
+    | 'installing'
+    | 'error';
+  readonly version: string | null;
+  readonly notes: string;
+  readonly progress: number;
+  readonly error: string | null;
 }

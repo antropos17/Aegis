@@ -1,5 +1,7 @@
 <script>
   import Header from './lib/components/Header.svelte';
+  import UpdateNotice from './lib/components/UpdateNotice.svelte';
+  import { connectUpdates } from './lib/stores/updates';
   import Footer from './lib/components/Footer.svelte';
   import TabBar from './lib/components/TabBar.svelte';
   import ShieldTab from './lib/components/ShieldTab.svelte';
@@ -42,6 +44,7 @@
   let prevTab = $state('shield');
   let slideDir = $state(1);
   let optionsOpen = $state(false);
+  $effect(() => connectUpdates());
 
   $effect(() => {
     if (activeTab !== prevTab) {
@@ -300,6 +303,11 @@
 </script>
 
 <Header bind:optionsOpen />
+<UpdateNotice
+  onOpen={() => {
+    optionsOpen = true;
+  }}
+/>
 
 <div class="app-shell">
   {#if liveDataUnavailable}

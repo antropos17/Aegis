@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import { writable, derived } from 'svelte/store';
 import type { Readable, Writable } from 'svelte/store';
+import type { UpdateStatus } from '../../../shared/types/ipc';
 import { isDemoPayload } from './demo-provenance.js';
 import { appendWithRetention, fileEventRetain, EVENTS_CAPACITY } from './events-retention.js';
 import type {
@@ -133,6 +134,11 @@ interface AgentResourceRecord {
 
 /** Minimal type for the window.aegis IPC bridge exposed by preload.js */
 interface AegisIpcBridge {
+  getUpdateStatus(): Promise<UpdateStatus>;
+  checkForUpdates(): Promise<UpdateStatus>;
+  downloadUpdate(): Promise<UpdateStatus>;
+  installUpdate(): Promise<UpdateStatus>;
+  onUpdateStatus(cb: (status: UpdateStatus) => void): () => void;
   onScanBatch(cb: (data: ScanBatchData) => void): void;
   onFileAccess(cb: (data: FileEvent | FileEvent[]) => void): void;
   onStatsUpdate(cb: (data: Record<string, unknown>) => void): void;

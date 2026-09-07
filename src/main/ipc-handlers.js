@@ -45,6 +45,23 @@ function init(injected) {
 
 /** @returns {void} @since v0.1.0 */
 function register() {
+  // Only the owned top-level renderer may request an update operation. No URLs,
+  // file paths, versions, command arguments or updater options cross this boundary.
+  const updateAction = (event, action) => {
+    const window = deps.getWindow?.();
+    if (
+      !window ||
+      window.isDestroyed() ||
+      event.sender !== window.webContents ||
+      event.senderFrame !== window.webContents.mainFrame
+    )
+      throw new Error('Update request denied');
+    return deps.updates[action]();
+  };
+  ipcMain.handle('updates:status', (event) => updateAction(event, 'snapshot'));
+  ipcMain.handle('updates:check', (event) => updateAction(event, 'check'));
+  ipcMain.handle('updates:download', (event) => updateAction(event, 'download'));
+  ipcMain.handle('updates:install', (event) => updateAction(event, 'install'));
   ipcMain.handle('get-stats', () => deps.getStats());
   ipcMain.handle('get-resource-usage', () => deps.getResourceUsage());
   ipcMain.handle('export-log', async () => {
@@ -84,6 +101,7 @@ function register() {
     }
     config.saveSettings(newSettings);
     config.applySettings();
+    deps.updates?.preferencesChanged();
     return { success: true };
   });
 
@@ -328,6 +346,7 @@ ${findingsHtml}${recsHtml}
       }
       config.saveSettings(raw);
       config.applySettings();
+      deps.updates?.preferencesChanged();
       return { success: true };
     } catch (e) {
       return { success: false, error: e.message };

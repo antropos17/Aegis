@@ -42,7 +42,7 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 │  └───────────────┬──────────────┘     └──────────────┬───────────────┘  │
 │                  │          preload.js                │                  │
 │                  └─────── (IPC bridge) ───────────────┘                  │
-│              contextBridge API (49 channels: 40 invoke + 9 push)        │
+│              contextBridge API (54 channels: 44 invoke + 10 push)        │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -304,12 +304,44 @@ caller:
 - `file-watcher.js` — chokidar is cross-platform; only open-handle detection is
   platform-specific
 
+## Application Updates
+
+Installed Windows x64 builds use `electron-updater` 6.8.9 with
+`update-provider.js`, a custom provider for the existing `aegis-v` release tags and
+signed manifests. Automatic checks and downloads default to off. With the saved
+`automaticUpdatesEnabled` preference enabled, the first check runs after 30 seconds
+and subsequent checks run every six hours. Settings also provides manual check and
+download actions; the dashboard links to release notes and installation controls.
+
+The provider requests only public GitHub release metadata and assets for
+`antropos17/Aegis`, without account credentials or monitoring data. It verifies the
+raw manifest's Ed25519 signature against the public key bundled inside app.asar,
+then binds the version, repository, installer size and SHA-256. Installer bytes are
+checked after download and again after native restart confirmation. Stable versions
+stay on the stable channel; alpha versions can advance to alpha or stable. Lower
+versions are never selected. Release notes are untrusted plain text.
+
+`app-updates.js` owns the lifecycle. Four argument-free IPC operations are restricted
+to the application's own top-level renderer; one push carries safe display state.
+No file path, URL or updater options are accepted from the renderer. Closing AEGIS
+does not install an update. Installation uses the per-user NSIS upgrade and requires
+the native Restart/Later confirmation. Existing settings and history are retained
+by the installer configuration; there is no automatic rollback or backup.
+
+The existing SHA-256 manifests work without publishing updater YAML feeds. The NSIS
+build still bundles electron-builder's `app-update.yml` for cache configuration.
+The downloader cannot reuse a SHA-256-only cached file across application restarts,
+so a later session downloads it again. macOS, Linux and development builds expose
+an unsupported state. Published 0.14.1-alpha predates this feature: the first version
+containing the updater must be installed manually.
+
 ## Privacy Architecture
 
 AEGIS is designed with privacy as a core architectural constraint:
 
 - **All data stays local.** Settings, baselines, and audit logs are stored in Electron's userData directory. Nothing leaves the machine unless the user explicitly exports it.
-- **No telemetry.** AEGIS does not phone home. No analytics, no crash reporting, no usage tracking.
+- **No telemetry.** No analytics, no crash reporting, no usage tracking.
+- **Updates are opt-in.** Manual update actions or the saved automatic-update preference contact GitHub for public release files. These requests expose the normal network address to GitHub but do not send monitoring records, settings or API keys.
 - **No cloud sync.** There is no account system, no server, no cloud backend.
 - **AI analysis is opt-in.** Calls to the Anthropic API happen only when the user explicitly clicks "Run AI Threat Analysis." The API key is user-provided and stored locally.
 - **Audit logs are metadata-only.** File paths and agent names are logged. File contents are never read, stored, or transmitted.

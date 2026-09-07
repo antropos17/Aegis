@@ -31,6 +31,11 @@ afterAll(() => {
 const { validateSettings } = require(settingsValidationPath);
 
 describe('settings-validation — validateSettings reject branches', () => {
+  it('accepts explicit boolean update consent and rejects truthy strings', () => {
+    expect(validateSettings({ automaticUpdatesEnabled: true }).valid).toBe(true);
+    expect(validateSettings({ automaticUpdatesEnabled: false }).valid).toBe(true);
+    expect(validateSettings({ automaticUpdatesEnabled: 'true' }).valid).toBe(false);
+  });
   it('rejects null (not a plain object)', () => {
     expect(validateSettings(null)).toEqual({
       valid: false,

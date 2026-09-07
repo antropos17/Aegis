@@ -68,16 +68,18 @@ AEGIS follows Electron security best practices:
 
 - **Context isolation:** Enabled. The renderer process cannot access Node.js APIs.
 - **Node integration:** Disabled in the renderer.
-- **Preload bridge:** All IPC passes through `contextBridge.exposeInMainWorld` with a defined, enumerated API surface (49 channels: 40 invoke + 9 push). No arbitrary IPC.
+- **Preload bridge:** All IPC passes through `contextBridge.exposeInMainWorld` with a defined, enumerated API surface (54 channels: 44 invoke + 10 push). No arbitrary IPC.
 - **Content Security Policy:** Strict `default-src 'self'` policy, no external font loading.
 - **No remote content:** The app loads only local files. No external URLs in the renderer.
 - **Input sanitization:** All user-visible strings pass through `escapeHtml()` before DOM insertion. Template literals are used for HTML generation, not `innerHTML` with raw strings.
 - **Single-instance lock:** Only one AEGIS instance runs at a time, preventing IPC interception.
+- **Application updates:** Windows installer metadata requires an Ed25519 signature from the bundled release public key. SHA-256 and byte length are checked after download and again after native installation confirmation. This authenticates release artifacts independently of Windows Authenticode. Update IPC rejects foreign senders and subframes and accepts no paths or URLs. See [update architecture](ARCHITECTURE.md#application-updates) for supported builds and limitations.
 
 ### Privacy Architecture
 
 - **All data stays local.** No telemetry, no cloud sync, no analytics, no tracking.
 - **AI analysis is opt-in.** API calls to Anthropic only happen when the user explicitly clicks "Run AI Threat Analysis." No background API calls.
+- **Update requests are opt-in.** Automatic checks/downloads default to off; manual actions contact public GitHub releases. These requests send no monitoring records, settings or API keys. Installation always requires native confirmation.
 - **Audit logs contain metadata, not content.** File paths and agent names are logged, but file contents are never read or stored.
 - **API key is stored locally** in Electron's userData directory, encrypted via Electron safeStorage (added v0.9.0).
 
