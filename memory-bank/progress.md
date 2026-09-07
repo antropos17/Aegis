@@ -822,3 +822,24 @@ screen captures were black, so appearance remains visually unverified; navigatio
 content checks used accessibility. The installed app remains open. The next focused
 follow-up is to reproduce and measure the first-launch delay using a disposable profile
 with synthetic retained history. This result does not authorize a new release.
+
+## Session handoff — startup pause diagnosis (2026-09-07)
+
+The startup investigation reproduced 1.1–2.0 s main-thread heartbeat gaps in the
+published executable, with both empty and synthetic-history profiles. CPU profiling
+points to chokidar's native `fs.watch` registration; an existing-index run created
+4,812 subscriptions with 2.23 s cumulative synchronous registration time. Isolated
+audit initialization for 11,000 synthetic records reached index `ready` in 162 ms.
+The longer installation-smoke episode was not reproduced in full and remains open.
+
+`scripts/bench-watch-startup.js` now provides a disposable 3,000-file registration
+comparison. Three pairs measured 971–1,415 ms gaps on the main thread and 16–25 ms
+with registration in a worker, with identical 3,031-entry watch inventories. This
+prototype measures responsiveness only; it does not replace production watchers.
+See `docs/current-state/WINDOWS-STARTUP.md` for methods, limits and the next change.
+
+Next: move chokidar into a worker while preserving root readiness/error semantics,
+generation isolation, shutdown, and bounded event delivery with explicit loss
+reporting. No production source, dependency, installed app or release was changed
+by this investigation. The local probes used disposable profiles and synthetic
+history. A release of any subsequent fix still requires explicit authorization.
