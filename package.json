@@ -120,7 +120,7 @@
     "@types/node": "^25.3.3",
     "@typescript-eslint/eslint-plugin": "^8.69.0",
     "@typescript-eslint/parser": "^8.56.1",
-    "@vitest/coverage-v8": "^4.0.18",
+    "@vitest/coverage-v8": "^4.1.11",
     "electron": "^43.4.1",
     "electron-builder": "^26.15.3",
     "eslint-plugin-svelte": "^3.23.0",
@@ -134,8 +134,8 @@
     "svelte": "^5.57.0",
     "svelte-check": "^4.7.6",
     "typescript": "^5.9.3",
-    "vite": "^7.3.1",
-    "vitest": "^4.0.18"
+    "vite": "^7.3.6",
+    "vitest": "^4.1.11"
   },
   "dependencies": {
     "ajv": "^6.14.0",
