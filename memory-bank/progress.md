@@ -792,3 +792,33 @@ The pre-existing optional fdir/picomatch peer mismatch in svelte-check remains v
 to npm ls; npm ci and typecheck:svelte pass. Major upgrade PRs #352/#353 need coordinated
 Vitest/coverage changes; #354 needs a compatible Svelte Vite plugin. They remain open.
 Release PR #358 is automatic preparation for 0.14.1-alpha; no new release is authorized.
+
+## Session handoff — installed Windows upgrade smoke (2026-09-07)
+
+The published 0.14.0-alpha NSIS installer passed `scripts/release-verify.js` against
+the signed release manifest, then upgraded an existing per-user 0.2.0-alpha install.
+Before installation, the stopped application's profile (1,402 files) and installation
+(75 files) were copied to `X:/tmp/aegis-install-check-20260907/`; every copied file's
+SHA-256 matched its source. These private backups must stay outside Git.
+
+Windows now registers 0.14.0-alpha. The normal installer launch reused the existing
+profile. Settings values survived unchanged, the SQLite index reached `ready` without
+malformed lines, and Reports / Audit Log displayed the existing history. Seven retained
+daily audit files matched their backups byte-for-byte. The normal 30-day retention
+removed the August 7 and 8 logs; their originals remain in the backup.
+
+Closing the window hid it in the tray. Launching the installed executable restored the
+same main process. After a graceful `app.quit()` through the diagnostic connection,
+a normal executable launch created a new process and displayed a working Shield tab
+with live agents. The diagnostic listener did not survive that restart. Final observed
+sensor degradation was WSL enumeration (`exit4294967295`); file watchers and process
+observation were healthy. No application source or dependency change was needed.
+
+Limits: the initial launch temporarily reported an unresponsive window and exposed no
+accessibility tree; it recovered without a restart, and the cause was not established.
+The next process launch exposed the populated interface at its first observation
+(about nine seconds after process creation). This is not a startup benchmark. Windows
+screen captures were black, so appearance remains visually unverified; navigation and
+content checks used accessibility. The installed app remains open. The next focused
+follow-up is to reproduce and measure the first-launch delay using a disposable profile
+with synthetic retained history. This result does not authorize a new release.
