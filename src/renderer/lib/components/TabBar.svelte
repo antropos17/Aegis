@@ -56,10 +56,11 @@
       role="tab"
       aria-selected={activeTab === tab.id}
       aria-controls="tabpanel-{tab.id}"
-      aria-keyshortcuts={String(i + 1)}
+      aria-keyshortcuts={`${i + 1} Control+${i + 1}`}
       onclick={() => (activeTab = tab.id)}
     >
       {tab.label}
+      <kbd class="shortcut-hint" aria-hidden="true">Ctrl+{i + 1}</kbd>
     </button>
   {/each}
 </div>
@@ -100,6 +101,10 @@
   }
 
   .tab-pill {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--aegis-space-2);
     position: relative;
     z-index: 1;
     padding: var(--aegis-space-4) var(--aegis-space-9);
@@ -118,6 +123,14 @@
 
   .tab-pill:hover {
     color: var(--md-sys-color-on-surface);
+  }
+
+  .shortcut-hint {
+    color: inherit;
+    font-family: var(--fancy-font-mono);
+    font-size: calc(0.6875rem * var(--aegis-ui-scale));
+    font-weight: 400;
+    line-height: 1.2;
   }
 
   .tab-pill.active {
