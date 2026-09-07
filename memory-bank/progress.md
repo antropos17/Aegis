@@ -5,6 +5,9 @@ The current version lives in `package.json` (`node -p "require('./package.json')
 Agent, signature, rule and module counts are derived from the tree by `scripts/counts.js` (`npm run counts:check`), not pinned here.
 Entries in this file are appended chronologically, newest at the bottom.
 
+Latest handoff: see "Session handoff — 2026-09-07" at the end. Audit-index blocks 1 and 2
+are merged; the earlier entry naming block 2 as next work is historical.
+
 ## feat/identity-main — identity migration (branch `feat/identity-main`)
 **Steps 1–5 + 7 of `docs/current-state/IDENTITY-RECON.md` §6 (main stamp/carry + renderer correlation including anomaly).** Every identity value the main process emits is an OS-grounded instance key, or an honest `null`.
 
@@ -683,3 +686,24 @@ Timestamp order is the roadmap's chosen behavior. Clock reversals and multi-day 
 flushes can select a different page under the unchanged JSONL fallback, which retains
 file/line order and its D+1 bound. A failed query keeps fallback active until reinitialization.
 No workflow, dependency, IPC, renderer, identity or hash-chain format change was needed.
+
+## Session handoff — 2026-09-07
+
+PR #346 merged the migration record and PowerShell lesson 46 at
+`b80b79e88b232970d7df27c12ef491791ba3ba9f`. PR #347 merged audit-index block 2 at
+`17bb68da896c695fb2bb5038a9964c3fa33a14c8`. All five required CI contexts passed;
+the feature branches were deleted and master was clean after the product merge.
+
+The implementation, 15 integration cases, four mutation checks, measured benchmark and
+fallback limitations are recorded immediately above and in `docs/roadmap/audit-index.md`
+section 13. The full timing table is in PR #347. Blocks 1 and 2 are complete; no additional
+harness smoke or repeat implementation is pending. JSONL remains canonical, and clock
+reversals or multi-day delayed writes can produce different pages during fallback.
+
+Next work has not been selected. Issue #332 is still open: save dialogs with a bare
+defaultPath resolve against process.cwd() instead of Downloads. It remains in the queue;
+this handoff does not start that fix. The user is moving to a new project chat.
+
+For Windows shell work, lesson 46 in `memory-bank/ai-mistakes.md` records explicit native
+exit-code propagation with `exit $LASTEXITCODE`. Multiline gh bodies use a UTF-8 file and
+`--body-file`; Git Bash is not required. AGENTS.md remains the canonical project guidance.
