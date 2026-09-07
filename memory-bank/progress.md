@@ -763,3 +763,32 @@ skipped); format, lint, typecheck, counts and renderer build passed. A rebuilt, 
 packaged app then reported three ready user watch groups, `project-dir` absent, SQLite
 `ready`, and no unhandled errors in its captured startup stderr. The final 0.14 candidate
 must include this fix and be rebuilt before release approval.
+
+## Session handoff — release and development dependency audit (2026-09-07)
+
+Release PR #287 merged at `5240885`; `aegis-v0.14.0-alpha` is published as a prerelease.
+The downloaded Windows installer matched its signed Ed25519 manifest, including SHA-256
+and byte length. PRs #350 and #351 then merged at `207bcb5` and `9ef6ea5`: minor/patch
+updates and lint-staged 17.4.1. Their five CI contexts passed. The packaged rule loaders
+and a disposable Git partial-staging exercise passed during that review.
+
+The remaining full-tree npm audit findings were all in development dependencies: 11
+findings (including inherited coverage-v8 severity), while the production-only audit
+was already clear. Targeted updates keep Vite on 7.3.6 and Vitest/coverage-v8 together on
+4.1.11, and refresh the affected transitive packages within their dependency ranges.
+The three direct version floors are raised in package.json. Production package versions
+are unchanged. No force resolution, new override, workflow or application source change
+was needed; package-lock.json was updated in place.
+
+Local validation: npm ci and full npm audit passed with zero vulnerabilities; formatting,
+both typechecks, renderer build, lint (32 existing warnings), counts and both mutation
+gates passed. Coverage ran 143 files: 2,627 passed, 4 skipped. A disposable Windows Vite
+server refused four requests for a synthetic .env fixture (plain path, case variant,
+raw/import queries, all HTTP 403) and served a public control (HTTP 200). This is a
+focused smoke, not a claim to have reproduced every upstream advisory. The security
+finding closure is the removal of affected versions confirmed by npm audit.
+
+The pre-existing optional fdir/picomatch peer mismatch in svelte-check remains visible
+to npm ls; npm ci and typecheck:svelte pass. Major upgrade PRs #352/#353 need coordinated
+Vitest/coverage changes; #354 needs a compatible Svelte Vite plugin. They remain open.
+Release PR #358 is automatic preparation for 0.14.1-alpha; no new release is authorized.
