@@ -301,11 +301,12 @@ async function getParentChains(pids, opts = {}) {
  * @param {Array} agents
  * @param {boolean} forceRefresh - rebuild every chain from this map regardless of
  *   what the cache holds.
+ * @param {Map} [observedMap] - fresh population observation from this same scan.
  * @returns {Promise<void>}
  * @since v0.12.0
  */
-async function _stampFromFreshBirthTimes(agents, forceRefresh) {
-  const procMap = await _getParentProcessMap();
+async function _stampFromFreshBirthTimes(agents, forceRefresh, observedMap) {
+  const procMap = observedMap instanceof Map ? observedMap : await _getParentProcessMap();
   const now = Date.now();
   _pruneStale(parentChainCache, PARENT_CHAIN_TTL, now);
 
@@ -431,13 +432,14 @@ async function _stampFromCachedChains(agents, forceRefresh) {
  * @param {boolean} [opts.forceRefresh=false] - rebuild every parent chain from the
  *   observed map instead of trusting cached entries. The identity stamp no longer
  *   depends on it: the birth time is re-observed on every pass either way.
+ * @param {Map} [opts.processMap] - this pass's population observation, never a cached map.
  * @returns {Promise<void>}
  * @since v0.1.0
  */
 async function enrichWithParentChains(agents, opts = {}) {
   if (agents.length === 0) return;
   const forceRefresh = opts.forceRefresh === true;
-  if (_providesStartTime) await _stampFromFreshBirthTimes(agents, forceRefresh);
+  if (_providesStartTime) await _stampFromFreshBirthTimes(agents, forceRefresh, opts.processMap);
   else await _stampFromCachedChains(agents, forceRefresh);
   for (const a of agents) {
     const identity = identify(a);

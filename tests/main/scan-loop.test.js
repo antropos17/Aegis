@@ -946,12 +946,12 @@ describe('scan-loop', () => {
 
   describe('annotateWorkingDirs forceRefresh wiring', () => {
     /** @param {boolean} changed @returns {Promise<Object>} the procUtil mock after one scan */
-    async function scanWithChanged(changed) {
+    async function scanWithChanged(changed, processMap) {
       const mockDeps = makeDeps({
         scanner: {
           scanProcesses: vi
             .fn()
-            .mockResolvedValue({ agents: [{ agent: 'Cursor', pid: 300 }], changed }),
+            .mockResolvedValue({ agents: [{ agent: 'Cursor', pid: 300 }], changed, processMap }),
         },
       });
       scanLoop.init(mockDeps);
@@ -969,6 +969,12 @@ describe('scan-loop', () => {
       expect(procUtil.enrichWithParentChains).toHaveBeenCalledWith(expect.any(Array), {
         forceRefresh: true,
       });
+    });
+
+    it('passes the exact population observation through to identity enrichment', async () => {
+      const processMap = new Map([[300, { name: 'cursor.exe', startTime: 1000 }]]);
+      const procUtil = await scanWithChanged(false, processMap);
+      expect(procUtil.enrichWithParentChains.mock.calls[0][1].processMap).toBe(processMap);
     });
 
     it('passes forceRefresh false on an unchanged pid set, so the cache still serves', async () => {

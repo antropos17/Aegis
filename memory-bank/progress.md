@@ -1094,3 +1094,25 @@ freshness metadata. Targeted WSL, health and scan-loop tests passed (115 tests).
 
 Remaining authorized audit work: one Windows process observation per scan,
 background/streaming full exports, and bounded lifecycle of baseline instance data.
+
+## Session handoff — shared Windows process observation (2026-09-07)
+
+`codex/shared-process-observation` requests a fresh Windows process map in the
+scanner and passes that same map to identity enrichment. Healthy named snapshots
+supply population too, avoiding tasklist. Empty/nameless maps retain the tasklist
+population fallback, while even an empty map is passed through so enrichment cannot
+make a second observation. No map or birth time is stored across passes. Direct
+scanner callers and platforms without birth-time support keep the previous path.
+
+Tests cover same-name PID reuse inside the cache TTL, outage/recovery without
+session splits, every configured signature's parity, fallback and scan-loop wiring.
+The umbrella harness now supplies its simulated snapshot at the new observation
+boundary. Full coverage and both mutation gates passed, alongside build, formatting,
+lint, typecheck and counts. Six interleaved native Windows comparisons found 13
+agents in both paths: population plus identity took 388–491 ms on the old path and
+6.4–9.1 ms on the shared path (warm class5 snapshots). This excludes cwd, file/network
+scans and UI work; it is not an application-wide speedup claim. Samples are in
+`X:/tmp/aegis-core-audit-20260907/shared-snapshot-bench.json`.
+
+Remaining authorized audit work: streaming/background full exports and baseline
+instance lifecycle. Frontend and releases remain outside this work.

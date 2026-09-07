@@ -503,7 +503,14 @@ export function createHarness(shims, opts = {}) {
   function installSnapshotLeaf(state, detail = null) {
     let current = leafRecord('proc-snapshot', state, detail);
     const read = () => current;
-    scanner._setPlatformForTest({ providesStartTime: true, getSnapshotHealth: read });
+    scanner._setPlatformForTest({
+      providesStartTime: true,
+      getSnapshotHealth: read,
+      getParentProcessMap: async () =>
+        current.state === 'FAILED'
+          ? new Map()
+          : new Map((await listProcesses()).map((row) => [row.pid, { name: row.name, ppid: 0 }])),
+    });
     fakePlatform.getSnapshotHealth = read;
     return (next, nextDetail = null) => {
       current = leafRecord('proc-snapshot', next, nextDetail);

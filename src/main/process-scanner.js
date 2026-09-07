@@ -19,6 +19,7 @@ const { IGNORE_PROCESS_PATTERNS, EDITOR_HOSTS } = require('../shared/constants')
 const sensorHealth = require('./sensor-health');
 const _platform = require('./platform');
 let _listProcesses = _platform.listProcesses;
+let _getParentProcessMap = _platform.getParentProcessMap;
 // Identity-quality inputs, mirrored as overridable locals the same way process-utils.js
 // holds `providesStartTime` — so a test can state a platform's identity story without
 // pretending to be that platform.
@@ -192,6 +193,7 @@ function noteProcessScanHardFailure(err) {
 /** @internal Override platform functions (for tests). */
 function _setPlatformForTest(overrides) {
   if (overrides.listProcesses) _listProcesses = overrides.listProcesses;
+  if (overrides.getParentProcessMap) _getParentProcessMap = overrides.getParentProcessMap;
   if (typeof overrides.providesStartTime === 'boolean') {
     _providesStartTime = overrides.providesStartTime;
   }
@@ -204,6 +206,7 @@ function _resetForTest() {
   _processHealth = sensorHealth.createSensorHealth(PROCESS_SENSOR_ID);
   _providesStartTime = _platform.providesStartTime === true;
   _getSnapshotHealth = null;
+  _getParentProcessMap = _platform.getParentProcessMap;
 }
 
 let _agentDb = null;
@@ -246,12 +249,15 @@ function init(deps) {
  * Scan running processes via tasklist and match against AI_AGENTS.
  * Editor hosts (VS Code etc.) are skipped themselves, but their child
  * processes are scanned — matched children get parentEditor set.
- * @returns {Promise<{agents: Array, changed: boolean, reliable: boolean}>}
+ * @param {{sharedObservation?: boolean}} [opts] - request one fresh Windows map
+ *   for both population and identity; the returned map belongs to this pass only.
+ * @returns {Promise<{agents: Array, changed: boolean, reliable: boolean, processMap?: Map}>}
  * @since v0.2.0
  */
-async function scanProcesses() {
+async function scanProcesses(opts = {}) {
   _ensureAgentDb();
   let processes;
+  let processMap;
   // A scan is "reliable" only when the process list was actually enumerated.
   // A permission-denied scan returns an empty list that must NOT be read as
   // "all agents exited" — the session tracker uses this flag to ignore it.
@@ -261,7 +267,17 @@ async function scanProcesses() {
   let reliable = true;
   const now = Date.now();
   try {
-    processes = await _listProcesses();
+    if (_providesStartTime && opts.sharedObservation === true) {
+      processMap = await _getParentProcessMap();
+      const rows = [...processMap].map(([pid, info]) => ({ pid, name: info.name }));
+      // An empty or nameless map cannot establish the population. Keep tasklist
+      // as the reserve population source, but carry even the empty observation to
+      // enrichment so it cannot silently retry and change this pass's evidence.
+      processes =
+        rows.length > 0 && rows.every((row) => typeof row.name === 'string' && row.name.length > 0)
+          ? rows
+          : await _listProcesses();
+    } else processes = await _listProcesses();
     permissionDeniedScans = 0;
   } catch (err) {
     const code = err.code || '';
@@ -354,7 +370,12 @@ async function scanProcesses() {
   if (reliable) {
     _processHealth = sensorHealth.markHealthy(_processHealth, now);
   }
-  return { agents: unique, changed, reliable };
+  return {
+    agents: unique,
+    changed,
+    reliable,
+    ...(processMap instanceof Map ? { processMap } : {}),
+  };
 }
 
 module.exports = {

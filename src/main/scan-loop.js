@@ -409,7 +409,7 @@ async function doProcessScan() {
     const gapBefore = deps.observationGap ? deps.observationGap.snapshot() : null;
     let result;
     try {
-      result = await scanner.scanProcesses();
+      result = await scanner.scanProcesses({ sharedObservation: true });
     } catch (err) {
       // B-S02: hard failure — a non-EPERM rethrow from scanProcesses (the EPERM path
       // marks FAILED inside the scanner and returns normally, so it never lands here).
@@ -428,24 +428,13 @@ async function doProcessScan() {
     // process's session. That ordering is the correctness boundary: the fresh
     // identity observation MUST finish before sessionTracker.reconcile below.
     //
-    // Freshness does NOT come from `forceRefresh`. On win32 every non-empty pass
-    // observes the birth time from one new process map (process-utils.js
-    // `_stampFromFreshBirthTimes`) and stamps that observed value, cached or not;
-    // `forceRefresh` now only decides whether the parent CHAIN is re-walked from
-    // that already-fetched map instead of served from the cache entry, so it adds
-    // no provider call of its own.
-    //
-    // It is not free. `scanner.scanProcesses` enumerates with `tasklist`, and
-    // `getParentProcessMap` has no other caller on this tick, so a fully cached
-    // Windows pass now pays one process-map observation it previously skipped. That
-    // observation is the snapshot sidecar's `snap` request; the `cim-parent`
-    // PowerShell observation is the EMERGENCY FALLBACK behind it, not the per-tick
-    // cost (platform/process-snapshot.js). Measured in
-    // docs/bench/generation-v2-2026-08-12.md, one machine / one sample / 519
-    // processes: sidecar warm p50 9.1 ms, p95 11.3 ms; cold spawn+handshake p50
-    // 67.3 ms; that run's CIM arm p50 1747.6 ms, p95 1873.6 ms, max 2144.0 ms.
-    // Samples, not guaranteed runtimes.
-    await procUtil.enrichWithParentChains(agents, { forceRefresh: result.changed === true });
+    // Windows population and identity consume the same fresh observation. The map
+    // is local to this pass, including an empty failed observation; no birth time
+    // is taken from a cache and enrichment must not make a second provider call.
+    await procUtil.enrichWithParentChains(agents, {
+      forceRefresh: result.changed === true,
+      ...(result.processMap instanceof Map ? { processMap: result.processMap } : {}),
+    });
     // The second half of the straddle witness — after the identity stamp, so a sleep
     // inside `enrichWithParentChains` is caught as well as one inside the enumeration.
     const gapStraddled =
