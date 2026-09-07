@@ -71,7 +71,7 @@ function installChokidarMock({ failOnCall = null } = {}) {
   });
 
   Module._load = function (request) {
-    if (request === 'chokidar') return { watch: watchMock };
+    if (request === 'chokidar' || request === './watch-worker-client') return { watch: watchMock };
     return originalLoad.apply(this, arguments);
   };
 }
@@ -444,5 +444,66 @@ describe('chokidar watch-root registry (step B)', () => {
       }
     }
     expect(state.watchers).toEqual(fakeWatchers);
+  });
+
+  it('keeps counted worker loss visible after subsequent ready and event callbacks', async () => {
+    await fileWatcher.setupFileWatchers();
+    readyAll();
+    fakeWatchers[0].emit('loss', 7);
+    fakeWatchers[0].emit('ready');
+    fakeWatchers[0].emit('change', samplePath('after-overflow.js'));
+    fakeWatchers[0].emit('loss', 2);
+    expect(fileWatcher.getFileSensorHealth()['fs-chokidar']).toMatchObject({
+      state: 'DEGRADED',
+      lossCount: 9,
+    });
+    expect(root(fileWatcher.getWatchPlan(), 'credential-dirs')).toMatchObject({
+      state: 'errored',
+      lastError: 'watch-worker-overflow',
+      deliveredCount: 1,
+    });
+  });
+
+  it('retires old watchers on reinit and ignores their late callbacks', async () => {
+    await fileWatcher.setupFileWatchers();
+    const old = [...fakeWatchers];
+    await fileWatcher.setupFileWatchers();
+    expect(state.watchers).toHaveLength(4);
+    for (const w of old) {
+      expect(w.close).toHaveBeenCalledTimes(1);
+      w.emit('ready');
+      w.emit('error', new Error('late'));
+      w.emit('loss', 10);
+      w.emit('add', samplePath('old-generation.js'));
+    }
+    expect(state.activityLog).toHaveLength(0);
+    expect(fileWatcher.getFileSensorHealth()['fs-chokidar']).toMatchObject({
+      state: 'STARTING',
+      lossCount: 0,
+    });
+    for (const w of state.watchers) w.emit('ready');
+    state.watchers[0].emit('add', samplePath('new-generation.js'));
+    expect(state.activityLog).toHaveLength(1);
+    expect(fileWatcher.getFileSensorHealth()['fs-chokidar'].state).toBe('HEALTHY');
+  });
+
+  it('does not register a superseded setup or a setup closed while yielding', async () => {
+    await Promise.all([fileWatcher.setupFileWatchers(), fileWatcher.setupFileWatchers()]);
+    expect(fakeWatchers).toHaveLength(4);
+    const pending = fileWatcher.setupFileWatchers();
+    await fileWatcher.closeFileWatchers();
+    await pending;
+    expect(fakeWatchers).toHaveLength(4);
+    expect(state.watchers).toEqual([]);
+  });
+
+  it('withdraws the previous coverage claim immediately when closing begins', async () => {
+    await fileWatcher.setupFileWatchers();
+    readyAll();
+    expect(fileWatcher.getWatchPlan().state).toBe('HEALTHY');
+    const closing = fileWatcher.closeFileWatchers();
+    expect(fileWatcher.getWatchPlan()).toMatchObject({ state: 'STARTING', liveWatcherCount: 0 });
+    expect(fileWatcher.getFileSensorHealth()['fs-chokidar'].state).toBe('STARTING');
+    await closing;
   });
 });

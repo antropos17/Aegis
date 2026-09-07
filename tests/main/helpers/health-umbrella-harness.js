@@ -157,7 +157,7 @@ export function installShims() {
 
   Module._load = function (request, parent) {
     if (request === 'electron') return fakeElectron;
-    if (request === 'chokidar') return { watch: watchMock };
+    if (request === 'chokidar' || request === './watch-worker-client') return { watch: watchMock };
     if (request === './platform' && wantsFakePlatform(parent)) return fakePlatform;
     return originalLoad.apply(this, arguments);
   };

@@ -20,6 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const chokidar = require('chokidar');
+const watchWorker = require('./watch-worker-client');
 const DEFAULT_APP_DIR = path.join(__dirname, '..', '..');
 let _appDir = DEFAULT_APP_DIR;
 const {
@@ -322,6 +323,7 @@ function _setDepsForTest(overrides) {
 }
 /** @internal Reset debounce state + opt out of the RM path (for tests). */
 function _resetForTest() {
+  closeFileWatchers().catch(() => {});
   _appDir = DEFAULT_APP_DIR;
   watcherDebounce.clear();
   _getSensitiveHolders = undefined; // tests opt into RM explicitly via _setDepsForTest
@@ -345,6 +347,24 @@ function _resetForTest() {
 
 const watcherDebounce = new Map();
 let _state = null;
+let _watchGeneration = 0;
+let _ownedWatchers = [];
+
+/** Stop delivery immediately, then release this lifetime's workers. @returns {Promise<void>} @since v0.14.0 */
+async function closeFileWatchers() {
+  _watchGeneration++;
+  // A retired watch lifetime cannot continue advertising coverage while the next
+  // setup is awaiting preflight or while native handles are being terminated.
+  _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.createSensorHealth(FS_SENSOR.CHOKIDAR);
+  resetWatchPlan();
+  const previous = _ownedWatchers;
+  _ownedWatchers = [];
+  for (const w of previous) {
+    const index = _state?.watchers.indexOf(w) ?? -1;
+    if (index >= 0) _state.watchers.splice(index, 1);
+  }
+  await Promise.all(previous.map((w) => w.close()));
+}
 
 /**
  * @param {Object} state - shared state refs (getCustomRules, getLatestAgents, getLatestAiAgents, isMonitoringPaused, activityLog, knownHandles, watchers, recordFileAccess, onFileEvent, isOtherPanelExpanded)
@@ -470,7 +490,7 @@ function applyWatchPlaneHealth(now) {
       detail: 'no-live-watcher',
     });
   } else if (state === sensorHealth.SENSOR_HEALTH_STATE.DEGRADED) {
-    // No lossCount: chokidar exposes no quantitative lost-event counter.
+    // Native errors have no lost-event count; worker queue loss is recorded separately.
     _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.markDegraded(rec, now, {
       error: unavailableRootSummary(),
       detail: 'watch-roots-unavailable',
@@ -483,20 +503,24 @@ function applyWatchPlaneHealth(now) {
 /**
  * @param {object} watcher - the FSWatcher this binding belongs to
  * @param {string} rootId - the watch group it was registered for
+ * @param {number} generation - watch lifetime that owns these callbacks
  * @returns {void}
  */
-function bindWatcherEvents(watcher, rootId) {
+function bindWatcherEvents(watcher, rootId, generation) {
   // noteRootDelivery lives HERE, not in handleWatcherEvent: the handler is exported
   // and called directly with no root context by the attribution/ignore suites.
   watcher.on('add', (p) => {
+    if (generation !== _watchGeneration) return;
     noteRootDelivery(rootId);
     handleWatcherEvent('created', p);
   });
   watcher.on('change', (p) => {
+    if (generation !== _watchGeneration) return;
     noteRootDelivery(rootId);
     handleWatcherEvent('modified', p);
   });
   watcher.on('unlink', (p) => {
+    if (generation !== _watchGeneration) return;
     noteRootDelivery(rootId);
     handleWatcherEvent('deleted', p);
   });
@@ -506,13 +530,25 @@ function bindWatcherEvents(watcher, rootId) {
   // and only on a real transition — W is derived over the plan, so re-deriving it for
   // an event that named no planned root would read an empty plan and throw.
   watcher.on('error', (err) => {
+    if (generation !== _watchGeneration) return;
     if (markRootErrored(rootId, healthErrorMessage(err))) applyWatchPlaneHealth(Date.now());
   });
   // ready = successful initialization of this FSWatcher instance — that one root. A
   // `ready` on a root already `errored` moves nothing (§1.4 — terminal), so it writes
   // no record either.
   watcher.on('ready', () => {
+    if (generation !== _watchGeneration) return;
     if (markRootReady(rootId)) applyWatchPlaneHealth(Date.now());
+  });
+  watcher.on('loss', (amount) => {
+    if (generation !== _watchGeneration) return;
+    _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.addLoss(
+      _fsHealth[FS_SENSOR.CHOKIDAR],
+      amount,
+      Date.now(),
+      { detail: 'watch-worker-overflow' },
+    );
+    if (markRootErrored(rootId, 'watch-worker-overflow')) applyWatchPlaneHealth(Date.now());
   });
 }
 
@@ -616,6 +652,10 @@ function handleWatcherEvent(action, filePath) {
  * @since v0.1.0
  */
 async function setupFileWatchers() {
+  const closing = closeFileWatchers();
+  const generation = _watchGeneration;
+  await closing;
+  if (generation !== _watchGeneration) return;
   const homeDir = os.homedir();
   const projectDir = _appDir;
   // BOTH preflights complete before ANY registration (§1.2). The plan separates
@@ -632,6 +672,7 @@ async function setupFileWatchers() {
   const agentConfigDirs = await filterExistingDirs(
     AGENT_CONFIG_PATHS.filter((d) => !sensitiveDirNames.has(d)).map((d) => path.join(homeDir, d)),
   );
+  if (generation !== _watchGeneration) return;
   // Reinit chokidar health lifetime when production recreates the watcher set — and
   // the plan with it, since the plan is what writes into that record.
   _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.createSensorHealth(FS_SENSOR.CHOKIDAR);
@@ -648,13 +689,17 @@ async function setupFileWatchers() {
   let attempted = null;
   try {
     const config = _state.getSettings ? _state.getSettings() : {};
-    const dirFilter = getIgnoredDirFilter(config);
+    const customDirs = Array.isArray(config.ignoredDirectories) ? config.ignoredDirectories : [];
+    const ignoredDirectories =
+      config.ignoreCommonBuildDirs === false
+        ? customDirs
+        : [...DEFAULT_IGNORED_DIRS, ...customDirs];
     /** Registration order IS plan order — `not-attempted` is read off plan position. */
     const registrations = [
       [
         WATCH_GROUP.CREDENTIAL_DIRS,
         () =>
-          chokidar.watch(sensitiveDirs, {
+          watchWorker.watch(sensitiveDirs, {
             persistent: true,
             ignoreInitial: true,
             usePolling: false,
@@ -665,7 +710,7 @@ async function setupFileWatchers() {
       [
         WATCH_GROUP.AGENT_CONFIG_DIRS,
         () =>
-          chokidar.watch(agentConfigDirs, {
+          watchWorker.watch(agentConfigDirs, {
             persistent: true,
             ignoreInitial: true,
             usePolling: false,
@@ -676,10 +721,11 @@ async function setupFileWatchers() {
       [
         WATCH_GROUP.PROJECT_DIR,
         () =>
-          chokidar.watch(projectDir, {
+          watchWorker.watch(projectDir, {
             persistent: true,
             ignoreInitial: true,
-            ignored: (filePath) => dirFilter(filePath) || /package-lock\.json$/.test(filePath),
+            ignoredDirectories,
+            ignorePackageLock: true,
             usePolling: false,
             followSymlinks: false,
             depth: 5,
@@ -688,7 +734,7 @@ async function setupFileWatchers() {
       [
         WATCH_GROUP.ENV_FILES,
         () =>
-          chokidar.watch(path.join(homeDir, '.env*'), {
+          watchWorker.watch(path.join(homeDir, '.env*'), {
             persistent: true,
             ignoreInitial: true,
             depth: 0,
@@ -702,7 +748,8 @@ async function setupFileWatchers() {
       attempted = id;
       const w = register();
       markRootRegistered(id, w);
-      bindWatcherEvents(w, id);
+      bindWatcherEvents(w, id, generation);
+      _ownedWatchers.push(w);
       _state.watchers.push(w);
     }
   } catch (err) {
@@ -1265,6 +1312,7 @@ function setupSequenceRulesWatcher(sendFn, { reload }) {
 }
 
 module.exports = {
+  closeFileWatchers,
   init,
   setupFileWatchers,
   setupRulesWatcher,

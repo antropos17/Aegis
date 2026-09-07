@@ -875,6 +875,9 @@ app.on('before-quit', () => {
     oomIntervalId = null;
   }
   globalShortcut.unregisterAll();
+  // Invalidate worker delivery before audit shutdown. Electron cannot await the
+  // final process teardown; each proxy also handles its termination promise.
+  if (watcher?.closeFileWatchers) watcher.closeFileWatchers().catch(() => {});
   logger.info('main', 'App quitting');
   if (audit) audit.shutdown();
   if (baselines) baselines.finalizeSession();
