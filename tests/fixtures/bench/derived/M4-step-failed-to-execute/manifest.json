@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "runId": "DERIVED-M4-step-failed-to-execute",
+  "scenario": "M4-step-failed-to-execute",
+  "arm": "A",
+  "armDescription": "sensor + Sysmon — coverage and latency",
+  "startedAt": "2026-08-20T11:59:00.000Z",
+  "derived": {
+    "kind": "derived-model",
+    "recorded": false,
+    "what": "A run whose scenario did not finish: one step failed to execute and the step after it was skipped, so the catalogue holds one row where the scenario declared three expectations. It models the artefact that makes that difference legible — steps.json — and the rule it protects: an expectation nothing ever executed is neither a sensor miss nor an unconfirmed catalogue row.",
+    "armIsAShape": "arm \"A\" names the DIRECTORY SHAPE this model has — a sensor column beside an oracle column — and never a run that happened. bench/score.js reads the arm to decide which files a directory must hold and which column may be scored, so a model of an arm-A directory carries an arm-A manifest. D1-pid-reuse-same-ms writes \"DERIVED\" instead, because bench/replay.js never reads that field.",
+    "notReproduced": "Nothing was executed and nothing was observed. No process was created, no file was staged, no sensor ran, no audit chain was read, and no Sysmon binary was installed, configured or queried. Above all: no step actually failed — the failure is modelled.",
+    "notAMeasurement": "No number derived from this directory is an accuracy figure, a recall figure about the AEGIS sensor, or Sysmon-confirmed evidence about a machine. What it pins is the arithmetic in bench/lib/metrics.js and the honesty conditions on it.",
+    "readMeFirst": "README.md, in the parent directory"
+  },
+  "host": {
+    "platform": {
+      "value": "win32",
+      "source": "MODELLED — no probe ran"
+    }
+  },
+  "oracles": {
+    "sysmon": {
+      "version": {
+        "value": null,
+        "unavailable": "MODELLED — no Sysmon service was probed, because none was installed. The oracle column in this directory is hand-written.",
+        "source": "MODELLED"
+      },
+      "configPath": "bench/oracles/sysmon-bench.xml",
+      "configSha256": {
+        "value": null,
+        "unavailable": "MODELLED — the committed config was never hashed for this model",
+        "source": "MODELLED"
+      }
+    },
+    "procmon": {
+      "value": null,
+      "unavailable": "B2.6 does not exist: no Procmon adapter has been written",
+      "source": "not implemented"
+    }
+  }
+}

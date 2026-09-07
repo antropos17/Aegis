@@ -45,10 +45,17 @@
     "connections": "{count} conn",
     "no_agents": "No agents detected"
   },
+  "summary": {
+    "total_agents": "Total Agents",
+    "avg_risk_score": "Avg Risk Score",
+    "events_per_min": "Events / min",
+    "sensitive_alerts": "Sensitive Alerts",
+    "monitoring_duration": "Monitoring Duration"
+  },
   "demo": {
     "badge": "DEMO MODE",
     "description": "Simulated data only. No real agents are being monitored.",
-    "cta": "Install AEGIS \u2192"
+    "cta": "Install AEGIS →"
   },
   "settings": {
     "title": "Settings",

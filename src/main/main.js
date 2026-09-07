@@ -49,6 +49,12 @@ const { createBatcher } = require('./ipc-batcher');
 // loadDeferredModules runs.
 const appHealth = require('./app-health');
 const { FILE_ACCESS_BATCHER_OPTIONS } = require('./file-access-batching');
+// Pure as well (Block B5): `getStats` reads its snapshot on BOTH branches, and the
+// powerMonitor subscription below `app.whenReady` must exist before any sensor does —
+// a laptop can sleep during boot. `session-tracker` is here for one read, the active
+// session count the resume record carries; it is the module scan-loop reconciles with.
+const observationGap = require('./observation-gap');
+const sessionTracker = require('./session-tracker');
 
 // ═══ DEFERRED (loaded after ready-to-show via loadDeferredModules) ═══
 // `network` is here rather than local to initDeferredSubsystems because getAppHealth()
@@ -63,11 +69,16 @@ let baselines,
   exporter,
   audit,
   scanLoop,
+  sequenceEngine,
   network,
   platform,
   ideDetector,
   wslDetector,
   llmDetector;
+
+// How many sequence rules the engine holds — written by loadSequenceRules, read by the
+// `rules:reloaded` push of BOTH rule watchers (file-watcher.js) as `sequenceCount`.
+let sequenceRuleCount = 0;
 
 let mainWindow = null;
 let latestAgents = [],
@@ -140,6 +151,7 @@ function loadDeferredModules() {
   exporter = require('./exports');
   audit = require('./audit-logger');
   scanLoop = require('./scan-loop');
+  sequenceEngine = require('./sequence-engine');
   network = require('./network-monitor');
   platform = require('./platform');
   ideDetector = require('./ide-extension-detector');
@@ -282,13 +294,28 @@ function getIpcStats() {
 }
 
 /**
+ * The sequence engine's counters and gauges (docs/roadmap/sequence-rules.md §3), or `null`
+ * before `loadDeferredModules` has required the engine. Null and not a zeroed lookalike:
+ * unlike the batcher behind {@link getIpcStats}, the engine does not exist yet on that
+ * branch, so there is no counter it could have moved, and a shaped zero would claim an
+ * observation that never happened. The same expression serves BOTH `getStats` branches.
+ * @returns {import('./sequence-engine').EngineStats|null}
+ * @since v0.14.0
+ */
+function getSequenceStats() {
+  return sequenceEngine ? sequenceEngine.getStats() : null;
+}
+
+/**
  * Monitoring statistics.
  *
  * `appHealth` and `monitoringPaused` are SIBLINGS and must stay that way: one answers
  * "what can we still observe", the other "did the operator stop us". Folding the pause
  * into the health enum would make a deliberate silence indistinguishable from a broken
  * sensor, which is the false-clean this whole model exists to kill. `ipc` is a third
- * sibling on the same principle — see {@link getIpcStats}.
+ * sibling on the same principle — see {@link getIpcStats} — and `sequences` a fourth
+ * ({@link getSequenceStats}), riding the existing `stats-update` / `scan-batch` pushes
+ * with no channel of its own.
  * @returns {Object} Monitoring statistics @since v0.1.0
  */
 function getStats() {
@@ -311,7 +338,9 @@ function getStats() {
       // module-scope const, so it has been counting since before this branch was
       // reachable and its numbers are real here too.
       ipc: getIpcStats(),
+      sequences: getSequenceStats(),
       monitoringPaused,
+      observationGap: observationGap.snapshot(),
     };
   }
   const log = scanner.activityLog;
@@ -335,7 +364,9 @@ function getStats() {
     },
     appHealth: getAppHealth(),
     ipc: getIpcStats(),
+    sequences: getSequenceStats(),
     monitoringPaused,
+    observationGap: observationGap.snapshot(),
   };
 }
 
@@ -463,7 +494,10 @@ async function startWatchers() {
   watchersStarted = true;
   try {
     await watcher.setupFileWatchers();
-    watcher.setupRulesWatcher(sendToRenderer);
+    // Two rule watchers, one per directory (roadmap §5 "Hot-reload"): the flat one never
+    // resets the sequence engine, the sequence one never reloads the flat rules.
+    watcher.setupRulesWatcher(sendToRenderer, { sequenceCount: getSequenceRuleCount });
+    watcher.setupSequenceRulesWatcher(sendToRenderer, { reload: reloadSequenceRules });
     // One entry per watch-root GROUP (credential dirs / agent-config dirs / app
     // dir / ~/.env*), so a group may cover several directories. This line is the
     // discriminator for a silently dead file feed: absent means startup never
@@ -496,6 +530,139 @@ function startWatchersWhenLoaded(webContents) {
   }
 }
 
+/**
+ * The chokidar file-event handler `file-watcher.js` calls once per event that survived
+ * its own filters: dedup, the display batch, the tray, the audit record — and tap 1 of
+ * docs/roadmap/sequence-rules.md §5. Module-level rather than a closure inside
+ * {@link initDeferredSubsystems} so the tap is reachable by a test with the two
+ * collaborators injected (`_setScanLoopForTest`, `_setSequenceEngineForTest`).
+ *
+ * The record handed to the engine is the SAME object `logAuditForFile` received —
+ * deduped, `repeatCount` stamped — and it is not pre-filtered on `instanceId`: the
+ * engine's null policy skips and counts a keyless record itself (roadmap §4). `ingest`
+ * carries its own error boundary (sequence-engine.js), so nothing here wraps it.
+ * @param {Object} ev - the FileEvent as the watcher built it.
+ * @returns {void}
+ * @since v0.14.0
+ */
+function onFileEvent(ev) {
+  const deduped = scanLoop.dedupFileEvent(ev);
+  if (!deduped) return;
+  fileAccessBatcher.push(deduped);
+  // An unattributed hit carries category 'other' (no agent to take it from),
+  // so the ai-only gate would silence exactly the crown-jewel case: a secret
+  // touched with no known owner. A vague alert beats no alert.
+  if (
+    deduped.sensitive &&
+    (deduped.category === 'ai' || deduped.attribution?.status === 'unattributed')
+  ) {
+    tray.notifySensitive([deduped]);
+  }
+  // Lazy on purpose: this fires per file event, and the batcher is 'latest' with a
+  // 1000 ms window — every payload but the last is discarded. Passing the producer
+  // builds exactly one, at flush.
+  statsUpdateBatcher.pushLazy(getStats);
+  tray.updateTrayIcon();
+  scanLoop.logAuditForFile(deduped);
+  // Tap 1 (roadmap §5): after the audit record, the same deduped object.
+  sequenceEngine.ingest(deduped);
+}
+
+/**
+ * The `onDetection` consumer the sequence engine is initialised with (roadmap §5
+ * "Emission"): a completed sequence becomes a `sequence-detection` audit record ON THE
+ * EVENT — inside the ingest that completed it, not on the next tick — and one log line.
+ * The record is the engine's payload handed over field for field: `agent` / `pid` /
+ * `instanceId` are the first step's (already in the audit conventions, `''` and `null`
+ * for absent), `action` is the rule id, `severity` the rule level, `attribution` the
+ * weakest link across the steps, and `extra` carries the rule and every step's own
+ * attribution evidence. Nothing is re-derived here.
+ *
+ * Module-level rather than a closure inside {@link initDeferredSubsystems} so the record
+ * shape can be pinned with the audit sink injected (`_setAuditForTest`). Not wrapped: the
+ * engine documents a throwing consumer as a consumer defect, and `audit.log` does not
+ * throw on a shaped record.
+ * @param {import('./sequence-engine').SequenceDetection} detection
+ * @returns {void}
+ * @since v0.14.0
+ */
+function onSequenceDetection(detection) {
+  audit.log('sequence-detection', {
+    agent: detection.agent,
+    pid: detection.pid,
+    instanceId: detection.instanceId,
+    action: detection.ruleId,
+    severity: detection.level,
+    attribution: detection.attribution,
+    extra: {
+      ruleId: detection.ruleId,
+      title: detection.title,
+      timespan: detection.timespan,
+      steps: detection.steps,
+    },
+  });
+  logger.info('sequence-engine', `Sequence ${detection.ruleId} detected`, detection);
+}
+
+/**
+ * Reads `rules/sequences/` through the loader and remembers the count. The loader has
+ * already written one `sequence-loader` warn line per warning and per load error; this is
+ * the one-line summary a reader of the log finds first, on the warn level only when there
+ * is something to warn about.
+ * @param {string} message - the summary line: `Sequence rules loaded` at startup,
+ *   `Sequence rules reloaded` from the watcher.
+ * @returns {import('./sequence-rule-loader').SequenceLoadResult}
+ * @since v0.14.0
+ */
+function loadSequenceRules(message) {
+  const sequences = require('./sequence-rule-loader').loadDir();
+  const sequenceSummary = {
+    rules: sequences.rules.map((r) => r.id),
+    warnings: sequences.warnings.length,
+    loadErrors: sequences.loadErrors,
+  };
+  if (sequences.warnings.length > 0 || sequences.loadErrors > 0) {
+    logger.warn('sequence-loader', `${message} with notices`, {
+      ...sequenceSummary,
+      reasons: sequences.warnings.map((w) => w.reason),
+    });
+  } else {
+    logger.info('sequence-loader', message, sequenceSummary);
+  }
+  sequenceRuleCount = sequences.rules.length;
+  return sequences;
+}
+
+/**
+ * The `reload` the `rules/sequences` watcher calls (file-watcher.js
+ * `setupSequenceRulesWatcher`, roadmap §5 "Hot-reload"): the directory read again, the open
+ * sequences dropped and counted — `reset('reload')`, since they were opened against rules
+ * that may no longer exist — and the engine re-initialised with the new rules and the SAME
+ * consumer as startup. Before the deferred init has run there is no engine to reset and that
+ * init reads the directory itself, so the call answers the count it knows and does nothing.
+ * @returns {number} how many sequence rules the engine holds now.
+ * @since v0.14.0
+ */
+function reloadSequenceRules() {
+  if (!sequenceEngine) return sequenceRuleCount;
+  const sequences = loadSequenceRules('Sequence rules reloaded');
+  sequenceEngine.reset('reload');
+  sequenceEngine.init({
+    rules: sequences.rules,
+    onDetection: onSequenceDetection,
+  });
+  return sequenceRuleCount;
+}
+
+/**
+ * @returns {number} the sequence rules the engine holds — the `sequenceCount` field the flat
+ *   rule watcher puts on its `rules:reloaded` push.
+ * @since v0.14.0
+ */
+function getSequenceRuleCount() {
+  return sequenceRuleCount;
+}
+
 /** Wires deferred modules and starts scanning. Called after ready-to-show. */
 function initDeferredSubsystems(userData) {
   loadDeferredModules();
@@ -505,6 +672,15 @@ function initDeferredSubsystems(userData) {
   require('./platform').probeReadDetection?.();
   const network = require('./network-monitor');
   const analysis = require('./ai-analysis');
+
+  // Sequence rules (docs/roadmap/sequence-rules.md §5): `rules/sequences/` is read here
+  // and the engine takes the compiled rules; the watcher in startWatchers reads it again
+  // on every change (reloadSequenceRules).
+  const sequences = loadSequenceRules('Sequence rules loaded');
+  sequenceEngine.init({
+    rules: sequences.rules,
+    onDetection: onSequenceDetection,
+  });
 
   scanLoop.init({
     scanner,
@@ -516,6 +692,8 @@ function initDeferredSubsystems(userData) {
     audit,
     tray,
     logger,
+    sequenceEngine,
+    observationGap,
     sendToRenderer,
     fileAccessBatcher,
     statsUpdateBatcher,
@@ -553,26 +731,7 @@ function initDeferredSubsystems(userData) {
     recordFileAccess: baselines.recordFileAccess,
     onActivityPush,
     onActivityEvict,
-    onFileEvent: (ev) => {
-      const deduped = scanLoop.dedupFileEvent(ev);
-      if (!deduped) return;
-      fileAccessBatcher.push(deduped);
-      // An unattributed hit carries category 'other' (no agent to take it from),
-      // so the ai-only gate would silence exactly the crown-jewel case: a secret
-      // touched with no known owner. A vague alert beats no alert.
-      if (
-        deduped.sensitive &&
-        (deduped.category === 'ai' || deduped.attribution?.status === 'unattributed')
-      ) {
-        tray.notifySensitive([deduped]);
-      }
-      // Lazy on purpose: this fires per file event, and the batcher is 'latest' with a
-      // 1000 ms window — every payload but the last is discarded. Passing the producer
-      // builds exactly one, at flush.
-      statsUpdateBatcher.pushLazy(getStats);
-      tray.updateTrayIcon();
-      scanLoop.logAuditForFile(deduped);
-    },
+    onFileEvent,
     isOtherPanelExpanded: () => otherPanelExpanded,
   });
   exporter.init({
@@ -659,6 +818,33 @@ app.whenReady().then(() => {
     getAgentCount: () => latestAgents.length,
   });
   createWindow();
+  // Block B5 — the OS sleep gap. `powerMonitor` is usable only after `ready`, which is
+  // where this runs; the module is injected the emitter and a clock and owns the rest.
+  // On resume one `observation-gap` audit record explains the hole in the JSONL, ahead
+  // of any `agent-exit` a post-sleep reconcile may go on to write. `audit` is a
+  // deferred module: a resume before it loaded has no log to write to, and no log is
+  // fabricated later.
+  observationGap.attach(require('electron').powerMonitor, {
+    onGap: (gap) => {
+      const details = observationGap.buildGapAuditDetails(gap, {
+        monitoringPaused,
+        activeSessions: sessionTracker.activeCount(),
+      });
+      logger.info('power', 'resume', details);
+      if (!audit) return;
+      audit.log('observation-gap', {
+        agent: '',
+        pid: null,
+        instanceId: null,
+        action: 'os-resume',
+        path: '',
+        severity: 'normal',
+        // Null: the ownership question does not apply — the machine slept, no owner.
+        attribution: null,
+        extra: details,
+      });
+    },
+  });
   ipc.init({
     getWindow: () => mainWindow,
     getStats,
@@ -727,6 +913,33 @@ function _setScannerForTest(mod) {
   scanner = mod;
 }
 
+/**
+ * @internal Inject the scan-loop module, normally set by loadDeferredModules (for tests).
+ * {@link onFileEvent} reads its dedup and audit entry points off this reference.
+ * @param {Object|undefined} mod
+ */
+function _setScanLoopForTest(mod) {
+  scanLoop = mod;
+}
+
+/**
+ * @internal Inject the sequence engine, normally set by loadDeferredModules (for tests).
+ * A fake with `ingest` is enough to prove tap 1 hands over the deduped record.
+ * @param {Object|undefined} mod
+ */
+function _setSequenceEngineForTest(mod) {
+  sequenceEngine = mod;
+}
+
+/**
+ * @internal Inject the audit logger, normally set by loadDeferredModules (for tests).
+ * A fake with `log` is enough to pin the `sequence-detection` record shape.
+ * @param {Object|undefined} mod
+ */
+function _setAuditForTest(mod) {
+  audit = mod;
+}
+
 /** @internal Clear the one-shot guard and the registered watcher list (for tests). */
 function _resetWatchersForTest() {
   watchersStarted = false;
@@ -738,18 +951,45 @@ function _getWatchersForTest() {
   return fileWatchers;
 }
 
+/**
+ * @internal Run {@link loadDeferredModules} outside the Electron lifecycle (for tests).
+ *
+ * The loaded `getAppHealth` branch reads five deferred bindings the `_set*ForTest`
+ * hooks above never cover — `network`, `platform` and the three secondary detectors —
+ * so a test that wants the REAL composer over REAL leaves has exactly one door: the
+ * same require pass production runs after `ready-to-show`. Every require goes through
+ * Node's cache, so the test shapes each leaf through that module's own `_resetForTest`
+ * / `_setDepsForTest`, and decides what `./platform` resolves to for main.js with a
+ * `Module._load` interception installed before this runs (tests/main/helpers/
+ * health-umbrella-harness.js). Nothing here starts a scan, a watcher or a probe.
+ * @returns {void}
+ */
+function _loadDeferredModulesForTest() {
+  loadDeferredModules();
+}
+
 // Exported for the startup-ordering and stats-shape regression tests only — nothing in
 // the app requires main.js. Electron runs it as the entry point.
 module.exports = {
   startWatchers,
   startWatchersWhenLoaded,
+  // The watcher's per-event handler, exposed so the sequence-engine tap inside it can
+  // be driven with a real dedup and a fake engine (tests/main/main-file-event-tap.test.js).
+  onFileEvent,
+  // The engine's detection consumer, exposed so the `sequence-detection` record it
+  // writes can be pinned with a fake audit sink (tests/main/main-sequence-emission.test.js).
+  onSequenceDetection,
   // Read-only. Exposed so a test can assert the payload SHAPE — that `appHealth`,
-  // `ipc` and `monitoringPaused` are siblings, and that the pre-`loadDeferredModules`
-  // branch answers BOOTING instead of throwing.
+  // `ipc`, `sequences` and `monitoringPaused` are siblings, and that the
+  // pre-`loadDeferredModules` branch answers BOOTING instead of throwing.
   getStats,
   getAppHealth,
   _setWatcherForTest,
   _setScannerForTest,
+  _setScanLoopForTest,
+  _setSequenceEngineForTest,
+  _setAuditForTest,
   _resetWatchersForTest,
   _getWatchersForTest,
+  _loadDeferredModulesForTest,
 };

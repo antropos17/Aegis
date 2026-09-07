@@ -102,15 +102,18 @@ npm install
 npm start
 ```
 
-> Requires **Node.js 22.x** (`engines` in `package.json`). Windows 10/11 recommended; macOS/Linux experimental ([#37](https://github.com/antropos17/Aegis/issues/37)) — see [known limits](#known-limits).
+> Requires **Node.js 24.x** (`engines` in `package.json`). Windows 10/11 recommended; macOS/Linux experimental ([#37](https://github.com/antropos17/Aegis/issues/37)) — see [known limits](#known-limits).
 
 ### Try without AI agents
 
 Don't have AI agents running? Demo mode lets you explore the full dashboard with simulated data — no real monitoring, no real processes.
 
 ```bash
-npm run build:demo && npm start
+npm run dev
+# then open http://localhost:5174
 ```
+
+The dev server carries the demo scenario engine — `vite.config.js` enables it whenever the command is `serve`, so the simulated dashboard renders without a separate build step and without Electron. For a static, shareable build (no dev server, no Electron), run `npm run build:demo` and serve the resulting `dist/demo` directory with any static file server (the build uses relative asset paths, so any host works).
 
 Demo mode runs a scenario engine that cycles through four threat phases — **calm → elevated → critical → reset** — with up to 12 simulated AI agents (Claude Code, Copilot, Cursor, and more). File access events, network connections, anomaly scores, and risk assessments are all generated in real time so every tab and feature is fully functional.
 
@@ -212,7 +215,7 @@ Use it to evaluate AEGIS before deploying, demo the UI to your team, or develop 
   them in the UI is on the roadmap.
 ```
 
-**Stack**: Electron 33, Svelte 5, Vite 7, Vitest. The monitoring engine is JavaScript (CommonJS); TypeScript is used in the renderer and the shared types. CI gates every merge with build, lint, svelte-check, test and audit jobs; `npm run counts:check` re-derives every documented counter from the tree, and `npm run verify:gate` proves the identity witness against injected mutants.
+**Stack**: Electron 43, Svelte 5, Vite 7, Vitest. The monitoring engine is JavaScript (CommonJS); TypeScript is used in the renderer and the shared types. CI gates every merge with build, lint, svelte-check, test and audit jobs; `npm run counts:check` re-derives every documented counter from the tree, `npm run verify:gate` proves the identity witness against injected mutants, and `npm run verify:seq-gate` proves the sequence engine against injected mutants.
 
 ## Agent database
 
@@ -246,7 +249,7 @@ Everything below is **planned**, not shipped. AEGIS today is monitor-only (see [
 
 ### What is Aegis?
 
-Aegis is an open-source, OS-level monitor for AI agents. It tracks processes, file access, network activity, and behavioral anomalies in real time, built on Electron 33 and Svelte 5. The monitoring engine is CommonJS JavaScript; the renderer is ES modules, and TypeScript is used in the renderer and the shared type definitions. All data stays local — no telemetry, no cloud dependency.
+Aegis is an open-source, OS-level monitor for AI agents. It tracks processes, file access, network activity, and behavioral anomalies in real time, built on Electron 43 and Svelte 5. The monitoring engine is CommonJS JavaScript; the renderer is ES modules, and TypeScript is used in the renderer and the shared type definitions. All data stays local — no telemetry, no cloud dependency.
 
 ### Why do AI agents need monitoring?
 

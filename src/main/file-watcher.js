@@ -63,6 +63,13 @@ const FS_SENSOR = Object.freeze({
 const SCOPE_UNAVAILABLE_REASON = 'process-observation-unavailable';
 
 /**
+ * Reason recorded when a trusted population leaves the read scope empty: a successful
+ * observation of zero, the same string the network leaf writes (§10 B4) so one
+ * vocabulary reaches the chip and the logs.
+ */
+const CONFIRMED_ZERO_REASON = 'confirmed-zero-agents';
+
+/**
  * Reader for the ProcessCapabilities contract (design §3), resolved lazily.
  *
  * Required directly rather than injected through `_state`: that object is built in
@@ -130,6 +137,26 @@ const _isRmAvailable = _platform.isRestartManagerAvailable;
 let _rmScanInFlight = false;
 /** Optional test override for platform read-detection capability. */
 let _isReadDetectionAvailableOverride = undefined;
+/** Optional test override for Restart Manager availability (the probe's verdict). */
+let _isRmAvailableOverride = undefined;
+
+/**
+ * Why a read leaf is out of the worst-of: the OTHER mechanism observes for this
+ * process. Written into `detail` by {@link resolveReadMechanism}.
+ * @type {Readonly<{RM: string, POOL: string}>}
+ */
+const READ_OWNER_REASON = Object.freeze({
+  RM: 'rm-owns-observation',
+  POOL: 'pool-owns-observation',
+});
+
+/**
+ * The read leaf {@link resolveReadMechanism} marked UNSUPPORTED, or null when it
+ * marked none. Only its own mark is ever undone: `platform-no-rm` is a platform fact
+ * written by {@link createInitialFsHealth} and is never recreated from here.
+ * @type {string|null}
+ */
+let _inactiveReadLeaf = null;
 
 /**
  * Authoritative filesystem sensor-health records (B2). Lifetime = module process /
@@ -170,6 +197,7 @@ function createInitialFsHealth() {
  */
 function _resetFsHealth() {
   _fsHealth = createInitialFsHealth();
+  _inactiveReadLeaf = null;
   resetWatchPlan();
 }
 
@@ -213,31 +241,50 @@ function getFileSensorHealth() {
 }
 
 /**
- * Orchestration-only skip: the read mechanisms were NOT run this tick because the
- * agent population could not be trusted as an observation scope (design §2.4).
+ * Orchestration-only skip: the read mechanisms were NOT run this tick. Two reasons,
+ * two verdicts, and the population gate decides between them BEFORE cardinality does
+ * — in scan-loop's `doFileScan` / `doHotReadScan` and in `scanAllFileHandles` alike:
  *
- * Marks the ACTIVE read mechanism — RM when the RM path owns observation, the handle
- * pool otherwise — because that is the sensor whose observation was actually lost.
- * DEGRADED, never FAILED: no provider failed. Never HEALTHY: no read happened, so
- * there is no scoped success to claim, and `lastSuccessAt` must not advance.
+ * - `process-observation-unavailable`: the agent population could not be trusted as
+ *   an observation scope (design §2.4). DEGRADED, never FAILED — no provider failed.
+ *   Never HEALTHY: no read happened, so there is no scoped success to claim, and
+ *   `lastSuccessAt` must not advance.
+ * - `confirmed-zero-agents`: the population WAS read and the read scope is empty —
+ *   no agent at all, or none in the AI subset the pool probes. That is a successful
+ *   observation of zero: HEALTHY with the detail and `lastSuccessAt` advanced, the
+ *   scoped success the network leaf already records (§10 B4). B-S04 stands above
+ *   it — a pool that could not read even if an agent appeared is DEGRADED, not
+ *   vacuously HEALTHY — and a zero never latches: the next real scan writes over
+ *   the detail.
  *
- * The scoped-HEALTHY `confirmed-zero-in-scope` case is the effective-read-scope step
- * and is deliberately NOT implemented here — it needs the mechanism's own filtered
- * list, which this function never sees.
- * @param {'process-observation-unavailable'|string} reason
+ * Either verdict lands on the ACTIVE read mechanism — RM when the RM path owns
+ * observation, the handle pool otherwise — after `resolveReadMechanism` has settled
+ * which one that is, so an empty fleet that never reaches a scan still retires the
+ * idle leaf instead of leaving both STARTING (#328).
+ * @param {'confirmed-zero-agents'|'process-observation-unavailable'|string} reason
  * @returns {void}
  * @since 0.12.0
  */
 function noteFileScanSkip(reason) {
   const now = Date.now();
+  resolveReadMechanism(now);
   const id = rmEnabled() ? FS_SENSOR.RM : FS_SENSOR.HANDLE;
   const rec = _fsHealth[id];
-  // markDegraded throws from both states, and RM is UNSUPPORTED on every platform
-  // that has no Restart Manager — a skip must not turn that into an error.
+  // markHealthy and markDegraded both throw from these states, and RM is UNSUPPORTED
+  // on every platform that has no Restart Manager — a skip must not turn that into
+  // an error.
   if (
     rec.state === sensorHealth.SENSOR_HEALTH_STATE.UNSUPPORTED ||
     rec.state === sensorHealth.SENSOR_HEALTH_STATE.DISABLED
   ) {
+    return;
+  }
+  if (reason === CONFIRMED_ZERO_REASON) {
+    if (id === FS_SENSOR.HANDLE && !handleCapabilityOk()) {
+      markPoolBlind(now);
+      return;
+    }
+    _fsHealth[id] = sensorHealth.markHealthy(rec, now, { detail: CONFIRMED_ZERO_REASON });
     return;
   }
   const scoped = reason === SCOPE_UNAVAILABLE_REASON;
@@ -250,9 +297,11 @@ function noteFileScanSkip(reason) {
 /** @internal Override dependencies (for tests). */
 function _setDepsForTest(overrides) {
   if (overrides.getFileHandles) _getFileHandles = overrides.getFileHandles;
-  if (overrides.getSensitiveHolders) {
-    _getSensitiveHolders = overrides.getSensitiveHolders;
-    // Tests inject RM on platforms where it is UNSUPPORTED by default.
+  if (overrides.getSensitiveHolders) _getSensitiveHolders = overrides.getSensitiveHolders;
+  if (overrides.getHotSensitiveHolders) _getHotSensitiveHolders = overrides.getHotSensitiveHolders;
+  if (overrides.getSensitiveHolders || overrides.getHotSensitiveHolders) {
+    // Tests inject RM on platforms where it is UNSUPPORTED by default — either source
+    // ticks the RM leaf through scanViaRestartManager, so either needs it live.
     if (
       _fsHealth[FS_SENSOR.RM] &&
       _fsHealth[FS_SENSOR.RM].state === sensorHealth.SENSOR_HEALTH_STATE.UNSUPPORTED
@@ -260,10 +309,12 @@ function _setDepsForTest(overrides) {
       _fsHealth[FS_SENSOR.RM] = sensorHealth.createSensorHealth(FS_SENSOR.RM);
     }
   }
-  if (overrides.getHotSensitiveHolders) _getHotSensitiveHolders = overrides.getHotSensitiveHolders;
   if (overrides.getProcessCapabilities) _getProcessCapabilities = overrides.getProcessCapabilities;
   if (Object.prototype.hasOwnProperty.call(overrides, 'isReadDetectionAvailable')) {
     _isReadDetectionAvailableOverride = overrides.isReadDetectionAvailable;
+  }
+  if (Object.prototype.hasOwnProperty.call(overrides, 'isRestartManagerAvailable')) {
+    _isRmAvailableOverride = overrides.isRestartManagerAvailable;
   }
 }
 /** @internal Reset debounce state + opt out of the RM path (for tests). */
@@ -273,6 +324,7 @@ function _resetForTest() {
   _getHotSensitiveHolders = undefined;
   _rmScanInFlight = false;
   _isReadDetectionAvailableOverride = undefined;
+  _isRmAvailableOverride = undefined;
   // Same contract as the RM dep above: a test opts INTO the population gate via
   // _setDepsForTest. The real process-scanner sits at STARTING until something drives
   // a scan, which is honestly "cannot vouch" — but a test asserting attribution logic
@@ -775,8 +827,64 @@ async function scanFileHandles(agent) {
  */
 function rmEnabled() {
   if (typeof _getSensitiveHolders !== 'function') return false;
-  if (typeof _isRmAvailable === 'function' && !_isRmAvailable()) return false;
+  return rmAvailable();
+}
+
+/**
+ * The Restart Manager probe's verdict (`restart-manager._rmAvailable`): optimistic
+ * until the probe fails, so the first ticks may run under RM and a later verdict
+ * switches the read mechanism to the pool — the one switch reachable in production.
+ * @returns {boolean}
+ */
+function rmAvailable() {
+  if (typeof _isRmAvailableOverride === 'boolean') return _isRmAvailableOverride;
+  if (typeof _isRmAvailable === 'function') return _isRmAvailable();
   return true;
+}
+
+/**
+ * Which read leaf is NOT observing for this process, or null when none is idle.
+ *
+ * `fs-handle` idles whenever the RM path owns the full scan. `fs-rm` idles only when
+ * neither RM entry is usable AND the pool can actually read — a blind win32 (no
+ * handle binary, no RM) has no owner, and B-S04 marks both leaves DEGRADED as before.
+ * In production the two RM entries share one availability flag, so "hot without
+ * full" occurs only in the bench harness, which scripts the hot source beside the
+ * pool; there the RM leaf is live through the hot cycle and no leaf is idle.
+ * @returns {string|null}
+ */
+function inactiveReadLeaf() {
+  if (rmEnabled()) return FS_SENSOR.HANDLE;
+  if (!isHotReadScanActive() && handleCapabilityOk()) return FS_SENSOR.RM;
+  return null;
+}
+
+/**
+ * Settle read-mechanism ownership: the idle leaf is UNSUPPORTED (out of the worst-of,
+ * `detail` naming the owner), decided at the first observation entry and re-decided
+ * only when the mechanism changes — never rewritten tick by tick. A leaf that returns
+ * to service starts a fresh STARTING lifetime (`createSensorHealth`, the only way out
+ * of UNSUPPORTED), exactly as `_setDepsForTest` re-creates the RM leaf.
+ *
+ * Without this a leaf no code path writes on this platform stays STARTING for the
+ * whole process, and `deriveAppHealth` reads SENSORS_STARTING forever.
+ * @param {number} now
+ * @returns {void}
+ * @since 0.14.0
+ */
+function resolveReadMechanism(now) {
+  const next = inactiveReadLeaf();
+  if (next === _inactiveReadLeaf) return;
+  if (_inactiveReadLeaf !== null) {
+    _fsHealth[_inactiveReadLeaf] = sensorHealth.createSensorHealth(_inactiveReadLeaf);
+    _inactiveReadLeaf = null;
+  }
+  if (next !== null && _fsHealth[next].state !== sensorHealth.SENSOR_HEALTH_STATE.UNSUPPORTED) {
+    _fsHealth[next] = sensorHealth.markUnsupported(_fsHealth[next], now, {
+      detail: next === FS_SENSOR.HANDLE ? READ_OWNER_REASON.RM : READ_OWNER_REASON.POOL,
+    });
+    _inactiveReadLeaf = next;
+  }
 }
 
 /**
@@ -913,8 +1021,7 @@ async function _scanRmHolders(agents, fetchHolders) {
  */
 function isHotReadScanActive() {
   if (typeof _getHotSensitiveHolders !== 'function') return false;
-  if (typeof _isRmAvailable === 'function' && !_isRmAvailable()) return false;
-  return true;
+  return rmAvailable();
 }
 
 /**
@@ -930,7 +1037,34 @@ function isHotReadScanActive() {
  */
 async function scanHotFileHolders(agents) {
   if (!isHotReadScanActive()) return [];
+  resolveReadMechanism(Date.now());
   return scanViaRestartManager(agents, _getHotSensitiveHolders);
+}
+
+/**
+ * B-S04: the pool cannot read (no handle binary) and no RM entry stands in for it, so
+ * neither an empty result nor an empty scope is a clean observation. DEGRADED on the
+ * handle leaf, and on the RM leaf too where it is an expected sensor rather than
+ * platform-UNSUPPORTED. Shared by the scan and the confirmed-zero skip, so a blind
+ * machine reads the same whether or not an agent is running.
+ * @param {number} now
+ * @returns {void}
+ */
+function markPoolBlind(now) {
+  _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.HANDLE], now, {
+    error: 'read-detection-unavailable',
+    detail: 'no-handle-binary-and-no-rm',
+  });
+  // Only degrade RM when it is an expected sensor (not platform-UNSUPPORTED).
+  if (
+    _fsHealth[FS_SENSOR.RM].state !== sensorHealth.SENSOR_HEALTH_STATE.UNSUPPORTED &&
+    !rmEnabled()
+  ) {
+    _fsHealth[FS_SENSOR.RM] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.RM], now, {
+      error: 'rm-unavailable',
+      detail: 'read-detection-unavailable',
+    });
+  }
 }
 
 /**
@@ -940,6 +1074,8 @@ async function scanHotFileHolders(agents) {
  */
 async function scanAllFileHandles(agents) {
   const now = Date.now();
+  // Ownership first, so the leaf a refusal below marks and the leaf left idle agree.
+  resolveReadMechanism(now);
   // G′ invariant: the handle pool stamps HANDLE_SCAN_PID — `confirmed`, same strength
   // as the RM holder pid — so it is gated by the same rule and for the same reason.
   // Placed ahead of the RM delegation so both mechanisms are covered from one site.
@@ -951,33 +1087,24 @@ async function scanAllFileHandles(agents) {
   // Falls through to the legacy per-PID handle pool on darwin/linux, or on win32
   // when RM is unavailable (the PR-A getFileHandles→[] fallback still applies).
   if (rmEnabled()) {
-    // RM path owns observation this tick; handle sensor not sampled.
+    // RM path owns observation this tick; the handle leaf is UNSUPPORTED
+    // (rm-owns-observation) by resolveReadMechanism, not sampled and not STARTING.
     return scanViaRestartManager(agents);
   }
 
   // B-S04: capability blind — empty results are not HEALTHY clean observation.
   if (!handleCapabilityOk()) {
-    _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.HANDLE], now, {
-      error: 'read-detection-unavailable',
-      detail: 'no-handle-binary-and-no-rm',
-    });
-    // Only degrade RM when it is an expected sensor (not platform-UNSUPPORTED).
-    if (
-      _fsHealth[FS_SENSOR.RM].state !== sensorHealth.SENSOR_HEALTH_STATE.UNSUPPORTED &&
-      !rmEnabled()
-    ) {
-      _fsHealth[FS_SENSOR.RM] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.RM], now, {
-        error: 'rm-unavailable',
-        detail: 'read-detection-unavailable',
-      });
-    }
+    markPoolBlind(now);
     return [];
   }
 
   const toScan =
     _state && _state.isOtherPanelExpanded() ? agents : agents.filter((a) => a.category === 'ai');
   if (toScan.length === 0) {
-    // No agents to probe — not a sensor failure (scan-loop skips earlier too).
+    // Nothing in the pool's scope to probe: the population gate above vouched for the
+    // list, so this is an observed zero, not a skipped tick (scan-loop's own empty-fleet
+    // return records the same verdict one level up).
+    noteFileScanSkip(CONFIRMED_ZERO_REASON);
     return [];
   }
   // Bounded-concurrency worker pool: at most FILE_SCAN_CONCURRENCY scanFileHandles()
@@ -1049,25 +1176,80 @@ function pruneKnownHandles(activeAgents) {
 }
 
 /**
- * Watch the rules/ directory for YAML changes and hot-reload.
- * @param {(channel: string, data: object) => void} sendFn - Function to push events to renderer
+ * One chokidar watcher over ONE rule directory, no recursion, `_`-prefixed entries ignored
+ * (function-form `ignored`, not a glob — chokidar issue #773). Shared by the two rule
+ * watchers below so they cannot drift apart on their options.
+ * @param {string} dir
  * @returns {import('chokidar').FSWatcher}
- * @since v0.6.0
  */
-function setupRulesWatcher(sendFn) {
-  const rulesDir = path.join(__dirname, '..', '..', 'rules');
-  const rw = chokidar.watch(rulesDir, {
+function _watchRuleDir(dir) {
+  return chokidar.watch(dir, {
     ignored: (filePath) => path.basename(filePath).startsWith('_'),
     persistent: false,
     ignoreInitial: true,
     followSymlinks: false,
     depth: 0,
   });
+}
+
+/**
+ * @param {string} basename
+ * @returns {boolean} whether the changed entry is a rule file at all.
+ */
+function _isRuleFile(basename) {
+  return basename.endsWith('.yaml') || basename.endsWith('.yml');
+}
+
+/**
+ * Watch the rules/ directory for YAML changes and hot-reload the FLAT rules. `depth: 0`, so
+ * `rules/sequences/` is not this watcher's — {@link setupSequenceRulesWatcher} owns it — and
+ * an edit here never resets the sequence engine (docs/roadmap/sequence-rules.md §5
+ * "Hot-reload"). The push carries both figures: `count` from the reloaded flat set and
+ * `sequenceCount` read off `deps.sequenceCount` at the time of the change, so the renderer
+ * is never handed a flat count with no sequence figure beside it.
+ * @param {(channel: string, data: object) => void} sendFn - Function to push events to renderer
+ * @param {{sequenceCount: () => number}} deps - `sequenceCount` answers how many sequence
+ *   rules the engine currently holds (main.js owns that figure).
+ * @returns {import('chokidar').FSWatcher}
+ * @since v0.6.0
+ */
+function setupRulesWatcher(sendFn, { sequenceCount }) {
+  const rulesDir = path.join(__dirname, '..', '..', 'rules');
+  const rw = _watchRuleDir(rulesDir);
   rw.on('change', (filePath) => {
     const basename = path.basename(filePath);
-    if (!basename.endsWith('.yaml') && !basename.endsWith('.yml')) return;
+    if (!_isRuleFile(basename)) return;
     reloadRules();
-    sendFn('rules:reloaded', { count: getAllRules().size, file: basename });
+    sendFn('rules:reloaded', {
+      count: getAllRules().size,
+      file: basename,
+      sequenceCount: sequenceCount(),
+    });
+  });
+  return rw;
+}
+
+/**
+ * Watch rules/sequences/ for YAML changes and hot-reload the SEQUENCE rules — the second
+ * watcher of docs/roadmap/sequence-rules.md §5 "Hot-reload", same options as
+ * {@link setupRulesWatcher}. Only this one calls `deps.reload`, which main.js supplies as:
+ * load the directory again, reset the engine, re-init it with the new rules. The flat rules
+ * are NOT reloaded from here, and the push is the same `rules:reloaded` channel with the same
+ * three fields — `count` from the flat set as it stands, `sequenceCount` as `reload` returned it.
+ * @param {(channel: string, data: object) => void} sendFn - Function to push events to renderer
+ * @param {{reload: () => number}} deps - `reload` re-reads the sequence rules into the engine
+ *   and returns how many are loaded now.
+ * @returns {import('chokidar').FSWatcher}
+ * @since v0.14.0
+ */
+function setupSequenceRulesWatcher(sendFn, { reload }) {
+  const sequencesDir = path.join(__dirname, '..', '..', 'rules', 'sequences');
+  const rw = _watchRuleDir(sequencesDir);
+  rw.on('change', (filePath) => {
+    const basename = path.basename(filePath);
+    if (!_isRuleFile(basename)) return;
+    const sequenceCount = reload();
+    sendFn('rules:reloaded', { count: getAllRules().size, file: basename, sequenceCount });
   });
   return rw;
 }
@@ -1076,6 +1258,7 @@ module.exports = {
   init,
   setupFileWatchers,
   setupRulesWatcher,
+  setupSequenceRulesWatcher,
   scanAllFileHandles,
   scanHotFileHolders,
   isHotReadScanActive,

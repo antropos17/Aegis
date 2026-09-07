@@ -17,7 +17,9 @@
  * JSONL with its hash chain — owns completeness independently of this number.
  *
  * An eviction here is a frame the UI never saw. It is not a sensor `lossCount` and it
- * is not an audit drop; see the ipc-batcher module header for that boundary.
+ * is not an audit drop; see the ipc-batcher module header for that boundary. Which frame
+ * goes is {@link fileAccessRetain}'s call: the oldest non-sensitive one while any is
+ * buffered.
  * @type {number}
  * @since v0.13.0
  */
@@ -101,19 +103,50 @@ function fileAccessCoalesceKey(value) {
 }
 
 /**
+ * Retention predicate for the `file-access` display lane: `true` for a sensitive event,
+ * `false` for everything else.
+ *
+ * WHAT IT GUARANTEES, and its bound. Under capacity pressure ipc-batcher evicts the
+ * oldest entry this predicate does not retain, so a sensitive event is delivered to the
+ * renderer as long as ANY non-sensitive frame shares its 150 ms window — a burst of
+ * self-churn or project-directory noise can no longer push a credential read out of the
+ * live list. The bound is the window itself: more than {@link FILE_ACCESS_CAPACITY}
+ * sensitive events inside one window evicts the oldest sensitive one, and that loss is
+ * counted in `getStats().retainedEvicted` rather than hidden. The record of the event is
+ * unaffected either way — the activityLog ring and the audit JSONL hold it before the
+ * batcher ever sees it (file-watcher.js, scan-loop.js `logAuditForFile`).
+ *
+ * `sensitive === true` exactly, the same reading {@link fileAccessCoalesceKey} makes: a
+ * merely truthy value is not a sensitive event as file-watcher.js builds one
+ * (`sensitive: reason !== null && !selfAccess`).
+ *
+ * Pure and total: no throw for any input, because ipc-batcher resolves this on the push
+ * path before any counter moves.
+ * @param {unknown} value - A file event as built by file-watcher.js, or anything else.
+ * @returns {boolean} Whether capacity pressure must spare this entry while it can.
+ * @since v0.14.0
+ */
+function fileAccessRetain(value) {
+  if (value === null || typeof value !== 'object') return false;
+  return /** @type {Record<string, unknown>} */ (value).sensitive === true;
+}
+
+/**
  * The exact options main.js passes to `createBatcher('file-access', …)`.
  *
- * Frozen and exported as ONE object rather than three loose constants so a test can
+ * Frozen and exported as ONE object rather than four loose constants so a test can
  * exercise the production configuration itself instead of re-assembling something that
  * merely looks like it — a re-assembled config proves the values, never the wiring.
  * @type {Readonly<{intervalMs: number, capacity: number,
- *   coalesceKey: (value: unknown) => string | null}>}
+ *   coalesceKey: (value: unknown) => string | null,
+ *   retain: (value: unknown) => boolean}>}
  * @since v0.13.0
  */
 const FILE_ACCESS_BATCHER_OPTIONS = Object.freeze({
   intervalMs: FILE_ACCESS_INTERVAL_MS,
   capacity: FILE_ACCESS_CAPACITY,
   coalesceKey: fileAccessCoalesceKey,
+  retain: fileAccessRetain,
 });
 
 module.exports = {
@@ -122,4 +155,5 @@ module.exports = {
   FILE_ACCESS_BATCHER_OPTIONS,
   KEY_SEP,
   fileAccessCoalesceKey,
+  fileAccessRetain,
 };

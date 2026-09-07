@@ -1,6 +1,6 @@
 # AEGIS Architecture
 
-## Main Process (src/main/) — 53 CommonJS modules (41 top-level + 10 platform/ + 2 token-adapters/)
+## Main Process (src/main/) — 59 CommonJS modules (47 top-level + 10 platform/ + 2 token-adapters/)
 
 Core modules:
 - main.js — orchestrator, module wiring, lifecycle
@@ -21,12 +21,15 @@ Core modules:
 - logger.js — structured logging
 - cli.js — CLI interface (--scan-json, --version, --help)
 - ai-analysis.js — Anthropic API threat analysis
-- audit-logger.js — persistent JSONL audit trail
+- audit-logger.js — persistent JSONL audit trail (the canon; hash-chained per daily file)
+- audit-index.js — `node:sqlite` projection of the audit JSONL, fed at flush time strictly after the line is on disk, capability-gated (`state: 'unavailable'` without the engine); never the source of truth, no hash columns (docs/roadmap/audit-index.md)
+- audit-index-query.js — bounded timestamp-ordered history queries with bound type filters; audit-logger falls back to JSONL when the index is unavailable or fails
+- audit-index-rebuild.js — rebuild/reconcile of the index from the daily files after `cleanOldLogs` on every init, resumed from `indexed_bytes`, ~2000-line transactions between `setImmediate` yields
 - exports.js — JSON/CSV/HTML report export
 - tray-icon.js — system tray with procedural icon
 
 ## Renderer (src/renderer/) — Svelte 5 + Vite 7
-48 Svelte components, 14 stores, 21 utils, scoped CSS + tokens.css/global.css
+48 Svelte components, 15 stores, 21 utils, scoped CSS + tokens.css/global.css
 
 ### Components (src/renderer/lib/components/)
 - App.svelte — root layout, tab routing, settings modal

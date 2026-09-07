@@ -98,7 +98,10 @@ async function exportLog() {
   const mw = _state.getMainWindow();
   const result = await dialog.showSaveDialog(mw, {
     title: 'Export AEGIS Activity Log',
-    defaultPath: `aegis-log-${new Date().toISOString().slice(0, 10)}.json`,
+    defaultPath: path.join(
+      app.getPath('downloads'),
+      `aegis-log-${new Date().toISOString().slice(0, 10)}.json`,
+    ),
     filters: [{ name: 'JSON Files', extensions: ['json'] }],
   });
   if (result.canceled || !result.filePath) return { success: false };
@@ -140,7 +143,10 @@ async function exportCsv() {
   const mw = _state.getMainWindow();
   const result = await dialog.showSaveDialog(mw, {
     title: 'Export AEGIS Activity Log (CSV)',
-    defaultPath: `aegis-log-${new Date().toISOString().slice(0, 10)}.csv`,
+    defaultPath: path.join(
+      app.getPath('downloads'),
+      `aegis-log-${new Date().toISOString().slice(0, 10)}.csv`,
+    ),
     filters: [{ name: 'CSV Files', extensions: ['csv'] }],
   });
   if (result.canceled || !result.filePath) return { success: false };

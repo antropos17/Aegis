@@ -333,6 +333,28 @@ describe('stale-population scope gate — orchestration (step G′)', () => {
       expect(deps.watcher.scanAllFileHandles).toHaveBeenCalledWith(STALE_AGENTS);
       expect(deps.watcher.noteFileScanSkip).not.toHaveBeenCalled();
     });
+
+    it('reliable + empty is confirmed-zero — the read leaf records a scoped success, no scan', async () => {
+      const deps = makeDeps(true, { getLatestAgents: vi.fn().mockReturnValue([]) });
+      scanLoop.init(deps);
+      await runFileScan();
+
+      expect(deps.watcher.noteFileScanSkip).toHaveBeenCalledWith('confirmed-zero-agents');
+      expect(deps.watcher.scanAllFileHandles).not.toHaveBeenCalled();
+      expect(skipLine(deps, 'file-skip')[2]).toEqual({
+        reason: 'confirmed-zero-agents',
+        agents: 0,
+      });
+    });
+
+    it('unreliable + empty is process-unavailable, not confirmed-zero', async () => {
+      const deps = makeDeps(false, { getLatestAgents: vi.fn().mockReturnValue([]) });
+      scanLoop.init(deps);
+      await runFileScan();
+
+      expect(deps.watcher.noteFileScanSkip).toHaveBeenCalledWith('process-observation-unavailable');
+      expect(deps.watcher.noteFileScanSkip).not.toHaveBeenCalledWith('confirmed-zero-agents');
+    });
   });
 
   describe('hot read', () => {
@@ -356,6 +378,28 @@ describe('stale-population scope gate — orchestration (step G′)', () => {
 
       expect(deps.watcher.scanHotFileHolders).toHaveBeenCalledWith(STALE_AGENTS);
       expect(deps.watcher.noteFileScanSkip).not.toHaveBeenCalled();
+    });
+
+    it('reliable + empty is confirmed-zero on the hot cycle too', async () => {
+      const deps = makeDeps(true, { getLatestAgents: vi.fn().mockReturnValue([]) });
+      scanLoop.init(deps);
+      await runHotReadScan();
+
+      expect(deps.watcher.noteFileScanSkip).toHaveBeenCalledWith('confirmed-zero-agents');
+      expect(deps.watcher.scanHotFileHolders).not.toHaveBeenCalled();
+      expect(skipLine(deps, 'hot-read-skip')[2]).toEqual({
+        reason: 'confirmed-zero-agents',
+        agents: 0,
+      });
+    });
+
+    it('unreliable + empty on the hot cycle is process-unavailable, not confirmed-zero', async () => {
+      const deps = makeDeps(false, { getLatestAgents: vi.fn().mockReturnValue([]) });
+      scanLoop.init(deps);
+      await runHotReadScan();
+
+      expect(deps.watcher.noteFileScanSkip).toHaveBeenCalledWith('process-observation-unavailable');
+      expect(deps.watcher.noteFileScanSkip).not.toHaveBeenCalledWith('confirmed-zero-agents');
     });
   });
 
@@ -588,6 +632,20 @@ describe('stale-population scope gate — file-watcher (step G′)', () => {
         SENSOR_HEALTH_STATE.HEALTHY,
       );
     });
+
+    it('unreliable population + an empty AI scope → the gate wins over cardinality: DEGRADED, no zero claimed', async () => {
+      const getFileHandles = vi.fn(async () => []);
+      fileWatcher._setDepsForTest({ getFileHandles });
+      setPopulation(false);
+      const events = await fileWatcher.scanAllFileHandles([]);
+
+      expect(events).toEqual([]);
+      expect(getFileHandles).not.toHaveBeenCalled();
+      const handle = fileWatcher.getFileSensorHealth()['fs-handle'];
+      expect(handle.state).toBe(SENSOR_HEALTH_STATE.DEGRADED);
+      expect(handle.detail).toBe('process-observation-unavailable');
+      expect(handle.lastSuccessAt).toBeNull();
+    });
   });
 
   describe('noteFileScanSkip', () => {
@@ -596,9 +654,11 @@ describe('stale-population scope gate — file-watcher (step G′)', () => {
       fileWatcher.noteFileScanSkip('process-observation-unavailable');
 
       expect(fileWatcher.getFileSensorHealth()['fs-rm'].state).toBe(SENSOR_HEALTH_STATE.DEGRADED);
-      expect(fileWatcher.getFileSensorHealth()['fs-handle'].state).toBe(
-        SENSOR_HEALTH_STATE.STARTING,
-      );
+      // The pool is not the mechanism this process observes with, so its leaf is out of
+      // the worst-of — not STARTING, which would hold the app at SENSORS_STARTING forever.
+      const handle = fileWatcher.getFileSensorHealth()['fs-handle'];
+      expect(handle.state).toBe(SENSOR_HEALTH_STATE.UNSUPPORTED);
+      expect(handle.detail).toBe('rm-owns-observation');
     });
 
     it('marks the handle sensor when RM is not the active mechanism', () => {
