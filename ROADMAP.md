@@ -1,7 +1,8 @@
 # AEGIS Roadmap
 
 Baseline checked against `11215d4` on 2026-09-07; ETW status updated through
-`52cfbe7`, the completed live experiments and the B2 design draft on 2026-09-08. Package version: `0.14.1-alpha`;
+the completed live experiments, B3 (`cc47212`) and the isolated B4 lifecycle harness
+on 2026-09-08. Package version: `0.14.1-alpha`;
 locked Electron: `43.4.1`. Changes merged after a release are available in source,
 not automatically in an installed app.
 
@@ -75,9 +76,16 @@ The dependency is those observations, not the absence of a Windows host.
 3. **B3 (offline backend contract implemented):** separate framed protocol
    validator/decoder and pure session-health reducer with synthetic fixtures.
    Both modules remain outside the live module graph. No launch/UAC, real ETW,
-   main wiring, audit or frontend. **Next: an isolated E1/E2 lifecycle harness**
-   to validate pipe trust, elevation and session cleanup before live connection.
+   main wiring, audit or frontend.
    The existing `sidecar/procsnap` remains independent.
+4. **B4 (isolated lifecycle harness prepared):** [broker/collector experiment](sidecar/etw-lifecycle/README.md)
+   implements restricted local pipes, mutual process identity, authorization,
+   leases, bounded writes and owned-session stop. Twelve self-tests and eight
+   real normal-token process scenarios passed; these create no ETW session.
+   [Recorded evidence](docs/recon/evidence/etw-lifecycle-home-26200-check.json)
+   preserves source/build hashes and outcomes. **Next: explicit user-run UAC
+   empty-session check**, then remaining E1/E2 privilege, crash/orphan and suspend
+   gates. No file provider or Electron connection; E1/E2 remain incomplete.
 
 ## C — existing rules coverage
 
@@ -125,8 +133,8 @@ Keep them outside the active queue while the first ETW sensor is being establish
 
 ## Execution order
 
-The B2 draft and B3 offline backend contract are implemented; the proposed
-continuation is the isolated E1/E2 lifecycle harness in
+The B2 draft, B3 offline backend contract and B4 isolated lifecycle harness are
+implemented. Continue with the explicit UAC empty-session check and remaining E1/E2 gates in
 [etw-sensor-design.md](docs/roadmap/etw-sensor-design.md). Start with
 [next-session.md](memory-bank/next-session.md) and the latest progress handoff.
 All three local experiment sets are complete; do not repeat them without a specific
