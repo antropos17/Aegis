@@ -1,13 +1,14 @@
 # AEGIS — старт следующего чата
 
-Обновлено 2026-09-08 после подготовки управляемых refusal/late-UAC проверок.
+Обновлено 2026-09-08 после первой живой попытки refusal: получен early consent.
 B2: PR #384, `f2f1ac4`; B3: PR #385, `cc47212`, оба merged с пятью зелёными CI.
 B4: PR #386, `01bf403`; первый UAC stop: PR #387, `1f7cd82`, оба merged с пятью
 зелёными CI. Elevated cleanup merged: PR #388, `75c943d`, пять зелёных CI.
 Первый UX-блок merged: PR #389, `69530bd`, пять зелёных CI.
 Второй UX-блок merged: PR #390, `8519796`, пять зелёных CI.
 Broker-death merged: PR #391, `37eac4a`, пять зелёных CI.
-Текущий backend-блок — `codex/etw-consent-gates`; проверь финальный статус PR.
+Consent probes merged: PR #392, `7646463`, пять зелёных CI.
+Текущий backend-блок — `codex/etw-consent-live-evidence`; проверь финальный статус PR.
 Эта инструкция и последний Session handoff в `memory-bank/progress.md` — точка
 продолжения. Сначала проверь текущую ветку и состояние файлов: пользователь может
 принести другие изменения после записи этого контекста.
@@ -153,9 +154,18 @@ collector тем же пользователем. Новый consent-broker за
 Отчёты: `X:/tmp/aegis-etw-consent-check-20260908-v3/result.json` и
 `X:/tmp/aegis-etw-consent-regression-20260908-v2/result.json`; агрегат с 17 LF-хешами —
 `docs/recon/evidence/etw-lifecycle-home-26200-consent-check.json`. ETW не вызывался;
-все native stats null, процессов стенда после проверки нет. Живые refusal/late
-ещё не выполнены: задан вопрос о готовности вручную пройти диалоги, ответа пока нет.
+все native stats null, процессов стенда после проверки нет.
 Не выдавай эти normal-token проверки за реальные UAC-исходы.
+
+После «далее» запущен настоящий `uac-refusal`, но вместо отказа сборщик запустился
+через 1567.0161 мс. Тест корректно НЕ прошёл (exitCode 2): early-consent, native
+error null, authorize false, identity verified, child exit 2. Независимые before
+и after вернули 4201, witness exit 0; процессов стенда не осталось. Полный отчёт
+`X:/tmp/aegis-etw-refusal-20260908/result.json`, агрегат с 17 LF-хешами и совпадающими
+с normal-check binaries — `docs/recon/evidence/etw-lifecycle-home-26200-consent-live.json`.
+Это не подтверждает, видел ли человек диалог или нажимал «Да». UAC UI не
+автоматизировался, политики не менялись. Задан вопрос, появились ли оба окна;
+ответа пока нет. Повтор/late ждут уточнения. Реальный отказ и late не доказаны.
 
 `docs/roadmap/etw-consent-suspend.md` содержит точные команды и отдельный проект
 suspend-проверки. `uac-suspend` пока нет: нужны power observer, явные фазы witness,

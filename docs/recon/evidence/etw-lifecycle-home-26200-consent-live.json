@@ -1,0 +1,104 @@
+{
+  "schema": 1,
+  "scope": "Actual refused-consent attempt returned early approval; requested refusal gate failed",
+  "sourceCommit": "76464633e95d36d330ea45d469d59f96072c6176",
+  "normalCheckEvidence": "docs/recon/evidence/etw-lifecycle-home-26200-consent-check.json",
+  "sourceCanonicalLfSha256": {
+    "Broker.cs": "D4FB6743105191DEFA4766210B27FD4C796FA19D4D1669CAB20A2495EDEF0126",
+    "BrokerDeath.cs": "FAB1D4E8102C115898156BE6B3C3FBC0BA9D9425AF30DDD383EB09C0829E36AC",
+    "ConsentBroker.cs": "3BB1FA8403721AB641CFB9DA18B05E2889807EFB05283255176BE2CB8A609462",
+    "ConsentScenarios.cs": "2C801F3B908279AD121A8796D6990396AAE4704FB4A7F741F43469B8FE0D7385",
+    "ConsentTests.cs": "EE9549B3A276F653628D63E3E843E563BE8BF18B76A6447629C941CCFEE999BB",
+    "EtwLifecycle.csproj": "22FE8D550AD99BD026CB9448AAF5F0B83F908EDC977B75FBFD2A15E36B1375F1",
+    "FinalEvidence.cs": "0127B1A626094FB22D2FC60057F17C1CB194D2B1F5E8577BA24BA40AC768F564",
+    "ObservedProcess.cs": "1326CF02909ED85449AB266F8E4C51D89C41A6784B3906E2CA9DF32177A59FCA",
+    "OwnedTrace.cs": "E2D2BCDCBF8F05D9BF6BE765D93017A8F1A89B2FC41C10605661F9FC7BD58CAD",
+    "Peer.cs": "17E30EC3243BE00B01BB4D4D8B305C99822B1583D3F086B388FEE9AB5E381579",
+    "Program.cs": "837020DCFF8489EE678CFD69EC82A7CE89E676BD154218562122E028FE921DE7",
+    "Scenarios.cs": "045D04950B792E15957B8E8462CB455DFE2FA022F766482B19C09E94E1E75D53",
+    "Security.cs": "19FDE5ACE53914B1E8804B9716A2D041D794E09B273BD8ACC385405BA6FADC96",
+    "SelfTest.cs": "4CDC98341FA4FF3C0329EA7E1A838355A10971E5D7DA6671DC66BC3B252FC851",
+    "Wire.cs": "6AB1B7D8DE5502E7D19E51CF2394DCDF872081FD8CF03D406517509663A6C5BE",
+    "Witness.cs": "B3616B5B9E73C7B424712B64C8F79F92B87646EE21127B122775888157B2A1EF",
+    "WitnessTests.cs": "4EC6A152EE01D7CD45D2BD5E3D0B35F3AF5E9D7998AF1480033F954A5C78E895"
+  },
+  "liveRefusalVerified": false,
+  "liveLateConsentVerified": false,
+  "suspendVerified": false,
+  "noHarnessProcessesAfterRun": true,
+  "observations": [
+    "The elevated collector launched after 1567.0161 ms, with verified held identity and exit 2; there was no native launch refusal.",
+    "The negative broker sent no authorization. The authenticated query-only witness returned absence 4201 before and after, then exited 0.",
+    "The expected refusal scenario correctly failed with exitCode 2. This failed attempt must not be included in passing refusal counts.",
+    "These point-in-time queries do not prove continuous absence or recover native counters; all unavailable counters remain null.",
+    "The report cannot establish whether a human saw or accepted a Windows dialog. No UAC UI was automated and no policy was changed."
+  ],
+  "attempts": [
+    {
+      "reportFile": "aegis-etw-refusal-20260908/result.json",
+      "reportSha256": "9D5727EDF71EE137C9E000F026FAE62BE841EE53618AF44F4809B25ACB28D3D9",
+      "report": {
+        "schema": 2,
+        "experiment": "etw-lifecycle",
+        "mode": "uac-refusal",
+        "liveEmptySession": false,
+        "nativeQueryEnabled": true,
+        "fileProviderEnabled": false,
+        "started": "2026-09-08T23:10:02.1711429+00:00",
+        "ended": "2026-09-08T23:10:06.6021828+00:00",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "framework": "10.0.10",
+        "executableSha256": "E730A8F0360DCEA47381A16906EF15059E0763FCD82618C39CCEBCCBC77C7568",
+        "assemblySha256": "1383A7A8DE53C902E95D51C8D4F7E6F2867E76ABB6F587EE69AAD022154DF3A0",
+        "outcomes": [
+          {
+            "Live": true,
+            "Scenario": "refusal",
+            "Passed": false,
+            "WitnessAuthenticated": true,
+            "RestrictedAcl": true,
+            "WitnessExitCode": 0,
+            "BrokerExited": true,
+            "BrokerExitCode": 0,
+            "Result": {
+              "Live": true,
+              "Scenario": "refusal",
+              "Outcome": "early-consent",
+              "RestrictedAcl": true,
+              "ExpiredBeforeReturn": false,
+              "LaunchReturned": true,
+              "ChildLaunched": true,
+              "ChildIdentityVerified": true,
+              "ChildExitCode": 2,
+              "NativeError": null,
+              "InjectedDenial": false,
+              "AuthorizationSent": false,
+              "LaunchElapsedMilliseconds": 1567.0161,
+              "Error": null
+            },
+            "Before": {
+              "QueryStatus": 4201,
+              "EventsLost": null,
+              "RealTimeBuffersLost": null,
+              "LogBuffersLost": null,
+              "NumberOfBuffers": null,
+              "BufferSizeKiB": null,
+              "AbsentStatus": null
+            },
+            "After": {
+              "QueryStatus": 4201,
+              "EventsLost": null,
+              "RealTimeBuffersLost": null,
+              "LogBuffersLost": null,
+              "NumberOfBuffers": null,
+              "BufferSizeKiB": null,
+              "AbsentStatus": null
+            },
+            "Error": null
+          }
+        ],
+        "exitCode": 2
+      }
+    }
+  ]
+}

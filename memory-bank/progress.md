@@ -1866,3 +1866,28 @@ connection was added. E1/E2 and protected collector-crash recovery remain open.
 
 Separate user edits appeared in `.codex/agents/ui-designer.toml` and
 `memory-bank/fancy-ui-plan.md`; preserve them outside this backend commit.
+
+## Session handoff — actual consent attempt returned early approval (2026-09-08)
+
+Consent probes merged as PR #392, `7646463`, with five green CI contexts. The user
+said continue. The agent instructed witness Yes / collector No and launched the
+prepared uac-refusal command. The result was early-consent after 1567.0161 ms,
+not a native refusal: child launched, held identity verified, exit 2, native error
+null, authorization false. The command correctly failed with report exitCode 2.
+Authenticated independent before/after queries returned absence 4201 with null
+counters; witness exit 0 and broker exit 0. No harness processes remained.
+
+The full raw report is `X:/tmp/aegis-etw-refusal-20260908/result.json`. Aggregate
+`docs/recon/evidence/etw-lifecycle-home-26200-consent-live.json` retains its hash,
+full result and 17 canonical LF source hashes matching merged `7646463`. Apphost
+and assembly hashes match the previous normal-token check evidence exactly.
+No source or binary changes were needed. The failed expected refusal must never
+be counted as a passed live gate. The report does not establish whether a human
+saw or accepted the dialogs. No security UI automation or UAC policy change occurred.
+
+An asynchronous question asks whether both dialogs appeared or were accidentally
+approved. No response yet; repeated refusal and late-consent launches wait for
+that clarification. Sleep was not attempted. The next implementation prerequisite
+for suspend remains a bounded power observer and suitable phases/lifetimes.
+Branch: `codex/etw-consent-live-evidence`; inspect its final PR/CI/merge status.
+User UI-plan and ui-designer settings edits remain separate and preserved.

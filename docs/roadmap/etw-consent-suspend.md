@@ -61,6 +61,21 @@ ordinary lifecycle broker's launch timeout, implement a production supervisor,
 validate alternate credentials or establish packaged binary integrity. The
 mutable development apphost and assembly remain trusted inputs.
 
+## Recorded live attempt
+
+The first actual `uac-refusal` attempt on 2026-09-08 did **not** produce a refusal.
+The collector launched after 1567.0161 ms, with verified identity and exit 2. The
+broker sent no authorization; the authenticated witness observed absence 4201
+before and after and exited 0. The command correctly reported failure because
+the observed outcome was early consent. No harness processes remained.
+
+The [complete failed report](../recon/evidence/etw-lifecycle-home-26200-consent-live.json)
+retains the raw-report hash, matching normal-check binaries and 17 canonical LF
+source hashes at `7646463`. It cannot establish whether a person saw or accepted
+a dialog. No UAC UI was automated or policy changed. Confirm human interaction
+before repeating; refusal and late-consent gates remain unverified. Suspend was
+not attempted. Do not count this early-approval result as successful refusal.
+
 ## Suspend/resume: procedure design, not a completed experiment
 
 Do not put the host to sleep using an existing `uac`, `uac-failures` or consent

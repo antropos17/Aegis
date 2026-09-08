@@ -220,6 +220,13 @@ and 17 canonical LF source hashes. No harness processes remained. Actual human
 refusal, late UAC and suspend are pending; their prepared commands/design do not
 constitute live evidence.
 
+A subsequent [actual refusal attempt](../../docs/recon/evidence/etw-lifecycle-home-26200-consent-live.json)
+returned early approval after 1.567 seconds and correctly failed acceptance.
+The collector received no authorization and exited 2; independent queries before
+and after showed absence 4201, and no harness processes remained. The report does
+not identify a human dialog action. Actual refusal and late consent remain open;
+see the [recorded attempt](../../docs/roadmap/etw-consent-suspend.md#recorded-live-attempt).
+
 Local checks also include `dotnet format ... whitespace --verify-no-changes`,
 Release build and the normal AEGIS checks. Existing GitHub CI does not compile or
 run this separate C# harness; its five green contexts cannot replace Windows tests.
