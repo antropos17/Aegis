@@ -32,6 +32,7 @@ const {
 const { getAllRules, reloadRules } = require('./rule-loader');
 const { EVIDENCE, makeAttribution } = require('./attribution');
 const { readInstanceId } = require('./process-identity');
+const { skillFromPath } = require('../shared/skill-path');
 const sensorHealth = require('./sensor-health');
 // Watch-root registry (design §1) — the plan, its per-root state transitions, and the
 // W derived from it. Pure state: this module keeps ownership of the `fs-chokidar`
@@ -603,6 +604,7 @@ function handleWatcherEvent(action, filePath) {
   // all) proves no agent self-matched. Re-running it against a substituted agent
   // is what let a foreign agent's exemption silently clear `sensitive`.
   const selfAccess = reason !== null && evidence.includes(EVIDENCE.SELF_CONFIG_PATH);
+  const skill = skillFromPath(filePath);
   const event = {
     agent: agent ? agent.agent : '',
     pid: agent ? agent.pid : null,
@@ -616,6 +618,7 @@ function handleWatcherEvent(action, filePath) {
     parentEditor: (agent && agent.parentEditor) || null,
     cwd: (agent && agent.cwd) || null,
     file: filePath,
+    ...(skill ? { skill } : {}),
     sensitive: reason !== null && !selfAccess,
     selfAccess,
     reason: reason || '',
@@ -842,6 +845,7 @@ async function scanFileHandles(agent) {
     // Confirmed: this scan was run FOR agent.pid, so the owner IS the pid.
     const evidence = [EVIDENCE.HANDLE_SCAN_PID];
     if (selfAccess) evidence.push(EVIDENCE.SELF_CONFIG_PATH);
+    const skill = skillFromPath(f);
     const event = {
       agent: agent.agent,
       pid,
@@ -851,6 +855,7 @@ async function scanFileHandles(agent) {
       parentEditor: agent.parentEditor || null,
       cwd: agent.cwd || null,
       file: f,
+      ...(skill ? { skill } : {}),
       sensitive: reason !== null && !selfAccess,
       selfAccess,
       reason: reason || '',

@@ -1302,3 +1302,33 @@ components; its AgentCard suggestions concern pre-existing timed flash effects.
 The installed application is not rebuilt or released automatically. Broader frontend
 integration remains separate. A1's WSL no-start race is still unresolved; D2 macOS
 identity or B1 ETW measurement preparation remain independent roadmap work.
+
+## Session handoff — skill names in file events (2026-09-08)
+
+The user reported `unknown` when agents use skills. Repository inspection found no
+skill classification. A read-only check of the existing local September 7 audit
+log found 73 paths containing `skill`, all with unknown actor attribution. Of these,
+72 identify `animation-on-scroll` or `improve-animations` skill paths, including
+created skill-root links/directories. The remaining basename is the generic
+`skills-curated-cache.json`, which must not become a fabricated skill name.
+
+`src/shared/skill-path.js` now derives the skill directory name, root path and relative
+file from observed paths without opening contents. The watcher carries optional
+`FileEvent.skill` for path events and per-PID handle observations. Both flat and
+grouped feeds name the skill and keep the original full reveal target. The renderer
+also recognizes older path-only events. Root creation stays `created`; directory-only
+RM holding observations do not invent an exact skill file.
+
+This fixes missing skill names, not the sensor's unknown actor. Attribution and
+sensitive classification are unchanged. There is no new transient-read capture and
+no claim that a created skill folder was used. Details and the frontend contract are
+in `docs/roadmap/skill-events.md`. Audit history was inspected but not rewritten.
+
+Full coverage passed: 2,809 tests, four skips, 162 files. The 32 new cases cover
+Windows/POSIX/UNC and plugin/system skill paths, roots, resources, lookalikes,
+confirmed versus unknown attribution, sensitive files and both rendered feed modes.
+Component tests prove the displayed label reveals the original full path. The
+component test project now includes both .js and .ts tests. Build, format, lint
+(zero errors, 31 existing warnings), both type checks, both mutation gates, counts
+and production audit passed. Svelte autofixer found no component issues; suggestions
+on ActivityFeed concern existing timed effects. Installed app updates remain separate.

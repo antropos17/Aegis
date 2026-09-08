@@ -26,7 +26,7 @@ export default defineConfig({
         },
         test: {
           name: 'components',
-          include: ['tests/renderer/components/**/*.test.ts'],
+          include: ['tests/renderer/components/**/*.test.{js,ts}'],
           environment: 'jsdom',
           setupFiles: ['tests/renderer/components/_setup.ts'],
           css: { modules: { classNameStrategy: 'non-scoped' } },
@@ -74,6 +74,7 @@ export default defineConfig({
         'src/renderer/lib/utils/threat-report.js',
         'src/renderer/lib/stores/toast.ts',
         'src/shared/constants.js',
+        'src/shared/skill-path.js',
       ],
     },
   },

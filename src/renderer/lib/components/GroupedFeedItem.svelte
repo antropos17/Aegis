@@ -1,6 +1,7 @@
 <script>
   import { t } from '../i18n/index.js';
   import { getSeverity, formatTime, shortenPath } from '../utils/grouped-feed-utils';
+  import { fileActivityLabel } from '../utils/path-utils';
 
   /**
    * @typedef {import('../utils/grouped-feed-utils').FeedEvent} FeedEvent
@@ -63,7 +64,8 @@
   <span class="sev-bar" style:background={sevColor(sev)}></span>
   <span class="feed-dot" style:background={sevColor(sev)} style:box-shadow={sevGlow(sev)}></span>
   <span class="feed-time">{formatTime(ev.timestamp)}</span>
-  <button class="feed-path" title={ev.file} onclick={handlePathClick}>{shortenPath(ev.file)}</button
+  <button class="feed-path" title={ev.file} onclick={handlePathClick}
+    >{ev._type === 'file' ? fileActivityLabel(ev.file, ev.action) : shortenPath(ev.file)}</button
   >
   {#if ev.repeatCount > 1}<span class="feed-repeat">&times;{ev.repeatCount}</span>{/if}
   {#if label}<span
