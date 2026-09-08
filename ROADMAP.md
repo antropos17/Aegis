@@ -1,7 +1,7 @@
 # AEGIS Roadmap
 
 Baseline checked against `11215d4` on 2026-09-07; ETW status updated through
-`52cfbe7` and the completed live experiments on 2026-09-08. Package version: `0.14.1-alpha`;
+`52cfbe7`, the completed live experiments and the B2 design draft on 2026-09-08. Package version: `0.14.1-alpha`;
 locked Electron: `43.4.1`. Changes merged after a release are available in source,
 not automatically in an installed app.
 
@@ -67,13 +67,16 @@ The dependency is those observations, not the absence of a Windows host.
    Collect results on target systems that answer each question; distinguish verified
    results from environment-limited or unresolved coverage. One machine or a mock
    cannot close all questions.
-2. **B2 (next: design draft):** use the collected B1 evidence to draft producer scope,
-   sensor IDs, attribution, loss handling and the relation to population/identity
-   health. Separate decisions supported on this Home host from unresolved prerequisites;
-   drafting does not ratify production integration or close all B1 questions.
-3. **B3+:** split implementation into sidecar blocks after B2. The existing
-   `sidecar/procsnap` transport and health integration are a precedent. ETW runs in
-   a separate process, not a native addon inside Electron.
+2. **B2 (design draft prepared):** [etw-sensor-design.md](docs/roadmap/etw-sensor-design.md)
+   defines one proposed `etw-file` producer, normal-token broker/elevated collector,
+   bounded transport, candidate evidence, identity admission, losses and health.
+   E1–E8 name the focused gates and support restrictions. Production connection
+   and authoritative attribution remain gated; the remaining B1 questions stay open.
+3. **B3 (next: offline backend contract):** implement a separate framed protocol
+   validator/decoder and pure session-health reducer with synthetic fixtures.
+   No launch/UAC, real ETW, main wiring, audit or frontend in this block. A later
+   isolated lifecycle harness must validate pipe trust and session cleanup before
+   live connection. The existing `sidecar/procsnap` remains independent.
 
 ## C — existing rules coverage
 
@@ -121,7 +124,8 @@ Keep them outside the active queue while the first ETW sensor is being establish
 
 ## Execution order
 
-The active continuation is the ETW B2 design draft; start with
+The B2 architecture draft is prepared; the proposed continuation is B3's offline
+backend contract in [etw-sensor-design.md](docs/roadmap/etw-sensor-design.md). Start with
 [next-session.md](memory-bank/next-session.md) and the latest progress handoff.
 All three local experiment sets are complete; do not repeat them without a specific
 new question. B1's remaining coverage/environment questions stay explicit.
