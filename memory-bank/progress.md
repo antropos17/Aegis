@@ -1752,3 +1752,26 @@ The monitoring main process stayed running. Installed application was not update
 ETW implementation and measurements remain unchanged; do not automatically return
 to ETW if the user's next message continues UX. When returning to ETW, broker-death
 witness and orphan-ownership design remain the next focused block above.
+
+## Session handoff — quiet background scans and readable tabs (2026-09-08)
+
+The first focused UX pass merged as PR #389, `69530bd`, with five green contexts.
+The user approved the proposed follow-up: active tab contrast, noisy scan toasts
+and misleading process/agent counts. Branch: `codex/quiet-scan-ux`; inspect its PR
+for final CI/merge state.
+
+TabBar now uses on-surface text on primary-container, fixing dark-hc black text
+and light/light-hc white text; shortcut hints inherit the corrected color. App's
+Scan complete effect was triggered by raw process-count changes, not completion.
+It was removed. Existing header counters already distinguish agent names,
+observed application trees and processes; Scanning/Idle remains ongoing feedback.
+Anomaly and explicit action notifications are unchanged.
+
+Two new App integration tests keep Header/Toast real while stubbing unrelated tab
+contents. They cover 22→23→0 processes without toast churn, three agent names and
+three application trees, scan status and a new anomaly still producing a warning.
+All 41 focused tests passed, as did format, renderer build, lint (31 existing
+warnings), typecheck and svelte-check. Built-demo Chromium checked all five tabs
+and shortcut hints in all four themes with no page errors. Minimum contrast:
+9.29 dark, 11.56 light, 13.27 dark-hc, 10.30 light-hc. Scope and evidence are in
+`docs/recon/ux-activity-review.md`. ETW and installed application remain separate.

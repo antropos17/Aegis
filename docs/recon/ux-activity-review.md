@@ -33,3 +33,24 @@ Browser checks used demo fixtures rather than live monitoring. The unbuilt Vite
 development preview hit an existing CommonJS `buildInstanceKey` export error, so
 visual checks used `build:demo` and Vite preview. Live ETW collection, completeness
 and attribution are outside this review.
+
+## Follow-up: navigation contrast and background notifications
+
+The user approved a second focused pass. The active tab used `on-primary` text on
+`primary-container`: this produced black text on a dark background in dark high
+contrast mode, and white text on a pale background in both light themes. It now
+uses `on-surface`, including the inherited shortcut hint.
+
+The success toast labelled "Scan complete" was driven by changes in the raw
+process-array length, rather than scan completion. It also called every process
+an agent. That toast is removed. The existing header remains the ongoing feedback
+surface: separate agent-name, observed application-tree and process counts, plus
+Scanning/Idle. Anomaly and user-action notifications remain available.
+
+Two App-level regression tests verify count changes without toast churn and a new
+anomaly still reaching the toast UI. Together with existing activity, anomaly and
+toast tests, 41 focused tests passed. Build, format, lint and both type checks
+passed. Built-demo Chromium checked all five tabs and their shortcut hints in all
+four themes, with no page errors. Minimum measured text/background contrast was
+9.29:1 dark, 11.56:1 light, 13.27:1 dark-hc and 10.30:1 light-hc. These measurements
+cover the selected navigation text, not the whole interface.
