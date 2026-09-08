@@ -384,17 +384,28 @@ The self-tests also exercise real pipe ACL/identity rejection and cancellation.
 Native trace calls use a fake only in ownership tests; the process cases make no
 native trace calls and retain null native statistics. These are transport results.
 
-The explicit user-run `uac` command is prepared but has not been executed. It
+The explicit `uac` command passed on the local Home host on 2026-09-08. It
 permits only normal stop of one empty real-time session, with initial query,
 final stop counters and a separate absence query. It enables no provider. Passing
 requires authenticated peer, restricted ACL, known counters, acknowledged stop,
-child exit 0 and absence status 4201. A rejected or incomplete run remains recorded.
+child exit 0 and absence status 4201. The [recorded live result](../recon/evidence/etw-lifecycle-home-26200-uac-stop.json)
+meets all of these conditions, with actual 256 × 64 KiB buffers and all three
+native loss counters zero. It used the same apphost/assembly as the normal-token
+cases; canonical LF source hashes were checked against the merged git commit.
+A rejected or incomplete run remains recorded.
 
 E1/E2 remain open: actual consent/refusal/late cancellation, alternate credentials,
-cross-integrity access, remote/other-logon clients, suspend and elevated crash/orphan
+cross-integrity behavior outside the verified same-account host, remote/other-logon
+clients, suspend and elevated crash/orphan
 recovery need live evidence. No orphan-removal algorithm exists. The mutable dev
 build is trusted; signature/integrity/deployment checks are not established.
 Accelerated test leases are not production settings; empty-session counters say
 nothing about Kernel-File completeness or cost. Existing CI does not build this
 C# project; Windows Release build, formatter, self-tests and process cases are
 separate local checks. E3–E8 and the remaining B1 questions are unchanged.
+
+Next focused slice: elevated graceful-failure scenarios (parent stdin EOF, lease
+expiry, blocked output), each with final stop and absence evidence. Broker death
+requires an independent authorized absence witness; elevated collector crash also
+requires an orphan-ownership design before claiming cleanup. The normal-stop result
+does not close either of those failure cases and does not require repeating B1.

@@ -22,7 +22,9 @@ not a performance budget. Both modes reject an already elevated coordinator.
 Run the apphost `.exe`, not `dotnet EtwLifecycle.dll`, so peer image checks have
 one fixed executable. The executable/managed assembly hashes are saved in the report.
 
-The following is **prepared, not executed by the development agent**:
+The explicit UAC check was **executed successfully on the local Home host on
+2026-09-08**. This command is the procedure for a future targeted run; the recorded
+successful stop does not need repeating without a new question:
 
 ```powershell
 & './sidecar/etw-lifecycle/bin/Release/net10.0-windows/EtwLifecycle.exe' uac 'X:/tmp/aegis-etw-lifecycle-uac-new'
@@ -35,9 +37,10 @@ No provider is enabled and no file contents, paths, reads or process command lin
 are collected. Requested session buffers are 256 × 64 KiB for this explicit
 experiment; actual counts are reported. The measurement probe's budget is unchanged.
 
-Only the successful-stop scenario is currently available under elevation. Actual
+Only the normal-stop scenario is currently available under elevation. Actual
 UAC refusal/cancellation, alternate credentials, elevated crash cleanup, suspend
-and hostile remote/other-logon clients remain live gates. The development source
+and hostile remote/other-logon clients remain live gates. Same-account cross-integrity
+pipe/process access succeeded on the recorded host. The development source
 and build directory are trusted inputs; this is not a signed privileged service.
 
 ## Boundaries and authentication
@@ -129,6 +132,22 @@ The UAC case passes only with authenticated peer, restricted DACL, initial query
 success, actual buffer fields, stop-query success with known loss counters,
 absence status 4201, acknowledgment and child exit 0. Failed runs remain on disk.
 An empty session with zero losses says nothing about Kernel-File coverage or cost.
+
+The [real UAC stop evidence](../../docs/recon/evidence/etw-lifecycle-home-26200-uac-stop.json)
+records a passing same-account run using the same apphost/assembly as the eight
+normal-token cases. Both identity checks and the restricted DACL passed; initial
+and final native calls returned status 0, with 256 buffers of 64 KiB and all three
+loss counters zero. Stop was acknowledged, both processes exited, and the
+post-stop absence query returned 4201. No harness processes remained on the host.
+Source hashes include canonical LF values to account for git checkout's CRLF/LF
+conversion; the binary hashes match exactly.
+
+This closes only the local same-account normal-stop slice of E1/E2. The next
+implementation slice should extend the explicit harness with graceful parent-EOF,
+lease expiry and blocked-output cases under elevation, retaining final stop and
+absence evidence. Broker death needs an independent authorized absence witness;
+an elevated collector crash additionally needs a defined orphan-ownership design.
+Do not claim cleanup from a missing pipe acknowledgment or normal-token kill test.
 
 Local checks also include `dotnet format ... whitespace --verify-no-changes`,
 Release build and the normal AEGIS checks. Existing GitHub CI does not compile or
