@@ -57,7 +57,8 @@ production implementation. [kernel-file-etw.md](docs/recon/kernel-file-etw.md) l
 and Hyper-V as well as filtering, event identity, mapping lifecycle and loss.
 The dependency is those observations, not the absence of a Windows host.
 
-1. **B1:** prepare an isolated C#/TraceEvent measurement harness and procedure.
+1. **B1:** isolated [C#/TraceEvent harness and procedure](sidecar/etw-probe/README.md)
+   are prepared; [live measurement checklist](docs/recon/kernel-file-etw-measurements.md) remains open.
    Collect results on target systems that answer each question; distinguish verified
    results from environment-limited or unresolved coverage. One machine or a mock
    cannot close all questions.
@@ -115,8 +116,8 @@ Keep them outside the active queue while the first ETW sensor is being establish
 
 Block 0 is this roadmap reconciliation, including the stale B8 status correction.
 Next resolve A1's no-start requirement, then A2 and A3. C1/C2 are implemented with
-evidence linked above. D1 is implemented; B1 measurement preparation and independent
-D2 can follow. A4 starts with recon. Application process grouping is separately
+evidence linked above. D1 is implemented; B1 now needs elevated live measurements;
+independent D2 can follow. A4 starts with recon. Application process grouping is separately
 authorized in both data and the current interface; broader frontend work remains separate.
 
 Keep one logical block per branch and PR. A supplied patch is not complete until

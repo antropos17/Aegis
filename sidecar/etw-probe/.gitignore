@@ -1,0 +1,4 @@
+bin/
+obj/
+results/
+!/Run-Matrix.ps1
