@@ -1,8 +1,9 @@
 # AEGIS — старт следующего чата
 
-Обновлено 2026-09-08 после изолированного lifecycle-стенда ETW B4.
+Обновлено 2026-09-08 после успешного реального UAC stop на стенде ETW B4.
 B2: PR #384, `f2f1ac4`; B3: PR #385, `cc47212`, оба merged с пятью зелёными CI.
-Финальный статус B4 проверяй по PR ветки `codex/etw-lifecycle-harness`.
+B4: PR #386, `01bf403`, merged с пятью зелёными CI. Новый live-результат —
+PR ветки `codex/etw-uac-stop-evidence`; проверь его финальный статус.
 Эта инструкция и последний Session handoff в `memory-bank/progress.md` — точка
 продолжения. Сначала проверь текущую ветку и состояние файлов: пользователь может
 принести другие изменения после записи этого контекста.
@@ -68,19 +69,26 @@ stdin EOF, смерть broker, exit/kill collector, lease, blocked write и и�
 агрегат с хешами — `docs/recon/evidence/etw-lifecycle-home-26200-check.json`.
 Сборка Release и C# formatter прошли. После проверки процессов стенда не осталось.
 
-**Следующий шаг — явная команда пользователя из обычного PowerShell:**
+**Реальный UAC normal-stop уже прошёл — не запускай его заново без новой причины.**
+После команды пользователя «дальше» агент запустил подготовленный `uac` из обычного
+процесса; повышенный сборщик успешно прошёл взаимную проверку и штатно остановил
+пустую `AEGIS-EtwLifecycle`. Итог:
+`X:/tmp/aegis-etw-lifecycle-uac-20260908/result.json`, exit 0.
+Начальный query и конечный stop: status 0; 256 × 64 КиБ; все три loss counters 0.
+Получены stopped, child exit 0 и отсутствие сессии после stop (4201).
+Файловый provider не включался; процессов стенда после запуска не осталось.
+Агрегат — `docs/recon/evidence/etw-lifecycle-home-26200-uac-stop.json`.
+Apphost/assembly совпали с normal-token прогоном; LF-хеши исходников проверены
+против merged commit. Исторические raw-хеши до checkout сохранены отдельно:
+их нельзя напрямую сравнивать после преобразования переносов Git.
+Same-account cross-integrity подтверждён на этом хосте.
 
-```powershell
-& 'X:/Future/ESCAPE/AEGIS/sidecar/etw-lifecycle/bin/Release/net10.0-windows/EtwLifecycle.exe' uac 'X:/tmp/aegis-etw-lifecycle-uac-20260908'
-```
-
-Этот UAC-прогон ещё не выполнен. Он создаёт только пустую ETW-сессию
-`AEGIS-EtwLifecycle`, сохраняет начальные/конечные счётчики и проверяет отсутствие
-после stop; файловый provider не включается. Нужна новая выходная папка. Если
-бинарник отсутствует, сначала `dotnet build sidecar/etw-lifecycle/EtwLifecycle.csproj -c Release`.
-Разбор результата — следующий отдельный блок. E1/E2 ещё требуют реального
-отказа/позднего UAC, других credentials/logon, cross-integrity, suspend и crash/orphan
-cleanup. Автоудаления orphan нет; смерть elevated collector может оставить сессию.
+Следующий срез — расширить явный elevated harness для parent-stdin EOF, lease
+expiry и blocked output с доказательствами final stop и отсутствия сессии.
+Для broker death нужен независимый разрешённый свидетель отсутствия; для elevated
+collector crash сначала нужен проект владения orphan-сессией. E1/E2 ещё требуют
+реального отказа/позднего UAC, других credentials/logon, remote clients и suspend.
+Автоудаления orphan нет; смерть elevated collector может оставить сессию.
 Не выдавай normal-token kill за проверку очистки ETW. CI не собирает этот C# проект.
 Не повторяй три завершённых набора замеров. Подключение к Electron и установка
 в этот стенд не входят; полный B1 и E3–E8 остаются открыты.

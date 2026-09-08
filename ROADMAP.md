@@ -83,9 +83,11 @@ The dependency is those observations, not the absence of a Windows host.
    leases, bounded writes and owned-session stop. Twelve self-tests and eight
    real normal-token process scenarios passed; these create no ETW session.
    [Recorded evidence](docs/recon/evidence/etw-lifecycle-home-26200-check.json)
-   preserves source/build hashes and outcomes. **Next: explicit user-run UAC
-   empty-session check**, then remaining E1/E2 privilege, crash/orphan and suspend
-   gates. No file provider or Electron connection; E1/E2 remain incomplete.
+   preserves source/build hashes and outcomes. The [real same-account UAC stop](docs/recon/evidence/etw-lifecycle-home-26200-uac-stop.json)
+   also passed: empty session, actual 256 × 64 KiB buffers, acknowledged stop and
+   confirmed absence. **Next: elevated graceful-failure cases**, then remaining
+   E1/E2 refusal, crash/orphan and suspend gates. No file provider or Electron
+   connection; E1/E2 remain incomplete.
 
 ## C — existing rules coverage
 
@@ -134,7 +136,8 @@ Keep them outside the active queue while the first ETW sensor is being establish
 ## Execution order
 
 The B2 draft, B3 offline backend contract and B4 isolated lifecycle harness are
-implemented. Continue with the explicit UAC empty-session check and remaining E1/E2 gates in
+implemented; the real same-account UAC empty-session stop passed. Continue with
+elevated graceful-failure cases and remaining E1/E2 gates in
 [etw-sensor-design.md](docs/roadmap/etw-sensor-design.md). Start with
 [next-session.md](memory-bank/next-session.md) and the latest progress handoff.
 All three local experiment sets are complete; do not repeat them without a specific

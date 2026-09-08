@@ -1631,3 +1631,42 @@ cross-integrity, remote/other-logon, suspend and elevated crash/orphan cases.
 Never mark E1/E2 complete from the normal-token tests. Production integration,
 frontend, installed app, dependencies, workflows and default buffer budgets remain
 unchanged. Do not repeat the completed B1 matrix/load/tune measurement sets.
+
+## Session handoff — ETW B4 real UAC normal stop (2026-09-08)
+
+B4 merged as PR #386, `01bf403`, after five green CI contexts. The user asked to
+continue. No UAC report existed, so the agent launched the previously prepared
+explicit `uac` command from the normal coordinator. It completed successfully
+on the local Home host at 21:23 UTC; the command was not merely left prepared.
+
+`X:/tmp/aegis-etw-lifecycle-uac-20260908/result.json` records exit 0, liveEmptySession
+true and fileProviderEnabled false. Same-account normal broker and elevated peer
+passed mutual authentication and restricted DACL validation. Initial query and
+final stop both returned status 0, with 256 buffers of 64 KiB and all three native
+loss counters zero. Stop was acknowledged; peer exited 0, broker exited, and the
+post-stop absence query returned 4201. No harness processes remained afterward.
+
+The apphost/assembly SHA-256 values match the previous normal-token check exactly.
+`docs/recon/evidence/etw-lifecycle-home-26200-uac-stop.json` preserves the raw report
+hash, report data, source commit and canonical LF hashes checked against that
+commit. Historical raw build-source hashes are retained separately: checkout
+changes line endings, so those raw hashes are not portable checkout identifiers.
+No source or dependency was changed for this evidence block.
+
+This confirms only same-account cross-integrity access and normal empty-session
+stop on this host. E1/E2 remain open for actual refusal/late consent, alternate
+credentials/logons, remote clients, suspend and elevated crash/orphan recovery.
+An empty session says nothing about file-read completeness, attribution or cost.
+
+Next focused implementation: extend the explicit elevated harness with parent
+stdin EOF, lease expiry and blocked output, retaining final stop and absence
+evidence. Broker death needs an independent authorized absence witness; elevated
+collector crash first needs an orphan-ownership design. Do not kill an elevated
+collector or stop a possibly foreign session as an improvised cleanup test.
+The completed UAC normal stop and the three B1 measurement sets need no repeat
+without a new question. Frontend and production integration remain separate.
+
+Branch: `codex/etw-uac-stop-evidence`; inspect its PR for final CI/merge status.
+Local verification: format, renderer build and lint passed (zero errors, 31 existing
+warnings); 40 local documentation links resolved and the evidence checks passed.
+No new runtime tests were added for this documentation/evidence-only change.

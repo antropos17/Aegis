@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "scope": "B4 real same-account UAC empty-session normal stop only",
+  "sourceCommit": "01bf4039acd7d21ae233a97510a261e3c2398d94",
+  "historicalBuildSourceSha256": {
+    "Broker.cs": "984A068BCED55DA220FA9964B2FBD0D64F64A84084970A1E80E412C922FFCB22",
+    "EtwLifecycle.csproj": "22FE8D550AD99BD026CB9448AAF5F0B83F908EDC977B75FBFD2A15E36B1375F1",
+    "OwnedTrace.cs": "7C1F6E7EB88D9B91ED30B65EA374CE8A24E1C29EEEE86B56D8663FF04B83310A",
+    "Peer.cs": "C0EBD34998B700A7F4BF22A9C246CA9179E23C055B6A1E606C1934B3729F2108",
+    "Program.cs": "83F991FC10C266EC629B149F508B568942E0753967901ECEB98FA1280A403B0A",
+    "Scenarios.cs": "48A3C265507E4B30E479D939934BDF949F269C0F217D771F05662FDD27A818E5",
+    "Security.cs": "C5BC03146F17ED29A35D40144686E65CBEA93E408D858CB434266311A8567AC3",
+    "SelfTest.cs": "3DFDC48B93453CBB6EEA21AF9FD21F8739C63816F49744F8EB63E5D09D7F064C",
+    "Wire.cs": "2317EC35D274B79A2C860BA1C081979660D87DAFF282626C59D67A8181E153C2"
+  },
+  "sourceCanonicalLfSha256": {
+    "Broker.cs": "984A068BCED55DA220FA9964B2FBD0D64F64A84084970A1E80E412C922FFCB22",
+    "EtwLifecycle.csproj": "22FE8D550AD99BD026CB9448AAF5F0B83F908EDC977B75FBFD2A15E36B1375F1",
+    "OwnedTrace.cs": "E2D2BCDCBF8F05D9BF6BE765D93017A8F1A89B2FC41C10605661F9FC7BD58CAD",
+    "Peer.cs": "C0EBD34998B700A7F4BF22A9C246CA9179E23C055B6A1E606C1934B3729F2108",
+    "Program.cs": "C4DB66A0128BDD924139024E471EA1944B489094FC492CC1A37A735B11602A70",
+    "Scenarios.cs": "48A3C265507E4B30E479D939934BDF949F269C0F217D771F05662FDD27A818E5",
+    "Security.cs": "C5BC03146F17ED29A35D40144686E65CBEA93E408D858CB434266311A8567AC3",
+    "SelfTest.cs": "3DFDC48B93453CBB6EEA21AF9FD21F8739C63816F49744F8EB63E5D09D7F064C",
+    "Wire.cs": "1D55E488DA7131B53E58C258039C0F25370C934C3594414BA77331274FDCFE30"
+  },
+  "sourceVerification": "Canonical LF source hashes match the merged git commit. Historical raw source hashes are retained from the normal-token evidence; raw checkout hashes are not portable across git line-ending conversion. Apphost and assembly match the previously tested binaries byte-for-byte.",
+  "reportFile": "aegis-etw-lifecycle-uac-20260908/result.json",
+  "reportSha256": "11DF24FBCD21D0E9B0A8FB50FB4CA3B2B46FEFC4D9F493AAE7955568F2C43E1E",
+  "sameBuildAsNormalTokenEvidence": true,
+  "pendingLiveGates": [
+    "Actual UAC refusal/cancellation and late consent",
+    "Alternate credentials and other account/session policies",
+    "Elevated collector failure paths and orphan recovery",
+    "Suspend/resume",
+    "Remote and other-logon adversarial clients"
+  ],
+  "report": {
+    "schema": 1,
+    "experiment": "etw-lifecycle",
+    "liveEmptySession": true,
+    "fileProviderEnabled": false,
+    "started": "2026-09-08T21:23:30.4656787+00:00",
+    "ended": "2026-09-08T21:23:34.1288375+00:00",
+    "os": "Microsoft Windows NT 10.0.26200.0",
+    "framework": "10.0.10",
+    "executableSha256": "EDE1ADA0C7945A32A72806A8CAF092926AE9B2C23C4246BCA332F2F9ED42833C",
+    "assemblySha256": "05DEF4E780AAF1A86C418F3369B21EFAC82957C74A4479E550964B734381B7A1",
+    "outcomes": [
+      {
+        "Scenario": "stop",
+        "Passed": true,
+        "PeerExited": true,
+        "BrokerExited": true,
+        "Result": {
+          "Live": true,
+          "Scenario": "stop",
+          "Authenticated": true,
+          "RestrictedAcl": true,
+          "Outcome": "stop",
+          "PeerExitCode": 0,
+          "InitialStats": {
+            "QueryStatus": 0,
+            "EventsLost": 0,
+            "RealTimeBuffersLost": 0,
+            "LogBuffersLost": 0,
+            "NumberOfBuffers": 256,
+            "BufferSizeKiB": 64,
+            "AbsentStatus": null
+          },
+          "FinalStats": {
+            "QueryStatus": 0,
+            "EventsLost": 0,
+            "RealTimeBuffersLost": 0,
+            "LogBuffersLost": 0,
+            "NumberOfBuffers": 256,
+            "BufferSizeKiB": 64,
+            "AbsentStatus": 4201
+          },
+          "StopAcknowledged": true
+        },
+        "Error": null
+      }
+    ],
+    "exitCode": 0
+  }
+}
