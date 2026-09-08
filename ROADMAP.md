@@ -89,7 +89,9 @@ The dependency is those observations, not the absence of a Windows host.
    [broker-death witness](docs/roadmap/etw-crash-ownership.md) passed a real same-account
    case: independent presence before kill, collector exit 0 and independent absence
    after exit. It retains unknown final counters and grants no orphan-stop authority.
-   **Next: controlled refusal/late-UAC and suspend evidence**, plus protected
+   [Controlled refusal/late-UAC probes](docs/roadmap/etw-consent-suspend.md) now have
+   normal-token checks and manual live procedures; suspend prerequisites are
+   documented. **Next: actual manual consent and suspend evidence**, plus protected
    ownership/recovery design for collector crash. No file provider or Electron
    connection; E1/E2 remain incomplete.
 

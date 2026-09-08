@@ -1,0 +1,283 @@
+{
+  "schema": 1,
+  "scope": "B4 controlled consent probes: normal-token checks only; actual human refusal and late UAC pending",
+  "sourceBaseCommit": "37eac4acebb9cbb50d7f050435c0023f46aca111",
+  "sourceCanonicalLfSha256": {
+    "Broker.cs": "D4FB6743105191DEFA4766210B27FD4C796FA19D4D1669CAB20A2495EDEF0126",
+    "BrokerDeath.cs": "FAB1D4E8102C115898156BE6B3C3FBC0BA9D9425AF30DDD383EB09C0829E36AC",
+    "ConsentBroker.cs": "3BB1FA8403721AB641CFB9DA18B05E2889807EFB05283255176BE2CB8A609462",
+    "ConsentScenarios.cs": "2C801F3B908279AD121A8796D6990396AAE4704FB4A7F741F43469B8FE0D7385",
+    "ConsentTests.cs": "EE9549B3A276F653628D63E3E843E563BE8BF18B76A6447629C941CCFEE999BB",
+    "EtwLifecycle.csproj": "22FE8D550AD99BD026CB9448AAF5F0B83F908EDC977B75FBFD2A15E36B1375F1",
+    "FinalEvidence.cs": "0127B1A626094FB22D2FC60057F17C1CB194D2B1F5E8577BA24BA40AC768F564",
+    "ObservedProcess.cs": "1326CF02909ED85449AB266F8E4C51D89C41A6784B3906E2CA9DF32177A59FCA",
+    "OwnedTrace.cs": "E2D2BCDCBF8F05D9BF6BE765D93017A8F1A89B2FC41C10605661F9FC7BD58CAD",
+    "Peer.cs": "17E30EC3243BE00B01BB4D4D8B305C99822B1583D3F086B388FEE9AB5E381579",
+    "Program.cs": "837020DCFF8489EE678CFD69EC82A7CE89E676BD154218562122E028FE921DE7",
+    "Scenarios.cs": "045D04950B792E15957B8E8462CB455DFE2FA022F766482B19C09E94E1E75D53",
+    "Security.cs": "19FDE5ACE53914B1E8804B9716A2D041D794E09B273BD8ACC385405BA6FADC96",
+    "SelfTest.cs": "4CDC98341FA4FF3C0329EA7E1A838355A10971E5D7DA6671DC66BC3B252FC851",
+    "Wire.cs": "6AB1B7D8DE5502E7D19E51CF2394DCDF872081FD8CF03D406517509663A6C5BE",
+    "Witness.cs": "B3616B5B9E73C7B424712B64C8F79F92B87646EE21127B122775888157B2A1EF",
+    "WitnessTests.cs": "4EC6A152EE01D7CD45D2BD5E3D0B35F3AF5E9D7998AF1480033F954A5C78E895"
+  },
+  "selfTests": {
+    "passed": 22,
+    "nativeTraceApi": "fake",
+    "realNamedPipes": true,
+    "liveCancelledBeforeAnyLaunch": true
+  },
+  "noHarnessProcessesAfterRun": true,
+  "liveConsentVerified": false,
+  "suspendVerified": false,
+  "limitations": [
+    "Normal-token refusal explicitly injects error 1223; it is not a human UAC decision.",
+    "Delayed normal launch tests channel rejection; it does not exercise late UAC.",
+    "All native counters are null and no ETW API is called by these process checks.",
+    "The dedicated consent broker never authorizes a session; ordinary broker launch deadlines are unchanged.",
+    "Suspend requires a power observer, suitable lifetimes and a real user-controlled power transition."
+  ],
+  "reports": [
+    {
+      "reportFile": "aegis-etw-consent-check-20260908-v3/result.json",
+      "reportSha256": "2708139D339F5799EF29AC05652B5C1928298670046896E004ACC050170DE9F7",
+      "report": {
+        "schema": 2,
+        "experiment": "etw-lifecycle",
+        "mode": "check-consent",
+        "liveEmptySession": false,
+        "nativeQueryEnabled": false,
+        "fileProviderEnabled": false,
+        "started": "2026-09-08T22:56:40.640897+00:00",
+        "ended": "2026-09-08T22:56:41.7498835+00:00",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "framework": "10.0.10",
+        "executableSha256": "E730A8F0360DCEA47381A16906EF15059E0763FCD82618C39CCEBCCBC77C7568",
+        "assemblySha256": "1383A7A8DE53C902E95D51C8D4F7E6F2867E76ABB6F587EE69AAD022154DF3A0",
+        "outcomes": [
+          {
+            "Live": false,
+            "Scenario": "refusal",
+            "Passed": true,
+            "WitnessAuthenticated": true,
+            "RestrictedAcl": true,
+            "WitnessExitCode": 0,
+            "BrokerExited": true,
+            "BrokerExitCode": 0,
+            "Result": {
+              "Live": false,
+              "Scenario": "refusal",
+              "Outcome": "uac-denied",
+              "RestrictedAcl": true,
+              "ExpiredBeforeReturn": false,
+              "LaunchReturned": true,
+              "ChildLaunched": false,
+              "ChildIdentityVerified": false,
+              "ChildExitCode": null,
+              "NativeError": 1223,
+              "InjectedDenial": true,
+              "AuthorizationSent": false,
+              "LaunchElapsedMilliseconds": 0.3787,
+              "Error": null
+            },
+            "Before": null,
+            "After": null,
+            "Error": null
+          },
+          {
+            "Live": false,
+            "Scenario": "late",
+            "Passed": true,
+            "WitnessAuthenticated": true,
+            "RestrictedAcl": true,
+            "WitnessExitCode": 0,
+            "BrokerExited": true,
+            "BrokerExitCode": 0,
+            "Result": {
+              "Live": false,
+              "Scenario": "late",
+              "Outcome": "late-consent",
+              "RestrictedAcl": true,
+              "ExpiredBeforeReturn": true,
+              "LaunchReturned": true,
+              "ChildLaunched": true,
+              "ChildIdentityVerified": true,
+              "ChildExitCode": 2,
+              "NativeError": null,
+              "InjectedDenial": false,
+              "AuthorizationSent": false,
+              "LaunchElapsedMilliseconds": 173.3835,
+              "Error": null
+            },
+            "Before": null,
+            "After": null,
+            "Error": null
+          }
+        ],
+        "exitCode": 0
+      }
+    },
+    {
+      "reportFile": "aegis-etw-consent-regression-20260908-v2/result.json",
+      "reportSha256": "38C59F401F6AD0042DD3D4FC84DA5C2E39C52CBE4FE305B22081AB4CA0AA8225",
+      "report": {
+        "schema": 2,
+        "experiment": "etw-lifecycle",
+        "mode": "check",
+        "liveEmptySession": false,
+        "nativeQueryEnabled": false,
+        "fileProviderEnabled": false,
+        "started": "2026-09-08T22:56:43.5764003+00:00",
+        "ended": "2026-09-08T22:56:52.6399229+00:00",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "framework": "10.0.10",
+        "executableSha256": "E730A8F0360DCEA47381A16906EF15059E0763FCD82618C39CCEBCCBC77C7568",
+        "assemblySha256": "1383A7A8DE53C902E95D51C8D4F7E6F2867E76ABB6F587EE69AAD022154DF3A0",
+        "outcomes": [
+          {
+            "Scenario": "stop",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "stop",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "stop",
+              "PeerExitCode": 0,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "parent-eof",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "parent-eof",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "parent-eof",
+              "PeerExitCode": 0,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "broker-kill",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": null,
+            "Error": null
+          },
+          {
+            "Scenario": "peer-exit",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "peer-exit",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "peer-failed",
+              "PeerExitCode": 7,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "peer-kill",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "peer-kill",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "eof",
+              "PeerExitCode": -1,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": false,
+              "CleanupReceiptReceived": false
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "lease",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "lease",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "lease-expired",
+              "PeerExitCode": 9,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "blocked-write",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "blocked-write",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "write-timeout",
+              "PeerExitCode": 10,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": false,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "launch-denied",
+            "Passed": true,
+            "PeerExited": false,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "launch-denied",
+              "Authenticated": false,
+              "RestrictedAcl": true,
+              "Outcome": "uac-denied",
+              "PeerExitCode": null,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": false,
+              "CleanupReceiptReceived": false
+            },
+            "Error": "uac-denied"
+          }
+        ],
+        "exitCode": 0
+      }
+    }
+  ]
+}

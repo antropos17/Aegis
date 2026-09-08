@@ -1825,3 +1825,44 @@ implemented. Next: controlled actual refusal/late consent and suspend evidence;
 collector crash needs protected ownership/recovery design. Alternate credentials,
 remote/other-logon clients and E3–E8 remain open. Do not repeat completed B1 sets,
 graceful-failure cases or successful broker death without a new question.
+
+## Session handoff — controlled consent probes and suspend prerequisites (2026-09-08)
+
+Broker-death work merged as PR #391, `37eac4a`, with five green CI contexts.
+The user said go. This block implements the separate consent broker and coordinator,
+three acceptance/cancellation self-tests, normal-token process checks, evidence and
+a suspend procedure design. Branch: `codex/etw-consent-gates`; inspect its PR status.
+
+The new negative broker always withholds authorize and closes both protected pipes
+after five seconds or immediately when launch returns. Live launch uses the fixed
+apphost with same-account runas; only the OS launch error 1223 can count as refusal.
+Late acceptance needs measured launch return after expiry, held child identity and
+exit 2. An early approval fails the test. The ordinary broker deadline is unchanged.
+The existing query-only witness must observe native absence before and after,
+authenticate and exit 0. Unknown observations remain failures/null; they are not
+converted into zero losses or proof of continuous session absence.
+
+Twenty-two self-tests and ten normal-token process cases passed with final matching
+binaries. Reports: `X:/tmp/aegis-etw-consent-check-20260908-v3/result.json` and
+`X:/tmp/aegis-etw-consent-regression-20260908-v2/result.json`. The aggregate
+`docs/recon/evidence/etw-lifecycle-home-26200-consent-check.json` retains full results,
+report/build hashes and 17 canonical LF source hashes. No harness processes remained.
+The refusal is explicitly injected, delayed launch is normal-token and native
+statistics are null. No actual UAC refusal/late consent or suspend was performed.
+
+Prepared live commands are uac-refusal and uac-late, each with witness approval
+first. Then manually reject collector consent, or leave it pending ten seconds
+before approval. An asynchronous readiness question was sent; no human response
+has arrived yet. Do not operate UAC security UI automatically or treat timeout as
+a human refusal. OS consent is not cancellable by these deadlines; pending dialogs
+need manual resolution even if the normal broker is gone. No elevated kill occurs.
+
+`docs/roadmap/etw-consent-suspend.md` describes exact consent steps and prerequisites
+for a meaningful sleep experiment. Current 25-second collector lifetime and absence
+of power notifications make existing commands unsuitable. A dedicated suspend mode
+needs bounded power evidence, witness phases and appropriate clock/lifetime handling;
+there is no uac-suspend command yet. No automatic sleep, ETW provider or Electron
+connection was added. E1/E2 and protected collector-crash recovery remain open.
+
+Separate user edits appeared in `.codex/agents/ui-designer.toml` and
+`memory-bank/fancy-ui-plan.md`; preserve them outside this backend commit.

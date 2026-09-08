@@ -70,6 +70,15 @@ The witness has no stop or start operation and accepts no configurable session n
 Normal check mode makes no ETW calls. A completed successful run needs no repeat
 without a new question. See the [ownership design](../../docs/roadmap/etw-crash-ownership.md).
 
+`check-consent` adds an injected refusal and a delayed real normal-token launch,
+with no native ETW calls. The prepared `uac-refusal` and `uac-late` commands each
+require two manual consent decisions: approve the query-only witness, then deny
+the collector or wait ten seconds before approving it. Their dedicated broker
+never authorizes session creation; it closes both pipes on expiry and launch
+return. Independent before/after queries must show absence. See the exact
+[consent procedure and suspend prerequisites](../../docs/roadmap/etw-consent-suspend.md).
+This does not change the ordinary broker's launch deadline or implement suspend.
+
 ## Boundaries and authentication
 
 The coordinator starts a normal-token broker. The broker creates two random local
@@ -149,11 +158,13 @@ collision, unavailable query and failed stop; kernel-read DACL; first-instance
 collision; real mutual peer identity; wrong client/server processes; authorization
 timeout; a cancelled coordinator request; invalid/foreign/conflicting cleanup
 receipts; and rejection of missing counters, absence, identity or child exit.
-There are 19 self-tests. Native session calls in the ownership
+There are 22 self-tests. Native session calls in the ownership
 unit tests use an explicit fake API.
 The added tests reject incomplete broker-death evidence, foreign/replayed witness
 phases, fabricated normal-mode statistics, oversized/truncated/unknown-field
 frames, cancellation before launch, and loss of the held process exit observation.
+Consent tests reject incomplete native evidence, injected live denial, early
+approval, missing child identity/exit and cancellation before any helper launch.
 
 `check` saves `result.json` with environment/runtime, build hashes, mode, scenario
 outcomes, actual peer exit codes, primary stop acknowledgments and separate cleanup
@@ -202,6 +213,12 @@ because absence does not recover final stop statistics. No harness processes
 remained. An earlier incomplete live attempt is retained in the evidence.
 An elevated collector crash still needs proven ownership/recovery before any kill test.
 Do not claim cleanup from a missing pipe acknowledgment or normal-token kill test.
+
+The [consent check evidence](../../docs/recon/evidence/etw-lifecycle-home-26200-consent-check.json)
+records 22 self-tests and ten normal-token scenarios with matching build hashes
+and 17 canonical LF source hashes. No harness processes remained. Actual human
+refusal, late UAC and suspend are pending; their prepared commands/design do not
+constitute live evidence.
 
 Local checks also include `dotnet format ... whitespace --verify-no-changes`,
 Release build and the normal AEGIS checks. Existing GitHub CI does not compile or
