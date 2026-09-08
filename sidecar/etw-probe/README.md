@@ -33,6 +33,47 @@ manually stopping that session; never stop all ETW sessions.
 
 ## Experiments and artifacts
 
+For the repeated load study, run this from a **normal terminal** (not administrator):
+
+```powershell
+& 'X:/Future/ESCAPE/AEGIS/sidecar/etw-probe/bin/Release/net10.0-windows/EtwProbe.exe' study 'X:/tmp/aegis-etw-load-20260908'
+```
+
+Accept one Windows UAC prompt for the collector. The normal coordinator runs three
+repetitions of idle, `npm --version`, and `npm run build:renderer`, rotating their
+order. Each ETW capture lasts 15 seconds plus drain, with mask 0x1B0, IDs
+10/12/13/14/15, no PID filter, close eviction and 64 MiB requested buffering.
+Expect roughly three to five minutes. Node and its npm CLI must already be on PATH;
+the probe must be built in this repository. npm measures CLI startup, not install.
+Renderer builds rewrite `dist/renderer`; no dependencies are installed or updated.
+
+The elevated child accepts no workload commands and only runs fixed capture options.
+It publishes `capture-ready.json` after enabling ETW and `capture-stopped.json` after
+stopping. The coordinator then writes `workload.json` with normal-token state, QPC
+intervals and exit codes, followed by `workload-done.json`. The next capture waits
+for that acknowledgement so a slow final build cannot spill into it. The last
+command may extend beyond its own capture window; preserve its recorded interval
+when interpreting rates. Marker polling contributes to the measured background.
+
+`study.json` records the plan, simulation flag, Node/npm versions and QPC frequency;
+`matrix.json` records collector outcomes. Workload output is drained and discarded.
+Failures create separate workload/collector failure records. Ctrl+C requests abort
+and stops the owned normal workload tree; the elevated collector ends its current
+bounded capture, then exits. A missing acknowledgement times out after 90 seconds;
+the trace has already stopped while awaiting it. Failed/incomplete studies must not
+be treated as nine successful load measurements.
+
+Development verification without UAC or ETW:
+
+```powershell
+sidecar/etw-probe/bin/Release/net10.0-windows/EtwProbe.exe study-check X:/tmp/aegis-etw-study-check-new
+```
+
+This runs real normal-user npm/build commands against a simulated collector, plus
+an extra idle interval after the build, and asserts the recorded protocol ordering.
+Its `simulation: true` artifacts are not live measurements. Existing CI does not
+build or run this standalone Windows probe.
+
 `Run-Matrix.ps1` compares READ-only, names/read, lifecycle, target-PID filtering,
 preopened handles, asynchronous reads, warm mapped reads and three churn eviction
 policies. These are candidate configurations, not a ratified minimal set.
