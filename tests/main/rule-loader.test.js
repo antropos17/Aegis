@@ -95,10 +95,8 @@ describe('rule-loader', () => {
   });
 
   describe('duplicate ID handling', () => {
-    it('warns on duplicate and keeps first occurrence', () => {
-      // To test duplicates we need a fixture with dupe IDs.
-      // valid-test.yaml has unique IDs, so this test verifies
-      // the mechanism works with existing fixtures (no dupes = no warn).
+    it('does not warn about duplicate IDs when every ID is unique', () => {
+      // Actual duplicate handling is covered by rule-loader-edge-cases.test.js.
       const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
       ruleLoader.reloadRules(FIXTURES_DIR);
 

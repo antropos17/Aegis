@@ -65,13 +65,12 @@ The dependency is those observations, not the absence of a Windows host.
 
 ## C — existing rules coverage
 
-**C1:** map every requirement of [#73](https://github.com/antropos17/Aegis/issues/73)
-and [#75](https://github.com/antropos17/Aegis/issues/75) to existing tests and report
-covered / partial / absent with evidence. Existing YAML and OpenClaw tests mean
-neither issue should be treated as wholly unimplemented.
-
-**C2:** implement only confirmed gaps. If all requirements are covered, close with
-evidence rather than adding duplicate tests or unrelated detection rules.
+**C1 / C2 implemented:** [rules-coverage.md](docs/roadmap/rules-coverage.md) maps
+[#73](https://github.com/antropos17/Aegis/issues/73) and
+[#75](https://github.com/antropos17/Aegis/issues/75) to the previous coverage and the
+new regression cases. The gaps were in YAML failure boundaries and independent
+OpenClaw expectations. Tests now exercise these contracts without changing
+production rules or matching behavior; five deliberate mutations were caught.
 
 ## D — platform identity, then sensors
 
@@ -110,9 +109,10 @@ Keep them outside the active queue while the first ETW sensor is being establish
 ## Execution order
 
 Block 0 is this roadmap reconciliation, including the stale B8 status correction.
-Next resolve A1's no-start requirement, then A2, C1 and A3. B1 measurement preparation
-and independent D1 / D2 can follow; A4 starts with recon. If A1 cannot yet meet its
-requirement, C1 is an independent next block.
+Next resolve A1's no-start requirement, then A2 and A3. C1/C2 are implemented with
+evidence linked above. B1 measurement preparation and independent D1 / D2 can
+follow; A4 starts with recon. If A1 cannot yet meet its requirement, D1 is an
+independent next block.
 
 Keep one logical block per branch and PR. A supplied patch is not complete until
 reviewed, verified and merged. Use `AGENTS.md` for the authorized git cycle and
