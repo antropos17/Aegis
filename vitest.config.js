@@ -56,6 +56,8 @@ export default defineConfig({
         'src/main/llm-runtime-detector.js',
         'src/main/platform/posix-shared.js',
         'src/main/platform/proc-snapshot-protocol.js',
+        'src/main/platform/etw-file-protocol.js',
+        'src/main/platform/etw-file-health.js',
         'src/main/platform/proc-snapshot-client.js',
         'src/main/platform/process-snapshot.js',
         'src/main/platform/linux.js',
