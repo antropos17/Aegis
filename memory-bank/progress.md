@@ -5,7 +5,7 @@ The current version lives in `package.json` (`node -p "require('./package.json')
 Agent, signature, rule and module counts are derived from the tree by `scripts/counts.js` (`npm run counts:check`), not pinned here.
 Entries in this file are appended chronologically, newest at the bottom.
 
-Latest handoff: see "Session handoff — 2026-09-07" at the end. Audit-index blocks 1 and 2
+Latest handoff: see the final "Session handoff" entry below. Audit-index blocks 1 and 2
 are merged; the earlier entry naming block 2 as next work is historical.
 
 ## feat/identity-main — identity migration (branch `feat/identity-main`)
@@ -1332,3 +1332,37 @@ component test project now includes both .js and .ts tests. Build, format, lint
 (zero errors, 31 existing warnings), both type checks, both mutation gates, counts
 and production audit passed. Svelte autofixer found no component issues; suggestions
 on ActivityFeed concern existing timed effects. Installed app updates remain separate.
+
+## Session handoff — B1 ETW measurement preparation (2026-09-08)
+
+After the remaining-plan reconciliation, the user approved B1 measurement work.
+`sidecar/etw-probe` contains a standalone .NET 10 / TraceEvent 3.2.6 harness with
+two synthetic actors, six workload types and an eleven-run PowerShell matrix.
+Samples preserve QPC, header/payload thread fields, candidate fixture path evidence
+and opaque pointer aliases. Bounded maps/samples report overflow. Native session
+queries retain unavailable loss counters as null. Actor ledgers are saved only
+after ETW stops. The existing Electron app and installed application are unchanged.
+
+Local Windows 11 Home (Core), 25H2, build 26200.8655 allowed a non-elevated TDH
+registered-manifest read. This verifies schema fields on this build, not live event
+delivery. The full thirteen-question status and limitations are recorded in
+`docs/recon/kernel-file-etw-measurements.md`; B1 remains open for live evidence.
+Do not advance B2 from synthetic tests or declare an event header PID authoritative.
+
+Validation: Release C# build has zero warnings/errors; 16 self-tests and six
+one-second fixture scenarios passed (32 buffered/async/mapped/preopened operations,
+65 churn, zero idle). The ledger handshake check passed. C# whitespace verification
+and PowerShell syntax parsing passed. Non-admin capture returned 3 without creating
+an output directory. NuGet direct/transitive vulnerability check found none.
+AEGIS coverage: 2,809 passed, four skipped, 162 files. Format, renderer build, lint
+(zero errors, 31 existing warnings), both type checks, both mutation gates, counts
+and production dependency audit passed. Existing CI does not compile this separate
+C# experiment; its Windows validation above was run locally.
+
+Next: in an administrator PowerShell, execute the already-built
+`X:/Future/ESCAPE/AEGIS/sidecar/etw-probe/Run-Matrix.ps1` with
+`-OutputRoot X:/tmp/aegis-etw-matrix-20260908` (must be new). The current Codex session
+is non-admin; no live ETW capture has been attempted. Read the resulting matrix,
+run summaries, schemas, samples and operation ledgers before selecting follow-up
+experiments. Preserve degraded runs and distinguish Home-only results from Pro,
+Hyper-V, Fast I/O and page-fault questions that still need separate measurements.

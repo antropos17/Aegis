@@ -114,6 +114,11 @@ package-registry release data, and they are scoped accordingly.
 
 ## HARDWARE-GATED
 
+2026-09-08 follow-up: the [B1 harness and local observation record](kernel-file-etw-measurements.md)
+add a registered manifest check on Windows 11 build 26200.8655. Live capture is
+pending; this does not replace the historical static evidence above or close the
+runtime questions below.
+
 Live-machine ratification items. These are not invitations for further source research; each one
 closes only against observation on the target system.
 
