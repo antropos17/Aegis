@@ -22,16 +22,16 @@ internal static class Wire
         MaxDepth = 8
     };
     private static readonly UTF8Encoding Utf8 = new(false, true);
-    private static readonly string[] Kinds = ["hello", "authorize", "ready", "ping", "pong", "stop", "stopped", "padding"];
+    private static readonly string[] Kinds = ["hello", "authorize", "ready", "ping", "pong", "stop", "stopped", "padding", "cleanup"];
     private static readonly string[] Codes = ["none", "stop", "parent-eof", "lease-expired", "peer-failed", "write-timeout"];
 
     internal static Frame Make(string id, ulong seq, string kind, bool live,
         string code = "none", TraceStats? stats = null, string padding = "") =>
-        new("etw-lifecycle/1", id, seq.ToString(CultureInfo.InvariantCulture), kind, live, code, stats, padding);
+        new("etw-lifecycle/2", id, seq.ToString(CultureInfo.InvariantCulture), kind, live, code, stats, padding);
 
     internal static void Validate(Frame frame, string id, bool live)
     {
-        if (frame.Protocol != "etw-lifecycle/1" || frame.Id != id || !Guid.TryParseExact(id, "N", out _) ||
+        if (frame.Protocol != "etw-lifecycle/2" || frame.Id != id || !Guid.TryParseExact(id, "N", out _) ||
             frame.Live != live || !Kinds.Contains(frame.Kind) || !Codes.Contains(frame.Code) ||
             !ulong.TryParse(frame.Seq, NumberStyles.None, CultureInfo.InvariantCulture, out var seq) || seq == 0 ||
             frame.Seq != seq.ToString(CultureInfo.InvariantCulture) ||

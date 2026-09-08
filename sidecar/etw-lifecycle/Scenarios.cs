@@ -42,20 +42,7 @@ internal static class Scenarios
             string summary = await Line(broker.StandardOutput, timeout.Token);
             var result = JsonSerializer.Deserialize<BrokerResult>(summary, Wire.Json) ?? throw new InvalidDataException();
             await broker.WaitForExitAsync(timeout.Token);
-            bool expected = scenario switch
-            {
-                "stop" => result.Outcome == "stop" && result.PeerExitCode == 0 && result.StopAcknowledged,
-                "parent-eof" => result.Outcome == "parent-eof" && result.PeerExitCode == 0 && result.StopAcknowledged,
-                "lease" => result.Outcome == "lease-expired" && result.PeerExitCode == 9 && result.StopAcknowledged,
-                "peer-exit" => result.Outcome == "peer-failed" && result.PeerExitCode == 7,
-                "peer-kill" => result.Outcome == "eof" && result.PeerExitCode != 0 && !result.StopAcknowledged,
-                "blocked-write" => result.Outcome == "write-timeout" && result.PeerExitCode == 10 && !result.StopAcknowledged,
-                _ => false
-            };
-            bool final = !live ? result.InitialStats == null && result.FinalStats == null :
-                result.InitialStats is { QueryStatus: 0, NumberOfBuffers: not null, BufferSizeKiB: not null } &&
-                result.FinalStats is { QueryStatus: 0, AbsentStatus: 4201, EventsLost: not null, RealTimeBuffersLost: not null, LogBuffersLost: not null };
-            return new(scenario, expected && final && result.Authenticated && result.RestrictedAcl && broker.ExitCode == 0,
+            return new(scenario, FinalEvidence.Accepts(live, scenario, result, broker.ExitCode),
                 result.PeerExitCode.HasValue, true, result, null);
         }
         catch (Exception error)

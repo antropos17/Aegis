@@ -5,7 +5,8 @@ using System.Text.Json;
 namespace Aegis.EtwLifecycle;
 
 internal sealed record BrokerResult(bool Live, string Scenario, bool Authenticated, bool RestrictedAcl,
-    string Outcome, int? PeerExitCode, TraceStats? InitialStats, TraceStats? FinalStats, bool StopAcknowledged);
+    string Outcome, int? PeerExitCode, TraceStats? InitialStats, TraceStats? FinalStats, bool StopAcknowledged,
+    bool CleanupReceiptReceived = false);
 
 internal static class Broker
 {
@@ -14,14 +15,16 @@ internal static class Broker
         if (args.Length != 3 || args[1] is not ("check" or "live") ||
             args[2] is not ("stop" or "parent-eof" or "broker-kill" or "peer-exit" or "peer-kill" or "lease" or "blocked-write" or "launch-denied")) throw new ArgumentException();
         bool live = args[1] == "live";
-        if (Security.Current().Elevated || (live && args[2] != "stop")) return 3;
+        if (Security.Current().Elevated || (live && args[2] is not ("stop" or "parent-eof" or "lease" or "blocked-write"))) return 3;
         string scenario = args[2], id = Guid.NewGuid().ToString("N");
         using var server = Security.Server(id);
-        bool acl = Security.RestrictedAcl(server);
+        string receiptId = Guid.NewGuid().ToString("N");
+        using var receipt = Security.Server(receiptId);
+        bool acl = Security.RestrictedAcl(server) && Security.RestrictedAcl(receipt);
         if (!acl) throw new UnauthorizedAccessException();
         var self = Security.Current();
         string fault = scenario == "peer-exit" ? "exit" : scenario == "blocked-write" ? "flood" : "normal";
-        var info = Program.Child("peer", args[1], id, self.Pid.ToString(CultureInfo.InvariantCulture), self.Birth.ToString(CultureInfo.InvariantCulture), fault);
+        var info = Program.Child("peer", args[1], id, self.Pid.ToString(CultureInfo.InvariantCulture), self.Birth.ToString(CultureInfo.InvariantCulture), fault, receiptId);
         if (live)
         {
             info.UseShellExecute = true; info.Verb = "runas"; info.WindowStyle = ProcessWindowStyle.Hidden;
@@ -44,7 +47,7 @@ internal static class Broker
         using var peer = launched;
         var identity = Security.Observe(peer);
         using var session = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-        bool authenticated = false, stopped = false;
+        bool authenticated = false, stopped = false, cleanup = false;
         string outcome = "peer-failed";
         TraceStats? initial = null, final = null;
         ulong sent = 0, received = 0;
@@ -52,6 +55,8 @@ internal static class Broker
         {
             await server.WaitForConnectionAsync(session.Token);
             Security.Verify(server, peer, identity.Birth, true, live);
+            await receipt.WaitForConnectionAsync(session.Token);
+            Security.Verify(receipt, peer, identity.Birth, true, live);
             authenticated = true;
             var hello = await Read();
             if (hello.Kind != "hello") throw new InvalidDataException();
@@ -62,7 +67,7 @@ internal static class Broker
             Console.WriteLine(JsonSerializer.Serialize(new { kind = "ready", peerPid = peer.Id, peerBirth = identity.Birth.ToString(CultureInfo.InvariantCulture) }));
             if (scenario == "blocked-write")
             {
-                await peer.WaitForExitAsync(session.Token); // deliberately do not read flooded pipe
+                // Read only the separate cleanup pipe below; primary stays blocked.
                 outcome = "write-timeout";
             }
             else if (scenario is "lease" or "peer-exit" or "peer-kill")
@@ -89,6 +94,9 @@ internal static class Broker
                 if (terminal.Kind != "stopped") throw new InvalidDataException();
                 final = terminal.Stats; stopped = true; outcome = terminal.Code;
             }
+            var confirmation = await Wire.Read(receipt, receiptId, live, session.Token);
+            FinalEvidence.ValidateReceipt(confirmation, outcome, final, stopped);
+            final = confirmation.Stats; cleanup = true;
             await peer.WaitForExitAsync(session.Token);
         }
         catch (Exception error) when (error is IOException or OperationCanceledException or UnauthorizedAccessException)
@@ -109,7 +117,7 @@ internal static class Broker
             }
         }
         int? exit = peer.HasExited ? peer.ExitCode : null;
-        Console.WriteLine(JsonSerializer.Serialize(new BrokerResult(live, scenario, authenticated, acl, outcome, exit, initial, final, stopped)));
+        Console.WriteLine(JsonSerializer.Serialize(new BrokerResult(live, scenario, authenticated, acl, outcome, exit, initial, final, stopped, cleanup)));
         return 0;
 
         async Task<Frame> Read()

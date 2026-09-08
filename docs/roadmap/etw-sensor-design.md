@@ -365,18 +365,19 @@ supervisor. B3 is not a substitute for the E1/E2 lifecycle harness.
 
 [`sidecar/etw-lifecycle`](../../sidecar/etw-lifecycle/README.md) adds a standalone
 Windows x64/.NET 10 executable with no third-party packages. Its separate
-`etw-lifecycle/1` protocol exercises transport/lifecycle without pretending to emit
+`etw-lifecycle/2` protocol exercises transport/lifecycle without pretending to emit
 B3 file observations. There is no file provider, decoder or application import.
 
-The normal broker creates a first-instance, remote-rejecting pipe with a protected
+The normal broker creates two first-instance, remote-rejecting pipes with protected
 logon-SID/SYSTEM DACL and limited client rights. Each end verifies the kernel pipe
 peer PID against a held process, exact creation FILETIME, apphost image, user/logon
 SID and expected elevation. Identification SQOS limits client impersonation.
-Authorization must precede session creation. Session stop authority is acquired
+Both endpoints authenticate both pipes before authorization and session creation.
+Session stop authority is acquired
 only after successful StartTrace and retained on failed stop; collisions grant no
 authority over an existing session. Fixed-name occupancy fails closed.
 
-The [local evidence](../recon/evidence/etw-lifecycle-home-26200-check.json) records
+The historical version 1 [local evidence](../recon/evidence/etw-lifecycle-home-26200-check.json) records
 twelve self-tests and eight passing normal-token process cases, with hashes of
 the source, apphost, assembly and raw report. Cases cover stop, stdin EOF, broker
 death, collector exit/kill, lease expiry, blocked output and injected launch denial.
@@ -394,7 +395,25 @@ native loss counters zero. It used the same apphost/assembly as the normal-token
 cases; canonical LF source hashes were checked against the merged git commit.
 A rejected or incomplete run remains recorded.
 
-E1/E2 remain open: actual consent/refusal/late cancellation, alternate credentials,
+Version 2 adds an independent `cleanup` receipt after the owned stop attempt. Its
+pipe has a separate launch ID, requires sequence 1, and uses the same held-process
+identity/DACL checks. Primary `stopped` and cleanup receipt remain distinct; reason
+and stats must agree when both arrive. A cancelled primary write can leave partial
+framing, so the blocked-output case never resumes primary decoding. Each terminal
+write has its own one-second deadline. Missing/failed/unavailable cleanup evidence
+cannot pass the live acceptance gate. The receipt is collector testimony over a
+separate transport; it is not an independent native observer.
+
+The [version 2 result](../recon/evidence/etw-lifecycle-home-26200-cleanup.json) records
+14 self-tests, eight normal-token cases and four real elevated cases using identical
+binaries. `uac-failures` tests stop (regression of the new two-pipe protocol), parent
+stdin EOF, lease expiry and blocked primary output. All four passed with final
+stop status 0, absence 4201, 256 × 64 KiB buffers and zero native loss counters.
+Child exits were 0, 0, 9 and 10 respectively. Blocked-write has primary acknowledgment
+false and cleanup receipt true. Both processes exited in each case. No file
+provider was enabled, and no harness processes remained after verification.
+
+E1/E2 remain open: actual refusal/late cancellation, alternate credentials,
 cross-integrity behavior outside the verified same-account host, remote/other-logon
 clients, suspend and elevated crash/orphan
 recovery need live evidence. No orphan-removal algorithm exists. The mutable dev
@@ -404,8 +423,7 @@ nothing about Kernel-File completeness or cost. Existing CI does not build this
 C# project; Windows Release build, formatter, self-tests and process cases are
 separate local checks. E3–E8 and the remaining B1 questions are unchanged.
 
-Next focused slice: elevated graceful-failure scenarios (parent stdin EOF, lease
-expiry, blocked output), each with final stop and absence evidence. Broker death
+Next focused slice: a design for broker-death evidence and orphan ownership. Broker death
 requires an independent authorized absence witness; elevated collector crash also
-requires an orphan-ownership design before claiming cleanup. The normal-stop result
-does not close either of those failure cases and does not require repeating B1.
+requires an orphan-ownership design before claiming cleanup. The graceful-failure
+results do not close either crash case and do not require repeating B1.
