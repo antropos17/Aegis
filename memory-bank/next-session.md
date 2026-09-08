@@ -1,9 +1,10 @@
 # AEGIS — старт следующего чата
 
-Обновлено 2026-09-08 после успешного реального UAC stop на стенде ETW B4.
+Обновлено 2026-09-08 после реальных elevated graceful-failure проверок ETW B4.
 B2: PR #384, `f2f1ac4`; B3: PR #385, `cc47212`, оба merged с пятью зелёными CI.
-B4: PR #386, `01bf403`, merged с пятью зелёными CI. Новый live-результат —
-PR ветки `codex/etw-uac-stop-evidence`; проверь его финальный статус.
+B4: PR #386, `01bf403`; первый UAC stop: PR #387, `1f7cd82`, оба merged с пятью
+зелёными CI. Новый блок — PR ветки `codex/etw-elevated-cleanup-cases`;
+проверь его финальный статус.
 Эта инструкция и последний Session handoff в `memory-bank/progress.md` — точка
 продолжения. Сначала проверь текущую ветку и состояние файлов: пользователь может
 принести другие изменения после записи этого контекста.
@@ -57,7 +58,7 @@ CI-контекстов этих PR прошли перед merge. Устано�
 сессии и не превращает diagnostic profile в HEALTHY. В нём нет массива событий.
 
 Модули B3 не импортируются приложением. В B4 добавлен отдельный
-`sidecar/etw-lifecycle` (.NET 10, без NuGet-пакетов). Его `etw-lifecycle/1` проверяет
+`sidecar/etw-lifecycle` (.NET 10, без NuGet-пакетов). Текущий `etw-lifecycle/2` проверяет
 собственный транспорт: защищённый локальный pipe, взаимную проверку PID/полного
 FILETIME/image/user/logon/elevation, authorize до создания сессии, lease и stop.
 При совпавшем имени существующей сессии стенд отказывает; чужую сессию не очищает.
@@ -83,8 +84,22 @@ Apphost/assembly совпали с normal-token прогоном; LF-хеши и
 их нельзя напрямую сравнивать после преобразования переносов Git.
 Same-account cross-integrity подтверждён на этом хосте.
 
-Следующий срез — расширить явный elevated harness для parent-stdin EOF, lease
-expiry и blocked output с доказательствами final stop и отсутствия сессии.
+**Новые graceful-failure сценарии тоже реализованы и проверены.** В версии 2 два
+pipe с отдельными ID и одинаковыми DACL/проверками процессов; authorize отправляется
+после проверки обоих. Второй переносит единственный `cleanup` после попытки stop,
+со своим timeout 1 с. Частично записанный основной поток никогда не дочитывается
+в blocked-write. Primary ack и cleanup receipt сохраняются отдельно.
+
+Прошли 14 self-test, восемь normal-token сценариев и `uac-failures` с четырьмя
+реальными сессиями: stop, parent stdin EOF, lease, blocked write. Во всех stop 0,
+absence 4201, 256 × 64 КиБ и loss counters 0; child exit 0/0/9/10 соответственно.
+В blocked-write primary ack false, cleanup receipt true. Процессов стенда не осталось.
+Отчёты: `X:/tmp/aegis-etw-cleanup-check-20260908/result.json` и
+`X:/tmp/aegis-etw-cleanup-uac-20260908/result.json`; агрегат —
+`docs/recon/evidence/etw-lifecycle-home-26200-cleanup.json`, canonical LF-хеши исходников
+и одинаковые binary-хеши обоих прогонов. Не повторяй их без новой причины.
+
+Следующий срез — проект доказательств broker death и владения orphan-сессиями.
 Для broker death нужен независимый разрешённый свидетель отсутствия; для elevated
 collector crash сначала нужен проект владения orphan-сессией. E1/E2 ещё требуют
 реального отказа/позднего UAC, других credentials/logon, remote clients и suspend.

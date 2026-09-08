@@ -7,16 +7,20 @@ internal static class Peer
 {
     internal static async Task<int> Run(string[] args)
     {
-        if (args.Length != 6 || args[1] is not ("check" or "live") ||
+        if (args.Length != 7 || args[1] is not ("check" or "live") ||
             args[5] is not ("normal" or "exit" or "flood")) throw new ArgumentException();
         bool live = args[1] == "live";
-        if (live && args[5] != "normal") throw new ArgumentException();
+        if (live && args[5] == "exit") throw new ArgumentException();
         if (Security.Current().Elevated != live) return 3;
         string id = args[2];
         using var parent = Process.GetProcessById(int.Parse(args[3], CultureInfo.InvariantCulture));
         ulong birth = ulong.Parse(args[4], CultureInfo.InvariantCulture);
         using var pipe = Security.Client(id);
         Security.Verify(pipe, parent, birth, false, false);
+        string receiptId = args[6];
+        if (receiptId == id) throw new InvalidDataException();
+        using var receipt = Security.Client(receiptId);
+        Security.Verify(receipt, parent, birth, false, false);
         using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(25));
         using var ownerGone = new CancellationTokenSource();
         using var io = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token, ownerGone.Token);
@@ -57,6 +61,14 @@ internal static class Peer
             {
                 using var terminal = new CancellationTokenSource(TimeSpan.FromSeconds(1));
                 await Wire.Write(pipe, Wire.Make(id, ++sent, "stopped", live, reason, final), terminal.Token);
+            }
+            catch (Exception error) when (error is IOException or OperationCanceledException) { }
+            // Independent authenticated pipe: primary framing may have been left
+            // partial by a cancelled write. Never resume decoding that stream.
+            try
+            {
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+                await Wire.Write(receipt, Wire.Make(receiptId, 1, "cleanup", live, reason, final), deadline.Token);
             }
             catch (Exception error) when (error is IOException or OperationCanceledException) { }
             lifetime.Cancel();

@@ -1,9 +1,11 @@
 # Isolated ETW lifecycle harness (B4)
 
-This Windows x64/.NET 10 experiment checks process/pipe ownership and prepares an
-explicit empty-session UAC check. It has no third-party packages, file provider,
+This Windows x64/.NET 10 experiment checks process/pipe ownership and explicit
+empty-session UAC cleanup. It has no third-party packages, file provider,
 file-event decoder, Electron import, installer integration or production defaults.
-Its `etw-lifecycle/1` wire is deliberately separate from B3's `etw-file/1`.
+Its `etw-lifecycle/2` wire is deliberately separate from B3's `etw-file/1`.
+Version 2 adds an independent authenticated cleanup pipe and report schema 2;
+historical version 1 evidence remains unchanged.
 
 ## Run
 
@@ -18,7 +20,7 @@ dotnet build sidecar/etw-lifecycle/EtwLifecycle.csproj -c Release
 Use a new output directory for each run; existing directories are rejected.
 The `check` command launches normal-token processes and never calls StartTrace.
 Its eight scenarios take about nine seconds in the recorded local run; this is
-not a performance budget. Both modes reject an already elevated coordinator.
+not a performance budget. All coordinator modes reject an already elevated token.
 Run the apphost `.exe`, not `dotnet EtwLifecycle.dll`, so peer image checks have
 one fixed executable. The executable/managed assembly hashes are saved in the report.
 
@@ -37,7 +39,16 @@ No provider is enabled and no file contents, paths, reads or process command lin
 are collected. Requested session buffers are 256 × 64 KiB for this explicit
 experiment; actual counts are reported. The measurement probe's budget is unchanged.
 
-Only the normal-stop scenario is currently available under elevation. Actual
+`uac-failures` runs four sequential fresh broker/collector pairs: stop, parent stdin
+EOF, lease expiry and blocked primary output. Each launch can request UAC. The
+batch stops at the first failed case and retains its report. These cases passed on
+the local Home host on 2026-09-08; use a new directory for any justified rerun:
+
+```powershell
+& './sidecar/etw-lifecycle/bin/Release/net10.0-windows/EtwLifecycle.exe' uac-failures 'X:/tmp/aegis-etw-cleanup-uac-new'
+```
+
+Elevated abrupt-kill scenarios remain rejected by the broker. Actual
 UAC refusal/cancellation, alternate credentials, elevated crash cleanup, suspend
 and hostile remote/other-logon clients remain live gates. Same-account cross-integrity
 pipe/process access succeeded on the recorded host. The development source
@@ -45,9 +56,9 @@ and build directory are trusted inputs; this is not a signed privileged service.
 
 ## Boundaries and authentication
 
-The coordinator starts a normal-token broker. The broker creates one random local
-pipe with `FILE_FLAG_FIRST_PIPE_INSTANCE`, `PIPE_REJECT_REMOTE_CLIENTS` and a protected
-DACL. The DACL permits the current logon SID to read/write data, read attributes
+The coordinator starts a normal-token broker. The broker creates two random local
+pipes, each with `FILE_FLAG_FIRST_PIPE_INSTANCE`, `PIPE_REJECT_REMOTE_CLIENTS` and a
+protected DACL. Each DACL permits the current logon SID to read/write data, read attributes
 and synchronize, plus LocalSystem access. It omits create-instance rights from the
 client grant. Default Everyone/Anonymous access is not used. The client specifies
 identification-level SQOS so a server cannot impersonate the elevated client.
@@ -55,7 +66,8 @@ identification-level SQOS so a server cannot impersonate the elevated client.
 The broker holds the process returned by its fixed apphost launch. After connection
 it compares the OS pipe client PID with that held process, exact creation FILETIME,
 image path, user SID, logon SID and expected elevation. The collector independently
-checks the pipe server against a held broker process and the launch creation witness.
+checks each pipe server against a held broker process and the launch creation witness.
+Both pipe connections must pass authentication before the broker sends authorization.
 The random launch ID binds messages; it is not sufficient proof of identity.
 No user-specified executable, shell command, output path or provider configuration
 is passed to the elevated process.
@@ -79,12 +91,21 @@ length and closed UTF-8 JSON frames capped at 64 KiB/depth 8. Flood test frames 
 capped at 16 KiB padding. No frame backlog or background task list accumulates.
 
 The experiment uses 500 ms broker pings, a 4 s peer read lease, 2 s write deadlines,
-25 s maximum peer lifetime and a 1 s best-effort terminal write. These accelerated
+25 s maximum peer lifetime and a 1 s best-effort terminal write on each pipe. These accelerated
 test values differ from the B2 production proposals. The collector also holds and
 watches its broker process; broker death cancels I/O independently of pipe traffic.
 Cleanup runs before the terminal write, so blocked output cannot prevent attempting
 session stop. Native ETW calls are synchronous; this experiment does not establish
 a hard deadline for a stuck kernel call.
+
+After attempting stop, the collector tries `stopped` on the primary pipe, then one
+`cleanup` frame on the separate pipe with its own ID and sequence 1. This second
+receipt carries the same reason/final statistics and has a separate one-second
+write deadline. If the primary terminal arrived, conflicting receipts are rejected.
+The blocked-output case never resumes primary decoding: cancellation may have left
+a partial frame there. The broker waits for the separate receipt and actual child
+exit. An absent receipt, failed stop or unknown absence cannot pass live acceptance.
+This receipt is the authenticated collector's report, not a second native observer.
 
 The normal coordinator deadline is 35 s per case; the explicit UAC case allows
 150 s. Ctrl+C is recorded as cancellation and closes broker stdin, allowing a
@@ -110,11 +131,14 @@ interpret the normal-token kill tests as evidence of privileged ETW cleanup.
 configuration; oversized length and truncation; sequence replay; ownership on
 collision, unavailable query and failed stop; kernel-read DACL; first-instance
 collision; real mutual peer identity; wrong client/server processes; authorization
-timeout; and a cancelled coordinator request. Native session calls in the ownership
+timeout; a cancelled coordinator request; invalid/foreign/conflicting cleanup
+receipts; and rejection of missing counters, absence, identity or child exit.
+There are 14 self-tests. Native session calls in the ownership
 unit tests use an explicit fake API.
 
 `check` saves `result.json` with environment/runtime, build hashes, mode, scenario
-outcomes, actual peer exit codes and stop acknowledgments. All native statistics
+outcomes, actual peer exit codes, primary stop acknowledgments and separate cleanup
+receipt flags. All native statistics
 must be null in this mode. The expected outcomes are checked explicitly:
 
 | Case | Required observation |
@@ -125,15 +149,17 @@ must be null in this mode. The expected outcomes are checked explicitly:
 | peer-exit | Deliberate nonzero collector exit 7; failure remains visible. |
 | peer-kill | Abrupt collector kill; broker gets EOF and no stop acknowledgment. |
 | lease | Withhold pings; terminal lease-expired, exit 9. |
-| blocked-write | Stop reading the flooded pipe; collector write deadline exits 10, no acknowledgment claimed. |
+| blocked-write | Primary pipe stays unread; write deadline exits 10, primary acknowledgment false, separate cleanup receipt required. |
 | launch-denied | Check-only injection of Win32 error 1223; no collector starts, refusal survives into the report. This does not exercise UAC. |
 
-The UAC case passes only with authenticated peer, restricted DACL, initial query
+Each UAC case passes only with authenticated peer on both pipes, restricted DACLs, initial query
 success, actual buffer fields, stop-query success with known loss counters,
-absence status 4201, acknowledgment and child exit 0. Failed runs remain on disk.
+absence status 4201, separate cleanup receipt and the expected child exit: 0 for
+stop/EOF, 9 for lease expiry, 10 for blocked write. Primary acknowledgment is required
+except in blocked-write, where it must be false. Failed runs remain on disk.
 An empty session with zero losses says nothing about Kernel-File coverage or cost.
 
-The [real UAC stop evidence](../../docs/recon/evidence/etw-lifecycle-home-26200-uac-stop.json)
+The historical version 1 [real UAC stop evidence](../../docs/recon/evidence/etw-lifecycle-home-26200-uac-stop.json)
 records a passing same-account run using the same apphost/assembly as the eight
 normal-token cases. Both identity checks and the restricted DACL passed; initial
 and final native calls returned status 0, with 256 buffers of 64 KiB and all three
@@ -142,10 +168,13 @@ post-stop absence query returned 4201. No harness processes remained on the host
 Source hashes include canonical LF values to account for git checkout's CRLF/LF
 conversion; the binary hashes match exactly.
 
-This closes only the local same-account normal-stop slice of E1/E2. The next
-implementation slice should extend the explicit harness with graceful parent-EOF,
-lease expiry and blocked-output cases under elevation, retaining final stop and
-absence evidence. Broker death needs an independent authorized absence witness;
+The [version 2 cleanup evidence](../../docs/recon/evidence/etw-lifecycle-home-26200-cleanup.json)
+records 14 self-tests, eight normal-token and four real elevated cases using the
+same new binaries. All live cases reported successful stop and absence 4201,
+256 × 64 KiB buffers and zero native loss counters. Blocked output reported no
+primary acknowledgment and a valid separate receipt. No harness processes remained.
+These results cover local same-account graceful failure paths. Broker death still
+needs an independent authorized absence witness;
 an elevated collector crash additionally needs a defined orphan-ownership design.
 Do not claim cleanup from a missing pipe acknowledgment or normal-token kill test.
 

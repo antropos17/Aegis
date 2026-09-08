@@ -39,6 +39,7 @@ internal static class SelfTest
             {
                 Wire.Make(id, 1, "hello", false) with { Seq = "01" },
                 Wire.Make(id, 1, "hello", false) with { Protocol = "etw-file/1" },
+                Wire.Make(id, 1, "hello", false) with { Protocol = "etw-lifecycle/1" },
                 Wire.Make(id, 1, "hello", false) with { Live = true },
                 Wire.Make(id, 1, "hello", false) with { Id = Guid.NewGuid().ToString("N") }
             }) await Reject(() => { Wire.Validate(value, id, false); return Task.CompletedTask; });
@@ -118,17 +119,21 @@ internal static class SelfTest
         await Test("missing authorization expires before ready", async () =>
         {
             string id = Guid.NewGuid().ToString("N"); using var server = Security.Server(id);
+            string receiptId = Guid.NewGuid().ToString("N"); using var receipt = Security.Server(receiptId);
             var self = Security.Current();
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(8));
             var connect = server.WaitForConnectionAsync(deadline.Token);
+            var receiptConnect = receipt.WaitForConnectionAsync(deadline.Token);
             using var peer = Process.Start(Program.Child("peer", "check", id,
-                self.Pid.ToString(System.Globalization.CultureInfo.InvariantCulture), self.Birth.ToString(System.Globalization.CultureInfo.InvariantCulture), "normal")) ?? throw new InvalidOperationException();
+                self.Pid.ToString(System.Globalization.CultureInfo.InvariantCulture), self.Birth.ToString(System.Globalization.CultureInfo.InvariantCulture), "normal", receiptId)) ?? throw new InvalidOperationException();
             try
             {
-                await connect;
+                await connect; await receiptConnect;
                 Check((await Wire.Read(server, id, false, deadline.Token)).Kind == "hello");
                 var terminal = await Wire.Read(server, id, false, deadline.Token);
                 Check(terminal.Kind == "stopped" && terminal.Code == "lease-expired" && terminal.Stats == null);
+                var confirmation = await Wire.Read(receipt, receiptId, false, deadline.Token);
+                FinalEvidence.ValidateReceipt(confirmation, "lease-expired", null, true);
                 await peer.WaitForExitAsync(deadline.Token); Check(peer.ExitCode == 9);
             }
             finally { if (!peer.HasExited) peer.Kill(); await peer.WaitForExitAsync(); }
@@ -138,6 +143,34 @@ internal static class SelfTest
             using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
             var result = await Scenarios.Run(false, "stop", cancelled.Token);
             Check(!result.Passed && result.Error == "cancelled" && result.BrokerExited);
+        });
+        await Test("cleanup receipt rejects wrong sequence, reason and conflicting stats", async () =>
+        {
+            string id = Guid.NewGuid().ToString("N");
+            var stats = new TraceStats(0, 0, 0, 0, 256, 64, 4201);
+            var valid = Wire.Make(id, 1, "cleanup", true, "stop", stats);
+            FinalEvidence.ValidateReceipt(valid, "stop", stats, true);
+            foreach (var frame in new[] { valid with { Seq = "2" }, valid with { Kind = "stopped" },
+                valid with { Code = "lease-expired" }, valid with { Stats = null },
+                valid with { Stats = stats with { EventsLost = 1 } } })
+                await Reject(() => { FinalEvidence.ValidateReceipt(frame, "stop", stats, true); return Task.CompletedTask; });
+            using var bytes = new MemoryStream();
+            await Wire.Write(bytes, valid, CancellationToken.None); bytes.Position = 0;
+            await Reject(() => Wire.Read(bytes, Guid.NewGuid().ToString("N"), true, CancellationToken.None));
+        });
+        await Test("live cleanup needs receipt, known counters, absence and actual exit", () =>
+        {
+            var stats = new TraceStats(0, 0, 0, 0, 256, 64, 4201);
+            var valid = new BrokerResult(true, "blocked-write", true, true, "write-timeout", 10, stats, stats, false, true);
+            Check(FinalEvidence.Accepts(true, "blocked-write", valid, 0));
+            foreach (var result in new[] { valid with { CleanupReceiptReceived = false }, valid with { PeerExitCode = null },
+                valid with { Authenticated = false }, valid with { RestrictedAcl = false }, valid with { StopAcknowledged = true },
+                valid with { FinalStats = null }, valid with { FinalStats = stats with { AbsentStatus = 5 } },
+                valid with { FinalStats = stats with { EventsLost = null } }, valid with { FinalStats = stats with { QueryStatus = 5 } },
+                valid with { Live = false }, valid with { Scenario = "lease" } })
+                Check(!FinalEvidence.Accepts(true, "blocked-write", result, 0));
+            Check(!FinalEvidence.Accepts(true, "blocked-write", valid, 2));
+            return Task.CompletedTask;
         });
         Console.WriteLine($"{passed} lifecycle self-tests passed; no ETW session or elevation.");
         return 0;

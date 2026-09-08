@@ -1,0 +1,350 @@
+{
+  "schema": 1,
+  "scope": "B4 authenticated cleanup receipt and elevated graceful-failure cases; no file provider",
+  "sourceBaseCommit": "1f7cd82dedd1359dbe2eb4119e6e141d196c45d8",
+  "sourceCanonicalLfSha256": {
+    "Broker.cs": "056A2B22B8AEE9EE727089D2988A57703CFDC2DADBE0AE38BCF24F754F4A0BDF",
+    "EtwLifecycle.csproj": "22FE8D550AD99BD026CB9448AAF5F0B83F908EDC977B75FBFD2A15E36B1375F1",
+    "FinalEvidence.cs": "0127B1A626094FB22D2FC60057F17C1CB194D2B1F5E8577BA24BA40AC768F564",
+    "OwnedTrace.cs": "E2D2BCDCBF8F05D9BF6BE765D93017A8F1A89B2FC41C10605661F9FC7BD58CAD",
+    "Peer.cs": "17E30EC3243BE00B01BB4D4D8B305C99822B1583D3F086B388FEE9AB5E381579",
+    "Program.cs": "00B1363D993FACE8D7049E55C44A67396A466F10568A65FBDED5D97802D1BA94",
+    "Scenarios.cs": "F57956747F10D594D506F0F8DDF44CECAE00738CB21FD8A77CA835B8B7EC37E0",
+    "Security.cs": "C5BC03146F17ED29A35D40144686E65CBEA93E408D858CB434266311A8567AC3",
+    "SelfTest.cs": "9FC11DD1515C05411D7FD58A322EE5BBF3BBFED776048909F708C94F7608B0FE",
+    "Wire.cs": "6AB1B7D8DE5502E7D19E51CF2394DCDF872081FD8CF03D406517509663A6C5BE"
+  },
+  "selfTests": {
+    "passed": 14,
+    "nativeTraceApi": "fake",
+    "realNamedPipes": true
+  },
+  "pendingLiveGates": [
+    "Actual UAC refusal/late consent and alternate credentials",
+    "Broker death with independent authorized absence witness",
+    "Elevated collector crash and orphan ownership/recovery",
+    "Suspend/resume",
+    "Remote and other-logon adversarial clients"
+  ],
+  "reports": [
+    {
+      "reportFile": "aegis-etw-cleanup-check-20260908/result.json",
+      "reportSha256": "F908C61B27B863D326B3D1838725D85F2CD965452155C3949CF0D3726817C4D2",
+      "report": {
+        "schema": 2,
+        "experiment": "etw-lifecycle",
+        "liveEmptySession": false,
+        "fileProviderEnabled": false,
+        "started": "2026-09-08T21:36:21.9266219+00:00",
+        "ended": "2026-09-08T21:36:30.4228663+00:00",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "framework": "10.0.10",
+        "executableSha256": "53E9D7D7AC542F1E93CE5CA5DB7480A875873F14EC6AEF1ECE218D85A29C25BB",
+        "assemblySha256": "B677C6888FCA63C1067FF5D450184559C636C80817C2F1F6A6E689B3FDBB2A2C",
+        "outcomes": [
+          {
+            "Scenario": "stop",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "stop",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "stop",
+              "PeerExitCode": 0,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "parent-eof",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "parent-eof",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "parent-eof",
+              "PeerExitCode": 0,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "broker-kill",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": null,
+            "Error": null
+          },
+          {
+            "Scenario": "peer-exit",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "peer-exit",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "peer-failed",
+              "PeerExitCode": 7,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "peer-kill",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "peer-kill",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "eof",
+              "PeerExitCode": -1,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": false,
+              "CleanupReceiptReceived": false
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "lease",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "lease",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "lease-expired",
+              "PeerExitCode": 9,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "blocked-write",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "blocked-write",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "write-timeout",
+              "PeerExitCode": 10,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": false,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "launch-denied",
+            "Passed": true,
+            "PeerExited": false,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "launch-denied",
+              "Authenticated": false,
+              "RestrictedAcl": true,
+              "Outcome": "uac-denied",
+              "PeerExitCode": null,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": false,
+              "CleanupReceiptReceived": false
+            },
+            "Error": "uac-denied"
+          }
+        ],
+        "exitCode": 0
+      }
+    },
+    {
+      "reportFile": "aegis-etw-cleanup-uac-20260908/result.json",
+      "reportSha256": "7EDDDE008C85B15B41DD216880E02FEC89F5F27538B039DEA25CF369E5C73633",
+      "report": {
+        "schema": 2,
+        "experiment": "etw-lifecycle",
+        "liveEmptySession": true,
+        "fileProviderEnabled": false,
+        "started": "2026-09-08T21:36:49.0071271+00:00",
+        "ended": "2026-09-08T21:37:11.1673196+00:00",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "framework": "10.0.10",
+        "executableSha256": "53E9D7D7AC542F1E93CE5CA5DB7480A875873F14EC6AEF1ECE218D85A29C25BB",
+        "assemblySha256": "B677C6888FCA63C1067FF5D450184559C636C80817C2F1F6A6E689B3FDBB2A2C",
+        "outcomes": [
+          {
+            "Scenario": "stop",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": true,
+              "Scenario": "stop",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "stop",
+              "PeerExitCode": 0,
+              "InitialStats": {
+                "QueryStatus": 0,
+                "EventsLost": 0,
+                "RealTimeBuffersLost": 0,
+                "LogBuffersLost": 0,
+                "NumberOfBuffers": 256,
+                "BufferSizeKiB": 64,
+                "AbsentStatus": null
+              },
+              "FinalStats": {
+                "QueryStatus": 0,
+                "EventsLost": 0,
+                "RealTimeBuffersLost": 0,
+                "LogBuffersLost": 0,
+                "NumberOfBuffers": 256,
+                "BufferSizeKiB": 64,
+                "AbsentStatus": 4201
+              },
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "parent-eof",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": true,
+              "Scenario": "parent-eof",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "parent-eof",
+              "PeerExitCode": 0,
+              "InitialStats": {
+                "QueryStatus": 0,
+                "EventsLost": 0,
+                "RealTimeBuffersLost": 0,
+                "LogBuffersLost": 0,
+                "NumberOfBuffers": 256,
+                "BufferSizeKiB": 64,
+                "AbsentStatus": null
+              },
+              "FinalStats": {
+                "QueryStatus": 0,
+                "EventsLost": 0,
+                "RealTimeBuffersLost": 0,
+                "LogBuffersLost": 0,
+                "NumberOfBuffers": 256,
+                "BufferSizeKiB": 64,
+                "AbsentStatus": 4201
+              },
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "lease",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": true,
+              "Scenario": "lease",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "lease-expired",
+              "PeerExitCode": 9,
+              "InitialStats": {
+                "QueryStatus": 0,
+                "EventsLost": 0,
+                "RealTimeBuffersLost": 0,
+                "LogBuffersLost": 0,
+                "NumberOfBuffers": 256,
+                "BufferSizeKiB": 64,
+                "AbsentStatus": null
+              },
+              "FinalStats": {
+                "QueryStatus": 0,
+                "EventsLost": 0,
+                "RealTimeBuffersLost": 0,
+                "LogBuffersLost": 0,
+                "NumberOfBuffers": 256,
+                "BufferSizeKiB": 64,
+                "AbsentStatus": 4201
+              },
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "blocked-write",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": true,
+              "Scenario": "blocked-write",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "write-timeout",
+              "PeerExitCode": 10,
+              "InitialStats": {
+                "QueryStatus": 0,
+                "EventsLost": 0,
+                "RealTimeBuffersLost": 0,
+                "LogBuffersLost": 0,
+                "NumberOfBuffers": 256,
+                "BufferSizeKiB": 64,
+                "AbsentStatus": null
+              },
+              "FinalStats": {
+                "QueryStatus": 0,
+                "EventsLost": 0,
+                "RealTimeBuffersLost": 0,
+                "LogBuffersLost": 0,
+                "NumberOfBuffers": 256,
+                "BufferSizeKiB": 64,
+                "AbsentStatus": 4201
+              },
+              "StopAcknowledged": false,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          }
+        ],
+        "exitCode": 0
+      }
+    }
+  ]
+}

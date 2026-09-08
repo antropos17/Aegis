@@ -20,14 +20,15 @@ internal static class Program
             {
                 Console.WriteLine("Isolated ETW lifecycle experiment; no file provider or Electron connection.\n" +
                     "self-test\ncheck <new-output-directory> (normal token, no ETW/UAC)\n" +
-                    "uac <new-output-directory> (normal terminal, one UAC; empty ETW session)");
+                    "uac <new-output-directory> (normal terminal, one UAC; empty ETW session)\n" +
+                    "uac-failures <new-output-directory> (four UAC launches; empty sessions, stop/EOF/lease/blocked write)");
                 return 0;
             }
             if (args[0] == "self-test" && args.Length == 1) return await SelfTest.Run();
             if (args[0] == "peer") return await Peer.Run(args);
             if (args[0] == "broker") return await Broker.Run(args);
             if (args[0] == "rogue") return await SelfTest.Rogue(args);
-            if (args.Length != 2 || args[0] is not ("check" or "uac")) throw new ArgumentException();
+            if (args.Length != 2 || args[0] is not ("check" or "uac" or "uac-failures")) throw new ArgumentException();
             if (Security.Current().Elevated)
             {
                 Console.Error.WriteLine("Use a normal PowerShell terminal. No run was started.");
@@ -37,7 +38,7 @@ internal static class Program
             if (Path.Exists(output)) throw new IOException();
             Directory.CreateDirectory(output);
             var started = DateTimeOffset.UtcNow;
-            bool live = args[0] == "uac";
+            bool live = args[0] != "check";
             var outcomes = new List<object>();
             int result = 0;
             using var abort = new CancellationTokenSource();
@@ -45,7 +46,7 @@ internal static class Program
             Console.CancelKeyPress += cancel;
             try
             {
-                foreach (var scenario in live ? new[] { "stop" } :
+                foreach (var scenario in args[0] == "uac-failures" ? new[] { "stop", "parent-eof", "lease", "blocked-write" } : live ? new[] { "stop" } :
                     new[] { "stop", "parent-eof", "broker-kill", "peer-exit", "peer-kill", "lease", "blocked-write", "launch-denied" })
                 {
                     var outcome = await Scenarios.Run(live, scenario, abort.Token);
@@ -61,7 +62,7 @@ internal static class Program
             finally { Console.CancelKeyPress -= cancel; }
             Write(output, "result.json", new
             {
-                schema = 1,
+                schema = 2,
                 experiment = "etw-lifecycle",
                 liveEmptySession = live,
                 fileProviderEnabled = false,

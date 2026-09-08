@@ -1670,3 +1670,51 @@ Branch: `codex/etw-uac-stop-evidence`; inspect its PR for final CI/merge status.
 Local verification: format, renderer build and lint passed (zero errors, 31 existing
 warnings); 40 local documentation links resolved and the evidence checks passed.
 No new runtime tests were added for this documentation/evidence-only change.
+
+## Session handoff — ETW B4 elevated graceful-failure cleanup (2026-09-08)
+
+The real normal UAC stop evidence merged as PR #387, `1f7cd82`, with five green
+contexts. The user asked to continue. The isolated C# harness now uses
+`etw-lifecycle/2` and report schema 2, adding a separate authenticated cleanup pipe.
+Both pipes use the existing restricted DACL, first-instance/remote-rejection flags,
+identification SQOS and mutual held-process identity checks before authorization.
+No new token privileges, dependencies, file providers or Electron imports.
+
+The collector attempts owned-session stop before either terminal write. It tries
+primary `stopped`, then one independent `cleanup` frame with a separate ID,
+sequence 1 and its own one-second deadline. The broker checks reason/stat agreement
+when the primary terminal arrived. A blocked primary can contain a partial frame;
+it is never decoded again in that scenario. Primary acknowledgment and cleanup
+receipt stay separate. FinalEvidence rejects missing receipts, unknown counters,
+failed/unknown absence, identity mismatch and missing/wrong child exit. The separate
+receipt is authenticated collector testimony, not an independent native observer.
+
+`uac-failures` launches four sequential fresh broker/collector pairs and stops on
+first failure: stop (new-protocol regression), parent stdin EOF, expired lease and
+blocked primary write. Abrupt elevated kill scenarios remain rejected. Local
+Windows Release build passed without warnings/errors, C# whitespace verification
+passed, 14 self-tests and all eight normal-token process cases passed.
+
+The actual UAC batch also passed on the Home host at 21:36–21:37 UTC. Every empty
+session reported initial query 0, final stop 0, absence 4201, 256 × 64 KiB buffers
+and all three loss counters zero. Expected child exits were 0/0/9/10. Blocked-write
+kept StopAcknowledged false and CleanupReceiptReceived true. Both processes exited
+in every case; no harness processes remained. No file provider was enabled.
+
+Raw reports: `X:/tmp/aegis-etw-cleanup-check-20260908/result.json` and
+`X:/tmp/aegis-etw-cleanup-uac-20260908/result.json`. The aggregate
+`docs/recon/evidence/etw-lifecycle-home-26200-cleanup.json` retains report hashes,
+both complete reports and ten canonical LF source hashes. Both runs used identical
+apphost/assembly binaries. Historical version 1 evidence is unchanged.
+
+Repository format, renderer build and lint passed (zero errors, 31 existing
+warnings); 41 local links and ten source hashes verified. Existing GitHub CI does
+not build/test this C# project; local Windows checks are separate evidence.
+Branch: `codex/etw-elevated-cleanup-cases`; inspect its PR for final CI/merge status.
+
+Next focused block is the design for broker-death evidence and orphan ownership.
+Broker death needs an independent authorized absence witness; collector crash
+needs an ownership/recovery design before any claim of cleanup. Actual UAC refusal,
+late consent, alternate credentials/logons, remote clients and suspend remain open.
+Do not repeat the completed four live cases, first UAC stop or B1 matrix/load/tune
+without a new question. Frontend, production wiring and installed app stay separate.
