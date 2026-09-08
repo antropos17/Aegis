@@ -1,0 +1,521 @@
+{
+  "schema": 1,
+  "source": "aegis-etw-tune-20260908",
+  "harnessCommit": "52cfbe7a69a61a23b98f26d498abc008d7acf9ce",
+  "memoryArrayOrder": [
+    "first",
+    "last",
+    "minimum",
+    "maximum"
+  ],
+  "managedAndGen2Order": [
+    "first",
+    "last"
+  ],
+  "runs": [
+    {
+      "run": "r1-b64",
+      "exitCode": 0,
+      "durationMs": 16109.89,
+      "collectorCpuMs": 859.375,
+      "loss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 1024,
+        "BufferSizeKb": 64
+      },
+      "resourceSamplingDegraded": false,
+      "omittedResources": 0,
+      "decoderRetentionErrors": 0,
+      "samples": 5,
+      "workingSetBytes": [
+        49823744,
+        67321856,
+        49823744.0,
+        73093120.0
+      ],
+      "privateBytes": [
+        19865600,
+        31948800,
+        19865600.0,
+        39903232.0
+      ],
+      "managedBytes": [
+        3335664,
+        8607872
+      ],
+      "gen2Collections": [
+        0,
+        1
+      ],
+      "successfulCommands": [
+        {
+          "Name": "npm",
+          "Count": 83
+        }
+      ],
+      "failedCommands": 0,
+      "sourceHashes": {
+        "workload": "7722768DEC8FAFD4133CE72A8C5CA090988F931A9FE28B6315E35CE8037A56C8",
+        "resources": "3D4B5BE1C35BA269F8FB095AC020D39DE7EA4A8578C404B58BFA1371E0F2305E",
+        "summary": "D62E27E9ABE147A4DB88373D30C1BF523200BC5201E6322075C70A29548B21C9"
+      }
+    },
+    {
+      "run": "r1-b32",
+      "exitCode": 0,
+      "durationMs": 16112.1865,
+      "collectorCpuMs": 656.25,
+      "loss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 512,
+        "BufferSizeKb": 64
+      },
+      "resourceSamplingDegraded": false,
+      "omittedResources": 0,
+      "decoderRetentionErrors": 0,
+      "samples": 5,
+      "workingSetBytes": [
+        66387968,
+        72024064,
+        66387968.0,
+        74067968.0
+      ],
+      "privateBytes": [
+        29704192,
+        34590720,
+        29704192.0,
+        36270080.0
+      ],
+      "managedBytes": [
+        13001280,
+        1443536
+      ],
+      "gen2Collections": [
+        1,
+        1
+      ],
+      "successfulCommands": [
+        {
+          "Name": "npm",
+          "Count": 84
+        }
+      ],
+      "failedCommands": 0,
+      "sourceHashes": {
+        "workload": "ECF56BCF164E2E7EE44ADCEE59D427EF1BB7293C2D27AF2336B6E777511DB45E",
+        "resources": "F49F5070BE9D815E3B4B1F0AC414501628D08DD08556F731142938A7FB720BCE",
+        "summary": "6C285D3E348D533A1FF788831F4D84E87780328427E32EFF4D35E1A48F8FAD42"
+      }
+    },
+    {
+      "run": "r1-b16",
+      "exitCode": 0,
+      "durationMs": 16117.0018,
+      "collectorCpuMs": 500,
+      "loss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 256,
+        "BufferSizeKb": 64
+      },
+      "resourceSamplingDegraded": false,
+      "omittedResources": 0,
+      "decoderRetentionErrors": 0,
+      "samples": 5,
+      "workingSetBytes": [
+        69062656,
+        72241152,
+        69062656.0,
+        75591680.0
+      ],
+      "privateBytes": [
+        31289344,
+        33472512,
+        31289344.0,
+        37400576.0
+      ],
+      "managedBytes": [
+        5031448,
+        7616640
+      ],
+      "gen2Collections": [
+        1,
+        1
+      ],
+      "successfulCommands": [
+        {
+          "Name": "npm",
+          "Count": 86
+        }
+      ],
+      "failedCommands": 0,
+      "sourceHashes": {
+        "workload": "864C54A3A38E88BF3AD59F687F8D6A8E5EA3CAFD649F2E900EDB37C4911C84E4",
+        "resources": "0DF38A99FA11EDB3823D29B74137968995C4B6307C3FF4A4C5D4B80DAC9AAE0E",
+        "summary": "82B2C7B7C37C2F9FBC62C58D1EF5BAAED720E6A7EA25AF269A88A62ACB7BDC09"
+      }
+    },
+    {
+      "run": "r2-b32",
+      "exitCode": 0,
+      "durationMs": 16118.2067,
+      "collectorCpuMs": 328.125,
+      "loss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 512,
+        "BufferSizeKb": 64
+      },
+      "resourceSamplingDegraded": false,
+      "omittedResources": 0,
+      "decoderRetentionErrors": 0,
+      "samples": 5,
+      "workingSetBytes": [
+        69492736,
+        73203712,
+        69492736.0,
+        74121216.0
+      ],
+      "privateBytes": [
+        30703616,
+        34123776,
+        30703616.0,
+        35233792.0
+      ],
+      "managedBytes": [
+        9321592,
+        8449632
+      ],
+      "gen2Collections": [
+        1,
+        1
+      ],
+      "successfulCommands": [
+        {
+          "Name": "npm",
+          "Count": 92
+        }
+      ],
+      "failedCommands": 0,
+      "sourceHashes": {
+        "workload": "EB18F2A8B3AEF646B651E4CB09892506C517AC760CED82561C08348089930869",
+        "resources": "EB4F1C61ABDEF8559A38AC1DA53B27CF660348E78196D09C868F3D840FF56A91",
+        "summary": "ABBCE2E5A8A1BF5803BE7AB2AC6D43858CE27CF33E3A212386C09F76D4BFCA82"
+      }
+    },
+    {
+      "run": "r2-b16",
+      "exitCode": 0,
+      "durationMs": 16064.1316,
+      "collectorCpuMs": 468.75,
+      "loss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 256,
+        "BufferSizeKb": 64
+      },
+      "resourceSamplingDegraded": false,
+      "omittedResources": 0,
+      "decoderRetentionErrors": 0,
+      "samples": 5,
+      "workingSetBytes": [
+        73932800,
+        75481088,
+        72228864.0,
+        78159872.0
+      ],
+      "privateBytes": [
+        35196928,
+        37072896,
+        32665600.0,
+        38617088.0
+      ],
+      "managedBytes": [
+        10489160,
+        11558904
+      ],
+      "gen2Collections": [
+        2,
+        2
+      ],
+      "successfulCommands": [
+        {
+          "Name": "npm",
+          "Count": 87
+        }
+      ],
+      "failedCommands": 0,
+      "sourceHashes": {
+        "workload": "4654D04EC1CF0AD149F3BD145D0C267D62F60487DF23A7148370AECE57D61DBE",
+        "resources": "D0331994AF517ACC8BC503A4E6337F2E44ED1C700A0BD8CBA02CE9BACFB78EDF",
+        "summary": "8561CA9940FCA7F00A838C956EBD0BAA7295AB8F7527C12001DB540084A34676"
+      }
+    },
+    {
+      "run": "r2-b64",
+      "exitCode": 0,
+      "durationMs": 16063.193,
+      "collectorCpuMs": 453.125,
+      "loss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 1024,
+        "BufferSizeKb": 64
+      },
+      "resourceSamplingDegraded": false,
+      "omittedResources": 0,
+      "decoderRetentionErrors": 0,
+      "samples": 5,
+      "workingSetBytes": [
+        71905280,
+        75370496,
+        71905280.0,
+        77455360.0
+      ],
+      "privateBytes": [
+        32186368,
+        35737600,
+        32186368.0,
+        37736448.0
+      ],
+      "managedBytes": [
+        4657176,
+        14230624
+      ],
+      "gen2Collections": [
+        2,
+        2
+      ],
+      "successfulCommands": [
+        {
+          "Name": "npm",
+          "Count": 97
+        }
+      ],
+      "failedCommands": 0,
+      "sourceHashes": {
+        "workload": "B3E8325C5AD2616FF1F83AC9E754DCD528A92968702651E14AD9BB4DD87FC9F6",
+        "resources": "A216F720C22C29AEBDDDED9C681754B67FC4D5F20385FFBED35CCDF68F00568D",
+        "summary": "720702B54A2E0E8211FC662037CF26D9A28C4AF22D1892253CB5C0074AEAED2E"
+      }
+    },
+    {
+      "run": "r3-b16",
+      "exitCode": 0,
+      "durationMs": 16096.018,
+      "collectorCpuMs": 468.75,
+      "loss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 256,
+        "BufferSizeKb": 64
+      },
+      "resourceSamplingDegraded": false,
+      "omittedResources": 0,
+      "decoderRetentionErrors": 0,
+      "samples": 5,
+      "workingSetBytes": [
+        70971392,
+        75018240,
+        70971392.0,
+        75411456.0
+      ],
+      "privateBytes": [
+        31162368,
+        35000320,
+        31162368.0,
+        35409920.0
+      ],
+      "managedBytes": [
+        5785304,
+        4156224
+      ],
+      "gen2Collections": [
+        2,
+        2
+      ],
+      "successfulCommands": [
+        {
+          "Name": "npm",
+          "Count": 89
+        }
+      ],
+      "failedCommands": 0,
+      "sourceHashes": {
+        "workload": "C90B24C4FA24DBEEC0C4505CC0DFD8E327762B9C79CECC3925D611A2AB98F650",
+        "resources": "EB6F6E4514294B910ADD75129F0C025936FC03EA2B77BC07012D85280B425AE5",
+        "summary": "678D38C091CBCEE4D279482EBFD13BB5F150CFCCA5011C6809888B958B2F3C3D"
+      }
+    },
+    {
+      "run": "r3-b64",
+      "exitCode": 0,
+      "durationMs": 16111.5896,
+      "collectorCpuMs": 359.375,
+      "loss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 1024,
+        "BufferSizeKb": 64
+      },
+      "resourceSamplingDegraded": false,
+      "omittedResources": 0,
+      "decoderRetentionErrors": 0,
+      "samples": 5,
+      "workingSetBytes": [
+        72294400,
+        77361152,
+        72294400.0,
+        78393344.0
+      ],
+      "privateBytes": [
+        32440320,
+        37699584,
+        32440320.0,
+        38637568.0
+      ],
+      "managedBytes": [
+        7068568,
+        4617072
+      ],
+      "gen2Collections": [
+        2,
+        2
+      ],
+      "successfulCommands": [
+        {
+          "Name": "npm",
+          "Count": 89
+        }
+      ],
+      "failedCommands": 0,
+      "sourceHashes": {
+        "workload": "28C067CE00DD718C3ADD4F34EE77BD65B3EE48116A0AD3490AF10D1B26042F14",
+        "resources": "1FD3CA102BE5C87FCF13B431368A244FB371CC8D8009074AEE31171D469025E3",
+        "summary": "22D58AFA4155E2BA4A7C940672B8F3E4435BC6C34F0B50E7670BE5733DFB72BA"
+      }
+    },
+    {
+      "run": "r3-b32",
+      "exitCode": 0,
+      "durationMs": 16075.7985,
+      "collectorCpuMs": 375,
+      "loss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 512,
+        "BufferSizeKb": 64
+      },
+      "resourceSamplingDegraded": false,
+      "omittedResources": 0,
+      "decoderRetentionErrors": 0,
+      "samples": 5,
+      "workingSetBytes": [
+        73072640,
+        78237696,
+        73072640.0,
+        79032320.0
+      ],
+      "privateBytes": [
+        33824768,
+        38617088,
+        33824768.0,
+        39374848.0
+      ],
+      "managedBytes": [
+        11571624,
+        9398888
+      ],
+      "gen2Collections": [
+        2,
+        2
+      ],
+      "successfulCommands": [
+        {
+          "Name": "npm",
+          "Count": 97
+        }
+      ],
+      "failedCommands": 0,
+      "sourceHashes": {
+        "workload": "675E8047E0EECDA70F7A19930E6607C6F1CF24BE0DE1A4C1B942E162AF2BE5CA",
+        "resources": "D7FF5B7E8F2AC442AAE731B4F5861109B9A8482C4C3C2CEF39596063600B9734",
+        "summary": "D4B0027C4B565B4FFA88FD0C9191D644EC2AEFC8CD5073FC4C42D51CA9A2D9D5"
+      }
+    },
+    {
+      "run": "soak-b16",
+      "exitCode": 0,
+      "durationMs": 601076.0303,
+      "collectorCpuMs": 8437.5,
+      "loss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 256,
+        "BufferSizeKb": 64
+      },
+      "resourceSamplingDegraded": false,
+      "omittedResources": 0,
+      "decoderRetentionErrors": 0,
+      "samples": 122,
+      "workingSetBytes": [
+        72183808,
+        74108928,
+        70443008.0,
+        81399808.0
+      ],
+      "privateBytes": [
+        31789056,
+        33460224,
+        29736960.0,
+        40722432.0
+      ],
+      "managedBytes": [
+        11327624,
+        7144648
+      ],
+      "gen2Collections": [
+        2,
+        8
+      ],
+      "successfulCommands": [
+        {
+          "Name": "build",
+          "Count": 59
+        },
+        {
+          "Name": "npm",
+          "Count": 944
+        }
+      ],
+      "failedCommands": 0,
+      "sourceHashes": {
+        "workload": "0F89719B45D0C1884DA8419D5F0E79D4ADA191FD81840FF7CD22B4E208C97C1D",
+        "resources": "B71E7C31AC7EC992796FDE7CB6665DA60342165FAB9600E76BD4A2EDF5B7DD97",
+        "summary": "D71B162E4C4D410F3B854EB7C896319D382C3D7F77A6D40625AE56F98C292910"
+      }
+    }
+  ]
+}
