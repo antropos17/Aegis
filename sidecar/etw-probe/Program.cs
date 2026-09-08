@@ -18,7 +18,7 @@ internal static class Program
             if (args.Length == 0 || args[0] == "--help")
             {
                 Console.WriteLine("AEGIS ETW measurement probe (not a production sensor)\n" +
-                    "self-test\npreflight <new-output-directory>\n" +
+                    "self-test\npreflight <new-output-directory>\nstudy <new-output-directory> (normal terminal; one UAC prompt)\n" +
                     "capture <new-output-directory> [--seconds 5..120] [--scenario buffered|async|mapped|preopened|churn|idle]\n" +
                     "  [--keywords 0x1B0] [--events 10,12,13,14,15|all] [--pid-filter none|target]\n" +
                     "  [--evict close|cleanup|none] [--buffers-mb 16..256]\n" +
@@ -29,6 +29,17 @@ internal static class Program
             if (args[0] == "actor") return await Fixture.Run(args);
             if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Windows required");
             if (args.Length < 2) throw new ArgumentException("Output directory required");
+            if (args[0] is "study" or "study-check")
+            {
+                if (Elevated()) throw new InvalidOperationException("Study workloads must run without elevation");
+                string output = NewOutput(args[1]);
+                bool simulation = args[0] == "study-check";
+                int result = await LoadStudy.Run(output, simulation);
+                if (simulation && result == 0) StudyCheck.Verify(output);
+                return result;
+            }
+            if (args[0] is "study-collector" or "study-collector-check")
+                return await LoadStudy.Collect(args[1], args[0] == "study-collector-check");
             if (args[0] == "preflight") { Preflight(NewOutput(args[1])); return 0; }
             if (args[0] == "fixture-check") return await Capture.CheckFixtures(NewOutput(args[1]));
             if (args[0] != "capture") throw new ArgumentException("Unknown command");

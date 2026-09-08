@@ -1366,3 +1366,46 @@ is non-admin; no live ETW capture has been attempted. Read the resulting matrix,
 run summaries, schemas, samples and operation ledgers before selecting follow-up
 experiments. Preserve degraded runs and distinguish Home-only results from Pro,
 Hyper-V, Fast I/O and page-fault questions that still need separate measurements.
+
+## Session handoff — first live ETW results and repeated load study (2026-09-08)
+
+The user completed all eleven runs from PR #380 (`59ca1ec`) in an administrator
+terminal, with artifacts at `X:/tmp/aegis-etw-matrix-20260908`. Every run returned
+zero; decoder/retention/map failures and queried pre-stop session losses were zero.
+`docs/recon/kernel-file-etw-measurements.md` now records the actual observations;
+`docs/recon/evidence/etw-home-26200-first.json` retains aggregates and source hashes.
+
+Fresh buffered/async/churn fixture reads matched their actor header PID and each
+operation's QPC interval. The target PID filter still delivered both actors (161
+fixture reads each). Preopened had 322 unresolved actor reads and no fixture path;
+warm mapped had 322 completed operations but no fixture-path Read samples. This is
+not proof of absence of provider emission, nor a universal issuer/lifecycle result.
+The first matrix used varying filters/background load; do not compare its CPU rows
+as controlled overhead measurements. B1 remains open and production integration is
+not ratified.
+
+The new normal-user command `EtwProbe.exe study <new-directory>` requests UAC once
+for a fixed collector. It rotates idle / npm CLI startup / renderer-build workloads
+across three repetitions, using identical 15-second capture options. Node/npm are
+already installed; there is no dependency installation. Only normal-user commands
+run builds, rewriting `dist/renderer`. Ready/stopped/done markers and QPC workload
+ledgers prevent the last build from spilling into the next capture. A final command
+can finish after its own capture window; that interval is retained. Workload output
+is discarded, and failures are retained separately. No Electron production behavior
+or frontend source is changed.
+
+Local verification: Release build and C# whitespace check; 16 self-tests; a real
+normal-user npm/build protocol check with a simulated collector and an extra idle
+interval after the build. The check asserts ordering, normal-token metadata,
+successful commands and no fabricated ETW summaries. Abort preserves a failed study
+and prevents the next capture; a non-admin real collector exits 3 before creating
+output. The initial abort assertion expected OperationCanceledException, but the
+existing peer-failure helper reports InvalidOperationException; verified the actual
+failure record and absence of subsequent runs. The live UAC/load path has not run.
+
+Next user command, from a normal PowerShell terminal:
+`& 'X:/Future/ESCAPE/AEGIS/sidecar/etw-probe/bin/Release/net10.0-windows/EtwProbe.exe' study 'X:/tmp/aegis-etw-load-20260908'`.
+Expect one Windows elevation prompt and about three to five minutes. Analyze the
+new matrix, workload intervals, collector rates/losses and environment data before
+deciding follow-ups. npm here means `npm --version`, not install; total-system
+overhead, Fast I/O, cold/page-fault, Pro and Hyper-V evidence are still separate work.

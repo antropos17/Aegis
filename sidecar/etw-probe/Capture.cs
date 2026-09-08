@@ -86,6 +86,7 @@ internal static class Capture
             TimeSpan cpuStart = process.TotalProcessorTime;
             var watch = Stopwatch.StartNew();
             consumer = Task.Run(() => source.Process());
+            Program.Write(directory, "capture-ready.json", new { qpc = Stopwatch.GetTimestamp() });
             foreach (var actor in actors) { await actor.StandardInput.WriteLineAsync("go"); await actor.StandardInput.FlushAsync(); }
             await Task.WhenAll(actors.Select(p => Done(p, cancel.Token))).WaitAsync(TimeSpan.FromSeconds(options.Seconds + 20), cancel.Token);
             await Task.Delay(1000, cancel.Token); // Drain tail events before querying loss/stopping.
@@ -96,6 +97,7 @@ internal static class Capture
             double durationMs = watch.Elapsed.TotalMilliseconds;
             double collectorCpuMs = (process.TotalProcessorTime - cpuStart).TotalMilliseconds;
             long collectorPeakWorkingSetBytes = process.PeakWorkingSet64;
+            Program.Write(directory, "capture-stopped.json", new { qpc = Stopwatch.GetTimestamp() });
             await Task.WhenAll(actors.Select(Save));
             Program.Write(directory, "events.json", observation.Samples);
             Program.Write(directory, "schemas.json", observation.Schemas);
