@@ -436,6 +436,13 @@ This closes the narrow same-account broker-death/absence experiment on the recor
 host. Elevated collector crash remains open: occupied names still fail closed and
 there is no automatic orphan removal. The design sets requirements for a protected
 session controller and recovery authority; it does not implement one. Next focused
-work is controlled UAC refusal/late-consent evidence and suspend behavior, followed
+work is the [prepared controlled UAC probes and suspend procedure](etw-consent-suspend.md), followed
 by the protected ownership/recovery design. E1/E2 remain incomplete; do not repeat
 B1 or the successful broker-death run without a new question.
+
+The dedicated consent broker revokes both pipes on a short deadline and on launch
+return, and never sends authorization. Normal-token refusal/late checks and three
+additional self-tests pass; these do not count as human UAC refusal or late consent.
+Live commands require independent native absence before/after and explicit launch
+outcomes. The ordinary broker timeout is unchanged. Suspend still needs a separate
+power observer and suitable lifetimes before a meaningful live test can run.

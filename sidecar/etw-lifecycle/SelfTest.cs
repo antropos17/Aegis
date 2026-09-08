@@ -177,6 +177,9 @@ internal static class SelfTest
         await Test("cancelled broker-death check cannot authorize the deliberate kill", WitnessTests.Cancelled);
         await Test("witness bounded framing rejects truncation, excess length and unknown fields", WitnessTests.Framing);
         await Test("read-only collector handle retains identity and exit after process death", WitnessTests.HeldProcess);
+        await Test("consent evidence requires independent native absence and process exits", ConsentTests.NativeEvidence);
+        await Test("consent rejects injected live denial, early approval and unknown child identity", ConsentTests.LaunchOutcomes);
+        await Test("cancelled consent probe cannot launch witness or broker", ConsentTests.Cancelled);
         Console.WriteLine($"{passed} lifecycle self-tests passed; no ETW session or elevation.");
         return 0;
     }

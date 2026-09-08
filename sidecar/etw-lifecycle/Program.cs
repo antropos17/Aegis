@@ -23,7 +23,10 @@ internal static class Program
                     "uac <new-output-directory> (normal terminal, one UAC; empty ETW session)\n" +
                     "uac-failures <new-output-directory> (four UAC launches; empty sessions, stop/EOF/lease/blocked write)\n" +
                     "check-broker-death <new-output-directory> (normal tokens, independent witness transport; no ETW)\n" +
-                    "uac-broker-death <new-output-directory> (two UAC launches; query-only witness and empty-session collector)");
+                    "uac-broker-death <new-output-directory> (two UAC launches; query-only witness and empty-session collector)\n" +
+                    "check-consent <new-output-directory> (injected refusal / delayed normal launch; no ETW)\n" +
+                    "uac-refusal <new-output-directory> (approve witness UAC, reject collector UAC)\n" +
+                    "uac-late <new-output-directory> (approve witness UAC; wait 10 seconds before accepting collector UAC)");
                 return 0;
             }
             if (args[0] == "self-test" && args.Length == 1) return await SelfTest.Run();
@@ -31,7 +34,8 @@ internal static class Program
             if (args[0] == "broker") return await Broker.Run(args);
             if (args[0] == "rogue") return await SelfTest.Rogue(args);
             if (args[0] == "witness") return await Witness.Run(args);
-            if (args.Length != 2 || args[0] is not ("check" or "uac" or "uac-failures" or "check-broker-death" or "uac-broker-death")) throw new ArgumentException();
+            if (args[0] == "consent-broker") return await ConsentBroker.Run(args);
+            if (args.Length != 2 || args[0] is not ("check" or "uac" or "uac-failures" or "check-broker-death" or "uac-broker-death" or "check-consent" or "uac-refusal" or "uac-late")) throw new ArgumentException();
             if (Security.Current().Elevated)
             {
                 Console.Error.WriteLine("Use a normal PowerShell terminal. No run was started.");
@@ -42,6 +46,7 @@ internal static class Program
             Directory.CreateDirectory(output);
             var started = DateTimeOffset.UtcNow;
             bool live = args[0].StartsWith("uac", StringComparison.Ordinal);
+            bool consent = args[0] is "check-consent" or "uac-refusal" or "uac-late";
             var outcomes = new List<object>();
             int result = 0;
             using var abort = new CancellationTokenSource();
@@ -49,7 +54,16 @@ internal static class Program
             Console.CancelKeyPress += cancel;
             try
             {
-                if (args[0].EndsWith("broker-death", StringComparison.Ordinal))
+                if (consent)
+                {
+                    foreach (string scenario in args[0] == "check-consent" ? new[] { "refusal", "late" } : new[] { args[0] == "uac-refusal" ? "refusal" : "late" })
+                    {
+                        var outcome = await ConsentScenarios.Run(live, scenario, abort.Token);
+                        outcomes.Add(outcome);
+                        if (!outcome.Passed) { result = 2; break; }
+                    }
+                }
+                else if (args[0].EndsWith("broker-death", StringComparison.Ordinal))
                 {
                     var outcome = await BrokerDeath.Run(live, abort.Token);
                     outcomes.Add(outcome);
@@ -74,7 +88,8 @@ internal static class Program
                 schema = 2,
                 experiment = "etw-lifecycle",
                 mode = args[0],
-                liveEmptySession = live,
+                liveEmptySession = live && !consent,
+                nativeQueryEnabled = live,
                 fileProviderEnabled = false,
                 started,
                 ended = DateTimeOffset.UtcNow,
