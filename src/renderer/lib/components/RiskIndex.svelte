@@ -38,10 +38,16 @@
     agents?: AgentLike[];
     title?: string;
     showBreakdown?: boolean;
+    compact?: boolean;
   }
 
   // F-W09: default title encodes max/worst aggregation (not Header avg health).
-  const { agents = [], title = FLEET_WORST_RISK_TITLE, showBreakdown = true }: Props = $props();
+  const {
+    agents = [],
+    title = FLEET_WORST_RISK_TITLE,
+    showBreakdown = true,
+    compact = false,
+  }: Props = $props();
 
   /** Clamped per-process scores; missing riskScore is treated as 0. */
   const scores = $derived(agents.map((a) => clampScore(a?.riskScore ?? 0)));
@@ -81,7 +87,7 @@
   ]);
 </script>
 
-<section class="risk-index" aria-label="Worst-case fleet risk">
+<section class="risk-index" class:compact aria-label="Worst-case fleet risk">
   <header class="risk-index__head">
     <span class="risk-index__title">{title}</span>
     <span class="risk-index__total">{total} {totalNoun}</span>
@@ -121,16 +127,46 @@
 </section>
 
 <style>
+  .risk-index.compact {
+    --fancy-success: var(--md-sys-color-tertiary);
+    --fancy-warning: var(--md-sys-color-secondary);
+    --fancy-danger: var(--md-sys-color-error);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--fancy-space-xs);
+    padding: var(--fancy-space-sm);
+  }
+  .compact .risk-index__head {
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--fancy-space-xs);
+  }
+  .compact .risk-index__score,
+  .compact .risk-index__empty-dash {
+    font-size: 1.5rem;
+  }
+  .compact .risk-index__bands {
+    grid-column: 1 / -1;
+  }
+  .compact .risk-index__band {
+    flex-direction: row;
+    justify-content: center;
+    gap: var(--fancy-space-xs);
+    padding: var(--fancy-space-xs);
+  }
+  .compact .risk-index__band-count {
+    font-size: 0.875rem;
+  }
   .risk-index {
     display: flex;
     flex-direction: column;
     gap: var(--fancy-space-md);
 
     padding: var(--fancy-space-md);
-    background: var(--fancy-panel-bg);
-    border: var(--fancy-panel-border);
+    background: var(--md-sys-color-surface-container-low);
+    border: var(--aegis-card-border);
     border-radius: var(--fancy-panel-radius);
-    box-shadow: var(--fancy-panel-shadow);
+    box-shadow: var(--glass-shadow-card);
     backdrop-filter: blur(var(--fancy-panel-blur));
   }
 
@@ -146,13 +182,13 @@
     font-family: var(--fancy-font-title);
     font-size: 0.95rem;
     font-weight: 600;
-    color: var(--fancy-text-1);
+    color: var(--md-sys-color-on-surface);
   }
 
   .risk-index__total {
     font-family: var(--fancy-font-mono);
     font-size: 0.75rem;
-    color: var(--fancy-text-2);
+    color: var(--md-sys-color-on-surface-variant);
   }
 
   /* ── Empty state ── */

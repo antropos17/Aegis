@@ -20,6 +20,15 @@
 
   /** Unique agent names for dropdown (deduped from enrichedAgents) */
   let uniqueNames = $derived([...new Set(cachedAgents.map((a) => a.name))].sort());
+  let filtersActive = $derived(
+    agentFilter !== 'all' || severityFilter !== 'all' || typeFilter !== 'all',
+  );
+
+  function resetFilters() {
+    agentFilter = 'all';
+    severityFilter = 'all';
+    typeFilter = 'all';
+  }
 
   const severities = [
     { value: 'all', key: 'activity.filters.severity_all' },
@@ -40,26 +49,31 @@
     <button
       class="pill group-toggle"
       class:active={groupByAgent}
+      aria-pressed={groupByAgent}
       onclick={() => (groupByAgent = !groupByAgent)}>{$t('activity.filters.group_by_agent')}</button
     >
 
-    <select class="agent-select" bind:value={agentFilter}>
-      <option value="all">{$t('activity.filters.all_agents')}</option>
-      {#each uniqueNames as name (name)}
-        <option value={name}>{name}</option>
-      {/each}
-    </select>
+    <label class="agent-filter">
+      <span class="pill-label">{$t('activity.filters.agent')}</span>
+      <select class="agent-select" bind:value={agentFilter}>
+        <option value="all">{$t('activity.filters.all_agents')}</option>
+        {#each uniqueNames as name (name)}
+          <option value={name}>{name}</option>
+        {/each}
+      </select>
+    </label>
   </div>
 
   <span class="divider"></span>
 
   <div class="filter-section">
     <span class="pill-label">{$t('activity.filters.severity')}</span>
-    <div class="pill-group">
+    <div class="pill-group" role="group" aria-label={$t('activity.filters.severity')}>
       {#each severities as sev (sev.value)}
         <button
           class="pill sev-{sev.value}"
           class:active={severityFilter === sev.value}
+          aria-pressed={severityFilter === sev.value}
           onclick={() => (severityFilter = sev.value)}>{$t(sev.key)}</button
         >
       {/each}
@@ -70,16 +84,20 @@
 
   <div class="filter-section">
     <span class="pill-label">{$t('activity.filters.type')}</span>
-    <div class="pill-group">
+    <div class="pill-group" role="group" aria-label={$t('activity.filters.type')}>
       {#each types as type (type.value)}
         <button
           class="pill"
           class:active={typeFilter === type.value}
+          aria-pressed={typeFilter === type.value}
           onclick={() => (typeFilter = type.value)}>{$t(type.key)}</button
         >
       {/each}
     </div>
   </div>
+  <button class="pill reset-filters" disabled={!filtersActive} onclick={resetFilters}>
+    {$t('activity.filters.reset')}
+  </button>
 </div>
 
 <style>
@@ -88,7 +106,7 @@
     align-items: center;
     gap: var(--aegis-space-6);
     padding: var(--aegis-space-6) var(--aegis-space-8);
-    background: var(--md-sys-color-surface-container-low-opaque);
+    background: var(--md-sys-color-surface-container-low);
     border: var(--aegis-card-border);
     box-shadow:
       0 2px 8px rgba(0, 0, 0, 0.12),
@@ -101,6 +119,15 @@
     display: flex;
     align-items: center;
     gap: var(--aegis-space-4);
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .agent-filter {
+    display: flex;
+    align-items: center;
+    gap: var(--aegis-space-4);
+    min-width: 0;
   }
 
   .divider {
@@ -119,11 +146,13 @@
     padding: var(--aegis-space-3) var(--aegis-space-6);
     cursor: pointer;
     min-width: var(--aegis-col-agent);
+    max-width: 100%;
   }
 
-  .agent-select:focus {
-    outline: 1px solid var(--md-sys-color-primary);
-    outline-offset: -1px;
+  .agent-select:focus-visible,
+  .pill:focus-visible {
+    outline: 2px solid var(--md-sys-color-on-surface);
+    outline-offset: 2px;
   }
 
   .pill-group {
@@ -157,7 +186,7 @@
       transform 0.15s var(--ease-glass);
   }
 
-  .pill:hover {
+  .pill:hover:not(:disabled) {
     background: var(--md-sys-color-outline-variant);
     color: var(--md-sys-color-on-surface);
     border-color: var(--aegis-border-hover);
@@ -165,6 +194,16 @@
 
   .pill:active {
     transform: scale(0.96);
+  }
+
+  .reset-filters {
+    margin-inline-start: auto;
+  }
+
+  .pill:disabled {
+    opacity: 0.5;
+    cursor: default;
+    transform: none;
   }
 
   .pill.active {

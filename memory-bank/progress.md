@@ -1718,3 +1718,37 @@ needs an ownership/recovery design before any claim of cleanup. Actual UAC refus
 late consent, alternate credentials/logons, remote clients and suspend remain open.
 Do not repeat the completed four live cases, first UAC stop or B1 matrix/load/tune
 without a new question. Frontend, production wiring and installed app stay separate.
+
+## Session handoff — focused Shield/Activity UX polish (2026-09-08)
+
+ETW graceful-failure work merged as PR #388, `75c943d`, with five green contexts.
+The user then requested a light UX audit and fixes, explicitly authorizing this
+focused UI work. Branch: `codex/activity-ux-polish`; inspect its final PR status.
+
+Activity now finishes loading after quiet scans and opens Network independently.
+Shield grouping changes the actual feed. Reset clears agent/severity/type while
+preserving grouping. Empty history differs from filtered-out results. Jump to
+latest targets the top of the newest-first feed and preserves older reading on
+updates. Filter controls expose pressed state, labels and visible focus; native
+select typeahead no longer invokes single-key app shortcuts.
+
+The fixed risk dock demonstrably blocked filter clicks at 1100 px. Its compact
+replacement participates in navigation layout. Narrow Shield preserves feed
+height and scrolls; touched panel colors follow the theme. The scoped report is
+`docs/recon/ux-activity-review.md`; this is not a whole-app accessibility audit.
+
+Seven new regression tests cover the behavior. Full local coverage passed with
+2901 tests and four skips; after final CSS/layout changes, 25 focused tests passed.
+Format, renderer build, lint (31 existing warnings), both type checks passed.
+Built-demo Chromium QA passed at 1440/1100 dark and 1440 light: actual pointer
+grouping, keyboard reset, select typeahead, no filter overflow or risk overlap,
+and no page errors. Shield feed viewports measured 205/131 px. The unbuilt Vite
+preview has an existing CommonJS buildInstanceKey export error; use built demo
+preview for this audit's reproducible visual checks.
+
+The existing repository Electron window was refreshed with Ctrl+R using Computer
+Use; the new compact risk summary and filter controls appeared with live data.
+The monitoring main process stayed running. Installed application was not updated.
+ETW implementation and measurements remain unchanged; do not automatically return
+to ETW if the user's next message continues UX. When returning to ETW, broker-death
+witness and orphan-ownership design remain the next focused block above.

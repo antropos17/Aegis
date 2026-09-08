@@ -65,7 +65,9 @@
 
 <div class="feed-scroll">
   {#if groups.length === 0}
-    <div class="feed-empty">{$t('activity.feed.no_events')}</div>
+    <div class="feed-empty">
+      {$t(unified.length > 0 ? 'activity.feed.no_matches' : 'activity.feed.no_events')}
+    </div>
   {:else}
     {#each groups as group (group.name)}
       {@const open = expandedGroups.has(group.name)}

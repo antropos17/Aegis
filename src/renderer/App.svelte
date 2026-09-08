@@ -91,7 +91,10 @@
 
       const tag = document.activeElement?.tagName;
       const isInput =
-        tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable;
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        document.activeElement?.isContentEditable;
 
       if (isInput && e.key !== 'Escape') return;
 
@@ -316,6 +319,9 @@
 
   <nav class="app-nav">
     <TabBar bind:activeTab />
+    <aside class="risk-index-summary">
+      <RiskIndex agents={$enrichedAgents} compact />
+    </aside>
   </nav>
 
   <main
@@ -378,22 +384,12 @@
   />
 {/if}
 
-<!-- Fleet-wide risk index — fixed dock, fed the risk-enriched agents (riskScore
-     lives on enrichedAgents, never on the raw `agents` store). Append-only. -->
-<aside class="risk-index-dock">
-  <RiskIndex agents={$enrichedAgents} />
-</aside>
-
 <style>
-  /* Fixed dock for the fleet risk index — pinned bottom-left above the footer,
-     below modals (CommandPalette z-index 100, Toast 9000). */
-  .risk-index-dock {
-    position: fixed;
-    left: var(--aegis-space-9);
-    bottom: calc(var(--aegis-size-footer) + var(--aegis-space-6));
+  /* Keep the fleet summary in layout so it cannot cover feed controls. */
+  .risk-index-summary {
     width: 240px;
-    max-width: calc(100vw - var(--aegis-space-9) * 2);
-    z-index: 50;
+    max-width: 100%;
+    justify-self: end;
   }
 
   .app-shell {
@@ -406,10 +402,27 @@
   }
 
   .app-nav {
-    display: flex;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--aegis-space-8);
     padding: var(--aegis-space-6) var(--aegis-space-9) 0;
     flex-shrink: 0;
+  }
+
+  .app-nav > :global(.tab-bar) {
+    grid-column: 2;
+  }
+
+  @media (max-width: 1000px) {
+    .app-nav {
+      grid-template-columns: 1fr;
+    }
+    .app-nav > :global(.tab-bar),
+    .risk-index-summary {
+      grid-column: 1;
+      justify-self: center;
+    }
   }
 
   .app-content {

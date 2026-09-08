@@ -7,6 +7,7 @@
   import AgentPanel from './AgentPanel.svelte';
   import FeedFilters from './FeedFilters.svelte';
   import ActivityFeed from './ActivityFeed.svelte';
+  import GroupedFeed from './GroupedFeed.svelte';
   import SummaryCards from './SummaryCards.svelte';
   import SkeletonLoader from './SkeletonLoader.svelte';
 
@@ -16,6 +17,7 @@
   let agentFilter = $state('all');
   let severityFilter = $state('all');
   let typeFilter = $state('all');
+  let groupByAgent = $state(false);
 
   // Three render states, derived live from the stores (no latch):
   //   populated → at least one agent detected → show the bento dashboard
@@ -37,8 +39,18 @@
       <SummaryCards {active} />
     </div>
     <div class="bento-feed panel" transition:fade={{ duration: 300 }}>
-      <FeedFilters {active} bind:agentFilter bind:severityFilter bind:typeFilter />
-      <ActivityFeed {active} {agentFilter} {severityFilter} {typeFilter} />
+      <FeedFilters
+        {active}
+        bind:agentFilter
+        bind:severityFilter
+        bind:typeFilter
+        bind:groupByAgent
+      />
+      {#if groupByAgent}
+        <GroupedFeed {active} {agentFilter} {severityFilter} {typeFilter} />
+      {:else}
+        <ActivityFeed {active} {agentFilter} {severityFilter} {typeFilter} />
+      {/if}
     </div>
     <div class="bento-agents panel" transition:fade={{ duration: 300 }}>
       <AgentPanel {active} />
@@ -169,7 +181,8 @@
   @media (max-width: 1100px) {
     .bento {
       grid-template-columns: 1fr 1fr;
-      grid-template-rows: 280px auto minmax(0, 1fr);
+      grid-template-rows: 280px minmax(180px, 240px) minmax(260px, 1fr);
+      overflow-y: auto;
     }
 
     .bento-radar {
@@ -198,7 +211,7 @@
   @media (max-width: 720px) {
     .bento {
       grid-template-columns: 1fr;
-      grid-template-rows: 250px 120px 200px minmax(0, 1fr);
+      grid-template-rows: 250px 120px 200px minmax(260px, 1fr);
     }
 
     .bento-radar {

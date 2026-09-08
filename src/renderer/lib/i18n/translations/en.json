@@ -103,7 +103,9 @@
       "network": "Network"
     },
     "feed": {
-      "no_events": "No events to display",
+      "no_events": "No activity recorded yet. File and network activity will appear here as it is recorded.",
+      "no_matches": "No events match these filters. Reset filters to see all recorded activity.",
+      "jump_latest": "Jump to latest",
       "severity": {
         "denied": "DENIED",
         "config": "CONFIG",
@@ -113,6 +115,8 @@
     },
     "filters": {
       "group_by_agent": "Group by agent",
+      "agent": "Agent",
+      "reset": "Reset filters",
       "all_agents": "All agents",
       "severity": "Severity",
       "type": "Type",
