@@ -58,6 +58,7 @@ export default defineConfig({
         'src/main/platform/proc-snapshot-client.js',
         'src/main/platform/process-snapshot.js',
         'src/main/platform/linux.js',
+        'src/main/platform/linux-process-map.js',
         'src/main/platform/darwin.js',
         'src/main/platform/win32.js',
         'src/main/platform/index.js',

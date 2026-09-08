@@ -219,8 +219,8 @@ function getAppHealth() {
       .sort()
       .map((id) => llmHealth[id]),
   ];
-  // win32 only (gap F). linux and darwin own no snapshot leaf and must not contribute
-  // a fabricated one — their `providesStartTime: false` already answers the question.
+  // Windows and Linux publish their process-map observation health. macOS has no
+  // snapshot leaf and retains its explicit providesStartTime: false capability.
   if (typeof platform.getSnapshotHealth === 'function') {
     records.push(platform.getSnapshotHealth());
   }

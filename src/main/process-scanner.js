@@ -76,8 +76,8 @@ function isProcessPopulationReliable() {
  * façade would not name; with the export in place, keeping it would leave a second
  * path that can disagree with the first.
  *
- * `null` is returned where no façade publishes the leaf — linux and darwin, which own
- * no snapshot. That branch answers nothing in practice: both set
+ * `null` is returned where no façade publishes the leaf — currently darwin, which
+ * owns no snapshot. That branch answers nothing in practice: it sets
  * `providesStartTime: false`, and {@link getIdentityQuality} returns on that flag
  * before it ever reaches here. It is the honest value for "this platform carries no
  * witness", not a fallback.
@@ -105,7 +105,7 @@ function readSnapshotState() {
  * @since 0.12.0
  */
 function getIdentityQuality() {
-  // darwin/linux publish no birth time at all → identify() yields "<pid>:u".
+  // Platforms without birth times (currently darwin) retain "<pid>:u".
   if (_providesStartTime !== true) return 'unknown';
   const state = readSnapshotState();
   if (state === sensorHealth.SENSOR_HEALTH_STATE.HEALTHY) return 'witnessed';
@@ -119,7 +119,7 @@ function getIdentityQuality() {
  * PLATFORM PROVIDES.
  *
  * Deliberately not a bare `getIdentityQuality() === 'unknown'`. That value is
- * `unknown` PERMANENTLY on linux and darwin — neither adapter publishes a birth time
+ * `unknown` PERMANENTLY on darwin — that adapter publishes no birth time
  * at all — so acting on it there would freeze session tracking forever on platforms
  * where `<pid>:u` is the normal, documented steady state (process-identity.js space
  * 3), not a fault. Degradation is a RELATIVE notion: it exists only where the

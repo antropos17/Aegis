@@ -74,12 +74,13 @@ production rules or matching behavior; five deliberate mutations were caught.
 
 ## D — platform identity, then sensors
 
-Linux and macOS adapters omit birth time and declare `providesStartTime: false`.
-Their native `<pid>:u` identities cannot distinguish reuse.
+Linux now supplies fresh procfs birth observations. macOS still declares
+`providesStartTime: false`; its native `<pid>:u` identities cannot distinguish reuse.
 
-- **D1:** Linux birth observations from `/proc`, with verified field parsing,
-  clock-tick conversion, boot-time anchoring and process exit/read race handling.
-  Do not assume the host tick rate without evidence.
+- **D1 implemented:** Linux reads field 22 from fresh `/proc/<pid>/stat`, observes
+  CLK_TCK, and pins a boot-ID-bound epoch reference. Kernel ticks provide generation
+  witnesses; unavailable identity yields null birth times and freezes sessions.
+  Tests cover parsing, conversion, PID reuse, outages/recovery and clock corrections.
 - **D2:** select and verify macOS birth-time collection. Document resolution and
   residual ambiguity: a one-second timestamp cannot distinguish every rapid reuse.
 - **D3 / D4:** Linux fanotify/eBPF and macOS Endpoint Security follow platform
@@ -110,9 +111,9 @@ Keep them outside the active queue while the first ETW sensor is being establish
 
 Block 0 is this roadmap reconciliation, including the stale B8 status correction.
 Next resolve A1's no-start requirement, then A2 and A3. C1/C2 are implemented with
-evidence linked above. B1 measurement preparation and independent D1 / D2 can
-follow; A4 starts with recon. If A1 cannot yet meet its requirement, D1 is an
-independent next block.
+evidence linked above. D1 is implemented; B1 measurement preparation and independent
+D2 can follow. A4 starts with recon. Application process grouping is separately
+authorized in both data and the current interface; broader frontend work remains separate.
 
 Keep one logical block per branch and PR. A supplied patch is not complete until
 reviewed, verified and merged. Use `AGENTS.md` for the authorized git cycle and

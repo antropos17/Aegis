@@ -23,7 +23,6 @@ const {
   killProcess,
   suspendProcess,
   resumeProcess,
-  parseParentProcessMapFromPs,
 } = require('./posix-shared');
 
 /** @type {RegExp[]} Linux-specific file-path patterns to ignore */
@@ -54,48 +53,10 @@ function listProcesses() {
   });
 }
 
-/**
- * Build a map of all processes with their parent PIDs.
- * Uses /proc directly for speed, falls back to `ps`.
- * @returns {Promise<Map<number, {name: string, ppid: number}>>}
- */
-function getParentProcessMap() {
-  const map = new Map();
-  // Try /proc first (faster, no subprocess)
-  try {
-    const entries = fs.readdirSync('/proc').filter((e) => /^\d+$/.test(e));
-    for (const pidStr of entries) {
-      try {
-        const stat = fs.readFileSync(path.join('/proc', pidStr, 'stat'), 'utf-8');
-        // Format: pid (comm) state ppid ...
-        const match = stat.match(/^(\d+)\s+\((.+?)\)\s+\S+\s+(\d+)/);
-        if (match) {
-          map.set(parseInt(match[1], 10), {
-            name: match[2],
-            ppid: parseInt(match[3], 10),
-          });
-        }
-      } catch (_) {
-        // Process may have exited
-      }
-    }
-    if (map.size > 0) return Promise.resolve(map);
-  } catch (_) {
-    // /proc not available, fall back to ps
-  }
-
-  return new Promise((resolve) => {
-    _execFile('ps', ['-axo', 'pid=,ppid=,comm='], { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
-      if (err) {
-        resolve(map);
-        return;
-      }
-      const parsed = parseParentProcessMapFromPs(stdout);
-      for (const [pid, info] of parsed) map.set(pid, info);
-      resolve(map);
-    });
-  });
-}
+const processMapReader = require('./linux-process-map').createProcessMapReader({
+  fs,
+  execFile: (...args) => _execFile(...args),
+});
 
 /**
  * Get raw TCP connections for given PIDs.
@@ -243,16 +204,11 @@ async function getProcessCwds(pids) {
 }
 
 module.exports = {
-  /**
-   * `getParentProcessMap` entries carry no `startTime` here — `/proc/<pid>/stat`
-   * field 22 would supply one, but it is not wired. process-utils reads this flag
-   * as "no generation is observable", which keeps its parent-chain and cwd caches
-   * on their plain TTL contract instead of paying a /proc walk every scan tick.
-   * @type {boolean}
-   */
-  providesStartTime: false,
+  /** Fresh procfs generations are observed each pass; outages remain explicit. */
+  providesStartTime: true,
   listProcesses,
-  getParentProcessMap,
+  getParentProcessMap: processMapReader.getParentProcessMap,
+  getSnapshotHealth: processMapReader.getSnapshotHealth,
   getRawTcpConnections,
   getFileHandles,
   getProcessCwd,

@@ -18,13 +18,12 @@ const { EDITORS } = require('../shared/constants');
 let _getParentProcessMap = _platform.getParentProcessMap;
 let _getProcessCwds = _platform.getProcessCwds;
 /**
- * Whether this platform's `getParentProcessMap` carries an OS birth time. Only
- * win32 does today — from the snapshot sidecar's 100 ns creation time, floored to
+ * Whether this platform's `getParentProcessMap` carries an OS birth time. Windows
+ * uses the snapshot sidecar's 100 ns creation time, floored to
  * epoch-ms by `ticksToEpochMs` (platform/process-snapshot.js), with the CIM
  * `Win32_Process.CreationDate` observation as the emergency fallback behind it.
- * linux and darwin omit it, and neither may pay a per-scan subprocess or /proc
- * walk to serve a Windows-only generation check. The flag is what gates the
- * generation proof below.
+ * Linux reads fresh procfs start ticks with a boot reference. macOS still omits
+ * birth times and retains its TTL-only path. The flag gates generation proof.
  * @type {boolean}
  */
 let _providesStartTime = _platform.providesStartTime === true;
@@ -347,7 +346,7 @@ async function _stampFromFreshBirthTimes(agents, forceRefresh, observedMap) {
 
 /**
  * Stamp `parentChain` on a platform that declares NO per-pass birth-time
- * observation (`providesStartTime: false` — linux, darwin). The TTL-bounded
+ * observation (`providesStartTime: false` — currently darwin). The TTL-bounded
  * parent-chain cache answers, and a pass whose pids are all cached costs no provider
  * call at all. Adding a per-pass process map here would buy nothing — this platform
  * declares no birth time to prove a generation with — and would cost a `ps` spawn or
@@ -528,7 +527,7 @@ const CWD_CACHE_TTL = 60000;
  *     witness) → nothing is proven, so the cwd is re-fetched rather than
  *     inherited from the old generation;
  *   - `undefined` (this record never passed through enrichment — every pid on
- *     linux/darwin, pid ≤ 0, and any direct caller that skipped the stamp) → the
+ *     darwin, pid ≤ 0, and any direct caller that skipped the stamp) → the
  *     record established no generation, so none is invented for it and the plain
  *     TTL contract applies exactly as it did before generations existed.
  * @param {Array} agents
