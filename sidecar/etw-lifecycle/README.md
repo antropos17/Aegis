@@ -77,7 +77,11 @@ the collector or wait ten seconds before approving it. Their dedicated broker
 never authorizes session creation; it closes both pipes on expiry and launch
 return. Independent before/after queries must show absence. See the exact
 [consent procedure and suspend prerequisites](../../docs/roadmap/etw-consent-suspend.md).
-This does not change the ordinary broker's launch deadline or implement suspend.
+This does not change the ordinary broker's launch deadline. The separate
+`check-suspend` / `uac-suspend` mode now implements bounded power callbacks,
+preflight/presence/absence witness phases and owned stop on the transition.
+Its live acceptance still requires actual manual sleep and wake. See the same
+procedure for UAC approvals, READY, manual Sleep and scoped context capture.
 
 ## Boundaries and authentication
 
@@ -115,13 +119,15 @@ two bounded diagnostic lines to the coordinator; the pipe uses a four-byte LE
 length and closed UTF-8 JSON frames capped at 64 KiB/depth 8. Flood test frames are
 capped at 16 KiB padding. No frame backlog or background task list accumulates.
 
-The experiment uses 500 ms broker pings, a 4 s peer read lease, 2 s write deadlines,
+The ordinary scenarios use 500 ms broker pings, a 4 s peer read lease, 2 s write deadlines,
 25 s maximum peer lifetime and a 1 s best-effort terminal write on each pipe. These accelerated
 test values differ from the B2 production proposals. The collector also holds and
 watches its broker process; broker death cancels I/O independently of pipe traffic.
 Cleanup runs before the terminal write, so blocked output cannot prevent attempting
 session stop. Native ETW calls are synchronous; this experiment does not establish
-a hard deadline for a stuck kernel call.
+a hard deadline for a stuck kernel call. Only suspend uses 600-second broker/peer,
+720-second witness and 480-second coordinator settings; the four-second lease
+and short I/O bounds stay unchanged. Their actual behavior across sleep is pending.
 
 After attempting stop, the collector tries `stopped` on the primary pipe, then one
 `cleanup` frame on the separate pipe with its own ID and sequence 1. This second
@@ -159,13 +165,17 @@ collision, unavailable query and failed stop; kernel-read DACL; first-instance
 collision; real mutual peer identity; wrong client/server processes; authorization
 timeout; a cancelled coordinator request; invalid/foreign/conflicting cleanup
 receipts; and rejection of missing counters, absence, identity or child exit.
-There are 22 self-tests. Native session calls in the ownership
+There are 29 self-tests. Native session calls in the ownership
 unit tests use an explicit fake API.
 The added tests reject incomplete broker-death evidence, foreign/replayed witness
 phases, fabricated normal-mode statistics, oversized/truncated/unknown-field
 frames, cancellation before launch, and loss of the held process exit observation.
 Consent tests reject incomplete native evidence, injected live denial, early
 approval, missing child identity/exit and cancellation before any helper launch.
+Power tests cover real registration/unregistration without sleeping, injection
+rejection, ordered transition evidence, bounded storage, cleanup acceptance,
+pre-launch cancellation, cleanup after cancellation when armed, and the three-phase
+witness's rejection of wrong order/replay. The armed-cancellation hook is check-only.
 
 `check` saves `result.json` with environment/runtime, build hashes, mode, scenario
 outcomes, actual peer exit codes, primary stop acknowledgments and separate cleanup
@@ -235,6 +245,13 @@ Both authenticated witnesses queried absence 4201 before/after and exited 0;
 all harness processes exited. Binary hashes match the normal-token cases. Five
 earlier failed attempts are retained. Same-account refusal and late approval in
 this dedicated broker are verified; suspend and the other listed gates remain open.
+
+The [suspend check evidence](../../docs/recon/evidence/etw-lifecycle-home-26200-suspend-check.json)
+records 29 self-tests and twelve normal-token cases on the new matching binaries.
+The new process case has a synthetic power pair and null native statistics. Real
+native registration passed; real power transition and ETW cleanup across sleep
+remain unverified. The scoped context capture found no power events during that
+synthetic run, as expected. No harness processes remained.
 
 Local checks also include `dotnet format ... whitespace --verify-no-changes`,
 Release build and the normal AEGIS checks. Existing GitHub CI does not compile or

@@ -18,18 +18,20 @@ internal sealed class Witness : IDisposable
     private readonly Process process;
     private readonly StreamReader reader;
     private int queries;
+    private readonly string[] phases;
     internal bool RestrictedAcl { get; }
     internal bool Authenticated { get; private set; }
     internal bool Exited => process.HasExited;
     internal int? ExitCode => Exited ? process.ExitCode : null;
 
-    private Witness(string id, bool live, NamedPipeServerStream pipe, Process process, bool acl)
+    private Witness(string id, bool live, NamedPipeServerStream pipe, Process process, bool acl, bool suspend)
     {
         this.id = id; this.live = live; this.pipe = pipe; this.process = process;
         RestrictedAcl = acl; reader = Reader(pipe);
+        phases = suspend ? ["preflight", "before", "after"] : ["before", "after"];
     }
 
-    internal static async Task<Witness> Start(bool live, CancellationToken token)
+    internal static async Task<Witness> Start(bool live, CancellationToken token, bool suspend = false)
     {
         token.ThrowIfCancellationRequested();
         if (Security.Current().Elevated) throw new UnauthorizedAccessException();
@@ -41,7 +43,7 @@ internal sealed class Witness : IDisposable
             bool acl = Security.RestrictedAcl(pipe);
             if (!acl) throw new UnauthorizedAccessException();
             var self = Security.Current();
-            var info = Program.Child("witness", live ? "live" : "check", id,
+            var info = Program.Child(suspend ? "witness-suspend" : "witness", live ? "live" : "check", id,
                 self.Pid.ToString(CultureInfo.InvariantCulture), self.Birth.ToString(CultureInfo.InvariantCulture));
             if (live)
             {
@@ -50,7 +52,7 @@ internal sealed class Witness : IDisposable
             }
             // Consent itself has no cancellable deadline. A late helper still needs this held parent.
             var process = Process.Start(info) ?? throw new InvalidOperationException();
-            witness = new(id, live, pipe, process, acl);
+            witness = new(id, live, pipe, process, acl, suspend);
             ulong birth = Security.Observe(process).Birth;
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
             deadline.CancelAfter(TimeSpan.FromSeconds(10));
@@ -70,7 +72,7 @@ internal sealed class Witness : IDisposable
 
     internal async Task<TraceStats?> Query(string phase, CancellationToken token)
     {
-        if (!Authenticated || queries >= 2 || phase != (queries == 0 ? "before" : "after"))
+        if (!Authenticated || queries >= phases.Length || phase != phases[queries])
             throw new InvalidDataException();
         queries++; // a failed exchange cannot be retried on partially consumed framing
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -90,7 +92,8 @@ internal sealed class Witness : IDisposable
 
     internal static async Task<int> Run(string[] args)
     {
-        if (args.Length != 5 || args[1] is not ("live" or "check")) throw new ArgumentException();
+        if (args.Length != 5 || args[0] is not ("witness" or "witness-suspend") || args[1] is not ("live" or "check")) throw new ArgumentException();
+        bool suspend = args[0] == "witness-suspend";
         bool live = args[1] == "live";
         if (Security.Current().Elevated != live) return 3;
         string id = args[2];
@@ -98,10 +101,10 @@ internal sealed class Witness : IDisposable
         using var pipe = Security.Client(id);
         Security.Verify(pipe, parent, ulong.Parse(args[4], CultureInfo.InvariantCulture), false, false);
         using var reader = Reader(pipe);
-        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(165));
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(suspend ? 720 : 165));
         using (var hello = new CancellationTokenSource(TimeSpan.FromSeconds(2)))
             await Write(pipe, new("etw-witness/1", id, "hello", live, true, null), hello.Token);
-        foreach (string phase in new[] { "before", "after" })
+        foreach (string phase in suspend ? new[] { "preflight", "before", "after" } : new[] { "before", "after" })
         {
             await Read(reader, id, phase, live, false, lifetime.Token);
             // This helper has exactly one native operation: QUERY of the fixed harness name.
@@ -116,7 +119,7 @@ internal sealed class Witness : IDisposable
     internal static void Validate(WitnessFrame frame, string id, string phase, bool live, bool reply)
     {
         if (frame.Protocol != "etw-witness/1" || !Guid.TryParseExact(id, "N", out _) || frame.Id != id ||
-            phase is not ("hello" or "before" or "after") || frame.Phase != phase || frame.Live != live ||
+            phase is not ("hello" or "preflight" or "before" or "after") || frame.Phase != phase || frame.Live != live ||
             frame.Reply != reply || ((!live || !reply || phase == "hello") && frame.Stats != null))
             throw new InvalidDataException();
     }

@@ -13,9 +13,9 @@ internal static class Broker
     internal static async Task<int> Run(string[] args)
     {
         if (args.Length != 3 || args[1] is not ("check" or "live") ||
-            args[2] is not ("stop" or "parent-eof" or "broker-kill" or "peer-exit" or "peer-kill" or "lease" or "blocked-write" or "launch-denied")) throw new ArgumentException();
+            args[2] is not ("stop" or "parent-eof" or "broker-kill" or "peer-exit" or "peer-kill" or "lease" or "blocked-write" or "launch-denied" or "suspend")) throw new ArgumentException();
         bool live = args[1] == "live";
-        if (Security.Current().Elevated || (live && args[2] is not ("stop" or "parent-eof" or "broker-kill" or "lease" or "blocked-write"))) return 3;
+        if (Security.Current().Elevated || (live && args[2] is not ("stop" or "parent-eof" or "broker-kill" or "lease" or "blocked-write" or "suspend"))) return 3;
         string scenario = args[2], id = Guid.NewGuid().ToString("N");
         using var server = Security.Server(id);
         string receiptId = Guid.NewGuid().ToString("N");
@@ -23,7 +23,7 @@ internal static class Broker
         bool acl = Security.RestrictedAcl(server) && Security.RestrictedAcl(receipt);
         if (!acl) throw new UnauthorizedAccessException();
         var self = Security.Current();
-        string fault = scenario == "peer-exit" ? "exit" : scenario == "blocked-write" ? "flood" : "normal";
+        string fault = scenario == "peer-exit" ? "exit" : scenario == "blocked-write" ? "flood" : scenario == "suspend" ? "power" : "normal";
         var info = Program.Child("peer", args[1], id, self.Pid.ToString(CultureInfo.InvariantCulture), self.Birth.ToString(CultureInfo.InvariantCulture), fault, receiptId);
         if (live)
         {
@@ -46,7 +46,7 @@ internal static class Broker
         }
         using var peer = launched;
         var identity = Security.Observe(peer);
-        using var session = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        using var session = new CancellationTokenSource(TimeSpan.FromSeconds(scenario == "suspend" ? 600 : 20));
         bool authenticated = false, stopped = false, cleanup = false;
         string outcome = "peer-failed";
         TraceStats? initial = null, final = null;

@@ -8,7 +8,7 @@ internal static class Peer
     internal static async Task<int> Run(string[] args)
     {
         if (args.Length != 7 || args[1] is not ("check" or "live") ||
-            args[5] is not ("normal" or "exit" or "flood")) throw new ArgumentException();
+            args[5] is not ("normal" or "exit" or "flood" or "power")) throw new ArgumentException();
         bool live = args[1] == "live";
         if (live && args[5] == "exit") throw new ArgumentException();
         if (Security.Current().Elevated != live) return 3;
@@ -21,7 +21,7 @@ internal static class Peer
         if (receiptId == id) throw new InvalidDataException();
         using var receipt = Security.Client(receiptId);
         Security.Verify(receipt, parent, birth, false, false);
-        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(args[5] == "power" ? 600 : 25));
         using var ownerGone = new CancellationTokenSource();
         using var io = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token, ownerGone.Token);
         var watch = Watch(parent, ownerGone, lifetime.Token);

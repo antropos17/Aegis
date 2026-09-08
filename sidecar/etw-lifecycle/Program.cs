@@ -26,16 +26,18 @@ internal static class Program
                     "uac-broker-death <new-output-directory> (two UAC launches; query-only witness and empty-session collector)\n" +
                     "check-consent <new-output-directory> (injected refusal / delayed normal launch; no ETW)\n" +
                     "uac-refusal <new-output-directory> (approve witness UAC, reject collector UAC)\n" +
-                    "uac-late <new-output-directory> (approve witness UAC; wait 10 seconds before accepting collector UAC)");
+                    "uac-late <new-output-directory> (approve witness UAC; wait 10 seconds before accepting collector UAC)\n" +
+                    "check-suspend <new-output-directory> (synthetic power pair, real normal processes; no ETW/sleep)\n" +
+                    "uac-suspend <new-output-directory> (two UAC approvals; wait for READY, manually sleep and wake)");
                 return 0;
             }
             if (args[0] == "self-test" && args.Length == 1) return await SelfTest.Run();
             if (args[0] == "peer") return await Peer.Run(args);
             if (args[0] == "broker") return await Broker.Run(args);
             if (args[0] == "rogue") return await SelfTest.Rogue(args);
-            if (args[0] == "witness") return await Witness.Run(args);
+            if (args[0] is "witness" or "witness-suspend") return await Witness.Run(args);
             if (args[0] == "consent-broker") return await ConsentBroker.Run(args);
-            if (args.Length != 2 || args[0] is not ("check" or "uac" or "uac-failures" or "check-broker-death" or "uac-broker-death" or "check-consent" or "uac-refusal" or "uac-late")) throw new ArgumentException();
+            if (args.Length != 2 || args[0] is not ("check" or "uac" or "uac-failures" or "check-broker-death" or "uac-broker-death" or "check-consent" or "uac-refusal" or "uac-late" or "check-suspend" or "uac-suspend")) throw new ArgumentException();
             if (Security.Current().Elevated)
             {
                 Console.Error.WriteLine("Use a normal PowerShell terminal. No run was started.");
@@ -54,7 +56,13 @@ internal static class Program
             Console.CancelKeyPress += cancel;
             try
             {
-                if (consent)
+                if (args[0] is "check-suspend" or "uac-suspend")
+                {
+                    var outcome = await SuspendScenario.Run(live, abort.Token);
+                    outcomes.Add(outcome);
+                    if (!outcome.Passed) result = 2;
+                }
+                else if (consent)
                 {
                     foreach (string scenario in args[0] == "check-consent" ? new[] { "refusal", "late" } : new[] { args[0] == "uac-refusal" ? "refusal" : "late" })
                     {

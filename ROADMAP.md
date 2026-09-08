@@ -91,7 +91,8 @@ The dependency is those observations, not the absence of a Windows host.
    after exit. It retains unknown final counters and grants no orphan-stop authority.
    [Controlled refusal/late-UAC probes](docs/roadmap/etw-consent-suspend.md) passed
    actual refusal and approval after 14.13 seconds; both independently observed
-   session absence. **Next: implement the suspend mode and collect evidence**, plus protected
+   session absence. The dedicated suspend mode now has bounded native power
+   observations and synthetic process checks. **Next: manual sleep/wake evidence**, plus protected
    ownership/recovery design for collector crash. No file provider or Electron
    connection; E1/E2 remain incomplete.
 
