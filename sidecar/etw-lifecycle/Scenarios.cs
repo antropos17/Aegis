@@ -10,6 +10,8 @@ internal static class Scenarios
 {
     internal static async Task<ScenarioResult> Run(bool live, string scenario, CancellationToken cancellation = default)
     {
+        // Live broker death uses BrokerDeath's independent observer and never this legacy cleanup path.
+        if (live && scenario == "broker-kill") throw new ArgumentException();
         using var broker = Process.Start(Program.Child("broker", live ? "live" : "check", scenario)) ?? throw new InvalidOperationException();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
         timeout.CancelAfter(TimeSpan.FromSeconds(live ? 150 : 35));

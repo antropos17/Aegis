@@ -21,14 +21,17 @@ internal static class Program
                 Console.WriteLine("Isolated ETW lifecycle experiment; no file provider or Electron connection.\n" +
                     "self-test\ncheck <new-output-directory> (normal token, no ETW/UAC)\n" +
                     "uac <new-output-directory> (normal terminal, one UAC; empty ETW session)\n" +
-                    "uac-failures <new-output-directory> (four UAC launches; empty sessions, stop/EOF/lease/blocked write)");
+                    "uac-failures <new-output-directory> (four UAC launches; empty sessions, stop/EOF/lease/blocked write)\n" +
+                    "check-broker-death <new-output-directory> (normal tokens, independent witness transport; no ETW)\n" +
+                    "uac-broker-death <new-output-directory> (two UAC launches; query-only witness and empty-session collector)");
                 return 0;
             }
             if (args[0] == "self-test" && args.Length == 1) return await SelfTest.Run();
             if (args[0] == "peer") return await Peer.Run(args);
             if (args[0] == "broker") return await Broker.Run(args);
             if (args[0] == "rogue") return await SelfTest.Rogue(args);
-            if (args.Length != 2 || args[0] is not ("check" or "uac" or "uac-failures")) throw new ArgumentException();
+            if (args[0] == "witness") return await Witness.Run(args);
+            if (args.Length != 2 || args[0] is not ("check" or "uac" or "uac-failures" or "check-broker-death" or "uac-broker-death")) throw new ArgumentException();
             if (Security.Current().Elevated)
             {
                 Console.Error.WriteLine("Use a normal PowerShell terminal. No run was started.");
@@ -38,7 +41,7 @@ internal static class Program
             if (Path.Exists(output)) throw new IOException();
             Directory.CreateDirectory(output);
             var started = DateTimeOffset.UtcNow;
-            bool live = args[0] != "check";
+            bool live = args[0].StartsWith("uac", StringComparison.Ordinal);
             var outcomes = new List<object>();
             int result = 0;
             using var abort = new CancellationTokenSource();
@@ -46,7 +49,13 @@ internal static class Program
             Console.CancelKeyPress += cancel;
             try
             {
-                foreach (var scenario in args[0] == "uac-failures" ? new[] { "stop", "parent-eof", "lease", "blocked-write" } : live ? new[] { "stop" } :
+                if (args[0].EndsWith("broker-death", StringComparison.Ordinal))
+                {
+                    var outcome = await BrokerDeath.Run(live, abort.Token);
+                    outcomes.Add(outcome);
+                    if (!outcome.Passed) result = 2;
+                }
+                else foreach (var scenario in args[0] == "uac-failures" ? new[] { "stop", "parent-eof", "lease", "blocked-write" } : live ? new[] { "stop" } :
                     new[] { "stop", "parent-eof", "broker-kill", "peer-exit", "peer-kill", "lease", "blocked-write", "launch-denied" })
                 {
                     var outcome = await Scenarios.Run(live, scenario, abort.Token);
@@ -64,6 +73,7 @@ internal static class Program
             {
                 schema = 2,
                 experiment = "etw-lifecycle",
+                mode = args[0],
                 liveEmptySession = live,
                 fileProviderEnabled = false,
                 started,

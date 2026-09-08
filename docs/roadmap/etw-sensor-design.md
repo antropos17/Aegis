@@ -423,7 +423,19 @@ nothing about Kernel-File completeness or cost. Existing CI does not build this
 C# project; Windows Release build, formatter, self-tests and process cases are
 separate local checks. E3–E8 and the remaining B1 questions are unchanged.
 
-Next focused slice: a design for broker-death evidence and orphan ownership. Broker death
-requires an independent authorized absence witness; elevated collector crash also
-requires an orphan-ownership design before claiming cleanup. The graceful-failure
-results do not close either crash case and do not require repeating B1.
+The next slice is now implemented: [broker-death witness and orphan policy](etw-crash-ownership.md).
+A separate query-only helper authenticates the normal coordinator and independently
+queries the fixed name before/after the deliberate broker kill. The coordinator
+holds the collector through a limited-query/synchronize handle and verifies identity
+before the kill. No elevated process is killed. The [live evidence](../recon/evidence/etw-lifecycle-home-26200-broker-death.json)
+records before query 0, actual 256 × 64 KiB buffers, broker exit, collector exit 0,
+after query 4201 and witness exit 0. Final counters stay null; lost terminal evidence
+is not reconstructed. Nineteen self-tests and nine normal-token cases passed.
+
+This closes the narrow same-account broker-death/absence experiment on the recorded
+host. Elevated collector crash remains open: occupied names still fail closed and
+there is no automatic orphan removal. The design sets requirements for a protected
+session controller and recovery authority; it does not implement one. Next focused
+work is controlled UAC refusal/late-consent evidence and suspend behavior, followed
+by the protected ownership/recovery design. E1/E2 remain incomplete; do not repeat
+B1 or the successful broker-death run without a new question.

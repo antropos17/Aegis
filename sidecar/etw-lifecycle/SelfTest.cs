@@ -172,6 +172,11 @@ internal static class SelfTest
             Check(!FinalEvidence.Accepts(true, "blocked-write", valid, 2));
             return Task.CompletedTask;
         });
+        await Test("broker death needs independent presence, absence and held process exits", WitnessTests.Evidence);
+        await Test("witness rejects replay, foreign identity and fabricated check statistics", WitnessTests.Protocol);
+        await Test("cancelled broker-death check cannot authorize the deliberate kill", WitnessTests.Cancelled);
+        await Test("witness bounded framing rejects truncation, excess length and unknown fields", WitnessTests.Framing);
+        await Test("read-only collector handle retains identity and exit after process death", WitnessTests.HeldProcess);
         Console.WriteLine($"{passed} lifecycle self-tests passed; no ETW session or elevation.");
         return 0;
     }
