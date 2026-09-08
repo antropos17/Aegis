@@ -14,24 +14,27 @@ export interface ProcessInfo {
  * Where a generation witness came from. `sequence` = the kernel SequenceNumber
  * (Microsoft's documented PID-reuse detector); `createTime100ns` = process creation
  * time in 100 ns ticks; `startTimeMs` = the epoch-ms birth time, stringified — what
- * the emergency CIM observation can offer. The source is compared alongside the
+ * the emergency CIM observation can offer; `linuxStartTicks` = boot ID plus fresh
+ * kernel start ticks. The source is compared alongside the
  * value, so witnesses of different provenance are never equal.
  */
-export type GenerationWitnessSource = 'sequence' | 'createTime100ns' | 'startTimeMs';
+export type GenerationWitnessSource =
+  'sequence' | 'createTime100ns' | 'startTimeMs' | 'linuxStartTicks';
 
-/** Parent process info from a snapshot observation (sidecar, or CIM fallback) */
+/** Parent process info from a snapshot observation (sidecar, CIM or Linux procfs) */
 export interface ParentProcessInfo {
   readonly name: string;
   readonly ppid: number;
   /**
-   * OS process-creation time (epoch ms). Supplied by win32 only; darwin/linux map
-   * entries omit it, so the field is null there.
+   * OS process-creation time (epoch ms). Windows supplies it directly; Linux derives
+   * it from fresh start ticks and a boot-ID-bound epoch reference. Null on failure
+   * or on platforms without a birth-time provider (currently macOS).
    */
   readonly startTime?: number | null;
   /**
    * Generation witness for this pid, always a string — 64-bit values that a JS
-   * number cannot hold without losing low digits. Present only when the snapshot
-   * sidecar served the observation; the CIM fallback omits it and process-utils
+   * number cannot hold without losing low digits. Supplied by the Windows sidecar
+   * or Linux procfs reader; the CIM fallback omits it and process-utils
    * derives a `startTimeMs` witness instead.
    */
   readonly witness?: string | null;
@@ -75,7 +78,7 @@ export interface DetectedAgent {
   /**
    * OS process-creation time (epoch ms), attached by
    * `process-utils.enrichWithParentChains`. Null when the platform withholds it
-   * (darwin/linux today) or for synthetic pid-0 agents. Distinct from the
+   * (darwin today) or for synthetic pid-0 agents. Distinct from the
    * AEGIS-observed session `firstSeen`.
    */
   readonly startTime?: number | null;

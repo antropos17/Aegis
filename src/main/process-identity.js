@@ -51,12 +51,13 @@
  *       apart across the boundary do not. `tests/fixtures/bench/derived/
  *       D1-pid-reuse-same-ms/` models that first pair, and what a pid-only join
  *       can and cannot say about it.
- *     - linux: 10 ms would be available from `/proc/<pid>/stat` field 22 at the
- *       usual USER_HZ=100. The `/proc/stat` btime anchor carries up to ±1 s of
- *       systematic error, but it is identical for every process on the machine,
- *       so it affects only cross-machine comparability — never distinguishability.
- *       NOT WIRED: platform/linux.js `getParentProcessMap` omits startTime today,
- *       so linux resolves to space 3.
+ *     - linux: `/proc/<pid>/stat` field 22, converted using observed CLK_TCK and
+ *       floored to milliseconds (10 ms at CLK_TCK=100). The boot-ID-bound btime
+ *       reference is pinned for this AEGIS lifetime so wall-clock corrections do
+ *       not split live identities. Epoch values are estimates in that reference,
+ *       with second-resolution anchoring; fresh boot ID + start ticks provide the
+ *       generation witness. No per-PID birth observation is cached. An unread
+ *       procfs pass produces null birth times and freezes session reconciliation.
  *     - darwin: 1 SECOND at best (`ps` lstart/etime). Reuse inside one second
  *       would require the macOS pid counter to wrap (~99k spawns in that second).
  *       NOT WIRED: platform/darwin.js omits startTime, so darwin resolves to

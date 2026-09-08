@@ -68,7 +68,7 @@ has to remember to redo. The evidence-code row is not covered and still is one.
 | Agents | `node -p` over `src/shared/agent-database.json` | **110** |
 | Name signatures | sum of `names[]` in the same file | **262** |
 | Rules / YAML files | `- id:` matches in `rules/*.yaml`; `git ls-files 'rules/'` | **73** / **8** |
-| main CJS modules | `git ls-files 'src/main/'` split by depth | **66** = 54 top-level + 10 `platform/` + 2 `token-adapters/` |
+| main CJS modules | `git ls-files 'src/main/'` split by depth | **67** = 54 top-level + 11 `platform/` + 2 `token-adapters/` |
 | Svelte components | `git ls-files 'src/renderer/lib/components/*.svelte'` | **50** (plus `src/renderer/App.svelte` → **51** tracked `.svelte` in total) |
 | Renderer stores | `git ls-files 'src/renderer/lib/stores/'` | **16** files (4 of them demo-only) |
 | Renderer utils | `git ls-files 'src/renderer/lib/utils/'` | **21** files |
@@ -161,13 +161,16 @@ counters follow the main ring plus its eviction hook.
 `instanceIdSource` (`scan-loop.js:526-528`), mirroring `injectDetectedExternalAgents`. The
 baselines/risk quarantine that made this visible was correct and is unchanged.
 
-### F-E06 — Linux/Darwin supply no OS birth time → real agents fall back to `"<pid>:u"` — **OPEN**
+### F-E06 — Darwin supplies no OS birth time — **PARTIAL: Linux implemented**
 
-**User sees:** After PID reuse on non-Windows, sessions, knownHandles and scores can continue under
+**User sees:** After PID reuse on macOS, sessions, knownHandles and scores can continue under
 a new process as if it were the old one (degraded identity).
 
-**Where:** `platform/linux.js:247` and `platform/darwin.js:149` both document that
-`getParentProcessMap` entries carry no `startTime`; `win32.js` supplies one.
+**Where:** `platform/darwin.js` still omits birth time. Linux now reads fresh kernel
+start ticks through `platform/linux-process-map.js`, with observed CLK_TCK and a
+boot-ID-bound epoch reference. An unreadable observation returns null births and
+failed identity health, freezing sessions. Epoch values have the resolution of
+kernel ticks and the initial boot-time reference; they are not exact wall-clock times.
 
 **Mechanism:** Space-3 identity is honest but reuse-unsafe. The product claims instance identity
 generally; the platform gap is silent to the user.
@@ -447,7 +450,7 @@ window (≈500) vs feed (200) vs risk quarantine of unattributed — F-E04.
 5. **F-E04** four independent event windows, no truncation disclosure.
 6. **F-S04** pid-keyed maps cannot represent two agents on one pid, and pid-0 synthetics now reach
    the scan list.
-7. **F-E06** linux/darwin have no OS birth time → degraded identity under PID reuse.
+7. **F-E06** Darwin has no OS birth time → degraded identity under PID reuse; Linux implemented.
 8. **F-E10** token costs silently absent on non-Windows.
 9. **F-S06** `riskHistory` sparkline is dead UI.
 10. **F-S02** `getRulesByCategory` tested but never called.

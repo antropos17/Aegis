@@ -1238,3 +1238,33 @@ rerun and the subsequent full coverage run passed without changing code or timeo
 Format, build, lint (zero errors, 31 existing warnings), both type checks, both
 mutation gates, counts and the production dependency audit also passed. Local
 document links were verified. Closure of #73/#75 is attached to the test PR merge.
+
+## Session handoff — Linux process generations, D1 (2026-09-08)
+
+Linux now provides fresh birth observations and boot-ID/start-tick generation
+witnesses through `platform/linux-process-map.js`. CLK_TCK is observed, never
+assumed. Only the clock frequency and a boot-ID-bound epoch reference survive
+passes; per-PID birth times are always read on the pass that stamps them. The
+reference stays stable over wall-clock corrections. Epoch milliseconds remain an
+estimate limited by kernel tick resolution and the initial btime reference.
+Field definitions: [proc_pid_stat(5)](https://www.man7.org/linux/man-pages/man5/proc_pid_stat.5.html)
+and [kernel proc documentation](https://www.kernel.org/doc/html/v6.15/filesystems/proc.html).
+
+Vanished PIDs are skipped. Malformed/unreadable identity observations produce a
+population-only ps fallback, null births and FAILED proc-snapshot health. The
+existing session freeze handles this outage without splitting recovered sessions.
+macOS identity collection remains D2. WSL distribution discovery is a separate
+Windows adapter and is unchanged by native Linux D1.
+
+Fifteen new tests cover parsing, frequency, fresh reuse, boot/clock changes,
+outage/recovery and the real scanner/enrichment/session pipeline. Full coverage:
+2,765 passed, four skipped, 156 files. Format, build, lint (31 existing warnings),
+both type checks, both mutation gates, counts and production audit passed. Native
+Ubuntu/Node 24.18.1 smoke verified two observations against live procfs: five
+processes, CLK_TCK 100, 14 ms for the two passes in this single local sample.
+
+Continue the same user request with application process grouping, explicitly
+authorized for BOTH data and the current interface. Retain individual PIDs and
+security/session identities; expose application trees and distinguish independent
+launches from children. Process trees cannot establish chat counts. Broader visual
+redesign remains outside this work.
