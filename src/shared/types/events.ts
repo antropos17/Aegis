@@ -84,6 +84,12 @@ export interface FileEvent {
   readonly parentEditor: string | null;
   readonly cwd: string | null;
   readonly file: string;
+  /** Path-derived skill identity, independent of actor attribution; absent on older events. */
+  readonly skill?: {
+    readonly name: string;
+    readonly rootPath: string;
+    readonly relativePath: string;
+  } | null;
   readonly sensitive: boolean;
   readonly selfAccess: boolean;
   readonly reason: string;

@@ -3,7 +3,7 @@
   import { addToast } from '../stores/toast.js';
   import { t } from '../i18n/index.js';
   import { getSeverity } from '../utils/timeline-utils';
-  import { shortenPath } from '../utils/path-utils';
+  import { shortenPath, fileActivityLabel } from '../utils/path-utils';
   import { UNKNOWN_SOURCE } from '../utils/grouped-feed-utils';
 
   let { active = true, agentFilter = 'all', severityFilter = 'all', typeFilter = 'all' } = $props();
@@ -223,7 +223,9 @@
           >
           <span class="feed-action">{ev.action || ev._type}</span>
           <button class="feed-path" title={ev.file} onclick={(e) => handlePathClick(ev, e)}
-            >{shortenPath(ev.file)}</button
+            >{ev._type === 'file'
+              ? fileActivityLabel(ev.file, ev.action)
+              : shortenPath(ev.file)}</button
           >
           {#if ev._type === 'file' && ev.file}
             <button
