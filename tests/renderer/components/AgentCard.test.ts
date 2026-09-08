@@ -10,6 +10,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render } from '@testing-library/svelte';
 import { flushSync } from 'svelte';
+import { groupAgentsForPanel } from '../../../src/renderer/lib/utils/agent-panel-utils';
 
 /**
  * `window.aegis` must exist BEFORE `stores/ipc` is evaluated, or that module takes the
@@ -71,6 +72,31 @@ function chipAbsent(container: HTMLElement, label: string): string | null {
 describe('AgentCard — per-instance resource figures', () => {
   beforeEach(() => {
     agentResourceUsage.set([]);
+  });
+
+  it('renders one app tree for six processes and keeps each PID action inside its disclosure', () => {
+    const processes = Array.from({ length: 6 }, (_, index) =>
+      agent({
+        pid: index + 100,
+        instanceId: `${index + 100}:1000`,
+        applicationGroup: { id: 'app:100:1000', rootPid: 100, processCount: 6 },
+      }),
+    );
+    const grouped = groupAgentsForPanel(processes)[0];
+    const { container } = render(AgentCard, {
+      props: { agent: grouped, expandedInstanceId: '100:1000' },
+    });
+    expect(chipFigure(container, 'App instances')).toBe('1');
+    expect(chipFigure(container, 'Proc')).toBe('6');
+    const details = container.querySelector('details');
+    expect(details?.open).toBe(false);
+    expect(details?.querySelector('summary')?.textContent).toContain('App PID 100 · 6 processes');
+    expect(details?.querySelectorAll('.pid-row')).toHaveLength(6);
+    const summary = details?.querySelector('summary');
+    flushSync(() => summary?.click());
+    expect(details?.open).toBe(true);
+    expect(container.querySelector('.agent-card')?.classList.contains('expanded')).toBe(true);
+    expect(details?.querySelectorAll('[aria-label="Kill PID 105"]')).toHaveLength(1);
   });
 
   it('renders CPU and memory for the matching instance', () => {

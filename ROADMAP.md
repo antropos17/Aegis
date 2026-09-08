@@ -6,8 +6,9 @@ not automatically in an installed app.
 
 This is the current development queue. Implementation and measurement history
 remain in [progress.md](memory-bank/progress.md). The separately developed frontend
-is user-owned: renderer, Svelte, CSS and design work stay outside this queue until
-integration is requested. Plan IDs below are distinct from GitHub issue numbers.
+is user-owned. Application grouping is explicitly integrated into the current
+interface; broader renderer and design work remain separate. Plan IDs below are
+distinct from GitHub issue numbers.
 
 ## Completed baseline
 
@@ -22,6 +23,9 @@ Do not schedule these capabilities as new work:
   [sequence-rules.md](docs/roadmap/sequence-rules.md).
 - Startup work: deferred initialization, evidence watchers in workers and deferred
   log cleanup. Further performance changes need a measured bottleneck.
+- Application process grouping in data and the current interface: one named card,
+  observed application trees and expandable child PIDs. See
+  [application-groups.md](docs/roadmap/application-groups.md) for the frontend contract.
 - Signed Windows update checking, download and installer verification (PR #367).
 - Downloads defaults (#332), incomplete-export rejection (#370), WSL observation
   freshness (#371), shared fresh Windows process observations (#372), streamed
