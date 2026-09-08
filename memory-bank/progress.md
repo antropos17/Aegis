@@ -1175,3 +1175,35 @@ All four follow-up items from the core audit are implemented. Earlier completed
 PRs in this batch: #371 WSL freshness, #372 shared Windows observation, #373 streamed
 exports. No release or installed-app update was requested; the separately developed
 frontend remains untouched.
+
+## Session handoff — remaining roadmap reconciled (2026-09-07)
+
+Block 0 from the supplied remaining-work plan replaces the obsolete `ROADMAP.md`
+feature list with the current queue, checked against `11215d4`. It records the
+completed baseline, dependencies and completion evidence for discovery, ETW, rules,
+platform identity and maintenance. Renderer/design work remains user-owned.
+The sensor-health roadmap now marks B8 closed with its existing PR #329 and test
+evidence, rather than instructing the next session to implement it again.
+
+A1 is still a supplied patch (`a408af0`), not merged code or an open PR. Its separate
+review ran 2,733 passing tests with four skips, but identified the running-list /
+`wsl -d` race: a distribution can stop between those commands and be restarted by
+the probe. That no-start requirement must be resolved before A1 is merged; a second
+list check alone is not an atomic guarantee. A2 and A3 remain dependent on A1.
+C1, the evidence table for #73/#75, is independent and can proceed meanwhile.
+
+The plan no longer equates the database's 262 process-name entries with usable
+Linux signatures. ETW recon has 13 hardware-gated questions, not nine; their pending
+measurements are distinct from whether a Windows machine is available. Linux and
+macOS birth-time collection need measured resolution and race handling. A scripted
+index mutation gate remains optional follow-up; CI wiring needs separate workflow
+authorization. No source, frontend, dependency, lockfile, workflow or release change
+is part of this documentation block.
+
+The roadmap rewrite also removes its two obsolete single-line exemptions from
+`scripts/counts.js`: `counts:check` correctly rejected them after the old defect
+sentences disappeared. Application source is unchanged.
+
+Local format check, renderer build and lint passed (zero errors, 31 existing
+warnings); `counts:check` passed after removing the two dead exemptions. No new
+tests were added for the documentation and exemption removal.

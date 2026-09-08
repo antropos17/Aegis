@@ -853,16 +853,6 @@ const ARCHIVAL_FILES = new Set(ARCHIVAL.map((a) => a.file));
  */
 const SITE_EXEMPTIONS = [
   {
-    file: 'ROADMAP.md',
-    contains: 'hardcoded `rgba(255,255,255)` in 15 Svelte components',
-    why: 'the size of a defect (15 affected components), not the component inventory',
-  },
-  {
-    file: 'ROADMAP.md',
-    contains: '(31 components unlinted)',
-    why: 'the size of a lint gap, not the component inventory',
-  },
-  {
     file: 'README.md',
     contains: '| YAML rulesets, 68 rules, hot-reload, 568 tests |',
     why: 'a release-history table row: it describes v0.7.0-alpha, not the tree',
