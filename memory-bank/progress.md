@@ -1494,3 +1494,46 @@ macOS identity и A4 GPU recon. C1/C2, D1, SQLite и Sensor Health уже гот
 Открыты #352/#353/#354 зависимости и #364 release; релиз не разрешён этим handoff.
 Фронт пользователь делает отдельно. Без самостоятельного запуска других агентов;
 обычный branch/commit/push/PR/зелёный CI/merge уже разрешён через AGENTS.md.
+
+## Session handoff — ETW B2 architecture draft (2026-09-08)
+
+All three local ETW experiment sets were already complete; no capture was repeated.
+`docs/roadmap/etw-sensor-design.md` now records the first connection design, checked
+against source contracts at `53b20e4`: procsnap framing/supervision, fresh process
+witnesses and instance stamps, FileEvent/attribution, dedup/audit/sequence entry
+points and the existing Sensor Health freeze. ROADMAP and next-session point to
+the proposed B3. This is a documentation block; production connection is unimplemented.
+
+The proposal chooses one `etw-file` leaf, normal-token C# broker and elevated
+collector, authenticated local pipe and bounded framed transport. It specifies
+UAC cancellation, stop/drain, lease/parent death, suspend and orphan-session
+recovery gates. Privilege/pipe trust and final-stop cleanup require focused live
+validation; the existing probe does not prove them. Proposed queue/timeout values
+are engineering limits to test, and 16 MiB remains an explicitly selected candidate.
+
+Diagnostic observations keep nullable paths and candidate issuer/generation fields;
+they cannot enter FileEvent, baselines, risk, audit or sequence rules. Existing
+FileEvent requires a path and has no ETW action/evidence code; a future adapter
+needs explicit contracts and source-aware dedup. Header PID, late TID lookup,
+nearby snapshots and public millisecond instance keys do not prove event-time
+identity. Naming loss invalidates maps; preopened/mmap and pointer lifetime stay
+unresolved. E1–E8 preserve all remaining B1 prerequisites and support restrictions.
+
+Health retains separate native counters and local drops; only positive EventsLost
+deltas contribute to lossCount, while buffer/drop-only failures also degrade.
+One actual ETW session owns one health-record lifetime. Partial successes advance
+lastSuccessAt explicitly; callbacks cannot clear residual loss. Future ETW health
+must not change the process population gate or use the CIM-only projection.
+
+Next proposed B3 is offline protocol validation/decoding and a pure session-health
+reducer with bounded synthetic fixtures, on `codex/etw-protocol-contract`. No
+main import, elevation, real capture, production stats or FileEvent adapter. Then
+an isolated E1/E2 lifecycle harness precedes live Electron wiring. Frontend remains
+separate; no source, dependencies, workflow, installer or installed app changed.
+
+Local validation: 31 relative documentation links resolved; task files passed
+conflict/whitespace checks. Format and renderer build passed; lint had zero errors
+and the 31 existing warnings. Markdown is excluded from the repo format script,
+so document links/whitespace were checked separately. No new runtime tests were
+added for this docs-only block. Branch: `codex/etw-sensor-design`; check its PR for
+the final five-context CI and merge outcome before starting B3.
