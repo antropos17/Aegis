@@ -20,7 +20,6 @@
   import { pendingStop, requestStop, clearStop } from './lib/stores/process-action.js';
   import { t } from './lib/i18n/index.js';
   import {
-    agents,
     anomalies,
     demoDataActive,
     isDemoBuild,
@@ -129,20 +128,6 @@
 
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
-  });
-
-  // ── Toast: scan complete ──
-  let prevAgentCount = $state(-1);
-  $effect(() => {
-    const count = $agents.length;
-    if (prevAgentCount === -1) {
-      prevAgentCount = count;
-      return;
-    }
-    if (count !== prevAgentCount) {
-      addToast(`Scan complete: ${count} agent${count !== 1 ? 's' : ''} detected`, 'success');
-      prevAgentCount = count;
-    }
   });
 
   // ── Toast: anomaly detected ──

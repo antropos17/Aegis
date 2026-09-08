@@ -134,7 +134,7 @@
   }
 
   .tab-pill.active {
-    color: var(--md-sys-color-on-primary);
+    color: var(--md-sys-color-on-surface);
     font-weight: 600;
   }
 </style>
