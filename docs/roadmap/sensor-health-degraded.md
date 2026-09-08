@@ -1,11 +1,13 @@
 # Block B — Sensor Health / DEGRADED
 
-**Status (as of 2026-08-25):** design document, largely implemented since it was written.
+**Status (as of 2026-09-07):** B1–B8 implemented; this document retains the design and
+the evidence and limitations recorded for each slice.
 **Closed:** B1 (`src/main/sensor-health.js`), B2 (chokidar / handle / Restart Manager), B3
 (process enumeration and the secondary detectors), B4 (network + the ETW schema freeze), B5
 (`src/main/observation-gap.js` — the OS suspend / resume gap), B6 (`stats.appHealth` on the
-existing stats payload) and B7 (footer chip + population-gated empty states). **Open:** B8 (the
-cross-sensor umbrella suite). Per-slice detail is in §10.
+existing stats payload), B7 (footer chip + population-gated empty states), and B8 (the
+cross-sensor umbrella suite, PR #329). No B1–B8 implementation slice remains open.
+Per-slice detail is in §10; the unresolved measurements in §14 remain explicit.
 
 *Correction, 2026-08-23.* Until this edit the header read "the process-scan record and the
 renderer surfacing (B3 remainder, B6–B7) are not built", and every word of it was already false:
@@ -639,6 +641,12 @@ Audit drops remain on **audit** stats path (already honest).
 
 ### B8 — Integration / non-vacuous failure suite
 
+- **Status:** CLOSED, PR #329 (2026-08-25). `tests/main/app-health-umbrella.test.js`
+  drives real sensor leaves through the scan-loop schedulers and the app-health
+  composer. The read-mechanism ownership regression it exposed was subsequently
+  fixed; the Restart Manager bring-up case is now an ordinary passing test.
+  The mutation evidence and follow-up are recorded in `memory-bank/progress.md`
+  under the B8 umbrella and read-mechanism ownership entries.
 - **Closes:** cross-sensor regressions  
 - **Tests:** multi-sensor worst-of global; mutation proofs per critical registration  
 - **Stop:** Block B complete checklist  
@@ -717,14 +725,15 @@ Block B is done when:
 
 ---
 
-## 16. Next executable block
+## 16. Next work
 
-**Implement B8:** the cross-sensor umbrella suite (§10) — a multi-sensor worst-of global driven
-through the real leaves, a mutation proof per critical health registration, and the Block B
-stopping checklist (§15) walked with evidence. B5 landed 2026-08-25 (§10).
+B8 landed in PR #329 on 2026-08-25. Do not implement it again. The current
+development queue is [ROADMAP.md](../../ROADMAP.md); new sensors still need their
+own producer, health and observation contracts. Completing B1–B8 does not establish
+hardware-dependent ETW behavior or resolve every UNKNOWN in §14.
 
-*Refreshed 2026-08-25:* this section pointed at B5 until B5 merged; it now points at B8, the
-last open slice.
+*Refreshed 2026-09-07:* the previous instruction to implement B8 was stale after
+the umbrella suite and its read-mechanism ownership fix merged.
 
 *Refreshed 2026-08-23.* This section said "Implement B1 only … do not start B2+ until B1 is
 merged" for as long as B1 through B4, B6 and B7 were being merged past it. A "next block" line
