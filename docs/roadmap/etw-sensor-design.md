@@ -1,8 +1,9 @@
 # B2 — Windows ETW file sensor design
 
-Status: first architecture draft, 2026-09-08; source contracts checked at `53b20e4`.
-B2 documents a proposed connection and a bounded B3. No production sensor, UI,
-dependency, installer, workflow or default-buffer change is made by this document.
+Status: B2 architecture draft plus B3 offline contract, 2026-09-08. B2 source
+contracts were checked at `53b20e4`; B3 implements only the isolated JS codec and
+session-health reducer described below. No production sensor, UI, dependency,
+installer, workflow or default-buffer change is made by these blocks.
 The separately developed frontend remains user-owned. B1 is partially open.
 
 ## 1. Evidence and intended scope
@@ -263,13 +264,14 @@ These are distinct questions; do not repeat the three completed suites wholesale
 | E7 — I/O coverage | Dedicated Fast I/O and cold/page-fault workloads with independent activity evidence. Warm mmap is explicitly uncovered by current evidence; claim no comprehensive read sensor. |
 | E8 — environments/cost | Equivalent focused cases on Pro and documented Hyper-V guest; tracing-off controls for total-system cost, longer bounded-memory run of the actual transport. Home-only results cannot approve these environments or a production buffer default. |
 
-**B3 proposal: offline backend protocol and health reducer.** Branch from current
-`origin/master` as `codex/etw-protocol-contract`. Own only new
-`src/main/platform/etw-file-protocol.js`, `src/main/platform/etw-file-health.js`,
-their `tests/main/` suites/fixtures and this document's status/handoff updates.
-Use CJS/JSDoc and injected clock/dependencies. Implement the envelope validator,
-bounded streaming decoder and pure session-health reducer from sections 4/6.
-No main imports, launch/UAC, real ETW, dependencies, production stats, audit or UI.
+**B3 implemented: offline backend protocol and health reducer.**
+[`etw-file-protocol.js`](../../src/main/platform/etw-file-protocol.js) validates and
+decodes diagnostic envelopes; [`etw-file-health.js`](../../src/main/platform/etw-file-health.js)
+reduces collector messages into a session model with injected receipt time.
+Their platform test suites and synthetic fixture helper are under `tests/main/platform/`.
+Coverage includes both modules. Derived repository count declarations were updated
+for the two additions. No main imports, launch/UAC, real ETW, dependencies,
+production stats, audit or UI are connected.
 
 Acceptance: fragmented/coalesced valid streams decode identically; invalid lengths,
 depths, uint64s, versions and session IDs fail without unbounded allocation.
@@ -284,3 +286,76 @@ Run affected Vitest suites, format, build, lint, both type checks and normal PR 
 with an isolated broker/collector lifecycle harness, before live Electron wiring.
 E3–E8 constrain subsequent capture/correlation/admission blocks. B3 completion
 approves no runtime integration and closes none of the remaining B1 questions.
+
+## 8. B3 offline contract details
+
+Every envelope has exactly `{t, proto, launchId, sessionId, seq, data}`; `proto`
+is `etw-file/1`, IDs are 1–64 ASCII letters/digits/underscore/hyphen, and `seq` is
+a positive canonical uint64 decimal string. IDs bind one launch and session;
+they provide no authentication by themselves. Sequences are independent in each
+direction. Each nested object has closed fields; unknown keys and omitted nullable
+fields are rejected. The only coverage/profile value is
+`home-26200-diagnostic-v1`. Accepted schema pairs are `10:0`, `12:1`, `13:1`, `14:1`,
+`15:1`, matching the local B1 lifecycle schema observation. This allowlist does
+not approve live schema decoding or other Windows builds.
+
+| `t` | Exact `data` fields |
+| --- | --- |
+| `hello` | `build` (bounded text), `profile`, `schemas` (all five unique schema pairs). |
+| `start` | `requestId`, `profile`, `buffersMiB: 16` (explicit experiment selection). |
+| `ready` | `requestId`, positive uint64 `frequency`, `clock: {qpc, unixMs, uncertaintyQpc}`, `buffers: {count, sizeKiB}` (actual nonzero uint32 values), `telemetry`. |
+| `observations` | `records` (0–128). Fields are `eventSeq`, `provider`, `eventId`, `version`, `qpc`, `headerPid`, `headerTid`, `issuingTid`, `payloadTid`, `path`, `pathEvidence`, `issuerStatus`, `generationStatus`, `generationWitness`, `generationSource`, `generationInterval`, `agent`, `instanceId`. |
+| `health`, `heartbeat` | Telemetry object defined below. |
+| `stop` | `requestId`. |
+| `stopped` | `requestId`, booleans `drained`/`stopped`, uint64 `finalEventSeq`, `telemetry`. |
+| `error` | Nullable `requestId`, static `code` from the exported `ERROR_CODES`. |
+
+Telemetry has exactly `operational`, `reasons`, `counters`, `totals`, `queues`,
+`coverage`. Reasons are unique members of `mapping-uncertain`, `identity-uncertain`,
+`population-unavailable`, `schema-gap`. The reducer derives its own state; there
+is no sender-provided `HEALTHY` assertion. `counters` contains nullable uint64
+`eventsLost`, `realTimeBuffersLost`, `logBuffersLost`, uint32 `queryStatus` and
+uint64 `asOfQpc`. Nonzero queryStatus prevents using any native values for loss
+accounting; the received values remain available in the copied diagnostic sample.
+`totals` contains uint64 `delivered`, `filtered`, `dropped`, `decoderErrors`,
+`mapEpoch`, `mapResets`, `mapConflicts`. `queues` contains uint32 `records`, `bytes`,
+`highWaterRecords`, `highWaterBytes`, with the section 4 caps and high-water checks.
+These reported counters do not implement a collector queue or prove a live bound.
+
+Observation uint64s are strings; PID/TID fields are uint32 with the payload/issuing
+fields nullable. `generationInterval` is null or `{fromQpc, toQpc}` with ordered
+uint64 endpoints. An unresolved generation has null witness/source/interval;
+a candidate needs all three, with source `createTime100ns` or `sequence`. Both
+are candidate representations, not a newly implemented observation source.
+Path and evidence must agree; event 15 cannot carry `observed-name`. `agent` and
+`instanceId` must be null. Unicode/control/size checks apply to paths. Raw pointer
+fields and arbitrary extra properties are rejected; opaque aliases are deferred.
+
+`createFrameDecoder({launchId, sessionId, onMessage})` delivers synchronously.
+It keeps a four-byte header and at most one 256 KiB payload; its allocation metric
+covers that accumulator, not total V8/parsed-object memory. Large coalesced chunks
+are consumed incrementally without an output array or retained input slice.
+The callback must return undefined/true; false, a thrown error or an asynchronous
+result permanently fails decoding. Consumer capacity is the future caller's
+responsibility. Malformed length/UTF-8/JSON/schema/identity, excess depth/work and
+truncated EOF also fail closed with static error codes. Clean byte EOF closes the
+decoder but does not certify ETW shutdown. No frame timeout is implemented here.
+
+`createSession` initializes STARTING. `reduceSession` accepts collector direction
+only, requires hello then ready, rejects duplicate/backward sequences and foreign
+IDs, and marks forward transport gaps sticky. Filtered event-sequence gaps are
+allowed; repeated/backward event sequences are rejected. Telemetry totals retain
+high-water marks through decreases so a later recovery cannot double count loss.
+Unknown counter intervals and local/buffer losses remain sticky. The sole profile
+always contributes `experimental-correlation`, so B3 never reports HEALTHY.
+
+In `stopped`, telemetry's `operational` describes the validity of the final
+collection result; a clean stop keeps it true although capture has ended.
+Verified stop retains a terminal summary, including final loss counters. Incomplete
+stop/drain fails; unknown final counters preserve a gap. A supervisor must call
+`failSession` for decode failure, transport EOF before stopped, or lease failure.
+Repeated EOF after verified stop is harmless; FAILED/stopped sessions reject later
+callbacks. Models retain no observation array or agent identity. Start/stop request
+correlation, idempotent control handling, session-ID uniqueness, disabled/unsupported
+operator states, completed-summary retention and all timers belong to the future
+supervisor. B3 is not a substitute for the E1/E2 lifecycle harness.

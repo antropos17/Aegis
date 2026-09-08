@@ -72,11 +72,12 @@ The dependency is those observations, not the absence of a Windows host.
    bounded transport, candidate evidence, identity admission, losses and health.
    E1–E8 name the focused gates and support restrictions. Production connection
    and authoritative attribution remain gated; the remaining B1 questions stay open.
-3. **B3 (next: offline backend contract):** implement a separate framed protocol
+3. **B3 (offline backend contract implemented):** separate framed protocol
    validator/decoder and pure session-health reducer with synthetic fixtures.
-   No launch/UAC, real ETW, main wiring, audit or frontend in this block. A later
-   isolated lifecycle harness must validate pipe trust and session cleanup before
-   live connection. The existing `sidecar/procsnap` remains independent.
+   Both modules remain outside the live module graph. No launch/UAC, real ETW,
+   main wiring, audit or frontend. **Next: an isolated E1/E2 lifecycle harness**
+   to validate pipe trust, elevation and session cleanup before live connection.
+   The existing `sidecar/procsnap` remains independent.
 
 ## C — existing rules coverage
 
@@ -124,8 +125,9 @@ Keep them outside the active queue while the first ETW sensor is being establish
 
 ## Execution order
 
-The B2 architecture draft is prepared; the proposed continuation is B3's offline
-backend contract in [etw-sensor-design.md](docs/roadmap/etw-sensor-design.md). Start with
+The B2 draft and B3 offline backend contract are implemented; the proposed
+continuation is the isolated E1/E2 lifecycle harness in
+[etw-sensor-design.md](docs/roadmap/etw-sensor-design.md). Start with
 [next-session.md](memory-bank/next-session.md) and the latest progress handoff.
 All three local experiment sets are complete; do not repeat them without a specific
 new question. B1's remaining coverage/environment questions stay explicit.

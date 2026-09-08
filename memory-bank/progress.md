@@ -1537,3 +1537,43 @@ and the 31 existing warnings. Markdown is excluded from the repo format script,
 so document links/whitespace were checked separately. No new runtime tests were
 added for this docs-only block. Branch: `codex/etw-sensor-design`; check its PR for
 the final five-context CI and merge outcome before starting B3.
+
+## Session handoff — ETW B3 offline protocol and health (2026-09-08)
+
+B2 merged as PR #384, `f2f1ac4`, after five green CI contexts. The user asked to
+continue. B3 adds only the isolated `src/main/platform/etw-file-protocol.js` and
+`etw-file-health.js`, with platform tests/fixtures. Neither is imported by the
+application. Exact envelope/telemetry fields and remaining supervisor obligations
+are recorded in section 8 of `docs/roadmap/etw-sensor-design.md`.
+
+The streaming codec requires launch/session binding and a synchronous sink. It
+keeps one bounded payload, rejects malformed lengths/UTF-8/JSON, unknown fields,
+unsupported schema/version, invalid uint64s and inconsistent evidence, and fails
+closed on consumer overflow. No returned event array grows with a coalesced chunk;
+errors contain static codes without peer data. Diagnostic records require null
+agent/instanceId; event 15 cannot claim a directly observed name or confirmed issuer.
+
+The pure reducer requires hello/ready ordering, rejects foreign/replayed messages,
+retains transport gaps, native counter high-water marks and unknown intervals,
+and counts only EventsLost toward lossCount. Buffer/local losses remain separately
+sticky. Exact totals survive JS health-number saturation. Partial successes advance
+lastSuccessAt; failed/stopped sessions cannot resume. The only profile remains
+experimental-correlation/DEGRADED even when counters are zero. Verified stop retains
+its summary; byte EOF alone requires failure from the future transport owner.
+
+Local verification: 85 new tests; full coverage run passed 2,894 tests with four
+existing skips across 164 files. Both new modules are included in coverage.
+Format, renderer build, lint (zero errors, 31 existing warnings), both type checks,
+both mutation gates, counts and production dependency audit passed. Initial lint
+caught the control-character regex; replaced it with a Unicode control-category
+check. Counts required updating the derived module/size declarations in AGENTS,
+architecture and the two existing documentation inventories; no runtime expansion.
+
+Branch: `codex/etw-protocol-contract`; check its PR for final five-context CI/merge
+status. ROADMAP and next-session point to a separate isolated E1/E2 broker/collector
+lifecycle harness. Request correlation, timers/lease, unique session IDs, disabled/
+unsupported controls and completed-summary retention remain supervisor work.
+No UAC/live ETW, FileEvent adapter, audit/sequence/baseline connection, frontend,
+dependencies, workflow, installer or installed application changes. B1's remaining
+issuer/path/lifecycle and environment questions stay open; do not rerun the three
+completed measurement sets without a focused new question.
