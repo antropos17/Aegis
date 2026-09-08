@@ -1207,3 +1207,34 @@ sentences disappeared. Application source is unchanged.
 Local format check, renderer build and lint passed (zero errors, 31 existing
 warnings); `counts:check` passed after removing the two dead exemptions. No new
 tests were added for the documentation and exemption removal.
+
+## Session handoff — rules coverage C1/C2 (2026-09-07)
+
+`docs/roadmap/rules-coverage.md` maps every readable requirement in #73/#75 to
+existing tests on `8183226`. The old duplicate-ID test used no duplicates; the
+empty-directory test used no YAML file; the invalid fixture tested schema rejection
+with valid YAML syntax. Generic database/scanner parity could not catch an alias
+deleted from both its inputs and its expectations. The issues were not already
+fully covered.
+
+C2 adds 17 disposable-fixture cases for YAML syntax/empty input, each required
+schema field, actual duplicate IDs, whole-document schema rejection and per-rule
+regex rejection. Nine OpenClaw cases independently pin aliases, ownership, port and
+config metadata, call the real scanner for all four aliases, and match production
+rules against Windows/POSIX config paths and lookalikes. The misleading duplicate
+test title is corrected. Six affected suites passed together (98 tests).
+
+Five isolated mutations were caught: duplicate skip removed (1 failed test), schema
+validation bypassed (10), `molty` alias removed (2), Gateway port changed (1), and
+AI013 pattern replaced (1). Each original file was restored byte-for-byte; artifacts
+are under `X:/tmp/aegis-rule-coverage-mutations-20260907/`. Production code, YAML,
+agent metadata, renderer, dependencies and workflows are unchanged. The roadmap
+records the implemented C1/C2 scope. A1's no-start race remains unresolved; D1 is an
+independent next block if A1 is not yet implementable under that constraint.
+
+Full coverage passed: 2,750 tests, four skips, 155 files. The first concurrent run
+hit the existing five-second timeout in `actor-secret-hold.test.js`; its isolated
+rerun and the subsequent full coverage run passed without changing code or timeout.
+Format, build, lint (zero errors, 31 existing warnings), both type checks, both
+mutation gates, counts and the production dependency audit also passed. Local
+document links were verified. Closure of #73/#75 is attached to the test PR merge.
