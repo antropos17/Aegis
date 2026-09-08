@@ -174,33 +174,34 @@
 
   function onFeedScroll() {
     if (!feedEl) return;
-    const { scrollTop, clientHeight, scrollHeight } = feedEl;
-    userScrolled = scrollTop + clientHeight < scrollHeight - 50;
+    userScrolled = feedEl.scrollTop > 50;
   }
 
-  /** Snap to bottom and re-enable auto-scroll */
+  /** Newest records sort first: return to the top and resume following. */
   function followFeed() {
     userScrolled = false;
-    if (feedEl) feedEl.scrollTop = feedEl.scrollHeight;
+    if (feedEl) feedEl.scrollTop = 0;
   }
 
   $effect(() => {
     // eslint-disable-next-line no-unused-vars -- tracks filtered changes to trigger autoscroll
     const _len = filtered.length;
     if (feedEl && !userScrolled) {
-      feedEl.scrollTop = feedEl.scrollHeight;
+      feedEl.scrollTop = 0;
     }
   });
 </script>
 
 <div class="feed-wrap">
   {#if userScrolled}
-    <button class="follow-btn" onclick={followFeed}>Follow</button>
+    <button class="follow-btn" onclick={followFeed}>{$t('activity.feed.jump_latest')}</button>
   {/if}
 
   <div class="feed-scroll" bind:this={feedEl} onscroll={onFeedScroll}>
     {#if filtered.length === 0}
-      <div class="feed-empty">{$t('activity.feed.no_events')}</div>
+      <div class="feed-empty">
+        {$t(unified.length > 0 ? 'activity.feed.no_matches' : 'activity.feed.no_events')}
+      </div>
     {:else}
       {#each filtered as ev, i (ev._key)}
         {@const sev = getSeverity(ev)}
