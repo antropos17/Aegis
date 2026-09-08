@@ -1,0 +1,243 @@
+{
+  "schema": 1,
+  "source": "aegis-etw-load-20260908",
+  "simulation": false,
+  "node": "24.11.1",
+  "npm": "11.6.2",
+  "rows": [
+    {
+      "run": "r1-idle",
+      "exitCode": 0,
+      "durationMs": 16060.3323,
+      "collectorCpuMs": 546.875,
+      "read15Count": 12170,
+      "deliveredEventCount": 63354.0,
+      "processLifetimePeakBytes": 65605632,
+      "sessionLoss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 1024,
+        "BufferSizeKb": 64
+      },
+      "completedCommands": 0,
+      "failedCommands": 0,
+      "overlapsPreviousWorkload": false,
+      "workloadTailMs": 87.685,
+      "decoderOrRetentionErrors": 0,
+      "sourceHashes": {
+        "workload": "BB891077C7DC5FAA88E032DD4BC1EB5B276D0C7981B574CB33AEC32590664019",
+        "summary": "E27262B3E1FDC9DC73AB75B215EDA8D0E43361F40B85213B2A369F2DE298BF6F"
+      }
+    },
+    {
+      "run": "r1-npm",
+      "exitCode": 0,
+      "durationMs": 16088.7217,
+      "collectorCpuMs": 562.5,
+      "read15Count": 40944,
+      "deliveredEventCount": 349739.0,
+      "processLifetimePeakBytes": 73949184,
+      "sessionLoss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 1024,
+        "BufferSizeKb": 64
+      },
+      "completedCommands": 78,
+      "failedCommands": 0,
+      "overlapsPreviousWorkload": false,
+      "workloadTailMs": 105.289,
+      "decoderOrRetentionErrors": 0,
+      "sourceHashes": {
+        "workload": "ABD8DF0CA4CFCABC3F31809BA4099A3CD6B4738AB64D05AE96255FB659A710EE",
+        "summary": "EF22735E2C3A70DE8D0542E6C38F76EFF4469BB5F17E85E2BED90C31735E9314"
+      }
+    },
+    {
+      "run": "r1-build",
+      "exitCode": 0,
+      "durationMs": 16053.8344,
+      "collectorCpuMs": 406.25,
+      "read15Count": 24951,
+      "deliveredEventCount": 258474.0,
+      "processLifetimePeakBytes": 77520896,
+      "sessionLoss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 1024,
+        "BufferSizeKb": 64
+      },
+      "completedCommands": 6,
+      "failedCommands": 0,
+      "overlapsPreviousWorkload": false,
+      "workloadTailMs": 2014.546,
+      "decoderOrRetentionErrors": 0,
+      "sourceHashes": {
+        "workload": "7A6C3BD63FBB467B93123568E5B5589BF4E72709298FA51D539E55B4EE58DFCD",
+        "summary": "1D886B2C1CBFED4617069A0422BAD9E02F059EF7EF7581FA83D2152746993098"
+      }
+    },
+    {
+      "run": "r2-npm",
+      "exitCode": 0,
+      "durationMs": 16115.8321,
+      "collectorCpuMs": 375,
+      "read15Count": 56508,
+      "deliveredEventCount": 384100.0,
+      "processLifetimePeakBytes": 87326720,
+      "sessionLoss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 1024,
+        "BufferSizeKb": 64
+      },
+      "completedCommands": 78,
+      "failedCommands": 0,
+      "overlapsPreviousWorkload": false,
+      "workloadTailMs": 278.221,
+      "decoderOrRetentionErrors": 0,
+      "sourceHashes": {
+        "workload": "AEE6841ED9A154094FD0AA669C4E0517F51206DFDF6893625446D11AE4A3482D",
+        "summary": "6AE32D9A0C19A33334188175F325CC752E1901E43366D42D7B528282C519B200"
+      }
+    },
+    {
+      "run": "r2-build",
+      "exitCode": 0,
+      "durationMs": 16106.8886,
+      "collectorCpuMs": 375,
+      "read15Count": 21190,
+      "deliveredEventCount": 226686.0,
+      "processLifetimePeakBytes": 87326720,
+      "sessionLoss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 1024,
+        "BufferSizeKb": 64
+      },
+      "completedCommands": 4,
+      "failedCommands": 0,
+      "overlapsPreviousWorkload": false,
+      "workloadTailMs": 1915.72,
+      "decoderOrRetentionErrors": 0,
+      "sourceHashes": {
+        "workload": "672748DF82DADDE5AF61536DDA2059C7EE2580F559ACBA639C65429CA25EFDCD",
+        "summary": "5FC2965963332E220C8E03A1911246CBF1F22E590FEA072DF7D85C875A376D36"
+      }
+    },
+    {
+      "run": "r2-idle",
+      "exitCode": 0,
+      "durationMs": 16083.7044,
+      "collectorCpuMs": 93.75,
+      "read15Count": 2295,
+      "deliveredEventCount": 14007.0,
+      "processLifetimePeakBytes": 87326720,
+      "sessionLoss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 1024,
+        "BufferSizeKb": 64
+      },
+      "completedCommands": 0,
+      "failedCommands": 0,
+      "overlapsPreviousWorkload": false,
+      "workloadTailMs": 29.734,
+      "decoderOrRetentionErrors": 0,
+      "sourceHashes": {
+        "workload": "BA00E0B5DC3037168EBAB68480E95E3681EDDCA270F5D93791E84AA5498A1E33",
+        "summary": "2CC920A41BF8DF5812AA57008E055FFF5D461BE07283C96CB57A434397A393A6"
+      }
+    },
+    {
+      "run": "r3-build",
+      "exitCode": 0,
+      "durationMs": 16090.7406,
+      "collectorCpuMs": 296.875,
+      "read15Count": 21404,
+      "deliveredEventCount": 221329.0,
+      "processLifetimePeakBytes": 87326720,
+      "sessionLoss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 1024,
+        "BufferSizeKb": 64
+      },
+      "completedCommands": 4,
+      "failedCommands": 0,
+      "overlapsPreviousWorkload": false,
+      "workloadTailMs": 387.891,
+      "decoderOrRetentionErrors": 0,
+      "sourceHashes": {
+        "workload": "C7EFAD82CF1792EEB75C02EA357C9C6F7A3C02FDBAD157EE02D853A279E86FAB",
+        "summary": "4E6DDDFA7996F2876B2BD4AF418FDF927AA72EA9E25191BC5C4E05DDA22DF4C0"
+      }
+    },
+    {
+      "run": "r3-idle",
+      "exitCode": 0,
+      "durationMs": 16041.7637,
+      "collectorCpuMs": 46.875,
+      "read15Count": 28578,
+      "deliveredEventCount": 43542.0,
+      "processLifetimePeakBytes": 87326720,
+      "sessionLoss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 1024,
+        "BufferSizeKb": 64
+      },
+      "completedCommands": 0,
+      "failedCommands": 0,
+      "overlapsPreviousWorkload": false,
+      "workloadTailMs": 32.498,
+      "decoderOrRetentionErrors": 0,
+      "sourceHashes": {
+        "workload": "BC4923726CBFAD23A37ACD2E7FD576C81395925AE342679B7A747781BAE8A3B0",
+        "summary": "41BB7B630037EDBAF964FB998776C375337BC28A6048E9C0750936D4B76AF081"
+      }
+    },
+    {
+      "run": "r3-npm",
+      "exitCode": 0,
+      "durationMs": 16070.0049,
+      "collectorCpuMs": 406.25,
+      "read15Count": 69752,
+      "deliveredEventCount": 365770.0,
+      "processLifetimePeakBytes": 87326720,
+      "sessionLoss": {
+        "QueryStatus": 0,
+        "EventsLost": 0,
+        "RealTimeBuffersLost": 0,
+        "LogBuffersLost": 0,
+        "NumberOfBuffers": 1024,
+        "BufferSizeKb": 64
+      },
+      "completedCommands": 88,
+      "failedCommands": 0,
+      "overlapsPreviousWorkload": false,
+      "workloadTailMs": 4.191,
+      "decoderOrRetentionErrors": 0,
+      "sourceHashes": {
+        "workload": "E0497AD99377AC203CDB603735B107D28A237D497CBF97610CED3FA240E87B06",
+        "summary": "48945DBF985AA2D66D43E4569E396A6CBF14ADAE74B242E9D0A792438FBE2B41"
+      }
+    }
+  ]
+}

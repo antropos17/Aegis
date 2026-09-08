@@ -19,9 +19,10 @@ internal static class StudyCheck
     // An extra idle run after build catches contamination of the next capture.
     internal static void Verify(string directory)
     {
-        Require(Read(directory, "study.json").GetProperty("simulation").GetBoolean());
+        var study = Read(directory, "study.json");
+        Require(study.GetProperty("simulation").GetBoolean());
         var matrix = Read(directory, "matrix.json");
-        Require(matrix.GetArrayLength() == 4);
+        Require(matrix.GetArrayLength() == study.GetProperty("plan").GetArrayLength());
         long previousEnd = 0;
         foreach (var row in matrix.EnumerateArray())
         {

@@ -58,8 +58,8 @@ when interpreting rates. Marker polling contributes to the measured background.
 `study.json` records the plan, simulation flag, Node/npm versions and QPC frequency;
 `matrix.json` records collector outcomes. Workload output is drained and discarded.
 Failures create separate workload/collector failure records. Ctrl+C requests abort
-and stops the owned normal workload tree; the elevated collector ends its current
-bounded capture, then exits. A missing acknowledgement times out after 90 seconds;
+and stops the owned normal workload tree; the elevated collector polls that signal
+every 250 ms and cancels its active capture through session cleanup. A missing acknowledgement times out after 90 seconds;
 the trace has already stopped while awaiting it. Failed/incomplete studies must not
 be treated as nine successful load measurements.
 
@@ -73,6 +73,45 @@ This runs real normal-user npm/build commands against a simulated collector, plu
 an extra idle interval after the build, and asserts the recorded protocol ordering.
 Its `simulation: true` artifacts are not live measurements. Existing CI does not
 build or run this standalone Windows probe.
+
+## Buffer comparison and sustained capture
+
+From a **normal PowerShell terminal**, run:
+
+```powershell
+& 'X:/Future/ESCAPE/AEGIS/sidecar/etw-probe/bin/Release/net10.0-windows/EtwProbe.exe' tune 'X:/tmp/aegis-etw-tune-20260908'
+```
+
+One UAC prompt starts the fixed collector. Expect about 13–15 minutes. First, nine
+15-second npm CLI captures compare requested buffers of 64, 32 and 16 MiB three
+times each, rotating their positions. Mask, IDs, workload and eviction stay fixed.
+Then one continuous ten-minute session uses the 16 MiB stress candidate while the
+normal coordinator cycles idle, npm CLI and renderer builds in one-minute phases.
+This preset does not select a production buffer size automatically. A command may
+finish after a phase boundary; `workload.json` retains its kind and QPC interval.
+The final idle phase provides a short recovery observation without forcing GC.
+
+`resources.json` records current working set, private bytes, managed live bytes,
+GC committed bytes, generation-2 collection count and native session loss counters
+every five seconds, plus initial/final observations. These samples are kept in
+memory and written after stop, capped at 200. The sampler stops before the ETW
+session. Missing metrics, unavailable counters, observed losses or sample overflow
+mark the run degraded. Final-stop losses remain outside the measured interval.
+
+Use actual buffer counts/sizes from native queries, not just the requested MiB.
+Working set, private allocation and GC memory are different quantities; do not sum
+them. `collectorPeakWorkingSetBytes` is still a process-lifetime high-water mark
+across the entire study, so it cannot establish growth or recovery by itself.
+The new timer/query cost is included in collector CPU; the 64 MiB comparison runs
+provide a baseline with the same instrumentation. Ten minutes on this host cannot
+prove leak freedom or universal buffer sufficiency. The idle fixture actors also
+do not stress the candidate path map with a large agent population.
+
+`tune-check <new-directory>` runs the rotated plan with short simulated captures,
+a six-second cycle and a following idle interval. It executes real normal-user
+npm/build workloads and verifies the protocol without elevation or ETW. Direct
+capture durations are bounded to 5–900 seconds; actor ledgers retain at most 5,000
+operation samples and expose omissions.
 
 `Run-Matrix.ps1` compares READ-only, names/read, lifecycle, target-PID filtering,
 preopened handles, asynchronous reads, warm mapped reads and three churn eviction
@@ -89,6 +128,7 @@ Each run retains:
   header PID/TID, payload TID, optional live thread-owner lookup, opaque per-run
   pointer aliases and fixture-relative candidate path evidence.
 - `schemas.json`: delivered event IDs/versions and field names, without values.
+- `resources.json`: bounded time-series memory, GC and session-counter observations.
 - `summary.json`: all delivered provider event counts, decode/retention/map losses,
   collector CPU milliseconds, lifetime peak working set, collection duration and
   native session loss/buffer counters queried before stop.
@@ -97,7 +137,7 @@ Each run retains:
 
 Exit 0 means collection completed without the reported degradation conditions; it
 does **not** prove Read coverage, correct identity or adequate configuration.
-Exit 5 retains degraded measurements; 3 means elevation missing; 2 means failure
+Exit 5 retains degraded measurements; 3 means the wrong elevation level; 2 means failure
 (type/HRESULT only). An unavailable counter is null, never a measured zero.
 
 The fixture files and selected metadata are retained; no raw ETL is persisted.

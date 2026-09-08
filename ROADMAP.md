@@ -58,7 +58,8 @@ and Hyper-V as well as filtering, event identity, mapping lifecycle and loss.
 The dependency is those observations, not the absence of a Windows host.
 
 1. **B1:** isolated [C#/TraceEvent harness and procedure](sidecar/etw-probe/README.md)
-   are prepared; the first Home matrix is recorded and a repeated load study is ready.
+   are prepared; the first Home matrix and repeated load study are recorded.
+   Smaller-buffer comparisons and a sustained capture are prepared for the next run.
    The [live measurement checklist](docs/recon/kernel-file-etw-measurements.md) remains open.
    Collect results on target systems that answer each question; distinguish verified
    results from environment-limited or unresolved coverage. One machine or a mock

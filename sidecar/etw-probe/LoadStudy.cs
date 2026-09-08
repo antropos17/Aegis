@@ -7,22 +7,6 @@ namespace Aegis.EtwProbe;
 // coordinator executes the two fixed npm commands, using node's ArgumentList.
 internal static class LoadStudy
 {
-    private sealed record RunSpec(string Name, string Workload);
-
-    private static List<RunSpec> Plan(bool simulation)
-    {
-        string[] kinds = ["idle", "npm", "build"];
-        var runs = new List<RunSpec>();
-        for (int repeat = 0; repeat < (simulation ? 1 : 3); repeat++)
-            for (int slot = 0; slot < 3; slot++)
-            {
-                string kind = kinds[(slot + repeat) % 3];
-                runs.Add(new($"r{repeat + 1}-{kind}", kind));
-            }
-        if (simulation) runs.Add(new("after-build", "idle"));
-        return runs;
-    }
-
     private static async Task Until(Func<bool> ready, Func<bool> failed, int seconds)
     {
         var timer = Stopwatch.StartNew();
@@ -36,8 +20,25 @@ internal static class LoadStudy
 
     private static void Signal(string directory, string name)
     {
-        if (!File.Exists(Path.Combine(directory, name)))
-            Program.Write(directory, name, new { qpc = Stopwatch.GetTimestamp() });
+        string path = Path.Combine(directory, name);
+        long qpc = Stopwatch.GetTimestamp(); // Timestamp precedes visibility of the marker file.
+        FileStream stream;
+        try { stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write); }
+        catch (IOException) when (File.Exists(path)) { return; } // Concurrent Ctrl+C and failure cleanup.
+        using (stream) JsonSerializer.Serialize(stream, new { qpc }, Program.Json);
+    }
+
+    private static async Task WatchAbort(Func<bool> aborted, CancellationTokenSource cancellation)
+    {
+        try
+        {
+            while (!cancellation.IsCancellationRequested)
+            {
+                if (aborted()) { cancellation.Cancel(); return; }
+                await Task.Delay(250, cancellation.Token);
+            }
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
     }
 
     private static (string Repo, string Node, string Npm) WorkloadPaths()
@@ -80,22 +81,22 @@ internal static class LoadStudy
             await process.WaitForExitAsync(token).WaitAsync(TimeSpan.FromSeconds(60), token);
             await Task.WhenAll(stdout, stderr).WaitAsync(TimeSpan.FromSeconds(5), token);
             if (process.ExitCode != 0) throw new InvalidOperationException("Workload exited unsuccessfully");
-            return new { beginQpc = begin, endQpc = Stopwatch.GetTimestamp(), exitCode = process.ExitCode };
+            return new { kind, beginQpc = begin, endQpc = Stopwatch.GetTimestamp(), exitCode = process.ExitCode };
         }
         finally { if (!process.HasExited) process.Kill(entireProcessTree: true); }
     }
 
-    internal static async Task<int> Run(string directory, bool simulation)
+    internal static async Task<int> Run(string directory, bool simulation, string profile = "load")
     {
         if (Program.Elevated()) throw new InvalidOperationException("Workloads cannot run elevated");
         var paths = WorkloadPaths(); // Validate normal-user dependencies before requesting UAC.
         using var npmPackage = JsonDocument.Parse(File.ReadAllText(Path.Combine(Path.GetDirectoryName(paths.Npm)!, "../package.json")));
-        var plan = Plan(simulation);
+        var plan = StudyPlan.Create(profile, simulation);
         Program.Write(directory, "study.json", new
         {
-            schema = 1,
+            schema = 2,
+            profile,
             simulation,
-            seconds = simulation ? 1 : 15,
             plan,
             workloadElevated = false,
             nodeVersion = FileVersionInfo.GetVersionInfo(paths.Node).ProductVersion,
@@ -105,7 +106,8 @@ internal static class LoadStudy
             interpretation = "npm measures CLI startup, not install. Build rewrites dist/renderer. " +
                 "No install or dependency changes. Final command may finish after capture; next capture waits."
         });
-        var start = Program.Child(simulation ? "study-collector-check" : "study-collector", directory);
+        string command = profile == "tune" ? "tune-collector" : "study-collector";
+        var start = Program.Child(simulation ? command + "-check" : command, directory);
         start.RedirectStandardInput = start.RedirectStandardOutput = start.RedirectStandardError = false;
         start.UseShellExecute = !simulation;
         start.WindowStyle = ProcessWindowStyle.Hidden;
@@ -124,14 +126,22 @@ internal static class LoadStudy
                 Console.WriteLine("Measuring " + run.Name);
                 var commands = new List<object>();
                 long begin = Stopwatch.GetTimestamp();
+                int nextProgress = 30;
                 while (!File.Exists(Path.Combine(output, "capture-stopped.json")))
                 {
                     if (Failed() || File.Exists(Path.Combine(output, "failure.json")))
                         throw new InvalidOperationException("Capture failed during workload");
-                    if ((Stopwatch.GetTimestamp() - begin) / (double)Stopwatch.Frequency > 90)
+                    double elapsed = (Stopwatch.GetTimestamp() - begin) / (double)Stopwatch.Frequency;
+                    if (elapsed > run.Seconds + 75)
                         throw new TimeoutException("Capture stop timed out");
-                    if (run.Workload == "idle") await Task.Delay(100, cancel.Token);
-                    else commands.Add(await Command(run.Workload, paths, cancel.Token));
+                    if (elapsed >= nextProgress)
+                    {
+                        Console.WriteLine($"  {run.Name}: {(int)elapsed}/{run.Seconds}s");
+                        nextProgress += 30;
+                    }
+                    string kind = StudyPlan.WorkloadAt(run, elapsed);
+                    if (kind == "idle") await Task.Delay(100, cancel.Token);
+                    else commands.Add(await Command(kind, paths, cancel.Token));
                 }
                 if (run.Workload != "idle" && commands.Count == 0)
                     throw new InvalidOperationException("Capture finished before workload began");
@@ -160,7 +170,7 @@ internal static class LoadStudy
         finally { Console.CancelKeyPress -= handler; }
     }
 
-    internal static async Task<int> Collect(string directory, bool simulation)
+    internal static async Task<int> Collect(string directory, bool simulation, string profile = "load")
     {
         if (!simulation && !Program.Elevated()) return 3;
         directory = Path.GetFullPath(directory);
@@ -170,19 +180,26 @@ internal static class LoadStudy
         bool Aborted() => File.Exists(Path.Combine(directory, "abort.json"));
         try
         {
-            foreach (var run in Plan(simulation))
+            foreach (var run in StudyPlan.Create(profile, simulation))
             {
                 if (Aborted()) throw new OperationCanceledException("Coordinator aborted");
                 string output = Program.NewOutput(Path.Combine(directory, run.Name));
                 int code;
-                if (simulation)
+                using var captureCancel = new CancellationTokenSource();
+                Task abortWatch = WatchAbort(Aborted, captureCancel);
+                try
                 {
-                    Signal(output, "capture-ready.json");
-                    await Task.Delay(1000);
-                    Signal(output, "capture-stopped.json");
-                    code = 0;
+                    if (simulation)
+                    {
+                        Signal(output, "capture-ready.json");
+                        await Task.Delay(run.Seconds * 1000, captureCancel.Token);
+                        Signal(output, "capture-stopped.json");
+                        code = 0;
+                    }
+                    else code = await Capture.Run(output, new Options(run.Seconds, "idle", 0x1B0,
+                        [10, 12, 13, 14, 15], false, "close", run.BuffersMb), captureCancel.Token);
                 }
-                else code = await Capture.Run(output, new Options(15, "idle", 0x1B0, [10, 12, 13, 14, 15], false, "close", 64));
+                finally { captureCancel.Cancel(); await abortWatch; }
                 outcomes.Add(new { name = run.Name, workload = run.Workload, exitCode = code });
                 if (code != 0) result = 5;
                 if (code is not (0 or 5)) break;

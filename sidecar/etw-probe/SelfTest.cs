@@ -106,6 +106,44 @@ internal static class SelfTest
         });
         Test("callback thread-owner query is an observation", () =>
             Check(Native.ThreadOwner(Native.GetCurrentThreadId()) == Environment.ProcessId));
+        Test("buffer comparisons are balanced and soak is one bounded session", () =>
+        {
+            var plan = StudyPlan.Create("tune", false);
+            Check(plan.Count == 10 && plan.Select(r => r.Name).Distinct().Count() == 10);
+            foreach (int size in new[] { 16, 32, 64 })
+            {
+                Check(plan.Take(9).Count(r => r.BuffersMb == size && r.Workload == "npm" && r.Seconds == 15) == 3);
+                Check(plan.Take(9).Select((r, i) => (r, i)).Where(x => x.r.BuffersMb == size).Select(x => x.i % 3).Distinct().Count() == 3);
+            }
+            var soak = plan[^1];
+            Check(soak.Seconds == 600 && soak.BuffersMb == 16);
+            Check(StudyPlan.WorkloadAt(soak, 59.9) == "idle" && StudyPlan.WorkloadAt(soak, 60) == "npm" &&
+                StudyPlan.WorkloadAt(soak, 120) == "build" && StudyPlan.WorkloadAt(soak, 180) == "idle");
+            Check(Options.Parse(["capture", "unused", "--seconds", "600"]).Seconds == 600);
+        });
+        Test("resource failures and losses remain degraded", () =>
+        {
+            var row = new ResourceSample(0, 0, 1, 1, 1, 1, 0, new Native.Loss(0, 0, 0, 0, 1, 64), null);
+            Check(!row.Degraded && (row with { Loss = null }).Degraded);
+            Check((row with { Loss = new Native.Loss(0, 1, 0, 0, 1, 64) }).Degraded);
+            Check((row with { ErrorType = "TestFailure" }).Degraded);
+        });
+        Test("resource sampler stops, reports missing counters and bounded retention", () =>
+        {
+            async Task Exercise()
+            {
+                await using var sampler = new ResourceSampler("AEGIS-FileProbe-missing-" + Guid.NewGuid().ToString("N"),
+                    TimeSpan.FromMilliseconds(10), limit: 1);
+                await Task.Delay(60);
+                await sampler.Stop();
+                Check(sampler.Samples.Count == 1 && sampler.Samples[0].WorkingSetBytes > 0);
+                Check(sampler.Samples[0].Loss?.QueryStatus != 0 && sampler.Degraded && sampler.Omitted > 0);
+                int omitted = sampler.Omitted;
+                await Task.Delay(30);
+                Check(sampler.Omitted == omitted);
+            }
+            Exercise().GetAwaiter().GetResult();
+        });
         Console.WriteLine($"{passed} self-tests passed");
         return 0;
     }
