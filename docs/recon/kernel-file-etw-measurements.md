@@ -65,12 +65,37 @@ set. These are single-run observations, not an overhead budget: background activ
 varied, idle used all event IDs, collector CPU excludes kernel generation cost, and
 the session counters were queried before final stop.
 
-Next use `EtwProbe.exe study <new-output-directory>` from a normal terminal. This
-runs three repetitions each of idle, npm CLI startup and renderer builds, rotating
-their order, with the same candidate mask/IDs/buffer size for every capture. It
-requests one UAC elevation for the fixed collector; workloads retain normal rights.
-This is not an npm-install benchmark, a total-system overhead comparison, or a
-resolution of the mapped/page-fault, Home/Pro and Hyper-V questions.
+## Repeated live load study
+
+The user completed `X:/tmp/aegis-etw-load-20260908` with PR #381's probe, Node
+24.11.1 and npm 11.6.2. The [aggregate evidence](evidence/etw-home-26200-load.json)
+retains all nine outcomes and summary/workload hashes. All three repetitions of
+idle, npm CLI startup and renderer builds completed without decoder/retention
+errors or queried pre-stop session losses. The normal workloads completed 244 npm
+CLI commands and 14 renderer builds successfully. QPC checks show no previous
+workload overlapping the next capture; build tails extended 0.39–2.01 seconds past
+their own captures and were allowed to finish before the next one began.
+
+| Workload | Read 15 events/s, range | Collector CPU as % of one logical processor, range |
+| --- | ---: | ---: |
+| idle | 143–1,781 | 0.292–3.405 |
+| npm CLI | 2,545–4,341 | 2.327–3.496 |
+| renderer build | 1,316–1,554 | 1.845–2.531 |
+
+Rates use collection duration (approximately 16 seconds including tail drain).
+All enabled event types reached 23,834 events/s in one npm run. Background traffic
+was not isolated and there is no tracing-off control, so these are observed rates
+and collector CPU, not total-system overhead or causal workload attribution.
+
+Process-lifetime peak working set reached 83.28 MiB; native queries reported 64 MiB
+of session buffers throughout. The same collector process serves every run, so
+repeated 83.28 MiB peaks do not prove current memory stability or absence of a leak.
+
+Next: `EtwProbe.exe tune <new-directory>` compares 64/32/16 MiB requests with three
+rotated repetitions, then performs one ten-minute continuous capture with 16 MiB
+and cycling normal-user workloads. Current/private/managed memory and session loss
+counters are sampled over time. This preparation has no new live measurements yet;
+the default buffer budget is unchanged and B1 remains open.
 
 ## Hardware-gated checklist
 
@@ -85,8 +110,8 @@ Numbers match the [frozen recon](kernel-file-etw.md#hardware-gated).
 | 5 | Cleanup/Close requirements | All three short churn policies resolved the recorded fixture operations; requirements remain unproven. |
 | 6 | Object/key lifetime and reuse | Short churn has no observed conflicts; reuse/lifetime guarantees remain open. |
 | 7 | Minimal mask and IDs | 0x190 and 0x1B0 resolved fresh fixture reads; READ-only did not resolve paths. Minimality remains open. |
-| 8 | Idle/npm/build event rates | First mixed-configuration baseline retained; repeated study prepared, not yet captured. |
-| 9 | CPU/memory/buffers/loss | First collector metrics and zero pre-stop counters recorded; repeat/load and total-system overhead remain open. |
+| 8 | Idle/npm/build event rates | Three repetitions observed per workload on this Home host; background not isolated and npm is CLI startup, not install. |
+| 9 | CPU/memory/buffers/loss | Repeated collector metrics and zero pre-stop losses recorded; smaller buffers, sustained behavior and total-system overhead remain open. |
 | 10 | Fast I/O | Pending: dedicated path evidence; buffered workload alone is insufficient. |
 | 11 | mmap/page faults | 322 warm-mapped operations, zero fixture-path Read samples; dedicated cold/page-fault evidence remains pending. |
 | 12 | Home versus Pro | Pending: same matrix on both editions. |

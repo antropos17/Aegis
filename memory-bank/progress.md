@@ -1409,3 +1409,48 @@ Expect one Windows elevation prompt and about three to five minutes. Analyze the
 new matrix, workload intervals, collector rates/losses and environment data before
 deciding follow-ups. npm here means `npm --version`, not install; total-system
 overhead, Fast I/O, cold/page-fault, Pro and Hyper-V evidence are still separate work.
+
+## Session handoff — buffer budget and sustained ETW capture (2026-09-08)
+
+The user completed the nine live load runs from PR #381 (`39da76e`) at
+`X:/tmp/aegis-etw-load-20260908`. All returned zero with no reported decoder,
+retention or pre-stop session losses. There were 244 successful npm CLI commands
+and 14 renderer builds. Workload QPC intervals did not overlap subsequent captures.
+`docs/recon/evidence/etw-home-26200-load.json` and the measurement document preserve
+aggregates, source hashes and interpretation limits. Peak working set was a lifetime
+high-water mark in one reused collector, not a current-memory measurement.
+
+User approved smaller-buffer and longer-run work. New `tune` profile requests
+64/32/16 MiB three times each under identical npm CLI load, rotating their positions.
+It then runs one continuous 600-second session with the 16 MiB stress candidate,
+cycling idle/npm/build every minute. The preset does not automatically choose a
+production buffer budget. CLI capture/fixture durations are bounded to 900 seconds.
+The existing load profile still uses its original nine 15-second captures.
+
+`ResourceSampler` records current working set, private bytes, managed live memory,
+GC committed bytes/gen2 counts and native loss counters every five seconds, plus
+initial/final samples. Its single writer keeps a capped in-memory list until stop;
+it does not read the decoder's mutable maps or force GC. Sampler failures, unknown
+loss counters, measured loss and overflow degrade the capture. The sampler stops
+before session stop, including failure cleanup; final-stop losses remain unmeasured.
+Periodic query cost is included in collector CPU. The 64 MiB runs provide a baseline
+with this same new instrumentation.
+
+The collector now polls the coordinator's abort signal and passes cancellation to
+the active capture, rather than waiting ten minutes after Ctrl+C. Repeated abort
+signals tolerate concurrent file creation. The study/tune elevation guard now
+prints a useful static instruction and exits 3 before creating output; this fixes
+the user's previous generic InvalidOperationException from an administrator window.
+
+Validation: C# Release build, 19 self-tests (including balanced plans, phase
+boundaries, sampler stop/cap and missing-counter semantics), short tune protocol
+check with real normal-user npm/build and simulated ETW, and active-abort check
+(failure retained, no successful stop marker and no next capture). New live sampling
+and reduced buffers have not yet been measured; no production sensor/UI changes.
+
+Next: from normal PowerShell run
+`& 'X:/Future/ESCAPE/AEGIS/sidecar/etw-probe/bin/Release/net10.0-windows/EtwProbe.exe' tune 'X:/tmp/aegis-etw-tune-20260908'`.
+One UAC prompt; allow about 13–15 minutes. Analyze actual buffer counts and sampled
+current/private/managed memory alongside loss/degradation, phase intervals and GC.
+Ten minutes on this host cannot prove leak freedom, coverage of all I/O paths or
+universal buffer sufficiency. B1 remains open for those distinct questions.

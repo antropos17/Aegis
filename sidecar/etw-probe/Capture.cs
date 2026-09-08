@@ -44,7 +44,7 @@ internal static class Capture
         await actor.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
     }
 
-    internal static async Task<int> Run(string directory, Options options)
+    internal static async Task<int> Run(string directory, Options options, CancellationToken studyCancellation = default)
     {
         Program.Preflight(directory);
         Native.CheckLayout();
@@ -53,8 +53,9 @@ internal static class Capture
         var actors = new List<Process>();
         string sessionName = "AEGIS-FileProbe-" + Guid.NewGuid().ToString("N");
         TraceEventSession? session = null;
+        ResourceSampler? resources = null;
         Task? consumer = null;
-        using var cancel = new CancellationTokenSource();
+        using var cancel = CancellationTokenSource.CreateLinkedTokenSource(studyCancellation);
         ConsoleCancelEventHandler cancelHandler = (_, e) => { e.Cancel = true; cancel.Cancel(); };
         Console.CancelKeyPress += cancelHandler;
         try
@@ -86,10 +87,12 @@ internal static class Capture
             TimeSpan cpuStart = process.TotalProcessorTime;
             var watch = Stopwatch.StartNew();
             consumer = Task.Run(() => source.Process());
+            resources = new ResourceSampler(sessionName);
             Program.Write(directory, "capture-ready.json", new { qpc = Stopwatch.GetTimestamp() });
             foreach (var actor in actors) { await actor.StandardInput.WriteLineAsync("go"); await actor.StandardInput.FlushAsync(); }
             await Task.WhenAll(actors.Select(p => Done(p, cancel.Token))).WaitAsync(TimeSpan.FromSeconds(options.Seconds + 20), cancel.Token);
             await Task.Delay(1000, cancel.Token); // Drain tail events before querying loss/stopping.
+            await resources.Stop();
             var loss = Native.QueryLoss(sessionName);
             session.Stop();
             await consumer.WaitAsync(TimeSpan.FromSeconds(10));
@@ -101,6 +104,7 @@ internal static class Capture
             await Task.WhenAll(actors.Select(Save));
             Program.Write(directory, "events.json", observation.Samples);
             Program.Write(directory, "schemas.json", observation.Schemas);
+            Program.Write(directory, "resources.json", resources.Samples);
             bool actorsOk = actors.All(p => p.ExitCode == 0);
             Program.Write(directory, "summary.json", new
             {
@@ -110,6 +114,8 @@ internal static class Capture
                 durationMs,
                 collectorCpuMs,
                 collectorPeakWorkingSetBytes,
+                resourceSamplingDegraded = resources.Degraded,
+                omittedResourceSamples = resources.Omitted,
                 loss,
                 observation.Delivered,
                 observation.Unhandled,
@@ -125,7 +131,7 @@ internal static class Capture
                     "Loss query precedes stop; unavailable counters are null. Collector CPU excludes provider-wide kernel cost."
             });
             // Nonzero on degraded observations; retain artifacts for diagnosing the loss.
-            return actorsOk && loss.QueryStatus == 0 && loss.EventsLost == 0 && loss.RealTimeBuffersLost == 0 &&
+            return actorsOk && !resources.Degraded && loss.QueryStatus == 0 && loss.EventsLost == 0 && loss.RealTimeBuffersLost == 0 &&
                 loss.LogBuffersLost == 0 && observation.Unhandled == 0 && observation.PathConflicts == 0 &&
                 observation.DecodeErrors == 0 && observation.OmittedSamples == 0 && observation.MappingResets == 0 && observation.AliasOverflows == 0 ? 0 : 5;
         }
@@ -142,7 +148,11 @@ internal static class Capture
         }
         finally
         {
-            try { session?.Dispose(); } // Only the GUID-named session this run created.
+            try
+            {
+                try { if (resources != null) await resources.DisposeAsync(); }
+                finally { session?.Dispose(); } // Only the GUID-named session this run created.
+            }
             finally
             {
                 if (consumer != null) { try { await consumer.WaitAsync(TimeSpan.FromSeconds(10)); } catch { /* failure.json/exit code report it */ } }

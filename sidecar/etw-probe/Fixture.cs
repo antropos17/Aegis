@@ -18,7 +18,7 @@ internal static class Fixture
             !Guid.TryParseExact(Path.GetFileName(root)["aegis-etw-fixture-".Length..], "N", out _) ||
             !new[] { "target", "control" }.Contains(role)) throw new ArgumentException("Invalid fixture scope");
         int seconds = int.Parse(args[4]);
-        if (seconds is < 1 or > 120) throw new ArgumentException("Invalid actor duration");
+        if (seconds is < 1 or > 900) throw new ArgumentException("Invalid actor duration");
         string file = Path.Combine(root, role + ".dat");
         using (var output = new FileStream(file, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
             output.Write(new byte[1024 * 1024]);
