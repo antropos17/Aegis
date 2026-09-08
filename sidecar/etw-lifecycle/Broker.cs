@@ -15,7 +15,7 @@ internal static class Broker
         if (args.Length != 3 || args[1] is not ("check" or "live") ||
             args[2] is not ("stop" or "parent-eof" or "broker-kill" or "peer-exit" or "peer-kill" or "lease" or "blocked-write" or "launch-denied")) throw new ArgumentException();
         bool live = args[1] == "live";
-        if (Security.Current().Elevated || (live && args[2] is not ("stop" or "parent-eof" or "lease" or "blocked-write"))) return 3;
+        if (Security.Current().Elevated || (live && args[2] is not ("stop" or "parent-eof" or "broker-kill" or "lease" or "blocked-write"))) return 3;
         string scenario = args[2], id = Guid.NewGuid().ToString("N");
         using var server = Security.Server(id);
         string receiptId = Guid.NewGuid().ToString("N");

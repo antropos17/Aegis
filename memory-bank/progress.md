@@ -1775,3 +1775,53 @@ warnings), typecheck and svelte-check. Built-demo Chromium checked all five tabs
 and shortcut hints in all four themes with no page errors. Minimum contrast:
 9.29 dark, 11.56 light, 13.27 dark-hc, 10.30 light-hc. Scope and evidence are in
 `docs/recon/ux-activity-review.md`. ETW and installed application remain separate.
+
+## Session handoff — independent ETW broker-death evidence and orphan policy (2026-09-08)
+
+UX follow-up merged as PR #390, `8519796`, with five green contexts. The user
+explicitly returned to backend and requested several tasks. This block implements
+the query-only witness, real broker-death experiment, limited-rights collector
+observation, rejection/regression tests and the orphan-ownership decision document.
+Branch: `codex/etw-crash-evidence`; inspect its final PR/CI/merge status.
+
+`etw-witness/1` uses one protected first-instance local pipe with existing mutual
+held-process identity checks, logon DACL, remote rejection and identification SQOS.
+The elevated witness only queries the fixed harness name, before then after; no
+start/stop/update, provider configuration, arbitrary name/path or shell command.
+The coordinator starts the witness before the broker UAC. After broker ready it
+holds the collector via a non-inheritable limited-query/synchronize handle, checks
+exact birth/image/user/logon/elevation and queries presence. Only its held normal
+broker is killed. After both process exits, the independent helper queries absence.
+The existing collector wire remains etw-lifecycle/2; report schema 2 now includes
+mode and a distinct broker-death outcome shape. Elevated peer kill remains refused.
+
+The first live attempt failed with coarse validation-failed output; its complete
+report and hashes are retained. It cannot prove an exact failure stage or cleanup.
+The corrected implementation avoids Process.SafeHandle's all-access reopening for
+the elevated collector, retains read-only identity/exit observation and records
+failure stage. Nineteen self-tests passed, including held handle after process exit,
+invalid evidence, protocol/framing and pre-launch cancellation. Eight existing
+normal-token cases and the new normal witness case passed using final binaries.
+
+Actual `uac-broker-death` passed at 22:36 UTC on the Home host. Independent before
+query returned 0, 256 × 64 KiB and initial loss counters 0. Broker killed/exited,
+held collector exited 0; after query returned 4201; witness exited 0. No harness
+processes remained. After-query counters remain null: absence cannot supply final
+stop counters or replace a missing terminal receipt. No file provider was enabled.
+
+Final reports are under `X:/tmp/aegis-etw-broker-death-check-20260908-v2`,
+`X:/tmp/aegis-etw-broker-regression-20260908-v2` and
+`X:/tmp/aegis-etw-broker-death-uac-20260908-v2`. The aggregate
+`docs/recon/evidence/etw-lifecycle-home-26200-broker-death.json` retains their hashes,
+full results, identical binary hashes, 14 canonical LF source hashes and the earlier
+failed live report. Release build and C# formatter passed. Existing GitHub CI does
+not build this C# project; local Windows evidence remains separate.
+
+`docs/roadmap/etw-crash-ownership.md` records the acceptance sequence and orphan
+decision: occupancy refuses start, names/PIDs/local GUID files do not grant stop
+authority, and query-then-stop replacement races must be resolved in a protected
+controller design. Automatic orphan removal and a privileged service are not
+implemented. Next: controlled actual refusal/late consent and suspend evidence;
+collector crash needs protected ownership/recovery design. Alternate credentials,
+remote/other-logon clients and E3–E8 remain open. Do not repeat completed B1 sets,
+graceful-failure cases or successful broker death without a new question.

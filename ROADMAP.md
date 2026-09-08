@@ -85,8 +85,12 @@ The dependency is those observations, not the absence of a Windows host.
    [Version 2 evidence](docs/recon/evidence/etw-lifecycle-home-26200-cleanup.json)
    records 14 self-tests, eight normal-token cases and four real same-account UAC
    cases: stop, parent stdin EOF, lease and blocked write. Each live case confirmed
-   stop and absence with actual 256 × 64 KiB buffers. **Next: broker-death evidence
-   and orphan-ownership design**, then remaining E1/E2 refusal/crash/suspend gates. No file provider or Electron
+   stop and absence with actual 256 × 64 KiB buffers. The subsequent
+   [broker-death witness](docs/roadmap/etw-crash-ownership.md) passed a real same-account
+   case: independent presence before kill, collector exit 0 and independent absence
+   after exit. It retains unknown final counters and grants no orphan-stop authority.
+   **Next: controlled refusal/late-UAC and suspend evidence**, plus protected
+   ownership/recovery design for collector crash. No file provider or Electron
    connection; E1/E2 remain incomplete.
 
 ## C — existing rules coverage
@@ -137,7 +141,7 @@ Keep them outside the active queue while the first ETW sensor is being establish
 
 The B2 draft, B3 offline backend contract and B4 isolated lifecycle harness are
 implemented; real same-account UAC stop and graceful-failure cleanup passed. Continue with
-broker-death evidence, orphan-ownership design and remaining E1/E2 gates in
+remaining refusal/late-UAC, suspend and collector-crash ownership gates in
 [etw-sensor-design.md](docs/roadmap/etw-sensor-design.md). Start with
 [next-session.md](memory-bank/next-session.md) and the latest progress handoff.
 All three local experiment sets are complete; do not repeat them without a specific

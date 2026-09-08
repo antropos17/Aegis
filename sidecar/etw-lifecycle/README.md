@@ -48,11 +48,27 @@ the local Home host on 2026-09-08; use a new directory for any justified rerun:
 & './sidecar/etw-lifecycle/bin/Release/net10.0-windows/EtwLifecycle.exe' uac-failures 'X:/tmp/aegis-etw-cleanup-uac-new'
 ```
 
-Elevated abrupt-kill scenarios remain rejected by the broker. Actual
+Abrupt elevated-collector kill scenarios remain rejected by the broker. Actual
 UAC refusal/cancellation, alternate credentials, elevated crash cleanup, suspend
 and hostile remote/other-logon clients remain live gates. Same-account cross-integrity
 pipe/process access succeeded on the recorded host. The development source
 and build directory are trusted inputs; this is not a signed privileged service.
+
+The independent broker-death check also passed on this host on 2026-09-08:
+
+```powershell
+& './sidecar/etw-lifecycle/bin/Release/net10.0-windows/EtwLifecycle.exe' check-broker-death 'X:/tmp/aegis-etw-broker-death-check-new'
+& './sidecar/etw-lifecycle/bin/Release/net10.0-windows/EtwLifecycle.exe' uac-broker-death 'X:/tmp/aegis-etw-broker-death-uac-new'
+```
+
+The second command requests two UAC launches: a query-only witness, then the
+empty-session collector. The coordinator authenticates the witness before starting
+the broker; it holds the collector with QUERY_LIMITED_INFORMATION and SYNCHRONIZE,
+checks identity and observes the session present before killing only its normal
+broker. It waits for collector exit, then obtains an independent absence query.
+The witness has no stop or start operation and accepts no configurable session name.
+Normal check mode makes no ETW calls. A completed successful run needs no repeat
+without a new question. See the [ownership design](../../docs/roadmap/etw-crash-ownership.md).
 
 ## Boundaries and authentication
 
@@ -133,8 +149,11 @@ collision, unavailable query and failed stop; kernel-read DACL; first-instance
 collision; real mutual peer identity; wrong client/server processes; authorization
 timeout; a cancelled coordinator request; invalid/foreign/conflicting cleanup
 receipts; and rejection of missing counters, absence, identity or child exit.
-There are 14 self-tests. Native session calls in the ownership
+There are 19 self-tests. Native session calls in the ownership
 unit tests use an explicit fake API.
+The added tests reject incomplete broker-death evidence, foreign/replayed witness
+phases, fabricated normal-mode statistics, oversized/truncated/unknown-field
+frames, cancellation before launch, and loss of the held process exit observation.
 
 `check` saves `result.json` with environment/runtime, build hashes, mode, scenario
 outcomes, actual peer exit codes, primary stop acknowledgments and separate cleanup
@@ -173,9 +192,15 @@ records 14 self-tests, eight normal-token and four real elevated cases using the
 same new binaries. All live cases reported successful stop and absence 4201,
 256 × 64 KiB buffers and zero native loss counters. Blocked output reported no
 primary acknowledgment and a valid separate receipt. No harness processes remained.
-These results cover local same-account graceful failure paths. Broker death still
-needs an independent authorized absence witness;
-an elevated collector crash additionally needs a defined orphan-ownership design.
+These results cover local same-account graceful failure paths. The subsequent
+[broker-death evidence](../../docs/recon/evidence/etw-lifecycle-home-26200-broker-death.json)
+records 19 self-tests, the eight normal-token regressions, the new normal witness
+case and a passing live broker-death case. The witness observed query status 0
+with 256 × 64 KiB buffers before the kill, then status 4201 after broker and
+collector exit. Collector and witness both exited 0. Final counters are null,
+because absence does not recover final stop statistics. No harness processes
+remained. An earlier incomplete live attempt is retained in the evidence.
+An elevated collector crash still needs proven ownership/recovery before any kill test.
 Do not claim cleanup from a missing pipe acknowledgment or normal-token kill test.
 
 Local checks also include `dotnet format ... whitespace --verify-no-changes`,

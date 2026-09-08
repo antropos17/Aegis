@@ -47,15 +47,21 @@ internal static class Security
 
     internal static PeerIdentity Observe(Process process)
     {
-        if (process.HasExited || !GetProcessTimes(process.SafeHandle, out var birth, out _, out _, out _)) throw new Win32Exception();
+        if (process.HasExited) throw new Win32Exception();
+        return Observe(process.SafeHandle, process.Id);
+    }
+
+    internal static PeerIdentity Observe(SafeProcessHandle process, int pid)
+    {
+        if (!GetProcessTimes(process, out var birth, out _, out _, out _)) throw new Win32Exception();
         var image = new StringBuilder(32768); uint length = (uint)image.Capacity;
-        if (!QueryFullProcessImageName(process.SafeHandle, 0, image, ref length) || !OpenProcessToken(process.SafeHandle, 8, out var token)) throw new Win32Exception();
+        if (!QueryFullProcessImageName(process, 0, image, ref length) || !OpenProcessToken(process, 8, out var token)) throw new Win32Exception();
         using (token)
         using (var identity = new WindowsIdentity(token.DangerousGetHandle()))
         {
             // WindowsIdentity.Groups deliberately removes logon-ID groups.
             string logon = LogonSid(token);
-            return new(process.Id, birth, image.ToString(), identity.User?.Value ?? throw new UnauthorizedAccessException(), logon,
+            return new(pid, birth, image.ToString(), identity.User?.Value ?? throw new UnauthorizedAccessException(), logon,
                 Elevated(token));
         }
     }

@@ -1,0 +1,310 @@
+{
+  "schema": 1,
+  "scope": "B4 independent query witness for broker death; empty session only; no file provider or orphan deletion",
+  "sourceBaseCommit": "85197967ab20ea731fc1b66c40cf7aa393067e48",
+  "sourceCanonicalLfSha256": {
+    "Broker.cs": "D4FB6743105191DEFA4766210B27FD4C796FA19D4D1669CAB20A2495EDEF0126",
+    "BrokerDeath.cs": "FAB1D4E8102C115898156BE6B3C3FBC0BA9D9425AF30DDD383EB09C0829E36AC",
+    "EtwLifecycle.csproj": "22FE8D550AD99BD026CB9448AAF5F0B83F908EDC977B75FBFD2A15E36B1375F1",
+    "FinalEvidence.cs": "0127B1A626094FB22D2FC60057F17C1CB194D2B1F5E8577BA24BA40AC768F564",
+    "ObservedProcess.cs": "1326CF02909ED85449AB266F8E4C51D89C41A6784B3906E2CA9DF32177A59FCA",
+    "OwnedTrace.cs": "E2D2BCDCBF8F05D9BF6BE765D93017A8F1A89B2FC41C10605661F9FC7BD58CAD",
+    "Peer.cs": "17E30EC3243BE00B01BB4D4D8B305C99822B1583D3F086B388FEE9AB5E381579",
+    "Program.cs": "DF6C026D77903C779967DB6C431883B9FABDD84A7CAC22C75ECE2018C7CB07AF",
+    "Scenarios.cs": "045D04950B792E15957B8E8462CB455DFE2FA022F766482B19C09E94E1E75D53",
+    "Security.cs": "19FDE5ACE53914B1E8804B9716A2D041D794E09B273BD8ACC385405BA6FADC96",
+    "SelfTest.cs": "7F0AA6B116BB241A86DB4894B9F13EE761739E7FC1EDB6F12B342E6C4451FB88",
+    "Wire.cs": "6AB1B7D8DE5502E7D19E51CF2394DCDF872081FD8CF03D406517509663A6C5BE",
+    "Witness.cs": "B3616B5B9E73C7B424712B64C8F79F92B87646EE21127B122775888157B2A1EF",
+    "WitnessTests.cs": "4EC6A152EE01D7CD45D2BD5E3D0B35F3AF5E9D7998AF1480033F954A5C78E895"
+  },
+  "selfTests": {
+    "passed": 19,
+    "nativeTraceApi": "fake",
+    "realNamedPipes": true,
+    "realReadOnlyProcessHandle": true
+  },
+  "noHarnessProcessesAfterRun": true,
+  "limitations": [
+    "Final absence is a point-in-time native query after broker and collector exits.",
+    "Final stop acknowledgment and final loss counters are unavailable; null counters are not zero.",
+    "Current mutable development apphost and managed assembly are trusted.",
+    "Actual UAC refusal/late consent, other credentials/logons, remote clients, suspend and elevated collector crash remain open."
+  ],
+  "reports": [
+    {
+      "reportFile": "aegis-etw-broker-death-check-20260908-v2/result.json",
+      "reportSha256": "E590EA2DB950F17026FA9B72FA1CD6635E0389F0BC6732B57F750BB9C4C02823",
+      "report": {
+        "schema": 2,
+        "experiment": "etw-lifecycle",
+        "mode": "check-broker-death",
+        "liveEmptySession": false,
+        "fileProviderEnabled": false,
+        "started": "2026-09-08T18:35:37.6296625-04:00",
+        "ended": "2026-09-08T18:35:38.22139-04:00",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "framework": "10.0.10",
+        "executableSha256": "C9457AD6E7056CBA33337340A1CD6B62C96F2B6F4A7D684DB32D9A8991D2B64B",
+        "assemblySha256": "18D3278A20A1A822C596EF92E6CD6FE28E35C3023F756CF558420B8F225D2B95",
+        "outcomes": [
+          {
+            "Live": false,
+            "Passed": true,
+            "BrokerKilled": true,
+            "BrokerExited": true,
+            "PeerIdentityVerified": true,
+            "PeerExitCode": 0,
+            "WitnessAuthenticated": true,
+            "RestrictedAcl": true,
+            "WitnessExitCode": 0,
+            "Before": null,
+            "After": null,
+            "Error": null,
+            "FailureStage": null
+          }
+        ],
+        "exitCode": 0
+      }
+    },
+    {
+      "reportFile": "aegis-etw-broker-regression-20260908-v2/result.json",
+      "reportSha256": "3BA1C3ECB6848665990901B5DBFC61D5938D9A953EDAC276B963A8AB2320F07A",
+      "report": {
+        "schema": 2,
+        "experiment": "etw-lifecycle",
+        "mode": "check",
+        "liveEmptySession": false,
+        "fileProviderEnabled": false,
+        "started": "2026-09-08T18:35:38.3291761-04:00",
+        "ended": "2026-09-08T18:35:46.8784094-04:00",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "framework": "10.0.10",
+        "executableSha256": "C9457AD6E7056CBA33337340A1CD6B62C96F2B6F4A7D684DB32D9A8991D2B64B",
+        "assemblySha256": "18D3278A20A1A822C596EF92E6CD6FE28E35C3023F756CF558420B8F225D2B95",
+        "outcomes": [
+          {
+            "Scenario": "stop",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "stop",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "stop",
+              "PeerExitCode": 0,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "parent-eof",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "parent-eof",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "parent-eof",
+              "PeerExitCode": 0,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "broker-kill",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": null,
+            "Error": null
+          },
+          {
+            "Scenario": "peer-exit",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "peer-exit",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "peer-failed",
+              "PeerExitCode": 7,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "peer-kill",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "peer-kill",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "eof",
+              "PeerExitCode": -1,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": false,
+              "CleanupReceiptReceived": false
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "lease",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "lease",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "lease-expired",
+              "PeerExitCode": 9,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "blocked-write",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "blocked-write",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "write-timeout",
+              "PeerExitCode": 10,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": false,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "launch-denied",
+            "Passed": true,
+            "PeerExited": false,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "launch-denied",
+              "Authenticated": false,
+              "RestrictedAcl": true,
+              "Outcome": "uac-denied",
+              "PeerExitCode": null,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": false,
+              "CleanupReceiptReceived": false
+            },
+            "Error": "uac-denied"
+          }
+        ],
+        "exitCode": 0
+      }
+    },
+    {
+      "reportFile": "aegis-etw-broker-death-uac-20260908-v2/result.json",
+      "reportSha256": "F6E89C20F116E6988EBBF1FEF6D8AB228186A5F2E49DA49C2FEC5E23E3A8AAD3",
+      "report": {
+        "schema": 2,
+        "experiment": "etw-lifecycle",
+        "mode": "uac-broker-death",
+        "liveEmptySession": true,
+        "fileProviderEnabled": false,
+        "started": "2026-09-08T18:35:59.9844605-04:00",
+        "ended": "2026-09-08T18:36:03.9882201-04:00",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "framework": "10.0.10",
+        "executableSha256": "C9457AD6E7056CBA33337340A1CD6B62C96F2B6F4A7D684DB32D9A8991D2B64B",
+        "assemblySha256": "18D3278A20A1A822C596EF92E6CD6FE28E35C3023F756CF558420B8F225D2B95",
+        "outcomes": [
+          {
+            "Live": true,
+            "Passed": true,
+            "BrokerKilled": true,
+            "BrokerExited": true,
+            "PeerIdentityVerified": true,
+            "PeerExitCode": 0,
+            "WitnessAuthenticated": true,
+            "RestrictedAcl": true,
+            "WitnessExitCode": 0,
+            "Before": {
+              "QueryStatus": 0,
+              "EventsLost": 0,
+              "RealTimeBuffersLost": 0,
+              "LogBuffersLost": 0,
+              "NumberOfBuffers": 256,
+              "BufferSizeKiB": 64,
+              "AbsentStatus": null
+            },
+            "After": {
+              "QueryStatus": 4201,
+              "EventsLost": null,
+              "RealTimeBuffersLost": null,
+              "LogBuffersLost": null,
+              "NumberOfBuffers": null,
+              "BufferSizeKiB": null,
+              "AbsentStatus": null
+            },
+            "Error": null,
+            "FailureStage": null
+          }
+        ],
+        "exitCode": 0
+      }
+    }
+  ],
+  "earlierFailedAttempt": {
+    "note": "Initial live attempt retained validation-failed without detailed stage evidence. It predates the limited-rights held collector handle and failure-stage reporting; do not infer successful cleanup or a precise failure stage from that report.",
+    "evidence": {
+      "reportFile": "aegis-etw-broker-death-uac-20260908/result.json",
+      "reportSha256": "4431C3D9B5B61F3FF57CE1B28DA3B1DE70D6669892BD4845F8B737E327E29DFB",
+      "report": {
+        "schema": 2,
+        "experiment": "etw-lifecycle",
+        "mode": "uac-broker-death",
+        "liveEmptySession": true,
+        "fileProviderEnabled": false,
+        "started": "2026-09-08T18:32:55.3873501-04:00",
+        "ended": "2026-09-08T18:32:59.7574265-04:00",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "framework": "10.0.10",
+        "executableSha256": "C9457AD6E7056CBA33337340A1CD6B62C96F2B6F4A7D684DB32D9A8991D2B64B",
+        "assemblySha256": "66AB2EF4B6DF1163A0F729769DE44B9F5E8B7D9E15391D6450C582D774441841",
+        "outcomes": [
+          {
+            "Passed": false,
+            "Error": "validation-failed"
+          }
+        ],
+        "exitCode": 2
+      }
+    }
+  }
+}
