@@ -91,11 +91,31 @@ Process-lifetime peak working set reached 83.28 MiB; native queries reported 64 
 of session buffers throughout. The same collector process serves every run, so
 repeated 83.28 MiB peaks do not prove current memory stability or absence of a leak.
 
-Next: `EtwProbe.exe tune <new-directory>` compares 64/32/16 MiB requests with three
-rotated repetitions, then performs one ten-minute continuous capture with 16 MiB
-and cycling normal-user workloads. Current/private/managed memory and session loss
-counters are sampled over time. This preparation has no new live measurements yet;
-the default buffer budget is unchanged and B1 remains open.
+## Completed buffer comparison and sustained capture
+
+The user completed `X:/tmp/aegis-etw-tune-20260908` with PR #382's probe (`52cfbe7`).
+The [aggregate evidence](evidence/etw-home-26200-tune.json) retains source hashes,
+actual buffer counts, memory ranges, command outcomes and degradation fields.
+All nine rotated buffer trials and the ten-minute capture returned zero. No decoder,
+retention or resource-sampling errors were reported; all sampled/pre-stop native
+loss counters were zero. Requests of 64/32/16 MiB corresponded to 1,024/512/256
+buffers of 64 KiB, respectively. Thus the 16 MiB runs used 48 MiB less session
+buffer allocation than the 64 MiB runs on this host; this does not mean the whole
+collector's memory was reduced fourfold.
+
+The continuous 16 MiB session lasted 601.08 seconds including drain and retained
+122 resource samples. All 944 npm CLI commands and 59 renderer builds succeeded.
+Working set ranged from 67.18 to 77.63 MiB, starting at 68.84 and ending at 70.68
+MiB. Managed live memory fell from 10.80 to 6.81 MiB; generation-2 collection count
+advanced from two to eight. Memory fluctuated and recovered in this observation;
+ten minutes does not prove leak freedom. Collector CPU was 8,437.5 ms over the run,
+or 1.404% of one logical processor on average, excluding provider-wide kernel cost.
+
+16 MiB is now a measured candidate for these workloads on this Home host. The
+default capture budget and installed AEGIS are unchanged. Further broad reruns are
+not the immediate next task. Proceed to a B2 design draft that preserves unknown
+attribution/coverage, documents the unresolved prerequisites below and identifies
+focused experiments needed before production integration. B1 is not wholly closed.
 
 ## Hardware-gated checklist
 
@@ -111,7 +131,7 @@ Numbers match the [frozen recon](kernel-file-etw.md#hardware-gated).
 | 6 | Object/key lifetime and reuse | Short churn has no observed conflicts; reuse/lifetime guarantees remain open. |
 | 7 | Minimal mask and IDs | 0x190 and 0x1B0 resolved fresh fixture reads; READ-only did not resolve paths. Minimality remains open. |
 | 8 | Idle/npm/build event rates | Three repetitions observed per workload on this Home host; background not isolated and npm is CLI startup, not install. |
-| 9 | CPU/memory/buffers/loss | Repeated collector metrics and zero pre-stop losses recorded; smaller buffers, sustained behavior and total-system overhead remain open. |
+| 9 | CPU/memory/buffers/loss | 64/32/16 MiB comparison and ten-minute 16 MiB session completed without reported losses; current memory recovered within the observed range. Total-system overhead, longer-term behavior and other environments remain open. |
 | 10 | Fast I/O | Pending: dedicated path evidence; buffered workload alone is insufficient. |
 | 11 | mmap/page faults | 322 warm-mapped operations, zero fixture-path Read samples; dedicated cold/page-fault evidence remains pending. |
 | 12 | Home versus Pro | Pending: same matrix on both editions. |

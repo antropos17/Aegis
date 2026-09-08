@@ -1,6 +1,7 @@
 # AEGIS Roadmap
 
-Status checked against `11215d4` on 2026-09-07. Package version: `0.14.1-alpha`;
+Baseline checked against `11215d4` on 2026-09-07; ETW status updated through
+`52cfbe7` and the completed live experiments on 2026-09-08. Package version: `0.14.1-alpha`;
 locked Electron: `43.4.1`. Changes merged after a release are available in source,
 not automatically in an installed app.
 
@@ -59,13 +60,17 @@ The dependency is those observations, not the absence of a Windows host.
 
 1. **B1:** isolated [C#/TraceEvent harness and procedure](sidecar/etw-probe/README.md)
    are prepared; the first Home matrix and repeated load study are recorded.
-   Smaller-buffer comparisons and a sustained capture are prepared for the next run.
+   The user also completed smaller-buffer comparisons and a ten-minute capture:
+   16 MiB had no reported losses in these Home-host workloads. This is an observed
+   candidate budget, not a changed production default or universal guarantee.
    The [live measurement checklist](docs/recon/kernel-file-etw-measurements.md) remains open.
    Collect results on target systems that answer each question; distinguish verified
    results from environment-limited or unresolved coverage. One machine or a mock
    cannot close all questions.
-2. **B2:** use B1 evidence to choose producer scope, sensor IDs, attribution, loss
-   handling and the relation to population/identity health.
+2. **B2 (next: design draft):** use the collected B1 evidence to draft producer scope,
+   sensor IDs, attribution, loss handling and the relation to population/identity
+   health. Separate decisions supported on this Home host from unresolved prerequisites;
+   drafting does not ratify production integration or close all B1 questions.
 3. **B3+:** split implementation into sidecar blocks after B2. The existing
    `sidecar/procsnap` transport and health integration are a precedent. ETW runs in
    a separate process, not a native addon inside Electron.
@@ -116,11 +121,14 @@ Keep them outside the active queue while the first ETW sensor is being establish
 
 ## Execution order
 
-Block 0 is this roadmap reconciliation, including the stale B8 status correction.
-Next resolve A1's no-start requirement, then A2 and A3. C1/C2 are implemented with
-evidence linked above. D1 is implemented; B1 now needs repeated load measurements;
-independent D2 can follow. A4 starts with recon. Application process grouping is separately
-authorized in both data and the current interface; broader frontend work remains separate.
+The active continuation is the ETW B2 design draft; start with
+[next-session.md](memory-bank/next-session.md) and the latest progress handoff.
+All three local experiment sets are complete; do not repeat them without a specific
+new question. B1's remaining coverage/environment questions stay explicit.
+
+The independent queue remains A1's no-start requirement, then A2/A3; D2 macOS
+identity; A4 GPU recon. C1/C2 and D1 are implemented. Application grouping is already
+integrated into data and the current interface; broader frontend work remains separate.
 
 Keep one logical block per branch and PR. A supplied patch is not complete until
 reviewed, verified and merged. Use `AGENTS.md` for the authorized git cycle and
