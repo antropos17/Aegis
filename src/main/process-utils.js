@@ -10,6 +10,8 @@
  */
 'use strict';
 
+const { annotateApplicationGroups } = require('./application-groups');
+
 const path = require('path');
 const _platform = require('./platform');
 const { identify } = require('./process-identity');
@@ -301,7 +303,7 @@ async function getParentChains(pids, opts = {}) {
  * @param {boolean} forceRefresh - rebuild every chain from this map regardless of
  *   what the cache holds.
  * @param {Map} [observedMap] - fresh population observation from this same scan.
- * @returns {Promise<void>}
+ * @returns {Promise<Map>}
  * @since v0.12.0
  */
 async function _stampFromFreshBirthTimes(agents, forceRefresh, observedMap) {
@@ -342,6 +344,7 @@ async function _stampFromFreshBirthTimes(agents, forceRefresh, observedMap) {
     a.generationWitness = witness ? witness.value : null;
     a.generationWitnessSource = witness ? witness.source : null;
   }
+  return procMap;
 }
 
 /**
@@ -438,13 +441,16 @@ async function _stampFromCachedChains(agents, forceRefresh) {
 async function enrichWithParentChains(agents, opts = {}) {
   if (agents.length === 0) return;
   const forceRefresh = opts.forceRefresh === true;
-  if (_providesStartTime) await _stampFromFreshBirthTimes(agents, forceRefresh, opts.processMap);
+  let processMap;
+  if (_providesStartTime)
+    processMap = await _stampFromFreshBirthTimes(agents, forceRefresh, opts.processMap);
   else await _stampFromCachedChains(agents, forceRefresh);
   for (const a of agents) {
     const identity = identify(a);
     a.instanceId = identity.instanceId;
     a.instanceIdSource = identity.instanceIdSource;
   }
+  annotateApplicationGroups(agents, processMap);
 }
 
 /**

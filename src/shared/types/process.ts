@@ -63,6 +63,15 @@ export interface AgentMatch {
   readonly patterns: readonly string[];
 }
 
+/** Presentation-only application tree from one fresh observation. */
+export interface ApplicationProcessGroup {
+  /** Presentation key bound to the highest observed same-agent ancestor's identity. */
+  readonly id: string;
+  readonly rootPid: number;
+  /** Detected processes in this observed tree, including its root. Not a chat count. */
+  readonly processCount: number;
+}
+
 /** Agent detected by process scanner */
 export interface DetectedAgent {
   readonly agent: string;
@@ -70,6 +79,8 @@ export interface DetectedAgent {
   readonly pid: number;
   readonly status: 'running';
   readonly category: string;
+  /** Fresh presentation metadata; absent for unobserved/synthetic process identities. */
+  readonly applicationGroup?: ApplicationProcessGroup;
   /** Last successful external discovery; stale observations do not establish current liveness. */
   readonly discoveryObservation?: { readonly observedAt: number | null; readonly stale: boolean };
   readonly parentEditor?: string | null;

@@ -45,6 +45,7 @@ export default defineConfig({
         'src/main/config-manager.js',
         'src/main/baselines.js',
         'src/main/process-utils.js',
+        'src/main/application-groups.js',
         'src/main/process-scanner.js',
         'src/main/file-watcher.js',
         'src/main/ipc-batcher.js',

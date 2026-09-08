@@ -15,14 +15,46 @@ export interface PanelAgentLike {
   readonly riskScore?: number;
   readonly fileCount?: number;
   readonly networkCount?: number;
+  readonly applicationGroup?: import('../../../shared/types/process').ApplicationProcessGroup;
   readonly [key: string]: unknown;
 }
 
 /** Grouped card row: representative instance plus multi-process metadata. */
 export type GroupedPanelAgent<T extends PanelAgentLike = PanelAgentLike> = T & {
   readonly _processCount: number;
+  /** null when any member lacks an observed application tree. */
+  readonly _applicationCount: number | null;
   readonly _instances: T[];
 };
+
+/**
+ * Partition processes by backend-observed application tree. Unobserved rows stay
+ * separate; a shared name, directory or PID alone never establishes a tree.
+ * @param agents - Processes in one named card
+ * @returns Observed application trees and separate unobserved rows
+ * @since 0.15.0
+ */
+export function groupApplicationInstances<T extends PanelAgentLike>(
+  agents: ReadonlyArray<T>,
+): Array<{ id: string | null; rootPid: number | null; instances: T[] }> {
+  const result: Array<{ id: string | null; rootPid: number | null; instances: T[] }> = [];
+  const byId = new Map<string, (typeof result)[number]>();
+  for (const agent of agents) {
+    const meta = agent.applicationGroup;
+    if (!meta?.id) {
+      result.push({ id: null, rootPid: null, instances: [agent] });
+      continue;
+    }
+    let group = byId.get(meta.id);
+    if (!group) {
+      group = { id: meta.id, rootPid: meta.rootPid, instances: [] };
+      byId.set(meta.id, group);
+      result.push(group);
+    }
+    group.instances.push(agent);
+  }
+  return result;
+}
 
 /**
  * Group process-instance agents by display `name`.
@@ -60,10 +92,12 @@ export function groupAgentsForPanel<T extends PanelAgentLike>(
       (cur.riskScore || 0) > (best.riskScore || 0) ? cur : best,
     );
     const sorted = [...instances].sort((a, b) => (b.riskScore || 0) - (a.riskScore || 0));
+    const applications = groupApplicationInstances(sorted);
     // Spread rep so fileCount/networkCount stay the representative's values.
     return {
       ...rep,
       _processCount: instances.length,
+      _applicationCount: applications.every((g) => g.id !== null) ? applications.length : null,
       _instances: sorted,
     };
   });

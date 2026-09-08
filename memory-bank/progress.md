@@ -1268,3 +1268,37 @@ authorized for BOTH data and the current interface. Retain individual PIDs and
 security/session identities; expose application trees and distinguish independent
 launches from children. Process trees cannot establish chat counts. Broader visual
 redesign remains outside this work.
+
+## Session handoff — application process groups and current UI (2026-09-08)
+
+D1 merged as PR #377, `66d7d19`, after all five CI contexts passed.
+The user explicitly requested grouping in BOTH backend data and the current UI.
+`application-groups.js` annotates each native record with an optional application
+tree key, root PID and detected member count from the same fresh observation used
+for its process identity. The ancestry walk checks birth order, stops at another
+detected tool and rejects cycles/depth overflow. It never caches group membership.
+
+Individual PIDs, identities, sessions, attribution, costs and actions remain intact.
+The current name-grouped cards and header show application-instance counts separately
+from processes; multi-process trees have expandable PID lists. Unknown/synthetic
+identities have no inferred tree and render an unknown application count. The
+separate frontend contract is in `docs/roadmap/application-groups.md`. Groups describe
+observed trees, not chat counts; a root disappearing changes the presentation key.
+
+A fresh read-only Windows CIM observation had 338 processes and 14 detected rows:
+11 ChatGPT Desktop processes formed one tree; three Codex processes formed two trees.
+Grouping that already-collected observation took 0.335 ms in a single local Node
+sample. No command lines or file contents were collected. Snapshot/smoke artifacts
+are under `X:/tmp/aegis-application-*` and are not tracked.
+
+Twelve regressions cover trees, independent launches, intermediate helpers, tool
+boundaries, parent PID reuse, outages, cycles, depth bounds, enrichment wiring,
+representative metric isolation and the actual card disclosure retaining PID actions.
+Full coverage passed: 2,777 tests, four skips, 158 files. Format, build, lint (31
+existing warnings), both type checks, both mutation gates, counts and production
+dependency audit passed. Svelte autofixer found no issues in the three changed
+components; its AgentCard suggestions concern pre-existing timed flash effects.
+
+The installed application is not rebuilt or released automatically. Broader frontend
+integration remains separate. A1's WSL no-start race is still unresolved; D2 macOS
+identity or B1 ETW measurement preparation remain independent roadmap work.

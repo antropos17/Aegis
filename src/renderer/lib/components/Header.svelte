@@ -4,6 +4,7 @@
   import OptionsPanel from './OptionsPanel.svelte';
   import { t } from '../i18n/index.js';
   import { fleetAverageHealth, FLEET_AVG_HEALTH_LABEL } from '../utils/fleet-risk.ts';
+  import { groupAgentsForPanel } from '../utils/agent-panel-utils.ts';
 
   let { optionsOpen = $bindable(false) } = $props();
 
@@ -15,6 +16,12 @@
 
   let processCount = $derived($enrichedAgents.length);
   let uniqueAgentCount = $derived(new Set($enrichedAgents.map((a) => a.name)).size);
+  let applicationCount = $derived.by(() => {
+    const cards = groupAgentsForPanel($enrichedAgents);
+    return cards.every((a) => a._applicationCount !== null)
+      ? cards.reduce((n, a) => n + a._applicationCount, 0)
+      : null;
+  });
   let filesMonitored = $derived($stats.totalFiles ?? '--');
 
   function getScoreClass(score) {
@@ -46,8 +53,10 @@
       {uniqueAgentCount === 1 ? 'agent' : $t('header.agents')}</span
     >
     <span class="stat-sep">&middot;</span>
-    <span class="stat-text stat-dim"
-      ><span class="stat-count">{processCount}</span>
+    <span class="stat-text stat-dim" title={$t('agents.app_instances_title')}
+      ><span class="stat-count">{applicationCount ?? '?'}</span>
+      {$t('agents.stat_apps')}
+      · <span class="stat-count">{processCount}</span>
       {processCount === 1 ? 'process' : 'processes'}</span
     >
     <span class="stat-sep">&middot;</span>

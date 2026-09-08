@@ -235,6 +235,10 @@
       <span class="stat-value">{agent.pid}</span>
     </button>
     {#if agent._processCount > 1}
+      <span class="stat-chip" title={$t('agents.app_instances_title')}>
+        <span class="stat-label">{$t('agents.stat_apps')}</span>
+        <span class="stat-value">{agent._applicationCount ?? '?'}</span>
+      </span>
       <span class="stat-chip">
         <span class="stat-label">{$t('agents.stat_proc')}</span>
         <span class="stat-value">{agent._processCount}</span>

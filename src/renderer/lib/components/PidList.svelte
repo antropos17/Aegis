@@ -10,6 +10,7 @@
 
   import { agentResourceByInstance } from '../stores/ipc.js';
   import { t } from '../i18n/index.js';
+  import { groupApplicationInstances } from '../utils/agent-panel-utils.ts';
 
   /**
    * @type {{
@@ -37,18 +38,9 @@
    *
    * `cpuText`/`memText` are null for "no measurement", covering both a missing record and
    * a null field on a present one. A measured zero formats as `0 %` and is NOT absent.
-   * @type {Array<{inst: object, cpuText: string|null, memText: string|null}>}
+   * Groups control disclosure only; pidRows reads each instance's own sample.
    */
-  let rows = $derived(
-    instances.map((inst) => {
-      const rec = inst.instanceId ? ($agentResourceByInstance.get(inst.instanceId) ?? null) : null;
-      return {
-        inst,
-        cpuText: rec && rec.cpu != null ? `${rec.cpu} %` : null,
-        memText: rec && rec.memMb != null ? `${rec.memMb.toLocaleString()} MB` : null,
-      };
-    }),
-  );
+  let applicationGroups = $derived(groupApplicationInstances(instances));
 
   /**
    * Compact per-PID intervention buttons — muted, revealed on row hover.
@@ -90,8 +82,11 @@
   }
 </script>
 
-<div class="pid-list">
-  {#each rows as { inst, cpuText, memText } (inst.pid)}
+{#snippet pidRows(members)}
+  {#each members as inst (inst.instanceId || inst.pid)}
+    {@const rec = inst.instanceId ? $agentResourceByInstance.get(inst.instanceId) : null}
+    {@const cpuText = rec?.cpu != null ? `${rec.cpu} %` : null}
+    {@const memText = rec?.memMb != null ? `${rec.memMb.toLocaleString()} MB` : null}
     <div class="pid-row" title={pidTooltip(inst)}>
       <span class="pid-num">{inst.pid}</span>
       <span class="pid-proc">{inst.process || inst.name || ''}</span>
@@ -121,6 +116,24 @@
         {/each}
       </div>
     </div>
+  {/each}
+{/snippet}
+
+<div class="pid-list">
+  {#each applicationGroups as group, index (group.id ?? index)}
+    {#if group.id && group.instances.length > 1}
+      <details>
+        <summary
+          title={$t('agents.app_instances_title')}
+          onclick={(event) => event.stopPropagation()}
+          onkeydown={(event) => event.stopPropagation()}
+          >{$t('agents.app_tree', { pid: group.rootPid, count: group.instances.length })}</summary
+        >
+        {@render pidRows(group.instances)}
+      </details>
+    {:else}
+      {@render pidRows(group.instances)}
+    {/if}
   {/each}
 </div>
 
