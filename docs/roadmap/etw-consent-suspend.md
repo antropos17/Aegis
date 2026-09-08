@@ -3,8 +3,9 @@
 The consent probes are implemented in the standalone lifecycle harness. They
 exercise refused elevation and a collector launched after its authorization
 channels expire. They do not enable a provider or connect ETW to Electron.
-Live results require human interaction with Windows consent dialogs. The local
-normal-token checks are explicitly simulated and cannot close the live gate.
+Live results require human interaction with Windows consent dialogs. Both
+same-account consent cases passed on 2026-09-08. The local normal-token checks
+remain explicitly simulated and cannot substitute for that live evidence.
 
 ## Controlled consent probes
 
@@ -72,9 +73,28 @@ the observed outcome was early consent. No harness processes remained.
 The [complete failed report](../recon/evidence/etw-lifecycle-home-26200-consent-live.json)
 retains the raw-report hash, matching normal-check binaries and 17 canonical LF
 source hashes at `7646463`. It cannot establish whether a person saw or accepted
-a dialog. No UAC UI was automated or policy changed. Confirm human interaction
-before repeating; refusal and late-consent gates remain unverified. Suspend was
-not attempted. Do not count this early-approval result as successful refusal.
+a dialog. No UAC UI was automated or policy changed. The user subsequently
+confirmed seeing two dialogs and approving both on recent attempts. Do not infer
+that action for every older run or count any early approval as successful refusal.
+
+## Verified refusal and late approval
+
+The [successful live evidence](../recon/evidence/etw-lifecycle-home-26200-consent-verified.json)
+records two passing runs with the same apphost/assembly as the normal-token checks
+and 17 canonical LF source hashes. All harness processes exited after each run.
+
+| Scenario | Observed result |
+| --- | --- |
+| Refusal, 23:30 UTC | Actual Windows error 1223, no child launched, no injected denial, no authorization. |
+| Late approval, 23:30 UTC | Launch returned after 14130.4995 ms; channels expired, held child identity verified, child exit 2, no authorization. |
+| Both independent observations | Before and after status 4201 with null counters; authenticated witness exit 0, broker exit 0. |
+
+The aggregate also retains five earlier failed early-approval reports. Successful
+refusal and late approval close these narrow same-account negative-broker cases;
+do not repeat them without a new question. They do not change the ordinary broker
+deadline or validate cancellation while a dialog remains pending. Suspend,
+alternate credentials/logons, remote clients, packaging and crash recovery remain
+open. No policy change or security UI automation was used.
 
 ## Suspend/resume: procedure design, not a completed experiment
 

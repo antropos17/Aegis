@@ -1891,3 +1891,43 @@ that clarification. Sleep was not attempted. The next implementation prerequisit
 for suspend remains a bounded power observer and suitable phases/lifetimes.
 Branch: `codex/etw-consent-live-evidence`; inspect its final PR/CI/merge status.
 User UI-plan and ui-designer settings edits remain separate and preserved.
+
+## Session handoff — real UAC refusal and delayed approval passed (2026-09-08)
+
+The failed first consent attempt merged as PR #393, `045f2b0`, with five green CI
+contexts. Further early-approval attempts, including a manual Windows PowerShell
+run, also failed refusal acceptance. The user initially reported no visible UAC,
+then confirmed two dialogs and approving both on recent runs. Do not assume this
+explains every historical attempt. Read-only registry/compatibility diagnostics
+made no system changes; the temporary no-dialog note predates this clarification.
+
+At 23:30 UTC, after explicit first Yes / second No instructions, uac-refusal passed:
+actual launch error 1223, InjectedDenial false, no child, no authorize. The report
+is `X:/tmp/aegis-etw-refusal-retry-20260908-192954/result.json`.
+The subsequent uac-late also passed after first Yes / second wait ten seconds
+then Yes: launch returned after 14130.4995 ms, channels expired, held child identity
+verified, child exit 2, no authorize. Report:
+`X:/tmp/aegis-etw-late-20260908-193019/result.json`.
+
+Both reports have exitCode 0, authenticated/restricted witness, independent before
+and after query status 4201 with null counters, broker/witness exit 0. No harness
+processes remained after either run. No ETW session was authorized or provider
+enabled. Existing code and binaries were used; no rebuild or runtime edits were
+needed. Apphost/assembly hashes match the normal-token consent checks exactly.
+
+`docs/recon/evidence/etw-lifecycle-home-26200-consent-verified.json` preserves both
+full passing reports and five earlier full failed reports with hashes, 17 canonical
+LF source hashes and the prior normal-check reference. Source matches `045f2b0`.
+The failed reports remain failed. The narrow same-account negative broker's real
+refusal and late approval are now verified and need no repeat without a new question.
+
+Ordinary Broker.cs launch deadlines are unchanged. Pending-dialog cancellation,
+other credentials/logons, remote clients, packaging, suspend and collector crash
+recovery remain open E1/E2 gates. Next: implement bounded power observations and
+the dedicated suspend mode with suitable lifetimes/phases before actual manual
+sleep testing. No uac-suspend command exists yet. Avoid restarting completed B1
+measurements, normal-stop, graceful failures, broker death or these consent cases.
+
+Branch: `codex/etw-consent-verified`; inspect final PR/CI/merge status. The separate
+user edits in `.codex/agents/ui-designer.toml` and `memory-bank/fancy-ui-plan.md`
+remain outside this evidence/docs block.

@@ -89,9 +89,9 @@ The dependency is those observations, not the absence of a Windows host.
    [broker-death witness](docs/roadmap/etw-crash-ownership.md) passed a real same-account
    case: independent presence before kill, collector exit 0 and independent absence
    after exit. It retains unknown final counters and grants no orphan-stop authority.
-   [Controlled refusal/late-UAC probes](docs/roadmap/etw-consent-suspend.md) now have
-   normal-token checks and manual live procedures; suspend prerequisites are
-   documented. **Next: actual manual consent and suspend evidence**, plus protected
+   [Controlled refusal/late-UAC probes](docs/roadmap/etw-consent-suspend.md) passed
+   actual refusal and approval after 14.13 seconds; both independently observed
+   session absence. **Next: implement the suspend mode and collect evidence**, plus protected
    ownership/recovery design for collector crash. No file provider or Electron
    connection; E1/E2 remain incomplete.
 
@@ -143,7 +143,7 @@ Keep them outside the active queue while the first ETW sensor is being establish
 
 The B2 draft, B3 offline backend contract and B4 isolated lifecycle harness are
 implemented; real same-account UAC stop and graceful-failure cleanup passed. Continue with
-remaining refusal/late-UAC, suspend and collector-crash ownership gates in
+remaining suspend, pending-dialog cancellation and collector-crash ownership gates in
 [etw-sensor-design.md](docs/roadmap/etw-sensor-design.md). Start with
 [next-session.md](memory-bank/next-session.md) and the latest progress handoff.
 All three local experiment sets are complete; do not repeat them without a specific

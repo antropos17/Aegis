@@ -48,8 +48,8 @@ the local Home host on 2026-09-08; use a new directory for any justified rerun:
 & './sidecar/etw-lifecycle/bin/Release/net10.0-windows/EtwLifecycle.exe' uac-failures 'X:/tmp/aegis-etw-cleanup-uac-new'
 ```
 
-Abrupt elevated-collector kill scenarios remain rejected by the broker. Actual
-UAC refusal/cancellation, alternate credentials, elevated crash cleanup, suspend
+Abrupt elevated-collector kill scenarios remain rejected by the broker. Cancellation
+with a still-pending OS consent dialog, alternate credentials, elevated crash cleanup, suspend
 and hostile remote/other-logon clients remain live gates. Same-account cross-integrity
 pipe/process access succeeded on the recorded host. The development source
 and build directory are trusted inputs; this is not a signed privileged service.
@@ -71,7 +71,7 @@ Normal check mode makes no ETW calls. A completed successful run needs no repeat
 without a new question. See the [ownership design](../../docs/roadmap/etw-crash-ownership.md).
 
 `check-consent` adds an injected refusal and a delayed real normal-token launch,
-with no native ETW calls. The prepared `uac-refusal` and `uac-late` commands each
+with no native ETW calls. The verified `uac-refusal` and `uac-late` commands each
 require two manual consent decisions: approve the query-only witness, then deny
 the collector or wait ten seconds before approving it. Their dedicated broker
 never authorizes session creation; it closes both pipes on expiry and launch
@@ -137,7 +137,8 @@ The normal coordinator deadline is 35 s per case; the explicit UAC case allows
 bounded graceful shutdown before the normal-token broker is terminated if needed.
 The OS consent UI itself has no cancellable timeout in this implementation. If its
 broker has disappeared, a late elevated helper cannot pass the held-parent check
-and obtain authorization. Actual late-UAC behavior still needs a live test.
+and obtain authorization. The dedicated negative broker's late launch after pipe
+expiry is verified below; cancellation with a still-pending dialog remains open.
 
 `OwnedTrace` obtains stop authority only after StartTrace succeeds, stops through
 its original handle and preserves authority on failed stop for a cleanup retry.
@@ -216,16 +217,24 @@ Do not claim cleanup from a missing pipe acknowledgment or normal-token kill tes
 
 The [consent check evidence](../../docs/recon/evidence/etw-lifecycle-home-26200-consent-check.json)
 records 22 self-tests and ten normal-token scenarios with matching build hashes
-and 17 canonical LF source hashes. No harness processes remained. Actual human
-refusal, late UAC and suspend are pending; their prepared commands/design do not
-constitute live evidence.
+and 17 canonical LF source hashes. No harness processes remained. At that stage,
+actual human refusal, late UAC and suspend were pending; those normal-token
+results do not constitute live evidence.
 
 A subsequent [actual refusal attempt](../../docs/recon/evidence/etw-lifecycle-home-26200-consent-live.json)
 returned early approval after 1.567 seconds and correctly failed acceptance.
 The collector received no authorization and exited 2; independent queries before
 and after showed absence 4201, and no harness processes remained. The report does
-not identify a human dialog action. Actual refusal and late consent remain open;
+not identify a human dialog action;
 see the [recorded attempt](../../docs/roadmap/etw-consent-suspend.md#recorded-live-attempt).
+
+The later [successful consent evidence](../../docs/recon/evidence/etw-lifecycle-home-26200-consent-verified.json)
+records actual refusal (native 1223, no child) and approval after 14.130 seconds
+(expired channels, verified held child identity, exit 2). Neither sent authorization.
+Both authenticated witnesses queried absence 4201 before/after and exited 0;
+all harness processes exited. Binary hashes match the normal-token cases. Five
+earlier failed attempts are retained. Same-account refusal and late approval in
+this dedicated broker are verified; suspend and the other listed gates remain open.
 
 Local checks also include `dotnet format ... whitespace --verify-no-changes`,
 Release build and the normal AEGIS checks. Existing GitHub CI does not compile or

@@ -113,7 +113,8 @@ Query retrieves properties and statistics; stopping is a distinct operation that
 invalidates the handle.
 [ControlTraceW](https://learn.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-controltracew).
 
-Actual UAC refusal/late consent, other credentials/logons, remote clients, suspend,
-collector crash and production deployment remain open E1/E2 gates. File providers,
+The [dedicated refusal/late-consent probes](etw-consent-suspend.md#verified-refusal-and-late-approval)
+have now passed on this host. Other credentials/logons, remote clients, suspend,
+pending-dialog cancellation, collector crash and production deployment remain open E1/E2 gates. File providers,
 Electron wiring, attribution E4/E5 and other E3–E8 gates remain outside this slice.
 The completed matrix/load/tune and graceful-failure sets need no repeat here.

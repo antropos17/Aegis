@@ -413,7 +413,7 @@ Child exits were 0, 0, 9 and 10 respectively. Blocked-write has primary acknowle
 false and cleanup receipt true. Both processes exited in each case. No file
 provider was enabled, and no harness processes remained after verification.
 
-E1/E2 remain open: actual refusal/late cancellation, alternate credentials,
+E1/E2 remain open: cancellation with a pending OS dialog, alternate credentials,
 cross-integrity behavior outside the verified same-account host, remote/other-logon
 clients, suspend and elevated crash/orphan
 recovery need live evidence. No orphan-removal algorithm exists. The mutable dev
@@ -436,7 +436,7 @@ This closes the narrow same-account broker-death/absence experiment on the recor
 host. Elevated collector crash remains open: occupied names still fail closed and
 there is no automatic orphan removal. The design sets requirements for a protected
 session controller and recovery authority; it does not implement one. Next focused
-work is the [prepared controlled UAC probes and suspend procedure](etw-consent-suspend.md), followed
+work is the [suspend procedure and its implementation prerequisites](etw-consent-suspend.md), followed
 by the protected ownership/recovery design. E1/E2 remain incomplete; do not repeat
 B1 or the successful broker-death run without a new question.
 
@@ -446,3 +446,10 @@ additional self-tests pass; these do not count as human UAC refusal or late cons
 Live commands require independent native absence before/after and explicit launch
 outcomes. The ordinary broker timeout is unchanged. Suspend still needs a separate
 power observer and suitable lifetimes before a meaningful live test can run.
+
+Subsequent [actual consent evidence](../recon/evidence/etw-lifecycle-home-26200-consent-verified.json)
+passes refusal (Windows error 1223, no child launched) and delayed approval
+(14.130 seconds, expired channels, verified held child, exit 2). Both witnesses
+independently query absence 4201 before and after. Neither broker authorizes ETW;
+all helper processes exit. This verifies the dedicated negative broker on the
+same-account host; ordinary launch deadlines and the other E1/E2 gates are unchanged.
