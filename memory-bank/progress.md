@@ -1577,3 +1577,57 @@ No UAC/live ETW, FileEvent adapter, audit/sequence/baseline connection, frontend
 dependencies, workflow, installer or installed application changes. B1's remaining
 issuer/path/lifecycle and environment questions stay open; do not rerun the three
 completed measurement sets without a focused new question.
+
+## Session handoff — ETW B4 isolated lifecycle harness (2026-09-08)
+
+B3 merged as PR #385, `cc47212`, after five green contexts. The user requested a
+longer continuation with several related steps. B4 now implements a separate
+`sidecar/etw-lifecycle` Windows x64/.NET 10 experiment: normal broker, peer collector,
+restricted local named-pipe transport, ownership/cleanup seam, process fault driver
+and twelve self-tests. No third-party packages or application imports were added.
+
+The pipe uses first-instance and remote-rejection flags, a protected logon-SID/SYSTEM
+DACL and limited client access without create-instance rights. Both endpoints
+verify kernel peer PID against held process, exact creation FILETIME, fixed apphost
+image, user/logon SID and expected elevation; client identification SQOS prevents
+elevated-client impersonation. Explicit authorization precedes session creation.
+Its bounded `etw-lifecycle/1` wire is separate from B3's `etw-file/1`.
+
+Native ownership tests cover collision without stop authority, unknown query,
+idempotent stop and failed-stop retry. The optional live implementation creates
+only an empty fixed-name session, stops by its owned handle and retains separate
+initial query, final stop counters and absence-query status. An occupied name is
+an error. No automatic orphan deletion exists, and elevated crash cleanup remains
+an E2 blocker. No file provider is enabled by any command in this project.
+
+Local Windows evidence: Release build and C# whitespace verification passed;
+12 self-tests and eight real normal-token process scenarios passed. Cases are
+stop, stdin EOF, broker kill, peer exit/kill, expired lease, blocked write and
+injected launch refusal. These process tests make no native ETW calls; all native
+statistics remain null. Final raw report is
+`X:/tmp/aegis-etw-lifecycle-check-20260908-v3/result.json`. The committed aggregate
+`docs/recon/evidence/etw-lifecycle-home-26200-check.json` records source/build/report
+hashes and all outcomes. No harness processes remained after verification.
+
+Two native-token issues were found and fixed during testing: WindowsIdentity.Groups
+omits logon groups, so bounded TokenGroups parsing now reads SE_GROUP_LOGON_ID;
+role membership on a query-only token required duplication rights, so the harness
+uses TokenElevation instead. Cancellation reports broker exit after cleanup, and
+the normal-token fallback kill is awaited. No broader token rights were added.
+
+Repository validation: format and renderer build passed; lint passed with zero
+errors and 31 existing warnings; both type checks, 2,894 tests plus four existing
+skips in 164 files, both mutation gates, counts and production audit passed.
+Lint's first parallel run observed a temporary sequence mutant; the mutation gate
+cleaned it, and a sequential lint rerun passed. Do not run lint alongside mutation
+gates in this checkout. GitHub CI does not compile this standalone C# project;
+its local Windows checks are separate evidence.
+
+Branch: `codex/etw-lifecycle-harness`; inspect its PR for final CI/merge status.
+ROADMAP, design section 9 and next-session describe B4 and the exact next command.
+The explicit user-run UAC empty-session check has NOT run. Continue by reading its
+result, then scope remaining actual refusal/late consent, alternate credentials,
+cross-integrity, remote/other-logon, suspend and elevated crash/orphan cases.
+Never mark E1/E2 complete from the normal-token tests. Production integration,
+frontend, installed app, dependencies, workflows and default buffer budgets remain
+unchanged. Do not repeat the completed B1 matrix/load/tune measurement sets.

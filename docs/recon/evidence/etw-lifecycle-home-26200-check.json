@@ -1,0 +1,180 @@
+{
+  "schema": 1,
+  "scope": "B4 normal-token lifecycle harness only",
+  "sourceBaseCommit": "cc472124b5af0f19f5eefdeff270666be24ae6df",
+  "sourceSha256": {
+    "Broker.cs": "984A068BCED55DA220FA9964B2FBD0D64F64A84084970A1E80E412C922FFCB22",
+    "EtwLifecycle.csproj": "22FE8D550AD99BD026CB9448AAF5F0B83F908EDC977B75FBFD2A15E36B1375F1",
+    "OwnedTrace.cs": "7C1F6E7EB88D9B91ED30B65EA374CE8A24E1C29EEEE86B56D8663FF04B83310A",
+    "Peer.cs": "C0EBD34998B700A7F4BF22A9C246CA9179E23C055B6A1E606C1934B3729F2108",
+    "Program.cs": "83F991FC10C266EC629B149F508B568942E0753967901ECEB98FA1280A403B0A",
+    "Scenarios.cs": "48A3C265507E4B30E479D939934BDF949F269C0F217D771F05662FDD27A818E5",
+    "Security.cs": "C5BC03146F17ED29A35D40144686E65CBEA93E408D858CB434266311A8567AC3",
+    "SelfTest.cs": "3DFDC48B93453CBB6EEA21AF9FD21F8739C63816F49744F8EB63E5D09D7F064C",
+    "Wire.cs": "2317EC35D274B79A2C860BA1C081979660D87DAFF282626C59D67A8181E153C2"
+  },
+  "reportFile": "aegis-etw-lifecycle-check-20260908-v3/result.json",
+  "reportSha256": "6D81068D6484A6D247DBF65517856EAEED680DCDF4EAA403A64F65A6C5D9D430",
+  "selfTests": {
+    "passed": 12,
+    "nativeTraceApi": "fake",
+    "realNamedPipes": true
+  },
+  "pendingLiveGates": [
+    "Explicit UAC empty-session stop",
+    "Actual UAC refusal/cancellation and late consent",
+    "Alternate credentials and cross-integrity access",
+    "Elevated crash and orphan recovery",
+    "Suspend/resume",
+    "Remote and other-logon adversarial clients"
+  ],
+  "report": {
+    "schema": 1,
+    "experiment": "etw-lifecycle",
+    "liveEmptySession": false,
+    "fileProviderEnabled": false,
+    "started": "2026-09-08T15:54:13.1366744-04:00",
+    "ended": "2026-09-08T15:54:21.9320969-04:00",
+    "os": "Microsoft Windows NT 10.0.26200.0",
+    "framework": "10.0.10",
+    "executableSha256": "EDE1ADA0C7945A32A72806A8CAF092926AE9B2C23C4246BCA332F2F9ED42833C",
+    "assemblySha256": "05DEF4E780AAF1A86C418F3369B21EFAC82957C74A4479E550964B734381B7A1",
+    "outcomes": [
+      {
+        "Scenario": "stop",
+        "Passed": true,
+        "PeerExited": true,
+        "BrokerExited": true,
+        "Result": {
+          "Live": false,
+          "Scenario": "stop",
+          "Authenticated": true,
+          "RestrictedAcl": true,
+          "Outcome": "stop",
+          "PeerExitCode": 0,
+          "InitialStats": null,
+          "FinalStats": null,
+          "StopAcknowledged": true
+        },
+        "Error": null
+      },
+      {
+        "Scenario": "parent-eof",
+        "Passed": true,
+        "PeerExited": true,
+        "BrokerExited": true,
+        "Result": {
+          "Live": false,
+          "Scenario": "parent-eof",
+          "Authenticated": true,
+          "RestrictedAcl": true,
+          "Outcome": "parent-eof",
+          "PeerExitCode": 0,
+          "InitialStats": null,
+          "FinalStats": null,
+          "StopAcknowledged": true
+        },
+        "Error": null
+      },
+      {
+        "Scenario": "broker-kill",
+        "Passed": true,
+        "PeerExited": true,
+        "BrokerExited": true,
+        "Result": null,
+        "Error": null
+      },
+      {
+        "Scenario": "peer-exit",
+        "Passed": true,
+        "PeerExited": true,
+        "BrokerExited": true,
+        "Result": {
+          "Live": false,
+          "Scenario": "peer-exit",
+          "Authenticated": true,
+          "RestrictedAcl": true,
+          "Outcome": "peer-failed",
+          "PeerExitCode": 7,
+          "InitialStats": null,
+          "FinalStats": null,
+          "StopAcknowledged": true
+        },
+        "Error": null
+      },
+      {
+        "Scenario": "peer-kill",
+        "Passed": true,
+        "PeerExited": true,
+        "BrokerExited": true,
+        "Result": {
+          "Live": false,
+          "Scenario": "peer-kill",
+          "Authenticated": true,
+          "RestrictedAcl": true,
+          "Outcome": "eof",
+          "PeerExitCode": -1,
+          "InitialStats": null,
+          "FinalStats": null,
+          "StopAcknowledged": false
+        },
+        "Error": null
+      },
+      {
+        "Scenario": "lease",
+        "Passed": true,
+        "PeerExited": true,
+        "BrokerExited": true,
+        "Result": {
+          "Live": false,
+          "Scenario": "lease",
+          "Authenticated": true,
+          "RestrictedAcl": true,
+          "Outcome": "lease-expired",
+          "PeerExitCode": 9,
+          "InitialStats": null,
+          "FinalStats": null,
+          "StopAcknowledged": true
+        },
+        "Error": null
+      },
+      {
+        "Scenario": "blocked-write",
+        "Passed": true,
+        "PeerExited": true,
+        "BrokerExited": true,
+        "Result": {
+          "Live": false,
+          "Scenario": "blocked-write",
+          "Authenticated": true,
+          "RestrictedAcl": true,
+          "Outcome": "write-timeout",
+          "PeerExitCode": 10,
+          "InitialStats": null,
+          "FinalStats": null,
+          "StopAcknowledged": false
+        },
+        "Error": null
+      },
+      {
+        "Scenario": "launch-denied",
+        "Passed": true,
+        "PeerExited": false,
+        "BrokerExited": true,
+        "Result": {
+          "Live": false,
+          "Scenario": "launch-denied",
+          "Authenticated": false,
+          "RestrictedAcl": true,
+          "Outcome": "uac-denied",
+          "PeerExitCode": null,
+          "InitialStats": null,
+          "FinalStats": null,
+          "StopAcknowledged": false
+        },
+        "Error": "uac-denied"
+      }
+    ],
+    "exitCode": 0
+  }
+}

@@ -1,6 +1,7 @@
 # B2 — Windows ETW file sensor design
 
-Status: B2 architecture draft plus B3 offline contract, 2026-09-08. B2 source
+Status: B2 architecture draft, B3 offline contract and B4 isolated lifecycle harness,
+2026-09-08. B2 source
 contracts were checked at `53b20e4`; B3 implements only the isolated JS codec and
 session-health reducer described below. No production sensor, UI, dependency,
 installer, workflow or default-buffer change is made by these blocks.
@@ -282,8 +283,8 @@ candidate fixtures never enter FileEvent/baseline/sequence consumers. Check test
 with injected malformed/stale input rather than requiring elevation in CI.
 
 Run affected Vitest suites, format, build, lint, both type checks and normal PR CI
-(five required contexts) before merge. The next separate block addresses E1/E2
-with an isolated broker/collector lifecycle harness, before live Electron wiring.
+(five required contexts) before merge. B4 below prepares an isolated broker/collector
+lifecycle harness for E1/E2; the live privilege/cleanup gates precede Electron wiring.
 E3–E8 constrain subsequent capture/correlation/admission blocks. B3 completion
 approves no runtime integration and closes none of the remaining B1 questions.
 
@@ -359,3 +360,41 @@ callbacks. Models retain no observation array or agent identity. Start/stop requ
 correlation, idempotent control handling, session-ID uniqueness, disabled/unsupported
 operator states, completed-summary retention and all timers belong to the future
 supervisor. B3 is not a substitute for the E1/E2 lifecycle harness.
+
+## 9. B4 isolated lifecycle harness
+
+[`sidecar/etw-lifecycle`](../../sidecar/etw-lifecycle/README.md) adds a standalone
+Windows x64/.NET 10 executable with no third-party packages. Its separate
+`etw-lifecycle/1` protocol exercises transport/lifecycle without pretending to emit
+B3 file observations. There is no file provider, decoder or application import.
+
+The normal broker creates a first-instance, remote-rejecting pipe with a protected
+logon-SID/SYSTEM DACL and limited client rights. Each end verifies the kernel pipe
+peer PID against a held process, exact creation FILETIME, apphost image, user/logon
+SID and expected elevation. Identification SQOS limits client impersonation.
+Authorization must precede session creation. Session stop authority is acquired
+only after successful StartTrace and retained on failed stop; collisions grant no
+authority over an existing session. Fixed-name occupancy fails closed.
+
+The [local evidence](../recon/evidence/etw-lifecycle-home-26200-check.json) records
+twelve self-tests and eight passing normal-token process cases, with hashes of
+the source, apphost, assembly and raw report. Cases cover stop, stdin EOF, broker
+death, collector exit/kill, lease expiry, blocked output and injected launch denial.
+The self-tests also exercise real pipe ACL/identity rejection and cancellation.
+Native trace calls use a fake only in ownership tests; the process cases make no
+native trace calls and retain null native statistics. These are transport results.
+
+The explicit user-run `uac` command is prepared but has not been executed. It
+permits only normal stop of one empty real-time session, with initial query,
+final stop counters and a separate absence query. It enables no provider. Passing
+requires authenticated peer, restricted ACL, known counters, acknowledged stop,
+child exit 0 and absence status 4201. A rejected or incomplete run remains recorded.
+
+E1/E2 remain open: actual consent/refusal/late cancellation, alternate credentials,
+cross-integrity access, remote/other-logon clients, suspend and elevated crash/orphan
+recovery need live evidence. No orphan-removal algorithm exists. The mutable dev
+build is trusted; signature/integrity/deployment checks are not established.
+Accelerated test leases are not production settings; empty-session counters say
+nothing about Kernel-File completeness or cost. Existing CI does not build this
+C# project; Windows Release build, formatter, self-tests and process cases are
+separate local checks. E3–E8 and the remaining B1 questions are unchanged.
