@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { activityBins } from '../../frontend/observatory/runtime/activity';
+import { activityBins, activityTimeLabel } from '../../frontend/observatory/runtime/activity';
 import { cpuPercent } from '../../frontend/observatory/runtime/resources';
 
 describe('Observatory measurement contracts', () => {
@@ -26,4 +26,45 @@ describe('Observatory measurement contracts', () => {
     ).toBeNull();
     expect(cpuPercent({ cpuUser: 0, cpuSystem: 0 }, { cpuUser: 0, cpuSystem: 0 }, 0)).toBeNull();
   });
+});
+
+it('assigns fractional epoch boundaries to the following bucket without floating-point drift', () => {
+  const end = 1788961234567.25;
+  const bounds = activityBins([], end, 12345.67, 24);
+  const events = bounds.map((bin) => ({ timestamp: bin.start }));
+  const bins = activityBins([...events, { timestamp: end }], end, 12345.67, 24);
+  expect(bins.map((bin) => bin.events)).toEqual(events.map((event) => [event]));
+  expect(bins.at(-1).end).toBe(end);
+});
+
+it('rejects invalid histogram ranges and counts without throwing or allocating unbounded arrays', () => {
+  for (const [end, period, count] of [
+    [NaN, 100, 4],
+    [100, 0, 4],
+    [100, -100, 4],
+    [100, Infinity, 4],
+    [100, 100, 0],
+    [100, 100, -1],
+    [100, 100, 2.5],
+    [100, 100, Infinity],
+    [100, 100, 1001],
+  ]) {
+    expect(activityBins([{ timestamp: 50 }], end, period, count)).toEqual([]);
+  }
+});
+
+it('formats a complete local axis clock and leaves malformed dates unavailable', () => {
+  const at = Date.UTC(2026, 8, 10, 13, 5, 30);
+  expect(activityTimeLabel(at)).toBe(
+    new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(at),
+  );
+  expect(activityTimeLabel(at, true)).toBe(
+    new Intl.DateTimeFormat(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).format(at),
+  );
+  expect(activityTimeLabel(NaN)).toBe('—');
+  expect(activityTimeLabel(1e30)).toBe('—');
 });

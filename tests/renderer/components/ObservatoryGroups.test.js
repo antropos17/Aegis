@@ -103,7 +103,12 @@ it('opens the group without process controls and resolves a chosen member to its
 });
 
 it('offers one activity filter for the same product across multiple processes', async () => {
-  render(ActivityChart, { props: { events: state().events, observedAt: 1000, inspect: vi.fn() } });
+  const observedAt = Date.now();
+  const events = state().events.map((row) => ({
+    ...row,
+    timestamp: observedAt - 1000 + row.timestamp,
+  }));
+  render(ActivityChart, { props: { events, observedAt, inspect: vi.fn() } });
   const select = screen.getByLabelText('Chart agent');
   expect(within(select).getAllByRole('option')).toHaveLength(2);
   await fireEvent.change(select, { target: { value: 'Claude Code' } });

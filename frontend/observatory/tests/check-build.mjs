@@ -5,6 +5,7 @@ import { resolve, sep, extname } from 'node:path';
 import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
 import { checkComfort } from './comfort-check.mjs';
+import { checkGraphs } from './graph-check.mjs';
 import { checkDetails } from './detail-check.mjs';
 import { checkMotion } from './motion-check.mjs';
 import { checkResourceLayers } from './resource-layer-check.mjs';
@@ -380,6 +381,7 @@ try {
   await checkResourceLayers(browser, base + '/desktop/', out);
   await checkDetails(browser, base + '/desktop/', out);
   await checkComfort(browser, base + '/preview/', out);
+  await checkGraphs(browser, base + '/preview/', out);
   const desktop = await browser.newPage();
   desktop.on('pageerror', (e) => errors.push(e.message));
   await desktop.goto(base + '/desktop/');

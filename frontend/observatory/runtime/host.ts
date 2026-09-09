@@ -22,6 +22,11 @@ export interface Telemetry {
   resources: RecordData[];
   tokens: RecordData[];
   resourcesAt: number | null;
+  tokensAt: number | null;
+  ownAt: number | null;
+  networkAt: number | null;
+  statsAt: number | null;
+  scanCounters: { files: number; sensitive: number; evicted: number } | null;
   own: RecordData;
   anomalies: Record<string, number>;
   falsePositives: FalsePositiveEntry[];
@@ -77,6 +82,11 @@ export function emptyTelemetry(): Telemetry {
     resources: [],
     tokens: [],
     resourcesAt: null,
+    tokensAt: null,
+    ownAt: null,
+    networkAt: null,
+    statsAt: null,
+    scanCounters: null,
     own: {},
     anomalies: {},
     falsePositives: [],
@@ -163,6 +173,7 @@ export function connectHost(
     const stats = record(value);
     update({
       stats,
+      statsAt: Date.now(),
       stale:
         healthStale(stats) ||
         (state.lastScan !== null && Date.now() - state.lastScan > staleAfterMs),
@@ -197,10 +208,17 @@ export function connectHost(
       patch.ready = true;
       patch.stale = false;
       patch.lastScan = Date.now();
+      patch.scanCounters = {
+        files: state.events.length + state.evicted,
+        sensitive:
+          state.events.filter((event) => event.sensitive === true).length + state.retainedEvicted,
+        evicted: state.evicted,
+      };
       patch.error = '';
     }
     if (batch.resourceUsage) {
       patch.own = record(batch.resourceUsage);
+      patch.ownAt = Date.now();
       revisions.set('own', (revisions.get('own') ?? 0) + 1);
     }
     if (batch.anomalyScoresByInstance && reliable)
@@ -218,13 +236,16 @@ export function connectHost(
     });
   });
   subscribe('onNetworkUpdate', (value) =>
-    update({ network: Array.isArray(value) ? (value as NetworkConnection[]) : [] }),
+    update({
+      network: Array.isArray(value) ? (value as NetworkConnection[]) : [],
+      networkAt: Date.now(),
+    }),
   );
   subscribe('onScanStatus', (value) => update({ scanning: record(value).scanning === true }));
   subscribe('onAgentResourceUsage', (value) =>
     update({ resources: records(value), resourcesAt: Date.now() }),
   );
-  subscribe('onTokenCosts', (value) => update({ tokens: records(value) }));
+  subscribe('onTokenCosts', (value) => update({ tokens: records(value), tokensAt: Date.now() }));
   const seed = (method: string, revision: string, apply: (value: unknown) => void) => {
     const before = revisions.get(revision) ?? 0;
     invoke(host, method)
@@ -234,7 +255,7 @@ export function connectHost(
       .catch(fail);
   };
   seed('getStats', 'onStatsUpdate', applyStats);
-  seed('getResourceUsage', 'own', (value) => update({ own: record(value) }));
+  seed('getResourceUsage', 'own', (value) => update({ own: record(value), ownAt: Date.now() }));
   seed('getFalsePositives', 'fp', (value) =>
     update({ falsePositives: Array.isArray(value) ? (value as FalsePositiveEntry[]) : [] }),
   );
@@ -250,6 +271,7 @@ export function connectHost(
     if (state.lastScan !== null && !state.stale && Date.now() - state.lastScan > staleAfterMs) {
       update({
         stale: true,
+        statsAt: Date.now(),
         error: 'No fresh process snapshot has arrived. Last observations are retained.',
       });
     }

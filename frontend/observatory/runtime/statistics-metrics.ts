@@ -19,19 +19,19 @@ export const statisticsTabs = [
 export const statisticsMetrics: StatsMetric[] = [
   {
     id: 'cpu',
-    label: 'Agent CPU',
+    label: 'Measured agent CPU',
     unit: '%',
     description:
-      'Share of total CPU capacity used by all observed agent processes. Every process must have a matching resource sample.',
+      'Measured current processes as a share of total machine CPU capacity. Coverage shows how many exact process identities contributed; missing processes are excluded, never assumed idle.',
     sections: ['overview', 'processes'],
     floor: 100,
   },
   {
     id: 'memory',
-    label: 'Agent memory',
+    label: 'Measured agent memory',
     unit: 'MB',
     description:
-      'Combined resident memory of all observed agent processes. Shared pages may be counted in more than one process.',
+      'Resident memory of measured current processes. Coverage identifies missing processes; shared pages may be counted in more than one process.',
     sections: ['overview', 'processes'],
   },
   {
@@ -62,7 +62,7 @@ export const statisticsMetrics: StatsMetric[] = [
     label: 'File observations',
     unit: '/min',
     description:
-      'Rate of observations delivered to this window between samples, including retained-history evictions. Initial history is excluded. Delivery may arrive in batches.',
+      'Delivered observations per minute between reliable process scans, including display-history evictions. Resource and token deliveries do not change the sampling interval.',
     sections: ['overview', 'activity'],
   },
   {
@@ -70,7 +70,7 @@ export const statisticsMetrics: StatsMetric[] = [
     label: 'Sensitive observations',
     unit: '/min',
     description:
-      'Rate of sensitive observations delivered to this window, including evicted sensitive records, normalized per minute. Initial history, counter resets and observation gaps have no rate.',
+      'Sensitive observations delivered between reliable process scans, including evicted sensitive records, per minute. Initial history, counter resets and observation gaps have no rate.',
     sections: ['activity'],
   },
   {
@@ -87,7 +87,7 @@ export const statisticsMetrics: StatsMetric[] = [
     label: 'Accumulated tokens',
     unit: '',
     description:
-      'Supported log measurements summed only when every current process has exact instance attribution. A changing process population changes this total.',
+      'Accumulated supported-log measurements for current exact process identities. Coverage shows measured processes; unsupported processes do not erase measured usage. A changing population changes this subtotal.',
     sections: ['tokens'],
   },
   {
@@ -95,7 +95,7 @@ export const statisticsMetrics: StatsMetric[] = [
     label: 'Input tokens',
     unit: '',
     description:
-      'Accumulated input tokens for the current process population, with complete identity coverage.',
+      'Accumulated input tokens from measured current process identities, with explicit coverage.',
     sections: ['tokens'],
   },
   {
@@ -103,7 +103,7 @@ export const statisticsMetrics: StatsMetric[] = [
     label: 'Output tokens',
     unit: '',
     description:
-      'Accumulated output tokens for the current process population, with complete identity coverage.',
+      'Accumulated output tokens from measured current process identities, with explicit coverage.',
     sections: ['tokens'],
   },
   {
@@ -111,7 +111,7 @@ export const statisticsMetrics: StatsMetric[] = [
     label: 'Token arrival rate',
     unit: '/min',
     description:
-      'Change in supported log counters per minute for an unchanged process population. Process changes, counter resets and observation gaps interrupt the rate.',
+      'Change in measured supported-log counters between token deliveries, per minute. A changed measured identity set, counter reset or observation gap interrupts the rate.',
     sections: ['tokens'],
   },
   {
@@ -184,4 +184,42 @@ export function completeStatisticsTotal(
     total += value;
   }
   return Number.isFinite(total) ? total : null;
+}
+
+export interface StatisticsCoverage {
+  measured: number;
+  total: number;
+}
+export interface StatisticsMeasurement extends StatisticsCoverage {
+  value: number | null;
+  counters: Record<string, number>;
+}
+/** Sum measured current identities, preserving missing coverage separately.
+ * @param state Population @param rows Source rows @param key Field
+ * @returns Measured subtotal and exact coverage @since 0.14.1
+ */
+export function measuredStatisticsTotal(
+  state: Telemetry,
+  rows: Record<string, unknown>[],
+  key: string,
+): StatisticsMeasurement {
+  const ids = new Set(
+    state.agents.map((agent) => agent.instanceId).filter((id): id is string => !!id),
+  );
+  const total = ids.size + state.agents.filter((agent) => !agent.instanceId).length;
+  const counters: Record<string, number> = {};
+  if (state.stale || !state.ready) return { value: null, measured: 0, total, counters };
+  for (const id of ids) {
+    const matches = rows.filter((row) => row.instanceId === id);
+    const value = matches.length === 1 ? measured(matches[0][key]) : null;
+    if (value !== null && value >= 0) counters[id] = value;
+  }
+  const values = Object.values(counters);
+  const sum = values.reduce((a, b) => a + b, 0);
+  return {
+    value: (values.length || total === 0) && Number.isFinite(sum) ? sum : null,
+    measured: values.length,
+    total,
+    counters,
+  };
 }

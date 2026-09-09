@@ -1,176 +1,186 @@
 <script lang="ts">
   import type { StatisticsSample } from '../runtime/statistics-history';
-  import { statisticsPaths } from '../runtime/statistics-history';
+  import { metricObservations, plotGeometry, plotMaximum } from '../runtime/statistics-plot';
   import { statisticsValue, type StatsMetric } from '../runtime/statistics-metrics';
+  import StatsPlot from './StatsPlot.svelte';
   let {
     samples,
     metrics,
     selected = $bindable('cpu'),
+    period = $bindable(60000),
     stale = false,
+    paused = false,
+    now,
   }: {
     samples: StatisticsSample[];
     metrics: StatsMetric[];
     selected?: string;
+    period?: number;
     stale?: boolean;
+    paused?: boolean;
+    now?: number;
   } = $props();
-  let cursor = $state<number | null>(null);
-  let period = $state(120);
+  let pinnedAt = $state<number | null>(null),
+    hoverAt = $state<number | null>(null);
   let metric = $derived(metrics.find((m) => m.id === selected) ?? metrics[0]);
-  let visible = $derived(samples.slice(-period));
-  let latest = $derived(visible.at(-1));
+  let end = $derived(now ?? samples.at(-1)?.at ?? Date.now());
+  let start = $derived(end - period);
+  let observations = $derived(metricObservations(samples, metric.id, start, end));
+  let latest = $derived(
+    metricObservations(samples, metric.id, -Infinity, end)
+      .filter((s) => !paused || typeof s.values[metric.id] === 'number')
+      .at(-1),
+  );
+  let inspecting = $derived(hoverAt ?? pinnedAt);
   let focused = $derived(
-    cursor === null ? latest : (visible.find((s) => s.at === cursor) ?? latest),
+    inspecting === null ? latest : (observations.find((s) => s.at === inspecting) ?? latest),
   );
-  let maximum = $derived(
-    Math.max(metric.floor ?? 1, ...visible.map((s) => s.values[metric.id] ?? 0)) *
-      (metric.floor ? 1 : 1.08),
+  let coverage = $derived(focused?.coverage?.[metric.id]);
+  let values = $derived(
+    observations
+      .map((s) => s.values[metric.id])
+      .filter((n): n is number => typeof n === 'number' && Number.isFinite(n)),
   );
-  let measuredValues = $derived(
-    visible.map((s) => s.values[metric.id]).filter((n): n is number => typeof n === 'number'),
-  );
-  let average = $derived(
-    measuredValues.length
-      ? measuredValues.reduce((a, b) => a + b, 0) / measuredValues.length
-      : null,
-  );
+  let maximum = $derived(plotMaximum(values, metric.floor));
+  let average = $derived(values.length ? values.reduce((a, b) => a + b, 0) / values.length : null);
+  $effect(() => {
+    if (pinnedAt !== null && !observations.some((s) => s.at === pinnedAt)) pinnedAt = null;
+  });
   function choose(id: string): void {
     selected = id;
-    cursor = null;
+    pinnedAt = null;
+    hoverAt = null;
   }
   function time(at: number | undefined): string {
-    return at ? new Date(at).toLocaleTimeString() : 'Waiting for a sample';
+    return at === undefined
+      ? 'Waiting for this source'
+      : new Date(at).toLocaleTimeString(undefined, {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
   }
 </script>
 
 <section class="panel monitor" aria-label="Live performance monitor">
   <div class="metric-rail" aria-label="Performance metrics">
     {#each metrics as item (item.id)}
-      {@const max = Math.max(item.floor ?? 1, ...visible.map((s) => s.values[item.id] ?? 0))}
+      {@const series = metricObservations(samples, item.id, start, end)}
+      {@const current = metricObservations(samples, item.id, -Infinity, end)
+        .filter((s) => !paused || typeof s.values[item.id] === 'number')
+        .at(-1)}
+      {@const geometry = plotGeometry(
+        series,
+        item.id,
+        start,
+        end,
+        plotMaximum(
+          series.map((s) => s.values[item.id]),
+          item.floor,
+        ),
+      )}
       <button
         class:selected={metric.id === item.id}
         aria-pressed={metric.id === item.id}
         onclick={() => choose(item.id)}
       >
-        <svg viewBox="0 0 600 164" preserveAspectRatio="none" aria-hidden="true">
-          {#each statisticsPaths(visible, item.id, max) as path, index (index)}<path
-              d={path}
-            />{/each}
+        <svg viewBox="0 0 600 160" preserveAspectRatio="none" aria-hidden="true">
+          {#each geometry.paths as path, i (i)}<path d={path} />{/each}
+          {#each geometry.points as point, i (i)}<circle cx={point.x} cy={point.y} r="3" />{/each}
         </svg>
         <span
           ><strong>{item.label}</strong><small
-            >{statisticsValue(latest?.values[item.id], item.unit)}</small
-          ></span
-        >
+            >{statisticsValue(current?.values[item.id], item.unit)}</small
+          >
+          {#if current?.coverage?.[item.id] && current.coverage[item.id].measured < current.coverage[item.id].total}<em
+              >Partial coverage</em
+            >{/if}
+        </span>
       </button>
     {/each}
   </div>
   <div class="monitor-detail">
     <header>
       <div>
-        <p class="eyebrow">Performance history</p>
         <h2>{metric.label}</h2>
+        <p class="measurement-status">
+          {stale
+            ? 'View held'
+            : inspecting === null
+              ? 'Latest measurement'
+              : 'Selected measurement'} · {time(focused?.at)}
+        </p>
       </div>
-      <div class="current">
-        <strong>{statisticsValue(focused?.values[metric.id], metric.unit)}</strong><small
-          >{cursor !== null
-            ? 'Selected observation'
-            : stale
-              ? 'Last reliable observation'
-              : 'Latest observation'}</small
-        >
-      </div>
+      <strong class="current">{statisticsValue(focused?.values[metric.id], metric.unit)}</strong>
     </header>
-    <div
-      class="plot"
-      role="img"
-      aria-label={metric.label +
-        ' history, ' +
-        measuredValues.length +
-        ' measured samples. Current value ' +
-        statisticsValue(focused?.values[metric.id], metric.unit)}
-    >
-      <div class="plot-top">
-        <span>{statisticsValue(maximum, metric.unit)}</span><span
-          >{stale ? 'Observation paused' : 'Observed samples'}</span
-        >
-      </div>
-      <svg viewBox="0 0 600 164" preserveAspectRatio="none" aria-hidden="true">
-        {#each [4, 42.5, 81, 119.5, 158] as y (y)}<line x1="2" x2="598" y1={y} y2={y} />{/each}
-        {#each [2, 101, 200, 300, 400, 499, 598] as x (x)}<line
-            x1={x}
-            x2={x}
-            y1="4"
-            y2="158"
-          />{/each}
-        {#each statisticsPaths(visible, metric.id, maximum) as path, index (index)}<path
-            d={path}
-          />{/each}
-        {#if focused && visible.length}
-          {@const x =
-            2 + ((focused.at - visible[0].at) / Math.max(1, latest!.at - visible[0].at)) * 596}
-          <line class="cursor" x1={x} x2={x} y1="4" y2="158" />
-          {#if typeof focused.values[metric.id] === 'number'}
-            <circle
-              cx={x}
-              cy={158 - Math.min(1, focused.values[metric.id]! / maximum) * 154}
-              r="3.5"
-            />
-          {/if}
-        {/if}
-      </svg>
-      {#if !measuredValues.length}<div class="plot-empty">
-          <strong>Waiting for measured data</strong><span
-            >Missing or incomplete measurements appear as gaps.</span
-          >
-        </div>{/if}
-      <div class="plot-times">
-        <span>{time(visible[0]?.at)}</span><span>{time(latest?.at)}</span>
-      </div>
+    <div class="monitor-tools">
+      <label
+        >Time window<select aria-label="Performance history length" bind:value={period}
+          ><option value={60000}>1 minute</option><option value={180000}>3 minutes</option><option
+            value={300000}>5 minutes</option
+          ></select
+        ></label
+      >
+      <span>{values.length} measured points</span>
     </div>
+    {#if coverage}<p class="coverage" class:partial={coverage.measured < coverage.total}>
+        {coverage.measured < coverage.total ? 'Measured subtotal' : 'Measured total'} · {coverage.measured}
+        / {coverage.total} processes
+      </p>{/if}
+    <StatsPlot
+      {observations}
+      {metric}
+      {start}
+      {end}
+      {maximum}
+      held={stale}
+      focusedAt={focused?.at ?? null}
+      hover={(at) => (hoverAt = at)}
+    />
     <div class="scrubber">
-      <label for={'stats-sample-' + metric.id}>Sample</label>
+      <label for={'stats-sample-' + metric.id}>Inspect</label>
       <input
         id={'stats-sample-' + metric.id}
         type="range"
         min="0"
-        max={Math.max(0, visible.length - 1)}
-        value={Math.max(0, focused ? visible.indexOf(focused) : 0)}
-        disabled={visible.length < 2}
+        max={Math.max(0, observations.length - 1)}
+        value={Math.max(0, focused ? observations.indexOf(focused) : observations.length - 1)}
+        disabled={observations.length < 2}
         aria-valuetext={time(focused?.at) +
           ', ' +
           statisticsValue(focused?.values[metric.id], metric.unit)}
-        oninput={(event) => (cursor = visible[Number(event.currentTarget.value)]?.at ?? null)}
+        oninput={(event) =>
+          (pinnedAt = observations[Number(event.currentTarget.value)]?.at ?? null)}
       />
-      <button class="button" aria-pressed={cursor === null} onclick={() => (cursor = null)}
-        >Latest</button
+      <button
+        class="button"
+        aria-pressed={pinnedAt === null}
+        onclick={() => {
+          pinnedAt = null;
+          hoverAt = null;
+        }}>Latest</button
       >
     </div>
     <div class="monitor-summary">
-      <div><span>Average</span><strong>{statisticsValue(average, metric.unit)}</strong></div>
+      <div><span>Sample average</span><strong>{statisticsValue(average, metric.unit)}</strong></div>
       <div>
         <span>Peak</span><strong
-          >{statisticsValue(
-            measuredValues.length ? Math.max(...measuredValues) : null,
-            metric.unit,
-          )}</strong
+          >{statisticsValue(values.length ? Math.max(...values) : null, metric.unit)}</strong
         >
       </div>
-      <label
-        >History<select aria-label="Performance history length" bind:value={period}
-          ><option value={30}>30 samples</option><option value={60}>60 samples</option><option
-            value={120}>120 samples</option
-          ></select
-        ></label
-      >
+      <p>Each point is a delivered measurement. Gaps mean unavailable data.</p>
     </div>
-    <p class="metric-description">{metric.description}</p>
+    <details class="metric-help">
+      <summary>About this metric</summary>
+      <p>{metric.description}</p>
+    </details>
   </div>
 </section>
 
 <style>
   .monitor {
     display: grid;
-    grid-template-columns: 190px minmax(0, 1fr);
+    grid-template-columns: 180px minmax(0, 1fr);
     overflow: hidden;
   }
   .metric-rail {
@@ -203,11 +213,12 @@
     border-color: var(--selection-border);
   }
   .metric-rail svg {
-    width: 50px;
+    width: 46px;
     height: 34px;
     flex-shrink: 0;
     border: 1px solid var(--border);
     background: var(--panel);
+    overflow: visible;
   }
   .metric-rail span {
     min-width: 0;
@@ -222,117 +233,85 @@
   .metric-rail small {
     font-variant-numeric: tabular-nums;
     color: var(--muted);
+    font-size: 11px;
+  }
+  .metric-rail em {
+    color: var(--amber);
+    font-size: 9px;
+    font-style: normal;
   }
   path {
     fill: none;
     stroke: var(--green);
-    stroke-width: 2;
+    stroke-width: 1.5;
     vector-effect: non-scaling-stroke;
     stroke-linecap: round;
-    stroke-linejoin: round;
+  }
+  circle {
+    fill: var(--green);
   }
   .monitor-detail {
     min-width: 0;
-    padding: 20px;
+    padding: 18px;
   }
   header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: start;
     gap: 12px;
-    margin-bottom: 20px;
+    margin-bottom: 14px;
   }
   h2 {
-    margin: 5px 0 0;
+    margin: 0;
     font-size: 20px;
-    letter-spacing: -0.5px;
+    letter-spacing: -0.4px;
   }
-  .eyebrow {
+  .measurement-status {
     color: var(--muted);
     font-size: 10px;
-    margin: 0;
-    text-transform: uppercase;
-    letter-spacing: 0.09em;
+    margin: 7px 0 0;
   }
   .current {
-    display: grid;
-    gap: 4px;
-    text-align: right;
-  }
-  .current strong {
-    font-size: 25px;
+    font-size: 26px;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.8px;
+    text-align: right;
   }
-  .current small {
-    font-size: 10px;
-    color: var(--muted);
-  }
-  .plot {
-    position: relative;
-  }
-  .plot svg {
-    width: 100%;
-    height: 180px;
-    display: block;
-    overflow: visible;
-  }
-  .plot line {
-    stroke: var(--border);
-    vector-effect: non-scaling-stroke;
-  }
-  .plot .cursor {
-    stroke: var(--muted);
-    stroke-dasharray: 3 4;
-    opacity: 0.55;
-  }
-  .plot circle {
-    fill: var(--green);
-    stroke: var(--panel);
-    stroke-width: 2;
-    vector-effect: non-scaling-stroke;
-  }
-  .plot-top,
-  .plot-times {
+  .monitor-tools {
     display: flex;
     justify-content: space-between;
-    gap: 10px;
-    font-size: 10px;
-    color: var(--muted);
-    font-variant-numeric: tabular-nums;
-  }
-  .plot-top {
-    margin-bottom: 8px;
-  }
-  .plot-times {
-    margin-top: 8px;
-  }
-  .plot-empty {
-    position: absolute;
-    inset: 25% 10% 25%;
-    display: grid;
-    align-content: center;
-    text-align: center;
+    align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
-    padding: 12px;
-    border: 1px solid var(--border);
-    background: var(--panel);
-    border-radius: 8px;
-    font-size: 12px;
-  }
-  .plot-empty span {
     color: var(--muted);
+    font-size: 10px;
+    margin: 0 0 12px;
+  }
+  .monitor-tools label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  select {
+    padding: 5px;
+    max-width: 140px;
     font-size: 11px;
-    line-height: 1.5;
+  }
+  .coverage {
+    margin: 0 0 14px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .coverage.partial {
+    color: var(--amber);
   }
   .scrubber {
     display: flex;
     align-items: center;
     gap: 10px;
     margin-top: 12px;
-    font-size: 11px;
     color: var(--muted);
+    font-size: 11px;
   }
   .scrubber input {
     min-width: 30px;
@@ -342,52 +321,64 @@
     accent-color: var(--green);
   }
   .scrubber .button {
-    font-size: 11px;
-    padding: 5px 9px;
     min-height: 28px;
+    padding: 5px 9px;
+    font-size: 11px;
   }
   .monitor-summary {
     display: flex;
-    flex-wrap: wrap;
-    gap: 18px;
+    gap: 20px;
     border-top: 1px solid var(--border);
-    padding-top: 14px;
-    margin-top: 14px;
+    margin-top: 12px;
+    padding-top: 12px;
+    align-items: start;
   }
   .monitor-summary div {
     display: grid;
     gap: 5px;
   }
-  .monitor-summary span,
-  .monitor-summary label {
-    font-size: 10px;
+  .monitor-summary span {
     color: var(--muted);
+    font-size: 10px;
+    white-space: nowrap;
   }
   .monitor-summary strong {
     font-size: 13px;
     font-weight: 550;
     font-variant-numeric: tabular-nums;
   }
-  .monitor-summary label {
-    margin-left: auto;
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-  select {
-    padding: 5px;
-    font-size: 11px;
-    max-width: 140px;
-  }
-  .metric-description {
-    font-size: 11px;
-    line-height: 1.6;
+  .monitor-summary p {
+    margin: 0 0 0 auto;
+    max-width: 200px;
     color: var(--muted);
-    margin: 14px 0 0;
+    font-size: 10px;
+    line-height: 1.6;
+  }
+  .metric-help {
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .metric-help summary {
+    cursor: pointer;
+  }
+  .metric-help p {
+    margin: 10px 0 0;
+    line-height: 1.6;
   }
   @media (max-width: 1000px) {
     .monitor {
-      grid-template-columns: 155px minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .metric-rail {
+      flex-direction: row;
+      overflow-x: auto;
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .metric-rail button {
+      flex: 0 0 142px;
+      padding: 8px;
     }
     .metric-rail svg {
       width: 32px;
@@ -397,26 +388,14 @@
     }
   }
   @media (max-width: 720px) {
-    .monitor {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .metric-rail {
-      flex-direction: row;
-      overflow: auto;
-      border-right: 0;
-      border-bottom: 1px solid var(--border);
-    }
-    .metric-rail button {
-      min-width: 145px;
-    }
-    .plot svg {
-      height: 160px;
-    }
-    .current strong {
-      font-size: 21px;
+    .monitor-summary p {
+      display: none;
     }
     h2 {
       font-size: 18px;
+    }
+    .current {
+      font-size: 22px;
     }
   }
   @media (prefers-reduced-motion: reduce) {

@@ -23,3 +23,5 @@ Live-data adaptations:
 - Process activity groups retained files and connections with access to each observation. Evidence has its own Attributes tab; resource delivery diagnostics use named expandable fields.
 
 Visual verification uses the preserved source at the same viewport, scale, theme and state. Passing tests alone must not be reported as proof that the interface matches the template.
+
+Graph correctness: source-specific receipt clocks govern sparse history; resource, token, network and own-process updates never provide denominators for another source. Charts use fixed one/three/five-minute windows, visible measured subtotals and coverage, explicit missing-data breaks, and actual-point inspection. Histograms age by wall time and freeze with the view. Source delivery timestamps are not OS measurement timestamps.

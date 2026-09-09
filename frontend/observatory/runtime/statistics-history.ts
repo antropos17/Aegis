@@ -1,139 +1,261 @@
-import { instances, measured, record, type Telemetry } from './host';
+import { instances, record, type Telemetry, type RecordData } from './host';
 import { radarGroups } from './radar';
 import { cpuPercent } from './resources';
-import { completeStatisticsTotal } from './statistics-metrics';
+import { measuredStatisticsTotal, type StatisticsCoverage } from './statistics-metrics';
 
 export interface StatisticsSample {
   at: number;
+  /** Missing key: no new measurement. Null: observed unavailability. */
   values: Record<string, number | null>;
+  coverage?: Record<string, StatisticsCoverage>;
+  boundary?: boolean;
+}
+interface ScanBaseline {
+  at: number;
+  files: number;
+  sensitive: number;
+  session: unknown;
+}
+interface TokenBaseline {
+  at: number;
+  counters: Record<string, number>;
+  session: unknown;
 }
 export interface StatisticsHistory {
   samples: StatisticsSample[];
-  previous: Telemetry | null;
-  ownAt: number | null;
-  ownCpu: number | null;
-  interrupted: boolean;
+  clocks: Record<string, number>;
+  scan: ScanBaseline | null;
+  tokens: TokenBaseline | null;
+  own: { at: number; value: RecordData } | null;
+  stale: boolean;
+  population: string;
 }
-export const STATISTICS_HISTORY_LIMIT = 120;
-/** Create an isolated bounded history; no background timer or subscription is required.
+export const STATISTICS_HISTORY_LIMIT = 1000;
+export const STATISTICS_HISTORY_MS = 300000;
+/** Create source-specific clock state with no timers.
  * @returns Empty history @since 0.14.1
  */
 export function createStatisticsHistory(): StatisticsHistory {
-  return { samples: [], previous: null, ownAt: null, ownCpu: null, interrupted: false };
+  return {
+    samples: [],
+    clocks: {},
+    scan: null,
+    tokens: null,
+    own: null,
+    stale: true,
+    population: '',
+  };
 }
-/** Derive a monotonic counter rate; missing/reset counters are not zero activity.
- * @param before Previous counter @param after New counter @param elapsed Elapsed milliseconds
+/** Derive a monotonic counter rate between observations from the same source.
+ * @param before Previous counter @param after New counter @param elapsed Milliseconds
  * @returns Per-minute rate or unavailable @since 0.14.1
  */
 export function statisticsRate(before: unknown, after: unknown, elapsed: number): number | null {
-  const a = measured(before),
-    b = measured(after);
-  const value =
-    a === null || b === null || a < 0 || b < a || elapsed <= 0 || !Number.isFinite(elapsed)
-      ? null
-      : ((b - a) * 60000) / elapsed;
-  return value !== null && Number.isFinite(value) ? value : null;
+  if (
+    typeof before !== 'number' ||
+    typeof after !== 'number' ||
+    !Number.isFinite(before) ||
+    !Number.isFinite(after) ||
+    before < 0 ||
+    after < before ||
+    elapsed <= 0 ||
+    !Number.isFinite(elapsed)
+  )
+    return null;
+  const value = ((after - before) * 60000) / elapsed;
+  return Number.isFinite(value) ? value : null;
 }
-/** Append one observed scan/resource revision and leave identical or paused snapshots unchanged.
- * @param history Previous local history @param state Displayed telemetry
- * @returns Next bounded history @since 0.14.1
+function tokenRate(before: TokenBaseline | null, after: TokenBaseline): number | null {
+  const ids = Object.keys(after.counters);
+  if (
+    !before ||
+    before.session !== after.session ||
+    !ids.length ||
+    ids.length !== Object.keys(before.counters).length
+  )
+    return null;
+  let rate = 0;
+  for (const id of ids) {
+    const delta = statisticsRate(before.counters[id], after.counters[id], after.at - before.at);
+    if (delta === null) return null;
+    rate += delta;
+  }
+  return Number.isFinite(rate) ? rate : null;
+}
+/** Observe each telemetry source only on its own receipt timestamp.
+ * @param history Prior source clocks @param state Displayed telemetry @param interruptionAt Actual user pause time
+ * @returns Sparse five-minute history; no interpolated points @since 0.14.1
  */
-export function observeStatistics(history: StatisticsHistory, state: Telemetry): StatisticsHistory {
-  if (state.stale || !state.ready)
-    return history.interrupted ? history : { ...history, interrupted: true };
-  const at = Math.max(state.lastScan ?? 0, state.resourcesAt ?? 0);
-  const last = history.samples.at(-1);
-  if (!at || (last && at <= last.at)) return history;
-  const previous = history.previous;
-  const elapsed = last ? at - last.at : 0;
-  const continuous =
-    !!previous &&
-    !history.interrupted &&
-    elapsed > 0 &&
-    elapsed <= 30000 &&
-    previous.stats.monitoringStarted === state.stats.monitoringStarted;
-  const resourceFresh = state.resourcesAt !== null && at - state.resourcesAt <= 30000;
-  const agents = instances(state);
-  const networkHealth = record(record(record(record(state.stats.appHealth).sensors).byId).network);
-  const ownChanged = !previous || state.own !== previous.own;
-  const ownAt = ownChanged ? state.lastScan : history.ownAt;
-  const ownCpu = ownChanged
-    ? continuous && history.ownAt && ownAt && previous
-      ? cpuPercent(previous.own, state.own, ownAt - history.ownAt)
-      : null
-    : history.ownCpu;
-  const samePopulation =
-    !!previous &&
-    previous.agents.length === state.agents.length &&
-    state.agents.every(
-      (a) => a.instanceId && previous.agents.some((p) => p.instanceId === a.instanceId),
-    );
-  const tokens = completeStatisticsTotal(state, state.tokens, 'totalTokens');
-  const tokenCountersContinuous =
-    samePopulation &&
-    previous &&
-    state.agents.every((agent) => {
-      const old = previous.tokens.find((t) => t.instanceId === agent.instanceId);
-      const current = state.tokens.find((t) => t.instanceId === agent.instanceId);
-      return statisticsRate(old?.totalTokens, current?.totalTokens, elapsed) !== null;
+export function observeStatistics(
+  history: StatisticsHistory,
+  state: Telemetry,
+  interruptionAt?: number,
+): StatisticsHistory {
+  const next: StatisticsHistory = { ...history, clocks: { ...history.clocks } };
+  const frames: StatisticsSample[] = [];
+  const session = state.stats.monitoringStarted;
+  const coverage = ({ measured, total }: StatisticsCoverage): StatisticsCoverage => ({
+    measured,
+    total,
+  });
+  const fresh = (source: string, at: number | null | undefined): at is number => {
+    if (!at || !Number.isFinite(at) || at <= (history.clocks[source] ?? 0)) return false;
+    next.clocks[source] = at;
+    return true;
+  };
+  const emit = (
+    at: number,
+    values: StatisticsSample['values'],
+    coverage?: StatisticsSample['coverage'],
+    boundary = false,
+  ): void => {
+    frames.push({
+      at,
+      values,
+      ...(coverage ? { coverage } : {}),
+      ...(boundary ? { boundary } : {}),
     });
-  const values: StatisticsSample['values'] = {
-    cpu: resourceFresh ? completeStatisticsTotal(state, state.resources, 'cpu') : null,
-    memory: resourceFresh ? completeStatisticsTotal(state, state.resources, 'memMb') : null,
-    processes: state.agents.length,
-    products: radarGroups(agents).length,
-    connections:
-      networkHealth.state && networkHealth.state !== 'HEALTHY'
-        ? null
-        : state.network.length || networkHealth.state === 'HEALTHY'
-          ? state.network.length
-          : null,
-    fileRate:
-      continuous && previous
-        ? statisticsRate(
-            previous.events.length + previous.evicted,
-            state.events.length + state.evicted,
-            elapsed,
-          )
-        : null,
-    sensitiveRate:
-      continuous && previous
-        ? statisticsRate(
-            previous.events.filter((event) => event.sensitive === true).length +
-              previous.retainedEvicted,
-            state.events.filter((event) => event.sensitive === true).length + state.retainedEvicted,
-            elapsed,
-          )
-        : null,
-    risk: agents.length ? Math.max(...agents.map((a) => a.riskScore)) : null,
-    tokens,
-    input: completeStatisticsTotal(state, state.tokens, 'inputTokens'),
-    output: completeStatisticsTotal(state, state.tokens, 'outputTokens'),
-    tokenRate:
-      continuous && tokenCountersContinuous && previous
-        ? statisticsRate(
-            completeStatisticsTotal(previous, previous.tokens, 'totalTokens'),
-            tokens,
-            elapsed,
-          )
-        : null,
-    cost: completeStatisticsTotal(state, state.tokens, 'costUsd'),
-    ownCpu,
-    ownMemory: measured(state.own.memMB),
-    ownHeap: measured(state.own.heapMB),
-    evictions: state.evicted,
   };
-  const gap: StatisticsSample[] =
-    last && (!continuous || elapsed > 30000) ? [{ at: at - 1, values: {} }] : [];
-  return {
-    samples: [...history.samples, ...gap, { at, values }].slice(-STATISTICS_HISTORY_LIMIT),
-    previous: state,
-    ownAt,
-    ownCpu,
-    interrupted: false,
-  };
+  if (state.stale && !history.stale) {
+    const at = interruptionAt ?? state.statsAt;
+    if (at)
+      emit(
+        at,
+        {
+          cpu: null,
+          memory: null,
+          processes: null,
+          products: null,
+          risk: null,
+          tokens: null,
+          input: null,
+          output: null,
+          cost: null,
+          tokenRate: null,
+          fileRate: null,
+          sensitiveRate: null,
+        },
+        undefined,
+        true,
+      );
+    if (interruptionAt) {
+      emit(
+        interruptionAt,
+        {
+          ownCpu: null,
+          ownMemory: null,
+          ownHeap: null,
+          connections: null,
+          evictions: null,
+        },
+        undefined,
+        true,
+      );
+      next.own = null;
+    }
+    next.scan = null;
+    next.tokens = null;
+  }
+  next.stale = state.stale;
+  if (fresh('scan', state.lastScan) && state.ready && !state.stale) {
+    const at = state.lastScan;
+    const agents = instances(state);
+    const scan: ScanBaseline = {
+      at,
+      files: state.scanCounters?.files ?? state.events.length + state.evicted,
+      sensitive:
+        state.scanCounters?.sensitive ??
+        state.events.filter((event) => event.sensitive === true).length + state.retainedEvicted,
+      session,
+    };
+    const previous = next.scan?.session === session ? next.scan : null;
+    emit(at, {
+      processes: state.agents.length,
+      products: radarGroups(agents).length,
+      risk: agents.length ? Math.max(...agents.map((agent) => agent.riskScore)) : null,
+      fileRate: previous ? statisticsRate(previous.files, scan.files, at - previous.at) : null,
+      sensitiveRate: previous
+        ? statisticsRate(previous.sensitive, scan.sensitive, at - previous.at)
+        : null,
+      evictions: state.scanCounters?.evicted ?? state.evicted,
+    });
+    next.scan = scan;
+    const population = state.agents
+      .map((agent) => agent.instanceId || 'unkeyed:' + agent.pid)
+      .sort()
+      .join('\n');
+    if (history.population && history.population !== population) next.tokens = null;
+    next.population = population;
+  }
+  if (fresh('resources', state.resourcesAt)) {
+    const cpu = measuredStatisticsTotal(state, state.resources, 'cpu');
+    const memory = measuredStatisticsTotal(state, state.resources, 'memMb');
+    emit(
+      state.resourcesAt,
+      { cpu: cpu.value, memory: memory.value },
+      { cpu: coverage(cpu), memory: coverage(memory) },
+    );
+  }
+  if (fresh('tokens', state.tokensAt)) {
+    const total = measuredStatisticsTotal(state, state.tokens, 'totalTokens');
+    const input = measuredStatisticsTotal(state, state.tokens, 'inputTokens');
+    const output = measuredStatisticsTotal(state, state.tokens, 'outputTokens');
+    const cost = measuredStatisticsTotal(state, state.tokens, 'costUsd');
+    const baseline: TokenBaseline = { at: state.tokensAt, counters: total.counters, session };
+    emit(
+      state.tokensAt,
+      {
+        tokens: total.value,
+        input: input.value,
+        output: output.value,
+        cost: cost.value,
+        tokenRate: state.stale ? null : tokenRate(next.tokens, baseline),
+      },
+      {
+        tokens: coverage(total),
+        input: coverage(input),
+        output: coverage(output),
+        cost: coverage(cost),
+        tokenRate: coverage(total),
+      },
+    );
+    next.tokens = state.stale ? null : baseline;
+  }
+  if (fresh('own', state.ownAt)) {
+    const at = state.ownAt;
+    const ownCpu = history.own
+      ? cpuPercent(history.own.value, state.own, at - history.own.at)
+      : null;
+    const measured = (value: unknown): number | null =>
+      typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+    emit(at, { ownCpu, ownMemory: measured(state.own.memMB), ownHeap: measured(state.own.heapMB) });
+    next.own = { at, value: state.own };
+  }
+  if (fresh('network', state.networkAt)) {
+    const network = record(record(record(record(state.stats.appHealth).sensors).byId).network);
+    const available = !network.state || network.state === 'HEALTHY';
+    emit(state.networkAt, { connections: available ? state.network.length : null });
+  }
+  if (!frames.length) return next.stale === history.stale ? history : next;
+  const merged: StatisticsSample[] = [];
+  for (const sample of [...history.samples, ...frames].sort((a, b) => a.at - b.at)) {
+    const prior = merged.at(-1);
+    if (prior?.at === sample.at && !!prior.boundary === !!sample.boundary) {
+      merged[merged.length - 1] = {
+        at: sample.at,
+        values: { ...prior.values, ...sample.values },
+        coverage: { ...prior.coverage, ...sample.coverage },
+        ...(sample.boundary ? { boundary: true } : {}),
+      };
+    } else merged.push(sample);
+  }
+  const latest = merged.at(-1)!.at;
+  next.samples = merged
+    .filter((sample) => sample.at >= latest - STATISTICS_HISTORY_MS)
+    .slice(-STATISTICS_HISTORY_LIMIT);
+  return next;
 }
-/** Split graph paths at unavailable samples and preserve actual elapsed spacing.
+/** Split graph paths at explicit unavailable values, ignoring unrelated source frames.
  * @param samples Timeline @param key Metric @param maximum Vertical scale
  * @returns SVG line paths @since 0.14.1
  */
@@ -142,14 +264,15 @@ export function statisticsPaths(
   key: string,
   maximum: number,
 ): string[] {
-  if (!samples.length || !Number.isFinite(maximum) || maximum <= 0) return [];
-  const start = samples[0].at,
-    span = Math.max(1, samples.at(-1)!.at - start);
+  const measured = samples.filter((sample) => Object.hasOwn(sample.values, key));
+  if (!measured.length || !Number.isFinite(maximum) || maximum <= 0) return [];
+  const start = measured[0].at,
+    span = Math.max(1, measured.at(-1)!.at - start);
   const paths: string[] = [];
   let path = '';
-  for (const sample of samples) {
-    const value = measured(sample.values[key]);
-    if (value === null || value < 0) {
+  for (const sample of measured) {
+    const value = sample.values[key];
+    if (value === null || !Number.isFinite(value) || value < 0) {
       if (path) paths.push(path);
       path = '';
       continue;

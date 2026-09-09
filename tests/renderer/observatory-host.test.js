@@ -30,12 +30,12 @@ const deferred = () => {
   });
   return { promise, resolve };
 };
-function setup(seed = Promise.resolve({})) {
+function setup(seed = Promise.resolve({}), ownSeed = Promise.resolve({})) {
   const listeners = {};
   const unsubs = [];
   const host = {
     getStats: () => seed,
-    getResourceUsage: async () => ({}),
+    getResourceUsage: () => ownSeed,
     getFalsePositives: async () => [],
   };
   for (const name of [
@@ -212,4 +212,79 @@ describe('Observatory host boundary', () => {
       'HTTP',
     );
   });
+});
+
+it('keeps source receipt clocks independent through async scan, token, resource and network ordering', async () => {
+  let now = 1000;
+  const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+  const run = setup();
+  try {
+    await Promise.resolve();
+    await Promise.resolve();
+    run.listeners.onScanBatch({
+      stats: healthy,
+      agents: [agent('123:1')],
+      resourceUsage: { cpuUser: 100, cpuSystem: 0 },
+    });
+    expect(run.current.lastScan).toBe(1000);
+    expect(run.current.ownAt).toBe(1000);
+    now = 1020;
+    run.listeners.onTokenCosts([{ instanceId: '123:1', totalTokens: 20 }]);
+    expect(run.current.tokensAt).toBe(1020);
+    expect(run.current.lastScan).toBe(1000);
+    expect(run.current.resourcesAt).toBeNull();
+    now = 1800;
+    run.listeners.onAgentResourceUsage([{ instanceId: '123:1', cpu: 3 }]);
+    expect(run.current.resourcesAt).toBe(1800);
+    expect(run.current.tokensAt).toBe(1020);
+    expect(run.current.ownAt).toBe(1000);
+    now = 2000;
+    run.listeners.onNetworkUpdate([]);
+    expect(run.current.networkAt).toBe(2000);
+    expect(run.current.statsAt).toBe(1000);
+  } finally {
+    run.dispose();
+    clock.mockRestore();
+  }
+});
+it('a delayed own-resource seed cannot replace a newer scan value or timestamp', async () => {
+  let now = 1000;
+  const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+  const own = deferred();
+  const run = setup(Promise.resolve(healthy), own.promise);
+  try {
+    await Promise.resolve();
+    await Promise.resolve();
+    now = 2000;
+    run.listeners.onScanBatch({
+      stats: healthy,
+      agents: [agent('123:1')],
+      resourceUsage: { memMB: 20 },
+    });
+    now = 5000;
+    own.resolve({ memMB: 10 });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(run.current.own.memMB).toBe(20);
+    expect(run.current.ownAt).toBe(2000);
+  } finally {
+    run.dispose();
+    clock.mockRestore();
+  }
+});
+
+it('captures delivery totals at scan receipt rather than borrowing later file pushes', async () => {
+  const run = setup();
+  try {
+    await Promise.resolve();
+    await Promise.resolve();
+    run.listeners.onFileAccess([{ sensitive: true }]);
+    run.listeners.onScanBatch({ stats: healthy, agents: [agent('123:1')] });
+    expect(run.current.scanCounters).toEqual({ files: 1, sensitive: 1, evicted: 0 });
+    run.listeners.onFileAccess([{ sensitive: true }, { sensitive: false }]);
+    expect(run.current.events).toHaveLength(3);
+    expect(run.current.scanCounters).toEqual({ files: 1, sensitive: 1, evicted: 0 });
+  } finally {
+    run.dispose();
+  }
 });
