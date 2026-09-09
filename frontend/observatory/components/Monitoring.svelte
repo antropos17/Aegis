@@ -3,7 +3,9 @@
   import { isAnomalyAlert } from '../../../src/renderer/lib/utils/anomaly-toast-tracker';
   import { RISK_BAND_HIGH_MIN } from '../../../src/renderer/lib/utils/trust-badge-utils';
   import AgentLogo from './AgentLogo.svelte';
-  import Icon from './Icon.svelte';
+  import Radar from './Radar.svelte';
+  import ActivityChart from './ActivityChart.svelte';
+  import ResourceUsage from './ResourceUsage.svelte';
   let {
     telemetry,
     selected = $bindable(null),
@@ -16,7 +18,15 @@
     mode?: string;
   } = $props();
   let agents = $derived(instances(telemetry));
-  let chosen = $derived(selected ? agents.find((a) => a.instanceId === selected) : undefined);
+  let end = $derived(
+    Math.max(telemetry.lastScan ?? 0, ...telemetry.events.map((e) => e.timestamp)),
+  );
+  let recent = $derived(telemetry.events.filter((e) => e.timestamp > end - 60000));
+  let tokenTotal = $derived(
+    telemetry.tokens.length && telemetry.tokens.every((t) => measured(t.totalTokens) !== null)
+      ? telemetry.tokens.reduce((sum, t) => sum + Number(t.totalTokens), 0)
+      : null,
+  );
   let query = $state('');
   let filtered = $derived(
     agents.filter((a) =>
@@ -29,18 +39,6 @@
   function value(n: number | null, suffix = '') {
     return n === null ? 'Unavailable' : `${n.toFixed(1)}${suffix}`;
   }
-  function position(index: number) {
-    const ring = index < 8 ? Math.min(8, agents.length) : Math.min(4, agents.length - 8);
-    const angle = ((index < 8 ? index : index - 8) / ring) * Math.PI * 2 - Math.PI / 2;
-    const radius = index < 8 ? 142 : 68;
-    return (
-      'left:calc(50% + ' +
-      Math.cos(angle) * radius +
-      'px);top:calc(50% + ' +
-      Math.sin(angle) * radius +
-      'px)'
-    );
-  }
   $effect(() => {
     if (!telemetry.stale && selected && !agents.some((a) => a.instanceId === selected))
       selected = null;
@@ -50,101 +48,49 @@
 <div hidden={mode !== 'overview'}>
   <div class="summary-strip">
     <div>
-      <small>Observed instances</small><strong>{telemetry.ready ? agents.length : '—'}</strong>
+      <small>Agents</small><strong>{telemetry.ready ? agents.length : '—'}</strong>
+      <p>Current process snapshot</p>
     </div>
     <div>
-      <small>File observations · session</small><strong
-        >{String(telemetry.stats.totalFiles ?? '—')}</strong
+      <small>Average risk</small><strong
+        >{agents.length
+          ? Math.round(agents.reduce((sum, a) => sum + a.riskScore, 0) / agents.length)
+          : '—'}<small>/100</small></strong
       >
+      <p>Highest: {agents.length ? Math.max(...agents.map((a) => a.riskScore)) : '—'}</p>
     </div>
     <div>
-      <small>Sensitive · session</small><strong>{String(telemetry.stats.aiSensitive ?? '—')}</strong
-      >
+      <small>Events / min</small><strong>{telemetry.ready ? recent.length : '—'}</strong>
+      <p>{telemetry.events.length} retained</p>
     </div>
     <div>
-      <small>Network · snapshot</small><strong
-        >{telemetry.ready ? telemetry.network.length : '—'}</strong
+      <small>Sensitive events</small><strong class="attention"
+        >{String(telemetry.stats.aiSensitive ?? '—')}</strong
       >
+      <p>File events · session</p>
+    </div>
+    <div>
+      <small>Connections</small><strong>{telemetry.ready ? telemetry.network.length : '—'}</strong>
+      <p>Current snapshot</p>
+    </div>
+    <div>
+      <small>Tokens</small><strong
+        >{tokenTotal === null
+          ? '—'
+          : Intl.NumberFormat('en', { notation: 'compact' }).format(tokenTotal)}</strong
+      >
+      <p>
+        {tokenTotal === null ? 'No measurement' : `${telemetry.tokens.length} reported sources`}
+      </p>
     </div>
   </div>
-  <div class="monitor-grid">
-    <section class="panel radar-panel">
-      <div class="panel-head">
-        <h2>Agent radar</h2>
-        <span>{telemetry.stale ? 'Last observation · stale' : 'Live observations'}</span>
-      </div>
-      <div class="radar-stage" class:stale={telemetry.stale}>
-        <button
-          class="radar-empty"
-          aria-label="Clear radar selection"
-          onclick={() => (selected = null)}
-        ></button>
-        <div class="radar-dial" aria-hidden="true">
-          <div class="dial-grid"></div>
-          <div class="dial-ticks"></div>
-          <div class="dial-sweep"></div>
-          <div class="radar-center"><Icon name="shield" /></div>
-        </div>
-        {#each agents.filter((a) => a.instanceId).slice(0, 12) as agent, index (agent.instanceId)}
-          <button
-            class="radar-point"
-            class:selected={selected === agent.instanceId}
-            style={position(index)}
-            aria-label={`Select ${agent.name}, PID ${agent.pid}`}
-            aria-pressed={selected === agent.instanceId}
-            onclick={() => (selected = agent.instanceId)}
-            onkeydown={(event) => {
-              if (event.key === 'Escape') selected = null;
-            }}
-          >
-            <AgentLogo name={agent.name} /><small>PID {agent.pid}</small>
-          </button>
-        {/each}
-        {#if !agents.length}<p class="radar-message">
-            {telemetry.ready
-              ? 'No agents in the last reliable scan'
-              : 'Waiting for the first reliable scan'}
-          </p>{/if}
-      </div>
-      <div class="inset muted">
-        Showing up to 12 instances. All observed processes appear in the table below. Distance does
-        not represent risk.
-      </div>
-    </section>
-    <section class="panel inspector">
-      <div class="panel-head"><h2>Instance inspector</h2></div>
-      <div class="inset">
-        {#if chosen}<div class="identity">
-            <AgentLogo name={chosen.name} />
-            <h3>{chosen.name}</h3>
-          </div>
-          <p class="mono">{chosen.instanceId}</p>
-          <dl>
-            <dt>Exposure risk</dt>
-            <dd>{chosen.riskScore}/100 · {chosen.trustGrade}</dd>
-            <dt>Behaviour anomaly</dt>
-            <dd>{chosen.anomalyScore}/100</dd>
-            <dt>CPU / memory</dt>
-            <dd>
-              {value(metric(chosen.instanceId, 'cpu'), '%')} / {value(
-                metric(chosen.instanceId, 'memMb'),
-                ' MB',
-              )}
-            </dd>
-            <dt>Working directory</dt>
-            <dd>{chosen.cwd ?? 'Unavailable'}</dd>
-          </dl>
-          <button
-            class="button"
-            onclick={() => inspect(chosen.name, chosen as unknown as RecordData)}
-            >Open instance details</button
-          >{:else}<Icon name="agents" />
-          <h3>Select an instance</h3>
-          <p class="muted">
-            Choose a radar marker or a row below to inspect its observations and available actions.
-          </p>{/if}
-      </div>
-    </section>
+  <Radar {telemetry} bind:selected {inspect} />
+  <div class="activity-grid">
+    <ActivityChart
+      events={telemetry.events}
+      observedAt={telemetry.lastScan}
+      {inspect}
+    /><ResourceUsage {telemetry} {inspect} />
   </div>
 </div>
 
@@ -202,129 +148,73 @@
 </section>
 
 <style>
+  .activity-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);
+    gap: 12px;
+    margin-bottom: 12px;
+    align-items: start;
+  }
+  @media (max-width: 1000px) {
+    .activity-grid {
+      grid-template-columns: 1fr;
+    }
+  }
   .anomaly-alert {
     color: var(--red);
   }
   .summary-strip {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-  .summary-strip > div {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px;
-  }
-  .summary-strip strong {
-    display: block;
-    font-size: 28px;
-    font-weight: 550;
-  }
-  .summary-strip small {
-    color: var(--muted);
-  }
-  .monitor-grid > .panel {
-    margin-top: 0;
-  }
-  .monitor-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(230px, 30%);
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-  .radar-stage {
-    position: relative;
-    min-height: 380px;
-    height: 380px;
-    overflow: hidden;
-  }
-  .radar-empty {
-    position: absolute;
-    inset: 0;
-    border: 0;
-    background: transparent;
-    width: 100%;
-  }
-  .radar-dial {
-    pointer-events: none;
-  }
-  .dial-sweep {
-    animation: sweep 12s linear infinite;
-  }
-  .stale .dial-sweep {
-    animation-play-state: paused;
-  }
-  .radar-point {
-    position: absolute;
-    transform: translate(-50%, -50%);
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    background: var(--panel);
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 10px;
+    padding: 12px;
+    margin-bottom: 14px;
+    background: var(--sidebar);
     border: 1px solid var(--border);
     border-radius: 8px;
-    color: var(--ink);
-    padding: 4px;
-    max-width: 78px;
-    flex-direction: column;
   }
-  .radar-point.selected {
-    border-color: var(--strong-border);
-    background: var(--raised);
+  .summary-strip > div {
+    min-width: 0;
+    padding-left: 10px;
+    border-left: 1px solid var(--border);
   }
-  .radar-message {
-    position: absolute;
-    bottom: 12px;
-    text-align: center;
-    width: 100%;
-    pointer-events: none;
+  .summary-strip > div:first-child {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .summary-strip strong {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px;
+    font-size: calc(23px * var(--ui-scale));
+    font-weight: 500;
+    line-height: 1.3;
+    margin: 6px 0 3px;
+  }
+  .summary-strip small,
+  .summary-strip p {
+    font-size: calc(11px * var(--ui-scale));
     color: var(--muted);
+    overflow-wrap: anywhere;
   }
-  .identity,
+  .attention {
+    color: var(--amber);
+  }
   .agent-link {
     display: flex;
     align-items: center;
     gap: 8px;
-  }
-  .agent-link {
-    background: transparent;
-    color: var(--ink);
-    border: 0;
     padding: 0;
     text-align: left;
   }
-  dt {
-    color: var(--muted);
-    margin-top: 12px;
-  }
-  dd {
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
-  .mono {
-    overflow-wrap: anywhere;
-  }
-  @keyframes sweep {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .dial-sweep {
-      animation: none;
-    }
-  }
-  @media (max-width: 1080px) {
-    .monitor-grid > .panel {
-      margin-top: 0;
-    }
-    .monitor-grid {
-      grid-template-columns: minmax(0, 1fr);
-    }
+  @media (max-width: 950px) {
     .summary-strip {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .summary-strip > div:nth-child(4) {
+      border-left: 0;
+      padding-left: 0;
     }
   }
 </style>

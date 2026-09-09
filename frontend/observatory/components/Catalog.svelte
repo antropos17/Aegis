@@ -12,6 +12,8 @@
   } from '../../../src/renderer/lib/utils/agent-crud-utils';
   import Action from './Action.svelte';
   import AgentLogo from './AgentLogo.svelte';
+  import Icon from './Icon.svelte';
+  let category = $state('');
   let { host, inspect }: { host: Host | null; inspect: (title: string, row: RecordData) => void } =
     $props();
   let base = $state<RecordData[]>([]);
@@ -26,8 +28,10 @@
     [
       ...base.map((row) => ({ ...row, custom: false })),
       ...custom.map((row) => ({ ...row, custom: true })),
-    ].filter((row) =>
-      JSON.stringify(row).toLowerCase().includes(query.toLowerCase()),
+    ].filter(
+      (row) =>
+        (!category || record(row).category === category) &&
+        JSON.stringify(row).toLowerCase().includes(query.toLowerCase()),
     ) as RecordData[],
   );
   async function load() {
@@ -75,28 +79,31 @@
   }
 </script>
 
+<div class="catalog-toolbar">
+  <input
+    type="search"
+    aria-label="Search catalog"
+    bind:value={query}
+    placeholder="Name, signature or vendor…"
+  /><label
+    >Category <select aria-label="Catalog category" bind:value={category}
+      ><option value="">All categories</option>{#each CATEGORIES as [id, title] (id)}<option
+          value={id}>{title}</option
+        >{/each}</select
+    ></label
+  ><span class="toolbar-spacer"></span><button
+    class="button"
+    onclick={() => {
+      form = createEmptyForm();
+      editing = null;
+      showForm = true;
+    }}><Icon name="plus" />Add agent</button
+  ><Action action={importAgents}>Import</Action><Action
+    action={async () => confirmed(await invoke(host, 'exportAgentDatabase'))}>Export</Action
+  >
+</div>
+
 <section class="panel">
-  <div class="panel-head">
-    <h2>Agent catalog</h2>
-    <span>{base.length} bundled · {custom.length} custom</span>
-  </div>
-  <div class="toolbar inset">
-    <input
-      type="search"
-      aria-label="Search catalog"
-      bind:value={query}
-      placeholder="Name, signature or vendor…"
-    /><button
-      class="button"
-      onclick={() => {
-        form = createEmptyForm();
-        editing = null;
-        showForm = true;
-      }}>Add agent</button
-    ><Action action={importAgents}>Import</Action><Action
-      action={async () => confirmed(await invoke(host, 'exportAgentDatabase'))}>Export</Action
-    >
-  </div>
   {#if error}<p role="alert" class="inset">{error}</p>{/if}
   {#if showForm}<div class="inset form-stack editor">
       <h3>{editing ? 'Edit custom agent' : 'Add custom agent'}</h3>
@@ -121,7 +128,9 @@
   <div class="table-scroll">
     <table>
       <thead
-        ><tr><th>Agent</th><th>Vendor / category</th><th>Process signatures</th><th>Actions</th></tr
+        ><tr
+          ><th>Agent</th><th>Category</th><th>Process signatures</th><th>Risk</th><th>Actions</th
+          ></tr
         ></thead
       ><tbody
         >{#each rows as row (String(row.id))}<tr
@@ -129,12 +138,37 @@
               ><button
                 class="text-link identity"
                 onclick={() => inspect(String(row.displayName), row)}
-                ><AgentLogo id={String(row.id)} />{String(row.displayName)}</button
-              ><small>{row.custom ? 'Custom' : 'Bundled'}</small></td
-            ><td>{String(row.vendor ?? '')}<small>{String(row.category ?? '')}</small></td><td
-              >{Array.isArray(row.names) ? row.names.join(', ') : 'Unavailable'}</td
+                ><AgentLogo id={String(row.id)} /><span
+                  ><strong>{String(row.displayName)}</strong><small
+                    >{String(row.vendor ?? (row.custom ? 'Custom' : 'Bundled'))}</small
+                  ></span
+                ></button
+              ></td
+            ><td>{String(row.category ?? '')}</td><td
+              ><div class="signature-list">
+                {#each Array.isArray(row.names) ? row.names.slice(0, 3) : [] as name (name)}<button
+                    class="text-link"
+                    onclick={() =>
+                      inspect('Process signature', { signature: name, agent: row.displayName })}
+                    >{String(name)}</button
+                  >{/each}{#if Array.isArray(row.names) && row.names.length > 3}<button
+                    class="text-link"
+                    onclick={() => inspect(String(row.displayName), row)}
+                    >+{row.names.length - 3} more</button
+                  >{/if}
+              </div></td
+            ><td
+              ><span
+                class="badge"
+                class:high={row.riskProfile === 'high'}
+                class:medium={row.riskProfile === 'medium'}
+                >{String(row.riskProfile ?? 'Unknown')}</span
+              ></td
             ><td
               ><div class="toolbar">
+                <button class="button" onclick={() => inspect(String(row.displayName), row)}
+                  ><Icon name="chevron" />Details</button
+                >
                 {#if row.website}<Action
                     action={async () =>
                       confirmed(await invoke(host, 'openExternalUrl', row.website))}>Website</Action
@@ -156,7 +190,46 @@
   </div>
 </section>
 
+<p class="catalog-count muted">{base.length} bundled · {custom.length} custom</p>
+
 <style>
+  .catalog-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .catalog-toolbar input {
+    width: 265px;
+  }
+  .catalog-toolbar label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: calc(11px * var(--ui-scale));
+  }
+  .toolbar-spacer {
+    flex: 1;
+  }
+  .signature-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+  }
+  .identity {
+    text-decoration: none;
+    text-align: left;
+  }
+  .identity small {
+    margin-top: 3px;
+    font-weight: 400;
+  }
+  .catalog-count {
+    font-size: 11px;
+    margin-top: 12px;
+  }
+
   .identity {
     display: flex;
     align-items: center;

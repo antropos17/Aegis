@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { measured, record, type Telemetry, type RecordData } from '../runtime/host';
+  import { instances, measured, record, type Telemetry, type RecordData } from '../runtime/host';
+  import ResourceUsage from './ResourceUsage.svelte';
   import Metadata from './Metadata.svelte';
   let {
     telemetry,
@@ -7,6 +8,7 @@
   }: { telemetry: Telemetry; inspect: (title: string, row: RecordData) => void } = $props();
   let samples = $state<{ at: number; cpu: number | null; mem: number | null }[]>([]);
   let lastAt = 0;
+  let agents = $derived(instances(telemetry));
   let tokenOnly = $derived(
     telemetry.tokens.filter(
       (token) =>
@@ -68,7 +70,13 @@
                   (t) =>
                     typeof resource.instanceId === 'string' && t.instanceId === resource.instanceId,
                 )}<tr
-            ><td>{String(resource.instanceId ?? `Unattributed sample · PID ${resource.pid}`)}</td
+            ><td
+              >{agents.find(
+                (a) =>
+                  typeof resource.instanceId === 'string' && a.instanceId === resource.instanceId,
+              )?.name ?? 'Unattributed sample'}<small
+                >{String(resource.instanceId ?? `PID ${resource.pid}`)}</small
+              ></td
             ><td>{measured(resource.cpu) ?? 'Unavailable'}</td><td
               >{measured(resource.memMb) ?? 'Unavailable'}</td
             ><td>{resource.gpu ? JSON.stringify(resource.gpu) : 'Unavailable'}</td><td
@@ -84,29 +92,32 @@
 <section class="panel">
   <div class="panel-head"><h2>Monitoring counters & delivery</h2></div>
   <div class="inset">
-    <Metadata
-      value={{
-        ...telemetry.stats,
-        rendererRetention: {
-          evicted: telemetry.evicted,
-          sensitiveEvicted: telemetry.retainedEvicted,
-        },
-        aegisProcess: telemetry.own,
-      }}
-    />
+    <details>
+      <summary>View monitoring counters and delivery metadata</summary><Metadata
+        value={{
+          ...telemetry.stats,
+          rendererRetention: {
+            evicted: telemetry.evicted,
+            sensitiveEvicted: telemetry.retainedEvicted,
+          },
+          aegisProcess: telemetry.own,
+        }}
+      />
+    </details>
   </div>
 </section>
+<ResourceUsage {telemetry} {inspect} />
 
 <style>
   .chart {
     height: 180px;
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(60, minmax(0, 1fr));
     align-items: stretch;
     gap: 3px;
   }
   .chart button {
     position: relative;
-    flex: 1;
     min-width: 3px;
     background: transparent;
     border: 0;
@@ -119,7 +130,7 @@
     left: 0;
     right: 0;
     height: var(--height);
-    background: var(--green);
+    background: var(--muted);
     border-radius: 3px 3px 0 0;
   }
 </style>

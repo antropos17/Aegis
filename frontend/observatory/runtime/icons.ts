@@ -1,5 +1,6 @@
 /** Fixed Observatory vector elements. Host strings never become markup. */
 export const icons: Record<string, { tag: string; attrs: Record<string, string> }[]> = {
+  arrowLeft: [{ tag: 'path', attrs: { d: 'm15 5-7 7 7 7' } }],
   terminal: [{ tag: 'path', attrs: { d: 'm4 6 5 6-5 6m8 0h8' } }],
   balance: [
     { tag: 'path', attrs: { d: 'M12 3v18M6 21h12M4 7h16M5 7l-4 8h8L5 7Zm14 0-4 8h8l-4-8Z' } },

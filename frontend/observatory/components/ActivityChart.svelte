@@ -108,7 +108,7 @@
     height: var(--height);
     min-height: 1px;
     border-radius: 3px 3px 0 0;
-    background: var(--green);
+    background: var(--muted);
   }
   .activity-chart {
     margin-bottom: 12px;

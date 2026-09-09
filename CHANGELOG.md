@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+- Restore the reviewed Observatory layout after the first integration simplified it: compact workspace navigation, six-part summary, radar activity cards, assessment columns, permission profiles, catalog rows, report summary and settings rows. Fix dark-theme artwork, stacked checkboxes and hidden active tabs.
 - Replace the desktop shell with the shared Observatory Svelte interface: instance radar, workspaces, linked detail history, activity charts, audit, rules, catalog, analysis and settings.
 - Preserve unreliable populations and missing measurements; show failed/degraded sensors and keep process actions tied to stamped identity.
 - Fix same-timestamp audit pagination, custom catalog import persistence, permission draft resets and native folder error reporting.

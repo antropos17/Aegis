@@ -1,5 +1,9 @@
 # Integration validation
 
+The initial integration's functional checks did not establish visual fidelity to the reviewed dialogs-14 prototype. The subsequent visual repair compares the rendered reference at 1200×800 against the shared Svelte entry. Browser checks now assert the 184 px sidebar, 44 px workspace history row, summary position, radar/inspector alignment, assessment column proportions, checkbox alignment and active-tab visibility. Each of the eleven workspaces is captured for inspection. Radar layer changes and clearing selection must retain the sweep element.
+
+The repair keeps real backend semantics: unobserved measurements remain unavailable, process identities stay stamped, provider requests require an explicit action, and unavailable demo-only actions are not enabled. Provider configuration is a collapsible panel, and raw observation fields remain available under a metadata disclosure in details.
+
 See ../../OBSERVATORY-INTEGRATION.md for current status and the complete migration matrix. The preparation-only validation is superseded.
 
 Validated so far: production and preview builds; 132 browser view/viewport/theme/scale combinations; explicit unavailable desktop bridge; zero real bridge calls from preview; no preview identities in production JavaScript; isolated-profile Electron startup with reliable real process observations and all 11 workspaces; TypeScript and Svelte diagnostics.

@@ -103,9 +103,13 @@ const artwork: Record<string, string> = {
 export function logo(id: string): string | null {
   const special: Record<string, string> = {
     'claude-code': 'claude.png',
+    'claude-desktop': 'claude.png',
+    'claude-computer-use': 'claude.png',
     'openai-codex': 'codex.png',
+    'openai-codex-cli': 'codex.png',
     codex: 'codex.png',
     cursor: 'cursor.png',
+    'cursor-ai': 'cursor.png',
     ollama: 'ollama.png',
   };
   return special[id]
@@ -113,4 +117,17 @@ export function logo(id: string): string | null {
     : artwork[id]
       ? 'assets/agents/catalog/' + artwork[id]
       : null;
+}
+
+/** Identify monochrome artwork that needs a light variant on dark surfaces.
+ * @param source Bundled asset path @returns Whether dark theme should invert it @since 0.14.1
+ */
+export function invertOnDark(source: string | null): boolean {
+  return [
+    'ollama.png',
+    'github-copilot.svg',
+    'zed-ai.png',
+    'void-editor.png',
+    'kilo-code.png',
+  ].some((file) => source?.endsWith('/' + file));
 }
