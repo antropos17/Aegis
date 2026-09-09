@@ -350,6 +350,13 @@ describe('exports', () => {
   });
 
   describe('generateReport', () => {
+    it('reports failure when the native viewer cannot open the generated report', async () => {
+      initExporter();
+      mockOpenPath.mockResolvedValueOnce('No viewer available');
+      const result = await exporter.generateReport();
+      expect(result).toMatchObject({ success: false, error: 'No viewer available' });
+      expect(fs.existsSync(result.path)).toBe(true);
+    });
     it('generates HTML report and returns path', async () => {
       initExporter({
         activityLog: [

@@ -86,7 +86,7 @@ AEGIS follows Electron security best practices:
 ### Known Limitations
 
 - **Monitor-only:** AEGIS observes and does not enforce at the OS level. Permission states (allow/monitor/block) affect UI display and alerting. OS-level blocking by kernel driver is a deliberate non-goal.
-- **Settings exports can contain the API key:** Export Config serializes in-memory settings, including a configured plaintext key. Remove it before sharing a settings JSON. The ZIP session export removes API-key fields from its settings copy.
+- **Configuration exports omit the API key:** Export Config and the diagnostic ZIP remove the configured Anthropic key from their settings copy. Importing configuration without a key preserves the local key. Paths, endpoints and agent metadata remain sensitive.
 - **Audit logs are plaintext:** JSONL files in `userData/audit-logs/` are unencrypted. They contain file paths and agent names but not file contents.
 - **Process attribution:** chokidar file watchers cannot attribute events to specific processes. Handle-based scanning provides per-process attribution but runs on a timer, not in real-time.
 - **No TLS inspection:** Network monitoring sees connection endpoints only and cannot inspect encrypted traffic. TLS interception is a deliberate non-goal, not a pending feature.

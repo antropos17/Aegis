@@ -16,14 +16,17 @@ const statements = new WeakMap();
  * @param {string} beforeTs - exclusive timestamp cursor
  * @param {number} limit - validated page size
  * @param {Set<string>|null} types - normalized filter
+ * @param {number} [boundaryOffset] Inclusive boundary rows already consumed
  * @returns {Object[]} normalized records, oldest first
  * @since v0.14.0
  */
-function queryBefore(db, beforeTs, limit, types) {
+function queryBefore(db, beforeTs, limit, types, boundaryOffset) {
   const values = types ? [...types] : [];
   let cache = statements.get(db);
   if (!cache) statements.set(db, (cache = new Map()));
-  let stmt = cache.get(values.length);
+  const inclusive = boundaryOffset !== undefined;
+  const cacheKey = `${values.length}:${inclusive}`;
+  let stmt = cache.get(cacheKey);
   if (!stmt) {
     // A missing/non-string type projects to ''. An explicitly empty-string filter
     // must match only a recorded empty string, as it does in the JSONL reader.
@@ -32,12 +35,12 @@ function queryBefore(db, beforeTs, limit, types) {
           AND (type != '' OR json_type(raw, '$.type') = 'text')`
       : '';
     stmt = db.prepare(`SELECT raw FROM audit_events
-      WHERE timestamp != '' AND timestamp < ? AND type != ?${filter}
-      ORDER BY timestamp DESC, file DESC, line_no DESC LIMIT ?`);
-    cache.set(values.length, stmt);
+      WHERE timestamp != '' AND timestamp ${inclusive ? '<=' : '<'} ? AND type != ?${filter}
+      ORDER BY timestamp DESC, file DESC, line_no DESC LIMIT ? OFFSET ?`);
+    cache.set(cacheKey, stmt);
   }
   return stmt
-    .all(beforeTs, MARKER_TYPE, ...values, limit)
+    .all(beforeTs, MARKER_TYPE, ...values, limit, boundaryOffset ?? 0)
     .map(({ raw }) => normalizeAuditEntry(JSON.parse(raw)))
     .reverse();
 }

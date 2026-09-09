@@ -1,0 +1,161 @@
+{
+  "source": "Observatory dialogs-14",
+  "date": "2026-09-09",
+  "files": [
+    {
+      "original": "catalog.js",
+      "target": "frontend/observatory/ui/catalog.js",
+      "sha256": "5472177e117885cf6493088c46f53444ab090cc2bec571526cd13274a2ddd0d9"
+    },
+    {
+      "original": "data.js",
+      "target": "frontend/observatory/demo/data.js",
+      "sha256": "c2014e0029152b1b3e50a18701de3670de877d6ded256432f97f066872a75dc4"
+    },
+    {
+      "original": "core.js",
+      "target": "frontend/observatory/ui/core.js",
+      "sha256": "d451e1b956cea3ba89b2d17bff02747ee880caa6b376e933ac93620dca4fc997"
+    },
+    {
+      "original": "catalog-icons.js",
+      "target": "frontend/observatory/ui/catalog-icons.js",
+      "sha256": "d88b3b3e25b7f6e2dc948a2828b02289f8655f0e4bd6d2b7fa7850791ed231ac"
+    },
+    {
+      "original": "entities.js",
+      "target": "frontend/observatory/ui/entities.js",
+      "sha256": "a2fe658c0704fe5b583b0d59cac9d61d03404c950ec8bacddab8d34c73d426c6"
+    },
+    {
+      "original": "motion.js",
+      "target": "frontend/observatory/ui/motion.js",
+      "sha256": "d5721cd05fbde2d8efbf9900dc8c4ffa264345fe6a37095a1a41bdbca17b6a8e"
+    },
+    {
+      "original": "radar-info.js",
+      "target": "frontend/observatory/ui/radar-info.js",
+      "sha256": "4de703dc470c3e08dba408480abd8ea1ea5bc772ab6cbc093b8b16a18db6f171"
+    },
+    {
+      "original": "overview.js",
+      "target": "frontend/observatory/ui/overview.js",
+      "sha256": "d892c4c9c3b7310cf832fbd39b24b6c16524c3bfb18858942a7df86147a3c491"
+    },
+    {
+      "original": "timeline.js",
+      "target": "frontend/observatory/ui/timeline.js",
+      "sha256": "c08bc7de24b549a2882ae5a9663eebf375a122e9b515268f85c898fffd797bdb"
+    },
+    {
+      "original": "activity.js",
+      "target": "frontend/observatory/ui/activity.js",
+      "sha256": "44643bd03dd28a2e2199930375c734e2a6a46c37f7a00a030a6673d7787c35d7"
+    },
+    {
+      "original": "policy.js",
+      "target": "frontend/observatory/ui/policy.js",
+      "sha256": "ca4b40c22d8355f487405cdbfbc69818004fa8ca659c834c81607985e6d15491"
+    },
+    {
+      "original": "reports.js",
+      "target": "frontend/observatory/ui/reports.js",
+      "sha256": "3d96ede754b867f06b3b6d848aa8828a9111eaed71015bbd036ca745c461f26a"
+    },
+    {
+      "original": "analysis-model.js",
+      "target": "frontend/observatory/ui/analysis-model.js",
+      "sha256": "cf48ad92c5d3edb310097153870562ecf28111af6e06a093baa60cb51a50f13d"
+    },
+    {
+      "original": "analysis.js",
+      "target": "frontend/observatory/ui/analysis.js",
+      "sha256": "f13f483f1e9364757a6d1fd4e4047bff47c600a64d0f3546a1e41164e724b624"
+    },
+    {
+      "original": "settings.js",
+      "target": "frontend/observatory/ui/settings.js",
+      "sha256": "435c3a0fe44e61eb825c7f999379c6f5c688b90871fba7edef522a8d271026b7"
+    },
+    {
+      "original": "dashboard.js",
+      "target": "frontend/observatory/ui/dashboard.js",
+      "sha256": "da31eae8b0e084bf4e532c8a95e5d75eeab584fce166f59d6c15475895d151cd"
+    },
+    {
+      "original": "app.js",
+      "target": "frontend/observatory/ui/app.js",
+      "sha256": "9c5a9f62edab75013361864cb0c2c3575a0bb5b5e6cf159144ee9262eeb7487c"
+    },
+    {
+      "original": "transitions.js",
+      "target": "frontend/observatory/ui/transitions.js",
+      "sha256": "23dec1fdf6997f8113832d1fe4ce7da6c2cf0fdb8376afd90140a33b1187319c"
+    },
+    {
+      "original": "navigation.js",
+      "target": "frontend/observatory/ui/navigation.js",
+      "sha256": "fb669739f07fe8f669bca399faa1366b0070392fc44741759a7d7b175a5decbf"
+    },
+    {
+      "original": "workbench.css",
+      "target": "frontend/observatory/styles/workbench.css",
+      "sha256": "3099186bab810f2047acd92d277523d86b6105fb9e030a2246900b42f34d86ee"
+    },
+    {
+      "original": "radar.css",
+      "target": "frontend/observatory/styles/radar.css",
+      "sha256": "801d14f607e3c7c3a764a9ee3d25b76577e2c0d505fe00964cbd404d6ac7fb72"
+    },
+    {
+      "original": "window.css",
+      "target": "frontend/observatory/styles/window.css",
+      "sha256": "f57c44ebdfdaa81dffcb93f88b88cb187e5bed7d5bac029515da3f80587c941c"
+    },
+    {
+      "original": "interactions.css",
+      "target": "frontend/observatory/styles/interactions.css",
+      "sha256": "794287214ffc9cac3817aac5486318cae1b24133543fbfb3a0f8e8f32b20696f"
+    },
+    {
+      "original": "navigation.css",
+      "target": "frontend/observatory/styles/navigation.css",
+      "sha256": "2d5c5f0a59eed0932a6276a8bd6226bf0b1ca82099d4be72270a5bcceee37e44"
+    },
+    {
+      "original": "transitions.css",
+      "target": "frontend/observatory/styles/transitions.css",
+      "sha256": "402635930a44c2d436be5310b8afb7f03925ca19538627e1baf7cb206e58fc60"
+    },
+    {
+      "original": "entities.css",
+      "target": "frontend/observatory/styles/entities.css",
+      "sha256": "d0ad13d937b9dc69cfb7343fa6f92a48ad155cbd1eb70c4e939019cd2eaf6c9f"
+    },
+    {
+      "original": "radar-info.css",
+      "target": "frontend/observatory/styles/radar-info.css",
+      "sha256": "ed1fc69f6dabfa0a7a63487ff6a375c790121f19f110bf164b9760d8b43e71ea"
+    },
+    {
+      "original": "identity.css",
+      "target": "frontend/observatory/styles/identity.css",
+      "sha256": "6988dea8ff701330255db8b9b26f9b13bc1def3d10ccacf5f54e18c320e32726"
+    },
+    {
+      "original": "analysis.css",
+      "target": "frontend/observatory/styles/analysis.css",
+      "sha256": "5c6838094cdd0c885dc773693f1a2bf8e7727ab94dd50d430664a5398598bf30"
+    },
+    {
+      "original": "polish.css",
+      "target": "frontend/observatory/styles/polish.css",
+      "sha256": "342d8f0cf51f227cc75e638a0b19e5b967896bf4f4c75bcd54d970db96203079"
+    },
+    {
+      "original": "dialogs.css",
+      "target": "frontend/observatory/styles/dialogs.css",
+      "sha256": "fd3d7b3942b718bdf8d3a70fa29c6200c667bda714b1dba78bfd51d2730b07b6"
+    }
+  ]
+}

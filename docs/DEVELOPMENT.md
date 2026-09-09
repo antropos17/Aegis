@@ -152,98 +152,24 @@ performing file I/O, spawning processes, or writing to disk.
 
 ---
 
-## IPC Data Flow (AEGIS Architecture)
+## Observatory data flow
 
-```
-OS (chokidar + netstat) --> main process
-    --> preload.js (contextBridge) --> window.aegis
-        --> ipc.ts stores (agents, events, stats, network, anomalies, resourceUsage)
-            --> risk.ts (enrichedAgents derived store)
-                --> components
-```
+OS sensors → main process → preload.js → runtime/host.ts → App.svelte and workspace components. The host adapter owns seven telemetry subscriptions, freshness, revision-guarded initial reads and teardown. Settings, Rules and App own the remaining update, rules and theme subscriptions. All 44 invoke and 10 push methods are mapped in [the integration record](../OBSERVATORY-INTEGRATION.md).
 
-### Stream channels (pushed from main)
+The scan batch carries anomalyScoresByInstance. Risk enrichment remains a shared pure computation. Instance identity is never inferred from name or PID. Process commands carry both pid and instanceId and are revalidated in main. Project permission keys persist by agent/cwd/parent context and are deliberately separate from process lifetime IDs.
 
-The 10 push channels subscribed in `preload.js` are listed below. There is no `scan-results` or
-`anomaly-scores` channel — anomaly scores ride inside `scan-batch`.
+## Renderer builds
 
-| Channel | Store | Payload |
-|---------|-------|---------|
-| `scan-batch` | `agents`, `stats`, `resourceUsage`, `anomalies` | `{ agents, stats, resourceUsage, anomalyScores }` — one coalesced payload per scan |
-| `file-access` | `events` | `FileEvent[]` |
-| `stats-update` | `stats` | `StatsObject` |
-| `network-update` | `network` | `NetworkConnection[]` |
-| `token-costs` | `tokenCosts` | `TokenCostRecord[]` |
-| `scan-status` | `scanActive` | `{ scanning: boolean }` |
-| `toggle-theme` | — | consumed directly in `App.svelte`, not via a store |
-| `agent-resource-usage` | `agentResourceUsage` | per-agent CPU/RAM samples keyed by `instanceId` (read by `AgentCard`) |
-| `rules:reloaded` | — | exposed by `preload.js` but **no renderer subscriber** |
-| `updates:status` | `updateStatus` | update availability, download progress and action state |
-
-### Invoke channels (renderer requests main)
-
-Common ones: `get-stats`, `get-resource-usage`, `get-agent-database`, `get-settings`,
-`save-settings`, `get-all-permissions`, `save-agent-permissions`, `analyze-session`,
-`kill-process`, `get-audit-entries-before`. All 44 invoke channels are listed in `src/main/preload.js`; the
-full table with module attribution is in [ARCHITECTURE.md](../ARCHITECTURE.md).
-
-### Browser / demo mode guard
-
-`window.aegis` is `undefined` in plain browser builds. Always guard:
-
-```js
-if (window.aegis) {
-  const data = await window.aegis.getStats();
-}
-```
-
-`ipc.ts` exports `isDemoMode` boolean — components can use it to hide Electron-only UI.
-
----
-
-## Vite Multi-Mode Build
-
-### Mode-aware config pattern
-
-```js
-// vite.config.js
-export default defineConfig(({ mode, command }) => {
-  const isDemo = mode === 'demo';
-  const withDemoEngine = isDemo || command === 'serve';
-  return {
-    define: {
-      // Replaced at build time — tree-shakeable, zero runtime cost
-      'import.meta.env.VITE_DEMO_MODE': JSON.stringify(withDemoEngine ? 'true' : 'false'),
-    },
-    build: {
-      outDir: isDemo ? '../../dist/demo' : '../../dist/renderer',
-    },
-  };
-});
-```
-
-### `VITE_*` env vars
-
-- Only variables prefixed `VITE_` are exposed to the renderer via `import.meta.env`
-- Not available in `preload.js` or `main.js` (CommonJS, not processed by Vite)
-- `import.meta.env.VITE_DEMO_MODE` → string `'true'` or `'false'` (check with `=== 'true'`)
-
-### `base: './'` is required for Electron
-
-Electron loads renderer via `file://` URLs. Absolute paths (`/assets/...`) break. Always
-use `base: './'` so asset paths are relative.
-
----
-
-## Build Commands
+vite.frontend.config.ts defines __FRONTEND_PREVIEW__. The desktop entry fails visibly without a bridge; it never falls back to demo data. Preview imports demo/host.ts and mounts the same App.svelte without calling window.aegis. base './' supports Electron file URLs.
 
 ```bash
-npm run build:renderer # Production renderer -> dist/renderer/
-npm run build:demo     # Static browser demo -> dist/demo/
-npm start              # Build renderer, then launch Electron
+npm run dev                    # Simulated preview, port 8770
+npm run frontend:build:preview # Static preview -> dist/frontend-preview
+npm run build:renderer         # Production -> dist/renderer
+npm start                      # Build production renderer and launch Electron
+npm run frontend:test          # Built-artifact browser checks
+npm run frontend:test:electron # Disposable-profile Electron smoke
 ```
-
-Preview the built demo with `npx vite preview --mode demo --host 127.0.0.1 --port 4174`. The unbuilt `npm run dev` server currently fails to load the dashboard because a shared CommonJS helper is imported as ESM; use the built preview until that is fixed.
 
 For a local installer, run these commands in order:
 
@@ -275,7 +201,7 @@ vi.fn stub — follow that pattern for new tests.
 ## CSS Tokens
 
 All colors and spacing come from M3 design tokens in
-`src/renderer/lib/styles/tokens.css`. Never hardcode hex values.
+`frontend/observatory/styles/theme.css`. Never hardcode hex values.
 
 ```css
 /* GOOD */
@@ -299,7 +225,7 @@ Key token namespaces:
 
 ## Conventions
 
-- **300-line soft limit** per file — a target for NEW files, not an invariant; 37 existing `src/` files already exceed it. Not enforced by the linter
+- **300-line soft limit** per file — a target for NEW files, not an invariant; 27 existing `src/` files already exceed it. Not enforced by the linter
 - **JSDoc on all exported functions**: `@param`, `@returns`, `@since`
 - **Commit prefixes**: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`; see [BRANCHING.md](../BRANCHING.md)
 - **IPC channel names**: `kebab-case`

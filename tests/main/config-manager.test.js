@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -19,6 +19,40 @@ describe('config-manager', () => {
     configManager._setSettingsPathForTest(null);
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  it.each(['settings', 'permissions', 'catalog', 'false-positive'])(
+    'keeps disk and memory unchanged when %s persistence fails',
+    (kind) => {
+      configManager.loadSettings();
+      configManager.saveSettings({ ...configManager.getSettings(), scanIntervalSec: 15 });
+      const before = structuredClone(configManager.getSettings());
+      const diskBefore = fs.readFileSync(settingsPath, 'utf8');
+      const rename = vi.spyOn(fs, 'renameSync').mockImplementationOnce(() => {
+        throw new Error('Disk unavailable');
+      });
+      try {
+        const actions = {
+          settings: () => configManager.saveSettings({ ...before, scanIntervalSec: 20 }),
+          permissions: () =>
+            configManager.saveInstancePermissions(
+              'Claude',
+              null,
+              { filesystem: 'block' },
+              '/project',
+            ),
+          catalog: () => configManager.saveCustomAgents([{ id: 'new' }]),
+          'false-positive': () =>
+            configManager.addFalsePositive({ agentName: 'Claude', pattern: 'x', timestamp: 1 }),
+        };
+        expect(actions[kind]).toThrow('Disk unavailable');
+        expect(configManager.getSettings()).toEqual(before);
+        expect(fs.readFileSync(settingsPath, 'utf8')).toBe(diskBefore);
+        expect(fs.readdirSync(tmpDir)).toEqual(['settings.json']);
+      } finally {
+        rename.mockRestore();
+      }
+    },
+  );
 
   it('loadSettings() returns defaults when no file', () => {
     configManager.loadSettings();

@@ -4,6 +4,10 @@ AEGIS is an Electron desktop app that monitors local AI agents, with a Svelte re
 
 Explicit user instructions take precedence over anything in AGENTS.md or a skill file; if a repository file causes you to pause or leave work unfinished, name the file and quote the line.
 
+## Frontend transition
+
+The desktop and preview share `frontend/observatory/`. Read its `AGENTS.md` and `DESIGN.md` before visual work. `npm start` builds the production entry in `dist/renderer`; `npm run dev` is an explicitly simulated preview. Legacy renderer computations and regression fixtures remain under `src/renderer/lib/`; the old shell, components, fonts and styles have been removed.
+
 ## Project facts
 
 `src/main/` contains 72 main modules: 55 top-level + platform/ 15 + token-adapters/ 2. Platform-specific operations live in `src/main/platform/`. `src/main/preload.js` exposes 44 invoke + 10 push = 54 IPC channels through contextBridge. `src/shared/types/` contains 9 TS files. These counts are derived by `npm run counts:check`.
@@ -15,7 +19,7 @@ Sequence rules are consumed through five scan taps in `src/main/main.js` and `sr
 ## Code conventions
 
 - Main uses CommonJS (`require`/`module.exports`); renderer uses ES modules (`import`/`export`). Main stays JavaScript with JSDoc; new renderer files use TypeScript without `any`.
-- Use Svelte runes (`$state`, `$derived`, `$effect`, `$props`). Keep component CSS scoped and use `var()` with tokens from `src/renderer/lib/styles/tokens.css`.
+- Use Svelte runes (`$state`, `$derived`, `$effect`, `$props`). Keep component CSS scoped and use `var()` with tokens from `frontend/observatory/styles/theme.css`.
 - Exported functions have JSDoc (`@param`, `@returns`, `@since`). Dependency injection uses `init(deps)`; test seams use `_setDepsForTest()` / `_resetForTest()`.
 - Split paths with `/[/\\]/` and use the platform abstraction for OS-specific operations.
 - Aim for 300 lines in new files. Do not split an existing file solely to meet the target; extract when adding to an oversized file.

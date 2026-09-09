@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## Unreleased
+
+- Replace the desktop shell with the shared Observatory Svelte interface: instance radar, workspaces, linked detail history, activity charts, audit, rules, catalog, analysis and settings.
+- Preserve unreliable populations and missing measurements; show failed/degraded sensors and keep process actions tied to stamped identity.
+- Fix same-timestamp audit pagination, custom catalog import persistence, permission draft resets and native folder error reporting.
+- Preserve previous disk and memory settings when persistence fails; propagate permission, catalog and false-positive save failures to the interface.
+- Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
+- Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
+
 ## 0.14.1-alpha (2026-09-07)
 
 ## What's Changed

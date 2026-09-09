@@ -37,6 +37,10 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov'],
       include: [
+        'frontend/observatory/runtime/**/*.ts',
+        'frontend/observatory/components/**/*.svelte',
+        'frontend/observatory/App.svelte',
+        'src/renderer/lib/utils/enrich-agents.ts',
         'src/main/logger.js',
         'src/main/audit-logger.js',
         'src/main/audit-index.js',
@@ -77,6 +81,7 @@ export default defineConfig({
         'src/renderer/lib/stores/toast.ts',
         'src/shared/constants.js',
         'src/shared/skill-path.js',
+        'src/shared/process-request.js',
       ],
     },
   },

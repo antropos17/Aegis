@@ -743,10 +743,18 @@ function _nextDateStr(dateStr) {
  * @param {string} beforeTs - ISO timestamp upper bound (exclusive)
  * @param {number} [limit=100] - Max entries to return (clamped, see above)
  * @param {string[]} [types] - Event types to keep; omitted or unusable → every type
+ * @param {number} [boundaryOffset] Opt in to an inclusive timestamp and skip this many matching boundary rows (0..1000000). Omitted retains the exclusive legacy contract.
  * @returns {Object[]} Entries sorted oldest-first
  * @since v0.5.0
  */
-function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT, types) {
+function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT, types, boundaryOffset) {
+  if (
+    boundaryOffset !== undefined &&
+    (!Number.isSafeInteger(boundaryOffset) || boundaryOffset < 0 || boundaryOffset > 1000000)
+  ) {
+    throw new RangeError('Invalid audit boundary offset');
+  }
+  let remainingAtBoundary = boundaryOffset ?? 0;
   if (typeof beforeTs !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(beforeTs)) {
     const got =
       typeof beforeTs === 'string'
@@ -763,7 +771,8 @@ function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT, types) {
   flush();
   if (!_logDir) return [];
   try {
-    if (auditIndex.isReady()) return auditIndex.queryBefore(beforeTs, limit, typeFilter);
+    if (auditIndex.isReady())
+      return auditIndex.queryBefore(beforeTs, limit, typeFilter, boundaryOffset);
   } catch (_) {
     // The index records its failure without raw audit data; canon remains readable.
   }
@@ -791,10 +800,15 @@ function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT, types) {
           // line to replay the chain.
           if (
             entry.timestamp &&
-            entry.timestamp < beforeTs &&
+            (entry.timestamp < beforeTs ||
+              (boundaryOffset !== undefined && entry.timestamp === beforeTs)) &&
             entry.type !== dropTracker.MARKER_TYPE &&
             (typeFilter === null || typeFilter.has(entry.type))
           ) {
+            if (entry.timestamp === beforeTs && remainingAtBoundary > 0) {
+              remainingAtBoundary--;
+              return;
+            }
             // Normalized so the UI sees one field set regardless of which app version
             // wrote the line. exportAll() deliberately does NOT do this: an export is
             // forensic and must show exactly what is on disk.

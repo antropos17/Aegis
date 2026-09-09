@@ -1,0 +1,34 @@
+[
+  {
+    "file": "claude.png",
+    "url": "https://cdn.sanity.io/images/4zrzovbb/claude-com/369b14e80ac643cc09dccd581ccb91f82b559190-32x32.png",
+    "sha256": "95f9d0a9eee12535f50849787f7caf39effa06de41cecfb15462b799b32b8701"
+  },
+  {
+    "file": "codex.png",
+    "url": "https://ollama.com/public/codex-app.png",
+    "sha256": "51ccb56e6dcd8c5fb048c087267206773b24794154d2592440c3909cda0cd2f9"
+  },
+  {
+    "file": "cursor.png",
+    "url": "https://cursor.com/marketing-static/icon-192x192-light.png",
+    "sha256": "267649be4d2a26dea632bb6cc1f7a400daa117e5cd3335a140ba5cb0148aaedc"
+  },
+  {
+    "file": "ollama.png",
+    "url": "https://ollama.com/public/ollama.png",
+    "sha256": "5c5528504c307d34af504f39bc4e7007d2f6f31ee00dab699cc91584d1af8aca"
+  },
+  {
+    "file": "cursor-light.svg",
+    "url": "https://ptht05hbb1ssoooe.public.blob.vercel-storage.com/assets/brand/cursor-brand-assets.zip",
+    "archivePath": "General Logos/Cube/SVG/CUBE_2D_LIGHT.svg",
+    "sha256": "c483c02f78eb2619778fdd959e72a9adfac4844854472cd2653d4cbfd60e4d71"
+  },
+  {
+    "file": "cursor-dark.svg",
+    "url": "https://ptht05hbb1ssoooe.public.blob.vercel-storage.com/assets/brand/cursor-brand-assets.zip",
+    "archivePath": "General Logos/Cube/SVG/CUBE_2D_DARK.svg",
+    "sha256": "cd0e3e5d8991a4cdd4577f8896cd063105207665165c73e25a1ff918dd367eb7"
+  }
+]

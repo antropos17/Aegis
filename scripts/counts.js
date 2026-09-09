@@ -384,9 +384,10 @@ const COUNTERS = [
   },
   {
     key: 'renderer.components',
-    label: 'Svelte components under lib/components',
-    value: trackedUnder('src/renderer/lib/components', (p) => p.endsWith('.svelte')).length,
-    command: "git ls-files -z src/renderer/lib/components | tr '\\0' '\\n' | grep -c '\\.svelte$'",
+    label: 'Svelte components under frontend/observatory/components',
+    value: trackedUnder('frontend/observatory/components', (p) => p.endsWith('.svelte')).length,
+    command:
+      "git ls-files -z frontend/observatory/components | tr '\\0' '\\n' | grep -c '\\.svelte$'",
   },
   {
     key: 'renderer.stores',

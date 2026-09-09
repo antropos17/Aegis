@@ -36,43 +36,14 @@ Core modules:
 - exports.js — JSON/CSV/HTML report export
 - tray-icon.js — system tray with procedural icon
 
-## Renderer (src/renderer/) — Svelte 5 + Vite 7
-50 Svelte components, 16 stores, 21 utils, scoped CSS + tokens.css/global.css
+## Renderer (frontend/observatory/) — Svelte 5 + Vite 7
+17 Svelte components, 16 stores, 22 utils. Component count refers to frontend/observatory/components; retained store/utility counts refer to src/renderer/lib.
 
-### Components (src/renderer/lib/components/)
-- App.svelte — root layout, tab routing, settings modal
-- Header.svelte / Footer.svelte — top bar stats, bottom bar metrics
-- TabBar.svelte — tab navigation pills
-- ShieldTab.svelte — bento grid: radar + agents + timeline + feed
-- Radar.svelte — canvas radar with agent dots, sweep animation
-- AgentPanel.svelte / AgentCard.svelte / AgentCardDetails.svelte — agent list + cards
-- ActivityTab.svelte / ActivityFeed.svelte / GroupedFeed.svelte / FeedFilters.svelte — event feed
-- NetworkPanel.svelte — network connections + domain classification
-- Timeline.svelte / TimelineCanvas.svelte / TimelineControls.svelte — event timeline
-- RulesTab.svelte / ProtectionPresets.svelte / PermissionsGrid.svelte — rules + permissions
-- AgentDatabase.svelte / AgentDatabaseCrud.svelte — agent DB management
-- ReportsTab.svelte / Reports.svelte / AuditLog.svelte / ThreatAnalysis.svelte — reports
-- Settings.svelte / SettingsAppearance.svelte / SettingsMonitoring.svelte / OptionsPanel.svelte
-- Toast.svelte / DemoBanner.svelte — notifications + demo mode
+App.svelte owns workspace tabs, history and the host connection. Monitoring shows stamped instances; Events and ActivityChart show retained evidence; Details and EntityLinks connect observations; Rules, Catalog, Analysis, Reports, Statistics and Settings expose host actions. SensorStatus renders effective sensor IDs; Notifications tracks anomaly crossings.
 
-### Stores (src/renderer/lib/stores/)
-- ipc.js — IPC bridge store (events, agents, network, stats)
-- risk.js — derived enriched agents with risk scores
-- theme.js — dark/light theme toggle
-- toast.js — toast notification queue
-- demo-data.js / demo-pools.js — demo mode data (there is no demo-risk.js)
+runtime/host.ts owns seven telemetry subscriptions, guarded seeds, outage retention and freshness. Shared enrich-agents.ts preserves risk scoring and instance joins. Legacy stores and utility regression fixtures remain under src/renderer/lib, outside the packaged source list; the old UI, fonts and styles are removed.
 
-### Utils (src/renderer/lib/utils/)
-- format-bytes.ts — human-readable byte formatting
-- sparkline-utils.ts, risk-ring-utils.ts, trust-badge-utils.ts — component math
-- agent-stats-utils.ts, agent-crud-utils.ts — agent data helpers
-- ring-buffer.ts, tab-transitions.ts, timeline-utils.ts — data structures + animation
-- grouped-feed-utils.ts — feed grouping logic
-- threat-report.js, risk-scoring.js — legacy JS (to convert)
-
-### Styles (src/renderer/lib/styles/)
-- tokens.css — M3 design tokens, light + dark themes
-- global.css — base styles, scrollbar, body gradients
+styles/theme.css contains neutral dark/light/high-contrast tokens. layout.css and radar.css provide shared layout. Preview uses demo/host.ts and the same components, with no real preload calls. Production excludes these fixtures.
 
 ## Shared (src/shared/)
 - constants.js — ignore patterns, editor lists, AGENT_CONFIG_PATHS
@@ -84,5 +55,5 @@ Core modules:
 - Main process: CommonJS (require/module.exports) with init() dependency injection
 - Renderer: Svelte 5 runes ($state, $derived, $effect), ES modules via Vite
 - IPC channels: kebab-case (scan-processes, file-access, network-update)
-- CSS: scoped in .svelte files, var() from tokens.css, glassmorphism design
+- CSS: scoped in .svelte files, var() from frontend/observatory/styles/theme.css, neutral surfaces
 - Build: Vite compiles Svelte → dist/renderer/, Electron loads from dist/

@@ -67,7 +67,7 @@ Merging the Release PR creates the version bump, changelog and GitHub Release; t
 
 ### CSS
 
-- Scoped styles inside `.svelte` components + 2 global files: `tokens.css` (M3 design tokens) and `global.css` (base styles)
+- Scoped styles inside `frontend/observatory/components/*.svelte`; neutral tokens in `frontend/observatory/styles/theme.css` and shared layout in `styles/layout.css`
 - Always use CSS custom properties from `tokens.css` — never hardcode colors
 - Glassmorphism pattern with `backdrop-filter` blur and M3 design tokens
 - Both light and dark mode must work — test with the theme toggle

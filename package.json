@@ -5,18 +5,18 @@
   "main": "src/main/main.js",
   "scripts": {
     "start": "npm run build:renderer && node scripts/launch.js",
-    "dev": "vite",
-    "build:renderer": "vite build",
-    "build:demo": "vite build --mode demo",
+    "dev": "vite --config vite.frontend.config.ts --mode preview",
+    "build:renderer": "vite build --config vite.frontend.config.ts",
+    "build:demo": "vite build --config vite.frontend.config.ts --mode preview",
     "build": "electron-builder --publish never",
     "dist": "electron-builder --publish never",
-    "format": "prettier --write 'src/**/*.{js,ts,svelte,css,html}' 'bench/**/*.{js,json}' '*.{js,ts,json}'",
-    "format:check": "prettier --check 'src/**/*.{js,ts,svelte,css,html}' 'bench/**/*.{js,json}' '*.{js,ts,json}'",
-    "lint": "npx eslint src/ tests/ scripts/ bench/",
-    "typecheck": "tsc --noEmit -p tsconfig.main.json && tsc --noEmit -p tsconfig.renderer.json",
+    "format": "prettier --write 'src/**/*.{js,ts,svelte,css,html}' 'bench/**/*.{js,json}' '*.{js,ts,json}' 'frontend/observatory/**/*.{js,ts,svelte,css,html,json,mjs}'",
+    "format:check": "prettier --check 'src/**/*.{js,ts,svelte,css,html}' 'bench/**/*.{js,json}' '*.{js,ts,json}' 'frontend/observatory/**/*.{js,ts,svelte,css,html,json,mjs}'",
+    "lint": "npx eslint src/ tests/ scripts/ bench/ frontend/observatory/",
+    "typecheck": "tsc --noEmit -p tsconfig.main.json && tsc --noEmit -p tsconfig.renderer.json && tsc --noEmit -p frontend/observatory/tsconfig.json",
     "typecheck:main": "tsc --noEmit -p tsconfig.main.json",
     "typecheck:renderer": "tsc --noEmit -p tsconfig.renderer.json",
-    "typecheck:svelte": "svelte-check --tsconfig ./tsconfig.renderer.json",
+    "typecheck:svelte": "svelte-check --tsconfig ./tsconfig.renderer.json && svelte-check --tsconfig frontend/observatory/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -29,7 +29,13 @@
     "bench:s1": "node bench/run.js --scenario S1-agent-lifecycle --arm A",
     "bench:score": "node bench/score.js",
     "bench:replay": "node bench/trace/bench-replay.js",
-    "prepare": "husky"
+    "prepare": "husky",
+    "frontend:dev": "vite --config vite.frontend.config.ts --mode preview",
+    "frontend:build": "vite build --config vite.frontend.config.ts",
+    "frontend:build:preview": "vite build --config vite.frontend.config.ts --mode preview",
+    "frontend:check": "tsc --noEmit -p frontend/observatory/tsconfig.json && svelte-check --tsconfig frontend/observatory/tsconfig.json",
+    "frontend:test": "node frontend/observatory/tests/check-build.mjs",
+    "frontend:test:electron": "node frontend/observatory/tests/electron-smoke.mjs"
   },
   "engines": {
     "node": "24.x"
@@ -37,12 +43,13 @@
   "lint-staged": {
     "src/**/*.{js,ts,svelte,css,html}": "prettier --write",
     "bench/**/*.{js,json}": "prettier --write",
-    "./*.{js,ts,json}": "prettier --write"
+    "./*.{js,ts,json}": "prettier --write",
+    "frontend/observatory/**/*.{js,ts,svelte,css,html,json,mjs}": "prettier --write"
   },
   "build": {
     "appId": "com.aegis.oversight",
     "productName": "AEGIS - AI Monitoring & Threat Detection",
-    "copyright": "Copyright © 2026 AEGIS Contributors",
+    "copyright": "Copyright \u00a9 2026 AEGIS Contributors",
     "beforeBuild": "scripts/electron-builder-before-build.js",
     "win": {
       "target": "nsis",
@@ -76,7 +83,8 @@
     },
     "files": [
       "keys/aegis-release-pubkey.pub",
-      "src/**/*",
+      "src/main/**/*",
+      "src/shared/**/*",
       "dist/renderer/**/*",
       "rules/**/*",
       "assets/icon.png",

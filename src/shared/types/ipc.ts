@@ -43,15 +43,19 @@ export type IpcInvokeChannel =
   | 'resume-process'
   | 'get-false-positives'
   | 'add-false-positive'
-  | 'open-external-url';
+  | 'open-external-url'
+  | 'get-audit-stats'
+  | 'get-rules'
+  | 'reload-rules'
+  | 'blocklist-add'
+  | 'blocklist-remove'
+  | 'blocklist-list';
 
 /**
  * IPC event channel names (main -> renderer, push).
  *
  * Documentation, not enforcement: `sendToRenderer` is called from main-process `.js`
- * under `checkJs: false`, so nothing is typechecked against this union. `token-costs`
- * predates it and is still missing — listed here so its absence reads as a known gap
- * rather than as proof the channel does not exist.
+ * under `checkJs: false`, so this union documents the preload channels without enforcing main-process sends.
  */
 export type IpcEventChannel =
   | 'updates:status'
@@ -62,7 +66,9 @@ export type IpcEventChannel =
   | 'scan-batch'
   | 'scan-status'
   /** Per-agent CPU/RAM/GPU records, keyed by `instanceId`. NOT AEGIS's own load. */
-  | 'agent-resource-usage';
+  | 'agent-resource-usage'
+  | 'token-costs'
+  | 'rules:reloaded';
 
 /** Payload for save-instance-permissions invoke */
 export interface SaveInstancePermissionsPayload {

@@ -159,12 +159,13 @@ interface AegisIpcBridge {
     beforeTs: string,
     limit: number,
     types?: readonly string[],
+    boundaryOffset?: number,
   ): Promise<Record<string, unknown>[]>;
   getResourceUsage(): Promise<MonitorResourceUsage>;
   getFalsePositives(): Promise<FalsePositiveEntry[]>;
-  killProcess(pid: number): Promise<ProcessActionResult>;
-  suspendProcess(pid: number): Promise<ProcessActionResult>;
-  resumeProcess(pid: number): Promise<ProcessActionResult>;
+  killProcess(pid: number | { pid: number; instanceId: string }): Promise<ProcessActionResult>;
+  suspendProcess(pid: number | { pid: number; instanceId: string }): Promise<ProcessActionResult>;
+  resumeProcess(pid: number | { pid: number; instanceId: string }): Promise<ProcessActionResult>;
   blocklistAdd(entry: {
     signature: string;
     pid?: number | null;
