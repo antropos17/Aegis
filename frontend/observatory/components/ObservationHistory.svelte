@@ -2,17 +2,39 @@
   import type { RecordData } from '../runtime/host';
   import { describeObservation, observationTime } from '../../../src/shared/observation-display.js';
   import ObservationResource from './ObservationResource.svelte';
+  import Icon from './Icon.svelte';
   let {
     rows,
     navigate,
     limit = $bindable(20),
+    query = $bindable(''),
   }: {
     rows: RecordData[];
     navigate: (_title: string, _row: RecordData) => Promise<void>;
     limit?: number;
+    query?: string;
   } = $props();
+  let matching = $derived(
+    rows.filter((row) => {
+      const info = describeObservation(row);
+      return [
+        info.path,
+        info.resource,
+        info.actor,
+        info.context,
+        info.attribution,
+        row.pid,
+        row.action,
+        row.type,
+        row.state,
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(query.toLowerCase());
+    }),
+  );
   let sorted = $derived(
-    [...rows].sort((a, b) => observationTime(b.timestamp) - observationTime(a.timestamp)),
+    [...matching].sort((a, b) => observationTime(b.timestamp) - observationTime(a.timestamp)),
   );
 </script>
 
@@ -21,7 +43,15 @@
     <h3>Recorded observations</h3>
     <span>{rows.length}</span>
   </div>
-  <p class="entity-note">Each record keeps its own time, process and evidence.</p>
+  <label class="detail-search"
+    ><Icon name="search" /><input
+      aria-label="Find a record"
+      type="search"
+      placeholder="Resource, action, PID or attribution"
+      bind:value={query}
+    /></label
+  >
+  <p class="entity-note">{matching.length} of {rows.length} records · newest first</p>
   {#each sorted.slice(0, limit) as row, i (i)}{@const info = describeObservation(row)}
     <button
       class="recent-event"
@@ -41,9 +71,11 @@
         ></span
       >
     </button>
-  {:else}<p class="entity-note">No recorded observations.</p>{/each}
+  {:else}<p class="entity-note">
+      {rows.length ? 'No records match this search.' : 'No recorded observations.'}
+    </p>{/each}
   {#if sorted.length > limit}<button class="button" onclick={() => (limit += 20)}
-      >Show 20 more</button
+      >Show {Math.min(20, sorted.length - limit)} more</button
     >{/if}
 </div>
 

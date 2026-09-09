@@ -4,6 +4,7 @@ import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, sep, extname } from 'node:path';
 import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
+import { checkComfort } from './comfort-check.mjs';
 import { checkDetails } from './detail-check.mjs';
 import { checkMotion } from './motion-check.mjs';
 import { checkResourceLayers } from './resource-layer-check.mjs';
@@ -30,6 +31,7 @@ assert.deepEqual(
     'styles/desktop.css',
     'styles/coherence.css',
     'styles/detail-layout.css',
+    'styles/comfort.css',
   ],
   'approved cascade order',
 );
@@ -377,6 +379,7 @@ try {
   await page.close();
   await checkResourceLayers(browser, base + '/desktop/', out);
   await checkDetails(browser, base + '/desktop/', out);
+  await checkComfort(browser, base + '/preview/', out);
   const desktop = await browser.newPage();
   desktop.on('pageerror', (e) => errors.push(e.message));
   await desktop.goto(base + '/desktop/');

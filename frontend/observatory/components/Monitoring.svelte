@@ -16,11 +16,13 @@
     selected = $bindable(null),
     inspect,
     mode = 'overview',
+    navigate,
   }: {
     telemetry: Telemetry;
     selected: string | null;
     inspect: (title: string, row: RecordData) => void;
     mode?: string;
+    navigate?: (_view: string) => void | Promise<void>;
   } = $props();
   let agents = $derived(instances(telemetry)),
     groups = $derived(radarGroups(agents));
@@ -41,14 +43,14 @@
 
 <div hidden={mode !== 'overview'}>
   <div class="summary monitoring-summary">
-    <div class="summary-stat">
+    <button class="summary-stat" onclick={() => navigate?.('agents')}>
       <span>Agents</span><strong
         >{telemetry.ready ? groups.length : '—'}<small
           >{telemetry.stale ? 'last seen' : 'online'}</small
         ></strong
       >
       <p>{agents.length} processes in snapshot</p>
-    </div>
+    </button>
     <div class="summary-stat">
       <span>Average risk</span><strong
         >{groups.length
@@ -68,10 +70,10 @@
       ><span>Sensitive events</span><strong>{String(telemetry.stats.aiSensitive ?? '—')}</strong>
       <p>File events · session</p></button
     >
-    <div class="summary-stat">
+    <button class="summary-stat" onclick={() => navigate?.('network')}>
       <span>Connections</span><strong>{telemetry.ready ? telemetry.network.length : '—'}</strong>
       <p>{telemetry.network.filter((n) => n.verdict === 'unknown').length} unverified endpoints</p>
-    </div>
+    </button>
     <div class="summary-stat">
       <span>Tokens</span><strong
         >{tokenTotal === null
@@ -90,7 +92,12 @@
   <div class="overview-bottom">
     <Timeline {telemetry} {inspect} />
     <section class="panel recent-panel">
-      <div class="panel-head"><h2><Icon name="activity" />Recent events</h2></div>
+      <div class="panel-head">
+        <h2><Icon name="activity" />Recent events</h2>
+        {#if navigate}<button class="button" onclick={() => navigate?.('events')}
+            >All events<Icon name="chevron" /></button
+          >{/if}
+      </div>
       {#each groupObservations(telemetry.events as unknown as RecordData[]).slice(0, 3) as group (group.key)}
         <button
           class="recent-event"

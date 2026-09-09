@@ -9,10 +9,18 @@
   } from '../runtime/radar';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
+  import SectionTabs from './SectionTabs.svelte';
   let {
     telemetry,
     inspect,
   }: { telemetry: Telemetry; inspect: (title: string, row: RecordData) => void } = $props();
+  const panelId = $props.id();
+  let section = $state('overview');
+  const sections = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'resources', label: 'Resources' },
+    { id: 'activity', label: 'Activity' },
+  ];
   let query = $state(''),
     sort = $state('risk'),
     descending = $state(true);
@@ -62,14 +70,32 @@
   >
 </div>
 <section class="panel">
-  <div class="table-wrap">
+  <SectionTabs
+    tabs={sections}
+    selected={section}
+    change={(id) => {
+      section = id;
+    }}
+    prefix={panelId}
+    label="Agent table sections"
+  />
+  <div
+    class="table-wrap"
+    role="tabpanel"
+    tabindex="0"
+    id={panelId + '-panel-' + section}
+    aria-labelledby={panelId + '-tab-' + section}
+  >
     <table>
       <thead
         ><tr
-          ><th>Agent</th><th>Status</th><th>Risk</th><th>CPU</th><th>RAM</th><th>Files</th><th
-            >Network</th
-          ><th>Tokens</th><th>Cost</th><th>Latest event</th><th></th></tr
-        ></thead
+          ><th>Agent</th>
+          {#if section === 'overview'}<th>Status</th><th>Risk</th>{/if}
+          {#if section !== 'activity'}<th>CPU</th><th>RAM</th>{/if}
+          {#if section === 'resources'}<th>Tokens</th><th>Cost</th>{/if}
+          {#if section === 'activity'}<th>Files</th><th>Network</th>{/if}
+          {#if section !== 'resources'}<th>Latest event</th>{/if}<th>Details</th>
+        </tr></thead
       ><tbody>
         {#each agents as a (a.key)}<tr class="agent-group-row"
             ><td
@@ -79,25 +105,29 @@
                 >{a.members.length}
                 {a.members.length === 1 ? 'process' : 'processes'}<Icon name="chevron" /></button
               ></td
-            ><td><span class="badge low">{telemetry.stale ? 'Last snapshot' : 'Active'}</span></td
-            ><td
-              ><span
-                class={`risk-value ${riskBand(a.risk)}`}
-                title="Highest risk among this agent's processes">{a.risk}<small>/100</small></span
-              ></td
-            ><td class="mono">{a.cpu === null ? '—' : a.cpu.toFixed(1) + '%'}</td><td class="mono"
-              >{a.memMb === null ? '—' : a.memMb.toFixed(1) + ' MB'}</td
-            ><td>{a.files}</td><td>{a.network}</td><td>{a.tokens?.toLocaleString() ?? '—'}</td><td
-              >{a.cost === null ? '—' : '$' + a.cost.toFixed(2)}</td
-            ><td class="mono"
-              >{a.latest === null ? '—' : new Date(a.latest).toLocaleTimeString()}</td
-            ><td
+            >{#if section === 'overview'}<td
+                ><span class="badge low">{telemetry.stale ? 'Last snapshot' : 'Active'}</span></td
+              ><td
+                ><span
+                  class={`risk-value ${riskBand(a.risk)}`}
+                  title="Highest risk among this agent's processes"
+                  >{a.risk}<small>/100</small></span
+                ></td
+              >{/if}{#if section !== 'activity'}<td class="mono"
+                >{a.cpu === null ? '—' : a.cpu.toFixed(1) + '%'}</td
+              ><td class="mono">{a.memMb === null ? '—' : a.memMb.toFixed(1) + ' MB'}</td
+              >{/if}{#if section === 'activity'}<td>{a.files}</td><td>{a.network}</td
+              >{/if}{#if section === 'resources'}<td>{a.tokens?.toLocaleString() ?? '—'}</td><td
+                >{a.cost === null ? '—' : '$' + a.cost.toFixed(2)}</td
+              >{/if}{#if section !== 'resources'}<td class="mono"
+                >{a.latest === null ? '—' : new Date(a.latest).toLocaleTimeString()}</td
+              >{/if}<td
               ><button class="text-button" onclick={() => inspect(a.name, groupRecord(a))}
                 >Open<Icon name="chevron" /></button
               ></td
             ></tr
           >{:else}<tr
-            ><td colspan="11"
+            ><td colspan={section === 'activity' ? 5 : 7}
               >{telemetry.ready ? 'No matching agents.' : 'Waiting for scan data.'}</td
             ></tr
           >{/each}

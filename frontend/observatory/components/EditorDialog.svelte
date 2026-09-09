@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, type Snippet } from 'svelte';
+  import { onMount, tick, untrack, type Snippet } from 'svelte';
   import Icon from './Icon.svelte';
   import SectionTabs from './SectionTabs.svelte';
   import type { DetailTab } from '../runtime/detail-model';
@@ -24,6 +24,18 @@
   let dialog: HTMLDialogElement;
   let heading: HTMLHeadingElement;
   let body: HTMLDivElement;
+  const scroll: Record<string, number> = {};
+  let previous = '';
+  $effect(() => {
+    const next = selected;
+    untrack(() => {
+      if (previous && body) scroll[previous] = body.scrollTop;
+      previous = next;
+    });
+    void tick().then(() => {
+      if (body && selected === next) body.scrollTop = scroll[next] ?? 0;
+    });
+  });
   onMount(() => {
     const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     dialog.showModal();
@@ -52,7 +64,6 @@
     label={caption + ' sections'}
     change={(tab) => {
       selected = tab;
-      body.scrollTop = 0;
     }}
   />
   <div class="editor-body" bind:this={body}>

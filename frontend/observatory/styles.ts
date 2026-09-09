@@ -15,3 +15,5 @@ import './styles/feedback.css';
 import './styles/desktop.css';
 import './styles/coherence.css';
 import './styles/detail-layout.css';
+
+import './styles/comfort.css';

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import {
     confirmed,
     invoke,
@@ -36,6 +36,20 @@
   let draft = $state<Record<string, string>>({});
   let error = $state('');
   let loaded = $state(false);
+  let ruleQuery = $state('');
+  let activeKey = '';
+  let draftBaseline = $state('');
+  const drafts: Record<string, Record<string, string>> = {};
+  let dirty = $derived(loaded && JSON.stringify(draft) !== draftBaseline);
+  let filteredRules = $derived(
+    rules.filter((rule) =>
+      [rule.id, rule.name, rule.reason, rule.category].some((value) =>
+        String(value ?? '')
+          .toLowerCase()
+          .includes(ruleQuery.trim().toLowerCase()),
+      ),
+    ),
+  );
   let alive = true;
   let revision = 0;
   const categories = ['filesystem', 'sensitive', 'network', 'terminal', 'clipboard', 'screen'];
@@ -45,6 +59,11 @@
     balanced: ['monitor', 'monitor', 'monitor', 'monitor', 'monitor', 'monitor'],
     developer: ['allow', 'monitor', 'allow', 'allow', 'allow', 'allow'],
   };
+  let selectedProfile = $derived(
+    Object.keys(presets).find((name) =>
+      categories.every((category, index) => draft[category] === presets[name][index]),
+    ),
+  );
   let agents = $derived(instances(telemetry));
   let options = $derived(
     scope === 'agent'
@@ -67,8 +86,20 @@
     if (loaded && !target && options.length) target = options[0].key;
   });
   $effect(() => {
+    const key = scope + ':' + (contextKey ?? target);
     const current = record(contextKey ? permissions[contextKey] : undefined);
-    draft = Object.fromEntries(categories.map((cat) => [cat, String(current[cat] ?? 'monitor')]));
+    const next = Object.fromEntries(
+      categories.map((cat) => [cat, String(current[cat] ?? 'monitor')]),
+    );
+    untrack(() => {
+      if (activeKey) {
+        if (JSON.stringify(draft) !== draftBaseline) drafts[activeKey] = { ...draft };
+        else delete drafts[activeKey];
+      }
+      activeKey = key;
+      draft = { ...(drafts[key] ?? next) };
+      draftBaseline = JSON.stringify(next);
+    });
   });
   async function load() {
     const ticket = ++revision;
@@ -99,6 +130,9 @@
   });
   async function save() {
     if (!target) throw new Error('Select an agent or instance');
+    const savingKey = activeKey;
+    const savingDraft = { ...draft };
+    const savingTarget = target;
     if (scope === 'instance') {
       const live = agents.find((a) => a.instanceId === target);
       if (!live || telemetry.stale) throw new Error('Instance is no longer reliably observed');
@@ -107,7 +141,7 @@
           agentName: live.name,
           parentEditor: live.parentEditor,
           cwd: live.cwd,
-          permissions: { ...draft },
+          permissions: savingDraft,
         }),
       );
     } else {
@@ -117,10 +151,13 @@
         await invoke(host, 'saveAgentPermissions', {
           ...record(fresh.permissions),
           ...record(fresh.instancePermissions),
-          [target]: { ...draft },
+          [savingTarget]: savingDraft,
         }),
       );
     }
+    if (JSON.stringify(drafts[savingKey]) === JSON.stringify(savingDraft)) delete drafts[savingKey];
+    if (activeKey === savingKey && JSON.stringify(draft) === JSON.stringify(savingDraft))
+      draftBaseline = JSON.stringify(savingDraft);
     await load();
   }
 </script>
@@ -133,27 +170,14 @@
   >
 </div>
 <div hidden={section !== 'permissions'}>
-  <p class="notice">
-    <Icon name="shield" />Profiles control monitoring responses. Policy labels do not establish that
-    an action was blocked.
-  </p>
+  <details class="policy-explanation">
+    <summary>About monitoring permissions</summary>
+    <p>
+      Profiles control monitoring responses. Policy labels do not establish that an action was
+      blocked.
+    </p>
+  </details>
   {#if error}<p role="alert">{error}</p>{/if}
-  <div class="preset-grid">
-    {#each Object.entries(presets) as [name, values] (name)}<button
-        class="preset"
-        aria-label={name}
-        data-id={name}
-        disabled={!target}
-        aria-pressed={!!target && categories.every((cat, i) => draft[cat] === values[i])}
-        onclick={() => (draft = Object.fromEntries(categories.map((cat, i) => [cat, values[i]])))}
-        ><span class="preset-heading"
-          ><Icon name={profiles[name][0]} /><strong>{name}</strong><Icon
-            name="check"
-            class="preset-check"
-          /></span
-        ><small>{profiles[name][1]}</small></button
-      >{/each}
-  </div>
   <div class="filterbar target-toolbar">
     <label
       >Agent <AgentLogo name={scope === 'agent' ? target : (chosen?.name ?? '')} size={22} /><select
@@ -173,20 +197,28 @@
     ><Action action={load}>Refresh</Action>
   </div>
   <section class="panel">
-    <div class="panel-head">
-      <div>
-        <h2>
-          <AgentLogo name={scope === 'agent' ? target : (chosen?.name ?? '')} />{scope === 'agent'
-            ? target || 'Select an agent'
-            : chosen?.name || 'Select an instance'}
-        </h2>
-        <p>
-          {scope === 'agent'
-            ? 'Rules by agent name'
-            : 'Rules by agent, working directory and parent editor'}
-        </p>
-      </div>
+    <div class="preset-grid">
+      {#each Object.entries(presets) as [name, values] (name)}<button
+          class="preset"
+          aria-label={name}
+          title={profiles[name][1]}
+          data-id={name}
+          disabled={!target}
+          aria-pressed={!!target && categories.every((cat, i) => draft[cat] === values[i])}
+          onclick={() => (draft = Object.fromEntries(categories.map((cat, i) => [cat, values[i]])))}
+          ><span class="preset-heading"
+            ><Icon name={profiles[name][0]} /><strong>{name}</strong><Icon
+              name="check"
+              class="preset-check"
+            /></span
+          ><small>{profiles[name][1]}</small></button
+        >{/each}
     </div>
+    <p class="preset-caption">
+      {selectedProfile
+        ? profiles[selectedProfile][1]
+        : 'Custom permissions · adjust individual categories below'}
+    </p>
     {#each categories as category (category)}
       <div class="permission-row">
         <div class="permission-identity">
@@ -203,14 +235,34 @@
         </select>
       </div>
     {/each}
-    <div class="toolbar inset">
-      <Action disabled={!loaded || !target} action={save}>Save permissions</Action><Action
+    <div class="toolbar inset permission-save">
+      <span role="status" class="draft-status"
+        >{dirty ? 'Unsaved permissions' : 'Permissions saved'}</span
+      >
+      <Action disabled={!loaded || !target || !dirty} action={save}>Save permissions</Action><Action
+        disabled={!dirty}
+        action={async () => {
+          delete drafts[activeKey];
+          const current = record(contextKey ? permissions[contextKey] : undefined);
+          draft = Object.fromEntries(
+            categories.map((cat) => [cat, String(current[cat] ?? 'monitor')]),
+          );
+          draftBaseline = JSON.stringify(draft);
+        }}>Discard changes</Action
+      >
+    </div>
+    <details class="permission-reset">
+      <summary>Restore default policy</summary>
+      <p>This restores permissions for every agent and project.</p>
+      <Action
         action={async () => {
           confirmed(await invoke(host, 'resetPermissionsToDefaults'));
+          for (const key of Object.keys(drafts)) delete drafts[key];
+          draftBaseline = JSON.stringify(draft);
           await load();
         }}>Reset all to defaults</Action
       >
-    </div>
+    </details>
   </section>
   <p class="policy-note">
     Project overrides persist by agent, working directory and parent editor. Instances sharing that
@@ -227,15 +279,29 @@
       }}>Reload rules</Action
     >
   </div>
+  <div class="filterbar rules-filter">
+    <label class="search-field"
+      ><Icon name="search" /><input
+        type="search"
+        aria-label="Search detection rules"
+        bind:value={ruleQuery}
+        placeholder="Name, category or rule ID…"
+      /></label
+    ><span class="muted">{filteredRules.length} of {rules.length} rules</span>
+  </div>
   <div class="table-scroll">
     <table>
       <thead><tr><th>ID</th><th>Name</th><th>Category</th><th>Risk</th><th>State</th></tr></thead
       ><tbody
-        >{#each rules as rule (String(rule.id))}<tr
+        >{#each filteredRules as rule (String(rule.id))}<tr
             ><td>{String(rule.id)}</td><td>{String(rule.name ?? rule.reason ?? '')}</td><td
               >{String(rule.category ?? '')}</td
             ><td>{String(rule.risk ?? '')}</td><td
               >{rule.enabled === false ? 'Disabled' : 'Enabled'}</td
+            ></tr
+          >{:else}<tr
+            ><td colspan="5" class="empty-rules"
+              >{ruleQuery ? 'No rules match this search.' : 'No detection rules loaded.'}</td
             ></tr
           >{/each}</tbody
       >
@@ -244,6 +310,111 @@
 </section>
 
 <style>
+  .policy-explanation {
+    margin: 10px 0;
+    color: var(--muted);
+    font-size: calc(12px * var(--ui-scale));
+  }
+  .policy-explanation summary {
+    cursor: pointer;
+  }
+  .policy-explanation p {
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+  .preset-caption {
+    margin: 0;
+    padding: 0 18px 14px;
+    color: var(--muted);
+    font-size: calc(12px * var(--ui-scale));
+  }
+  .preset {
+    padding: 10px;
+  }
+  .preset small {
+    display: none;
+  }
+  .preset-heading {
+    gap: 6px;
+  }
+  .preset strong {
+    font-size: calc(11px * var(--ui-scale));
+  }
+  .preset-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 16px 18px;
+    margin: 0;
+  }
+  .permission-save {
+    position: sticky;
+    bottom: 0;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    z-index: 1;
+    flex-wrap: wrap;
+  }
+  .draft-status {
+    margin-right: auto;
+    color: var(--muted);
+    font-size: calc(12px * var(--ui-scale));
+  }
+  .permission-reset {
+    padding: 16px 18px;
+    border-top: 1px solid var(--border);
+    font-size: calc(12px * var(--ui-scale));
+  }
+  .permission-reset summary {
+    cursor: pointer;
+    color: var(--muted);
+  }
+  .permission-reset p {
+    margin: 12px 0;
+    color: var(--muted);
+  }
+  .rules-filter {
+    padding: 12px 18px;
+    margin: 0;
+  }
+  .empty-rules {
+    padding: 24px;
+    color: var(--muted);
+  }
+  .target-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg);
+    padding: 12px 0;
+  }
+  @media (max-width: 700px) {
+    .target-toolbar {
+      position: static;
+    }
+    .preset-caption {
+      margin: 0;
+      padding: 0 18px 14px;
+      color: var(--muted);
+      font-size: calc(12px * var(--ui-scale));
+    }
+    .preset {
+      padding: 10px;
+    }
+    .preset small {
+      display: none;
+    }
+    .preset-heading {
+      gap: 6px;
+    }
+    .preset strong {
+      font-size: calc(11px * var(--ui-scale));
+    }
+    .preset-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
   .target-toolbar select {
     max-width: 300px;
   }

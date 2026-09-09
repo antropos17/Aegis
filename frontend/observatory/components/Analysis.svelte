@@ -54,10 +54,10 @@
     };
   });
   async function saveKey(remove = false) {
+    const value = remove ? '' : key.trim();
+    if (!remove && !value) throw new Error('Enter an API key');
     const current = record(await invoke(host, 'getSettings'));
-    confirmed(
-      await invoke(host, 'saveSettings', { ...current, anthropicApiKey: remove ? '' : key.trim() }),
-    );
+    confirmed(await invoke(host, 'saveSettings', { ...current, anthropicApiKey: value }));
     if (alive) {
       configured = !remove;
       key = '';
@@ -94,6 +94,7 @@
     if (!Object.keys(structured).length) structured = result;
     report = { ...structured, title, scope, counts, createdAt: new Date().toISOString() };
     history = [report, ...history].slice(0, 20);
+    section = 'summary';
   }
   function strings(value: unknown) {
     return Array.isArray(value) ? value.map(String) : [];
@@ -115,12 +116,15 @@
       </div>
     </div>
     <div class="toolbar">
-      <button class="button" onclick={() => (showProvider = !showProvider)}
+      <button
+        class="button"
+        onclick={() => {
+          providerSection = 'connection';
+          showProvider = true;
+        }}
         ><Icon name="settings" />{configured
           ? 'Connection settings'
           : 'Connect AI analysis'}</button
-      ><Action disabled={preview || !configured || (mode === 'agent' && !agent)} action={analyze}
-        ><Icon name="play" />Run analysis</Action
       >
     </div>
   </section>
@@ -172,7 +176,8 @@
         </section>
       {/snippet}
       {#snippet actions()}
-        {#if configured}<Action action={() => saveKey(true)}>Remove key</Action>{/if}
+        {#if configured}<Action disabled={preview} action={() => saveKey(true)}>Remove key</Action
+          >{/if}
         <button
           class="button"
           onclick={() => {
@@ -203,19 +208,24 @@
                 >{/each}</select
             ></label
           >{/if}
+        <label class="analysis-field"
+          >Report title<input bind:value={reportTitle} maxlength="160" /></label
+        >
         <div class="scope-details analysis-field">
           <small>Evidence scope</small>
           <p>Recorded session metadata</p>
           <small>File observations, connections and agent activity supplied by AEGIS.</small>
         </div>
-        <label class="analysis-field"
-          >Report title<input bind:value={reportTitle} maxlength="160" /></label
-        >
-        <p class="muted">Changes apply to the next run.</p>
         <div class="provider-note">
           <Icon name="shield" />
           <p>Analysis sends recorded activity metadata to Anthropic and may incur API charges.</p>
         </div>
+      </div>
+      <div class="assessment-actions">
+        <Action
+          disabled={preview || !configured || (mode === 'agent' && !names.includes(agent))}
+          action={analyze}><Icon name="play" />Run analysis</Action
+        >
       </div>
     </section>
     <section class="panel analysis-output">
@@ -242,7 +252,9 @@
               <small
                 >{preview
                   ? 'Provider calls are disabled in this preview.'
-                  : 'Connect Anthropic to create your first assessment.'}</small
+                  : configured
+                    ? 'Ready for a new assessment.'
+                    : 'Connect Anthropic to create your first assessment.'}</small
               >
             </div>
           {:else}<article class="analysis-document">
@@ -305,6 +317,27 @@
 </div>
 
 <style>
+  .assessment-actions {
+    flex: 0 0 auto;
+    padding: 14px 18px;
+    border-top: 1px solid var(--border);
+  }
+  .assessment-actions :global(.action-control) {
+    width: 100%;
+  }
+  .assessment-actions :global(button) {
+    width: 100%;
+    justify-content: center;
+  }
+  .analysis-provider {
+    padding: 12px 16px;
+  }
+  .analysis-provider-name {
+    gap: 12px;
+  }
+  .analysis-config .panel-head h2 {
+    font-size: calc(14px * var(--ui-scale));
+  }
   .analysis-workspace {
     flex: 1;
     min-height: 0;

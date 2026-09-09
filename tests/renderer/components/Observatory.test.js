@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
 import { emptyTelemetry } from '../../../frontend/observatory/runtime/host';
 import Monitoring from '../../../frontend/observatory/components/Monitoring.svelte';
 import Rules from '../../../frontend/observatory/components/Rules.svelte';
@@ -87,9 +87,8 @@ describe('Observatory production components', () => {
     };
     const appearance = vi.fn();
     const { container } = render(Settings, { host, appearance, navigate: noOp });
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Save settings' })).toBeEnabled(),
-    );
+    await screen.findByText('Settings saved');
+    await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring', exact: true }));
     await fireEvent.input(screen.getByLabelText('Scan interval (seconds)'), {
       target: { value: '20' },
     });
@@ -116,6 +115,7 @@ describe('Observatory production components', () => {
       installUpdate: vi.fn(async () => ({ status: 'ready' })),
     };
     const { container } = render(Settings, { host, appearance: noOp, navigate: noOp });
+    await fireEvent.click(screen.getByRole('tab', { name: 'Desktop & updates' }));
     expect(await screen.findByText('<img src=x onerror=alert(1)>')).toBeInTheDocument();
     await fireEvent.click(await screen.findByRole('button', { name: 'Download update' }));
     expect(host.downloadUpdate).toHaveBeenCalledOnce();
@@ -161,6 +161,7 @@ describe('Observatory production components', () => {
       telemetry: telemetry(),
       navigate: noOp,
     });
+    await fireEvent.click(screen.getByRole('tab', { name: 'Export', exact: true }));
     await fireEvent.click(screen.getByRole('button', { name: 'JSON activity log', exact: true }));
     expect(await screen.findByRole('alert')).toHaveTextContent('cancelled');
     expect(screen.queryByText('Completed')).toBeNull();
@@ -215,7 +216,7 @@ describe('Observatory production components', () => {
     expect(host.saveCustomAgents).toHaveBeenCalledOnce();
   });
 
-  it('keeps token-only samples and missing resource measurements visible', () => {
+  it('keeps token-only samples and missing resource measurements visible', async () => {
     render(Statistics, {
       telemetry: {
         ...telemetry(),
@@ -223,7 +224,9 @@ describe('Observatory production components', () => {
       },
       inspect: noOp,
     });
-    expect(screen.getByText('42 (measured)')).toBeInTheDocument();
+    await fireEvent.click(screen.getByRole('tab', { name: 'Tokens', exact: true }));
+    expect(screen.getByText('From supported logs')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('42')).toBeInTheDocument();
     expect(screen.getAllByText(/—/).length).toBeGreaterThan(0);
   });
 
