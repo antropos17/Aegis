@@ -63,6 +63,7 @@ try {
   const route = await page.locator('.radar-links path').first().getAttribute('d');
   assert(route && !route.includes('NaN'));
   await shot('desktop-radar-files');
+  await page.getByText(/Individual processes/).click();
   await page.getByRole('button', { name: 'Process', exact: true }).click();
   await page.getByRole('dialog').waitFor();
   await shot('desktop-process');

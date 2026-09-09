@@ -2,6 +2,12 @@
 
 The earlier integrations passed functional gates but did not preserve the reviewed template closely enough. Their validation below is historical evidence, not visual approval of the current interface.
 
+## Radar clarity follow-up — 2026-09-09
+
+The requested refinement removes repeated product labels and side charts from Monitoring. Compact numbered radar markers map to one agent roster; the selected group's risk, combined usage and latest activity occupy a separate panel. Individual processes are expandable and retain their stamped identities. Summary cards have separate boundaries, and per-agent resource bars remain in Statistics. Closing a detail dialog with Escape preserves the radar selection.
+
+The original twelve reference stylesheets remain unchanged; the intentional refinement lives in styles/radar-clarity.css. Browser checks cover marker collisions, roster alignment, collapsed process controls and dialog selection across 264 view/theme/scale combinations. Additional narrow-window checks include 900 px at 150% scale. The coverage suite passed 2866 tests with 4 skipped across 160 files. The packaged Windows app passed eleven workspaces with 25 observed processes, unique radar groups, settings restart and six exports. All 114 packaged renderer files match the final build. The deployed app displayed three unique agent groups without overlapping markers or labels; settings remained unchanged. These checks verify behavior and geometry; they do not constitute user visual approval.
+
 ## Agent grouping and theme follow-up — 2026-09-09
 
 The radar grouped processes, but agent tables, resource bars, token summaries and activity filters still repeated product names. They now show one entry per agent. Product details expose the individual stamped processes; a group itself has no process-control target. CPU/RAM and token totals remain unknown when member measurements are incomplete, file totals count distinct retained paths, and risk is the highest member score.

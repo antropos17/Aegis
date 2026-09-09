@@ -50,6 +50,23 @@ try {
   const visibleAgentGroups = Number.parseInt(
     await window.locator('.summary-stat strong').first().innerText(),
   );
+  const rosterNames = await window
+    .locator('.radar-roster .roster-identity strong')
+    .allTextContents();
+  assert.equal(rosterNames.length, Math.min(4, visibleAgentGroups));
+  assert.equal(rosterNames.length, new Set(rosterNames).size, 'radar repeats product names');
+  assert.equal(await window.locator('.radar-blip').count(), rosterNames.length);
+  assert.equal(await window.locator('.radar-info, .radar-mini-chart').count(), 0);
+  await window.locator('.radar-agent-card').first().click();
+  await window.getByRole('button', { name: 'Open agent', exact: true }).click();
+  await window.getByText('Agent overview', { exact: true }).waitFor();
+  await window.keyboard.press('Escape');
+  await window.getByRole('dialog').waitFor({ state: 'hidden' });
+  assert.equal(
+    await window.locator('.radar-blip[aria-pressed="true"]').count(),
+    1,
+    'closing agent details clears the radar selection',
+  );
   const stats = await window.evaluate(async () => {
     const stats = await window.aegis.getStats();
     return { agents: stats.currentAgents, health: stats.appHealth, gap: stats.observationGap };

@@ -3,7 +3,6 @@
   import { radarGroups } from '../runtime/radar';
   import Radar from './Radar.svelte';
   import ActivityChart from './ActivityChart.svelte';
-  import ResourceUsage from './ResourceUsage.svelte';
   import Agents from './Agents.svelte';
   import Timeline from './Timeline.svelte';
   import Icon from './Icon.svelte';
@@ -36,7 +35,7 @@
 </script>
 
 <div hidden={mode !== 'overview'}>
-  <div class="summary">
+  <div class="summary monitoring-summary">
     <div class="summary-stat">
       <span>Agents</span><strong
         >{telemetry.ready ? groups.length : '—'}<small
@@ -80,12 +79,8 @@
     </div>
   </div>
   <Radar {telemetry} bind:selected {inspect} />
-  <div class="dashboard-grid">
-    <ActivityChart
-      events={telemetry.events}
-      observedAt={telemetry.lastScan}
-      {inspect}
-    /><ResourceUsage {telemetry} {inspect} />
+  <div class="monitoring-activity">
+    <ActivityChart events={telemetry.events} observedAt={telemetry.lastScan} {inspect} />
   </div>
   <div class="overview-bottom">
     <Timeline {telemetry} {inspect} />
