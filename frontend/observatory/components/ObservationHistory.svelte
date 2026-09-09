@@ -5,16 +5,15 @@
   let {
     rows,
     navigate,
-  }: { rows: RecordData[]; navigate: (_title: string, _row: RecordData) => Promise<void> } =
-    $props();
-  let limit = $state(20);
+    limit = $bindable(20),
+  }: {
+    rows: RecordData[];
+    navigate: (_title: string, _row: RecordData) => Promise<void>;
+    limit?: number;
+  } = $props();
   let sorted = $derived(
     [...rows].sort((a, b) => observationTime(b.timestamp) - observationTime(a.timestamp)),
   );
-  $effect(() => {
-    rows;
-    limit = 20;
-  });
 </script>
 
 <div class="observation-history">
@@ -24,7 +23,11 @@
   </div>
   <p class="entity-note">Each record keeps its own time, process and evidence.</p>
   {#each sorted.slice(0, limit) as row, i (i)}{@const info = describeObservation(row)}
-    <button class="recent-event" onclick={() => navigate('Observation', row)}>
+    <button
+      class="recent-event"
+      data-detail-focus={'record-' + i}
+      onclick={() => navigate('Observation', row)}
+    >
       <time
         >{observationTime(row.timestamp)
           ? new Date(observationTime(row.timestamp)).toLocaleTimeString()

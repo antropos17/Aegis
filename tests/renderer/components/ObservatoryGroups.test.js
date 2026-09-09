@@ -93,7 +93,9 @@ it('opens the group without process controls and resolves a chosen member to its
   });
   await screen.findByText('Agent overview');
   expect(screen.queryByRole('button', { name: 'Suspend', exact: true })).toBeNull();
-  await fireEvent.click(screen.getByRole('button', { name: 'PID 20', exact: true }));
+  await fireEvent.click(screen.getByRole('tab', { name: /Processes/ }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Open process PID 20', exact: true }));
+  await fireEvent.click(await screen.findByRole('tab', { name: 'Controls', exact: true }));
   await fireEvent.click(await screen.findByRole('button', { name: 'Suspend', exact: true }));
   await waitFor(() =>
     expect(host.suspendProcess).toHaveBeenCalledWith({ pid: 20, instanceId: '20:live' }),

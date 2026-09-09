@@ -1,48 +1,35 @@
 <script lang="ts">
-  import { record } from '../runtime/host';
+  import { informationFields, type InfoField } from '../runtime/detail-fields';
   let { value }: { value: unknown } = $props();
-  let fields = $derived(
-    Object.entries(record(value)).filter(
-      ([key]) => !/api.?key|secret|password|authorization/i.test(key),
-    ),
-  );
-  function display(value: unknown): string {
-    if (value === null || value === undefined) return 'Unavailable';
-    if (typeof value === 'object')
-      return JSON.stringify(
-        value,
-        (key, val: unknown) =>
-          /api.?key|secret|password|authorization/i.test(key) ? undefined : val,
-        2,
-      );
-    return String(value);
-  }
+  let fields = $derived(informationFields(value));
 </script>
 
-<dl class="metadata">
-  {#each fields as [key, val] (key)}<dt>{key}</dt>
-    <dd>{display(val)}</dd>{/each}
-</dl>
+{#snippet entries(items: InfoField[])}
+  {@const simple = items.filter((field) => !field.children && !field.items)}
+  {#if simple.length}<dl class="attribute-list metadata">
+      {#each simple as field (field.key)}<div class="attribute">
+          <dt>{field.label}</dt>
+          <dd>{field.value}</dd>
+        </div>{/each}
+    </dl>{/if}
+  {#each items.filter((field) => field.items) as field (field.key)}
+    <div class="attribute-group">
+      <h4>{field.label}</h4>
+      <ul class="attribute-tags">
+        {#each field.items ?? [] as value, i (i)}<li>{value}</li>{:else}<li>
+            None recorded
+          </li>{/each}
+      </ul>
+    </div>
+  {/each}
+  {#each items.filter((field) => field.children) as field (field.key)}
+    <details class="attribute-group">
+      <summary><span>{field.label}</span><small>{field.children?.length} fields</small></summary>
+      <div class="attribute-group-body">{@render entries(field.children ?? [])}</div>
+    </details>
+  {/each}
+{/snippet}
 
-<style>
-  .metadata {
-    display: grid;
-    grid-template-columns: minmax(110px, 1fr) minmax(0, 3fr);
-    gap: 10px 16px;
-  }
-  dt {
-    color: var(--muted);
-    overflow-wrap: anywhere;
-  }
-  dd {
-    margin: 0;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    font: 12px/1.6 var(--mono);
-  }
-  @media (max-width: 600px) {
-    .metadata {
-      grid-template-columns: 1fr;
-    }
-  }
-</style>
+{#if fields.length}{@render entries(fields)}{:else}<p class="entity-note">
+    No additional information recorded.
+  </p>{/if}

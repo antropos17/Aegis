@@ -36,6 +36,7 @@
   let generation = 0;
   let section = $state('summary');
   let showProvider = $state(false);
+  let providerSection = $state('connection');
   let reportTitle = $state('Activity assessment');
   let names = $derived([...new Set(telemetry.agents.map((a) => a.agent))]);
   onMount(() => {
@@ -127,25 +128,49 @@
     <EditorDialog
       title="Anthropic connection"
       caption="AI analysis"
+      tabs={[
+        { id: 'connection', label: 'Connection' },
+        { id: 'usage', label: 'Usage' },
+      ]}
+      bind:selected={providerSection}
       close={() => {
         showProvider = false;
         key = '';
       }}
     >
-      <div class="form-grid">
-        <label class="full"
-          >New API key<input
-            disabled={preview}
-            type="password"
-            autocomplete="off"
-            bind:value={key}
-            placeholder="Anthropic API key"
-          /></label
-        >
-      </div>
-      <p class="dialog-copy">
-        Connection is verified when analysis runs. Saved keys are never displayed in this form.
-      </p>
+      {#snippet children(section)}
+        <section class="detail-section">
+          {#if section === 'connection'}
+            <h3>Provider connection</h3>
+            <div class="form-grid">
+              <label class="full"
+                >New API key<input
+                  disabled={preview}
+                  type="password"
+                  autocomplete="off"
+                  bind:value={key}
+                  placeholder="Anthropic API key"
+                /></label
+              >
+            </div>
+            <p class="dialog-copy">
+              Connection is verified when analysis runs. Saved keys are never displayed in this
+              form.
+            </p>
+          {:else}
+            <h3>Analysis scope</h3>
+            <Metadata
+              value={{
+                Provider: 'Anthropic',
+                'Data sent': 'Recorded agent activity and observations',
+                'File contents': 'Excluded',
+                Billing: 'Provider charges may apply',
+                'Connection check': 'When analysis runs',
+              }}
+            />
+          {/if}
+        </section>
+      {/snippet}
       {#snippet actions()}
         {#if configured}<Action action={() => saveKey(true)}>Remove key</Action>{/if}
         <button

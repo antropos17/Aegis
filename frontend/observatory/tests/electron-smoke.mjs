@@ -125,6 +125,10 @@ try {
       await window.locator('.agent-group-row:visible .table-agent').first().click();
       await window.getByText('Agent overview', { exact: true }).waitFor();
       assert.equal(await window.getByRole('button', { name: 'Suspend', exact: true }).count(), 0);
+      await window
+        .getByRole('dialog')
+        .getByRole('tab', { name: /Processes/ })
+        .click();
       assert((await window.locator('#modal .process-row').count()) > 0, 'group lost its processes');
       await window.keyboard.press('Escape');
       await window.getByRole('dialog').waitFor({ state: 'hidden' });

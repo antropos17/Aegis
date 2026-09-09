@@ -1,22 +1,29 @@
 <script lang="ts">
   import { onMount, type Snippet } from 'svelte';
   import Icon from './Icon.svelte';
+  import SectionTabs from './SectionTabs.svelte';
+  import type { DetailTab } from '../runtime/detail-model';
   let {
     title,
     caption,
     close,
     children,
     actions,
+    tabs,
+    selected = $bindable('general'),
   }: {
     title: string;
     caption: string;
     close: () => void;
-    children: Snippet;
+    children: Snippet<[string]>;
     actions: Snippet;
+    tabs: DetailTab[];
+    selected?: string;
   } = $props();
   const id = $props.id();
   let dialog: HTMLDialogElement;
   let heading: HTMLHeadingElement;
+  let body: HTMLDivElement;
   onMount(() => {
     const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     dialog.showModal();
@@ -38,7 +45,27 @@
       ><Icon name="close" /></button
     >
   </div>
-  <div class="editor-body">{@render children()}</div>
+  <SectionTabs
+    {tabs}
+    {selected}
+    prefix={id}
+    label={caption + ' sections'}
+    change={(tab) => {
+      selected = tab;
+      body.scrollTop = 0;
+    }}
+  />
+  <div class="editor-body" bind:this={body}>
+    {#each tabs as tab (tab.id)}<div
+        role="tabpanel"
+        tabindex="0"
+        id={id + '-panel-' + tab.id}
+        aria-labelledby={id + '-tab-' + tab.id}
+        hidden={tab.id !== selected}
+      >
+        {#if tab.id === selected}{@render children(selected)}{/if}
+      </div>{/each}
+  </div>
   <div class="modal-actions">{@render actions()}</div>
 </dialog>
 
@@ -48,40 +75,40 @@
     flex-direction: column;
     overflow: hidden;
     scrollbar-gutter: auto;
-    padding: 16px;
+    padding: 0;
     top: 18px;
+    width: min(700px, calc(100vw - 36px));
+    height: min(590px, calc(100dvh - 36px));
     max-height: calc(100dvh - 36px);
+    border-radius: 12px;
   }
   .modal-head {
     flex: 0 0 auto;
     display: flex;
     align-items: start;
-    gap: 12px;
     margin: 0;
-    padding-bottom: 14px;
     border-bottom: 1px solid var(--border);
   }
-  h2 {
-    overflow-wrap: anywhere;
-    line-height: 1.3;
+  .modal-head > div {
+    min-width: 0;
+    flex: 1;
   }
   .editor-body {
+    flex: 1;
     min-height: 0;
     min-width: 0;
     overflow: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
-    scrollbar-gutter: stable;
-    padding: 16px 4px;
+    padding: 18px 20px;
   }
   .modal-actions {
     flex: 0 0 auto;
     margin: 0;
-    padding-top: 12px;
     gap: 8px;
   }
   .editor-body :global(.form-grid) {
-    gap: 12px;
+    gap: 16px;
   }
   .editor-body :global(input),
   .editor-body :global(select),
@@ -91,10 +118,10 @@
   }
   .editor-body :global(label) {
     min-width: 0;
+    font: 500 calc(12px * var(--ui-scale))/1.5 var(--sans);
+    color: var(--muted);
   }
-  @media (max-width: 550px) {
-    .editor-dialog[open] {
-      padding: 12px;
-    }
+  .editor-body :global([hidden]) {
+    display: none;
   }
 </style>

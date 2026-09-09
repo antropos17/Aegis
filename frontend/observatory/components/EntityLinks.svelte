@@ -1,125 +1,150 @@
 <script lang="ts">
-  import { instances, record, type Telemetry, type RecordData } from '../runtime/host';
-  import { radarGroups } from '../runtime/radar';
+  import { instances, type Telemetry, type RecordData } from '../runtime/host';
+  import { detailActivity, detailMembers } from '../runtime/detail-model';
+  import {
+    groupObservations,
+    describeObservation,
+  } from '../../../src/shared/observation-display.js';
   import Icon from './Icon.svelte';
   import ObservationHistory from './ObservationHistory.svelte';
   import ObservationResource from './ObservationResource.svelte';
-  import { groupObservations } from '../../../src/shared/observation-display.js';
   let {
     row,
     telemetry,
     navigate,
+    section = 'related',
+    query = $bindable(''),
+    limit = $bindable(12),
   }: {
     row: RecordData;
     telemetry: Telemetry;
-    navigate: (title: string, row: RecordData) => Promise<void>;
+    navigate: (_title: string, _row: RecordData) => Promise<void>;
+    section?: string;
+    query?: string;
+    limit?: number;
   } = $props();
-  let related = $derived(
-    telemetry.events
-      .filter((e) => !!row.instanceId && e.instanceId === row.instanceId)
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, 30),
+  let members = $derived(detailMembers(row, telemetry));
+  let filtered = $derived(
+    members.filter((a) =>
+      [a.pid, a.process, a.cwd].join(' ').toLowerCase().includes(query.toLowerCase()),
+    ),
   );
-  let siblings = $derived(
-    row.agentGroupKey
-      ? (radarGroups(instances(telemetry)).find((g) => g.key === row.agentGroupKey)?.members ?? [])
-      : instances(telemetry).filter((a) => row.process && a.name === String(row.name ?? row.agent)),
-  );
-  let path = $derived(
-    typeof row.file === 'string' ? row.file : typeof row.cwd === 'string' ? row.cwd : '',
-  );
+  let activity = $derived(detailActivity(row, telemetry));
+  let groups = $derived(groupObservations(activity));
+  let path = $derived(String(row.file || row.path || row.cwd || ''));
+  let isNetwork = $derived(describeObservation(row).kind === 'Network');
   let parent = $derived(
-    path.replaceAll('\\', '/').replace(/\/$/, '').split('/').slice(0, -1).join('/'),
+    !isNetwork
+      ? path.replaceAll('\\', '/').replace(/\/$/, '').split('/').slice(0, -1).join('/')
+      : '',
+  );
+  let agent = $derived(
+    describeObservation(row, instances(telemetry) as unknown as RecordData[]).actor
+      ? instances(telemetry).find((a) => a.instanceId && a.instanceId === row.instanceId)
+      : undefined,
   );
 </script>
 
-{#if row.process || row.agentGroupKey}
-  <h3>
-    {row.agentGroupKey ? 'Processes' : 'Process instances'}
-    <span class="muted">{siblings.length}</span>
-  </h3>
-  {#each siblings as a (a.instanceId ?? a)}<div class="process-row">
-      <div>
-        <button
-          class="entity-link"
-          onclick={() => navigate(a.name + ' · PID ' + a.pid, a as unknown as RecordData)}
-          ><Icon name="cpu" />PID {a.pid}</button
-        ><small>{a.process}</small>{#if a.cwd}<small class="process-project" title={a.cwd}
-            >{a.cwd}</small
-          >{/if}
-      </div>
-      <button
-        class="text-button"
-        onclick={() => navigate(a.name + ' · PID ' + a.pid, a as unknown as RecordData)}
-        >Open<Icon name="chevron" /></button
-      >
-    </div>{/each}
-{/if}
-{#if row.process}
-  <h3 class="section-title">Recent events</h3>
-  {#each groupObservations(related as unknown as RecordData[]).slice(0, 4) as group (group.key)}{@const e =
-      group.latest}<button
-      class="recent-event"
-      onclick={() =>
-        navigate(
-          'File observations',
-          group.rows.length > 1 ? { observations: group.rows, observationGroup: group.label } : e,
-        )}
-      ><Icon name="file" />
-      <div>
-        <ObservationResource row={e} /><small
-          >{new Date(Number(e.timestamp)).toLocaleTimeString()} · {String(e.action)} · {group.rows
-            .length} records</small
-        >
-      </div></button
-    >{:else}<p class="entity-note">No retained file observations for this instance.</p>{/each}
-  {#if related.length > 4}<button
-      class="text-button"
-      onclick={() => navigate('Recent file observations', { observations: related })}
-      >View all {related.length} retained events<Icon name="chevron" /></button
-    >{/if}
-{/if}
-{#if parent && parent !== path}<div class="entity-parent">
-    <button
-      class="entity-link"
-      onclick={() => navigate('Parent folder', { cwd: parent, source: 'Parent of observed path' })}
-      ><Icon name="folder" />Parent folder · {parent}</button
+{#if section === 'processes'}
+  <section class="detail-section">
+    <div class="section-heading">
+      <h3>Individual processes</h3>
+      <span class="badge">{members.length}</span>
+    </div>
+    <label class="detail-search"
+      ><Icon name="search" /><input
+        aria-label="Find a process"
+        type="search"
+        placeholder="PID, process or project"
+        bind:value={query}
+      /></label
     >
-  </div>{/if}
-{#if (row.file || row.remoteIp) && row.instanceId}{@const agent = instances(telemetry).find(
-    (a) => a.instanceId === row.instanceId,
-  )}{#if agent}<button
-      class="entity-link"
-      onclick={() => navigate(agent.name, agent as unknown as RecordData)}
-      ><Icon name="cpu" />Open exact agent instance</button
-    >{/if}{/if}
-{#if Array.isArray(row.observations)}<ObservationHistory
-    rows={row.observations.map(record)}
-    {navigate}
-  />{/if}
-
-<style>
-  .section-title {
-    margin-top: 24px;
-  }
-  .process-row small {
-    display: block;
-    color: var(--muted);
-  }
-  .process-row > div {
-    min-width: 0;
-  }
-  .process-project {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 220px;
-  }
-  .entity-parent {
-    margin-top: 16px;
-  }
-  .entity-link {
-    overflow-wrap: anywhere;
-    text-align: left;
-  }
-</style>
+    <div class="detail-card-grid">
+      {#each filtered.slice(0, limit) as a (a.instanceId ?? a)}
+        <button
+          class="process-row detail-card"
+          data-detail-focus={'process-' + (a.instanceId ?? a.pid)}
+          aria-label={'Open process PID ' + a.pid}
+          onclick={() => navigate(a.name + ' · PID ' + a.pid, a as unknown as RecordData)}
+        >
+          <div class="detail-card-heading">
+            <strong>PID {a.pid}</strong><span class="badge">{a.riskScore}/100 risk</span>
+          </div>
+          <span>{a.process}</span><small title={a.cwd}
+            >{a.cwd || 'Working directory not recorded'}</small
+          >
+          <span class="detail-card-link">Open process<Icon name="chevron" /></span>
+        </button>
+      {:else}<p class="entity-note">No processes match this view.</p>{/each}
+    </div>
+    {#if filtered.length > limit}<button class="button detail-load" onclick={() => (limit += 12)}
+        >Show 12 more processes</button
+      >{/if}
+  </section>
+{:else if section === 'activity'}
+  <section class="detail-section">
+    <div class="section-heading">
+      <h3>Files and connections</h3>
+      <span class="badge">{activity.length} observations</span>
+    </div>
+    <div class="detail-card-grid">
+      {#each groups.slice(0, limit) as group (group.key)}
+        <button
+          class="detail-card activity-card"
+          data-detail-focus={'activity-' + group.key}
+          onclick={() =>
+            navigate(
+              group.label,
+              group.rows.length > 1
+                ? { observations: group.rows, observationGroup: group.label }
+                : group.latest,
+            )}
+        >
+          <ObservationResource row={group.latest} />
+          <div class="detail-card-heading">
+            <span>{String(group.latest.action || group.latest.state || 'Observed')}</span><span
+              class="badge">{group.rows.length} records</span
+            >
+          </div>
+          <small
+            >{group.last ? new Date(group.last).toLocaleTimeString() : 'Current snapshot'}</small
+          >
+        </button>
+      {:else}<p class="entity-note">No retained activity for this exact process scope.</p>{/each}
+    </div>
+    {#if groups.length > limit}<button class="button detail-load" onclick={() => (limit += 12)}
+        >Show 12 more resources</button
+      >{/if}
+  </section>
+{:else if section === 'records'}
+  <section class="detail-section">
+    <ObservationHistory rows={activity} {navigate} bind:limit />
+  </section>
+{:else}
+  <section class="detail-section">
+    <h3>Related resources</h3>
+    <div class="detail-card-grid">
+      {#if parent && parent !== path}<button
+          class="detail-card"
+          data-detail-focus="parent-folder"
+          onclick={() =>
+            navigate('Parent folder', { cwd: parent, source: 'Parent of observed path' })}
+        >
+          <div class="detail-card-heading">
+            <Icon name="folder" /><strong>Parent folder</strong>
+          </div>
+          <small>{parent}</small>
+        </button>{/if}
+      {#if agent}<button
+          class="detail-card"
+          data-detail-focus="exact-process"
+          onclick={() => navigate(agent.name, agent as unknown as RecordData)}
+        >
+          <div class="detail-card-heading"><Icon name="cpu" /><strong>{agent.name}</strong></div>
+          <span>PID {agent.pid}</span>
+          <small>Exact recorded process identity</small>
+        </button>{/if}
+    </div>
+    {#if !parent && !agent}<p class="entity-note">No related process or folder recorded.</p>{/if}
+  </section>
+{/if}
