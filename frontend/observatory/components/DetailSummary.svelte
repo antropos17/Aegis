@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { measured, record, type RecordData, type Telemetry } from '../runtime/host';
+  import { instances, measured, record, type RecordData, type Telemetry } from '../runtime/host';
+  import { radarGroups, groupResource, displayMeasure } from '../runtime/radar';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
   let { row, telemetry }: { row: RecordData; telemetry: Telemetry } = $props();
   let name = $derived(String(row.name ?? row.displayName ?? row.agent ?? 'Observation'));
+  let group = $derived(radarGroups(instances(telemetry)).find((g) => g.key === row.agentGroupKey));
   let resources = $derived(
     typeof row.instanceId === 'string'
       ? telemetry.resources.find((r) => r.instanceId === row.instanceId)
@@ -14,7 +16,34 @@
   }
 </script>
 
-{#if row.process}
+{#if row.agentGroupKey}
+  <div class="agent-identity">
+    <AgentLogo {name} id={String(row.agentGroupKey)} size={32} />
+    <div>
+      <strong>{name}</strong><small
+        >{group
+          ? `${group.members.length} observed processes`
+          : 'Not in the latest snapshot'}</small
+      >
+    </div>
+  </div>
+  {#if group}
+    <dl class="details-grid">
+      <dt>Status</dt>
+      <dd>{telemetry.stale ? 'Last reliable snapshot' : 'Active'}</dd>
+      <dt>Highest process risk</dt>
+      <dd><span class="risk-value">{group.risk}<small>/100</small></span></dd>
+      <dt>Combined CPU</dt>
+      <dd>{displayMeasure(groupResource(group, telemetry, 'cpu'), '%')}</dd>
+      <dt>Combined RAM</dt>
+      <dd>{displayMeasure(groupResource(group, telemetry, 'memMb'), ' MB')}</dd>
+    </dl>
+    <p class="entity-note">
+      These processes belong to the same agent. Choose a process to see its own activity and
+      controls.
+    </p>
+  {/if}
+{:else if row.process}
   <div class="agent-identity">
     <AgentLogo {name} size={32} />
     <div>

@@ -2,6 +2,14 @@
 
 The earlier integrations passed functional gates but did not preserve the reviewed template closely enough. Their validation below is historical evidence, not visual approval of the current interface.
 
+## Agent grouping and theme follow-up — 2026-09-09
+
+The radar grouped processes, but agent tables, resource bars, token summaries and activity filters still repeated product names. They now show one entry per agent. Product details expose the individual stamped processes; a group itself has no process-control target. CPU/RAM and token totals remain unknown when member measurements are incomplete, file totals count distinct retained paths, and risk is the highest member score.
+
+High contrast retains the template's neutral surfaces and strengthens text, focus and interactive boundaries. The toolbar and keyboard theme toggles leave high contrast, matching the reference interaction. Settings follows toolbar theme changes without losing other drafts, and delayed startup settings cannot overwrite a new theme choice. The initial renderer surface is light, matching the host default; saved choices still take precedence.
+
+Validation: 159 test files, 2864 passed and 4 skipped with coverage; both renderer builds; 264 browser viewport/theme/scale combinations including all four themes, high-contrast readability and theme persistence; repository type, Svelte, format, lint, witness, sequence and inventory checks. The packaged Windows app exercised 25 real processes, unique product rows, group details, all eleven workspaces, settings restart and six exports. All 114 packaged renderer files match the final build byte for byte. Native macOS/Linux and paid provider requests remain outside this check.
+
 ## Template restoration — 2026-09-09
 
 Working branch: codex/observatory-template-restoration, based on 09bdc9b. The approved template is preserved in frontend/observatory/reference/; its twelve stylesheets are used directly in their source order. Superseded theme/layout styles were removed. Local project design/context skills and the UI agent instructions no longer direct work toward the retired designs.

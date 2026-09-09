@@ -8,10 +8,12 @@
     host,
     appearance,
     navigate,
+    currentTheme = null,
   }: {
     host: Host | null;
     appearance: (dark: boolean, scale: number, contrast?: boolean) => void;
     navigate: (view: string) => void;
+    currentTheme?: string | null;
   } = $props();
   let form = $state<RecordData>({});
   let loaded = $state(false);
@@ -22,6 +24,14 @@
   let patterns = $state('');
   let ignored = $state('');
   let alive = true;
+  let previousTheme: string | null = null;
+  $effect(() => {
+    if (loaded && currentTheme && currentTheme !== previousTheme) {
+      previousTheme = currentTheme;
+      form.darkMode = currentTheme.startsWith('dark');
+      contrast = currentTheme.endsWith('-hc');
+    }
+  });
   async function load() {
     const settings = record(await invoke(host, 'getSettings'));
     if (!alive) return;

@@ -155,8 +155,33 @@ try {
         (scale) => document.documentElement.style.setProperty('--ui-scale', String(scale)),
         scale,
       );
-      for (const theme of ['dark', 'light']) {
+      for (const theme of ['dark', 'light', 'dark-hc', 'light-hc']) {
         await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+        if (theme.endsWith('-hc')) {
+          const contrast = await page.evaluate(() => {
+            const style = getComputedStyle(document.documentElement);
+            const luminance = (token) => {
+              const hex = style.getPropertyValue(token).trim().replace('#', '');
+              const channels = [0, 2, 4]
+                .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+                .map((n) => (n <= 0.04045 ? n / 12.92 : ((n + 0.055) / 1.055) ** 2.4));
+              return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+            };
+            const ratio = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+            return {
+              text: ratio(luminance('--muted'), luminance('--panel')),
+              controls: ratio(luminance('--strong-border'), luminance('--bg')),
+              background: style.getPropertyValue('--bg').trim(),
+            };
+          });
+          assert(contrast.text >= 7, 'high contrast secondary text is below 7:1');
+          assert(contrast.controls >= 3, 'high contrast controls are below 3:1');
+          assert.equal(
+            contrast.background,
+            theme.startsWith('dark') ? '#171819' : '#f0f0ee',
+            'high contrast replaced the template surfaces',
+          );
+        }
         await page.emulateMedia({ reducedMotion: scale === 1.5 ? 'reduce' : 'no-preference' });
         for (const view of views) {
           await page.locator('.sidebar').getByRole('button', { name: view, exact: true }).click();
@@ -176,6 +201,13 @@ try {
             false,
             `document overflow: ${view} ${size.width} ${scale} ${theme}`,
           );
+          if (
+            size.width === 1200 &&
+            scale === 1 &&
+            ['Monitoring', 'Agents', 'Settings'].includes(view)
+          ) {
+            await page.screenshot({ path: resolve(out, `${theme}-${view.toLowerCase()}.png`) });
+          }
           if (size.width === 1200 && scale === 1 && theme === 'dark') {
             await page.screenshot({ path: resolve(out, `workspace-${views.indexOf(view)}.png`) });
             if (view === 'AI analysis') {
@@ -217,6 +249,20 @@ try {
     }
   }
   await page.setViewportSize({ width: 1200, height: 800 });
+  await page.evaluate(() => document.documentElement.style.setProperty('--ui-scale', '1'));
+  await page.locator('.sidebar').getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByLabel('Theme', { exact: true }).selectOption('light-hc');
+  await page.getByRole('button', { name: 'Save settings', exact: true }).click();
+  await page.getByText('Completed', { exact: true }).waitFor();
+  await page.reload();
+  await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'light-hc');
+  await page.getByRole('button', { name: 'Toggle theme', exact: true }).click();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
+  await page.locator('.sidebar').getByRole('button', { name: 'Settings', exact: true }).click();
+  assert.equal(await page.getByLabel('Theme', { exact: true }).inputValue(), 'dark');
+  await page.getByRole('button', { name: 'Toggle theme', exact: true }).click();
+  assert.equal(await page.getByLabel('Theme', { exact: true }).inputValue(), 'light');
   await page.evaluate(() => {
     document.documentElement.style.setProperty('--ui-scale', '1');
     document.documentElement.dataset.theme = 'dark';
@@ -272,7 +318,7 @@ try {
   await desktop.close();
   assert.deepEqual(errors, [], 'browser runtime errors');
   console.log(
-    'Shared Svelte preview: 132 viewport/theme/scale view checks; isolated bridge; dialog; desktop unavailable state; production fixture exclusion passed.',
+    'Shared Svelte preview: 264 viewport/theme/scale view checks; four themes; theme persistence and ordinary toggle; isolated bridge; dialog; desktop unavailable state; production fixture exclusion passed.',
   );
 } finally {
   await browser.close();

@@ -5,6 +5,7 @@
   import Agents from './Agents.svelte';
   import Icon from './Icon.svelte';
   import Metadata from './Metadata.svelte';
+  import { radarGroups, groupEvidence, groupRecord } from '../runtime/radar';
   let {
     telemetry,
     inspect,
@@ -12,6 +13,15 @@
   let samples = $state<{ at: number; cpu: number | null; mem: number | null }[]>([]);
   let lastAt = 0;
   let agents = $derived(instances(telemetry));
+  let tokenGroups = $derived(
+    radarGroups(agents)
+      .filter((g) =>
+        g.members.some(
+          (a) => a.instanceId && telemetry.tokens.some((t) => t.instanceId === a.instanceId),
+        ),
+      )
+      .map((g) => ({ ...g, ...groupEvidence(g, telemetry) })),
+  );
   const sum = (key: string) =>
     telemetry.resources.length && telemetry.resources.every((r) => measured(r[key]) !== null)
       ? telemetry.resources.reduce((total, r) => total + Number(r[key]), 0)
@@ -36,30 +46,29 @@
   <div class="panel-head">
     <div>
       <h2><Icon name="chart" />Tokens and estimated cost</h2>
-      <p>From supported agent logs</p>
+      <p>Combined by agent, from supported logs</p>
     </div>
   </div>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Source</th><th>Tokens</th><th>Estimate</th></tr></thead><tbody
-        >{#each telemetry.tokens as token (token)}<tr
+        >{#each tokenGroups as group (group.key)}<tr
             ><td
-              >{agents.find((a) => !!token.instanceId && a.instanceId === token.instanceId)?.name ??
-                'Unattributed sample'}<small
-                >{String(token.instanceId ?? 'No process identity')}</small
-              ></td
+              ><button class="entity-link" onclick={() => inspect(group.name, groupRecord(group))}
+                >{group.name}</button
+              ><small>{group.members.length} processes</small></td
             ><td
-              >{measured(token.totalTokens)?.toLocaleString() ?? '—'}{measured(
-                token.totalTokens,
-              ) === null
-                ? ''
-                : token.estimated
-                  ? ' (estimated)'
-                  : ' (measured)'}</td
-            ><td
-              >{measured(token.costUsd) === null ? '—' : '$' + Number(token.costUsd).toFixed(2)}</td
+              >{group.tokens === null
+                ? '—'
+                : `${group.tokens.toLocaleString()} (${group.estimated ? 'estimated' : 'measured'})`}</td
+            ><td>{group.cost === null ? '—' : '$' + group.cost.toFixed(2)}</td></tr
+          >{:else}<tr
+            ><td colspan="3"
+              >{telemetry.tokens.length
+                ? 'No complete current agent attribution. See source samples below.'
+                : 'No token measurements are available.'}</td
             ></tr
-          >{:else}<tr><td colspan="3">No token measurements are available.</td></tr>{/each}</tbody
+          >{/each}</tbody
       >
     </table>
   </div>
@@ -67,6 +76,14 @@
     AEGIS resource usage is shown separately in the footer.
   </div>
 </section>
+{#if telemetry.tokens.length}<details class="diagnostics">
+    <summary>Token source samples · {telemetry.tokens.length}</summary>
+    <p class="muted">
+      A dash in an agent total means one or more processes have no measurement. Individual source
+      values and estimate flags are retained here.
+    </p>
+    <Metadata value={telemetry.tokens} />
+  </details>{/if}
 <details class="diagnostics">
   <summary>Resource history and delivery details</summary>
 

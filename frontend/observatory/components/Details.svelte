@@ -137,11 +137,13 @@
     </div>
     <div>
       <span class="muted" id="modal-caption"
-        >{current?.row.process
-          ? 'Agent instance'
-          : current?.row.displayName
-            ? 'Agent catalog'
-            : 'Recorded metadata'}</span
+        >{current?.row.agentGroupKey
+          ? 'Agent overview'
+          : current?.row.process
+            ? 'Agent instance'
+            : current?.row.displayName
+              ? 'Agent catalog'
+              : 'Recorded metadata'}</span
       >
       <h2 id="modal-title" tabindex="-1">{current?.title ?? 'Details'}</h2>
     </div>
@@ -150,13 +152,16 @@
     >
   </div>
   <div id="modal-body" tabindex="-1" bind:this={body}>
-    {#if current}<div class:agent-detail-grid={!!current.row.process}>
+    {#if current}<div
+        class:agent-detail-grid={!!current.row.process || !!current.row.agentGroupKey}
+      >
         <div><DetailSummary row={current.row} {telemetry} /></div>
         <div><EntityLinks row={current.row} {telemetry} {navigate} /></div>
       </div>
       <details
         class="all-metadata"
         open={!current.row.process &&
+          !current.row.agentGroupKey &&
           !current.row.displayName &&
           !current.row.file &&
           !current.row.remoteIp &&

@@ -40,6 +40,7 @@
   let paused = $state(false);
   let held = $state(emptyTelemetry());
   let displayTelemetry = $derived(paused ? held : telemetry);
+  const agentCount = $derived(new Set(displayTelemetry.agents.map((agent) => agent.agent)).size);
   const healthCaption = $derived(
     record(telemetry.stats.appHealth).state === 'HEALTHY'
       ? 'Monitoring available'
@@ -69,13 +70,14 @@
   let detail = $state<{ title: string; row: RecordData } | null>(null);
   let version = $state('');
   const savedTheme = localStorage.getItem('aegis-theme');
-  let dark = $state(savedTheme ? savedTheme.startsWith('dark') : true);
+  let dark = $state(savedTheme ? savedTheme.startsWith('dark') : false);
   let contrast = $state(localStorage.getItem('aegis-theme')?.endsWith('-hc') ?? false);
   let scale = $state(1);
   let commands = $state(false);
   let commandQuery = $state('');
   let commandDialog: HTMLDialogElement;
   let navigationRevision = 0;
+  let themeChanged = false;
   $effect(() => {
     if (commands && !commandDialog?.open) commandDialog?.showModal();
     else if (!commands && commandDialog?.open) commandDialog.close();
@@ -85,9 +87,15 @@
     detail = { title, row };
   }
   function appearance(nextDark: boolean, nextScale: number, highContrast = contrast) {
+    themeChanged = true;
     contrast = highContrast;
     dark = nextDark;
     scale = nextScale;
+  }
+  function toggleTheme() {
+    themeChanged = true;
+    dark = !dark;
+    contrast = false;
   }
   $effect(() => {
     const theme = (dark ? 'dark' : 'light') + (contrast ? '-hc' : '');
@@ -141,7 +149,7 @@
     });
     connection = stop;
     const unsubscribe = host?.onToggleTheme
-      ? Reflect.apply(host.onToggleTheme, host, [() => (dark = !dark)])
+      ? Reflect.apply(host.onToggleTheme, host, [toggleTheme])
       : undefined;
     invoke(host, 'getAppVersion')
       .then((value) => {
@@ -152,10 +160,10 @@
       .then((value) => {
         if (alive) {
           const settings = record(value);
-          appearance(
-            savedTheme ? savedTheme.startsWith('dark') : settings.darkMode === true,
-            Number(settings.uiScale ?? 1),
-          );
+          if (!themeChanged) {
+            dark = savedTheme ? savedTheme.startsWith('dark') : settings.darkMode === true;
+            scale = Number(settings.uiScale ?? 1);
+          }
         }
       })
       .catch(() => {});
@@ -200,7 +208,7 @@
     )
       return;
     if (event.key === 's') void navigate('settings');
-    if (event.key === 't') dark = !dark;
+    if (event.key === 't') toggleTheme();
     const keys: Record<string, string> = {
       '1': 'overview',
       '2': 'events',
@@ -237,7 +245,7 @@
           aria-current={view === id ? 'page' : undefined}
           onclick={() => navigate(id)}
           ><Icon name={icon} /><span>{label}</span>{#if id === 'agents'}<small class="count"
-              >{telemetry.ready ? telemetry.agents.length : '—'}</small
+              >{displayTelemetry.ready ? agentCount : '—'}</small
             >{/if}</button
         >{/each}
     </nav>
@@ -268,7 +276,7 @@
       <div class="top-actions">
         <button class="command-trigger" onclick={() => (commands = !commands)}
           ><Icon name="search" />Commands<kbd>Ctrl K</kbd></button
-        ><button class="icon-button" aria-label="Toggle theme" onclick={() => (dark = !dark)}
+        ><button class="icon-button" aria-label="Toggle theme" onclick={toggleTheme}
           ><Icon name="sun" /></button
         >
         <button class="icon-button" aria-label="Open settings" onclick={() => navigate('settings')}
@@ -395,7 +403,12 @@
             <Reports {host} audit {inspect} telemetry={displayTelemetry} {navigate} />
           </div>{/if}
         {#if tabs.includes('settings')}<div hidden={view !== 'settings'}>
-            <Settings {host} {appearance} {navigate} />
+            <Settings
+              {host}
+              {appearance}
+              {navigate}
+              currentTheme={(dark ? 'dark' : 'light') + (contrast ? '-hc' : '')}
+            />
           </div>{/if}
         <div hidden={view !== 'stats'}><Statistics telemetry={displayTelemetry} {inspect} /></div>
       </div>

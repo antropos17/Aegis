@@ -70,7 +70,24 @@ try {
   ]) {
     await window.locator('.sidebar').getByRole('button', { name, exact: true }).click();
     await window.getByRole('heading', { level: 1, name, exact: true }).waitFor();
+    if (name === 'Agents') {
+      const names = await window.locator('.agent-group-row:visible .table-agent').allTextContents();
+      assert(names.length > 0, 'real agent groups are missing');
+      assert.equal(names.length, new Set(names).size, 'agent table repeats the same product');
+      assert.equal(
+        await window.locator('.sidebar .count').innerText(),
+        String(names.length),
+        'navigation counts processes as agents',
+      );
+      await window.locator('.agent-group-row:visible .table-agent').first().click();
+      await window.getByText('Agent overview', { exact: true }).waitFor();
+      assert.equal(await window.getByRole('button', { name: 'Suspend', exact: true }).count(), 0);
+      assert((await window.locator('#modal .process-row').count()) > 0, 'group lost its processes');
+      await window.keyboard.press('Escape');
+      await window.getByRole('dialog').waitFor({ state: 'hidden' });
+    }
   }
+  await window.getByLabel('Theme', { exact: true }).selectOption('light-hc');
   await window.getByLabel('Scan interval (seconds)').evaluate((input) => {
     input.value = '20';
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -81,6 +98,11 @@ try {
     await window.evaluate(async () => (await window.aegis.getSettings()).scanIntervalSec),
     20,
   );
+  assert.equal(await window.evaluate(() => localStorage.getItem('aegis-theme')), 'light-hc');
+  await window.getByRole('button', { name: 'Toggle theme', exact: true }).click();
+  assert.equal(await window.getByLabel('Theme', { exact: true }).inputValue(), 'dark');
+  await window.getByRole('button', { name: 'Toggle theme', exact: true }).click();
+  assert.equal(await window.getByLabel('Theme', { exact: true }).inputValue(), 'light');
 
   // Only the disposable profile receives this sentinel. No provider request is made.
   const sentinel = 'observatory-test-key-never-export';

@@ -1,6 +1,12 @@
 <script lang="ts">
   import type { RecordData, Telemetry } from '../runtime/host';
-  import { groupActivity, groupResource, displayMeasure, type RadarGroup } from '../runtime/radar';
+  import {
+    groupActivity,
+    groupResource,
+    groupRecord,
+    displayMeasure,
+    type RadarGroup,
+  } from '../runtime/radar';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
   let {
@@ -22,7 +28,6 @@
   } = $props();
   let bins = $derived(groupActivity(group, telemetry, end));
   let chosen = $derived(group.members.find((a) => a.instanceId === selected));
-  let primary = $derived(chosen ?? group.members[0]);
 </script>
 
 <section class="radar-agent-card">
@@ -68,10 +73,9 @@
     >
   </button>
   <div class="radar-agent-foot">
-    <button
-      class="entity-link"
-      onclick={() => inspect(primary.name, primary as unknown as RecordData)}
-      ><Icon name="cpu" />PID {primary.pid}</button
-    ><span>{group.members.length} {group.members.length === 1 ? 'process' : 'processes'}</span>
+    <button class="entity-link" onclick={() => inspect(group.name, groupRecord(group))}
+      ><Icon name="cpu" />{group.members.length}
+      {group.members.length === 1 ? 'process' : 'processes'}<Icon name="chevron" /></button
+    >
   </div>
 </section>

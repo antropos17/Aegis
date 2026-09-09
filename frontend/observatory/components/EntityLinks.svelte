@@ -1,5 +1,6 @@
 <script lang="ts">
   import { instances, record, type Telemetry, type RecordData } from '../runtime/host';
+  import { radarGroups } from '../runtime/radar';
   import Icon from './Icon.svelte';
   let {
     row,
@@ -17,7 +18,9 @@
       .slice(0, 30),
   );
   let siblings = $derived(
-    instances(telemetry).filter((a) => row.process && a.name === String(row.name ?? row.agent)),
+    row.agentGroupKey
+      ? (radarGroups(instances(telemetry)).find((g) => g.key === row.agentGroupKey)?.members ?? [])
+      : instances(telemetry).filter((a) => row.process && a.name === String(row.name ?? row.agent)),
   );
   let path = $derived(
     typeof row.file === 'string' ? row.file : typeof row.cwd === 'string' ? row.cwd : '',
@@ -27,15 +30,20 @@
   );
 </script>
 
-{#if row.process}
-  <h3>Process instances</h3>
+{#if row.process || row.agentGroupKey}
+  <h3>
+    {row.agentGroupKey ? 'Processes' : 'Process instances'}
+    <span class="muted">{siblings.length}</span>
+  </h3>
   {#each siblings as a (a.instanceId ?? a)}<div class="process-row">
       <div>
         <button
           class="entity-link"
           onclick={() => navigate(a.name + ' · PID ' + a.pid, a as unknown as RecordData)}
           ><Icon name="cpu" />PID {a.pid}</button
-        ><small>{a.process}</small>
+        ><small>{a.process}</small>{#if a.cwd}<small class="process-project" title={a.cwd}
+            >{a.cwd}</small
+          >{/if}
       </div>
       <button
         class="text-button"
@@ -43,6 +51,8 @@
         >Open<Icon name="chevron" /></button
       >
     </div>{/each}
+{/if}
+{#if row.process}
   <h3 class="section-title">Recent events</h3>
   {#each related.slice(0, 4) as e (e)}<button
       class="recent-event"
@@ -94,6 +104,15 @@
   .process-row small {
     display: block;
     color: var(--muted);
+  }
+  .process-row > div {
+    min-width: 0;
+  }
+  .process-project {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 220px;
   }
   .entity-parent {
     margin-top: 16px;

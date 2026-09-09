@@ -1,4 +1,30 @@
-/* Host integration only; composition comes from the approved template styles. */
+/* Desktop integration and requested refinements; composition comes from the approved template. */
+/* Higher contrast strengthens text and controls without outlining every panel. */
+:root[data-theme='dark-hc'] {
+  --bg: #171819;
+  --sidebar: #1d1e20;
+  --panel: #202224;
+  --ink: #f6f6f3;
+  --muted: #d1d3cf;
+  --faint: #b9bdb7;
+  --border: #45494c;
+  --strong-border: #8c928c;
+  --focus: #eff3ec;
+}
+:root[data-theme='light-hc'] {
+  --bg: #f0f0ee;
+  --sidebar: #e8e8e5;
+  --panel: #fafaf8;
+  --ink: #181c17;
+  --muted: #384034;
+  --faint: #47513f;
+  --border: #b7bdb2;
+  --strong-border: #697362;
+  --focus: #273722;
+}
+:root[data-theme$='-hc'] :is(input, select, textarea, .button, .segmented) {
+  border-color: var(--strong-border);
+}
 .inset {
   padding: var(--panel-inset);
 }

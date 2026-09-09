@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+- Show one row per agent in tables, resource charts and token summaries, with individual processes inside the agent overview. Aggregate complete measurements without replacing unknown values with zero.
+- Preserve the template's neutral surfaces in high contrast, strengthen text and controls, and make the ordinary theme toggle leave high contrast. Keep Settings synchronized with toolbar changes and prevent late startup settings from undoing a theme choice.
 - Use the approved Observatory template styles and markup throughout the desktop: radar and linked resources, activity charts, permissions, catalog, analysis, reports, settings and dialogs. Retire the superseded layout and design guidance.
 - Group multiple observed processes on the radar with an explicit instance selector; retain stable scan animation, view pause, detail history and keyboard focus.
 - Fix unavailable process controls on enriched rows, stale stop confirmations, external website commands, cramped permission labels and long event lists in process details.
