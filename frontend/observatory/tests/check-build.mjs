@@ -20,7 +20,7 @@ const imports = [
 ].map((match) => match[1]);
 assert.deepEqual(
   imports,
-  [...reference.stylesheetOrder, 'styles/desktop.css'],
+  [...reference.stylesheetOrder, 'styles/radar-clarity.css', 'styles/desktop.css'],
   'approved cascade order',
 );
 
@@ -187,6 +187,43 @@ try {
           await page.locator('.sidebar').getByRole('button', { name: view, exact: true }).click();
           await page.getByRole('heading', { name: view, exact: true, level: 1 }).waitFor();
           await page.waitForFunction(() => !document.documentElement.dataset.transitionSurface);
+          if (view === 'Monitoring') {
+            const radar = await page.evaluate(() => {
+              const rect = (n) => n.getBoundingClientRect();
+              const points = [...document.querySelectorAll('.radar-blip')].map(rect);
+              const stage = rect(document.querySelector('.radar-stage'));
+              const overlaps = (a, b) =>
+                a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+              const cards = [...document.querySelectorAll('.radar-agent-card')];
+              return {
+                collisions: points.some((p, i) => points.slice(i + 1).some((q) => overlaps(p, q))),
+                clipped: points.some(
+                  (p) =>
+                    p.left < stage.left ||
+                    p.right > stage.right ||
+                    p.top < stage.top ||
+                    p.bottom > stage.bottom,
+                ),
+                crowdedLogos: cards.some(
+                  (card) =>
+                    rect(card.querySelector('.agent-mark')).right >
+                    rect(card.querySelector('.roster-identity')).left - 3,
+                ),
+                rosterCount: cards.length,
+                markerCount: points.length,
+                repeatedPanels: document.querySelectorAll('.radar-info, .radar-mini-chart').length,
+              };
+            });
+            assert.equal(radar.collisions, false, `radar marker collision: ${size.width} ${scale}`);
+            assert.equal(radar.clipped, false, `clipped radar marker: ${size.width} ${scale}`);
+            assert.equal(
+              radar.crowdedLogos,
+              false,
+              `roster logo overlaps name: ${size.width} ${scale}`,
+            );
+            assert.equal(radar.rosterCount, radar.markerCount);
+            assert.equal(radar.repeatedPanels, 0, 'repeated agent panels returned');
+          }
           const activeTabVisible = await page.evaluate(() => {
             const strip = document.querySelector('.workspace-tabs').getBoundingClientRect();
             const tab = document.querySelector('.workspace-tabs > .active').getBoundingClientRect();
@@ -301,6 +338,12 @@ try {
   );
   await page.screenshot({ path: resolve(out, 'monitoring.png') });
   await page.getByRole('button', { name: /Select Claude Code, 1 processes/ }).click();
+  assert.equal(
+    await page.getByRole('button', { name: 'Process', exact: true }).isVisible(),
+    false,
+    'individual processes are expanded by default',
+  );
+  await page.getByText(/Individual processes/).click();
   await page.getByRole('button', { name: 'Process', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
@@ -308,6 +351,11 @@ try {
   assert.equal(await page.locator('button button, button a').count(), 0);
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden' });
+  assert.equal(
+    await page.locator('.radar-blip[aria-pressed="true"]').count(),
+    1,
+    'closing details cleared radar selection',
+  );
   assert.equal(await page.evaluate(() => window.bridgeCalls), 0);
   await page.close();
   const desktop = await browser.newPage();

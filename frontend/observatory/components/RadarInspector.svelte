@@ -1,6 +1,8 @@
 <script lang="ts">
-  import { measured, record, type Telemetry, type RecordData } from '../runtime/host';
+  import { record, type Telemetry, type RecordData } from '../runtime/host';
   import {
+    groupResource,
+    groupRecord,
     displayMeasure,
     riskBand,
     type RadarGroup,
@@ -21,125 +23,111 @@
     selected: string | null;
     inspect: (title: string, row: RecordData) => void;
   } = $props();
-  let events = $derived(
-    chosen?.instanceId ? telemetry.events.filter((e) => e.instanceId === chosen.instanceId) : [],
-  );
+  let processOptions = $state(false);
+  let previousGroup: string | undefined;
+  $effect(() => {
+    if (group?.key !== previousGroup) {
+      previousGroup = group?.key;
+      processOptions = false;
+    }
+  });
+  let ids = $derived(new Set(group?.members.map((a) => a.instanceId).filter(Boolean)));
+  let events = $derived(telemetry.events.filter((e) => e.instanceId && ids.has(e.instanceId)));
   let latest = $derived([...events].sort((a, b) => b.timestamp - a.timestamp)[0]);
-  function resource(key: string) {
-    return telemetry.stale || !chosen?.instanceId
-      ? null
-      : measured(telemetry.resources.find((r) => r.instanceId === chosen?.instanceId)?.[key]);
+  function openGroup() {
+    if (group) inspect(group.name, groupRecord(group));
   }
-  function open() {
+  function openProcess() {
     if (chosen) inspect(chosen.name, chosen as unknown as RecordData);
   }
 </script>
 
 <aside class="panel inspector" id="inspector">
   <div class="inspector-title">
-    <span>Selected instance</span>{#if chosen}<button
-        aria-label="Open selected instance"
-        onclick={open}><Icon name="chevron" /></button
-      >{/if}
+    <h2><Icon name="agents" />Agent details</h2>
+    <span class="detail-status"
+      >{group ? (telemetry.stale ? 'Last snapshot' : 'Selected') : 'No selection'}</span
+    >
   </div>
-  {#if chosen}
+  {#if group}
     <div class="agent-identity">
-      <AgentLogo id={chosen.agent} name={chosen.name} size={32} />
+      <AgentLogo id={group.key} name={group.name} size={32} />
       <div>
-        <button class="entity-link" onclick={open}>{chosen.name}</button><small class="mono"
-          >PID {chosen.pid}</small
+        <button class="entity-link" onclick={openGroup}>{group.name}</button><small
+          >{group.members.length}
+          {group.members.length === 1 ? 'process' : 'processes'} combined</small
         >
       </div>
     </div>
-    {#if group && group.members.length > 1}<label class="instance-picker"
-        ><span>Process · {group.members.length} observed</span><select
-          aria-label="Selected process"
-          bind:value={selected}
-          >{#each group.members.filter((a) => a.instanceId) as a (a.instanceId)}<option
-              value={a.instanceId}
-              >PID {a.pid} · {a.projectName ?? a.process} · risk {a.riskScore}</option
-            >{/each}</select
-        ></label
-      >{/if}
-    <div class="inspector-risk">
-      <div>
-        <span>Risk</span><span class={`badge ${riskBand(chosen.riskScore)}`}
-          >{riskBand(chosen.riskScore)}</span
-        >
-      </div>
-      <span class={`risk-value ${riskBand(chosen.riskScore)}`}
-        >{chosen.riskScore}<small>/100</small></span
-      >
-    </div>
-    <div class="risk-track">
-      <i
-        style={`transform:scaleX(${chosen.riskScore / 100});background:var(--${chosen.riskScore < 35 ? 'green' : chosen.riskScore < 66 ? 'amber' : 'red'})`}
-      ></i>
-    </div>
-    <div class="inspector-metrics">
-      <div><strong>{displayMeasure(resource('cpu'), '%')}</strong><span>CPU</span></div>
-      <div><strong>{displayMeasure(resource('memMb'))}</strong><span>RAM, MB</span></div>
-      <div><strong>{events.length}</strong><span>events</span></div>
-    </div>
-    {#if latest}<div class="finding" class:ordinary={!latest.sensitive}>
+    <section class="inspector-block" aria-label="Agent risk">
+      <div class="inspector-risk">
         <div>
-          <Icon name="file" /><span>{latest.sensitive ? 'Needs review' : 'Latest action'}</span
-          ><time>{new Date(latest.timestamp).toLocaleTimeString()}</time>
+          <span>Highest process risk</span><span class={`badge ${riskBand(group.risk)}`}
+            >{riskBand(group.risk)}</span
+          >
         </div>
-        <button
-          class="entity-link"
-          onclick={() => inspect('File observation', latest as unknown as RecordData)}
-          >{latest.file.split(/[/\\]/).pop()}</button
-        >
-        <p>{latest.action ?? 'File change observed.'}</p>
+        <span class={`risk-value ${riskBand(group.risk)}`}>{group.risk}<small>/100</small></span>
       </div>
-      <div class="attribution-line">
-        <Icon name="link" /><span
-          >{record(latest.attribution).status === 'confirmed'
-            ? 'Process instance confirmed.'
-            : 'Indirect attribution. A specific process action is unconfirmed.'}</span
-        >
-      </div>{:else}<p class="entity-note">No retained file observations for this instance.</p>{/if}
-    <div class="toolbar">
-      {#if latest}<button
-          class="button"
-          onclick={() => inspect('File observation', latest as unknown as RecordData)}
-          >Review</button
-        >{/if}<button class="button" onclick={open}>Process</button>
-    </div>
-    <div class="inspector-secondary"><span>Behaviour anomaly: {chosen.anomalyScore}/100</span></div>
-    <p class="entity-note">{chosen.projectName ?? chosen.cwd ?? 'Working directory unavailable'}</p>
+      <div class="risk-track">
+        <i
+          style={`transform:scaleX(${group.risk / 100});background:var(--${group.risk < 35 ? 'green' : group.risk < 66 ? 'amber' : 'red'})`}
+        ></i>
+      </div>
+    </section>
+    <section class="inspector-block" aria-label="Combined agent usage">
+      <h3>Combined usage</h3>
+      <div class="inspector-metrics">
+        <div>
+          <strong>{displayMeasure(groupResource(group, telemetry, 'cpu'), '%')}</strong><span
+            >CPU</span
+          >
+        </div>
+        <div>
+          <strong>{displayMeasure(groupResource(group, telemetry, 'memMb'))}</strong><span
+            >RAM, MB</span
+          >
+        </div>
+        <div><strong>{events.length}</strong><span>events</span></div>
+      </div>
+    </section>
+    <section class="inspector-block" aria-label="Recent agent activity">
+      <h3>Latest activity</h3>
+      {#if latest}<div class="finding" class:ordinary={!latest.sensitive}>
+          <div>
+            <Icon name="file" /><span>{latest.sensitive ? 'Needs review' : 'File event'}</span><time
+              >{new Date(latest.timestamp).toLocaleTimeString()}</time
+            >
+          </div>
+          <button
+            class="entity-link"
+            onclick={() => inspect('File observation', latest as unknown as RecordData)}
+            >{latest.file.split(/[/\\]/).pop()}</button
+          >
+          <p>{latest.action ?? 'File change observed.'}</p>
+          {#if record(latest.attribution).status !== 'confirmed'}<small>Indirect attribution</small
+            >{/if}
+        </div>{:else}<p class="entity-note">No retained file events for this agent.</p>{/if}
+    </section>
+    <button class="button inspector-open" onclick={openGroup}
+      >Open agent<Icon name="chevron" /></button
+    >
+    <details class="process-options" bind:open={processOptions}>
+      <summary>Individual processes <span>{group.members.length}</span></summary>
+      <label class="instance-picker"
+        ><span>Choose a process</span><select aria-label="Selected process" bind:value={selected}>
+          {#each group.members.filter((a) => a.instanceId) as a (a.instanceId)}<option
+              value={a.instanceId}
+              >PID {a.pid}{a.projectName ? ' · ' + a.projectName : ''} · risk {a.riskScore}</option
+            >{/each}
+        </select></label
+      >
+      <button class="button" onclick={openProcess} disabled={!chosen}>Process</button>
+    </details>
   {:else}
     <div class="radar-no-selection">
       <Icon name="radar" />
-      <h3>No agent selected</h3>
-      <p>Select a marker or an agent card to inspect its process.</p>
+      <h3>Choose an agent</h3>
+      <p>Select a marker or a row in the agent list. Its risk, usage and activity appear here.</p>
     </div>
-    <div class="inspector-metrics">
-      <div>
-        <strong>{telemetry.ready ? telemetry.agents.length : '—'}</strong><span
-          >active processes</span
-        >
-      </div>
-      <div><strong>{telemetry.network.length}</strong><span>connections</span></div>
-    </div>
-    <p class="entity-note">Click empty radar space or press Escape to clear a selection.</p>
   {/if}
 </aside>
-
-<style>
-  .instance-picker {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    font-size: calc(11px * var(--ui-scale));
-    margin-bottom: 12px;
-  }
-  .instance-picker select {
-    width: 100%;
-    padding: 6px;
-  }
-  .badge {
-    text-transform: capitalize;
-  }
-</style>

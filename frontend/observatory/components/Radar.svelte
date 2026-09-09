@@ -1,6 +1,6 @@
 <script lang="ts">
   import { instances, type Telemetry, type RecordData } from '../runtime/host';
-  import { radarGroups, groupActivity, riskBand, type RadarGroup } from '../runtime/radar';
+  import { radarGroups, groupRecord, riskBand, type RadarGroup } from '../runtime/radar';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
   import RadarSummary from './RadarSummary.svelte';
@@ -27,18 +27,13 @@
   let chosenGroup = $derived(
     groups.find((g) => g.members.some((a) => !!selected && a.instanceId === selected)),
   );
-  let end = $derived(
-    Math.max(telemetry.lastScan ?? 0, ...telemetry.events.map((e) => e.timestamp)) + 1,
-  );
-  let maximum = $derived(
-    Math.max(
-      1,
-      ...plotted.flatMap((g) => groupActivity(g, telemetry, end).map((b) => b.events.length)),
-    ),
-  );
   let linked = $derived(
     (layer === 'files' ? telemetry.events : telemetry.network)
-      .filter((e) => !selected || e.instanceId === selected)
+      .filter(
+        (e) =>
+          !chosenGroup ||
+          chosenGroup.members.some((a) => !!e.instanceId && a.instanceId === e.instanceId),
+      )
       .slice(0, 2)
       .map((e) => ({
         row: e as unknown as RecordData,
@@ -53,10 +48,12 @@
       g.members.find((a) => a.instanceId === selected)?.instanceId ??
       g.members.find((a) => a.instanceId)?.instanceId ??
       null;
+    if (!selected) inspect(g.name, groupRecord(g));
   }
   function position(g: RadarGroup, i: number) {
-    const angle = [312, 142, 65, 225][i];
-    const r = 22 + g.risk * 0.24;
+    const count = plotted.length;
+    const angle = count === 3 ? i * 120 : 45 + i * (360 / Math.max(2, count));
+    const r = 27 + g.risk * 0.19;
     return {
       x: 50 + Math.sin((angle * Math.PI) / 180) * r,
       y: 50 - Math.cos((angle * Math.PI) / 180) * r,
@@ -65,12 +62,12 @@
   }
 </script>
 
-<div class="overview-grid">
+<div class="overview-grid radar-clarity">
   <section class="panel radar-panel">
     <div class="panel-head">
       <div>
         <h2><Icon name="radar" />Agent radar</h2>
-        <p>Risk and active instances</p>
+        <p>One marker per agent · risk rises toward the edge</p>
       </div>
       <div class="segmented" aria-label="Radar layer">
         {#each [['radar', 'Radar', 'radar'], ['files', 'Files', 'folder'], ['network', 'Network', 'network']] as [id, title, icon] (id)}<button
@@ -81,17 +78,6 @@
     </div>
     <div id="radar-body">
       <div class="radar-workspace">
-        <aside class="radar-info radar-info-left" aria-label="Agent activity, left">
-          {#each plotted.slice(0, 2) as group (group.key)}<RadarSummary
-              {group}
-              {telemetry}
-              {end}
-              {maximum}
-              {selected}
-              {select}
-              {inspect}
-            />{/each}
-        </aside>
         <div class="radar-stage" class:stale={telemetry.stale} data-layer={layer}>
           <button
             class="radar-empty"
@@ -99,22 +85,19 @@
             onclick={() => (selected = null)}
           ></button>
           <div class="radar-coordinate">
-            {telemetry.stale ? 'Sensor unavailable' : 'Processes visible'}<br />Local monitoring
+            {telemetry.stale ? 'Last reliable snapshot' : 'Live observation'}
           </div>
           <div class="radar-dial">
             <div class="dial-grid"></div>
             <div class="dial-ticks"></div>
             <div class="dial-sweep"></div>
-            <span class="bearing north">0°</span><span class="bearing east">90°</span><span
-              class="bearing south">180°</span
-            ><span class="bearing west">270°</span>
             <div class="radar-center"><Icon name="shield" /></div>
             {#each plotted as group, i (group.key)}{@const point = position(group, i)}<button
                 class={`radar-blip ${riskBand(group.risk)}`}
-                class:label-left={point.x < 50}
                 data-group={group.key}
                 style={`left:${point.x}%;top:${point.y}%;--echo-delay:${point.angle / 40 - 9}s`}
                 aria-label={`Select ${group.name}, ${group.members.length} processes, risk ${group.risk}`}
+                title={`${group.name} · ${group.members.length} processes · risk ${group.risk}/100`}
                 aria-pressed={group === chosenGroup}
                 onclick={() => select(group)}
                 onkeydown={(e) => {
@@ -122,12 +105,10 @@
                 }}
               >
                 <span class="blip-dot"
-                  ><AgentLogo id={group.key} name={group.name} size={18} /></span
-                ><span class="blip-meta"
-                  ><strong>{group.name}</strong><small
-                    >{group.risk} / 100{#if group.members.length > 1}
-                      · {group.members.length} processes{/if}</small
-                  ></span
+                  ><AgentLogo id={group.key} name={group.name} size={24} /></span
+                >
+                <span class="marker-number" aria-hidden="true"
+                  >{Math.min(page, pages - 1) * 4 + i + 1}</span
                 >
               </button>{/each}
           </div>
@@ -135,18 +116,25 @@
               {telemetry.ready ? 'No agents in this snapshot' : 'Waiting for a reliable scan'}
             </p>{/if}
           {#if layer !== 'radar'}<RadarLinks rows={linked} {layer} {inspect} />{/if}
-          <div class="radar-scale">Farther from center:<br />higher risk</div>
+          <div class="radar-scale">Select a marker or an agent in the list</div>
         </div>
-        <aside class="radar-info radar-info-right" aria-label="Agent activity, right">
-          {#each plotted.slice(2, 4) as group (group.key)}<RadarSummary
-              {group}
-              {telemetry}
-              {end}
-              {maximum}
-              {selected}
-              {select}
-              {inspect}
-            />{/each}
+        <aside class="radar-roster" aria-label="Observed agents">
+          <div class="roster-heading">
+            <h3>Agents</h3>
+            <span>{groups.length}</span>
+          </div>
+          <div class="roster-items">
+            {#each plotted as group, i (group.key)}<RadarSummary
+                {group}
+                ordinal={Math.min(page, pages - 1) * 4 + i + 1}
+                {selected}
+                {select}
+              />{/each}
+          </div>
+          {#if !groups.length}<p class="entity-note">
+              {telemetry.ready ? 'No agents observed.' : 'Waiting for a scan.'}
+            </p>{/if}
+          <p class="roster-note">{agents.length} processes grouped by agent</p>
         </aside>
       </div>
     </div>
@@ -165,12 +153,6 @@
             onclick={() => page++}><Icon name="chevron" /></button
           >
         </div>{/if}
-      <button
-        id="open-selected-agent"
-        disabled={!chosen}
-        onclick={() => chosen && inspect(chosen.name, chosen as unknown as RecordData)}
-        >Open selected agent</button
-      >
     </div>
   </section>
   <RadarInspector {chosen} group={chosenGroup} {telemetry} bind:selected {inspect} />

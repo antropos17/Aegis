@@ -1,0 +1,310 @@
+/* Requested clarity pass: one roster, compact markers, distinct information panels. */
+.summary.monitoring-summary {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(130px * var(--ui-scale))), 1fr));
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.monitoring-summary > .summary-stat {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.radar-clarity {
+  gap: 16px;
+  align-items: start;
+}
+.radar-clarity .radar-panel,
+.radar-clarity .inspector {
+  height: auto;
+  border: 1px solid var(--strong-border);
+  border-radius: 12px;
+}
+.radar-clarity .radar-panel > .panel-head {
+  padding: 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.radar-clarity #radar-body {
+  display: block;
+  flex: none;
+}
+.radar-clarity .radar-workspace {
+  display: grid;
+  height: auto;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto;
+}
+.radar-clarity .radar-stage {
+  grid-column: auto;
+  grid-row: auto;
+  min-height: 340px;
+  container-type: inline-size;
+  background: var(--bg);
+}
+.radar-clarity .radar-dial {
+  width: min(280px, calc(100cqw - 48px));
+  height: min(280px, calc(100cqw - 48px));
+}
+.radar-clarity .radar-coordinate {
+  top: 14px;
+  left: 16px;
+  color: var(--muted);
+}
+.radar-clarity .radar-scale {
+  display: block;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  text-align: center;
+  max-width: none;
+  font-size: calc(10px * var(--ui-scale));
+  color: var(--muted);
+}
+.radar-clarity .radar-blip {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--panel);
+  box-shadow: 0 2px 5px #0001;
+}
+.radar-clarity .radar-blip.low {
+  border-color: var(--green);
+}
+.radar-clarity .radar-blip.medium {
+  border-color: var(--amber);
+}
+.radar-clarity .radar-blip.high {
+  border-color: var(--red);
+}
+.radar-clarity .radar-blip[aria-pressed='true'] {
+  border: 2px solid var(--ink);
+  box-shadow: 0 0 0 4px var(--selection-border);
+  background: var(--selection);
+}
+.radar-clarity .blip-dot {
+  --marker-size: 24px;
+  width: 24px;
+  height: 24px;
+}
+.radar-clarity .blip-dot::after {
+  display: none;
+}
+.marker-number {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--panel);
+  border: 2px solid var(--panel);
+  font-size: 10px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.radar-roster {
+  padding: 14px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  min-width: 0;
+}
+.roster-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.roster-heading > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.roster-items {
+  display: grid;
+  gap: 8px;
+}
+.radar-roster .radar-agent-card {
+  display: grid;
+  grid-template-columns: 16px 24px minmax(0, 1fr) auto 12px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.radar-roster .radar-agent-card:hover {
+  background: var(--hover);
+}
+.radar-roster .radar-agent-card[aria-pressed='true'] {
+  background: var(--selection);
+  border-color: var(--selection-border);
+  box-shadow: inset 3px 0 0 var(--ink);
+}
+.roster-number {
+  color: var(--muted);
+  font-size: 11px;
+}
+.roster-identity {
+  min-width: 0;
+}
+.radar-clarity .radar-roster .agent-mark,
+.radar-clarity .blip-dot .agent-mark {
+  width: 24px;
+  height: 24px;
+}
+.radar-roster .agent-mark img {
+  width: 100%;
+  height: 100%;
+}
+.roster-identity strong {
+  display: block;
+  font-size: calc(12px * var(--ui-scale));
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.roster-identity small,
+.roster-risk small {
+  display: block;
+  color: var(--muted);
+  font-size: calc(10px * var(--ui-scale));
+}
+.roster-risk {
+  font-size: calc(14px * var(--ui-scale));
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.radar-roster .radar-agent-card > .icon {
+  width: 12px;
+  height: 12px;
+}
+.roster-note {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: calc(10px * var(--ui-scale));
+}
+.radar-clarity .radar-bottom {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+.radar-clarity .inspector {
+  padding: 16px;
+  overflow: visible;
+  background: var(--panel);
+}
+.radar-clarity .inspector-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+.inspector-title h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.detail-status {
+  color: var(--muted);
+  font-size: 10px;
+}
+.radar-clarity .agent-identity {
+  margin-bottom: 0;
+}
+.radar-clarity .agent-identity > div {
+  min-width: 0;
+}
+.radar-clarity .agent-identity .entity-link {
+  overflow-wrap: anywhere;
+}
+.inspector-block {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.inspector-block h3 {
+  margin-bottom: 10px;
+  color: var(--muted);
+}
+.radar-clarity .inspector-metrics {
+  margin-bottom: 0;
+}
+.radar-clarity .inspector-metrics > div {
+  padding: 10px 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.inspector-open {
+  margin-top: 18px;
+  width: 100%;
+  justify-content: space-between;
+}
+.process-options {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.process-options summary {
+  cursor: pointer;
+  font-size: calc(11px * var(--ui-scale));
+}
+.process-options summary > span {
+  float: right;
+  color: var(--muted);
+}
+.process-options .instance-picker {
+  display: grid;
+  gap: 7px;
+  font-size: 11px;
+  margin: 12px 0;
+}
+.process-options select {
+  width: 100%;
+  padding: 7px;
+}
+.monitoring-activity {
+  margin-top: 20px;
+}
+.monitoring-activity .panel-head {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+@container (min-width: 620px) {
+  .radar-clarity .radar-workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(235px, 0.82fr);
+  }
+  .radar-clarity .radar-stage {
+    min-height: 380px;
+  }
+  .radar-roster {
+    border-top: 0;
+    border-left: 1px solid var(--border);
+  }
+}
+@media (max-width: 1100px) {
+  .summary.monitoring-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .overview-grid.radar-clarity {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

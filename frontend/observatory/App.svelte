@@ -177,6 +177,7 @@
   });
   function keydown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
+      if (detail || document.querySelector('dialog[open]')) return;
       commands = false;
       selected = null;
       return;
@@ -350,7 +351,7 @@
                   ? 'Observation unavailable / stale'
                   : telemetry.scanning
                     ? 'Scanning'
-                    : 'Monitoring'}</span
+                    : 'Live'}</span
           >
         </div>
         <div class="page-actions">

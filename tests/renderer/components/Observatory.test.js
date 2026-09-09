@@ -38,6 +38,7 @@ describe('Observatory production components', () => {
       inspect,
     });
     await fireEvent.click(screen.getByRole('button', { name: /Select Claude Code, 3 processes/ }));
+    await fireEvent.click(screen.getByText(/Individual processes/));
     await fireEvent.change(screen.getByLabelText('Selected process'), {
       target: { value: '102:1' },
     });
