@@ -290,3 +290,23 @@ describe('token-tracker', () => {
     });
   });
 });
+
+describe('token-tracker inherited model names regression', () => {
+  beforeEach(() => _resetForTest());
+  it.each(['constructor', '__proto__', 'toString'])(
+    'uses fallback pricing for %s instead of inherited object properties',
+    (model) => {
+      expect(computeCost(model, 1000000, 0)).toEqual({
+        costUsd: DEFAULT_PRICING.input,
+        knownModel: false,
+      });
+      trackTokens({ pid: 9, instanceId: '9:live' }, { model, inputTokens: 1000000 });
+      const result = trackTokens(
+        { pid: 9, instanceId: '9:live' },
+        { model: KNOWN_MODEL, inputTokens: 1000000 },
+      );
+      expect(result.costUsd).toBeCloseTo(DEFAULT_PRICING.input + MODEL_PRICING[KNOWN_MODEL].input);
+      expect(result.estimated).toBe(true);
+    },
+  );
+});

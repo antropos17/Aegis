@@ -116,3 +116,19 @@ describe('token-cost-collector — folds measured deltas into the tracker', () =
     for (const c of costs) expect(c.inputTokens).toBe(100);
   });
 });
+
+it('skips malformed adapter rows without aborting the collector before a valid delta', async () => {
+  tokenFeed._setAdaptersForTest([
+    { id: 'malformed', readUsage: async () => [null, undefined, delta(1, 10)] },
+  ]);
+  await expect(collectTokenCosts([agent(1, 1000)])).resolves.toEqual([delta(1, 10)]);
+  expect(tokenTracker.getAllCosts()[0].inputTokens).toBe(10);
+});
+it('keeps its never-throws contract if the feed rejects with null', async () => {
+  const feed = vi.spyOn(tokenFeed, 'readUsageByPid').mockRejectedValueOnce(null);
+  try {
+    await expect(collectTokenCosts([agent(1, 1000)])).resolves.toEqual([]);
+  } finally {
+    feed.mockRestore();
+  }
+});

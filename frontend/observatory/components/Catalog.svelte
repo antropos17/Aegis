@@ -28,6 +28,8 @@
   let query = $state('');
   let error = $state('');
   let alive = true;
+  let loaded = $state(false);
+  let mutating = $state(false);
   let rows = $derived(
     [
       ...base.map((row) => ({ ...row, custom: false })),
@@ -46,6 +48,7 @@
     if (alive) {
       base = records(record(database).agents ?? database);
       custom = records(user);
+      loaded = true;
     }
   }
   onMount(() => {
@@ -56,6 +59,15 @@
       alive = false;
     };
   });
+  async function mutate(action: () => Promise<void>) {
+    if (mutating || !loaded) throw new Error('Catalog is not ready for another change');
+    mutating = true;
+    try {
+      await action();
+    } finally {
+      if (alive) mutating = false;
+    }
+  }
   async function persist(next: RecordData[]) {
     const validated = validateCatalog(next);
     if (validated.some((a) => base.some((b) => a.id === b.id)))
@@ -76,11 +88,13 @@
       processInput?.focus();
       throw new Error('Process signature is required');
     }
-    const next = editing
-      ? custom.map((row) => (row.id === editing ? applyFormToAgent(row, form) : row))
-      : [...custom, buildCustomAgent(form)];
-    await persist(next);
-    if (alive) showForm = false;
+    await mutate(async () => {
+      const next = editing
+        ? custom.map((row) => (row.id === editing ? applyFormToAgent(row, form) : row))
+        : [...custom, buildCustomAgent(form)];
+      await persist(next);
+      if (alive) showForm = false;
+    });
   }
   async function importAgents() {
     const imported = confirmed(await invoke(host, 'importAgentDatabase'));
@@ -109,13 +123,14 @@
     ></label
   ><span class="spacer"></span><button
     class="button"
+    disabled={mutating}
     onclick={() => {
       form = createEmptyForm();
       editing = null;
       editorSection = 'general';
       showForm = true;
     }}><Icon name="plus" />Add agent</button
-  ><Action action={importAgents}>Import</Action><Action
+  ><Action disabled={mutating || !loaded} action={() => mutate(importAgents)}>Import</Action><Action
     action={async () => confirmed(await invoke(host, 'exportAgentDatabase'))}>Export</Action
   >
 </div>
@@ -169,13 +184,16 @@
                 >
                 {#if row.custom}<button
                     class="button"
+                    disabled={mutating}
                     onclick={() => {
                       editing = String(row.id);
                       form = formFromAgent(row);
                       editorSection = 'general';
                       showForm = true;
                     }}>Edit</button
-                  ><Action action={() => persist(custom.filter((a) => a.id !== row.id))}
+                  ><Action
+                    disabled={mutating}
+                    action={() => mutate(() => persist(custom.filter((a) => a.id !== row.id)))}
                     >Delete</Action
                   >{/if}
               </div></td
@@ -216,7 +234,7 @@
     close={() => (showForm = false)}
   >
     {#snippet children(section)}
-      <section class="detail-section">
+      <fieldset class="detail-section" disabled={mutating}>
         {#if section === 'general'}
           <h3>Agent profile</h3>
           <div class="form-grid">
@@ -253,15 +271,19 @@
             The process signature identifies this agent in observed processes.
           </p>
         {/if}
-      </section>
+      </fieldset>
     {/snippet}
     {#snippet actions()}<button class="button" onclick={() => (showForm = false)}>Cancel</button
-      ><Action action={save}>Save agent</Action>{/snippet}
+      ><Action disabled={mutating || !loaded} action={save}>Save agent</Action>{/snippet}
   </EditorDialog>
 {/if}
 <p class="catalog-count muted">{base.length} bundled · {custom.length} custom</p>
 
 <style>
+  fieldset {
+    min-width: 0;
+    margin-inline: 0;
+  }
   .catalog-empty {
     padding: 28px;
     text-align: center;

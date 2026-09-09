@@ -17,6 +17,8 @@ const fs = require('fs');
 const path = require('path');
 const { IGNORE_PROCESS_PATTERNS, EDITOR_HOSTS } = require('../shared/constants');
 const sensorHealth = require('./sensor-health');
+const config = require('./config-manager');
+const { validateCustomAgent } = require('./settings-validation');
 const _platform = require('./platform');
 let _listProcesses = _platform.listProcesses;
 let _getParentProcessMap = _platform.getParentProcessMap;
@@ -207,6 +209,7 @@ function _resetForTest() {
   _providesStartTime = _platform.providesStartTime === true;
   _getSnapshotHealth = null;
   _getParentProcessMap = _platform.getParentProcessMap;
+  _getCustomAgents = () => config.getCustomAgents();
 }
 
 let _agentDb = null;
@@ -219,6 +222,25 @@ function _ensureAgentDb() {
     fs.readFileSync(path.join(__dirname, '..', 'shared', 'agent-database.json'), 'utf-8'),
   );
   _aiAgents = _agentDb.agents.map((a) => ({ name: a.displayName, patterns: a.names }));
+}
+
+/**
+ * Merge the current validated custom catalog for this scan without mutating the bundled cache.
+ * Bundled IDs and process patterns keep precedence; the first valid custom ID owns its names.
+ * @returns {Array<{name: string, patterns: string[]}>} Current detection signatures
+ * @since 0.14.1
+ */
+function detectionSignatures() {
+  const signatures = [..._aiAgents];
+  const ids = new Set(_agentDb.agents.map((agent) => agent.id));
+  const custom = _getCustomAgents();
+  if (!Array.isArray(custom)) return signatures;
+  for (const agent of custom) {
+    if (!validateCustomAgent(agent).valid || ids.has(agent.id)) continue;
+    ids.add(agent.id);
+    signatures.push({ name: agent.displayName, patterns: [...agent.names] });
+  }
+  return signatures;
 }
 
 /** Set of editor host process names (lowercased) for fast lookup */
@@ -234,15 +256,17 @@ let peakAgents = 0;
 const uniqueAgentNames = new Set();
 
 let _trackSeenAgent = null;
+let _getCustomAgents = () => config.getCustomAgents();
 
 /**
  * Initialise with external dependencies.
- * @param {{ trackSeenAgent: Function }} deps
+ * @param {{ trackSeenAgent: Function, getCustomAgents?: Function }} deps
  * @returns {void}
  * @since v0.1.0
  */
 function init(deps) {
   _trackSeenAgent = deps.trackSeenAgent;
+  _getCustomAgents = deps.getCustomAgents || (() => config.getCustomAgents());
 }
 
 /**
@@ -328,11 +352,12 @@ async function scanProcesses(opts = {}) {
     // pid-set and peakAgents bookkeeping run, and the return shape stays stable.
   }
   const detected = [];
+  const signatures = detectionSignatures();
   for (const proc of processes) {
     const procName = proc.name.toLowerCase();
     if (IGNORE_PROCESS_PATTERNS.some((p) => procName.includes(p))) continue;
     if (EDITOR_HOST_SET.has(procName)) continue;
-    for (const agent of _aiAgents) {
+    for (const agent of signatures) {
       if (agent.patterns.some((p) => procName === p.toLowerCase())) {
         detected.push({
           agent: agent.name,

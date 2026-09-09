@@ -25,12 +25,14 @@ const agent = (id, pid = 123) => ({
 });
 const deferred = () => {
   let resolve;
-  const promise = new Promise((r) => {
+  let reject;
+  const promise = new Promise((r, fail) => {
     resolve = r;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 };
-function setup(seed = Promise.resolve({}), ownSeed = Promise.resolve({})) {
+function setup(seed = Promise.resolve({}), ownSeed = Promise.resolve({}), settingsSeed) {
   const listeners = {};
   const unsubs = [];
   const host = {
@@ -38,6 +40,7 @@ function setup(seed = Promise.resolve({}), ownSeed = Promise.resolve({})) {
     getResourceUsage: () => ownSeed,
     getFalsePositives: async () => [],
   };
+  if (settingsSeed) host.getSettings = () => settingsSeed;
   for (const name of [
     'onScanBatch',
     'onStatsUpdate',
@@ -284,6 +287,117 @@ it('captures delivery totals at scan receipt rather than borrowing later file pu
     run.listeners.onFileAccess([{ sensitive: true }, { sensitive: false }]);
     expect(run.current.events).toHaveLength(3);
     expect(run.current.scanCounters).toEqual({ files: 1, sensitive: 1, evicted: 0 });
+  } finally {
+    run.dispose();
+  }
+});
+
+it.each(['onScanBatch', 'onStatsUpdate'])(
+  'ignores a delayed stats seed failure superseded by %s',
+  async (event) => {
+    const seed = deferred();
+    const run = setup(seed.promise);
+    try {
+      run.listeners[event](
+        event === 'onScanBatch' ? { stats: healthy, agents: [agent('123:1')] } : healthy,
+      );
+      seed.reject(new Error('Obsolete stats read failed'));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(run.current.error).toBe('');
+      expect(run.current.stats).toEqual(healthy);
+    } finally {
+      run.dispose();
+    }
+  },
+);
+
+it('ignores an obsolete own-resource failure after a newer scan delivery', async () => {
+  const ownSeed = deferred();
+  const run = setup(Promise.resolve(healthy), ownSeed.promise);
+  try {
+    run.listeners.onScanBatch({
+      stats: healthy,
+      agents: [agent('123:1')],
+      resourceUsage: { memMB: 20 },
+    });
+    ownSeed.reject(new Error('Obsolete resource read failed'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(run.current.error).toBe('');
+    expect(run.current.own.memMB).toBe(20);
+  } finally {
+    run.dispose();
+  }
+});
+
+it('still reports a current seed failure and ignores rejected seeds after disposal', async () => {
+  const seed = deferred();
+  const run = setup(seed.promise);
+  seed.reject(new Error('Current stats read failed'));
+  await vi.waitFor(() => expect(run.current.error).toBe('Current stats read failed'));
+  run.dispose();
+  const lateSeed = deferred();
+  const disposed = setup(lateSeed.promise);
+  disposed.dispose();
+  const before = disposed.current;
+  lateSeed.reject(new Error('Disposed stats read failed'));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(disposed.current).toBe(before);
+});
+
+it('updates freshness after settings save without a delayed startup read reverting it', async () => {
+  vi.useFakeTimers();
+  const settingsSeed = deferred();
+  const run = setup(Promise.resolve(healthy), Promise.resolve({}), settingsSeed.promise);
+  try {
+    run.listeners.onScanBatch({ stats: healthy, agents: [agent('123:1')] });
+    run.dispose.applySettings({ scanIntervalSec: 60 });
+    settingsSeed.resolve({ scanIntervalSec: 10 });
+    await vi.advanceTimersByTimeAsync(32000);
+    expect(run.current.stale).toBe(false);
+    await vi.advanceTimersByTimeAsync(98000);
+    expect(run.current.stale).toBe(false);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(run.current.stale).toBe(true);
+    run.listeners.onScanBatch({ stats: healthy, agents: [agent('123:1')] });
+    run.dispose.applySettings({ scanIntervalSec: 10 });
+    await vi.advanceTimersByTimeAsync(31000);
+    expect(run.current.stale).toBe(true);
+  } finally {
+    run.dispose();
+    vi.useRealTimers();
+  }
+});
+
+it('uses the initial scan interval and rejects invalid freshness settings', async () => {
+  vi.useFakeTimers();
+  const run = setup(
+    Promise.resolve(healthy),
+    Promise.resolve({}),
+    Promise.resolve({ scanIntervalSec: 60 }),
+  );
+  try {
+    run.listeners.onScanBatch({ stats: healthy, agents: [agent('123:1')] });
+    await vi.advanceTimersByTimeAsync(0);
+    for (const scanIntervalSec of [null, undefined, '10', NaN, Infinity, 0, -1])
+      run.dispose.applySettings({ scanIntervalSec });
+    await vi.advanceTimersByTimeAsync(32000);
+    expect(run.current.stale).toBe(false);
+    await vi.advanceTimersByTimeAsync(99000);
+    expect(run.current.stale).toBe(true);
+  } finally {
+    run.dispose();
+    vi.useRealTimers();
+  }
+});
+
+it('ignores a delayed settings read failure after a confirmed settings update', async () => {
+  const settingsSeed = deferred();
+  const run = setup(Promise.resolve(healthy), Promise.resolve({}), settingsSeed.promise);
+  try {
+    run.dispose.applySettings({ scanIntervalSec: 60 });
+    settingsSeed.reject(new Error('Obsolete settings read failed'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(run.current.error).toBe('');
   } finally {
     run.dispose();
   }

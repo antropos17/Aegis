@@ -94,13 +94,15 @@ function register() {
   });
   ipcMain.handle('get-settings', () => ({ ...config.getSettings() }));
 
-  ipcMain.handle('save-settings', (_e, newSettings) => {
+  ipcMain.handle('save-settings', (_e, newSettings, options) => {
     const check = validateSettings(newSettings);
     if (!check.valid) {
       logger.warn(`IPC save-settings rejected: ${check.error}`);
       return { success: false, error: check.error };
     }
-    config.saveSettings(newSettings);
+    if (options?.clearAnthropicApiKey === true)
+      config.saveSettings(newSettings, { clearAnthropicApiKey: true });
+    else config.saveSettings(newSettings);
     config.applySettings();
     deps.updates?.preferencesChanged();
     return { success: true };

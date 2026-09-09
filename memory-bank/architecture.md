@@ -14,14 +14,14 @@ Core modules:
 - ipc-batcher.js — batches high-frequency IPC events (append/latest modes)
 - ipc-handlers.js — all IPC handlers (invoke + listeners)
 - preload.js — IPC bridge (window.aegis via contextBridge, 44 invoke + 10 events = 54 channels)
-- process-scanner.js — AI agent detection (tasklist + pattern matching)
+- process-scanner.js — bundled and validated custom signatures over platform process snapshots
 - process-utils.js — parent chain resolution + editor annotation
 - file-watcher.js — watcher health, main-thread attribution + handle scanning
 - watch-worker-client.js / watch-worker-thread.js — dedicated chokidar worker per evidence watch group; close invalidates delivery before termination
 - watch-event-queue.js — bounded, acknowledged worker delivery; counted drop-newest overflow reaches sensor health
 - network-monitor.js — TCP scanning + DNS + domain classification
 - rule-loader.js — YAML rule loading + categoryIndex (Map<category, rules[]>) exposed via getRulesByCategory(); built and tested, but no production caller consumes it yet (C-16)
-- config-manager.js — settings persistence + permissions
+- config-manager.js — validated atomic settings persistence, encrypted key retention and permissions
 - baselines.js — session tracking + rolling averages
 - anomaly-detector.js — multi-dimensional anomaly scoring (network/fs/process/baseline)
 - llm-runtime-detector.js — local LLM runtime detection (Ollama, LM Studio)
@@ -39,11 +39,11 @@ Core modules:
 ## Renderer (frontend/observatory/) — Svelte 5 + Vite 7
 40 Svelte components, 16 stores, 22 utils. Component count refers to frontend/observatory/components; retained store/utility counts refer to src/renderer/lib.
 
-App.svelte owns workspace tabs, history and the host connection. Monitoring shows stamped instances; Events and ActivityChart show retained evidence; Details and EntityLinks connect observations; Rules, Catalog, Analysis, Reports, Statistics and Settings expose host actions. SensorStatus renders effective sensor IDs; Notifications tracks anomaly crossings.
+App.svelte owns workspace tabs, history and the host connection. Monitoring groups products and exposes stamped instances for process actions; Events and ActivityChart show retained evidence; Details and EntityLinks connect observations; Rules, Catalog, Analysis, Reports, Statistics and Settings expose host actions. SensorStatus renders effective sensor IDs; Notifications tracks anomaly crossings.
 
-runtime/host.ts owns seven telemetry subscriptions, guarded seeds, outage retention and freshness. Shared enrich-agents.ts preserves risk scoring and instance joins. Legacy stores and utility regression fixtures remain under src/renderer/lib, outside the packaged source list; the old UI, fonts and styles are removed.
+runtime/host.ts owns seven telemetry subscriptions, revision-guarded seed results/errors, outage retention, source-specific receipt clocks and freshness updated after confirmed settings saves. Shared enrich-agents.ts preserves risk scoring and instance joins. Legacy stores and utility regression fixtures remain under src/renderer/lib, outside the packaged source list; the old UI, fonts and styles are removed.
 
-styles.ts loads the approved Observatory template styles in their original order, followed by styles/desktop.css for desktop integration. reference/SOURCE.json records the template source hashes and stylesheet order. Preview uses demo/host.ts and the same components, with no real preload calls. Production excludes these fixtures.
+styles.ts loads twelve approved template stylesheets in their original order, followed by radar-clarity, feedback, desktop, coherence, detail-layout and comfort refinements. reference/SOURCE.json records the template source hashes and stylesheet order. Preview uses demo/host.ts and the same components, with no real preload calls. Production excludes these fixtures.
 
 ## Shared (src/shared/)
 - constants.js — ignore patterns, editor lists, AGENT_CONFIG_PATHS
@@ -56,4 +56,4 @@ styles.ts loads the approved Observatory template styles in their original order
 - Renderer: Svelte 5 runes ($state, $derived, $effect), ES modules via Vite
 - IPC channels: kebab-case (scan-processes, file-access, network-update)
 - CSS: preserve the approved template cascade in frontend/observatory/styles.ts; desktop integration uses styles/desktop.css and the template's existing variables
-- Build: Vite compiles Svelte → dist/renderer/, Electron loads from dist/
+- Build: Vite compiles Svelte → dist/renderer/, Electron loads dist/renderer/index.html

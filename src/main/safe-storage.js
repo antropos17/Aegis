@@ -2,7 +2,7 @@
  * @file safe-storage.js
  * @module main/safe-storage
  * @description Encrypts/decrypts sensitive config values using Electron safeStorage.
- *   Falls back to plaintext when safeStorage is unavailable (CI, Linux without keyring).
+ *   Refuses encryption when a secure OS keychain is unavailable.
  * @requires electron
  * @since v0.8.3
  */
@@ -17,7 +17,10 @@ const logger = require('./logger');
  */
 function isAvailable() {
   try {
-    return safeStorage.isEncryptionAvailable();
+    return (
+      safeStorage.isEncryptionAvailable() &&
+      safeStorage.getSelectedStorageBackend?.() !== 'basic_text'
+    );
   } catch {
     return false;
   }

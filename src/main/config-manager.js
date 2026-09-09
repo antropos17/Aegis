@@ -23,29 +23,72 @@ const logger = require('./logger');
 const safeStore = require('./safe-storage');
 
 /**
- * Check if a regex pattern is safe from ReDoS (no nested quantifiers).
- * Rejects patterns like (a+)+, (a*)*b, (a|b+)+ that cause exponential backtracking.
+ * Accept a conservative regex subset for synchronous path matching.
+ * Repeated groups, backreferences, lookarounds and multiple variable repetitions
+ * are unsupported because observed paths must not cause excessive backtracking.
  * @param {string} pattern - Raw regex string
- * @returns {boolean} true if pattern is safe
+ * @returns {boolean} Whether the pattern is supported
  * @since v0.9.1
  */
 function isSafeRegex(pattern) {
-  if (typeof pattern !== 'string' || pattern.length === 0) return false;
-  if (pattern.length > 256) return false;
-  // Detect nested quantifiers: group with quantifier inside, followed by quantifier
-  // e.g. (a+)+  (a*)*  (a{2,})+  (a+|b)+
-  const nestedQuantifier = /\([^)]*[+*]\)[+*{]/;
-  if (nestedQuantifier.test(pattern)) return false;
-  // Also check for deeply nested groups with quantifiers: ((a+))+
-  const deepNested = /\(\([^)]*[+*]\)\)[+*{]/;
-  if (deepNested.test(pattern)) return false;
-  // Verify it compiles
+  if (typeof pattern !== 'string' || !pattern.length || pattern.length > 256) return false;
   try {
     new RegExp(pattern);
-    return true;
-  } catch (_) {
+  } catch {
     return false;
   }
+  let inClass = false;
+  let variableRepeats = 0;
+  let previousGroup = false;
+  for (let index = 0; index < pattern.length; index++) {
+    const char = pattern[index];
+    if (char === '\\') {
+      const escaped = pattern[++index];
+      if (!inClass && (/[1-9]/.test(escaped) || escaped === 'k')) return false;
+      previousGroup = false;
+      continue;
+    }
+    if (char === '[' && !inClass) {
+      inClass = true;
+      continue;
+    }
+    if (char === ']' && inClass) {
+      inClass = false;
+      previousGroup = false;
+      continue;
+    }
+    if (inClass) continue;
+    if (char === '(' && pattern[index + 1] === '?') {
+      if (pattern[index + 2] !== ':') return false;
+      index += 2;
+      previousGroup = false;
+      continue;
+    }
+    if (char === '*' || char === '+' || char === '?') {
+      if (previousGroup || ++variableRepeats > 1) return false;
+      previousGroup = false;
+      continue;
+    }
+    if (char === '{') {
+      const repetition = pattern.slice(index).match(/^\{(\d+)(?:,(\d*))?\}/);
+      if (repetition) {
+        const min = Number(repetition[1]);
+        const max =
+          repetition[2] === undefined
+            ? min
+            : repetition[2] === ''
+              ? Infinity
+              : Number(repetition[2]);
+        if (previousGroup || min > 1024 || (Number.isFinite(max) && max > 1024)) return false;
+        if (min !== max && ++variableRepeats > 1) return false;
+        index += repetition[0].length - 1;
+        previousGroup = false;
+        continue;
+      }
+    }
+    previousGroup = char === ')';
+  }
+  return true;
 }
 
 // ── Lazy path — resolved on first use (after app.whenReady) ──
@@ -93,6 +136,8 @@ function freshDefaults() {
 }
 
 let settings = freshDefaults();
+let encryptedApiKey = null;
+let storedPlainApiKey = '';
 let customSensitiveRules = [];
 let _knownAgentNames = [];
 let _applyCallback = null;
@@ -139,13 +184,15 @@ function _writeSettings() {
   const plainKey = disk.anthropicApiKey || '';
   delete disk.anthropicApiKey;
   if (plainKey) {
-    const blob = safeStore.encrypt(plainKey);
-    if (blob) {
-      disk._encryptedApiKey = blob;
-    } else {
-      // safeStorage unavailable — fall back to plaintext (CI, headless Linux)
-      disk.anthropicApiKey = plainKey;
-    }
+    const blob =
+      encryptedApiKey && plainKey === storedPlainApiKey
+        ? encryptedApiKey
+        : safeStore.encrypt(plainKey);
+    if (!blob)
+      throw new Error('Secure key storage is unavailable. Unlock the OS keychain and retry.');
+    disk._encryptedApiKey = blob;
+  } else if (encryptedApiKey) {
+    disk._encryptedApiKey = encryptedApiKey;
   } else {
     delete disk._encryptedApiKey;
   }
@@ -154,6 +201,8 @@ function _writeSettings() {
   try {
     fs.writeFileSync(temporary, JSON.stringify(disk, null, 2), { mode: 0o600 });
     fs.renameSync(temporary, target);
+    encryptedApiKey = disk._encryptedApiKey || null;
+    storedPlainApiKey = plainKey;
   } finally {
     try {
       fs.unlinkSync(temporary);
@@ -174,19 +223,39 @@ function _writeSettings() {
  */
 function loadSettings() {
   settings = freshDefaults();
+  encryptedApiKey = null;
+  storedPlainApiKey = '';
   try {
     if (fs.existsSync(settingsPath())) {
       const raw = JSON.parse(fs.readFileSync(settingsPath(), 'utf-8'));
-      settings = { ...freshDefaults(), ...raw };
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+        throw new Error('Invalid settings object');
+      const { validateSettings } = require('./settings-validation');
+      for (const key of Object.keys(DEFAULT_SETTINGS)) {
+        if (!Object.hasOwn(raw, key)) continue;
+        const value =
+          key === 'customSensitivePatterns' && Array.isArray(raw[key])
+            ? raw[key].filter(isSafeRegex)
+            : raw[key];
+        if (validateSettings({ [key]: value }).valid) settings[key] = value;
+      }
       // Decrypt API key into memory
-      if (raw._encryptedApiKey) {
-        settings.anthropicApiKey = safeStore.decrypt(raw._encryptedApiKey);
-        delete settings._encryptedApiKey;
+      if (typeof raw._encryptedApiKey === 'string' && raw._encryptedApiKey) {
+        encryptedApiKey = raw._encryptedApiKey;
+        settings.anthropicApiKey = safeStore.decrypt(encryptedApiKey);
+        storedPlainApiKey = settings.anthropicApiKey;
       }
       // Migrate plaintext key → encrypted on first load
       if (raw.anthropicApiKey && !raw._encryptedApiKey && safeStore.isAvailable()) {
         logger.info('config-manager', 'Migrating API key to encrypted storage');
-        _writeSettings();
+        try {
+          _writeSettings();
+        } catch {
+          logger.warn(
+            'config-manager',
+            'API key migration deferred until secure storage is available',
+          );
+        }
       }
     }
   } catch (_) {
@@ -198,16 +267,41 @@ function loadSettings() {
 /**
  * Persist updated settings to disk.
  * @param {Object} newSettings - Partial settings object merged with defaults
+ * @param {{clearAnthropicApiKey?: boolean}} [options] - Explicit credential removal
  * @returns {void}
  * @since v0.1.0
  */
-function saveSettings(newSettings) {
+function saveSettings(newSettings, options = {}) {
+  if (
+    !options ||
+    typeof options !== 'object' ||
+    Array.isArray(options) ||
+    Object.keys(options).some((key) => key !== 'clearAnthropicApiKey') ||
+    (Object.hasOwn(options, 'clearAnthropicApiKey') &&
+      typeof options.clearAnthropicApiKey !== 'boolean')
+  )
+    throw new Error('Invalid settings save options');
+  const { validateSettings } = require('./settings-validation');
+  const check = validateSettings(newSettings);
+  if (!check.valid) throw new Error(check.error);
   const previous = settings;
-  settings = { ...freshDefaults(), ...newSettings };
+  const previousBlob = encryptedApiKey;
+  settings = { ...freshDefaults(), anthropicApiKey: previous.anthropicApiKey, ...newSettings };
+  if (options.clearAnthropicApiKey === true) {
+    encryptedApiKey = null;
+    settings.anthropicApiKey = '';
+  } else if (
+    previous.anthropicApiKey &&
+    Object.hasOwn(newSettings, 'anthropicApiKey') &&
+    !newSettings.anthropicApiKey
+  ) {
+    encryptedApiKey = null;
+  }
   try {
     _writeSettings();
   } catch (error) {
     settings = previous;
+    encryptedApiKey = previousBlob;
     throw error;
   }
   buildCustomRules();
@@ -242,7 +336,9 @@ function getDefaultPermissions(agentName) {
  * @since v0.1.0
  */
 function getAgentPermissions(agentName) {
-  const saved = settings.agentPermissions[agentName];
+  const saved = Object.hasOwn(settings.agentPermissions, agentName)
+    ? settings.agentPermissions[agentName]
+    : null;
   if (saved) return saved;
   return getDefaultPermissions(agentName);
 }
@@ -273,12 +369,16 @@ function getInstanceKey(agentName, parentEditor, cwd) {
 function getInstancePermissions(agentName, parentEditor, cwd) {
   if (cwd) {
     const cwdKey = getInstanceKey(agentName, null, cwd);
-    const cwdPerms = settings.agentPermissions[cwdKey];
+    const cwdPerms = Object.hasOwn(settings.agentPermissions, cwdKey)
+      ? settings.agentPermissions[cwdKey]
+      : null;
     if (cwdPerms) return cwdPerms;
   }
   if (parentEditor) {
     const editorKey = getInstanceKey(agentName, parentEditor);
-    const editorPerms = settings.agentPermissions[editorKey];
+    const editorPerms = Object.hasOwn(settings.agentPermissions, editorKey)
+      ? settings.agentPermissions[editorKey]
+      : null;
     if (editorPerms) return editorPerms;
   }
   return getAgentPermissions(agentName);

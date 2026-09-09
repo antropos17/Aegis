@@ -69,8 +69,13 @@ function init(state) {
  * @since v0.1.0
  */
 function csvEscape(val) {
-  const str = String(val);
-  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+  const raw = String(val);
+  // Spreadsheet applications may interpret quoted cells as formulas too.
+  const str =
+    typeof val === 'string' && (/^[\s]*[=+@-]/.test(raw) || /^[\t\r\n]/.test(raw))
+      ? "'" + raw
+      : raw;
+  if (/[",\r\n]/.test(str)) {
     return '"' + str.replace(/"/g, '""') + '"';
   }
   return str;

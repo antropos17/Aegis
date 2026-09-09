@@ -2088,3 +2088,8 @@ startup failures plus an absent Electron dist. Installing the existing Electron
 package's binary and bounding workers resolved it without source/test changes.
 C# Release/formatter, 22 self-tests, three normal-token process cases, final live
 smoke and all 20 evidence source hashes are verified. Final PR/CI/merge follows.
+
+
+## Current Observatory context — 2026-09-09
+
+Production UI, grouped radar, detail tabs, comfort workspaces and corrected graph clocks are integrated; PR #411 is the audit base. The current multi-agent backend/frontend audit and its measured validation are maintained in [docs/current-state/AUDIT-2026-09-09.md](../docs/current-state/AUDIT-2026-09-09.md). [FRONTEND-HANDOFF.md](../FRONTEND-HANDOFF.md) records the working checkout, installed app, profile and design source. Preserve the original dirty checkout. Historical migration prompts and earlier ETW validation counts do not describe the current frontend build.

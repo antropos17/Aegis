@@ -89,3 +89,16 @@ describe('token-feed core — reset', () => {
     expect(fake.readUsage).not.toHaveBeenCalled();
   });
 });
+
+it.each([null, undefined, 'adapter-failure'])(
+  'isolates a non-Error adapter rejection (%s) and still reads the following adapter',
+  async (error) => {
+    _setAdaptersForTest([
+      fakeAdapter('broken', async () => {
+        throw error;
+      }),
+      fakeAdapter('working', async () => [delta(3, 30)]),
+    ]);
+    await expect(readUsageByPid([{ pid: 3, startTime: 1000 }])).resolves.toEqual([delta(3, 30)]);
+  },
+);

@@ -24,7 +24,7 @@ const os = require('os');
 const logger = require('./logger');
 
 /** @typedef {{ pid: number, cpu: number|null, memMb: number|null, gpu: {memMb: number}|null }} Resource */
-/** @typedef {{ cpuRaw: number, memMb: number|null }} CpuMem */
+/** @typedef {{ cpuRaw: number|null, memMb: number|null }} CpuMem */
 /**
  * What to sample, and WHO it belongs to. `instanceId` is the caller's stamped
  * process-instance key for that pid on the tick it built this target — never
@@ -108,14 +108,27 @@ function _resetForTest() {
 
 /**
  * Normalize a sum-across-cores percent (0–100×N) to 0–100 % of total machine.
- * @param {number} raw - PercentProcessorTime (win32) / ps %cpu, summed across cores
+ * @param {number|null} raw - PercentProcessorTime (win32) / ps %cpu, summed across cores
  * @param {number} cores - logical core count
- * @returns {number} 0–100, one decimal place
+ * @returns {number|null} 0–100, one decimal place; null when unmeasured
  */
 function _normalizeCpu(raw, cores) {
-  if (!Number.isFinite(raw) || raw < 0) return 0;
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < 0) return null;
   const pct = raw / Math.max(1, cores);
   return Math.round(Math.min(100, pct) * 10) / 10;
+}
+
+/**
+ * Read a nonnegative OS measurement without coercing missing data to zero.
+ * Numeric strings are emitted by some OS providers; blanks and booleans are not readings.
+ * @param {unknown} value
+ * @returns {number|null}
+ */
+function measurement(value) {
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && !value.trim()) return null;
+  const result = Number(value);
+  return Number.isFinite(result) && result >= 0 ? result : null;
 }
 
 /**
@@ -137,11 +150,11 @@ function _parsePerfJson(stdout) {
   for (const e of entries) {
     const pid = Number(e && e.IDProcess);
     if (!Number.isInteger(pid) || pid <= 0) continue;
-    const cpuRaw = Number(e.PercentProcessorTime);
-    const ws = Number(e.WorkingSet);
+    const cpuRaw = measurement(e.PercentProcessorTime);
+    const ws = measurement(e.WorkingSet);
     map.set(pid, {
-      cpuRaw: Number.isFinite(cpuRaw) ? cpuRaw : 0,
-      memMb: Number.isFinite(ws) ? Math.round(ws / BYTES_PER_MB) : null,
+      cpuRaw,
+      memMb: ws === null ? null : Math.round(ws / BYTES_PER_MB),
     });
   }
   return map;
@@ -159,7 +172,11 @@ function _parsePsOutput(stdout) {
     if (!m) continue;
     const pid = Number(m[1]);
     if (!Number.isInteger(pid) || pid <= 0) continue;
-    map.set(pid, { cpuRaw: Number(m[2]) || 0, memMb: Math.round(Number(m[3]) / 1024) });
+    const rss = measurement(m[3]);
+    map.set(pid, {
+      cpuRaw: measurement(m[2]),
+      memMb: rss === null ? null : Math.round(rss / 1024),
+    });
   }
   return map;
 }
@@ -176,7 +193,8 @@ function _parseGpuCsv(stdout) {
     if (!m) continue;
     const pid = Number(m[1]);
     if (!Number.isInteger(pid) || pid <= 0) continue;
-    map.set(pid, Number(m[2]));
+    const memory = measurement(m[2]);
+    if (memory !== null) map.set(pid, memory);
   }
   return map;
 }

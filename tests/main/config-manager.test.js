@@ -40,7 +40,8 @@ describe('config-manager', () => {
               { filesystem: 'block' },
               '/project',
             ),
-          catalog: () => configManager.saveCustomAgents([{ id: 'new' }]),
+          catalog: () =>
+            configManager.saveCustomAgents([{ id: 'new', displayName: 'New', names: ['new.exe'] }]),
           'false-positive': () =>
             configManager.addFalsePositive({ agentName: 'Claude', pattern: 'x', timestamp: 1 }),
         };
@@ -149,14 +150,14 @@ describe('config-manager', () => {
     expect(cwdKey).toBe('Claude::/repo');
     expect(editorKey).toBe('Claude::VS Code');
 
-    configManager.saveInstancePermissions('Claude', 'VS Code', { filesystem: 'cwd' }, '/repo');
-    configManager.saveInstancePermissions('Claude', 'VS Code', { filesystem: 'editor' }, null);
+    configManager.saveInstancePermissions('Claude', 'VS Code', { filesystem: 'block' }, '/repo');
+    configManager.saveInstancePermissions('Claude', 'VS Code', { filesystem: 'monitor' }, null);
 
     const raw = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-    expect(raw.agentPermissions[cwdKey].filesystem).toBe('cwd');
-    expect(raw.agentPermissions[editorKey].filesystem).toBe('editor');
+    expect(raw.agentPermissions[cwdKey].filesystem).toBe('block');
+    expect(raw.agentPermissions[editorKey].filesystem).toBe('monitor');
     expect(configManager.getInstancePermissions('Claude', 'VS Code', '/repo').filesystem).toBe(
-      'cwd',
+      'block',
     );
   });
 
@@ -176,7 +177,7 @@ describe('config-manager', () => {
 
   it('getCustomAgents() / saveCustomAgents() round-trip', () => {
     configManager.loadSettings();
-    const agents = [{ name: 'MyAgent', patterns: ['myagent'] }];
+    const agents = [{ id: 'myagent', displayName: 'MyAgent', names: ['myagent'] }];
     configManager.saveCustomAgents(agents);
     expect(configManager.getCustomAgents()).toEqual(agents);
 

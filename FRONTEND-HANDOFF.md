@@ -1,7 +1,11 @@
-# Observatory integration
+# Current AEGIS context — 2026-09-09
 
-Observatory is now the production entry at frontend/observatory/entry.ts. npm start, build:renderer and packaging consume dist/renderer. Preview uses an isolated fixture host with the same Svelte components. No pending integration screen or window.Obs compatibility shell remains.
+Production renderer: frontend/observatory/entry.ts. npm start, build:renderer and Electron packaging consume dist/renderer. Preview uses an isolated fixture host with the same Svelte components; desktop builds exclude fixtures.
 
-The old src/renderer shell, component styles and fonts are removed. Existing business computations, stores used by regression tests, and pure utility tests remain under src/renderer/lib. Do not restore the old visual system when using those helpers.
+The active integration checkout is X:/tmp/aegis-observatory-integration. Preserve the separate dirty original checkout at X:/Future/ESCAPE/AEGIS. The installed Windows executable is X:/Future/ESCAPE/AEGIS-Desktop/AEGIS - AI Monitoring & Threat Detection.exe; its existing user profile is under %APPDATA%/aegis. Build and test temporary files belong on X.
 
-See [OBSERVATORY-INTEGRATION.md](OBSERVATORY-INTEGRATION.md) for the complete preload matrix and verification state, and [frontend/observatory/DESIGN.md](frontend/observatory/DESIGN.md) for visual rules.
+The approved template is preserved in frontend/observatory/reference/. Twelve original stylesheets retain their source order, followed by the requested radar, motion, detail and comfort refinements. Historical Shield/Fancy UI documents and the old migration prompt are not current design instructions.
+
+Monitoring groups products and exposes stamped processes for actions. Statistics uses source-specific delivery clocks, actual observation points, fixed time windows and explicit missing/partial coverage. Renderer pause freezes the view while collection continues. Settings and detail dialogs have internal sections.
+
+See docs/current-state/AUDIT-2026-09-09.md for the current backend/frontend audit, its verification and remaining limits. See OBSERVATORY-INTEGRATION.md for historical integration evidence and the preload transfer matrix, frontend/observatory/DESIGN.md for visual rules, and memory-bank/architecture.md for the code map.
