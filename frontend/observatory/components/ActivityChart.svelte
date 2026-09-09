@@ -14,15 +14,13 @@
   } = $props();
   let period = $state(15 * 60000),
     type = $state('all'),
-    instance = $state(''),
+    agent = $state(''),
     hover = $state<number | null>(null),
     focus = $state(0);
   let end = $derived(Math.max(observedAt ?? 0, ...events.map((e) => e.timestamp)) + 1);
   let bins = $derived(
     activityBins(
-      events.filter(
-        (e) => (!instance || e.instanceId === instance) && (type === 'all' || e.sensitive),
-      ),
+      events.filter((e) => (!agent || e.agent === agent) && (type === 'all' || e.sensitive)),
       end,
       period,
     ),
@@ -30,9 +28,7 @@
   let maximum = $derived(
     Math.max(5, Math.ceil(Math.max(1, ...bins.map((b) => b.events.length)) / 5) * 5),
   );
-  let identities = $derived([
-    ...new Map(events.filter((e) => e.instanceId).map((e) => [e.instanceId!, e.agent])).entries(),
-  ]);
+  let names = $derived([...new Set(events.map((e) => e.agent).filter(Boolean))].sort());
   function caption(i: number) {
     const b = bins[i];
     return `${new Date(b.start).toLocaleTimeString()}–${new Date(b.end).toLocaleTimeString()} · ${b.events.length} observations`;
@@ -68,9 +64,9 @@
       ><option value="all">All file events</option><option value="sensitive"
         >Sensitive events</option
       ></select
-    ><select aria-label="Chart agent" bind:value={instance}
-      ><option value="">All instances</option>{#each identities as [id, name] (id)}<option
-          value={id}>{name ?? 'Unknown'} · {id.split(':').at(-1)}</option
+    ><select aria-label="Chart agent" bind:value={agent}
+      ><option value="">All agents</option>{#each names as name (name)}<option value={name}
+          >{name}</option
         >{/each}</select
     >
   </div>
