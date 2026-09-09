@@ -1,0 +1,96 @@
+/* Requested workspace consolidation: related destinations and reachable controls. */
+.sidebar .machine {
+  padding-block: 10px;
+  margin-block: 10px 6px;
+}
+.sidebar nav {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  gap: 2px;
+}
+.sidebar .nav-group {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+.sidebar .nav-group-label {
+  margin: 9px 10px 4px;
+  color: var(--faint);
+  font: 500 calc(10px * var(--ui-scale))/1.4 var(--sans);
+}
+.sidebar .nav-group .nav {
+  min-height: 34px;
+  padding-block: 7px;
+}
+.sidebar .sidebar-bottom {
+  padding-top: 8px;
+  flex-shrink: 0;
+}
+.sidebar .sensor-mini {
+  padding: 9px;
+}
+.sidebar .sidebar-foot {
+  margin-top: 6px;
+}
+.workspace-tabs .workspace-tab {
+  min-width: 0;
+}
+#workspace-content {
+  min-width: 0;
+}
+.page-title .workspace-caption {
+  color: var(--muted);
+  font-size: calc(12px * var(--ui-scale));
+}
+.page-head .live-badge {
+  flex-shrink: 0;
+}
+.observatory-app footer > span:nth-child(2) {
+  white-space: nowrap;
+}
+@media (max-height: 700px) {
+  .sidebar .machine {
+    display: none;
+  }
+  .sidebar .brand {
+    padding-block: 6px;
+  }
+  .sidebar .nav-group {
+    margin-bottom: 4px;
+  }
+  .sidebar .sensor-mini small,
+  .sidebar .sidebar-foot {
+    display: none;
+  }
+}
+@media (max-width: 1000px) {
+  .sidebar .nav-group .nav {
+    gap: 7px;
+    padding-inline: 8px;
+  }
+  .workspace-tab > button:first-child {
+    padding-inline: 8px;
+  }
+  .page-head .workspace-caption {
+    display: none;
+  }
+  .observatory-app footer > span:nth-child(2) {
+    white-space: normal;
+  }
+}
+
+#main.analysis-view > #workspace-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.monitoring-summary > button {
+  text-align: left;
+}
+.monitoring-summary > button:hover {
+  background: var(--raised);
+}

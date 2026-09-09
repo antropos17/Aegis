@@ -135,6 +135,7 @@ try {
     }
   }
   await window.getByLabel('Theme', { exact: true }).selectOption('light-hc');
+  await window.getByRole('tab', { name: 'Monitoring', exact: true }).click();
   await window.getByLabel('Scan interval (seconds)').evaluate((input) => {
     input.value = '20';
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -142,13 +143,14 @@ try {
   await window.getByRole('button', { name: 'Save settings', exact: true }).click();
   await window
     .getByRole('status')
-    .filter({ hasText: /^Completed$/ })
+    .filter({ hasText: /^Settings saved$/ })
     .waitFor();
   assert.equal(
     await window.evaluate(async () => (await window.aegis.getSettings()).scanIntervalSec),
     20,
   );
   assert.equal(await window.evaluate(() => localStorage.getItem('aegis-theme')), 'light-hc');
+  await window.getByRole('tab', { name: 'Appearance', exact: true }).click();
   await window.getByRole('button', { name: 'Toggle theme', exact: true }).click();
   assert.equal(await window.getByLabel('Theme', { exact: true }).inputValue(), 'dark');
   await window.getByRole('button', { name: 'Toggle theme', exact: true }).click();

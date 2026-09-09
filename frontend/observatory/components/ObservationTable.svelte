@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import {
     describeObservation,
     groupObservations,
@@ -20,6 +21,7 @@
     resetKey?: string;
   } = $props();
   let page = $state(0);
+  let surface: HTMLElement;
   let agents = $derived(instances(telemetry) as unknown as RecordData[]);
   let groups = $derived(groupObservations(rows, grouping, agents));
   let currentPage = $derived(Math.min(page, Math.max(0, Math.ceil(groups.length / 30) - 1)));
@@ -29,6 +31,13 @@
     grouping;
     page = 0;
   });
+  async function changePage(next: number) {
+    page = next;
+    await tick();
+    const target = surface.querySelector<HTMLButtonElement>('.observation-open');
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView?.({ block: 'nearest', behavior: 'instant' });
+  }
   function open(group: (typeof groups)[number]) {
     inspect(
       group.rows.length > 1 ? group.label : 'Observation',
@@ -39,14 +48,14 @@
   }
 </script>
 
-<section class="panel observation-table">
+<section class="panel observation-table" bind:this={surface}>
   <div class="table-wrap">
     <table>
       <thead
         ><tr
           ><th>{grouping === 'agent' ? 'Agent / context' : 'Resource'}</th><th
             >{grouping === 'agent' ? 'Latest resource' : 'Agent / context'}</th
-          ><th>Activity</th><th>Count</th><th>Latest</th><th>Evidence</th></tr
+          ><th>Activity</th><th>Count</th><th>Latest</th></tr
         ></thead
       >
       <tbody>
@@ -71,7 +80,29 @@
                   {row}
                   {agents}
                   showHint={!info.actor || !!row.remoteIp || !!row.domain || row.sensitive === true}
-                />{/if}</td
+                />{/if}
+              <div class="row-evidence">
+                <span
+                  title={Array.isArray(record(row.attribution).evidence)
+                    ? (record(row.attribution).evidence as unknown[]).map(String).join(', ')
+                    : info.attribution}
+                  class="badge"
+                  class:medium={row.sensitive === true ||
+                    row.verdict === 'flagged' ||
+                    ['sensitive', 'high', 'critical', 'medium'].includes(String(row.severity))}
+                  >{row.remoteIp || row.domain
+                    ? row.verdict === 'allowlisted'
+                      ? 'Allowlisted'
+                      : row.verdict === 'flagged'
+                        ? 'Not allowlisted'
+                        : 'Endpoint unverified'
+                    : row.sensitive || row.severity === 'sensitive'
+                      ? 'Sensitive'
+                      : row.severity && !['normal', 'low'].includes(String(row.severity))
+                        ? String(row.severity)
+                        : info.attribution}</span
+                >
+              </div></td
             >
             <td
               ><span class="event-type"
@@ -94,31 +125,9 @@
                   >since {new Date(group.first).toLocaleTimeString()}</small
                 >{/if}</td
             >
-            <td
-              ><span
-                title={Array.isArray(record(row.attribution).evidence)
-                  ? (record(row.attribution).evidence as unknown[]).map(String).join(', ')
-                  : info.attribution}
-                class="badge"
-                class:medium={row.sensitive === true ||
-                  row.verdict === 'flagged' ||
-                  ['sensitive', 'high', 'critical', 'medium'].includes(String(row.severity))}
-                >{row.remoteIp || row.domain
-                  ? row.verdict === 'allowlisted'
-                    ? 'Allowlisted'
-                    : row.verdict === 'flagged'
-                      ? 'Not allowlisted'
-                      : 'Endpoint unverified'
-                  : row.sensitive || row.severity === 'sensitive'
-                    ? 'Sensitive'
-                    : row.severity && !['normal', 'low'].includes(String(row.severity))
-                      ? String(row.severity)
-                      : info.attribution}</span
-              ></td
-            >
           </tr>
         {:else}<tr
-            ><td colspan="6" class="observation-empty"
+            ><td colspan="5" class="observation-empty"
               >{telemetry.ready
                 ? 'No records match these filters.'
                 : 'Waiting for observations.'}</td
@@ -134,12 +143,14 @@
       {grouping === 'none' ? 'records' : 'groups'} · {rows.length} observations</span
     >
     <div class="toolbar">
-      <button class="button" disabled={currentPage === 0} onclick={() => (page = currentPage - 1)}
-        >Previous</button
+      <button
+        class="button"
+        disabled={currentPage === 0}
+        onclick={() => changePage(currentPage - 1)}>Previous</button
       ><button
         class="button"
         disabled={(currentPage + 1) * 30 >= groups.length}
-        onclick={() => (page = currentPage + 1)}>Next</button
+        onclick={() => changePage(currentPage + 1)}>Next</button
       >
     </div>
   </div>
@@ -147,16 +158,38 @@
 
 <style>
   table {
-    min-width: 680px;
+    min-width: 640px;
+    table-layout: fixed;
+    width: 100%;
   }
   td {
     vertical-align: middle;
   }
+  th:first-child,
   td:first-child {
-    width: 31%;
+    width: 32%;
   }
+  th:nth-child(2),
   td:nth-child(2) {
-    width: 23%;
+    width: 28%;
+  }
+  th:nth-child(3),
+  td:nth-child(3) {
+    width: 13%;
+  }
+  th:nth-child(4),
+  td:nth-child(4) {
+    width: 10%;
+  }
+  th:nth-child(5),
+  td:nth-child(5) {
+    width: 17%;
+  }
+  .row-evidence {
+    margin-top: 7px;
+  }
+  .row-evidence :global(.badge) {
+    white-space: normal;
   }
   td small {
     display: block;

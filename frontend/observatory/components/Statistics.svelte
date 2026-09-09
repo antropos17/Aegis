@@ -1,155 +1,304 @@
 <script lang="ts">
-  import { instances, measured, type Telemetry, type RecordData } from '../runtime/host';
+  import { untrack } from 'svelte';
+  import { instances, record, type Telemetry, type RecordData } from '../runtime/host';
+  import { radarGroups, groupRecord, riskBand } from '../runtime/radar';
+  import {
+    createStatisticsHistory,
+    observeStatistics,
+    type StatisticsSample,
+  } from '../runtime/statistics-history';
+  import {
+    statisticsMetrics,
+    statisticsTabs,
+    type StatsSection,
+  } from '../runtime/statistics-metrics';
+  import SectionTabs from './SectionTabs.svelte';
+  import StatsChart from './StatsChart.svelte';
+  import StatsDistribution from './StatsDistribution.svelte';
+  import StatsSensors from './StatsSensors.svelte';
+  import StatsRiskRadar from './StatsRiskRadar.svelte';
+  import StatsTokens from './StatsTokens.svelte';
   import ResourceUsage from './ResourceUsage.svelte';
   import ActivityChart from './ActivityChart.svelte';
   import Agents from './Agents.svelte';
-  import Icon from './Icon.svelte';
-  import Metadata from './Metadata.svelte';
-  import { radarGroups, groupEvidence, groupRecord } from '../runtime/radar';
   let {
     telemetry,
     inspect,
-  }: { telemetry: Telemetry; inspect: (title: string, row: RecordData) => void } = $props();
-  let samples = $state<{ at: number; cpu: number | null; mem: number | null }[]>([]);
-  let lastAt = 0;
+    sectionRequest,
+    paused = false,
+  }: {
+    telemetry: Telemetry;
+    inspect: (_title: string, _row: RecordData) => void;
+    sectionRequest?: { id: string; revision: number };
+    paused?: boolean;
+  } = $props();
+  let section = $state<StatsSection>('overview');
+  let selected = $state<Record<StatsSection, string>>({
+    overview: 'cpu',
+    processes: 'memory',
+    activity: 'fileRate',
+    tokens: 'tokens',
+    sensors: 'ownCpu',
+  });
+  let history = createStatisticsHistory();
+  let samples = $state<StatisticsSample[]>([]);
+  let lastRequest = -1;
   let agents = $derived(instances(telemetry));
-  let tokenGroups = $derived(
-    radarGroups(agents)
-      .filter((g) =>
-        g.members.some(
-          (a) => a.instanceId && telemetry.tokens.some((t) => t.instanceId === a.instanceId),
-        ),
-      )
-      .map((g) => ({ ...g, ...groupEvidence(g, telemetry) })),
+  let groups = $derived(radarGroups(agents));
+  let metrics = $derived(statisticsMetrics.filter((metric) => metric.sections.includes(section)));
+  let productRows = $derived(
+    groups.map((group, i) => ({
+      label: group.name,
+      value: group.members.length,
+      row: groupRecord(group),
+      tone: ['var(--green)', 'var(--muted)', 'var(--amber)'][i % 3],
+    })),
   );
-  const sum = (key: string) =>
-    telemetry.resources.length && telemetry.resources.every((r) => measured(r[key]) !== null)
-      ? telemetry.resources.reduce((total, r) => total + Number(r[key]), 0)
-      : null;
+  let riskRows = $derived(
+    ['low', 'medium', 'high'].map((band, i) => ({
+      label: band.charAt(0).toUpperCase() + band.slice(1) + ' risk',
+      value: agents.filter((a) => riskBand(a.riskScore) === band).length,
+      tone: ['var(--green)', 'var(--amber)', 'var(--red)'][i],
+    })),
+  );
+  let endpointRows = $derived(
+    ['allowlisted', 'unknown', 'flagged'].map((verdict, i) => ({
+      label:
+        verdict === 'unknown'
+          ? 'Unverified endpoints'
+          : verdict.charAt(0).toUpperCase() + verdict.slice(1),
+      value: telemetry.network.filter((n) => (n.verdict || 'unknown') === verdict).length,
+      tone: ['var(--green)', 'var(--muted)', 'var(--amber)'][i],
+    })),
+  );
+  let coverage = $derived(
+    telemetry.agents.filter(
+      (agent) =>
+        agent.instanceId &&
+        telemetry.resources.some(
+          (r) =>
+            r.instanceId === agent.instanceId &&
+            typeof r.cpu === 'number' &&
+            typeof r.memMb === 'number',
+        ),
+    ).length,
+  );
+  let health = $derived(record(telemetry.stats.appHealth));
   $effect(() => {
-    if (!telemetry.stale && telemetry.resourcesAt && telemetry.resourcesAt !== lastAt) {
-      lastAt = telemetry.resourcesAt;
-      samples = [...samples, { at: lastAt, cpu: sum('cpu'), mem: sum('memMb') }].slice(-60);
+    const current = telemetry;
+    untrack(() => {
+      const next = observeStatistics(history, current);
+      if (next !== history) {
+        history = next;
+        samples = next.samples;
+      }
+    });
+  });
+  $effect(() => {
+    const request = sectionRequest;
+    if (request && request.revision !== lastRequest) {
+      lastRequest = request.revision;
+      if (statisticsTabs.some((tab) => tab.id === request.id)) section = request.id as StatsSection;
     }
   });
+  function changeSection(id: string): void {
+    section = id as StatsSection;
+  }
 </script>
 
-<div class="dashboard-grid">
-  <ActivityChart
-    events={telemetry.events}
-    observedAt={telemetry.lastScan}
-    {inspect}
-  /><ResourceUsage {telemetry} {inspect} />
-</div>
-<Agents {telemetry} {inspect} />
-<section class="panel" style="margin-top:18px">
-  <div class="panel-head">
+<div class="statistics-workspace">
+  <section class="statistics-heading" aria-label="Statistics coverage">
     <div>
-      <h2><Icon name="chart" />Tokens and estimated cost</h2>
-      <p>Combined by agent, from supported logs</p>
+      <h2>Performance & observation</h2>
+      <p>A focused view of your agents, their activity and AEGIS itself.</p>
     </div>
-  </div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Source</th><th>Tokens</th><th>Estimate</th></tr></thead><tbody
-        >{#each tokenGroups as group (group.key)}<tr
-            ><td
-              ><button class="entity-link" onclick={() => inspect(group.name, groupRecord(group))}
-                >{group.name}</button
-              ><small>{group.members.length} processes</small></td
-            ><td
-              >{group.tokens === null
-                ? '—'
-                : `${group.tokens.toLocaleString()} (${group.estimated ? 'estimated' : 'measured'})`}</td
-            ><td>{group.cost === null ? '—' : '$' + group.cost.toFixed(2)}</td></tr
-          >{:else}<tr
-            ><td colspan="3"
-              >{telemetry.tokens.length
-                ? 'No complete current agent attribution. See source samples below.'
-                : 'No token measurements are available.'}</td
-            ></tr
-          >{/each}</tbody
-      >
-    </table>
-  </div>
-  <div class="notice" style="margin:15px">
-    AEGIS resource usage is shown separately in the footer.
-  </div>
-</section>
-{#if telemetry.tokens.length}<details class="diagnostics">
-    <summary>Token source samples · {telemetry.tokens.length}</summary>
-    <p class="muted">
-      A dash in an agent total means one or more processes have no measurement. Individual source
-      values and estimate flags are retained here.
-    </p>
-    <Metadata value={telemetry.tokens} />
-  </details>{/if}
-<details class="diagnostics">
-  <summary>Resource history and delivery details</summary>
-
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Agent resource history</h2>
-      <span>Up to 60 observations · this window</span>
-    </div>
-    <div class="inset">
-      <p class="muted">
-        CPU is summed only when every returned process has a measurement. A missing bar is
-        unavailable, not zero.
-      </p>
-      <div class="chart" aria-label="Agent CPU history">
-        {#each samples as sample (sample.at)}<button
-            title={`${new Date(sample.at).toLocaleTimeString()} · ${sample.cpu === null ? 'Unavailable' : sample.cpu.toFixed(1) + '% CPU'}`}
-            aria-label={`${new Date(sample.at).toLocaleTimeString()}, ${sample.cpu ?? 'unavailable'} percent CPU`}
-            style={`--height:${Math.min(100, sample.cpu ?? 0)}%`}
-            onclick={() => inspect('Resource sample', sample)}><span></span></button
-          >{:else}<p>Waiting for resource samples.</p>{/each}
-      </div>
+    <div class="live-state">
+      <span class:stale={telemetry.stale || paused}></span>{paused
+        ? 'View paused'
+        : telemetry.stale
+          ? 'Last reliable data'
+          : telemetry.ready
+            ? 'Live observations'
+            : 'Waiting for data'}
     </div>
   </section>
-  <Metadata
-    value={{
-      ...telemetry.stats,
-      rendererRetention: {
-        evicted: telemetry.evicted,
-        sensitiveEvicted: telemetry.retainedEvicted,
-      },
-      aegisProcess: telemetry.own,
-      agentResources: telemetry.resources,
-    }}
-  />
-</details>
+  <div class="stats-navigation">
+    <SectionTabs
+      tabs={statisticsTabs}
+      selected={section}
+      change={changeSection}
+      prefix="statistics"
+      label="Statistics sections"
+    />
+  </div>
+  {#each statisticsTabs as tab (tab.id)}
+    <div
+      id={'statistics-panel-' + tab.id}
+      role="tabpanel"
+      aria-labelledby={'statistics-tab-' + tab.id}
+      hidden={section !== tab.id}
+    >
+      {#if section === tab.id}
+        <div class="coverage-line">
+          <span
+            >{section === 'sensors'
+              ? 'AEGIS main process · ' + String(health.state || 'Starting').toLowerCase()
+              : section === 'tokens'
+                ? 'Supported agent logs · complete totals only'
+                : section === 'activity'
+                  ? 'Observed activity · counts and rates'
+                  : 'Agent processes · ' +
+                    coverage +
+                    ' / ' +
+                    telemetry.agents.length +
+                    ' resource samples'}</span
+          >
+          <span>{samples.length} / 120 samples · this window</span>
+        </div>
+        <StatsChart
+          {samples}
+          {metrics}
+          bind:selected={selected[section]}
+          stale={telemetry.stale || paused}
+        />
+        <div class="supporting-content">
+          {#if section === 'overview'}
+            <div class="distribution-grid">
+              <StatsDistribution
+                title="Process composition"
+                subtitle="Grouped by agent · open a group to inspect"
+                rows={productRows}
+                {inspect}
+              />
+              <StatsRiskRadar {groups} {inspect} paused={telemetry.stale || paused} />
+            </div>
+            <p class="scope-note">
+              Select a monitor to focus its graph. Processes contains agent comparisons; Activity
+              contains observation timelines; Sensors shows collection health. System-wide CPU, GPU,
+              disk and bandwidth measurements are not provided by the current sensors.
+            </p>
+          {:else if section === 'processes'}
+            <ResourceUsage {telemetry} {inspect} />
+            <Agents {telemetry} {inspect} />
+          {:else if section === 'activity'}
+            <ActivityChart events={telemetry.events} observedAt={telemetry.lastScan} {inspect} />
+            <div class="distribution-grid">
+              <StatsDistribution
+                title="Connection identity"
+                subtitle="Latest delivered endpoint classifications"
+                rows={endpointRows}
+              />
+              <StatsDistribution
+                title="Risk distribution"
+                subtitle="Current process assessments"
+                rows={riskRows}
+              />
+            </div>
+            <p class="scope-note">
+              Connection counts use the latest delivered snapshot. Rate charts show observations
+              arriving over time; they do not measure file bytes or network bandwidth.
+            </p>
+          {:else if section === 'tokens'}
+            <StatsTokens {telemetry} {inspect} />
+          {:else if section === 'sensors'}
+            <StatsSensors {telemetry} />
+            <p class="scope-note">
+              History is retained while you use another workspace. Pausing the view freezes its
+              displayed samples; the monitoring backend continues. Graph gaps preserve unavailable
+              measurements and collection interruptions.
+            </p>
+          {/if}
+        </div>
+      {/if}
+    </div>
+  {/each}
+</div>
 
 <style>
-  .diagnostics {
-    margin-top: 18px;
+  .statistics-workspace {
+    min-width: 0;
   }
-  .diagnostics > summary {
-    padding: 12px 0;
+  .statistics-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 550;
+    letter-spacing: -0.4px;
+  }
+  .statistics-heading p {
+    color: var(--muted);
+    font-size: 12px;
+    margin: 6px 0 0;
+    line-height: 1.5;
+  }
+  .live-state {
+    display: flex;
+    gap: 7px;
+    align-items: center;
+    font-size: 11px;
     color: var(--muted);
   }
-  .chart {
-    height: 180px;
-    display: grid;
-    grid-template-columns: repeat(60, minmax(0, 1fr));
-    align-items: stretch;
-    gap: 3px;
+  .live-state > span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 12%, transparent);
   }
-  .chart button {
-    position: relative;
-    min-width: 3px;
-    background: transparent;
-    border: 0;
-    border-bottom: 1px solid var(--border);
-    padding: 0;
-  }
-  .chart span {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: var(--height);
+  .live-state > span.stale {
     background: var(--muted);
-    border-radius: 3px 3px 0 0;
+    box-shadow: none;
+  }
+  .stats-navigation {
+    position: sticky;
+    top: var(--workspace-sticky-offset, 0px);
+    z-index: 4;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--panel);
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .stats-navigation :global(.section-tabs) {
+    border: 0;
+    padding: 0 10px;
+  }
+  .coverage-line {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+    color: var(--muted);
+    font-size: 10px;
+  }
+  .supporting-content {
+    display: grid;
+    gap: 18px;
+    margin-top: 18px;
+  }
+  .distribution-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .scope-note {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.7;
+    margin: 0;
+    padding: 0 2px;
+  }
+  @media (max-width: 850px) {
+    .distribution-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 </style>

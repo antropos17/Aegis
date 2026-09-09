@@ -10,6 +10,14 @@
     type RecordData,
   } from './runtime/host';
   import SensorStatus from './components/SensorStatus.svelte';
+  import WorkspaceNavigation from './components/WorkspaceNavigation.svelte';
+  import WorkspaceCommands from './components/WorkspaceCommands.svelte';
+  import {
+    workspaces,
+    workspaceGroups,
+    workspaceCommands,
+    type WorkspaceCommand,
+  } from './runtime/navigation';
   import { cpuPercent } from './runtime/resources';
   import Icon from './components/Icon.svelte';
   import Notifications from './components/Notifications.svelte';
@@ -23,19 +31,53 @@
   import Statistics from './components/Statistics.svelte';
   import Details from './components/Details.svelte';
   let { host, preview = false }: { host: Host | null; preview?: boolean } = $props();
-  const views = [
-    ['overview', 'Monitoring', 'radar'],
-    ['agents', 'Agents', 'agents'],
-    ['events', 'Events', 'activity'],
-    ['network', 'Network', 'network'],
-    ['rules', 'Rules & permissions', 'shield'],
-    ['database', 'Agent catalog', 'database'],
-    ['analysis', 'AI analysis', 'shield'],
-    ['reports', 'Reports', 'report'],
-    ['audit', 'Audit', 'history'],
-    ['stats', 'Statistics', 'chart'],
-    ['settings', 'Settings', 'settings'],
+  const views = workspaces.map((entry) => [entry.id, entry.label, entry.icon]);
+
+  let sectionRequests = $state<Record<string, { id: string; revision: number }>>({});
+  let sectionRevision = 0;
+  const commandEntries: WorkspaceCommand[] = [
+    ...workspaceCommands(),
+    ...['processes', 'activity', 'tokens', 'sensors'].map((id) => ({
+      id: 'stats-' + id,
+      label: 'Statistics · ' + id[0].toUpperCase() + id.slice(1),
+      caption: 'Live monitors',
+      keywords: (
+        {
+          processes: 'cpu ram memory processes нагрузка память процессы',
+          activity: 'events network files активность события сеть',
+          tokens: 'tokens cost input output токены стоимость',
+          sensors: 'sensors health aegis датчики здоровье',
+        } as Record<string, string>
+      )[id],
+      target: 'stats',
+      section: id,
+    })),
+    ...[
+      ['settings', 'appearance', 'Appearance', 'theme scale motion тема масштаб анимации'],
+      ['settings', 'monitoring', 'Monitoring settings', 'sensors scan retention мониторинг'],
+      ['settings', 'desktop', 'Desktop & updates', 'updates notifications обновления'],
+      ['settings', 'data', 'Data & help', 'import export help данные помощь'],
+      ['reports', 'export', 'Export reports', 'download report экспорт отчёт'],
+      ['audit', 'delivery', 'Audit delivery', 'audit diagnostics доставка аудит'],
+    ].map(([target, section, label, keywords]) => ({
+      id: target + '-' + section,
+      label,
+      caption: workspaces.find((entry) => entry.id === target)!.label,
+      keywords,
+      target,
+      section,
+    })),
   ];
+  function openSensors() {
+    sectionRequests.stats = { id: 'sensors', revision: ++sectionRevision };
+    void navigate('stats');
+  }
+  async function runCommand(entry: WorkspaceCommand) {
+    if (entry.section)
+      sectionRequests[entry.target] = { id: entry.section, revision: ++sectionRevision };
+    await navigate(entry.target);
+    commands = false;
+  }
   let telemetry = $state(emptyTelemetry());
   let paused = $state(false);
   let held = $state(emptyTelemetry());
@@ -62,12 +104,17 @@
   });
   let selected = $state<string | null>(null);
   let view = $state('overview');
+  let group = $derived(workspaces.find((entry) => entry.id === view)?.group);
+  let isLiveWorkspace = $derived(
+    ['overview', 'agents', 'events', 'network', 'stats'].includes(view),
+  );
   let requestedView = 'overview';
   let tabs = $state(['overview']);
   let history = $state(['overview']);
   let historyIndex = $state(0);
   let scrolls: Record<string, number> = {};
   let workspace: HTMLElement;
+  let pageHead: HTMLDivElement;
   let detail = $state<{ title: string; row: RecordData } | null>(null);
   let version = $state('');
   const savedTheme = localStorage.getItem('aegis-theme');
@@ -75,14 +122,8 @@
   let contrast = $state(localStorage.getItem('aegis-theme')?.endsWith('-hc') ?? false);
   let scale = $state(1);
   let commands = $state(false);
-  let commandQuery = $state('');
-  let commandDialog: HTMLDialogElement;
   let navigationRevision = 0;
   let themeChanged = false;
-  $effect(() => {
-    if (commands && !commandDialog?.open) commandDialog?.showModal();
-    else if (!commands && commandDialog?.open) commandDialog.close();
-  });
   let title = $derived(views.find((row) => row[0] === view)?.[1] ?? 'Monitoring');
   function inspect(title: string, row: RecordData) {
     detail = { title, row };
@@ -146,6 +187,15 @@
   onMount(() => {
     document.documentElement.dataset.motion = localStorage.getItem('aegis-motion') ?? 'full';
     let alive = true;
+    const resizeHead = () =>
+      workspace.style.setProperty(
+        '--workspace-sticky-offset',
+        pageHead.getBoundingClientRect().height + 'px',
+      );
+    const headObserver =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resizeHead);
+    headObserver?.observe(pageHead);
+    resizeHead();
     let initialSelectionMade = false;
     const stop = connectHost(host, (value) => {
       telemetry = value;
@@ -181,6 +231,7 @@
     if (initial) void navigate(initial);
     return () => {
       alive = false;
+      headObserver?.disconnect();
       stop();
       if (typeof unsubscribe === 'function') unsubscribe();
     };
@@ -248,42 +299,42 @@
       <span class="status-indicator"><Icon name="check" /></span>
     </div>
     <nav aria-label="Main navigation">
-      {#each views.filter((row) => row[0] !== 'settings') as [id, label, icon] (id)}
-        {#if id === 'rules' || id === 'analysis'}<div class="nav-divider"></div>{/if}<button
-          class="nav"
-          aria-label={label}
-          class:active={view === id}
-          aria-current={view === id ? 'page' : undefined}
-          onclick={() => navigate(id)}
-          ><Icon name={icon} /><span>{label}</span>{#if id === 'agents'}<small class="count"
-              >{displayTelemetry.ready ? agentCount : '—'}</small
-            >{/if}</button
-        >{/each}
+      {#each workspaceGroups as category (category.id)}
+        <div class="nav-group">
+          <span class="nav-group-label">{category.label}</span>
+          {#each workspaces.filter((entry) => entry.group === category.id) as entry (entry.id)}
+            <button
+              class="nav"
+              aria-label={entry.label}
+              class:active={view === entry.id}
+              aria-current={view === entry.id ? 'page' : undefined}
+              onclick={() => navigate(entry.id)}
+            >
+              <Icon name={entry.icon} /><span>{entry.label}</span>
+              {#if entry.id === 'agents'}<small class="count"
+                  >{displayTelemetry.ready ? agentCount : '—'}</small
+                >{/if}
+            </button>
+          {/each}
+        </div>
+      {/each}
     </nav>
     <div class="sidebar-bottom">
-      <button
-        class="sensor-mini"
-        onclick={() =>
-          inspect('Sensor health', {
-            ...record(telemetry.stats.appHealth),
-            observationGap: telemetry.stats.observationGap,
-          })}
+      <button class="sensor-mini" onclick={openSensors}
         ><span class="sensor-indicator"><Icon name="shield" /></span><span
           >Sensors<small>{healthCaption}</small></span
         ><Icon name="chevron" /></button
-      >
-      <button
-        class="nav"
-        class:active={view === 'settings'}
-        aria-current={view === 'settings' ? 'page' : undefined}
-        onclick={() => navigate('settings')}><Icon name="settings" /><span>Settings</span></button
       >
       <div class="sidebar-foot">{preview ? 'Preview · simulated data' : 'Local observations'}</div>
     </div>
   </aside>
   <div class="shell">
     <header class="topbar">
-      <div class="breadcrumb">Workstation<span>/</span><strong>{title}</strong></div>
+      <div class="breadcrumb">
+        {workspaceGroups.find((entry) => entry.id === group)?.label}<span>/</span><strong
+          >{title}</strong
+        >
+      </div>
       <div class="top-actions">
         <button class="command-trigger" onclick={() => (commands = !commands)}
           ><Icon name="search" />Commands<kbd>Ctrl K</kbd></button
@@ -295,91 +346,48 @@
         >
       </div>
     </header>
-    <div class="workspace-navigation">
-      <div class="history-controls">
-        <button
-          class="history-arrow"
-          aria-label="Back"
-          disabled={historyIndex === 0}
-          onclick={() => back(-1)}><Icon name="arrowLeft" /></button
-        ><button
-          class="history-arrow"
-          aria-label="Forward"
-          disabled={historyIndex >= history.length - 1}
-          onclick={() => back(1)}><Icon name="chevron" /></button
-        >
-      </div>
-      <div class="workspace-tabs" role="tablist" aria-label="Open workspaces">
-        {#each tabs as tab (tab)}<div class="workspace-tab" class:active={view === tab}>
-            <button
-              role="tab"
-              aria-selected={view === tab}
-              tabindex={view === tab ? 0 : -1}
-              onkeydown={async (event) => {
-                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-                event.preventDefault();
-                event.stopPropagation();
-                const index = tabs.indexOf(tab);
-                const next =
-                  event.key === 'Home'
-                    ? 0
-                    : event.key === 'End'
-                      ? tabs.length - 1
-                      : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
-                await navigate(tabs[next]);
-                document
-                  .querySelector<HTMLButtonElement>('.workspace-tabs [aria-selected="true"]')
-                  ?.focus({ preventScroll: true });
-              }}
-              onclick={() => navigate(tab)}
-              ><Icon name={views.find((row) => row[0] === tab)?.[2] ?? 'file'} />{views.find(
-                (row) => row[0] === tab,
-              )?.[1]}</button
-            >{#if tab !== 'overview'}<button
-                class="tab-close"
-                aria-label={`Close ${tab}`}
-                onclick={() => {
-                  tabs = tabs.filter((item) => item !== tab);
-                  if (view === tab) void navigate('overview');
-                }}><Icon name="close" /></button
-              >{/if}
-          </div>{/each}
-      </div>
-    </div>
+    <WorkspaceNavigation
+      {view}
+      {navigate}
+      {back}
+      canBack={historyIndex > 0}
+      canForward={historyIndex < history.length - 1}
+    />
     <main class:analysis-view={view === 'analysis'} id="main" tabindex="-1" bind:this={workspace}>
-      <div class="page-head">
+      <div class="page-head" bind:this={pageHead}>
         <div class="page-title">
           <h1 id="page-title">
             <Icon name={views.find((row) => row[0] === view)?.[2] ?? 'file'} />{title}
           </h1>
-          <span class="live-badge"
-            ><Icon name="activity" />{paused
-              ? 'View paused'
-              : preview
-                ? 'Demo stream'
-                : telemetry.stale
-                  ? 'Observation unavailable / stale'
-                  : telemetry.scanning
-                    ? 'Scanning'
-                    : 'Live'}</span
-          >
+          {#if isLiveWorkspace}<span class="live-badge"
+              ><Icon name="activity" />{paused
+                ? 'View paused'
+                : preview
+                  ? 'Demo stream'
+                  : telemetry.stale
+                    ? 'Observation unavailable / stale'
+                    : telemetry.scanning
+                      ? 'Scanning'
+                      : 'Live'}</span
+            >{:else}<span class="workspace-caption"
+              >{view === 'analysis' || view === 'reports'
+                ? 'Review and share recorded activity'
+                : 'Configuration and recorded evidence'}</span
+            >{/if}
         </div>
-        <div class="page-actions">
-          <button class="button" disabled title="This backend has no manual scan command"
-            ><Icon name="refresh" />Scan now</button
-          >
-          <button
-            class="button"
-            title="Pause the displayed observations; backend monitoring continues"
-            onclick={() => {
-              if (!paused) held = telemetry;
-              paused = !paused;
-            }}
-            ><Icon name={paused ? 'play' : 'pause'} />{paused
-              ? 'Resume view'
-              : 'Pause view'}</button
-          >
-        </div>
+        {#if isLiveWorkspace}<div class="page-actions">
+            <button
+              class="button"
+              title="Pause the displayed observations; backend monitoring continues"
+              onclick={() => {
+                if (!paused) held = telemetry;
+                paused = !paused;
+              }}
+              ><Icon name={paused ? 'play' : 'pause'} />{paused
+                ? 'Resume view'
+                : 'Pause view'}</button
+            >
+          </div>{/if}
       </div>
       {#if telemetry.error}<p role="alert" class="health-banner">{telemetry.error}</p>{/if}
       {#if telemetry.stale}<p class="health-banner">
@@ -388,44 +396,87 @@
             : 'Waiting for a reliable process observation. An empty screen does not establish that no agents are running.'}
         </p>{/if}
       <SensorStatus health={record(telemetry.stats.appHealth)} />
-      <div id="content" class:analysis-view={view === 'analysis'}>
-        <div hidden={view !== 'overview' && view !== 'agents'}>
-          <Monitoring telemetry={displayTelemetry} bind:selected {inspect} mode={view} />
-        </div>
-        {#if tabs.includes('events')}<div hidden={view !== 'events'}>
-            <Events showPause={false} telemetry={displayTelemetry} {inspect} />
-          </div>{/if}
-        {#if tabs.includes('network')}<div hidden={view !== 'network'}>
-            <Events showPause={false} telemetry={displayTelemetry} network {inspect} />
-          </div>{/if}
-        {#if tabs.includes('rules')}<div hidden={view !== 'rules'}>
-            <Rules {host} {telemetry} />
-          </div>{/if}
-        {#if tabs.includes('database')}<div hidden={view !== 'database'}>
-            <Catalog {host} {inspect} />
-          </div>{/if}
-        {#if tabs.includes('analysis')}<div class="analysis-container" hidden={view !== 'analysis'}>
-            <Analysis {host} {telemetry} visible={view === 'analysis'} {preview} />
-          </div>{/if}
-        {#if tabs.includes('reports')}<div hidden={view !== 'reports'}>
-            <Reports {host} {inspect} telemetry={displayTelemetry} {navigate} />
-          </div>{/if}
-        {#if tabs.includes('audit')}<div hidden={view !== 'audit'}>
-            <Reports {host} audit {inspect} telemetry={displayTelemetry} {navigate} />
-          </div>{/if}
-        {#if tabs.includes('settings')}<div hidden={view !== 'settings'}>
-            <Settings
-              {host}
-              {appearance}
+      <div id="workspace-content" role="tabpanel" aria-labelledby={'workspace-tab-' + view}>
+        <div id="content" class:analysis-view={view === 'analysis'}>
+          <div hidden={view !== 'overview' && view !== 'agents'}>
+            <Monitoring
+              telemetry={displayTelemetry}
+              bind:selected
+              {inspect}
+              mode={view}
               {navigate}
-              currentTheme={(dark ? 'dark' : 'light') + (contrast ? '-hc' : '')}
             />
-          </div>{/if}
-        <div hidden={view !== 'stats'}><Statistics telemetry={displayTelemetry} {inspect} /></div>
+          </div>
+          {#if tabs.includes('events')}<div hidden={view !== 'events'}>
+              <Events
+                viewPaused={paused}
+                showPause={false}
+                telemetry={displayTelemetry}
+                {inspect}
+              />
+            </div>{/if}
+          {#if tabs.includes('network')}<div hidden={view !== 'network'}>
+              <Events
+                viewPaused={paused}
+                showPause={false}
+                telemetry={displayTelemetry}
+                network
+                {inspect}
+              />
+            </div>{/if}
+          {#if tabs.includes('rules')}<div hidden={view !== 'rules'}>
+              <Rules {host} {telemetry} />
+            </div>{/if}
+          {#if tabs.includes('database')}<div hidden={view !== 'database'}>
+              <Catalog {host} {inspect} />
+            </div>{/if}
+          {#if tabs.includes('analysis')}<div
+              class="analysis-container"
+              hidden={view !== 'analysis'}
+            >
+              <Analysis {host} {telemetry} visible={view === 'analysis'} {preview} />
+            </div>{/if}
+          {#if tabs.includes('reports')}<div hidden={view !== 'reports'}>
+              <Reports
+                {host}
+                {inspect}
+                telemetry={displayTelemetry}
+                {navigate}
+                sectionRequest={sectionRequests.reports}
+              />
+            </div>{/if}
+          {#if tabs.includes('audit')}<div hidden={view !== 'audit'}>
+              <Reports
+                {host}
+                audit
+                {inspect}
+                telemetry={displayTelemetry}
+                {navigate}
+                sectionRequest={sectionRequests.audit}
+              />
+            </div>{/if}
+          {#if tabs.includes('settings')}<div hidden={view !== 'settings'}>
+              <Settings
+                {host}
+                {appearance}
+                {navigate}
+                sectionRequest={sectionRequests.settings}
+                currentTheme={(dark ? 'dark' : 'light') + (contrast ? '-hc' : '')}
+              />
+            </div>{/if}
+          <div hidden={view !== 'stats'}>
+            <Statistics
+              telemetry={displayTelemetry}
+              {inspect}
+              sectionRequest={sectionRequests.stats}
+              {paused}
+            />
+          </div>
+        </div>
       </div>
     </main>
     <footer>
-      <button onclick={() => inspect('Sensor health', record(telemetry.stats.appHealth))}
+      <button onclick={openSensors}
         ><Icon name="shield" />{String(
           record(telemetry.stats.appHealth).state ?? 'Unobserved',
         )}</button
@@ -442,25 +493,12 @@
     </footer>
   </div>
 </div>
-<dialog
-  bind:this={commandDialog}
-  class="command-panel"
-  aria-label="Workspace commands"
-  onclose={() => (commands = false)}
->
-  <label
-    >Find a workspace<input
-      type="search"
-      bind:value={commandQuery}
-      aria-label="Find a workspace"
-    /></label
-  >{#each views.filter((row) => row[1]
-      .toLowerCase()
-      .includes(commandQuery.toLowerCase())) as [id, label] (id)}<button
-      class="nav"
-      onclick={() => navigate(id)}>{label}</button
-    >{/each}<button class="button" onclick={() => (commands = false)}>Close</button>
-</dialog>
+<WorkspaceCommands
+  open={commands}
+  close={() => (commands = false)}
+  entries={commandEntries}
+  choose={runCommand}
+/>
 <Notifications {telemetry} />
 <Details
   {host}

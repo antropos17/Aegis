@@ -187,7 +187,7 @@ export async function checkDetails(browser, url, out) {
     await page.locator('.activity-card').filter({ hasText: 'SKILL.md' }).click();
     await tab(/^Records/).waitFor();
     assert.equal(await tab(/^Records/).getAttribute('aria-selected'), 'true');
-    await page.getByRole('button', { name: 'Show 20 more' }).click();
+    await page.getByRole('button', { name: 'Show 15 more' }).click();
     assert.equal(await page.locator('.observation-history .recent-event').count(), 35);
     await page.locator('.observation-history .recent-event').nth(22).click();
     await tab('Attributes').click();

@@ -31,6 +31,17 @@
   );
   let activity = $derived(detailActivity(row, telemetry));
   let groups = $derived(groupObservations(activity));
+  let matchingGroups = $derived(
+    groups.filter((group) =>
+      group.rows.some((entry) => {
+        const info = describeObservation(entry);
+        return [info.path, info.resource, info.label, entry.pid, entry.action, entry.state]
+          .join(' ')
+          .toLowerCase()
+          .includes(query.toLowerCase());
+      }),
+    ),
+  );
   let path = $derived(String(row.file || row.path || row.cwd || ''));
   let isNetwork = $derived(describeObservation(row).kind === 'Network');
   let parent = $derived(
@@ -78,7 +89,7 @@
       {:else}<p class="entity-note">No processes match this view.</p>{/each}
     </div>
     {#if filtered.length > limit}<button class="button detail-load" onclick={() => (limit += 12)}
-        >Show 12 more processes</button
+        >Show {Math.min(12, filtered.length - limit)} more processes</button
       >{/if}
   </section>
 {:else if section === 'activity'}
@@ -87,8 +98,19 @@
       <h3>Files and connections</h3>
       <span class="badge">{activity.length} observations</span>
     </div>
+    <label class="detail-search"
+      ><Icon name="search" /><input
+        aria-label="Find activity"
+        type="search"
+        placeholder="Resource, address, action or PID"
+        bind:value={query}
+      /></label
+    >
+    <p class="entity-note">
+      {matchingGroups.length} resources · {activity.length} observations retained
+    </p>
     <div class="detail-card-grid">
-      {#each groups.slice(0, limit) as group (group.key)}
+      {#each matchingGroups.slice(0, limit) as group (group.key)}
         <button
           class="detail-card activity-card"
           data-detail-focus={'activity-' + group.key}
@@ -110,15 +132,21 @@
             >{group.last ? new Date(group.last).toLocaleTimeString() : 'Current snapshot'}</small
           >
         </button>
-      {:else}<p class="entity-note">No retained activity for this exact process scope.</p>{/each}
+      {:else}<p class="entity-note">
+          {activity.length
+            ? 'No resources match this search.'
+            : 'No retained activity for this exact process scope.'}
+        </p>{/each}
     </div>
-    {#if groups.length > limit}<button class="button detail-load" onclick={() => (limit += 12)}
-        >Show 12 more resources</button
+    {#if matchingGroups.length > limit}<button
+        class="button detail-load"
+        onclick={() => (limit += 12)}
+        >Show {Math.min(12, matchingGroups.length - limit)} more resources</button
       >{/if}
   </section>
 {:else if section === 'records'}
   <section class="detail-section">
-    <ObservationHistory rows={activity} {navigate} bind:limit />
+    <ObservationHistory rows={activity} {navigate} bind:limit bind:query />
   </section>
 {:else}
   <section class="detail-section">

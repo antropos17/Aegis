@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { SvelteMap } from 'svelte/reactivity';
   import { confirmed, invoke, record, records, type Host, type RecordData } from '../runtime/host';
   import { validateCatalog } from '../runtime/catalog';
@@ -15,6 +15,8 @@
   import Icon from './Icon.svelte';
   import EditorDialog from './EditorDialog.svelte';
   let category = $state('');
+  let nameInput = $state<HTMLInputElement>();
+  let processInput = $state<HTMLInputElement>();
   let { host, inspect }: { host: Host | null; inspect: (title: string, row: RecordData) => void } =
     $props();
   let base = $state<RecordData[]>([]);
@@ -64,10 +66,14 @@
   async function save() {
     if (!form.displayName.trim()) {
       editorSection = 'general';
+      await tick();
+      nameInput?.focus();
       throw new Error('Name is required');
     }
     if (!form.processName.trim()) {
       editorSection = 'recognition';
+      await tick();
+      processInput?.focus();
       throw new Error('Process signature is required');
     }
     const next = editing
@@ -174,6 +180,24 @@
                   >{/if}
               </div></td
             ></tr
+          >{:else}<tr
+            ><td colspan="5" class="catalog-empty"
+              ><strong
+                >{query || category ? 'No matching agents' : 'No agents in the catalog'}</strong
+              >
+              <p>
+                {query || category
+                  ? 'Try another name or category.'
+                  : 'Add a custom agent to recognize its processes.'}
+              </p>
+              {#if query || category}<button
+                  class="button"
+                  onclick={() => {
+                    query = '';
+                    category = '';
+                  }}>Clear filters</button
+                >{/if}</td
+            ></tr
           >{/each}</tbody
       >
     </table>
@@ -196,7 +220,8 @@
         {#if section === 'general'}
           <h3>Agent profile</h3>
           <div class="form-grid">
-            <label>Name<input bind:value={form.displayName} required /></label>
+            <label>Name<input bind:this={nameInput} bind:value={form.displayName} required /></label
+            >
             <label
               >Category<select bind:value={form.category}
                 >{#each CATEGORIES as [id, label] (id)}<option value={id}>{label}</option
@@ -217,6 +242,7 @@
           <div class="form-grid">
             <label class="full"
               >Process name<input
+                bind:this={processInput}
                 bind:value={form.processName}
                 required
                 placeholder="agent.exe"
@@ -236,6 +262,14 @@
 <p class="catalog-count muted">{base.length} bundled · {custom.length} custom</p>
 
 <style>
+  .catalog-empty {
+    padding: 28px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .catalog-empty p {
+    margin: 8px 0 14px;
+  }
   td:last-child {
     min-width: 88px;
     white-space: nowrap;
