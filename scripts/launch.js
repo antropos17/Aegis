@@ -15,5 +15,8 @@ const electron = require('electron');
 delete process.env.ELECTRON_RUN_AS_NODE;
 
 // Use spawn instead of execFileSync for live stdout streaming (needed for PERF timing)
-const child = spawn(electron, ['.'], { stdio: 'inherit', cwd: process.cwd() });
+const child = spawn(electron, ['.', ...process.argv.slice(2)], {
+  stdio: 'inherit',
+  cwd: process.cwd(),
+});
 child.on('exit', (code) => process.exit(code ?? 0));

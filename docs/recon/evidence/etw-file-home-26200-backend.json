@@ -1,0 +1,1115 @@
+{
+  "schema": 1,
+  "recordedAt": "2026-09-09T13:29:49.399Z",
+  "scope": "B5 diagnostic backend. One narrow live smoke on current binaries; not production admission or a loss-free transport result.",
+  "sourceHashNormalization": "UTF-8 text with CRLF normalized to LF; current final source only",
+  "sourceHashes": {
+    "scripts/launch.js": "e745cebbe5d3c8fdded2ac4245bf8a1bf1272cb234e156df580dc892e5ffa5d0",
+    "scripts/verify-etw-file.mjs": "1c177c30225ae3ca6a1d05881a94f3e3bcf46bc4a293a3ad1911bb58cb92af64",
+    "sidecar/etw-file/EtwFile.csproj": "9e34c6ad37d5751758d618095cf6b32ae54d90382855ece0b622fa2588589205",
+    "sidecar/etw-file/FileBroker.cs": "a3ebc5c3f81ffd2942a267c644922e3d9bd7e5353ff3993eaa927fb8019e6738",
+    "sidecar/etw-file/FileCapture.cs": "318d80a666392cbf1ab3b03666b1fec28f1d57e958229f0e050a639bb1726dc3",
+    "sidecar/etw-file/FileCollector.cs": "efb8192d075521ab2dd5abc0d55874e276f3ebab94ac34aa4406a8b267064cdb",
+    "sidecar/etw-file/FileGeneration.cs": "8520aa3bda23ee51bf6efe556f7aa72a2b31fa75f2cd7d8dd2077047369ff768",
+    "sidecar/etw-file/FileMapping.cs": "c0c2975837899e9e820328a8cd638e24c183ab0c3d36d9c0cb58cc936855922c",
+    "sidecar/etw-file/FilePipeline.cs": "6987c8887e5a162a0fd592ffd361e4005202e87fd5b9495531af04a644c2a773",
+    "sidecar/etw-file/FileScope.cs": "05976472d37b07c60be71aedb6fb89da795ba0a41d527a3b41d244bd5aee5ca0",
+    "sidecar/etw-file/FileTests.cs": "48449bf11e46c9ebcf937c3b3ee81893718bd2a3d9c35ca5d7012744b3775b70",
+    "sidecar/etw-file/FileTrace.cs": "25fd9d2f46a0d66c01610a1c4a5b03bc6042af654e6bcd2cdf85ec69e94c4dc6",
+    "sidecar/etw-file/FileWire.cs": "a4ff54d4c725f1de8d1ae4c814851e77abe01348fe4ab64a6609b9507a332f7d",
+    "sidecar/etw-file/Program.cs": "b879d22901405a5597e99a23b3c255ad1f20806e50bb990d822e71e111b9268d",
+    "sidecar/etw-lifecycle/Security.cs": "19fde5ace53914b1e8804b9716a2d041d794e09b273bd8acc385405ba6fadc96",
+    "src/main/main.js": "3ff6c21c7473995970594e2f5835fc227cd05bbbefc65cf1da86b16ad61bc7c4",
+    "src/main/platform/etw-file-health.js": "38e6d3976a6897c1e0799b0f65b93794d6e5c4fcf86ce81c73e24380a5a22207",
+    "src/main/platform/etw-file-protocol.js": "3522761aa103e4dd69e4a025acb00665b4ad0c975cfcc769b8dc62b94cbe9aa1",
+    "src/main/platform/etw-file-runtime.js": "cea6d4a6dc456a73673838374dcb310c47ce8f262220e0c55b3b67ad0063f1e5",
+    "src/main/platform/etw-file-supervisor.js": "1e0b7df56f0d95166861c989558531d46d9d551bf2d46af8afc3af120be1151f"
+  },
+  "normal": {
+    "file": "aegis-etw-file-check-20260909-v6.json",
+    "sha256": "2efd915ef03e8df7acd44cb6e6ddbdafa5b7546be0daf5ab173e7e6f69d01778",
+    "report": {
+      "schema": 1,
+      "live": false,
+      "synthetic": true,
+      "startedAt": "2026-09-09T13:26:29.898Z",
+      "binarySha256": "eeb3c04698b6aa6a37c88e2a9de42862314099e37be4bac8245424a54d093bb3",
+      "assemblySha256": "2ac9da0c6597f8ee77a3ab5ddfcd2173ce88600584a0a2c39d1f72269e1b6938",
+      "cases": [
+        {
+          "kind": "normal-stop",
+          "observedRead": true,
+          "observedScopedCandidate": true,
+          "observedFixturePidCandidate": false,
+          "ringBytes": 1617,
+          "ringDropped": 0,
+          "sensorState": "DEGRADED",
+          "summary": {
+            "launchId": "93f04044-5842-4bfa-a209-21a4160a70c0",
+            "sessionId": "7d252d6c-e5de-44a0-afd5-ac0dba7ecfd5",
+            "endedAt": 1788960390467,
+            "phase": "stopped",
+            "reasons": [
+              "experimental-correlation",
+              "unmeasured-interval",
+              "mapping-uncertain",
+              "identity-uncertain"
+            ],
+            "maxima": {
+              "eventsLost": "0",
+              "realTimeBuffersLost": "0",
+              "logBuffersLost": "0",
+              "delivered": "2",
+              "filtered": "1",
+              "dropped": "0",
+              "decoderErrors": "0",
+              "mapEpoch": "0",
+              "mapResets": "0",
+              "mapConflicts": "0"
+            },
+            "capture": {
+              "buffers": {
+                "count": 256,
+                "sizeKiB": 64
+              },
+              "frequency": "10000000",
+              "clock": {
+                "qpc": "106671617608",
+                "unixMs": "1788960390307",
+                "uncertaintyQpc": "10754"
+              }
+            },
+            "finalCounters": {
+              "eventsLost": null,
+              "realTimeBuffersLost": null,
+              "logBuffersLost": null,
+              "queryStatus": 50,
+              "asOfQpc": "106670134282"
+            },
+            "finalTotals": {
+              "delivered": "2",
+              "filtered": "1",
+              "dropped": "0",
+              "decoderErrors": "0",
+              "mapEpoch": "0",
+              "mapResets": "0",
+              "mapConflicts": "0"
+            },
+            "ringDropped": 0,
+            "stopReason": "operator-stop",
+            "exitCode": 0,
+            "stopVerified": true
+          }
+        },
+        {
+          "kind": "explicit-new-session",
+          "observedRead": true,
+          "observedScopedCandidate": true,
+          "observedFixturePidCandidate": false,
+          "ringBytes": 1617,
+          "ringDropped": 0,
+          "sensorState": "DEGRADED",
+          "summary": {
+            "launchId": "334853d4-79f7-4805-b7d3-12859ef9fb3e",
+            "sessionId": "fff25f5a-396b-4cf5-b408-3dcedb2607ad",
+            "endedAt": 1788960391061,
+            "phase": "stopped",
+            "reasons": [
+              "experimental-correlation",
+              "unmeasured-interval",
+              "mapping-uncertain",
+              "identity-uncertain"
+            ],
+            "maxima": {
+              "eventsLost": "0",
+              "realTimeBuffersLost": "0",
+              "logBuffersLost": "0",
+              "delivered": "2",
+              "filtered": "1",
+              "dropped": "0",
+              "decoderErrors": "0",
+              "mapEpoch": "0",
+              "mapResets": "0",
+              "mapConflicts": "0"
+            },
+            "capture": {
+              "buffers": {
+                "count": 256,
+                "sizeKiB": 64
+              },
+              "frequency": "10000000",
+              "clock": {
+                "qpc": "106677586753",
+                "unixMs": "1788960390904",
+                "uncertaintyQpc": "10712"
+              }
+            },
+            "finalCounters": {
+              "eventsLost": null,
+              "realTimeBuffersLost": null,
+              "logBuffersLost": null,
+              "queryStatus": 50,
+              "asOfQpc": "106676157458"
+            },
+            "finalTotals": {
+              "delivered": "2",
+              "filtered": "1",
+              "dropped": "0",
+              "decoderErrors": "0",
+              "mapEpoch": "0",
+              "mapResets": "0",
+              "mapConflicts": "0"
+            },
+            "ringDropped": 0,
+            "stopReason": "operator-stop",
+            "exitCode": 0,
+            "stopVerified": true
+          }
+        },
+        {
+          "kind": "parent-eof-unverified",
+          "summary": {
+            "launchId": "d99001b1-3107-4300-a130-07e0375ae1d5",
+            "sessionId": "655057be-ad60-4138-8ab9-1ac9607cbee4",
+            "endedAt": 1788960391563,
+            "phase": "failed",
+            "reasons": [
+              "experimental-correlation",
+              "unmeasured-interval",
+              "mapping-uncertain",
+              "identity-uncertain",
+              "stream-ended"
+            ],
+            "maxima": {
+              "eventsLost": "0",
+              "realTimeBuffersLost": "0",
+              "logBuffersLost": "0",
+              "delivered": "2",
+              "filtered": "1",
+              "dropped": "0",
+              "decoderErrors": "0",
+              "mapEpoch": "0",
+              "mapResets": "0",
+              "mapConflicts": "0"
+            },
+            "capture": {
+              "buffers": {
+                "count": 256,
+                "sizeKiB": 64
+              },
+              "frequency": "10000000",
+              "clock": {
+                "qpc": "106683489947",
+                "unixMs": "1788960391494",
+                "uncertaintyQpc": "10556"
+              }
+            },
+            "finalCounters": {
+              "eventsLost": null,
+              "realTimeBuffersLost": null,
+              "logBuffersLost": null,
+              "queryStatus": 50,
+              "asOfQpc": "106682185639"
+            },
+            "finalTotals": {
+              "delivered": "2",
+              "filtered": "1",
+              "dropped": "0",
+              "decoderErrors": "0",
+              "mapEpoch": "0",
+              "mapResets": "0",
+              "mapConflicts": "0"
+            },
+            "ringDropped": 0,
+            "stopReason": null,
+            "exitCode": 2,
+            "stopVerified": false
+          }
+        }
+      ],
+      "passed": true,
+      "observationCheck": {
+        "observed": true,
+        "named": true,
+        "fixtureRead": false,
+        "leaked": false
+      },
+      "endedSessions": [
+        {
+          "launchId": "93f04044-5842-4bfa-a209-21a4160a70c0",
+          "sessionId": "7d252d6c-e5de-44a0-afd5-ac0dba7ecfd5",
+          "endedAt": 1788960390467,
+          "phase": "stopped",
+          "reasons": [
+            "experimental-correlation",
+            "unmeasured-interval",
+            "mapping-uncertain",
+            "identity-uncertain"
+          ],
+          "maxima": {
+            "eventsLost": "0",
+            "realTimeBuffersLost": "0",
+            "logBuffersLost": "0",
+            "delivered": "2",
+            "filtered": "1",
+            "dropped": "0",
+            "decoderErrors": "0",
+            "mapEpoch": "0",
+            "mapResets": "0",
+            "mapConflicts": "0"
+          },
+          "capture": {
+            "buffers": {
+              "count": 256,
+              "sizeKiB": 64
+            },
+            "frequency": "10000000",
+            "clock": {
+              "qpc": "106671617608",
+              "unixMs": "1788960390307",
+              "uncertaintyQpc": "10754"
+            }
+          },
+          "finalCounters": {
+            "eventsLost": null,
+            "realTimeBuffersLost": null,
+            "logBuffersLost": null,
+            "queryStatus": 50,
+            "asOfQpc": "106670134282"
+          },
+          "finalTotals": {
+            "delivered": "2",
+            "filtered": "1",
+            "dropped": "0",
+            "decoderErrors": "0",
+            "mapEpoch": "0",
+            "mapResets": "0",
+            "mapConflicts": "0"
+          },
+          "ringDropped": 0,
+          "stopReason": "operator-stop",
+          "exitCode": 0,
+          "stopVerified": true
+        },
+        {
+          "launchId": "334853d4-79f7-4805-b7d3-12859ef9fb3e",
+          "sessionId": "fff25f5a-396b-4cf5-b408-3dcedb2607ad",
+          "endedAt": 1788960391061,
+          "phase": "stopped",
+          "reasons": [
+            "experimental-correlation",
+            "unmeasured-interval",
+            "mapping-uncertain",
+            "identity-uncertain"
+          ],
+          "maxima": {
+            "eventsLost": "0",
+            "realTimeBuffersLost": "0",
+            "logBuffersLost": "0",
+            "delivered": "2",
+            "filtered": "1",
+            "dropped": "0",
+            "decoderErrors": "0",
+            "mapEpoch": "0",
+            "mapResets": "0",
+            "mapConflicts": "0"
+          },
+          "capture": {
+            "buffers": {
+              "count": 256,
+              "sizeKiB": 64
+            },
+            "frequency": "10000000",
+            "clock": {
+              "qpc": "106677586753",
+              "unixMs": "1788960390904",
+              "uncertaintyQpc": "10712"
+            }
+          },
+          "finalCounters": {
+            "eventsLost": null,
+            "realTimeBuffersLost": null,
+            "logBuffersLost": null,
+            "queryStatus": 50,
+            "asOfQpc": "106676157458"
+          },
+          "finalTotals": {
+            "delivered": "2",
+            "filtered": "1",
+            "dropped": "0",
+            "decoderErrors": "0",
+            "mapEpoch": "0",
+            "mapResets": "0",
+            "mapConflicts": "0"
+          },
+          "ringDropped": 0,
+          "stopReason": "operator-stop",
+          "exitCode": 0,
+          "stopVerified": true
+        },
+        {
+          "launchId": "d99001b1-3107-4300-a130-07e0375ae1d5",
+          "sessionId": "655057be-ad60-4138-8ab9-1ac9607cbee4",
+          "endedAt": 1788960391563,
+          "phase": "failed",
+          "reasons": [
+            "experimental-correlation",
+            "unmeasured-interval",
+            "mapping-uncertain",
+            "identity-uncertain",
+            "stream-ended"
+          ],
+          "maxima": {
+            "eventsLost": "0",
+            "realTimeBuffersLost": "0",
+            "logBuffersLost": "0",
+            "delivered": "2",
+            "filtered": "1",
+            "dropped": "0",
+            "decoderErrors": "0",
+            "mapEpoch": "0",
+            "mapResets": "0",
+            "mapConflicts": "0"
+          },
+          "capture": {
+            "buffers": {
+              "count": 256,
+              "sizeKiB": 64
+            },
+            "frequency": "10000000",
+            "clock": {
+              "qpc": "106683489947",
+              "unixMs": "1788960391494",
+              "uncertaintyQpc": "10556"
+            }
+          },
+          "finalCounters": {
+            "eventsLost": null,
+            "realTimeBuffersLost": null,
+            "logBuffersLost": null,
+            "queryStatus": 50,
+            "asOfQpc": "106682185639"
+          },
+          "finalTotals": {
+            "delivered": "2",
+            "filtered": "1",
+            "dropped": "0",
+            "decoderErrors": "0",
+            "mapEpoch": "0",
+            "mapResets": "0",
+            "mapConflicts": "0"
+          },
+          "ringDropped": 0,
+          "stopReason": null,
+          "exitCode": 2,
+          "stopVerified": false
+        }
+      ],
+      "endedAt": "2026-09-09T13:26:31.564Z"
+    }
+  },
+  "live": {
+    "file": "aegis-etw-file-live-20260909-05.json",
+    "sha256": "f9dd18bff69b33966a4a766d44b1df28c2802cae5f970504505abc3c53159afe",
+    "report": {
+      "schema": 1,
+      "live": true,
+      "synthetic": false,
+      "startedAt": "2026-09-09T13:27:33.634Z",
+      "binarySha256": "eeb3c04698b6aa6a37c88e2a9de42862314099e37be4bac8245424a54d093bb3",
+      "assemblySha256": "2ac9da0c6597f8ee77a3ab5ddfcd2173ce88600584a0a2c39d1f72269e1b6938",
+      "cases": [
+        {
+          "kind": "normal-stop",
+          "observedRead": true,
+          "observedScopedCandidate": true,
+          "observedFixturePidCandidate": true,
+          "ringBytes": 372639,
+          "ringDropped": 0,
+          "sensorState": "DEGRADED",
+          "summary": {
+            "launchId": "a59c4580-421c-441b-af66-2a520fef8b02",
+            "sessionId": "f75f008d-7a52-46bc-af20-758997a8f71a",
+            "endedAt": 1788960466322,
+            "phase": "stopped",
+            "reasons": [
+              "experimental-correlation",
+              "dropped",
+              "mapResets",
+              "mapping-uncertain",
+              "identity-uncertain"
+            ],
+            "maxima": {
+              "eventsLost": "0",
+              "realTimeBuffersLost": "0",
+              "logBuffersLost": "0",
+              "delivered": "88772",
+              "filtered": "76418",
+              "dropped": "12061",
+              "decoderErrors": "0",
+              "mapEpoch": "286",
+              "mapResets": "286",
+              "mapConflicts": "0"
+            },
+            "capture": {
+              "buffers": {
+                "count": 256,
+                "sizeKiB": 64
+              },
+              "frequency": "10000000",
+              "clock": {
+                "qpc": "107329499863",
+                "unixMs": "1788960456095",
+                "uncertaintyQpc": "10220"
+              }
+            },
+            "finalCounters": {
+              "eventsLost": "0",
+              "realTimeBuffersLost": "0",
+              "logBuffersLost": "0",
+              "queryStatus": 0,
+              "asOfQpc": "107430166131"
+            },
+            "finalTotals": {
+              "delivered": "88772",
+              "filtered": "76418",
+              "dropped": "12061",
+              "decoderErrors": "0",
+              "mapEpoch": "286",
+              "mapResets": "286",
+              "mapConflicts": "0"
+            },
+            "ringDropped": 0,
+            "stopReason": "operator-stop",
+            "exitCode": 0,
+            "stopVerified": true
+          }
+        }
+      ],
+      "passed": true,
+      "observationCheck": {
+        "observed": true,
+        "named": true,
+        "fixtureRead": true,
+        "leaked": false
+      },
+      "endedSessions": [
+        {
+          "launchId": "a59c4580-421c-441b-af66-2a520fef8b02",
+          "sessionId": "f75f008d-7a52-46bc-af20-758997a8f71a",
+          "endedAt": 1788960466322,
+          "phase": "stopped",
+          "reasons": [
+            "experimental-correlation",
+            "dropped",
+            "mapResets",
+            "mapping-uncertain",
+            "identity-uncertain"
+          ],
+          "maxima": {
+            "eventsLost": "0",
+            "realTimeBuffersLost": "0",
+            "logBuffersLost": "0",
+            "delivered": "88772",
+            "filtered": "76418",
+            "dropped": "12061",
+            "decoderErrors": "0",
+            "mapEpoch": "286",
+            "mapResets": "286",
+            "mapConflicts": "0"
+          },
+          "capture": {
+            "buffers": {
+              "count": 256,
+              "sizeKiB": 64
+            },
+            "frequency": "10000000",
+            "clock": {
+              "qpc": "107329499863",
+              "unixMs": "1788960456095",
+              "uncertaintyQpc": "10220"
+            }
+          },
+          "finalCounters": {
+            "eventsLost": "0",
+            "realTimeBuffersLost": "0",
+            "logBuffersLost": "0",
+            "queryStatus": 0,
+            "asOfQpc": "107430166131"
+          },
+          "finalTotals": {
+            "delivered": "88772",
+            "filtered": "76418",
+            "dropped": "12061",
+            "decoderErrors": "0",
+            "mapEpoch": "286",
+            "mapResets": "286",
+            "mapConflicts": "0"
+          },
+          "ringDropped": 0,
+          "stopReason": "operator-stop",
+          "exitCode": 0,
+          "stopVerified": true
+        }
+      ],
+      "endedAt": "2026-09-09T13:27:46.340Z"
+    }
+  },
+  "earlierAttempts": [
+    {
+      "file": "aegis-etw-file-live-20260909-01.json",
+      "sha256": "c88462a13b241f06e34e3bb5412fd37a5b54248dc18a6879010898dbc2d50fe9",
+      "report": {
+        "schema": 1,
+        "live": true,
+        "synthetic": false,
+        "startedAt": "2026-09-09T13:06:58.072Z",
+        "binarySha256": "eeb3c04698b6aa6a37c88e2a9de42862314099e37be4bac8245424a54d093bb3",
+        "assemblySha256": "dcf9ef27ed2f72a520a6716a5f1f51aa88abed0303d0bf661968143de6a9ea74",
+        "cases": [],
+        "passed": false,
+        "error": "observation-contract",
+        "finalHealth": {
+          "sensorId": "etw-file",
+          "state": "DEGRADED",
+          "lastAttemptAt": 1788959228756,
+          "lastSuccessAt": 1788959228756,
+          "lastError": null,
+          "consecutiveFailures": 0,
+          "lossCount": 0,
+          "detail": "experimental-correlation,mapResets,dropped,mapping-uncertain,identity-uncertain"
+        },
+        "endedSessions": [
+          {
+            "launchId": "79beec6c-b448-42db-ba46-dd598b95c38e",
+            "sessionId": "c327bf1e-37ff-4587-83e8-15a99dc41160",
+            "endedAt": 1788959230804,
+            "phase": "stopped",
+            "reasons": [
+              "experimental-correlation",
+              "mapResets",
+              "dropped",
+              "mapping-uncertain",
+              "identity-uncertain"
+            ],
+            "maxima": {
+              "eventsLost": "0",
+              "realTimeBuffersLost": "0",
+              "logBuffersLost": "0",
+              "delivered": "69956",
+              "filtered": "13118",
+              "dropped": "55638",
+              "decoderErrors": "0",
+              "mapEpoch": "8062",
+              "mapResets": "8062",
+              "mapConflicts": "0"
+            },
+            "capture": {
+              "buffers": {
+                "count": 256,
+                "sizeKiB": 64
+              },
+              "frequency": "10000000",
+              "clock": {
+                "qpc": "94975355341",
+                "unixMs": "1788959220681",
+                "uncertaintyQpc": "10331"
+              }
+            },
+            "finalCounters": {
+              "eventsLost": "0",
+              "realTimeBuffersLost": "0",
+              "logBuffersLost": "0",
+              "queryStatus": 0,
+              "asOfQpc": "95076093529"
+            },
+            "finalTotals": {
+              "delivered": "69956",
+              "filtered": "13118",
+              "dropped": "55638",
+              "decoderErrors": "0",
+              "mapEpoch": "8062",
+              "mapResets": "8062",
+              "mapConflicts": "0"
+            },
+            "ringDropped": 944,
+            "stopReason": "shutdown",
+            "exitCode": 0,
+            "stopVerified": true
+          }
+        ],
+        "endedAt": "2026-09-09T13:07:10.831Z"
+      }
+    },
+    {
+      "file": "aegis-etw-file-live-20260909-02.json",
+      "sha256": "8842498876aa249afcf90df8cf4051b04acb0b847d301a4b8eab9b272cb9bc9b",
+      "report": {
+        "schema": 1,
+        "live": true,
+        "synthetic": false,
+        "startedAt": "2026-09-09T13:10:37.329Z",
+        "binarySha256": "eeb3c04698b6aa6a37c88e2a9de42862314099e37be4bac8245424a54d093bb3",
+        "assemblySha256": "e2651e1c46eec96c7cd44cfc089e7a32b1c7408c593da08b1bf7371fa35826eb",
+        "cases": [
+          {
+            "kind": "normal-stop",
+            "observedRead": true,
+            "observedScopedCandidate": true,
+            "observedFixturePidCandidate": true,
+            "ringBytes": 369384,
+            "ringDropped": 330,
+            "sensorState": "DEGRADED",
+            "summary": {
+              "launchId": "2f8006bc-33e1-49eb-9d2d-004a0bd1b019",
+              "sessionId": "9e04664f-6aed-4308-849d-38e703951b69",
+              "endedAt": 1788959449691,
+              "phase": "stopped",
+              "reasons": [
+                "experimental-correlation",
+                "dropped",
+                "mapResets",
+                "mapping-uncertain",
+                "identity-uncertain"
+              ],
+              "maxima": {
+                "eventsLost": "0",
+                "realTimeBuffersLost": "0",
+                "logBuffersLost": "0",
+                "delivered": "87332",
+                "filtered": "9409",
+                "dropped": "77337",
+                "decoderErrors": "0",
+                "mapEpoch": "118",
+                "mapResets": "118",
+                "mapConflicts": "0"
+              },
+              "capture": {
+                "buffers": {
+                  "count": 256,
+                  "sizeKiB": 64
+                },
+                "frequency": "10000000",
+                "clock": {
+                  "qpc": "97164107756",
+                  "unixMs": "1788959439556",
+                  "uncertaintyQpc": "10206"
+                }
+              },
+              "finalCounters": {
+                "eventsLost": "0",
+                "realTimeBuffersLost": "0",
+                "logBuffersLost": "0",
+                "queryStatus": 0,
+                "asOfQpc": "97264842731"
+              },
+              "finalTotals": {
+                "delivered": "87332",
+                "filtered": "9409",
+                "dropped": "77337",
+                "decoderErrors": "0",
+                "mapEpoch": "118",
+                "mapResets": "118",
+                "mapConflicts": "0"
+              },
+              "ringDropped": 330,
+              "stopReason": "operator-stop",
+              "exitCode": 0,
+              "stopVerified": true
+            }
+          }
+        ],
+        "passed": true,
+        "observationCheck": {
+          "observed": true,
+          "named": true,
+          "fixtureRead": true,
+          "leaked": false
+        },
+        "endedSessions": [
+          {
+            "launchId": "2f8006bc-33e1-49eb-9d2d-004a0bd1b019",
+            "sessionId": "9e04664f-6aed-4308-849d-38e703951b69",
+            "endedAt": 1788959449691,
+            "phase": "stopped",
+            "reasons": [
+              "experimental-correlation",
+              "dropped",
+              "mapResets",
+              "mapping-uncertain",
+              "identity-uncertain"
+            ],
+            "maxima": {
+              "eventsLost": "0",
+              "realTimeBuffersLost": "0",
+              "logBuffersLost": "0",
+              "delivered": "87332",
+              "filtered": "9409",
+              "dropped": "77337",
+              "decoderErrors": "0",
+              "mapEpoch": "118",
+              "mapResets": "118",
+              "mapConflicts": "0"
+            },
+            "capture": {
+              "buffers": {
+                "count": 256,
+                "sizeKiB": 64
+              },
+              "frequency": "10000000",
+              "clock": {
+                "qpc": "97164107756",
+                "unixMs": "1788959439556",
+                "uncertaintyQpc": "10206"
+              }
+            },
+            "finalCounters": {
+              "eventsLost": "0",
+              "realTimeBuffersLost": "0",
+              "logBuffersLost": "0",
+              "queryStatus": 0,
+              "asOfQpc": "97264842731"
+            },
+            "finalTotals": {
+              "delivered": "87332",
+              "filtered": "9409",
+              "dropped": "77337",
+              "decoderErrors": "0",
+              "mapEpoch": "118",
+              "mapResets": "118",
+              "mapConflicts": "0"
+            },
+            "ringDropped": 330,
+            "stopReason": "operator-stop",
+            "exitCode": 0,
+            "stopVerified": true
+          }
+        ],
+        "endedAt": "2026-09-09T13:10:49.716Z"
+      }
+    },
+    {
+      "file": "aegis-etw-file-live-20260909-03.json",
+      "sha256": "110a35a5df83e30194283df6e0ab102c67a8a3d71519a0de3f6a6cb9eb2064fd",
+      "report": {
+        "schema": 1,
+        "live": true,
+        "synthetic": false,
+        "startedAt": "2026-09-09T13:13:27.986Z",
+        "binarySha256": "eeb3c04698b6aa6a37c88e2a9de42862314099e37be4bac8245424a54d093bb3",
+        "assemblySha256": "ac1ad40272105e811d8a6fd38c604ca95a1718d9e92c71ac60a41c0b86e85750",
+        "cases": [
+          {
+            "kind": "normal-stop",
+            "observedRead": true,
+            "observedScopedCandidate": true,
+            "observedFixturePidCandidate": true,
+            "ringBytes": 374609,
+            "ringDropped": 5607,
+            "sensorState": "DEGRADED",
+            "summary": {
+              "launchId": "19db4aa0-dcd2-4cb6-b003-f40d099e1a2b",
+              "sessionId": "4eacf810-ca53-4cc8-9b6b-9543da351d48",
+              "endedAt": 1788959620562,
+              "phase": "stopped",
+              "reasons": [
+                "experimental-correlation",
+                "dropped",
+                "mapResets",
+                "mapping-uncertain",
+                "identity-uncertain"
+              ],
+              "maxima": {
+                "eventsLost": "0",
+                "realTimeBuffersLost": "0",
+                "logBuffersLost": "0",
+                "delivered": "83945",
+                "filtered": "40947",
+                "dropped": "37135",
+                "decoderErrors": "0",
+                "mapEpoch": "202",
+                "mapResets": "202",
+                "mapConflicts": "0"
+              },
+              "capture": {
+                "buffers": {
+                  "count": 256,
+                  "sizeKiB": 64
+                },
+                "frequency": "10000000",
+                "clock": {
+                  "qpc": "98872943611",
+                  "unixMs": "1788959610440",
+                  "uncertaintyQpc": "10317"
+                }
+              },
+              "finalCounters": {
+                "eventsLost": "0",
+                "realTimeBuffersLost": "0",
+                "logBuffersLost": "0",
+                "queryStatus": 0,
+                "asOfQpc": "98973568435"
+              },
+              "finalTotals": {
+                "delivered": "83945",
+                "filtered": "40947",
+                "dropped": "37135",
+                "decoderErrors": "0",
+                "mapEpoch": "202",
+                "mapResets": "202",
+                "mapConflicts": "0"
+              },
+              "ringDropped": 5607,
+              "stopReason": "operator-stop",
+              "exitCode": 0,
+              "stopVerified": true
+            }
+          }
+        ],
+        "passed": true,
+        "observationCheck": {
+          "observed": true,
+          "named": true,
+          "fixtureRead": true,
+          "leaked": false
+        },
+        "endedSessions": [
+          {
+            "launchId": "19db4aa0-dcd2-4cb6-b003-f40d099e1a2b",
+            "sessionId": "4eacf810-ca53-4cc8-9b6b-9543da351d48",
+            "endedAt": 1788959620562,
+            "phase": "stopped",
+            "reasons": [
+              "experimental-correlation",
+              "dropped",
+              "mapResets",
+              "mapping-uncertain",
+              "identity-uncertain"
+            ],
+            "maxima": {
+              "eventsLost": "0",
+              "realTimeBuffersLost": "0",
+              "logBuffersLost": "0",
+              "delivered": "83945",
+              "filtered": "40947",
+              "dropped": "37135",
+              "decoderErrors": "0",
+              "mapEpoch": "202",
+              "mapResets": "202",
+              "mapConflicts": "0"
+            },
+            "capture": {
+              "buffers": {
+                "count": 256,
+                "sizeKiB": 64
+              },
+              "frequency": "10000000",
+              "clock": {
+                "qpc": "98872943611",
+                "unixMs": "1788959610440",
+                "uncertaintyQpc": "10317"
+              }
+            },
+            "finalCounters": {
+              "eventsLost": "0",
+              "realTimeBuffersLost": "0",
+              "logBuffersLost": "0",
+              "queryStatus": 0,
+              "asOfQpc": "98973568435"
+            },
+            "finalTotals": {
+              "delivered": "83945",
+              "filtered": "40947",
+              "dropped": "37135",
+              "decoderErrors": "0",
+              "mapEpoch": "202",
+              "mapResets": "202",
+              "mapConflicts": "0"
+            },
+            "ringDropped": 5607,
+            "stopReason": "operator-stop",
+            "exitCode": 0,
+            "stopVerified": true
+          }
+        ],
+        "endedAt": "2026-09-09T13:13:40.574Z"
+      }
+    },
+    {
+      "file": "aegis-etw-file-live-20260909-04.json",
+      "sha256": "f210fb0f58cffc7657feb331c754962c71241ee5c2d87d37753b1e33cda1d94c",
+      "report": {
+        "schema": 1,
+        "live": true,
+        "synthetic": false,
+        "startedAt": "2026-09-09T13:15:59.192Z",
+        "binarySha256": "eeb3c04698b6aa6a37c88e2a9de42862314099e37be4bac8245424a54d093bb3",
+        "assemblySha256": "2078acaa5004e7fae5203104bf647930d493c274fcb978e63d4598e6cbe0da19",
+        "cases": [
+          {
+            "kind": "normal-stop",
+            "observedRead": true,
+            "observedScopedCandidate": true,
+            "observedFixturePidCandidate": true,
+            "ringBytes": 396933,
+            "ringDropped": 0,
+            "sensorState": "DEGRADED",
+            "summary": {
+              "launchId": "b78ebdb2-aa2c-4d5f-95b8-73a4d04ef736",
+              "sessionId": "9c8296d1-2481-48e1-a9a0-0622d7d660da",
+              "endedAt": 1788959771481,
+              "phase": "stopped",
+              "reasons": [
+                "experimental-correlation",
+                "dropped",
+                "mapResets",
+                "mapping-uncertain",
+                "identity-uncertain"
+              ],
+              "maxima": {
+                "eventsLost": "0",
+                "realTimeBuffersLost": "0",
+                "logBuffersLost": "0",
+                "delivered": "81366",
+                "filtered": "63687",
+                "dropped": "17435",
+                "decoderErrors": "0",
+                "mapEpoch": "238",
+                "mapResets": "238",
+                "mapConflicts": "0"
+              },
+              "capture": {
+                "buffers": {
+                  "count": 256,
+                  "sizeKiB": 64
+                },
+                "frequency": "10000000",
+                "clock": {
+                  "qpc": "100382155456",
+                  "unixMs": "1788959761361",
+                  "uncertaintyQpc": "10214"
+                }
+              },
+              "finalCounters": {
+                "eventsLost": "0",
+                "realTimeBuffersLost": "0",
+                "logBuffersLost": "0",
+                "queryStatus": 0,
+                "asOfQpc": "100482850951"
+              },
+              "finalTotals": {
+                "delivered": "81366",
+                "filtered": "63687",
+                "dropped": "17435",
+                "decoderErrors": "0",
+                "mapEpoch": "238",
+                "mapResets": "238",
+                "mapConflicts": "0"
+              },
+              "ringDropped": 0,
+              "stopReason": "operator-stop",
+              "exitCode": 0,
+              "stopVerified": true
+            }
+          }
+        ],
+        "passed": true,
+        "observationCheck": {
+          "observed": true,
+          "named": true,
+          "fixtureRead": true,
+          "leaked": false
+        },
+        "endedSessions": [
+          {
+            "launchId": "b78ebdb2-aa2c-4d5f-95b8-73a4d04ef736",
+            "sessionId": "9c8296d1-2481-48e1-a9a0-0622d7d660da",
+            "endedAt": 1788959771481,
+            "phase": "stopped",
+            "reasons": [
+              "experimental-correlation",
+              "dropped",
+              "mapResets",
+              "mapping-uncertain",
+              "identity-uncertain"
+            ],
+            "maxima": {
+              "eventsLost": "0",
+              "realTimeBuffersLost": "0",
+              "logBuffersLost": "0",
+              "delivered": "81366",
+              "filtered": "63687",
+              "dropped": "17435",
+              "decoderErrors": "0",
+              "mapEpoch": "238",
+              "mapResets": "238",
+              "mapConflicts": "0"
+            },
+            "capture": {
+              "buffers": {
+                "count": 256,
+                "sizeKiB": 64
+              },
+              "frequency": "10000000",
+              "clock": {
+                "qpc": "100382155456",
+                "unixMs": "1788959761361",
+                "uncertaintyQpc": "10214"
+              }
+            },
+            "finalCounters": {
+              "eventsLost": "0",
+              "realTimeBuffersLost": "0",
+              "logBuffersLost": "0",
+              "queryStatus": 0,
+              "asOfQpc": "100482850951"
+            },
+            "finalTotals": {
+              "delivered": "81366",
+              "filtered": "63687",
+              "dropped": "17435",
+              "decoderErrors": "0",
+              "mapEpoch": "238",
+              "mapResets": "238",
+              "mapConflicts": "0"
+            },
+            "ringDropped": 0,
+            "stopReason": "operator-stop",
+            "exitCode": 0,
+            "stopVerified": true
+          }
+        ],
+        "endedAt": "2026-09-09T13:16:11.502Z"
+      }
+    }
+  ],
+  "previousSourceHashes": {
+    "scripts/launch.js": "e745cebbe5d3c8fdded2ac4245bf8a1bf1272cb234e156df580dc892e5ffa5d0",
+    "scripts/verify-etw-file.mjs": "1c177c30225ae3ca6a1d05881a94f3e3bcf46bc4a293a3ad1911bb58cb92af64",
+    "sidecar/etw-file/EtwFile.csproj": "9e34c6ad37d5751758d618095cf6b32ae54d90382855ece0b622fa2588589205",
+    "sidecar/etw-file/FileBroker.cs": "a3ebc5c3f81ffd2942a267c644922e3d9bd7e5353ff3993eaa927fb8019e6738",
+    "sidecar/etw-file/FileCapture.cs": "318d80a666392cbf1ab3b03666b1fec28f1d57e958229f0e050a639bb1726dc3",
+    "sidecar/etw-file/FileCollector.cs": "54fa9a6b5d404568e79ac83647fa8fc31a36ed7e9e61e3fc3a7a63e120ccafa3",
+    "sidecar/etw-file/FileGeneration.cs": "8520aa3bda23ee51bf6efe556f7aa72a2b31fa75f2cd7d8dd2077047369ff768",
+    "sidecar/etw-file/FileMapping.cs": "42e17a46eb1960ad0edb47e98ce73f8ffbfb412254806a7a358d69cb97b1ff74",
+    "sidecar/etw-file/FileScope.cs": "05976472d37b07c60be71aedb6fb89da795ba0a41d527a3b41d244bd5aee5ca0",
+    "sidecar/etw-file/FileTests.cs": "2e0271e0753f4b0ce0b954420639785d4e7df20c355b43fc42727a25b7b00515",
+    "sidecar/etw-file/FileTrace.cs": "25fd9d2f46a0d66c01610a1c4a5b03bc6042af654e6bcd2cdf85ec69e94c4dc6",
+    "sidecar/etw-file/FileWire.cs": "a4ff54d4c725f1de8d1ae4c814851e77abe01348fe4ab64a6609b9507a332f7d",
+    "sidecar/etw-file/Program.cs": "b879d22901405a5597e99a23b3c255ad1f20806e50bb990d822e71e111b9268d",
+    "sidecar/etw-lifecycle/Security.cs": "19fde5ace53914b1e8804b9716a2d041d794e09b273bd8acc385405ba6fadc96",
+    "src/main/main.js": "3ff6c21c7473995970594e2f5835fc227cd05bbbefc65cf1da86b16ad61bc7c4",
+    "src/main/platform/etw-file-health.js": "38e6d3976a6897c1e0799b0f65b93794d6e5c4fcf86ce81c73e24380a5a22207",
+    "src/main/platform/etw-file-protocol.js": "3522761aa103e4dd69e4a025acb00665b4ad0c975cfcc769b8dc62b94cbe9aa1",
+    "src/main/platform/etw-file-runtime.js": "cea6d4a6dc456a73673838374dcb310c47ce8f262220e0c55b3b67ad0063f1e5",
+    "src/main/platform/etw-file-supervisor.js": "1e0b7df56f0d95166861c989558531d46d9d551bf2d46af8afc3af120be1151f"
+  },
+  "previousSourceHashesScope": "single-mapper/writer implementation measured in live attempt 04; not the current pipeline",
+  "limitations": [
+    "Earlier attempts retain their own binary hashes, not a claim to match final source.",
+    "Final live run: ETW counters zero, application dropped 12061 of 88772 delivered, diagnostic ring eviction zero.",
+    "The live check is scoped path/header PID candidate and owned stop testimony, not event-time identity proof or an independent absence witness.",
+    "Earlier runs had different ambient workloads and are not a controlled performance comparison.",
+    "Sleep deferred. Deployment, protected crash recovery, sustained memory and remaining E3-E8 admission gates remain open."
+  ]
+}

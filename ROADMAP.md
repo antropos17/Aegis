@@ -75,8 +75,8 @@ The dependency is those observations, not the absence of a Windows host.
    and authoritative attribution remain gated; the remaining B1 questions stay open.
 3. **B3 (offline backend contract implemented):** separate framed protocol
    validator/decoder and pure session-health reducer with synthetic fixtures.
-   Both modules remain outside the live module graph. No launch/UAC, real ETW,
-   main wiring, audit or frontend.
+   Originally offline; B5 below connects these modules to the optional diagnostic
+   backend. No audit or frontend observation admission.
    The existing `sidecar/procsnap` remains independent.
 4. **B4 (isolated lifecycle harness prepared):** [broker/collector experiment](sidecar/etw-lifecycle/README.md)
    implements restricted local pipes, mutual process identity, authorization,
@@ -92,9 +92,17 @@ The dependency is those observations, not the absence of a Windows host.
    [Controlled refusal/late-UAC probes](docs/roadmap/etw-consent-suspend.md) passed
    actual refusal and approval after 14.13 seconds; both independently observed
    session absence. The dedicated suspend mode now has bounded native power
-   observations and synthetic process checks. **Next: manual sleep/wake evidence**, plus protected
-   ownership/recovery design for collector crash. No file provider or Electron
-   connection; E1/E2 remain incomplete.
+   observations and synthetic process checks. Manual sleep/wake is deferred by the
+   user; protected ownership/recovery for collector crash remains open. This empty
+   session harness has no file provider; E1/E2 remain incomplete.
+5. **B5 (diagnostic backend implemented; narrow live smoke passed):**
+   [connected file backend](docs/roadmap/etw-file-backend.md) adds the fixed provider,
+   bounded queues and naming maps, candidate process witnesses, lifecycle supervisor,
+   explicit verified restart and optional Electron health wiring. Enabled only by a
+   development root flag; packaged capture stays gated. New live evidence confirms
+   a scoped Read/header PID candidate and owned stop, with zero native losses but
+   substantial counted ingress drops. E4/E5 authoritative attribution, independent
+   cleanup/recovery and the remaining E3/E6–E8 live gates remain open.
 
 ## C — existing rules coverage
 
@@ -142,10 +150,12 @@ Keep them outside the active queue while the first ETW sensor is being establish
 
 ## Execution order
 
-The B2 draft, B3 offline backend contract and B4 isolated lifecycle harness are
-implemented; real same-account UAC stop and graceful-failure cleanup passed. Continue with
-remaining suspend, pending-dialog cancellation and collector-crash ownership gates in
-[etw-sensor-design.md](docs/roadmap/etw-sensor-design.md). Start with
+The B2 draft, B3 protocol, B4 lifecycle harness and B5 diagnostic backend are
+implemented; real same-account UAC stop and graceful-failure cleanup passed only
+for B4. B5's narrow live file smoke passed; application queue loss under burst traffic
+still needs work before production admission. Sleep/wake remains deferred;
+pending-dialog cancellation, collector-crash ownership and evidence admission remain
+open in [etw-sensor-design.md](docs/roadmap/etw-sensor-design.md). Start with
 [next-session.md](memory-bank/next-session.md) and the latest progress handoff.
 All three local experiment sets are complete; do not repeat them without a specific
 new question. B1's remaining coverage/environment questions stay explicit.

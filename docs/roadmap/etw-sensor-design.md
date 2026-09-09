@@ -1,6 +1,13 @@
 # B2 — Windows ETW file sensor design
 
-Status: B2 architecture draft, B3 offline contract and B4 isolated lifecycle harness,
+Status update 2026-09-09: [B5 diagnostic backend](etw-file-backend.md) now connects
+the protocol/reducer to an explicit development-only file collector and Electron
+health leaf. Packaged capture and authoritative attribution remain gated. The
+following B2–B4 sections retain their scope/history; B5 records implemented bounds
+and deviations (queue telemetry maxima across two capped stages, conservative close invalidation,
+fresh candidate handle observations, no independent receipt on the file transport).
+
+Historical status: B2 architecture draft, B3 offline contract and B4 isolated lifecycle harness,
 2026-09-08. B2 source
 contracts were checked at `53b20e4`; B3 implements only the isolated JS codec and
 session-health reducer described below. No production sensor, UI, dependency,
@@ -131,6 +138,7 @@ and are range-checked as BigInt in JS; PIDs/TIDs are bounded uint32 numbers.
 | `observations` | Session ID, transport sequence, at most 128 records. Each has session-local event sequence, provider/event/version, QPC, header PID/TID, nullable payload/issuing TID, candidate path/provenance, issuer and generation evidence states. |
 | `health` / `heartbeat` | Current state/reasons, session counters or null plus query status/as-of, delivered/filtered/dropped counts, map epoch/resets/conflicts, queue depth/bytes/high-water marks, coverage profile. |
 | `stop` / `stopped` / `error` | Request ID, final sequences/counters, stop/drain result and static error code. Idempotent stop; EOF without valid stopped is an incomplete capture. |
+| `ping` | B5 client lease renewal, empty closed data object. Same session/sequence binding; wrong-direction at the collector-message reducer. |
 
 Proposed observation fields include `path: string|null`,
 `pathEvidence: observed-name|candidate-object|candidate-key|conflict|unresolved`,

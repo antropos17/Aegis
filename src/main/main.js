@@ -43,6 +43,7 @@ const logger = require('./logger');
 const tray = require('./tray-icon');
 const ipc = require('./ipc-handlers');
 let updates;
+let etwFile;
 const { createBatcher } = require('./ipc-batcher');
 // Pure domain modules — no I/O, no Electron, no timers — so they cost nothing to load
 // on the fast path to a visible window. `file-access-batching` must be here rather than
@@ -224,6 +225,7 @@ function getAppHealth() {
   if (typeof platform.getSnapshotHealth === 'function') {
     records.push(platform.getSnapshotHealth());
   }
+  if (etwFile) records.push(etwFile.getHealth());
   const derived = appHealth.deriveAppHealth({
     bootPhase: true,
     capabilities,
@@ -829,6 +831,7 @@ app.whenReady().then(() => {
     isMonitoringPaused: () => monitoringPaused,
     setMonitoringPaused: (v) => {
       monitoringPaused = v;
+      etwFile?.setPaused(v);
     },
     stopScanIntervals: () => {
       if (scanLoop) scanLoop.stopScanIntervals();
@@ -847,6 +850,10 @@ app.whenReady().then(() => {
     getAgentCount: () => latestAgents.length,
   });
   createWindow();
+  etwFile = require('./platform/etw-file-runtime').createRuntime({
+    app,
+    powerMonitor: require('electron').powerMonitor,
+  });
   // Block B5 — the OS sleep gap. `powerMonitor` is usable only after `ready`, which is
   // where this runs; the module is injected the emitter and a clock and owns the rest.
   // On resume one `observation-gap` audit record explains the hole in the JSONL, ahead
@@ -891,6 +898,7 @@ app.whenReady().then(() => {
     tray.createTray();
     // Load heavy modules AFTER window is visible
     setImmediate(() => initDeferredSubsystems(userData));
+    etwFile.start();
   });
   globalShortcut.register('CommandOrControl+Shift+T', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -900,6 +908,7 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+  etwFile?.dispose();
   updates?.dispose();
   if (oomIntervalId) {
     clearInterval(oomIntervalId);
@@ -930,6 +939,15 @@ app.on('quit', () => {
 /** @internal Inject the file-watcher module, normally set by loadDeferredModules (for tests). */
 function _setWatcherForTest(mod) {
   watcher = mod;
+}
+
+/** @internal Inject the optional ETW runtime without launching a collector.
+ * @param {Object|undefined} mod - Health/diagnostic owner.
+ * @returns {void}
+ * @since v0.14.2
+ */
+function _setEtwFileForTest(mod) {
+  etwFile = mod;
 }
 
 /**
@@ -1019,6 +1037,7 @@ module.exports = {
   getStats,
   getAppHealth,
   _setWatcherForTest,
+  _setEtwFileForTest,
   _setScannerForTest,
   _setScanLoopForTest,
   _setSequenceEngineForTest,
