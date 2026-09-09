@@ -1,5 +1,49 @@
 # AEGIS — старт следующего чата
 
+## Актуальное продолжение — B5, 2026-09-09
+
+Пользователь попросил весь блок файловых событий/транспорта/backend, оставив сон
+на потом. На `codex/etw-file-backend` реализован новый диагностический сборщик
+`sidecar/etw-file`, supervisor/runtime и подключение листа здоровья в main.
+Проверь финальный PR/CI/merge статус. Подробности и команды:
+`docs/roadmap/etw-file-backend.md`, `sidecar/etw-file/README.md`.
+
+Это заменяет старое утверждение ниже, что протокол/health не импортируются приложением.
+Захват требует явного development-флага с одним корнем; packaged-сборка не включает
+его. Файловые события остаются кандидатами в ограниченной памяти main, agent и
+instanceId всегда null. Нет передачи в FileEvent, risk, baseline, sequence или audit.
+Нельзя объявлять весь пункт «надёжная атрибуция» завершённым: E4/E5 ещё открыты.
+
+Прошли 22 C# self-test и три настоящих normal-token процессных сценария: две
+штатные сессии и EOF с неподтверждённой остановкой. События синтетические, native
+counters null. Последний результат `X:/tmp/aegis-etw-file-check-20260909-v6.json`.
+JS-проверки протокола/reducer/supervisor и main-composer прошли (110 тестов).
+Пользователь разрешил реальный UAC-тест. Финальный live smoke прошёл:
+`X:/tmp/aegis-etw-file-live-20260909-05.json`, совпавшие с normal binaries, кандидат
+Read с путём/PID тестового процесса, native counters 0, stop/child exit 0.
+Но очереди приложения отбросили 12 061 из 88 772 событий; это оставшаяся деградация,
+а не завершённый E3. 76 418 событий отфильтрованы по политике, ring eviction 0.
+Mapper отделён от query/write вторым ограниченным буфером; каждый 4096 / 4 МиБ.
+В telemetry очередей указаны максимумы между двумя этапами, не сумма; dropped общий.
+Агрегат `docs/recon/evidence/etw-file-home-26200-backend.json` сохраняет 20 LF-хешей
+исходников, final normal/live и четыре ранних live-попытки, включая первый отказ
+приёмки. Независимого absence witness и подтверждённой атрибуции нет.
+СОН ПО-ПРЕЖНЕМУ ОТЛОЖЕН. Следующее backend-улучшение — потери на всплесках нагрузки.
+
+Чистая копия backend-патча прошла format/build/lint, TypeScript/Svelte, coverage
+(2928 pass, 4 skip при maxWorkers=2), оба verify gate, counts и npm audit.
+Первый неограниченный local coverage упёрся в ENOMEM/отсутствующий Electron dist;
+после установки dist и ограничения workers повтор прошёл без изменения тестов.
+Проверка NuGet с transitive dependencies также не нашла известных уязвимостей.
+Это локальные результаты; финальные пять CI и merge проверяй отдельно.
+
+Во время работы появились отдельные изменения App/AgentCard/DemoBanner/ShieldTab,
+observatory components/styles/assets и LiveRadar test. Они пользовательские, как
+и `.codex/agents/ui-designer.toml`, `memory-bank/fancy-ui-plan.md`; не включать их
+в backend-коммит. Полную проверку backend проводить на чистом checkout коммита.
+
+## Предыдущая передача — B4
+
 Обновлено 2026-09-08 после реализации отдельного suspend-стенда без реального сна.
 B2: PR #384, `f2f1ac4`; B3: PR #385, `cc47212`, оба merged с пятью зелёными CI.
 B4: PR #386, `01bf403`; первый UAC stop: PR #387, `1f7cd82`, оба merged с пятью

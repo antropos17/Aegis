@@ -1,0 +1,141 @@
+// Explicit local process check. --live additionally requests real UAC and ETW.
+// No raw observations or filesystem paths are written into the report.
+import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import supervisor from '../src/main/platform/etw-file-supervisor.js';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const executable = path.join(root, 'sidecar/etw-file/bin/Release/net10.0-windows/EtwFile.exe');
+const live = process.argv.includes('--live');
+const destination = process.argv.find((value) => value.startsWith('--report='))?.slice(9);
+if (process.platform !== 'win32' || !destination || fs.existsSync(destination))
+  throw new Error('Windows and a new --report=<file> are required');
+const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-etw-file-'));
+const file = path.join(fixture, 'fixture.dat');
+fs.writeFileSync(file, Buffer.alloc(4096, 7));
+const report = {
+  schema: 1,
+  live,
+  synthetic: !live,
+  startedAt: new Date().toISOString(),
+  binarySha256: createHash('sha256').update(fs.readFileSync(executable)).digest('hex'),
+  assemblySha256: createHash('sha256')
+    .update(fs.readFileSync(executable.replace(/\.exe$/, '.dll')))
+    .digest('hex'),
+  cases: [],
+  passed: false,
+};
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function until(predicate, ms) {
+  const deadline = performance.now() + ms;
+  while (!predicate()) {
+    if (performance.now() >= deadline) throw new Error('deadline');
+    await delay(25);
+  }
+}
+let broker;
+const sensor = supervisor.createSupervisor({
+  spawnBroker: (launchId, sessionId) => {
+    broker = spawn(executable, [live ? 'broker' : 'check-broker', launchId, sessionId, fixture], {
+      windowsHide: true,
+      stdio: ['pipe', 'pipe', 'ignore'],
+    });
+    return broker;
+  },
+});
+try {
+  // Each retry below is explicit and follows verified cleanup, never an automatic failure retry.
+  for (let index = 0; index < (live ? 1 : 2); index++) {
+    if (!sensor.start()) throw new Error('start-blocked');
+    await until(() => ['running', 'failed'].includes(sensor.getDiagnostics().phase), 135000);
+    if (sensor.getDiagnostics().phase !== 'running') throw new Error('start-failed');
+    let observed = false,
+      named = false,
+      fixtureRead = false,
+      leaked = false;
+    const deadline = performance.now() + (live ? 10000 : 3000);
+    while (performance.now() < deadline) {
+      if (live) fs.readFileSync(file); // Only this ordinary process performs the fixture workload.
+      const records = sensor.getDiagnostics().records;
+      observed ||= records.some((r) => r.eventId === 15);
+      named ||= records.some((r) => r.path === file);
+      fixtureRead ||= records.some(
+        (r) => r.path === file && r.eventId === 15 && r.headerPid === process.pid,
+      );
+      leaked ||= records.some(
+        (r) =>
+          r.agent !== null ||
+          r.instanceId !== null ||
+          (r.path !== null && !r.path.startsWith(fixture + '\\')),
+      );
+      if (!live && observed) break;
+      await delay(25);
+    }
+    report.observationCheck = { observed, named, fixtureRead, leaked };
+    if (!observed || leaked || (live && !fixtureRead)) throw new Error('observation-contract');
+    const before = sensor.getDiagnostics();
+    sensor.stop();
+    await until(() => sensor.getDiagnostics().summaries.length > index, 20000);
+    const result = sensor.getDiagnostics().summaries.at(-1);
+    if (!result.stopVerified) throw new Error('stop-unverified');
+    if (
+      live &&
+      (result.finalCounters?.queryStatus !== 0 ||
+        ['eventsLost', 'realTimeBuffersLost', 'logBuffersLost'].some(
+          (key) => result.finalCounters[key] !== '0',
+        ))
+    )
+      throw new Error('native-loss-or-unmeasured');
+    report.cases.push({
+      kind: index ? 'explicit-new-session' : 'normal-stop',
+      observedRead: observed,
+      observedScopedCandidate: named,
+      observedFixturePidCandidate: fixtureRead,
+      ringBytes: before.ringBytes,
+      ringDropped: before.ringDropped,
+      sensorState: sensor.getHealth().state,
+      summary: result,
+    });
+  }
+  if (!live) {
+    if (!sensor.start()) throw new Error('start-blocked');
+    await until(() => sensor.getDiagnostics().phase === 'running', 15000);
+    broker.stdin.end();
+    await until(() => sensor.getDiagnostics().summaries.length === 3, 25000);
+    const result = sensor.getDiagnostics().summaries.at(-1);
+    if (result.stopVerified || !sensor.getDiagnostics().restartBlocked)
+      throw new Error('false-cleanup');
+    report.cases.push({ kind: 'parent-eof-unverified', summary: result });
+  }
+  report.passed = true;
+} catch (error) {
+  report.error = error.message;
+  report.finalHealth = sensor.getHealth();
+  process.exitCode = 2;
+} finally {
+  sensor.dispose();
+  if (broker && broker.exitCode === null) {
+    try {
+      await until(() => broker.exitCode !== null, 35000);
+    } catch {
+      report.cleanupUnverified = true;
+      report.passed = false;
+      process.exitCode = 2;
+    }
+  }
+  report.endedSessions = sensor.getDiagnostics().summaries;
+  report.endedAt = new Date().toISOString();
+  fs.writeFileSync(destination, JSON.stringify(report, null, 2) + '\n', { flag: 'wx' });
+  console.log(
+    JSON.stringify({
+      passed: report.passed,
+      live,
+      cases: report.cases.length,
+      error: report.error,
+    }),
+  );
+}

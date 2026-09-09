@@ -146,6 +146,7 @@ const messageData = {
   health: telemetry,
   heartbeat: telemetry,
   stop: shape({ requestId: id }),
+  ping: shape({}),
   stopped: shape({
     requestId: id,
     drained: oneOf(true, false),

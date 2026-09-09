@@ -1990,3 +1990,101 @@ the completed B1 sets or earlier successful live consent/cleanup tests without c
 
 User edits in .codex/agents/ui-designer.toml and memory-bank/fancy-ui-plan.md remain
 separate and must be preserved outside this backend commit.
+
+## Session handoff — connected diagnostic file backend B5 (2026-09-09)
+
+The user explicitly requested the file/queue/identity/path/backend block while
+deferring real sleep. Branch codex/etw-file-backend implements a new sidecar/etw-file
+project, reusing the restricted pipe identity code through a linked source file.
+The fixed native Kernel-File diagnostic profile now has a bounded ingress queue,
+conservative path maps, uncached candidate FILETIME observations, bounded framing,
+heartbeat/lease, handle-owned stop and final native counters. The separate lifecycle
+harness and all three completed B1 measurement sets were left unchanged.
+
+Main imports a development-only runtime/supervisor and includes its optional health
+leaf in the actual app-health composer. Explicit root opt-in is required, packaged
+enablement is blocked. No renderer IPC or diagnostic FileEvent/audit/risk/baseline/
+sequence admission exists. Agent and instanceId remain null; later process handle
+observations cannot prove event-time identity. E4/E5 are not declared complete.
+
+The supervisor bounds its ring and ended summaries, preserves session loss maxima,
+correlates start/stop IDs, rejects stale frames/callbacks, and waits for stopped plus
+successful child exit before explicit restart. EOF/timeout never certifies cleanup;
+failures block retries and may terminate only the normal broker after cleanup grace.
+Suspend/pause/shutdown clear diagnostic memory and request stop. Resume/unpause never
+relaunch elevated capture automatically. No extra OS observation-gap audit record.
+
+Local checks passed: Release build without warnings, C# formatter, 21 self-tests
+(including 100,000-input overload), 110 focused JS protocol/reducer/supervisor/composer
+tests, three actual normal-token broker/collector cases through the JS supervisor.
+Those cases use synthetic inputs and null native counters; they exercise two clean
+sessions with fresh IDs and a parent-EOF failure with blocked restart. Latest report:
+X:/tmp/aegis-etw-file-check-20260909-final.json. No EtwFile processes remained after
+the earlier normal checks; recheck after any new run. Full repository/CI checks and
+final PR status must be read from the final completion rather than inferred here.
+
+The live test command is prepared and an asynchronous readiness question was sent.
+No reply yet at this handoff. Do not infer real provider acceptance from earlier B1
+or empty-session binaries. Real sleep/wake is explicitly deferred. Independent native
+absence verification, protected collector-crash recovery, deployment trust and the
+remaining live E3/E4/E5/E6–E8 coverage gates stay open. Exact bounds and limitations:
+docs/roadmap/etw-file-backend.md and sidecar/etw-file/README.md.
+
+Separate user work now also changes renderer App/AgentCard/DemoBanner/ShieldTab and
+adds observatory components/styles/assets plus LiveRadar tests. Preserve all of it,
+along with ui-designer settings and fancy-ui-plan. Validate the backend commit in a
+clean checkout so the user's unfinished frontend does not enter this PR.
+
+Live follow-up: the user explicitly approved the prepared test. Four short UAC
+attempts were run, without any sleep. The first failed fixture-path acceptance;
+it still stopped cleanly and retained counted ingress losses. Subsequent changes
+put the blocking consumer on a dedicated thread, used dropped-event QPC rather
+than receipt time for ingress invalidation, signalled queue arrival instead of
+polling and sampled unresolved output at ten records/second (deliberate filtering).
+Known selected paths remain unsampled. Final normal process report:
+X:/tmp/aegis-etw-file-check-20260909-v4.json; final live report:
+X:/tmp/aegis-etw-file-live-20260909-04.json. Their C# binary hashes match.
+
+The final live smoke passed a Read candidate with the temporary fixture's path and
+normal workload header PID; final native query 0, actual 256 × 64 KiB buffers,
+all three native loss counters 0, stop acknowledgement and broker/collector exit 0.
+No EtwFile helpers remained. Ingress nevertheless dropped 17,435 of 81,366 delivered
+events; 63,687 were deliberately filtered; decoder errors and ring eviction zero.
+This is a degraded diagnostic backend. E3 burst handling and sustained bounded
+memory still need validation/optimization. The runs had different ambient loads,
+so do not advertise a controlled performance improvement from their ratios.
+
+docs/recon/evidence/etw-file-home-26200-backend.json retains 19 canonical LF final
+source hashes, normal and final live results plus all three earlier live attempts.
+Earlier reports retain their own binary hashes without claiming final source
+equivalence. This closes only the narrow smoke; independent native absence,
+protected collector-crash recovery, E4/E5 admission, deployment and other E3–E8
+gates remain open. Real sleep/wake remains explicitly deferred.
+
+Final B5 follow-up supersedes the preceding v4 figures: a dedicated mapper now
+drains ingress independently of native queries and pipe writes. Ingress/outbound
+are individually capped at 4096 / 4 MiB; v1 queue fields expose maxima across stages,
+while dropped combines their counted losses. An unread-output self-test proves
+ingress still drains without overflow when the output stage is full. There are now
+22 C# self-tests. Final normal report is aegis-etw-file-check-20260909-v6.json;
+matching live report is aegis-etw-file-live-20260909-05.json (both under X:/tmp).
+The fifth short UAC smoke passed scope/header-PID candidate and owned stop, native
+losses zero, application drops 12061 of 88772 delivered, filtered 76418, no decoder
+errors or ring eviction. No helper processes remained. No claim of complete or
+loss-free transport; sustained E3 admission remains open.
+
+The final aggregate retains 20 current LF source hashes, the prior v4 source-hash
+set as historical provenance, final normal/live results and all four earlier live
+attempts. These are narrow functional runs under differing ambient load. Real
+sleep remains deferred. Continue with final clean-checkout/CI/PR results below.
+
+Clean validation checkout X:/tmp/aegis-etw-backend-validation-20260909 has the exact
+staged source tree (no user frontend edits). Format/build/lint passed (31 existing
+lint warnings), TS/Svelte passed with no Svelte diagnostics, production npm audit
+and transitive NuGet vulnerability check reported none. Full coverage passed 2928
+tests with 4 skips using --maxWorkers=2; both witness/sequence verification gates
+and counts passed. The initial unconstrained coverage failed from ENOMEM/worker
+startup failures plus an absent Electron dist. Installing the existing Electron
+package's binary and bounding workers resolved it without source/test changes.
+C# Release/formatter, 22 self-tests, three normal-token process cases, final live
+smoke and all 20 evidence source hashes are verified. Final PR/CI/merge follows.

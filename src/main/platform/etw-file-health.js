@@ -150,7 +150,7 @@ function withTelemetry(state, sample, now) {
 function reduceSession(state, message, now) {
   time(now);
   validateMessage(message, state);
-  if (['start', 'stop'].includes(message.t)) error('wrong-direction');
+  if (['start', 'stop', 'ping'].includes(message.t)) error('wrong-direction');
   if (BigInt(message.seq) <= BigInt(state.lastSeq)) error('sequence-replayed');
   if (state.phase === 'failed' || state.phase === 'stopped') error('session-terminal');
   if (message.t === 'hello' && (state.helloSeen || state.lastSeq !== '0'))

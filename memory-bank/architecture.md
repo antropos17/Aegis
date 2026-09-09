@@ -1,6 +1,12 @@
 # AEGIS Architecture
 
-## Main Process (src/main/) — 70 CommonJS modules (55 top-level + 13 platform/ + 2 token-adapters/)
+## Main Process (src/main/) — 72 CommonJS modules (55 top-level + 15 platform/ + 2 token-adapters/)
+
+Optional development ETW: main → platform/etw-file-runtime → etw-file-supervisor
+→ normal `sidecar/etw-file` broker → authenticated elevated file collector.
+Only the `etw-file` health leaf reaches app stats. Diagnostic observations stay
+in bounded main memory and never become FileEvents. Packaged enablement is gated;
+see [backend record](../docs/roadmap/etw-file-backend.md).
 
 Core modules:
 - main.js — orchestrator, module wiring, lifecycle

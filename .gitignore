@@ -4,6 +4,8 @@ out/
 coverage/
 # Compiled snapshot sidecar — built from sidecar/procsnap, never committed
 build/sidecar/
+/sidecar/etw-file/bin/
+/sidecar/etw-file/obj/
 # Raw bench run output written by bench/run.js (manifest, ndjson, reports).
 # Never commit it: it is machine-local. The committed, redacted copies live in
 # tests/fixtures/bench/ (see that README). Gold-image numbers go in docs/bench/.
