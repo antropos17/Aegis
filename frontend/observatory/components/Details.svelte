@@ -1,24 +1,18 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { transitionSurface } from '../runtime/motion';
-  import {
-    actionTarget,
-    confirmed,
-    invoke,
-    record,
-    type Host,
-    type RecordData,
-    type Telemetry,
-  } from '../runtime/host';
+  import { confirmed, invoke, type Host, type RecordData, type Telemetry } from '../runtime/host';
+  import { detailKind, detailTitle, detailCaption, detailTabs } from '../runtime/detail-model';
   import {
     acknowledgedAgents,
     toggleAcknowledged,
   } from '../../../src/renderer/lib/stores/acknowledged';
   import Action from './Action.svelte';
   import EntityLinks from './EntityLinks.svelte';
-  import Metadata from './Metadata.svelte';
   import Icon from './Icon.svelte';
   import DetailSummary from './DetailSummary.svelte';
+  import DetailControls from './DetailControls.svelte';
+  import SectionTabs from './SectionTabs.svelte';
   let {
     host,
     telemetry,
@@ -32,93 +26,114 @@
     close: () => void;
     refreshFalsePositives: () => Promise<void>;
   } = $props();
+  interface Visit {
+    title: string;
+    row: RecordData;
+    tab: string;
+    scroll: Record<string, number>;
+    focus: Record<string, string | null>;
+    query: Record<string, string>;
+    limit: Record<string, number>;
+  }
   let dialog: HTMLDialogElement;
   let body: HTMLDivElement;
-  let history = $state<
-    { title: string; row: RecordData; scroll: number; focus: HTMLElement | null }[]
-  >([]);
+  let history = $state<Visit[]>([]);
   let index = $state(0);
   let current = $derived(history[index]);
-  let canControl = $derived.by(() => {
-    if (!current?.row.process || typeof current.row.instanceId !== 'string') return false;
-    try {
-      actionTarget(telemetry, current.row.instanceId);
-      return true;
-    } catch {
-      return false;
-    }
-  });
-  let stopId = $state<string | null>(null);
+  let tabs = $derived(current ? detailTabs(current.row, telemetry) : []);
   let returnFocus: HTMLElement | null = null;
-  let watch = $state<RecordData[]>([]);
   let previousRequest: typeof request = null;
+  let navigationRevision = 0;
+  function visit(title: string, row: RecordData): Visit {
+    const sections = detailTabs(row, telemetry);
+    return {
+      title,
+      row,
+      tab: detailKind(row) === 'records' ? 'records' : 'overview',
+      scroll: {},
+      focus: {},
+      query: Object.fromEntries(sections.map((s) => [s.id, ''])),
+      limit: Object.fromEntries(sections.map((s) => [s.id, s.id === 'records' ? 20 : 12])),
+    };
+  }
   $effect(() => {
     if (request && request !== previousRequest) {
       previousRequest = request;
+      navigationRevision++;
       returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      history = [{ ...request, scroll: 0, focus: null }];
+      history = [visit(request.title, request.row)];
       index = 0;
-      stopId = null;
       if (!dialog.open) dialog.showModal();
       void tick().then(() =>
         document.getElementById('modal-title')?.focus({ preventScroll: true }),
       );
     } else if (!request) {
       previousRequest = null;
+      navigationRevision++;
       if (dialog?.open) dialog.close();
     }
   });
+  function remember() {
+    if (!current) return;
+    current.scroll[current.tab] = body.scrollTop;
+    current.focus[current.tab] =
+      document.activeElement instanceof HTMLElement
+        ? (document.activeElement.dataset.detailFocus ?? null)
+        : null;
+  }
+  async function restore(focus = false) {
+    await tick();
+    body.scrollTop = current?.scroll[current.tab] ?? 0;
+    if (focus) {
+      const key = current?.focus[current.tab];
+      const target = [...body.querySelectorAll<HTMLElement>('[data-detail-focus]')].find(
+        (node) => node.dataset.detailFocus === key,
+      );
+      (target ?? body).focus({ preventScroll: true });
+    }
+  }
+  async function changeTab(tab: string) {
+    remember();
+    current.tab = tab;
+    await restore();
+  }
   async function navigate(title: string, row: RecordData) {
-    history[index].scroll = body.scrollTop;
-    history[index].focus =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    remember();
+    const ticket = ++navigationRevision;
     await transitionSurface('detail', async () => {
-      history = [...history.slice(0, index + 1), { title, row, scroll: 0, focus: null }];
+      if (ticket !== navigationRevision) return;
+      history = [...history.slice(0, index + 1), visit(title, row)];
       index++;
-      await restore();
+      await restore(true);
     });
   }
   async function move(delta: number) {
-    history[index].scroll = body.scrollTop;
-    history[index].focus =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const next = index + delta;
+    if (next < 0 || next >= history.length) return;
+    remember();
+    const ticket = ++navigationRevision;
     await transitionSurface(
       'detail',
       async () => {
-        index += delta;
-        await restore();
+        if (ticket !== navigationRevision) return;
+        index = next;
+        await restore(true);
       },
       delta,
     );
   }
-  async function restore() {
-    stopId = null;
-    await tick();
-    body.scrollTop = history[index].scroll;
-    const focus = history[index].focus;
-    if (focus?.isConnected) focus.focus({ preventScroll: true });
-    else body.focus({ preventScroll: true });
-  }
   function finish() {
     close();
-    returnFocus?.focus();
-  }
-  async function processAction(method: string, id: string) {
-    const live = actionTarget(telemetry, id);
-    confirmed(await invoke(host, method, { pid: live.pid, instanceId: live.instanceId }));
-    stopId = null;
-  }
-  async function loadWatch() {
-    const result = await invoke(host, 'blocklistList');
-    watch = Array.isArray(result) ? result.map(record) : [];
+    if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
   }
 </script>
 
 <dialog
   id="modal"
+  class="detail-shell"
   bind:this={dialog}
   onclose={finish}
-  oncancel={() => close()}
+  oncancel={close}
   aria-labelledby="modal-title"
 >
   <div class="modal-head">
@@ -128,7 +143,8 @@
         aria-label="Back"
         disabled={index === 0}
         onclick={() => move(-1)}><Icon name="arrowLeft" /></button
-      ><button
+      >
+      <button
         class="history-arrow"
         aria-label="Forward"
         disabled={index >= history.length - 1}
@@ -137,80 +153,62 @@
     </div>
     <div>
       <span class="muted" id="modal-caption"
-        >{current?.row.agentGroupKey
-          ? 'Agent overview'
-          : current?.row.process
-            ? 'Agent instance'
-            : current?.row.displayName
-              ? 'Agent catalog'
-              : current?.row.observationGroup
-                ? 'Grouped observations'
-                : 'Recorded metadata'}</span
+        >{current ? detailCaption(current.row) : 'Details'}</span
       >
-      <h2 id="modal-title" tabindex="-1">{current?.title ?? 'Details'}</h2>
+      <h2 id="modal-title" tabindex="-1">
+        {current ? detailTitle(current.row, current.title) : 'Details'}
+      </h2>
     </div>
     <button class="icon-button" aria-label="Close details" onclick={close}
       ><Icon name="close" /></button
     >
   </div>
+  {#if current}<SectionTabs
+      {tabs}
+      selected={current.tab}
+      change={changeTab}
+      prefix="detail"
+      label="Detail sections"
+    />{/if}
   <div id="modal-body" tabindex="-1" bind:this={body}>
-    {#if current}<div
-        class:agent-detail-grid={!!current.row.process || !!current.row.agentGroupKey}
-      >
-        <div><DetailSummary row={current.row} {telemetry} /></div>
-        <div><EntityLinks row={current.row} {telemetry} {navigate} /></div>
-      </div>
-      <details
-        class="all-metadata"
-        open={!current.row.process &&
-          !current.row.agentGroupKey &&
-          !current.row.displayName &&
-          !current.row.file &&
-          !current.row.remoteIp &&
-          !current.row.domain &&
-          !current.row.type &&
-          !current.row.observations}
-      >
-        <summary>All observation metadata</summary><Metadata value={current.row} />
-      </details>
-      {#if current.row.process}<details>
-          <summary>Alert watchlist</summary>
-          <Action action={loadWatch}>Refresh watchlist</Action>{#each watch as entry (entry)}<div
-              class="toolbar"
-            >
-              <span>{String(entry.signature)} · {String(entry.pid ?? 'all instances')}</span><Action
-                action={async () => {
-                  confirmed(
-                    await invoke(host, 'blocklistRemove', {
-                      signature: entry.signature,
-                      pid: entry.pid,
-                    }),
-                  );
-                  await loadWatch();
-                }}>Remove</Action
-              >
-            </div>{/each}
-          <p class="muted">Watchlist entries raise alerts; they do not block execution.</p>
-        </details>{/if}
-      {#if stopId}<div class="confirm-stop" role="alert">
-          <h3>Stop this process?</h3>
-          <p>
-            Unsaved work in this process may be lost. The selected identity will be checked again
-            before dispatch.
-          </p>
-          <Action action={() => processAction('killProcess', stopId!)}>Confirm stop</Action><button
-            class="button"
-            onclick={() => (stopId = null)}>Cancel</button
-          >
-        </div>{/if}
-    {/if}
+    {#if current}{#each tabs as tab (tab.id)}
+        <div
+          class="detail-tab-panel"
+          role="tabpanel"
+          id={'detail-panel-' + tab.id}
+          aria-labelledby={'detail-tab-' + tab.id}
+          tabindex="0"
+          hidden={current.tab !== tab.id}
+        >
+          {#if current.tab === tab.id}
+            {#if ['overview', 'attributes', 'signatures'].includes(tab.id)}<DetailSummary
+                row={current.row}
+                {telemetry}
+                section={tab.id}
+              />
+            {:else if tab.id === 'controls'}{#key current}<DetailControls
+                  row={current.row}
+                  {telemetry}
+                  {host}
+                />{/key}
+            {:else}<EntityLinks
+                row={current.row}
+                {telemetry}
+                {navigate}
+                section={tab.id}
+                bind:query={current.query[tab.id]}
+                bind:limit={current.limit[tab.id]}
+              />{/if}
+          {/if}
+        </div>
+      {/each}{/if}
   </div>
   <div class="modal-actions">
     {#if current?.row.website}<Action
         action={async () => confirmed(await invoke(host, 'openExternalUrl', current.row.website))}
         ><Icon name="globe" />Website</Action
       >{/if}
-    {#if current?.row.instanceId}<button
+    {#if current?.row.instanceId && current.row.process}<button
         class="button"
         aria-pressed={$acknowledgedAgents.has(String(current.row.instanceId))}
         onclick={() => toggleAcknowledged(String(current.row.instanceId))}
@@ -218,59 +216,28 @@
           ? 'Reviewed'
           : 'Mark reviewed'}</button
       >{/if}
-    {#if current?.row.process && current.row.instanceId}{@const id = String(
-        current.row.instanceId,
-      )}<Action disabled={!canControl} action={() => processAction('suspendProcess', id)}
-        >Suspend</Action
-      ><Action disabled={!canControl} action={() => processAction('resumeProcess', id)}
-        >Resume</Action
-      ><button class="button" disabled={!canControl} onclick={() => (stopId = id)}>Stop…</button
-      ><Action
-        action={async () => {
-          confirmed(
-            await invoke(host, 'blocklistAdd', {
-              signature: current.row.agent ?? current.row.name,
-              reason: 'Added from instance details',
-            }),
-          );
-          await loadWatch();
-        }}>Watch agent</Action
-      >{/if}
-    {#if current?.row.file || current?.row.cwd}<Action
+    {#if current && (current.row.file || current.row.cwd || (current.row.path && current.row.type !== 'network-connection'))}<Action
         action={async () =>
-          confirmed(await invoke(host, 'revealInExplorer', current.row.file ?? current.row.cwd))}
-        >Show in folder</Action
+          confirmed(
+            await invoke(
+              host,
+              'revealInExplorer',
+              current.row.file || current.row.cwd || current.row.path,
+            ),
+          )}>Show in folder</Action
       >{/if}
     {#if current?.row.file && current.row.agent}<Action
         action={async () => {
           confirmed(
             await invoke(host, 'addFalsePositive', {
               agentName: current.row.agent,
-              pattern: String(current.row.file).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+              pattern: String(current.row.file).replace(/[.*+?^\x24{}()|[\]\\]/g, '\\$&'),
               timestamp: Date.now(),
             }),
           );
           await refreshFalsePositives();
         }}>Mark false positive</Action
       >{/if}
+    <button class="button" onclick={close}>Close</button>
   </div>
 </dialog>
-
-<style>
-  .all-metadata {
-    border-top: 1px solid var(--border);
-    margin: 16px 0;
-    padding-top: 12px;
-  }
-  summary {
-    cursor: pointer;
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .confirm-stop {
-    border: 1px solid var(--red);
-    padding: 16px;
-    border-radius: 8px;
-    margin-top: 16px;
-  }
-</style>

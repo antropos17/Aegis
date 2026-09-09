@@ -4,6 +4,7 @@ import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, sep, extname } from 'node:path';
 import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
+import { checkDetails } from './detail-check.mjs';
 import { checkMotion } from './motion-check.mjs';
 import { checkResourceLayers } from './resource-layer-check.mjs';
 
@@ -28,6 +29,7 @@ assert.deepEqual(
     'styles/feedback.css',
     'styles/desktop.css',
     'styles/coherence.css',
+    'styles/detail-layout.css',
   ],
   'approved cascade order',
 );
@@ -298,7 +300,10 @@ try {
   await page.locator('.sidebar').getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByLabel('Theme', { exact: true }).selectOption('light-hc');
   await page.getByRole('button', { name: 'Save settings', exact: true }).click();
-  await page.getByText('Completed', { exact: true }).waitFor();
+  await page
+    .getByRole('status')
+    .filter({ hasText: /^Completed$/ })
+    .waitFor();
   await page.reload();
   await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'light-hc');
@@ -355,6 +360,9 @@ try {
   await page.getByRole('button', { name: 'Process', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
+  await dialog.evaluate((node) =>
+    Promise.all(node.getAnimations().map((a) => a.finished.catch(() => {}))),
+  );
   await page.screenshot({ path: resolve(out, 'instance.png') });
   assert.equal(await page.locator('button button, button a').count(), 0);
   await page.keyboard.press('Escape');
@@ -368,6 +376,7 @@ try {
   await checkMotion(page);
   await page.close();
   await checkResourceLayers(browser, base + '/desktop/', out);
+  await checkDetails(browser, base + '/desktop/', out);
   const desktop = await browser.newPage();
   desktop.on('pageerror', (e) => errors.push(e.message));
   await desktop.goto(base + '/desktop/');

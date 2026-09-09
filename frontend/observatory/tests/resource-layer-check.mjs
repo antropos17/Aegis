@@ -132,10 +132,7 @@ export async function checkResourceLayers(browser, url, out) {
     assert.match(await page.locator('.resource-scope').innerText(), /4 unique endpoints/);
     await page.locator('.resource-node').first().click();
     await page.getByRole('dialog').waitFor();
-    assert.match(
-      await page.locator('.observation-detail-resource').innerText(),
-      /192\.0\.2\.10:\d+/,
-    );
+    assert.match(await page.locator('.resource-path').innerText(), /192\.0\.2\.10:\d+/);
     await page.keyboard.press('Escape');
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
     await page.mouse.move(0, 0);

@@ -1,0 +1,295 @@
+/* Requested detail layout: persistent chrome, named sections and readable attributes. */
+#modal.detail-shell[open] {
+  width: min(920px, calc(100vw - 36px));
+  height: min(670px, calc(100dvh - 36px));
+  padding: 0;
+  border-radius: 12px;
+}
+#modal.detail-shell .modal-head,
+.editor-dialog .modal-head {
+  padding: 18px 20px;
+  gap: 14px;
+}
+#modal.detail-shell .modal-head h2,
+.editor-dialog .modal-head h2 {
+  font: 600 calc(19px * var(--ui-scale))/1.25 var(--sans);
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+#modal.detail-shell #modal-body {
+  flex: 1;
+  padding: 18px 20px;
+}
+#modal.detail-shell .modal-actions,
+.editor-dialog .modal-actions {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+}
+.section-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 6px 16px 0;
+  overflow: auto hidden;
+  border-bottom: 1px solid var(--border);
+  scrollbar-width: thin;
+}
+.section-tabs [role='tab'] {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 8px;
+  padding: 11px 12px 12px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font: 500 calc(12px * var(--ui-scale))/1.4 var(--sans);
+  white-space: nowrap;
+}
+.section-tabs [role='tab'][aria-selected='true'] {
+  color: var(--ink);
+  background: var(--raised);
+  border-bottom-color: var(--ink);
+  border-radius: 6px 6px 0 0;
+}
+.section-tabs [role='tab']:hover {
+  color: var(--ink);
+  background: var(--raised);
+}
+.section-tabs .tab-count {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0 5px;
+  font-size: calc(10px * var(--ui-scale));
+  font-variant-numeric: tabular-nums;
+}
+.detail-tab-panel {
+  min-width: 0;
+}
+.detail-tab-panel[hidden] {
+  display: none;
+}
+.detail-section {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  margin-bottom: 14px;
+  min-width: 0;
+}
+.detail-section:last-child {
+  margin-bottom: 0;
+}
+.detail-section h3,
+.attribute-group > h4,
+.attribute-group > summary {
+  font: 600 calc(13px * var(--ui-scale))/1.4 var(--sans);
+  color: var(--ink);
+  margin: 0 0 14px;
+}
+.detail-section .section-heading,
+.detail-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+}
+.detail-section .section-heading {
+  margin-bottom: 14px;
+}
+.detail-section .section-heading h3 {
+  margin: 0;
+}
+.attribute-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.attribute {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding: 11px 12px;
+  border-radius: 7px;
+  background: var(--bg);
+}
+.attribute dt,
+.resource-path > span,
+.resource-owner > span {
+  font: 500 calc(11px * var(--ui-scale))/1.4 var(--sans);
+  color: var(--muted);
+}
+.attribute dd {
+  margin: 0;
+  color: var(--ink);
+  font: 600 calc(13px * var(--ui-scale))/1.45 var(--sans);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.attribute-group {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+.attribute-group > summary {
+  cursor: pointer;
+  margin: 0;
+}
+.attribute-group > summary small {
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 10px;
+}
+.attribute-group-body {
+  margin-top: 12px;
+}
+.attribute-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 0;
+  margin: 8px 0 0;
+  list-style: none;
+}
+.attribute-tags li {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+.resource-path,
+.resource-owner {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 14px;
+}
+.resource-path code {
+  font: calc(12px * var(--ui-scale))/1.5 var(--mono);
+  overflow-wrap: anywhere;
+}
+.detail-description {
+  color: var(--muted);
+  font: calc(13px * var(--ui-scale))/1.6 var(--sans);
+  margin: 0 0 16px;
+}
+.detail-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+  gap: 10px;
+}
+#modal .detail-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+  text-align: left;
+  padding: 13px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: calc(12px * var(--ui-scale))/1.4 var(--sans);
+}
+#modal .detail-card:hover {
+  background: var(--raised);
+  border-color: var(--strong-border);
+}
+#modal .detail-card small {
+  color: var(--muted);
+  font-size: calc(11px * var(--ui-scale));
+  overflow-wrap: anywhere;
+}
+.detail-card-heading strong {
+  font-weight: 600;
+}
+.detail-card-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: calc(11px * var(--ui-scale));
+  color: var(--muted);
+}
+.detail-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.detail-search input {
+  width: 100%;
+}
+.detail-load {
+  margin-top: 14px;
+}
+.control-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.confirm-stop {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--red);
+  border-radius: 8px;
+}
+.watch-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.watch-entry small {
+  display: block;
+  color: var(--muted);
+}
+#modal .entity-note {
+  font: calc(12px * var(--ui-scale))/1.5 var(--sans);
+  margin: 10px 0;
+}
+#modal .observation-history .recent-event {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  padding: 12px;
+  margin: 10px 0 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion='reduce']):not(.no-motion) .detail-tab-panel:not([hidden]) {
+    animation: detail-section-enter 150ms ease-out;
+  }
+}
+@keyframes detail-section-enter {
+  from {
+    opacity: 0;
+    translate: 0 5px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+@media (max-width: 700px) {
+  #modal.detail-shell #modal-body {
+    padding: 12px;
+  }
+  .detail-section {
+    padding: 12px;
+  }
+  .attribute-list,
+  .detail-card-grid {
+    grid-template-columns: 1fr;
+  }
+}

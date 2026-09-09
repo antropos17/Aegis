@@ -125,6 +125,10 @@ try {
       await window.locator('.agent-group-row:visible .table-agent').first().click();
       await window.getByText('Agent overview', { exact: true }).waitFor();
       assert.equal(await window.getByRole('button', { name: 'Suspend', exact: true }).count(), 0);
+      await window
+        .getByRole('dialog')
+        .getByRole('tab', { name: /Processes/ })
+        .click();
       assert((await window.locator('#modal .process-row').count()) > 0, 'group lost its processes');
       await window.keyboard.press('Escape');
       await window.getByRole('dialog').waitFor({ state: 'hidden' });
@@ -136,7 +140,10 @@ try {
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
   await window.getByRole('button', { name: 'Save settings', exact: true }).click();
-  await window.getByText('Completed', { exact: true }).waitFor();
+  await window
+    .getByRole('status')
+    .filter({ hasText: /^Completed$/ })
+    .waitFor();
   assert.equal(
     await window.evaluate(async () => (await window.aegis.getSettings()).scanIntervalSec),
     20,

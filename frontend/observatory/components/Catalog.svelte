@@ -22,6 +22,7 @@
   let form = $state(createEmptyForm());
   let editing = $state<string | null>(null);
   let showForm = $state(false);
+  let editorSection = $state('general');
   let query = $state('');
   let error = $state('');
   let alive = true;
@@ -61,8 +62,14 @@
     await load();
   }
   async function save() {
-    if (!form.displayName.trim() || !form.processName.trim())
-      throw new Error('Name and process signature are required');
+    if (!form.displayName.trim()) {
+      editorSection = 'general';
+      throw new Error('Name is required');
+    }
+    if (!form.processName.trim()) {
+      editorSection = 'recognition';
+      throw new Error('Process signature is required');
+    }
     const next = editing
       ? custom.map((row) => (row.id === editing ? applyFormToAgent(row, form) : row))
       : [...custom, buildCustomAgent(form)];
@@ -99,6 +106,7 @@
     onclick={() => {
       form = createEmptyForm();
       editing = null;
+      editorSection = 'general';
       showForm = true;
     }}><Icon name="plus" />Add agent</button
   ><Action action={importAgents}>Import</Action><Action
@@ -158,6 +166,7 @@
                     onclick={() => {
                       editing = String(row.id);
                       form = formFromAgent(row);
+                      editorSection = 'general';
                       showForm = true;
                     }}>Edit</button
                   ><Action action={() => persist(custom.filter((a) => a.id !== row.id))}
@@ -175,23 +184,51 @@
   <EditorDialog
     title={editing ? 'Edit custom agent' : 'Add custom agent'}
     caption="Agent catalog"
+    tabs={[
+      { id: 'general', label: 'General' },
+      { id: 'recognition', label: 'Recognition' },
+    ]}
+    bind:selected={editorSection}
     close={() => (showForm = false)}
   >
-    <div class="form-grid">
-      <label>Name<input bind:value={form.displayName} required /></label>
-      <label>Process name<input bind:value={form.processName} required /></label>
-      <label
-        >Category<select bind:value={form.category}
-          >{#each CATEGORIES as [id, label] (id)}<option value={id}>{label}</option>{/each}</select
-        ></label
-      >
-      <label
-        >Risk profile<select bind:value={form.riskProfile}
-          ><option>low</option><option>medium</option><option>high</option></select
-        ></label
-      >
-      <label class="full">Description<textarea bind:value={form.description}></textarea></label>
-    </div>
+    {#snippet children(section)}
+      <section class="detail-section">
+        {#if section === 'general'}
+          <h3>Agent profile</h3>
+          <div class="form-grid">
+            <label>Name<input bind:value={form.displayName} required /></label>
+            <label
+              >Category<select bind:value={form.category}
+                >{#each CATEGORIES as [id, label] (id)}<option value={id}>{label}</option
+                  >{/each}</select
+              ></label
+            >
+            <label
+              >Risk profile<select bind:value={form.riskProfile}
+                ><option>low</option><option>medium</option><option>high</option></select
+              ></label
+            >
+            <label class="full"
+              >Description<textarea bind:value={form.description}></textarea></label
+            >
+          </div>
+        {:else}
+          <h3>Process recognition</h3>
+          <div class="form-grid">
+            <label class="full"
+              >Process name<input
+                bind:value={form.processName}
+                required
+                placeholder="agent.exe"
+              /></label
+            >
+          </div>
+          <p class="dialog-copy">
+            The process signature identifies this agent in observed processes.
+          </p>
+        {/if}
+      </section>
+    {/snippet}
     {#snippet actions()}<button class="button" onclick={() => (showForm = false)}>Cancel</button
       ><Action action={save}>Save agent</Action>{/snippet}
   </EditorDialog>

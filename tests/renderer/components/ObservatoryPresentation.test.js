@@ -64,7 +64,7 @@ it('shows the retained ISO audit time when opening a resource record', () => {
   });
   expect(screen.getByText(new Date(timestamp).toLocaleString())).toBeInTheDocument();
   expect(screen.queryByText('Invalid Date')).toBeNull();
-  expect(screen.getByText('review')).toBeInTheDocument();
+  expect(screen.getByText('C:/Fixture/.codex/skills/review/SKILL.md')).toBeInTheDocument();
   expect(screen.getByText('Codex')).toBeInTheDocument();
   expect(screen.getByText('Sensitive')).toBeInTheDocument();
 });

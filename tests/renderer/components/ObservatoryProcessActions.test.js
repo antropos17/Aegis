@@ -24,6 +24,7 @@ it('enables controls for enriched rows and dispatches the canonical live identit
     refreshFalsePositives: vi.fn(),
   };
   render(Details, props);
+  await fireEvent.click(await screen.findByRole('tab', { name: 'Controls' }));
   const suspend = await screen.findByRole('button', { name: 'Suspend', exact: true });
   expect(suspend).toBeEnabled();
   await fireEvent.click(suspend);
@@ -41,6 +42,7 @@ it('refuses a stop confirmation after that PID has been reused', async () => {
     refreshFalsePositives: vi.fn(),
   };
   const mounted = render(Details, props);
+  await fireEvent.click(await screen.findByRole('tab', { name: 'Controls' }));
   await fireEvent.click(await screen.findByRole('button', { name: 'Stop…' }));
   expect(screen.getByRole('button', { name: 'Confirm stop' })).toBeInTheDocument();
   await mounted.rerender({
