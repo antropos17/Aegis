@@ -137,3 +137,7 @@ The [roadmap](ROADMAP.md) tracks Windows ETW experiments and remaining discovery
 [Feature requests](https://github.com/antropos17/Aegis/issues/new?template=02-feature-request.yml) · [Private vulnerability reports](https://github.com/antropos17/Aegis/security/advisories/new) · [MIT license](LICENSE)
 
 Local monitoring requires no account or subscription. Optional Anthropic analysis uses your own API key and is subject to that service's charges.
+
+## Star history
+
+[![Star History Chart](https://api.star-history.com/image?repos=antropos17/Aegis&type=timeline&legend=top-left)](https://www.star-history.com/?repos=antropos17%2FAegis&type=timeline&legend=top-left)
