@@ -13,7 +13,10 @@ import {
 
 export type RecordData = Record<string, unknown>;
 export type Host = Record<string, (...args: never[]) => unknown>;
-export type HostConnection = (() => void) & { refreshFalsePositives: () => Promise<void> };
+export type HostConnection = (() => void) & {
+  refreshFalsePositives: () => Promise<void>;
+  applySettings: (settings: unknown) => void;
+};
 export interface Telemetry {
   agents: DetectedAgent[];
   events: FileEvent[];
@@ -136,6 +139,12 @@ export function connectHost(
   const cleanups: (() => void)[] = [];
   const revisions = new Map<string, number>();
   let staleAfterMs = 30000;
+  const applySettings = (settings: unknown): void => {
+    const interval = measured(record(settings).scanIntervalSec);
+    if (!alive || interval === null || interval <= 0) return;
+    revisions.set('settings', (revisions.get('settings') ?? 0) + 1);
+    staleAfterMs = Math.max(30000, interval * 2000 + 10000);
+  };
   const update = (patch: Partial<Telemetry>) => {
     if (alive) {
       state = { ...state, ...patch };
@@ -193,7 +202,7 @@ export function connectHost(
       () => {
         alive = false;
       },
-      { refreshFalsePositives },
+      { refreshFalsePositives, applySettings },
     );
   }
   subscribe('onScanBatch', (value) => {
@@ -252,21 +261,16 @@ export function connectHost(
       .then((value) => {
         if (alive && (revisions.get(revision) ?? 0) === before) apply(value);
       })
-      .catch(fail);
+      .catch((error: unknown) => {
+        if (alive && (revisions.get(revision) ?? 0) === before) fail(error);
+      });
   };
   seed('getStats', 'onStatsUpdate', applyStats);
   seed('getResourceUsage', 'own', (value) => update({ own: record(value), ownAt: Date.now() }));
   seed('getFalsePositives', 'fp', (value) =>
     update({ falsePositives: Array.isArray(value) ? (value as FalsePositiveEntry[]) : [] }),
   );
-  if (host.getSettings)
-    invoke(host, 'getSettings')
-      .then((value) => {
-        const interval = measured(record(value).scanIntervalSec);
-        if (alive && interval !== null && interval > 0)
-          staleAfterMs = Math.max(30000, interval * 2000 + 10000);
-      })
-      .catch(fail);
+  if (host.getSettings) seed('getSettings', 'settings', applySettings);
   const watchdog = setInterval(() => {
     if (state.lastScan !== null && !state.stale && Date.now() - state.lastScan > staleAfterMs) {
       update({
@@ -282,6 +286,6 @@ export function connectHost(
       clearInterval(watchdog);
       for (const cleanup of cleanups) cleanup();
     },
-    { refreshFalsePositives },
+    { refreshFalsePositives, applySettings },
   );
 }

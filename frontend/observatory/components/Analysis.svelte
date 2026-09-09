@@ -22,8 +22,12 @@
   let mode = $state('session');
   let agent = $state('');
   let key = $state('');
+  let keyPending = $state(false);
+  let providerVisit = 0;
+  let keyRevision = 0;
   $effect(() => {
     if (!visible) {
+      providerVisit++;
       key = '';
       showProvider = false;
     }
@@ -40,12 +44,13 @@
   let reportTitle = $state('Activity assessment');
   let names = $derived([...new Set(telemetry.agents.map((a) => a.agent))]);
   onMount(() => {
+    const ticket = keyRevision;
     invoke(host, 'getSettings')
       .then((value) => {
-        if (alive) configured = Boolean(record(value).anthropicApiKey);
+        if (alive && ticket === keyRevision) configured = Boolean(record(value).anthropicApiKey);
       })
       .catch((e) => {
-        if (alive) error = String(e);
+        if (alive && ticket === keyRevision) error = String(e);
       });
     return () => {
       alive = false;
@@ -54,13 +59,30 @@
     };
   });
   async function saveKey(remove = false) {
-    const value = remove ? '' : key.trim();
+    if (preview || keyPending) throw new Error('Provider settings cannot be changed now');
+    const submittedDraft = key;
+    const value = remove ? '' : submittedDraft.trim();
     if (!remove && !value) throw new Error('Enter an API key');
-    const current = record(await invoke(host, 'getSettings'));
-    confirmed(await invoke(host, 'saveSettings', { ...current, anthropicApiKey: value }));
-    if (alive) {
-      configured = !remove;
-      key = '';
+    const visit = providerVisit;
+    keyRevision++;
+    keyPending = true;
+    try {
+      const current = record(await invoke(host, 'getSettings'));
+      if (alive) configured = Boolean(current.anthropicApiKey);
+      confirmed(
+        await invoke(
+          host,
+          'saveSettings',
+          { ...current, anthropicApiKey: value },
+          ...(remove ? [{ clearAnthropicApiKey: true }] : []),
+        ),
+      );
+      if (alive) {
+        configured = !remove;
+        if (providerVisit === visit && key === submittedDraft) key = '';
+      }
+    } finally {
+      if (alive) keyPending = false;
     }
   }
   async function analyze() {
@@ -119,6 +141,7 @@
       <button
         class="button"
         onclick={() => {
+          providerVisit++;
           providerSection = 'connection';
           showProvider = true;
         }}
@@ -138,6 +161,7 @@
       ]}
       bind:selected={providerSection}
       close={() => {
+        providerVisit++;
         showProvider = false;
         key = '';
       }}
@@ -161,6 +185,9 @@
               Connection is verified when analysis runs. Saved keys are never displayed in this
               form.
             </p>
+            {#if !preview && !configured}<p class="dialog-copy">
+                A saved key may remain when the OS keychain is locked. Remove saved key clears it.
+              </p>{/if}
           {:else}
             <h3>Analysis scope</h3>
             <Metadata
@@ -176,16 +203,20 @@
         </section>
       {/snippet}
       {#snippet actions()}
-        {#if configured}<Action disabled={preview} action={() => saveKey(true)}>Remove key</Action
+        {#if !preview}<Action disabled={keyPending} action={() => saveKey(true)}
+            >Remove saved key</Action
           >{/if}
         <button
           class="button"
           onclick={() => {
+            providerVisit++;
             showProvider = false;
             key = '';
           }}>Close settings</button
         >
-        <Action disabled={preview || !key.trim()} action={() => saveKey()}>Save key</Action>
+        <Action disabled={preview || keyPending || !key.trim()} action={() => saveKey()}
+          >Save key</Action
+        >
       {/snippet}
     </EditorDialog>
   {/if}
@@ -223,7 +254,10 @@
       </div>
       <div class="assessment-actions">
         <Action
-          disabled={preview || !configured || (mode === 'agent' && !names.includes(agent))}
+          disabled={preview ||
+            keyPending ||
+            !configured ||
+            (mode === 'agent' && !names.includes(agent))}
           action={analyze}><Icon name="play" />Run analysis</Action
         >
       </div>

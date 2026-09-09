@@ -36,6 +36,7 @@
   let draft = $state<Record<string, string>>({});
   let error = $state('');
   let loaded = $state(false);
+  let mutation = $state<'save' | 'reset' | null>(null);
   let ruleQuery = $state('');
   let activeKey = '';
   let draftBaseline = $state('');
@@ -128,7 +129,27 @@
       if (typeof cleanup === 'function') cleanup();
     };
   });
+  async function mutate(kind: 'save' | 'reset', action: () => Promise<void>) {
+    if (mutation) throw new Error('A policy change is already in progress');
+    mutation = kind;
+    try {
+      await action();
+    } finally {
+      if (alive) mutation = null;
+    }
+  }
   async function save() {
+    return mutate('save', savePermissions);
+  }
+  async function reset() {
+    return mutate('reset', async () => {
+      confirmed(await invoke(host, 'resetPermissionsToDefaults'));
+      for (const key of Object.keys(drafts)) delete drafts[key];
+      draftBaseline = JSON.stringify(draft);
+      await load();
+    });
+  }
+  async function savePermissions() {
     if (!target) throw new Error('Select an agent or instance');
     const savingKey = activeKey;
     const savingDraft = { ...draft };
@@ -182,6 +203,7 @@
     <label
       >Agent <AgentLogo name={scope === 'agent' ? target : (chosen?.name ?? '')} size={22} /><select
         aria-label="Target"
+        disabled={mutation === 'reset'}
         bind:value={target}
         ><option value="">Select…</option>{#each options as option (option.key)}<option
             value={option.key}>{option.label}</option
@@ -189,12 +211,16 @@
       ></label
     ><label
       ><Icon name="cpu" />Apply to
-      <select aria-label="Scope" bind:value={scope} onchange={() => (target = '')}
+      <select
+        disabled={mutation === 'reset'}
+        aria-label="Scope"
+        bind:value={scope}
+        onchange={() => (target = '')}
         ><option value="agent">Agent defaults</option><option value="instance"
           >Project / parent override</option
         ></select
       ></label
-    ><Action action={load}>Refresh</Action>
+    ><Action disabled={mutation !== null} action={load}>Refresh</Action>
   </div>
   <section class="panel">
     <div class="preset-grid">
@@ -203,7 +229,7 @@
           aria-label={name}
           title={profiles[name][1]}
           data-id={name}
-          disabled={!target}
+          disabled={!target || mutation === 'reset'}
           aria-pressed={!!target && categories.every((cat, i) => draft[cat] === values[i])}
           onclick={() => (draft = Object.fromEntries(categories.map((cat, i) => [cat, values[i]])))}
           ><span class="preset-heading"
@@ -228,7 +254,11 @@
             <p>{labels[category][2]}</p>
           </div>
         </div>
-        <select aria-label={labels[category][1]} disabled={!target} bind:value={draft[category]}>
+        <select
+          aria-label={labels[category][1]}
+          disabled={!target || mutation === 'reset'}
+          bind:value={draft[category]}
+        >
           <option value="allow">Allow</option><option value="monitor">Monitor</option><option
             value="block">Block</option
           >
@@ -239,8 +269,10 @@
       <span role="status" class="draft-status"
         >{dirty ? 'Unsaved permissions' : 'Permissions saved'}</span
       >
-      <Action disabled={!loaded || !target || !dirty} action={save}>Save permissions</Action><Action
-        disabled={!dirty}
+      <Action disabled={!loaded || !target || !dirty || mutation !== null} action={save}
+        >Save permissions</Action
+      ><Action
+        disabled={!dirty || mutation !== null}
         action={async () => {
           delete drafts[activeKey];
           const current = record(contextKey ? permissions[contextKey] : undefined);
@@ -254,14 +286,7 @@
     <details class="permission-reset">
       <summary>Restore default policy</summary>
       <p>This restores permissions for every agent and project.</p>
-      <Action
-        action={async () => {
-          confirmed(await invoke(host, 'resetPermissionsToDefaults'));
-          for (const key of Object.keys(drafts)) delete drafts[key];
-          draftBaseline = JSON.stringify(draft);
-          await load();
-        }}>Reset all to defaults</Action
-      >
+      <Action disabled={mutation !== null} action={reset}>Reset all to defaults</Action>
     </details>
   </section>
   <p class="policy-note">

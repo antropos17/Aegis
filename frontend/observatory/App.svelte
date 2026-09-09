@@ -462,6 +462,7 @@
                 {appearance}
                 {navigate}
                 sectionRequest={sectionRequests.settings}
+                onSettingsSaved={(settings) => connection?.applySettings(settings)}
                 currentTheme={(dark ? 'dark' : 'light') + (contrast ? '-hc' : '')}
               />
             </div>{/if}

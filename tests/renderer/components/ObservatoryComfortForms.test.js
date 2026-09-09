@@ -190,5 +190,5 @@ it('reveals and focuses sensitive paths when the host rejects a pattern from ano
     'true',
   );
   expect(screen.getByLabelText('Sensitive paths')).toHaveValue('(invalid');
-  expect(screen.getByRole('alert')).toHaveTextContent('Unsafe or invalid regex pattern');
+  expect(await screen.findByRole('alert')).toHaveTextContent('Unsafe or invalid regex pattern');
 });

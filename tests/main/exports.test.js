@@ -69,6 +69,25 @@ describe('exports', () => {
   }
 
   describe('csvEscape', () => {
+    it.each(['=1+1', '+SUM(1,2)', '-1+2', '@SUM(1)', '  =1+1', '\t=1+1', '\r=1+1'])(
+      'exports formula-like text as a literal cell: %j',
+      async (payload) => {
+        const filePath = path.join(tmpDir, 'formula.csv');
+        initExporter({
+          activityLog: [
+            { timestamp: 1700000000000, agent: 'Fixture', file: payload, action: 'read' },
+          ],
+        });
+        mockShowSaveDialog.mockResolvedValue({ filePath });
+        expect((await exporter.exportCsv()).success).toBe(true);
+        const expected = "'" + payload;
+        const escaped = /[",\r\n]/.test(expected)
+          ? '"' + expected.replace(/"/g, '""') + '"'
+          : expected;
+        expect(fs.readFileSync(filePath, 'utf8')).toContain(',' + escaped + ',');
+      },
+    );
+
     it('exports CSV with comma-containing values properly escaped', async () => {
       const filePath = path.join(tmpDir, 'test.csv');
       initExporter({

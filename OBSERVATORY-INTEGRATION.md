@@ -1,5 +1,7 @@
 # Observatory integration
 
+Current context: [FRONTEND-HANDOFF.md](FRONTEND-HANDOFF.md). The [2026-09-09 backend/frontend audit](docs/current-state/AUDIT-2026-09-09.md) supersedes older verification counts below. Source-specific graph clocks and fixed-window corrections were merged in PR #411 before this audit.
+
 The earlier integrations passed functional gates but did not preserve the reviewed template closely enough. Their validation below is historical evidence, not visual approval of the current interface.
 
 ## Interaction motion follow-up — 2026-09-09

@@ -53,10 +53,24 @@ async function readUsageByPid(procs) {
       deltas = await adapter.readUsage(procs);
     } catch (err) {
       // One adapter failing never crashes the feed or starves the others.
-      logger.debug('token-feed', 'adapter failed', { adapter: adapter.id, error: err.message });
+      logger.debug('token-feed', 'adapter failed', {
+        adapter: adapter.id,
+        error:
+          err instanceof Error
+            ? err.message
+            : typeof err === 'string'
+              ? err
+              : 'Unknown adapter failure',
+      });
       continue;
     }
-    if (Array.isArray(deltas)) for (const d of deltas) out.push(d);
+    if (Array.isArray(deltas)) {
+      for (const d of deltas) {
+        // A corrupt adapter row must not abort the collector before its valid siblings.
+        if (!d || typeof d !== 'object' || !Number.isInteger(d.pid) || d.pid <= 0) continue;
+        out.push(d);
+      }
+    }
   }
   return out;
 }

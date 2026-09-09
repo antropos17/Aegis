@@ -100,10 +100,10 @@ describe('resource-monitor', () => {
       expect(_normalizeCpu(100, 4)).toBe(25);
     });
 
-    it('clamps to 100 and floors negatives/NaN to 0', () => {
+    it('clamps measured CPU to 100 and preserves invalid input as unavailable', () => {
       expect(_normalizeCpu(8000, 4)).toBe(100); // 2000 → clamp 100
-      expect(_normalizeCpu(-5, 4)).toBe(0);
-      expect(_normalizeCpu(NaN, 4)).toBe(0);
+      expect(_normalizeCpu(-5, 4)).toBeNull();
+      expect(_normalizeCpu(NaN, 4)).toBeNull();
     });
   });
 
@@ -329,5 +329,49 @@ describe('resource-monitor', () => {
       expect(first.instanceId).toBeNull();
       expect(second.memMb).toBe(2); // resampled — an empty string never became a cache key
     });
+  });
+});
+
+describe('resource-monitor missing measurement regression', () => {
+  it.each([null, '', ' ', false, true, 'unavailable', -1])(
+    'keeps invalid Perf counters %j unavailable while retaining the PID',
+    (value) => {
+      const result = _parsePerfJson(
+        JSON.stringify({ IDProcess: 100, PercentProcessorTime: value, WorkingSet: value }),
+      );
+      expect(result.get(100)).toEqual({ cpuRaw: null, memMb: null });
+    },
+  );
+  it('preserves actual zero counters and numeric OS strings', () => {
+    const zero = _parsePerfJson(
+      JSON.stringify({ IDProcess: '100', PercentProcessorTime: '0', WorkingSet: '0' }),
+    );
+    expect(zero.get(100)).toEqual({ cpuRaw: 0, memMb: 0 });
+  });
+  it('never normalizes missing or invalid CPU into idle', () => {
+    for (const value of [null, undefined, NaN, Infinity, -1])
+      expect(_normalizeCpu(value, 4)).toBeNull();
+  });
+});
+
+describe('resource-monitor nullable CPU propagation', () => {
+  beforeEach(() => {
+    _resetForTest();
+    _setLoggerForTest({ warn: vi.fn() });
+  });
+  it('keeps missing CPU null through normalization/cache while preserving measured RAM', async () => {
+    const exec = vi.fn(async (command) => {
+      if (command === 'nvidia-smi') throw new Error('GPU unavailable');
+      if (command === 'powershell.exe')
+        return JSON.stringify({ IDProcess: 100, PercentProcessorTime: null, WorkingSet: 1048576 });
+      return '100 .. 1024';
+    });
+    _setExecForTest(exec);
+    const target = [{ pid: 100, instanceId: '100:missing-cpu' }];
+    const first = await getResourcesForPids(target);
+    const second = await getResourcesForPids(target);
+    expect(first[0]).toMatchObject({ instanceId: '100:missing-cpu', cpu: null, memMb: 1 });
+    expect(second).toEqual(first);
+    expect(exec.mock.calls.filter(([command]) => command !== 'nvidia-smi')).toHaveLength(1);
   });
 });

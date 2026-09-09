@@ -157,7 +157,7 @@ function isNonNegativeNumber(v) {
 function computeCost(model, inputTokens, outputTokens) {
   const inTok = isNonNegativeNumber(inputTokens) ? inputTokens : 0;
   const outTok = isNonNegativeNumber(outputTokens) ? outputTokens : 0;
-  const knownModel = typeof model === 'string' && model in MODEL_PRICING;
+  const knownModel = typeof model === 'string' && Object.hasOwn(MODEL_PRICING, model);
   const price = knownModel ? MODEL_PRICING[model] : DEFAULT_PRICING;
   const costUsd =
     (inTok / TOKENS_PER_PRICED_UNIT) * price.input +

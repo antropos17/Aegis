@@ -206,6 +206,9 @@ describe('Observatory production components', () => {
       saveCustomAgents: vi.fn(async () => ({ success: true })),
     };
     render(Catalog, { host, inspect: noOp });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Import', exact: true })).toBeEnabled(),
+    );
     await fireEvent.click(screen.getByRole('button', { name: 'Import', exact: true }));
     await waitFor(() => expect(host.saveCustomAgents).toHaveBeenCalledWith([signature]));
     await waitFor(() =>

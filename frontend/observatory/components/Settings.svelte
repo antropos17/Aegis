@@ -23,12 +23,14 @@
     navigate,
     currentTheme = null,
     sectionRequest,
+    onSettingsSaved,
   }: {
     host: Host | null;
     appearance: (dark: boolean, scale: number, contrast?: boolean) => void;
     navigate: (view: string) => void;
     currentTheme?: string | null;
     sectionRequest?: { id: string; revision: number };
+    onSettingsSaved?: (_settings: RecordData) => void;
   } = $props();
   $effect(() => {
     if (sectionRequest && tabs.some((tab) => tab.id === sectionRequest.id)) {
@@ -38,6 +40,7 @@
   });
   let form = $state<RecordData>({});
   let loaded = $state(false);
+  let mutation = $state<'save' | 'replace' | null>(null);
   let error = $state('');
   let updates = $state<RecordData>({});
   let contrast = $state(localStorage.getItem('aegis-theme')?.endsWith('-hc') ?? false);
@@ -72,37 +75,71 @@
     motion = localStorage.getItem('aegis-motion') !== 'reduce';
     loaded = true;
     baseline = snapshot();
+    return settings;
   }
   async function save() {
-    const current = record(await invoke(host, 'getSettings'));
+    if (mutation) throw new Error('A settings operation is already in progress');
+    mutation = 'save';
+    const submitted = { form: { ...form }, patterns, ignored, contrast, motion };
     try {
-      confirmed(
-        await invoke(host, 'saveSettings', {
-          ...current,
-          ...form,
-          customSensitivePatterns: patterns
-            .split('\n')
-            .map((s) => s.trim())
-            .filter(Boolean),
-          ignoredDirectories: ignored
-            .split('\n')
-            .map((s) => s.trim())
-            .filter(Boolean),
-        }),
+      const current = record(await invoke(host, 'getSettings'));
+      const saved = {
+        ...current,
+        ...submitted.form,
+        customSensitivePatterns: submitted.patterns
+          .split('\n')
+          .map((value) => value.trim())
+          .filter(Boolean),
+        ignoredDirectories: submitted.ignored
+          .split('\n')
+          .map((value) => value.trim())
+          .filter(Boolean),
+      };
+      confirmed(await invoke(host, 'saveSettings', saved));
+      if (!alive) return;
+      baseline = JSON.stringify(submitted);
+      onSettingsSaved?.(saved);
+      localStorage.setItem(
+        'aegis-theme',
+        (submitted.form.darkMode ? 'dark' : 'light') + (submitted.contrast ? '-hc' : ''),
       );
+      if (
+        form.darkMode === submitted.form.darkMode &&
+        form.uiScale === submitted.form.uiScale &&
+        contrast === submitted.contrast
+      ) {
+        appearance(
+          submitted.form.darkMode === true,
+          Number(submitted.form.uiScale ?? 1),
+          submitted.contrast,
+        );
+      }
+      localStorage.setItem('aegis-motion', submitted.motion ? 'full' : 'reduce');
+      if (motion === submitted.motion)
+        document.documentElement.dataset.motion = submitted.motion ? 'full' : 'reduce';
     } catch (cause) {
-      if (cause instanceof Error && /pattern|regex/i.test(cause.message)) {
+      if (alive && cause instanceof Error && /pattern|regex/i.test(cause.message)) {
         section = 'monitoring';
         await tick();
         patternInput?.focus();
       }
       throw cause;
+    } finally {
+      if (alive) mutation = null;
     }
-    if (alive) {
+  }
+  async function replaceSettings(importing = false) {
+    if (mutation) throw new Error('A settings operation is already in progress');
+    mutation = 'replace';
+    try {
+      if (importing) confirmed(await invoke(host, 'importConfig'));
+      const saved = await load();
+      if (!alive || !saved) return;
       appearance(form.darkMode === true, Number(form.uiScale ?? 1), contrast);
-      localStorage.setItem('aegis-motion', motion ? 'full' : 'reduce');
       document.documentElement.dataset.motion = motion ? 'full' : 'reduce';
-      await load();
+      if (importing) onSettingsSaved?.(saved);
+    } finally {
+      if (alive) mutation = null;
     }
   }
   onMount(() => {
@@ -156,7 +193,7 @@
       section = value;
     }}
   />
-  <div class="settings-layout">
+  <fieldset class="settings-layout" disabled={!loaded || mutation === 'replace'}>
     <div
       class="settings-page"
       role="tabpanel"
@@ -347,12 +384,8 @@
         <div class="toolbar">
           <Action action={async () => confirmed(await invoke(host, 'exportConfig'))}
             ><Icon name="download" />Export</Action
-          ><Action
-            action={async () => {
-              confirmed(await invoke(host, 'importConfig'));
-              await load();
-              appearance(form.darkMode === true, Number(form.uiScale ?? 1), contrast);
-            }}><Icon name="upload" />Import</Action
+          ><Action disabled={mutation !== null} action={() => replaceSettings(true)}
+            ><Icon name="upload" />Import</Action
           >
         </div>
       </div>
@@ -372,21 +405,16 @@
         </dl>
       </div>
     </div>
-  </div>
+  </fieldset>
   <div class="settings-save">
     <span class="settings-draft" role="status"
       >{!loaded ? 'Loading settings…' : dirty ? 'Unsaved changes' : 'Settings saved'}</span
     >
-    <Action
-      disabled={!loaded || !dirty}
-      action={async () => {
-        await load();
-        contrast = localStorage.getItem('aegis-theme')?.endsWith('-hc') ?? false;
-        motion = localStorage.getItem('aegis-motion') !== 'reduce';
-        document.documentElement.dataset.motion = motion ? 'full' : 'reduce';
-        appearance(form.darkMode === true, Number(form.uiScale ?? 1), contrast);
-      }}><Icon name="close" />Discard changes</Action
-    ><Action disabled={!loaded || !dirty} action={save}><Icon name="check" />Save settings</Action>
+    <Action disabled={!loaded || !dirty || mutation !== null} action={() => replaceSettings()}
+      ><Icon name="close" />Discard changes</Action
+    ><Action disabled={!loaded || !dirty || mutation !== null} action={save}
+      ><Icon name="check" />Save settings</Action
+    >
   </div>
 </div>
 
@@ -402,6 +430,10 @@
     background: var(--panel);
   }
   .settings-layout {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
     display: block;
   }
   .settings-page {

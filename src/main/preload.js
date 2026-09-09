@@ -26,7 +26,7 @@ contextBridge.exposeInMainWorld('aegis', {
     ipcRenderer.on('updates:status', handler);
     return () => ipcRenderer.removeListener('updates:status', handler);
   },
-  saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
+  saveSettings: (s, options) => ipcRenderer.invoke('save-settings', s, options),
   analyzeAgent: (name) => ipcRenderer.invoke('analyze-agent', name),
   analyzeSession: () => ipcRenderer.invoke('analyze-session'),
   openThreatReport: (data) => ipcRenderer.invoke('open-threat-report', data),

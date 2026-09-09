@@ -101,7 +101,12 @@ async function collectTokenCosts(agents) {
     if (!_warnedReadError) {
       _warnedReadError = true;
       logger.warn('token', 'token-feed read failed; skipping token costs this tick', {
-        error: err.message,
+        error:
+          err instanceof Error
+            ? err.message
+            : typeof err === 'string'
+              ? err
+              : 'Unknown token-feed failure',
       });
     }
     return [];
