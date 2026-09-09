@@ -149,7 +149,21 @@ function _writeSettings() {
   } else {
     delete disk._encryptedApiKey;
   }
-  fs.writeFileSync(settingsPath(), JSON.stringify(disk, null, 2));
+  const target = settingsPath();
+  const temporary = `${target}.${process.pid}.tmp`;
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(disk, null, 2), { mode: 0o600 });
+    fs.renameSync(temporary, target);
+  } finally {
+    try {
+      fs.unlinkSync(temporary);
+    } catch (error) {
+      if (error.code !== 'ENOENT')
+        logger.warn('config-manager', 'Could not remove settings temporary file', {
+          error: error.message,
+        });
+    }
+  }
 }
 
 /**
@@ -159,6 +173,7 @@ function _writeSettings() {
  * @since v0.1.0
  */
 function loadSettings() {
+  settings = freshDefaults();
   try {
     if (fs.existsSync(settingsPath())) {
       const raw = JSON.parse(fs.readFileSync(settingsPath(), 'utf-8'));
@@ -187,8 +202,14 @@ function loadSettings() {
  * @since v0.1.0
  */
 function saveSettings(newSettings) {
+  const previous = settings;
   settings = { ...freshDefaults(), ...newSettings };
-  _writeSettings();
+  try {
+    _writeSettings();
+  } catch (error) {
+    settings = previous;
+    throw error;
+  }
   buildCustomRules();
 }
 
@@ -274,15 +295,7 @@ function getInstancePermissions(agentName, parentEditor, cwd) {
  */
 function saveInstancePermissions(agentName, parentEditor, perms, cwd) {
   const key = getInstanceKey(agentName, parentEditor, cwd);
-  settings.agentPermissions[key] = perms;
-  try {
-    _writeSettings();
-  } catch (err) {
-    logger.warn('config-manager', 'Failed to persist instance permissions', {
-      key,
-      error: err.message,
-    });
-  }
+  saveSettings({ ...settings, agentPermissions: { ...settings.agentPermissions, [key]: perms } });
 }
 
 /**
@@ -342,12 +355,7 @@ function getCustomAgents() {
  * @since v0.2.0
  */
 function saveCustomAgents(agents) {
-  settings.customAgents = agents;
-  try {
-    _writeSettings();
-  } catch (err) {
-    logger.warn('config-manager', 'Failed to persist custom agents', { error: err.message });
-  }
+  saveSettings({ ...settings, customAgents: agents });
 }
 
 /**
@@ -366,13 +374,10 @@ function getFalsePositives() {
  * @since v0.4.0
  */
 function addFalsePositive(entry) {
-  if (!settings.falsePositivePatterns) settings.falsePositivePatterns = [];
-  settings.falsePositivePatterns.push(entry);
-  try {
-    _writeSettings();
-  } catch (err) {
-    logger.warn('config-manager', 'Failed to persist false positive', { error: err.message });
-  }
+  saveSettings({
+    ...settings,
+    falsePositivePatterns: [...(settings.falsePositivePatterns || []), entry],
+  });
 }
 
 const _exports = {

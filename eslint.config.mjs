@@ -49,7 +49,7 @@ export default [
     },
   },
   {
-    files: ['src/renderer/**/*.js'],
+    files: ['src/renderer/**/*.js', 'frontend/observatory/**/*.js'],
     languageOptions: {
       globals: { ...globals.browser },
       sourceType: 'module',
@@ -69,7 +69,7 @@ export default [
     },
   },
   {
-    files: ['src/renderer/**/*.svelte'],
+    files: ['src/renderer/**/*.svelte', 'frontend/observatory/**/*.svelte'],
     languageOptions: {
       globals: { ...globals.browser },
       parserOptions: {
@@ -174,9 +174,9 @@ export default [
     },
   },
   {
-    files: ['src/renderer/**/*.ts'],
+    files: ['src/renderer/**/*.ts', 'frontend/observatory/**/*.ts'],
     languageOptions: {
-      globals: { ...globals.browser },
+      globals: { ...globals.browser, __FRONTEND_PREVIEW__: 'readonly' },
     },
   },
   {
@@ -223,7 +223,11 @@ export default [
     // defects: script entrypoints (.mjs/.cjs) run without a declared globals
     // set, and a test fixture deliberately embeds control characters. Scoped
     // here only — src/ keeps both rules at full strength.
-    files: ['tests/**/*.{js,mjs,cjs,ts}', 'scripts/**/*.{js,mjs,cjs,ts}'],
+    files: [
+      'tests/**/*.{js,mjs,cjs,ts}',
+      'scripts/**/*.{js,mjs,cjs,ts}',
+      'frontend/observatory/tests/**/*.mjs',
+    ],
     rules: {
       'no-undef': 'off',
       'no-control-regex': 'off',

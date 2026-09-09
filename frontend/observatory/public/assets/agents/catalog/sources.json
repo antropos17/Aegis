@@ -1,0 +1,626 @@
+{
+  "claude-code": {
+    "existing": "claude"
+  },
+  "github-copilot": {
+    "file": "assets/agents/catalog/github-copilot.svg",
+    "source": "https://raw.githubusercontent.com/primer/octicons/main/icons/copilot-16.svg",
+    "sha256": "b5bfc7d50d1ec20a03e696f27fae38faa5376dcce0d6f2c49f25b3462d2a8e9b",
+    "invertDark": true
+  },
+  "cursor-ai": {
+    "existing": "cursor"
+  },
+  "windsurf": {
+    "file": "assets/agents/catalog/windsurf.ico",
+    "source": "https://windsurf.com/favicon.ico",
+    "website": "https://windsurf.com",
+    "sha256": "236892565896e893ac2d8889dabba9c10c3a4d2eeeb124eba649339efac5cf89"
+  },
+  "trae-ide": {
+    "file": "assets/agents/catalog/trae-ide.png",
+    "source": "https://lf16-web-neutral.traecdn.ai/obj/trae-ai-static/trae_website/favicon.png",
+    "website": "https://trae.ai",
+    "sha256": "49d523938a22af5a70dd79923725df38674823026e2f917e76337319969f4af4"
+  },
+  "zed-ai": {
+    "file": "assets/agents/catalog/zed-ai.png",
+    "source": "https://zed.dev/favicon_black_16.png",
+    "website": "https://zed.dev",
+    "sha256": "58b9df947e48ac31f953589d0afbf5924e227539c971aa29d789562104599c09",
+    "invertDark": true
+  },
+  "void-editor": {
+    "file": "assets/agents/catalog/void-editor.png",
+    "source": "https://voideditor.com/icon.png?fe8088bdbfb5a2cf",
+    "website": "https://voideditor.com",
+    "sha256": "0dee4476593760d8a763ba84cd20131d30b93abe390bc5786a50b24653aa9069",
+    "invertDark": true
+  },
+  "pearai": {
+    "file": "assets/agents/catalog/pearai.ico",
+    "source": "https://www.trypear.ai/favicon.ico",
+    "website": "https://trypear.ai",
+    "sha256": "197d977415742f92c5a2928bf85d877fbec3a4ebc0133848bee810597b1ffe08"
+  },
+  "kiro": {
+    "file": "assets/agents/catalog/kiro.ico",
+    "source": "https://kiro.dev/favicon.ico",
+    "website": "https://kiro.dev",
+    "sha256": "346572933d4d417c0050c112c7f20bcb8f1d3e20aa82fbe63eca38ad26399dd6"
+  },
+  "antigravity": {
+    "file": "assets/agents/catalog/antigravity.png",
+    "source": "https://www.antigravity.google/apple-touch-icon.png",
+    "website": "https://www.antigravity.google/press",
+    "sha256": "81ff621394faed1deb9c5577c7d5b651c5759ce927c1594dc8f6f6382a434670"
+  },
+  "tabnine": {
+    "file": "assets/agents/catalog/tabnine.ico",
+    "source": "https://www.tabnine.com/favicon.ico",
+    "website": "https://tabnine.com",
+    "sha256": "034a52932a601933883018528a25da5677f476478b0dbd20ab856af861f84623"
+  },
+  "amazon-q": {
+    "file": "assets/agents/catalog/amazon-q.ico",
+    "source": "https://a0.awsstatic.com/libra-css/images/site/fav/favicon.ico",
+    "website": "https://aws.amazon.com/q/developer",
+    "sha256": "1dc902bf12f36533773b6e0399ca6dcfe2e19b88c7d1c3d9f211a4082d28d219"
+  },
+  "aider": {
+    "file": "assets/agents/catalog/aider.png",
+    "source": "https://raw.githubusercontent.com/Aider-AI/aider/main/aider/website/assets/icons/apple-touch-icon.png",
+    "sha256": "6efbd1fc700f455630b59d233aa37bfc764cffb0bcb255a42e73837f12497a2b"
+  },
+  "continue-dev": {
+    "file": "assets/agents/catalog/continue-dev.png",
+    "source": "https://continue.dev/favicon.png",
+    "website": "https://continue.dev",
+    "sha256": "0476a2b1781547d4937a39036a67098cb0d7837d7750ae28443b79f8d38a17c5"
+  },
+  "sourcegraph-cody": {
+    "file": "assets/agents/catalog/sourcegraph-cody.svg",
+    "source": "https://sourcegraph.com/docs/icon.svg?d5cde42ec3d3c914",
+    "website": "https://sourcegraph.com/cody",
+    "sha256": "bcbc342f36c7baae388b4fc5ef451be7ba71802f13e09f66e5166c4890a251da"
+  },
+  "gemini-code-assist": {
+    "file": "assets/agents/catalog/gemini-code-assist.png",
+    "source": "https://www.gstatic.com/images/branding/productlogos/gemini_2025/v1/web-24dp/logo_gemini_2025_color_1x_web_24dp.png",
+    "website": "https://developers.google.com/gemini-code-assist",
+    "sha256": "194db0321189b763ac9097774dacf7c6b5f6efe86d772bb298330da62e14f792"
+  },
+  "jetbrains-ai": {
+    "file": "assets/agents/catalog/jetbrains-ai.png",
+    "source": "https://www.jetbrains.com/apple-touch-icon.png?r=1234",
+    "website": "https://www.jetbrains.com/ai/",
+    "sha256": "754e0bacaa46fa63273b1f6f7796bc917f6ed896f90bfeba16c7f0614ae21cee"
+  },
+  "cline": {
+    "file": "assets/agents/catalog/cline.png",
+    "source": "https://cline.bot/assets/branding/favicons/apple-touch-icon.png",
+    "website": "https://cline.bot",
+    "sha256": "7df371e7eac36079e99b4d4e0dbda1890a1e7d5898d858f5e3a780b7241fd49f"
+  },
+  "roo-code": {
+    "file": "assets/agents/catalog/roo-code.ico",
+    "source": "https://roocodeinc.github.io/Roo-Code/img/favicon.ico",
+    "website": "https://docs.roocode.com",
+    "sha256": "c1ffcbf089e060e6e0918a454b0e83cfddb29295b5c362ada664f09a489c75de"
+  },
+  "kilo-code": {
+    "file": "assets/agents/catalog/kilo-code.png",
+    "source": "https://kilo.ai/favicon/apple-touch-icon.png?v=2",
+    "website": "https://kilo.ai",
+    "sha256": "db146064a959258970a4b1e28b9e767467978d6931ceb401fb1d873dbf3db580",
+    "invertDark": true
+  },
+  "supermaven": {
+    "file": "assets/agents/catalog/supermaven.png",
+    "source": "https://supermaven.com/apple-touch-icon.png",
+    "website": "https://supermaven.com",
+    "sha256": "d6e611a252d9da75ab15fe9987433ed2974f870d0bd8a7893df89bcbd80b2318"
+  },
+  "qodo": {
+    "file": "assets/agents/catalog/qodo.png",
+    "source": "https://www.qodo.ai/favicon.ico",
+    "website": "https://qodo.ai",
+    "sha256": "89c40b44eafbdce7177deddd15abc2ca2654cf722f854f9d863b0f24fc4271da"
+  },
+  "blackbox-ai": {
+    "file": "assets/agents/catalog/blackbox-ai.ico",
+    "source": "https://www.blackbox.ai/favicon.ico?favicon.0fnsoedg1cvqn.ico",
+    "website": "https://www.blackbox.ai",
+    "sha256": "3ae69331666ed73966353e0a6d8dcbc9cffdfbe34413f7ac32d44736a38983d0"
+  },
+  "bito-ai": {
+    "file": "assets/agents/catalog/bito-ai.png",
+    "source": "https://bito.ai/wp-content/uploads/2022/03/cropped-android-icon-192x192-1-32x32.png",
+    "website": "https://bito.ai",
+    "sha256": "c4d91210834c4ed168c0b8469bf959354ceb87182cc6a371b8b02f7b02bf040c"
+  },
+  "refact-ai": {
+    "file": "assets/agents/catalog/refact-ai.png",
+    "source": "https://refact.ai/favicon.png",
+    "website": "https://refact.ai",
+    "sha256": "614a84ab392eb4eb4be750616012db192ae073a7f6f4bc0905374a0865cbdc91"
+  },
+  "codegeex": {
+    "file": "assets/agents/catalog/codegeex.png",
+    "source": "https://codegeex.cn/assets/images/only_logo_dark.png",
+    "website": "https://codegeex.cn",
+    "sha256": "2779f83b80b9804caaac44b944ece611adc49dd694fc32be0b568f9645a08c16"
+  },
+  "augment-code": {
+    "file": "assets/agents/catalog/augment-code.svg",
+    "source": "https://www.augmentcode.com/favicon.svg",
+    "website": "https://augmentcode.com",
+    "sha256": "5151bb83fc6ee1f848f183923f25ea92fc2125ec0e7495e2a55b47dc4fd10e81"
+  },
+  "pieces": {
+    "file": "assets/agents/catalog/pieces.svg",
+    "source": "https://pieces.app/favicon.svg",
+    "website": "https://pieces.app",
+    "sha256": "77e6d88a89aee45e06aabe5bfab2603ac367444b32d4d94d0463a5152e6e91a5"
+  },
+  "codegpt": {
+    "file": "assets/agents/catalog/codegpt.png",
+    "source": "https://www.codegpt.co/codegpt.png",
+    "website": "https://codegpt.co",
+    "sha256": "899ed898184f1a7256c0537a5ca75907ff5d1a6ebd240b9eb5e3634d48acb21a"
+  },
+  "askcodi": {
+    "file": "assets/agents/catalog/askcodi.ico",
+    "source": "https://www.askcodi.com/favicon.ico",
+    "website": "https://www.askcodi.com",
+    "sha256": "f4adcb07f4aa794f2b961cb5f795684e075e90aa91408b8540607b8fe7fcd3e6"
+  },
+  "qwen-agent": {
+    "file": "assets/agents/catalog/qwen-agent.png",
+    "source": "https://img.alicdn.com/imgextra/i4/O1CN01OXv3EM1FN8t9W4P79_!!6000000000474-2-tps-80-80.png",
+    "website": "https://qwen.ai",
+    "sha256": "cd9390bc4209c319121d111f3a1f535b3c7dd909b8f860d41acc9744138d58df"
+  },
+  "openai-codex-cli": {
+    "existing": "codex"
+  },
+  "goose": {
+    "file": "assets/agents/catalog/goose.png",
+    "source": "https://raw.githubusercontent.com/block/goose/main/ui/desktop/src/images/icon.png",
+    "sha256": "73d0d111766fded5017c2224935de06cee513ef66f8928c7f07fcabca3549e33"
+  },
+  "warp-ai": {
+    "file": "assets/agents/catalog/warp-ai.png",
+    "source": "https://www.warp.dev:443/apple-touch-icon-57x57.png",
+    "website": "https://warp.dev",
+    "sha256": "e33a71051fe998bab0324c7a0bc58eb07cc458b155471c4adc944f6b4d6d3fc3"
+  },
+  "gemini-cli": {
+    "file": "assets/agents/catalog/gemini-cli.ico",
+    "source": "https://geminicli.com/favicon.ico",
+    "website": "https://geminicli.com",
+    "sha256": "a65560d53f5e24d769d37ecf27bb63316da2f796eb983d301cf05ecc1e2ed28d"
+  },
+  "shell-gpt": {
+    "missing": true,
+    "website": "https://github.com/TheR1D/shell_gpt"
+  },
+  "ai-shell": {
+    "file": "assets/agents/catalog/ai-shell.png",
+    "source": "https://raw.githubusercontent.com/PowerShell/AIShell/main/tools/assets/Square44x44Logo.targetsize-48_altform-unplated.png",
+    "sha256": "9ee1ab173aaf5be9cad13176207c70378230b18c3bb10b34b283395d5bcf57b9"
+  },
+  "mentat": {
+    "missing": true,
+    "website": "https://github.com/AbanteAI/mentat"
+  },
+  "opencode": {
+    "file": "assets/agents/catalog/opencode.png",
+    "source": "https://opencode.ai/apple-touch-icon-v3.png",
+    "website": "https://opencode.ai",
+    "sha256": "2f2d5687a641f7fc1c3931072249a5984660375c091064fe8b374e4e43a8656c"
+  },
+  "grok-cli": {
+    "file": "assets/agents/catalog/grok-cli.ico",
+    "source": "https://x.ai/favicon.ico",
+    "website": "https://x.ai",
+    "sha256": "fb0ad1c3708c11cd6c569608f4fc14fd5d51a5b29eb9309cf83916d40d0b6852"
+  },
+  "tabby": {
+    "file": "assets/agents/catalog/tabby.png",
+    "source": "https://cdn.prod.website-files.com/66bb2bdd604a7640628938dd/66d5c6ad1aa3c2cf56d77658_tabby_favicon.png",
+    "website": "https://tabbyml.com",
+    "sha256": "169a3d158e89d4e6c439119d7d34ce0b01c04b69d51903cb4d3814e4175ff711"
+  },
+  "devin": {
+    "missing": true,
+    "website": "https://devin.ai"
+  },
+  "manus-ai": {
+    "file": "assets/agents/catalog/manus-ai.svg",
+    "source": "https://manus.im/icon.svg?icon.2kbcs13ndm9it.svg",
+    "website": "https://manus.im",
+    "sha256": "ee7825396fb63d32477c6f4728cbdc4e6e31963effc961542e9be326955c77bf"
+  },
+  "swe-agent": {
+    "file": "assets/agents/catalog/swe-agent.png",
+    "source": "https://raw.githubusercontent.com/SWE-agent/SWE-agent/main/sweagent/inspector/icons/swe-agent-logo-50.png",
+    "sha256": "712a12e09cfcd5f6f88fb693d039be4a93da7d6e9763b453b5d72e580b757f16"
+  },
+  "openhands": {
+    "file": "assets/agents/catalog/openhands.png",
+    "source": "https://raw.githubusercontent.com/OpenHands/OpenHands/main/public/apple-touch-icon.png",
+    "sha256": "b4beb7a5fa931f4ac8bb47894e689f5e95358f1a6fe3667650a993acbe2e3854"
+  },
+  "autogpt": {
+    "file": "assets/agents/catalog/autogpt.png",
+    "source": "https://agpt.co/favicon.png",
+    "website": "https://agpt.co",
+    "sha256": "e5df60c0ffb041dbbdc5f509547ca767a912b06745d96ab7cc070031ef1be703"
+  },
+  "babyagi": {
+    "missing": true,
+    "website": "https://github.com/yoheinakajima/babyagi"
+  },
+  "metagpt": {
+    "file": "assets/agents/catalog/metagpt.ico",
+    "source": "https://atoms.dev/favicon.ico",
+    "website": "https://mgx.dev",
+    "sha256": "44a465fa0b2adf0d753be680d04a42d857303a6b247899c87026ea8e47a0332b"
+  },
+  "crewai": {
+    "file": "assets/agents/catalog/crewai.ico",
+    "source": "https://crewai.com/favicon.ico?favicon.9df2505d.ico",
+    "website": "https://crewai.com",
+    "sha256": "06d296767bd6a2acbf5aa4b1dafd318fc08762da6b0ee842eb2f05cf426cd2e9"
+  },
+  "agentgpt": {
+    "file": "assets/agents/catalog/agentgpt.svg",
+    "source": "https://agentgpt.reworkd.ai/favicon.svg",
+    "website": "https://agentgpt.reworkd.ai",
+    "sha256": "16068647d5e9ebeb8d59bebe36557379b7b25d9a3c29c505525484a919642835"
+  },
+  "superagi": {
+    "file": "assets/agents/catalog/superagi.svg",
+    "source": "https://superagi.com/images/superagi_logo_round.svg",
+    "sha256": "b8006993a92afe11c838f50a65b8eb87b9c62134219cefb067748e5ddf522114"
+  },
+  "devika": {
+    "file": "assets/agents/catalog/devika.png",
+    "source": "https://raw.githubusercontent.com/stitionai/devika/main/.assets/devika-avatar.png",
+    "sha256": "f6d36e9e0229e1ba1fedf816f669e08ddd6bc36287c844d1814841249c7ba930"
+  },
+  "factory-ai": {
+    "file": "assets/agents/catalog/factory-ai.svg",
+    "source": "https://factory.ai/favicon.svg",
+    "website": "https://factory.ai",
+    "sha256": "416ea4962d7b0b8be8bec7f7190c13c22d5f20fdcac401aa72886fd5c81d2fb2"
+  },
+  "cosine-genie": {
+    "file": "assets/agents/catalog/cosine-genie.png",
+    "source": "https://cosine.sh/manifest/apple-touch-icon-57x57.png",
+    "website": "https://cosine.sh",
+    "sha256": "96ce186efaa3a74c927175bec045eb65ebce93d37130061f91b2c6acb62acc6d"
+  },
+  "sweep-ai": {
+    "file": "assets/agents/catalog/sweep-ai.png",
+    "source": "https://sweep.dev/final-sweep-wizard_32x32.png",
+    "website": "https://sweep.dev",
+    "sha256": "3fa322896c4ecd9cb3e1ed0434f6737403e05cb4aa91653b97e27fdcacb18e65"
+  },
+  "gpt-engineer": {
+    "file": "assets/agents/catalog/gpt-engineer.png",
+    "source": "https://lovable.dev/favicon.ico",
+    "website": "https://gptengineer.app",
+    "sha256": "29a40d56580a5366083461297773dbf146ec043d1156f432f5472cb3487f506b"
+  },
+  "smol-developer": {
+    "missing": true,
+    "website": "https://github.com/smol-ai/developer"
+  },
+  "replit-agent": {
+    "file": "assets/agents/catalog/replit-agent.png",
+    "source": "https://replit.com/public/icons/favicon-prompt-192-rebrand.png",
+    "website": "https://replit.com",
+    "sha256": "cbd9fa5be81f1b59919c3ac2a43a6c0b98dc7c873b325a526df214e9ef7afea4"
+  },
+  "bolt-new": {
+    "file": "assets/agents/catalog/bolt-new.png",
+    "source": "https://bolt.new/static/apple-touch-icon.png",
+    "website": "https://bolt.new",
+    "sha256": "e8950aaa7a5d56f022a9b39c8c3880ba98b0cd91f80b51818ea1b49a6de080ec"
+  },
+  "v0-dev": {
+    "file": "assets/agents/catalog/v0-dev.svg",
+    "source": "https://v0.app/assets/icon.svg",
+    "website": "https://v0.dev",
+    "sha256": "263f117c0c69a44d3206a5702105c178ebaa164bca325f3c3973a13bd948f1bf"
+  },
+  "lovable": {
+    "file": "assets/agents/catalog/lovable.png",
+    "source": "https://lovable.dev/favicon.ico",
+    "website": "https://lovable.dev",
+    "sha256": "29a40d56580a5366083461297773dbf146ec043d1156f432f5472cb3487f506b"
+  },
+  "chatgpt-desktop": {
+    "file": "assets/agents/catalog/chatgpt-desktop.png",
+    "source": "https://developers.openai.com/favicon.png",
+    "sha256": "8d5575ee667ff715cd3e3074d5296edc68d5aadd89720d203e13131b68b22a04"
+  },
+  "claude-desktop": {
+    "existing": "claude"
+  },
+  "copilot-desktop": {
+    "file": "assets/agents/catalog/copilot-desktop.svg",
+    "source": "https://copilot.microsoft.com/static/cmc/favicon.svg",
+    "website": "https://copilot.microsoft.com",
+    "sha256": "c5b0ad0fc0c6fd9c49131a972635e1aba4e65a0d0385c01d5be8735921d7ef8b"
+  },
+  "perplexity-desktop": {
+    "file": "assets/agents/catalog/perplexity-desktop.ico",
+    "source": "https://www.perplexity.ai/favicon.ico",
+    "website": "https://perplexity.ai",
+    "sha256": "df9a6478592660077e4e774d37bae6db1eb4d7d9d2cac31f0dcdab8804f76c06"
+  },
+  "apple-intelligence": {
+    "file": "assets/agents/catalog/apple-intelligence.ico",
+    "source": "https://www.apple.com/favicon.ico",
+    "website": "https://apple.com/apple-intelligence",
+    "sha256": "5493c61cf725cf3a1d63cd9d07de75b0d6faa5564e772f7d0a6074f341442938"
+  },
+  "multion": {
+    "file": "assets/agents/catalog/multion.svg",
+    "source": "https://docs.multion.ai/api/fern-docs/favicon.ico",
+    "website": "https://docs.multion.ai/",
+    "sha256": "c0564470fade468e25c3085d9ff4e5ee31edf41b910cc843ef5aef3b8c942b6e"
+  },
+  "browseruse": {
+    "file": "assets/agents/catalog/browseruse.png",
+    "source": "https://browser-use.com/apple-touch-icon.png",
+    "website": "https://browser-use.com",
+    "sha256": "79038a3f370c0a247ac307a43443cf6e17a113b3962b2488aca2d9d28b1243ab"
+  },
+  "openai-operator": {
+    "file": "assets/agents/catalog/openai-operator.png",
+    "source": "https://developers.openai.com/favicon.png",
+    "sha256": "8d5575ee667ff715cd3e3074d5296edc68d5aadd89720d203e13131b68b22a04"
+  },
+  "claude-computer-use": {
+    "existing": "claude"
+  },
+  "adept-ai": {
+    "missing": true,
+    "website": "https://adept.ai"
+  },
+  "lavague": {
+    "file": "assets/agents/catalog/lavague.png",
+    "source": "https://cdn.prod.website-files.com/65f2cdf991013d85c582af00/65f31caa9bca4f1ace61f0ca_site%20settingslavague%20logo.png",
+    "website": "https://lavague.ai",
+    "sha256": "c051e50a8f16e68a887124b34080f1d62e39148ca7f1af8d03c487ee4f76cffe"
+  },
+  "hyperwrite": {
+    "file": "assets/agents/catalog/hyperwrite.webp",
+    "source": "https://cdn.prod.website-files.com/63fcd79d410b22ddf397e1b8/6542726d6291ac92d1a4c737_%27Otherside%20Favicon.webp",
+    "website": "https://hyperwriteai.com",
+    "sha256": "c26584df331d7168114c06e010bef74f5989e1e8fed96a57eeefac23c79c95d7"
+  },
+  "agent-s": {
+    "file": "assets/agents/catalog/agent-s.png",
+    "source": "https://cdn.prod.website-files.com/666c58d71e64e2eb5bdf950b/67d274d9ab68980ec9f893b5_favicon-32.png",
+    "website": "https://www.simular.ai",
+    "sha256": "d62326e676def3d53d58dc6226285e6f30db27f6d1cac61eae158b475a5c1d0a"
+  },
+  "langchain-agents": {
+    "file": "assets/agents/catalog/langchain-agents.png",
+    "source": "https://cdn.prod.website-files.com/65b8cd72835ceeacd4449a53/69a17e4a429d54e956e2a763_favicon.png",
+    "website": "https://langchain.com",
+    "sha256": "b7af268b3930e445ea4ca3b09a46b4ced2b18d61a35b6652fb562342b7907175"
+  },
+  "llamaindex-agents": {
+    "file": "assets/agents/catalog/llamaindex-agents.png",
+    "source": "https://www.llamaindex.ai/apple-touch-icon.png",
+    "website": "https://www.llamaindex.ai",
+    "sha256": "1f7d5b00f12dd3b3050cce22e0ef3929953641bf5318cedec06fda812fe76abf"
+  },
+  "autogen": {
+    "file": "assets/agents/catalog/autogen.svg",
+    "source": "https://microsoft.github.io/autogen/0.2/img/ag.svg",
+    "sha256": "7e77075e2861194c7053f32a9770bcd314f24a627756d443b823f746fef61f49"
+  },
+  "semantic-kernel": {
+    "file": "assets/agents/catalog/semantic-kernel.ico",
+    "source": "https://learn.microsoft.com/favicon.ico",
+    "website": "https://learn.microsoft.com/en-us/semantic-kernel",
+    "sha256": "90cdaf487716184e4034000935c605d1633926d348116d198f355a98b8c6cd21"
+  },
+  "phidata": {
+    "file": "assets/agents/catalog/phidata.png",
+    "source": "https://www.agno.com/apple-touch-icon.png",
+    "website": "https://www.agno.com",
+    "sha256": "c7de254fb82785c25d887d6f4290a8b6a4525cbf7bffabd4870e17756ad81873"
+  },
+  "composio": {
+    "file": "assets/agents/catalog/composio.png",
+    "source": "https://composio.dev/apple-touch-icon.png",
+    "website": "https://composio.dev",
+    "sha256": "924f588685ca9887ccf937952878404da76837b6297884731bb9b175879e6548"
+  },
+  "e2b": {
+    "file": "assets/agents/catalog/e2b.ico",
+    "source": "https://e2b.dev/favicon.ico?favicon.2tv3ar_xs3r82.ico",
+    "website": "https://e2b.dev",
+    "sha256": "ccbbfb504b0e3fda68fd0eb850971d13c58f6a0b52912cf8f73dc25d3441e052"
+  },
+  "dify": {
+    "file": "assets/agents/catalog/dify.svg",
+    "source": "https://dify.ai/favicon.svg",
+    "website": "https://dify.ai",
+    "sha256": "72348ce12b2fe799a1787df6cf837d4c202389640bab83eadd5cbcc0ac253799"
+  },
+  "flowise": {
+    "file": "assets/agents/catalog/flowise.ico",
+    "source": "https://flowiseai.com/favicon.ico",
+    "website": "https://flowiseai.com",
+    "sha256": "e10a0d80459be8e664f2c183bcedd765b1984f7feef288576d46fa39be4d0ab0"
+  },
+  "snyk-ai": {
+    "file": "assets/agents/catalog/snyk-ai.ico",
+    "source": "https://snyk.io/favicon.ico",
+    "website": "https://snyk.io",
+    "sha256": "0fb446f9b4457a3d570f754dd403ab8c55813c146d22a77d846e321b04d94693"
+  },
+  "semgrep-ai": {
+    "file": "assets/agents/catalog/semgrep-ai.svg",
+    "source": "https://semgrep.dev/build/assets/favicon-CIx-xpG_.svg",
+    "website": "https://semgrep.dev",
+    "sha256": "9a61157627c9e86f587d2538dd24aedf15622a57115cdc4ea524cae64b539509"
+  },
+  "renovate-bot": {
+    "file": "assets/agents/catalog/renovate-bot.png",
+    "source": "https://docs.renovatebot.com/assets/images/logo.png",
+    "website": "https://docs.renovatebot.com",
+    "sha256": "8680cbb7a7779b9014cbe42c2261b089c20a5f2415a5b6257fc5ef9aba049d71"
+  },
+  "codacy-ai": {
+    "file": "assets/agents/catalog/codacy-ai.png",
+    "source": "https://cdn.prod.website-files.com/696e13606c58a2cfbf96ace3/69917fb092eab6c202d5db79_favicon.png",
+    "website": "https://codacy.com",
+    "sha256": "c4a940a6a7a1386f072a5b92bb85c1e799fb35da35d9bdbcc59181087500648e"
+  },
+  "sonarqube-ai": {
+    "file": "assets/agents/catalog/sonarqube-ai.ico",
+    "source": "https://www.sonarsource.com/favicon.ico",
+    "website": "https://www.sonarsource.com/products/sonarqube/",
+    "sha256": "b0edc25df30529e9249d50f5d7b1ebb0c094dcd92b3e73a7108a0e0f70b6942d"
+  },
+  "copilot-language-server": {
+    "file": "assets/agents/catalog/github-copilot.svg",
+    "source": "https://raw.githubusercontent.com/primer/octicons/main/icons/copilot-16.svg",
+    "sha256": "b5bfc7d50d1ec20a03e696f27fae38faa5376dcce0d6f2c49f25b3462d2a8e9b",
+    "invertDark": true
+  },
+  "codeium-language-server": {
+    "file": "assets/agents/catalog/codeium-language-server.ico",
+    "source": "https://windsurf.com/favicon.ico",
+    "website": "https://codeium.com",
+    "sha256": "236892565896e893ac2d8889dabba9c10c3a4d2eeeb124eba649339efac5cf89"
+  },
+  "tabnine-server": {
+    "file": "assets/agents/catalog/tabnine-server.ico",
+    "source": "https://www.tabnine.com/favicon.ico",
+    "website": "https://tabnine.com",
+    "sha256": "034a52932a601933883018528a25da5677f476478b0dbd20ab856af861f84623"
+  },
+  "sm-agent": {
+    "file": "assets/agents/catalog/sm-agent.png",
+    "source": "https://supermaven.com/apple-touch-icon.png",
+    "website": "https://supermaven.com",
+    "sha256": "d6e611a252d9da75ab15fe9987433ed2974f870d0bd8a7893df89bcbd80b2318"
+  },
+  "docker-desktop": {
+    "file": "assets/agents/catalog/docker-desktop.png",
+    "source": "https://www.docker.com/app/uploads/2024/02/cropped-docker-logo-favicon-32x32.png",
+    "website": "https://docker.com",
+    "sha256": "a9e08fe48c361085d3348efdd81d5ac5830a8695aead9b616df96af88dddaac7"
+  },
+  "ollama": {
+    "existing": "ollama"
+  },
+  "lm-studio": {
+    "file": "assets/agents/catalog/lm-studio.png",
+    "source": "https://lmstudio.ai/assets/marketing/logo-192x192.png",
+    "website": "https://lmstudio.ai",
+    "sha256": "e79ff2ac0fece5c0a76fcb8b20a29226794d11824ee7c7a2f521dcde0f88e12b"
+  },
+  "localai": {
+    "file": "assets/agents/catalog/localai.png",
+    "source": "https://localai.io/img/logo-mark.png",
+    "website": "https://localai.io",
+    "sha256": "ad78f1dc3c085c96813cb758ee3ee4f1cffd66fcac24fb6bba7d215c73bb07f8"
+  },
+  "gpt4all": {
+    "file": "assets/agents/catalog/gpt4all.svg",
+    "source": "https://www.nomic.ai/favicon.svg",
+    "website": "https://gpt4all.io",
+    "sha256": "cb9f428f3b7e61227dd423467c0a3906072de8eff1d14b8e70fbf1f1a6cff3d0"
+  },
+  "jan": {
+    "file": "assets/agents/catalog/jan.ico",
+    "source": "https://www.jan.ai/favicon.ico",
+    "website": "https://jan.ai",
+    "sha256": "60426f33d57fd801ab7f25956784a6ca6db4a3305bfb76e72ad7fe1556abe412"
+  },
+  "vllm": {
+    "file": "assets/agents/catalog/vllm.ico",
+    "source": "https://vllm.ai/favicon.ico",
+    "website": "https://vllm.ai",
+    "sha256": "ea4688630804a87a53e107fe3a4514d1280b3fe7015e4ddf2d900a6ed598d347"
+  },
+  "llama-cpp": {
+    "file": "assets/agents/catalog/llama-cpp-dark.svg",
+    "source": "https://raw.githubusercontent.com/ggml-org/llama.brand/master/icon/icon-dark.svg",
+    "sha256": "78bbb16ce08f25baf0bc2c8f0c765e85d933f537ba92625b844528cb02aa249b",
+    "lightFile": "assets/agents/catalog/llama-cpp-light.svg",
+    "lightSource": "https://raw.githubusercontent.com/ggml-org/llama.brand/master/icon/icon-light.svg",
+    "lightSha256": "ce48c0f8e98aa4099b6f04a65b76bc32bc00c8fa39d58f15da9b73905f1918f1"
+  },
+  "text-generation-webui": {
+    "file": "assets/agents/catalog/text-generation-webui.png",
+    "source": "https://raw.githubusercontent.com/oobabooga/textgen/main/css/icon.png",
+    "sha256": "05f7583bfb4e3ca80b8356a9023636d2d9e51fddeeb718f24e3748fa1014527b"
+  },
+  "google-jules": {
+    "file": "assets/agents/catalog/google-jules.png",
+    "source": "https://www.gstatic.com/labs-code/code-app/favicon-32x32.png",
+    "website": "https://jules.google.com",
+    "sha256": "b96dc55bd1cf1e74f6dbe3dced38683c75df2d5f27bbe4cbab5879fcca002724"
+  },
+  "aide": {
+    "file": "assets/agents/catalog/aide.svg",
+    "source": "https://aide.dev/favicon.svg",
+    "website": "https://aide.dev",
+    "sha256": "51aaf9bff423d09f07b686afe2ef7aa29a9b6a1f575cf788a1d82070873a6ab8"
+  },
+  "open-webui": {
+    "file": "assets/agents/catalog/open-webui.png",
+    "source": "https://openwebui.com/favicon.png",
+    "website": "https://openwebui.com",
+    "sha256": "5698a3e39513e7b6304ec96c309373ab3af0f70fe794293461de395a94deaa65"
+  },
+  "anythingllm": {
+    "file": "assets/agents/catalog/anythingllm.png",
+    "source": "https://anythingllm.com/icon.png?0a59f488e9ddf54c",
+    "website": "https://anythingllm.com",
+    "sha256": "4a650703d2de75f4223c41c10fca33d7114ecf95a83a5f46d1ced3abedc31aa9"
+  },
+  "koboldcpp": {
+    "file": "assets/agents/catalog/koboldcpp.png",
+    "source": "https://koboldcpp.com/wp-content/uploads/2026/02/cropped-fav-icon-32x32.png",
+    "website": "https://koboldcpp.com",
+    "sha256": "6bf1ec74abc4de0d77bb2dfb01aa1b4c6080061a22fd0a69c19b40af7f0fb367"
+  },
+  "gpt-pilot": {
+    "file": "assets/agents/catalog/gpt-pilot.svg",
+    "source": "https://pazi.ai/assets/logo-C4HVc8Mg.svg",
+    "website": "https://www.pythagora.ai",
+    "sha256": "5d881d137dc9b5d5d7b8e32d62e3038ff44af92093cdd0f14a8a82f8effe73f9"
+  },
+  "screenpipe": {
+    "file": "assets/agents/catalog/screenpipe.ico",
+    "source": "https://screenpipe.com/favicon.ico",
+    "website": "https://screenpi.pe",
+    "sha256": "fcd8bf4b8337b77d803106bb58b4998beea14c20ee7945b3875aeb5d16e9d608"
+  },
+  "letta": {
+    "file": "assets/agents/catalog/letta.png",
+    "source": "https://www.letta.com/assets/images/webclip.png",
+    "website": "https://letta.com",
+    "sha256": "19564f266ec4e5628ecafc936cfe2ba0f8633e4959feded7ddf4000abf6c6508"
+  },
+  "openclaw": {
+    "file": "assets/agents/catalog/openclaw.png",
+    "source": "https://openclaw.ai/apple-touch-icon.png",
+    "website": "https://openclaw.ai",
+    "sha256": "e8c7ce0a3a6c52bd904cc55e31a5b3a8b6392dcd70ba9e220ecf0ef1d6bd8c16"
+  }
+}

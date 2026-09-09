@@ -75,7 +75,12 @@ export function applyFormToAgent(
   return {
     ...agent,
     displayName: form.displayName.trim(),
-    names: [form.processName.trim() || ((agent.names as string[]) ?? [])[0]],
+    names: [
+      ...new Set([
+        form.processName.trim() || ((agent.names as string[]) ?? [])[0],
+        ...((agent.names as string[]) ?? []).slice(1),
+      ]),
+    ],
     category: form.category,
     description: form.description.trim(),
     riskProfile: form.riskProfile,

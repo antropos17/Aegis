@@ -451,14 +451,15 @@ function isReady() {
  * @param {string} beforeTs
  * @param {number} limit
  * @param {Set<string>|null} types
+ * @param {number} [boundaryOffset] Inclusive boundary rows already consumed
  * @returns {Object[]} normalized history, oldest first
  * @throws when unavailable or the query fails; the caller falls back in the same call
  * @since v0.14.0
  */
-function queryBefore(beforeTs, limit, types) {
+function queryBefore(beforeTs, limit, types, boundaryOffset) {
   if (!isReady()) throw new Error('audit-index: history is not ready');
   try {
-    return historyQuery.queryBefore(_db, beforeTs, limit, types);
+    return historyQuery.queryBefore(_db, beforeTs, limit, types, boundaryOffset);
   } catch (_) {
     // JSON.parse errors can quote raw audit data. Do not publish them in status/logs.
     const error = new Error('audit-index: history query failed; using JSONL');

@@ -88,6 +88,38 @@ describe('audit index history and fallback', () => {
       expect(hashchain.verifyChain(path.join(logDir(), file)).valid).toBe(true);
   });
 
+  it('pages through identical timestamps without dropping boundary records in SQL or JSONL', async () => {
+    const timestamp = new Date().toISOString();
+    const earlier = new Date(Date.now() - 1000).toISOString();
+    writeDay(today, [
+      event(earlier, 'file-access', { action: 'earlier' }),
+      ...Array.from({ length: 7 }, (_, i) =>
+        event(timestamp, 'file-access', { action: String(i) }),
+      ),
+    ]);
+    await open();
+    for (const read of [(...args) => audit.getEntriesBefore(...args), jsonl]) {
+      let before = timestamp;
+      let offset = 0;
+      const seen = [];
+      for (let pageNumber = 0; pageNumber < 5; pageNumber++) {
+        const page = read(before, 3, ['file-access'], offset);
+        seen.push(...page.map((row) => row.action));
+        if (page.length < 3) break;
+        const oldest = page[0].timestamp;
+        offset =
+          page.filter((row) => row.timestamp === oldest).length + (oldest === before ? offset : 0);
+        before = oldest;
+      }
+      expect(seen).toHaveLength(8);
+      expect(new Set(seen).size).toBe(8);
+      expect(seen).toContain('earlier');
+    }
+    expect(audit.getEntriesBefore(timestamp, 10).map((row) => row.action)).toEqual(['earlier']);
+    expect(() => audit.getEntriesBefore(timestamp, 10, undefined, -1)).toThrow('boundary');
+    expect(() => audit.getEntriesBefore(timestamp, 10, undefined, Infinity)).toThrow('boundary');
+  });
+
   it('keeps partial history readable while rejecting a malformed full export', async () => {
     const rows = [
       event(`${today}T08:00:00.000Z`, 'file-access', {

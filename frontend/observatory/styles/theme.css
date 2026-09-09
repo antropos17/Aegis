@@ -1,0 +1,237 @@
+:root {
+  color-scheme: dark;
+  --ui-scale: 1;
+  --bg: #171819;
+  --sidebar: #1d1e20;
+  --panel: #202224;
+  --raised: #2b2d30;
+  --hover: #33363a;
+  --panel-head: #222426;
+  --inspector: #232527;
+  --ink: #ececea;
+  --muted: #bcbdbb;
+  --faint: #a0a3a2;
+  --border: #36393c;
+  --strong-border: #656a6f;
+  --accent: #dadcde;
+  --accent-bg: #303235;
+  --green: #91b8a2;
+  --green-bg: #26362e;
+  --amber: #d7bb8a;
+  --amber-bg: #353027;
+  --red: #d89089;
+  --red-bg: #382a2a;
+  --copper: #e0b59a;
+  --ice: #a5c2d8;
+  --shadow: 0 20px 70px #0005;
+  --sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --mono: Consolas, 'Courier New', monospace;
+  --sweep-rgb: 157, 180, 166;
+  --radar-grid: #7d8880;
+  --focus: #c9cdd1;
+}
+:root[data-theme^='light'] {
+  color-scheme: light;
+  --bg: #f0f0ee;
+  --sidebar: #e8e8e5;
+  --panel: #fafaf8;
+  --raised: #e7e7e3;
+  --hover: #ddded9;
+  --panel-head: #f4f4f0;
+  --inspector: #f6f6f2;
+  --ink: #272925;
+  --muted: #555952;
+  --faint: #656962;
+  --border: #cdd0c9;
+  --strong-border: #92978e;
+  --accent: #383e44;
+  --accent-bg: #e0e2e1;
+  --green: #436b55;
+  --green-bg: #e4ece5;
+  --amber: #806031;
+  --amber-bg: #eee7d9;
+  --red: #a3544c;
+  --red-bg: #f0e2df;
+  --copper: #8d5939;
+  --ice: #3c6785;
+  --shadow: 0 20px 70px #2b3c4820;
+  --sweep-rgb: 95, 124, 105;
+  --radar-grid: #99a69d;
+  --focus: #4c555e;
+}
+:root[data-theme='dark-hc'] {
+  --bg: #0a0b0c;
+  --sidebar: #111213;
+  --panel: #1a1b1c;
+  --ink: #ffffff;
+  --muted: #e0e1dd;
+  --border: #80847e;
+  --faint: #c2c6bf;
+}
+:root[data-theme='light-hc'] {
+  --bg: #ffffff;
+  --sidebar: #efefeb;
+  --panel: #ffffff;
+  --ink: #161814;
+  --muted: #363d32;
+  --border: #71796a;
+  --faint: #4b5545;
+}
+* {
+  box-sizing: border-box;
+}
+html {
+  scrollbar-gutter: stable;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: calc(14px * var(--ui-scale))/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+  color: inherit;
+  background: none;
+  border: 0;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+input,
+select,
+textarea {
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  min-width: 0;
+  max-width: 100%;
+}
+select {
+  cursor: pointer;
+}
+textarea {
+  resize: vertical;
+  width: 100%;
+}
+input[type='checkbox'],
+input[type='range'] {
+  accent-color: var(--accent);
+}
+input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+h1 {
+  font-size: calc(23px * var(--ui-scale));
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  line-height: 1.25;
+}
+h2 {
+  font-size: calc(14px * var(--ui-scale));
+  font-weight: 600;
+}
+h3 {
+  font-size: calc(13px * var(--ui-scale));
+  font-weight: 600;
+}
+p {
+  line-height: 1.65;
+}
+small {
+  font-size: calc(11px * var(--ui-scale));
+}
+b,
+strong {
+  font-weight: 600;
+}
+[hidden] {
+  display: none !important;
+}
+.icon {
+  width: calc(16px * var(--ui-scale));
+  height: calc(16px * var(--ui-scale));
+  display: block;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+  vertical-align: middle;
+  pointer-events: none;
+}
+span:has(> .icon) {
+  display: inline-flex;
+  align-items: center;
+}
+.mono {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+code {
+  font-family: var(--mono);
+  font-size: calc(11px * var(--ui-scale));
+  font-variant-numeric: tabular-nums;
+}
+.muted {
+  color: var(--muted);
+}
+.faint {
+  color: var(--faint);
+}
+.sr-only,
+.skip:not(:focus) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.skip:focus {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  background: var(--panel);
+  padding: 10px;
+  z-index: 20;
+}
+
+:root[data-motion='reduce'] *,
+:root[data-motion='reduce'] *::before,
+:root[data-motion='reduce'] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}

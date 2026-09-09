@@ -239,6 +239,37 @@ describe('ipc-handlers', () => {
     },
   );
 
+  it('excludes provider credentials from configuration exports', async () => {
+    ipcHandlers.init({ getWindow: () => null });
+    ipcHandlers.register();
+    mockElectron.dialog.showSaveDialog.mockResolvedValueOnce({ filePath: '/fixture/config.json' });
+    const write = vi.spyOn(fs, 'writeFileSync').mockImplementationOnce(() => {});
+    try {
+      expect(await handlers['export-config']()).toMatchObject({ success: true });
+      const exported = JSON.parse(write.mock.calls[0][1]);
+      expect(exported).not.toHaveProperty('anthropicApiKey');
+      expect(exported.seenAgents).toEqual(['Claude', 'Copilot']);
+      expect(mockConfig.getSettings().anthropicApiKey).toBe('key');
+    } finally {
+      write.mockRestore();
+    }
+  });
+  it('reports native audit-folder failures instead of an unconditional success', async () => {
+    ipcHandlers.init({ getWindow: () => null });
+    ipcHandlers.register();
+    mockElectron.shell.openPath.mockResolvedValueOnce('Folder unavailable');
+    expect(await handlers['open-audit-log-dir']()).toEqual({
+      success: false,
+      error: 'Folder unavailable',
+    });
+    mockElectron.shell.openPath.mockRejectedValueOnce(new Error('Shell offline'));
+    expect(await handlers['open-audit-log-dir']()).toEqual({
+      success: false,
+      error: 'Shell offline',
+    });
+    mockElectron.shell.openPath.mockResolvedValueOnce('');
+    expect(await handlers['open-audit-log-dir']()).toEqual({ success: true });
+  });
   it('update operations only accept the owned main frame and never forward caller parameters', () => {
     const frame = {};
     const window = { isDestroyed: () => false, webContents: { mainFrame: frame } };
@@ -558,6 +589,35 @@ describe('ipc-handlers', () => {
       }
       expect(mockPlatform.resumeProcess).not.toHaveBeenCalled();
     });
+
+    it.each(['kill-process', 'suspend-process', 'resume-process'])(
+      '%s rejects a reused PID or observation outage for stamped requests',
+      async (channel) => {
+        let reliable = true;
+        let currentId = '1234:new';
+        ipcHandlers.init({
+          getStats: () => ({
+            appHealth: { populationReliable: reliable },
+            observationGap: { state: 'NONE' },
+          }),
+          getLatestAgents: () => [
+            { agent: 'Claude', pid: 1234, instanceId: currentId, instanceIdSource: 'os' },
+          ],
+        });
+        const handler = getHandler(channel);
+        expect(await handler(null, { pid: 1234, instanceId: '1234:old' })).toEqual({
+          success: false,
+          error: 'Process instance changed or is no longer observed',
+        });
+        reliable = false;
+        expect((await handler(null, { pid: 1234, instanceId: currentId })).success).toBe(false);
+        expect(mockPlatform.killProcess).not.toHaveBeenCalled();
+        expect(mockPlatform.suspendProcess).not.toHaveBeenCalled();
+        expect(mockPlatform.resumeProcess).not.toHaveBeenCalled();
+        reliable = true;
+        expect((await handler(null, { pid: 1234, instanceId: currentId })).success).toBe(true);
+      },
+    );
 
     it('kill-process accepts monitored PID', async () => {
       const handler = getHandler('kill-process');

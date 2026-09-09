@@ -27,7 +27,7 @@ AEGIS observes detected agent processes, file activity and TCP endpoints from ou
 | Behavior | 73 sensitive-path detection rules across 8 categories, rolling 10-session baselines, anomaly scoring and sequence correlations |
 | Local LLMs | Ollama and LM Studio runtime probes; other supported runtimes detected by process signature |
 
-Activity can be filtered and grouped, inspected per agent, and exported to JSON, CSV, HTML or ZIP. The [agent database](src/shared/agent-database.json) and [contributor guide](CONTRIBUTING.md#how-to-add-a-new-agent) describe how to extend detection.
+The Observatory workspace provides a live instance radar, separate agent instances, file and network views, rules, custom agent catalog, AI analysis, reports, audit, statistics and settings. Activity can be filtered and grouped, inspected by stamped instance identity, and exported to JSON, CSV, HTML or ZIP. The [agent database](src/shared/agent-database.json) and [contributor guide](CONTRIBUTING.md#how-to-add-a-new-agent) describe how to extend detection.
 
 ## Monitor-first
 
@@ -57,12 +57,11 @@ npm start
 After installing dependencies, build and preview the browser demo:
 
 ```bash
-npm run build:demo
-npx vite preview --mode demo --host 127.0.0.1 --port 4174
-# open http://127.0.0.1:4174
+npm run dev
+# open http://127.0.0.1:8770
 ```
 
-The demo uses simulated data and does not monitor real processes. Electron-only operations are unavailable. Use the built preview: `npm run dev` currently fails to load the dashboard because of a shared CommonJS import incompatibility.
+The preview uses simulated data and an isolated host. It shares the desktop components, never calls the real preload, and disables native exports and provider requests. `npm run frontend:build:preview` creates a static preview; `npm run build:renderer` creates the desktop artifact without fixtures.
 
 <details>
 <summary>Release history</summary>
@@ -98,9 +97,9 @@ See the [architecture](ARCHITECTURE.md), [correctness audit](docs/current-state/
 
 - **Incomplete coverage:** Unknown signatures and processes that start and exit between polling ticks can be missed. MCP traffic and individual tool calls are not parsed.
 - **Platform gaps:** macOS/Linux lack OS birth times for identity and remain unsafe under PID reuse. Token-cost tracking is Windows-only.
-- **Bounded UI history:** Retained event windows can differ from aggregate totals; there is no truncation banner yet.
+- **Bounded UI history:** Retained event windows can differ from aggregate totals; Statistics shows renderer eviction counters; Audit provides persisted history.
 - **Sensor and audit gaps:** Health status does not prove complete capture. Audit loss markers require a successful flush; process-scan overruns lack a dedicated counter.
-- **Sensitive metadata:** Logs and exports contain paths, agent names and endpoints. Settings JSON exports can also include the configured API key; remove it before sharing. Local key encryption depends on safeStorage availability. See [SECURITY.md](SECURITY.md).
+- **Sensitive metadata:** Logs and exports contain paths, agent names and endpoints. Configuration and diagnostic exports omit the configured API key. Local key encryption depends on safeStorage availability. See [SECURITY.md](SECURITY.md).
 - **Unmeasured claims:** No general detection rate, false-positive rate, startup-time guarantee or whole-app overhead figure has been established.
 
 ## Development and roadmap

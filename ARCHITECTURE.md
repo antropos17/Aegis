@@ -1,5 +1,7 @@
 # AEGIS Architecture
 
+The canonical desktop entry is `frontend/observatory/entry.ts`, configured in `vite.frontend.config.ts`. The same Svelte components power the explicitly simulated browser preview. Shared enrichment remains in `src/renderer/lib/utils/enrich-agents.ts`; the old visual shell has been removed.
+
 ## Mission
 
 AEGIS is an **Independent AI Oversight Layer** for local agent processes, file activity and TCP endpoints. Coverage is signature- and sensor-dependent; no overall observability percentage has been established. Monitoring runs locally, with optional external AI analysis and update requests described below.
@@ -279,9 +281,9 @@ Rules live in `rules/*.yaml` (one file per category), validated against `rules/_
 5. Add audit logging via `audit.log(type, details)` (injected as `deps.audit` in `scan-loop.js`)
 
 ### Adding a New UI Panel
-1. Create `src/renderer/lib/components/NewPanel.svelte` (there is no `src/renderer/src/` directory)
-2. Import and place the component in the appropriate tab (e.g., `ShieldTab.svelte`, `ActivityTab.svelte`)
-3. Subscribe to IPC data via Svelte stores in `src/renderer/lib/stores/`
+1. Create `frontend/observatory/components/NewPanel.svelte` using TypeScript and Svelte runes
+2. Register the workspace in `frontend/observatory/App.svelte`
+3. Receive telemetry from `runtime/host.ts`; use invoke helpers and dispose additional subscriptions
 4. Use scoped styles within the `.svelte` file (follows project CSS conventions)
 
 ### Adding Platform Support
