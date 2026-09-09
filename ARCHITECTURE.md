@@ -2,7 +2,7 @@
 
 ## Mission
 
-AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level observability of AI agent behavior without kernel drivers. When AI is embedded in operating systems, browsers, and applications, oversight must not belong to those same companies. AEGIS provides independent, open-source, privacy-first monitoring that runs entirely on the user's machine.
+AEGIS is an **Independent AI Oversight Layer** for local agent processes, file activity and TCP endpoints. Coverage is signature- and sensor-dependent; no overall observability percentage has been established. Monitoring runs locally, with optional external AI analysis and update requests described below.
 
 ## System Overview
 
@@ -17,7 +17,7 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 │  │  │  OBSERVABILITY LAYER   │  │     │  │   VISUALIZATION LAYER  │  │  │
 │  │  │                        │  │     │  │                        │  │  │
 │  │  │  process-scanner.js    │──┼──►  │  │  Radar.svelte (canvas) │  │  │
-│  │  │  file-watcher.js       │──┼──►  │  │  Timeline.svelte       │  │  │
+│  │  │  file-watcher.js       │──┼──►  │  │  GroupedFeed.svelte    │  │  │
 │  │  │  network-monitor.js    │──┼──►  │  │  ActivityFeed.svelte   │  │  │
 │  │  │  baselines.js          │──┼──►  │  │  AgentPanel.svelte     │  │  │
 │  │  │  ai-analysis.js        │──┼──►  │  │  NetworkPanel.svelte   │  │  │
@@ -27,10 +27,10 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 │  │  ┌────────────────────────┐  │     │  ┌────────────────────────┐  │  │
 │  │  │  INFRASTRUCTURE        │  │     │  │   INTELLIGENCE LAYER   │  │  │
 │  │  │                        │  │     │  │                        │  │  │
-│  │  │  config-manager.js     │  │     │  │  ipc.js (store)        │  │  │
-│  │  │  exports.js            │  │     │  │  risk.js (store)       │  │  │
-│  │  │  tray-icon.js          │  │     │  │  theme.js (store)      │  │  │
-│  │  │  logger.js             │  │     │  │  toast.js (store)      │  │  │
+│  │  │  config-manager.js     │  │     │  │  ipc.ts (store)        │  │  │
+│  │  │  exports.js            │  │     │  │  risk.ts (store)       │  │  │
+│  │  │  tray-icon.js          │  │     │  │  theme.ts (store)      │  │  │
+│  │  │  logger.js             │  │     │  │  toast.ts (store)      │  │  │
 │  │  │  scoring-utils.js      │  │     │  │  demo-data.js (store)  │  │  │
 │  │  │  ipc-batcher.js        │  │     │  │                        │  │  │
 │  │  │  zip-writer.js         │  │     │  │                        │  │  │
@@ -60,10 +60,10 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 ### What's Covered Now
 
 #### 1. Process Intelligence — `process-scanner.js`
-- **What it sees:** All running processes matched against 110 agent signatures
-- **How:** `tasklist /FO CSV /NH` on Windows, pattern matching against known process names
-- **Depth:** Parent-child process tree resolution via PowerShell (60s TTL cache), IDE host app detection (e.g., "Copilot inside VS Code"), PID tracking for enter/exit events
-- **Coverage:** ~95% of known AI agents. Unknown agents detected via wildcard patterns.
+- **What it sees:** Processes matching 110 agents (262 process-name signatures), plus supported IDE, WSL and local-runtime probes.
+- **How:** The Windows path uses a shared process snapshot from the native sidecar, with a CIM fallback. If the process population cannot be established from the snapshot, the scanner can fall back to `tasklist`. POSIX implementations use `ps`.
+- **Identity:** OS-observed birth times distinguish Windows process lifetimes when available. Missing birth times and synthetic observations have weaker identity; snapshot outages retain existing sessions.
+- **Coverage:** Undetected signatures and processes that start and exit between polls are blind spots. See [known limits](README.md#known-limits).
 
 #### 2. File & Data Access — `file-watcher.js` + `rule-loader.js`
 - **What it sees:** File create/modify/delete in sensitive directories, per-process file handles
@@ -74,13 +74,13 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 #### 3. Network Intelligence — `network-monitor.js`
 - **What it sees:** All outbound TCP connections for detected agent PIDs
 - **How:** `Get-NetTCPConnection` via PowerShell, filtered by PID. Reverse DNS with 5-minute cache.
-- **Depth:** Domain classification against 50+ known-safe vendor patterns (from agent database). Unknown domains flagged. Connection state tracking.
+- **Depth:** Endpoint verdicts are `allowlisted`, `unknown` (no usable resolved identity), or `flagged` (resolved outside the applicable allowlists). Allowlists use database vendor domains and shared patterns. An allowlist match does not establish safe behavior.
 - **Limitation:** Cannot inspect encrypted traffic. Sees endpoints but not payload.
 
 #### 4. Risk Engine — `src/renderer/lib/utils/risk-scoring.js` + `src/main/anomaly-detector.js` + `src/main/baselines.js`
 - **What it computes:** Per-agent risk scores (0-100), trust grades (A+ through F), anomaly scores (0-100)
 - **Where it runs:** risk scoring lives in the RENDERER (`lib/utils/risk-scoring.js`); there is no `src/main/risk-scoring.js`. Anomaly scoring and baselines are main-process modules.
-- **Risk formula:** a sum of six independently capped contributions, each saturating so no single signal can dominate — `min(40, sensitive * 5 * (1 / (1 + sensitive * 0.1)))` + `min(20, sshAwsFiles * 5)` + `min(20, unknownDomains * 8)` + `min(10, networkCount * 0.5)` + `min(5, configFiles * 0.5)` + `min(5, fileCount * 0.02)`, the total clamped to 100. The sensitive term is deliberately sub-linear: the `1 / (1 + sensitive * 0.1)` damping is what stops `sensitive * 10` from pinning the score at 100 on the first burst (ai-mistakes.md #10).
+- **Base risk formula:** Sum `min(40, sensitive * 5 / (1 + sensitive * 0.1))`, `min(20, sshAwsFiles * 5)`, `min(20, flaggedDomains * 8 + unknownDomains * 3)`, `min(10, networkCount * 0.5)`, `min(5, configFiles * 0.5)`, `min(5, fileCount * 0.02)`, and 15 when `httpUnencryptedCount > 0`. Round the sum and clamp it to 100. The renderer supplies time-decayed file counts and subtracts 20, with a floor of zero, for agents marked as false positives. Anomaly scores, including sequence signals, are exposed separately from this risk score.
 - **Anomaly scoring:** 4 weighted dimensions, `composite = Σ(dimension.score × weight)` with `{network: 0.3, filesystem: 0.25, process: 0.25, baseline: 0.2}`. Individual signals such as file volume and sensitive-access spikes are sub-factors inside a dimension, not top-level weighted factors.
 - **Baselines:** Rolling averages over 10 sessions, persisted to `baselines.json`
 
@@ -91,8 +91,8 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 - **Privacy:** Only triggered when user explicitly clicks the button. No background API calls.
 
 #### 6. Audit Trail — `audit-logger.js`
-- **What it logs:** 6 event types are actually emitted — file-access, config-access, network-connection, anomaly-alert, agent-enter, agent-exit. A 7th, `permission-deny`, is listed in the logger's JSDoc and accepted by the renderer timeline, but no call site emits it.
-- **Format:** Append-only JSONL. Each entry follows `AuditRecordV1` (the authoritative definition in `src/shared/types/events.ts`): `{schemaVersion, timestamp, type, agent, pid, instanceId, action, path, severity, riskScore, attribution, details, seq, hash}`. `seq` and `hash` are added at flush time by `audit-hashchain.js`, which makes each daily file an independent SHA-256 chain. `riskScore` is vestigial and always 0 in v1; `attribution: null` means the ownership question does not apply to that event type, which is distinct from `status: 'unattributed'` (question applies, owner unknown). Pre-v1 records are told apart by the ABSENCE of `schemaVersion` — and only for a record that parses and whose hash verifies (in v0, `pid`, `instanceId`, and `attribution` were nested inside `details`, not top-level). The chain proves no record was EDITED; it cannot prove none was lost, since a record that never reached disk leaves no gap.
+- **What it logs:** Activity records include `file-access`, `config-access`, `network-connection`, `anomaly-alert`, `agent-enter` and `agent-exit`. The main process also emits `sequence-detection` and `observation-gap`; the logger records `buffer-overflow-drop` for buffer loss. `permission-deny` remains a legacy accepted type without a current emission site.
+- **Format:** Append-only JSONL. Each entry follows `AuditRecordV1` (the authoritative definition in `src/shared/types/events.ts`): `{schemaVersion, timestamp, type, agent, pid, instanceId, action, path, severity, riskScore, attribution, details, seq, hash}`. `seq` and `hash` are added at flush time by `audit-hashchain.js`, which makes each daily file an independent SHA-256 chain. `riskScore` is vestigial and always 0 in v1; `attribution: null` means the ownership question does not apply to that event type, which is distinct from `status: 'unattributed'` (question applies, owner unknown). Pre-v1 records are told apart by the ABSENCE of `schemaVersion` — and only for a record that parses and whose hash verifies (in v0, `pid`, `instanceId`, and `attribution` were nested inside `details`, not top-level). Chain verification can detect edits relative to a trusted chain state. It cannot prove that no records were lost, or prevent an actor who controls local files from replacing and recomputing an entire chain.
 - **Rotation:** New file per day (`aegis-audit-YYYY-MM-DD.json`), auto-delete after 30 days
 - **Performance:** Buffered writes — flush every 5 seconds or at 50 events
 
@@ -105,9 +105,9 @@ AEGIS is an **Independent AI Oversight Layer** — achieving ~95% user-level obs
 | Blind Spot | Description | Planned Approach / Status |
 |---|---|---|
 | **UI Awareness** | Cannot see what AI agents display or interact with in UI | Accessibility API monitoring (no screen capture) |
-| **Container/VM Detection** | Detected — 7 container/VM agents added (Docker, WSL, Ollama, LM Studio, LocalAI, GPT4All, Jan) | Process pattern matching for containers + GPU monitoring |
+| **Container/VM Detection** | Runtime process signatures and limited WSL discovery exist; this does not enumerate every container or its internal processes | Broader WSL, Docker and Podman discovery; see [roadmap](ROADMAP.md#a--discovery-coverage) |
 | **Sandbox Containment** | Monitor-only — cannot isolate or restrict agents | Non-goal: OS containment (Job Objects, AppContainer) is deliberately out of scope; pair AEGIS with external sandboxing |
-| **GPU Monitoring** | Cannot detect local inference processes | GPU utilization APIs, process GPU memory tracking |
+| **GPU Monitoring** | Per-PID NVIDIA VRAM samples exist; allocated memory does not establish active inference | Define and validate the missing inference signal; see [roadmap](ROADMAP.md#a--discovery-coverage) |
 | **Deep Packet Inspection** | Sees TCP endpoints but not encrypted payloads | Non-goal: TLS interception is deliberately out of scope; endpoints-only is the contract |
 | **Syscall Monitoring** | No kernel-level visibility into system calls | Kernel drivers (Minifilter/Endpoint Security/eBPF) are a non-goal; user-mode ETW telemetry is under evaluation |
 | **Memory Inspection** | Cannot inspect agent process memory | Non-goal: process-memory reading is deliberately out of scope |
@@ -142,9 +142,9 @@ process-scanner.js ◄──── config-manager.js
         │
      App.svelte (root component)
         │
-        ├──► stores/ (ipc.js, risk.js, theme.js, toast.js, demo-data.js)
-        ├──► ShieldTab → Radar, AgentPanel, Timeline
-        ├──► ActivityTab → ActivityFeed, NetworkPanel
+        ├──► stores/ (ipc.ts, risk.ts, theme.ts, toast.ts, demo-data.js)
+        ├──► ShieldTab → Radar, AgentPanel, SummaryCards, ActivityFeed/GroupedFeed
+        ├──► ActivityTab → ActivityFeed/GroupedFeed, NetworkPanel
         ├──► RulesTab → Presets, Permissions, AgentDatabase
         ├──► ReportsTab → Reports, AuditLog, ThreatAnalysis
         └──► Settings, Header, Footer, Toast
@@ -153,45 +153,33 @@ process-scanner.js ◄──── config-manager.js
 ## Data Flow
 
 ```
-Process Scan (every Ns)
-    │
-    ├──► Agent list ──► Renderer (scan-results)
-    │                   ├──► Radar visualization (agent orbits)
-    │                   ├──► Agent cards (trust bars, sparklines)
-    │                   ├──► Risk scoring (time-decay weighted)
-    │                   └──► Agent enter/exit → Audit log
-    │
-    ├──► File Handle Scan (every 3Ns)
-    │    └──► File events ──► Renderer (file-access)
-    │         │               ├──► Activity feed
-    │         │               ├──► Session timeline
-    │         │               └──► Stats update
-    │         └──► Audit log (file-access / config-access)
-    │
-    ├──► Network Scan (every 30s + on agent change)
-    │    └──► Connections ──► Renderer (network-update)
-    │         │               ├──► Network panel
-    │         │               └──► Session timeline
-    │         └──► Audit log (network-connection)
-    │
-    ├──► Baseline Check
-    │    └──► Deviations ──► Renderer (baseline-warnings)
-    │         │               ├──► Toast notifications
-    │         │               ├──► Anomaly feed entries
-    │         │               └──► Session timeline
-    │         └──► Audit log (anomaly-alert)
-    │
-    └──► Anomaly Scores ──► Renderer (anomaly-scores)
-                            └──► Agent card badges
+Process scan (configured interval)
+    ├──► shared process observation → scanner → instance/session reconciliation
+    ├──► baselines, anomaly scores and sequence-rule taps
+    ├──► scan-batch → agents, stats, resourceUsage, anomalyScores stores
+    └──► agent-enter / agent-exit / anomaly-alert audit records
+
+File watcher events + handle scans (max(3 × scan interval, 30 s))
+    ├──► attribution → file-access push → activity feeds
+    └──► file-access / config-access audit records + sequence-rule taps
+
+Network scan (30 s interval and agent-set changes)
+    ├──► endpoint verdicts → network-update push → network panel
+    └──► network-connection audit records + sequence-rule taps
+
+Operational records
+    ├──► sensor health → stats/scan-batch → footer health status
+    ├──► suspend/resume → observation-gap audit record
+    └──► sequence completion → sequence-detection audit record and score
 ```
+
+There are no standalone `scan-results`, `baseline-warnings` or `anomaly-scores` preload channels. Scan results and anomaly scores share `scan-batch`.
 
 ## IPC Channel Reference
 
 ### Invoke (Renderer → Main → Response)
 
-All 40 registered in `src/main/ipc-handlers.js` and exposed through `src/main/preload.js`. A
-channel absent from `preload.js` is unreachable from the renderer under `contextIsolation`,
-so this table is the complete surface — nothing else can be invoked.
+The 44 invoke channels below are exposed through `src/main/preload.js`. Handlers are registered in `src/main/ipc-handlers.js`; update operations delegate to `src/main/app-updates.js`. The bridge exposes named operations rather than arbitrary IPC access.
 
 | Channel | Module | Purpose |
 |---|---|---|
@@ -235,6 +223,10 @@ so this table is the complete surface — nothing else can be invoked.
 | `open-external-url` | main | Open an http/https URL in the default browser |
 | `get-app-version` | main | Current app version string |
 | `test-notification` | main | Trigger a test OS notification |
+| `updates:status` | app-updates | Read updater state |
+| `updates:check` | app-updates | Check signed release metadata |
+| `updates:download` | app-updates | Download and verify the selected installer |
+| `updates:install` | app-updates | Request native confirmation and installation |
 
 `kill-process`, `suspend-process` and `resume-process` each refuse AEGIS's own PID and any
 PID not in the current scan result — see the C-01 guards in `ipc-handlers.js`.
@@ -246,7 +238,7 @@ there is no fire-and-forget path from the renderer.
 
 ### Push (Main → Renderer)
 
-All 9 subscribed via `ipcRenderer.on` in `preload.js`.
+The 10 push channels below are subscribed via `ipcRenderer.on` in `preload.js`.
 
 | Channel | Purpose |
 |---|---|
@@ -259,11 +251,12 @@ All 9 subscribed via `ipcRenderer.on` in `preload.js`.
 | `scan-status` | Scanner state (scanning/idle) |
 | `rules:reloaded` | Rule hot-reload landed, with the new count |
 | `toggle-theme` | Theme toggle from the tray menu |
+| `updates:status` | Safe display state for update status, progress and available actions |
 
 ## Extension Points
 
 ### Adding a New Agent Signature
-Edit `agent-database.json` — append an entry to the `agents` array. The process-name field is `names` (an array of match strings), **not** `processPatterns`, which appears nowhere in the codebase. Alongside it: `id`, `displayName`, `category`, `knownDomains`, `configPaths`, and trust/risk metadata. The process scanner, network monitor, and file watcher all consume this database automatically.
+Edit `agent-database.json` — append an entry to the `agents` array. The process-name field is `names` (an array of match strings), **not** `processPatterns`, which appears nowhere in the codebase. Alongside it: `name`, `displayName`, `category`, `knownDomains`, `configPaths`, and trust/risk metadata. Process signatures and endpoint metadata are consumed by the scanner and network classifier. Database `configPaths` does not add watch roots: register supported directories in `src/shared/constants.js` (`AGENT_CONFIG_PATHS`). Trust/risk metadata does not automatically change the scoring formula or permission defaults.
 
 ### Adding New Sensitive File Rules
 Rules live in `rules/*.yaml` (one file per category), validated against `rules/_schema.json` and loaded by `rule-loader.js` with hot-reload. Add an entry to the ruleset matching the category:
@@ -339,10 +332,10 @@ containing the updater must be installed manually.
 
 AEGIS is designed with privacy as a core architectural constraint:
 
-- **All data stays local.** Settings, baselines, and audit logs are stored in Electron's userData directory. Nothing leaves the machine unless the user explicitly exports it.
+- **Storage is local by default.** Settings, baselines and audit logs are stored in Electron's userData directory. Exports create local files; optional AI analysis and updates make the external requests described below.
 - **No telemetry.** No analytics, no crash reporting, no usage tracking.
 - **Updates are opt-in.** Manual update actions or the saved automatic-update preference contact GitHub for public release files. These requests expose the normal network address to GitHub but do not send monitoring records, settings or API keys.
 - **No cloud sync.** There is no account system, no server, no cloud backend.
-- **AI analysis is opt-in.** Calls to the Anthropic API happen only when the user explicitly clicks "Run AI Threat Analysis." The API key is user-provided and stored locally.
-- **Audit logs are metadata-only.** File paths and agent names are logged. File contents are never read, stored, or transmitted.
-- **Open-source transparency.** Every line of monitoring, scoring, and analysis logic is visible in the source code. There are no hidden behaviors.
+- **AI analysis is opt-in.** An explicit request sends activity metadata to Anthropic, including agent/process names, PIDs, parent chains, sensitive paths, counts and network endpoints as applicable. The user provides the API key. Local key storage uses safeStorage when available and currently falls back to plaintext otherwise.
+- **Audit logs contain monitoring metadata.** File-monitoring events record paths and attribution, not the contents of sensitive files. Token accounting separately reads agent transcript JSONL to extract usage. Settings JSON exports currently include a configured API key; remove it before sharing.
+- **Source review.** Monitoring, scoring and analysis implementations are available in the repository; see [SECURITY.md](SECURITY.md) for the security model and known limitations.
