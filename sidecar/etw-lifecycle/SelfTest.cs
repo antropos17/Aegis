@@ -180,6 +180,13 @@ internal static class SelfTest
         await Test("consent evidence requires independent native absence and process exits", ConsentTests.NativeEvidence);
         await Test("consent rejects injected live denial, early approval and unknown child identity", ConsentTests.LaunchOutcomes);
         await Test("cancelled consent probe cannot launch witness or broker", ConsentTests.Cancelled);
+        await Test("native power registration and disposal reject injected events", PowerTests.NativeRegistration);
+        await Test("power evidence requires ordered native suspend and automatic resume", PowerTests.PairEvidence);
+        await Test("power observations are bounded and reject a stale pre-arm suspend", PowerTests.BoundedObserver);
+        await Test("suspend acceptance requires both transition and actual cleanup evidence", PowerTests.CleanupEvidence);
+        await Test("cancelled suspend launches no observer or helper", PowerTests.Cancelled);
+        await Test("suspend witness enforces preflight, presence and absence phases", PowerTests.WitnessPhases);
+        await Test("cancelling an armed suspend check stops its real normal-token collector", PowerTests.CancelAfterReady);
         Console.WriteLine($"{passed} lifecycle self-tests passed; no ETW session or elevation.");
         return 0;
     }

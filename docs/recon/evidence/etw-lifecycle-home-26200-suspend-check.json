@@ -1,0 +1,432 @@
+{
+  "schema": 1,
+  "scope": "Standalone suspend mode with synthetic power pair and real normal-token processes; actual native observer registration only",
+  "sourceBaseCommit": "54f22ee3d358ad67120a3833681bf1351f7f52cf",
+  "sourceCanonicalLfSha256": {
+    "Broker.cs": "B810413E66A70977395A547E4CA975C4FFE849D9F5E0F102B71980FC10734B18",
+    "BrokerDeath.cs": "FAB1D4E8102C115898156BE6B3C3FBC0BA9D9425AF30DDD383EB09C0829E36AC",
+    "Capture-SuspendContext.ps1": "DB263D00D905057AF66FCFE68F8CD729B401A52A4D3308F365A298A1A4B421EC",
+    "ConsentBroker.cs": "3BB1FA8403721AB641CFB9DA18B05E2889807EFB05283255176BE2CB8A609462",
+    "ConsentScenarios.cs": "2C801F3B908279AD121A8796D6990396AAE4704FB4A7F741F43469B8FE0D7385",
+    "ConsentTests.cs": "EE9549B3A276F653628D63E3E843E563BE8BF18B76A6447629C941CCFEE999BB",
+    "EtwLifecycle.csproj": "22FE8D550AD99BD026CB9448AAF5F0B83F908EDC977B75FBFD2A15E36B1375F1",
+    "FinalEvidence.cs": "0127B1A626094FB22D2FC60057F17C1CB194D2B1F5E8577BA24BA40AC768F564",
+    "ObservedProcess.cs": "1326CF02909ED85449AB266F8E4C51D89C41A6784B3906E2CA9DF32177A59FCA",
+    "OwnedTrace.cs": "E2D2BCDCBF8F05D9BF6BE765D93017A8F1A89B2FC41C10605661F9FC7BD58CAD",
+    "Peer.cs": "6751FE30C9AFCE6CBF0B2DBCEA59F334EF4E294E187932A4079A3C499C129016",
+    "PowerObserver.cs": "13E22D51A74CEBCD9E5E2BDBD6E32E2B381527DF39CCF7B0DDADEC2C0CCF813A",
+    "PowerTests.cs": "46B143FBD52081C95175F8E4365DF5AD76516E330894C7DAFB8F9DD205D8674C",
+    "Program.cs": "401E2EE616C3D6EACC00363741BF318461A1F09D852EB7294EC5E2BEB393BDEB",
+    "Scenarios.cs": "045D04950B792E15957B8E8462CB455DFE2FA022F766482B19C09E94E1E75D53",
+    "Security.cs": "19FDE5ACE53914B1E8804B9716A2D041D794E09B273BD8ACC385405BA6FADC96",
+    "SelfTest.cs": "9CD415A209A22562CAC7057196580F6CA5211F19CF8141FAE597EA5589AD60F6",
+    "SuspendScenario.cs": "55133D99BC7B7E0F154D3E2E2E7BDBC95EBFF240F1807E0323BD3258676B9C24",
+    "Wire.cs": "6AB1B7D8DE5502E7D19E51CF2394DCDF872081FD8CF03D406517509663A6C5BE",
+    "Witness.cs": "85B505582CFF9FFBF3B36658BA51930DE452D5CA9AE9D3CEB7331A87E7CADB57",
+    "WitnessTests.cs": "4EC6A152EE01D7CD45D2BD5E3D0B35F3AF5E9D7998AF1480033F954A5C78E895"
+  },
+  "selfTests": {
+    "passed": 29,
+    "actualNativePowerRegistrationAndUnregistration": true,
+    "nativePowerTransitionObserved": false,
+    "nativeEtwCalls": false,
+    "cancellationAfterArmingStopsNormalCollector": true
+  },
+  "noHarnessProcessesAfterChecks": true,
+  "actualSuspendVerified": false,
+  "limitations": [
+    "Synthetic type 4/18 events cannot pass a live result. Registration success alone does not establish delivery on real sleep.",
+    "All ETW statistics in these process checks remain null; no session or provider was enabled.",
+    "Host capability snapshot exposes connected S0 Modern Standby; S3 and hibernation are unavailable. Capability is not evidence of an actual transition.",
+    "Configured .NET deadlines do not establish their behavior across a real sleep interval. Native callbacks do not stop ETW or block on I/O.",
+    "Production supervisor epochs, other power states/hosts, alternate credentials and collector-crash recovery remain open."
+  ],
+  "reports": [
+    {
+      "reportFile": "aegis-etw-suspend-check-20260908-v3/result.json",
+      "reportSha256": "F4D94CBB316CAED21924454D57FF4FF63569A1C6637EDA9A8048C88A75130554",
+      "report": {
+        "schema": 2,
+        "experiment": "etw-lifecycle",
+        "mode": "check-suspend",
+        "liveEmptySession": false,
+        "nativeQueryEnabled": false,
+        "fileProviderEnabled": false,
+        "started": "2026-09-08T23:53:58.8807641+00:00",
+        "ended": "2026-09-08T23:53:59.5626448+00:00",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "framework": "10.0.10",
+        "executableSha256": "7545BA3BD354C7EEDDF036B2AF0C3223949528AF362146CF05F3FE0EEBFC906E",
+        "assemblySha256": "4D318963B229DAC707FEB35F9FA1FAC190AFB2DC158270E75A44F6C0818221A9",
+        "outcomes": [
+          {
+            "Live": false,
+            "Passed": true,
+            "ReadyForSleep": true,
+            "StopRequested": true,
+            "PeerIdentityVerified": true,
+            "PeerExitCode": 0,
+            "BrokerExited": true,
+            "BrokerExitCode": 0,
+            "WitnessAuthenticated": true,
+            "RestrictedAcl": true,
+            "WitnessExitCode": 0,
+            "Preflight": null,
+            "Before": null,
+            "After": null,
+            "Cleanup": {
+              "Live": false,
+              "Scenario": "suspend",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "stop",
+              "PeerExitCode": 0,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Power": {
+              "Synthetic": true,
+              "Registered": false,
+              "Armed": true,
+              "Overflow": false,
+              "Error": null,
+              "UnregisterStatus": null,
+              "Frequency": 10000000,
+              "ArmStamp": {
+                "Type": 0,
+                "Utc": "2026-09-08T23:53:59.4936686+00:00",
+                "MonotonicTicks": 355732114821,
+                "Awake100ns": 355731907177
+              },
+              "Events": [
+                {
+                  "Type": 4,
+                  "Utc": "2026-09-08T23:53:59.4937441+00:00",
+                  "MonotonicTicks": 355732115541,
+                  "Awake100ns": 355731907177
+                },
+                {
+                  "Type": 18,
+                  "Utc": "2026-09-08T23:53:59.4969344+00:00",
+                  "MonotonicTicks": 355732147448,
+                  "Awake100ns": 355731942331
+                }
+              ]
+            },
+            "Error": null,
+            "FailureStage": null
+          }
+        ],
+        "exitCode": 0
+      }
+    },
+    {
+      "reportFile": "aegis-etw-suspend-regression-20260908-v2/result.json",
+      "reportSha256": "242F4CE3E673C6430443379FBCE7F449096346A662D554C41C4FE3CA875355BA",
+      "report": {
+        "schema": 2,
+        "experiment": "etw-lifecycle",
+        "mode": "check",
+        "liveEmptySession": false,
+        "nativeQueryEnabled": false,
+        "fileProviderEnabled": false,
+        "started": "2026-09-08T23:54:02.5804747+00:00",
+        "ended": "2026-09-08T23:54:11.7505672+00:00",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "framework": "10.0.10",
+        "executableSha256": "7545BA3BD354C7EEDDF036B2AF0C3223949528AF362146CF05F3FE0EEBFC906E",
+        "assemblySha256": "4D318963B229DAC707FEB35F9FA1FAC190AFB2DC158270E75A44F6C0818221A9",
+        "outcomes": [
+          {
+            "Scenario": "stop",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "stop",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "stop",
+              "PeerExitCode": 0,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "parent-eof",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "parent-eof",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "parent-eof",
+              "PeerExitCode": 0,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "broker-kill",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": null,
+            "Error": null
+          },
+          {
+            "Scenario": "peer-exit",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "peer-exit",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "peer-failed",
+              "PeerExitCode": 7,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "peer-kill",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "peer-kill",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "eof",
+              "PeerExitCode": -1,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": false,
+              "CleanupReceiptReceived": false
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "lease",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "lease",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "lease-expired",
+              "PeerExitCode": 9,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": true,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "blocked-write",
+            "Passed": true,
+            "PeerExited": true,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "blocked-write",
+              "Authenticated": true,
+              "RestrictedAcl": true,
+              "Outcome": "write-timeout",
+              "PeerExitCode": 10,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": false,
+              "CleanupReceiptReceived": true
+            },
+            "Error": null
+          },
+          {
+            "Scenario": "launch-denied",
+            "Passed": true,
+            "PeerExited": false,
+            "BrokerExited": true,
+            "Result": {
+              "Live": false,
+              "Scenario": "launch-denied",
+              "Authenticated": false,
+              "RestrictedAcl": true,
+              "Outcome": "uac-denied",
+              "PeerExitCode": null,
+              "InitialStats": null,
+              "FinalStats": null,
+              "StopAcknowledged": false,
+              "CleanupReceiptReceived": false
+            },
+            "Error": "uac-denied"
+          }
+        ],
+        "exitCode": 0
+      }
+    },
+    {
+      "reportFile": "aegis-etw-suspend-consent-regression-20260908-v2/result.json",
+      "reportSha256": "0372036A63648005C6FAD51289F72B5E29F5C83DDD163BBA16459B69A6A22D48",
+      "report": {
+        "schema": 2,
+        "experiment": "etw-lifecycle",
+        "mode": "check-consent",
+        "liveEmptySession": false,
+        "nativeQueryEnabled": false,
+        "fileProviderEnabled": false,
+        "started": "2026-09-08T23:54:13.4872543+00:00",
+        "ended": "2026-09-08T23:54:14.6576591+00:00",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "framework": "10.0.10",
+        "executableSha256": "7545BA3BD354C7EEDDF036B2AF0C3223949528AF362146CF05F3FE0EEBFC906E",
+        "assemblySha256": "4D318963B229DAC707FEB35F9FA1FAC190AFB2DC158270E75A44F6C0818221A9",
+        "outcomes": [
+          {
+            "Live": false,
+            "Scenario": "refusal",
+            "Passed": true,
+            "WitnessAuthenticated": true,
+            "RestrictedAcl": true,
+            "WitnessExitCode": 0,
+            "BrokerExited": true,
+            "BrokerExitCode": 0,
+            "Result": {
+              "Live": false,
+              "Scenario": "refusal",
+              "Outcome": "uac-denied",
+              "RestrictedAcl": true,
+              "ExpiredBeforeReturn": false,
+              "LaunchReturned": true,
+              "ChildLaunched": false,
+              "ChildIdentityVerified": false,
+              "ChildExitCode": null,
+              "NativeError": 1223,
+              "InjectedDenial": true,
+              "AuthorizationSent": false,
+              "LaunchElapsedMilliseconds": 0.4782,
+              "Error": null
+            },
+            "Before": null,
+            "After": null,
+            "Error": null
+          },
+          {
+            "Live": false,
+            "Scenario": "late",
+            "Passed": true,
+            "WitnessAuthenticated": true,
+            "RestrictedAcl": true,
+            "WitnessExitCode": 0,
+            "BrokerExited": true,
+            "BrokerExitCode": 0,
+            "Result": {
+              "Live": false,
+              "Scenario": "late",
+              "Outcome": "late-consent",
+              "RestrictedAcl": true,
+              "ExpiredBeforeReturn": true,
+              "LaunchReturned": true,
+              "ChildLaunched": true,
+              "ChildIdentityVerified": true,
+              "ChildExitCode": 2,
+              "NativeError": null,
+              "InjectedDenial": false,
+              "AuthorizationSent": false,
+              "LaunchElapsedMilliseconds": 162.8784,
+              "Error": null
+            },
+            "Before": null,
+            "After": null,
+            "Error": null
+          }
+        ],
+        "exitCode": 0
+      }
+    },
+    {
+      "reportFile": "aegis-etw-suspend-death-regression-20260908-v2/result.json",
+      "reportSha256": "F1339DB176B9AF4A36FA39E4C96B0E0B2D7B4EACF577968DA2619B18664A5E79",
+      "report": {
+        "schema": 2,
+        "experiment": "etw-lifecycle",
+        "mode": "check-broker-death",
+        "liveEmptySession": false,
+        "nativeQueryEnabled": false,
+        "fileProviderEnabled": false,
+        "started": "2026-09-08T23:54:16.3958182+00:00",
+        "ended": "2026-09-08T23:54:17.0528204+00:00",
+        "os": "Microsoft Windows NT 10.0.26200.0",
+        "framework": "10.0.10",
+        "executableSha256": "7545BA3BD354C7EEDDF036B2AF0C3223949528AF362146CF05F3FE0EEBFC906E",
+        "assemblySha256": "4D318963B229DAC707FEB35F9FA1FAC190AFB2DC158270E75A44F6C0818221A9",
+        "outcomes": [
+          {
+            "Live": false,
+            "Passed": true,
+            "BrokerKilled": true,
+            "BrokerExited": true,
+            "PeerIdentityVerified": true,
+            "PeerExitCode": 0,
+            "WitnessAuthenticated": true,
+            "RestrictedAcl": true,
+            "WitnessExitCode": 0,
+            "Before": null,
+            "After": null,
+            "Error": null,
+            "FailureStage": null
+          }
+        ],
+        "exitCode": 0
+      }
+    }
+  ],
+  "powerContext": {
+    "reportFile": "aegis-etw-suspend-check-20260908-v3/power-context.json",
+    "reportSha256": "73EC5E9174BBCBF8736F352B029DC52E5A9B3C7123B1A3D95B786A6CBC795A32",
+    "report": {
+      "schema": 1,
+      "mode": "check-suspend",
+      "reportSha256": "F4D94CBB316CAED21924454D57FF4FF63569A1C6637EDA9A8048C88A75130554",
+      "capturedUtc": "2026-09-08T23:54:00.7898545+00:00",
+      "intervalStartUtc": "2026-09-08T23:53:58.8807641+00:00",
+      "intervalEndUtc": "2026-09-08T23:53:59.5626448+00:00",
+      "availableStatesAtCapture": "В данной системе доступны следующие состояния спящего режима:\r\n    Ждущий режим (Простой S0 для пониженного энергопотребления) С подключением к сети\r\n\r\nСледующие состояния спящего режима недоступны в данной системе:\r\n    Ждущий режим (S1)\r\n\tСистемное встроенное ПО не поддерживает этот ждущий режим.\r\n\tЭтот ждущий режим отключен, когда поддерживается ждущий режим по питанию S0.\r\n\r\n    Ждущий режим (S2)\r\n\tСистемное встроенное ПО не поддерживает этот ждущий режим.\r\n\tЭтот ждущий режим отключен, когда поддерживается ждущий режим по питанию S0.\r\n\r\n    Ждущий режим (S3)\r\n\tЭтот ждущий режим отключен, когда поддерживается ждущий режим по питанию S0.\r\n\r\n    Гибернация\r\n\tРежим гибернации не включен.\r\n\r\n    Гибридный спящий режим\r\n\tЖдущий режим (S3) недоступен.\r\n\tРежим гибернации недоступен.\r\n\tНизкоуровневая оболочка не поддерживает этот ждущий режим.\r\n\r\n    Быстрый запуск\r\n\tРежим гибернации недоступен.\r\n\r\n",
+      "availableStatesTruncated": false,
+      "powercfgExitCode": 0,
+      "eventQueries": [
+        {
+          "provider": "Microsoft-Windows-Kernel-Power",
+          "status": "no-events",
+          "truncated": false
+        },
+        {
+          "provider": "Microsoft-Windows-Power-Troubleshooter",
+          "status": "no-events",
+          "truncated": false
+        }
+      ],
+      "events": [],
+      "note": "Scoped metadata only; capture-time capabilities do not prove which state the run entered. This file does not upgrade a failed harness report."
+    }
+  }
+}

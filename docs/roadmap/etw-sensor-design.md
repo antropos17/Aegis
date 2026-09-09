@@ -445,7 +445,7 @@ return, and never sends authorization. Normal-token refusal/late checks and thre
 additional self-tests pass; these do not count as human UAC refusal or late consent.
 Live commands require independent native absence before/after and explicit launch
 outcomes. The ordinary broker timeout is unchanged. Suspend still needs a separate
-power observer and suitable lifetimes before a meaningful live test can run.
+power observer and suitable lifetimes; that implementation is described below.
 
 Subsequent [actual consent evidence](../recon/evidence/etw-lifecycle-home-26200-consent-verified.json)
 passes refusal (Windows error 1223, no child launched) and delayed approval
@@ -453,3 +453,12 @@ passes refusal (Windows error 1223, no child launched) and delayed approval
 independently query absence 4201 before and after. Neither broker authorizes ETW;
 all helper processes exit. This verifies the dedicated negative broker on the
 same-account host; ordinary launch deadlines and the other E1/E2 gates are unchanged.
+
+The dedicated [suspend mode](etw-consent-suspend.md#suspendresume-implemented-harness-live-transition-pending)
+now registers bounded native callbacks, uses a preflight/presence/absence witness,
+requests owned stop on suspend and requires a real ordered power pair plus cleanup
+for live acceptance. Twenty-nine self-tests and twelve normal-token cases passed;
+the latter use synthetic power evidence, not real sleep. Native registration is
+verified, while actual power transitions and .NET timer behavior across them remain
+open. Only this role extends process lifetime settings; no auto-sleep or restart
+is implemented, and no production supervisor or Electron wiring is added.

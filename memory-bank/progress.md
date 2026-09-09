@@ -1931,3 +1931,62 @@ measurements, normal-stop, graceful failures, broker death or these consent case
 Branch: `codex/etw-consent-verified`; inspect final PR/CI/merge status. The separate
 user edits in `.codex/agents/ui-designer.toml` and `memory-bank/fancy-ui-plan.md`
 remain outside this evidence/docs block.
+
+## Session handoff — bounded suspend harness prepared; real sleep deferred (2026-09-08)
+
+Actual refusal and delayed approval merged as PR #394, `54f22ee`, with five green
+CI contexts. The user said go next. This block implements the dedicated suspend
+mode, native power callback observer, extended witness profile, check-only fixtures,
+regressions and scoped power-context capture. Branch: `codex/etw-suspend-harness`;
+inspect final PR/CI/merge status. No frontend or Electron integration was changed.
+
+PowerObserver registers PowrProf's callback with DEVICE_NOTIFY_CALLBACK. The native
+delegate remains rooted and callbacks only record bounded observations and signal
+asynchronous continuations. Max 16 events; UTC, monotonic ticks/frequency and
+unbiased interrupt time; overflow/error/pre-arm suspend invalidate evidence.
+Acceptance requires native registration and successful unregistration, ordered
+type 4 then 18, with optional subsequent 7. Synthetic injection is check-only.
+Failed unregister retains the small native allocation until process exit; removed
+contexts are safely ignored by the static callback.
+
+The witness-suspend role uses preflight absence, before presence, after absence,
+with the same protected pipe/mutual process identity and query-only authority.
+The existing witness keeps its old two-phase sequence. Only suspend extends
+broker/collector lifetimes to 600 seconds, witness to 720, coordinator to 480.
+Four-second lease and short write/query deadlines remain. Real timer behavior
+across sleep is unverified. After native suspend, the coordinator requests owned
+stop and waits for resume, full primary/cleanup receipts, known final counters,
+process exits and independent absence. Missing evidence remains failed. No restart,
+automatic sleep, power policy change, privileged service or elevated kill exists.
+
+Twenty-nine self-tests passed, including real native registration/unregistration,
+invalid pair evidence, storage cap, native injection rejection, wrong witness
+phases/replay and cancellation. A cancellation after arming test actually stops
+its normal collector and observes broker/collector/witness exit 0. Twelve normal
+process scenarios passed with matching final binaries: new synthetic suspend,
+eight old scenarios, two consent cases and broker death. No ETW calls or actual
+power transitions occurred in these checks. No harness processes remained.
+
+Final result folders under X:/tmp: `aegis-etw-suspend-check-20260908-v3`,
+`aegis-etw-suspend-regression-20260908-v2`,
+`aegis-etw-suspend-consent-regression-20260908-v2`,
+`aegis-etw-suspend-death-regression-20260908-v2`. The aggregate
+`docs/recon/evidence/etw-lifecycle-home-26200-suspend-check.json` holds 21 canonical
+LF source hashes, four full reports and power context. C# Release build and formatter
+passed. Capture-SuspendContext.ps1 was checked in Windows PowerShell 5.1 as well
+as pwsh: it preserves the precise report interval, records bounded powercfg /a and
+selected System event metadata, without full event messages, SIDs or device paths.
+A narrow .gitignore exception tracks this one reusable ps1; other ps1 remain ignored.
+
+The host advertises only connected S0 Modern Standby; S3 and hibernation unavailable.
+An asynchronous readiness question was answered **Сон проверим позже**. Actual
+sleep/wake was therefore not launched. Do not turn the host off, suspend it or
+launch the live test until the user indicates readiness. Commands and acceptance
+are in docs/roadmap/etw-consent-suspend.md. Both UAC prompts need Yes, then wait
+for READY, manual Windows Sleep and wake after about twenty seconds; collect
+power-context.json afterward even on failure. Actual suspend/cleanup, other power
+states, production epochs and collector-crash recovery remain open. Do not repeat
+the completed B1 sets or earlier successful live consent/cleanup tests without cause.
+
+User edits in .codex/agents/ui-designer.toml and memory-bank/fancy-ui-plan.md remain
+separate and must be preserved outside this backend commit.

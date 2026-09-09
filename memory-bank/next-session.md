@@ -1,6 +1,6 @@
 # AEGIS — старт следующего чата
 
-Обновлено 2026-09-08 после успешных реальных отказа UAC и позднего подтверждения.
+Обновлено 2026-09-08 после реализации отдельного suspend-стенда без реального сна.
 B2: PR #384, `f2f1ac4`; B3: PR #385, `cc47212`, оба merged с пятью зелёными CI.
 B4: PR #386, `01bf403`; первый UAC stop: PR #387, `1f7cd82`, оба merged с пятью
 зелёными CI. Elevated cleanup merged: PR #388, `75c943d`, пять зелёных CI.
@@ -9,7 +9,8 @@ B4: PR #386, `01bf403`; первый UAC stop: PR #387, `1f7cd82`, оба merged
 Broker-death merged: PR #391, `37eac4a`, пять зелёных CI.
 Consent probes merged: PR #392, `7646463`, пять зелёных CI.
 Первая неуспешная live-попытка сохранена: PR #393, `045f2b0`, пять зелёных CI.
-Текущий backend-блок — `codex/etw-consent-verified`; проверь финальный статус PR.
+Реальные refusal/late прошли: PR #394, `54f22ee`, пять зелёных CI.
+Текущий backend-блок — `codex/etw-suspend-harness`; проверь финальный статус PR.
 Эта инструкция и последний Session handoff в `memory-bank/progress.md` — точка
 продолжения. Сначала проверь текущую ветку и состояние файлов: пользователь может
 принести другие изменения после записи этого контекста.
@@ -184,12 +185,40 @@ Apphost/assembly совпали с normal-token проверками. Код и 
 Диагностика `X:/tmp/aegis-uac-no-dialog-diagnostic-20260908.md` — более ранняя
 промежуточная запись; не возобновлять из неё поиски отсутствующих окон автоматически.
 
-`docs/roadmap/etw-consent-suspend.md` содержит точные команды и отдельный проект
-suspend-проверки. `uac-suspend` пока нет: нужны power observer, явные фазы witness,
-подходящие lifetimes и доказательство реального перехода питания. Не отправляй
-компьютер в сон существующим 25-секундным сценарием и не засчитывай задержку таймера
-как sleep. Следующие задачи — реализация suspend mode и реальные переходы питания,
-и защищённое владение/восстановление при collector crash. E1/E2 ещё требуют
+**Suspend-режим реализован; пользователь явно отложил настоящий сон.**
+На вопрос о готовности ответил «Сон проверим позже». Не запускать live-проверку
+или отправку компьютера в сон без нового указания о готовности.
+`check-suspend` проверяет реальные normal-token процессы с явной синтетической
+парой событий питания; `uac-suspend` регистрирует native callback и требует
+реального suspend 4 → automatic resume 18. В обоих UAC нажать «Да», дождаться
+READY FOR MANUAL SLEEP, вручную выбрать Windows «Сон», через ~20 секунд разбудить.
+`Capture-SuspendContext.ps1 -ReportDirectory <run>` после окончания сохраняет
+powercfg /a и ограниченные метаданные событий System, включая неуспешные прогоны.
+В текущем хосте доступен connected S0 Modern Standby; S3/гибернация недоступны.
+
+`PowerObserver` хранит максимум 16 событий с UTC/QPC/unbiased clock, не делает
+ETW/I/O в callback, отвергает подстановку событий в native-режиме и проверяет
+снятие подписки. Witness-suspend использует preflight/before/after; старый witness
+оставил before/after. Suspend-роль: broker/peer 600 с, witness 720 с, coordinator
+480 с; lease 4 с и короткие I/O bounds сохранены. Реальное поведение .NET timers
+во сне пока не измерено. Запрос owned stop отправляется после suspend; приёмка
+требует power pair + primary/cleanup receipts + final counters + independent
+absence + exits. Нет restart, auto-sleep или elevated kill.
+
+29 self-test и 12 normal-token случаев прошли на одинаковых финальных binaries.
+Проверена настоящая регистрация/снятие native power callback без сна; переходы в
+процессном сценарии синтетические, ETW не вызывался, native stats null. Тест отмены
+после ready также дождался normal collector/broker/witness exit 0. Процессов нет.
+Итоги: `X:/tmp/aegis-etw-suspend-check-20260908-v3/result.json` и `power-context.json`;
+регрессии — `aegis-etw-suspend-regression-20260908-v2`,
+`aegis-etw-suspend-consent-regression-20260908-v2`,
+`aegis-etw-suspend-death-regression-20260908-v2` под `X:/tmp/`.
+Агрегат `docs/recon/evidence/etw-lifecycle-home-26200-suspend-check.json` содержит
+21 LF-хеш исходников (включая ps1), четыре полных отчёта и power context. Скрипт
+контекста проверен и в Windows PowerShell 5.1. Точные шаги и ограничения —
+`docs/roadmap/etw-consent-suspend.md`. Следующие задачи — ручной sleep, когда
+пользователь будет готов, и защищённое владение/восстановление при collector crash.
+E1/E2 ещё требуют
 других credentials/logon и remote clients.
 Автоудаления orphan нет; смерть elevated collector может оставить сессию.
 Не выдавай normal-token kill за проверку очистки ETW. CI не собирает этот C# проект.
