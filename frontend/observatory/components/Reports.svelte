@@ -6,6 +6,8 @@
   import AgentLogo from './AgentLogo.svelte';
   import { instances, type Telemetry } from '../runtime/host';
   import Metadata from './Metadata.svelte';
+  import { radarGroups, groupRecord, groupEvidence } from '../runtime/radar';
+  import ObservationTable from './ObservationTable.svelte';
   let {
     host,
     audit = false,
@@ -19,6 +21,8 @@
     audit?: boolean;
     inspect: (title: string, row: RecordData) => void;
   } = $props();
+  let groups = $derived(radarGroups(instances(telemetry)));
+  let grouping = $state<'resource' | 'agent' | 'none'>('resource');
   let stats = $state<RecordData>({});
   let rows = $state<RecordData[]>([]);
   let cursor = $state(new Date().toISOString());
@@ -101,6 +105,12 @@
             >{name}</option
           >{/each}</select
       ></label
+    ><label
+      >Grouping<select aria-label="Audit grouping" bind:value={grouping}
+        ><option value="resource">By resource</option><option value="agent"
+          >By agent / context</option
+        ><option value="none">Every observation</option></select
+      ></label
     ><Action action={() => load(true)}>Apply filter / refresh</Action><span class="spacer"
     ></span><Action action={async () => confirmed(await invoke(host, 'openAuditLogDir'))}
       ><Icon name="folder" />Audit folder</Action
@@ -109,36 +119,13 @@
     >
   </div>
   {#if error}<p role="alert" class="notice">{error}</p>{/if}
-  <section class="panel">
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Time</th><th>Type</th><th>Instance / agent</th><th>Entry</th></tr></thead
-        ><tbody
-          >{#each [...rows].sort( (a, b) => String(b.timestamp).localeCompare(String(a.timestamp)) ) as row (row)}<tr
-              ><td class="mono"
-                >{row.timestamp ? new Date(String(row.timestamp)).toLocaleTimeString() : '—'}</td
-              ><td><code>{String(row.type ?? 'Unknown')}</code></td><td
-                >{String(row.agent ?? '—')}<small class="mono">{String(row.instanceId ?? '')}</small
-                ></td
-              ><td
-                ><button class="data-link resource-link" onclick={() => inspect('Audit entry', row)}
-                  ><code
-                    >{String(
-                      row.file ?? row.path ?? row.detail ?? row.eventId ?? 'View entry',
-                    )}</code
-                  ><Icon name="chevron" /></button
-                ></td
-              ></tr
-            >{:else}<tr><td colspan="4">No entries loaded.</td></tr>{/each}</tbody
-        >
-      </table>
-    </div>
-    <div class="pagination">
-      <span>{rows.length} entries loaded</span><Action disabled={exhausted} action={() => load()}
-        >Load older entries</Action
-      >
-    </div>
-  </section>
+  <ObservationTable {rows} {telemetry} {inspect} {grouping} resetKey={type} />
+  <div class="pagination">
+    <span>{rows.length} audit entries loaded</span><Action
+      disabled={exhausted}
+      action={() => load()}>Load older entries</Action
+    >
+  </div>
   <details class="audit-diagnostics">
     <summary>Audit delivery details</summary><Metadata value={stats} />
   </details>
@@ -160,26 +147,25 @@
           <strong>{String(telemetry.stats.aiSensitive ?? '—')}</strong><span>sensitive</span>
         </div>
         <div>
-          <strong>{telemetry.ready ? instances(telemetry).length : '—'}</strong><span
-            >instances</span
-          >
+          <strong>{telemetry.ready ? groups.length : '—'}</strong><span>agents</span>
         </div>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Agent</th><th>Risk</th><th>Trust grade</th><th>Files</th></tr></thead
-          ><tbody
-            >{#each instances(telemetry) as a (a.instanceId ?? a)}<tr
+          <thead><tr><th>Agent</th><th>Processes</th><th>Highest risk</th><th>Files</th></tr></thead
+          >
+          <tbody
+            >{#each groups as group (group.key)}<tr class="report-agent-group"
                 ><td
                   ><button
                     class="table-agent"
-                    onclick={() => inspect(a.name, a as unknown as RecordData)}
-                    ><AgentLogo name={a.name} />{a.name}</button
+                    onclick={() => inspect(group.name, groupRecord(group))}
+                    ><AgentLogo name={group.name} />{group.name}</button
                   ></td
-                ><td>{a.riskScore}/100</td><td><span class="badge">{a.trustGrade}</span></td><td
-                  >{a.fileCount}</td
+                ><td>{group.members.length}</td><td>{group.risk}/100</td><td
+                  >{groupEvidence(group, telemetry).files}</td
                 ></tr
-              >{:else}<tr><td colspan="4">No observed instances.</td></tr>{/each}</tbody
+              >{:else}<tr><td colspan="4">No observed agents.</td></tr>{/each}</tbody
           >
         </table>
       </div>

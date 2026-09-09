@@ -140,11 +140,16 @@ describe('Observatory production components', () => {
         .mockResolvedValueOnce(page)
         .mockResolvedValueOnce([{ timestamp, eventId: 100, type: 'file-access' }]),
     };
-    render(Reports, { host, audit: true, inspect: noOp, telemetry: telemetry(), navigate: noOp });
-    await screen.findByText('99');
+    const inspect = vi.fn();
+    render(Reports, { host, audit: true, inspect, telemetry: telemetry(), navigate: noOp });
+    await screen.findByText('100 audit entries loaded');
     const older = screen.getByText('Load older entries');
     await fireEvent.click(older);
-    await screen.findByText('100');
+    await screen.findByText('101 audit entries loaded');
+    await fireEvent.click(
+      screen.getByRole('button', { name: 'Open 101 observations for file-access' }),
+    );
+    expect(new Set(inspect.mock.calls[0][1].observations.map((row) => row.eventId)).size).toBe(101);
     expect(host.getAuditEntriesBefore.mock.calls[1]).toEqual([timestamp, 100, undefined, 100]);
     await waitFor(() => expect(older).toBeDisabled());
   });

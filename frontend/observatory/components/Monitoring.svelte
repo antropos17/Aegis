@@ -6,6 +6,11 @@
   import Agents from './Agents.svelte';
   import Timeline from './Timeline.svelte';
   import Icon from './Icon.svelte';
+  import ObservationResource from './ObservationResource.svelte';
+  import {
+    describeObservation,
+    groupObservations,
+  } from '../../../src/shared/observation-display.js';
   let {
     telemetry,
     selected = $bindable(null),
@@ -65,7 +70,7 @@
     >
     <div class="summary-stat">
       <span>Connections</span><strong>{telemetry.ready ? telemetry.network.length : '—'}</strong>
-      <p>{telemetry.network.filter((n) => n.verdict === 'unknown').length} unknown</p>
+      <p>{telemetry.network.filter((n) => n.verdict === 'unknown').length} unverified endpoints</p>
     </div>
     <div class="summary-stat">
       <span>Tokens</span><strong
@@ -86,19 +91,25 @@
     <Timeline {telemetry} {inspect} />
     <section class="panel recent-panel">
       <div class="panel-head"><h2><Icon name="activity" />Recent events</h2></div>
-      {#each [...telemetry.events]
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, 3) as event (event)}<button
+      {#each groupObservations(telemetry.events as unknown as RecordData[]).slice(0, 3) as group (group.key)}
+        <button
           class="recent-event"
-          onclick={() => inspect('File observation', event as unknown as RecordData)}
-          ><Icon name="file" />
+          onclick={() =>
+            inspect(
+              'File observations',
+              group.rows.length > 1
+                ? { observationGroup: group.label, observations: group.rows }
+                : group.latest,
+            )}
+        >
           <div>
-            <strong>{event.file.split(/[/\\]/).pop()}</strong><small
-              >{event.agent ?? 'Unattributed'}</small
+            <ObservationResource row={group.latest} /><small
+              >{describeObservation(group.latest).label} · {group.rows.length} records</small
             >
           </div>
-          <time>{new Date(event.timestamp).toLocaleTimeString()}</time></button
-        >{:else}<p class="inset muted">No retained events.</p>{/each}
+          <time>{group.last ? new Date(group.last).toLocaleTimeString() : '—'}</time>
+        </button>
+      {:else}<p class="inset muted">No retained events.</p>{/each}
     </section>
   </div>
 </div>

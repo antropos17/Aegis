@@ -350,6 +350,45 @@ describe('exports', () => {
   });
 
   describe('generateReport', () => {
+    it('groups repeated skills and endpoints, preserves counts and excludes content fields', async () => {
+      const event = {
+        agent: '',
+        instanceId: null,
+        file: 'C:/Users/test/.codex/skills/review/SKILL.md',
+        timestamp: Date.now(),
+        action: 'modified',
+        sensitive: true,
+        reason: 'Skill metadata',
+        attribution: { status: 'unattributed' },
+        contents: 'PRIVATE_FILE_CONTENT',
+        apiKey: 'PRIVATE_API_KEY',
+      };
+      initExporter({
+        activityLog: [
+          event,
+          { ...event, timestamp: event.timestamp - 1000 },
+          { ...event, file: 'C:/Users/test/.codex/skills/review/helper.js' },
+        ],
+        netConns: [
+          { agent: 'Codex', remoteIp: '192.0.2.1', domain: '', remotePort: 443 },
+          { agent: 'Codex', remoteIp: '192.0.2.1', domain: '', remotePort: 443 },
+        ],
+      });
+      const result = await exporter.generateReport();
+      const html = fs.readFileSync(result.path, 'utf8');
+      expect((html.match(/class="resource-group"/g) || []).length).toBe(2);
+      expect(html).toContain('Codex resource (actor not recorded)');
+      expect(html).toContain('3 recorded observations');
+      expect(html).toContain('2 recorded observations');
+      expect(html).toContain('192.0.2.1:443');
+      expect(html).not.toContain('PRIVATE_FILE_CONTENT');
+      expect(html).not.toContain('PRIVATE_API_KEY');
+      expect(html).not.toContain('#00e5ff');
+      expect(html).not.toContain('v0.1.0');
+      expect(event.agent).toBe('');
+      expect(event.instanceId).toBeNull();
+    });
+
     it('reports failure when the native viewer cannot open the generated report', async () => {
       initExporter();
       mockOpenPath.mockResolvedValueOnce('No viewer available');
@@ -453,7 +492,9 @@ describe('exports', () => {
       // Sensitive-events table row.
       expect(html).toContain('Unknown source');
       // Per-agent bar chart must not render a blank label either.
-      const chartLabels = [...html.matchAll(/font-weight:600">([^<]*)<\/td>/g)].map((m) => m[1]);
+      const chartLabels = [...html.matchAll(/class="source-label">([^<]*)<\/td>/g)].map(
+        (m) => m[1],
+      );
       expect(chartLabels).toContain('Unknown source');
       expect(chartLabels).not.toContain('');
     });

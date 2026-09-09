@@ -3,8 +3,11 @@
   import { radarGroups, groupResource, displayMeasure } from '../runtime/radar';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
-  import { networkAddress } from '../runtime/radar-resources';
+  import { describeObservation, observationTime } from '../../../src/shared/observation-display.js';
+  import ObservationIdentity from './ObservationIdentity.svelte';
+  import ObservationResource from './ObservationResource.svelte';
   let { row, telemetry }: { row: RecordData; telemetry: Telemetry } = $props();
+  let info = $derived(describeObservation(row, instances(telemetry) as unknown as RecordData[]));
   let name = $derived(String(row.name ?? row.displayName ?? row.agent ?? 'Observation'));
   let group = $derived(radarGroups(instances(telemetry)).find((g) => g.key === row.agentGroupKey));
   let resources = $derived(
@@ -90,26 +93,24 @@
     <dt>Configuration paths</dt>
     <dd>{Array.isArray(row.configPaths) ? row.configPaths.join(', ') : 'None recorded'}</dd>
   </dl>
-{:else if row.file || row.remoteIp || row.domain}
+{:else if row.file || row.path || row.remoteIp || row.domain}
+  <div class="observation-detail-resource"><ObservationResource {row} /></div>
   <div class="toolbar">
-    <span class="badge">{row.file ? 'File observation' : 'Network connection'}</span
-    >{#if row.sensitive}<span class="badge medium">Sensitive</span>{/if}
+    <span class="badge">{info.kind}</span>{#if row.sensitive || row.severity === 'sensitive'}<span
+        class="badge medium">Sensitive</span
+      >{/if}
   </div>
   <dl class="details-grid">
     <dt>Time</dt>
-    <dd>{row.timestamp ? new Date(Number(row.timestamp)).toLocaleString() : 'Unavailable'}</dd>
-    <dt>Agent</dt>
-    <dd>{String(row.agent ?? 'Unattributed')}</dd>
-    <dt>{row.file ? 'Action' : 'State'}</dt>
-    <dd>{String(row.action ?? row.state ?? 'Unknown')}</dd>
-    <dt>Resource</dt>
     <dd>
-      <code>{row.file ? String(row.file) : networkAddress(row) || 'Unavailable'}</code>
+      {observationTime(row.timestamp)
+        ? new Date(observationTime(row.timestamp)).toLocaleString()
+        : 'Unavailable'}
     </dd>
-    {#if row.remotePort}<dt>Port</dt>
-      <dd>{String(row.remotePort)}</dd>{/if}
-    <dt>Attribution</dt>
-    <dd>{String(record(row.attribution).status ?? 'Unknown')}</dd>
+    <dt>Agent / context</dt>
+    <dd><ObservationIdentity {row} agents={instances(telemetry) as unknown as RecordData[]} /></dd>
+    <dt>{info.kind === 'Network' ? 'State' : 'Action'}</dt>
+    <dd>{String(row.action || row.state || 'Not recorded')}</dd>
     <dt>Evidence</dt>
     <dd>
       {Array.isArray(record(row.attribution).evidence)
@@ -117,10 +118,10 @@
         : String(row.reason ?? 'No evidence supplied')}
     </dd>
     <dt>Source</dt>
-    <dd>{String(row.source ?? 'Unknown')}</dd>
+    <dd>{info.source}</dd>
   </dl>
   <div class="notice">
-    <Icon name={row.file ? 'file' : 'network'} />{row.file
+    <Icon name={info.kind === 'Network' ? 'network' : 'file'} />{info.kind !== 'Network'
       ? 'File contents are not displayed. This event contains metadata only.'
       : 'Address classification and agent risk are separate assessments.'}
   </div>

@@ -1,5 +1,6 @@
 import type { Telemetry, RecordData } from './host';
 import type { RadarGroup } from './radar';
+import { describeObservation } from '../../../src/shared/observation-display.js';
 
 export interface RadarResource {
   key: string;
@@ -42,6 +43,7 @@ export function radarResources(
   const source = layer === 'files' ? state.events : state.network;
   for (const entry of source) {
     const row = entry as unknown as RecordData;
+    const info = describeObservation(row);
     const evidence = row.attribution as { status?: string } | undefined;
     if (row.selfAccess === true) continue;
     const owner = evidence?.status === 'unattributed' ? undefined : owners.get(entry.instanceId);
@@ -60,7 +62,9 @@ export function radarResources(
         : evidence?.status === 'confirmed'
           ? 'Confirmed'
           : 'Recorded owner'
-      : 'No current agent link';
+      : info.context || info.skill
+        ? 'Resource context · actor not recorded'
+        : 'No current agent link';
     // Ports and distinct IPs remain distinct even when reverse DNS returns the same name.
     const identity =
       layer === 'files' ? file.replaceAll('\\', '/') : `${ip || domain}:${port ?? ''}`;
@@ -76,8 +80,9 @@ export function radarResources(
       key,
       row,
       group: owner?.key ?? null,
-      name: owner?.name ?? 'Unlinked observation',
-      label: layer === 'files' ? file.split(/[/\\]/).filter(Boolean).pop() || file : address,
+      name: owner?.name ?? info.label,
+      label:
+        layer === 'files' ? (info.skill ? 'Skill · ' + info.skill.name : info.resource) : address,
       address,
       detail:
         layer === 'files'

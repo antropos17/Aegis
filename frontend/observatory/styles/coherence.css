@@ -1,0 +1,63 @@
+/* Shared Observatory surfaces and controls across workspaces. */
+.observatory-app {
+  --surface-radius: 12px;
+  --control-radius: 7px;
+}
+.observatory-app .panel {
+  border-radius: var(--surface-radius);
+  border-color: var(--border);
+  background: var(--panel);
+}
+.observatory-app .panel > .panel-head {
+  padding: 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.observatory-app .panel-head h2 {
+  font: 600 calc(14px * var(--ui-scale))/1.4 var(--sans);
+}
+.observatory-app .button,
+.observatory-app .icon-button,
+.observatory-app .segmented {
+  border-radius: var(--control-radius);
+}
+.observatory-app .button {
+  font-family: var(--sans);
+  border-color: var(--border);
+}
+.observatory-app .button:hover:not(:disabled) {
+  border-color: var(--strong-border);
+}
+.observatory-app .badge {
+  border-radius: 6px;
+  font: calc(10px * var(--ui-scale))/1.4 var(--sans);
+}
+.observatory-app th {
+  font: 600 calc(11px * var(--ui-scale))/1.4 var(--sans);
+}
+.observatory-app td {
+  font-size: calc(12px * var(--ui-scale));
+}
+.observatory-app .table-agent {
+  font: 600 calc(12px * var(--ui-scale))/1.4 var(--sans);
+}
+.observation-detail-resource {
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.observation-table .pagination {
+  margin: 0;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.observation-table .table-wrap {
+  border-radius: 0;
+}
+.report-grid {
+  align-items: start;
+}

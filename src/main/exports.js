@@ -17,6 +17,13 @@ const fs = require('fs');
 const path = require('path');
 const { dialog, shell, app } = require('electron');
 const { UNKNOWN_SOURCE_LABEL } = require('./attribution');
+const {
+  describeObservation,
+  groupObservations,
+  observationTime,
+  endpointLabel,
+} = require('../shared/observation-display');
+const { version } = require('../../package.json');
 
 let _state = null;
 
@@ -29,7 +36,15 @@ let _state = null;
  * @since v0.11.0
  */
 function displayAgent(ev) {
-  return ev.agent || UNKNOWN_SOURCE_LABEL;
+  const info = describeObservation(ev);
+  return (
+    info.actor ||
+    (info.context
+      ? info.context + ' resource (actor not recorded)'
+      : info.skill
+        ? 'Skill: ' + info.skill.name + ' (actor not recorded)'
+        : UNKNOWN_SOURCE_LABEL)
+  );
 }
 
 /**
@@ -163,7 +178,7 @@ async function exportCsv() {
   const netRows = netConns
     .map((c) => {
       const ts = new Date().toISOString();
-      return [ts, c.agent, 'network', `${c.remoteIp}:${c.remotePort}`, c.flagged ? 'yes' : 'no']
+      return [ts, displayAgent(c), 'network', endpointLabel(c), c.flagged ? 'yes' : 'no']
         .map(csvEscape)
         .join(',');
     })
@@ -184,42 +199,115 @@ async function exportCsv() {
  */
 async function generateReport() {
   const stats = _state.getStats();
-  const sensitiveEvents = _state.activityLog.filter((e) => e.sensitive);
+  const events = _state.activityLog;
   const netConns = _state.getLatestNetConnections();
-  const agentFileCounts = {};
-  for (const e of _state.activityLog) {
-    const name = displayAgent(e);
-    agentFileCounts[name] = (agentFileCounts[name] || 0) + 1;
-  }
-  const maxCount = Math.max(1, ...Object.values(agentFileCounts));
-  const barChartRows = Object.entries(agentFileCounts)
-    .map(([agent, count]) => {
-      const pct = Math.round((count / maxCount) * 100);
-      return `<tr><td style="padding:4px 10px;white-space:nowrap;color:#00e5ff;font-weight:600">${escHtml(agent)}</td><td style="padding:4px 10px;width:100%"><div style="background:#1a3a5c;border-radius:3px;height:20px;position:relative"><div style="background:#00e5ff;height:100%;border-radius:3px;width:${pct}%"></div></div></td><td style="padding:4px 10px;white-space:nowrap;color:#90a4ae">${count}</td></tr>`;
-    })
+  const sources = groupObservations(events, 'agent');
+  const fileGroups = groupObservations(events);
+  const netGroups = groupObservations(netConns);
+  const time = (value) =>
+    observationTime(value)
+      ? new Date(observationTime(value)).toISOString().replace('T', ' ').slice(0, 19)
+      : 'Snapshot';
+  const sourceRows = sources
+    .map(
+      (group) =>
+        '<tr><td class="source-label">' +
+        escHtml(displayAgent(group.latest)) +
+        '</td><td>' +
+        new Set(group.rows.map((row) => row.file)).size +
+        '</td><td>' +
+        group.rows.length +
+        '</td></tr>',
+    )
     .join('');
-  const sensitiveRows = sensitiveEvents
-    .map((e) => {
-      const ts = new Date(e.timestamp).toISOString().replace('T', ' ').slice(0, 19);
-      return `<tr><td style="padding:3px 8px;color:#546e7a">${escHtml(ts)}</td><td style="padding:3px 8px;color:#00e5ff">${escHtml(displayAgent(e))}</td><td style="padding:3px 8px;color:#ff1744">${escHtml(e.file)}</td><td style="padding:3px 8px;color:#ffc107">${escHtml(e.reason)}</td></tr>`;
-    })
+  const table = (groups, empty) =>
+    '<table><thead><tr><th>Resource</th><th>Agent / context</th><th>Records</th><th>Evidence</th></tr></thead><tbody>' +
+    (groups
+      .map((group) => {
+        const row = group.latest;
+        const info = describeObservation(row);
+        const evidence = row.remoteIp
+          ? row.verdict === 'allowlisted'
+            ? 'Allowlisted'
+            : row.verdict === 'flagged'
+              ? 'Not allowlisted'
+              : 'Endpoint unverified'
+          : row.sensitive
+            ? 'Sensitive'
+            : info.attribution;
+        const records = group.rows
+          .map(
+            (item) =>
+              '<tr><td>' +
+              escHtml(time(item.timestamp)) +
+              '</td><td>' +
+              escHtml(String(item.pid ?? 'Not recorded')) +
+              '</td><td>' +
+              escHtml(String(item.action || item.state || 'Observed')) +
+              '</td><td><code>' +
+              escHtml(String(item.file || item.remoteIp || '')) +
+              '</code><small>' +
+              escHtml(describeObservation(item).attribution) +
+              ' · ' +
+              escHtml(String(item.reason || describeObservation(item).source)) +
+              '</small></td></tr>',
+          )
+          .join('');
+        return (
+          '<tr class="resource-group"><td><strong>' +
+          escHtml(info.resource) +
+          '</strong><small>' +
+          escHtml(info.kind + (info.path && info.path !== info.resource ? ' · ' + info.path : '')) +
+          '</small></td><td>' +
+          escHtml(displayAgent(row)) +
+          '</td><td>' +
+          group.rows.length +
+          '</td><td><span class="badge">' +
+          escHtml(evidence) +
+          '</span></td></tr><tr class="group-details"><td colspan="4"><details><summary>' +
+          group.rows.length +
+          ' recorded observations · latest ' +
+          escHtml(time(group.last)) +
+          '</summary><table><thead><tr><th>Time</th><th>PID</th><th>Action / state</th><th>Recorded evidence</th></tr></thead><tbody>' +
+          records +
+          '</tbody></table></details></td></tr>'
+        );
+      })
+      .join('') || '<tr><td colspan="4">' + empty + '</td></tr>') +
+    '</tbody></table>';
+  const cards = [
+    [formatUptimeReport(stats.uptimeMs), 'Monitoring duration'],
+    [Array.isArray(stats.uniqueAgents) ? stats.uniqueAgents.length : 0, 'Agents observed'],
+    [fileGroups.length, 'File resource groups'],
+    [events.filter((row) => row.sensitive).length, 'Sensitive observations'],
+    [netGroups.length, 'Endpoint groups'],
+  ]
+    .map(
+      ([value, label]) =>
+        '<div class="summary-card"><span>' +
+        escHtml(String(label)) +
+        '</span><strong>' +
+        escHtml(String(value)) +
+        '</strong></div>',
+    )
     .join('');
-  const netRows = netConns
-    .map((c) => {
-      const flagStyle = c.flagged ? 'color:#ffc107;font-weight:600' : 'color:#90a4ae';
-      return `<tr><td style="padding:3px 8px;color:#00e5ff">${escHtml(c.agent)}</td><td style="padding:3px 8px;color:#90a4ae">${escHtml(c.remoteIp)}</td><td style="padding:3px 8px;color:#78909c">${c.remotePort}</td><td style="padding:3px 8px;${flagStyle}">${escHtml(c.domain || 'unknown')}</td><td style="padding:3px 8px;color:#546e7a">${escHtml(c.state)}</td></tr>`;
-    })
-    .join('');
-  const html = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><title>AEGIS Report - ${new Date().toISOString().slice(0, 10)}</title>
-<style>body{font-family:'Segoe UI',Consolas,monospace;background:#0a0e17;color:#c8d6e5;margin:0;padding:24px}h1{color:#00e5ff;font-size:20px;letter-spacing:3px;margin-bottom:4px}h2{color:#546e7a;font-size:13px;letter-spacing:2px;text-transform:uppercase;margin:24px 0 10px;border-bottom:1px solid #1a2744;padding-bottom:6px}.summary{display:flex;gap:20px;flex-wrap:wrap;margin:16px 0}.s-card{background:#0d1220;border:1px solid #1a2744;padding:12px 20px;border-radius:6px;text-align:center}.s-val{font-size:22px;font-weight:700;color:#00e5ff}.s-lbl{font-size:9px;letter-spacing:1.5px;color:#546e7a;margin-top:2px}table{width:100%;border-collapse:collapse;margin-bottom:12px}th{text-align:left;padding:6px 8px;color:#546e7a;font-size:10px;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #1a2744}td{font-family:Consolas,monospace;font-size:11px}tr:hover td{background:rgba(255,255,255,0.02)}.timestamp{color:#546e7a;font-size:10px;margin-top:32px}</style></head><body>
-<h1>AEGIS REPORT</h1><p style="color:#546e7a;font-size:11px">Generated: ${new Date().toISOString().replace('T', ' ').slice(0, 19)}</p>
-<h2>Summary</h2><div class="summary"><div class="s-card"><div class="s-val">${formatUptimeReport(stats.uptimeMs)}</div><div class="s-lbl">MONITORING DURATION</div></div><div class="s-card"><div class="s-val">${stats.uniqueAgents.length}</div><div class="s-lbl">AGENTS DETECTED</div></div><div class="s-card"><div class="s-val">${stats.totalFiles}</div><div class="s-lbl">FILES TRACKED</div></div><div class="s-card"><div class="s-val" style="color:#ff1744">${stats.totalSensitive}</div><div class="s-lbl">SENSITIVE ALERTS</div></div><div class="s-card"><div class="s-val">${netConns.length}</div><div class="s-lbl">NETWORK CONNECTIONS</div></div></div>
-<h2>Files per Agent</h2><table>${barChartRows || '<tr><td style="padding:8px;color:#37474f">No file activity recorded</td></tr>'}</table>
-<h2>Sensitive File Accesses (${sensitiveEvents.length})</h2><table><tr><th>Timestamp</th><th>Agent</th><th>File</th><th>Reason</th></tr>${sensitiveRows || '<tr><td colspan="4" style="padding:8px;color:#37474f">No sensitive file accesses detected</td></tr>'}</table>
-<h2>Network Connections (${netConns.length})</h2><table><tr><th>Agent</th><th>Remote IP</th><th>Port</th><th>Domain</th><th>State</th></tr>${netRows || '<tr><td colspan="5" style="padding:8px;color:#37474f">No network connections detected</td></tr>'}</table>
-<p class="timestamp">Report generated by AEGIS v0.1.0</p></body></html>`;
-  const reportPath = path.join(app.getPath('temp'), `aegis-report-${Date.now()}.html`);
+  const html =
+    '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'"><title>AEGIS REPORT</title><style>' +
+    ':root{color-scheme:light dark;--bg:#f0f0ee;--panel:#fafaf8;--ink:#272925;--muted:#555952;--border:#cdd0c9;--raised:#e7e7e3}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}main{max-width:1200px;margin:auto;padding:32px 24px}header{margin-bottom:24px}h1{margin:0;font-size:28px;font-weight:600}h2{margin:0;padding:16px;font-size:16px;border-bottom:1px solid var(--border)}p,small{color:var(--muted)}small{display:block;font-size:12px;overflow-wrap:anywhere}code{font:12px/1.5 Consolas,monospace;overflow-wrap:anywhere}.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px}.summary-card,.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px}.summary-card{padding:16px}.summary-card span{display:block;color:var(--muted);font-size:12px}.summary-card strong{display:block;font-size:25px;margin-top:8px}.panel{margin-top:20px;overflow:hidden}table{width:100%;border-collapse:collapse}td,th{padding:12px 16px;text-align:left;vertical-align:top;border-bottom:1px solid var(--border);overflow-wrap:anywhere}th{font-size:12px;font-weight:600;color:var(--muted)}.source-label{font-weight:600}.badge{display:inline-block;padding:3px 7px;border:1px solid var(--border);border-radius:6px;font-size:12px}.group-details td{padding-top:0}.group-details table{margin-top:12px}summary{cursor:pointer;color:var(--muted);font-size:12px;padding:8px 0}details[open]{padding-bottom:8px}footer{margin-top:24px;color:var(--muted);font-size:12px}@media(prefers-color-scheme:dark){:root{--bg:#171819;--panel:#202224;--ink:#ececea;--muted:#bcbdbb;--border:#36393c;--raised:#2b2d30}}@media print{:root{color-scheme:light;--bg:white;--panel:white;--ink:#272925;--muted:#555952;--border:#cdd0c9}main{padding:0}.panel{break-inside:avoid}details{display:none}}' +
+    '</style></head><body><main><header><small>AEGIS · Observatory</small><h1>Session report</h1><p>Generated ' +
+    escHtml(new Date().toISOString()) +
+    ' · repeated observations are grouped; expand a group for recorded evidence.</p></header><div class="summary">' +
+    cards +
+    '</div><section class="panel"><h2>Agents and resource contexts</h2><table><thead><tr><th>Agent / context</th><th>Distinct files</th><th>Observations</th></tr></thead><tbody>' +
+    (sourceRows || '<tr><td colspan="3">No file activity recorded</td></tr>') +
+    '</tbody></table></section><section class="panel"><h2>File activity</h2>' +
+    table(fileGroups, 'No file activity recorded') +
+    '</section><section class="panel"><h2>Network connections</h2>' +
+    table(netGroups, 'No network connections recorded') +
+    '</section><footer>AEGIS v' +
+    escHtml(version) +
+    ' · resource context identifies a directory or skill; actor attribution is recorded separately. File contents and API keys are not included.</footer></main></body></html>';
+  const reportPath = path.join(app.getPath('temp'), 'aegis-report-' + Date.now() + '.html');
   fs.writeFileSync(reportPath, html);
   const error = await shell.openPath(reportPath);
   return error ? { success: false, error, path: reportPath } : { success: true, path: reportPath };

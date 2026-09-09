@@ -27,6 +27,7 @@ assert.deepEqual(
     'styles/radar-clarity.css',
     'styles/feedback.css',
     'styles/desktop.css',
+    'styles/coherence.css',
   ],
   'approved cascade order',
 );

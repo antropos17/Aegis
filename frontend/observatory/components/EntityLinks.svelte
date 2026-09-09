@@ -2,6 +2,9 @@
   import { instances, record, type Telemetry, type RecordData } from '../runtime/host';
   import { radarGroups } from '../runtime/radar';
   import Icon from './Icon.svelte';
+  import ObservationHistory from './ObservationHistory.svelte';
+  import ObservationResource from './ObservationResource.svelte';
+  import { groupObservations } from '../../../src/shared/observation-display.js';
   let {
     row,
     telemetry,
@@ -54,13 +57,19 @@
 {/if}
 {#if row.process}
   <h3 class="section-title">Recent events</h3>
-  {#each related.slice(0, 4) as e (e)}<button
+  {#each groupObservations(related as unknown as RecordData[]).slice(0, 4) as group (group.key)}{@const e =
+      group.latest}<button
       class="recent-event"
-      onclick={() => navigate('File observation', e as unknown as RecordData)}
+      onclick={() =>
+        navigate(
+          'File observations',
+          group.rows.length > 1 ? { observations: group.rows, observationGroup: group.label } : e,
+        )}
       ><Icon name="file" />
       <div>
-        <strong>{e.file.split(/[/\\]/).pop()}</strong><small
-          >{new Date(e.timestamp).toLocaleTimeString()} · {e.action}</small
+        <ObservationResource row={e} /><small
+          >{new Date(Number(e.timestamp)).toLocaleTimeString()} · {String(e.action)} · {group.rows
+            .length} records</small
         >
       </div></button
     >{:else}<p class="entity-note">No retained file observations for this instance.</p>{/each}
@@ -84,18 +93,10 @@
       onclick={() => navigate(agent.name, agent as unknown as RecordData)}
       ><Icon name="cpu" />Open exact agent instance</button
     >{/if}{/if}
-{#if Array.isArray(row.observations)}<div class="interval-events">
-    {#each row.observations as value, i (i)}{@const e = record(value)}<button
-        class="recent-event interval-event"
-        onclick={() => navigate('File observation', e)}
-        ><time>{e.timestamp ? new Date(Number(e.timestamp)).toLocaleTimeString() : '—'}</time>
-        <div>
-          <strong>{String(e.file ?? e.domain ?? 'Observation')}</strong><small
-            >{String(e.agent ?? 'Unattributed')}</small
-          >
-        </div></button
-      >{:else}<p class="entity-note">No events recorded during this interval.</p>{/each}
-  </div>{/if}
+{#if Array.isArray(row.observations)}<ObservationHistory
+    rows={row.observations.map(record)}
+    {navigate}
+  />{/if}
 
 <style>
   .section-title {
