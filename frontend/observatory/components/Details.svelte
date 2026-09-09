@@ -143,7 +143,9 @@
             ? 'Agent instance'
             : current?.row.displayName
               ? 'Agent catalog'
-              : 'Recorded metadata'}</span
+              : current?.row.observationGroup
+                ? 'Grouped observations'
+                : 'Recorded metadata'}</span
       >
       <h2 id="modal-title" tabindex="-1">{current?.title ?? 'Details'}</h2>
     </div>

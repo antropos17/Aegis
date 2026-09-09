@@ -132,7 +132,10 @@ export async function checkResourceLayers(browser, url, out) {
     assert.match(await page.locator('.resource-scope').innerText(), /4 unique endpoints/);
     await page.locator('.resource-node').first().click();
     await page.getByRole('dialog').waitFor();
-    assert.match(await page.locator('.details-grid').innerText(), /192\.0\.2\.10:\d+/);
+    assert.match(
+      await page.locator('.observation-detail-resource').innerText(),
+      /192\.0\.2\.10:\d+/,
+    );
     await page.keyboard.press('Escape');
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
     await page.mouse.move(0, 0);
@@ -185,9 +188,66 @@ export async function checkResourceLayers(browser, url, out) {
     );
     await page.waitForFunction(() => document.querySelector('.radar-links').animationsPaused());
     assert.match(await page.locator('.resource-scope').innerText(), /Last reliable snapshot/);
+
+    // Product processes and skill observations have distinct, expandable grouping.
+    await page.setViewportSize({ width: 1200, height: 800 });
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty('--ui-scale', '1');
+      document.documentElement.dataset.theme = 'dark';
+      window.resourceFixture.onScanBatch({
+        agents: Array.from({ length: 12 }, (_, i) => ({
+          agent: 'Codex',
+          process: 'codex.exe',
+          pid: 200 + i,
+          instanceId: 'presentation:' + i,
+          instanceIdSource: 'os',
+        })),
+        stats: window.resourceStats,
+      });
+      window.resourceFixture.onFileAccess(
+        Array.from({ length: 12 }, (_, i) => ({
+          agent: '',
+          instanceId: null,
+          file: 'C:/Fixture/.codex/skills/review/SKILL.md',
+          timestamp: Date.now() - i * 1000,
+          action: 'modified',
+          attribution: { status: 'unattributed' },
+        })),
+      );
+    });
+    await page.locator('.sidebar').getByRole('button', { name: 'Reports', exact: true }).click();
+    await page.locator('.report-agent-group').waitFor();
+    assert.equal(await page.locator('.report-agent-group').count(), 1);
+    assert.match(await page.locator('.report-agent-group').innerText(), /Codex[\s\S]*12/);
+    await page.screenshot({ path: resolve(out, 'grouped-report.png') });
+    await page.locator('.sidebar').getByRole('button', { name: 'Events', exact: true }).click();
+    await page.getByLabel('Search events').fill('review');
+    await page.getByRole('button', { name: 'Open 12 observations for review' }).waitFor();
+    assert.equal(await page.locator('.observation-group').count(), 1);
+    assert.match(await page.locator('.observation-group').innerText(), /Codex/);
+    assert.match(await page.locator('.observation-group').innerText(), /actor not recorded/i);
+    const group = page.getByRole('button', { name: 'Open 12 observations for review' });
+    await group.focus();
+    await page.keyboard.press('Enter');
+    await page.getByRole('dialog').waitFor();
+    assert.equal(await page.locator('.observation-history .recent-event').count(), 12);
+    await page.keyboard.press('Escape');
+    await page.getByRole('dialog').waitFor({ state: 'hidden' });
+    await page.getByLabel('Grouping', { exact: true }).selectOption('none');
+    assert.equal(await page.locator('.observation-group').count(), 12);
+    await page.getByLabel('Grouping', { exact: true }).selectOption('resource');
+    for (const theme of ['dark', 'light', 'dark-hc', 'light-hc']) {
+      await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
+      await page.screenshot({ path: resolve(out, 'skill-context-' + theme + '.png') });
+      assert.equal(
+        await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
+        false,
+      );
+    }
+
     assert.deepEqual(errors, []);
     console.log(
-      'Resource layers: 48 theme/scale/viewport combinations, all pages, exact route anchors, empty DNS, deduplication, refreshed identities, details and stale motion passed.',
+      'Resource layers: 48 theme/scale/viewport combinations, all pages, exact route anchors, empty DNS, deduplication, refreshed identities, details, stale motion, product/skill grouping and keyboard disclosure passed.',
     );
   } finally {
     await page.close();

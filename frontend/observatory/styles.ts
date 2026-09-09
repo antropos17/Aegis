@@ -13,3 +13,4 @@ import './styles/dialogs.css';
 import './styles/radar-clarity.css';
 import './styles/feedback.css';
 import './styles/desktop.css';
+import './styles/coherence.css';

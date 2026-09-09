@@ -11,6 +11,8 @@
   } from '../runtime/radar';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
+  import ObservationResource from './ObservationResource.svelte';
+  import { describeObservation } from '../../../src/shared/observation-display.js';
   let {
     chosen,
     group,
@@ -102,11 +104,11 @@
             <button
               class="entity-link"
               onclick={() => inspect('File observation', latest as unknown as RecordData)}
-              >{latest.file.split(/[/\\]/).pop()}</button
+              ><ObservationResource row={latest as unknown as RecordData} /></button
             >
             <p>{latest.action ?? 'File change observed.'}</p>
             {#if record(latest.attribution).status !== 'confirmed'}<small
-                >Indirect attribution</small
+                >{describeObservation(latest as unknown as RecordData).attribution}</small
               >{/if}
           </div>{:else}<p class="entity-note">No retained file events for this agent.</p>{/if}
       </section>

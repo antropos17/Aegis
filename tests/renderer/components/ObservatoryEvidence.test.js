@@ -1,5 +1,5 @@
 import { it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import Events from '../../../frontend/observatory/components/Events.svelte';
 import SensorStatus from '../../../frontend/observatory/components/SensorStatus.svelte';
 import Notifications from '../../../frontend/observatory/components/Notifications.svelte';
@@ -20,13 +20,13 @@ it('shows network-only observations and filters legacy verdicts as unknown', asy
   ];
   const inspect = vi.fn();
   render(Events, { telemetry: { ...emptyTelemetry(), network }, network: true, inspect });
-  expect(screen.getByText('192.0.2.1')).toBeInTheDocument();
+  expect(screen.getByText('192.0.2.1:443')).toBeInTheDocument();
   await fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'unknown' } });
-  expect(screen.queryByText('192.0.2.1')).toBeNull();
-  await fireEvent.click(screen.getByText('192.0.2.3'));
+  expect(screen.queryByText('192.0.2.1:443')).toBeNull();
+  await fireEvent.click(screen.getByText('192.0.2.3:22'));
   expect(inspect.mock.calls[0][1]).toEqual(network[2]);
   await fireEvent.click(screen.getByRole('button', { name: 'Reset filters' }));
-  expect(screen.getByText('192.0.2.1')).toBeInTheDocument();
+  expect(screen.getByText('192.0.2.1:443')).toBeInTheDocument();
 });
 
 it('preserves attribution and skill identity without claiming skill execution', async () => {
@@ -40,7 +40,9 @@ it('preserves attribution and skill identity without claiming skill execution', 
   };
   const inspect = vi.fn();
   render(Events, { telemetry: { ...emptyTelemetry(), ready: true, events: [event] }, inspect });
-  expect(screen.getByText('Skill · review · path observation')).toBeInTheDocument();
+  expect(screen.getByText('Skill')).toBeInTheDocument();
+  expect(screen.getByText('review')).toBeInTheDocument();
+  expect(within(screen.getByRole('table')).getByText('Shared skills')).toBeInTheDocument();
   await fireEvent.change(screen.getByLabelText('Event kind'), {
     target: { value: 'unattributed' },
   });

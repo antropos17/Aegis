@@ -106,6 +106,13 @@ try {
   ]) {
     await window.locator('.sidebar').getByRole('button', { name, exact: true }).click();
     await window.getByRole('heading', { level: 1, name, exact: true }).waitFor();
+    if (name === 'Reports') {
+      const names = await window.locator('.report-agent-group .table-agent').allTextContents();
+      assert(names.length > 0, 'report lacks the observed agent groups');
+      assert.equal(names.length, new Set(names).size, 'report repeats a product');
+      await window.waitForFunction(() => !document.documentElement.dataset.transitionSurface);
+      await window.screenshot({ path: resolve(out, 'reports.png') });
+    }
     if (name === 'Agents') {
       const names = await window.locator('.agent-group-row:visible .table-agent').allTextContents();
       assert(names.length > 0, 'real agent groups are missing');
