@@ -44,6 +44,34 @@
   container-type: inline-size;
   background: var(--bg);
 }
+.radar-clarity .radar-stage:not([data-layer='radar']) {
+  min-height: calc(400px + 90px * var(--ui-scale));
+}
+.radar-clarity .radar-stage:not([data-layer='radar']) .radar-scale {
+  display: none;
+}
+.radar-resource-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-head);
+  font-size: calc(11px * var(--ui-scale));
+}
+.resource-scope {
+  display: grid;
+  gap: 4px;
+  margin-right: auto;
+}
+.resource-scope span {
+  color: var(--muted);
+}
+.resource-pages {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 .radar-clarity .radar-dial {
   width: min(280px, calc(100cqw - 48px));
   height: min(280px, calc(100cqw - 48px));

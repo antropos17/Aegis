@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { _electron as electron } from 'playwright';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { checkResourceGeometry } from './resource-layer-check.mjs';
 const root = process.cwd();
 const out = resolve(
   root,
@@ -67,6 +68,24 @@ try {
     1,
     'closing agent details clears the radar selection',
   );
+  for (const layer of ['Files', 'Network']) {
+    await window.locator('.radar-layers').getByRole('button', { name: layer, exact: true }).click();
+    const all = window.getByRole('button', { name: 'Show all agents', exact: true });
+    if (await all.isVisible()) await all.click();
+    await window.mouse.move(0, 0);
+    await checkResourceGeometry(window);
+    // Check every endpoint currently visible to the native sensors, including empty DNS.
+    const next = window.getByLabel('Next radar resources');
+    while ((await next.isVisible()) && (await next.isEnabled())) {
+      await next.click();
+      await window.mouse.move(0, 0);
+      await checkResourceGeometry(window);
+    }
+    await window
+      .locator('.radar-panel')
+      .screenshot({ path: resolve(out, `radar-${layer.toLowerCase()}.png`) });
+  }
+  await window.locator('.radar-layers').getByRole('button', { name: 'Radar', exact: true }).click();
   const stats = await window.evaluate(async () => {
     const stats = await window.aegis.getStats();
     return { agents: stats.currentAgents, health: stats.appHealth, gap: stats.observationGap };

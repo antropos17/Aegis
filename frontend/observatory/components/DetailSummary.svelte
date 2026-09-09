@@ -3,6 +3,7 @@
   import { radarGroups, groupResource, displayMeasure } from '../runtime/radar';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
+  import { networkAddress } from '../runtime/radar-resources';
   let { row, telemetry }: { row: RecordData; telemetry: Telemetry } = $props();
   let name = $derived(String(row.name ?? row.displayName ?? row.agent ?? 'Observation'));
   let group = $derived(radarGroups(instances(telemetry)).find((g) => g.key === row.agentGroupKey));
@@ -102,7 +103,9 @@
     <dt>{row.file ? 'Action' : 'State'}</dt>
     <dd>{String(row.action ?? row.state ?? 'Unknown')}</dd>
     <dt>Resource</dt>
-    <dd><code>{String(row.file ?? row.domain ?? row.remoteIp)}</code></dd>
+    <dd>
+      <code>{row.file ? String(row.file) : networkAddress(row) || 'Unavailable'}</code>
+    </dd>
     {#if row.remotePort}<dt>Port</dt>
       <dd>{String(row.remotePort)}</dd>{/if}
     <dt>Attribution</dt>

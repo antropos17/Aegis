@@ -7,6 +7,7 @@
   import RadarInspector from './RadarInspector.svelte';
   import RadarLinks from './RadarLinks.svelte';
   import { reveal } from '../runtime/motion';
+  import { radarResources } from '../runtime/radar-resources';
   let {
     telemetry,
     selected = $bindable(null),
@@ -20,6 +21,7 @@
   let groups = $derived(radarGroups(agents));
   let page = $state(0);
   let layer = $state('radar');
+  let resourcePage = $state(0);
   let pages = $derived(Math.max(1, Math.ceil(groups.length / 4)));
   let plotted = $derived(
     groups.slice(Math.min(page, pages - 1) * 4, Math.min(page, pages - 1) * 4 + 4),
@@ -28,22 +30,20 @@
   let chosenGroup = $derived(
     groups.find((g) => g.members.some((a) => !!selected && a.instanceId === selected)),
   );
-  let linked = $derived(
-    (layer === 'files' ? telemetry.events : telemetry.network)
-      .filter(
-        (e) =>
-          !chosenGroup ||
-          chosenGroup.members.some((a) => !!e.instanceId && a.instanceId === e.instanceId),
-      )
-      .slice(0, 2)
-      .map((e) => ({
-        row: e as unknown as RecordData,
-        group:
-          plotted.find((g) =>
-            g.members.some((a) => !!e.instanceId && a.instanceId === e.instanceId),
-          )?.key ?? null,
-      })),
-  );
+  let resources = $derived(radarResources(telemetry, layer, plotted, chosenGroup));
+  let resourcePages = $derived(Math.max(1, Math.ceil(resources.length / 2)));
+  let resourceIndex = $derived(Math.min(resourcePage, resourcePages - 1));
+  let linked = $derived(resources.slice(resourceIndex * 2, resourceIndex * 2 + 2));
+  $effect(() => {
+    layer;
+    selected;
+    page;
+    resourcePage = 0;
+  });
+  function changePage(offset: number) {
+    page = Math.max(0, Math.min(pages - 1, page + offset));
+    selected = null;
+  }
   function select(g: RadarGroup) {
     selected =
       g.members.find((a) => a.instanceId === selected)?.instanceId ??
@@ -81,6 +81,38 @@
           >{/each}
       </div>
     </div>
+    {#if layer !== 'radar'}
+      <div class="radar-resource-toolbar">
+        <div class="resource-scope">
+          <strong>{chosenGroup?.name ?? 'All agents on this page'}</strong>
+          <span
+            >{resources.length} unique {layer === 'files' ? 'files' : 'endpoints'} · {telemetry.stale
+              ? 'Last reliable snapshot'
+              : layer === 'files'
+                ? 'Observed this session'
+                : 'Current snapshot'}</span
+          >
+        </div>
+        {#if chosenGroup}<button class="text-button" onclick={() => (selected = null)}
+            >Show all agents</button
+          >{/if}
+        {#if resourcePages > 1}<div class="radar-pages resource-pages" aria-label="Resource pages">
+            <button
+              aria-label="Previous radar resources"
+              disabled={resourceIndex === 0}
+              onclick={() => (resourcePage = resourceIndex - 1)}><Icon name="arrowLeft" /></button
+            >
+            <span
+              >{resourceIndex * 2 + 1}–{Math.min(resources.length, resourceIndex * 2 + 2)} / {resources.length}</span
+            >
+            <button
+              aria-label="Next radar resources"
+              disabled={resourceIndex >= resourcePages - 1}
+              onclick={() => (resourcePage = resourceIndex + 1)}><Icon name="chevron" /></button
+            >
+          </div>{/if}
+      </div>
+    {/if}
     <div id="radar-body">
       <div class="radar-workspace">
         <div class="radar-stage" class:stale={telemetry.stale} data-layer={layer}>
@@ -117,10 +149,16 @@
                 >
               </button>{/each}
           </div>
-          {#if !groups.length}<p class="radar-message">
+          {#if !groups.length && layer === 'radar'}<p class="radar-message">
               {telemetry.ready ? 'No agents in this snapshot' : 'Waiting for a reliable scan'}
             </p>{/if}
-          {#if layer !== 'radar'}<RadarLinks rows={linked} {layer} {inspect} />{/if}
+          {#if layer !== 'radar'}<RadarLinks
+              rows={linked}
+              {layer}
+              {inspect}
+              ready={telemetry.ready}
+              scoped={!!chosenGroup}
+            />{/if}
           <div class="radar-scale">Select a marker or an agent in the list</div>
         </div>
         <aside class="radar-roster" aria-label="Observed agents">
@@ -150,12 +188,14 @@
         >
       </div>
       {#if pages > 1}<div class="radar-pages">
-          <button aria-label="Previous radar agents" disabled={page === 0} onclick={() => page--}
-            ><Icon name="arrowLeft" /></button
+          <button
+            aria-label="Previous radar agents"
+            disabled={page === 0}
+            onclick={() => changePage(-1)}><Icon name="arrowLeft" /></button
           ><span>{Math.min(page, pages - 1) + 1}/{pages}</span><button
             aria-label="Next radar agents"
             disabled={page >= pages - 1}
-            onclick={() => page++}><Icon name="chevron" /></button
+            onclick={() => changePage(1)}><Icon name="chevron" /></button
           >
         </div>{/if}
     </div>

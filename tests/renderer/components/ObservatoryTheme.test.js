@@ -7,10 +7,10 @@ it('leaves high contrast through the ordinary theme toggle and persists the ordi
   localStorage.setItem('aegis-theme', 'light-hc');
   render(App, { host: null });
   await waitFor(() => expect(document.documentElement.dataset.theme).toBe('light-hc'));
-  await fireEvent.click(screen.getByRole('button', { name: 'Toggle theme' }));
+  await fireEvent.click(screen.getByLabelText('Toggle theme', { selector: 'button' }));
   expect(document.documentElement.dataset.theme).toBe('dark');
   expect(localStorage.getItem('aegis-theme')).toBe('dark');
-  await fireEvent.click(screen.getByRole('button', { name: 'Toggle theme' }));
+  await fireEvent.click(screen.getByLabelText('Toggle theme', { selector: 'button' }));
   expect(document.documentElement.dataset.theme).toBe('light');
 });
 
@@ -22,7 +22,7 @@ it('does not let delayed settings overwrite a theme chosen while the app starts'
   });
   const host = { getSettings: () => pending };
   render(App, { host });
-  await fireEvent.click(screen.getByRole('button', { name: 'Toggle theme' }));
+  await fireEvent.click(screen.getByLabelText('Toggle theme', { selector: 'button' }));
   expect(document.documentElement.dataset.theme).toBe('light');
   resolveSettings({ darkMode: true, uiScale: 1 });
   await pending;
