@@ -5,6 +5,7 @@ import { resolve, sep, extname } from 'node:path';
 import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
 import { checkMotion } from './motion-check.mjs';
+import { checkResourceLayers } from './resource-layer-check.mjs';
 
 const repo = process.cwd();
 const designRoot = resolve(repo, 'frontend/observatory');
@@ -365,6 +366,7 @@ try {
   assert.equal(await page.evaluate(() => window.bridgeCalls), 0);
   await checkMotion(page);
   await page.close();
+  await checkResourceLayers(browser, base + '/desktop/', out);
   const desktop = await browser.newPage();
   desktop.on('pageerror', (e) => errors.push(e.message));
   await desktop.goto(base + '/desktop/');
