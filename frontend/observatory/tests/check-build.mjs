@@ -4,6 +4,7 @@ import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, sep, extname } from 'node:path';
 import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
+import { checkMotion } from './motion-check.mjs';
 
 const repo = process.cwd();
 const designRoot = resolve(repo, 'frontend/observatory');
@@ -20,7 +21,12 @@ const imports = [
 ].map((match) => match[1]);
 assert.deepEqual(
   imports,
-  [...reference.stylesheetOrder, 'styles/radar-clarity.css', 'styles/desktop.css'],
+  [
+    ...reference.stylesheetOrder,
+    'styles/radar-clarity.css',
+    'styles/feedback.css',
+    'styles/desktop.css',
+  ],
   'approved cascade order',
 );
 
@@ -357,6 +363,7 @@ try {
     'closing details cleared radar selection',
   );
   assert.equal(await page.evaluate(() => window.bridgeCalls), 0);
+  await checkMotion(page);
   await page.close();
   const desktop = await browser.newPage();
   desktop.on('pageerror', (e) => errors.push(e.message));

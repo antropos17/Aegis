@@ -62,6 +62,7 @@
   });
   let selected = $state<string | null>(null);
   let view = $state('overview');
+  let requestedView = 'overview';
   let tabs = $state(['overview']);
   let history = $state(['overview']);
   let historyIndex = $state(0);
@@ -103,34 +104,43 @@
     localStorage.setItem('aegis-theme', theme);
     document.documentElement.style.setProperty('--ui-scale', String(scale));
   });
-  async function navigate(next: string, remember = true) {
+  async function navigate(next: string, remember = true, direction = 1) {
     if (!views.some((row) => row[0] === next)) return;
+    if (next === requestedView) {
+      commands = false;
+      return;
+    }
+    requestedView = next;
     if (workspace) scrolls[view] = workspace.scrollTop;
     if (!tabs.includes(next)) tabs = [...tabs, next];
-    if (remember && next !== view) {
+    if (remember) {
       history = [...history.slice(0, historyIndex + 1), next];
       historyIndex = history.length - 1;
     }
     const ticket = ++navigationRevision;
-    await transitionSurface('workspace', async () => {
-      if (ticket !== navigationRevision) return;
-      view = next;
-      commands = false;
-      await tick();
-      if (ticket === navigationRevision) {
-        workspace.scrollTop = scrolls[next] ?? 0;
-        workspace.classList.add('has-navigated');
-        document
-          .querySelector('.workspace-tabs > .active')
-          ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-      }
-    });
+    await transitionSurface(
+      'workspace',
+      async () => {
+        if (ticket !== navigationRevision) return;
+        view = next;
+        commands = false;
+        await tick();
+        if (ticket === navigationRevision) {
+          workspace.scrollTop = scrolls[next] ?? 0;
+          workspace.classList.add('has-navigated');
+          document
+            .querySelector('.workspace-tabs > .active')
+            ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }
+      },
+      direction,
+    );
   }
   function back(delta: number) {
     const next = historyIndex + delta;
     if (next >= 0 && next < history.length) {
       historyIndex = next;
-      void navigate(history[next], false);
+      void navigate(history[next], false, delta);
     }
   }
   onMount(() => {
@@ -223,7 +233,7 @@
 
 <svelte:window onkeydown={keydown} />
 <a href="#main" class="skip">Skip to content</a>
-<div class="app observatory-app" class:paused>
+<div class="app observatory-app" class:paused class:stale={telemetry.stale}>
   <aside class="sidebar">
     <a class="brand" href="#main"
       ><img class="brand-symbol" src="assets/aegis.svg" alt="" width="28" height="28" />AEGIS<span

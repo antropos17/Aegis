@@ -6,6 +6,7 @@
   import RadarSummary from './RadarSummary.svelte';
   import RadarInspector from './RadarInspector.svelte';
   import RadarLinks from './RadarLinks.svelte';
+  import { reveal } from '../runtime/motion';
   let {
     telemetry,
     selected = $bindable(null),
@@ -69,7 +70,11 @@
         <h2><Icon name="radar" />Agent radar</h2>
         <p>One marker per agent · risk rises toward the edge</p>
       </div>
-      <div class="segmented" aria-label="Radar layer">
+      <div
+        class="segmented radar-layers"
+        aria-label="Radar layer"
+        style={`--layer-index:${['radar', 'files', 'network'].indexOf(layer)}`}
+      >
         {#each [['radar', 'Radar', 'radar'], ['files', 'Files', 'folder'], ['network', 'Network', 'network']] as [id, title, icon] (id)}<button
             aria-pressed={layer === id}
             onclick={() => (layer = id)}><Icon name={icon} />{title}</button
@@ -95,7 +100,7 @@
             {#each plotted as group, i (group.key)}{@const point = position(group, i)}<button
                 class={`radar-blip ${riskBand(group.risk)}`}
                 data-group={group.key}
-                style={`left:${point.x}%;top:${point.y}%;--echo-delay:${point.angle / 40 - 9}s`}
+                style={`left:${point.x}%;top:${point.y}%;--echo-delay:${point.angle / 60 - 6}s`}
                 aria-label={`Select ${group.name}, ${group.members.length} processes, risk ${group.risk}`}
                 title={`${group.name} · ${group.members.length} processes · risk ${group.risk}/100`}
                 aria-pressed={group === chosenGroup}
@@ -123,7 +128,7 @@
             <h3>Agents</h3>
             <span>{groups.length}</span>
           </div>
-          <div class="roster-items">
+          <div class="roster-items" use:reveal={String(Math.min(page, pages - 1))}>
             {#each plotted as group, i (group.key)}<RadarSummary
                 {group}
                 ordinal={Math.min(page, pages - 1) * 4 + i + 1}

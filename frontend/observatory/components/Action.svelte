@@ -25,7 +25,7 @@
 </script>
 
 <div class="action-control">
-  <button class="button" disabled={disabled || pending} onclick={run}
+  <button class="button" disabled={disabled || pending} aria-busy={pending} onclick={run}
     >{#if pending}Working…{:else}{@render children()}{/if}</button
   >
   {#if error}<span role="alert" class="error">{error}</span>{:else if done}<span

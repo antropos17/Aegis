@@ -1,0 +1,309 @@
+/* Feedback follows user actions; the sweep expresses live observation, not a new event. */
+:root {
+  --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-press: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --surface-shadow: 0 3px 12px #0002;
+  --control-shadow: 0 5px 12px #0003;
+}
+:root[data-theme^='light'] {
+  --surface-shadow: 0 3px 12px #26352c0b;
+  --control-shadow: 0 5px 12px #26352c1c;
+}
+.radar-clarity > .panel,
+.monitoring-summary > .summary-stat {
+  box-shadow: var(--surface-shadow);
+}
+.radar-layers {
+  display: inline-grid;
+  grid-template-columns: repeat(3, 1fr);
+  position: relative;
+  isolation: isolate;
+  gap: 0;
+  padding: 3px;
+}
+.radar-layers::before {
+  content: '';
+  position: absolute;
+  inset: 3px auto 3px 3px;
+  width: calc((100% - 6px) / 3);
+  border: 1px solid var(--selection-border);
+  border-radius: 6px;
+  background: var(--selection);
+  box-shadow: 0 2px 5px #0002;
+  transform: translateX(calc(var(--layer-index) * 100%));
+  pointer-events: none;
+  z-index: -1;
+}
+.radar-layers button,
+.radar-layers button[aria-pressed='true'] {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  justify-content: center;
+}
+.radar-layers button:not([aria-pressed='true']) {
+  color: var(--muted);
+}
+.radar-clarity .radar-blip::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border: 1px solid var(--marker-color, var(--green));
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+.radar-clarity .radar-blip.low {
+  --marker-color: var(--green);
+}
+.radar-clarity .radar-blip.medium {
+  --marker-color: var(--amber);
+}
+.radar-clarity .radar-blip.high {
+  --marker-color: var(--red);
+}
+.action-control .button[aria-busy='true']::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  border: 2px solid var(--border);
+  border-top-color: currentColor;
+  border-radius: 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .observatory-app
+    :is(
+      .button,
+      .icon-button,
+      .history-arrow,
+      .tab-close,
+      .nav,
+      .resource-node,
+      .summary-stat.attention
+    ) {
+    transition:
+      translate 180ms var(--ease-settle),
+      scale 150ms var(--ease-press),
+      background-color 180ms ease,
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      color 140ms ease;
+  }
+  .observatory-app :is(.button, .icon-button, .summary-stat.attention):hover:not(:disabled) {
+    translate: 0 -1px;
+    box-shadow: var(--control-shadow);
+  }
+  .observatory-app
+    :is(.button, .icon-button, .history-arrow, .tab-close, .nav, .resource-node):active:not(
+      :disabled
+    ) {
+    scale: 0.96;
+    translate: 0 1px;
+    transition-duration: 75ms;
+  }
+  .sidebar .nav > .icon {
+    transition: translate 220ms var(--ease-settle);
+  }
+  .sidebar .nav:hover > .icon {
+    translate: 2px 0;
+  }
+  .radar-roster .radar-agent-card {
+    transition:
+      translate 240ms var(--ease-settle),
+      scale 130ms var(--ease-press),
+      box-shadow 240ms ease,
+      border-color 220ms ease,
+      background-color 220ms ease;
+  }
+  .radar-roster .radar-agent-card:hover {
+    translate: 0 -2px;
+    box-shadow: var(--control-shadow);
+  }
+  .radar-roster .radar-agent-card:active {
+    scale: 0.98;
+    translate: 0 0;
+    transition-duration: 80ms;
+  }
+  .radar-roster .radar-agent-card > .icon {
+    transition: translate 240ms var(--ease-settle);
+  }
+  .radar-roster .radar-agent-card:is(:hover, [aria-pressed='true']) > .icon {
+    translate: 2px 0;
+  }
+  .radar-clarity .radar-blip {
+    transform-origin: 0 0;
+    transition:
+      scale 260ms var(--ease-settle),
+      box-shadow 260ms ease,
+      background-color 180ms ease,
+      border-color 180ms ease;
+  }
+  .radar-clarity .radar-blip:hover {
+    scale: 1.14;
+    box-shadow:
+      0 0 0 5px color-mix(in srgb, var(--marker-color) 16%, transparent),
+      var(--control-shadow);
+  }
+  .radar-clarity .radar-blip[aria-pressed='true'] {
+    scale: 1.08;
+  }
+  .radar-clarity .radar-blip:active {
+    scale: 0.94;
+    transition-duration: 80ms;
+  }
+  .radar-clarity .radar-blip::after {
+    animation: observation-echo 6s linear infinite;
+    animation-delay: var(--echo-delay, 0s);
+  }
+  .radar-clarity .dial-sweep {
+    animation-duration: 6s;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0deg 270deg,
+      rgba(var(--sweep-rgb), 0.035) 300deg,
+      rgba(var(--sweep-rgb), 0.2) 346deg,
+      rgba(var(--sweep-rgb), 0.5) 359deg,
+      transparent 360deg
+    );
+  }
+  .radar-layers::before {
+    transition: transform 320ms var(--ease-settle);
+  }
+  .radar-layers button {
+    transition:
+      color 160ms ease,
+      scale 100ms var(--ease-press);
+  }
+  .radar-layers button:active {
+    scale: 0.94;
+  }
+  .radar-stage .resource-node {
+    animation: feedback-enter 300ms var(--ease-settle);
+  }
+  dialog[open] {
+    animation: dialog-arrive 320ms var(--ease-settle);
+  }
+  dialog[open]::backdrop {
+    animation: backdrop-arrive 240ms ease-out;
+  }
+  .action-control .button[aria-busy='true']::before {
+    animation: feedback-spin 800ms linear infinite;
+  }
+  .action-control > [role='status'],
+  .action-control > [role='alert'] {
+    animation: feedback-enter 280ms var(--ease-settle);
+  }
+  .live-badge > .icon {
+    animation: observation-breathe 2.8s ease-in-out infinite;
+  }
+  ::view-transition-group(workspace),
+  ::view-transition-group(detail),
+  ::view-transition-group(analysis) {
+    animation-duration: 320ms;
+    animation-timing-function: var(--ease-settle);
+  }
+  ::view-transition-new(workspace),
+  ::view-transition-new(detail),
+  ::view-transition-new(analysis) {
+    animation-duration: 320ms;
+    animation-timing-function: var(--ease-settle);
+  }
+  @supports (interpolate-size: allow-keywords) {
+    .process-options::details-content {
+      interpolate-size: allow-keywords;
+      block-size: 0;
+      opacity: 0;
+      overflow: clip;
+      transition:
+        block-size 280ms var(--ease-settle),
+        opacity 200ms ease,
+        content-visibility 280ms allow-discrete;
+    }
+    .process-options[open]::details-content {
+      block-size: auto;
+      opacity: 1;
+    }
+  }
+}
+.observatory-app:is(.paused, .stale) .live-badge > .icon,
+.observatory-app.paused .radar-blip::after,
+.radar-stage.stale .radar-blip::after {
+  animation-play-state: paused !important;
+}
+:root:is([data-motion='reduce'], .no-motion)
+  :is(
+    .radar-blip,
+    .radar-agent-card,
+    .button,
+    .icon-button,
+    .nav,
+    .nav > .icon,
+    .radar-agent-card > .icon,
+    .resource-node,
+    .history-arrow,
+    .tab-close
+  ) {
+  scale: none;
+  translate: none;
+}
+:root:is([data-motion='reduce'], .no-motion)::view-transition-group(*),
+:root:is([data-motion='reduce'], .no-motion)::view-transition-old(*),
+:root:is([data-motion='reduce'], .no-motion)::view-transition-new(*) {
+  animation: none !important;
+}
+@keyframes observation-echo {
+  0% {
+    opacity: 0.65;
+    transform: scale(1);
+  }
+  12%,
+  100% {
+    opacity: 0;
+    transform: scale(1.75);
+  }
+}
+@keyframes observation-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes feedback-enter {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+@keyframes dialog-arrive {
+  from {
+    opacity: 0;
+    translate: 0 18px;
+    scale: 0.97;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    scale: 1;
+  }
+}
+@keyframes backdrop-arrive {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes feedback-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
