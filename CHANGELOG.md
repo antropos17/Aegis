@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+- Add radar and control motion feedback, animated layer selection, agent-detail reveals and dialog transitions. Keep radar markers centered while scaling, respect reduced motion and pause, preview the Animations setting immediately, and handle interrupted navigation without losing the last request or emitting an unhandled transition rejection.
 - Simplify Monitoring with numbered radar markers, one agent roster and a separate details panel. Collapse individual processes, separate summary cards and remove repeated charts from this view. Keep the selected agent when closing a detail dialog with Escape.
 - Show one row per agent in tables, resource charts and token summaries, with individual processes inside the agent overview. Aggregate complete measurements without replacing unknown values with zero.
 - Preserve the template's neutral surfaces in high contrast, strengthen text and controls, and make the ordinary theme toggle leave high contrast. Keep Settings synchronized with toolbar changes and prevent late startup settings from undoing a theme choice.

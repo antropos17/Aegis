@@ -2,6 +2,16 @@
 
 The earlier integrations passed functional gates but did not preserve the reviewed template closely enough. Their validation below is historical evidence, not visual approval of the current interface.
 
+## Interaction motion follow-up — 2026-09-09
+
+The requested feedback pass adds hover/press response to controls and agent rows, a sliding radar layer indicator, visible sweep/marker echoes, keyed detail reveals, native process disclosure transitions and dialog entrance. Marker scaling preserves its risk coordinate. Telemetry refreshes do not replay selection animation. Pause, stale observations and reduced-motion preferences stop their corresponding motion; the Animations setting previews immediately and discard restores the saved choice.
+
+Rapid workspace navigation now keeps the last requested view and its history direction. Skipping an obsolete View Transition consumes its expected readiness rejection while leaving DOM update failures observable. Browser regression checks exercise sweep movement, stable marker centers, hover/press feedback, dialog selection, interrupted navigation, app/system reduced motion, pause/resume and persisted preferences.
+
+Validation: all ten repository checks passed, with 2866 tests passed and 4 skipped across 160 files; lint has 75 warnings and no errors. Both renderer entries built, and 264 browser view/theme/scale combinations plus the motion interaction checks passed. The packaged Windows app exercised 24 observed processes, eleven workspaces, settings restart and six exports. All 114 packaged renderer files match the final build byte for byte. Native macOS/Linux and paid provider calls remain untested.
+
+The deployed Windows copy was also exercised with the existing user profile and three real agent groups. Motion was enabled, the system reduced-motion preference was off, the sweep advanced and settings remained unchanged. An interaction video is retained in ignored dist/motion-live-qa/. No renderer errors were observed during that recording.
+
 ## Radar clarity follow-up — 2026-09-09
 
 The requested refinement removes repeated product labels and side charts from Monitoring. Compact numbered radar markers map to one agent roster; the selected group's risk, combined usage and latest activity occupy a separate panel. Individual processes are expandable and retain their stamped identities. Summary cards have separate boundaries, and per-agent resource bars remain in Statistics. Closing a detail dialog with Escape preserves the radar selection.

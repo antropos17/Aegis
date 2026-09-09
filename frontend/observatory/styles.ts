@@ -11,4 +11,5 @@ import './styles/analysis.css';
 import './styles/polish.css';
 import './styles/dialogs.css';
 import './styles/radar-clarity.css';
+import './styles/feedback.css';
 import './styles/desktop.css';

@@ -148,6 +148,11 @@
         ><span>Animations<small>Radar sweep, markers and transitions</small></span><input
           type="checkbox"
           bind:checked={motion}
+          onchange={(event) => {
+            document.documentElement.dataset.motion = event.currentTarget.checked
+              ? 'full'
+              : 'reduce';
+          }}
         /></label
       >
       <div class="setting">
@@ -299,6 +304,7 @@
       await load();
       contrast = localStorage.getItem('aegis-theme')?.endsWith('-hc') ?? false;
       motion = localStorage.getItem('aegis-motion') !== 'reduce';
+      document.documentElement.dataset.motion = motion ? 'full' : 'reduce';
       appearance(form.darkMode === true, Number(form.uiScale ?? 1), contrast);
     }}><Icon name="close" />Discard changes</Action
   ><Action disabled={!loaded} action={save}><Icon name="check" />Save settings</Action>
