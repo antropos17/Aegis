@@ -284,12 +284,18 @@ Yes. Aegis source is available under the MIT license and local monitoring needs 
 
 <table>
   <tr>
-    <td align="center"><a href="https://github.com/antropos17"><img src="https://github.com/antropos17.png" width="80px;" alt=""/><br/><sub><b>Antropos7</b></sub></a></td>
-    <td align="center"><a href="https://github.com/ElshadHu"><img src="https://github.com/ElshadHu.png" width="80px;" alt=""/><br/><sub><b>Elshad Humbatli</b></sub></a></td>
-    <td align="center"><a href="https://github.com/skmelendez"><img src="https://github.com/skmelendez.png" width="80px;" alt=""/><br/><sub><b>Steven Melendez</b></sub></a></td>
-    <td align="center"><a href="https://github.com/travisbreaks"><img src="https://github.com/travisbreaks.png" width="80px;" alt=""/><br/><sub><b>travisbreaks</b></sub></a></td>
-    <td align="center"><a href="https://github.com/raye-deng"><img src="https://github.com/raye-deng.png" width="80px;" alt=""/><br/><sub><b>raye-deng</b></sub></a></td>
-    <td align="center"><a href="https://github.com/KJyang-0114"><img src="https://github.com/KJyang-0114.png" width="80px;" alt=""/><br/><sub><b>KJyang-0114</b></sub></a></td>
+    <td align="center"><a href="https://github.com/antropos17"><img src="https://github.com/antropos17.png" width="80" alt=""/><br/><sub><b>Antropos7</b></sub></a></td>
+    <td align="center"><a href="https://github.com/travisbreaks"><img src="https://github.com/travisbreaks.png" width="80" alt=""/><br/><sub><b>travisbreaks</b></sub></a></td>
+    <td align="center"><a href="https://github.com/MsfPablo"><img src="https://github.com/MsfPablo.png" width="80" alt=""/><br/><sub><b>MsfPablo</b></sub></a></td>
+    <td align="center"><a href="https://github.com/raye-deng"><img src="https://github.com/raye-deng.png" width="80" alt=""/><br/><sub><b>raye-deng</b></sub></a></td>
+    <td align="center"><a href="https://github.com/pablo"><img src="https://github.com/pablo.png" width="80" alt=""/><br/><sub><b>pablo</b></sub></a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/skmelendez"><img src="https://github.com/skmelendez.png" width="80" alt=""/><br/><sub><b>Steven Melendez</b></sub></a></td>
+    <td align="center"><a href="https://github.com/anupamme"><img src="https://github.com/anupamme.png" width="80" alt=""/><br/><sub><b>anupamme</b></sub></a></td>
+    <td align="center"><a href="https://github.com/mig-builds"><img src="https://github.com/mig-builds.png" width="80" alt=""/><br/><sub><b>mig-builds</b></sub></a></td>
+    <td align="center"><a href="https://github.com/frobel0520"><img src="https://github.com/frobel0520.png" width="80" alt=""/><br/><sub><b>frobel0520</b></sub></a></td>
+    <td align="center"><a href="https://github.com/KJyang-0114"><img src="https://github.com/KJyang-0114.png" width="80" alt=""/><br/><sub><b>KJyang-0114</b></sub></a></td>
   </tr>
 </table>
 
