@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { instances, record, type Telemetry, type RecordData } from '../runtime/host';
   import { radarGroups, groupRecord, riskBand } from '../runtime/radar';
   import {
@@ -39,6 +39,14 @@
     activity: 'fileRate',
     tokens: 'tokens',
     sensors: 'ownCpu',
+  });
+  let now = $state(Date.now());
+  let historyPeriod = $state(60000);
+  onMount(() => {
+    const timer = setInterval(() => {
+      if (!paused && !telemetry.stale) now = Date.now();
+    }, 1000);
+    return () => clearInterval(timer);
   });
   let history = createStatisticsHistory();
   let samples = $state<StatisticsSample[]>([]);
@@ -85,9 +93,10 @@
   );
   let health = $derived(record(telemetry.stats.appHealth));
   $effect(() => {
-    const current = telemetry;
+    const current = paused ? { ...telemetry, stale: true } : telemetry;
+    const interruptedAt = paused ? Date.now() : undefined;
     untrack(() => {
-      const next = observeStatistics(history, current);
+      const next = observeStatistics(history, current, interruptedAt);
       if (next !== history) {
         history = next;
         samples = next.samples;
@@ -107,21 +116,6 @@
 </script>
 
 <div class="statistics-workspace">
-  <section class="statistics-heading" aria-label="Statistics coverage">
-    <div>
-      <h2>Performance & observation</h2>
-      <p>A focused view of your agents, their activity and AEGIS itself.</p>
-    </div>
-    <div class="live-state">
-      <span class:stale={telemetry.stale || paused}></span>{paused
-        ? 'View paused'
-        : telemetry.stale
-          ? 'Last reliable data'
-          : telemetry.ready
-            ? 'Live observations'
-            : 'Waiting for data'}
-    </div>
-  </section>
   <div class="stats-navigation">
     <SectionTabs
       tabs={statisticsTabs}
@@ -144,7 +138,7 @@
             >{section === 'sensors'
               ? 'AEGIS main process · ' + String(health.state || 'Starting').toLowerCase()
               : section === 'tokens'
-                ? 'Supported agent logs · complete totals only'
+                ? 'Supported agent logs · measured coverage'
                 : section === 'activity'
                   ? 'Observed activity · counts and rates'
                   : 'Agent processes · ' +
@@ -153,11 +147,20 @@
                     telemetry.agents.length +
                     ' resource samples'}</span
           >
-          <span>{samples.length} / 120 samples · this window</span>
+          <span class="live-state"
+            >{paused
+              ? 'View paused · '
+              : telemetry.stale
+                ? 'Last observation · '
+                : ''}{samples.length} source updates · up to 5 minutes</span
+          >
         </div>
         <StatsChart
           {samples}
           {metrics}
+          {now}
+          {paused}
+          bind:period={historyPeriod}
           bind:selected={selected[section]}
           stale={telemetry.stale || paused}
         />
@@ -181,7 +184,13 @@
             <ResourceUsage {telemetry} {inspect} />
             <Agents {telemetry} {inspect} />
           {:else if section === 'activity'}
-            <ActivityChart events={telemetry.events} observedAt={telemetry.lastScan} {inspect} />
+            <ActivityChart
+              events={telemetry.events}
+              observedAt={telemetry.lastScan}
+              {inspect}
+              {paused}
+              stale={telemetry.stale}
+            />
             <div class="distribution-grid">
               <StatsDistribution
                 title="Connection identity"
@@ -217,44 +226,6 @@
 <style>
   .statistics-workspace {
     min-width: 0;
-  }
-  .statistics-heading {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    margin-bottom: 18px;
-  }
-  h2 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 550;
-    letter-spacing: -0.4px;
-  }
-  .statistics-heading p {
-    color: var(--muted);
-    font-size: 12px;
-    margin: 6px 0 0;
-    line-height: 1.5;
-  }
-  .live-state {
-    display: flex;
-    gap: 7px;
-    align-items: center;
-    font-size: 11px;
-    color: var(--muted);
-  }
-  .live-state > span {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--green);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 12%, transparent);
-  }
-  .live-state > span.stale {
-    background: var(--muted);
-    box-shadow: none;
   }
   .stats-navigation {
     position: sticky;

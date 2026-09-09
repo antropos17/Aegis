@@ -1,20 +1,30 @@
 <script lang="ts">
   import { instances, type Telemetry, type RecordData } from '../runtime/host';
-  import { activityBins } from '../runtime/activity';
+  import { activityBins, activityTimeLabel } from '../runtime/activity';
   import { radarGroups } from '../runtime/radar';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
   let {
     telemetry,
+    paused = false,
     inspect,
-  }: { telemetry: Telemetry; inspect: (title: string, row: RecordData) => void } = $props();
+  }: {
+    telemetry: Telemetry;
+    paused?: boolean;
+    inspect: (_title: string, _row: RecordData) => void;
+  } = $props();
   let range = $state(15),
     offset = $state(0);
-  let end = $derived(
-    Math.max(telemetry.lastScan ?? 0, ...telemetry.events.map((e) => e.timestamp)) +
-      1 -
-      offset * 1000,
-  );
+  let now = $state(Date.now());
+  $effect(() => {
+    if (paused || telemetry.stale) return;
+    now = Date.now();
+    const timer = setInterval(() => {
+      now = Date.now();
+    }, 1000);
+    return () => clearInterval(timer);
+  });
+  let end = $derived(now + 1 - offset * 1000);
   let groups = $derived(radarGroups(instances(telemetry)));
   function keys(e: KeyboardEvent) {
     if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
@@ -31,7 +41,13 @@
 <section class="panel timeline-panel">
   <div class="panel-head">
     <h2><Icon name="activity" />Timeline</h2>
-    <span class="filter-count">{telemetry.events.length} retained events</span>
+    <span class="filter-count"
+      >{telemetry.events.length} retained events{paused
+        ? ' · Paused'
+        : telemetry.stale
+          ? ' · Observation unavailable'
+          : ''}</span
+    >
   </div>
   <div class="lanes">
     {#each groups as g (g.key)}{@const ids = new Set(
@@ -67,7 +83,7 @@
   </div>
   <div class="time-labels">
     {#each [0, 0.25, 0.5, 0.75, 1] as n (n)}<span
-        >{new Date(end - range * 60000 * (1 - n)).toLocaleTimeString().slice(0, 5)}</span
+        >{activityTimeLabel(end - range * 60000 * (1 - n) - (n === 1 ? 1 : 0))}</span
       >{/each}
   </div>
   <div class="timeline-controls">

@@ -1,23 +1,45 @@
 <script lang="ts">
-  import { activityBins } from '../runtime/activity';
+  import { activityBins, activityTimeLabel } from '../runtime/activity';
   import type { FileEvent } from '../../../src/shared/types';
   import type { RecordData } from '../runtime/host';
   import Icon from './Icon.svelte';
   let {
     events,
     observedAt,
+    paused = false,
+    stale = false,
     inspect,
   }: {
     events: FileEvent[];
     observedAt: number | null;
-    inspect: (title: string, row: RecordData) => void;
+    paused?: boolean;
+    stale?: boolean;
+    inspect: (_title: string, _row: RecordData) => void;
   } = $props();
   let period = $state(15 * 60000),
     type = $state('all'),
     agent = $state(''),
     hover = $state<number | null>(null),
     focus = $state(0);
-  let end = $derived(Math.max(observedAt ?? 0, ...events.map((e) => e.timestamp)) + 1);
+  let focused = $state(false);
+  let now = $state(Date.now());
+  $effect(() => {
+    if (paused || stale) return;
+    now = Date.now();
+    const timer = setInterval(() => {
+      now = Date.now();
+    }, 1000);
+    return () => clearInterval(timer);
+  });
+  $effect(() => {
+    period;
+    type;
+    agent;
+    hover = null;
+    focused = false;
+  });
+  let end = $derived(now + 1);
+  let selection = $derived(hover ?? (focused ? focus : null));
   let bins = $derived(
     activityBins(
       events.filter((e) => (!agent || e.agent === agent) && (type === 'all' || e.sensitive)),
@@ -31,7 +53,7 @@
   let names = $derived([...new Set(events.map((e) => e.agent).filter(Boolean))].sort());
   function caption(i: number) {
     const b = bins[i];
-    return `${new Date(b.start).toLocaleTimeString()}–${new Date(b.end).toLocaleTimeString()} · ${b.events.length} observations`;
+    return `${activityTimeLabel(b.start, true)}–${activityTimeLabel(b.end, true)} · ${b.events.length} observations`;
   }
   function keys(e: KeyboardEvent, i: number) {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
@@ -40,8 +62,8 @@
       e.key === 'Home'
         ? 0
         : e.key === 'End'
-          ? 23
-          : Math.max(0, Math.min(23, i + (e.key === 'ArrowRight' ? 1 : -1)));
+          ? bins.length - 1
+          : Math.max(0, Math.min(bins.length - 1, i + (e.key === 'ArrowRight' ? 1 : -1)));
     (e.currentTarget as HTMLElement).parentElement
       ?.querySelectorAll<HTMLButtonElement>('button')
       .item(focus)
@@ -71,10 +93,16 @@
     >
   </div>
   <div class="chart-reading">
-    <strong>{bins.reduce((sum, b) => sum + b.events.length, 0)}</strong><span>events in period</span
-    ><span class="chart-max">Scale 0–{maximum}</span>
+    <strong>{bins.reduce((sum, b) => sum + b.events.length, 0)}</strong><span
+      >retained events in period</span
+    ><span class="chart-max">Scale 0–{maximum} / interval</span>
   </div>
-  <div class="activity-plot" role="group" aria-label="File activity histogram">
+  <div
+    class="activity-plot"
+    role="group"
+    aria-label="File activity histogram"
+    onpointerleave={() => (hover = null)}
+  >
     {#each bins as bin, i (i)}<button
         class="chart-bucket"
         tabindex={focus === i ? 0 : -1}
@@ -83,8 +111,9 @@
         onpointerenter={() => (hover = i)}
         onfocus={() => {
           focus = i;
-          hover = i;
+          focused = true;
         }}
+        onblur={() => (focused = false)}
         onkeydown={(e) => keys(e, i)}
         onclick={() =>
           inspect('Activity interval', {
@@ -98,11 +127,17 @@
       >{/each}
   </div>
   <div class="chart-axis">
-    <span>{new Date(end - period).toLocaleTimeString().slice(0, 5)}</span><span
-      >{new Date(end).toLocaleTimeString().slice(0, 5)}</span
-    >
+    <span>{activityTimeLabel(end - period)}</span><span>{activityTimeLabel(end - 1)}</span>
   </div>
   <div class="chart-readout">
-    {hover === null ? 'Select an interval to inspect its events.' : caption(hover)}
+    {selection === null
+      ? observedAt === null && !events.length
+        ? 'Waiting for observations.'
+        : paused
+          ? 'View paused · retained window frozen.'
+          : stale
+            ? 'Observation unavailable · retained window frozen.'
+            : 'Select an interval to inspect its events.'
+      : caption(selection)}
   </div>
 </section>

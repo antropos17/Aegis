@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { instances, measured, type Telemetry, type RecordData } from '../runtime/host';
   import { radarGroups } from '../runtime/radar';
   import Radar from './Radar.svelte';
@@ -17,19 +18,29 @@
     inspect,
     mode = 'overview',
     navigate,
+    paused = false,
   }: {
     telemetry: Telemetry;
     selected: string | null;
     inspect: (title: string, row: RecordData) => void;
     mode?: string;
+    paused?: boolean;
     navigate?: (_view: string) => void | Promise<void>;
   } = $props();
   let agents = $derived(instances(telemetry)),
     groups = $derived(radarGroups(agents));
-  let end = $derived(
-    Math.max(telemetry.lastScan ?? 0, ...telemetry.events.map((e) => e.timestamp)),
+  let now = $state(Date.now());
+  onMount(() => {
+    const timer = setInterval(() => {
+      if (!paused && !telemetry.stale) now = Date.now();
+    }, 1000);
+    return () => clearInterval(timer);
+  });
+  let recent = $derived(
+    telemetry.events.filter(
+      (e) => Number.isFinite(e.timestamp) && e.timestamp > now - 60000 && e.timestamp <= now,
+    ),
   );
-  let recent = $derived(telemetry.events.filter((e) => e.timestamp > end - 60000));
   let tokenTotal = $derived(
     telemetry.tokens.length && telemetry.tokens.every((t) => measured(t.totalTokens) !== null)
       ? telemetry.tokens.reduce((sum, t) => sum + Number(t.totalTokens), 0)
@@ -87,10 +98,16 @@
   </div>
   <Radar {telemetry} bind:selected {inspect} />
   <div class="monitoring-activity">
-    <ActivityChart events={telemetry.events} observedAt={telemetry.lastScan} {inspect} />
+    <ActivityChart
+      events={telemetry.events}
+      observedAt={telemetry.lastScan}
+      {inspect}
+      {paused}
+      stale={telemetry.stale}
+    />
   </div>
   <div class="overview-bottom">
-    <Timeline {telemetry} {inspect} />
+    <Timeline {telemetry} {inspect} {paused} />
     <section class="panel recent-panel">
       <div class="panel-head">
         <h2><Icon name="activity" />Recent events</h2>

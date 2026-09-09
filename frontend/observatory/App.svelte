@@ -404,6 +404,7 @@
               bind:selected
               {inspect}
               mode={view}
+              {paused}
               {navigate}
             />
           </div>
