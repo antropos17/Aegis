@@ -140,7 +140,10 @@ try {
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
   await window.getByRole('button', { name: 'Save settings', exact: true }).click();
-  await window.getByText('Completed', { exact: true }).waitFor();
+  await window
+    .getByRole('status')
+    .filter({ hasText: /^Completed$/ })
+    .waitFor();
   assert.equal(
     await window.evaluate(async () => (await window.aegis.getSettings()).scanIntervalSec),
     20,

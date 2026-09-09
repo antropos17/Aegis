@@ -300,7 +300,10 @@ try {
   await page.locator('.sidebar').getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByLabel('Theme', { exact: true }).selectOption('light-hc');
   await page.getByRole('button', { name: 'Save settings', exact: true }).click();
-  await page.getByText('Completed', { exact: true }).waitFor();
+  await page
+    .getByRole('status')
+    .filter({ hasText: /^Completed$/ })
+    .waitFor();
   await page.reload();
   await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'light-hc');
