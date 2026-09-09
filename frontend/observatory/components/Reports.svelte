@@ -2,13 +2,20 @@
   import { onMount } from 'svelte';
   import { confirmed, invoke, record, records, type Host, type RecordData } from '../runtime/host';
   import Action from './Action.svelte';
+  import Icon from './Icon.svelte';
+  import AgentLogo from './AgentLogo.svelte';
+  import { instances, type Telemetry } from '../runtime/host';
   import Metadata from './Metadata.svelte';
   let {
     host,
     audit = false,
     inspect,
+    telemetry,
+    navigate,
   }: {
     host: Host | null;
+    telemetry: Telemetry;
+    navigate: (view: string) => void;
     audit?: boolean;
     inspect: (title: string, row: RecordData) => void;
   } = $props();
@@ -122,34 +129,127 @@
     </div>
   </section>
 {:else}
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Export observations</h2>
-      <span>Native exports & printable report</span>
-    </div>
-    <div class="export-grid inset">
-      {#each exports as [method, label] (method)}<div class="export-card">
-          <h3>{label}</h3>
-          <p class="muted">
-            {method === 'generateReport'
-              ? 'Open a generated HTML report in your default application.'
-              : 'Export recorded observations to a file you choose.'}
-          </p>
-          <Action action={async () => confirmed(await invoke(host, method))}>Export</Action>
-        </div>{/each}
-    </div>
-  </section>
+  <div class="notice">
+    <Icon name="shield" /><span>AI assessments have their own workspace.</span><button
+      class="button"
+      onclick={() => navigate('analysis')}><Icon name="chevron" />Open AI analysis</button
+    >
+  </div>
+  <div class="report-grid">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2><Icon name="report" />Session summary</h2>
+          <p>Current observations</p>
+        </div>
+      </div>
+      <div class="inline-stats">
+        <div>
+          <strong>{String(telemetry.stats.totalFiles ?? '—')}</strong><small
+            >file observations</small
+          >
+        </div>
+        <div>
+          <strong>{String(telemetry.stats.aiSensitive ?? '—')}</strong><small>sensitive</small>
+        </div>
+        <div>
+          <strong>{telemetry.ready ? instances(telemetry).length : '—'}</strong><small
+            >instances</small
+          >
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Agent</th><th>PID</th><th>Risk</th><th>Grade</th></tr></thead><tbody
+            >{#each instances(telemetry) as agent (agent.instanceId ?? agent)}<tr
+                ><td
+                  ><button
+                    class="report-agent"
+                    onclick={() => inspect(agent.name, agent as unknown as RecordData)}
+                    ><AgentLogo name={agent.name} />{agent.name}</button
+                  ></td
+                ><td>{agent.pid}</td><td>{agent.riskScore}/100</td><td
+                  ><span class="badge">{agent.trustGrade}</span></td
+                ></tr
+              >{:else}<tr><td colspan="4">No observed instances</td></tr>{/each}</tbody
+          >
+        </table>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2><Icon name="download" />Export observations</h2>
+          <p>Native exports & printable report</p>
+        </div>
+      </div>
+      <div class="export-grid inset">
+        {#each exports as [method, label] (method)}<div class="export-card">
+            <h3>{label}</h3>
+            <Action action={async () => confirmed(await invoke(host, method))}
+              ><Icon name="download" />Export</Action
+            >
+          </div>{/each}
+      </div>
+      <div class="inset">
+        <p class="notice">
+          <Icon name="file" />Exports contain recorded metadata and omit the provider key.
+        </p>
+      </div>
+    </section>
+  </div>
 {/if}
 
 <style>
+  .report-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+  }
+  .report-grid > .panel {
+    margin-top: 0;
+  }
+  .notice > span {
+    flex: 1;
+  }
+  .inline-stats {
+    display: flex;
+    gap: 24px;
+    padding: 16px;
+  }
+  .inline-stats strong {
+    display: block;
+    font-size: 24px;
+  }
+  .inline-stats small {
+    color: var(--muted);
+  }
+  .report-agent {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-align: left;
+    padding: 0;
+  }
+  .export-card h3 {
+    margin-bottom: 8px;
+    font-size: 11px;
+  }
+  @media (max-width: 1000px) {
+    .report-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
   .export-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
   }
   .export-card {
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 16px;
+    padding: 12px;
   }
 </style>

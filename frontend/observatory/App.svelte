@@ -29,7 +29,7 @@
     ['network', 'Network', 'network'],
     ['rules', 'Rules & permissions', 'shield'],
     ['database', 'Agent catalog', 'database'],
-    ['analysis', 'AI analysis', 'spark'],
+    ['analysis', 'AI analysis', 'shield'],
     ['reports', 'Reports', 'report'],
     ['audit', 'Audit', 'history'],
     ['stats', 'Statistics', 'chart'],
@@ -96,7 +96,12 @@
     commands = false;
     const ticket = ++navigationRevision;
     await tick();
-    if (ticket === navigationRevision) workspace.scrollTop = scrolls[next] ?? 0;
+    if (ticket === navigationRevision) {
+      workspace.scrollTop = scrolls[next] ?? 0;
+      document
+        .querySelector('.workspace-tabs > .active')
+        ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
   }
   function back(delta: number) {
     const next = historyIndex + delta;
@@ -197,11 +202,16 @@
       </div>
     </div>
     <nav aria-label="Main navigation">
-      {#each views as [id, label, icon] (id)}<button
+      {#each views.filter((row) => row[0] !== 'settings') as [id, label, icon] (id)}
+        {#if id === 'rules' || id === 'analysis'}<div class="nav-divider"></div>{/if}<button
           class="nav"
+          aria-label={label}
           class:active={view === id}
           aria-current={view === id ? 'page' : undefined}
-          onclick={() => navigate(id)}><Icon name={icon} /><span>{label}</span></button
+          onclick={() => navigate(id)}
+          ><Icon name={icon} /><span>{label}</span>{#if id === 'agents'}<small class="count"
+              >{telemetry.ready ? telemetry.agents.length : '—'}</small
+            >{/if}</button
         >{/each}
     </nav>
     <div class="sidebar-bottom">
@@ -217,24 +227,18 @@
           ></span
         ></button
       >
+      <button
+        class="nav"
+        class:active={view === 'settings'}
+        aria-current={view === 'settings' ? 'page' : undefined}
+        onclick={() => navigate('settings')}><Icon name="settings" /><span>Settings</span></button
+      >
       <div class="sidebar-foot">{preview ? 'Preview · simulated data' : 'Local observations'}</div>
     </div>
   </aside>
   <div class="shell">
     <header class="topbar">
-      <div class="toolbar">
-        <button
-          class="icon-button"
-          aria-label="Back"
-          disabled={historyIndex === 0}
-          onclick={() => back(-1)}>←</button
-        ><button
-          class="icon-button"
-          aria-label="Forward"
-          disabled={historyIndex >= history.length - 1}
-          onclick={() => back(1)}>→</button
-        ><span class="breadcrumb">Workspace / <strong>{title}</strong></span>
-      </div>
+      <div class="breadcrumb">Workstation<span>/</span><strong>{title}</strong></div>
       <div class="top-actions">
         <button class="command-trigger" onclick={() => (commands = !commands)}
           ><Icon name="search" />Commands<kbd>Ctrl K</kbd></button
@@ -243,24 +247,43 @@
         >
       </div>
     </header>
-    <div class="workspace-tabs" aria-label="Open workspaces">
-      {#each tabs as tab (tab)}<div class:active={view === tab}>
-          <button onclick={() => navigate(tab)}>{views.find((row) => row[0] === tab)?.[1]}</button
-          >{#if tab !== 'overview'}<button
-              aria-label={`Close ${tab}`}
-              onclick={() => {
-                tabs = tabs.filter((item) => item !== tab);
-                if (view === tab) void navigate('overview');
-              }}>×</button
-            >{/if}
-        </div>{/each}
+    <div class="workspace-navigation">
+      <div class="history-controls">
+        <button
+          class="history-arrow"
+          aria-label="Back"
+          disabled={historyIndex === 0}
+          onclick={() => back(-1)}><Icon name="arrowLeft" /></button
+        ><button
+          class="history-arrow"
+          aria-label="Forward"
+          disabled={historyIndex >= history.length - 1}
+          onclick={() => back(1)}><Icon name="chevron" /></button
+        >
+      </div>
+      <div class="workspace-tabs" aria-label="Open workspaces">
+        {#each tabs as tab (tab)}<div class:active={view === tab}>
+            <button onclick={() => navigate(tab)}
+              ><Icon name={views.find((row) => row[0] === tab)?.[2] ?? 'file'} />{views.find(
+                (row) => row[0] === tab,
+              )?.[1]}</button
+            >{#if tab !== 'overview'}<button
+                aria-label={`Close ${tab}`}
+                onclick={() => {
+                  tabs = tabs.filter((item) => item !== tab);
+                  if (view === tab) void navigate('overview');
+                }}>×</button
+              >{/if}
+          </div>{/each}
+      </div>
     </div>
-    <main id="main" tabindex="-1" bind:this={workspace}>
+    <main class:analysis-view={view === 'analysis'} id="main" tabindex="-1" bind:this={workspace}>
       <div class="page-head">
         <div class="page-title">
+          <Icon name={views.find((row) => row[0] === view)?.[2] ?? 'file'} />
           <h1>{title}</h1>
           <span class="live-badge"
-            >{preview
+            ><Icon name="activity" />{preview
               ? 'Demo'
               : telemetry.stale
                 ? 'Observation unavailable / stale'
@@ -297,17 +320,17 @@
       {#if tabs.includes('database')}<div hidden={view !== 'database'}>
           <Catalog {host} {inspect} />
         </div>{/if}
-      {#if tabs.includes('analysis')}<div hidden={view !== 'analysis'}>
+      {#if tabs.includes('analysis')}<div class="analysis-container" hidden={view !== 'analysis'}>
           <Analysis {host} {telemetry} visible={view === 'analysis'} {preview} />
         </div>{/if}
       {#if tabs.includes('reports')}<div hidden={view !== 'reports'}>
-          <Reports {host} {inspect} />
+          <Reports {host} {inspect} {telemetry} {navigate} />
         </div>{/if}
       {#if tabs.includes('audit')}<div hidden={view !== 'audit'}>
-          <Reports {host} audit {inspect} />
+          <Reports {host} audit {inspect} {telemetry} {navigate} />
         </div>{/if}
       {#if tabs.includes('settings')}<div hidden={view !== 'settings'}>
-          <Settings {host} {appearance} />
+          <Settings {host} {appearance} {navigate} />
         </div>{/if}
       <div hidden={view !== 'stats'}><Statistics {telemetry} {inspect} /></div>
     </main>
@@ -364,10 +387,7 @@
     height: 100dvh;
     min-height: 0;
   }
-  .sidebar {
-    overflow: auto;
-    padding-top: 18px;
-  }
+
   .shell {
     min-height: 0;
     height: 100dvh;
@@ -375,37 +395,13 @@
     flex-direction: column;
   }
   .topbar,
-  footer,
-  .workspace-tabs {
+  footer {
     flex-shrink: 0;
   }
   main {
     overflow: auto;
     min-height: 0;
     flex: 1;
-  }
-  .workspace-tabs {
-    display: flex;
-    overflow-x: auto;
-    gap: 6px;
-    padding: 8px 16px;
-    border-bottom: 1px solid var(--border);
-  }
-  .workspace-tabs > div {
-    display: flex;
-    flex-shrink: 0;
-    border: 1px solid transparent;
-    border-radius: 8px;
-  }
-  .workspace-tabs > div.active {
-    background: var(--raised);
-    border-color: var(--strong-border);
-  }
-  .workspace-tabs button {
-    padding: 5px 8px;
-    background: transparent;
-    color: var(--muted);
-    border: 0;
   }
   .health-banner {
     padding: 12px 16px;
@@ -478,21 +474,19 @@
     background: var(--raised);
     border-color: var(--strong-border);
   }
-  @media (max-width: 1000px) {
-    .observatory-app {
-      grid-template-columns: 170px minmax(0, 1fr);
-    }
-    .sidebar {
-      padding: 14px 8px;
-    }
-    .breadcrumb {
-      display: none;
-    }
-    footer {
-      flex-wrap: wrap;
-    }
-    .version {
-      display: none;
+  .analysis-view {
+    display: flex;
+    flex-direction: column;
+  }
+  .analysis-container {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  @media (max-width: 850px) {
+    .analysis-container {
+      min-height: 500px;
     }
   }
 </style>

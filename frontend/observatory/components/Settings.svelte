@@ -2,11 +2,17 @@
   import { onMount } from 'svelte';
   import { confirmed, invoke, record, type Host, type RecordData } from '../runtime/host';
   import Action from './Action.svelte';
+  import Icon from './Icon.svelte';
+  import AgentLogo from './AgentLogo.svelte';
   let {
     host,
     appearance,
-  }: { host: Host | null; appearance: (dark: boolean, scale: number, contrast?: boolean) => void } =
-    $props();
+    navigate,
+  }: {
+    host: Host | null;
+    appearance: (dark: boolean, scale: number, contrast?: boolean) => void;
+    navigate: (view: string) => void;
+  } = $props();
   let form = $state<RecordData>({});
   let loaded = $state(false);
   let error = $state('');
@@ -97,7 +103,7 @@
 {#if error}<p role="alert">{error}</p>{/if}
 <div class="settings-grid">
   <section class="panel">
-    <div class="panel-head"><h2>Appearance & monitoring</h2></div>
+    <div class="panel-head"><h2><Icon name="sun" />Appearance</h2></div>
     <div class="inset form-stack">
       <label
         >Theme <select bind:value={form.darkMode}
@@ -117,6 +123,7 @@
         ><input type="checkbox" bind:checked={motion} />Interface motion (respects system
         preference)</label
       >
+      <div class="settings-section-title"><h2><Icon name="radar" />Monitoring</h2></div>
       <label
         >Scan interval (seconds) <input
           type="number"
@@ -140,16 +147,18 @@
         >Ignored directories · one per line<textarea rows="4" bind:value={ignored}
         ></textarea></label
       >
-      <div class="toolbar">
-        <Action disabled={!loaded} action={save}>Save settings</Action><Action action={load}
-          >Restore saved values</Action
-        >
-      </div>
     </div>
   </section>
   <div class="form-stack">
+    <section class="panel inset">
+      <h2 class="analysis-heading"><AgentLogo name="Claude Code" />Anthropic analysis</h2>
+      <p class="muted">Connect Anthropic and review assessments in the AI analysis workspace.</p>
+      <button class="button" onclick={() => navigate('analysis')}
+        ><Icon name="shield" />Open AI analysis</button
+      >
+    </section>
     <section class="panel">
-      <div class="panel-head"><h2>Application updates</h2></div>
+      <div class="panel-head"><h2><Icon name="refresh" />Application updates</h2></div>
       <div class="inset">
         <p role="status">{String(updates.status ?? 'Loading')} {String(updates.version ?? '')}</p>
         {#if updates.error}<p role="alert">
@@ -172,7 +181,7 @@
       </div>
     </section>
     <section class="panel">
-      <div class="panel-head"><h2>Configuration</h2></div>
+      <div class="panel-head"><h2><Icon name="settings" />Configuration</h2></div>
       <div class="inset form-stack">
         <Action action={async () => confirmed(await invoke(host, 'testNotification'))}
           >Send test notification</Action
@@ -193,7 +202,62 @@
   </div>
 </div>
 
+<div class="settings-save">
+  <Action action={load}>Restore saved values</Action><Action disabled={!loaded} action={save}
+    ><Icon name="check" />Save settings</Action
+  >
+</div>
+
 <style>
+  .settings-grid :global(.panel + .panel) {
+    margin-top: 0;
+  }
+  .settings-grid .form-stack > label {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    font-size: calc(12px * var(--ui-scale));
+    min-height: 44px;
+    gap: 12px;
+  }
+  .settings-grid label > select,
+  .settings-grid label > input:not([type='checkbox']) {
+    max-width: 55%;
+  }
+  .settings-grid .form-stack > label:has(textarea) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .settings-grid .check-row input {
+    order: 1;
+  }
+  .settings-section-title {
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+  }
+  .settings-section-title h2,
+  .analysis-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .analysis-heading {
+    margin-bottom: 16px;
+  }
+  .settings-save {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    position: sticky;
+    bottom: -16px;
+    background: var(--bg);
+    padding: 12px 0;
+    margin-top: 12px;
+    border-top: 1px solid var(--border);
+    z-index: 2;
+  }
+
   .settings-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.25fr) minmax(260px, 1fr);
@@ -205,7 +269,7 @@
     align-items: center;
     gap: 8px;
   }
-  @media (max-width: 1050px) {
+  @media (max-width: 950px) {
     .settings-grid {
       grid-template-columns: minmax(0, 1fr);
     }

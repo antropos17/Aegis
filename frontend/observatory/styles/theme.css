@@ -81,7 +81,9 @@
   box-sizing: border-box;
 }
 html {
-  scrollbar-gutter: stable;
+  height: 100%;
+  overflow: hidden;
+  scrollbar-gutter: auto;
 }
 body {
   margin: 0;
@@ -234,4 +236,30 @@ code {
   animation: none !important;
   transition: none !important;
   scroll-behavior: auto !important;
+}
+
+/* Selection and status palette from the reviewed Observatory prototype. */
+:root {
+  --selection: #41454a;
+  --selection-border: #797f86;
+  --amber: #ffbd3e;
+  --amber-bg: #312719;
+  --red: #ff6262;
+  --red-bg: #321f22;
+  --green: #4bc68b;
+  --green-bg: #1e3027;
+}
+:root[data-theme^='light'] {
+  --selection: #fff;
+  --selection-border: #92989e;
+  --amber: #975200;
+  --amber-bg: #fff4db;
+  --red: #bd242e;
+  --red-bg: #fff0f0;
+  --green: #16734a;
+  --green-bg: #e8f5ed;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--strong-border) transparent;
 }

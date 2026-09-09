@@ -68,10 +68,7 @@ try {
     'Statistics',
     'Settings',
   ]) {
-    await window
-      .getByRole('navigation', { name: 'Main navigation' })
-      .getByRole('button', { name, exact: true })
-      .click();
+    await window.locator('.sidebar').getByRole('button', { name, exact: true }).click();
     await window.getByRole('heading', { level: 1, name, exact: true }).waitFor();
   }
   await window.getByLabel('Scan interval (seconds)').fill('20');
@@ -127,10 +124,7 @@ try {
     await window.evaluate(async () => (await window.aegis.getSettings()).anthropicApiKey),
     sentinel,
   );
-  await window
-    .getByRole('navigation')
-    .getByRole('button', { name: 'Monitoring', exact: true })
-    .click();
+  await window.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
   await window.screenshot({ path: resolve(out, 'desktop.png') });
   const hardening = await app.evaluate(({ BrowserWindow }) => {
     const prefs = BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences();

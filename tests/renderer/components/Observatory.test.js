@@ -38,11 +38,11 @@ describe('Observatory production components', () => {
       inspect,
     });
     await fireEvent.click(screen.getByRole('button', { name: 'Select Claude Code, PID 102' }));
-    await fireEvent.click(screen.getByRole('button', { name: 'Open instance details' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Process details' }));
     expect(inspect.mock.calls[0][1].instanceId).toBe('102:1');
     expect(screen.queryByText('99.9%')).toBeNull();
     await fireEvent.click(screen.getByRole('button', { name: 'Clear radar selection' }));
-    expect(screen.queryByRole('button', { name: 'Open instance details' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Process details' })).toBeNull();
   });
 
   it('preserves permission drafts across new snapshots and preserves other project overrides on save', async () => {
@@ -59,7 +59,7 @@ describe('Observatory production components', () => {
     await fireEvent.change(screen.getByLabelText('Target'), { target: { value: 'Claude Code' } });
     await fireEvent.click(screen.getByRole('button', { name: 'strict', exact: true }));
     await mounted.rerender({ host, telemetry: telemetry() });
-    expect(screen.getByLabelText('network')).toHaveValue('block');
+    expect(screen.getByLabelText('Network')).toHaveValue('block');
     await fireEvent.click(screen.getByRole('button', { name: 'Save permissions' }));
     await waitFor(() => expect(host.saveAgentPermissions).toHaveBeenCalled());
     expect(host.saveAgentPermissions.mock.calls[0][0]).toMatchObject({
@@ -82,7 +82,7 @@ describe('Observatory production components', () => {
       saveSettings: vi.fn(async () => ({ success: false, error: 'Disk full' })),
     };
     const appearance = vi.fn();
-    const { container } = render(Settings, { host, appearance });
+    const { container } = render(Settings, { host, appearance, navigate: noOp });
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Save settings' })).toBeEnabled(),
     );
@@ -111,11 +111,12 @@ describe('Observatory production components', () => {
       downloadUpdate: vi.fn(async () => ({ status: 'downloading' })),
       installUpdate: vi.fn(async () => ({ status: 'ready' })),
     };
-    const { container } = render(Settings, { host, appearance: noOp });
+    const { container } = render(Settings, { host, appearance: noOp, navigate: noOp });
+    expect(await screen.findByText('<img src=x onerror=alert(1)>')).toBeInTheDocument();
     await fireEvent.click(await screen.findByRole('button', { name: 'Download update' }));
     expect(host.downloadUpdate).toHaveBeenCalledOnce();
     expect(host.installUpdate).not.toHaveBeenCalled();
-    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('img[src="x"], img[onerror]')).toBeNull();
     push({ status: 'ready' });
     await fireEvent.click(await screen.findByRole('button', { name: 'Install and restart' }));
     expect(host.installUpdate).toHaveBeenCalledOnce();
@@ -135,7 +136,7 @@ describe('Observatory production components', () => {
         .mockResolvedValueOnce(page)
         .mockResolvedValueOnce([{ timestamp, eventId: 100, type: 'file-access' }]),
     };
-    render(Reports, { host, audit: true, inspect: noOp });
+    render(Reports, { host, audit: true, inspect: noOp, telemetry: telemetry(), navigate: noOp });
     await screen.findByText('99');
     const older = screen.getByText('Load older entries');
     await fireEvent.click(older);
@@ -145,7 +146,12 @@ describe('Observatory production components', () => {
   });
 
   it('keeps cancelled exports visible as incomplete', async () => {
-    render(Reports, { host: { exportLog: async () => ({ success: false }) }, inspect: noOp });
+    render(Reports, {
+      host: { exportLog: async () => ({ success: false }) },
+      inspect: noOp,
+      telemetry: telemetry(),
+      navigate: noOp,
+    });
     await fireEvent.click(screen.getAllByRole('button', { name: 'Export', exact: true })[0]);
     expect(await screen.findByRole('alert')).toHaveTextContent('cancelled');
     expect(screen.queryByText('Completed')).toBeNull();
@@ -162,6 +168,7 @@ describe('Observatory production components', () => {
     const mounted = render(Analysis, { host, telemetry: telemetry(), visible: true });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Run analysis' })).toBeEnabled());
     expect(host.analyzeSession).not.toHaveBeenCalled();
+    await fireEvent.click(screen.getByRole('button', { name: 'Connection settings' }));
     await fireEvent.input(screen.getByLabelText('New API key'), {
       target: { value: 'unsaved-secret' },
     });
@@ -169,7 +176,7 @@ describe('Observatory production components', () => {
     expect(screen.getByLabelText('New API key')).toHaveValue('');
     await fireEvent.click(screen.getByRole('button', { name: 'Run analysis' }));
     expect(await screen.findByText('<img src=x>')).toBeInTheDocument();
-    expect(mounted.container.querySelector('img')).toBeNull();
+    expect(mounted.container.querySelector('img[src="x"], img[onerror]')).toBeNull();
     expect(mounted.container.innerHTML).not.toContain('stored-secret');
   });
 

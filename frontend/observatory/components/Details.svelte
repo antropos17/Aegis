@@ -17,6 +17,7 @@
   import EntityLinks from './EntityLinks.svelte';
   import Metadata from './Metadata.svelte';
   import Icon from './Icon.svelte';
+  import DetailSummary from './DetailSummary.svelte';
   let {
     host,
     telemetry,
@@ -105,8 +106,18 @@
     >
   </div>
   <div class="detail-body" tabindex="-1" bind:this={body}>
-    {#if current}<Metadata value={current.row} />
+    {#if current}<DetailSummary row={current.row} {telemetry} />
       <EntityLinks row={current.row} {telemetry} {navigate} />
+      <details
+        class="all-metadata"
+        open={!current.row.process &&
+          !current.row.displayName &&
+          !current.row.file &&
+          !current.row.remoteIp &&
+          !current.row.domain}
+      >
+        <summary>All observation metadata</summary><Metadata value={current.row} />
+      </details>
       {#if current.row.process}<h3>Alert watchlist</h3>
         <Action action={loadWatch}>Refresh watchlist</Action>{#each watch as entry (entry)}<div
             class="toolbar"
@@ -190,6 +201,16 @@
 </dialog>
 
 <style>
+  .all-metadata {
+    border-top: 1px solid var(--border);
+    margin: 16px 0;
+    padding-top: 12px;
+  }
+  summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 12px;
+  }
   dialog {
     padding: 0;
     width: min(920px, calc(100vw - 32px));

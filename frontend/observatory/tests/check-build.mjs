@@ -72,6 +72,46 @@ try {
   await page.getByRole('heading', { name: 'Agent radar', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Select Claude Code, PID 10000', exact: true }).waitFor();
   assert.equal(await page.evaluate(() => window.bridgeCalls), 0);
+  // Measured from the reviewed dialogs-14 prototype at 1200x800. These checks
+  // catch a functioning renderer that has silently replaced the approved layout.
+  const geometry = await page.evaluate(() => {
+    const rect = (selector) => {
+      const r = document.querySelector(selector).getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    };
+    return {
+      sidebar: rect('.sidebar'),
+      topbar: rect('.topbar'),
+      history: rect('.workspace-navigation'),
+      summary: rect('.summary-strip'),
+      radar: rect('.radar-panel'),
+      inspector: rect('.inspector'),
+    };
+  });
+  assert.equal(geometry.sidebar.width, 184, 'prototype sidebar density');
+  assert(Math.abs(geometry.topbar.height - 46) <= 2, 'prototype toolbar height');
+  assert.equal(geometry.history.height, 44, 'prototype workspace history row');
+  assert(Math.abs(geometry.summary.y - 160) <= 4, 'prototype summary position');
+  assert(Math.abs(geometry.radar.y - geometry.inspector.y) < 1, 'inspector aligns with radar');
+  assert.equal(await page.locator('.summary-strip > div').count(), 6);
+  assert.equal(await page.locator('.radar-agent-card').count(), 4);
+  const sweep = await page.locator('.dial-sweep').elementHandle();
+  await page.getByRole('button', { name: 'Select Claude Code, PID 10000', exact: true }).click();
+  await page.getByRole('button', { name: 'Files', exact: true }).click();
+  await page.getByRole('button', { name: 'Radar', exact: true }).click();
+  assert(
+    await sweep.evaluate((node) => node === document.querySelector('.dial-sweep')),
+    'layer switch recreates sweep',
+  );
+  await page
+    .getByRole('button', { name: 'Clear radar selection', exact: true })
+    .click({ position: { x: 10, y: 70 } });
+  assert.equal(await page.locator('.radar-point[aria-pressed="true"]').count(), 0);
+  assert(
+    await sweep.evaluate((node) => node === document.querySelector('.dial-sweep')),
+    'clearing selection recreates sweep',
+  );
+  await writeFile(resolve(out, 'prototype-geometry.json'), JSON.stringify(geometry, null, 2));
   const views = [
     'Monitoring',
     'Agents',
@@ -100,11 +140,14 @@ try {
         await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
         await page.emulateMedia({ reducedMotion: scale === 1.5 ? 'reduce' : 'no-preference' });
         for (const view of views) {
-          await page
-            .getByRole('navigation', { name: 'Main navigation' })
-            .getByRole('button', { name: view, exact: true })
-            .click();
+          await page.locator('.sidebar').getByRole('button', { name: view, exact: true }).click();
           await page.getByRole('heading', { name: view, exact: true, level: 1 }).waitFor();
+          const activeTabVisible = await page.evaluate(() => {
+            const strip = document.querySelector('.workspace-tabs').getBoundingClientRect();
+            const tab = document.querySelector('.workspace-tabs > .active').getBoundingClientRect();
+            return tab.left >= strip.left - 2 && tab.right <= strip.right + 2;
+          });
+          assert(activeTabVisible, `active workspace tab hidden: ${view} ${size.width} ${scale}`);
           const overflow = await page.evaluate(
             () => document.documentElement.scrollWidth > innerWidth + 2,
           );
@@ -113,6 +156,42 @@ try {
             false,
             `document overflow: ${view} ${size.width} ${scale} ${theme}`,
           );
+          if (size.width === 1200 && scale === 1 && theme === 'dark') {
+            await page.screenshot({ path: resolve(out, `workspace-${views.indexOf(view)}.png`) });
+            if (view === 'AI analysis') {
+              const panels = await page.evaluate(() => {
+                const config = document.querySelector('.analysis-config').getBoundingClientRect();
+                const report = document.querySelector('.analysis-report').getBoundingClientRect();
+                return {
+                  aligned: Math.abs(config.y - report.y) < 1,
+                  configWidth: config.width,
+                  reportWidth: report.width,
+                  bottom: report.bottom,
+                };
+              });
+              assert(
+                panels.aligned && panels.reportWidth > panels.configWidth * 2,
+                'prototype assessment columns',
+              );
+              assert(panels.bottom <= 770, 'assessment report extends under footer');
+            }
+            if (view === 'Settings') {
+              const row = await page
+                .locator('.check-row')
+                .first()
+                .evaluate((row) => ({
+                  direction: getComputedStyle(row).flexDirection,
+                  checkbox: row.querySelector('input').getBoundingClientRect().x,
+                  label: row.getBoundingClientRect().x,
+                }));
+              assert.equal(
+                row.direction,
+                'row',
+                'checkbox form styles regressed to stacked labels',
+              );
+              assert(row.checkbox > row.label + 100, 'checkbox is not aligned on right');
+            }
+          }
         }
       }
     }
@@ -122,10 +201,7 @@ try {
     document.documentElement.style.setProperty('--ui-scale', '1');
     document.documentElement.dataset.theme = 'dark';
   });
-  await page
-    .getByRole('navigation')
-    .getByRole('button', { name: 'Monitoring', exact: true })
-    .click();
+  await page.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   const frameIntervals = await page.evaluate(
     () =>
@@ -159,7 +235,7 @@ try {
   );
   await page.screenshot({ path: resolve(out, 'monitoring.png') });
   await page.getByRole('button', { name: 'Select Claude Code, PID 10000', exact: true }).click();
-  await page.getByRole('button', { name: 'Open instance details', exact: true }).click();
+  await page.getByRole('button', { name: 'Process details', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
   await page.screenshot({ path: resolve(out, 'instance.png') });
