@@ -650,10 +650,9 @@ Repeated mistakes by Claude Code — 46 numbered lessons, grouped by category (t
     **Census, so the condition is not read off one case.** Every fork-originated run the API
     still returns — `gh api 'repos/antropos17/Aegis/actions/runs?event=pull_request&per_page=100&page=N'`
     over all five pages, 409 `pull_request` runs, 21 of them from forks across six
-    contributors (anupamme, mig-builds, frobel0520, MsfPablo, ElshadHu, travisbreaks) —
-    splits 21/21 on one line: parked while its author had no merged PR here, unparked after.
-    `ElshadHu` crossed it at #26 (2026-02-19) and `travisbreaks` at #50 (2026-03-01), each
-    with the same before/after shape.
+    contributors — splits 21/21 on one line: parked while its author had no merged PR
+    here, unparked after. Two contributors crossed that boundary at #26 (2026-02-19)
+    and #50 (2026-03-01), each with the same before/after shape.
     **What this does NOT retire.** (b) stands exactly as written, and this entry is why:
     mig-builds was STILL first-time when #273 was updated — the PR merged one minute after
     the second approval — so the second round was required, not redundant. (c) and (d) are
