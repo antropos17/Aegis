@@ -3,8 +3,27 @@ import { createServer } from 'node:http';
 import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, sep, extname } from 'node:path';
 import { chromium } from 'playwright';
+import { createHash } from 'node:crypto';
 
 const repo = process.cwd();
+const designRoot = resolve(repo, 'frontend/observatory');
+const reference = JSON.parse(await readFile(resolve(designRoot, 'reference/SOURCE.json'), 'utf8'));
+for (const file of reference.files) {
+  const source = (await readFile(resolve(designRoot, file.path), 'utf8')).replaceAll('\r\n', '\n');
+  const hash = createHash('sha256').update(source).digest('hex');
+  assert.equal(hash, file.sha256, 'approved template changed: ' + file.path);
+}
+const imports = [
+  ...(await readFile(resolve(designRoot, 'styles.ts'), 'utf8')).matchAll(
+    /import '\.\/(styles\/[^']+)'/g,
+  ),
+].map((match) => match[1]);
+assert.deepEqual(
+  imports,
+  [...reference.stylesheetOrder, 'styles/desktop.css'],
+  'approved cascade order',
+);
+
 const roots = {
   '/preview/': resolve(repo, 'dist/frontend-preview'),
   '/desktop/': resolve(repo, 'dist/renderer'),
@@ -70,7 +89,7 @@ try {
   });
   await page.goto(base + '/preview/');
   await page.getByRole('heading', { name: 'Agent radar', exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Select Claude Code, PID 10000', exact: true }).waitFor();
+  await page.getByRole('button', { name: /Select Claude Code, 1 processes/ }).waitFor();
   assert.equal(await page.evaluate(() => window.bridgeCalls), 0);
   // Measured from the reviewed dialogs-14 prototype at 1200x800. These checks
   // catch a functioning renderer that has silently replaced the approved layout.
@@ -83,7 +102,7 @@ try {
       sidebar: rect('.sidebar'),
       topbar: rect('.topbar'),
       history: rect('.workspace-navigation'),
-      summary: rect('.summary-strip'),
+      summary: rect('.summary'),
       radar: rect('.radar-panel'),
       inspector: rect('.inspector'),
     };
@@ -93,10 +112,10 @@ try {
   assert.equal(geometry.history.height, 44, 'prototype workspace history row');
   assert(Math.abs(geometry.summary.y - 160) <= 4, 'prototype summary position');
   assert(Math.abs(geometry.radar.y - geometry.inspector.y) < 1, 'inspector aligns with radar');
-  assert.equal(await page.locator('.summary-strip > div').count(), 6);
+  assert.equal(await page.locator('.summary > .summary-stat').count(), 6);
   assert.equal(await page.locator('.radar-agent-card').count(), 4);
   const sweep = await page.locator('.dial-sweep').elementHandle();
-  await page.getByRole('button', { name: 'Select Claude Code, PID 10000', exact: true }).click();
+  await page.getByRole('button', { name: /Select Claude Code, 1 processes/ }).click();
   await page.getByRole('button', { name: 'Files', exact: true }).click();
   await page.getByRole('button', { name: 'Radar', exact: true }).click();
   assert(
@@ -106,7 +125,7 @@ try {
   await page
     .getByRole('button', { name: 'Clear radar selection', exact: true })
     .click({ position: { x: 10, y: 70 } });
-  assert.equal(await page.locator('.radar-point[aria-pressed="true"]').count(), 0);
+  assert.equal(await page.locator('.radar-blip[aria-pressed="true"]').count(), 0);
   assert(
     await sweep.evaluate((node) => node === document.querySelector('.dial-sweep')),
     'clearing selection recreates sweep',
@@ -142,6 +161,7 @@ try {
         for (const view of views) {
           await page.locator('.sidebar').getByRole('button', { name: view, exact: true }).click();
           await page.getByRole('heading', { name: view, exact: true, level: 1 }).waitFor();
+          await page.waitForFunction(() => !document.documentElement.dataset.transitionSurface);
           const activeTabVisible = await page.evaluate(() => {
             const strip = document.querySelector('.workspace-tabs').getBoundingClientRect();
             const tab = document.querySelector('.workspace-tabs > .active').getBoundingClientRect();
@@ -161,7 +181,7 @@ try {
             if (view === 'AI analysis') {
               const panels = await page.evaluate(() => {
                 const config = document.querySelector('.analysis-config').getBoundingClientRect();
-                const report = document.querySelector('.analysis-report').getBoundingClientRect();
+                const report = document.querySelector('.analysis-output').getBoundingClientRect();
                 return {
                   aligned: Math.abs(config.y - report.y) < 1,
                   configWidth: config.width,
@@ -177,7 +197,7 @@ try {
             }
             if (view === 'Settings') {
               const row = await page
-                .locator('.check-row')
+                .locator('.setting:has(input[type="checkbox"])')
                 .first()
                 .evaluate((row) => ({
                   direction: getComputedStyle(row).flexDirection,
@@ -234,8 +254,8 @@ try {
     ),
   );
   await page.screenshot({ path: resolve(out, 'monitoring.png') });
-  await page.getByRole('button', { name: 'Select Claude Code, PID 10000', exact: true }).click();
-  await page.getByRole('button', { name: 'Process details', exact: true }).click();
+  await page.getByRole('button', { name: /Select Claude Code, 1 processes/ }).click();
+  await page.getByRole('button', { name: 'Process', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
   await page.screenshot({ path: resolve(out, 'instance.png') });
@@ -248,7 +268,7 @@ try {
   desktop.on('pageerror', (e) => errors.push(e.message));
   await desktop.goto(base + '/desktop/');
   await desktop.getByText('Desktop bridge unavailable.', { exact: false }).waitFor();
-  assert.equal(await desktop.locator('.radar-point').count(), 0);
+  assert.equal(await desktop.locator('.radar-blip').count(), 0);
   await desktop.close();
   assert.deepEqual(errors, [], 'browser runtime errors');
   console.log(

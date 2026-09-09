@@ -37,13 +37,13 @@ Core modules:
 - tray-icon.js — system tray with procedural icon
 
 ## Renderer (frontend/observatory/) — Svelte 5 + Vite 7
-20 Svelte components, 16 stores, 22 utils. Component count refers to frontend/observatory/components; retained store/utility counts refer to src/renderer/lib.
+26 Svelte components, 16 stores, 22 utils. Component count refers to frontend/observatory/components; retained store/utility counts refer to src/renderer/lib.
 
 App.svelte owns workspace tabs, history and the host connection. Monitoring shows stamped instances; Events and ActivityChart show retained evidence; Details and EntityLinks connect observations; Rules, Catalog, Analysis, Reports, Statistics and Settings expose host actions. SensorStatus renders effective sensor IDs; Notifications tracks anomaly crossings.
 
 runtime/host.ts owns seven telemetry subscriptions, guarded seeds, outage retention and freshness. Shared enrich-agents.ts preserves risk scoring and instance joins. Legacy stores and utility regression fixtures remain under src/renderer/lib, outside the packaged source list; the old UI, fonts and styles are removed.
 
-styles/theme.css contains neutral dark/light/high-contrast tokens. layout.css and radar.css provide shared layout. Preview uses demo/host.ts and the same components, with no real preload calls. Production excludes these fixtures.
+styles.ts loads the approved Observatory template styles in their original order, followed by styles/desktop.css for desktop integration. reference/SOURCE.json records the template source hashes and stylesheet order. Preview uses demo/host.ts and the same components, with no real preload calls. Production excludes these fixtures.
 
 ## Shared (src/shared/)
 - constants.js — ignore patterns, editor lists, AGENT_CONFIG_PATHS
@@ -55,5 +55,5 @@ styles/theme.css contains neutral dark/light/high-contrast tokens. layout.css an
 - Main process: CommonJS (require/module.exports) with init() dependency injection
 - Renderer: Svelte 5 runes ($state, $derived, $effect), ES modules via Vite
 - IPC channels: kebab-case (scan-processes, file-access, network-update)
-- CSS: scoped in .svelte files, var() from frontend/observatory/styles/theme.css, neutral surfaces
+- CSS: preserve the approved template cascade in frontend/observatory/styles.ts; desktop integration uses styles/desktop.css and the template's existing variables
 - Build: Vite compiles Svelte → dist/renderer/, Electron loads from dist/

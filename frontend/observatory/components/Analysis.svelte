@@ -12,6 +12,7 @@
   import Icon from './Icon.svelte';
   import AgentLogo from './AgentLogo.svelte';
   import Metadata from './Metadata.svelte';
+  import EditorDialog from './EditorDialog.svelte';
   let {
     host,
     telemetry,
@@ -22,7 +23,10 @@
   let agent = $state('');
   let key = $state('');
   $effect(() => {
-    if (!visible) key = '';
+    if (!visible) {
+      key = '';
+      showProvider = false;
+    }
   });
   let configured = $state(false);
   let report = $state<RecordData | null>(null);
@@ -97,15 +101,15 @@
 
 <div class="analysis-workspace">
   <section class="panel analysis-provider">
-    <div class="provider-name">
+    <div class="analysis-provider-name">
       <AgentLogo name="Claude Code" size={32} />
       <div>
-        <strong>Anthropic</strong><small
+        <strong>Anthropic</strong><span
           >{preview
             ? 'Preview · provider calls disabled'
             : configured
               ? 'API key saved · verified on first analysis'
-              : 'Not connected'}</small
+              : 'Not connected'}</span
         >
       </div>
     </div>
@@ -119,53 +123,69 @@
       >
     </div>
   </section>
-  {#if showProvider}<section class="panel inset provider-settings">
-      <label
-        >New API key<input
-          disabled={preview}
-          type="password"
-          autocomplete="off"
-          bind:value={key}
-          placeholder="Anthropic API key"
-        /></label
-      >
-      <div class="toolbar">
-        <Action disabled={preview || !key.trim()} action={() => saveKey()}>Save key</Action
-        >{#if configured}<Action action={() => saveKey(true)}>Remove key</Action>{/if}<button
+  {#if showProvider}
+    <EditorDialog
+      title="Anthropic connection"
+      caption="AI analysis"
+      close={() => {
+        showProvider = false;
+        key = '';
+      }}
+    >
+      <div class="form-grid">
+        <label class="full"
+          >New API key<input
+            disabled={preview}
+            type="password"
+            autocomplete="off"
+            bind:value={key}
+            placeholder="Anthropic API key"
+          /></label
+        >
+      </div>
+      <p class="dialog-copy">
+        Connection is verified when analysis runs. Saved keys are never displayed in this form.
+      </p>
+      {#snippet actions()}
+        {#if configured}<Action action={() => saveKey(true)}>Remove key</Action>{/if}
+        <button
           class="button"
           onclick={() => {
             showProvider = false;
             key = '';
           }}>Close settings</button
         >
-      </div>
-      <small>Connection is verified when analysis runs.</small>
-    </section>{/if}
+        <Action disabled={preview || !key.trim()} action={() => saveKey()}>Save key</Action>
+      {/snippet}
+    </EditorDialog>
+  {/if}
   {#if error}<p role="alert">{error}</p>{/if}
   <div class="analysis-layout">
     <section class="panel analysis-config">
       <div class="panel-head"><h2><Icon name="settings" />New assessment</h2></div>
-      <div class="config-body form-stack">
-        <label
+      <div class="analysis-config-body">
+        <label class="analysis-field"
           >Scope<select bind:value={mode}
             ><option value="session">Entire session</option><option value="agent"
               >Agent · all matching instances</option
             ></select
           ></label
         >
-        {#if mode === 'agent'}<label
+        {#if mode === 'agent'}<label class="analysis-field"
             >Agent<select bind:value={agent}
               ><option value="">Select an agent</option>{#each names as name (name)}<option
                   >{name}</option
                 >{/each}</select
             ></label
           >{/if}
-        <div class="scope-details">
+        <div class="scope-details analysis-field">
           <small>Evidence scope</small>
           <p>Recorded session metadata</p>
           <small>File observations, connections and agent activity supplied by AEGIS.</small>
         </div>
-        <label>Report title<input bind:value={reportTitle} maxlength="160" /></label>
+        <label class="analysis-field"
+          >Report title<input bind:value={reportTitle} maxlength="160" /></label
+        >
         <p class="muted">Changes apply to the next run.</p>
         <div class="provider-note">
           <Icon name="shield" />
@@ -173,14 +193,14 @@
         </div>
       </div>
     </section>
-    <section class="panel analysis-report">
-      <div class="report-tabs" aria-label="Report sections">
+    <section class="panel analysis-output">
+      <div class="subnav analysis-tabs" aria-label="Report sections">
         {#each [['summary', 'Report', 'report'], ['evidence', 'Evidence', 'file'], ['history', 'History', 'history']] as [id, title, icon] (id)}<button
             aria-pressed={section === id}
             onclick={() => (section = id)}><Icon name={icon} />{title}</button
           >{/each}
       </div>
-      <div class="report-body">
+      <div class="analysis-body">
         <div hidden={section !== 'summary'} class="report-section">
           {#if !report}<div class="analysis-empty">
               <Icon name="report" />
@@ -201,7 +221,7 @@
               >
             </div>
           {:else}<article class="analysis-document">
-              <div class="document-meta">
+              <div class="analysis-document-meta">
                 <small>ANTHROPIC ASSESSMENT</small><span class="badge"
                   >{String(report.riskRating ?? report.riskLevel ?? 'UNKNOWN')}</span
                 >
@@ -238,7 +258,7 @@
         </div>
         <div hidden={section !== 'history'} class="report-section inset">
           {#each history as previous (previous)}<button
-              class="history-row"
+              class="analysis-history-row"
               onclick={() => {
                 report = previous;
                 section = 'summary';
@@ -265,216 +285,38 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-  }
-  .analysis-workspace > .panel {
-    margin-top: 0;
-  }
-  .analysis-provider {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 16px;
-    flex-shrink: 0;
-  }
-  .provider-name {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .provider-name small {
-    display: block;
-    margin-top: 3px;
-    color: var(--muted);
-  }
-  .provider-settings {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-  .provider-settings label {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .analysis-layout {
-    display: grid;
-    grid-template-columns: minmax(calc(240px * var(--ui-scale)), 0.75fr) minmax(0, 2fr);
-    gap: 12px;
-    flex: 1;
-    min-height: 0;
-  }
-  .analysis-layout > .panel {
-    margin-top: 0;
-    min-height: 0;
-  }
-  .analysis-config,
-  .analysis-report {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  .panel-head {
-    flex-shrink: 0;
-  }
-  .config-body {
-    padding: 14px;
-    overflow: auto;
-    min-height: 0;
-    font-size: calc(12px * var(--ui-scale));
-  }
-  .config-body label {
-    font-weight: 600;
-  }
-  .config-body input,
-  .config-body select {
-    font-weight: 400;
   }
   .scope-details {
-    border-block: 1px solid var(--border);
-    padding-block: 12px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
   }
-  .scope-details small {
+  .scope-details small,
+  .provider-note {
     color: var(--muted);
+    font-size: 12px;
   }
   .provider-note {
     display: flex;
     gap: 8px;
-    border-top: 1px solid var(--border);
-    padding-top: 12px;
-    color: var(--muted);
+    margin-top: 16px;
   }
-  .report-tabs {
+  .analysis-history-row {
     display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    padding: 8px 12px;
+    width: 100%;
+    padding: 14px 18px;
+    gap: 14px;
+    text-align: left;
     border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
   }
-  .report-tabs button {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-size: calc(12px * var(--ui-scale));
-    color: var(--muted);
-  }
-  .report-tabs button[aria-pressed='true'] {
-    background: var(--selection);
-    border-color: var(--selection-border);
-    color: var(--ink);
-  }
-  .report-body {
-    display: flex;
-    min-height: 0;
+  .analysis-history-row > span {
     flex: 1;
   }
-  .report-section {
-    overflow: auto;
-    flex: 1;
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  .analysis-empty,
-  .analysis-document {
-    padding: 20px;
-  }
-  .analysis-empty :global(> .icon) {
-    width: 32px;
-    height: 32px;
-    color: var(--muted);
-    margin-bottom: 24px;
-  }
-  .analysis-empty h2,
-  .analysis-document h2 {
-    font-size: calc(22px * var(--ui-scale));
-    margin-bottom: 12px;
-  }
-  .analysis-empty p {
-    max-width: 65ch;
-  }
-  .analysis-empty small {
-    color: var(--muted);
-  }
-  .analysis-empty ol {
-    list-style: none;
-    padding: 0;
-    margin: 20px 0;
-  }
-  .analysis-empty li {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 10px 0;
-  }
-  .analysis-empty li span {
-    display: grid;
-    place-items: center;
-    border: 1px solid var(--border);
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .document-meta {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-    color: var(--muted);
-  }
-  .report-text {
-    white-space: pre-wrap;
-    margin: 20px 0;
-  }
-  .analysis-document h3 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 20px 0 10px;
+  .analysis-history-row strong,
+  .analysis-history-row small {
+    display: block;
   }
   .analysis-document li {
-    margin-block: 10px;
-  }
-  .history-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    padding: 12px;
-    border-bottom: 1px solid var(--border);
-    text-align: left;
-  }
-  .history-row span {
-    flex: 1;
-  }
-  .history-row small {
-    display: block;
+    margin: 8px 0;
     color: var(--muted);
-  }
-  @media (max-width: 950px) {
-    .analysis-layout {
-      grid-template-columns: minmax(200px, 0.8fr) minmax(0, 1.5fr);
-    }
-    .analysis-provider {
-      flex-wrap: wrap;
-    }
-  }
-  @media (max-width: 800px) {
-    .analysis-layout {
-      grid-template-columns: 1fr;
-      overflow: auto;
-    }
-    .analysis-config,
-    .analysis-report {
-      min-height: 350px;
-    }
   }
 </style>

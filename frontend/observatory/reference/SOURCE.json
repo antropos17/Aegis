@@ -1,0 +1,176 @@
+{
+  "template": "Observatory dialogs-14",
+  "captured": "2026-09-09",
+  "normalization": "UTF-8 with LF line endings",
+  "stylesheetOrder": [
+    "styles/workbench.css",
+    "styles/radar.css",
+    "styles/window.css",
+    "styles/interactions.css",
+    "styles/navigation.css",
+    "styles/transitions.css",
+    "styles/entities.css",
+    "styles/radar-info.css",
+    "styles/identity.css",
+    "styles/analysis.css",
+    "styles/polish.css",
+    "styles/dialogs.css"
+  ],
+  "files": [
+    {
+      "source": "ui/activity.js",
+      "path": "reference/ui/activity.js",
+      "sha256": "26e8f4de490c2de22416f7c82641da77ff4b50964d7bf270359c46f3abc514d9"
+    },
+    {
+      "source": "ui/analysis-model.js",
+      "path": "reference/ui/analysis-model.js",
+      "sha256": "062782264701e4d16e928ce0a1002db182a1183af1e28075bb9c0c590373fb00"
+    },
+    {
+      "source": "ui/analysis.js",
+      "path": "reference/ui/analysis.js",
+      "sha256": "baefd60dc376a15d819eb7e124d6261df52b814c512b49b4d4c036162dace398"
+    },
+    {
+      "source": "ui/app.js",
+      "path": "reference/ui/app.js",
+      "sha256": "b52673b299c1e407aaa8a6ee6755f1820d6637c156d801d4cb906768c8b14461"
+    },
+    {
+      "source": "ui/catalog-icons.js",
+      "path": "reference/ui/catalog-icons.js",
+      "sha256": "7a2cccb3d609f7aa4eaf7e904743964fcc729c9a71eac0d811b5cc1d6b4cf97e"
+    },
+    {
+      "source": "ui/catalog.js",
+      "path": "reference/ui/catalog.js",
+      "sha256": "1c2d531792bd1e62a00a455a63e00a4ca8eb59093df438c089c289517d11cb87"
+    },
+    {
+      "source": "ui/core.js",
+      "path": "reference/ui/core.js",
+      "sha256": "85baf189bf634451054a1c267149bda2b279b7d3c1342172a8bda68310be2cef"
+    },
+    {
+      "source": "ui/dashboard.js",
+      "path": "reference/ui/dashboard.js",
+      "sha256": "db954ce15d28c22db967a84a9387b906418dcd4f7cf0a731a6a7a5fb3b4597c7"
+    },
+    {
+      "source": "ui/entities.js",
+      "path": "reference/ui/entities.js",
+      "sha256": "dce5f9f4107021e3bd1c8b87cad242bc889ce21b1e7693de977f192d2a6ae9a9"
+    },
+    {
+      "source": "ui/motion.js",
+      "path": "reference/ui/motion.js",
+      "sha256": "0c61766659e01824d9f301f48f7b6e82e10f86f14dcabb6c484a667b7a023334"
+    },
+    {
+      "source": "ui/navigation.js",
+      "path": "reference/ui/navigation.js",
+      "sha256": "b6d5699f34d2c4bb1175f184ae8a7bfd22192ed8901d1ae0b763fd3531d26904"
+    },
+    {
+      "source": "ui/overview.js",
+      "path": "reference/ui/overview.js",
+      "sha256": "0f427a14cfff00465019da328a002f544c172f2fa8a7dca39714344aa833b50f"
+    },
+    {
+      "source": "ui/policy.js",
+      "path": "reference/ui/policy.js",
+      "sha256": "0e204ebece7f240103d5e2eafbb9072bdff43b67ae1835cbe817b3a625f97c99"
+    },
+    {
+      "source": "ui/radar-info.js",
+      "path": "reference/ui/radar-info.js",
+      "sha256": "d7b2a4a7d34553bd74de2e1ce82823665d0b47fa6cc762651577f653dc3aa76b"
+    },
+    {
+      "source": "ui/reports.js",
+      "path": "reference/ui/reports.js",
+      "sha256": "655cef845ff03eb711b3a83115a8dbd337625bcea2abf6f7bf830c012d8fbbab"
+    },
+    {
+      "source": "ui/settings.js",
+      "path": "reference/ui/settings.js",
+      "sha256": "3ca50622baa67a11ff2346cf5e952a7c781d4ab9d5656f6c4da35abe875eb85d"
+    },
+    {
+      "source": "ui/shell.html",
+      "path": "reference/ui/shell.html",
+      "sha256": "7215e5a6129b8b1a42fc7ad549d5e0337911bcf2576e697bcd2a7795994f6541"
+    },
+    {
+      "source": "ui/timeline.js",
+      "path": "reference/ui/timeline.js",
+      "sha256": "f2eccfda3de5e83cc1d499c9b2ba5c524c2067ceb5375374917a3a8d1a0bcd62"
+    },
+    {
+      "source": "ui/transitions.js",
+      "path": "reference/ui/transitions.js",
+      "sha256": "b6a8f2d390a38017a2e3f88ab34b19c1ab854b087f9dcbcb5794490122a73145"
+    },
+    {
+      "source": "styles/workbench.css",
+      "path": "styles/workbench.css",
+      "sha256": "e20b4ad37836d9bd5a11f4b38389e3c564ffc9f3dffda6221e43986342a346e9"
+    },
+    {
+      "source": "styles/radar.css",
+      "path": "styles/radar.css",
+      "sha256": "354dc1c9c31e1462aa063765c3081206417e90754eec51c7cae2dcae9eea99bb"
+    },
+    {
+      "source": "styles/window.css",
+      "path": "styles/window.css",
+      "sha256": "ff13f865f6eaa03f08e1fa0e3bb133ec2ee415deb4b4b19935dc26d86b8d4f8a"
+    },
+    {
+      "source": "styles/interactions.css",
+      "path": "styles/interactions.css",
+      "sha256": "95bd5c5cb7251fbfb5c71ad7184db80c17573af4e3387c432e1bc61d59d14815"
+    },
+    {
+      "source": "styles/navigation.css",
+      "path": "styles/navigation.css",
+      "sha256": "25d3b51e2b95468884815c6982631a119f7fd24a228be217bb088ba198bede34"
+    },
+    {
+      "source": "styles/transitions.css",
+      "path": "styles/transitions.css",
+      "sha256": "b0bf04ca4ae19f4d6a315f21715725094972620226d0374a32bbd9e25a12060d"
+    },
+    {
+      "source": "styles/entities.css",
+      "path": "styles/entities.css",
+      "sha256": "da121b8241b9b16f0ecf54fec9495024fc013f27e552ac9a80e2daf0e323a296"
+    },
+    {
+      "source": "styles/radar-info.css",
+      "path": "styles/radar-info.css",
+      "sha256": "e8eb4f72c0323336c06fa0fbaf06c6dcd465486e5a7962ac798065302aebeca4"
+    },
+    {
+      "source": "styles/identity.css",
+      "path": "styles/identity.css",
+      "sha256": "c364db1a8c11b90aeb92871ab6dc959dad4fc43e1f61f7ba81475750a6ca62d7"
+    },
+    {
+      "source": "styles/analysis.css",
+      "path": "styles/analysis.css",
+      "sha256": "09336119a63e0896b7756bd6e29d24fb51ae253fdfcfdc3277bcf44efc97d260"
+    },
+    {
+      "source": "styles/polish.css",
+      "path": "styles/polish.css",
+      "sha256": "342d8f0cf51f227cc75e638a0b19e5b967896bf4f4c75bcd54d970db96203079"
+    },
+    {
+      "source": "styles/dialogs.css",
+      "path": "styles/dialogs.css",
+      "sha256": "28bd9355325dccbf3c192f0cbad7bbd2f50c5cd5ada97e41662f8d67c63d5811"
+    }
+  ]
+}

@@ -1,0 +1,139 @@
+.preset[data-id='paranoid'] {
+  --profile-color: var(--red);
+}
+.preset[data-id='strict'] {
+  --profile-color: var(--amber);
+}
+.preset[data-id='balanced'] {
+  --profile-color: var(--green);
+}
+.preset[data-id='developer'] {
+  --profile-color: #83b5f1;
+}
+:root[data-theme^='light'] .preset[data-id='developer'] {
+  --profile-color: #285c9e;
+}
+.preset {
+  border-radius: 10px;
+  padding: 16px;
+}
+.preset-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.preset-heading > .icon {
+  width: 21px;
+  height: 21px;
+  color: var(--profile-color);
+  flex: 0 0 21px;
+}
+.preset-heading strong {
+  flex: 1;
+  min-width: 0;
+}
+.preset-heading .preset-check {
+  width: 15px;
+  height: 15px;
+  flex-basis: 15px;
+  visibility: hidden;
+}
+.preset[aria-pressed='true'] {
+  background: var(--raised);
+  border-color: var(--profile-color);
+  box-shadow: inset 0 0 0 1px var(--profile-color);
+}
+.preset[aria-pressed='true'] .preset-check {
+  visibility: visible;
+}
+.preset:focus-visible {
+  outline-color: var(--profile-color);
+}
+.preset small {
+  line-height: 1.5;
+}
+.permission-row > .permission-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.permission-identity > .icon {
+  width: 21px;
+  height: 21px;
+  color: var(--muted);
+  flex: 0 0 21px;
+}
+.agent-select-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.agent-select-identity .agent-mark {
+  width: 22px;
+  height: 22px;
+}
+.agent-filter-mark {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 22px;
+}
+.agent-filter-mark > .icon {
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+}
+.panel-head h2,
+.settings-section h2,
+#page-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.panel-head h2 > .icon,
+.settings-section h2 > .icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  color: var(--muted);
+}
+.panel-head h2 .agent-mark,
+.settings-section h2 .agent-mark {
+  width: 22px;
+  height: 22px;
+}
+#page-title > .icon {
+  width: 23px;
+  height: 23px;
+  flex: 0 0 23px;
+  color: var(--muted);
+}
+.subnav button,
+.segmented button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.subnav button > .icon,
+.segmented button > .icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+}
+.subnav {
+  flex-wrap: wrap;
+}
+.segmented button {
+  white-space: nowrap;
+}
+.command-option .agent-mark {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+}
+@media (max-width: 1000px) {
+  .preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -6,7 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
-- Restore the reviewed Observatory layout after the first integration simplified it: compact workspace navigation, six-part summary, radar activity cards, assessment columns, permission profiles, catalog rows, report summary and settings rows. Fix dark-theme artwork, stacked checkboxes and hidden active tabs.
+- Use the approved Observatory template styles and markup throughout the desktop: radar and linked resources, activity charts, permissions, catalog, analysis, reports, settings and dialogs. Retire the superseded layout and design guidance.
+- Group multiple observed processes on the radar with an explicit instance selector; retain stable scan animation, view pause, detail history and keyboard focus.
+- Fix unavailable process controls on enriched rows, stale stop confirmations, external website commands, cramped permission labels and long event lists in process details.
 - Replace the desktop shell with the shared Observatory Svelte interface: instance radar, workspaces, linked detail history, activity charts, audit, rules, catalog, analysis and settings.
 - Preserve unreliable populations and missing measurements; show failed/degraded sensors and keep process actions tied to stamped identity.
 - Fix same-timestamp audit pagination, custom catalog import persistence, permission draft resets and native folder error reporting.

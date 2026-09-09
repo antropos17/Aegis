@@ -1,0 +1,113 @@
+/* Host integration only; composition comes from the approved template styles. */
+.inset {
+  padding: var(--panel-inset);
+}
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.form-stack label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.table-scroll {
+  overflow: auto;
+}
+.table-scroll th,
+.table-scroll td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+td {
+  overflow-wrap: anywhere;
+}
+td small {
+  display: block;
+  color: var(--muted);
+}
+.text-link {
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--strong-border);
+  overflow-wrap: anywhere;
+}
+.button.active {
+  background: var(--selection);
+  border-color: var(--selection-border);
+}
+.error {
+  color: var(--red);
+}
+.health-banner {
+  border: 1px solid var(--amber);
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+#content > div {
+  min-width: 0;
+}
+/* Native Windows scrollbars must not consume the workspace tab row. */
+.workspace-tabs {
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+#main:not(.analysis-view) {
+  display: block;
+  overflow-y: auto;
+}
+#content:not(.analysis-view) {
+  display: block;
+}
+#content.analysis-view,
+.analysis-container:not([hidden]) {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+.radar-stage.stale .dial-sweep {
+  animation-play-state: paused;
+}
+:root[data-motion='reduce'] *,
+:root[data-motion='reduce'] *::before,
+:root[data-motion='reduce'] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+.command-panel {
+  position: fixed;
+  top: 90px;
+  width: min(580px, 90vw);
+  max-height: 75dvh;
+  overflow: auto;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.command-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.command-panel .nav {
+  width: 100%;
+}
+.command-panel::backdrop {
+  background: #0005;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

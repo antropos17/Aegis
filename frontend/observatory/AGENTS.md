@@ -1,6 +1,6 @@
 # Observatory
 
-This is AEGIS's canonical Svelte 5 interface. Follow DESIGN.md. New files use TypeScript without any. Keep component CSS scoped, using styles/theme.css tokens. Preserve the original local logos.
+This is the Svelte integration of the approved Observatory template. Follow DESIGN.md and reference/README.md. The preserved template remains the visual authority; an implementation difference is not a new approval. New files use TypeScript without any. Use the complete original stylesheet order in styles.ts and preserve the template's markup hierarchy and local artwork. Additional host behavior uses scoped CSS.
 
 Desktop and preview mount the same App.svelte. entry.ts uses the build-time preview constant; production must never import simulated telemetry. runtime/host.ts owns telemetry subscriptions, seed revision guards, freshness and disposal. Bind commands to the actual preload methods and require their documented success result.
 

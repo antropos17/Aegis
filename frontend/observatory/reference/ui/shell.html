@@ -1,0 +1,133 @@
+<a href="#main" class="skip">Skip to content</a>
+<div class="app">
+  <aside class="sidebar">
+    <a class="brand" href="./"
+      ><img class="brand-symbol" src="assets/aegis.svg" alt="" width="28" height="28" />AEGIS<span
+        class="version"
+        id="version"
+      ></span
+    ></a>
+    <div class="machine">
+      <span data-icon="monitor"></span>
+      <div><strong>Workstation</strong><small>Windows / local</small></div>
+      <span class="status-indicator" data-icon="check"></span>
+    </div>
+    <nav aria-label="Main navigation">
+      <button data-view="overview" class="nav active" aria-current="page">
+        <span data-icon="radar"></span><span>Monitoring</span><kbd>1</kbd>
+      </button>
+      <button data-view="agents" class="nav">
+        <span data-icon="agents"></span><span>Agents</span
+        ><span class="count" id="nav-agent-count">4</span>
+      </button>
+      <button data-view="events" class="nav">
+        <span data-icon="activity"></span><span>Events</span><kbd>2</kbd>
+      </button>
+      <button data-view="network" class="nav">
+        <span data-icon="network"></span><span>Network</span>
+      </button>
+      <div class="nav-divider"></div>
+      <button data-view="rules" class="nav">
+        <span data-icon="shield"></span><span>Rules & permissions</span><kbd>3</kbd>
+      </button>
+      <button data-view="database" class="nav">
+        <span data-icon="database"></span><span>Agent catalog</span>
+      </button>
+      <div class="nav-divider"></div>
+      <button data-view="analysis" class="nav">
+        <span data-icon="shield"></span><span>AI analysis</span>
+      </button>
+      <button data-view="reports" class="nav">
+        <span data-icon="report"></span><span>Reports</span><kbd>4</kbd>
+      </button>
+      <button data-view="audit" class="nav">
+        <span data-icon="history"></span><span>Audit</span>
+      </button>
+      <button data-view="stats" class="nav">
+        <span data-icon="chart"></span><span>Statistics</span><kbd>5</kbd>
+      </button>
+    </nav>
+    <div class="sidebar-bottom">
+      <button class="sensor-mini" data-action="sensors">
+        <span class="sensor-indicator" data-icon="shield"></span
+        ><span>Sensors<small id="sensor-caption">Monitoring available</small></span
+        ><span data-icon="chevron"></span></button
+      ><button class="nav" data-view="settings">
+        <span data-icon="settings"></span><span>Settings</span><kbd>S</kbd>
+      </button>
+      <div class="sidebar-foot"><span class="demo-dot"></span>Prototype<span>Demo data</span></div>
+    </div>
+  </aside>
+  <div class="shell">
+    <header class="topbar">
+      <div class="breadcrumb">Workstation<span>/</span><strong id="crumb">Monitoring</strong></div>
+      <div class="top-actions">
+        <button class="command-trigger" data-action="commands">
+          <span data-icon="search"></span><span>Commands</span><kbd>Ctrl K</kbd></button
+        ><button class="icon-button" data-action="theme" aria-label="Toggle theme">
+          <span data-icon="sun"></span></button
+        ><button class="icon-button" data-view="settings" aria-label="Open settings">
+          <span data-icon="settings"></span>
+        </button>
+      </div>
+    </header>
+    <main id="main" tabindex="-1">
+      <div class="page-head">
+        <div class="page-title">
+          <h1 id="page-title">Monitoring</h1>
+          <span class="live-badge" id="live-state"
+            ><span data-icon="activity"></span>Demo stream</span
+          >
+        </div>
+        <div class="page-actions">
+          <span id="session-clock" class="mono">02:34:18</span
+          ><button class="button" data-action="scan">
+            <span data-icon="refresh"></span>Scan now</button
+          ><button class="button" data-action="pause" id="pause">
+            <span data-icon="pause"></span><span>Pause</span>
+          </button>
+        </div>
+      </div>
+      <div id="health-banner" hidden></div>
+      <div id="content"></div>
+    </main>
+    <footer>
+      <button data-action="sensors">
+        <span class="status-indicator" id="footer-dot" data-icon="check"></span
+        ><span id="footer-health">Sensors available</span></button
+      ><span>AEGIS <b id="own-cpu">0.7%</b> CPU <b>142 MB</b> RAM <b>68 MB</b> heap</span
+      ><span>Scan <b id="scan-ms">124 ms</b></span
+      ><span class="footer-demo">Demo · no process control</span>
+    </footer>
+  </div>
+</div>
+<dialog id="modal" aria-labelledby="modal-title">
+  <div class="modal-head">
+    <div>
+      <span id="modal-caption" class="muted"></span>
+      <h2 id="modal-title"></h2>
+    </div>
+    <button class="icon-button" data-action="close-modal" aria-label="Close">
+      <span data-icon="close"></span>
+    </button>
+  </div>
+  <div id="modal-body"></div>
+  <div id="modal-actions" class="modal-actions"></div>
+</dialog>
+<dialog id="commands" aria-labelledby="commands-title">
+  <h2 id="commands-title" class="sr-only">Commands</h2>
+  <label class="command-input"
+    ><span data-icon="search"></span
+    ><input
+      id="command-search"
+      type="search"
+      placeholder="View, agent or action…"
+      aria-label="Search commands"
+      autocomplete="off"
+    /><kbd>Esc</kbd></label
+  >
+  <div id="command-results"></div>
+  <div class="command-help">↑ ↓ select <span>Enter open</span></div>
+</dialog>
+<div class="toast" role="status" id="toast"></div>
+<input id="file-import" type="file" accept=".json,application/json" hidden />

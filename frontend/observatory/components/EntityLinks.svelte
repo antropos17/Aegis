@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { record, type Telemetry, type RecordData } from '../runtime/host';
+  import { instances, record, type Telemetry, type RecordData } from '../runtime/host';
+  import Icon from './Icon.svelte';
   let {
     row,
     telemetry,
@@ -10,13 +11,13 @@
     navigate: (title: string, row: RecordData) => Promise<void>;
   } = $props();
   let related = $derived(
-    telemetry.events.filter((e) => row.instanceId && e.instanceId === row.instanceId).slice(-30),
+    telemetry.events
+      .filter((e) => !!row.instanceId && e.instanceId === row.instanceId)
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 30),
   );
   let siblings = $derived(
-    telemetry.agents.filter(
-      (agent) =>
-        agent.applicationGroup && agent.applicationGroup.id === record(row.applicationGroup).id,
-    ),
+    instances(telemetry).filter((a) => row.process && a.name === String(row.name ?? row.agent)),
   );
   let path = $derived(
     typeof row.file === 'string' ? row.file : typeof row.cwd === 'string' ? row.cwd : '',
@@ -26,55 +27,79 @@
   );
 </script>
 
-{#if parent && parent !== path}<button
-    class="text-link"
-    onclick={() => navigate('Parent folder', { cwd: parent, source: 'Parent of observed path' })}
-    >Parent folder · {parent}</button
-  >{/if}
-{#if row.process && row.instanceId}
-  {#if siblings.length > 1}<h3>Observed process group</h3>
-    {#each siblings as agent (agent.instanceId)}<button
-        class="related"
-        onclick={() =>
-          navigate(`${agent.agent} · PID ${agent.pid}`, agent as unknown as RecordData)}
-        >{agent.agent} · PID {agent.pid} · {agent.instanceId}</button
-      >{/each}{/if}
-  <h3>Related file observations · latest 30</h3>
-  {#each related as event (event)}<button
-      class="related"
-      onclick={() => navigate('File observation', event as unknown as RecordData)}
-      >{event.action} · {event.file}</button
-    >{:else}<p class="muted">No retained file observations for this instance.</p>{/each}
+{#if row.process}
+  <h3>Process instances</h3>
+  {#each siblings as a (a.instanceId ?? a)}<div class="process-row">
+      <div>
+        <button
+          class="entity-link"
+          onclick={() => navigate(a.name + ' · PID ' + a.pid, a as unknown as RecordData)}
+          ><Icon name="cpu" />PID {a.pid}</button
+        ><small>{a.process}</small>
+      </div>
+      <button
+        class="text-button"
+        onclick={() => navigate(a.name + ' · PID ' + a.pid, a as unknown as RecordData)}
+        >Open<Icon name="chevron" /></button
+      >
+    </div>{/each}
+  <h3 class="section-title">Recent events</h3>
+  {#each related.slice(0, 4) as e (e)}<button
+      class="recent-event"
+      onclick={() => navigate('File observation', e as unknown as RecordData)}
+      ><Icon name="file" />
+      <div>
+        <strong>{e.file.split(/[/\\]/).pop()}</strong><small
+          >{new Date(e.timestamp).toLocaleTimeString()} · {e.action}</small
+        >
+      </div></button
+    >{:else}<p class="entity-note">No retained file observations for this instance.</p>{/each}
+  {#if related.length > 4}<button
+      class="text-button"
+      onclick={() => navigate('Recent file observations', { observations: related })}
+      >View all {related.length} retained events<Icon name="chevron" /></button
+    >{/if}
 {/if}
-{#if row.file && row.instanceId}{@const agent = telemetry.agents.find(
+{#if parent && parent !== path}<div class="entity-parent">
+    <button
+      class="entity-link"
+      onclick={() => navigate('Parent folder', { cwd: parent, source: 'Parent of observed path' })}
+      ><Icon name="folder" />Parent folder · {parent}</button
+    >
+  </div>{/if}
+{#if (row.file || row.remoteIp) && row.instanceId}{@const agent = instances(telemetry).find(
     (a) => a.instanceId === row.instanceId,
   )}{#if agent}<button
-      class="text-link"
-      onclick={() => navigate(agent.agent, agent as unknown as RecordData)}
-      >Open exact agent instance</button
+      class="entity-link"
+      onclick={() => navigate(agent.name, agent as unknown as RecordData)}
+      ><Icon name="cpu" />Open exact agent instance</button
     >{/if}{/if}
-{#if Array.isArray(row.observations)}<h3>Interval observations</h3>
-  {#each row.observations as observation, index (index)}{@const event = record(observation)}<button
-      class="related"
-      onclick={() => navigate('File observation', event)}
-      >{String(event.agent || 'Unattributed')} · {String(event.file ?? '')}</button
-    >{/each}{/if}
+{#if Array.isArray(row.observations)}<div class="interval-events">
+    {#each row.observations as value, i (i)}{@const e = record(value)}<button
+        class="recent-event interval-event"
+        onclick={() => navigate('File observation', e)}
+        ><time>{e.timestamp ? new Date(Number(e.timestamp)).toLocaleTimeString() : '—'}</time>
+        <div>
+          <strong>{String(e.file ?? e.domain ?? 'Observation')}</strong><small
+            >{String(e.agent ?? 'Unattributed')}</small
+          >
+        </div></button
+      >{:else}<p class="entity-note">No events recorded during this interval.</p>{/each}
+  </div>{/if}
 
 <style>
-  h3 {
-    margin: 16px 0 8px;
+  .section-title {
+    margin-top: 24px;
   }
-  .related {
+  .process-row small {
     display: block;
-    width: 100%;
-    text-align: left;
-    padding: 8px;
-    border: 1px solid var(--border);
-    background: var(--panel);
-    color: var(--ink);
-    overflow-wrap: anywhere;
+    color: var(--muted);
   }
-  .related:hover {
-    background: var(--hover);
+  .entity-parent {
+    margin-top: 16px;
+  }
+  .entity-link {
+    overflow-wrap: anywhere;
+    text-align: left;
   }
 </style>

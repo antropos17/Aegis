@@ -64,6 +64,9 @@
   let chosen = $derived(agents.find((a) => a.instanceId === target));
   let contextKey = $derived(scope === 'agent' ? target : chosen?.instanceKey);
   $effect(() => {
+    if (loaded && !target && options.length) target = options[0].key;
+  });
+  $effect(() => {
     const current = record(contextKey ? permissions[contextKey] : undefined);
     draft = Object.fromEntries(categories.map((cat) => [cat, String(current[cat] ?? 'monitor')]));
   });
@@ -122,7 +125,7 @@
   }
 </script>
 
-<div class="section-tabs">
+<div class="subnav">
   <button aria-pressed={section === 'permissions'} onclick={() => (section = 'permissions')}
     ><Icon name="shield" />Agent permissions</button
   ><button aria-pressed={section === 'rules'} onclick={() => (section = 'rules')}
@@ -139,19 +142,19 @@
     {#each Object.entries(presets) as [name, values] (name)}<button
         class="preset"
         aria-label={name}
-        data-profile={name}
+        data-id={name}
         disabled={!target}
         aria-pressed={!!target && categories.every((cat, i) => draft[cat] === values[i])}
         onclick={() => (draft = Object.fromEntries(categories.map((cat, i) => [cat, values[i]])))}
-        ><span
-          ><Icon name={profiles[name][0]} /><strong>{name}</strong
-          >{#if target && categories.every((cat, i) => draft[cat] === values[i])}<Icon
-              name="check"
-            />{/if}</span
+        ><span class="preset-heading"
+          ><Icon name={profiles[name][0]} /><strong>{name}</strong><Icon
+            name="check"
+            class="preset-check"
+          /></span
         ><small>{profiles[name][1]}</small></button
       >{/each}
   </div>
-  <div class="target-toolbar">
+  <div class="filterbar target-toolbar">
     <label
       >Agent <AgentLogo name={scope === 'agent' ? target : (chosen?.name ?? '')} size={22} /><select
         aria-label="Target"
@@ -184,21 +187,26 @@
         </p>
       </div>
     </div>
-    {#each categories as category (category)}<label class="permission-row"
-        ><span
-          ><Icon name={labels[category][0]} /><span
-            ><strong>{labels[category][1]}</strong><small>{labels[category][2]}</small></span
-          ></span
-        ><select aria-label={labels[category][1]} disabled={!target} bind:value={draft[category]}
-          ><option value="allow">Allow</option><option value="monitor">Monitor</option><option
+    {#each categories as category (category)}
+      <div class="permission-row">
+        <div class="permission-identity">
+          <Icon name={labels[category][0]} />
+          <div>
+            <h3>{labels[category][1]}</h3>
+            <p>{labels[category][2]}</p>
+          </div>
+        </div>
+        <select aria-label={labels[category][1]} disabled={!target} bind:value={draft[category]}>
+          <option value="allow">Allow</option><option value="monitor">Monitor</option><option
             value="block">Block</option
-          ></select
-        ></label
-      >{/each}
+          >
+        </select>
+      </div>
+    {/each}
     <div class="toolbar inset">
       <Action disabled={!loaded || !target} action={save}>Save permissions</Action><Action
         action={async () => {
-          await invoke(host, 'resetPermissionsToDefaults');
+          confirmed(await invoke(host, 'resetPermissionsToDefaults'));
           await load();
         }}>Reset all to defaults</Action
       >
@@ -236,100 +244,18 @@
 </section>
 
 <style>
-  .preset-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-  .preset {
-    padding: 16px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--panel);
-    text-align: left;
-    --profile-color: var(--muted);
-  }
-  .preset span {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    margin-bottom: 12px;
-  }
-  .preset strong {
-    flex: 1;
-    text-transform: capitalize;
-    font-size: calc(12px * var(--ui-scale));
-  }
-  .preset :global(.icon) {
-    color: var(--profile-color);
-    width: 21px;
-    height: 21px;
-  }
-  .preset[data-profile='paranoid'] {
-    --profile-color: var(--red);
-  }
-  .preset[data-profile='strict'] {
-    --profile-color: var(--amber);
-  }
-  .preset[data-profile='balanced'] {
-    --profile-color: var(--green);
-  }
-  .preset[data-profile='developer'] {
-    --profile-color: var(--ice);
-  }
-  .preset[aria-pressed='true'] {
-    background: var(--raised);
-    border-color: var(--profile-color);
-    box-shadow: inset 0 0 0 1px var(--profile-color);
-  }
-  .target-toolbar,
-  .target-toolbar label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    font-size: calc(11px * var(--ui-scale));
-  }
-  .target-toolbar {
-    margin-bottom: 12px;
-    gap: 12px;
-  }
   .target-toolbar select {
-    max-width: 280px;
-  }
-  .permission-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
-  }
-  .permission-row > span {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .permission-row strong {
-    font-size: calc(12px * var(--ui-scale));
-  }
-  .permission-row small {
-    display: block;
-    color: var(--muted);
-    margin-top: 3px;
+    max-width: 300px;
   }
   .permission-row select {
     min-width: 140px;
   }
+  .preset strong {
+    text-transform: capitalize;
+  }
   .policy-note {
     margin-top: 12px;
     color: var(--muted);
-    font-size: 11px;
-  }
-  @media (max-width: 1000px) {
-    .preset-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+    font-size: 12px;
   }
 </style>
