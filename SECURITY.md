@@ -8,7 +8,7 @@ AEGIS monitors AI agents — security is our core mission. We take vulnerabiliti
 
 ### Contact
 
-Report vulnerabilities via [GitHub Security Advisories](https://github.com/antropos17/Aegis/security/advisories).
+Use [Report a vulnerability](https://github.com/antropos17/Aegis/security/advisories/new) to send a private report through GitHub. Do not include vulnerability details or credentials in public issues.
 
 Please include:
 - Description of the vulnerability
@@ -69,23 +69,24 @@ AEGIS follows Electron security best practices:
 - **Context isolation:** Enabled. The renderer process cannot access Node.js APIs.
 - **Node integration:** Disabled in the renderer.
 - **Preload bridge:** All IPC passes through `contextBridge.exposeInMainWorld` with a defined, enumerated API surface (54 channels: 44 invoke + 10 push). No arbitrary IPC.
-- **Content Security Policy:** Strict `default-src 'self'` policy, no external font loading.
+- **Content Security Policy:** `default-src 'self'` and `script-src 'self'`, with no `unsafe-eval` or external font loading. `style-src` permits `unsafe-inline` for application styles.
 - **No remote content:** The app loads only local files. No external URLs in the renderer.
-- **Input sanitization:** All user-visible strings pass through `escapeHtml()` before DOM insertion. Template literals are used for HTML generation, not `innerHTML` with raw strings.
-- **Single-instance lock:** Only one AEGIS instance runs at a time, preventing IPC interception.
+- **Output escaping:** Svelte escapes ordinary text interpolations. Generated HTML reports use explicit escaping; raw HTML insertion and new export paths require their own review.
+- **Single-instance lock:** Prevents duplicate application instances. It does not replace IPC sender checks or protect against a compromised local account.
 - **Application updates:** Windows installer metadata requires an Ed25519 signature from the bundled release public key. SHA-256 and byte length are checked after download and again after native installation confirmation. This authenticates release artifacts independently of Windows Authenticode. Update IPC rejects foreign senders and subframes and accepts no paths or URLs. See [update architecture](ARCHITECTURE.md#application-updates) for supported builds and limitations.
 
 ### Privacy Architecture
 
-- **All data stays local.** No telemetry, no cloud sync, no analytics, no tracking.
-- **AI analysis is opt-in.** API calls to Anthropic only happen when the user explicitly clicks "Run AI Threat Analysis." No background API calls.
+- **Local storage by default.** Settings, baselines and audit logs are stored locally. There is no telemetry, cloud sync, analytics or usage tracking. Optional external requests are described below.
+- **AI analysis is opt-in.** An explicit analysis request sends activity metadata to Anthropic using the configured API key. Depending on the analysis, this includes agent/process names, PIDs, parent chains, sensitive file paths, event counts and network endpoints. Monitoring does not require this service; analysis is not sent in the background.
 - **Update requests are opt-in.** Automatic checks/downloads default to off; manual actions contact public GitHub releases. These requests send no monitoring records, settings or API keys. Installation always requires native confirmation.
-- **Audit logs contain metadata, not content.** File paths and agent names are logged, but file contents are never read or stored.
-- **API key is stored locally** in Electron's userData directory, encrypted via Electron safeStorage (added v0.9.0).
+- **Audit records contain metadata.** File-monitoring records include paths, names and attribution evidence, not the contents of observed sensitive files. Token accounting separately reads local agent transcript JSONL to extract usage; that is distinct from the file-monitoring pipeline.
+- **API-key storage is conditional.** Settings use Electron safeStorage when encryption is available. If it is unavailable or encryption fails, the current implementation saves the key in plaintext in the local settings JSON. The key is decrypted in memory for API requests.
 
 ### Known Limitations
 
 - **Monitor-only:** AEGIS observes and does not enforce at the OS level. Permission states (allow/monitor/block) affect UI display and alerting. OS-level blocking by kernel driver is a deliberate non-goal.
+- **Settings exports can contain the API key:** Export Config serializes in-memory settings, including a configured plaintext key. Remove it before sharing a settings JSON. The ZIP session export removes API-key fields from its settings copy.
 - **Audit logs are plaintext:** JSONL files in `userData/audit-logs/` are unencrypted. They contain file paths and agent names but not file contents.
 - **Process attribution:** chokidar file watchers cannot attribute events to specific processes. Handle-based scanning provides per-process attribution but runs on a timer, not in real-time.
 - **No TLS inspection:** Network monitoring sees connection endpoints only and cannot inspect encrypted traffic. TLS interception is a deliberate non-goal, not a pending feature.

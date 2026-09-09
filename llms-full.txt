@@ -1,25 +1,25 @@
-# Aegis — EDR for AI Agents
+# Aegis — Local Monitoring for AI Agents
 
-> Aegis is an open-source endpoint detection and response (EDR) tool that monitors AI agent processes, file access, network activity, and behavioral anomalies in real time.
+> Aegis is an open-source, monitor-first desktop app for local AI-agent processes, file activity, TCP endpoints and behavioral anomalies.
 
-## Problem
+## Purpose and scope
 
-Autonomous AI agents (OpenClaw, AutoGPT, Devin, CrewAI) now have deep access to local files, credentials, and shell commands. Every existing AI security tool is enterprise SaaS that monitors what humans send *to* AI. Nobody monitors what AI agents do *on local machines*. CrowdStrike, Cisco, and Kaspersky have all flagged security risks in autonomous AI agents — Kaspersky found 512 bugs in OpenClaw alone.
+AI agents can access local files, credentials, shell commands and external services. AEGIS observes supported activity from outside the agent and records attribution evidence. It is one of several approaches to agent observability; in-agent instrumentation and OS-level tools have different coverage.
 
-## Solution
+Monitoring runs locally without telemetry or an account. Optional AI analysis sends activity metadata to Anthropic using the user's API key; update checks contact GitHub. AEGIS has manual process controls but no automatic OS-level enforcement.
 
-Aegis provides the same class of oversight for autonomous AI agents that CrowdStrike provides for traditional endpoints. It runs locally, keeps all data on-device, and is vendor-independent. No telemetry, no cloud, no paid tiers.
+This document describes current source. Installed releases can lag behind it; consult the release tag and README limitations.
 
 ## Installation
 
 ```bash
 git clone https://github.com/antropos17/Aegis.git
 cd Aegis
-npm install
+npm ci
 npm start
 ```
 
-Building from source requires Node.js 24.x, as declared by `engines` in `package.json` and pinned in `.nvmrc` and CI. The tooling floor is lower but still excludes Node 18 and 19 — Vite 7 declares `^20.19.0 || >=22.12.0` and Vitest 4 declares `^20.0.0 || ^22.0.0 || >=24.0.0`. npm 10+. The packaged app ships its own Node runtime inside Electron. Windows 10/11 recommended. macOS/Linux experimental.
+Building from source requires Node.js 24.x, as declared in package.json and pinned in .nvmrc and CI. The packaged app ships its own runtime. Windows 10/11 is the primary platform; macOS/Linux remain experimental. For a browser demo, follow the built-preview instructions in the README.
 
 ## Features
 
@@ -27,10 +27,10 @@ Building from source requires Node.js 24.x, as declared by `engines` in `package
 Tracks 110 known AI agents (262 process-name signatures across their `names` arrays) with parent-child tree resolution and IDE host detection. Covers coding assistants (Claude Code, Copilot, Cursor), autonomous agents (OpenClaw, AutoGPT, CrewAI, Devin), desktop AI (Gemini, Apple Intelligence), frameworks (LangChain, AutoGen, MetaGPT), and local LLMs (Ollama, LM Studio, llama.cpp).
 
 ### File System Access
-Watches sensitive directories (.ssh, .aws, .gnupg, .env, cloud configs) and the 35 AI agent config paths registered in AGENT_CONFIG_PATHS for unauthorized access.
+Watches sensitive directories (.ssh, .aws, .gnupg, .env, cloud configs) and the 35 AI agent config paths registered in AGENT_CONFIG_PATHS for file activity. Database configPaths metadata does not register watch roots automatically.
 
 ### Network Activity
-Logs outbound TCP connections per agent PID with reverse DNS and known-vs-unknown API endpoint classification.
+Logs outbound TCP connections per agent PID with forward-confirmed reverse DNS and allowlisted, unknown or flagged endpoint verdicts. An unresolved endpoint is not assumed safe.
 
 ### Behavioral Analysis
 Applies 73 detection rules across 8 categories (AI config, secrets, SSH, cloud, browser, devtools, crypto, certificates) with rolling 10-session baselines and 4-axis anomaly scoring (Network/FS/Process/Baseline).
@@ -39,13 +39,13 @@ Applies 73 detection rules across 8 categories (AI config, secrets, SSH, cloud, 
 Assigns real-time risk scores with trust grades (A+ through F) using time-decay algorithms and multi-dimensional threat assessment.
 
 ### Dashboard
-Bento grid layout with RiskRing gauge, sparklines, TrustBadge, agent stats, activity feed with filters, session timeline, and expandable agent cards. Protection presets: Paranoid, Strict, Balanced, Developer.
+Radar overview, summary cards, filtered/grouped activity feeds, network panel, expandable agent/application cards and footer sensor health. Monitoring presets: Paranoid, Strict, Balanced, Developer. Presets do not enforce OS-level blocking.
 
 ### Export and Audit
-JSON, CSV, HTML reports, one-click ZIP archive, JSONL audit logging with daily rotation and 30-day retention.
+JSON, CSV, HTML reports, one-click ZIP archive and hash-chained JSONL audit logging with daily rotation and 30-day retention. Settings JSON exports can contain the plaintext API key; remove it before sharing. ZIP session exports remove API-key fields from their settings copy.
 
 ### YAML Rulesets
-73 detection rules, validated against rules/_schema.json. Editing a ruleset hot-reloads without a restart. Extend by adding a .yaml to rules/; rule IDs must be unique, and a duplicate ID is skipped rather than overriding.
+73 sensitive-path detection rules, validated against rules/_schema.json. Existing ruleset edits hot-reload in unpacked runs; packaged ASAR watchers are disabled. Extend by adding a .yaml to rules/ and reloading or restarting; sensitive-rule IDs must be unique and duplicates are skipped. Sequence correlations live separately in rules/sequences/: keep their IDs unique across files because the sequence loader currently does not reject cross-file duplicates.
 
 ## Documentation
 
@@ -56,14 +56,14 @@ JSON, CSV, HTML reports, one-click ZIP archive, JSONL audit logging with daily r
 
 ## Technical Details
 
-- **Stack**: Electron 43, Svelte 5, Vite 7, TypeScript
+- **Stack**: Electron, Svelte 5, Vite; CommonJS JavaScript in main, TypeScript in the renderer and shared types. Exact versions: package.json
 - **Tests**: Vitest; run `npm test` for current pass/skip and file counts
 - **License**: MIT
 - **Version**: 0.14.1-alpha <!-- x-release-please-version -->
-- **Platform**: Windows, macOS, Linux
+- **Platform**: Windows primary; macOS/Linux experimental
 
 ## Links
 
 - Repository: https://github.com/antropos17/Aegis
-- Website: https://aegisprotect.vercel.app
-- Demo: https://aegis-demo-ten.vercel.app
+- Local demo instructions: https://github.com/antropos17/Aegis#try-without-ai-agents
+- Privacy and external requests: https://github.com/antropos17/Aegis/blob/master/SECURITY.md#privacy-architecture

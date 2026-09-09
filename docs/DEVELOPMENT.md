@@ -5,20 +5,13 @@ and IPC architecture specific to this codebase.
 
 ---
 
-## Stack Versions (as of 2026-08-21 — authoritative versions live in `package.json`)
+## Stack
 
-| Dep | Version | Role |
-|-----|---------|------|
-| Svelte | 5.51+ | UI framework (runes mode) |
-| Vite | 7.3+ | Dev server + bundler for renderer |
-| Electron | 43 | Desktop shell + OS APIs |
-| Vitest | 4.0+ | Unit testing (Node env, jsdom available) |
-| chokidar | 3.6 | File system watcher (main process only) |
-| prettier | 3.8 | Code formatter — run before committing |
+Exact dependency ranges live in [package.json](../package.json); [package-lock.json](../package-lock.json) records the installed versions. Use the Node.js version pinned in `.nvmrc` and `npm ci` to reproduce the dependency tree.
 
-**Runtime deps (package.json `dependencies`) — three:** `ajv`, `chokidar`, `js-yaml`. `electron`
-is a devDependency; it ships as the shell, not as a resolved runtime dep. No further runtime
-deps without discussion.
+The application uses Electron, Svelte 5 and Vite. Vitest provides the test runner; Prettier and ESLint cover formatting and linting.
+
+Runtime dependencies are `ajv`, `chokidar`, `electron-updater`, `js-yaml` and `semver`. Electron is a devDependency that supplies the desktop shell. Justify new dependencies in the PR.
 
 ---
 
@@ -91,7 +84,7 @@ export let count = $state(0);
 // count = 5; // compiler error — reassignment of exported $state
 
 // WORKAROUND: wrap in object or use a function
-export const store = { count: $state(0) };
+export const store = $state({ count: 0 });
 store.count = 5; // OK — property mutation, not reassignment
 ```
 
@@ -123,7 +116,8 @@ This is intentional for tab transitions but has a render cost. Avoid nesting `{#
 ```js
 new BrowserWindow({
   webPreferences: {
-    contextIsolation: true,  // enforced since Electron 12, never disable
+    contextIsolation: true,  // keep renderer and preload worlds separate
+    sandbox: true,           // sandbox the renderer
     nodeIntegration: false,  // never enable — would expose Node to renderer
     preload: path.join(__dirname, 'preload.js'),
   },
@@ -148,8 +142,7 @@ contextBridge.exposeInMainWorld('aegis', {
 // GOOD: await a response, catches errors
 const data = await ipcRenderer.invoke('get-stats');
 
-// ONLY for fire-and-forget (no response needed)
-ipcRenderer.send('other-panel-expanded', true);
+// AEGIS exposes no fire-and-forget send method in its preload bridge.
 ```
 
 ### Validate IPC args in main process
@@ -164,14 +157,14 @@ performing file I/O, spawning processes, or writing to disk.
 ```
 OS (chokidar + netstat) --> main process
     --> preload.js (contextBridge) --> window.aegis
-        --> ipc.js stores (agents, events, stats, network, anomalies, resourceUsage)
-            --> risk.js (enrichedAgents derived store)
+        --> ipc.ts stores (agents, events, stats, network, anomalies, resourceUsage)
+            --> risk.ts (enrichedAgents derived store)
                 --> components
 ```
 
 ### Stream channels (pushed from main)
 
-All nine, exactly as subscribed in `preload.js`. There is no `scan-results` or
+The 10 push channels subscribed in `preload.js` are listed below. There is no `scan-results` or
 `anomaly-scores` channel — anomaly scores ride inside `scan-batch`.
 
 | Channel | Store | Payload |
@@ -185,12 +178,13 @@ All nine, exactly as subscribed in `preload.js`. There is no `scan-results` or
 | `toggle-theme` | — | consumed directly in `App.svelte`, not via a store |
 | `agent-resource-usage` | `agentResourceUsage` | per-agent CPU/RAM samples keyed by `instanceId` (read by `AgentCard`) |
 | `rules:reloaded` | — | exposed by `preload.js` but **no renderer subscriber** |
+| `updates:status` | `updateStatus` | update availability, download progress and action state |
 
 ### Invoke channels (renderer requests main)
 
 Common ones: `get-stats`, `get-resource-usage`, `get-agent-database`, `get-settings`,
 `save-settings`, `get-all-permissions`, `save-agent-permissions`, `analyze-session`,
-`kill-process`, `get-audit-entries-before`. All 40 are listed in `src/main/preload.js`; the
+`kill-process`, `get-audit-entries-before`. All 44 invoke channels are listed in `src/main/preload.js`; the
 full table with module attribution is in [ARCHITECTURE.md](../ARCHITECTURE.md).
 
 ### Browser / demo mode guard
@@ -203,7 +197,7 @@ if (window.aegis) {
 }
 ```
 
-`ipc.js` exports `isDemoMode` boolean — components can use it to hide Electron-only UI.
+`ipc.ts` exports `isDemoMode` boolean — components can use it to hide Electron-only UI.
 
 ---
 
@@ -213,12 +207,13 @@ if (window.aegis) {
 
 ```js
 // vite.config.js
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const isDemo = mode === 'demo';
+  const withDemoEngine = isDemo || command === 'serve';
   return {
     define: {
       // Replaced at build time — tree-shakeable, zero runtime cost
-      'import.meta.env.VITE_DEMO_MODE': JSON.stringify(isDemo ? 'true' : 'false'),
+      'import.meta.env.VITE_DEMO_MODE': JSON.stringify(withDemoEngine ? 'true' : 'false'),
     },
     build: {
       outDir: isDemo ? '../../dist/demo' : '../../dist/renderer',
@@ -243,12 +238,21 @@ use `base: './'` so asset paths are relative.
 ## Build Commands
 
 ```bash
-npm run dev            # Vite dev server on :5174 (renderer hot-reload only)
-npm run build:renderer # Production renderer build -> dist/renderer/
-npm run build:demo     # Static demo build -> dist/demo/ (no Electron required)
-npm run build          # Full Electron app -> dist/ (platform installer)
-npm start              # build:renderer + launch.js (opens Electron with built renderer)
+npm run build:renderer # Production renderer -> dist/renderer/
+npm run build:demo     # Static browser demo -> dist/demo/
+npm start              # Build renderer, then launch Electron
 ```
+
+Preview the built demo with `npx vite preview --mode demo --host 127.0.0.1 --port 4174`. The unbuilt `npm run dev` server currently fails to load the dashboard because a shared CommonJS helper is imported as ESM; use the built preview until that is fixed.
+
+For a local installer, run these commands in order:
+
+```bash
+npm run build:renderer
+npm run build
+```
+
+`build`/`dist` package the existing renderer output; they do not rebuild it. On Windows the packaging hook compiles the process-snapshot sidecar. Close a source-run AEGIS instance before packaging if it is holding that sidecar executable. Release CI runs the renderer build explicitly before packaging.
 
 ---
 
@@ -297,7 +301,7 @@ Key token namespaces:
 
 - **300-line soft limit** per file — a target for NEW files, not an invariant; 37 existing `src/` files already exceed it. Not enforced by the linter
 - **JSDoc on all exported functions**: `@param`, `@returns`, `@since`
-- **Commit prefixes**: `feat:`, `fix:`, `docs:`, `refactor:`, `security:`
+- **Commit prefixes**: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`; see [BRANCHING.md](../BRANCHING.md)
 - **IPC channel names**: `kebab-case`
 - **CSS class names**: `component-element` (BEM-lite, no nesting depth > 2)
 - **Branch from `master`**, not main

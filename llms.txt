@@ -1,6 +1,6 @@
 # Aegis
 
-> Aegis is an open-source endpoint detection and response (EDR) tool that monitors AI agent processes, file access, network activity, and behavioral anomalies in real time.
+> Aegis is an open-source, monitor-first desktop app for local AI-agent processes, file activity, TCP endpoints and behavioral anomalies. It combines polling with event-based file watchers; coverage and attribution have documented limits.
 
 ## Documentation
 
@@ -18,18 +18,20 @@
 - Trust scoring with grades A+ through F using time-decay algorithms
 - Local LLM detection (Ollama, LM Studio, vLLM, llama.cpp)
 - Export to JSON, CSV, HTML reports and ZIP archives
-- YAML rulesets with JSON Schema validation and hot-reload
+- YAML rulesets with JSON Schema validation; edits to existing files hot-reload in unpacked runs
+
+Local monitoring has no telemetry. Optional AI analysis sends activity metadata to Anthropic on request; update actions contact GitHub. AEGIS does not automatically enforce OS-level restrictions.
 
 ## Technical Details
 
-- **Stack**: Electron 43, Svelte 5, Vite 7, TypeScript
+- **Stack**: Electron, Svelte 5, Vite; CommonJS JavaScript in main, TypeScript in the renderer and shared types. Exact versions: package.json
 - **Tests**: Vitest; run `npm test` for current pass/skip and file counts
 - **License**: MIT
 - **Version**: 0.14.1-alpha <!-- x-release-please-version -->
-- **Platform**: Windows, macOS, Linux
+- **Platform**: Windows primary; macOS/Linux experimental
 
 ## Links
 
 - Repository: https://github.com/antropos17/Aegis
-- Website: https://aegisprotect.vercel.app
-- Demo: https://aegis-demo-ten.vercel.app
+- Local demo instructions: https://github.com/antropos17/Aegis#try-without-ai-agents
+- Privacy and external requests: https://github.com/antropos17/Aegis/blob/master/SECURITY.md#privacy-architecture

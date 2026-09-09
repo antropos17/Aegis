@@ -7,11 +7,11 @@ AEGIS is building an independent AI oversight layer — a tool that monitors wha
 ```bash
 git clone https://github.com/antropos17/Aegis.git
 cd Aegis
-npm install
+npm ci
 npm start
 ```
 
-Requires the Node.js version in `engines` in `package.json` (also pinned in `.nvmrc` and used by CI) and Windows 10/11 for full monitoring functionality. The Electron app launches a real-time dashboard that detects AI agents, monitors file access, scans network connections, and scores risk.
+Requires the Node.js version in `engines` in `package.json` (also pinned in `.nvmrc` and used by CI) and Windows 10/11 for the primary supported monitoring path. macOS/Linux support is experimental; see the [known limits](README.md#known-limits). The Electron app launches a dashboard that detects AI agents, monitors file access, scans network connections, and scores risk.
 
 ## Workflow
 
@@ -32,7 +32,9 @@ See [BRANCHING.md](BRANCHING.md) for full details.
 ### Releases
 Releases are automated via [release-please](https://github.com/googleapis/release-please).
 Just write proper conventional commits. release-please creates a Release PR automatically.
-When maintainers merge the Release PR → version bump + CHANGELOG + GitHub Release happen automatically.
+Release PRs created or updated with `GITHUB_TOKEN` can wait for **Approve workflows to run** before CI starts. A maintainer reviews the diff, approves the workflow run and waits for all required checks before merging. See [GitHub's documented approval behavior](https://docs.github.com/en/actions/concepts/security/github_token).
+
+Merging the Release PR creates the version bump, changelog and GitHub Release; the installer workflow then builds and uploads artifacts. A release is ready to download only after that build succeeds.
 
 ## Code Standards
 
@@ -41,9 +43,9 @@ When maintainers merge the Release PR → version bump + CHANGELOG + GitHub Rele
 - **Svelte 5 + Vite for renderer** — component-based architecture with `$state`/`$derived`/`$effect` runes. Main process remains CommonJS.
 - **CommonJS in main process** — `require`/`module.exports` with `init()` dependency injection pattern. Each module receives only the state it needs.
 - **JSDoc headers on all exported functions** — `@param`, `@returns`, `@since` tags required. Include `@file`, `@module`, `@description` at top of every file.
-- **300 line soft limit per file** — split into focused, single-responsibility modules when exceeding.
+- **Aim for 300 lines in new files.** Extract a focused module when adding to an oversized file; do not split existing files solely to meet the target.
 - **`const` over `let`** when the binding doesn't change. Never use `var`.
-- **No external dependencies** without discussion — the project intentionally keeps `dependencies` to three: `ajv` (rule-schema validation), `chokidar` (file watching) and `js-yaml` (ruleset parsing). `electron` is a devDependency. Adding a dependency requires justification.
+- **Justify new dependencies.** The runtime dependencies in `package.json` are `ajv` (schema validation), `chokidar` (file watching), `electron-updater` (updates), `js-yaml` (ruleset parsing) and `semver` (version comparison). Electron is a devDependency used to build and run the desktop shell.
 
 ### Naming Conventions
 
@@ -54,7 +56,7 @@ When maintainers merge the Release PR → version bump + CHANGELOG + GitHub Rele
 
 ### TypeScript
 
-- **New files should be written in TypeScript** (`.ts`) — existing `.js` files will be migrated incrementally
+- **New renderer files use TypeScript** (`.ts` or `<script lang="ts">` in Svelte). Main-process modules remain CommonJS JavaScript with JSDoc; there is no blanket migration requirement
 - **Main process** (`.js`): annotated with JSDoc, which editors use for IntelliSense. `checkJs` is **off** in `tsconfig.base.json`, so `tsc` resolves these files but does not type-check their bodies — the annotations document intent, they are not enforced by the typecheck gate
 - **Renderer** (`.ts`/`.svelte`): native TypeScript with ES modules
 - Shared type definitions live in `src/shared/types/` (`npm run counts:check` derives the file count)
@@ -99,10 +101,10 @@ Add an entry to the `agents` array:
 - `names` — Substrings matched against running process names (case-insensitive). The field is `names`, not `processPatterns`; nothing in the codebase reads a `processPatterns` key
 
 **Important fields:**
-- `knownDomains` — Domains classified as "safe" when this agent connects to them. Without this, the agent's connections will be flagged as unknown.
-- `configPaths` — Directories to monitor for the Hudson Rock config protection feature. These directories are watched for unauthorized access.
-- `defaultTrust` — Initial trust score (0-100). Lower = more suspicious. Affects risk score multiplier.
-- `riskProfile` — `low`, `medium`, or `high`. Affects default permission assignments.
+- `knownDomains` — Vendor endpoint allowlist metadata. An allowlisted endpoint is not a guarantee of safe behavior; unresolved endpoints are `unknown` and resolved names outside the applicable allowlists are `flagged`
+- `configPaths` — Descriptive metadata; adding it does not register a watcher. Add a supported watch root to `AGENT_CONFIG_PATHS` in `src/shared/constants.js` and verify the watcher behavior separately
+- `defaultTrust` — Database metadata; it is not an input to the current risk-scoring formula
+- `riskProfile` — `low`, `medium`, or `high` metadata used by the database UI. It does not select default permissions; `config-manager.js` uses known-agent membership for the initial `monitor`/`block` value
 - `category` — One of the 11 in use: `agent-framework`, `ai-ide`, `autonomous-agent`, `browser-agent`, `cli-tool`, `coding-assistant`, `container-runtime`, `desktop-agent`, `ide-extension`, `local-llm-runtime`, `security-devops`
 
 ### Via the UI
@@ -111,7 +113,7 @@ Users can also add custom agents through the Agent Database Manager in the RULES
 
 ## How to Add a New Monitoring Module
 
-Main process modules follow an `init()` dependency injection pattern:
+Main process modules use an `init(deps)` dependency injection pattern; inspect the neighboring modules for the required dependencies:
 
 ```javascript
 // src/main/my-module.js
@@ -136,8 +138,8 @@ function init(state) {
  */
 function scan() {
   const agents = _state.getLatestAgents();
-  // ... monitoring logic
-  return results;
+  // Replace this example result with the observations produced by the module.
+  return { observedAgents: agents.length };
 }
 
 module.exports = { init, scan };
@@ -154,7 +156,7 @@ If the renderer needs data, register an IPC handler in `registerIpc()` and add t
 
 ## How to Add New Sensitive File Rules
 
-Rules live in `rules/*.yaml` — one ruleset file per category, validated against `rules/_schema.json` and loaded by `src/main/rule-loader.js` with hot-reload. Add an entry to the ruleset for your category:
+Rules live in `rules/*.yaml` — one ruleset file per category, validated against `rules/_schema.json` and loaded by `src/main/rule-loader.js` with edit-triggered hot reload in unpacked runs. Add an entry to the ruleset for your category:
 
 ```yaml
   - id: "SS007"
@@ -188,6 +190,8 @@ When filing issues, use these labels:
 The full set is on the repository's [labels page](https://github.com/antropos17/Aegis/labels); `good first issue` and `help wanted` mark issues that are open to contributors.
 
 ## Reporting Issues
+
+Remove API keys, credentials and private paths from logs or exported settings before attaching them. Report vulnerabilities through the [private security channel](SECURITY.md#reporting-a-vulnerability).
 
 - Use GitHub Issues with a descriptive title
 - Include: OS version, Node.js version, Electron version, steps to reproduce, console output
