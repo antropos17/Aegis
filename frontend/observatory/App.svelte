@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
+  import { transitionSurface } from './runtime/motion';
   import {
     connectHost,
     emptyTelemetry,
@@ -36,6 +37,16 @@
     ['settings', 'Settings', 'settings'],
   ];
   let telemetry = $state(emptyTelemetry());
+  let paused = $state(false);
+  let held = $state(emptyTelemetry());
+  let displayTelemetry = $derived(paused ? held : telemetry);
+  const healthCaption = $derived(
+    record(telemetry.stats.appHealth).state === 'HEALTHY'
+      ? 'Monitoring available'
+      : telemetry.stale
+        ? 'Observation unavailable'
+        : 'Check sensor details',
+  );
   let connection: ReturnType<typeof connectHost> | null = null;
   let ownCpu = $state<number | null>(null);
   let previousOwn: RecordData = {};
@@ -92,16 +103,20 @@
       history = [...history.slice(0, historyIndex + 1), next];
       historyIndex = history.length - 1;
     }
-    view = next;
-    commands = false;
     const ticket = ++navigationRevision;
-    await tick();
-    if (ticket === navigationRevision) {
-      workspace.scrollTop = scrolls[next] ?? 0;
-      document
-        .querySelector('.workspace-tabs > .active')
-        ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    }
+    await transitionSurface('workspace', async () => {
+      if (ticket !== navigationRevision) return;
+      view = next;
+      commands = false;
+      await tick();
+      if (ticket === navigationRevision) {
+        workspace.scrollTop = scrolls[next] ?? 0;
+        workspace.classList.add('has-navigated');
+        document
+          .querySelector('.workspace-tabs > .active')
+          ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
+    });
   }
   function back(delta: number) {
     const next = historyIndex + delta;
@@ -113,8 +128,16 @@
   onMount(() => {
     document.documentElement.dataset.motion = localStorage.getItem('aegis-motion') ?? 'full';
     let alive = true;
+    let initialSelectionMade = false;
     const stop = connectHost(host, (value) => {
       telemetry = value;
+      if (!initialSelectionMade && value.ready && !value.stale) {
+        const first = value.agents.find((agent) => agent.instanceId);
+        if (first?.instanceId) {
+          selected = first.instanceId;
+          initialSelectionMade = true;
+        }
+      }
     });
     connection = stop;
     const unsubscribe = host?.onToggleTheme
@@ -150,7 +173,12 @@
       selected = null;
       return;
     }
-    if (detail || (commands && event.key.toLowerCase() !== 'k')) return;
+    if (
+      detail ||
+      (!commands && document.querySelector('dialog[open]')) ||
+      (commands && event.key.toLowerCase() !== 'k')
+    )
+      return;
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
       commands = !commands;
@@ -186,20 +214,19 @@
 
 <svelte:window onkeydown={keydown} />
 <a href="#main" class="skip">Skip to content</a>
-<div class="app observatory-app">
+<div class="app observatory-app" class:paused>
   <aside class="sidebar">
     <a class="brand" href="#main"
-      ><img src="assets/aegis.svg" alt="" width="28" height="28" />AEGIS<span class="version"
-        >{version}</span
+      ><img class="brand-symbol" src="assets/aegis.svg" alt="" width="28" height="28" />AEGIS<span
+        class="version">{version}</span
       ></a
     >
     <div class="machine">
       <Icon name="monitor" />
       <div>
-        <strong>{preview ? 'Preview workstation' : 'Local workstation'}</strong><small
-          >{preview ? 'Simulated observations' : 'Desktop monitoring'}</small
-        >
+        <strong>Workstation</strong><small>{preview ? 'Preview / local' : 'Desktop / local'}</small>
       </div>
+      <span class="status-indicator"><Icon name="check" /></span>
     </div>
     <nav aria-label="Main navigation">
       {#each views.filter((row) => row[0] !== 'settings') as [id, label, icon] (id)}
@@ -222,10 +249,9 @@
             ...record(telemetry.stats.appHealth),
             observationGap: telemetry.stats.observationGap,
           })}
-        ><Icon name="shield" /><span
-          >Sensors<small>{String(record(telemetry.stats.appHealth).state ?? 'Waiting')}</small
-          ></span
-        ></button
+        ><span class="sensor-indicator"><Icon name="shield" /></span><span
+          >Sensors<small>{healthCaption}</small></span
+        ><Icon name="chevron" /></button
       >
       <button
         class="nav"
@@ -245,6 +271,9 @@
         ><button class="icon-button" aria-label="Toggle theme" onclick={() => (dark = !dark)}
           ><Icon name="sun" /></button
         >
+        <button class="icon-button" aria-label="Open settings" onclick={() => navigate('settings')}
+          ><Icon name="settings" /></button
+        >
       </div>
     </header>
     <div class="workspace-navigation">
@@ -261,18 +290,39 @@
           onclick={() => back(1)}><Icon name="chevron" /></button
         >
       </div>
-      <div class="workspace-tabs" aria-label="Open workspaces">
-        {#each tabs as tab (tab)}<div class:active={view === tab}>
-            <button onclick={() => navigate(tab)}
+      <div class="workspace-tabs" role="tablist" aria-label="Open workspaces">
+        {#each tabs as tab (tab)}<div class="workspace-tab" class:active={view === tab}>
+            <button
+              role="tab"
+              aria-selected={view === tab}
+              tabindex={view === tab ? 0 : -1}
+              onkeydown={async (event) => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                event.stopPropagation();
+                const index = tabs.indexOf(tab);
+                const next =
+                  event.key === 'Home'
+                    ? 0
+                    : event.key === 'End'
+                      ? tabs.length - 1
+                      : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+                await navigate(tabs[next]);
+                document
+                  .querySelector<HTMLButtonElement>('.workspace-tabs [aria-selected="true"]')
+                  ?.focus({ preventScroll: true });
+              }}
+              onclick={() => navigate(tab)}
               ><Icon name={views.find((row) => row[0] === tab)?.[2] ?? 'file'} />{views.find(
                 (row) => row[0] === tab,
               )?.[1]}</button
             >{#if tab !== 'overview'}<button
+                class="tab-close"
                 aria-label={`Close ${tab}`}
                 onclick={() => {
                   tabs = tabs.filter((item) => item !== tab);
                   if (view === tab) void navigate('overview');
-                }}>×</button
+                }}><Icon name="close" /></button
               >{/if}
           </div>{/each}
       </div>
@@ -280,21 +330,35 @@
     <main class:analysis-view={view === 'analysis'} id="main" tabindex="-1" bind:this={workspace}>
       <div class="page-head">
         <div class="page-title">
-          <Icon name={views.find((row) => row[0] === view)?.[2] ?? 'file'} />
-          <h1>{title}</h1>
+          <h1 id="page-title">
+            <Icon name={views.find((row) => row[0] === view)?.[2] ?? 'file'} />{title}
+          </h1>
           <span class="live-badge"
-            ><Icon name="activity" />{preview
-              ? 'Demo'
-              : telemetry.stale
-                ? 'Observation unavailable / stale'
-                : telemetry.scanning
-                  ? 'Scanning'
-                  : 'Monitoring'}</span
+            ><Icon name="activity" />{paused
+              ? 'View paused'
+              : preview
+                ? 'Demo stream'
+                : telemetry.stale
+                  ? 'Observation unavailable / stale'
+                  : telemetry.scanning
+                    ? 'Scanning'
+                    : 'Monitoring'}</span
           >
         </div>
         <div class="page-actions">
           <button class="button" disabled title="This backend has no manual scan command"
             ><Icon name="refresh" />Scan now</button
+          >
+          <button
+            class="button"
+            title="Pause the displayed observations; backend monitoring continues"
+            onclick={() => {
+              if (!paused) held = telemetry;
+              paused = !paused;
+            }}
+            ><Icon name={paused ? 'play' : 'pause'} />{paused
+              ? 'Resume view'
+              : 'Pause view'}</button
           >
         </div>
       </div>
@@ -305,34 +369,36 @@
             : 'Waiting for a reliable process observation. An empty screen does not establish that no agents are running.'}
         </p>{/if}
       <SensorStatus health={record(telemetry.stats.appHealth)} />
-      <div hidden={view !== 'overview' && view !== 'agents'}>
-        <Monitoring {telemetry} bind:selected {inspect} mode={view} />
+      <div id="content" class:analysis-view={view === 'analysis'}>
+        <div hidden={view !== 'overview' && view !== 'agents'}>
+          <Monitoring telemetry={displayTelemetry} bind:selected {inspect} mode={view} />
+        </div>
+        {#if tabs.includes('events')}<div hidden={view !== 'events'}>
+            <Events showPause={false} telemetry={displayTelemetry} {inspect} />
+          </div>{/if}
+        {#if tabs.includes('network')}<div hidden={view !== 'network'}>
+            <Events showPause={false} telemetry={displayTelemetry} network {inspect} />
+          </div>{/if}
+        {#if tabs.includes('rules')}<div hidden={view !== 'rules'}>
+            <Rules {host} {telemetry} />
+          </div>{/if}
+        {#if tabs.includes('database')}<div hidden={view !== 'database'}>
+            <Catalog {host} {inspect} />
+          </div>{/if}
+        {#if tabs.includes('analysis')}<div class="analysis-container" hidden={view !== 'analysis'}>
+            <Analysis {host} {telemetry} visible={view === 'analysis'} {preview} />
+          </div>{/if}
+        {#if tabs.includes('reports')}<div hidden={view !== 'reports'}>
+            <Reports {host} {inspect} telemetry={displayTelemetry} {navigate} />
+          </div>{/if}
+        {#if tabs.includes('audit')}<div hidden={view !== 'audit'}>
+            <Reports {host} audit {inspect} telemetry={displayTelemetry} {navigate} />
+          </div>{/if}
+        {#if tabs.includes('settings')}<div hidden={view !== 'settings'}>
+            <Settings {host} {appearance} {navigate} />
+          </div>{/if}
+        <div hidden={view !== 'stats'}><Statistics telemetry={displayTelemetry} {inspect} /></div>
       </div>
-      {#if tabs.includes('events')}<div hidden={view !== 'events'}>
-          <Events {telemetry} {inspect} />
-        </div>{/if}
-      {#if tabs.includes('network')}<div hidden={view !== 'network'}>
-          <Events {telemetry} network {inspect} />
-        </div>{/if}
-      {#if tabs.includes('rules')}<div hidden={view !== 'rules'}>
-          <Rules {host} {telemetry} />
-        </div>{/if}
-      {#if tabs.includes('database')}<div hidden={view !== 'database'}>
-          <Catalog {host} {inspect} />
-        </div>{/if}
-      {#if tabs.includes('analysis')}<div class="analysis-container" hidden={view !== 'analysis'}>
-          <Analysis {host} {telemetry} visible={view === 'analysis'} {preview} />
-        </div>{/if}
-      {#if tabs.includes('reports')}<div hidden={view !== 'reports'}>
-          <Reports {host} {inspect} {telemetry} {navigate} />
-        </div>{/if}
-      {#if tabs.includes('audit')}<div hidden={view !== 'audit'}>
-          <Reports {host} audit {inspect} {telemetry} {navigate} />
-        </div>{/if}
-      {#if tabs.includes('settings')}<div hidden={view !== 'settings'}>
-          <Settings {host} {appearance} {navigate} />
-        </div>{/if}
-      <div hidden={view !== 'stats'}><Statistics {telemetry} {inspect} /></div>
     </main>
     <footer>
       <button onclick={() => inspect('Sensor health', record(telemetry.stats.appHealth))}
@@ -381,112 +447,3 @@
   request={detail}
   close={() => (detail = null)}
 />
-
-<style>
-  .observatory-app {
-    height: 100dvh;
-    min-height: 0;
-  }
-
-  .shell {
-    min-height: 0;
-    height: 100dvh;
-    display: flex;
-    flex-direction: column;
-  }
-  .topbar,
-  footer {
-    flex-shrink: 0;
-  }
-  main {
-    overflow: auto;
-    min-height: 0;
-    flex: 1;
-  }
-  .health-banner {
-    padding: 12px 16px;
-    border: 1px solid var(--amber);
-    border-radius: 8px;
-    margin-bottom: 12px;
-  }
-  .command-panel {
-    position: fixed;
-    z-index: 50;
-    inset: 70px 24px auto auto;
-    margin: 0;
-    color: var(--ink);
-    width: min(380px, 80vw);
-    max-height: 80dvh;
-    overflow: auto;
-    padding: 16px;
-    background: var(--panel);
-    border: 1px solid var(--strong-border);
-    border-radius: 12px;
-    box-shadow: var(--shadow);
-  }
-  :global(.inset) {
-    padding: 16px;
-  }
-  :global(.panel + .panel) {
-    margin-top: 12px;
-  }
-  :global(.form-stack) {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  :global(.form-stack label) {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  :global(input:not([type='checkbox']), select, textarea) {
-    max-width: 100%;
-    min-width: 0;
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--ink);
-    background: var(--bg);
-  }
-  :global(.table-scroll) {
-    overflow: auto;
-  }
-  :global(td) {
-    overflow-wrap: anywhere;
-    max-width: 400px;
-  }
-  :global(td small) {
-    display: block;
-    color: var(--muted);
-  }
-  :global(.text-link) {
-    color: var(--ink);
-    background: transparent;
-    border: 0;
-    text-align: left;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    padding: 0;
-    overflow-wrap: anywhere;
-  }
-  :global(.button.active) {
-    background: var(--raised);
-    border-color: var(--strong-border);
-  }
-  .analysis-view {
-    display: flex;
-    flex-direction: column;
-  }
-  .analysis-container {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-  }
-  @media (max-width: 850px) {
-    .analysis-container {
-      min-height: 500px;
-    }
-  }
-</style>

@@ -1,5 +1,24 @@
 # Observatory integration
 
+The earlier integrations passed functional gates but did not preserve the reviewed template closely enough. Their validation below is historical evidence, not visual approval of the current interface.
+
+## Template restoration — 2026-09-09
+
+Working branch: codex/observatory-template-restoration, based on 09bdc9b. The approved template is preserved in frontend/observatory/reference/; its twelve stylesheets are used directly in their source order. Superseded theme/layout styles were removed. Local project design/context skills and the UI agent instructions no longer direct work toward the retired designs.
+
+The Svelte views now follow that source hierarchy. Live-data adaptations include grouped process markers, exact instance selection, optional resource measurements, supported provider controls, and native command errors. Detail dialogs keep fixed chrome and a scrolling body. Forms use native modal focus handling. Code and fixture hashes, layout checks and rendered comparisons are complementary evidence.
+
+Validation:
+- 157 test files: 2856 passed, 4 skipped, with coverage. The successful Windows run used two workers and temporary storage on X. An earlier parallel run hit a duplicate native watcher notification and a timeout; a later attempt exhausted C temporary storage. Neither assertion nor timeout was weakened.
+- Repository build, format, lint, both TypeScript/Svelte projects, witness and sequence mutation gates, counts, and production dependency audit passed. Lint retains 77 warnings; Svelte reports zero errors and warnings.
+- Both built entries passed the 132 browser combinations, captured-template hashes/cascade order, preview isolation and desktop fixture exclusion. All eleven template/desktop pairs and selected/detail/form states were rendered for review. Dialog Escape/focus, resource-route geometry, live appearance preview and discard passed.
+- Real Electron and the packaged Windows executable passed eleven workspaces, reliable process population, settings restart, six native export handlers, and configuration key preservation/exclusion. No real provider request or intervention against a user process was performed.
+- Windows x64 NSIS built locally with publication disabled, reusing the existing ICO derived from the unchanged application icon after the icon-conversion worker failed to allocate memory. Version remains 0.14.1-alpha. Native macOS/Linux behavior and paid provider calls were not exercised.
+
+The desktop shortcut previously pointed to the older C installation. The local runnable copy is placed separately on X because C has almost no free space; the original shortcut is backed up before retargeting. No release tag or published version is part of this restoration.
+
+## Earlier integration record
+
 Base: 64478536ed8e0faa86e7a60eb543d0683b2a2e9e. Worktree: X:/tmp/aegis-observatory-integration. Branch: codex/observatory-integration.
 
 Patch SHA256 verified; frontend contents match prepared worktree. Main checkout and preparation preserved. Temporary output belongs on X (C nearly full). No release tag authorised.

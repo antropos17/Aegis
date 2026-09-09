@@ -1,0 +1,135 @@
+/* Dialog chrome stays in place while only the record body scrolls. */
+#modal[open] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  scrollbar-gutter: auto;
+  padding: 16px;
+  top: 18px;
+  max-height: calc(100dvh - 36px);
+}
+#modal .modal-head {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  margin: 0;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+#modal .modal-head > .detail-navigation {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  margin-top: 2px;
+}
+#modal .modal-head > div:not(.detail-navigation) {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+}
+#modal .modal-head > button {
+  grid-column: 3;
+  grid-row: 1;
+}
+#modal-title {
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+#modal-title:focus {
+  outline: none;
+}
+#modal-body {
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  padding: 16px 4px;
+  scroll-padding-block: 12px;
+}
+#modal .modal-actions {
+  flex: 0 0 auto;
+  margin: 0;
+  padding-top: 12px;
+  gap: 8px;
+}
+#modal .details-grid {
+  grid-template-columns:
+    minmax(100px, min(38%, calc(132px * var(--ui-scale))))
+    minmax(0, 1fr);
+  gap: 9px 16px;
+  align-items: baseline;
+}
+#modal .agent-detail-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(300px * var(--ui-scale))), 1fr));
+  gap: 18px;
+}
+#modal .agent-detail-grid > div {
+  min-width: 0;
+}
+#modal .agent-detail-grid .details-grid {
+  grid-template-columns:
+    minmax(100px, min(38%, calc(132px * var(--ui-scale))))
+    minmax(0, 1fr);
+}
+#modal .process-row {
+  gap: 8px;
+  align-items: flex-start;
+}
+#modal .process-row > div {
+  min-width: 0;
+}
+#modal .process-row .toolbar {
+  justify-content: flex-start;
+}
+#modal-body > h3 {
+  margin-block: 18px 10px;
+}
+#modal-body :is(input, select, textarea) {
+  max-width: 100%;
+  min-width: 0;
+}
+#modal-body :is(.entity-stack, .signature-links, .form-grid label) {
+  min-width: 0;
+}
+#modal-body .entity-link > span {
+  overflow-wrap: anywhere;
+}
+#modal-body .recent-event {
+  border-radius: 6px;
+}
+#modal-body .form-grid {
+  gap: 12px;
+}
+@media (max-width: 550px) {
+  #modal[open] {
+    padding: 12px;
+  }
+  #modal .modal-head {
+    gap: 8px;
+  }
+  #modal .details-grid {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  #modal .details-grid dd + dt {
+    margin-top: 10px;
+  }
+}
+
+#modal .watch-list {
+  padding: 0;
+}
+#modal .watch-row {
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+#modal .watch-row:last-child {
+  border-bottom: 0;
+}

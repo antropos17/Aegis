@@ -13,6 +13,7 @@
   import Action from './Action.svelte';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
+  import EditorDialog from './EditorDialog.svelte';
   let category = $state('');
   let { host, inspect }: { host: Host | null; inspect: (title: string, row: RecordData) => void } =
     $props();
@@ -79,19 +80,21 @@
   }
 </script>
 
-<div class="catalog-toolbar">
-  <input
-    type="search"
-    aria-label="Search catalog"
-    bind:value={query}
-    placeholder="Name, signature or vendor…"
-  /><label
+<div class="filterbar">
+  <label class="search-field"
+    ><Icon name="search" /><input
+      type="search"
+      aria-label="Search catalog"
+      bind:value={query}
+      placeholder="Name, signature or vendor…"
+    /></label
+  ><label
     >Category <select aria-label="Catalog category" bind:value={category}
       ><option value="">All categories</option>{#each CATEGORIES as [id, title] (id)}<option
           value={id}>{title}</option
         >{/each}</select
     ></label
-  ><span class="toolbar-spacer"></span><button
+  ><span class="spacer"></span><button
     class="button"
     onclick={() => {
       form = createEmptyForm();
@@ -105,27 +108,7 @@
 
 <section class="panel">
   {#if error}<p role="alert" class="inset">{error}</p>{/if}
-  {#if showForm}<div class="inset form-stack editor">
-      <h3>{editing ? 'Edit custom agent' : 'Add custom agent'}</h3>
-      <label>Name<input bind:value={form.displayName} /></label><label
-        >Process name<input bind:value={form.processName} /></label
-      ><label
-        >Category<select bind:value={form.category}
-          >{#each CATEGORIES as [id, label] (id)}<option value={id}>{label}</option>{/each}</select
-        ></label
-      ><label
-        >Risk profile<select bind:value={form.riskProfile}
-          ><option>low</option><option>medium</option><option>high</option></select
-        ></label
-      ><label>Description<textarea bind:value={form.description}></textarea></label>
-      <div class="toolbar">
-        <Action action={save}>Save agent</Action><button
-          class="button"
-          onclick={() => (showForm = false)}>Cancel</button
-        >
-      </div>
-    </div>{/if}
-  <div class="table-scroll">
+  <div class="table-wrap">
     <table>
       <thead
         ><tr
@@ -136,7 +119,7 @@
         >{#each rows as row (String(row.id))}<tr
             ><td
               ><button
-                class="text-link identity"
+                class="catalog-identity"
                 onclick={() => inspect(String(row.displayName), row)}
                 ><AgentLogo id={String(row.id)} /><span
                   ><strong>{String(row.displayName)}</strong><small
@@ -145,7 +128,7 @@
                 ></button
               ></td
             ><td>{String(row.category ?? '')}</td><td
-              ><div class="signature-list">
+              ><div class="signature-links">
                 {#each Array.isArray(row.names) ? row.names.slice(0, 3) : [] as name (name)}<button
                     class="text-link"
                     onclick={() =>
@@ -160,6 +143,7 @@
             ><td
               ><span
                 class="badge"
+                class:low={row.riskProfile === 'low'}
                 class:high={row.riskProfile === 'high'}
                 class:medium={row.riskProfile === 'medium'}
                 >{String(row.riskProfile ?? 'Unknown')}</span
@@ -167,12 +151,9 @@
             ><td
               ><div class="toolbar">
                 <button class="button" onclick={() => inspect(String(row.displayName), row)}
-                  ><Icon name="chevron" />Details</button
+                  >Details</button
                 >
-                {#if row.website}<Action
-                    action={async () =>
-                      confirmed(await invoke(host, 'openExternalUrl', row.website))}>Website</Action
-                  >{/if}{#if row.custom}<button
+                {#if row.custom}<button
                     class="button"
                     onclick={() => {
                       editing = String(row.id);
@@ -190,53 +171,56 @@
   </div>
 </section>
 
+{#if showForm}
+  <EditorDialog
+    title={editing ? 'Edit custom agent' : 'Add custom agent'}
+    caption="Agent catalog"
+    close={() => (showForm = false)}
+  >
+    <div class="form-grid">
+      <label>Name<input bind:value={form.displayName} required /></label>
+      <label>Process name<input bind:value={form.processName} required /></label>
+      <label
+        >Category<select bind:value={form.category}
+          >{#each CATEGORIES as [id, label] (id)}<option value={id}>{label}</option>{/each}</select
+        ></label
+      >
+      <label
+        >Risk profile<select bind:value={form.riskProfile}
+          ><option>low</option><option>medium</option><option>high</option></select
+        ></label
+      >
+      <label class="full">Description<textarea bind:value={form.description}></textarea></label>
+    </div>
+    {#snippet actions()}<button class="button" onclick={() => (showForm = false)}>Cancel</button
+      ><Action action={save}>Save agent</Action>{/snippet}
+  </EditorDialog>
+{/if}
 <p class="catalog-count muted">{base.length} bundled · {custom.length} custom</p>
 
 <style>
-  .catalog-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
+  td:last-child {
+    min-width: 88px;
+    white-space: nowrap;
   }
-  .catalog-toolbar input {
-    width: 265px;
-  }
-  .catalog-toolbar label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: calc(11px * var(--ui-scale));
-  }
-  .toolbar-spacer {
-    flex: 1;
-  }
-  .signature-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px 16px;
-  }
-  .identity {
-    text-decoration: none;
-    text-align: left;
-  }
-  .identity small {
-    margin-top: 3px;
-    font-weight: 400;
+  td:last-child .button {
+    white-space: nowrap;
   }
   .catalog-count {
     font-size: 11px;
     margin-top: 12px;
   }
-
-  .identity {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  .catalog-identity {
+    text-align: left;
   }
-  .editor {
-    border-block: 1px solid var(--border);
-    max-width: 640px;
+  .catalog-identity small {
+    display: block;
+    color: var(--faint);
+  }
+  .signature-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px 10px;
+    font-size: 11px;
   }
 </style>

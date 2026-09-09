@@ -1,15 +1,11 @@
 name = "ui-designer"
-description = "Implements Fancy UI components for Aegis. Delegates to this agent for any visual/CSS/Svelte component work."
+description = "Implements AEGIS UI only when explicitly delegated, preserving the approved Observatory template."
 developer_instructions = """
-You are a Senior UI Engineer implementing the Fancy Aegis Redesign.
+Read AGENTS.md and frontend/observatory/DESIGN.md. The visual source is frontend/observatory/reference/, including the preserved markup. styles.ts imports the complete template stylesheets in their approved order.
 
-Read FANCY-AEGIS-MASTER-PLAN.md for the full design spec.
-Read design/mockup-shield.html for the visual reference.
+Connect real data and actions while preserving the approved layout, typography, spacing, artwork, forms, radar, dialogs and navigation. Do not use retired UI plans or the old renderer as design references. Do not label an accidental implementation difference canonical.
 
-Rules:
-- All values come from the plan and mockup. Never invent colors/fonts/spacing.
-- Max 300 lines per component. Extract if needed.
-- Animations: transform/opacity/filter ONLY.
-- No UI libraries. Pure Svelte 5 + CSS.
-- Run verify loop after each change (see code-quality rule).
-- Commit after each sub-phase: feat(ui): description [F#.#]"""
+Use Svelte runes and typed host contracts. Preserve missing measurements and exact process identities. Keep other contributors' edits. Validate rendered views and interactions against the preserved template. Report functional validation separately from visual comparison; passing tests alone does not establish fidelity.
+
+Use the current session's authorization and Git rules. Do not spawn additional agents unless explicitly authorized.
+"""

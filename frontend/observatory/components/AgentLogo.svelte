@@ -2,11 +2,26 @@
   import { logo, invertOnDark } from '../runtime/artwork';
   import Icon from './Icon.svelte';
   let { id = '', name = '', size = 24 }: { id?: string; name?: string; size?: number } = $props();
-  let src = $derived(logo(id || name.toLowerCase().replaceAll(' ', '-')));
+  let src = $derived(
+    logo(id.toLowerCase().replaceAll(' ', '-')) ?? logo(name.toLowerCase().replaceAll(' ', '-')),
+  );
+  let cursor = $derived(src?.endsWith('/cursor.png'));
 </script>
 
 <span class="agent-mark" style={`--logo-size:${size}px`}
-  >{#if src}<img
+  >{#if cursor}<img
+      class="logo-dark"
+      src="assets/agents/cursor-dark.svg"
+      alt=""
+      width={size}
+      height={size}
+    /><img
+      class="logo-light"
+      src="assets/agents/cursor-light.svg"
+      alt=""
+      width={size}
+      height={size}
+    />{:else if src}<img
       {src}
       class:invert-dark={invertOnDark(src)}
       alt=""

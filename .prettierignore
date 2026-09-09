@@ -21,3 +21,6 @@ bench/runs
 # assertion in tests/main/bench/replay.test.js would then compare a rebuild
 # against a file the formatter edited.
 tests/fixtures/bench
+
+# Approved template fixtures retain their captured source form.
+frontend/observatory/reference

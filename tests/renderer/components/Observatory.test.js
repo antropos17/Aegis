@@ -37,12 +37,15 @@ describe('Observatory production components', () => {
       selected: null,
       inspect,
     });
-    await fireEvent.click(screen.getByRole('button', { name: 'Select Claude Code, PID 102' }));
-    await fireEvent.click(screen.getByRole('button', { name: 'Process details' }));
+    await fireEvent.click(screen.getByRole('button', { name: /Select Claude Code, 3 processes/ }));
+    await fireEvent.change(screen.getByLabelText('Selected process'), {
+      target: { value: '102:1' },
+    });
+    await fireEvent.click(screen.getByRole('button', { name: 'Process', exact: true }));
     expect(inspect.mock.calls[0][1].instanceId).toBe('102:1');
     expect(screen.queryByText('99.9%')).toBeNull();
     await fireEvent.click(screen.getByRole('button', { name: 'Clear radar selection' }));
-    expect(screen.queryByRole('button', { name: 'Process details' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Process', exact: true })).toBeNull();
   });
 
   it('preserves permission drafts across new snapshots and preserves other project overrides on save', async () => {
@@ -152,7 +155,7 @@ describe('Observatory production components', () => {
       telemetry: telemetry(),
       navigate: noOp,
     });
-    await fireEvent.click(screen.getAllByRole('button', { name: 'Export', exact: true })[0]);
+    await fireEvent.click(screen.getByRole('button', { name: 'JSON activity log', exact: true }));
     expect(await screen.findByRole('alert')).toHaveTextContent('cancelled');
     expect(screen.queryByText('Completed')).toBeNull();
   });
@@ -173,7 +176,11 @@ describe('Observatory production components', () => {
       target: { value: 'unsaved-secret' },
     });
     await mounted.rerender({ host, telemetry: telemetry(), visible: false });
+    expect(screen.queryByLabelText('New API key')).toBeNull();
+    await mounted.rerender({ visible: true });
+    await fireEvent.click(screen.getByRole('button', { name: 'Connection settings' }));
     expect(screen.getByLabelText('New API key')).toHaveValue('');
+    await fireEvent.click(screen.getByRole('button', { name: 'Close settings' }));
     await fireEvent.click(screen.getByRole('button', { name: 'Run analysis' }));
     expect(await screen.findByText('<img src=x>')).toBeInTheDocument();
     expect(mounted.container.querySelector('img[src="x"], img[onerror]')).toBeNull();
@@ -211,7 +218,7 @@ describe('Observatory production components', () => {
       inspect: noOp,
     });
     expect(screen.getByText('42 (measured)')).toBeInTheDocument();
-    expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/—/).length).toBeGreaterThan(0);
   });
 
   it('escapes hostile metadata and removes secret fields recursively', () => {

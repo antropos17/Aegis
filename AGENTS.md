@@ -19,7 +19,7 @@ Sequence rules are consumed through five scan taps in `src/main/main.js` and `sr
 ## Code conventions
 
 - Main uses CommonJS (`require`/`module.exports`); renderer uses ES modules (`import`/`export`). Main stays JavaScript with JSDoc; new renderer files use TypeScript without `any`.
-- Use Svelte runes (`$state`, `$derived`, `$effect`, `$props`). Keep component CSS scoped and use `var()` with tokens from `frontend/observatory/styles/theme.css`.
+- Use Svelte runes (`$state`, `$derived`, `$effect`, `$props`). Preserve the approved template hierarchy and shared styles imported by `frontend/observatory/styles.ts`; use scoped CSS for additional behavior. The visual source is `frontend/observatory/reference/`, not historical UI plans.
 - Exported functions have JSDoc (`@param`, `@returns`, `@since`). Dependency injection uses `init(deps)`; test seams use `_setDepsForTest()` / `_resetForTest()`.
 - Split paths with `/[/\\]/` and use the platform abstraction for OS-specific operations.
 - Aim for 300 lines in new files. Do not split an existing file solely to meet the target; extract when adding to an oversized file.

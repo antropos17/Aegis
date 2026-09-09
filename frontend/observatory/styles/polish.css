@@ -1,0 +1,104 @@
+/* Shared spacing for desktop lists, panels and detail windows. */
+:root {
+  --section-gap: 12px;
+  --panel-inset: 16px;
+}
+.filterbar {
+  gap: 8px 10px;
+  margin-bottom: var(--section-gap);
+}
+.subnav:not(.analysis-tabs),
+.preset-grid {
+  margin-bottom: var(--section-gap);
+}
+.notice {
+  margin-bottom: var(--section-gap);
+}
+.panel > .panel-head {
+  padding: 12px var(--panel-inset);
+}
+.panel-head .toolbar:empty {
+  display: none;
+}
+.panel-head p:empty,
+#modal-caption:empty,
+.form-error:empty {
+  display: none;
+}
+.report-grid {
+  align-items: start;
+  gap: var(--section-gap);
+}
+.settings-grid {
+  align-items: start;
+  gap: var(--section-gap);
+}
+.settings-section {
+  padding: var(--panel-inset);
+}
+.setting-stack {
+  margin-block: 14px;
+}
+.inline-stats {
+  padding: var(--panel-inset);
+  gap: 16px 24px;
+}
+.report-grid .export-grid {
+  padding: var(--panel-inset);
+  gap: 8px;
+}
+.analysis-report-link {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.analysis-report-link > span {
+  flex: 1;
+}
+.permission-row {
+  padding: 12px var(--panel-inset);
+  gap: 12px;
+}
+.table-wrap th,
+.table-wrap td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+.table-agent > .agent-mark,
+.button > .icon,
+.notice > .icon {
+  flex-shrink: 0;
+}
+.details-grid {
+  gap: 10px 16px;
+  margin-block: 16px;
+}
+#modal {
+  padding: 18px;
+}
+#modal .modal-head {
+  gap: 8px;
+  margin-bottom: 14px;
+}
+#modal-body > :first-child {
+  margin-top: 0;
+}
+#modal-body > :last-child {
+  margin-bottom: 0;
+}
+#modal .modal-actions {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.analysis-output > .analysis-tabs {
+  margin-bottom: 0;
+}
+.analysis-config > .panel-head {
+  padding: 12px 14px;
+}
+@media (max-height: 700px) {
+  #modal {
+    top: 18px;
+    max-height: calc(100dvh - 36px);
+  }
+}

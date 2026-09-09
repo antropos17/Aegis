@@ -78,58 +78,72 @@
 
 {#if audit}
   <section class="panel">
-    <div class="panel-head">
-      <h2>Persisted audit history</h2>
-      <Action
-        action={async () => {
-          confirmed(await invoke(host, 'openAuditLogDir'));
-        }}>Open log folder</Action
-      >
-    </div>
-    <div class="inset">
-      <Metadata value={stats} />
-      <p class="muted">
-        Persisted, queued and dropped counts describe separate stages. Chain metadata remains
-        attached to each entry.
-      </p>
+    <div class="inline-stats">
+      <div>
+        <strong>{String(stats.persistedEntries ?? '—')}</strong><span>persisted entries</span>
+      </div>
+      <div><strong>{String(stats.bufferDepth ?? '—')}</strong><span>queued</span></div>
+      <div><strong>{String(stats.droppedEntries ?? '—')}</strong><span>dropped</span></div>
+      <div>
+        <strong
+          >{typeof stats.totalSize === 'number'
+            ? (stats.totalSize / 1024).toFixed(1) + ' KB'
+            : '—'}</strong
+        ><span>JSONL size</span>
+      </div>
     </div>
   </section>
+  <div class="filterbar" style="margin-top:20px">
+    <label
+      >Type<select bind:value={type}
+        ><option value="">All entries</option
+        >{#each ['file-access', 'config-access', 'network-connection', 'agent-enter', 'agent-exit', 'anomaly-alert', 'sequence-detection', 'observation-gap', 'permission-deny'] as name (name)}<option
+            >{name}</option
+          >{/each}</select
+      ></label
+    ><Action action={() => load(true)}>Apply filter / refresh</Action><span class="spacer"
+    ></span><Action action={async () => confirmed(await invoke(host, 'openAuditLogDir'))}
+      ><Icon name="folder" />Audit folder</Action
+    ><Action action={async () => confirmed(await invoke(host, 'exportFullAudit'))}
+      ><Icon name="download" />Export full audit</Action
+    >
+  </div>
+  {#if error}<p role="alert" class="notice">{error}</p>{/if}
   <section class="panel">
-    <div class="toolbar inset">
-      <label
-        >Type <select bind:value={type}
-          ><option value="">All</option><option>file-access</option><option>config-access</option
-          ><option>network-connection</option><option>agent-enter</option><option>agent-exit</option
-          ><option>anomaly-alert</option><option>sequence-detection</option><option
-            >observation-gap</option
-          ><option>permission-deny</option></select
-        ></label
-      ><Action action={() => load(true)}>Apply filter / refresh</Action>
-    </div>
-    {#if error}<p role="alert" class="inset">{error}</p>{/if}
-    <div class="table-scroll">
+    <div class="table-wrap">
       <table>
-        <thead><tr><th>Time</th><th>Type</th><th>Observation</th></tr></thead><tbody
-          >{#each rows as row (row)}<tr
-              ><td>{String(row.timestamp ?? 'Unavailable')}</td><td
-                >{String(row.type ?? 'Unknown')}</td
+        <thead><tr><th>Time</th><th>Type</th><th>Instance / agent</th><th>Entry</th></tr></thead
+        ><tbody
+          >{#each [...rows].sort( (a, b) => String(b.timestamp).localeCompare(String(a.timestamp)) ) as row (row)}<tr
+              ><td class="mono"
+                >{row.timestamp ? new Date(String(row.timestamp)).toLocaleTimeString() : '—'}</td
+              ><td><code>{String(row.type ?? 'Unknown')}</code></td><td
+                >{String(row.agent ?? '—')}<small class="mono">{String(row.instanceId ?? '')}</small
+                ></td
               ><td
-                ><button class="text-link" onclick={() => inspect('Audit entry', row)}
-                  >{String(
-                    row.file ?? row.path ?? row.agent ?? row.eventId ?? 'View metadata',
-                  )}</button
+                ><button class="data-link resource-link" onclick={() => inspect('Audit entry', row)}
+                  ><code
+                    >{String(
+                      row.file ?? row.path ?? row.detail ?? row.eventId ?? 'View entry',
+                    )}</code
+                  ><Icon name="chevron" /></button
                 ></td
               ></tr
-            >{:else}<tr><td colspan="3">No entries loaded.</td></tr>{/each}</tbody
+            >{:else}<tr><td colspan="4">No entries loaded.</td></tr>{/each}</tbody
         >
       </table>
     </div>
-    <div class="inset">
-      <Action disabled={exhausted} action={() => load()}>Load older entries</Action>
+    <div class="pagination">
+      <span>{rows.length} entries loaded</span><Action disabled={exhausted} action={() => load()}
+        >Load older entries</Action
+      >
     </div>
   </section>
+  <details class="audit-diagnostics">
+    <summary>Audit delivery details</summary><Metadata value={stats} />
+  </details>
 {:else}
-  <div class="notice">
+  <div class="analysis-report-link notice">
     <Icon name="shield" /><span>AI assessments have their own workspace.</span><button
       class="button"
       onclick={() => navigate('analysis')}><Icon name="chevron" />Open AI analysis</button
@@ -137,119 +151,67 @@
   </div>
   <div class="report-grid">
     <section class="panel">
-      <div class="panel-head">
-        <div>
-          <h2><Icon name="report" />Session summary</h2>
-          <p>Current observations</p>
-        </div>
-      </div>
+      <div class="panel-head"><h2><Icon name="report" />Session summary</h2></div>
       <div class="inline-stats">
         <div>
-          <strong>{String(telemetry.stats.totalFiles ?? '—')}</strong><small
-            >file observations</small
-          >
+          <strong>{String(telemetry.stats.totalFiles ?? '—')}</strong><span>file observations</span>
         </div>
         <div>
-          <strong>{String(telemetry.stats.aiSensitive ?? '—')}</strong><small>sensitive</small>
+          <strong>{String(telemetry.stats.aiSensitive ?? '—')}</strong><span>sensitive</span>
         </div>
         <div>
-          <strong>{telemetry.ready ? instances(telemetry).length : '—'}</strong><small
-            >instances</small
+          <strong>{telemetry.ready ? instances(telemetry).length : '—'}</strong><span
+            >instances</span
           >
         </div>
       </div>
-      <div class="table-scroll">
+      <div class="table-wrap">
         <table>
-          <thead><tr><th>Agent</th><th>PID</th><th>Risk</th><th>Grade</th></tr></thead><tbody
-            >{#each instances(telemetry) as agent (agent.instanceId ?? agent)}<tr
+          <thead><tr><th>Agent</th><th>Risk</th><th>Trust grade</th><th>Files</th></tr></thead
+          ><tbody
+            >{#each instances(telemetry) as a (a.instanceId ?? a)}<tr
                 ><td
                   ><button
-                    class="report-agent"
-                    onclick={() => inspect(agent.name, agent as unknown as RecordData)}
-                    ><AgentLogo name={agent.name} />{agent.name}</button
+                    class="table-agent"
+                    onclick={() => inspect(a.name, a as unknown as RecordData)}
+                    ><AgentLogo name={a.name} />{a.name}</button
                   ></td
-                ><td>{agent.pid}</td><td>{agent.riskScore}/100</td><td
-                  ><span class="badge">{agent.trustGrade}</span></td
+                ><td>{a.riskScore}/100</td><td><span class="badge">{a.trustGrade}</span></td><td
+                  >{a.fileCount}</td
                 ></tr
-              >{:else}<tr><td colspan="4">No observed instances</td></tr>{/each}</tbody
+              >{:else}<tr><td colspan="4">No observed instances.</td></tr>{/each}</tbody
           >
         </table>
       </div>
     </section>
     <section class="panel">
-      <div class="panel-head">
-        <div>
-          <h2><Icon name="download" />Export observations</h2>
-          <p>Native exports & printable report</p>
-        </div>
+      <div class="panel-head"><h2><Icon name="download" />Export</h2></div>
+      <div class="export-grid">
+        {#each exports as [method, label] (method)}<Action
+            action={async () => confirmed(await invoke(host, method))}
+            ><Icon name="download" />{label}</Action
+          >{/each}
       </div>
-      <div class="export-grid inset">
-        {#each exports as [method, label] (method)}<div class="export-card">
-            <h3>{label}</h3>
-            <Action action={async () => confirmed(await invoke(host, method))}
-              ><Icon name="download" />Export</Action
-            >
-          </div>{/each}
-      </div>
-      <div class="inset">
-        <p class="notice">
-          <Icon name="file" />Exports contain recorded metadata and omit the provider key.
-        </p>
+      <div class="notice" style="margin:0 20px 20px">
+        <Icon name="file" />Exports exclude watched file contents and API keys.
       </div>
     </section>
   </div>
 {/if}
 
 <style>
-  .report-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-    gap: 12px;
-    align-items: start;
-  }
-  .report-grid > .panel {
-    margin-top: 0;
-  }
-  .notice > span {
-    flex: 1;
-  }
-  .inline-stats {
-    display: flex;
-    gap: 24px;
-    padding: 16px;
-  }
-  .inline-stats strong {
-    display: block;
-    font-size: 24px;
-  }
-  .inline-stats small {
+  .audit-diagnostics {
+    margin-top: 16px;
     color: var(--muted);
+    font-size: 12px;
   }
-  .report-agent {
+  .export-grid :global(.action-control) {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    text-align: left;
-    padding: 0;
+    flex-direction: column;
+    align-items: stretch;
   }
-  .export-card h3 {
-    margin-bottom: 8px;
-    font-size: 11px;
-  }
-  @media (max-width: 1000px) {
-    .report-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  .export-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-  }
-  .export-card {
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px;
+  .export-grid :global(.button) {
+    width: 100%;
+    justify-content: center;
   }
 </style>

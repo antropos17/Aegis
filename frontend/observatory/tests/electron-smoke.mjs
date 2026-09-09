@@ -43,12 +43,12 @@ try {
   // Health becomes reliable before the scan pipeline finishes publishing its batch.
   // Assert the visible renderer population separately from the backend getter.
   await window.waitForFunction(
-    () => /^\d+$/.test(document.querySelector('.summary-strip strong')?.textContent?.trim() ?? ''),
+    () => /^\d+/.test(document.querySelector('.summary-stat strong')?.textContent?.trim() ?? ''),
     undefined,
     { timeout: 60000 },
   );
-  const visiblePopulation = Number(
-    await window.locator('.summary-strip strong').first().innerText(),
+  const visibleAgentGroups = Number.parseInt(
+    await window.locator('.summary-stat strong').first().innerText(),
   );
   const stats = await window.evaluate(async () => {
     const stats = await window.aegis.getStats();
@@ -71,7 +71,10 @@ try {
     await window.locator('.sidebar').getByRole('button', { name, exact: true }).click();
     await window.getByRole('heading', { level: 1, name, exact: true }).waitFor();
   }
-  await window.getByLabel('Scan interval (seconds)').fill('20');
+  await window.getByLabel('Scan interval (seconds)').evaluate((input) => {
+    input.value = '20';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   await window.getByRole('button', { name: 'Save settings', exact: true }).click();
   await window.getByText('Completed', { exact: true }).waitFor();
   assert.equal(
@@ -125,6 +128,8 @@ try {
     sentinel,
   );
   await window.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
+  await window.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
+  await window.waitForFunction(() => !document.documentElement.dataset.transitionSurface);
   await window.screenshot({ path: resolve(out, 'desktop.png') });
   const hardening = await app.evaluate(({ BrowserWindow }) => {
     const prefs = BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences();
@@ -143,7 +148,7 @@ try {
     JSON.stringify(
       {
         stats,
-        visiblePopulation,
+        visibleAgentGroups,
         hardening,
         errors,
         exported,

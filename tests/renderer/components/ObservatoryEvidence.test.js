@@ -46,7 +46,7 @@ it('preserves attribution and skill identity without claiming skill execution', 
   });
   await fireEvent.click(screen.getByText(event.file));
   expect(inspect.mock.calls[0][1]).toEqual(event);
-  expect(screen.getByText(/sensor-event/)).toBeInTheDocument();
+  expect(screen.getByTitle('sensor-event')).toBeInTheDocument();
 });
 
 it('holds the event view while sensor pushes continue and retains grouping after filter reset', async () => {

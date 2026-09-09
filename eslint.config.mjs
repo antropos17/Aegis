@@ -6,6 +6,8 @@ import tsPlugin from '@typescript-eslint/eslint-plugin';
 
 /** @type {import("eslint").Linter.Config[]} */
 export default [
+  // Preserved template scripts are review fixtures, never executable application sources.
+  { ignores: ['frontend/observatory/reference/**'] },
   js.configs.recommended,
   ...svelte.configs.recommended,
   {

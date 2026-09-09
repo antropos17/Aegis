@@ -100,78 +100,143 @@
   ] as const;
 </script>
 
-{#if error}<p role="alert">{error}</p>{/if}
-<div class="settings-grid">
+{#if error}<p role="alert" class="notice">{error}</p>{/if}
+<div class="settings-layout">
   <section class="panel">
-    <div class="panel-head"><h2><Icon name="sun" />Appearance</h2></div>
-    <div class="inset form-stack">
-      <label
-        >Theme <select bind:value={form.darkMode}
-          ><option value={true}>Dark</option><option value={false}>Light</option></select
+    <div class="settings-section">
+      <h2><Icon name="sun" /><span>Appearance</span></h2>
+      <label class="setting"
+        ><span>Theme</span><select
+          aria-label="Theme"
+          value={(form.darkMode ? 'dark' : 'light') + (contrast ? '-hc' : '')}
+          onchange={(e) => {
+            const theme = e.currentTarget.value;
+            form.darkMode = theme.startsWith('dark');
+            contrast = theme.endsWith('-hc');
+            document.documentElement.dataset.theme = theme;
+          }}
+          ><option value="dark">Dark</option><option value="light">Light</option><option
+            value="dark-hc">Dark, high contrast</option
+          ><option value="light-hc">Light, high contrast</option></select
         ></label
       >
-      <label
-        >Interface scale <select bind:value={form.uiScale}
-          >{#each [0.8, 0.9, 1, 1.1, 1.2, 1.25, 1.3, 1.4, 1.5] as scale (scale)}<option
-              value={scale}>{Math.round(scale * 100)}%</option
-            >{/each}</select
-        ></label
-      >
-      <label class="check-row"><input type="checkbox" bind:checked={contrast} />High contrast</label
-      >
-      <label class="check-row"
-        ><input type="checkbox" bind:checked={motion} />Interface motion (respects system
-        preference)</label
-      >
-      <div class="settings-section-title"><h2><Icon name="radar" />Monitoring</h2></div>
-      <label
-        >Scan interval (seconds) <input
-          type="number"
-          min="1"
-          max="3600"
-          bind:value={form.scanIntervalSec}
+      <label class="setting range"
+        ><span>Scale <output>{Math.round(Number(form.uiScale ?? 1) * 100)}%</output></span><input
+          aria-label="Interface scale"
+          type="range"
+          min="0.8"
+          max="1.5"
+          step="0.05"
+          value={Number(form.uiScale ?? 1)}
+          oninput={(e) => {
+            form.uiScale = Number(e.currentTarget.value);
+            document.documentElement.style.setProperty('--ui-scale', String(form.uiScale));
+          }}
         /></label
       >
-      {#each toggles as [key, label] (key)}<label class="check-row"
+      <label class="setting"
+        ><span>Animations<small>Radar sweep, markers and transitions</small></span><input
+          type="checkbox"
+          bind:checked={motion}
+        /></label
+      >
+      <div class="setting">
+        <span>Language<small>English interface</small></span><span class="badge">English</span>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h2><Icon name="radar" /><span>Monitoring</span></h2>
+      <label class="setting range"
+        ><span>Scan interval <output>{String(form.scanIntervalSec ?? 10)} s</output></span><input
+          aria-label="Scan interval (seconds)"
+          type="range"
+          min="1"
+          max={Math.max(60, Number(form.scanIntervalSec ?? 10))}
+          step="1"
+          value={Number(form.scanIntervalSec ?? 10)}
+          oninput={(e) => (form.scanIntervalSec = Number(e.currentTarget.value))}
+        /></label
+      >
+      <div class="setting">
+        <label class="switch"
           ><input
             type="checkbox"
-            checked={form[key] === true}
-            onchange={(event) => (form[key] = event.currentTarget.checked)}
-          />{label}</label
-        >{/each}
-      <label
-        >Custom sensitive patterns · one expression per line<textarea rows="4" bind:value={patterns}
-        ></textarea></label
+            checked={form.notificationsEnabled === true}
+            onchange={(e) => (form.notificationsEnabled = e.currentTarget.checked)}
+          />Notifications</label
+        ><Action action={async () => confirmed(await invoke(host, 'testNotification'))}
+          ><Icon name="bell" />Test</Action
+        >
+      </div>
+      <label class="setting"
+        ><span>Exclude build folders</span><input
+          type="checkbox"
+          checked={form.ignoreCommonBuildDirs === true}
+          onchange={(e) => (form.ignoreCommonBuildDirs = e.currentTarget.checked)}
+        /></label
       >
-      <label
-        >Ignored directories · one per line<textarea rows="4" bind:value={ignored}
-        ></textarea></label
+      <label class="setting-stack"
+        >Additional exclusions<textarea rows="3" maxlength="10000" bind:value={ignored}
+        ></textarea><small>One directory per line</small></label
+      >
+      <label class="setting-stack"
+        >Sensitive paths<textarea rows="3" maxlength="10000" bind:value={patterns}></textarea><small
+          >One regular expression per line</small
+        ></label
       >
     </div>
+    <div class="settings-section">
+      <h2><Icon name="monitor" /><span>Desktop startup</span></h2>
+      {#each toggles.slice(2, 5) as [key, label] (key)}<label class="setting"
+          ><span>{label}</span><input
+            type="checkbox"
+            checked={form[key] === true}
+            onchange={(e) => (form[key] = e.currentTarget.checked)}
+          /></label
+        >{/each}
+    </div>
   </section>
-  <div class="form-stack">
-    <section class="panel inset">
-      <h2 class="analysis-heading"><AgentLogo name="Claude Code" />Anthropic analysis</h2>
-      <p class="muted">Connect Anthropic and review assessments in the AI analysis workspace.</p>
-      <button class="button" onclick={() => navigate('analysis')}
-        ><Icon name="shield" />Open AI analysis</button
-      >
+  <div class="settings-secondary">
+    <section class="panel">
+      <div class="settings-section">
+        <h2><AgentLogo name="Claude Code" /><span>Anthropic analysis</span></h2>
+        <p class="muted">
+          Connect Anthropic, review evidence and customize reports in the AI analysis workspace.
+        </p>
+        <div class="toolbar">
+          <button class="button" onclick={() => navigate('analysis')}
+            ><Icon name="shield" />Open AI analysis</button
+          >
+        </div>
+      </div>
     </section>
     <section class="panel">
-      <div class="panel-head"><h2><Icon name="refresh" />Application updates</h2></div>
-      <div class="inset">
-        <p role="status">{String(updates.status ?? 'Loading')} {String(updates.version ?? '')}</p>
-        {#if updates.error}<p role="alert">
+      <div class="settings-section">
+        <h2><Icon name="refresh" /><span>Updates</span></h2>
+        <label class="setting"
+          ><span>Check automatically</span><input
+            type="checkbox"
+            checked={form.automaticUpdatesEnabled === true}
+            onchange={(e) => (form.automaticUpdatesEnabled = e.currentTarget.checked)}
+          /></label
+        >
+        <p class="muted" role="status">
+          {String(updates.status ?? 'Loading')}
+          {String(updates.version ?? '')}
+        </p>
+        {#if updates.notes}<p class="muted">{String(updates.notes)}</p>{/if}{#if updates.error}<p
+            role="alert"
+          >
             {String(updates.error)}
           </p>{/if}{#if updates.status === 'downloading'}<progress
             max="100"
             value={Number(updates.progress ?? 0)}
           ></progress>{/if}
-        <p>{String(updates.notes ?? '')}</p>
         <div class="toolbar">
           <Action
             disabled={['checking', 'downloading'].includes(String(updates.status))}
-            action={() => update('checkForUpdates')}>Check for updates</Action
+            action={() => update('checkForUpdates')}
+            ><Icon name="refresh" />Check for updates</Action
           >{#if updates.status === 'available'}<Action action={() => update('downloadUpdate')}
               >Download update</Action
             >{/if}{#if updates.status === 'ready'}<Action action={() => update('installUpdate')}
@@ -181,97 +246,64 @@
       </div>
     </section>
     <section class="panel">
-      <div class="panel-head"><h2><Icon name="settings" />Configuration</h2></div>
-      <div class="inset form-stack">
-        <Action action={async () => confirmed(await invoke(host, 'testNotification'))}
-          >Send test notification</Action
-        ><Action action={async () => confirmed(await invoke(host, 'exportConfig'))}
-          >Export configuration</Action
-        ><Action
-          action={async () => {
-            confirmed(await invoke(host, 'importConfig'));
-            await load();
-            appearance(form.darkMode === true, Number(form.uiScale ?? 1), contrast);
-            localStorage.setItem('aegis-motion', motion ? 'full' : 'reduce');
-            document.documentElement.dataset.motion = motion ? 'full' : 'reduce';
-          }}>Import configuration</Action
-        >
-        <p class="muted">Configure the analysis provider in AI analysis.</p>
+      <div class="settings-section">
+        <h2><Icon name="settings" /><span>Configuration</span></h2>
+        <p class="muted">
+          Export settings without the API key. Imports are checked for valid format and values.
+        </p>
+        <div class="toolbar">
+          <Action action={async () => confirmed(await invoke(host, 'exportConfig'))}
+            ><Icon name="download" />Export</Action
+          ><Action
+            action={async () => {
+              confirmed(await invoke(host, 'importConfig'));
+              await load();
+              appearance(form.darkMode === true, Number(form.uiScale ?? 1), contrast);
+            }}><Icon name="upload" />Import</Action
+          >
+        </div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="settings-section">
+        <h2><Icon name="keyboard" /><span>Keyboard shortcuts</span></h2>
+        <dl class="details-grid">
+          <dt>Commands</dt>
+          <dd><kbd>Ctrl K</kbd></dd>
+          <dt>Views</dt>
+          <dd><kbd>1</kbd> — <kbd>5</kbd></dd>
+          <dt>Theme / settings</dt>
+          <dd><kbd>T</kbd> / <kbd>S</kbd></dd>
+          <dt>History</dt>
+          <dd><kbd>Alt ←</kbd> / <kbd>Alt →</kbd></dd>
+          <dt>Close dialog</dt>
+          <dd><kbd>Esc</kbd></dd>
+        </dl>
       </div>
     </section>
   </div>
 </div>
-
 <div class="settings-save">
-  <Action action={load}>Restore saved values</Action><Action disabled={!loaded} action={save}
-    ><Icon name="check" />Save settings</Action
-  >
+  <Action
+    action={async () => {
+      await load();
+      contrast = localStorage.getItem('aegis-theme')?.endsWith('-hc') ?? false;
+      motion = localStorage.getItem('aegis-motion') !== 'reduce';
+      appearance(form.darkMode === true, Number(form.uiScale ?? 1), contrast);
+    }}><Icon name="close" />Discard changes</Action
+  ><Action disabled={!loaded} action={save}><Icon name="check" />Save settings</Action>
 </div>
 
 <style>
-  .settings-grid :global(.panel + .panel) {
-    margin-top: 0;
-  }
-  .settings-grid .form-stack > label {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-    font-size: calc(12px * var(--ui-scale));
-    min-height: 44px;
-    gap: 12px;
-  }
-  .settings-grid label > select,
-  .settings-grid label > input:not([type='checkbox']) {
-    max-width: 55%;
-  }
-  .settings-grid .form-stack > label:has(textarea) {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .settings-grid .check-row input {
-    order: 1;
-  }
-  .settings-section-title {
-    padding-top: 16px;
-    border-top: 1px solid var(--border);
-    margin-top: 8px;
-  }
-  .settings-section-title h2,
-  .analysis-heading {
+  .settings-secondary {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    flex-direction: column;
+    gap: 20px;
   }
-  .analysis-heading {
-    margin-bottom: 16px;
+  .toolbar {
+    margin-top: 12px;
   }
   .settings-save {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    position: sticky;
-    bottom: -16px;
-    background: var(--bg);
-    padding: 12px 0;
-    margin-top: 12px;
-    border-top: 1px solid var(--border);
     z-index: 2;
-  }
-
-  .settings-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1.25fr) minmax(260px, 1fr);
-    gap: 12px;
-    align-items: start;
-  }
-  .check-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  @media (max-width: 950px) {
-    .settings-grid {
-      grid-template-columns: minmax(0, 1fr);
-    }
   }
 </style>

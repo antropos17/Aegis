@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { transitionSurface } from '../runtime/motion';
   import {
     actionTarget,
     confirmed,
@@ -38,32 +39,57 @@
   >([]);
   let index = $state(0);
   let current = $derived(history[index]);
+  let canControl = $derived.by(() => {
+    if (!current?.row.process || typeof current.row.instanceId !== 'string') return false;
+    try {
+      actionTarget(telemetry, current.row.instanceId);
+      return true;
+    } catch {
+      return false;
+    }
+  });
   let stopId = $state<string | null>(null);
   let returnFocus: HTMLElement | null = null;
   let watch = $state<RecordData[]>([]);
+  let previousRequest: typeof request = null;
   $effect(() => {
-    if (request) {
+    if (request && request !== previousRequest) {
+      previousRequest = request;
       returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       history = [{ ...request, scroll: 0, focus: null }];
       index = 0;
       stopId = null;
-      dialog.showModal();
-    } else if (dialog?.open) dialog.close();
+      if (!dialog.open) dialog.showModal();
+      void tick().then(() =>
+        document.getElementById('modal-title')?.focus({ preventScroll: true }),
+      );
+    } else if (!request) {
+      previousRequest = null;
+      if (dialog?.open) dialog.close();
+    }
   });
   async function navigate(title: string, row: RecordData) {
     history[index].scroll = body.scrollTop;
     history[index].focus =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    history = [...history.slice(0, index + 1), { title, row, scroll: 0, focus: null }];
-    index++;
-    await restore();
+    await transitionSurface('detail', async () => {
+      history = [...history.slice(0, index + 1), { title, row, scroll: 0, focus: null }];
+      index++;
+      await restore();
+    });
   }
   async function move(delta: number) {
     history[index].scroll = body.scrollTop;
     history[index].focus =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    index += delta;
-    await restore();
+    await transitionSurface(
+      'detail',
+      async () => {
+        index += delta;
+        await restore();
+      },
+      delta,
+    );
   }
   async function restore() {
     stopId = null;
@@ -88,53 +114,77 @@
   }
 </script>
 
-<dialog bind:this={dialog} onclose={finish} oncancel={() => close()} aria-labelledby="detail-title">
-  <div class="detail-head">
-    <div class="toolbar">
-      <button class="icon-button" aria-label="Back" disabled={index === 0} onclick={() => move(-1)}
-        >←</button
+<dialog
+  id="modal"
+  bind:this={dialog}
+  onclose={finish}
+  oncancel={() => close()}
+  aria-labelledby="modal-title"
+>
+  <div class="modal-head">
+    <div class="detail-navigation history-controls">
+      <button
+        class="history-arrow"
+        aria-label="Back"
+        disabled={index === 0}
+        onclick={() => move(-1)}><Icon name="arrowLeft" /></button
       ><button
-        class="icon-button"
+        class="history-arrow"
         aria-label="Forward"
         disabled={index >= history.length - 1}
-        onclick={() => move(1)}>→</button
+        onclick={() => move(1)}><Icon name="chevron" /></button
       >
     </div>
-    <h2 id="detail-title">{current?.title ?? 'Details'}</h2>
+    <div>
+      <span class="muted" id="modal-caption"
+        >{current?.row.process
+          ? 'Agent instance'
+          : current?.row.displayName
+            ? 'Agent catalog'
+            : 'Recorded metadata'}</span
+      >
+      <h2 id="modal-title" tabindex="-1">{current?.title ?? 'Details'}</h2>
+    </div>
     <button class="icon-button" aria-label="Close details" onclick={close}
       ><Icon name="close" /></button
     >
   </div>
-  <div class="detail-body" tabindex="-1" bind:this={body}>
-    {#if current}<DetailSummary row={current.row} {telemetry} />
-      <EntityLinks row={current.row} {telemetry} {navigate} />
+  <div id="modal-body" tabindex="-1" bind:this={body}>
+    {#if current}<div class:agent-detail-grid={!!current.row.process}>
+        <div><DetailSummary row={current.row} {telemetry} /></div>
+        <div><EntityLinks row={current.row} {telemetry} {navigate} /></div>
+      </div>
       <details
         class="all-metadata"
         open={!current.row.process &&
           !current.row.displayName &&
           !current.row.file &&
           !current.row.remoteIp &&
-          !current.row.domain}
+          !current.row.domain &&
+          !current.row.type &&
+          !current.row.observations}
       >
         <summary>All observation metadata</summary><Metadata value={current.row} />
       </details>
-      {#if current.row.process}<h3>Alert watchlist</h3>
-        <Action action={loadWatch}>Refresh watchlist</Action>{#each watch as entry (entry)}<div
-            class="toolbar"
-          >
-            <span>{String(entry.signature)} · {String(entry.pid ?? 'all instances')}</span><Action
-              action={async () => {
-                confirmed(
-                  await invoke(host, 'blocklistRemove', {
-                    signature: entry.signature,
-                    pid: entry.pid,
-                  }),
-                );
-                await loadWatch();
-              }}>Remove</Action
+      {#if current.row.process}<details>
+          <summary>Alert watchlist</summary>
+          <Action action={loadWatch}>Refresh watchlist</Action>{#each watch as entry (entry)}<div
+              class="toolbar"
             >
-          </div>{/each}
-        <p class="muted">Watchlist entries raise alerts; they do not block execution.</p>{/if}
+              <span>{String(entry.signature)} · {String(entry.pid ?? 'all instances')}</span><Action
+                action={async () => {
+                  confirmed(
+                    await invoke(host, 'blocklistRemove', {
+                      signature: entry.signature,
+                      pid: entry.pid,
+                    }),
+                  );
+                  await loadWatch();
+                }}>Remove</Action
+              >
+            </div>{/each}
+          <p class="muted">Watchlist entries raise alerts; they do not block execution.</p>
+        </details>{/if}
       {#if stopId}<div class="confirm-stop" role="alert">
           <h3>Stop this process?</h3>
           <p>
@@ -148,7 +198,11 @@
         </div>{/if}
     {/if}
   </div>
-  <div class="detail-footer">
+  <div class="modal-actions">
+    {#if current?.row.website}<Action
+        action={async () => confirmed(await invoke(host, 'openExternalUrl', current.row.website))}
+        ><Icon name="globe" />Website</Action
+      >{/if}
     {#if current?.row.instanceId}<button
         class="button"
         aria-pressed={$acknowledgedAgents.has(String(current.row.instanceId))}
@@ -159,21 +213,16 @@
       >{/if}
     {#if current?.row.process && current.row.instanceId}{@const id = String(
         current.row.instanceId,
-      )}<Action
-        disabled={telemetry.stale || current.row.instanceIdSource !== 'os'}
-        action={() => processAction('suspendProcess', id)}>Suspend</Action
-      ><Action
-        disabled={telemetry.stale || current.row.instanceIdSource !== 'os'}
-        action={() => processAction('resumeProcess', id)}>Resume</Action
-      ><button
-        class="button"
-        disabled={telemetry.stale || current.row.instanceIdSource !== 'os'}
-        onclick={() => (stopId = id)}>Stop…</button
+      )}<Action disabled={!canControl} action={() => processAction('suspendProcess', id)}
+        >Suspend</Action
+      ><Action disabled={!canControl} action={() => processAction('resumeProcess', id)}
+        >Resume</Action
+      ><button class="button" disabled={!canControl} onclick={() => (stopId = id)}>Stop…</button
       ><Action
         action={async () => {
           confirmed(
             await invoke(host, 'blocklistAdd', {
-              signature: current.row.agent,
+              signature: current.row.agent ?? current.row.name,
               reason: 'Added from instance details',
             }),
           );
@@ -210,46 +259,6 @@
     cursor: pointer;
     color: var(--muted);
     font-size: 12px;
-  }
-  dialog {
-    padding: 0;
-    width: min(920px, calc(100vw - 32px));
-    max-height: calc(100dvh - 32px);
-    color: var(--ink);
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-  }
-  dialog[open] {
-    display: flex;
-    flex-direction: column;
-  }
-  .detail-head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-  .detail-head h2 {
-    flex: 1;
-    margin: 0;
-    font-size: 17px;
-    overflow-wrap: anywhere;
-  }
-  .detail-body {
-    overflow: auto;
-    padding: 16px;
-    min-height: 0;
-  }
-  .detail-footer {
-    flex-shrink: 0;
-    padding: 12px 16px;
-    border-top: 1px solid var(--border);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
   }
   .confirm-stop {
     border: 1px solid var(--red);

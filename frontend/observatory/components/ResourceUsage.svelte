@@ -13,7 +13,7 @@
   );
 </script>
 
-<section class="panel usage-panel">
+<section class="panel resource-chart">
   <div class="panel-head">
     <div>
       <h2><Icon name="chart" />Agent usage</h2>
@@ -26,83 +26,38 @@
       >
     </div>
   </div>
-  <div class="usage-body">
-    {#each agents as agent (agent.instanceId ?? agent)}{@const sample = agent.instanceId
-        ? telemetry.resources.find((r) => r.instanceId === agent.instanceId)
-        : undefined}{@const value = measured(sample?.[mode])}<button
-        class="usage-row"
-        onclick={() => inspect(agent.name, agent as unknown as RecordData)}
-        ><span class="usage-identity"
-          ><AgentLogo name={agent.name} size={20} /><span
-            >{agent.name}<small>PID {agent.pid}</small></span
-          ><strong
-            >{value === null ? '—' : value.toFixed(1)}{value === null
-              ? ''
-              : mode === 'cpu'
-                ? '%'
-                : ' MB'}</strong
+  <div class="resource-bars">
+    {#each agents as a (a.instanceId ?? a)}{@const value = telemetry.stale
+        ? null
+        : measured(
+            telemetry.resources.find((r) => !!a.instanceId && r.instanceId === a.instanceId)?.[
+              mode
+            ],
+          )}<button class="usage-row" onclick={() => inspect(a.name, a as unknown as RecordData)}
+        ><AgentLogo id={a.agent} name={a.name} /><span class="usage-body"
+          ><span class="usage-heading"
+            ><strong>{a.name}</strong><span
+              >{value === null ? '—' : value.toFixed(1) + (mode === 'cpu' ? '%' : ' MB')}</span
+            ></span
+          ><span class="usage-track"
+            ><span style={`transform:scaleX(${Math.min(1, (value ?? 0) / maximum)})`}></span></span
           ></span
-        ><span class="track"
-          ><span style={`transform:scaleX(${Math.min(1, (value ?? 0) / maximum)})`}></span></span
-        ></button
-      >{:else}<p class="muted">No process measurements available.</p>{/each}
+        ><Icon name="chevron" /></button
+      >{:else}<p class="inset muted">No process measurements available.</p>{/each}
   </div>
-  <p class="usage-caption">
+  <p class="chart-footnote">
     {mode === 'cpu'
       ? 'Percentage of total CPU capacity.'
-      : 'Memory relative to the largest measured process.'} — means unavailable.
+      : 'Bar length is relative to the largest process.'} Open an agent for process details.
   </p>
 </section>
 
 <style>
-  .usage-panel {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    margin-top: 0;
-  }
-  .usage-body {
-    max-height: 280px;
+  .resource-bars {
+    max-height: 286px;
     overflow: auto;
-    padding: 10px 16px;
   }
-  .usage-row {
-    width: 100%;
-    padding: 8px 0;
-    text-align: left;
-  }
-  .usage-identity {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: calc(11px * var(--ui-scale));
-  }
-  .usage-identity > span {
-    flex: 1;
-  }
-  .usage-identity small {
-    display: block;
-    color: var(--muted);
-  }
-  .track {
-    display: block;
-    height: 4px;
-    border-radius: 3px;
-    background: var(--border);
-    margin-top: 8px;
-    overflow: hidden;
-  }
-  .track > span {
-    display: block;
-    height: 100%;
-    background: var(--muted);
-    transform-origin: left;
-    transition: transform 280ms ease;
-  }
-  .usage-caption {
-    padding: 12px 16px;
-    color: var(--muted);
-    font-size: calc(11px * var(--ui-scale));
-    margin-top: auto;
+  .resource-chart {
+    align-self: stretch;
   }
 </style>
