@@ -44,6 +44,20 @@ This is a smoke test, not proof of event-time issuer semantics or complete read 
 Failed checks still request stop and retain final summaries. No elevated kill or
 orphan cleanup is attempted. Real sleep/wake remains deferred by the user.
 
+The repeatable load check also requests one UAC prompt and uses the same collector:
+
+```powershell
+node scripts/verify-etw-file.mjs --live --load-check --report=X:/tmp/etw-file-load-new.json
+```
+
+Its normal-token worker performs three fixed cycles of 2,000 paced and 20,000 burst
+reads, with one file handle per phase and two seconds of settling after each phase.
+All 66,000 reads target offset zero of the same disposable 4 KiB file; the report
+records actual rates. `passed` certifies completion, observation checks, measured
+final native counters and verified stop; positive losses are retained and allowed
+in this overload measurement. It does not certify loss-free capture. See the
+[repeatable-load record](../../docs/roadmap/etw-repeatable-load.md) for results and limits.
+
 After building the renderer, explicitly enable a development app session with a
 single local subdirectory (not an entire drive, UNC root, dot-segment or relative path):
 
