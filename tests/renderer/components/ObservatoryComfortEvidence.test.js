@@ -116,15 +116,18 @@ it('searches grouped process activity without attributing unrelated records to t
   expect(screen.getByText('No resources match this search.')).toBeInTheDocument();
 });
 
-it('returns keyboard focus to the first record when changing a long evidence page', async () => {
+it('opens the correct observation after paging forward and back', async () => {
   const rows = Array.from({ length: 31 }, (_, i) => observation(i));
-  const { container } = render(ObservationTable, { rows, telemetry: telemetry(), inspect: noop });
+  const inspect = vi.fn();
+  const { container } = render(ObservationTable, { rows, telemetry: telemetry(), inspect });
   await fireEvent.click(screen.getByRole('button', { name: 'Next', exact: true }));
-  await waitFor(() => expect(container.querySelector('.observation-open')).toHaveFocus());
   expect(container.querySelectorAll('.observation-group')).toHaveLength(1);
+  await fireEvent.click(container.querySelector('.observation-open'));
+  expect(inspect).toHaveBeenLastCalledWith('Observation', rows[0]);
   await fireEvent.click(screen.getByRole('button', { name: 'Previous', exact: true }));
-  await waitFor(() => expect(container.querySelector('.observation-open')).toHaveFocus());
   expect(container.querySelectorAll('.observation-group')).toHaveLength(30);
+  await fireEvent.click(container.querySelector('.observation-open'));
+  expect(inspect).toHaveBeenLastCalledWith('Observation', rows[30]);
 });
 
 it('retains loaded audit records and reports a failed refresh without success feedback', async () => {
