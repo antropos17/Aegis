@@ -117,7 +117,7 @@ try {
       sidebar: rect('.sidebar'),
       topbar: rect('.topbar'),
       history: rect('.history-controls'),
-      context: rect('.agent-context'),
+      head: rect('.page-head'),
       summary: rect('.summary'),
       radar: rect('.radar-panel'),
     };
@@ -126,8 +126,8 @@ try {
   assert(Math.abs(geometry.topbar.height - 46) <= 2, 'prototype toolbar height');
   assert.equal(await page.locator('.workspace-tabs').count(), 0, 'duplicate navigation returned');
   assert(
-    geometry.summary.y >= geometry.context.y + geometry.context.height,
-    'summary overlaps shared agent context',
+    geometry.summary.y >= geometry.head.y + geometry.head.height,
+    'summary overlaps Monitoring heading',
   );
   assert.equal(await page.locator('.inspector').count(), 0, 'overview retained an empty inspector');
   assert.equal(await page.locator('.summary > .summary-stat').count(), 6);

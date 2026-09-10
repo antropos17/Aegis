@@ -36,7 +36,13 @@ export async function checkUsability(browser, url, out) {
         );
         await page.emulateMedia({ reducedMotion: width === 900 ? 'reduce' : 'no-preference' });
         await go('Monitoring');
-        await agent.selectOption('');
+        assert.equal(await context.count(), 0, 'Monitoring must not expose a selected-agent scope');
+        assert(
+          await page
+            .locator('.sidebar nav')
+            .evaluate((node) => node.scrollWidth <= node.clientWidth + 1),
+          'sidebar text overflows at enlarged scale',
+        );
         const heights = () =>
           page.evaluate(() =>
             ['.radar-panel', '.radar-stage'].map(
@@ -55,6 +61,11 @@ export async function checkUsability(browser, url, out) {
         await page.locator('.agent-workspace:visible').waitFor();
         assert.equal(await page.getByRole('dialog').count(), 0, 'agent opened in a modal');
         assert.equal(await agent.inputValue(), 'Codex');
+        assert.equal(
+          await page.locator('#main').evaluate((node) => node.scrollTop),
+          0,
+          'opening an agent scrolls past its context',
+        );
         await process.selectOption({ index: 1 });
         const selectedProcess = await process.inputValue();
         assert(selectedProcess, 'fixture lacks a stamped process');
@@ -124,6 +135,47 @@ export async function checkUsability(browser, url, out) {
         await page.getByRole('button', { name: 'Back', exact: true }).click();
         await page.getByRole('heading', { name: 'Network', level: 1, exact: true }).waitFor();
         assert.equal(await process.inputValue(), selectedProcess, 'Back lost process context');
+        await go('Monitoring');
+        await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
+        assert.equal(await page.locator('.agent-workspace:visible').count(), 0);
+        assert.equal(await context.count(), 0);
+        await page.getByRole('heading', { name: 'Agent radar', exact: true }).waitFor();
+        await go('Statistics');
+        assert.equal(
+          await process.inputValue(),
+          selectedProcess,
+          'Monitoring discarded investigation scope',
+        );
+        const dimensions = await page.evaluate(() => {
+          const size = (selector) => {
+            const element = document.querySelector(selector);
+            const style = getComputedStyle(element);
+            return {
+              height: element.getBoundingClientRect().height,
+              font: parseFloat(style.fontSize),
+              radius: style.borderRadius,
+            };
+          };
+          return {
+            agent: size('.agent-context select'),
+            action: size('.agent-context .button'),
+            period: size('.statistics-workspace .monitor select'),
+            latest: size('.statistics-workspace .scrubber .button'),
+            metric: parseFloat(
+              getComputedStyle(document.querySelector('.statistics-workspace .metric-rail strong'))
+                .fontSize,
+            ),
+          };
+        });
+        for (const control of [dimensions.action, dimensions.period, dimensions.latest]) {
+          assert(
+            Math.abs(control.height - dimensions.agent.height) <= 1,
+            'inconsistent control heights',
+          );
+          assert.equal(control.radius, dimensions.agent.radius, 'inconsistent control corners');
+          assert.equal(control.font, dimensions.agent.font, 'inconsistent control typography');
+        }
+        assert.equal(dimensions.metric, 12 * scale, 'metric rail ignores UI scale');
         await go('Agents');
         await process.selectOption('');
         await page.getByRole('heading', { name: 'Agent overview', exact: true }).waitFor();

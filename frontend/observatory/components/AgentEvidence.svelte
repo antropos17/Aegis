@@ -77,7 +77,7 @@
     justify-content: space-between;
     gap: 10px;
     text-align: left;
-    padding: 12px 16px;
+    padding: var(--space-3) var(--panel-inset);
     border: 0;
     border-bottom: 1px solid var(--border);
     border-radius: 0;
@@ -101,9 +101,9 @@
   .evidence-note,
   .empty {
     margin: 0;
-    padding: 12px 16px;
+    padding: var(--space-3) var(--panel-inset);
     color: var(--muted);
     line-height: 1.5;
-    font-size: calc(11px * var(--ui-scale));
+    font-size: var(--text-caption);
   }
 </style>

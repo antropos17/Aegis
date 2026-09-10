@@ -107,7 +107,7 @@ async function start() {
     { instanceId: agents[1].instanceId, cpu: 70, memMb: 700 },
   ]);
   await waitFor(() =>
-    expect(screen.getByRole('combobox', { name: 'Selected agent', exact: true })).toBeEnabled(),
+    expect(screen.getByRole('heading', { name: 'Agent radar', exact: true })).toBeVisible(),
   );
   return { ...transport, ...mounted, agents };
 }
@@ -120,11 +120,13 @@ async function navigate(name) {
   await waitFor(() => expect(button).toHaveAttribute('aria-current', 'page'));
 }
 async function chooseAgent(name = 'Codex') {
+  await navigate('Agents');
   await fireEvent.change(screen.getByRole('combobox', { name: 'Selected agent', exact: true }), {
     target: { value: name },
   });
 }
 
+// These full-App scenarios traverse several mounted workspaces under Windows coverage.
 it('keeps one agent context across the page, events, network and statistics', async () => {
   const { container } = await start();
   await chooseAgent();
@@ -155,7 +157,7 @@ it('keeps one agent context across the page, events, network and statistics', as
   await navigate('Agents');
   expect(screen.getByRole('region', { name: 'Agent overview' })).toBeVisible();
   expect(document.querySelector('dialog[open]')).toBeNull();
-});
+}, 15000);
 
 it('opens an agent row in the page without a modal or nested detail navigation', async () => {
   await start();
@@ -211,7 +213,7 @@ it('leaves browser and OS shortcut combinations separate from single-key navigat
   expect(document.documentElement.dataset.theme).toBe(theme);
   expect(
     within(screen.getByRole('navigation', { name: 'Main navigation' })).getByRole('button', {
-      name: 'Monitoring',
+      name: 'Agents',
       exact: true,
     }),
   ).toHaveAttribute('aria-current', 'page');
@@ -219,3 +221,32 @@ it('leaves browser and OS shortcut combinations separate from single-key navigat
   await fireEvent.keyDown(window, { key: 't' });
   expect(document.documentElement.dataset.theme).not.toBe(theme);
 });
+
+it('opens Monitoring as a global overview while preserving the separate agent workspace', async () => {
+  await start();
+  await chooseAgent();
+  await fireEvent.change(screen.getByRole('combobox', { name: 'Selected process', exact: true }), {
+    target: { value: '101:first' },
+  });
+  await navigate('Monitoring');
+  expect(screen.getByRole('heading', { name: 'Monitoring', level: 1 })).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Agent radar', exact: true })).toBeVisible();
+  expect(
+    screen.queryByRole('combobox', { name: 'Selected agent', exact: true }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'Agent overview' })).not.toBeInTheDocument();
+  await navigate('Statistics');
+  expect(screen.getByRole('combobox', { name: 'Selected process', exact: true })).toHaveValue(
+    '101:first',
+  );
+  await navigate('Monitoring');
+  await fireEvent.click(
+    screen.getByRole('button', { name: /Connections.*2.*unverified endpoints/ }),
+  );
+  await waitFor(() =>
+    expect(screen.getByRole('heading', { name: 'Network', level: 1 })).toBeVisible(),
+  );
+  expect(screen.getByRole('combobox', { name: 'Selected agent', exact: true })).toHaveValue('');
+  expect(within(screen.getByRole('table')).getByText('192.0.2.10:443')).toBeVisible();
+  expect(within(screen.getByRole('table')).getByText('192.0.2.20:443')).toBeVisible();
+}, 15000);

@@ -63,7 +63,7 @@
       >{missing
         ? 'Selection retained · current measurements unavailable'
         : scope.agent
-          ? 'Overview, resources, files and connections follow this selection.'
+          ? 'Agent details, statistics, files and connections follow this selection.'
           : 'Choose an agent to bring its information together.'}</span
     >
   </div>
@@ -76,12 +76,12 @@
   .agent-context {
     display: flex;
     align-items: end;
-    gap: 12px;
+    gap: var(--space-3);
     flex-wrap: wrap;
-    margin: 0 0 18px;
-    padding: 12px 14px;
+    margin: 0 0 var(--space-4);
+    padding: var(--space-3) var(--panel-inset);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: var(--surface-radius);
     background: var(--panel);
   }
   .context-symbol {
@@ -94,7 +94,7 @@
     flex: 0 1 180px;
     min-width: 130px;
     color: var(--muted);
-    font-size: calc(11px * var(--ui-scale));
+    font-size: var(--text-caption);
   }
   select {
     width: 100%;
@@ -106,7 +106,7 @@
     align-self: center;
     flex: 1 1 200px;
     line-height: 1.4;
-    font-size: calc(11px * var(--ui-scale));
+    font-size: var(--text-caption);
   }
   .context-note strong {
     color: var(--ink);

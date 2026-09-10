@@ -158,3 +158,19 @@
     border-left: 1px solid var(--border);
   }
 }
+
+/* Grid children must shrink before navigation text wraps at enlarged scale. */
+.sidebar .nav-group,
+.sidebar .nav-group .nav,
+.sidebar .nav-group .nav > span {
+  min-width: 0;
+}
+.sidebar .nav-group .nav > span {
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 800px) and (max-width: 1100px) {
+  .app {
+    grid-template-columns: calc(164px + (var(--ui-scale) - 1) * 96px) minmax(0, 1fr);
+  }
+}

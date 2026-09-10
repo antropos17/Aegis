@@ -39,17 +39,18 @@
   align-items: center;
   flex: 0 0 auto;
   gap: 8px;
-  padding: 11px 12px 12px;
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
   border-bottom: 2px solid transparent;
   color: var(--muted);
-  font: 500 calc(12px * var(--ui-scale))/1.4 var(--sans);
+  font: 500 var(--text-body)/1.4 var(--sans);
   white-space: nowrap;
 }
 .section-tabs [role='tab'][aria-selected='true'] {
   color: var(--ink);
   background: var(--raised);
   border-bottom-color: var(--ink);
-  border-radius: 6px 6px 0 0;
+  border-radius: var(--control-radius) var(--control-radius) 0 0;
 }
 .section-tabs [role='tab']:hover {
   color: var(--ink);

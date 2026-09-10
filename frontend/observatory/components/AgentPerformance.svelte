@@ -56,7 +56,7 @@
   }
   p {
     color: var(--muted);
-    font-size: calc(11px * var(--ui-scale));
+    font-size: var(--text-caption);
     margin: 8px 0 0;
     line-height: 1.45;
   }
