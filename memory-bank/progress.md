@@ -2151,3 +2151,33 @@ reports, raw-file/binary hashes and 18 canonical LF source hashes checked agains
 `7b1e153`. The evidence change is on `codex/etw-burst-live-evidence`; verify its final
 PR/CI/merge before continuing. No runtime code, installed application or sleep/wake
 settings changed during this measurement.
+
+## Session handoff — 2026-09-11, ETW stage loss counters
+
+Implemented on `codex/etw-stage-loss-counters` from `4a23c9c` in
+`X:/tmp/aegis-etw-burst-20260911`. Diagnostic protocol v2 requires `ingressDropped`
+and `outputDropped` uint64 strings, with exact sum `dropped`; legacy peers are
+rejected. The schema is extracted from framing and included in coverage. The
+health reducer and supervisor preserve independent maxima, loss/regression flags
+and final split totals without adding application counts to native EventsLost.
+Queue caps, attribution admission and production enablement are unchanged.
+
+28 C# self-tests and 128 focused JS tests passed; C# Release build/formatter and
+the ordinary and deliberate-loss process checks passed (three cases each).
+The synthetic saturation report retained 4097 raw-stage and 6270 output-stage
+drops through real normal-token broker/collector processes. EOF still refuses
+to certify stop. Full JS coverage passed 198 files / 3308 tests, four skips with
+`--maxWorkers=2`; format/lint/build, TypeScript/Svelte and production audit passed.
+
+One authorized live run on matching binaries delivered 57927 events, filtered
+57597 and reported ingress/output/native drops 0. Decoder errors/conflicts were
+0, map resets 321; the main diagnostic ring evicted 11 records. Scoped fixture
+Read/header PID passed, owned stop verified, child exit 0 and no EtwFile helpers
+remained. Lower ambient load did not reproduce the previous burst, so no claim
+of resolved overload. Sleep/wake, independent absence and installed-app changes
+were not performed. E3 remains open: use a repeatable burst workload next.
+
+`docs/roadmap/etw-stage-loss.md` records semantics and commands.
+`docs/recon/evidence/etw-file-home-26200-stage-loss.json` preserves all three
+original reports and 20 normalized source hashes matched to this implementation.
+Check final PR/CI/merge for the stage-counter branch before continuing.

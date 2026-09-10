@@ -108,7 +108,10 @@ The dependency is those observations, not the absence of a Windows host.
    drains 8,192 additional reads without ingress loss. Its authorized live check
    recorded 6,674 application drops among 463,125 delivered events, zero native
    losses and verified stop. Ambient loads differ from the first smoke; E3 remains
-   open pending separate stage loss accounting and repeatable burst measurement.
+   open. [Stage loss accounting](docs/roadmap/etw-stage-loss.md) is now implemented
+   in protocol v2 and verified through synthetic process saturation. The new live
+   check recorded 57,927 inputs, zero ingress/output/native losses and 11 main-ring
+   evictions under lower ambient load. Repeatable burst measurement remains next.
 
 ## C — existing rules coverage
 

@@ -7,10 +7,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import supervisor from '../src/main/platform/etw-file-supervisor.js';
+import protocol from '../src/main/platform/etw-file-protocol.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const executable = path.join(root, 'sidecar/etw-file/bin/Release/net10.0-windows/EtwFile.exe');
 const live = process.argv.includes('--live');
+const lossCheck = process.argv.includes('--loss-check');
+if (live && lossCheck)
+  throw new Error('--loss-check is synthetic and cannot be combined with --live');
 const destination = process.argv.find((value) => value.startsWith('--report='))?.slice(9);
 if (process.platform !== 'win32' || !destination || fs.existsSync(destination))
   throw new Error('Windows and a new --report=<file> are required');
@@ -21,6 +25,8 @@ const report = {
   schema: 1,
   live,
   synthetic: !live,
+  protocol: protocol.PROTOCOL,
+  lossCheck,
   startedAt: new Date().toISOString(),
   binarySha256: createHash('sha256').update(fs.readFileSync(executable)).digest('hex'),
   assemblySha256: createHash('sha256')
@@ -40,7 +46,8 @@ async function until(predicate, ms) {
 let broker;
 const sensor = supervisor.createSupervisor({
   spawnBroker: (launchId, sessionId) => {
-    broker = spawn(executable, [live ? 'broker' : 'check-broker', launchId, sessionId, fixture], {
+    const mode = live ? 'broker' : lossCheck ? 'check-loss-broker' : 'check-broker';
+    broker = spawn(executable, [mode, launchId, sessionId, fixture], {
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'ignore'],
     });
@@ -82,6 +89,14 @@ try {
     await until(() => sensor.getDiagnostics().summaries.length > index, 20000);
     const result = sensor.getDiagnostics().summaries.at(-1);
     if (!result.stopVerified) throw new Error('stop-unverified');
+    const totals = result.finalTotals;
+    if (
+      !totals ||
+      BigInt(totals.ingressDropped) + BigInt(totals.outputDropped) !== BigInt(totals.dropped)
+    )
+      throw new Error('stage-loss-accounting');
+    if (lossCheck && (totals.ingressDropped !== '4097' || BigInt(totals.outputDropped) === 0n))
+      throw new Error('stage-loss-not-exercised');
     if (
       live &&
       (result.finalCounters?.queryStatus !== 0 ||

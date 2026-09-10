@@ -42,6 +42,8 @@ internal static class FileBurstTests
                 Check(ingress.Totals().Dropped == 0, "raw-loss");
                 Check(pipeline.OutputDropped > 0, "outbound-cap-not-exercised");
                 using var totals = JsonDocument.Parse(JsonSerializer.Serialize(pipeline.Totals()));
+                Check(totals.RootElement.GetProperty("ingressDropped").GetString() == "0", "ingress-counter");
+                Check(totals.RootElement.GetProperty("outputDropped").GetString() == pipeline.OutputDropped.ToString(), "output-counter");
                 Check(ulong.Parse(totals.RootElement.GetProperty("mapResets").GetString()!) > 0, "close-not-processed");
             }
             finally
@@ -115,6 +117,8 @@ internal static class FileBurstTests
                 using var total = JsonDocument.Parse(JsonSerializer.Serialize(pipeline.Totals()));
                 ulong Counter(string name) => ulong.Parse(total.RootElement.GetProperty(name).GetString()!);
                 Check(Counter("dropped") >= 1, "in-flight-loss-not-counted");
+                Check(Counter("dropped") == Counter("ingressDropped") + Counter("outputDropped"), "stage-loss-accounting");
+                Check(Counter("outputDropped") >= 1, "in-flight-stage");
                 Check(Counter("delivered") == Counter("filtered") + Counter("dropped") + Counter("decoderErrors") + emitted,
                     "loss-accounting");
             });
@@ -138,6 +142,24 @@ internal static class FileBurstTests
             }
             Check(output > 0 && output < 256 && output + pipeline.OutputDropped == 256, "byte-loss-accounting");
             Check(ingress.Totals().Dropped == 0, "unexpected-raw-loss");
+        });
+        test("split counters cover raw overflow, buffered discard and outbound overflow", () =>
+        {
+            var scope = new FileScope(@"C:\fixture", false);
+            var ingress = new FileIngress();
+            FileLossFixture.OverflowIngress(ingress);
+            using var pipeline = new FilePipeline(ingress, scope, false);
+            FileLossFixture.OverflowOutput(ingress, pipeline, scope);
+            Finish(pipeline);
+            ulong output = 0;
+            while (pipeline.Take() != null) output++;
+            using var total = JsonDocument.Parse(JsonSerializer.Serialize(pipeline.Totals()));
+            ulong Counter(string name) => ulong.Parse(total.RootElement.GetProperty(name).GetString()!);
+            Check(Counter("ingressDropped") == 4097, "raw-overflow-and-discard");
+            Check(Counter("outputDropped") == 8192 - output, "outbound-overflow");
+            Check(Counter("decoderErrors") == 0 && Counter("filtered") == 1, "distinct-filtering");
+            Check(Counter("dropped") == Counter("ingressDropped") + Counter("outputDropped"), "stage-sum");
+            Check(Counter("delivered") == Counter("filtered") + Counter("dropped") + output, "total-accounting");
         });
     }
 
