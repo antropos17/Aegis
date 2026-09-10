@@ -234,8 +234,33 @@ export async function checkDetails(browser, url, out) {
     for (const name of ['General', 'Recognition']) {
       await tab(name).click();
       await checkLayout();
+      const cancel = await page
+        .getByRole('dialog')
+        .getByRole('button', { name: 'Cancel', exact: true })
+        .boundingBox();
+      const save = await page
+        .getByRole('dialog')
+        .getByRole('button', { name: 'Save agent', exact: true })
+        .boundingBox();
+      assert(
+        Math.abs(cancel.height - save.height) <= 1,
+        'feedback space stretched the neighbouring action',
+      );
       await page.screenshot({ path: resolve(out, 'detail-editor-' + name.toLowerCase() + '.png') });
     }
+    await tab('General').click();
+    const editorScroll = await page.locator('.editor-body').evaluate((node) => {
+      node.scrollTop = node.scrollHeight;
+      return node.scrollTop;
+    });
+    assert(editorScroll > 0, 'editor fixture must scroll at enlarged scale');
+    await tab('Recognition').click();
+    await tab('General').click();
+    assert.equal(
+      await page.locator('.editor-body').evaluate((node) => node.scrollTop),
+      editorScroll,
+      'editor lost its section scroll when shorter content replaced it',
+    );
     await page.keyboard.press('Escape');
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
     await page.locator('.catalog-identity').first().click();

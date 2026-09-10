@@ -1,5 +1,3 @@
-let active: ViewTransition | null = null;
-let revision = 0;
 /** Read the effective motion preference. @returns Whether visual motion is allowed @since 0.14.1 */
 export function motionAllowed(): boolean {
   const root = document.documentElement;
@@ -34,13 +32,10 @@ export function reveal(node: HTMLElement, key: string): ActionReturn<string> {
     previous = next;
     stop();
     if (motionAllowed() && node.animate) {
-      animation = node.animate(
-        [
-          { opacity: 0, translate: '0 12px' },
-          { opacity: 1, translate: '0 0' },
-        ],
-        { duration: 340, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
-      );
+      animation = node.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: 120,
+        easing: 'ease-out',
+      });
     }
   };
   update(key);
@@ -55,35 +50,4 @@ export function reveal(node: HTMLElement, key: string): ActionReturn<string> {
   };
 }
 
-/** Run the template's interruptible snapshot transition. @param surface Named surface @param update DOM update @param direction Navigation direction @returns Update completion @since 0.14.1 */
-export async function transitionSurface(
-  surface: 'workspace' | 'detail' | 'analysis',
-  update: () => Promise<void>,
-  direction = 1,
-): Promise<void> {
-  const ticket = ++revision;
-  active?.skipTransition();
-  const root = document.documentElement;
-  if (!document.startViewTransition || !motionAllowed()) {
-    await update();
-    return;
-  }
-  root.dataset.transitionSurface = surface;
-  root.style.setProperty('--travel', direction < 0 ? '-18px' : '18px');
-  const next = document.startViewTransition(async () => {
-    if (ticket === revision) await update();
-  });
-  // Superseding a transition rejects readiness; the DOM update still has its own result.
-  void next.ready.catch(() => {});
-  active = next;
-  void next.finished
-    .catch(() => {})
-    .finally(() => {
-      if (active === next) {
-        active = null;
-        delete root.dataset.transitionSurface;
-      }
-    });
-  await next.updateCallbackDone;
-}
 import type { ActionReturn } from 'svelte/action';

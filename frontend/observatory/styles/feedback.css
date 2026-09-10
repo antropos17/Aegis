@@ -1,4 +1,7 @@
-/* Feedback follows user actions; the sweep expresses live observation, not a new event. */
+/* Controls stay still. Live radar and pending work retain bounded motion. */
+.dashboard-grid .chart-column {
+  animation: none;
+}
 :root {
   --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-press: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -62,11 +65,15 @@
 .radar-clarity .radar-blip.high {
   --marker-color: var(--red);
 }
+.action-control .button {
+  position: relative;
+}
 .action-control .button[aria-busy='true']::before {
   content: '';
-  width: 12px;
-  height: 12px;
-  flex: 0 0 12px;
+  position: absolute;
+  inset: 2px 2px auto auto;
+  width: 8px;
+  height: 8px;
   border: 2px solid var(--border);
   border-top-color: currentColor;
   border-radius: 50%;
@@ -80,77 +87,21 @@
       .tab-close,
       .nav,
       .resource-node,
-      .summary-stat.attention
+      .summary-stat.attention,
+      .radar-agent-card,
+      .radar-blip
     ) {
     transition:
-      translate 180ms var(--ease-settle),
-      scale 150ms var(--ease-press),
-      background-color 180ms ease,
-      border-color 180ms ease,
-      box-shadow 180ms ease,
+      background-color 140ms ease,
+      border-color 140ms ease,
+      box-shadow 140ms ease,
       color 140ms ease;
   }
-  .observatory-app :is(.button, .icon-button, .summary-stat.attention):hover:not(:disabled) {
-    translate: 0 -1px;
-    box-shadow: var(--control-shadow);
-  }
-  .observatory-app
-    :is(.button, .icon-button, .history-arrow, .tab-close, .nav, .resource-node):active:not(
-      :disabled
-    ) {
-    scale: 0.96;
-    translate: 0 1px;
-    transition-duration: 75ms;
-  }
-  .sidebar .nav > .icon {
-    transition: translate 220ms var(--ease-settle);
-  }
-  .sidebar .nav:hover > .icon {
-    translate: 2px 0;
-  }
-  .radar-roster .radar-agent-card {
-    transition:
-      translate 240ms var(--ease-settle),
-      scale 130ms var(--ease-press),
-      box-shadow 240ms ease,
-      border-color 220ms ease,
-      background-color 220ms ease;
-  }
-  .radar-roster .radar-agent-card:hover {
-    translate: 0 -2px;
-    box-shadow: var(--control-shadow);
-  }
-  .radar-roster .radar-agent-card:active {
-    scale: 0.98;
-    translate: 0 0;
-    transition-duration: 80ms;
-  }
-  .radar-roster .radar-agent-card > .icon {
-    transition: translate 240ms var(--ease-settle);
-  }
-  .radar-roster .radar-agent-card:is(:hover, [aria-pressed='true']) > .icon {
-    translate: 2px 0;
-  }
-  .radar-clarity .radar-blip {
-    transform-origin: 0 0;
-    transition:
-      scale 260ms var(--ease-settle),
-      box-shadow 260ms ease,
-      background-color 180ms ease,
-      border-color 180ms ease;
+  .observatory-app :is(.button, .icon-button, .radar-agent-card):hover:not(:disabled) {
+    border-color: var(--strong-border);
   }
   .radar-clarity .radar-blip:hover {
-    scale: 1.14;
-    box-shadow:
-      0 0 0 5px color-mix(in srgb, var(--marker-color) 16%, transparent),
-      var(--control-shadow);
-  }
-  .radar-clarity .radar-blip[aria-pressed='true'] {
-    scale: 1.08;
-  }
-  .radar-clarity .radar-blip:active {
-    scale: 0.94;
-    transition-duration: 80ms;
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--marker-color) 16%, transparent);
   }
   .radar-clarity .radar-blip::after {
     animation: observation-echo 6s linear infinite;
@@ -167,65 +118,21 @@
       transparent 360deg
     );
   }
-  .radar-layers::before {
-    transition: transform 320ms var(--ease-settle);
-  }
   .radar-layers button {
-    transition:
-      color 160ms ease,
-      scale 100ms var(--ease-press);
+    transition: color 140ms ease;
   }
-  .radar-layers button:active {
-    scale: 0.94;
-  }
-  .radar-stage .resource-node {
-    animation: feedback-enter 300ms var(--ease-settle);
-  }
-  dialog[open] {
-    animation: dialog-arrive 320ms var(--ease-settle);
-  }
+  dialog[open],
   dialog[open]::backdrop {
-    animation: backdrop-arrive 240ms ease-out;
+    animation: backdrop-arrive 120ms ease-out;
   }
   .action-control .button[aria-busy='true']::before {
     animation: feedback-spin 800ms linear infinite;
   }
-  .action-control > [role='status'],
-  .action-control > [role='alert'] {
-    animation: feedback-enter 280ms var(--ease-settle);
-  }
   .live-badge > .icon {
     animation: observation-breathe 2.8s ease-in-out infinite;
   }
-  ::view-transition-group(workspace),
-  ::view-transition-group(detail),
-  ::view-transition-group(analysis) {
-    animation-duration: 320ms;
-    animation-timing-function: var(--ease-settle);
-  }
-  ::view-transition-new(workspace),
-  ::view-transition-new(detail),
-  ::view-transition-new(analysis) {
-    animation-duration: 320ms;
-    animation-timing-function: var(--ease-settle);
-  }
-  @supports (interpolate-size: allow-keywords) {
-    .process-options::details-content {
-      interpolate-size: allow-keywords;
-      block-size: 0;
-      opacity: 0;
-      overflow: clip;
-      transition:
-        block-size 280ms var(--ease-settle),
-        opacity 200ms ease,
-        content-visibility 280ms allow-discrete;
-    }
-    .process-options[open]::details-content {
-      block-size: auto;
-      opacity: 1;
-    }
-  }
 }
+
 .observatory-app:is(.paused, .stale) .live-badge > .icon,
 .observatory-app.paused .radar-blip::after,
 .radar-stage.stale .radar-blip::after {
@@ -270,28 +177,6 @@
   }
   50% {
     opacity: 1;
-  }
-}
-@keyframes feedback-enter {
-  from {
-    opacity: 0;
-    translate: 0 8px;
-  }
-  to {
-    opacity: 1;
-    translate: 0 0;
-  }
-}
-@keyframes dialog-arrive {
-  from {
-    opacity: 0;
-    translate: 0 18px;
-    scale: 0.97;
-  }
-  to {
-    opacity: 1;
-    translate: 0 0;
-    scale: 1;
   }
 }
 @keyframes backdrop-arrive {

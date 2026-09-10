@@ -26,28 +26,24 @@ export async function checkMotion(page) {
   await marker.scrollIntoViewIfNeeded();
   const beforeHover = await marker.boundingBox();
   await marker.hover();
-  await page.waitForFunction((key) => {
-    const node = [...document.querySelectorAll('.radar-blip')].find(
-      (el) => el.dataset.group === key,
-    );
-    return Number.parseFloat(getComputedStyle(node).scale) > 1.1;
-  }, key);
-  const afterHover = await marker.boundingBox();
-  assert(
-    Math.abs(afterHover.x + afterHover.width / 2 - beforeHover.x - beforeHover.width / 2) < 0.5,
-    'hover moved the marker off its radar coordinate',
-  );
-  assert(
-    Math.abs(afterHover.y + afterHover.height / 2 - beforeHover.y - beforeHover.height / 2) < 0.5,
-    'hover moved the marker off its radar coordinate',
-  );
+  const geometry = async (target = marker) =>
+    target.evaluate(async (node) => {
+      const frames = [];
+      for (let frame = 0; frame < 20; frame++) {
+        await new Promise(requestAnimationFrame);
+        const { x, y, width, height } = node.getBoundingClientRect();
+        frames.push({ x, y, width, height });
+      }
+      return frames;
+    });
+  const stable = (frames, expected, reason) => {
+    for (const rect of frames)
+      for (const key of ['x', 'y', 'width', 'height'])
+        assert(Math.abs(rect[key] - expected[key]) < 0.5, reason + ': ' + key);
+  };
+  stable(await geometry(), beforeHover, 'hover moved or resized the marker');
   await page.mouse.down();
-  await page.waitForFunction((key) => {
-    const node = [...document.querySelectorAll('.radar-blip')].find(
-      (el) => el.dataset.group === key,
-    );
-    return Number.parseFloat(getComputedStyle(node).scale) < 1;
-  }, key);
+  stable(await geometry(), beforeHover, 'press moved or resized the marker');
   await page.mouse.up();
   await page.locator('.agent-workspace:visible').waitFor();
   await page.waitForFunction(() => !document.documentElement.dataset.transitionSurface);
@@ -152,12 +148,39 @@ export async function checkMotion(page) {
   await page.keyboard.press('Alt+ArrowLeft');
   await page.getByRole('heading', { level: 1, name: 'Events', exact: true }).waitFor();
   assert.equal(
-    await page.evaluate(() => document.documentElement.style.getPropertyValue('--travel')),
-    '-18px',
+    await page.evaluate(() => document.documentElement.dataset.transitionSurface),
+    undefined,
+    'Back should not capture and slide the reading surface',
   );
   await page.keyboard.press('Alt+ArrowRight');
   await page.getByRole('heading', { level: 1, name: 'Monitoring', exact: true }).waitFor();
   await page.waitForFunction(() => !document.documentElement.dataset.transitionSurface);
+  const navigation = page
+    .locator('.sidebar')
+    .getByRole('button', { name: 'Statistics', exact: true });
+  const navBefore = await navigation.boundingBox();
+  await navigation.hover();
+  stable(await geometry(navigation), navBefore, 'hover moved navigation');
+  await page.mouse.down();
+  stable(await geometry(navigation), navBefore, 'press shrank navigation');
+  await page.mouse.up();
+  await page.getByRole('heading', { level: 1, name: 'Statistics', exact: true }).waitFor();
+  await page.getByRole('tab', { name: 'Performance', exact: true }).click();
+  await page
+    .getByRole('tab', { name: 'Performance', exact: true })
+    .evaluate((node) => node.focus({ preventScroll: true }));
+  const keyboardScroll = await page.locator('#main').evaluate((node) => {
+    node.scrollTop = 220;
+    return node.scrollTop;
+  });
+  await page.keyboard.press('End');
+  await page.waitForFunction(() => document.activeElement?.textContent.trim() === 'Sensors');
+  assert.equal(
+    await page.locator('#main').evaluate((node) => node.scrollTop),
+    keyboardScroll,
+    'keyboard tab navigation scrolled the surrounding workspace',
+  );
+  await page.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
   page.off('pageerror', onError);
   assert.deepEqual(errors, [], 'motion generated a runtime error');
 }

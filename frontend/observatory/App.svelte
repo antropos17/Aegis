@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { transitionSurface } from './runtime/motion';
   import {
     connectHost,
     emptyTelemetry,
@@ -77,7 +76,6 @@
   function changeScope(next: AgentScope) {
     scope = next;
     if (!next.agent) selected = null;
-    if (workspace) workspace.scrollTop = 0;
   }
   function openStatistics(agent: string) {
     if (scope.agent !== agent) changeScope({ agent, instanceId: '' });
@@ -125,6 +123,7 @@
     ['overview', 'agents', 'events', 'network', 'stats'].includes(view),
   );
   let requestedView = 'overview';
+  let renderedView = 'overview';
   let tabs = $state(['overview']);
   let history = $state(['overview']);
   let historyIndex = $state(0);
@@ -157,6 +156,7 @@
       changeScope({ agent, instanceId: kind === 'process' ? String(row.instanceId) : '' });
       detail = null;
       scrolls.agents = 0;
+      if (view === 'agents' && workspace) workspace.scrollTop = 0;
       agentSection = { id: String(row.detailSection || 'overview'), revision: ++sectionRevision };
       void navigate('agents');
       return;
@@ -180,40 +180,33 @@
     localStorage.setItem('aegis-theme', theme);
     document.documentElement.style.setProperty('--ui-scale', String(scale));
   });
-  async function navigate(next: string, remember = true, direction = 1) {
+  async function navigate(next: string, remember = true) {
     if (!views.some((row) => row[0] === next)) return;
     if (next === requestedView) {
       commands = false;
       return;
     }
     requestedView = next;
-    if (workspace) scrolls[view] = workspace.scrollTop;
+    if (workspace) scrolls[renderedView] = workspace.scrollTop;
     if (!tabs.includes(next)) tabs = [...tabs, next];
     if (remember) {
       history = [...history.slice(0, historyIndex + 1), next];
       historyIndex = history.length - 1;
     }
     const ticket = ++navigationRevision;
-    await transitionSurface(
-      'workspace',
-      async () => {
-        if (ticket !== navigationRevision) return;
-        view = next;
-        commands = false;
-        await tick();
-        if (ticket === navigationRevision) {
-          workspace.scrollTop = scrolls[next] ?? 0;
-          workspace.classList.add('has-navigated');
-        }
-      },
-      direction,
-    );
+    view = next;
+    commands = false;
+    await tick();
+    if (ticket === navigationRevision) {
+      workspace.scrollTop = scrolls[next] ?? 0;
+      renderedView = next;
+    }
   }
   function back(delta: number) {
     const next = historyIndex + delta;
     if (next >= 0 && next < history.length) {
       historyIndex = next;
-      void navigate(history[next], false, delta);
+      void navigate(history[next], false);
     }
   }
   onMount(() => {

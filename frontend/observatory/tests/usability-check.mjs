@@ -57,7 +57,12 @@ export async function checkUsability(browser, url, out) {
             .click();
           assert.deepEqual(await heights(), before, 'radar layer moved surrounding content');
         }
-        await page.getByRole('button', { name: /Select Codex,/ }).click();
+        const monitoringScroll = await page.locator('#main').evaluate((node) => {
+          node.scrollTop = 120;
+          return node.scrollTop;
+        });
+        // Trigger the same click handler without Playwright first scrolling the source page.
+        await page.getByRole('button', { name: /Select Codex,/ }).evaluate((node) => node.click());
         await page.locator('.agent-workspace:visible').waitFor();
         assert.equal(await page.getByRole('dialog').count(), 0, 'agent opened in a modal');
         assert.equal(await agent.inputValue(), 'Codex');
@@ -117,6 +122,23 @@ export async function checkUsability(browser, url, out) {
         );
         await page.getByRole('tab', { name: 'Performance', exact: true }).click();
         assert.equal(await process.inputValue(), selectedProcess);
+        const filterScroll = await page.locator('#main').evaluate((node) => {
+          node.scrollTop = 80;
+          return node.scrollTop;
+        });
+        await process.evaluate((node) => {
+          node.value = '';
+          node.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        assert.equal(
+          await page.locator('#main').evaluate((node) => node.scrollTop),
+          filterScroll,
+          'changing the process filter jumped to the page top',
+        );
+        await process.evaluate((node, id) => {
+          node.value = id;
+          node.dispatchEvent(new Event('change', { bubbles: true }));
+        }, selectedProcess);
         await page.locator('#main').evaluate((node) => {
           node.scrollTop = 0;
         });
@@ -139,6 +161,11 @@ export async function checkUsability(browser, url, out) {
         await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
         assert.equal(await page.locator('.agent-workspace:visible').count(), 0);
         assert.equal(await context.count(), 0);
+        assert.equal(
+          await page.locator('#main').evaluate((node) => node.scrollTop),
+          monitoringScroll,
+          'opening an agent overwrote the source workspace scroll',
+        );
         await page.getByRole('heading', { name: 'Agent radar', exact: true }).waitFor();
         await go('Statistics');
         assert.equal(
