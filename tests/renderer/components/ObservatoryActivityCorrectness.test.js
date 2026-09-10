@@ -134,3 +134,54 @@ it('advances and freezes timeline lanes independently of pushes while keeping fu
   mounted.unmount();
   expect(vi.getTimerCount()).toBe(0);
 });
+
+it('holds hovered and keyboard-selected interval boundaries until inspection ends', async () => {
+  clock();
+  const bounds = activityBins([], now + 1, 15 * 60000);
+  const rows = [event(bounds[5].start + 500)];
+  const inspect = vi.fn();
+  const mounted = renderChart({ events: rows, observedAt: now, inspect });
+  const plot = screen.getByRole('group', { name: 'File activity histogram' });
+  const buttons = within(plot).getAllByRole('button');
+  await fireEvent.pointerEnter(buttons[5]);
+  const initial = buttons[5].getAttribute('aria-label');
+  await vi.advanceTimersByTimeAsync(2000);
+  await tick();
+  expect(buttons[5]).toHaveAccessibleName(initial);
+  await fireEvent.click(buttons[5]);
+  expect(inspect).toHaveBeenLastCalledWith(
+    'Activity interval',
+    expect.objectContaining({
+      from: new Date(bounds[5].start).toISOString(),
+      to: new Date(bounds[5].end).toISOString(),
+      count: 1,
+      observations: rows,
+    }),
+  );
+  await fireEvent.pointerLeave(plot);
+  await tick();
+  expect(buttons[5].getAttribute('aria-label')).not.toBe(initial);
+  buttons[6].focus();
+  await tick();
+  const keyboard = buttons[6].getAttribute('aria-label');
+  await vi.advanceTimersByTimeAsync(2000);
+  await tick();
+  expect(buttons[6]).toHaveAccessibleName(keyboard);
+  buttons[6].blur();
+  await tick();
+  expect(buttons[6].getAttribute('aria-label')).not.toBe(keyboard);
+  mounted.unmount();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it('keeps an explicit agent filter when its retained events disappear', async () => {
+  clock();
+  const mounted = renderChart({ events: [event(now)], observedAt: now, inspect: vi.fn() });
+  await fireEvent.change(screen.getByLabelText('Chart agent'), { target: { value: 'Codex' } });
+  await mounted.rerender({ events: [event(now, { agent: 'Claude Code' })] });
+  expect(screen.getByLabelText('Chart agent')).toHaveValue('Codex');
+  expect(screen.getByRole('option', { name: /Codex.*no retained events/ })).toBeInTheDocument();
+  expect(total(mounted.container)).toBe('0');
+  await fireEvent.change(screen.getByLabelText('Chart agent'), { target: { value: '' } });
+  expect(total(mounted.container)).toBe('1');
+});
