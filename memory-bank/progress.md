@@ -2129,3 +2129,25 @@ sleep/wake or installed-app replacement was performed. E3 still needs a new live
 measurement; the historical 12,061 drops are not declared fixed. Verify final
 PR/CI/merge for the branch before starting the next block. Original dirty source
 checkout and the clean Observatory integration were preserved.
+
+## Session handoff — 2026-09-11, authorized live ETW burst follow-up
+
+After PR #428 merged as `7b1e153` with all five CI contexts green, the user approved
+the real ETW check. On Windows 11 Home 25H2 / 26200.8655, an ordinary Node parent
+performed the ten-second fixture workload with one elevated collector. Binary
+hashes match the preceding normal-token process check. Scoped fixture Read/header
+PID evidence passed; no out-of-scope path or non-null agent/instanceId was observed.
+
+Final totals: 463125 delivered, 456150 filtered, 6674 application drops (~1.44%),
+zero native event/realtime-buffer/log-buffer loss, zero decoder errors/conflicts
+or ring eviction, 293 map resets, actual buffers 256 × 64 KiB. Owned stop verified,
+child exit 0; no EtwFile helpers remained. No independent session-absence witness.
+The sensor remains DEGRADED. Earlier and current ambient loads differ, so the
+figures do not establish a controlled improvement. E3 remains open; separate the
+ingress/output loss counters before another repeatable burst measurement.
+
+`docs/recon/evidence/etw-file-home-26200-burst-live.json` embeds the normal/live
+reports, raw-file/binary hashes and 18 canonical LF source hashes checked against
+`7b1e153`. The evidence change is on `codex/etw-burst-live-evidence`; verify its final
+PR/CI/merge before continuing. No runtime code, installed application or sleep/wake
+settings changed during this measurement.

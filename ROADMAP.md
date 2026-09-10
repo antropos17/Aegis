@@ -105,8 +105,10 @@ The dependency is those observations, not the absence of a Windows host.
    cleanup/recovery and the remaining E3/E6–E8 live gates remain open.
    The [2026-09-11 burst follow-up](docs/roadmap/etw-burst-handling.md) moves process
    probes and serialization off the mapper. A controlled held-probe regression
-   drains 8,192 additional reads without ingress loss; new live loss measurements
-   are still needed for E3.
+   drains 8,192 additional reads without ingress loss. Its authorized live check
+   recorded 6,674 application drops among 463,125 delivered events, zero native
+   losses and verified stop. Ambient loads differ from the first smoke; E3 remains
+   open pending separate stage loss accounting and repeatable burst measurement.
 
 ## C — existing rules coverage
 

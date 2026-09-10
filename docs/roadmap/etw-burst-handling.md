@@ -48,15 +48,43 @@ node scripts/verify-etw-file.mjs --report=X:/tmp/etw-burst-process-new.json
 ```
 
 The repository's five CI contexts do not build this .NET project. The local C#
-results above are separate evidence. No elevated capture or sleep/wake was run
-for this follow-up, and the installed application was not replaced.
+results above are separate evidence. Implementation PR #428 merged as `7b1e153`
+after all five contexts passed. Sleep/wake remains deferred, and the installed
+application was not replaced.
+
+## Authorized live follow-up
+
+The user then authorized a live check on 2026-09-11 (Asia/Baku). The ordinary Node
+parent performed the ten-second fixture workload and requested one UAC collector.
+The live apphost/assembly hashes match the preceding normal-token process check;
+all 18 source hashes in the [evidence aggregate](../recon/evidence/etw-file-home-26200-burst-live.json)
+match `7b1e153`. Host: Windows 11 Home 25H2, build 26200.8655.
+
+| Observation | Result |
+| --- | --- |
+| Delivered provider events | 463,125 |
+| Policy-filtered events | 456,150 |
+| Application queue drops | 6,674 (about 1.44% of delivered events) |
+| ETW events / realtime buffers / log buffers lost | 0 / 0 / 0 |
+| Decoder errors / map conflicts / ring evictions | 0 / 0 / 0 |
+| Map resets | 293 |
+| Actual kernel buffers | 256 × 64 KiB |
+| Scoped fixture path and workload header-PID Read candidate | Observed |
+| Out-of-scope path or non-null agent/instanceId | None observed |
+| Stop verification / child exit | Verified / 0 |
+| Remaining EtwFile helper processes | 0 |
+
+This passes the narrow live acceptance criteria and retains a DEGRADED sensor
+state because application losses and mapping/identity uncertainty remain. The
+original reports are embedded with their raw-file hashes. There is no independent
+session-absence witness: successful owned stop and exited helpers are the evidence.
 
 ## Next evidence
 
 The earlier live result of 12,061 application drops among 88,772 inputs remains
-historical evidence. This change establishes that a slow process probe cannot
-hold up lifecycle mapping; it does not establish the cause of every earlier drop
-or quantify native burst improvement. A new agreed live check should retain
-delivered/filtered/dropped totals, native counters, scoped candidate evidence and
-verified stop before making a new loss claim. E3 remains open along with B1's
+historical evidence. The new run delivered different machine-wide traffic, so
+neither absolute drops nor percentages establish a controlled performance gain.
+The v1 aggregate combines ingress and outbound drops. Next, distinguish those
+stages and use a repeatable burst workload to locate the remaining loss. E3 remains
+open along with B1's
 coverage questions, E4/E5 identity admission and collector-crash recovery.
