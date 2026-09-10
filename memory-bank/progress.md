@@ -2108,3 +2108,24 @@ The current all-section pass is recorded in docs/current-state/SECTION-DUPLICATE
 ## Session handoff — 2026-09-10, risk clarity
 
 Monitoring, radar and agent rows now lead to a shared Risk explanation. It shows the actual scoring contributions and saved exception, identifies the highest-scoring worker and preserves captured process evidence across live updates. The main reason remains visible at 900x600 / 150% scale. See docs/current-state/RISK-CLARITY-2026-09-10.md for checked scope and limits. 3212 tests passed (4 skipped), required repository gates, 480 browser states, focused final layout verification, packaged Electron smoke and installed-profile navigation passed. The verified package was installed with application/profile backups and settings preserved. Original dirty checkout was left untouched.
+
+## Session handoff — 2026-09-11, ETW mapper burst isolation
+
+Backend continued from `8b16692` on `codex/etw-burst-handling` in
+`X:/tmp/aegis-etw-burst-20260911`. Fresh process probes now run on the single output
+reader outside the mapping lock; JSON serialization is removed from the mapper.
+Output retains its 4,096-record / 4 MiB bounds with explicit retained-string
+accounting. A gap during a probe discards and counts the in-flight candidate.
+The blocked-probe regression failed on the original mapper, then passed with
+8,192 further reads and a Close drained without ingress loss. Output overflow
+remains bounded and counted. Details: `docs/roadmap/etw-burst-handling.md`.
+
+Release C# build/formatter, 27 C# self-tests, three normal-token process cases,
+110 focused JS tests, and full coverage (197 files, 3290 passed, 4 skipped;
+`--maxWorkers=2`) passed. Renderer build, format, lint, TypeScript/Svelte and
+production dependency audit passed. Process evidence is synthetic, with null
+native counters: `X:/tmp/aegis-etw-burst-process-20260911.json`. No UAC capture,
+sleep/wake or installed-app replacement was performed. E3 still needs a new live
+measurement; the historical 12,061 drops are not declared fixed. Verify final
+PR/CI/merge for the branch before starting the next block. Original dirty source
+checkout and the clean Observatory integration were preserved.

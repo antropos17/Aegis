@@ -67,7 +67,10 @@ way to start another capture. The separately owned frontend is unchanged.
   Ingress is capped at 4,096 entries and 4 MiB including retained string estimates.
   A gap discards buffered inputs with counted loss and invalidates the map epoch.
   A dedicated mapper drains ingress independently of pipe writes and native counter
-  queries. Its outbound queue is separately capped at 4,096 entries / 4 MiB; overflow
+  queries. Process-generation queries and JSON serialization also run on the single
+  output reader, outside the mapper lock. Its outbound queue is separately capped
+  at 4,096 entries / 4 MiB; retained records use a 2,048-byte allowance plus UTF-16
+  path storage, without serializing to count bytes. Overflow
   there counts loss without blocking raw mapping. The writer retains one bounded
   batch, with at most 128 records and a 256 KiB wire limit. The v1 telemetry queue
   fields report maxima across the two separately capped stages, not their sum.
@@ -93,7 +96,10 @@ way to start another capture. The separately owned frontend is unchanged.
   This sample is not an activity count. Selected-path candidates are not sampled.
 - Header PID and issuing TID remain candidates. At most 100 fresh limited-query
   process handle probes per second retain full creation FILETIME and the actual
-  QPC observation interval, without caching birth time. This later observation
+  QPC observation interval, without caching birth time. Probes happen when output
+  is consumed; queued or dropped records do not trigger a probe. A native/ingress
+  loss invalidation during a probe discards and counts the in-flight record too.
+  This later observation
   cannot prove the earlier event issuer; agent and instanceId remain null.
 - Main retains at most 256 diagnostic records / 1 MiB including UTF-16 storage
   estimates. Eviction has its own counter. Stop/failure clears this ring. At most
@@ -113,3 +119,9 @@ zero native ETW losses; this is a degraded diagnostic backend, not loss-free cap
 The aggregate retains all earlier attempts, including the failed first one. Independent
 absence witnessing and protected collector-crash recovery remain unfinished.
 Warm mmap, Fast I/O and the remaining B1/E4–E8 coverage questions remain open.
+
+The 2026-09-11 [burst-handling follow-up](../../docs/roadmap/etw-burst-handling.md)
+removes process probes and serialization from the ingress drain. Its controlled
+regression passes 8,192 further reads while a probe is held, with no ingress loss
+and counted outbound overflow. This synthetic result does not replace the earlier
+live measurement; native burst losses after the change have not been measured.

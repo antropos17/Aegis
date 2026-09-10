@@ -8,7 +8,11 @@ internal static class FileTests
     internal static int Run()
     {
         int passed = 0;
-        void Test(string name, Action body) { body(); passed++; Console.WriteLine("PASS " + name); }
+        void Test(string name, Action body)
+        {
+            try { body(); passed++; Console.WriteLine("PASS " + name); }
+            catch { Console.WriteLine("FAIL " + name); throw; }
+        }
         var scope = new FileScope(@"C:\fixture", false);
         FileInput Input(int id, long qpc, ulong obj = 1, ulong key = 0, string? name = null) =>
             new((ulong)qpc, id, id == 10 ? 0 : 1, qpc, 71, 72, 72, null, obj, key, name);
@@ -133,6 +137,7 @@ internal static class FileTests
                 using var doc = JsonDocument.Parse(json); Reject(() => FileWire.Shape(doc.RootElement, "requestId"));
             }
         });
+        FileBurstTests.Run(Test);
         Console.WriteLine($"{passed} self-tests passed; no ETW session or UAC requested.");
         return 0;
     }
