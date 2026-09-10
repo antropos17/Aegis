@@ -36,6 +36,9 @@
     inspecting === null ? latest : (observations.find((s) => s.at === inspecting) ?? latest),
   );
   let coverage = $derived(focused?.coverage?.[metric.id]);
+  let collection = $derived(
+    metric.id === 'cpu' || metric.id === 'memory' ? focused?.resourceCollection : undefined,
+  );
   let values = $derived(
     observations
       .map((s) => s.values[metric.id])
@@ -107,8 +110,12 @@
           {stale
             ? 'View held'
             : inspecting === null
-              ? 'Latest measurement'
-              : 'Selected measurement'} · {time(focused?.at)}
+              ? collection
+                ? 'Latest collection'
+                : 'Latest measurement'
+              : collection
+                ? 'Selected collection'
+                : 'Selected measurement'} · {time(focused?.at)}
         </p>
       </div>
       <strong class="current">{statisticsValue(focused?.values[metric.id], metric.unit)}</strong>
@@ -126,6 +133,12 @@
     {#if coverage}<p class="coverage" class:partial={coverage.measured < coverage.total}>
         {coverage.measured < coverage.total ? 'Measured subtotal' : 'Measured total'} · {coverage.measured}
         / {coverage.total} processes
+        {#if collection && collection.oldest < collection.newest}
+          · readings span {((collection.newest - collection.oldest) / 1000).toLocaleString(
+            undefined,
+            { maximumFractionDigits: 1 },
+          )} s
+        {/if}
       </p>{/if}
     <StatsPlot
       {observations}
@@ -168,7 +181,11 @@
           >{statisticsValue(values.length ? Math.max(...values) : null, metric.unit)}</strong
         >
       </div>
-      <p>Each point is a delivered measurement. Gaps mean unavailable data.</p>
+      <p>
+        {collection
+          ? 'Latest collected readings. Cached replies add no points.'
+          : 'Each point is a delivered measurement.'} Gaps mean unavailable data.
+      </p>
     </div>
     <details class="metric-help">
       <summary>About this metric</summary>

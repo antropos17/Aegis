@@ -267,7 +267,7 @@ function loadSettings() {
 /**
  * Persist updated settings to disk.
  * @param {Object} newSettings - Partial settings object merged with defaults
- * @param {{clearAnthropicApiKey?: boolean}} [options] - Explicit credential removal
+ * @param {{patch?: boolean, clearAnthropicApiKey?: boolean}} [options] - Merge changed fields with current settings when patch is true; otherwise replace with defaults
  * @returns {void}
  * @since v0.1.0
  */
@@ -276,9 +276,11 @@ function saveSettings(newSettings, options = {}) {
     !options ||
     typeof options !== 'object' ||
     Array.isArray(options) ||
-    Object.keys(options).some((key) => key !== 'clearAnthropicApiKey') ||
-    (Object.hasOwn(options, 'clearAnthropicApiKey') &&
-      typeof options.clearAnthropicApiKey !== 'boolean')
+    ![Object.prototype, null].includes(Object.getPrototypeOf(options)) ||
+    Reflect.ownKeys(options).some(
+      (key) =>
+        !['patch', 'clearAnthropicApiKey'].includes(key) || typeof options[key] !== 'boolean',
+    )
   )
     throw new Error('Invalid settings save options');
   const { validateSettings } = require('./settings-validation');
@@ -286,7 +288,16 @@ function saveSettings(newSettings, options = {}) {
   if (!check.valid) throw new Error(check.error);
   const previous = settings;
   const previousBlob = encryptedApiKey;
-  settings = { ...freshDefaults(), anthropicApiKey: previous.anthropicApiKey, ...newSettings };
+  // Merge at the synchronous persistence boundary, never against a renderer snapshot.
+  // Clone nested fields so later mutations of a caller's draft cannot change live settings.
+  const candidate = structuredClone({
+    ...(options.patch ? previous : freshDefaults()),
+    anthropicApiKey: previous.anthropicApiKey,
+    ...newSettings,
+  });
+  const merged = validateSettings(candidate);
+  if (!merged.valid) throw new Error(merged.error);
+  settings = candidate;
   if (options.clearAnthropicApiKey === true) {
     encryptedApiKey = null;
     settings.anthropicApiKey = '';

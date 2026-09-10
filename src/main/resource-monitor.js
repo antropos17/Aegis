@@ -39,7 +39,14 @@ const logger = require('./logger');
  * not be used to key anything downstream — the OS reissues it. A record with
  * `instanceId: null` is an unattributed sample: it keeps its own pid and stays
  * individually distinguishable, never merged with other null-key records.
- * @typedef {{ instanceId: string|null, pid: number, cpu: number|null, memMb: number|null, gpu: {memMb: number}|null }} AgentResourceRecord
+ * Collection metadata belongs to THIS record and survives cache replay. collectedAt
+ * is the wall-clock completion of the CPU/RAM + optional GPU collection attempt,
+ * not an OS observation timestamp. collectionStartedAt excludes the one-time GPU
+ * availability probe. The counters can describe different provider time windows.
+ * collectionSequence increases with batch request order within this main process;
+ * use it, not wall time, to reject out-of-order replies (the clock can be adjusted).
+ * Missing measurements remain null even when a collection completed successfully.
+ * @typedef {{ instanceId: string|null, pid: number, cpu: number|null, memMb: number|null, gpu: {memMb: number}|null, collectionStartedAt: number, collectedAt: number, collectionSequence: number }} AgentResourceRecord
  */
 
 /** ms — short on purpose: CPU is volatile, but this keeps spawns off the per-tick path. */
@@ -66,9 +73,18 @@ let _gpuProbePromise = null; // memoizes the one-time probe
  * no key there is no way to prove the pid still names the same process, so it is
  * resampled every call. That costs a spawn on a path that is already spawn-bound and
  * off the critical path — cheaper than inventing distinguishability we do not have.
- * @type {Map<string, {record: AgentResourceRecord, timestamp: number}>}
+ * @type {Map<string, AgentResourceRecord>}
  */
 const _cache = new Map();
+
+/** Batch sequence is collection provenance, never process identity. */
+let _collectionSequence = 0;
+/** Preserve the newest completed request while other calls are still pending, even
+ * if its cache entry is pruned. A newer pending request must not prevent a finished
+ * reading from filling the cache. Entries are released after all callers finish.
+ * @type {Map<string, {completedSequence: number, pending: number}>}
+ */
+const _pendingCollections = new Map();
 
 /**
  * Injectable command runner — resolves stdout, rejects on spawn error. Tests
@@ -100,6 +116,8 @@ function _setLoggerForTest(fn) {
 /** @internal Reset all module state (tests). */
 function _resetForTest() {
   _cache.clear();
+  _pendingCollections.clear();
+  _collectionSequence = 0;
   _gpuAvailable = null;
   _gpuWarned = false;
   _gpuProbePromise = null;
@@ -276,7 +294,8 @@ function _fetchGpu() {
 function _pruneCache(now) {
   if (_cache.size <= 500) return;
   for (const [instanceId, entry] of _cache) {
-    if (now - entry.timestamp > RESOURCE_CACHE_TTL) _cache.delete(instanceId);
+    const age = now - entry.collectedAt;
+    if (age < 0 || age > RESOURCE_CACHE_TTL) _cache.delete(instanceId);
   }
 }
 
@@ -336,29 +355,64 @@ async function getResourcesForPids(targets) {
   const needSample = [];
   for (const target of wanted) {
     const cached = target.instanceId ? _cache.get(target.instanceId) : undefined;
-    if (cached && now - cached.timestamp <= RESOURCE_CACHE_TTL) resolved.set(target, cached.record);
+    const age = cached ? now - cached.collectedAt : -1;
+    if (cached && age >= 0 && age <= RESOURCE_CACHE_TTL) resolved.set(target, cached);
     else needSample.push(target);
   }
 
   if (needSample.length > 0) {
-    await probeGpu(); // one-time; memoized no-op after first call
-    const pids = [...new Set(needSample.map((t) => t.pid))];
-    const [cpuMem, gpu] = await Promise.all([_fetchCpuMem(pids), _fetchGpu()]);
+    const collectionSequence = ++_collectionSequence;
+    const keys = new Set(needSample.map((target) => target.instanceId).filter(Boolean));
+    for (const key of keys) {
+      const pending = _pendingCollections.get(key);
+      _pendingCollections.set(key, {
+        completedSequence: Math.max(
+          pending?.completedSequence || 0,
+          _cache.get(key)?.collectionSequence || 0,
+        ),
+        pending: (pending?.pending || 0) + 1,
+      });
+    }
+    try {
+      await probeGpu(); // one-time; memoized no-op after first call
+      const pids = [...new Set(needSample.map((t) => t.pid))];
+      const collectionStartedAt = Date.now();
+      const [cpuMem, gpu] = await Promise.all([_fetchCpuMem(pids), _fetchGpu()]);
+      const collectedAt = Date.now();
 
-    for (const target of needSample) {
-      const cm = cpuMem.get(target.pid);
-      const gpuMb = gpu.get(target.pid);
-      /** @type {AgentResourceRecord} */
-      const record = {
-        instanceId: target.instanceId,
-        pid: target.pid,
-        cpu: cm ? _normalizeCpu(cm.cpuRaw, LOGICAL_CORES) : null,
-        memMb: cm ? cm.memMb : null,
-        gpu: gpuMb !== undefined ? { memMb: gpuMb } : null,
-      };
-      // Unkeyed samples are never stored: see the `_cache` note.
-      if (target.instanceId) _cache.set(target.instanceId, { record, timestamp: now });
-      resolved.set(target, record);
+      for (const target of needSample) {
+        const cm = cpuMem.get(target.pid);
+        const gpuMb = gpu.get(target.pid);
+        /** @type {AgentResourceRecord} */
+        const record = {
+          instanceId: target.instanceId,
+          pid: target.pid,
+          cpu: cm ? _normalizeCpu(cm.cpuRaw, LOGICAL_CORES) : null,
+          memMb: cm ? cm.memMb : null,
+          gpu: gpuMb !== undefined ? { memMb: gpuMb } : null,
+          collectionStartedAt,
+          collectedAt,
+          collectionSequence,
+        };
+        // Only a newer completed request supersedes this reading. Pending work
+        // must not starve the cache during continuous overlapping collection.
+        const pending = target.instanceId ? _pendingCollections.get(target.instanceId) : undefined;
+        if (
+          target.instanceId &&
+          pending &&
+          pending.completedSequence <= collectionSequence &&
+          (_cache.get(target.instanceId)?.collectionSequence || 0) <= collectionSequence
+        ) {
+          pending.completedSequence = collectionSequence;
+          _cache.set(target.instanceId, record);
+        }
+        resolved.set(target, record);
+      }
+    } finally {
+      for (const key of keys) {
+        const pending = _pendingCollections.get(key);
+        if (pending && --pending.pending === 0) _pendingCollections.delete(key);
+      }
     }
   }
 

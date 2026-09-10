@@ -53,3 +53,19 @@ it('preserves the displayed measured value at a pause boundary without joining i
   await mounted.rerender({ paused: false });
   expect(mounted.container.querySelector('.current')).toHaveTextContent('—');
 });
+
+it('distinguishes completed collections and mixed reading times from delivery time', () => {
+  const collected = [
+    {
+      at: 5000,
+      values: { cpu: 10 },
+      coverage: { cpu: { measured: 2, total: 2 } },
+      resourceCollection: { oldest: 1000, newest: 5000 },
+    },
+  ];
+  const mounted = render(StatsChart, { samples: collected, metrics, now: 6000 });
+  expect(screen.getByText(/^Latest collection/)).toBeVisible();
+  expect(screen.getByText(/readings span/)).toHaveTextContent('readings span 4 s');
+  expect(screen.getByText(/Cached replies add no points/)).toBeVisible();
+  expect(mounted.container.querySelector('.current')).toHaveTextContent('10 %');
+});

@@ -1,3 +1,4 @@
+import { observeResourceCollection, type CollectionRange } from './resource-observations';
 import { instances, record, type Telemetry, type RecordData } from './host';
 import { radarGroups } from './radar';
 import { cpuPercent } from './resources';
@@ -9,6 +10,7 @@ export interface StatisticsSample {
   values: Record<string, number | null>;
   coverage?: Record<string, StatisticsCoverage>;
   boundary?: boolean;
+  resourceCollection?: CollectionRange;
 }
 interface ScanBaseline {
   at: number;
@@ -29,6 +31,10 @@ export interface StatisticsHistory {
   own: { at: number; value: RecordData } | null;
   stale: boolean;
   population: string;
+  resourceSequences: Record<string, number>;
+  resourceUnattributedSequence: number;
+  wallClock: number | null;
+  ignoredClocks: Record<string, number>;
 }
 export const STATISTICS_HISTORY_LIMIT = 1000;
 export const STATISTICS_HISTORY_MS = 300000;
@@ -44,6 +50,10 @@ export function createStatisticsHistory(): StatisticsHistory {
     own: null,
     stale: true,
     population: '',
+    resourceSequences: {},
+    resourceUnattributedSequence: 0,
+    wallClock: null,
+    ignoredClocks: {},
   };
 }
 /** Derive a monotonic counter rate between observations from the same source.
@@ -84,23 +94,47 @@ function tokenRate(before: TokenBaseline | null, after: TokenBaseline): number |
 }
 /** Observe each telemetry source only on its own receipt timestamp.
  * @param history Prior source clocks @param state Displayed telemetry @param interruptionAt Actual user pause time
+ * @param observedAt Renderer observation time; a backwards clock change starts new history
  * @returns Sparse five-minute history; no interpolated points @since 0.14.1
  */
 export function observeStatistics(
   history: StatisticsHistory,
   state: Telemetry,
   interruptionAt?: number,
+  observedAt = Date.now(),
 ): StatisticsHistory {
-  const next: StatisticsHistory = { ...history, clocks: { ...history.clocks } };
+  const wallClock = Number.isFinite(observedAt) ? observedAt : history.wallClock;
+  const clockReset =
+    wallClock !== null && history.wallClock !== null && wallClock < history.wallClock;
+  if (clockReset) {
+    history = {
+      ...createStatisticsHistory(),
+      stale: history.stale,
+      ignoredClocks: { ...history.ignoredClocks, ...history.clocks },
+      resourceSequences: history.resourceSequences,
+      resourceUnattributedSequence: history.resourceUnattributedSequence,
+    };
+  }
+  const next: StatisticsHistory = {
+    ...history,
+    clocks: { ...history.clocks },
+    ignoredClocks: { ...history.ignoredClocks },
+    wallClock,
+  };
   const frames: StatisticsSample[] = [];
+  let changed = clockReset;
   const session = state.stats.monitoringStarted;
   const coverage = ({ measured, total }: StatisticsCoverage): StatisticsCoverage => ({
     measured,
     total,
   });
   const fresh = (source: string, at: number | null | undefined): at is number => {
+    if (Object.hasOwn(next.ignoredClocks, source) && next.ignoredClocks[source] === at)
+      return false;
+    delete next.ignoredClocks[source];
     if (!at || !Number.isFinite(at) || at <= (history.clocks[source] ?? 0)) return false;
     next.clocks[source] = at;
+    changed = true;
     return true;
   };
   const emit = (
@@ -187,14 +221,26 @@ export function observeStatistics(
     if (history.population && history.population !== population) next.tokens = null;
     next.population = population;
   }
-  if (fresh('resources', state.resourcesAt)) {
-    const cpu = measuredStatisticsTotal(state, state.resources, 'cpu');
-    const memory = measuredStatisticsTotal(state, state.resources, 'memMb');
-    emit(
-      state.resourcesAt,
-      { cpu: cpu.value, memory: memory.value },
-      { cpu: coverage(cpu), memory: coverage(memory) },
-    );
+  const observed = observeResourceCollection(
+    state,
+    history.resourceSequences,
+    history.resourceUnattributedSequence,
+  );
+  if (fresh('resources', state.resourcesAt) || observed.advanced) {
+    changed = true;
+    next.resourceSequences = observed.sequences;
+    next.resourceUnattributedSequence =
+      observed.unattributedSequence ?? history.resourceUnattributedSequence;
+    if (observed.at !== null) {
+      const cpu = measuredStatisticsTotal(state, observed.rows, 'cpu');
+      const memory = measuredStatisticsTotal(state, observed.rows, 'memMb');
+      frames.push({
+        at: observed.at,
+        values: { cpu: cpu.value, memory: memory.value },
+        coverage: { cpu: coverage(cpu), memory: coverage(memory) },
+        ...(observed.collection ? { resourceCollection: observed.collection } : {}),
+      });
+    }
   }
   if (fresh('tokens', state.tokensAt)) {
     const total = measuredStatisticsTotal(state, state.tokens, 'totalTokens');
@@ -236,7 +282,7 @@ export function observeStatistics(
     const available = !network.state || network.state === 'HEALTHY';
     emit(state.networkAt, { connections: available ? state.network.length : null });
   }
-  if (!frames.length) return next.stale === history.stale ? history : next;
+  if (!frames.length) return changed || next.stale !== history.stale ? next : history;
   const merged: StatisticsSample[] = [];
   for (const sample of [...history.samples, ...frames].sort((a, b) => a.at - b.at)) {
     const prior = merged.at(-1);
@@ -245,6 +291,9 @@ export function observeStatistics(
         at: sample.at,
         values: { ...prior.values, ...sample.values },
         coverage: { ...prior.coverage, ...sample.coverage },
+        ...(sample.resourceCollection || prior.resourceCollection
+          ? { resourceCollection: sample.resourceCollection ?? prior.resourceCollection }
+          : {}),
         ...(sample.boundary ? { boundary: true } : {}),
       };
     } else merged.push(sample);

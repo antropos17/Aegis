@@ -42,6 +42,7 @@
   let loaded = $state(false);
   let mutation = $state<'save' | 'replace' | null>(null);
   let error = $state('');
+  let refreshWarning = $state('');
   let updates = $state<RecordData>({});
   let contrast = $state(localStorage.getItem('aegis-theme')?.endsWith('-hc') ?? false);
   let motion = $state(localStorage.getItem('aegis-motion') !== 'reduce');
@@ -77,46 +78,82 @@
     baseline = snapshot();
     return settings;
   }
+  function lines(value: string): string[] {
+    return value
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+  }
+  function publishSettings(settings: RecordData) {
+    const keys = ['darkMode', 'uiScale', 'scanIntervalSec', ...toggles.map(([key]) => key)];
+    onSettingsSaved?.(Object.fromEntries(keys.map((key) => [key, settings[key]])));
+  }
   async function save() {
     if (mutation) throw new Error('A settings operation is already in progress');
     mutation = 'save';
+    refreshWarning = '';
     const submitted = { form: { ...form }, patterns, ignored, contrast, motion };
+    const previous = JSON.parse(baseline) as typeof submitted;
+    const themeChanged =
+      submitted.form.darkMode !== previous.form.darkMode ||
+      submitted.contrast !== previous.contrast;
+    const scaleChanged = submitted.form.uiScale !== previous.form.uiScale;
+    const motionChanged = submitted.motion !== previous.motion;
+    const preview = {
+      theme: document.documentElement.dataset.theme,
+      scale: document.documentElement.style.getPropertyValue('--ui-scale'),
+      motion: document.documentElement.dataset.motion,
+    };
+    const patch: RecordData = Object.fromEntries(
+      Object.entries(submitted.form).filter(([key, value]) => value !== previous.form[key]),
+    );
+    if (JSON.stringify(lines(submitted.patterns)) !== JSON.stringify(lines(previous.patterns)))
+      patch.customSensitivePatterns = lines(submitted.patterns);
+    if (JSON.stringify(lines(submitted.ignored)) !== JSON.stringify(lines(previous.ignored)))
+      patch.ignoredDirectories = lines(submitted.ignored);
     try {
-      const current = record(await invoke(host, 'getSettings'));
-      const saved = {
-        ...current,
-        ...submitted.form,
-        customSensitivePatterns: submitted.patterns
-          .split('\n')
-          .map((value) => value.trim())
-          .filter(Boolean),
-        ignoredDirectories: submitted.ignored
-          .split('\n')
-          .map((value) => value.trim())
-          .filter(Boolean),
-      };
-      confirmed(await invoke(host, 'saveSettings', saved));
+      confirmed(await invoke(host, 'saveSettings', patch, { patch: true }));
       if (!alive) return;
       baseline = JSON.stringify(submitted);
-      onSettingsSaved?.(saved);
-      localStorage.setItem(
-        'aegis-theme',
-        (submitted.form.darkMode ? 'dark' : 'light') + (submitted.contrast ? '-hc' : ''),
-      );
+      const savedTheme =
+        (submitted.form.darkMode ? 'dark' : 'light') + (submitted.contrast ? '-hc' : '');
+      if (themeChanged) localStorage.setItem('aegis-theme', savedTheme);
       if (
+        (themeChanged || scaleChanged) &&
         form.darkMode === submitted.form.darkMode &&
         form.uiScale === submitted.form.uiScale &&
-        contrast === submitted.contrast
+        contrast === submitted.contrast &&
+        document.documentElement.dataset.theme === preview.theme &&
+        document.documentElement.style.getPropertyValue('--ui-scale') === preview.scale
       ) {
+        // A combined appearance callback must keep the other window's unchanged fields.
+        const theme = themeChanged
+          ? savedTheme
+          : (preview.theme ?? localStorage.getItem('aegis-theme') ?? savedTheme);
         appearance(
-          submitted.form.darkMode === true,
-          Number(submitted.form.uiScale ?? 1),
-          submitted.contrast,
+          theme.startsWith('dark'),
+          Number(
+            scaleChanged ? submitted.form.uiScale : preview.scale || submitted.form.uiScale || 1,
+          ),
+          theme.endsWith('-hc'),
         );
       }
-      localStorage.setItem('aegis-motion', submitted.motion ? 'full' : 'reduce');
-      if (motion === submitted.motion)
-        document.documentElement.dataset.motion = submitted.motion ? 'full' : 'reduce';
+      if (motionChanged) {
+        localStorage.setItem('aegis-motion', submitted.motion ? 'full' : 'reduce');
+        if (
+          motion === submitted.motion &&
+          document.documentElement.dataset.motion === preview.motion
+        )
+          document.documentElement.dataset.motion = submitted.motion ? 'full' : 'reduce';
+      }
+      try {
+        const saved = record(await invoke(host, 'getSettings'));
+        if (alive) publishSettings(saved);
+      } catch {
+        if (alive)
+          refreshWarning =
+            'Settings saved. Could not refresh the current settings; reload AEGIS to retry.';
+      }
     } catch (cause) {
       if (alive && cause instanceof Error && /pattern|regex/i.test(cause.message)) {
         section = 'monitoring';
@@ -137,7 +174,8 @@
       if (!alive || !saved) return;
       appearance(form.darkMode === true, Number(form.uiScale ?? 1), contrast);
       document.documentElement.dataset.motion = motion ? 'full' : 'reduce';
-      if (importing) onSettingsSaved?.(saved);
+      refreshWarning = '';
+      if (importing) publishSettings(saved);
     } finally {
       if (alive) mutation = null;
     }
@@ -183,6 +221,7 @@
 </script>
 
 {#if error}<p role="alert" class="notice">{error}</p>{/if}
+{#if refreshWarning}<p role="status" class="notice">{refreshWarning}</p>{/if}
 <div class="settings-workspace panel">
   <SectionTabs
     {tabs}

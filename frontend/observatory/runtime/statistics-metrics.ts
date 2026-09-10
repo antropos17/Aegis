@@ -22,7 +22,7 @@ export const statisticsMetrics: StatsMetric[] = [
     label: 'Measured agent CPU',
     unit: '%',
     description:
-      'Measured current processes as a share of total machine CPU capacity. Coverage shows how many exact process identities contributed; missing processes are excluded, never assumed idle.',
+      'Measured current processes as a share of total machine CPU capacity. Coverage shows how many exact process identities contributed; missing processes are excluded, never assumed idle. Collection time is when AEGIS finished reading the providers. Cached readings retain their time; mixed collections show their span.',
     sections: ['overview', 'processes'],
     floor: 100,
   },
@@ -31,7 +31,7 @@ export const statisticsMetrics: StatsMetric[] = [
     label: 'Measured agent memory',
     unit: 'MB',
     description:
-      'Resident memory of measured current processes. Coverage identifies missing processes; shared pages may be counted in more than one process.',
+      'Resident memory of measured current processes. Coverage identifies missing processes; shared pages may be counted in more than one process. Collection time describes the completed provider read, not an exact OS sampling instant.',
     sections: ['overview', 'processes'],
   },
   {

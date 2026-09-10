@@ -64,20 +64,18 @@
     const value = remove ? '' : submittedDraft.trim();
     if (!remove && !value) throw new Error('Enter an API key');
     const visit = providerVisit;
-    keyRevision++;
     keyPending = true;
     try {
-      const current = record(await invoke(host, 'getSettings'));
-      if (alive) configured = Boolean(current.anthropicApiKey);
       confirmed(
         await invoke(
           host,
           'saveSettings',
-          { ...current, anthropicApiKey: value },
-          ...(remove ? [{ clearAnthropicApiKey: true }] : []),
+          { anthropicApiKey: value },
+          { patch: true, ...(remove ? { clearAnthropicApiKey: true } : {}) },
         ),
       );
       if (alive) {
+        keyRevision++;
         configured = !remove;
         if (providerVisit === visit && key === submittedDraft) key = '';
       }

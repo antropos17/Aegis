@@ -21,7 +21,7 @@ Core modules:
 - watch-event-queue.js — bounded, acknowledged worker delivery; counted drop-newest overflow reaches sensor health
 - network-monitor.js — TCP scanning + DNS + domain classification
 - rule-loader.js — YAML rule loading + categoryIndex (Map<category, rules[]>) exposed via getRulesByCategory(); built and tested, but no production caller consumes it yet (C-16)
-- config-manager.js — validated atomic settings persistence, encrypted key retention and permissions
+- config-manager.js — validated atomic settings persistence, changed-field patch merging, encrypted key retention and permissions
 - baselines.js — session tracking + rolling averages
 - anomaly-detector.js — multi-dimensional anomaly scoring (network/fs/process/baseline)
 - llm-runtime-detector.js — local LLM runtime detection (Ollama, LM Studio)
@@ -41,7 +41,7 @@ Core modules:
 
 App.svelte owns workspace tabs, history and the host connection. Monitoring groups products and exposes stamped instances for process actions; Events and ActivityChart show retained evidence; Details and EntityLinks connect observations; Rules, Catalog, Analysis, Reports, Statistics and Settings expose host actions. SensorStatus renders effective sensor IDs; Notifications tracks anomaly crossings.
 
-runtime/host.ts owns seven telemetry subscriptions, revision-guarded seed results/errors, outage retention, source-specific receipt clocks and freshness updated after confirmed settings saves. Shared enrich-agents.ts preserves risk scoring and instance joins. Legacy stores and utility regression fixtures remain under src/renderer/lib, outside the packaged source list; the old UI, fonts and styles are removed.
+runtime/host.ts owns seven telemetry subscriptions, revision-guarded seed results/errors, outage retention, source-specific receipt clocks and freshness updated after confirmed settings saves. runtime/resource-observations.ts merges sequence-ordered per-instance readings and suppresses cached numeric history points; statistics-history.ts preserves collection ranges and resets timelines on backwards wall-clock changes. Shared enrich-agents.ts preserves risk scoring and instance joins. Legacy stores and utility regression fixtures remain under src/renderer/lib, outside the packaged source list; the old UI, fonts and styles are removed.
 
 styles.ts loads twelve approved template stylesheets in their original order, followed by radar-clarity, feedback, desktop, coherence, detail-layout and comfort refinements. reference/SOURCE.json records the template source hashes and stylesheet order. Preview uses demo/host.ts and the same components, with no real preload calls. Production excludes these fixtures.
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import resourceMonitor from '../../src/main/resource-monitor.js';
 
 const {
@@ -249,6 +249,9 @@ describe('resource-monitor', () => {
         cpu: expect.any(Number),
         memMb: 72,
         gpu: { memMb: 512 },
+        collectedAt: expect.any(Number),
+        collectionStartedAt: expect.any(Number),
+        collectionSequence: expect.any(Number),
       });
     });
 
@@ -373,5 +376,217 @@ describe('resource-monitor nullable CPU propagation', () => {
     expect(first[0]).toMatchObject({ instanceId: '100:missing-cpu', cpu: null, memMb: 1 });
     expect(second).toEqual(first);
     expect(exec.mock.calls.filter(([command]) => command !== 'nvidia-smi')).toHaveLength(1);
+  });
+});
+
+describe('resource-monitor collection provenance and cache ordering', () => {
+  let now;
+  let clock;
+  let pending;
+
+  beforeEach(async () => {
+    _resetForTest();
+    _setLoggerForTest({ warn: vi.fn() });
+    now = 1000;
+    clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    pending = [];
+    _setExecForTest(
+      vi.fn((command) => {
+        if (command === 'nvidia-smi') return Promise.reject(new Error('GPU unavailable'));
+        return new Promise((resolve) => {
+          pending.push((memMb) =>
+            resolve(
+              command === 'powershell.exe'
+                ? JSON.stringify(
+                    [100, 200].map((pid) => ({
+                      IDProcess: pid,
+                      PercentProcessorTime: memMb,
+                      WorkingSet: memMb * BYTES_PER_MB,
+                    })),
+                  )
+                : [100, 200].map((pid) => pid + ' ' + memMb + ' ' + memMb * 1024).join('\n'),
+            ),
+          );
+        });
+      }),
+    );
+    await resourceMonitor.probeGpu();
+  });
+
+  afterEach(() => clock.mockRestore());
+
+  const target = [{ pid: 100, instanceId: '100:clock' }];
+
+  it('preserves collector completion time and sequence when delivering a cache hit', async () => {
+    const initial = getResourcesForPids(target);
+    await Promise.resolve();
+    now = 1200;
+    pending[0](1);
+    const [first] = await initial;
+    expect(first).toMatchObject({
+      collectionStartedAt: 1000,
+      collectedAt: 1200,
+      collectionSequence: 1,
+    });
+
+    now = 2000;
+    const [cached] = await getResourcesForPids(target);
+    expect(cached).toEqual(first);
+    expect(pending).toHaveLength(1);
+  });
+
+  it('starts TTL after slow collection completion rather than query request', async () => {
+    const initial = getResourcesForPids(target);
+    await Promise.resolve();
+    now = 9000;
+    pending[0](1);
+    await initial;
+
+    now = 13000;
+    const replay = getResourcesForPids(target);
+    await Promise.resolve();
+    expect(pending).toHaveLength(1);
+    expect((await replay)[0].memMb).toBe(1);
+
+    now = 14001;
+    const fresh = getResourcesForPids(target);
+    await Promise.resolve();
+    expect(pending).toHaveLength(2);
+    pending[1](2);
+    expect((await fresh)[0]).toMatchObject({
+      memMb: 2,
+      collectedAt: 14001,
+      collectionSequence: 2,
+    });
+  });
+
+  it('preserves per-record provenance in a batch containing cached and fresh instances', async () => {
+    const initial = getResourcesForPids(target);
+    await Promise.resolve();
+    now = 1100;
+    pending[0](1);
+    const [first] = await initial;
+
+    now = 1200;
+    const mixed = getResourcesForPids([...target, { pid: 200, instanceId: '200:clock' }]);
+    await Promise.resolve();
+    now = 1300;
+    pending[1](2);
+    const rows = await mixed;
+    expect(rows[0]).toEqual(first);
+    expect(rows[0].collectedAt).toBe(1100);
+    expect(rows[1]).toMatchObject({
+      pid: 200,
+      memMb: 2,
+      collectionStartedAt: 1200,
+      collectedAt: 1300,
+      collectionSequence: 2,
+    });
+  });
+
+  it('caches the latest completed reading while a newer query is still pending', async () => {
+    const first = getResourcesForPids(target);
+    await Promise.resolve();
+    now = 2000;
+    const second = getResourcesForPids(target);
+    await Promise.resolve();
+
+    now = 2500;
+    pending[0](1);
+    const [firstRow] = await first;
+    for (const receipt of [3000, 3500]) {
+      now = receipt;
+      const cached = getResourcesForPids(target);
+      await Promise.resolve();
+      expect(pending).toHaveLength(2);
+      expect((await cached)[0]).toEqual(firstRow);
+    }
+
+    now = 4000;
+    pending[1](2);
+    const [secondRow] = await second;
+    now = 4500;
+    expect((await getResourcesForPids(target))[0]).toEqual(secondRow);
+    expect(secondRow.collectionSequence).toBeGreaterThan(firstRow.collectionSequence);
+    expect(pending).toHaveLength(2);
+  });
+
+  it('does not let an older request overwrite the newer cache when it completes last', async () => {
+    const older = getResourcesForPids(target);
+    await Promise.resolve();
+    const newer = getResourcesForPids(target);
+    await Promise.resolve();
+    // Both requests start and finish within the same clock millisecond.
+    pending[1](2);
+    const [newRow] = await newer;
+    pending[0](1);
+    const [oldRow] = await older;
+
+    expect(newRow.collectionSequence).toBeGreaterThan(oldRow.collectionSequence);
+    expect(newRow.collectedAt).toBe(oldRow.collectedAt);
+    expect(oldRow.memMb).toBe(1);
+    expect((await getResourcesForPids(target))[0]).toEqual(newRow);
+  });
+
+  it('keeps the newer-request guard after its expired cache entry has been pruned', async () => {
+    const older = getResourcesForPids(target);
+    await Promise.resolve();
+    const newer = getResourcesForPids(target);
+    await Promise.resolve();
+    pending[1](2);
+    await newer;
+
+    const filler = getResourcesForPids(
+      Array.from({ length: 501 }, (_, index) => ({ pid: 100, instanceId: 'fill:' + index })),
+    );
+    await Promise.resolve();
+    pending[2](3);
+    await filler;
+
+    now = 7000;
+    const prune = getResourcesForPids([{ pid: 200, instanceId: '200:prune' }]);
+    await Promise.resolve();
+    pending[3](4);
+    await prune;
+
+    now = 7100;
+    pending[0](1);
+    await older;
+    const final = getResourcesForPids(target);
+    await Promise.resolve();
+    expect(pending).toHaveLength(5);
+    pending[4](5);
+    expect((await final)[0].memMb).toBe(5);
+  });
+
+  it('rejects a negative cache age after a wall-clock adjustment', async () => {
+    const initial = getResourcesForPids(target);
+    await Promise.resolve();
+    pending[0](1);
+    await initial;
+
+    now = 900;
+    const adjusted = getResourcesForPids(target);
+    await Promise.resolve();
+    expect(pending).toHaveLength(2);
+    pending[1](2);
+    expect((await adjusted)[0]).toMatchObject({
+      memMb: 2,
+      collectedAt: 900,
+      collectionSequence: 2,
+    });
+  });
+
+  it('keeps missing measurements null while timestamping the completed collection attempt', async () => {
+    _setExecForTest(vi.fn(async () => ''));
+    const [row] = await getResourcesForPids(target);
+    expect(row).toMatchObject({
+      cpu: null,
+      memMb: null,
+      gpu: null,
+      collectionStartedAt: 1000,
+      collectedAt: 1000,
+      collectionSequence: 1,
+    });
   });
 });
