@@ -1,7 +1,7 @@
 'use strict';
 
 // Closed ETW diagnostic schemas, separate from framing and session validation.
-const PROTOCOL = 'etw-file/3';
+const PROTOCOL = 'etw-file/4';
 const PROFILE = 'home-26200-diagnostic-v1';
 const MAX_FRAME_BYTES = 256 * 1024;
 const MAX_DEPTH = 16;
@@ -79,12 +79,44 @@ const queues = shape({
   highWaterRecords: uint32,
   highWaterBytes: uint32,
 });
+const boundedQueue = (v) =>
+  queues(v) &&
+  v.records <= v.highWaterRecords &&
+  v.bytes <= v.highWaterBytes &&
+  v.highWaterRecords <= 4096 &&
+  v.highWaterBytes <= 4 * 1024 * 1024;
+const durationShape = shape({
+  calls: uint64,
+  totalTicks: uint64,
+  maxTicks: uint64,
+  failed: uint64,
+});
+const duration = (v) =>
+  durationShape(v) &&
+  BigInt(v.failed) <= BigInt(v.calls) &&
+  BigInt(v.maxTicks) <= BigInt(v.totalTicks) &&
+  BigInt(v.totalTicks) <= BigInt(v.calls) * BigInt(v.maxTicks) &&
+  (v.calls !== '0' || (v.totalTicks === '0' && v.maxTicks === '0'));
+const performanceShape = shape({
+  frequency: positive64,
+  asOfQpc: uint64,
+  pump: duration,
+  outputWrite: duration,
+  idleWait: duration,
+  ingress: boundedQueue,
+  output: boundedQueue,
+});
+const performance = (v) =>
+  performanceShape(v) &&
+  BigInt(v.outputWrite.totalTicks) <= BigInt(v.pump.totalTicks) &&
+  BigInt(v.outputWrite.calls) <= BigInt(v.pump.calls);
 const telemetryShape = shape({
   operational: oneOf(true, false),
   reasons: unique(oneOf(...REASONS), REASONS.length),
   counters: counts,
   totals,
   queues,
+  performance,
   coverage: oneOf(PROFILE),
 });
 const telemetry = (v) =>

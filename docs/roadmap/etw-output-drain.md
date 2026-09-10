@@ -1,11 +1,14 @@
 # B5 follow-up — output drop causes and frame encoding
 
+This records the v3 step. The [service-timing follow-up](etw-service-timings.md)
+extends the current protocol to v4; the evidence below remains a v3 measurement.
+
 Implemented on `codex/etw-output-drain` from `93aae23`, following the fixed
 66,000-read baseline that recorded 49,406 output-stage drops. E3 remains open.
 
 ## Counter contract
 
-The diagnostic protocol is now `etw-file/3`. Main and helper require canonical
+This step introduced `etw-file/3`. Main and helper require canonical
 uint64 `outputOverflowDropped` and `outputInvalidatedDropped` in every telemetry
 sample. Older versions are rejected; missing measurements never become zero.
 

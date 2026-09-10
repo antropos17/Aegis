@@ -6,9 +6,9 @@ using System.Text.Json;
 namespace Aegis.EtwLifecycle;
 
 internal sealed record Envelope(string t, string proto, string launchId, string sessionId, string seq, JsonElement data);
-internal sealed class FileWire(string launch, string session)
+internal sealed class FileWire(string launch, string session, FilePerformance? performance = null)
 {
-    internal const string Protocol = "etw-file/3", Profile = "home-26200-diagnostic-v1";
+    internal const string Protocol = "etw-file/4", Profile = "home-26200-diagnostic-v1";
     internal const int Limit = 256 * 1024;
     internal static readonly string[] Schemas = ["10:0", "12:1", "13:1", "14:1", "15:1"];
     private static readonly UTF8Encoding Utf8 = new(false, true);
@@ -95,7 +95,13 @@ internal sealed class FileWire(string launch, string session)
             writer.WriteEndObject(); writer.Flush();
         }
         sent++;
-        await WriteBody(stream, buffer.Written, token);
+        if (kind != "observations" || performance == null) await WriteBody(stream, buffer.Written, token);
+        else
+        {
+            long start = performance.Now(); bool success = false;
+            try { await WriteBody(stream, buffer.Written, token); success = true; }
+            finally { performance.OutputWrite.Record(performance.Now() - start, !success); }
+        }
         return true;
     }
     internal static async Task Forward(Stream stream, Envelope message, CancellationToken token)

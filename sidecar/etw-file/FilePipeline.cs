@@ -130,19 +130,18 @@ internal sealed class FilePipeline : IDisposable
             };
         }
     }
-    internal object Queues()
+    internal object Queues() => QueueSnapshot().combined;
+    internal FileQueueSnapshot QueueSnapshot()
     {
         lock (gate)
         {
             var input = ingress.Snapshot();
             // v1 queue fields describe maxima across two independently capped stages.
-            return new
-            {
-                records = Math.Max(input.Records, outbound.Count),
-                bytes = Math.Max(input.Bytes, bytes),
-                highWaterRecords = Math.Max(input.HighRecords, highRecords),
-                highWaterBytes = Math.Max(input.HighBytes, highBytes)
-            };
+            return new(
+                new(Math.Max(input.Records, outbound.Count), Math.Max(input.Bytes, bytes),
+                    Math.Max(input.HighRecords, highRecords), Math.Max(input.HighBytes, highBytes)),
+                new(input.Records, input.Bytes, input.HighRecords, input.HighBytes),
+                new(outbound.Count, bytes, highRecords, highBytes));
         }
     }
     public void Dispose() { cancel.Cancel(); if (Worker.IsCompleted) cancel.Dispose(); }

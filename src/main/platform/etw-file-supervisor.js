@@ -5,6 +5,7 @@ const { performance } = require('node:perf_hooks');
 const wire = require('./etw-file-protocol');
 const model = require('./etw-file-health');
 const health = require('../sensor-health');
+const { createDiagnostics } = require('./etw-file-diagnostics');
 
 /** Own one broker at a time, with explicit retry and no elevated kill or replay.
  * @param {Object} deps - spawnBroker, optional clocks/ID factory for deterministic tests.
@@ -16,6 +17,7 @@ function createSupervisor({
   now = Date.now,
   mono = () => performance.now(),
   id = randomUUID,
+  profileClock = process.hrtime.bigint,
 }) {
   let current = null,
     child = null,
@@ -38,16 +40,13 @@ function createSupervisor({
     failedAt = null;
   let stopReason = null;
   let capture = null;
-  let ring = [],
-    ringBytes = 0,
-    ringDropped = 0,
-    summaries = [],
+  let diagnostics = createDiagnostics(profileClock);
+  let summaries = [],
     omittedSummaries = 0;
   let idle = { ...health.createSensorHealth('etw-file'), state: 'DISABLED' };
 
   function clearRing() {
-    ring = [];
-    ringBytes = 0;
+    diagnostics.clear();
   }
   function fail(code) {
     if (!current || current.phase === 'failed') return;
@@ -121,17 +120,7 @@ function createSupervisor({
       clearRing();
     }
     if (message.t === 'observations' && stopAt === null) {
-      for (const record of message.data.records) {
-        // Account retained UTF-16 strings as well as JSON bytes and entry overhead.
-        const copy = structuredClone(record);
-        const bytes = 1024 + Buffer.byteLength(JSON.stringify(copy)) + (copy.path?.length || 0) * 2;
-        while (ring.length && (ring.length >= 256 || ringBytes + bytes > 1024 * 1024)) {
-          ringBytes -= ring.shift().bytes;
-          ringDropped++;
-        }
-        ring.push({ record: copy, bytes });
-        ringBytes += bytes;
-      }
+      diagnostics.retain(message.data.records);
     }
     if (message.t === 'stopped') {
       clearRing();
@@ -174,7 +163,9 @@ function createSupervisor({
       capture,
       finalCounters: structuredClone(current.latest?.counters || null),
       finalTotals: structuredClone(current.latest?.totals || null),
-      ringDropped,
+      ringDropped: diagnostics.dropped,
+      collectorPerformance: structuredClone(current.latest?.performance || null),
+      mainPerformance: diagnostics.performance(),
       stopReason,
       exitCode: code,
       stopVerified: current.phase === 'stopped' && code === 0,
@@ -201,7 +192,7 @@ function createSupervisor({
     sent = 0n;
     pendingWrite = false;
     receivedReady = false;
-    ringDropped = 0;
+    diagnostics = createDiagnostics(profileClock);
     stopSent = false;
     failedAt = null;
     clearRing();
@@ -215,12 +206,15 @@ function createSupervisor({
       return false;
     }
     const target = child;
-    decoder = wire.createFrameDecoder({ ...current, onMessage: accept });
+    decoder = wire.createFrameDecoder({
+      ...current,
+      onMessage: (message) => diagnostics.measure('acceptFrame', () => accept(message)),
+    });
     const reader = decoder;
     target.stdout.on('data', (bytes) => {
       if (target !== child || closed) return;
       try {
-        reader.push(bytes);
+        diagnostics.measure('decodeChunk', () => reader.push(bytes));
       } catch {
         fail('protocol-failed');
       }
@@ -281,16 +275,15 @@ function createSupervisor({
       idle = { ...idle, state, detail };
     },
     getHealth: () => structuredClone(current?.record || idle),
-    getDiagnostics: () => ({
-      records: ring.map((v) => structuredClone(v.record)),
-      ringBytes,
-      ringDropped,
-      summaries: structuredClone(summaries),
-      omittedSummaries,
-      restartBlocked: unsafe,
-      phase: current?.phase || 'disabled',
-      pendingBytes: decoder?.allocatedBytes() || 0,
-    }),
+    getDiagnostics: () =>
+      diagnostics.measure('snapshot', () => ({
+        ...diagnostics.snapshot(),
+        summaries: structuredClone(summaries),
+        omittedSummaries,
+        restartBlocked: unsafe,
+        phase: current?.phase || 'disabled',
+        pendingBytes: decoder?.allocatedBytes() || 0,
+      })),
   };
 }
 module.exports = { createSupervisor };

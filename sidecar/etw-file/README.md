@@ -25,10 +25,14 @@ Choose a new report path on every run. Temporary fixture folders are retained.
 normal-token fixtures, requiring nonzero split losses in the final report. It
 cannot be combined with `--live` and never requests UAC or ETW.
 
-The matching main/helper now require `etw-file/3`. Each telemetry sample includes
+The matching main/helper now require `etw-file/4`. Each telemetry sample includes
 `ingressDropped` and `outputDropped` uint64 strings whose sum is exactly `dropped`.
 `outputOverflowDropped + outputInvalidatedDropped` must equal `outputDropped`.
-Versions 1 and 2 are rejected; rebuild the helper together with the main reader.
+Versions 1–3 are rejected; rebuild the helper together with the main reader.
+Collector telemetry also requires bounded elapsed-time aggregates and separate
+ingress/output queue depths. Ended reports retain collector and main measurements;
+see [service measurements](../../docs/roadmap/etw-service-timings.md) for clock regions,
+nested durations and interpretation limits. No per-event timing history is retained.
 
 For a separately agreed live check, run the following from normal PowerShell and
 approve **one** UAC prompt. The ordinary Node process reads its own temporary test

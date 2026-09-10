@@ -126,7 +126,7 @@ UAC storms. Each attempt has a new session ID and rejects old frames.
 
 ## 4. Proposed diagnostic wire and bounds
 
-Independent protocol `etw-file/3`: four-byte little-endian length, UTF-8 JSON,
+Independent protocol `etw-file/4`: four-byte little-endian length, UTF-8 JSON,
 maximum 256 KiB payload, maximum JSON depth 16. Reject length before allocating.
 Decode fragmentation/coalescing with a capped accumulator. No stdout text logs.
 All uint64 values (QPC, frequency, FILETIME, sequence/counters) are decimal strings
@@ -299,7 +299,7 @@ approves no runtime integration and closes none of the remaining B1 questions.
 ## 8. Diagnostic contract details (B3, updated by B5)
 
 Every envelope has exactly `{t, proto, launchId, sessionId, seq, data}`; `proto`
-is `etw-file/3`, IDs are 1–64 ASCII letters/digits/underscore/hyphen, and `seq` is
+is `etw-file/4`, IDs are 1–64 ASCII letters/digits/underscore/hyphen, and `seq` is
 a positive canonical uint64 decimal string. IDs bind one launch and session;
 they provide no authentication by themselves. Sequences are independent in each
 direction. Each nested object has closed fields; unknown keys and omitted nullable
@@ -320,7 +320,7 @@ not approve live schema decoding or other Windows builds.
 | `error` | Nullable `requestId`, static `code` from the exported `ERROR_CODES`. |
 
 Telemetry has exactly `operational`, `reasons`, `counters`, `totals`, `queues`,
-`coverage`. Reasons are unique members of `mapping-uncertain`, `identity-uncertain`,
+`performance`, `coverage`. Reasons are unique members of `mapping-uncertain`, `identity-uncertain`,
 `population-unavailable`, `schema-gap`. The reducer derives its own state; there
 is no sender-provided `HEALTHY` assertion. `counters` contains nullable uint64
 `eventsLost`, `realTimeBuffersLost`, `logBuffersLost`, uint32 `queryStatus` and
@@ -330,11 +330,20 @@ accounting; the received values remain available in the copied diagnostic sample
 `outputDropped`, `outputOverflowDropped`, `outputInvalidatedDropped`,
 `decoderErrors`, `mapEpoch`, `mapResets`, `mapConflicts`.
 Ingress and output losses sum exactly to `dropped`; the two output causes sum
-exactly to `outputDropped`. Absent measurements and version 1/2 peers are rejected.
+exactly to `outputDropped`. Absent measurements and version 1–3 peers are rejected.
 See [output-drop accounting](etw-output-drain.md) for discard semantics, bounded
 frame encoding and normal/live evidence. `queues` contains uint32 `records`, `bytes`,
 `highWaterRecords`, `highWaterBytes`, with the section 4 caps and high-water checks.
 These reported counters do not implement a collector queue or prove a live bound.
+
+`performance` has exactly `frequency`, `asOfQpc`, `pump`, `outputWrite`, `idleWait`,
+`ingress`, `output`. Frequency is positive uint64; the timestamp is uint64. Each
+duration has canonical uint64 `calls`, `totalTicks`, `maxTicks`, `failed` with
+`failed <= calls`, `maxTicks <= totalTicks <= calls * maxTicks`. Zero calls require
+zero durations. Output-write calls/time cannot exceed enclosing pump calls/time.
+Each stage queue has the same four uint32 fields/caps as `queues`. Main keeps its
+own fixed timing groups in local diagnostics and ended summaries; none enter IPC
+or the health loss count. See [measurement boundaries](etw-service-timings.md).
 
 Observation uint64s are strings; PID/TID fields are uint32 with the payload/issuing
 fields nullable. `generationInterval` is null or `{fromQpc, toQpc}` with ordered

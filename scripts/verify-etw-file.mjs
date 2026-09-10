@@ -103,6 +103,14 @@ try {
     await until(() => sensor.getDiagnostics().summaries.length > index, 20000);
     const result = sensor.getDiagnostics().summaries.at(-1);
     if (!result.stopVerified) throw new Error('stop-unverified');
+    if (
+      !result.collectorPerformance ||
+      !result.mainPerformance ||
+      BigInt(result.collectorPerformance.pump.calls) === 0n ||
+      BigInt(result.collectorPerformance.outputWrite.calls) === 0n ||
+      BigInt(result.mainPerformance.decodeChunk.calls) === 0n
+    )
+      throw new Error('service-measurements-missing');
     const totals = result.finalTotals;
     if (
       !totals ||

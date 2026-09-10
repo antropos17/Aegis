@@ -24,8 +24,23 @@ export function telemetry(overrides = {}) {
       mapConflicts: '0',
     },
     queues: { records: 0, bytes: 0, highWaterRecords: 2, highWaterBytes: 1024 },
+    performance: collectorPerformance(),
     coverage: 'home-26200-diagnostic-v1',
     ...overrides,
+  };
+}
+
+export function collectorPerformance() {
+  const duration = () => ({ calls: '0', totalTicks: '0', maxTicks: '0', failed: '0' });
+  const queue = () => ({ records: 0, bytes: 0, highWaterRecords: 0, highWaterBytes: 0 });
+  return {
+    frequency: '10000000',
+    asOfQpc: '100',
+    pump: duration(),
+    outputWrite: duration(),
+    idleWait: duration(),
+    ingress: queue(),
+    output: queue(),
   };
 }
 
@@ -83,7 +98,7 @@ export function message(t = 'hello', seq = '1', data) {
   };
   return {
     t,
-    proto: 'etw-file/3',
+    proto: 'etw-file/4',
     launchId: 'launch-1',
     sessionId: 'session-1',
     seq,

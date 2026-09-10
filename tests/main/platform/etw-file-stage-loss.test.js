@@ -69,17 +69,20 @@ describe('ETW stage loss contract', () => {
     );
   });
 
-  it.each(['etw-file/1', 'etw-file/2'])(
+  it.each(['etw-file/1', 'etw-file/2', 'etw-file/3'])(
     'rejects legacy %s without inventing measurements',
     (version) => {
       const old = message('health', '3', stageSample());
       old.proto = version;
+      delete old.data.performance;
       if (version === 'etw-file/1') {
         delete old.data.totals.ingressDropped;
         delete old.data.totals.outputDropped;
       }
-      delete old.data.totals.outputOverflowDropped;
-      delete old.data.totals.outputInvalidatedDropped;
+      if (version !== 'etw-file/3') {
+        delete old.data.totals.outputOverflowDropped;
+        delete old.data.totals.outputInvalidatedDropped;
+      }
       const sink = vi.fn();
       const reader = protocol.createFrameDecoder({
         launchId: 'launch-1',
