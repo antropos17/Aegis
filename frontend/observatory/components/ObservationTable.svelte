@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { tick } from 'svelte';
   import {
     describeObservation,
     groupObservations,
@@ -22,7 +21,6 @@
     resetKey?: string;
   } = $props();
   let page = $state(0);
-  let surface: HTMLElement;
   let agents = $derived(instances(telemetry) as unknown as RecordData[]);
   let groups = $derived(groupObservations(rows, grouping, agents));
   let currentPage = $derived(Math.min(page, Math.max(0, Math.ceil(groups.length / 30) - 1)));
@@ -32,12 +30,9 @@
     grouping;
     page = 0;
   });
-  async function changePage(next: number) {
+  function changePage(next: number) {
+    if (next < 0 || next >= Math.ceil(groups.length / 30)) return;
     page = next;
-    await tick();
-    const target = surface.querySelector<HTMLButtonElement>('.observation-open');
-    target?.focus({ preventScroll: true });
-    target?.scrollIntoView?.({ block: 'nearest', behavior: 'instant' });
   }
   function open(group: (typeof groups)[number]) {
     inspect(
@@ -49,7 +44,25 @@
   }
 </script>
 
-<section class="panel observation-table" bind:this={surface}>
+<section class="panel observation-table">
+  <nav class="pagination" aria-label="Observation pages">
+    <span
+      >{groups.length ? currentPage * 30 + 1 : 0}–{Math.min((currentPage + 1) * 30, groups.length)} of
+      {groups.length}
+      {grouping === 'none' ? 'records' : 'groups'} · {rows.length} observations</span
+    >
+    <div class="toolbar">
+      <button
+        class="button"
+        aria-disabled={currentPage === 0}
+        onclick={() => changePage(currentPage - 1)}>Previous</button
+      ><button
+        class="button"
+        aria-disabled={(currentPage + 1) * 30 >= groups.length}
+        onclick={() => changePage(currentPage + 1)}>Next</button
+      >
+    </div>
+  </nav>
   <div class="table-wrap">
     <table>
       <thead
@@ -141,27 +154,24 @@
       </tbody>
     </table>
   </div>
-  <div class="pagination">
-    <span
-      >{groups.length ? currentPage * 30 + 1 : 0}–{Math.min((currentPage + 1) * 30, groups.length)} of
-      {groups.length}
-      {grouping === 'none' ? 'records' : 'groups'} · {rows.length} observations</span
-    >
-    <div class="toolbar">
-      <button
-        class="button"
-        disabled={currentPage === 0}
-        onclick={() => changePage(currentPage - 1)}>Previous</button
-      ><button
-        class="button"
-        disabled={(currentPage + 1) * 30 >= groups.length}
-        onclick={() => changePage(currentPage + 1)}>Next</button
-      >
-    </div>
-  </div>
 </section>
 
 <style>
+  .observation-table .pagination {
+    flex-direction: row;
+    border-top: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: var(--surface-radius) var(--surface-radius) 0 0;
+  }
+  .pagination .button[aria-disabled='true'] {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .pagination .button[aria-disabled='true']:hover {
+    background: var(--panel);
+    border-color: var(--border);
+  }
+
   table {
     min-width: 640px;
     table-layout: fixed;

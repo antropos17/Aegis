@@ -74,3 +74,12 @@ never scrolls the workspace or focuses its contents; arrow keys move between tab
 Inactive panels stay mounted and hidden, preserving resource history and metric
 selection. Exact-process attributes and controls belong to Processes. Requested
 risk/process sections select their panel; the default overview opens Risk.
+
+
+### Observation pagination (2026-09-10)
+
+Events and Network keep page controls above the evidence table. Changing pages
+updates rows without scrolling to a record or moving focus away from the control.
+Unavailable directions use aria-disabled and a guarded handler so reaching the
+first or last page does not remove keyboard focus. Filter changes still reset to
+the first page; grouping and exact process attribution remain unchanged.
