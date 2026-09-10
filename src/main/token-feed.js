@@ -10,6 +10,7 @@
  *
  *   Each adapter implements the contract:
  *     { id: string,
+ *       agentNames?: readonly string[], // exact scanner display names; absent = all
  *       readUsage(procs: Proc[]) => Promise<UsageDelta[]>,
  *       _resetForTest(): void }
  *
@@ -35,7 +36,7 @@ const claudeCode = require('./token-adapters/claude-code');
 /** Default adapter registry. Append a module here to support a new agent. */
 const DEFAULT_ADAPTERS = [claudeCode];
 
-/** @type {Array<{ id: string, readUsage: Function, _resetForTest?: Function }>} */
+/** @type {Array<{ id: string, agentNames?: readonly string[], readUsage: Function, _resetForTest?: Function }>} */
 let adapters = DEFAULT_ADAPTERS.slice();
 
 /**
@@ -50,7 +51,13 @@ async function readUsageByPid(procs) {
   for (const adapter of adapters) {
     let deltas;
     try {
-      deltas = await adapter.readUsage(procs);
+      // Legacy callers may omit the family. Keep those eligible, while avoiding
+      // another agent's registry paths for processes the scanner has identified.
+      const eligible = adapter.agentNames
+        ? procs.filter((proc) => !proc?.agent || adapter.agentNames.includes(proc.agent))
+        : procs;
+      if (eligible.length === 0) continue;
+      deltas = await adapter.readUsage(eligible);
     } catch (err) {
       // One adapter failing never crashes the feed or starves the others.
       logger.debug('token-feed', 'adapter failed', {

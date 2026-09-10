@@ -10,7 +10,7 @@ The desktop and preview share `frontend/observatory/`. Read its `AGENTS.md` and 
 
 ## Project facts
 
-`src/main/` contains 72 main modules: 55 top-level + platform/ 15 + token-adapters/ 2. Platform-specific operations live in `src/main/platform/`. `src/main/preload.js` exposes 44 invoke + 10 push = 54 IPC channels through contextBridge. `src/shared/types/` contains 9 TS files. These counts are derived by `npm run counts:check`.
+`src/main/` contains 73 main modules: 56 top-level + platform/ 15 + token-adapters/ 2. Platform-specific operations live in `src/main/platform/`. `src/main/preload.js` exposes 44 invoke + 10 push = 54 IPC channels through contextBridge. `src/shared/types/` contains 9 TS files. These counts are derived by `npm run counts:check`.
 
 A birth time is observed on the pass that stamps it or is `null`; no cache stores one. A snapshot outage freezes sessions and never splits them. For changes touching identity stamping, the audit chain, or the Windows git worktree flow, `memory-bank/ai-mistakes.md` holds the relevant failure history.
 

@@ -77,8 +77,8 @@ describe('token-cost-collector — folds measured deltas into the tracker', () =
     expect(readUsage).toHaveBeenCalledTimes(1);
     const procs = readUsage.mock.calls[0][0];
     expect(procs).toEqual([
-      { pid: 1, startTime: 1000 },
-      { pid: 2, startTime: 2000 },
+      { pid: 1, startTime: 1000, agent: 'OtherAgent' },
+      { pid: 2, startTime: 2000, agent: 'OtherAgent' },
     ]);
   });
 
@@ -131,4 +131,14 @@ it('keeps its never-throws contract if the feed rejects with null', async () => 
   } finally {
     feed.mockRestore();
   }
+});
+
+it('routes a mixed scan to the matching adapter without losing instance attribution', async () => {
+  const readUsage = vi.fn(async (procs) => procs.map((proc) => delta(proc.pid, 100)));
+  tokenFeed._setAdaptersForTest([{ id: 'claude', agentNames: ['Claude Code'], readUsage }]);
+  await collectTokenCosts([agent(1, 1000, 'Cursor'), agent(2, 2000, 'Claude Code')]);
+  expect(readUsage).toHaveBeenCalledWith([{ pid: 2, startTime: 2000, agent: 'Claude Code' }]);
+  expect(tokenTracker.getAllCosts()).toEqual([
+    expect.objectContaining({ pid: 2, instanceId: '2:2000' }),
+  ]);
 });
