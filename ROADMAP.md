@@ -114,7 +114,11 @@ The dependency is those observations, not the absence of a Windows host.
    evictions under lower ambient load. A [repeatable load check](docs/roadmap/etw-repeatable-load.md)
    now completed 66,000 fixture reads: 956,985 delivered, zero ingress/native loss,
    49,406 output drops and 16,362 main-ring evictions. E3 remains open; output-stage
-   throughput and discard causes are the next measured target.
+   throughput remains open. The [output-drain follow-up](docs/roadmap/etw-output-drain.md)
+   adds protocol v3 cause counters and single-pass encoding. Managed batch
+   allocation fell about 54% in a controlled test; the new live run recorded
+   51,648 output overflow drops and zero invalidation/ingress/native loss.
+   Next separate encoding service time from transport/main waits and idle polling.
 
 ## C — existing rules coverage
 

@@ -17,10 +17,10 @@ internal sealed class FilePipeline : IDisposable
     private readonly CancellationTokenSource cancel = new();
     private int bytes, highRecords, highBytes;
     private bool completed;
-    private ulong filtered, outputDropped;
+    private ulong filtered, outputOverflowDropped, outputInvalidatedDropped;
     private ulong invalidation;
     private long lastGeneration;
-    internal ulong OutputDropped { get { lock (gate) return outputDropped; } }
+    internal ulong OutputDropped { get { lock (gate) return outputOverflowDropped + outputInvalidatedDropped; } }
     internal Task Worker { get; }
     internal FilePipeline(FileIngress input, FileScope scope, bool native,
         Func<FileObservation, FileObservation>? observer = null, Func<long>? timestamp = null)
@@ -36,7 +36,7 @@ internal sealed class FilePipeline : IDisposable
         {
             map.Reset(qpc);
             invalidation++;
-            outputDropped += (ulong)outbound.Count; outbound.Clear(); bytes = 0;
+            outputInvalidatedDropped += (ulong)outbound.Count; outbound.Clear(); bytes = 0;
         }
     }
     internal void Complete() { lock (gate) completed = true; }
@@ -74,8 +74,9 @@ internal sealed class FilePipeline : IDisposable
                 int cost = 2048 + (record.path?.Length ?? 0) * 2;
                 lock (gate)
                 {
-                    if (epoch != map.Epoch || outbound.Count >= 4096 || bytes + cost > 4 * 1024 * 1024)
-                    { outputDropped++; continue; }
+                    if (epoch != map.Epoch) { outputInvalidatedDropped++; continue; }
+                    if (outbound.Count >= 4096 || bytes + cost > 4 * 1024 * 1024)
+                    { outputOverflowDropped++; continue; }
                     outbound.Enqueue(new(record, cost)); bytes += cost;
                     highRecords = Math.Max(highRecords, outbound.Count); highBytes = Math.Max(highBytes, bytes);
                 }
@@ -103,7 +104,7 @@ internal sealed class FilePipeline : IDisposable
         lock (gate)
         {
             // A gap may have invalidated queued evidence while the probe ran.
-            if (epoch != invalidation) { outputDropped++; return null; }
+            if (epoch != invalidation) { outputInvalidatedDropped++; return null; }
             return record;
         }
     }
@@ -112,6 +113,7 @@ internal sealed class FilePipeline : IDisposable
         lock (gate)
         {
             var total = ingress.Totals();
+            ulong outputDropped = outputOverflowDropped + outputInvalidatedDropped;
             return new
             {
                 delivered = total.Delivered.ToString(),
@@ -119,6 +121,8 @@ internal sealed class FilePipeline : IDisposable
                 dropped = (total.Dropped + outputDropped).ToString(),
                 ingressDropped = total.Dropped.ToString(),
                 outputDropped = outputDropped.ToString(),
+                outputOverflowDropped = outputOverflowDropped.ToString(),
+                outputInvalidatedDropped = outputInvalidatedDropped.ToString(),
                 decoderErrors = total.Errors.ToString(),
                 mapEpoch = map.Epoch.ToString(),
                 mapResets = map.Resets.ToString(),

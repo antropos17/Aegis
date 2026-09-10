@@ -44,6 +44,8 @@ internal static class FileBurstTests
                 using var totals = JsonDocument.Parse(JsonSerializer.Serialize(pipeline.Totals()));
                 Check(totals.RootElement.GetProperty("ingressDropped").GetString() == "0", "ingress-counter");
                 Check(totals.RootElement.GetProperty("outputDropped").GetString() == pipeline.OutputDropped.ToString(), "output-counter");
+                Check(totals.RootElement.GetProperty("outputOverflowDropped").GetString() == pipeline.OutputDropped.ToString(), "overflow-cause");
+                Check(totals.RootElement.GetProperty("outputInvalidatedDropped").GetString() == "0", "false-invalidation-cause");
                 Check(ulong.Parse(totals.RootElement.GetProperty("mapResets").GetString()!) > 0, "close-not-processed");
             }
             finally
@@ -119,6 +121,8 @@ internal static class FileBurstTests
                 Check(Counter("dropped") >= 1, "in-flight-loss-not-counted");
                 Check(Counter("dropped") == Counter("ingressDropped") + Counter("outputDropped"), "stage-loss-accounting");
                 Check(Counter("outputDropped") >= 1, "in-flight-stage");
+                Check(Counter("outputInvalidatedDropped") == Counter("outputDropped"), "in-flight-cause");
+                Check(Counter("outputOverflowDropped") == 0, "false-overflow-cause");
                 Check(Counter("delivered") == Counter("filtered") + Counter("dropped") + Counter("decoderErrors") + emitted,
                     "loss-accounting");
             });
@@ -157,9 +161,25 @@ internal static class FileBurstTests
             ulong Counter(string name) => ulong.Parse(total.RootElement.GetProperty(name).GetString()!);
             Check(Counter("ingressDropped") == 4097, "raw-overflow-and-discard");
             Check(Counter("outputDropped") == 8192 - output, "outbound-overflow");
+            Check(Counter("outputOverflowDropped") == Counter("outputDropped"), "overflow-cause");
+            Check(Counter("outputInvalidatedDropped") == 0, "false-invalidation-cause");
             Check(Counter("decoderErrors") == 0 && Counter("filtered") == 1, "distinct-filtering");
             Check(Counter("dropped") == Counter("ingressDropped") + Counter("outputDropped"), "stage-sum");
             Check(Counter("delivered") == Counter("filtered") + Counter("dropped") + output, "total-accounting");
+        });
+        test("output invalidation counts every queued record independently of overflow", () =>
+        {
+            var ingress = new FileIngress();
+            using var pipeline = new FilePipeline(ingress, new FileScope(@"C:\fixture", false), false);
+            Feed(ingress, 12, 1, @"C:\fixture\a");
+            for (int i = 2; i <= 21; i++) Feed(ingress, 15, i);
+            Finish(pipeline);
+            pipeline.Invalidate(22);
+            Check(pipeline.Take() == null, "queued-record-escaped");
+            using var total = JsonDocument.Parse(JsonSerializer.Serialize(pipeline.Totals()));
+            Check(total.RootElement.GetProperty("outputInvalidatedDropped").GetString() == "20", "queued-invalidation-cause");
+            Check(total.RootElement.GetProperty("outputOverflowDropped").GetString() == "0", "false-overflow-cause");
+            Check(total.RootElement.GetProperty("outputDropped").GetString() == "20", "output-sum");
         });
     }
 
