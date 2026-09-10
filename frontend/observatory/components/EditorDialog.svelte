@@ -26,7 +26,7 @@
   let body: HTMLDivElement;
   const scroll: Record<string, number> = {};
   let previous = '';
-  $effect(() => {
+  $effect.pre(() => {
     const next = selected;
     untrack(() => {
       if (previous && body) scroll[previous] = body.scrollTop;

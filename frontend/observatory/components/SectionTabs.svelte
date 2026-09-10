@@ -31,7 +31,15 @@
     await change(tabs[next].id);
     await tick();
     buttons?.[next]?.focus({ preventScroll: true });
-    buttons?.[next]?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    const button = buttons?.[next];
+    const strip = button?.parentElement;
+    if (button && strip) {
+      const bounds = strip.getBoundingClientRect();
+      const target = button.getBoundingClientRect();
+      // Reveal the tab horizontally without scrolling the surrounding page or dialog.
+      if (target.left < bounds.left) strip.scrollLeft += target.left - bounds.left;
+      else if (target.right > bounds.right) strip.scrollLeft += target.right - bounds.right;
+    }
   }
 </script>
 

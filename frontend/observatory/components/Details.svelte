@@ -1,6 +1,5 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { transitionSurface } from '../runtime/motion';
   import { confirmed, invoke, type Host, type RecordData, type Telemetry } from '../runtime/host';
   import { detailKind, detailTitle, detailCaption, detailTabs } from '../runtime/detail-model';
   import {
@@ -91,7 +90,9 @@
         : null;
   }
   async function restore(focus = false) {
+    const ticket = navigationRevision;
     await tick();
+    if (ticket !== navigationRevision || !dialog.open) return;
     body.scrollTop = current?.scroll[current.tab] ?? 0;
     if (focus) {
       const key = current?.focus[current.tab];
@@ -102,7 +103,8 @@
     }
   }
   async function changeTab(tab: string) {
-    if (!current || !tabs.some((section) => section.id === tab)) return;
+    if (!current || current.tab === tab || !tabs.some((section) => section.id === tab)) return;
+    navigationRevision++;
     const focusPanel = body.contains(document.activeElement);
     remember();
     current.tab = tab;
@@ -120,28 +122,18 @@
       return;
     }
     remember();
-    const ticket = ++navigationRevision;
-    await transitionSurface('detail', async () => {
-      if (ticket !== navigationRevision) return;
-      history = [...history.slice(0, index + 1), visit(title, row)];
-      index++;
-      await restore(true);
-    });
+    navigationRevision++;
+    history = [...history.slice(0, index + 1), visit(title, row)];
+    index++;
+    await restore(true);
   }
   async function move(delta: number) {
     const next = index + delta;
     if (next < 0 || next >= history.length) return;
     remember();
-    const ticket = ++navigationRevision;
-    await transitionSurface(
-      'detail',
-      async () => {
-        if (ticket !== navigationRevision) return;
-        index = next;
-        await restore(true);
-      },
-      delta,
-    );
+    navigationRevision++;
+    index = next;
+    await restore(true);
   }
   function finish() {
     close();
