@@ -1,6 +1,36 @@
 # AEGIS — старт следующего чата
 
-## Актуальное продолжение — воспроизводимая нагрузка ETW, 2026-09-11
+## Актуальное продолжение — причины output loss и сериализация, 2026-09-11
+
+В `X:/tmp/aegis-etw-burst-20260911`, ветка `codex/etw-output-drain` от `93aae23`,
+реализованы `outputOverflowDropped` и `outputInvalidatedDropped`. Их сумма равна
+`outputDropped`, а ingress + output равны `dropped`. Протокол теперь `etw-file/3`;
+v1/v2 отвергаются. Main сохраняет раздельные причины и максимумы в отчёте.
+
+`FileWire.WriteObservations` кодирует записи сразу в итоговый UTF-8 frame,
+без отдельной сериализации для размера и промежуточного JsonElement. Лимиты
+очередей, 128 записей, цель 32 KiB и wire cap 256 KiB сохранены. Encoding buffer
+начинается с 64 KiB; резерв для Utf8JsonWriter ограничен 768 KiB, фактический JSON
+по-прежнему 256 KiB. Пустая очередь не выделяет frame и не расходует seq.
+В тесте 30 пакетов managed allocations: 4301280 → 1983120 байт (примерно −54%).
+35 C# self-tests, 141 точечный JS-тест, build/formatter прошли; normal/loss-check
+прошли по три сценария на одинаковых бинарниках.
+
+Live с тем же `repeated-read-4k-v1`: все 66000 чтений за 20,005 с. За весь сеанс
+290598 delivered, 224580 filtered, overflow 51648, invalidation 0, ingress/native
+loss 0, decoder errors/conflicts 0, map resets 6, ring eviction 14113. Scoped
+Read/PID найден; stopVerified true, exit 0, helpers 0. Потери остаются; изменились
+фон и фактический темп burst, поэтому сравнение с прежними 49406 не доказывает
+изменение throughput. Расположены именно в переполнении выходной очереди.
+
+Следующий шаг E3: измерить время кодирования и ожидания pipe/broker/main, глубину
+очередей и влияние idle polling, затем выбрать следующую правку. Не увеличивать
+буферы вслепую. Отчёт: `docs/roadmap/etw-output-drain.md`; исходные normal/loss/live
+JSON и 23 хеша: `docs/recon/evidence/etw-file-home-26200-output-drain.json`.
+Сон отложен, установленное приложение не заменялось. Проверить финальный PR/CI/merge;
+исходную грязную UI-копию сохранить.
+
+## Предыдущий шаг — воспроизводимая нагрузка ETW, 2026-09-11
 
 В `X:/tmp/aegis-etw-burst-20260911`, ветка `codex/etw-repeatable-load` от `0f40a6d`,
 добавлен `node scripts/verify-etw-file.mjs --live --load-check --report=<новый файл>`.

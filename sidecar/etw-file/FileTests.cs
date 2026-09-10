@@ -138,6 +138,7 @@ internal static class FileTests
             }
         });
         FileBurstTests.Run(Test);
+        FileOutputTests.Run(Test);
         Console.WriteLine($"{passed} self-tests passed; no ETW session or UAC requested.");
         return 0;
     }

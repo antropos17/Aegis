@@ -1,7 +1,7 @@
 'use strict';
 
 // Closed ETW diagnostic schemas, separate from framing and session validation.
-const PROTOCOL = 'etw-file/2';
+const PROTOCOL = 'etw-file/3';
 const PROFILE = 'home-26200-diagnostic-v1';
 const MAX_FRAME_BYTES = 256 * 1024;
 const MAX_DEPTH = 16;
@@ -66,6 +66,8 @@ const totals = shape({
   dropped: uint64,
   ingressDropped: uint64,
   outputDropped: uint64,
+  outputOverflowDropped: uint64,
+  outputInvalidatedDropped: uint64,
   decoderErrors: uint64,
   mapEpoch: uint64,
   mapResets: uint64,
@@ -94,7 +96,9 @@ const telemetry = (v) =>
   v.queues.records <= v.queues.highWaterRecords &&
   v.queues.bytes <= v.queues.highWaterBytes &&
   BigInt(v.totals.filtered) <= BigInt(v.totals.delivered) &&
-  BigInt(v.totals.ingressDropped) + BigInt(v.totals.outputDropped) === BigInt(v.totals.dropped);
+  BigInt(v.totals.ingressDropped) + BigInt(v.totals.outputDropped) === BigInt(v.totals.dropped) &&
+  BigInt(v.totals.outputOverflowDropped) + BigInt(v.totals.outputInvalidatedDropped) ===
+    BigInt(v.totals.outputDropped);
 const observationShape = shape({
   eventSeq: positive64,
   provider: oneOf('edd08927-9cc4-4e65-b970-c2560fb5c289'),

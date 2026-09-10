@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text.Json;
 
 namespace Aegis.EtwLifecycle;
 
@@ -37,7 +36,7 @@ internal static class FileCollector
         {
             await send.Write(pipe, "hello", new
             {
-                build = live ? "etw-file-diagnostic-dev-2" : "etw-file-synthetic-check-2",
+                build = live ? "etw-file-diagnostic-dev-3" : "etw-file-synthetic-check-3",
                 profile = FileWire.Profile,
                 schemas = FileWire.Schemas
             }, lifetime.Token);
@@ -169,21 +168,6 @@ internal static class FileCollector
                 coverage = FileWire.Profile
             };
         }
-        async Task<bool> Pump(CancellationToken token)
-        {
-            var records = new List<FileObservation>();
-            int bytes = 0;
-            bool consumed = false;
-            for (int i = 0; i < 128 && bytes < 32 * 1024; i++)
-            {
-                var record = pipeline.Take();
-                if (record == null) break;
-                consumed = true;
-                bytes += JsonSerializer.SerializeToUtf8Bytes(record).Length;
-                records.Add(record);
-            }
-            if (records.Count > 0) await send.Write(pipe, "observations", new { records }, token);
-            return consumed;
-        }
+        Task<bool> Pump(CancellationToken token) => send.WriteObservations(pipe, pipeline.Take, token);
     }
 }

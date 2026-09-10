@@ -106,10 +106,15 @@ try {
     const totals = result.finalTotals;
     if (
       !totals ||
-      BigInt(totals.ingressDropped) + BigInt(totals.outputDropped) !== BigInt(totals.dropped)
+      BigInt(totals.ingressDropped) + BigInt(totals.outputDropped) !== BigInt(totals.dropped) ||
+      BigInt(totals.outputOverflowDropped) + BigInt(totals.outputInvalidatedDropped) !==
+        BigInt(totals.outputDropped)
     )
       throw new Error('stage-loss-accounting');
-    if (lossCheck && (totals.ingressDropped !== '4097' || BigInt(totals.outputDropped) === 0n))
+    if (
+      lossCheck &&
+      (totals.ingressDropped !== '4097' || BigInt(totals.outputOverflowDropped) === 0n)
+    )
       throw new Error('stage-loss-not-exercised');
     if (
       live &&

@@ -2213,3 +2213,42 @@ Next E3 step: separate output discard causes and measure/improve draining and
 serialization with the same workload profile. Sleep/wake remains deferred, the
 installed application was not replaced, and the original dirty UI checkout was
 preserved. Check the repeatable-load branch's final PR/CI/merge before continuing.
+
+## Session handoff — 2026-09-11, output causes and frame encoding
+
+Implemented on `codex/etw-output-drain` from `93aae23` (merged load baseline #431).
+Protocol v3 requires `outputOverflowDropped` and `outputInvalidatedDropped`, whose
+exact sum is `outputDropped`; ingress plus output still equals `dropped`. Counter
+snapshots, independent maxima and sticky flags preserve both causes through main
+and stopped summaries. Old v1/v2 peers are rejected without invented measurements.
+
+The collector writes observations straight into the final UTF-8 frame, removing
+the sizing serialization and intermediate JsonElement. Batch target 32 KiB,
+128-record cap and 256 KiB encoded-frame cap remain; the buffer starts at 64 KiB
+and bounds conservative encoder reservations at 768 KiB. Empty polls allocate no
+frame. Queue limits, process observation semantics and pipe/lifecycle ownership
+are unchanged. Thirty warmed synthetic batches allocated 4301280 bytes in the
+reconstructed prior encoder versus 1983120 now (about 54% less).
+
+35 C# self-tests, Release build/formatter and 141 focused JS tests passed.
+Normal and deliberate-loss process checks passed all three cases on the same
+binaries: saturation counted 4097 ingress + 6270 output overflow, zero output
+invalidation; EOF still refused verified cleanup. Full JS coverage passed 199
+files / 3334 tests / four skips. Build, format/lint/types/Svelte, witness/sequence
+gates, counts and production audit passed.
+
+One authorized live run completed all 66000 fixed-profile reads in 20.005 s.
+Whole-session counts: delivered 290598, filtered 224580, output overflow 51648,
+output invalidation and ingress/native loss 0; decoder errors/conflicts 0,
+map resets 6, main-ring eviction 14113. Scoped Read/PID passed, owned stop was
+verified, child exit 0 and no EtwFile helpers remained. Compared with the prior
+49406 output drops, different ambient load and actual burst rates prevent a
+causal throughput claim. The allocation reduction has not eliminated overflow.
+
+`docs/roadmap/etw-output-drain.md` records the behavior and limits; original normal,
+loss and live reports, binary hashes and 23 canonical source hashes are retained
+in `docs/recon/evidence/etw-file-home-26200-output-drain.json`.
+Next E3 step: separate encoder service time, pipe/broker/main waits, retained queue
+depths and idle polling effects before choosing another throughput change.
+Sleep/wake remains deferred, the installed app was not replaced, and the original
+dirty UI checkout was preserved. Check the output-drain branch's final PR/CI/merge.

@@ -68,6 +68,8 @@ describe('offline ETW session health', () => {
     'dropped',
     'ingressDropped',
     'outputDropped',
+    'outputOverflowDropped',
+    'outputInvalidatedDropped',
     'decoderErrors',
     'mapResets',
     'mapConflicts',
@@ -76,6 +78,11 @@ describe('offline ETW session health', () => {
     sample.totals[field] = '1';
     if (field === 'dropped') sample.totals.ingressDropped = '1';
     if (field === 'ingressDropped' || field === 'outputDropped') sample.totals.dropped = '1';
+    if (field === 'outputDropped') sample.totals.outputOverflowDropped = '1';
+    if (field === 'outputOverflowDropped' || field === 'outputInvalidatedDropped') {
+      sample.totals.outputDropped = '1';
+      sample.totals.dropped = '1';
+    }
     const state = report(running(), sample);
     expect(state.record.lossCount).toBe(0);
     expect(state.sticky).toContain(field);

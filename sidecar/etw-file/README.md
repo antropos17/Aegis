@@ -25,9 +25,10 @@ Choose a new report path on every run. Temporary fixture folders are retained.
 normal-token fixtures, requiring nonzero split losses in the final report. It
 cannot be combined with `--live` and never requests UAC or ETW.
 
-The matching main/helper now require `etw-file/2`. Each telemetry sample includes
+The matching main/helper now require `etw-file/3`. Each telemetry sample includes
 `ingressDropped` and `outputDropped` uint64 strings whose sum is exactly `dropped`.
-Version 1 peers are rejected; rebuild the helper together with the main reader.
+`outputOverflowDropped + outputInvalidatedDropped` must equal `outputDropped`.
+Versions 1 and 2 are rejected; rebuild the helper together with the main reader.
 
 For a separately agreed live check, run the following from normal PowerShell and
 approve **one** UAC prompt. The ordinary Node process reads its own temporary test
@@ -95,9 +96,13 @@ way to start another capture. The separately owned frontend is unchanged.
   path storage, without serializing to count bytes. Overflow
   there counts loss without blocking raw mapping. `ingressDropped` includes raw
   overflow and buffered discard at gaps; `outputDropped` includes outbound overflow
-  and queued/in-flight invalidation. Decoder errors, deliberate filtering and main
+  and queued/in-flight invalidation, separated by `outputOverflowDropped` and
+  `outputInvalidatedDropped`. Decoder errors, deliberate filtering and main
   ring eviction have separate counters. The writer retains one bounded
-  batch, with at most 128 records and a 256 KiB wire limit. The v1 telemetry queue
+  batch, directly encoded once with a 32 KiB target, at most 128 records and a
+  256 KiB wire limit. Its frame buffer starts at 64 KiB and caps conservative UTF-16
+  encoder reservations at 768 KiB; committed JSON is still capped at 256 KiB.
+  Empty polls allocate no frame. The telemetry queue
   fields report maxima across the two separately capped stages, not their sum.
   Broker readers/writers retain one frame per direction, writes expire after five
   seconds. Heartbeats run between bounded batches; controls have a separate task
@@ -162,3 +167,8 @@ Its live check delivered 57,927 events with zero ingress/output/native losses,
 but 11 evictions from the bounded main diagnostic ring. The lower ambient load
 does not establish loss-free burst capture. Reports and 20 source hashes are in
 the [stage evidence](../../docs/recon/evidence/etw-file-home-26200-stage-loss.json).
+
+The [output-drain follow-up](../../docs/roadmap/etw-output-drain.md) adds cause
+accounting and removes repeated encoding. Batch allocation fell about 54% in the
+controlled test; the live fixed workload still recorded 51,648 output overflow
+drops, zero invalidation/ingress/native drops and verified stop. E3 remains open.
