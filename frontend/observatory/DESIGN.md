@@ -93,3 +93,15 @@ inspection ends, so its boundaries and opened observations agree. The readout
 reserves two lines to prevent adjacent content from moving. Idle live windows
 still advance; paused/stale windows remain frozen. An agent whose retained events
 expire stays explicitly selected until the user changes that filter.
+
+
+### Settings workspace refinement (2026-09-11)
+
+Settings retain four persistent sections and their draft while presenting each
+purpose as a labelled group with a description and consistent setting rows.
+Appearance previews are explicit; scale and scan interval offer precise numeric
+entry and presets without automatically saving. Invalid numbers block Save.
+Startup explains restart-sensitive options, update states use readable labels,
+and failed initial settings reads can be retried. The shared save/discard bar
+stays reachable with a distinct primary action and saving/reloading status.
+Provider credentials remain outside the generic settings form and exports.

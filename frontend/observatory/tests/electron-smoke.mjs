@@ -156,7 +156,7 @@ try {
   }
   await window.getByLabel('Theme', { exact: true }).selectOption('light-hc');
   await window.getByRole('tab', { name: 'Monitoring', exact: true }).click();
-  await window.getByLabel('Scan interval (seconds)').evaluate((input) => {
+  await window.getByLabel('Scan interval (seconds)', { exact: true }).evaluate((input) => {
     input.value = '20';
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });

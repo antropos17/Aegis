@@ -4,6 +4,7 @@ import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, sep, extname } from 'node:path';
 import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
+import { checkSettings } from './settings-check.mjs';
 import { checkActivity } from './activity-check.mjs';
 import { checkPagination } from './pagination-check.mjs';
 import { checkComfort } from './comfort-check.mjs';
@@ -392,6 +393,7 @@ try {
   await checkClarity(browser, base + '/desktop/', out);
   await checkResourceLayers(browser, base + '/desktop/', out);
   await checkDetails(browser, base + '/desktop/', out);
+  await checkSettings(browser, base + '/desktop/', out);
   await checkActivity(browser, base + '/desktop/', out);
   await checkPagination(browser, base + '/desktop/', out);
   await checkComfort(browser, base + '/preview/', out);

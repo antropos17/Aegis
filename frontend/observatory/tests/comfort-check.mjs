@@ -114,10 +114,13 @@ export async function checkComfort(browser, url, out) {
       'true',
     );
     await page.getByRole('tab', { name: 'Monitoring', exact: true }).click();
-    await page.getByLabel('Scan interval (seconds)').fill('17');
+    await page.getByLabel('Scan interval (seconds)', { exact: true }).fill('17');
     await navigate('Events');
     await navigate('Settings');
-    assert.equal(await page.getByLabel('Scan interval (seconds)').inputValue(), '17');
+    assert.equal(
+      await page.getByLabel('Scan interval (seconds)', { exact: true }).inputValue(),
+      '17',
+    );
     await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
     await navigate('Monitoring');
     await page.keyboard.press('Control+k');
