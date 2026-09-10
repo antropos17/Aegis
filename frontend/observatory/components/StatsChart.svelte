@@ -225,24 +225,24 @@
     min-height: 48px;
   }
   .metric-rail strong {
-    font-size: 12px;
+    font-size: var(--text-body);
     line-height: 1.3;
     font-weight: 550;
   }
   .metric-rail small {
     font-variant-numeric: tabular-nums;
     color: var(--muted);
-    font-size: 11px;
+    font-size: var(--text-caption);
   }
   .metric-rail em {
     color: var(--amber);
-    font-size: 9px;
+    font-size: var(--text-caption);
     font-style: normal;
   }
 
   .monitor-detail {
     min-width: 0;
-    padding: 18px;
+    padding: var(--panel-inset);
   }
   header {
     display: flex;
@@ -254,16 +254,16 @@
   }
   h2 {
     margin: 0;
-    font-size: 20px;
+    font-size: var(--text-section);
     letter-spacing: -0.4px;
   }
   .measurement-status {
     color: var(--muted);
-    font-size: 10px;
+    font-size: var(--text-caption);
     margin: 7px 0 0;
   }
   .current {
-    font-size: 26px;
+    font-size: var(--text-metric);
     font-weight: 500;
     font-variant-numeric: tabular-nums;
     text-align: right;
@@ -275,7 +275,7 @@
     flex-wrap: wrap;
     gap: 8px;
     color: var(--muted);
-    font-size: 10px;
+    font-size: var(--text-caption);
     margin: 0 0 8px;
   }
   .monitor-tools label {
@@ -284,14 +284,13 @@
     gap: 8px;
   }
   select {
-    padding: 5px;
-    max-width: 140px;
-    font-size: 11px;
+    max-width: none;
+    font-size: var(--text-body);
   }
   .coverage {
     margin: 0 0 8px;
     min-height: 18px;
-    font-size: 11px;
+    font-size: var(--text-caption);
     color: var(--muted);
   }
   .coverage.partial {
@@ -303,7 +302,7 @@
     gap: 10px;
     margin-top: 12px;
     color: var(--muted);
-    font-size: 11px;
+    font-size: var(--text-caption);
   }
   .scrubber input {
     min-width: 30px;
@@ -313,9 +312,9 @@
     accent-color: var(--green);
   }
   .scrubber .button {
-    min-height: 28px;
-    padding: 5px 9px;
-    font-size: 11px;
+    min-height: var(--control-height);
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--text-body);
   }
   .monitor-summary {
     display: flex;
@@ -332,11 +331,11 @@
   }
   .monitor-summary span {
     color: var(--muted);
-    font-size: 10px;
+    font-size: var(--text-caption);
     white-space: nowrap;
   }
   .monitor-summary strong {
-    font-size: 13px;
+    font-size: var(--text-body);
     font-weight: 550;
     font-variant-numeric: tabular-nums;
   }
@@ -344,13 +343,13 @@
     margin: 0 0 0 auto;
     max-width: 200px;
     color: var(--muted);
-    font-size: 10px;
+    font-size: var(--text-caption);
     line-height: 1.6;
   }
   .metric-help {
     margin-top: 12px;
     color: var(--muted);
-    font-size: 11px;
+    font-size: var(--text-caption);
   }
   .metric-help summary {
     cursor: pointer;
@@ -383,10 +382,10 @@
       display: none;
     }
     h2 {
-      font-size: 18px;
+      font-size: var(--text-section);
     }
     .current {
-      font-size: 22px;
+      font-size: var(--text-metric);
     }
   }
   @media (prefers-reduced-motion: reduce) {

@@ -1,7 +1,19 @@
 /* Shared Observatory surfaces and controls across workspaces. */
-.observatory-app {
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --text-caption: calc(11px * var(--ui-scale));
+  --text-body: calc(12px * var(--ui-scale));
+  --text-section: calc(14px * var(--ui-scale));
+  --text-title: calc(20px * var(--ui-scale));
+  --text-metric: calc(26px * var(--ui-scale));
+  --control-height: calc(32px * var(--ui-scale));
+  --control-radius: 8px;
   --surface-radius: 12px;
-  --control-radius: 7px;
+  --panel-inset: var(--space-4);
 }
 .observatory-app .panel {
   border-radius: var(--surface-radius);
@@ -9,7 +21,7 @@
   background: var(--panel);
 }
 .observatory-app .panel > .panel-head {
-  padding: 16px;
+  padding: var(--panel-inset);
   background: var(--panel);
   border-bottom: 1px solid var(--border);
 }
@@ -60,4 +72,33 @@
 }
 .report-grid {
   align-items: start;
+}
+
+/* One control contract for pages and dialogs; range/checkbox controls retain native geometry. */
+:is(.observatory-app, .detail-shell, .editor-dialog, .command-panel)
+  :is(.button, select, input:not([type='checkbox']):not([type='radio']):not([type='range'])) {
+  min-height: var(--control-height);
+  padding: var(--space-1) var(--space-3);
+  font: 400 var(--text-body)/1.4 var(--sans);
+  border-radius: var(--control-radius);
+}
+:is(.observatory-app, .detail-shell, .editor-dialog, .command-panel) select {
+  height: var(--control-height);
+}
+:is(.observatory-app, .detail-shell, .editor-dialog, .command-panel) .text-button {
+  min-height: var(--control-height);
+  font: 400 var(--text-body)/1.4 var(--sans);
+}
+:is(.observatory-app, .detail-shell, .editor-dialog, .command-panel) textarea {
+  font: 400 var(--text-body)/1.5 var(--sans);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--control-radius);
+}
+:is(.observatory-app, .detail-shell, .editor-dialog) .segmented button {
+  min-height: var(--control-height);
+  font-size: var(--text-body);
+  padding: var(--space-1) var(--space-3);
+}
+:is(.observatory-app, .detail-shell, .editor-dialog) :is(.panel-head, .toolbar, .filter-actions) {
+  gap: var(--space-2);
 }

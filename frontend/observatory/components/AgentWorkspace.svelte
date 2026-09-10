@@ -65,17 +65,17 @@
   let riskOpen = $state(false);
   let lastRequest = -1;
   let shell: HTMLElement;
-  async function jump(id: string) {
+  async function jump(id: string, scroll = true) {
     if (id === 'risk') riskOpen = true;
     await tick();
     const node = shell?.querySelector<HTMLElement>('#agent-' + id);
-    node?.scrollIntoView({ block: 'start' });
+    if (scroll) node?.scrollIntoView({ block: 'start' });
     node?.focus({ preventScroll: true });
   }
   $effect(() => {
     if (visible && sectionRequest && sectionRequest.revision !== lastRequest) {
       lastRequest = sectionRequest.revision;
-      void jump(sectionRequest.id);
+      void jump(sectionRequest.id, sectionRequest.id !== 'overview');
     }
   });
 </script>
@@ -180,12 +180,12 @@
 <style>
   .agent-workspace {
     display: grid;
-    gap: 18px;
+    gap: var(--space-4);
     min-width: 0;
   }
   .agent-intro {
     display: flex;
-    gap: 14px;
+    gap: var(--space-3);
     align-items: center;
   }
   .agent-description {
@@ -194,12 +194,12 @@
   }
   h2 {
     margin: 0;
-    font-size: calc(17px * var(--ui-scale));
+    font-size: var(--text-section);
   }
   .agent-description p {
     color: var(--muted);
     margin: 5px 0 0;
-    font-size: calc(12px * var(--ui-scale));
+    font-size: var(--text-body);
   }
   .agent-jumps {
     display: flex;
@@ -215,9 +215,10 @@
     background: transparent;
     border: 1px solid transparent;
     color: var(--ink);
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: calc(12px * var(--ui-scale));
+    min-height: var(--control-height);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--control-radius);
+    font-size: var(--text-body);
   }
   .agent-jumps button:hover {
     background: var(--hover);
@@ -232,7 +233,7 @@
   }
   summary {
     cursor: pointer;
-    padding: 16px 18px;
+    padding: var(--panel-inset);
   }
   .agent-risk summary {
     display: flex;
@@ -243,51 +244,51 @@
   .risk-heading {
     display: flex;
     align-items: baseline;
-    gap: 14px;
-    font-size: calc(13px * var(--ui-scale));
+    gap: var(--space-3);
+    font-size: var(--text-body);
   }
   .risk-heading strong {
-    font-size: calc(25px * var(--ui-scale));
+    font-size: var(--text-metric);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
   .risk-heading small {
-    font-size: calc(11px * var(--ui-scale));
+    font-size: var(--text-caption);
     color: var(--muted);
   }
   .risk-reason {
-    font-size: calc(12px * var(--ui-scale));
+    font-size: var(--text-body);
   }
   .risk-reason small {
     display: block;
     margin-top: 4px;
     color: var(--muted);
-    font-size: calc(11px * var(--ui-scale));
+    font-size: var(--text-caption);
   }
   .risk-content {
     border-top: 1px solid var(--border);
-    padding: 18px;
+    padding: var(--panel-inset);
   }
   .agent-live-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    gap: 18px;
+    gap: var(--space-4);
     align-items: start;
   }
   .agent-activity {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 18px;
+    gap: var(--space-4);
     align-items: start;
   }
   .process-information summary {
-    font-size: calc(13px * var(--ui-scale));
+    font-size: var(--text-body);
     font-weight: 600;
   }
   .process-information-body {
     display: grid;
-    gap: 18px;
-    padding: 18px;
+    gap: var(--space-4);
+    padding: var(--panel-inset);
     border-top: 1px solid var(--border);
   }
   @media (max-width: 1150px) {

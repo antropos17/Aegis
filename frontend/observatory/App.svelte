@@ -141,7 +141,7 @@
   let navigationRevision = 0;
   let themeChanged = false;
   let title = $derived(
-    scope.agent && ['overview', 'agents'].includes(view)
+    scope.agent && view === 'agents'
       ? scope.agent
       : (views.find((row) => row[0] === view)?.[1] ?? 'Monitoring'),
   );
@@ -156,6 +156,7 @@
     if (agent && (kind === 'group' || isScopedProcess(row))) {
       changeScope({ agent, instanceId: kind === 'process' ? String(row.instanceId) : '' });
       detail = null;
+      scrolls.agents = 0;
       agentSection = { id: String(row.detailSection || 'overview'), revision: ++sectionRevision };
       void navigate('agents');
       return;
@@ -412,7 +413,7 @@
             >
           </div>{/if}
       </div>
-      {#if isLiveWorkspace}<AgentContext
+      {#if isLiveWorkspace && view !== 'overview'}<AgentContext
           telemetry={displayTelemetry}
           {scope}
           change={changeScope}
@@ -426,7 +427,7 @@
       <SensorStatus health={record(telemetry.stats.appHealth)} />
       <div id="workspace-content" role="region" aria-labelledby="page-title">
         <div id="content" class:analysis-view={view === 'analysis'}>
-          <div hidden={scope.agent !== '' || (view !== 'overview' && view !== 'agents')}>
+          <div hidden={view !== 'overview' && (view !== 'agents' || scope.agent !== '')}>
             <Monitoring
               telemetry={displayTelemetry}
               bind:selected
@@ -435,10 +436,13 @@
               {openStatistics}
               openAgent={(agent) => inspect(agent, { agentGroupKey: agent, name: agent })}
               {paused}
-              {navigate}
+              navigate={(target) => {
+                changeScope({ agent: '', instanceId: '' });
+                return navigate(target);
+              }}
             />
           </div>
-          {#if scope.agent}<div hidden={view !== 'overview' && view !== 'agents'}>
+          {#if scope.agent}<div hidden={view !== 'agents'}>
               <AgentWorkspace
                 telemetry={displayTelemetry}
                 liveTelemetry={telemetry}
@@ -449,7 +453,7 @@
                 {navigate}
                 {paused}
                 sectionRequest={agentSection}
-                visible={view === 'overview' || view === 'agents'}
+                visible={view === 'agents'}
               />
             </div>{/if}
           {#if tabs.includes('events')}<div hidden={view !== 'events'}>
