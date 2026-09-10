@@ -76,13 +76,13 @@ export async function checkUsability(browser, url, out) {
         assert(selectedProcess, 'fixture lacks a stamped process');
         await page.getByRole('heading', { name: 'Process overview', exact: true }).waitFor();
         await page
-          .getByRole('navigation', { name: 'Agent sections' })
-          .getByRole('button', { name: 'Risk', exact: true })
+          .getByRole('tablist', { name: 'Agent sections' })
+          .getByRole('tab', { name: 'Risk', exact: true })
           .click();
-        assert(await page.locator('#agent-risk details').evaluate((node) => node.open));
+        assert(await page.locator('.agent-risk details').evaluate((node) => node.open));
         await page
-          .getByRole('navigation', { name: 'Agent sections' })
-          .getByRole('button', { name: 'Processes', exact: true })
+          .getByRole('tablist', { name: 'Agent sections' })
+          .getByRole('tab', { name: 'Processes', exact: true })
           .click();
         assert(await page.getByRole('region', { name: 'Agent worker processes' }).isVisible());
         assert.equal(await page.getByRole('dialog').count(), 0);

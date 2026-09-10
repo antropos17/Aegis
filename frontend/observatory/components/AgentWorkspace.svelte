@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import SectionTabs from './SectionTabs.svelte';
   import { instances, type Host, type Telemetry, type RecordData } from '../runtime/host';
   import { scopeEvidence, type AgentScope } from '../runtime/agent-scope';
   import { radarGroups, groupRecord, riskBand } from '../runtime/radar';
@@ -62,25 +62,29 @@
     scopeEvidence(telemetry.network as unknown as RecordData[], telemetry, scope),
   );
   let absent = $derived(scope.instanceId ? !process : !group);
-  let riskOpen = $state(false);
+  const prefix = $props.id();
+  let section = $state('risk');
+  let riskOpen = $state(true);
+  let tabs = $derived([
+    { id: 'risk', label: 'Risk' },
+    { id: 'resources', label: 'Resources' },
+    { id: 'activity', label: 'Activity', count: files.length + connections.length },
+    { id: 'processes', label: 'Processes' },
+  ]);
   let lastRequest = -1;
-  let shell: HTMLElement;
-  async function jump(id: string, scroll = true) {
-    if (id === 'risk') riskOpen = true;
-    await tick();
-    const node = shell?.querySelector<HTMLElement>('#agent-' + id);
-    if (scroll) node?.scrollIntoView({ block: 'start' });
-    node?.focus({ preventScroll: true });
+  function selectSection(id: string) {
+    section = tabs.some((tab) => tab.id === id) ? id : 'risk';
+    if (section === 'risk') riskOpen = true;
   }
   $effect(() => {
     if (visible && sectionRequest && sectionRequest.revision !== lastRequest) {
       lastRequest = sectionRequest.revision;
-      void jump(sectionRequest.id, sectionRequest.id !== 'overview');
+      selectSection(sectionRequest.id);
     }
   });
 </script>
 
-<div class="agent-workspace" bind:this={shell}>
+<div class="agent-workspace">
   <section id="agent-overview" tabindex="-1" class="agent-intro" aria-label="Agent overview">
     <AgentLogo name={scope.agent} size={34} />
     <div class="agent-description">
@@ -99,19 +103,19 @@
     </div>
     <button class="button" onclick={() => navigate('stats')}>Detailed statistics</button>
   </section>
-  <nav class="agent-jumps" aria-label="Agent sections">
-    <button onclick={() => jump('risk')}>Risk</button>
-    <button onclick={() => jump('resources')}>Resources</button>
-    <button onclick={() => jump('activity')}
-      >Activity <span>{files.length + connections.length}</span></button
-    >
-    <button onclick={() => jump('processes')}>Processes</button>
-  </nav>
+  <SectionTabs {tabs} selected={section} change={selectSection} {prefix} label="Agent sections" />
   {#if absent}<p class="notice" role="status">
       This selection is no longer observed. Its retained activity stays visible; AEGIS will not
       switch to another process with the same PID.
     </p>{/if}
-  <section id="agent-risk" tabindex="-1" class="agent-risk panel" aria-label="Selected agent risk">
+  <div
+    id={prefix + '-panel-risk'}
+    role="tabpanel"
+    aria-labelledby={prefix + '-tab-risk'}
+    tabindex="0"
+    hidden={section !== 'risk'}
+    class="agent-risk panel"
+  >
     <details bind:open={riskOpen}>
       <summary
         ><span class="risk-heading"
@@ -125,7 +129,9 @@
             : !risk.subject.instanceId
               ? 'Process identity not recorded'
               : (risk.contributions[0]?.label ?? 'No scored activity')}<small
-            >{scope.instanceId ? 'This process' : 'Highest process score'} · Expand explanation</small
+            >{scope.instanceId ? 'This process' : 'Highest process score'} · {riskOpen
+              ? 'Collapse explanation'
+              : 'Expand explanation'}</small
           ></span
         >
       </summary>
@@ -133,48 +139,61 @@
         <RiskExplanation row={riskSubject} {telemetry} navigate={inspect} />
       </div>
     </details>
-  </section>
-  <div class="agent-live-grid">
-    <section id="agent-resources" tabindex="-1" aria-label="Selected agent resources">
-      <AgentPerformance {telemetry} {scope} {paused} />
-    </section>
-    <section
-      id="agent-activity"
-      tabindex="-1"
-      class="agent-activity"
-      aria-label="Selected agent activity"
-    >
-      <AgentEvidence
-        agents={all as unknown as RecordData[]}
-        rows={files}
-        {inspect}
-        more={() => navigate('events')}
-      />
-      <AgentEvidence
-        agents={all as unknown as RecordData[]}
-        rows={connections}
-        network
-        {inspect}
-        more={() => navigate('network')}
-      />
-    </section>
   </div>
-  <section id="agent-processes" tabindex="-1">
+  <div
+    id={prefix + '-panel-resources'}
+    role="tabpanel"
+    aria-labelledby={prefix + '-tab-resources'}
+    tabindex="0"
+    hidden={section !== 'resources'}
+  >
+    <AgentPerformance {telemetry} {scope} {paused} />
+  </div>
+  <div
+    id={prefix + '-panel-activity'}
+    role="tabpanel"
+    aria-labelledby={prefix + '-tab-activity'}
+    tabindex="0"
+    hidden={section !== 'activity'}
+    class="agent-activity"
+  >
+    <AgentEvidence
+      agents={all as unknown as RecordData[]}
+      rows={files}
+      {inspect}
+      more={() => navigate('events')}
+    />
+    <AgentEvidence
+      agents={all as unknown as RecordData[]}
+      rows={connections}
+      network
+      {inspect}
+      more={() => navigate('network')}
+    />
+  </div>
+  <div
+    id={prefix + '-panel-processes'}
+    role="tabpanel"
+    aria-labelledby={prefix + '-tab-processes'}
+    tabindex="0"
+    hidden={section !== 'processes'}
+    class="agent-process-panel"
+  >
     <AgentProcesses {telemetry} {scope} {change} />
-  </section>
-  {#if process}
-    <details class="process-information panel">
-      <summary>Process attributes and controls</summary>
-      <div class="process-information-body">
-        <DetailSummary row={subject} {telemetry} section="attributes" />
-        {#key scope.instanceId}<DetailControls
-            row={subject}
-            telemetry={liveTelemetry}
-            {host}
-          />{/key}
-      </div>
-    </details>
-  {/if}
+    {#if process}
+      <details class="process-information panel">
+        <summary>Process attributes and controls</summary>
+        <div class="process-information-body">
+          <DetailSummary row={subject} {telemetry} section="attributes" />
+          {#key scope.instanceId}<DetailControls
+              row={subject}
+              telemetry={liveTelemetry}
+              {host}
+            />{/key}
+        </div>
+      </details>
+    {/if}
+  </div>
 </div>
 
 <style>
@@ -201,35 +220,16 @@
     margin: 5px 0 0;
     font-size: var(--text-body);
   }
-  .agent-jumps {
-    display: flex;
-    flex-direction: row;
-    justify-content: flex-start;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--border);
+  [role='tabpanel'][hidden] {
+    display: none;
   }
-  .agent-jumps button {
-    background: transparent;
-    border: 1px solid transparent;
-    color: var(--ink);
-    min-height: var(--control-height);
-    padding: var(--space-1) var(--space-3);
-    border-radius: var(--control-radius);
-    font-size: var(--text-body);
-  }
-  .agent-jumps button:hover {
-    background: var(--hover);
-  }
-  .agent-jumps span {
-    color: var(--muted);
-    margin-left: 5px;
-  }
-  section[id] {
-    scroll-margin-top: calc(var(--workspace-sticky-offset, 70px) + 12px);
+  [role='tabpanel'] {
+    min-width: 0;
     outline-offset: 4px;
+  }
+  .agent-process-panel {
+    display: grid;
+    gap: var(--space-4);
   }
   summary {
     cursor: pointer;
@@ -269,12 +269,6 @@
     border-top: 1px solid var(--border);
     padding: var(--panel-inset);
   }
-  .agent-live-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    gap: var(--space-4);
-    align-items: start;
-  }
   .agent-activity {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -292,9 +286,6 @@
     border-top: 1px solid var(--border);
   }
   @media (max-width: 1150px) {
-    .agent-live-grid {
-      grid-template-columns: minmax(0, 1fr);
-    }
     .agent-activity {
       grid-template-columns: minmax(0, 1fr);
     }

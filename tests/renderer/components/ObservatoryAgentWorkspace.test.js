@@ -250,3 +250,39 @@ it('opens Monitoring as a global overview while preserving the separate agent wo
   expect(within(screen.getByRole('table')).getByText('192.0.2.10:443')).toBeVisible();
   expect(within(screen.getByRole('table')).getByText('192.0.2.20:443')).toBeVisible();
 }, 15000);
+
+it('switches local panels without scrolling or moving focus into content and preserves the resource view', async () => {
+  const { container, push, agents } = await start();
+  await chooseAgent();
+  const tabs = within(screen.getByRole('tablist', { name: 'Agent sections' }));
+  const resources = tabs.getByRole('tab', { name: 'Resources', exact: true });
+  const risk = tabs.getByRole('tab', { name: 'Risk', exact: true });
+  expect(screen.getAllByRole('tabpanel')).toHaveLength(1);
+  expect(screen.getByRole('tabpanel', { name: 'Risk' })).toBeVisible();
+  HTMLElement.prototype.scrollIntoView.mockClear();
+  resources.focus();
+  await fireEvent.click(resources);
+  expect(resources).toHaveFocus();
+  const panel = screen.getByRole('tabpanel', { name: 'Resources' });
+  const memory = within(panel).getByRole('button', { name: /memory/i });
+  await fireEvent.click(memory);
+  expect(memory).toHaveAttribute('aria-pressed', 'true');
+  resources.focus();
+  await fireEvent.keyDown(resources, { key: 'ArrowRight' });
+  await waitFor(() => expect(tabs.getByRole('tab', { name: /^Activity/ })).toHaveFocus());
+  expect(screen.getAllByRole('tabpanel')).toHaveLength(1);
+  expect(within(screen.getByRole('tabpanel')).getByText('codex-only.txt')).toBeVisible();
+  await push('onAgentResourceUsage', [{ instanceId: agents[0].instanceId, cpu: 25, memMb: 250 }]);
+  risk.focus();
+  await fireEvent.click(risk);
+  expect(risk).toHaveFocus();
+  await fireEvent.click(resources);
+  expect(screen.getByRole('tabpanel', { name: 'Resources' })).toBe(panel);
+  expect(memory).toHaveAttribute('aria-pressed', 'true');
+  await waitFor(() =>
+    expect(container.querySelector('.agent-workspace .monitor-detail .current')).toHaveTextContent(
+      '250',
+    ),
+  );
+  expect(HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled();
+}, 15000);

@@ -371,6 +371,10 @@ try {
     .getByLabel('Selected process', { exact: true })
     .selectOption({ index: 1 });
   await page.getByRole('heading', { name: 'Process overview', exact: true }).waitFor();
+  await page
+    .getByRole('tablist', { name: 'Agent sections' })
+    .getByRole('tab', { name: 'Processes', exact: true })
+    .click();
   await page.getByText('Process attributes and controls', { exact: true }).click();
   await page.getByRole('button', { name: 'Suspend', exact: true }).waitFor();
   await page.screenshot({ path: resolve(out, 'instance.png') });
