@@ -68,6 +68,21 @@ try {
     1,
     'closing agent details clears the radar selection',
   );
+  const selectedAgent = await window
+    .locator('.radar-blip[aria-pressed="true"]')
+    .getAttribute('data-group');
+  await window.getByRole('button', { name: 'Agent statistics', exact: true }).click();
+  await window.getByRole('heading', { name: 'Statistics', level: 1, exact: true }).waitFor();
+  assert.equal(await window.getByLabel('Statistics agent').inputValue(), selectedAgent);
+  const processFilter = window.getByLabel('Statistics process');
+  if ((await processFilter.locator('option').count()) > 1) {
+    await processFilter.selectOption({ index: 1 });
+    const selectedProcess = await processFilter.inputValue();
+    await window.getByRole('tab', { name: 'Tokens', exact: true }).click();
+    assert.equal(await processFilter.inputValue(), selectedProcess);
+  }
+  await window.getByRole('button', { name: 'Back', exact: true }).click();
+  await window.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
   for (const layer of ['Files', 'Network']) {
     await window.locator('.radar-layers').getByRole('button', { name: layer, exact: true }).click();
     const all = window.getByRole('button', { name: 'Show all agents', exact: true });

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { StatisticsSample } from '../runtime/statistics-history';
-  import { metricObservations, plotGeometry, plotMaximum } from '../runtime/statistics-plot';
+  import { metricObservations, plotMaximum } from '../runtime/statistics-plot';
   import { statisticsValue, type StatsMetric } from '../runtime/statistics-metrics';
   import StatsPlot from './StatsPlot.svelte';
   let {
@@ -68,29 +68,14 @@
 <section class="panel monitor" aria-label="Live performance monitor">
   <div class="metric-rail" aria-label="Performance metrics">
     {#each metrics as item (item.id)}
-      {@const series = metricObservations(samples, item.id, start, end)}
       {@const current = metricObservations(samples, item.id, -Infinity, end)
         .filter((s) => !paused || typeof s.values[item.id] === 'number')
         .at(-1)}
-      {@const geometry = plotGeometry(
-        series,
-        item.id,
-        start,
-        end,
-        plotMaximum(
-          series.map((s) => s.values[item.id]),
-          item.floor,
-        ),
-      )}
       <button
         class:selected={metric.id === item.id}
         aria-pressed={metric.id === item.id}
         onclick={() => choose(item.id)}
       >
-        <svg viewBox="0 0 600 160" preserveAspectRatio="none" aria-hidden="true">
-          {#each geometry.paths as path, i (i)}<path d={path} />{/each}
-          {#each geometry.points as point, i (i)}<circle cx={point.x} cy={point.y} r="3" />{/each}
-        </svg>
         <span
           ><strong>{item.label}</strong><small
             >{statisticsValue(current?.values[item.id], item.unit)}</small
@@ -130,8 +115,8 @@
       >
       <span>{values.length} measured points</span>
     </div>
-    {#if coverage}<p class="coverage" class:partial={coverage.measured < coverage.total}>
-        {coverage.measured < coverage.total ? 'Measured subtotal' : 'Measured total'} · {coverage.measured}
+    <p class="coverage" class:partial={coverage && coverage.measured < coverage.total}>
+      {#if coverage}{coverage.measured < coverage.total ? 'Measured subtotal' : 'Measured total'} · {coverage.measured}
         / {coverage.total} processes
         {#if collection && collection.oldest < collection.newest}
           · readings span {((collection.newest - collection.oldest) / 1000).toLocaleString(
@@ -139,7 +124,8 @@
             { maximumFractionDigits: 1 },
           )} s
         {/if}
-      </p>{/if}
+      {:else}Coverage is shown when this source supplies measurements.{/if}
+    </p>
     <StatsPlot
       {observations}
       {metric}
@@ -197,7 +183,8 @@
 <style>
   .monitor {
     display: grid;
-    grid-template-columns: 180px minmax(0, 1fr);
+    grid-template-columns: 160px minmax(0, 1fr);
+    align-items: start;
     overflow: hidden;
   }
   .metric-rail {
@@ -229,18 +216,12 @@
     background: var(--selection);
     border-color: var(--selection-border);
   }
-  .metric-rail svg {
-    width: 46px;
-    height: 34px;
-    flex-shrink: 0;
-    border: 1px solid var(--border);
-    background: var(--panel);
-    overflow: visible;
-  }
+
   .metric-rail span {
     min-width: 0;
     display: grid;
     gap: 4px;
+    min-height: 48px;
   }
   .metric-rail strong {
     font-size: 12px;
@@ -257,16 +238,7 @@
     font-size: 9px;
     font-style: normal;
   }
-  path {
-    fill: none;
-    stroke: var(--green);
-    stroke-width: 1.5;
-    vector-effect: non-scaling-stroke;
-    stroke-linecap: round;
-  }
-  circle {
-    fill: var(--green);
-  }
+
   .monitor-detail {
     min-width: 0;
     padding: 18px;
@@ -275,8 +247,9 @@
     display: flex;
     justify-content: space-between;
     align-items: start;
+    min-height: 48px;
     gap: 12px;
-    margin-bottom: 14px;
+    margin-bottom: 8px;
   }
   h2 {
     margin: 0;
@@ -302,7 +275,7 @@
     gap: 8px;
     color: var(--muted);
     font-size: 10px;
-    margin: 0 0 12px;
+    margin: 0 0 8px;
   }
   .monitor-tools label {
     display: flex;
@@ -315,7 +288,8 @@
     font-size: 11px;
   }
   .coverage {
-    margin: 0 0 14px;
+    margin: 0 0 8px;
+    min-height: 18px;
     font-size: 11px;
     color: var(--muted);
   }
@@ -349,6 +323,7 @@
     margin-top: 12px;
     padding-top: 12px;
     align-items: start;
+    min-height: 72px;
   }
   .monitor-summary div {
     display: grid;
@@ -383,7 +358,7 @@
     margin: 10px 0 0;
     line-height: 1.6;
   }
-  @media (max-width: 1000px) {
+  @media (max-width: 760px) {
     .monitor {
       grid-template-columns: minmax(0, 1fr);
     }
@@ -397,9 +372,7 @@
       flex: 0 0 142px;
       padding: 8px;
     }
-    .metric-rail svg {
-      width: 32px;
-    }
+
     .monitor-detail {
       padding: 16px;
     }
@@ -420,7 +393,7 @@
       transition: none;
     }
   }
-  :global(:root[data-motion='reduced']) .metric-rail button {
+  :global(:root[data-motion='reduce']) .metric-rail button {
     transition: none;
   }
 </style>

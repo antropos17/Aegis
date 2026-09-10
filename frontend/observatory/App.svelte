@@ -68,6 +68,12 @@
       section,
     })),
   ];
+  let statisticsScope = $state<{ agent: string; revision: number }>();
+  function openStatistics(agent: string) {
+    scrolls.stats = 0;
+    statisticsScope = { agent, revision: ++sectionRevision };
+    void navigate('stats');
+  }
   function openSensors() {
     sectionRequests.stats = { id: 'sensors', revision: ++sectionRevision };
     void navigate('stats');
@@ -169,9 +175,6 @@
         if (ticket === navigationRevision) {
           workspace.scrollTop = scrolls[next] ?? 0;
           workspace.classList.add('has-navigated');
-          document
-            .querySelector('.workspace-tabs > .active')
-            ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         }
       },
       direction,
@@ -330,6 +333,11 @@
   </aside>
   <div class="shell">
     <header class="topbar">
+      <WorkspaceNavigation
+        {back}
+        canBack={historyIndex > 0}
+        canForward={historyIndex < history.length - 1}
+      />
       <div class="breadcrumb">
         {workspaceGroups.find((entry) => entry.id === group)?.label}<span>/</span><strong
           >{title}</strong
@@ -346,13 +354,7 @@
         >
       </div>
     </header>
-    <WorkspaceNavigation
-      {view}
-      {navigate}
-      {back}
-      canBack={historyIndex > 0}
-      canForward={historyIndex < history.length - 1}
-    />
+
     <main class:analysis-view={view === 'analysis'} id="main" tabindex="-1" bind:this={workspace}>
       <div class="page-head" bind:this={pageHead}>
         <div class="page-title">
@@ -396,7 +398,7 @@
             : 'Waiting for a reliable process observation. An empty screen does not establish that no agents are running.'}
         </p>{/if}
       <SensorStatus health={record(telemetry.stats.appHealth)} />
-      <div id="workspace-content" role="tabpanel" aria-labelledby={'workspace-tab-' + view}>
+      <div id="workspace-content" role="region" aria-labelledby="page-title">
         <div id="content" class:analysis-view={view === 'analysis'}>
           <div hidden={view !== 'overview' && view !== 'agents'}>
             <Monitoring
@@ -404,6 +406,7 @@
               bind:selected
               {inspect}
               mode={view}
+              {openStatistics}
               {paused}
               {navigate}
             />
@@ -471,6 +474,7 @@
               telemetry={displayTelemetry}
               {inspect}
               sectionRequest={sectionRequests.stats}
+              scopeRequest={statisticsScope}
               {paused}
             />
           </div>

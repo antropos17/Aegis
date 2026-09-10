@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { instances, record, type Telemetry, type RecordData } from '../runtime/host';
-  import { radarGroups, groupRecord, riskBand } from '../runtime/radar';
+  import { radarGroups } from '../runtime/radar';
+  import { scopeStatistics } from '../runtime/statistics-scope';
   import {
     createStatisticsHistory,
     observeStatistics,
@@ -14,32 +15,33 @@
   } from '../runtime/statistics-metrics';
   import SectionTabs from './SectionTabs.svelte';
   import StatsChart from './StatsChart.svelte';
-  import StatsDistribution from './StatsDistribution.svelte';
   import StatsSensors from './StatsSensors.svelte';
-  import StatsRiskRadar from './StatsRiskRadar.svelte';
   import StatsTokens from './StatsTokens.svelte';
   import ResourceUsage from './ResourceUsage.svelte';
-  import ActivityChart from './ActivityChart.svelte';
   import Agents from './Agents.svelte';
   let {
     telemetry,
     inspect,
     sectionRequest,
+    scopeRequest,
     paused = false,
   }: {
     telemetry: Telemetry;
     inspect: (_title: string, _row: RecordData) => void;
     sectionRequest?: { id: string; revision: number };
+    scopeRequest?: { agent: string; revision: number };
     paused?: boolean;
   } = $props();
   let section = $state<StatsSection>('overview');
   let selected = $state<Record<StatsSection, string>>({
     overview: 'cpu',
     processes: 'memory',
-    activity: 'fileRate',
+    activity: 'connections',
     tokens: 'tokens',
     sensors: 'ownCpu',
   });
+  let agent = $state('');
+  let instanceId = $state('');
   let now = $state(Date.now());
   let historyPeriod = $state(60000);
   let processView = $state('comparison');
@@ -47,65 +49,58 @@
     { id: 'comparison', label: 'Comparison' },
     { id: 'table', label: 'Table' },
   ];
+  let allHistory = createStatisticsHistory();
+  let scopedHistory = createStatisticsHistory();
+  let allSamples = $state<StatisticsSample[]>([]);
+  let scopedSamples = $state<StatisticsSample[]>([]);
+  let historyKey = '';
+  let lastRequest = -1;
+  let lastScopeRequest = -1;
+  let groups = $derived(radarGroups(instances(telemetry)));
+  let members = $derived(telemetry.agents.filter((row) => row.agent === agent));
+  let scoped = $derived(scopeStatistics(telemetry, { agent, instanceId }));
+  let sensorView = $derived(section === 'sensors');
+  let samples = $derived(sensorView || !agent ? allSamples : scopedSamples);
+  let metrics = $derived(
+    statisticsMetrics.filter(
+      (metric) =>
+        metric.sections.includes(section) &&
+        (!agent || !['fileRate', 'sensitiveRate'].includes(metric.id)),
+    ),
+  );
+  let coverage = $derived(
+    scoped.agents.filter(
+      (row) =>
+        row.instanceId &&
+        scoped.resources.some(
+          (reading) =>
+            reading.instanceId === row.instanceId &&
+            typeof reading.cpu === 'number' &&
+            typeof reading.memMb === 'number',
+        ),
+    ).length,
+  );
+  let health = $derived(record(telemetry.stats.appHealth));
   onMount(() => {
     const timer = setInterval(() => {
       if (!paused && !telemetry.stale) now = Date.now();
     }, 1000);
     return () => clearInterval(timer);
   });
-  let history = createStatisticsHistory();
-  let samples = $state<StatisticsSample[]>([]);
-  let lastRequest = -1;
-  let agents = $derived(instances(telemetry));
-  let groups = $derived(radarGroups(agents));
-  let metrics = $derived(statisticsMetrics.filter((metric) => metric.sections.includes(section)));
-  let productRows = $derived(
-    groups.map((group, i) => ({
-      label: group.name,
-      value: group.members.length,
-      row: groupRecord(group),
-      tone: ['var(--green)', 'var(--muted)', 'var(--amber)'][i % 3],
-    })),
-  );
-  let riskRows = $derived(
-    ['low', 'medium', 'high'].map((band, i) => ({
-      label: band.charAt(0).toUpperCase() + band.slice(1) + ' risk',
-      value: agents.filter((a) => riskBand(a.riskScore) === band).length,
-      tone: ['var(--green)', 'var(--amber)', 'var(--red)'][i],
-    })),
-  );
-  let endpointRows = $derived(
-    ['allowlisted', 'unknown', 'flagged'].map((verdict, i) => ({
-      label:
-        verdict === 'unknown'
-          ? 'Unverified endpoints'
-          : verdict.charAt(0).toUpperCase() + verdict.slice(1),
-      value: telemetry.network.filter((n) => (n.verdict || 'unknown') === verdict).length,
-      tone: ['var(--green)', 'var(--muted)', 'var(--amber)'][i],
-    })),
-  );
-  let coverage = $derived(
-    telemetry.agents.filter(
-      (agent) =>
-        agent.instanceId &&
-        telemetry.resources.some(
-          (r) =>
-            r.instanceId === agent.instanceId &&
-            typeof r.cpu === 'number' &&
-            typeof r.memMb === 'number',
-        ),
-    ).length,
-  );
-  let health = $derived(record(telemetry.stats.appHealth));
   $effect(() => {
     const current = paused ? { ...telemetry, stale: true } : telemetry;
-    const interruptedAt = paused ? Date.now() : undefined;
+    const filtered = paused ? { ...scoped, stale: true } : scoped;
+    const key = JSON.stringify([agent, instanceId]);
+    const interruption = paused ? Date.now() : undefined;
     untrack(() => {
-      const next = observeStatistics(history, current, interruptedAt);
-      if (next !== history) {
-        history = next;
-        samples = next.samples;
+      allHistory = observeStatistics(allHistory, current, interruption);
+      allSamples = allHistory.samples;
+      if (key !== historyKey) {
+        scopedHistory = createStatisticsHistory();
+        historyKey = key;
       }
+      scopedHistory = observeStatistics(scopedHistory, filtered, interruption);
+      scopedSamples = scopedHistory.samples;
     });
   });
   $effect(() => {
@@ -114,21 +109,88 @@
       lastRequest = request.revision;
       if (statisticsTabs.some((tab) => tab.id === request.id)) section = request.id as StatsSection;
     }
+    const scope = scopeRequest;
+    if (scope && scope.revision !== lastScopeRequest) {
+      lastScopeRequest = scope.revision;
+      agent = scope.agent;
+      instanceId = '';
+      section = 'overview';
+    }
   });
-  function changeSection(id: string): void {
-    section = id as StatsSection;
-  }
 </script>
 
 <div class="statistics-workspace">
+  <div class="statistics-scope">
+    <label
+      >Agent
+      <select
+        aria-label="Statistics agent"
+        bind:value={agent}
+        disabled={sensorView}
+        onchange={() => {
+          instanceId = '';
+        }}
+      >
+        <option value="">All agents</option>
+        {#each groups as group (group.key)}<option value={group.key}>{group.name}</option>{/each}
+        {#if agent && !groups.some((group) => group.key === agent)}
+          <option value={agent}>{agent} · no longer observed</option>
+        {/if}
+      </select>
+    </label>
+    <label
+      >Process
+      <select
+        aria-label="Statistics process"
+        bind:value={instanceId}
+        disabled={sensorView || !agent}
+      >
+        <option value="">All processes</option>
+        {#each members.filter((row) => row.instanceId) as row (row.instanceId)}
+          <option value={row.instanceId}
+            >PID {row.pid}{row.projectName ? ' · ' + row.projectName : ''}</option
+          >
+        {/each}
+        {#if instanceId && !members.some((row) => row.instanceId === instanceId)}
+          <option value={instanceId}>Selected process · no longer observed</option>
+        {/if}
+      </select>
+    </label>
+    <span class="scope-caption"
+      >{sensorView
+        ? 'AEGIS health · independent of agent selection'
+        : agent
+          ? 'History starts with this selection.'
+          : 'Combined measurements of observed agents'}</span
+    >
+  </div>
   <div class="stats-navigation">
     <SectionTabs
       tabs={statisticsTabs}
       selected={section}
-      change={changeSection}
+      change={(id) => {
+        section = id as StatsSection;
+      }}
       prefix="statistics"
       label="Statistics sections"
     />
+  </div>
+  <div class="coverage-line">
+    <span
+      >{sensorView
+        ? 'AEGIS main process · ' + String(health.state || 'Starting').toLowerCase()
+        : agent && !scoped.agents.length
+          ? 'Selection no longer observed · last measurements retained'
+          : section === 'tokens'
+            ? 'Supported agent logs · measured coverage'
+            : section === 'activity'
+              ? 'Observed connections and risk'
+              : coverage + ' / ' + scoped.agents.length + ' process resource samples'}</span
+    >
+    <span class="live-state"
+      >{paused ? 'View paused · ' : telemetry.stale ? 'Last observation · ' : ''}{samples.length} source
+      updates · up to 5 minutes</span
+    >
   </div>
   {#each statisticsTabs as tab (tab.id)}
     <div
@@ -138,116 +200,58 @@
       hidden={section !== tab.id}
     >
       {#if section === tab.id}
-        <div class="coverage-line">
-          <span
-            >{section === 'sensors'
-              ? 'AEGIS main process · ' + String(health.state || 'Starting').toLowerCase()
-              : section === 'tokens'
-                ? 'Supported agent logs · measured coverage'
-                : section === 'activity'
-                  ? 'Observed activity · counts and rates'
-                  : 'Agent processes · ' +
-                    coverage +
-                    ' / ' +
-                    telemetry.agents.length +
-                    ' resource samples'}</span
-          >
-          <span class="live-state"
-            >{paused
-              ? 'View paused · '
-              : telemetry.stale
-                ? 'Last observation · '
-                : ''}{samples.length} source updates · up to 5 minutes</span
-          >
-        </div>
-        <StatsChart
-          {samples}
-          {metrics}
-          {now}
-          {paused}
-          bind:period={historyPeriod}
-          bind:selected={selected[section]}
-          stale={telemetry.stale || paused}
-        />
-        <div class="supporting-content">
-          {#if section === 'overview'}
-            <div class="distribution-grid">
-              <StatsDistribution
-                title="Process composition"
-                subtitle="Grouped by agent · open a group to inspect"
-                rows={productRows}
-                {inspect}
-              />
-              <StatsRiskRadar {groups} {inspect} paused={telemetry.stale || paused} />
-            </div>
-            <p class="scope-note">
-              Select a monitor to focus its graph. Processes contains agent comparisons; Activity
-              contains observation timelines; Sensors shows collection health. System-wide CPU, GPU,
-              disk and bandwidth measurements are not provided by the current sensors.
-            </p>
-          {:else if section === 'processes'}
-            <div class="process-view-selector">
-              <SectionTabs
-                tabs={processViews}
-                selected={processView}
-                change={(id) => {
-                  processView = id;
-                }}
-                prefix="statistics-process"
-                label="Process comparison view"
-              />
-            </div>
-            <div
-              role="tabpanel"
-              id="statistics-process-panel-comparison"
-              aria-labelledby="statistics-process-tab-comparison"
-              hidden={processView !== 'comparison'}
-            >
-              <ResourceUsage {telemetry} {inspect} />
-            </div>
-            <div
-              role="tabpanel"
-              id="statistics-process-panel-table"
-              aria-labelledby="statistics-process-tab-table"
-              hidden={processView !== 'table'}
-            >
-              <Agents {telemetry} {inspect} />
-            </div>
-          {:else if section === 'activity'}
-            <ActivityChart
-              events={telemetry.events}
-              observedAt={telemetry.lastScan}
-              {inspect}
+        {#if section !== 'processes'}
+          {#key sensorView ? 'sensors' : JSON.stringify([agent, instanceId])}
+            <StatsChart
+              {samples}
+              {metrics}
+              {now}
               {paused}
-              stale={telemetry.stale}
+              bind:period={historyPeriod}
+              bind:selected={selected[section]}
+              stale={(sensorView ? telemetry.stale : scoped.stale) || paused}
             />
-            <div class="distribution-grid">
-              <StatsDistribution
-                title="Connection identity"
-                subtitle="Latest delivered endpoint classifications"
-                rows={endpointRows}
-              />
-              <StatsDistribution
-                title="Risk distribution"
-                subtitle="Current process assessments"
-                rows={riskRows}
-              />
-            </div>
-            <p class="scope-note">
-              Connection counts use the latest delivered snapshot. Rate charts show observations
-              arriving over time; they do not measure file bytes or network bandwidth.
-            </p>
-          {:else if section === 'tokens'}
-            <StatsTokens {telemetry} {inspect} />
-          {:else if section === 'sensors'}
-            <StatsSensors {telemetry} />
-            <p class="scope-note">
-              History is retained while you use another workspace. Pausing the view freezes its
-              displayed samples; the monitoring backend continues. Graph gaps preserve unavailable
-              measurements and collection interruptions.
-            </p>
-          {/if}
-        </div>
+          {/key}
+        {/if}
+        {#if section === 'processes'}
+          <div class="process-view-selector">
+            <SectionTabs
+              tabs={processViews}
+              selected={processView}
+              change={(id) => {
+                processView = id;
+              }}
+              prefix="statistics-process"
+              label="Process comparison view"
+            />
+          </div>
+          <div
+            role="tabpanel"
+            id="statistics-process-panel-comparison"
+            aria-labelledby="statistics-process-tab-comparison"
+            hidden={processView !== 'comparison'}
+          >
+            <ResourceUsage telemetry={scoped} {inspect} />
+          </div>
+          <div
+            role="tabpanel"
+            id="statistics-process-panel-table"
+            aria-labelledby="statistics-process-tab-table"
+            hidden={processView !== 'table'}
+          >
+            <Agents telemetry={scoped} {inspect} />
+          </div>
+        {:else if section === 'activity'}
+          <p class="scope-note">
+            {agent
+              ? 'Only connections with an exact selected process identity are included. Per-agent cumulative file counters are unavailable, so file rates are not shown.'
+              : 'Connections are counts, not bandwidth. File rates use delivered global counters.'}
+          </p>
+        {:else if section === 'tokens'}
+          <div class="supporting-content"><StatsTokens telemetry={scoped} {inspect} /></div>
+        {:else if section === 'sensors'}
+          <div class="supporting-content"><StatsSensors {telemetry} /></div>
+        {/if}
       {/if}
     </div>
   {/each}
@@ -257,15 +261,39 @@
   .statistics-workspace {
     min-width: 0;
   }
+  .statistics-scope {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .statistics-scope label {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 160px;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .statistics-scope select {
+    width: 100%;
+    min-width: 0;
+    min-height: 36px;
+  }
+  .scope-caption {
+    flex: 1 1 180px;
+    min-height: 32px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+  }
   .stats-navigation {
-    position: sticky;
-    top: var(--workspace-sticky-offset, 0px);
-    z-index: 4;
     border: 1px solid var(--border);
     border-radius: 9px;
     background: var(--panel);
     overflow: hidden;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
   }
   .stats-navigation :global(.section-tabs) {
     border: 0;
@@ -276,13 +304,12 @@
     flex-wrap: wrap;
     justify-content: space-between;
     gap: 8px;
+    min-height: 16px;
     margin-bottom: 10px;
     color: var(--muted);
     font-size: 10px;
   }
   .supporting-content {
-    display: grid;
-    gap: 18px;
     margin-top: 18px;
   }
   .process-view-selector {
@@ -290,25 +317,15 @@
     border-radius: 9px;
     background: var(--panel);
     overflow: hidden;
+    margin-bottom: 12px;
   }
   .process-view-selector :global(.section-tabs) {
     border: 0;
-  }
-  .distribution-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px;
   }
   .scope-note {
     color: var(--muted);
     font-size: 11px;
     line-height: 1.7;
-    margin: 0;
-    padding: 0 2px;
-  }
-  @media (max-width: 850px) {
-    .distribution-grid {
-      grid-template-columns: minmax(0, 1fr);
-    }
+    margin: 12px 0 0;
   }
 </style>

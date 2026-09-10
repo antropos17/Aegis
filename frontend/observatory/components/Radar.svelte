@@ -12,8 +12,10 @@
     telemetry,
     selected = $bindable(null),
     inspect,
+    openStatistics,
   }: {
     telemetry: Telemetry;
+    openStatistics?: (_agent: string) => void;
     selected: string | null;
     inspect: (_title: string, _row: RecordData) => void;
   } = $props();
@@ -82,8 +84,10 @@
           >{/each}
       </div>
     </div>
-    {#if layer !== 'radar'}
-      <div class="radar-resource-toolbar">
+    <div class="radar-resource-toolbar">
+      {#if layer === 'radar'}<div class="resource-scope">
+          <strong>Agent risk</strong><span>Select an agent for usage, activity and statistics</span>
+        </div>{:else}
         <div class="resource-scope">
           <strong>{chosenGroup?.name ?? 'All agents on this page'}</strong>
           <span
@@ -120,8 +124,8 @@
               onclick={() => (resourcePage = resourceIndex + 1)}><Icon name="chevron" /></button
             >
           </div>{/if}
-      </div>
-    {/if}
+      {/if}
+    </div>
     <div id="radar-body">
       <div class="radar-workspace">
         <div class="radar-stage" class:stale={telemetry.stale} data-layer={layer}>
@@ -209,7 +213,14 @@
         </div>{/if}
     </div>
   </section>
-  <RadarInspector {chosen} group={chosenGroup} {telemetry} bind:selected {inspect} />
+  <RadarInspector
+    {chosen}
+    group={chosenGroup}
+    {telemetry}
+    bind:selected
+    {inspect}
+    {openStatistics}
+  />
 </div>
 
 <style>

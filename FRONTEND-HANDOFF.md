@@ -1,4 +1,4 @@
-# Current AEGIS context — 2026-09-09
+# Current AEGIS context — 2026-09-10
 
 Production renderer: frontend/observatory/entry.ts. npm start, build:renderer and Electron packaging consume dist/renderer. Preview uses an isolated fixture host with the same Svelte components; desktop builds exclude fixtures.
 
@@ -11,3 +11,5 @@ Monitoring groups products and exposes stamped processes for actions. Statistics
 The all-section duplicate pass is recorded in docs/current-state/SECTION-DUPLICATES-2026-09-09.md. Resource grouping retains all original evidence, canonicalizes Windows display paths and exposes local socket endpoints. Statistics Processes separates Comparison and Table. Catalog and policy targets use durable unique keys; offline policies remain editable through single-key atomic saves. Analysis counts describe the captured request. See docs/current-state/AUDIT-2026-09-09.md for the preceding backend/frontend audit and its limits. See OBSERVATORY-INTEGRATION.md for historical integration evidence and the preload transfer matrix, frontend/observatory/DESIGN.md for visual rules, and memory-bank/architecture.md for the code map.
 
 The risk clarity pass is recorded in docs/current-state/RISK-CLARITY-2026-09-10.md. Monitoring, radar and agent rows open the Risk explanation detail section. It exposes shared scoring contributions, captured process evidence, saved adjustments and exact highest-process navigation.
+
+The usability pass removes duplicate workspace tabs and repeated Statistics charts. Statistics filters by agent and exact process, preserves departed selections, and opens directly from the Monitoring inspector or agent table. Scoped history starts when the selection changes; per-agent file rates remain unavailable. Radar/inspector geometry is stable across layer and agent changes. See docs/current-state/USABILITY-2026-09-10.md for verification and remaining scope.
