@@ -43,7 +43,7 @@ it('leads from a group explanation to the actual highest process and restores th
   render(Details, props(state(), { agentGroupKey: 'Codex', name: 'Codex', detailSection: 'risk' }));
   const risk = await screen.findByRole('tab', { name: 'Risk explanation' });
   expect(risk).toHaveAttribute('aria-selected', 'true');
-  expect(screen.getByText('Destination checks')).toBeVisible();
+  expect(within(screen.getByRole('list')).getByText('Destination checks')).toBeVisible();
   await fireEvent.click(screen.getByRole('button', { name: 'View process PID 12' }));
   await screen.findByText('Agent instance');
   expect(screen.getByRole('tab', { name: 'Overview', exact: true })).toHaveAttribute(
