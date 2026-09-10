@@ -1,3 +1,4 @@
+import { mergeResourceDelivery } from './resource-observations';
 import type {
   DetectedAgent,
   FileEvent,
@@ -252,7 +253,10 @@ export function connectHost(
   );
   subscribe('onScanStatus', (value) => update({ scanning: record(value).scanning === true }));
   subscribe('onAgentResourceUsage', (value) =>
-    update({ resources: records(value), resourcesAt: Date.now() }),
+    update({
+      resources: mergeResourceDelivery(state.resources, records(value)),
+      resourcesAt: Date.now(),
+    }),
   );
   subscribe('onTokenCosts', (value) => update({ tokens: records(value), tokensAt: Date.now() }));
   const seed = (method: string, revision: string, apply: (value: unknown) => void) => {

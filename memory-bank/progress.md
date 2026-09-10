@@ -2093,3 +2093,8 @@ smoke and all 20 evidence source hashes are verified. Final PR/CI/merge follows.
 ## Current Observatory context — 2026-09-09
 
 Production UI, grouped radar, detail tabs, comfort workspaces and corrected graph clocks are integrated; PR #411 is the audit base. The current multi-agent backend/frontend audit and its measured validation are maintained in [docs/current-state/AUDIT-2026-09-09.md](../docs/current-state/AUDIT-2026-09-09.md). [FRONTEND-HANDOFF.md](../FRONTEND-HANDOFF.md) records the working checkout, installed app, profile and design source. Preserve the original dirty checkout. Historical migration prompts and earlier ETW validation counts do not describe the current frontend build.
+
+
+## Settings and collector consistency — 2026-09-09
+
+Following merged PR #412, Settings and Analysis now save changed fields against current main-process settings. Collector metadata survives cache delivery; sequence ordering protects current values, cache TTL starts at completion, and overlapping pending requests cannot starve completed cache entries. Resource charts suppress cached numeric points, display mixed collection spans and reset safely after clock rollback. Current measured verification and deployment are recorded in docs/current-state/AUDIT-2026-09-09.md. The original dirty source checkout remains separate.

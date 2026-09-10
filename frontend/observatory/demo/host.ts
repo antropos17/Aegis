@@ -101,11 +101,22 @@ export function createPreviewHost(): Host {
     getResourceUsage: async () => ({ memMB: 142, heapMB: 68 }),
     getFalsePositives: async () => [],
     getAppVersion: async () => 'Preview',
-    getSettings: async () => ({ ...settings }),
-    saveSettings: async (value) => {
-      const safe = { ...(value as RecordData) };
+    getSettings: async () => structuredClone(settings),
+    saveSettings: async (value, options = {}) => {
+      if (
+        !options ||
+        typeof options !== 'object' ||
+        Array.isArray(options) ||
+        Reflect.ownKeys(options).some(
+          (key) =>
+            !['patch', 'clearAnthropicApiKey'].includes(String(key)) ||
+            typeof Reflect.get(options, key) !== 'boolean',
+        )
+      )
+        return { success: false, error: 'Invalid settings save options' };
+      const safe = structuredClone(value as RecordData);
       delete safe.anthropicApiKey;
-      settings = safe;
+      settings = { ...((options as RecordData).patch ? settings : {}), ...safe };
       return { success: true };
     },
     getAgentDatabase: async () => database,

@@ -452,6 +452,29 @@ describe('ipc-handlers', () => {
       expect(result).toEqual({ success: true });
     });
 
+    it('forwards patch and clear intent without exposing settings in the response', () => {
+      const options = { patch: true, clearAnthropicApiKey: true };
+      expect(getHandler('save-settings')(null, { anthropicApiKey: '' }, options)).toEqual({
+        success: true,
+      });
+      expect(mockConfig.saveSettings).toHaveBeenCalledExactlyOnceWith(
+        { anthropicApiKey: '' },
+        options,
+      );
+    });
+
+    it('does not strip invalid options or apply settings after a rejected save', () => {
+      const options = { patch: 'true', unknown: true };
+      mockConfig.saveSettings.mockImplementationOnce(() => {
+        throw new Error('Invalid settings save options');
+      });
+      expect(() => getHandler('save-settings')(null, { darkMode: true }, options)).toThrow(
+        'Invalid settings save options',
+      );
+      expect(mockConfig.saveSettings).toHaveBeenCalledExactlyOnceWith({ darkMode: true }, options);
+      expect(mockConfig.applySettings).not.toHaveBeenCalled();
+    });
+
     it('get-audit-entries-before passes cursor, limit and types through untouched', () => {
       // Validation of all three lives in getEntriesBefore, so the handler forwards them raw.
       const handler = getHandler('get-audit-entries-before');

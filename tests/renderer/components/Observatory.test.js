@@ -72,7 +72,7 @@ describe('Observatory production components', () => {
     });
   });
 
-  it('shows failed persistence, preserves unrelated settings and never exposes the provider key', async () => {
+  it('shows failed persistence, excludes unrelated settings from patches and never exposes the provider key', async () => {
     const settings = {
       darkMode: true,
       uiScale: 1,
@@ -94,10 +94,10 @@ describe('Observatory production components', () => {
     });
     await fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Disk full');
-    expect(host.saveSettings.mock.calls[0][0]).toMatchObject({
-      scanIntervalSec: 20,
-      customAgents: settings.customAgents,
-    });
+    expect(host.saveSettings).toHaveBeenCalledExactlyOnceWith(
+      { scanIntervalSec: 20 },
+      { patch: true },
+    );
     expect(appearance).not.toHaveBeenCalled();
     expect(container.innerHTML).not.toContain('private-test-key');
   });

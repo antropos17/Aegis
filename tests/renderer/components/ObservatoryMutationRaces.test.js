@@ -33,7 +33,7 @@ it('keeps edits made while settings save is pending and saves only the submitted
     getUpdateStatus: async () => ({}),
     saveSettings: vi.fn(async (value) => {
       await pending.promise;
-      saved = value;
+      saved = { ...saved, ...value };
       return { success: true };
     }),
   };
@@ -182,6 +182,7 @@ it('uses explicit key removal intent and preserves text entered during that pend
   await fireEvent.click(screen.getByRole('button', { name: 'Remove saved key' }));
   await waitFor(() => expect(host.saveSettings).toHaveBeenCalledTimes(1));
   expect(host.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ anthropicApiKey: '' }), {
+    patch: true,
     clearAnthropicApiKey: true,
   });
   await fireEvent.input(screen.getByLabelText('New API key'), {
@@ -210,7 +211,10 @@ it('does not let an old provider settings seed overwrite a confirmed new configu
   initial.resolve({});
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(screen.getByText('API key saved · verified on first analysis')).toBeInTheDocument();
-  expect(host.saveSettings.mock.calls[0]).toHaveLength(1);
+  expect(host.saveSettings).toHaveBeenCalledExactlyOnceWith(
+    { anthropicApiKey: 'fixture-configured' },
+    { patch: true },
+  );
 });
 
 it('allows explicit removal of an unreadable saved key without enabling it in preview', async () => {
@@ -225,7 +229,7 @@ it('allows explicit removal of an unreadable saved key without enabling it in pr
   await waitFor(() =>
     expect(host.saveSettings).toHaveBeenCalledExactlyOnceWith(
       { anthropicApiKey: '' },
-      { clearAnthropicApiKey: true },
+      { patch: true, clearAnthropicApiKey: true },
     ),
   );
   await fireEvent.click(screen.getByRole('button', { name: 'Close settings' }));

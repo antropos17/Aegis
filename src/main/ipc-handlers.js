@@ -100,9 +100,8 @@ function register() {
       logger.warn(`IPC save-settings rejected: ${check.error}`);
       return { success: false, error: check.error };
     }
-    if (options?.clearAnthropicApiKey === true)
-      config.saveSettings(newSettings, { clearAnthropicApiKey: true });
-    else config.saveSettings(newSettings);
+    if (options === undefined) config.saveSettings(newSettings);
+    else config.saveSettings(newSettings, options);
     config.applySettings();
     deps.updates?.preferencesChanged();
     return { success: true };

@@ -58,11 +58,10 @@ it('keeps settings drafts across sections and direct requests, and retains edits
   expect(screen.getByLabelText('Additional exclusions')).toHaveValue('X:/builds');
   await fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Disk full');
-  expect(host.saveSettings.mock.calls[0][0]).toMatchObject({
-    scanIntervalSec: 23,
-    ignoredDirectories: ['X:/builds'],
-    unrelated: 'retained',
-  });
+  expect(host.saveSettings).toHaveBeenCalledExactlyOnceWith(
+    { scanIntervalSec: 23, ignoredDirectories: ['X:/builds'] },
+    { patch: true },
+  );
   expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
   expect(container.textContent).not.toContain('private-setting-key');
   await fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
