@@ -225,7 +225,7 @@ Key token namespaces:
 
 ## Conventions
 
-- **300-line soft limit** per file — a target for NEW files, not an invariant; 28 existing `src/` files already exceed it. Not enforced by the linter
+- **300-line soft limit** per file — a target for NEW files, not an invariant; 29 existing `src/` files already exceed it. Not enforced by the linter
 - **JSDoc on all exported functions**: `@param`, `@returns`, `@since`
 - **Commit prefixes**: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`; see [BRANCHING.md](../BRANCHING.md)
 - **IPC channel names**: `kebab-case`

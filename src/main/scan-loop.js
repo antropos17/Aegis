@@ -10,6 +10,11 @@ const sessionTracker = require('./session-tracker');
 const ideExtensionDetector = require('./ide-extension-detector');
 const wslDetector = require('./wsl-detector');
 const resourceMonitor = require('./resource-monitor');
+const { createResourceSampler } = require('./resource-sampler');
+const resourceSampler = createResourceSampler((targets) =>
+  resourceMonitor.getResourcesForPids(targets),
+);
+let resourceScanGeneration = 0;
 const tokenTracker = require('./token-tracker');
 const { collectTokenCosts } = require('./token-cost-collector');
 const blocklist = require('./blocklist');
@@ -168,6 +173,8 @@ function sequenceScoreFor(instanceId) {
 }
 
 function stopScanIntervals() {
+  resourceScanGeneration++;
+  resourceSampler.invalidate();
   for (const t of startupTimers) clearTimeout(t);
   startupTimers = [];
   if (warmupTimer) {
@@ -419,6 +426,7 @@ async function doProcessScan() {
   // bump activeScanCount, whose only decrement lives in the finally below.
   if (processScanRunning) return;
   processScanRunning = true;
+  const resourceGeneration = resourceScanGeneration;
   updateScanStatus(true);
   const t0 = performance.now();
   try {
@@ -671,10 +679,18 @@ async function doProcessScan() {
         pid: a.pid,
         instanceId: typeof a.instanceId === 'string' && a.instanceId !== '' ? a.instanceId : null,
       }));
-    resourceMonitor
-      .getResourcesForPids(resourceTargets)
-      .then((records) => sendToRenderer('agent-resource-usage', records))
-      .catch((err) => logger.error('main', 'Resource usage scan failed', { error: err.message }));
+    // One OS query at a time; busy ticks leave freshness to the next scan.
+    // A scan already awaiting the provider when paused must not start new sampling.
+    if (resourceGeneration === resourceScanGeneration) {
+      resourceSampler
+        .sample(resourceTargets)
+        .then((records) => {
+          if (records !== null && resourceGeneration === resourceScanGeneration) {
+            sendToRenderer('agent-resource-usage', records);
+          }
+        })
+        .catch((err) => logger.error('main', 'Resource usage scan failed', { error: err.message }));
+    }
 
     if (result.changed && Date.now() - _lastTriggeredNetScan > 15000) {
       _lastTriggeredNetScan = Date.now();
@@ -929,6 +945,8 @@ function staggeredStartup(intervalMs, paused) {
 
 /** @param {Object} injected @since v0.3.0 */
 function init(injected) {
+  resourceScanGeneration++;
+  resourceSampler.invalidate();
   deps = injected;
   deps.baselines?.init?.({
     isInstanceActive: (instanceId) =>

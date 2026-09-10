@@ -102,3 +102,31 @@ it.each([null, undefined, 'adapter-failure'])(
     await expect(readUsageByPid([{ pid: 3, startTime: 1000 }])).resolves.toEqual([delta(3, 30)]);
   },
 );
+
+describe('token-feed family routing', () => {
+  it('routes known families exactly and preserves unlabelled legacy callers', async () => {
+    const claude = {
+      ...fakeAdapter('claude', async () => [delta(1, 10)]),
+      agentNames: ['Claude Code'],
+    };
+    const other = { ...fakeAdapter('other', async () => [delta(2, 20)]), agentNames: ['Codex'] };
+    _setAdaptersForTest([claude, other]);
+    const procs = [
+      { pid: 1, startTime: 1000, agent: 'Claude Code' },
+      { pid: 2, startTime: 2000, agent: 'Codex' },
+      { pid: 3, startTime: 3000 },
+      { pid: 4, startTime: 4000, agent: 'Claude Desktop' },
+    ];
+    expect(await readUsageByPid(procs)).toEqual([delta(1, 10), delta(2, 20)]);
+    expect(claude.readUsage).toHaveBeenCalledWith([procs[0], procs[2]]);
+    expect(other.readUsage).toHaveBeenCalledWith([procs[1], procs[2]]);
+    expect(procs).toHaveLength(4);
+  });
+
+  it('does not invoke a family adapter when all processes belong to other agents', async () => {
+    const adapter = { ...fakeAdapter('claude', async () => []), agentNames: ['Claude Code'] };
+    _setAdaptersForTest([adapter]);
+    expect(await readUsageByPid([{ pid: 1, startTime: 1000, agent: 'Cursor' }])).toEqual([]);
+    expect(adapter.readUsage).not.toHaveBeenCalled();
+  });
+});

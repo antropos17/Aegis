@@ -1509,6 +1509,96 @@ describe('scan-loop', () => {
   // ── per-agent resource push (`agent-resource-usage`) ──
 
   describe('agent-resource-usage push', () => {
+    it('slow sampling never blocks process batches or spawns a second resource query', async () => {
+      const rm = require_('../../src/main/resource-monitor.js');
+      let finish;
+      const collect = vi
+        .spyOn(rm, 'getResourcesForPids')
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finish = resolve;
+            }),
+        )
+        .mockResolvedValue([]);
+      const deps = makeStampingDeps(vi.fn(), () => [
+        { agent: 'Cursor', pid: 100, startTime: 1717000000000 },
+      ]);
+      try {
+        scanLoop.init(deps);
+        scanLoop.startScanIntervals(1000);
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(
+          deps.sendToRenderer.mock.calls.filter(([channel]) => channel === 'scan-batch'),
+        ).toHaveLength(5);
+        expect(collect).toHaveBeenCalledTimes(1);
+        expect(pushes(deps.sendToRenderer)).toHaveLength(0);
+        finish([]);
+        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(collect).toHaveBeenCalledTimes(2);
+      } finally {
+        finish?.([]);
+        await vi.advanceTimersByTimeAsync(0);
+        collect.mockRestore();
+      }
+    });
+
+    it('pause suppresses an unfinished resource result', async () => {
+      const rm = require_('../../src/main/resource-monitor.js');
+      let finish;
+      const collect = vi.spyOn(rm, 'getResourcesForPids').mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const deps = makeDeps();
+      try {
+        scanLoop.init(deps);
+        scanLoop.startScanIntervals(1000);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(collect).toHaveBeenCalledTimes(1);
+        scanLoop.stopScanIntervals();
+        finish([]);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(pushes(deps.sendToRenderer)).toHaveLength(0);
+      } finally {
+        finish?.([]);
+        await vi.advanceTimersByTimeAsync(0);
+        collect.mockRestore();
+      }
+    });
+
+    it('a process scan finishing after pause cannot launch resource sampling', async () => {
+      const rm = require_('../../src/main/resource-monitor.js');
+      const collect = vi.spyOn(rm, 'getResourcesForPids').mockResolvedValue([]);
+      let finish;
+      const deps = makeDeps({
+        scanner: {
+          scanProcesses: vi.fn(
+            () =>
+              new Promise((resolve) => {
+                finish = resolve;
+              }),
+          ),
+        },
+      });
+      try {
+        scanLoop.init(deps);
+        scanLoop.startScanIntervals(1000);
+        await vi.advanceTimersByTimeAsync(1000);
+        scanLoop.stopScanIntervals();
+        finish({ agents: [], changed: false });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(collect).not.toHaveBeenCalled();
+      } finally {
+        finish?.({ agents: [], changed: false });
+        await vi.advanceTimersByTimeAsync(0);
+        collect.mockRestore();
+      }
+    });
+
     const MB = 1048576;
 
     /**

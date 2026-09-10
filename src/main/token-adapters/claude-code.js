@@ -33,6 +33,7 @@ const { readSubagentUsage } = require('./claude-code-subagents');
 /**
  * @typedef {Object} Proc
  * @property {number} pid - live process id (C-01 attribution key).
+ * @property {string} [agent] - scanner display name, used by the feed for routing.
  * @property {number} startTime - live OS process-creation time (epoch ms), from the
  *   scan layer; compared against the registry to reject PID reuse.
  */
@@ -288,6 +289,7 @@ function _resetForTest() {
 
 module.exports = {
   id,
+  agentNames: Object.freeze(['Claude Code']),
   GUARD_TOLERANCE_MS,
   readUsage,
   _encodeCwd,

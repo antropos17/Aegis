@@ -73,7 +73,7 @@ async function collectTokenCosts(agents) {
   let droppedClaude = false;
   for (const a of list) {
     if (a && typeof a.startTime === 'number') {
-      procs.push({ pid: a.pid, startTime: a.startTime });
+      procs.push({ pid: a.pid, startTime: a.startTime, agent: a.agent });
       identityByPid.set(a.pid, a);
     } else if (a && a.agent === CLAUDE_CODE_AGENT) {
       droppedClaude = true;
