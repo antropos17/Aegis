@@ -20,12 +20,14 @@
     request,
     close,
     refreshFalsePositives,
+    openAgent,
   }: {
     host: Host | null;
     telemetry: Telemetry;
     request: { title: string; row: RecordData } | null;
     close: () => void;
     refreshFalsePositives: () => Promise<void>;
+    openAgent?: (_title: string, _row: RecordData) => void;
   } = $props();
   interface Visit {
     title: string;
@@ -64,14 +66,16 @@
   $effect(() => {
     if (request && request !== previousRequest) {
       previousRequest = request;
-      navigationRevision++;
+      const ticket = ++navigationRevision;
       returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       history = [visit(request.title, request.row)];
       index = 0;
       if (!dialog.open) dialog.showModal();
-      void tick().then(() =>
-        document.getElementById('modal-title')?.focus({ preventScroll: true }),
-      );
+      void tick().then(() => {
+        if (ticket !== navigationRevision || !dialog.open) return;
+        body.scrollTop = 0;
+        document.getElementById('modal-title')?.focus({ preventScroll: true });
+      });
     } else if (!request) {
       previousRequest = null;
       navigationRevision++;
@@ -98,11 +102,23 @@
     }
   }
   async function changeTab(tab: string) {
+    if (!current || !tabs.some((section) => section.id === tab)) return;
+    const focusPanel = body.contains(document.activeElement);
     remember();
     current.tab = tab;
     await restore();
+    if (focusPanel && current.tab === tab) {
+      document.getElementById('detail-panel-' + tab)?.focus({ preventScroll: true });
+    }
   }
   async function navigate(title: string, row: RecordData) {
+    if (openAgent && ['group', 'process'].includes(detailKind(row))) {
+      navigationRevision++;
+      returnFocus = null;
+      close();
+      openAgent(title, row);
+      return;
+    }
     remember();
     const ticket = ++navigationRevision;
     await transitionSurface('detail', async () => {

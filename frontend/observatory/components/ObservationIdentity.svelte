@@ -11,7 +11,7 @@
   let info = $derived(describeObservation(row, agents));
 </script>
 
-<span class="observation-identity">
+<span class="observation-identity" title={info.explanation}>
   {#if info.actor || info.context}<AgentLogo
       name={info.actor || info.context}
       size={20}

@@ -317,7 +317,7 @@
           {:else}<article class="analysis-document">
               <div class="analysis-document-meta">
                 <small>ANTHROPIC ASSESSMENT</small><span class="badge"
-                  >{String(report.riskRating ?? report.riskLevel ?? 'UNKNOWN')}</span
+                  >{String(report.riskRating || report.riskLevel || 'Not assessed')}</span
                 >
               </div>
               <h2>{String(report.title)}</h2>

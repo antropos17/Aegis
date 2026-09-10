@@ -59,29 +59,31 @@ try {
   assert.equal(await window.locator('.radar-blip').count(), rosterNames.length);
   assert.equal(await window.locator('.radar-info, .radar-mini-chart').count(), 0);
   await window.locator('.radar-agent-card').first().click();
-  await window.getByRole('button', { name: 'Open agent', exact: true }).click();
-  await window.getByText('Agent overview', { exact: true }).waitFor();
-  await window.keyboard.press('Escape');
-  await window.getByRole('dialog').waitFor({ state: 'hidden' });
-  assert.equal(
-    await window.locator('.radar-blip[aria-pressed="true"]').count(),
-    1,
-    'closing agent details clears the radar selection',
-  );
-  const selectedAgent = await window
-    .locator('.radar-blip[aria-pressed="true"]')
-    .getAttribute('data-group');
-  await window.getByRole('button', { name: 'Agent statistics', exact: true }).click();
-  await window.getByRole('heading', { name: 'Statistics', level: 1, exact: true }).waitFor();
-  assert.equal(await window.getByLabel('Statistics agent').inputValue(), selectedAgent);
-  const processFilter = window.getByLabel('Statistics process');
+  await window.locator('.agent-workspace:visible').waitFor();
+  assert.equal(await window.getByRole('dialog').count(), 0);
+  const context = window.locator('.agent-context');
+  const selectedAgent = await context.getByLabel('Selected agent', { exact: true }).inputValue();
+  assert(selectedAgent);
+  const processFilter = context.getByLabel('Selected process', { exact: true });
+  let selectedProcess = '';
   if ((await processFilter.locator('option').count()) > 1) {
     await processFilter.selectOption({ index: 1 });
-    const selectedProcess = await processFilter.inputValue();
-    await window.getByRole('tab', { name: 'Tokens', exact: true }).click();
+    selectedProcess = await processFilter.inputValue();
+    await window.getByRole('heading', { name: 'Process overview', exact: true }).waitFor();
+  }
+  for (const name of ['Events', 'Network', 'Statistics']) {
+    await window.locator('.sidebar').getByRole('button', { name, exact: true }).click();
+    await window.getByRole('heading', { name, level: 1, exact: true }).waitFor();
+    assert.equal(
+      await context.getByLabel('Selected agent', { exact: true }).inputValue(),
+      selectedAgent,
+    );
     assert.equal(await processFilter.inputValue(), selectedProcess);
   }
-  await window.getByRole('button', { name: 'Back', exact: true }).click();
+  await window.getByRole('tab', { name: 'Tokens', exact: true }).click();
+  assert.equal(await processFilter.inputValue(), selectedProcess);
+  await context.getByLabel('Selected agent', { exact: true }).selectOption('');
+  await window.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
   await window.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
   for (const layer of ['Files', 'Network']) {
     await window.locator('.radar-layers').getByRole('button', { name: layer, exact: true }).click();
@@ -138,15 +140,18 @@ try {
         'navigation counts processes as agents',
       );
       await window.locator('.agent-group-row:visible .table-agent').first().click();
-      await window.getByText('Agent overview', { exact: true }).waitFor();
+      await window.getByRole('heading', { name: 'Agent overview', exact: true }).waitFor();
+      assert.equal(await window.getByRole('dialog').count(), 0);
       assert.equal(await window.getByRole('button', { name: 'Suspend', exact: true }).count(), 0);
       await window
-        .getByRole('dialog')
-        .getByRole('tab', { name: /Processes/ })
+        .getByRole('navigation', { name: 'Agent sections' })
+        .getByRole('button', { name: 'Processes', exact: true })
         .click();
-      assert((await window.locator('#modal .process-row').count()) > 0, 'group lost its processes');
-      await window.keyboard.press('Escape');
-      await window.getByRole('dialog').waitFor({ state: 'hidden' });
+      assert(
+        (await window.locator('.agent-processes tbody tr').count()) > 0,
+        'group lost its processes',
+      );
+      await context.getByLabel('Selected agent', { exact: true }).selectOption('');
     }
   }
   await window.getByLabel('Theme', { exact: true }).selectOption('light-hc');

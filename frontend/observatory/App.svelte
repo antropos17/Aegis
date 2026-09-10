@@ -30,6 +30,10 @@
   import Settings from './components/Settings.svelte';
   import Statistics from './components/Statistics.svelte';
   import Details from './components/Details.svelte';
+  import AgentContext from './components/AgentContext.svelte';
+  import AgentWorkspace from './components/AgentWorkspace.svelte';
+  import { detailKind } from './runtime/detail-model';
+  import { isScopedProcess, type AgentScope } from './runtime/agent-scope';
   let { host, preview = false }: { host: Host | null; preview?: boolean } = $props();
   const views = workspaces.map((entry) => [entry.id, entry.label, entry.icon]);
 
@@ -68,10 +72,16 @@
       section,
     })),
   ];
-  let statisticsScope = $state<{ agent: string; revision: number }>();
+  let scope = $state<AgentScope>({ agent: '', instanceId: '' });
+  let agentSection = $state<{ id: string; revision: number }>();
+  function changeScope(next: AgentScope) {
+    scope = next;
+    if (!next.agent) selected = null;
+    if (workspace) workspace.scrollTop = 0;
+  }
   function openStatistics(agent: string) {
+    if (scope.agent !== agent) changeScope({ agent, instanceId: '' });
     scrolls.stats = 0;
-    statisticsScope = { agent, revision: ++sectionRevision };
     void navigate('stats');
   }
   function openSensors() {
@@ -130,8 +140,26 @@
   let commands = $state(false);
   let navigationRevision = 0;
   let themeChanged = false;
-  let title = $derived(views.find((row) => row[0] === view)?.[1] ?? 'Monitoring');
+  let title = $derived(
+    scope.agent && ['overview', 'agents'].includes(view)
+      ? scope.agent
+      : (views.find((row) => row[0] === view)?.[1] ?? 'Monitoring'),
+  );
   function inspect(title: string, row: RecordData) {
+    const kind = detailKind(row);
+    const agent =
+      kind === 'group'
+        ? String(row.agentGroupKey)
+        : kind === 'process' && typeof row.agent === 'string'
+          ? row.agent
+          : '';
+    if (agent && (kind === 'group' || isScopedProcess(row))) {
+      changeScope({ agent, instanceId: kind === 'process' ? String(row.instanceId) : '' });
+      detail = null;
+      agentSection = { id: String(row.detailSection || 'overview'), revision: ++sectionRevision };
+      void navigate('agents');
+      return;
+    }
     detail = { title, row };
   }
   function appearance(nextDark: boolean, nextScale: number, highContrast = contrast) {
@@ -199,16 +227,8 @@
       typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resizeHead);
     headObserver?.observe(pageHead);
     resizeHead();
-    let initialSelectionMade = false;
     const stop = connectHost(host, (value) => {
       telemetry = value;
-      if (!initialSelectionMade && value.ready && !value.stale) {
-        const first = value.agents.find((agent) => agent.instanceId);
-        if (first?.instanceId) {
-          selected = first.instanceId;
-          initialSelectionMade = true;
-        }
-      }
     });
     connection = stop;
     const unsubscribe = host?.onToggleTheme
@@ -272,6 +292,7 @@
       (event.target.matches('input, textarea, select') || event.target.isContentEditable)
     )
       return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
     if (event.key === 's') void navigate('settings');
     if (event.key === 't') toggleTheme();
     const keys: Record<string, string> = {
@@ -391,6 +412,11 @@
             >
           </div>{/if}
       </div>
+      {#if isLiveWorkspace}<AgentContext
+          telemetry={displayTelemetry}
+          {scope}
+          change={changeScope}
+        />{/if}
       {#if telemetry.error}<p role="alert" class="health-banner">{telemetry.error}</p>{/if}
       {#if telemetry.stale}<p class="health-banner">
           {telemetry.ready
@@ -400,22 +426,38 @@
       <SensorStatus health={record(telemetry.stats.appHealth)} />
       <div id="workspace-content" role="region" aria-labelledby="page-title">
         <div id="content" class:analysis-view={view === 'analysis'}>
-          <div hidden={view !== 'overview' && view !== 'agents'}>
+          <div hidden={scope.agent !== '' || (view !== 'overview' && view !== 'agents')}>
             <Monitoring
               telemetry={displayTelemetry}
               bind:selected
               {inspect}
               mode={view}
               {openStatistics}
+              openAgent={(agent) => inspect(agent, { agentGroupKey: agent, name: agent })}
               {paused}
               {navigate}
             />
           </div>
+          {#if scope.agent}<div hidden={view !== 'overview' && view !== 'agents'}>
+              <AgentWorkspace
+                telemetry={displayTelemetry}
+                liveTelemetry={telemetry}
+                {host}
+                {scope}
+                change={changeScope}
+                {inspect}
+                {navigate}
+                {paused}
+                sectionRequest={agentSection}
+                visible={view === 'overview' || view === 'agents'}
+              />
+            </div>{/if}
           {#if tabs.includes('events')}<div hidden={view !== 'events'}>
               <Events
                 viewPaused={paused}
                 showPause={false}
                 telemetry={displayTelemetry}
+                {scope}
                 {inspect}
               />
             </div>{/if}
@@ -424,6 +466,7 @@
                 viewPaused={paused}
                 showPause={false}
                 telemetry={displayTelemetry}
+                {scope}
                 network
                 {inspect}
               />
@@ -474,7 +517,8 @@
               telemetry={displayTelemetry}
               {inspect}
               sectionRequest={sectionRequests.stats}
-              scopeRequest={statisticsScope}
+              {scope}
+              {changeScope}
               {paused}
             />
           </div>
@@ -513,5 +557,6 @@
     await connection?.refreshFalsePositives();
   }}
   request={detail}
+  openAgent={inspect}
   close={() => (detail = null)}
 />

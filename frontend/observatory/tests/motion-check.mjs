@@ -49,19 +49,13 @@ export async function checkMotion(page) {
     return Number.parseFloat(getComputedStyle(node).scale) < 1;
   }, key);
   await page.mouse.up();
-  assert(
-    await page
-      .locator('.inspector-content')
-      .evaluate((node) => node.getAnimations().some((a) => a.playState === 'running')),
-    'agent details appeared without feedback',
-  );
-  await page
-    .locator('.inspector-content')
-    .evaluate((node) => Promise.all(node.getAnimations().map((a) => a.finished.catch(() => {}))));
-  assert.equal(
-    await page.locator('.radar-blip[aria-pressed="true"]').getAttribute('data-group'),
-    key,
-  );
+  await page.locator('.agent-workspace:visible').waitFor();
+  await page.waitForFunction(() => !document.documentElement.dataset.transitionSurface);
+  const context = page.locator('.agent-context');
+  assert.equal(await context.getByLabel('Selected agent', { exact: true }).inputValue(), key);
+  assert.equal(await page.getByRole('dialog').count(), 0);
+  await context.getByLabel('Selected agent', { exact: true }).selectOption('');
+  await page.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
   await page.getByRole('button', { name: 'Resume view', exact: true }).click();
 
   const layers = page.locator('.radar-layers');
@@ -89,52 +83,32 @@ export async function checkMotion(page) {
   assert.equal(await page.locator('.radar-links').evaluate((svg) => svg.animationsPaused()), false);
   await layers.getByRole('button', { name: 'Radar', exact: true }).click();
 
-  await page.getByText(/Individual processes/).click();
-  await page.getByRole('button', { name: 'Process', exact: true }).waitFor();
-  await page.getByText(/Individual processes/).click();
-  await page.getByRole('button', { name: 'Process', exact: true }).waitFor({ state: 'hidden' });
-  await page.getByRole('button', { name: 'Open agent', exact: true }).click();
-  assert(
-    await page
-      .getByRole('dialog')
-      .evaluate((node) => node.getAnimations().some((a) => a.animationName === 'dialog-arrive')),
-    'detail dialog did not animate',
-  );
-  await page.keyboard.press('Escape');
-  await page.getByRole('dialog').waitFor({ state: 'hidden' });
-  assert.equal(
-    await page.locator('.radar-blip[aria-pressed="true"]').getAttribute('data-group'),
-    key,
-  );
-
   const lastKey = await page.evaluate(() => {
     const cards = [...document.querySelectorAll('.radar-agent-card')];
+    const expected = document.querySelector('.radar-blip').dataset.group;
     cards[0].click();
     cards[1].click();
     cards[0].click();
-    return document.querySelector('.radar-blip').dataset.group;
+    return expected;
   });
+  await page.waitForFunction(() => !document.documentElement.dataset.transitionSurface);
+  assert.equal(await context.getByLabel('Selected agent', { exact: true }).inputValue(), lastKey);
   assert.equal(
-    await page.locator('.radar-blip[aria-pressed="true"]').getAttribute('data-group'),
-    lastKey,
+    await page.locator('.agent-workspace:visible').count(),
+    1,
+    'rapid selection accumulated pages',
   );
-  assert(
-    (await page.locator('.inspector-content').evaluate((node) => node.getAnimations().length)) <= 1,
-    'rapid selection accumulated animations',
-  );
+  await context.getByLabel('Selected agent', { exact: true }).selectOption('');
+  await page.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.waitForFunction(
-    () => document.querySelector('.inspector-content').getAnimations().length === 0,
-  );
   assert.equal(
     await page.locator('.dial-sweep').evaluate((node) => getComputedStyle(node).animationName),
     'none',
   );
   await page.locator('.radar-agent-card').nth(1).click();
-  assert.equal(
-    await page.locator('.inspector-content').evaluate((node) => node.getAnimations().length),
-    0,
-  );
+  await page.locator('.agent-workspace:visible').waitFor();
+  assert.equal(await page.getByRole('dialog').count(), 0);
+  await context.getByLabel('Selected agent', { exact: true }).selectOption('');
   await page.emulateMedia({ reducedMotion: 'no-preference' });
 
   await page.locator('.sidebar').getByRole('button', { name: 'Settings', exact: true }).click();

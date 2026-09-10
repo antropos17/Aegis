@@ -71,14 +71,13 @@ export async function checkClarity(browser, url, out) {
       ]);
     });
     await page.getByRole('button', { name: /Highest risk/ }).click();
-    const dialog = page.getByRole('dialog');
-    await dialog.waitFor();
-    assert.equal(
-      await dialog.getByRole('tab', { name: 'Risk explanation' }).getAttribute('aria-selected'),
-      'true',
-    );
-    assert.match(await dialog.innerText(), /Plain HTTP connections/);
-    assert.match(await dialog.innerText(), /SSH \/ cloud credentials/);
+    const workspace = page.locator('.agent-workspace:visible');
+    const context = page.locator('.agent-context');
+    await workspace.waitFor();
+    assert.equal(await page.getByRole('dialog').count(), 0);
+    assert(await workspace.locator('#agent-risk details').evaluate((node) => node.open));
+    assert.match(await workspace.innerText(), /Plain HTTP connections/);
+    assert.match(await workspace.innerText(), /SSH \/ cloud credentials/);
     let states = 0;
     for (const width of [900, 1200]) {
       await page.setViewportSize({ width, height: width === 900 ? 600 : 800 });
@@ -91,29 +90,31 @@ export async function checkClarity(browser, url, out) {
             },
             { scale, theme },
           );
-          const issues = await dialog.evaluate((el) => {
-            const r = el.getBoundingClientRect(),
-              body = el.querySelector('#modal-body');
-            return {
-              outside:
-                r.left < 0 || r.top < 0 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1,
-              overflow: body.scrollWidth > body.clientWidth + 1,
-            };
-          });
-          assert.deepEqual(issues, { outside: false, overflow: false });
+          await workspace
+            .getByRole('navigation', { name: 'Agent sections' })
+            .getByRole('button', { name: 'Risk', exact: true })
+            .click();
+          assert(
+            await page.evaluate(
+              () =>
+                document.querySelector('#main').scrollWidth <=
+                document.querySelector('#main').clientWidth + 1,
+            ),
+            'risk workspace overflows',
+          );
           assert.match(
-            await dialog.locator('.primary-reason').innerText(),
+            await workspace.locator('.primary-reason').innerText(),
             /Plain HTTP connections/,
           );
           assert(
-            await dialog
-              .locator('.primary-reason')
+            await workspace
+              .locator('.risk-reason')
               .evaluate(
-                (el) =>
-                  el.getBoundingClientRect().bottom <=
-                  document.querySelector('#modal-body').getBoundingClientRect().bottom,
+                (node) =>
+                  node.getBoundingClientRect().top >= 0 &&
+                  node.getBoundingClientRect().bottom <= innerHeight,
               ),
-            'main reason requires scrolling',
+            'main reason requires another navigation',
           );
           await page.screenshot({
             path: resolve(out, 'clarity-' + width + '-' + scale + '-' + theme + '.png'),
@@ -124,26 +125,32 @@ export async function checkClarity(browser, url, out) {
     }
     await page.setViewportSize({ width: 1200, height: 800 });
     await page.evaluate(() => document.documentElement.style.setProperty('--ui-scale', '1'));
-    await dialog.getByRole('button', { name: 'View process PID 12' }).click();
-    await dialog.getByText('Agent instance', { exact: true }).waitFor();
-    await dialog.getByRole('button', { name: 'Why this score' }).click();
-    assert.match(await dialog.innerText(), /Assessment when opened/);
-    await dialog.getByRole('button', { name: 'Back', exact: true }).click();
-    await dialog.getByRole('button', { name: 'View process PID 12' }).waitFor();
+    await workspace.getByRole('button', { name: 'View process PID 12' }).click();
+    await page.getByRole('heading', { name: 'Process overview', exact: true }).waitFor();
     assert.equal(
-      await dialog.getByRole('tab', { name: 'Risk explanation' }).getAttribute('aria-selected'),
-      'true',
+      await context.getByLabel('Selected process', { exact: true }).inputValue(),
+      'clarity:12',
     );
-    await page.keyboard.press('Escape');
-    await dialog.waitFor({ state: 'hidden' });
+    assert.equal(await page.getByRole('dialog').count(), 0);
+    await workspace
+      .getByRole('navigation', { name: 'Agent sections' })
+      .getByRole('button', { name: 'Risk', exact: true })
+      .click();
+    assert.match(
+      await workspace.locator('.risk-explanation').innerText(),
+      /Plain HTTP connections/,
+    );
+    await context.getByLabel('Selected process', { exact: true }).selectOption('');
+    await workspace.getByRole('button', { name: 'View process PID 12' }).waitFor();
+    await context.getByLabel('Selected agent', { exact: true }).selectOption('');
     await page.locator('.sidebar').getByRole('button', { name: 'Agents', exact: true }).click();
     await page.getByRole('button', { name: 'Explain risk for Codex' }).click();
-    await dialog.getByRole('heading', { name: 'Why this score', exact: true }).waitFor();
+    await workspace.getByRole('heading', { name: 'Why this score', exact: true }).waitFor();
     assert.deepEqual(errors, []);
     console.log(
       'Risk clarity: ' +
         states +
-        ' theme/scale/viewport states; summary and table drilldown, actual contributions, highest process and Back passed.',
+        ' theme/scale/viewport states; summary and table entry points, actual contributions, direct highest process and shared context passed.',
     );
   } finally {
     await page.close();

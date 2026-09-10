@@ -37,9 +37,33 @@ function resourceContext(path) {
   }
   return '';
 }
+/** Explain a recorded evidence code without adding an ownership or safety claim.
+ * @param {unknown} code Stored code @returns {string} Human explanation @since 0.14.1
+ */
+function observationEvidenceLabel(code) {
+  const labels = {
+    'rm-holder-pid': 'The operating system recorded a process holding this resource.',
+    'handle-scan-pid': 'The process handle scan recorded this resource.',
+    'os-tcp-owner-pid': 'The operating system recorded the process owning this connection.',
+    'self-config-path': 'Matched an agent configuration directory; ownership is inferred.',
+    'cwd-containment': 'Matched an agent working directory; ownership is inferred.',
+    'no-owner-match': 'No observed agent matched this resource.',
+    'no-ai-agents-online': 'No AI agent was observed when this event was recorded.',
+    'population-unavailable': 'Process observation was unavailable when this event was recorded.',
+    'ip-allowlist': 'The address matches a published operator IP range.',
+    'domain-allowlist': 'The verified hostname matches the endpoint allowlist.',
+    'domain-not-allowlisted': 'The hostname was verified but is not on the endpoint allowlist.',
+    'ptr-missing': 'No reverse-DNS name was available; the lookup may also have failed.',
+    'ptr-unconfirmed': 'The reverse-DNS name did not resolve back to this address.',
+  };
+  const key = text(code);
+  return Object.hasOwn(labels, key)
+    ? labels[key]
+    : key.replaceAll('-', ' ') || 'No explanation was recorded.';
+}
 /** Describe known resource identity separately from actor attribution.
  * @param {Observation} row @param {Observation[]} [agents] Exact current instances
- * @returns {{actor: string, label: string, hint: string, context: string, skill: ReturnType<typeof skillFromPath>, resource: string, path: string, kind: string, attribution: string, source: string}}
+ * @returns {{actor: string, label: string, hint: string, context: string, skill: ReturnType<typeof skillFromPath>, resource: string, path: string, kind: string, attribution: string, explanation: string, source: string}}
  * @since 0.14.1
  */
 function describeObservation(row, agents = []) {
@@ -68,6 +92,21 @@ function describeObservation(row, agents = []) {
           : actor
             ? 'Recorded owner'
             : 'Actor not recorded';
+  const codes = 'evidence' in evidence && Array.isArray(evidence.evidence) ? evidence.evidence : [];
+  const relevantCodes = codes.filter((code) =>
+    status === 'unattributed'
+      ? ['no-owner-match', 'no-ai-agents-online', 'population-unavailable'].includes(code)
+      : status === 'inferred'
+        ? ['self-config-path', 'cwd-containment'].includes(code)
+        : status === 'confirmed'
+          ? ['rm-holder-pid', 'handle-scan-pid', 'os-tcp-owner-pid'].includes(code)
+          : false,
+  );
+  const explanation = relevantCodes.length
+    ? [...new Set(relevantCodes.map(observationEvidenceLabel))].join(' ')
+    : actor
+      ? 'The observation records this agent; no further attribution evidence was recorded.'
+      : 'The observation does not identify an agent process.';
   return {
     actor,
     label: actor || context || (skill ? 'Shared skills' : 'Unattributed activity'),
@@ -88,6 +127,7 @@ function describeObservation(row, agents = []) {
     path: path || endpointLabel(row),
     kind: skill ? 'Skill' : network ? 'Network' : path ? 'File' : text(row.type) || 'Activity',
     attribution,
+    explanation,
     source: text(row.source) || (network ? 'Network snapshot' : 'Not recorded'),
   };
 }
@@ -197,6 +237,7 @@ function groupObservations(rows, mode = 'resource', agents = []) {
   return [...grouped.values()].sort((a, b) => b.last - a.last || a.label.localeCompare(b.label));
 }
 module.exports = {
+  observationEvidenceLabel,
   describeObservation,
   groupObservations,
   observationTime,

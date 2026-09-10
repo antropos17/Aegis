@@ -1,6 +1,7 @@
 <script lang="ts">
   import { instances, type Telemetry, type RecordData } from '../runtime/host';
   import { describeObservation } from '../../../src/shared/observation-display.js';
+  import { scopeEvidence, type AgentScope } from '../runtime/agent-scope';
   import Icon from './Icon.svelte';
   import ObservationTable from './ObservationTable.svelte';
   let {
@@ -8,26 +9,33 @@
     network = false,
     showPause = true,
     viewPaused = false,
+    scope,
     inspect,
   }: {
     telemetry: Telemetry;
     network?: boolean;
     showPause?: boolean;
     viewPaused?: boolean;
+    scope?: AgentScope;
     inspect: (_title: string, _row: RecordData) => void;
   } = $props();
   let query = $state(''),
     kind = $state('all'),
     agent = $state(''),
+    attribution = $state('all'),
     severity = $state('all');
   let paused = $state(false),
     held = $state<RecordData[]>([]);
   let filtersOpen = $state(false);
   let showingPaused = $derived(paused || (!showPause && viewPaused));
   let grouping = $state<'resource' | 'agent' | 'none'>('resource');
-  let rows = $derived(
+  let rawRows = $derived(
     (paused ? held : network ? telemetry.network : telemetry.events) as unknown as RecordData[],
   );
+  let rows = $derived(scope ? scopeEvidence(rawRows, telemetry, scope) : rawRows);
+  let localAgentFilter = $derived(scope ? '' : agent);
+  let attributionFilter = $derived(scope && !scope.agent ? attribution : 'all');
+  let effectiveKind = $derived(scope && kind === 'unattributed' ? 'all' : kind);
   let agents = $derived(instances(telemetry) as unknown as RecordData[]);
   let agentNames = $derived(
     [...new Set(rows.map((row) => describeObservation(row, agents).label))].sort(),
@@ -36,13 +44,15 @@
     rows.filter((row) => {
       const info = describeObservation(row, agents);
       return (
-        (!agent || (agent === 'unattributed' ? !info.actor : info.label === agent)) &&
-        (kind === 'all' ||
+        (!localAgentFilter ||
+          (localAgentFilter === 'unattributed' ? !info.actor : info.label === localAgentFilter)) &&
+        (attributionFilter === 'all' || !info.actor) &&
+        (effectiveKind === 'all' ||
           (network
-            ? (row.verdict ?? 'unknown') === kind
-            : kind === 'skills'
+            ? (row.verdict ?? 'unknown') === effectiveKind
+            : effectiveKind === 'skills'
               ? !!info.skill
-              : kind === 'sensitive'
+              : effectiveKind === 'sensitive'
                 ? row.sensitive
                 : !info.actor)) &&
         (severity === 'all' ||
@@ -72,6 +82,7 @@
     query = '';
     kind = 'all';
     agent = '';
+    attribution = 'all';
     severity = 'all';
   }
 </script>
@@ -101,13 +112,14 @@
       aria-expanded={filtersOpen}
       aria-controls={network ? 'network-filters' : 'event-filters'}
       onclick={() => (filtersOpen = !filtersOpen)}
-      >Filters {#if kind !== 'all' || agent || severity !== 'all'}<span class="badge">Active</span
+      >Filters {#if effectiveKind !== 'all' || localAgentFilter || attributionFilter !== 'all' || severity !== 'all'}<span
+          class="badge">Active</span
         >{/if}</button
     >
     {#if showPause}<button
         class="button"
         onclick={() => {
-          if (!paused) held = rows;
+          if (!paused) held = [...rawRows];
           paused = !paused;
         }}
         ><Icon name={paused ? 'play' : 'pause'} />{paused
@@ -122,13 +134,18 @@
   id={network ? 'network-filters' : 'event-filters'}
   hidden={!filtersOpen}
 >
-  <label
-    >Agent / context<select aria-label="Event agent" bind:value={agent}
-      ><option value="">All agents and resources</option>{#each agentNames as name (name)}<option
-          >{name}</option
-        >{/each}<option value="unattributed">Actor not recorded</option></select
-    ></label
-  >
+  {#if !scope}<label
+      >Agent / context<select aria-label="Event agent" bind:value={agent}
+        ><option value="">All agents and resources</option>{#each agentNames as name (name)}<option
+            >{name}</option
+          >{/each}<option value="unattributed">Actor not recorded</option></select
+      ></label
+    >{:else if !scope.agent}<label
+      >Attribution<select aria-label="Attribution" bind:value={attribution}>
+        <option value="all">All attribution</option>
+        <option value="unattributed">Actor not recorded</option>
+      </select></label
+    >{/if}
   <label
     >{network ? 'Classification' : 'Type'}<select aria-label="Event kind" bind:value={kind}
       ><option value="all">All</option>{#if network}<option value="flagged">Not allowlisted</option
@@ -136,7 +153,7 @@
           >Allowlisted</option
         >{:else}<option value="skills">Skills</option><option value="sensitive"
           >Sensitive events</option
-        ><option value="unattributed">Actor not recorded</option>{/if}</select
+        >{#if !scope}<option value="unattributed">Actor not recorded</option>{/if}{/if}</select
     ></label
   >
   {#if !network}<label
@@ -152,8 +169,8 @@
   <span
     >{filtered.length} of {rows.length}
     {network ? 'connections' : 'events'} · {showingPaused ? 'Paused snapshot' : 'Live view'}</span
-  >{#if query || kind !== 'all' || agent || severity !== 'all'}<span class="badge"
-      >Filters active</span
+  >{#if query || effectiveKind !== 'all' || localAgentFilter || attributionFilter !== 'all' || severity !== 'all'}<span
+      class="badge">Filters active</span
     >{/if}
 </div>
 <ObservationTable
@@ -161,7 +178,16 @@
   {telemetry}
   {inspect}
   {grouping}
-  resetKey={JSON.stringify([query, kind, agent, severity, network])}
+  resetKey={JSON.stringify([
+    query,
+    effectiveKind,
+    localAgentFilter,
+    attributionFilter,
+    severity,
+    network,
+    scope?.agent,
+    scope?.instanceId,
+  ])}
 />
 
 <style>

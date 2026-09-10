@@ -6,7 +6,6 @@
   import Radar from './Radar.svelte';
   import ActivityChart from './ActivityChart.svelte';
   import Agents from './Agents.svelte';
-  import Timeline from './Timeline.svelte';
   import Icon from './Icon.svelte';
   import ObservationResource from './ObservationResource.svelte';
   import {
@@ -20,6 +19,7 @@
     mode = 'overview',
     navigate,
     openStatistics,
+    openAgent,
     paused = false,
   }: {
     telemetry: Telemetry;
@@ -28,6 +28,7 @@
     mode?: string;
     paused?: boolean;
     openStatistics?: (_agent: string) => void;
+    openAgent?: (_agent: string) => void;
     navigate?: (_view: string) => void | Promise<void>;
   } = $props();
   let agents = $derived(instances(telemetry)),
@@ -104,7 +105,7 @@
       </p>
     </div>
   </div>
-  <Radar {telemetry} bind:selected {inspect} {openStatistics} />
+  <Radar {telemetry} bind:selected {inspect} {openStatistics} {openAgent} />
   <div class="monitoring-activity">
     <ActivityChart
       events={telemetry.events}
@@ -114,8 +115,7 @@
       stale={telemetry.stale}
     />
   </div>
-  <div class="overview-bottom">
-    <Timeline {telemetry} {inspect} {paused} />
+  <div class="recent-evidence">
     <section class="panel recent-panel">
       <div class="panel-head">
         <h2><Icon name="activity" />Recent events</h2>

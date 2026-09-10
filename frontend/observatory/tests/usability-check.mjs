@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 
-/** Check agent scope and stable layout under user selection.
+/** Check one shared agent context across the live workspaces.
  * @param {import('playwright').Browser} browser Browser @param {string} url Preview
  * @param {string} out Screenshot directory @returns {Promise<void>} Verified @since 0.14.1
  */
@@ -11,6 +11,13 @@ export async function checkUsability(browser, url, out) {
   page.on('pageerror', (error) => errors.push(error.message));
   const settle = () =>
     page.waitForFunction(() => !document.documentElement.dataset.transitionSurface);
+  const context = page.locator('.agent-context');
+  const agent = context.getByLabel('Selected agent', { exact: true });
+  const process = context.getByLabel('Selected process', { exact: true });
+  const go = async (name) => {
+    await page.locator('.sidebar').getByRole('button', { name, exact: true }).click();
+    await settle();
+  };
   try {
     await page.goto(url);
     await page.getByRole('heading', { name: 'Agent radar', exact: true }).waitFor();
@@ -28,14 +35,11 @@ export async function checkUsability(browser, url, out) {
           { theme, scale },
         );
         await page.emulateMedia({ reducedMotion: width === 900 ? 'reduce' : 'no-preference' });
-        await page
-          .locator('.sidebar')
-          .getByRole('button', { name: 'Monitoring', exact: true })
-          .click();
-        await settle();
+        await go('Monitoring');
+        await agent.selectOption('');
         const heights = () =>
           page.evaluate(() =>
-            ['.radar-panel', '.radar-stage', '.inspector'].map(
+            ['.radar-panel', '.radar-stage'].map(
               (selector) => document.querySelector(selector).getBoundingClientRect().height,
             ),
           );
@@ -47,14 +51,36 @@ export async function checkUsability(browser, url, out) {
             .click();
           assert.deepEqual(await heights(), before, 'radar layer moved surrounding content');
         }
-        for (let i = 0; i < 4; i++) {
-          await page.locator('.radar-agent-card').nth(i).click();
-          assert.deepEqual(await heights(), before, 'agent selection resized its panel');
-        }
         await page.getByRole('button', { name: /Select Codex,/ }).click();
-        await page.getByRole('button', { name: 'Agent statistics', exact: true }).click();
-        await settle();
-        assert.equal(await page.getByLabel('Statistics agent').inputValue(), 'Codex');
+        await page.locator('.agent-workspace:visible').waitFor();
+        assert.equal(await page.getByRole('dialog').count(), 0, 'agent opened in a modal');
+        assert.equal(await agent.inputValue(), 'Codex');
+        await process.selectOption({ index: 1 });
+        const selectedProcess = await process.inputValue();
+        assert(selectedProcess, 'fixture lacks a stamped process');
+        await page.getByRole('heading', { name: 'Process overview', exact: true }).waitFor();
+        await page
+          .getByRole('navigation', { name: 'Agent sections' })
+          .getByRole('button', { name: 'Risk', exact: true })
+          .click();
+        assert(await page.locator('#agent-risk details').evaluate((node) => node.open));
+        await page
+          .getByRole('navigation', { name: 'Agent sections' })
+          .getByRole('button', { name: 'Processes', exact: true })
+          .click();
+        assert(await page.getByRole('region', { name: 'Agent worker processes' }).isVisible());
+        assert.equal(await page.getByRole('dialog').count(), 0);
+        for (const view of ['Events', 'Network', 'Statistics']) {
+          await go(view);
+          assert.equal(await agent.inputValue(), 'Codex', view + ' lost agent context');
+          assert.equal(await process.inputValue(), selectedProcess, view + ' lost process context');
+          assert.equal(await page.locator('.agent-context').count(), 1);
+        }
+        assert.equal(
+          await page.getByLabel('Statistics agent', { exact: true }).count(),
+          0,
+          'duplicate selector returned',
+        );
         assert.equal(await page.locator('.plot:visible').count(), 1);
         assert.equal(await page.locator('.metric-rail svg').count(), 0);
         const rail = page.locator('.metric-rail button:visible');
@@ -70,36 +96,44 @@ export async function checkUsability(browser, url, out) {
           if (graphY !== null) assert(Math.abs(y - graphY) < 2, 'metric choice moved the plot');
           graphY = y;
         }
-        await page.getByLabel('Statistics process').selectOption({ index: 1 });
-        const process = await page.getByLabel('Statistics process').inputValue();
         await page.getByRole('tab', { name: 'Tokens', exact: true }).click();
-        assert.equal(await page.getByLabel('Statistics process').inputValue(), process);
+        assert.equal(await process.inputValue(), selectedProcess);
         await page.getByRole('tab', { name: 'Sensors', exact: true }).click();
-        assert(await page.getByLabel('Statistics agent').isDisabled());
+        assert.equal(
+          await process.inputValue(),
+          selectedProcess,
+          'sensor view discarded selection',
+        );
         await page.getByRole('tab', { name: 'Performance', exact: true }).click();
-        assert.equal(await page.getByLabel('Statistics process').inputValue(), process);
+        assert.equal(await process.inputValue(), selectedProcess);
         await page.locator('#main').evaluate((node) => {
           node.scrollTop = 0;
         });
-        const overflow = await page.evaluate(() => {
-          const main = document.querySelector('#main');
-          return (
-            main.scrollWidth > main.clientWidth + 2 ||
-            document.documentElement.scrollWidth > innerWidth + 2
-          );
-        });
-        assert(!overflow, 'scoped statistics overflow');
+        assert(
+          await page.evaluate(
+            () =>
+              document.querySelector('#main').scrollWidth <=
+                document.querySelector('#main').clientWidth + 2 &&
+              document.documentElement.scrollWidth <= innerWidth + 2,
+          ),
+          'scoped statistics overflow',
+        );
         await page.screenshot({
           path: resolve(out, 'usability-statistics-' + theme + '-' + width + '.png'),
         });
         await page.getByRole('button', { name: 'Back', exact: true }).click();
-        await settle();
-        await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
+        await page.getByRole('heading', { name: 'Network', level: 1, exact: true }).waitFor();
+        assert.equal(await process.inputValue(), selectedProcess, 'Back lost process context');
+        await go('Agents');
+        await process.selectOption('');
+        await page.getByRole('heading', { name: 'Agent overview', exact: true }).waitFor();
+        assert.equal(await agent.inputValue(), 'Codex');
+        await agent.selectOption('');
       }
     }
     assert.deepEqual(errors, []);
     console.log(
-      'Usability: four theme/viewport/scale states; stable radar and inspector dimensions, stable metric plot, direct agent statistics, process selection, Back and no overflow passed.',
+      'Usability: four theme/viewport/scale states; shared agent/process in Events, Network and Statistics; in-page agent/risk/process workflows; stable graph; Back and no overflow passed.',
     );
   } finally {
     await page.close();

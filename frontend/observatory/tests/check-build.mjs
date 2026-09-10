@@ -117,20 +117,30 @@ try {
       sidebar: rect('.sidebar'),
       topbar: rect('.topbar'),
       history: rect('.history-controls'),
+      context: rect('.agent-context'),
       summary: rect('.summary'),
       radar: rect('.radar-panel'),
-      inspector: rect('.inspector'),
     };
   });
   assert.equal(geometry.sidebar.width, 184, 'prototype sidebar density');
   assert(Math.abs(geometry.topbar.height - 46) <= 2, 'prototype toolbar height');
   assert.equal(await page.locator('.workspace-tabs').count(), 0, 'duplicate navigation returned');
-  assert(Math.abs(geometry.summary.y - 116) <= 4, 'prototype summary position');
-  assert(Math.abs(geometry.radar.y - geometry.inspector.y) < 1, 'inspector aligns with radar');
+  assert(
+    geometry.summary.y >= geometry.context.y + geometry.context.height,
+    'summary overlaps shared agent context',
+  );
+  assert.equal(await page.locator('.inspector').count(), 0, 'overview retained an empty inspector');
   assert.equal(await page.locator('.summary > .summary-stat').count(), 6);
   assert.equal(await page.locator('.radar-agent-card').count(), 4);
   const sweep = await page.locator('.dial-sweep').elementHandle();
   await page.getByRole('button', { name: /Select Claude Code, 1 processes/ }).click();
+  await page.locator('.agent-workspace:visible').waitFor();
+  assert.equal(await page.getByRole('dialog').count(), 0);
+  await page
+    .locator('.agent-context')
+    .getByLabel('Selected agent', { exact: true })
+    .selectOption('');
+  await page.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
   await page.getByRole('button', { name: 'Files', exact: true }).click();
   await page.getByRole('button', { name: 'Radar', exact: true }).click();
   assert(
@@ -354,27 +364,22 @@ try {
   );
   await page.screenshot({ path: resolve(out, 'monitoring.png') });
   await page.getByRole('button', { name: /Select Claude Code, 1 processes/ }).click();
-  assert.equal(
-    await page.getByRole('button', { name: 'Process', exact: true }).isVisible(),
-    false,
-    'individual processes are expanded by default',
-  );
-  await page.getByText(/Individual processes/).click();
-  await page.getByRole('button', { name: 'Process', exact: true }).click();
-  const dialog = page.getByRole('dialog');
-  await dialog.waitFor();
-  await dialog.evaluate((node) =>
-    Promise.all(node.getAnimations().map((a) => a.finished.catch(() => {}))),
-  );
+  await page.locator('.agent-workspace:visible').waitFor();
+  assert.equal(await page.getByRole('dialog').count(), 0);
+  await page
+    .locator('.agent-context')
+    .getByLabel('Selected process', { exact: true })
+    .selectOption({ index: 1 });
+  await page.getByRole('heading', { name: 'Process overview', exact: true }).waitFor();
+  await page.getByText('Process attributes and controls', { exact: true }).click();
+  await page.getByRole('button', { name: 'Suspend', exact: true }).waitFor();
   await page.screenshot({ path: resolve(out, 'instance.png') });
   assert.equal(await page.locator('button button, button a').count(), 0);
-  await page.keyboard.press('Escape');
-  await dialog.waitFor({ state: 'hidden' });
-  assert.equal(
-    await page.locator('.radar-blip[aria-pressed="true"]').count(),
-    1,
-    'closing details cleared radar selection',
-  );
+  await page
+    .locator('.agent-context')
+    .getByLabel('Selected agent', { exact: true })
+    .selectOption('');
+  await page.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
   assert.equal(await page.evaluate(() => window.bridgeCalls), 0);
   await checkMotion(page);
   await page.close();

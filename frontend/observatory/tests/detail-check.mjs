@@ -125,8 +125,10 @@ export async function checkDetails(browser, url, out) {
       ]);
     });
     await page.getByRole('button', { name: /Select Codex, 26 processes/ }).click();
-    await page.getByRole('button', { name: 'Open agent', exact: true }).click();
-    await page.getByRole('dialog').waitFor();
+    const workspace = page.locator('.agent-workspace:visible');
+    const context = page.locator('.agent-context');
+    await workspace.waitFor();
+    assert.equal(await page.getByRole('dialog').count(), 0);
     for (const size of [
       { width: 1200, height: 800 },
       { width: 900, height: 600 },
@@ -141,16 +143,19 @@ export async function checkDetails(browser, url, out) {
             },
             { scale, theme },
           );
-          for (const name of ['Overview', /^Processes/, /^Activity/]) {
-            await tab(name).click();
-            await checkLayout();
-          }
+          await settled();
+          assert(
+            await workspace.evaluate((node) => node.scrollWidth <= node.clientWidth + 1),
+            'agent workspace overflows',
+          );
+          assert.equal(await page.getByRole('dialog').count(), 0);
+          assert(!/DO-NOT-DISPLAY/.test(await workspace.innerText()));
           if (
             !theme.endsWith('-hc') &&
             ((size.width === 1200 && scale === 1) || (size.width === 900 && scale === 1.5))
           ) {
             await page.screenshot({
-              path: resolve(out, 'detail-' + theme + '-' + size.width + '.png'),
+              path: resolve(out, 'agent-workspace-' + theme + '-' + size.width + '.png'),
             });
           }
         }
@@ -161,50 +166,56 @@ export async function checkDetails(browser, url, out) {
       document.documentElement.style.setProperty('--ui-scale', '1');
       document.documentElement.dataset.theme = 'dark';
     });
-    await tab(/^Processes/).click();
-    await page.getByLabel('Find a process').fill('codex.exe');
-    await page.getByRole('button', { name: 'Show 12 more processes' }).click();
-    const selected = page.getByRole('button', { name: 'Open process PID 220' });
-    await selected.scrollIntoViewIfNeeded();
-    const scroll = await page.locator('#modal-body').evaluate((el) => el.scrollTop);
-    await selected.click();
-    await tab('Attributes').click();
-    assert.match(await page.locator('#modal-body').innerText(), /detail:20/);
-    await tab('Overview').focus();
-    await page.keyboard.press('End');
-    assert.equal(await tab('Controls').getAttribute('aria-selected'), 'true');
-    await checkLayout();
+    await workspace
+      .getByRole('navigation', { name: 'Agent sections' })
+      .getByRole('button', { name: 'Processes', exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Show all 26 processes' }).click();
+    await page.getByRole('button', { name: 'PID 220', exact: true }).click();
+    assert.equal(
+      await context.getByLabel('Selected process', { exact: true }).inputValue(),
+      'detail:20',
+    );
+    await page.getByRole('heading', { name: 'Process overview', exact: true }).waitFor();
+    await page.getByText('Process attributes and controls', { exact: true }).click();
+    assert.match(await workspace.innerText(), /detail:20/);
     assert(await page.getByRole('button', { name: 'Suspend', exact: true }).isEnabled());
-    await page.getByRole('dialog').getByRole('button', { name: 'Back', exact: true }).click();
-    await settled();
-    assert.equal(await tab(/^Processes/).getAttribute('aria-selected'), 'true');
-    assert.equal(await page.getByLabel('Find a process').inputValue(), 'codex.exe');
-    assert.equal(await page.locator('#modal .process-row').count(), 24);
-    assert.equal(await page.locator('#modal-body').evaluate((el) => el.scrollTop), scroll);
-    assert(await selected.evaluate((el) => document.activeElement === el));
-    await page.screenshot({ path: resolve(out, 'detail-processes.png') });
-    await tab(/^Activity/).click();
-    await page.locator('.activity-card').filter({ hasText: 'SKILL.md' }).click();
-    await tab(/^Records/).waitFor();
-    assert.equal(await tab(/^Records/).getAttribute('aria-selected'), 'true');
-    await page.getByRole('button', { name: 'Show 15 more' }).click();
-    assert.equal(await page.locator('.observation-history .recent-event').count(), 35);
-    await page.locator('.observation-history .recent-event').nth(22).click();
+    await context.getByLabel('Selected process', { exact: true }).selectOption('detail:0');
+    const observation = page.getByRole('button', {
+      name: 'Inspect file observation 1',
+      exact: true,
+    });
+    await observation.click();
+    await page.getByRole('dialog').waitFor();
     await tab('Attributes').click();
     await checkLayout();
     assert.match(await page.locator('#modal-body').innerText(), /Process identity/);
-    await page.screenshot({ path: resolve(out, 'detail-evidence.png') });
+    await tab('Related').click();
+    await page.locator('[data-detail-focus="exact-process"]').click();
+    await page.getByRole('dialog').waitFor({ state: 'hidden' });
+    assert.equal(
+      await context.getByLabel('Selected process', { exact: true }).inputValue(),
+      'detail:0',
+    );
+    await workspace
+      .getByRole('region', { name: 'Selected agent file activity' })
+      .getByRole('button', { name: 'View all', exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Open 35 observations for review' }).click();
+    await tab(/^Records/).waitFor();
+    await page.getByRole('button', { name: 'Show 15 more' }).click();
+    const selected = page.locator('.observation-history .recent-event').nth(22);
+    await selected.scrollIntoViewIfNeeded();
+    await selected.click();
+    await tab('Attributes').click();
+    await checkLayout();
     await page.getByRole('dialog').getByRole('button', { name: 'Back', exact: true }).click();
     await settled();
     assert.equal(await page.locator('.observation-history .recent-event').count(), 35);
+    assert(await selected.evaluate((node) => document.activeElement === node));
     await page.screenshot({ path: resolve(out, 'detail-records.png') });
     await page.keyboard.press('Escape');
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
-    assert(
-      await page
-        .getByRole('button', { name: 'Open agent', exact: true })
-        .evaluate((el) => el === document.activeElement),
-    );
     await page
       .locator('.sidebar')
       .getByRole('button', { name: 'Agent catalog', exact: true })
@@ -260,7 +271,7 @@ export async function checkDetails(browser, url, out) {
     assert.equal(await page.locator('button button, button a').count(), 0);
     assert.deepEqual(errors, []);
     console.log(
-      'Detail dialogs: 48 theme/scale/viewport/tab layouts; search, pagination, history, focus, evidence, keyboard controls and editor drafts passed.',
+      'Agent workspace: 16 theme/scale/viewport layouts; direct process scope and evidence-to-agent return; record pagination/history/focus, evidence layout and editor drafts passed.',
     );
   } finally {
     await page.close();

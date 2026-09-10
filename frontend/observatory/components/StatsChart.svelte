@@ -20,6 +20,7 @@
     paused?: boolean;
     now?: number;
   } = $props();
+  const chartId = $props.id();
   let pinnedAt = $state<number | null>(null),
     hoverAt = $state<number | null>(null);
   let metric = $derived(metrics.find((m) => m.id === selected) ?? metrics[0]);
@@ -137,9 +138,9 @@
       hover={(at) => (hoverAt = at)}
     />
     <div class="scrubber">
-      <label for={'stats-sample-' + metric.id}>Inspect</label>
+      <label for={chartId + '-sample-' + metric.id}>Inspect</label>
       <input
-        id={'stats-sample-' + metric.id}
+        id={chartId + '-sample-' + metric.id}
         type="range"
         min="0"
         max={Math.max(0, observations.length - 1)}

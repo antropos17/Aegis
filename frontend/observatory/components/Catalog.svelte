@@ -182,7 +182,7 @@
                 class:low={row.riskProfile === 'low'}
                 class:high={row.riskProfile === 'high'}
                 class:medium={row.riskProfile === 'medium'}
-                >{String(row.riskProfile ?? 'Unknown')}</span
+                >{String(row.riskProfile || 'Not specified')}</span
               ></td
             ><td
               ><div class="toolbar">

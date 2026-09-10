@@ -15,6 +15,7 @@
     label?: string;
   } = $props();
   async function keydown(event: KeyboardEvent, index: number) {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
     event.stopPropagation();
