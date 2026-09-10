@@ -41,7 +41,7 @@ const ENDPOINT_WEIGHTS = { FLAGGED: 8, UNKNOWN: 3 };
 const ENDPOINT_CEILING = 20;
 
 /**
- * Calculate risk score for an agent (0–100).
+ * Return the contributions used by the exposure score.
  * Diminishing returns for sensitive files, separate SSH/AWS signal,
  * capped contributions per factor to prevent instant-100.
  *
@@ -49,10 +49,10 @@ const ENDPOINT_CEILING = 20;
  * ({@link ENDPOINT_CEILING}), so splitting them cannot inflate the total: the factor's
  * maximum is what it always was.
  * @param {{ sensitiveFiles?: number, configFiles?: number, sshAwsFiles?: number, networkCount?: number, flaggedDomains?: number, unknownDomains?: number, fileCount?: number, httpUnencryptedCount?: number }} agent
- * @returns {number} Risk score 0–100
+ * @returns {{id: string, points: number}[]} Factor contributions before rounding/capping
  * @since 0.2.0
  */
-export function calculateRiskScore(agent) {
+export function calculateRiskFactors(agent) {
   const sensitive = agent.sensitiveFiles || 0;
   const config = agent.configFiles || 0;
   const sshAws = agent.sshAwsFiles || 0;
@@ -73,17 +73,26 @@ export function calculateRiskScore(agent) {
   const sshAwsContrib = Math.min(20, sshAws * 5);
   const httpContrib = httpUnencrypted > 0 ? 15 : 0;
 
+  return [
+    { id: 'sensitive', points: sensitiveContrib },
+    { id: 'config', points: configContrib },
+    { id: 'network', points: netContrib },
+    { id: 'endpoints', points: endpointContrib },
+    { id: 'files', points: fileContrib },
+    { id: 'credentials', points: sshAwsContrib },
+    { id: 'http', points: httpContrib },
+  ];
+}
+
+/** Calculate the unchanged score from its shared contributions.
+ * @param {Parameters<typeof calculateRiskFactors>[0]} agent Scoring inputs
+ * @returns {number} Rounded exposure score, capped at 100
+ * @since 0.14.1
+ */
+export function calculateRiskScore(agent) {
   return Math.min(
     100,
-    Math.round(
-      sensitiveContrib +
-        configContrib +
-        netContrib +
-        endpointContrib +
-        fileContrib +
-        sshAwsContrib +
-        httpContrib,
-    ),
+    Math.round(calculateRiskFactors(agent).reduce((sum, f) => sum + f.points, 0)),
   );
 }
 

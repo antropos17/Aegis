@@ -1,4 +1,9 @@
-import { calculateRiskScore, getTrustGrade, getTimeDecayWeight } from './risk-scoring.js';
+import {
+  calculateRiskFactors,
+  calculateRiskScore,
+  getTrustGrade,
+  getTimeDecayWeight,
+} from './risk-scoring.js';
 import { buildInstanceKey } from '../../../shared/instance-key.js';
 import type {
   DetectedAgent,
@@ -212,7 +217,8 @@ export function enrichAgents(
       fileCount,
       httpUnencryptedCount,
     };
-    let riskScore: number = calculateRiskScore(riskInput);
+    const baseScore = calculateRiskScore(riskInput);
+    let riskScore = baseScore;
     if (fpNames.has(name)) riskScore = Math.max(0, riskScore - 20);
     const trustGrade = getTrustGrade(riskScore) as TrustGrade;
 
@@ -233,6 +239,11 @@ export function enrichAgents(
       unknownDomains: flaggedDomains + unknownDomains,
       anomalyScore,
       riskScore,
+      riskEvidence: {
+        factors: calculateRiskFactors(riskInput),
+        baseScore,
+        adjustment: riskScore - baseScore,
+      },
       trustGrade,
       fileCount,
       networkCount,

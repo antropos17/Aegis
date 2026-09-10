@@ -138,6 +138,12 @@ export interface EnrichedAgent {
   readonly unknownDomains: number;
   readonly anomalyScore: number;
   readonly riskScore: number;
+  /** Contributions captured with this score; optional for older saved observations. */
+  readonly riskEvidence?: {
+    readonly factors: readonly { readonly id: string; readonly points: number }[];
+    readonly baseScore: number;
+    readonly adjustment: number;
+  };
   readonly trustGrade: TrustGrade;
   readonly fileCount: number;
   readonly networkCount: number;

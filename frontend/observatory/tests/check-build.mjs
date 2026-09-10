@@ -5,6 +5,7 @@ import { resolve, sep, extname } from 'node:path';
 import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
 import { checkComfort } from './comfort-check.mjs';
+import { checkClarity } from './clarity-check.mjs';
 import { checkGraphs } from './graph-check.mjs';
 import { checkDetails } from './detail-check.mjs';
 import { checkMotion } from './motion-check.mjs';
@@ -378,6 +379,7 @@ try {
   assert.equal(await page.evaluate(() => window.bridgeCalls), 0);
   await checkMotion(page);
   await page.close();
+  await checkClarity(browser, base + '/desktop/', out);
   await checkResourceLayers(browser, base + '/desktop/', out);
   await checkDetails(browser, base + '/desktop/', out);
   await checkComfort(browser, base + '/preview/', out);

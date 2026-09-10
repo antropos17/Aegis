@@ -7,6 +7,7 @@
     groupRecord,
     riskBand,
   } from '../runtime/radar';
+  import { leadingRiskReason } from '../runtime/risk-context';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
   import SectionTabs from './SectionTabs.svelte';
@@ -112,6 +113,12 @@
                   class={`risk-value ${riskBand(a.risk)}`}
                   title="Highest risk among this agent's processes"
                   >{a.risk}<small>/100</small></span
+                >
+                <button
+                  class="entity-link risk-reason"
+                  aria-label={'Explain risk for ' + a.name}
+                  onclick={() => inspect(a.name, { ...groupRecord(a), detailSection: 'risk' })}
+                  >{leadingRiskReason(a.members[0])}</button
                 ></td
               >{/if}{#if section !== 'activity'}<td class="mono"
                 >{a.cpu === null ? '—' : a.cpu.toFixed(1) + '%'}</td
@@ -139,3 +146,15 @@
   <Icon name="cpu" />One row per agent. Usage combines its processes; risk shows the highest process
   score. A dash means the total is incomplete. Open an agent to inspect individual processes.
 </div>
+
+<style>
+  .risk-reason {
+    display: block;
+    max-width: 170px;
+    margin-top: 4px;
+    font-size: calc(11px * var(--ui-scale));
+    line-height: 1.4;
+    text-align: left;
+    white-space: normal;
+  }
+</style>
