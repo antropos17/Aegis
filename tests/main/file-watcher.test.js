@@ -244,6 +244,40 @@ describe('file-watcher event handling', () => {
       expect(state.activityLog).toHaveLength(1);
     });
 
+    it('preserves rapid create, modify, delete and recreate transitions for the same path', () => {
+      const actions = ['created', 'modified', 'deleted', 'created', 'modified'];
+      for (const action of actions)
+        fileWatcher.handleWatcherEvent(action, '/home/user/lifecycle.js');
+      expect(state.activityLog.map((event) => event.action)).toEqual(actions);
+      expect(state.onFileEvent).toHaveBeenCalledTimes(actions.length);
+    });
+
+    it('does not suppress newly available ownership evidence for the same action', () => {
+      state.getLatestAiAgents = () => [];
+      fileWatcher.handleWatcherEvent('modified', '/home/user/project/.env');
+      state.getLatestAiAgents = () => [
+        { pid: 100, agent: 'Codex', cwd: '/home/user/project', instanceId: '100:t1' },
+      ];
+      fileWatcher.handleWatcherEvent('modified', '/home/user/project/.env');
+      expect(state.activityLog).toHaveLength(2);
+      expect(state.activityLog[0].attribution.status).toBe('unattributed');
+      expect(state.activityLog[1].instanceId).toBe('100:t1');
+      expect(state.activityLog[1].attribution.status).toBe('inferred');
+      expect(state.recordFileAccess).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not suppress a notification after the clock moves backwards', () => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(10000);
+      try {
+        fileWatcher.handleWatcherEvent('modified', '/home/user/clock.js');
+        now.mockReturnValue(9000);
+        fileWatcher.handleWatcherEvent('modified', '/home/user/clock.js');
+        expect(state.activityLog).toHaveLength(2);
+      } finally {
+        now.mockRestore();
+      }
+    });
+
     it('allows events for different files', () => {
       fileWatcher.handleWatcherEvent('modified', '/home/user/a.js');
       fileWatcher.handleWatcherEvent('modified', '/home/user/b.js');
