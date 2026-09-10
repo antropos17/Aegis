@@ -19,6 +19,7 @@
     inspect,
     mode = 'overview',
     navigate,
+    openStatistics,
     paused = false,
   }: {
     telemetry: Telemetry;
@@ -26,6 +27,7 @@
     inspect: (_title: string, _row: RecordData) => void;
     mode?: string;
     paused?: boolean;
+    openStatistics?: (_agent: string) => void;
     navigate?: (_view: string) => void | Promise<void>;
   } = $props();
   let agents = $derived(instances(telemetry)),
@@ -102,7 +104,7 @@
       </p>
     </div>
   </div>
-  <Radar {telemetry} bind:selected {inspect} />
+  <Radar {telemetry} bind:selected {inspect} {openStatistics} />
   <div class="monitoring-activity">
     <ActivityChart
       events={telemetry.events}
@@ -143,4 +145,4 @@
     </section>
   </div>
 </div>
-<div hidden={mode !== 'agents'}><Agents {telemetry} {inspect} /></div>
+<div hidden={mode !== 'agents'}><Agents {telemetry} {inspect} {openStatistics} /></div>

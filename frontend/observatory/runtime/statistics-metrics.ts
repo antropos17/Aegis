@@ -10,7 +10,7 @@ export interface StatsMetric {
   floor?: number;
 }
 export const statisticsTabs = [
-  { id: 'overview', label: 'Overview' },
+  { id: 'overview', label: 'Performance' },
   { id: 'processes', label: 'Processes' },
   { id: 'activity', label: 'Activity' },
   { id: 'tokens', label: 'Tokens' },
@@ -23,7 +23,7 @@ export const statisticsMetrics: StatsMetric[] = [
     unit: '%',
     description:
       'Measured current processes as a share of total machine CPU capacity. Coverage shows how many exact process identities contributed; missing processes are excluded, never assumed idle. Collection time is when AEGIS finished reading the providers. Cached readings retain their time; mixed collections show their span.',
-    sections: ['overview', 'processes'],
+    sections: ['overview'],
     floor: 100,
   },
   {
@@ -32,7 +32,7 @@ export const statisticsMetrics: StatsMetric[] = [
     unit: 'MB',
     description:
       'Resident memory of measured current processes. Coverage identifies missing processes; shared pages may be counted in more than one process. Collection time describes the completed provider read, not an exact OS sampling instant.',
-    sections: ['overview', 'processes'],
+    sections: ['overview'],
   },
   {
     id: 'processes',
@@ -40,7 +40,7 @@ export const statisticsMetrics: StatsMetric[] = [
     unit: '',
     description:
       'Observed agent processes in the latest reliable population. Includes supported synthetic runtime observations.',
-    sections: ['overview', 'processes'],
+    sections: ['overview'],
   },
   {
     id: 'products',
@@ -55,7 +55,7 @@ export const statisticsMetrics: StatsMetric[] = [
     unit: '',
     description:
       'Entries in the latest delivered connection snapshot. This is a count, not network throughput; the bridge does not provide a per-snapshot timestamp.',
-    sections: ['overview', 'activity'],
+    sections: ['activity'],
   },
   {
     id: 'fileRate',
@@ -63,7 +63,7 @@ export const statisticsMetrics: StatsMetric[] = [
     unit: '/min',
     description:
       'Delivered observations per minute between reliable process scans, including display-history evictions. Resource and token deliveries do not change the sampling interval.',
-    sections: ['overview', 'activity'],
+    sections: ['activity'],
   },
   {
     id: 'sensitiveRate',

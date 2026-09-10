@@ -94,3 +94,67 @@
 .monitoring-summary > button:hover {
   background: var(--raised);
 }
+
+/* Usability: one navigation row and stable live surfaces. */
+.topbar > .breadcrumb {
+  margin-right: auto;
+}
+.topbar {
+  gap: 12px;
+}
+.radar-clarity .radar-stage,
+.radar-clarity .radar-stage:not([data-layer='radar']) {
+  min-height: calc(400px + 90px * var(--ui-scale));
+}
+.radar-resource-toolbar {
+  height: calc(56px * var(--ui-scale));
+  flex: none;
+  overflow-y: auto;
+  align-content: center;
+  scrollbar-gutter: stable;
+}
+.radar-clarity .inspector {
+  height: calc(640px + (var(--ui-scale) - 1) * 180px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.radar-clarity .inspector-title {
+  flex: none;
+}
+.radar-clarity .inspector-content {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overflow-anchor: none;
+}
+.radar-clarity .roster-items {
+  min-height: 280px;
+  align-content: start;
+}
+.monitoring-summary .summary-stat p {
+  min-height: 2.8em;
+}
+.page-title .live-badge {
+  min-width: 110px;
+}
+.monitoring-summary strong,
+.live-state {
+  font-variant-numeric: tabular-nums;
+}
+::view-transition-group(workspace),
+::view-transition-group(detail),
+::view-transition-group(analysis) {
+  animation: none;
+}
+
+@media (min-width: 800px) {
+  .radar-clarity .radar-workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(200px, 0.82fr);
+  }
+  .radar-clarity .radar-roster {
+    border-top: 0;
+    border-left: 1px solid var(--border);
+  }
+}

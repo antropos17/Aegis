@@ -14,7 +14,12 @@
   let {
     telemetry,
     inspect,
-  }: { telemetry: Telemetry; inspect: (title: string, row: RecordData) => void } = $props();
+    openStatistics,
+  }: {
+    telemetry: Telemetry;
+    inspect: (title: string, row: RecordData) => void;
+    openStatistics?: (_agent: string) => void;
+  } = $props();
   const panelId = $props.id();
   let section = $state('overview');
   const sections = [
@@ -131,7 +136,11 @@
               >{/if}<td
               ><button class="text-button" onclick={() => inspect(a.name, groupRecord(a))}
                 >Open<Icon name="chevron" /></button
-              ></td
+              >{#if openStatistics}<button
+                  class="text-button"
+                  aria-label={a.name + ' statistics'}
+                  onclick={() => openStatistics?.(a.key)}>Statistics<Icon name="chart" /></button
+                >{/if}</td
             ></tr
           >{:else}<tr
             ><td colspan={section === 'activity' ? 5 : 7}

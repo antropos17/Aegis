@@ -34,23 +34,16 @@ it('opens a searched command from the keyboard and restores focus on close', asy
   trigger.remove();
 });
 
-it('keeps related destinations bounded and supports keyboard navigation', async () => {
-  const navigate = vi.fn(async () => {});
-  const mounted = render(WorkspaceNavigation, {
-    view: 'events',
-    navigate,
-    back: vi.fn(),
-    canBack: false,
-    canForward: false,
-  });
-  expect(screen.getAllByRole('tab').map((el) => el.textContent.trim())).toEqual([
-    'Events',
-    'Network',
-    'Audit',
-  ]);
-  await fireEvent.keyDown(screen.getByRole('tab', { name: 'Events' }), { key: 'End' });
-  expect(navigate).toHaveBeenCalledWith('audit');
-  await mounted.rerender({ view: 'settings' });
-  expect(screen.getAllByRole('tab')).toHaveLength(3);
-  expect(screen.getByRole('tab', { name: 'Settings' })).toHaveAttribute('aria-selected', 'true');
+it('keeps history controls available without duplicating workspace destinations', async () => {
+  const back = vi.fn();
+  const mounted = render(WorkspaceNavigation, { back, canBack: false, canForward: false });
+  expect(screen.queryByRole('tab')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Forward' })).toBeDisabled();
+  await mounted.rerender({ canBack: true });
+  await fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+  expect(back).toHaveBeenLastCalledWith(-1);
+  await mounted.rerender({ canForward: true });
+  await fireEvent.click(screen.getByRole('button', { name: 'Forward' }));
+  expect(back).toHaveBeenLastCalledWith(1);
 });

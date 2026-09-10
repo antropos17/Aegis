@@ -20,10 +20,12 @@
     telemetry,
     selected = $bindable(null),
     inspect,
+    openStatistics,
   }: {
     chosen: ObservedInstance | undefined;
     group: RadarGroup | undefined;
     telemetry: Telemetry;
+    openStatistics?: (_agent: string) => void;
     selected: string | null;
     inspect: (title: string, row: RecordData) => void;
   } = $props();
@@ -101,6 +103,10 @@
           <div><strong>{events.length}</strong><span>events</span></div>
         </div>
       </section>
+      {#if openStatistics}<button
+          class="button inspector-open"
+          onclick={() => openStatistics?.(group.key)}>Agent statistics<Icon name="chart" /></button
+        >{/if}
       <section class="inspector-block" aria-label="Recent agent activity">
         <h3>Latest activity</h3>
         {#if latest}<div class="finding" class:ordinary={!latest.sensitive}>

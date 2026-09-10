@@ -6,6 +6,7 @@ import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
 import { checkComfort } from './comfort-check.mjs';
 import { checkClarity } from './clarity-check.mjs';
+import { checkUsability } from './usability-check.mjs';
 import { checkGraphs } from './graph-check.mjs';
 import { checkDetails } from './detail-check.mjs';
 import { checkMotion } from './motion-check.mjs';
@@ -115,7 +116,7 @@ try {
     return {
       sidebar: rect('.sidebar'),
       topbar: rect('.topbar'),
-      history: rect('.workspace-navigation'),
+      history: rect('.history-controls'),
       summary: rect('.summary'),
       radar: rect('.radar-panel'),
       inspector: rect('.inspector'),
@@ -123,8 +124,8 @@ try {
   });
   assert.equal(geometry.sidebar.width, 184, 'prototype sidebar density');
   assert(Math.abs(geometry.topbar.height - 46) <= 2, 'prototype toolbar height');
-  assert.equal(geometry.history.height, 44, 'prototype workspace history row');
-  assert(Math.abs(geometry.summary.y - 160) <= 4, 'prototype summary position');
+  assert.equal(await page.locator('.workspace-tabs').count(), 0, 'duplicate navigation returned');
+  assert(Math.abs(geometry.summary.y - 116) <= 4, 'prototype summary position');
   assert(Math.abs(geometry.radar.y - geometry.inspector.y) < 1, 'inspector aligns with radar');
   assert.equal(await page.locator('.summary > .summary-stat').count(), 6);
   assert.equal(await page.locator('.radar-agent-card').count(), 4);
@@ -238,12 +239,10 @@ try {
             assert.equal(radar.rosterCount, radar.markerCount);
             assert.equal(radar.repeatedPanels, 0, 'repeated agent panels returned');
           }
-          const activeTabVisible = await page.evaluate(() => {
-            const strip = document.querySelector('.workspace-tabs').getBoundingClientRect();
-            const tab = document.querySelector('.workspace-tabs > .active').getBoundingClientRect();
-            return tab.left >= strip.left - 2 && tab.right <= strip.right + 2;
-          });
-          assert(activeTabVisible, `active workspace tab hidden: ${view} ${size.width} ${scale}`);
+          assert.equal(
+            await page.locator('.sidebar [aria-current="page"]').getAttribute('aria-label'),
+            view,
+          );
           const overflow = await page.evaluate(
             () => document.documentElement.scrollWidth > innerWidth + 2,
           );
@@ -384,6 +383,7 @@ try {
   await checkDetails(browser, base + '/desktop/', out);
   await checkComfort(browser, base + '/preview/', out);
   await checkGraphs(browser, base + '/preview/', out);
+  await checkUsability(browser, base + '/preview/', out);
   const desktop = await browser.newPage();
   desktop.on('pageerror', (e) => errors.push(e.message));
   await desktop.goto(base + '/desktop/');
