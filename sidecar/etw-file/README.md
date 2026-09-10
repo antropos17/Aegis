@@ -113,7 +113,7 @@ way to start another capture. The separately owned frontend is unchanged.
 See [backend implementation record](../../docs/roadmap/etw-file-backend.md).
 The local C# build/formatter, self-tests and process checks are separate from the
 repository's five CI contexts, which do not build this new .NET project.
-The new provider's narrow live smoke passed, including a scoped Read/header-PID
+The initial provider's narrow live smoke passed, including a scoped Read/header-PID
 candidate and owned stop. Its application queues dropped 12,061 of 88,772 events despite
 zero native ETW losses; this is a degraded diagnostic backend, not loss-free capture.
 The aggregate retains all earlier attempts, including the failed first one. Independent
@@ -123,5 +123,10 @@ Warm mmap, Fast I/O and the remaining B1/E4–E8 coverage questions remain open.
 The 2026-09-11 [burst-handling follow-up](../../docs/roadmap/etw-burst-handling.md)
 removes process probes and serialization from the ingress drain. Its controlled
 regression passes 8,192 further reads while a probe is held, with no ingress loss
-and counted outbound overflow. This synthetic result does not replace the earlier
-live measurement; native burst losses after the change have not been measured.
+and counted outbound overflow. A subsequently authorized live check observed a
+scoped fixture Read/header-PID candidate and verified stop on matching binaries:
+6,674 application drops among 463,125 delivered events, zero native losses, decoder
+errors or ring eviction. Both reports and source hashes are retained in the
+[live evidence](../../docs/recon/evidence/etw-file-home-26200-burst-live.json).
+Different ambient traffic prevents a controlled before/after comparison. E3 remains
+open; the aggregate still combines ingress and outbound drops.
