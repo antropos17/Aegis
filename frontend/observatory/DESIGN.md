@@ -83,3 +83,13 @@ updates rows without scrolling to a record or moving focus away from the control
 Unavailable directions use aria-disabled and a guarded handler so reaching the
 first or last page does not remove keyboard focus. Filter changes still reset to
 the first page; grouping and exact process attribution remain unchanged.
+
+
+### Monitoring activity correction (2026-09-11)
+
+Activity and Recent events are separate panels with the shared 16 px gap.
+Hovering or keyboard-focusing a histogram interval holds its time window until
+inspection ends, so its boundaries and opened observations agree. The readout
+reserves two lines to prevent adjacent content from moving. Idle live windows
+still advance; paused/stale windows remain frozen. An agent whose retained events
+expire stays explicitly selected until the user changes that filter.

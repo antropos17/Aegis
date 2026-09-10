@@ -146,3 +146,9 @@
   </div>
 </div>
 <div hidden={mode !== 'agents'}><Agents {telemetry} {inspect} {openStatistics} /></div>
+
+<style>
+  .recent-evidence {
+    margin-top: var(--space-4);
+  }
+</style>

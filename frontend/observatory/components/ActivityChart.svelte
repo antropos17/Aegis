@@ -24,7 +24,7 @@
   let focused = $state(false);
   let now = $state(Date.now());
   $effect(() => {
-    if (paused || stale) return;
+    if (paused || stale || hover !== null || focused) return;
     now = Date.now();
     const timer = setInterval(() => {
       now = Date.now();
@@ -56,6 +56,7 @@
     return `${activityTimeLabel(b.start, true)}–${activityTimeLabel(b.end, true)} · ${b.events.length} observations`;
   }
   function keys(e: KeyboardEvent, i: number) {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
     e.preventDefault();
     focus =
@@ -67,7 +68,7 @@
     (e.currentTarget as HTMLElement).parentElement
       ?.querySelectorAll<HTMLButtonElement>('button')
       .item(focus)
-      ?.focus();
+      ?.focus({ preventScroll: true });
   }
 </script>
 
@@ -89,7 +90,9 @@
     ><select aria-label="Chart agent" bind:value={agent}
       ><option value="">All agents</option>{#each names as name (name)}<option value={name}
           >{name}</option
-        >{/each}</select
+        >{/each}{#if agent && !names.includes(agent)}<option value={agent}
+          >{agent} · no retained events</option
+        >{/if}</select
     >
   </div>
   <div class="chart-reading">
@@ -138,6 +141,13 @@
           : stale
             ? 'Observation unavailable · retained window frozen.'
             : 'Select an interval to inspect its events.'
-      : caption(selection)}
+      : caption(selection) + ' · Interval held while inspecting'}
   </div>
 </section>
+
+<style>
+  .chart-readout {
+    line-height: 1.5;
+    min-height: calc(3em + var(--space-2) + var(--space-3));
+  }
+</style>
