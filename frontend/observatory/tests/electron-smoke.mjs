@@ -144,8 +144,8 @@ try {
       assert.equal(await window.getByRole('dialog').count(), 0);
       assert.equal(await window.getByRole('button', { name: 'Suspend', exact: true }).count(), 0);
       await window
-        .getByRole('navigation', { name: 'Agent sections' })
-        .getByRole('button', { name: 'Processes', exact: true })
+        .getByRole('tablist', { name: 'Agent sections' })
+        .getByRole('tab', { name: 'Processes', exact: true })
         .click();
       assert(
         (await window.locator('.agent-processes tbody tr').count()) > 0,

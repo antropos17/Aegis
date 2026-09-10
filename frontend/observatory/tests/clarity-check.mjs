@@ -75,7 +75,7 @@ export async function checkClarity(browser, url, out) {
     const context = page.locator('.agent-context');
     await workspace.waitFor();
     assert.equal(await page.getByRole('dialog').count(), 0);
-    assert(await workspace.locator('#agent-risk details').evaluate((node) => node.open));
+    assert(await workspace.locator('.agent-risk details').evaluate((node) => node.open));
     assert.match(await workspace.innerText(), /Plain HTTP connections/);
     assert.match(await workspace.innerText(), /SSH \/ cloud credentials/);
     let states = 0;
@@ -91,8 +91,8 @@ export async function checkClarity(browser, url, out) {
             { scale, theme },
           );
           await workspace
-            .getByRole('navigation', { name: 'Agent sections' })
-            .getByRole('button', { name: 'Risk', exact: true })
+            .getByRole('tablist', { name: 'Agent sections' })
+            .getByRole('tab', { name: 'Risk', exact: true })
             .click();
           assert(
             await page.evaluate(
@@ -133,8 +133,8 @@ export async function checkClarity(browser, url, out) {
     );
     assert.equal(await page.getByRole('dialog').count(), 0);
     await workspace
-      .getByRole('navigation', { name: 'Agent sections' })
-      .getByRole('button', { name: 'Risk', exact: true })
+      .getByRole('tablist', { name: 'Agent sections' })
+      .getByRole('tab', { name: 'Risk', exact: true })
       .click();
     assert.match(
       await workspace.locator('.risk-explanation').innerText(),

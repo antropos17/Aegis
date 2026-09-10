@@ -64,3 +64,13 @@ Feedback uses 140 ms colour/border changes and a 120 ms opacity-only dialog/enti
 Host deliveries are immutable snapshots held with `$state.raw`; charts also receive immutable history arrays without deep proxying. Draft forms retain their ordinary reactive state. Consumers share an exposure assessment for one snapshot and invalidate it when source references change. Weak snapshot keys do not keep departed observations alive. A held snapshot preserves its captured assessment; new deliveries recalculate event age and evidence. Clock labels share two Intl formatters, refreshed at least once a minute or after a backwards clock change to pick up default locale/time-zone changes. Composition, motion preferences, history retention, selection and measurement provenance remain governed by the sections above.
 
 The identical-input comparison and its limits are recorded in [RENDERER-WORKLOAD.md](../../docs/current-state/RENDERER-WORKLOAD.md).
+
+
+### Agent section tabs (2026-09-10)
+
+Risk, Resources, Activity and Processes switch one local panel beneath the shared
+agent context. This supersedes the earlier in-page section links. Clicking a tab
+never scrolls the workspace or focuses its contents; arrow keys move between tabs.
+Inactive panels stay mounted and hidden, preserving resource history and metric
+selection. Exact-process attributes and controls belong to Processes. Requested
+risk/process sections select their panel; the default overview opens Risk.

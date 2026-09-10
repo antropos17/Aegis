@@ -148,6 +148,30 @@ export async function checkDetails(browser, url, out) {
             await workspace.evaluate((node) => node.scrollWidth <= node.clientWidth + 1),
             'agent workspace overflows',
           );
+          const sections = workspace.getByRole('tablist', { name: 'Agent sections' });
+          const readPosition = () =>
+            page.evaluate(() => {
+              const strip = document.querySelector('.agent-workspace [role="tablist"]');
+              return {
+                top: strip.getBoundingClientRect().top,
+                scroll: document.querySelector('#main').scrollTop,
+              };
+            });
+          await page.locator('#main').evaluate((node) => {
+            node.scrollTop = 0;
+          });
+          const position = await readPosition();
+          for (const name of ['Resources', 'Activity', 'Processes', 'Risk']) {
+            const control = sections.getByRole('tab', { name: new RegExp('^' + name) });
+            await control.click();
+            assert.deepEqual(await readPosition(), position, name + ' moved the page or tab strip');
+            assert(
+              await control.evaluate((node) => node === document.activeElement),
+              name + ' stole focus',
+            );
+            assert.equal(await workspace.getByRole('tabpanel').count(), 1);
+            assert.equal(await control.getAttribute('aria-selected'), 'true');
+          }
           assert.equal(await page.getByRole('dialog').count(), 0);
           assert(!/DO-NOT-DISPLAY/.test(await workspace.innerText()));
           if (
@@ -167,8 +191,8 @@ export async function checkDetails(browser, url, out) {
       document.documentElement.dataset.theme = 'dark';
     });
     await workspace
-      .getByRole('navigation', { name: 'Agent sections' })
-      .getByRole('button', { name: 'Processes', exact: true })
+      .getByRole('tablist', { name: 'Agent sections' })
+      .getByRole('tab', { name: 'Processes', exact: true })
       .click();
     await page.getByRole('button', { name: 'Show all 26 processes' }).click();
     await page.getByRole('button', { name: 'PID 220', exact: true }).click();
@@ -185,6 +209,7 @@ export async function checkDetails(browser, url, out) {
       name: 'Inspect file observation 1',
       exact: true,
     });
+    await workspace.getByRole('tab', { name: /^Activity/ }).click();
     await observation.click();
     await page.getByRole('dialog').waitFor();
     await tab('Attributes').click();
@@ -197,6 +222,7 @@ export async function checkDetails(browser, url, out) {
       await context.getByLabel('Selected process', { exact: true }).inputValue(),
       'detail:0',
     );
+    await workspace.getByRole('tab', { name: /^Activity/ }).click();
     await workspace
       .getByRole('region', { name: 'Selected agent file activity' })
       .getByRole('button', { name: 'View all', exact: true })
