@@ -156,6 +156,9 @@ export interface NetworkConnection {
   readonly category: string;
   readonly remoteIp: string;
   readonly remotePort: number;
+  /** Local endpoint observed in the same TCP table; missing on legacy rows. */
+  readonly localIp?: string | null;
+  readonly localPort?: number | null;
   readonly domain: string;
   readonly state: string;
   /**

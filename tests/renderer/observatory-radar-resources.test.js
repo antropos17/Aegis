@@ -96,3 +96,31 @@ it('does not turn inferred file ownership into confirmed attribution', () => {
     'Indirect attribution',
   );
 });
+
+it('retains source rows while unique resource identity excludes agent ownership', () => {
+  const state = {
+    ...emptyTelemetry(),
+    agents: [agent(1), agent(2, 'Cursor')],
+    events: [
+      file('X:/Project/Config.ts', 1),
+      file('x:\\project\\config.ts', 2),
+      file('X:/Project/Config.ts', 3, 2),
+    ],
+  };
+  const rows = radarResources(state, 'files', radarGroups(instances(state)));
+  expect(rows).toHaveLength(2);
+  expect(new Set(rows.map((entry) => entry.resourceKey)).size).toBe(1);
+  const codex = rows.find((entry) => entry.group === 'Codex');
+  expect(codex.rows).toEqual(state.events.slice(0, 2));
+  expect(codex.count).toBe(2);
+  expect(codex.row).toBe(state.events[1]);
+});
+
+it('keeps differently cased POSIX paths separate', () => {
+  const state = {
+    ...emptyTelemetry(),
+    agents: [agent(1)],
+    events: [file('/project/Config.ts', 1), file('/project/config.ts', 2)],
+  };
+  expect(radarResources(state, 'files', radarGroups(instances(state)))).toHaveLength(2);
+});

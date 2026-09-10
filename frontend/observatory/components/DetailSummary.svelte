@@ -3,7 +3,11 @@
   import { radarGroups, groupResource, displayMeasure } from '../runtime/radar';
   import { detailActivity, detailKind } from '../runtime/detail-model';
   import { evidenceFields, selectFields } from '../runtime/detail-fields';
-  import { describeObservation, observationTime } from '../../../src/shared/observation-display.js';
+  import {
+    describeObservation,
+    observationTime,
+    canonicalObservationPath,
+  } from '../../../src/shared/observation-display.js';
   import Metadata from './Metadata.svelte';
   import ObservationIdentity from './ObservationIdentity.svelte';
   let {
@@ -58,8 +62,11 @@
     if (kind === 'records')
       return {
         Records: activity.length,
-        Resources: new Set(activity.map((entry) => describeObservation(entry).path).filter(Boolean))
-          .size,
+        Resources: new Set(
+          activity
+            .map((entry) => canonicalObservationPath(describeObservation(entry).path))
+            .filter(Boolean),
+        ).size,
         firstSeen: times.length ? Math.min(...times) : null,
         lastSeen: times.length ? Math.max(...times) : null,
       };

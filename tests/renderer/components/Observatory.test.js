@@ -56,7 +56,7 @@ describe('Observatory production components', () => {
         instancePermissions: { 'Other::project': { filesystem: 'allow' } },
       })),
       getRules: async () => [],
-      saveAgentPermissions: vi.fn(async () => ({ success: true })),
+      saveInstancePermissions: vi.fn(async () => ({ success: true })),
     };
     const mounted = render(Rules, { host, telemetry: telemetry() });
     await waitFor(() => expect(host.getAllPermissions).toHaveBeenCalled());
@@ -65,10 +65,12 @@ describe('Observatory production components', () => {
     await mounted.rerender({ host, telemetry: telemetry() });
     expect(screen.getByLabelText('Network')).toHaveValue('block');
     await fireEvent.click(screen.getByRole('button', { name: 'Save permissions' }));
-    await waitFor(() => expect(host.saveAgentPermissions).toHaveBeenCalled());
-    expect(host.saveAgentPermissions.mock.calls[0][0]).toMatchObject({
-      'Claude Code': { network: 'block' },
-      'Other::project': { filesystem: 'allow' },
+    await waitFor(() => expect(host.saveInstancePermissions).toHaveBeenCalled());
+    expect(host.saveInstancePermissions.mock.calls[0][0]).toMatchObject({
+      agentName: 'Claude Code',
+      parentEditor: null,
+      cwd: null,
+      permissions: { network: 'block' },
     });
   });
 

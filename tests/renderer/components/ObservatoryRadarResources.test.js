@@ -82,3 +82,56 @@ it('shows the endpoint in both the radar and its detail view when DNS is empty',
   render(DetailSummary, { row, telemetry });
   expect(screen.getByText('192.0.2.8:443')).toBeInTheDocument();
 });
+
+it('counts a shared resource once while keeping separate agent links and all retained observations', async () => {
+  const shared = [
+    { ...events[0], file: 'X:/project/shared.ts', timestamp: 1 },
+    { ...events[0], file: 'X:\\project\\shared.ts', timestamp: 2 },
+    { ...events[0], instanceId: '1:live', file: 'X:/project/shared.ts', timestamp: 3 },
+  ];
+  const inspect = vi.fn();
+  const mounted = render(Radar, {
+    telemetry: { ...emptyTelemetry(), ready: true, stale: false, agents, events: shared },
+    selected: null,
+    inspect,
+  });
+  await fireEvent.click(
+    within(screen.getByLabelText('Radar layer')).getByRole('button', {
+      name: 'Files',
+      exact: true,
+    }),
+  );
+  expect(screen.getByText(/1 unique file.*2 observation groups/)).toBeInTheDocument();
+  const cards = mounted.container.querySelectorAll('.resource-node');
+  expect(cards).toHaveLength(2);
+  const alpha = [...cards].find((card) => card.dataset.resourceGroup === 'Alpha');
+  await fireEvent.click(alpha);
+  expect(inspect).toHaveBeenLastCalledWith('File observation', {
+    observationGroup: 'shared.ts',
+    observations: shared.slice(0, 2),
+  });
+});
+
+it('opens all current connections represented by an aggregated endpoint marker', async () => {
+  const connections = [
+    { instanceId: '0:live', domain: '', remoteIp: '192.0.2.8', remotePort: 443, localPort: 1000 },
+    { instanceId: '0:live', domain: '', remoteIp: '192.0.2.8', remotePort: 443, localPort: 2000 },
+  ];
+  const inspect = vi.fn();
+  render(Radar, {
+    telemetry: { ...emptyTelemetry(), ready: true, stale: false, agents, network: connections },
+    selected: null,
+    inspect,
+  });
+  await fireEvent.click(
+    within(screen.getByLabelText('Radar layer')).getByRole('button', {
+      name: 'Network',
+      exact: true,
+    }),
+  );
+  await fireEvent.click(screen.getByRole('button', { name: /192.0.2.8:443/ }));
+  expect(inspect).toHaveBeenLastCalledWith('Network observation', {
+    observationGroup: '192.0.2.8:443',
+    observations: connections,
+  });
+});

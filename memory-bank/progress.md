@@ -2098,3 +2098,8 @@ Production UI, grouped radar, detail tabs, comfort workspaces and corrected grap
 ## Settings and collector consistency — 2026-09-09
 
 Following merged PR #412, Settings and Analysis now save changed fields against current main-process settings. Collector metadata survives cache delivery; sequence ordering protects current values, cache TTL starts at completion, and overlapping pending requests cannot starve completed cache entries. Resource charts suppress cached numeric points, display mixed collection spans and reset safely after clock rollback. Current measured verification and deployment are recorded in docs/current-state/AUDIT-2026-09-09.md. The original dirty source checkout remains separate.
+
+
+## Session handoff — 2026-09-09, sections and duplicate handling
+
+The current all-section pass is recorded in docs/current-state/SECTION-DUPLICATES-2026-09-09.md. Canonical Windows display groups retain all original actions/evidence; local socket endpoints survive scan, audit and export. Statistics separates comparison/table, captured Analysis counts agree with reports, and catalog/policy targets use stable keys with atomic single-policy saves. 3203 tests passed (4 skipped), all required local gates, 464 browser states, 32 native section states, packaged restart/export checks and installed live-profile checks passed. The checked package is installed with distinct application/profile backups documented in the audit. Original dirty checkout preserved.

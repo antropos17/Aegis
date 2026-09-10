@@ -84,7 +84,7 @@ function getParentProcessMap() {
 /**
  * Get raw TCP connections for given PIDs via `lsof`.
  * @param {number[]} pids
- * @returns {Promise<Array<{pid: number, ip: string, port: number, state: string}>>}
+ * @returns {Promise<import("../../shared/types/process").RawTcpConnection[]>}
  */
 function getRawTcpConnections(pids) {
   return new Promise((resolve, reject) => {

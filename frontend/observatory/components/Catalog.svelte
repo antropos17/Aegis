@@ -70,7 +70,11 @@
   }
   async function persist(next: RecordData[]) {
     const validated = validateCatalog(next);
-    if (validated.some((a) => base.some((b) => a.id === b.id)))
+    if (
+      validated.some(
+        (a) => base.some((b) => a.id === b.id) && !custom.some((existing) => existing.id === a.id),
+      )
+    )
       throw new Error('Custom IDs must differ from bundled agent IDs');
     confirmed(await invoke(host, 'saveCustomAgents', validated));
     await load();
@@ -145,7 +149,8 @@
           ></tr
         ></thead
       ><tbody
-        >{#each rows as row (String(row.id))}<tr
+        >{#each rows as row ((row.custom ? 'custom:' : 'bundled:') + String(row.id))}{@const signatures =
+            [...new Set(Array.isArray(row.names) ? row.names : [])]}<tr
             ><td
               ><button
                 class="catalog-identity"
@@ -153,20 +158,22 @@
                 ><AgentLogo id={String(row.id)} /><span
                   ><strong>{String(row.displayName)}</strong><small
                     >{String(row.vendor ?? (row.custom ? 'Custom' : 'Bundled'))}</small
-                  ></span
+                  >{#if row.custom && base.some((bundled) => bundled.id === row.id)}<small
+                      >Bundled ID conflict · not used for detection</small
+                    >{/if}</span
                 ></button
               ></td
             ><td>{String(row.category ?? '')}</td><td
               ><div class="signature-links">
-                {#each Array.isArray(row.names) ? row.names.slice(0, 3) : [] as name (name)}<button
+                {#each signatures.slice(0, 3) as name (name)}<button
                     class="text-link"
                     onclick={() =>
                       inspect('Process signature', { signature: name, agent: row.displayName })}
                     >{String(name)}</button
-                  >{/each}{#if Array.isArray(row.names) && row.names.length > 3}<button
+                  >{/each}{#if signatures.length > 3}<button
                     class="text-link"
                     onclick={() => inspect(String(row.displayName), row)}
-                    >+{row.names.length - 3} more</button
+                    >+{signatures.length - 3} more</button
                   >{/if}
               </div></td
             ><td

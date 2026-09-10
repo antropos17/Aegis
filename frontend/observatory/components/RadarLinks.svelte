@@ -12,7 +12,7 @@
   }: {
     rows: RadarResource[];
     layer: string;
-    inspect: (title: string, row: RecordData) => void;
+    inspect: (_title: string, _row: RecordData) => void;
     ready: boolean;
     scoped: boolean;
   } = $props();
@@ -112,7 +112,12 @@
     data-resource-group={entry.group}
     title={entry.address}
     onclick={() =>
-      inspect(layer === 'files' ? 'File observation' : 'Network observation', entry.row)}
+      inspect(
+        layer === 'files' ? 'File observation' : 'Network observation',
+        entry.rows.length > 1
+          ? { observationGroup: entry.label, observations: entry.rows }
+          : entry.row,
+      )}
     ><span class="resource-title"
       ><Icon name={layer === 'files' ? 'file' : 'network'} /><strong>{entry.label}</strong><span
         class="resource-count">{entry.count}×</span

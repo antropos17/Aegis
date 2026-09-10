@@ -424,17 +424,51 @@ describe('network-monitor DI tests', () => {
       expect(results[0].verdict).toBe('flagged');
     });
 
-    it('deduplicates by pid:ip:port', async () => {
+    it('deduplicates only identical socket observations and preserves their local endpoints', async () => {
+      const base = {
+        pid: 100,
+        ip: '52.1.2.3',
+        port: 443,
+        state: 'ESTAB',
+        localIp: '10.0.0.1',
+        localPort: 52001,
+      };
       mockGetRawTcp.mockResolvedValue([
-        { pid: 100, ip: '52.1.2.3', port: 443, state: 'ESTAB' },
-        { pid: 100, ip: '52.1.2.3', port: 443, state: 'ESTAB' },
-        { pid: 100, ip: '52.1.2.3', port: 80, state: 'ESTAB' },
+        base,
+        { ...base },
+        { ...base, localPort: 52002 },
+        { ...base, localIp: '10.0.0.2' },
+        { ...base, state: 'CLOSE_WAIT' },
       ]);
-      mockDnsReverse.mockResolvedValue(['api.anthropic.com']);
-      mockDnsResolve.mockImplementation(forwardMap({ 'api.anthropic.com': ['52.1.2.3'] }));
+      const results = await networkMonitor.scanNetworkConnections([
+        { pid: 100, instanceId: '100:start', agent: 'Claude Code', category: 'ai' },
+      ]);
+      expect(results).toHaveLength(4);
+      expect(
+        results.map(({ localIp, localPort, state }) => ({ localIp, localPort, state })),
+      ).toEqual([
+        { localIp: '10.0.0.1', localPort: 52001, state: 'ESTAB' },
+        { localIp: '10.0.0.1', localPort: 52002, state: 'ESTAB' },
+        { localIp: '10.0.0.2', localPort: 52001, state: 'ESTAB' },
+        { localIp: '10.0.0.1', localPort: 52001, state: 'CLOSE_WAIT' },
+      ]);
+      expect(results.every((row) => row.instanceId === '100:start')).toBe(true);
+    });
 
-      const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
-      const results = await networkMonitor.scanNetworkConnections(agents);
+    it.each([
+      {},
+      { localIp: '10.0.0.1' },
+      { localPort: 52001 },
+      { localIp: '', localPort: 52001 },
+      { localIp: '10.0.0.1', localPort: null },
+      { localIp: '10.0.0.1', localPort: 0 },
+      { localIp: 'not-ip', localPort: 52001 },
+    ])('does not invent socket equality with incomplete local identity: %j', async (local) => {
+      const row = { pid: 100, ip: '52.1.2.3', port: 443, state: 'ESTAB', ...local };
+      mockGetRawTcp.mockResolvedValue([row, { ...row }]);
+      const results = await networkMonitor.scanNetworkConnections([
+        { pid: 100, agent: 'Claude Code', category: 'ai' },
+      ]);
       expect(results).toHaveLength(2);
     });
 

@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { instances, measured, type Telemetry, type RecordData } from '../runtime/host';
+  import { instances, type Telemetry, type RecordData } from '../runtime/host';
   import { radarGroups } from '../runtime/radar';
+  import { measuredStatisticsTotal } from '../runtime/statistics-metrics';
   import Radar from './Radar.svelte';
   import ActivityChart from './ActivityChart.svelte';
   import Agents from './Agents.svelte';
@@ -22,7 +23,7 @@
   }: {
     telemetry: Telemetry;
     selected: string | null;
-    inspect: (title: string, row: RecordData) => void;
+    inspect: (_title: string, _row: RecordData) => void;
     mode?: string;
     paused?: boolean;
     navigate?: (_view: string) => void | Promise<void>;
@@ -41,11 +42,8 @@
       (e) => Number.isFinite(e.timestamp) && e.timestamp > now - 60000 && e.timestamp <= now,
     ),
   );
-  let tokenTotal = $derived(
-    telemetry.tokens.length && telemetry.tokens.every((t) => measured(t.totalTokens) !== null)
-      ? telemetry.tokens.reduce((sum, t) => sum + Number(t.totalTokens), 0)
-      : null,
-  );
+  let tokenTotal = $derived(measuredStatisticsTotal(telemetry, telemetry.tokens, 'totalTokens'));
+  let sensitiveEvents = $derived(telemetry.events.filter((event) => event.sensitive === true));
   $effect(() => {
     if (!telemetry.stale && selected && !agents.some((a) => a.instanceId === selected))
       selected = null;
@@ -76,10 +74,10 @@
     </div>
     <button
       class="summary-stat attention"
-      onclick={() =>
-        inspect('Sensitive events', { observations: telemetry.events.filter((e) => e.sensitive) })}
-      ><span>Sensitive events</span><strong>{String(telemetry.stats.aiSensitive ?? '—')}</strong>
-      <p>File events · session</p></button
+      onclick={() => inspect('Sensitive events', { observations: sensitiveEvents })}
+      ><span>Sensitive events</span><strong>{telemetry.ready ? sensitiveEvents.length : '—'}</strong
+      >
+      <p>Retained file observations</p></button
     >
     <button class="summary-stat" onclick={() => navigate?.('network')}>
       <span>Connections</span><strong>{telemetry.ready ? telemetry.network.length : '—'}</strong>
@@ -87,12 +85,15 @@
     </button>
     <div class="summary-stat">
       <span>Tokens</span><strong
-        >{tokenTotal === null
+        >{tokenTotal.value === null
           ? '—'
-          : Intl.NumberFormat('en', { notation: 'compact' }).format(tokenTotal)}</strong
+          : Intl.NumberFormat('en', { notation: 'compact' }).format(tokenTotal.value)}</strong
       >
       <p>
-        {tokenTotal === null ? 'No measurement' : telemetry.tokens.length + ' reported sources'}
+        {tokenTotal.measured} / {tokenTotal.total} current processes measured{tokenTotal.value !==
+          null && tokenTotal.measured < tokenTotal.total
+          ? ' · subtotal'
+          : ''}
       </p>
     </div>
   </div>

@@ -29,8 +29,8 @@ function resourceContext(path) {
     [/(?:^|\/)\.claude(?:\/|$)/i, 'Claude Code'],
     [/(?:^|\/)\.cursor(?:\/|$)/i, 'Cursor'],
     [/(?:^|\/)\.gemini(?:\/|$)/i, 'Gemini CLI'],
-    [/\/.config\/goose(?:\/|$)/i, 'Goose'],
-    [/\/.config\/opencode(?:\/|$)/i, 'OpenCode'],
+    [/\/\.config\/goose(?:\/|$)/i, 'Goose'],
+    [/\/\.config\/opencode(?:\/|$)/i, 'OpenCode'],
   ];
   for (const [pattern, name] of roots) {
     if (pattern instanceof RegExp && pattern.test(normalized)) return String(name);
@@ -96,6 +96,50 @@ function observationTime(value) {
   const time = typeof value === 'number' ? value : Date.parse(String(value ?? ''));
   return Number.isFinite(time) ? time : 0;
 }
+
+/** Normalize a display path without changing its recorded value or POSIX case.
+ * @param {string} value Observed path @returns {string} Display grouping key @since 0.14.1
+ */
+function canonicalObservationPath(value) {
+  const path = value.replaceAll('\\', '/');
+  return /^(?:[a-z]:\/|\/\/)/i.test(path) ? path.toLowerCase() : path;
+}
+/** Summarize all recorded classifications, never just the latest row's evidence.
+ * @param {Observation[]} rows Group members @param {Observation[]} [agents] Current instances @returns {string} Human evidence summary @since 0.14.1
+ */
+function observationGroupEvidence(rows, agents = []) {
+  const labels = new Set();
+  const attributions = new Set();
+  for (const row of rows) {
+    const info = describeObservation(row, agents);
+    attributions.add(info.attribution);
+    const stored = row.extra ?? row.details;
+    const extra = stored && typeof stored === 'object' ? /** @type {Observation} */ (stored) : {};
+    const verdict = row.verdict ?? extra.verdict;
+    const label =
+      info.kind === 'Network'
+        ? verdict === 'allowlisted'
+          ? 'Allowlisted'
+          : verdict === 'flagged'
+            ? 'Not allowlisted'
+            : 'Endpoint unverified'
+        : row.sensitive === true || row.severity === 'sensitive'
+          ? 'Sensitive'
+          : row.severity && !['normal', 'low'].includes(String(row.severity))
+            ? String(row.severity)
+            : info.attribution;
+    labels.add(label);
+    if (
+      info.kind === 'Network' &&
+      row.severity &&
+      !['normal', 'low'].includes(String(row.severity))
+    )
+      labels.add(String(row.severity));
+  }
+  if (attributions.size > 1) labels.add('Mixed attribution');
+  return [...labels].join(' · ');
+}
+
 /** @typedef {{key: string, label: string, rows: Observation[], latest: Observation, first: number, last: number}} ObservationGroup */
 /** Group display rows without removing or changing the recorded evidence.
  * @param {Observation[]} rows @param {'resource'|'agent'|'none'} [mode] @param {Observation[]} [agents]
@@ -109,7 +153,10 @@ function groupObservations(rows, mode = 'resource', agents = []) {
       ? ['actor', info.actor]
       : row.instanceId
         ? ['instance', row.instanceId]
-        : ['context', info.context || info.skill?.rootPath || 'unattributed'];
+        : [
+            'context',
+            canonicalObservationPath(info.context || info.skill?.rootPath || 'unattributed'),
+          ];
     const resource =
       info.skill?.rootPath ||
       text(row.file) ||
@@ -124,13 +171,8 @@ function groupObservations(rows, mode = 'resource', agents = []) {
           ? actorKey
           : [
               actorKey,
-              resource.replaceAll('\\', '/'),
+              info.kind === 'Network' ? resource.toLowerCase() : canonicalObservationPath(resource),
               info.kind,
-              row.action || row.type || '',
-              row.sensitive === true,
-              row.severity || '',
-              row.verdict || '',
-              row.state || '',
             ],
     );
     const time = observationTime(row.timestamp);
@@ -154,4 +196,11 @@ function groupObservations(rows, mode = 'resource', agents = []) {
   });
   return [...grouped.values()].sort((a, b) => b.last - a.last || a.label.localeCompare(b.label));
 }
-module.exports = { describeObservation, groupObservations, observationTime, endpointLabel };
+module.exports = {
+  describeObservation,
+  groupObservations,
+  observationTime,
+  endpointLabel,
+  canonicalObservationPath,
+  observationGroupEvidence,
+};

@@ -20,8 +20,10 @@ const { UNKNOWN_SOURCE_LABEL } = require('./attribution');
 const {
   describeObservation,
   groupObservations,
-  observationTime,
+  observationGroupEvidence,
+  canonicalObservationPath,
   endpointLabel,
+  observationTime,
 } = require('../shared/observation-display');
 const { version } = require('../../package.json');
 
@@ -183,7 +185,20 @@ async function exportCsv() {
   const netRows = netConns
     .map((c) => {
       const ts = new Date().toISOString();
-      return [ts, displayAgent(c), 'network', endpointLabel(c), c.flagged ? 'yes' : 'no']
+      const target =
+        c.localIp || c.localPort
+          ? [
+              endpointLabel(c),
+              'Local ' +
+                (endpointLabel({ remoteIp: c.localIp, remotePort: c.localPort }) ||
+                  'port ' + c.localPort),
+              'PID ' + c.pid,
+              c.state,
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          : endpointLabel(c);
+      return [ts, displayAgent(c), 'network', target, c.flagged ? 'yes' : 'no']
         .map(csvEscape)
         .join(',');
     })
@@ -219,7 +234,9 @@ async function generateReport() {
         '<tr><td class="source-label">' +
         escHtml(displayAgent(group.latest)) +
         '</td><td>' +
-        new Set(group.rows.map((row) => row.file)).size +
+        new Set(
+          group.rows.map((row) => canonicalObservationPath(String(row.file || ''))).filter(Boolean),
+        ).size +
         '</td><td>' +
         group.rows.length +
         '</td></tr>',
@@ -231,15 +248,7 @@ async function generateReport() {
       .map((group) => {
         const row = group.latest;
         const info = describeObservation(row);
-        const evidence = row.remoteIp
-          ? row.verdict === 'allowlisted'
-            ? 'Allowlisted'
-            : row.verdict === 'flagged'
-              ? 'Not allowlisted'
-              : 'Endpoint unverified'
-          : row.sensitive
-            ? 'Sensitive'
-            : info.attribution;
+        const evidence = observationGroupEvidence(group.rows);
         const records = group.rows
           .map(
             (item) =>
@@ -250,7 +259,18 @@ async function generateReport() {
               '</td><td>' +
               escHtml(String(item.action || item.state || 'Observed')) +
               '</td><td><code>' +
-              escHtml(String(item.file || item.remoteIp || '')) +
+              escHtml(
+                [
+                  item.file || endpointLabel({ ...item, domain: '' }),
+                  item.localIp || item.localPort
+                    ? 'Local ' +
+                      (endpointLabel({ remoteIp: item.localIp, remotePort: item.localPort }) ||
+                        'port ' + item.localPort)
+                    : '',
+                ]
+                  .filter(Boolean)
+                  .join(' · '),
+              ) +
               '</code><small>' +
               escHtml(describeObservation(item).attribution) +
               ' · ' +

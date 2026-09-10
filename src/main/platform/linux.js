@@ -18,6 +18,7 @@ const {
   isValidPid,
   parsePsOutput,
   parseLsofOutput,
+  parseTcpEndpoint,
   parseLsofFileHandles,
   parseLsofCwd,
   killProcess,
@@ -62,7 +63,7 @@ const processMapReader = require('./linux-process-map').createProcessMapReader({
  * Get raw TCP connections for given PIDs.
  * Tries `ss` first, falls back to `lsof`.
  * @param {number[]} pids
- * @returns {Promise<Array<{pid: number, ip: string, port: number, state: string}>>}
+ * @returns {Promise<import("../../shared/types/process").RawTcpConnection[]>}
  */
 function getRawTcpConnections(pids) {
   return new Promise((resolve, reject) => {
@@ -100,7 +101,7 @@ function getRawTcpConnections(pids) {
  * Parse `ss -tnp` output.
  * @param {string} stdout
  * @param {Set<number>} pidSet
- * @returns {Array<{pid: number, ip: string, port: number, state: string}>}
+ * @returns {import("../../shared/types/process").RawTcpConnection[]}
  */
 function parseSsOutput(stdout, pidSet) {
   const results = [];
@@ -121,23 +122,19 @@ function parseSsOutput(stdout, pidSet) {
     const pid = parseInt(pidMatch[1], 10);
     if (!pidSet.has(pid)) continue;
 
-    // Parse peer address
-    let ip, port;
-    if (peer.startsWith('[')) {
-      // IPv6: [::1]:443
-      const closeBracket = peer.indexOf(']');
-      ip = peer.slice(1, closeBracket);
-      port = parseInt(peer.slice(closeBracket + 2), 10);
-    } else {
-      const lastColon = peer.lastIndexOf(':');
-      ip = peer.slice(0, lastColon);
-      port = parseInt(peer.slice(lastColon + 1), 10);
-    }
-    if (isNaN(port)) continue;
-    if (ip === '127.0.0.1' || ip === '::1' || ip === '0.0.0.0' || ip === '::' || ip === '*')
-      continue;
-
-    results.push({ pid, ip, port, state });
+    const remote = parseTcpEndpoint(peer);
+    if (!remote) continue;
+    const { ip, port } = remote;
+    if (ip === '127.0.0.1' || ip === '::1' || ip === '0.0.0.0' || ip === '::') continue;
+    const local = parseTcpEndpoint(parts[3]);
+    results.push({
+      pid,
+      ip,
+      port,
+      state,
+      localIp: local?.ip ?? null,
+      localPort: local?.port ?? null,
+    });
   }
   return results;
 }

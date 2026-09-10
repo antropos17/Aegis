@@ -555,6 +555,23 @@ describe('ipc-handlers', () => {
       }
     });
 
+    it('keeps a provider riskLevel and captured counts when opening the HTML report', async () => {
+      const result = await getHandler('open-threat-report')(null, {
+        riskLevel: 'HIGH',
+        summary: 'Scoped fixture',
+        counts: { totalFiles: 7, totalSensitive: 2, totalAgents: 1, totalNet: 3 },
+      });
+      expect(result.success).toBe(true);
+      try {
+        const content = fs.readFileSync(result.path, 'utf8');
+        expect(content).toContain('>HIGH<');
+        expect(content).not.toContain('UNKNOWN');
+        expect(content).toContain('>7<');
+      } finally {
+        fs.unlinkSync(result.path);
+      }
+    });
+
     it('open-threat-report rejects non-object data', async () => {
       const handler = getHandler('open-threat-report');
       const result = await handler(null, '<html>raw</html>');

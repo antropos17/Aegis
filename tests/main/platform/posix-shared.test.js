@@ -15,6 +15,52 @@ describe('posix-shared parsers', () => {
       });
     });
 
+    it('preserves IPv4 and bracketed IPv6 local and remote socket endpoints', () => {
+      const stdout = [
+        'p100',
+        'n10.0.0.1:52001->52.1.2.3:443',
+        'TST=ESTABLISHED',
+        'n[2001:db8::1]:52002->[2001:db8::2]:443',
+        'TST=CLOSE_WAIT',
+      ].join('\n');
+      expect(posixShared.parseLsofOutput(stdout, new Set([100]))).toEqual([
+        {
+          pid: 100,
+          localIp: '10.0.0.1',
+          localPort: 52001,
+          ip: '52.1.2.3',
+          port: 443,
+          state: 'ESTABLISHED',
+        },
+        {
+          pid: 100,
+          localIp: '2001:db8::1',
+          localPort: 52002,
+          ip: '2001:db8::2',
+          port: 443,
+          state: 'CLOSE_WAIT',
+        },
+      ]);
+    });
+
+    it('does not apply a skipped socket state to a previous accepted socket', () => {
+      const stdout = [
+        'p100',
+        'n10.0.0.1:52001->52.1.2.3:443',
+        'TST=ESTABLISHED',
+        'n10.0.0.1:52002->127.0.0.1:443',
+        'TST=CLOSE_WAIT',
+      ].join('\n');
+      const result = posixShared.parseLsofOutput(stdout, new Set([100]));
+      expect(result).toHaveLength(1);
+      expect(result[0].state).toBe('ESTABLISHED');
+    });
+
+    it('retains a remote observation with unavailable local identity', () => {
+      const rows = posixShared.parseLsofOutput('p100\nn*:0->52.1.2.3:443\n', new Set([100]));
+      expect(rows[0]).toMatchObject({ ip: '52.1.2.3', localIp: null, localPort: null });
+    });
+
     it('filters by pidSet', () => {
       const stdout = [
         'p1234',

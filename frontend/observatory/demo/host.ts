@@ -1,3 +1,4 @@
+import { buildInstanceKey } from '../../../src/shared/instance-key.js';
 import database from '../../../src/shared/agent-database.json';
 import type { Host, RecordData } from '../runtime/host';
 
@@ -130,7 +131,17 @@ export function createPreviewHost(): Host {
       permissions = value as RecordData;
       return { success: true };
     },
-    saveInstancePermissions: unavailable,
+    saveInstancePermissions: async (value) => {
+      const data = value as {
+        agentName: string;
+        parentEditor?: string | null;
+        cwd?: string | null;
+        permissions: RecordData;
+      };
+      const key = buildInstanceKey(data.agentName, data.parentEditor, data.cwd);
+      permissions = { ...permissions, [key]: structuredClone(data.permissions) };
+      return { success: true };
+    },
     resetPermissionsToDefaults: async () => {
       permissions = {};
       return { permissions: {} };

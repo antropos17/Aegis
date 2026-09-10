@@ -6,6 +6,7 @@
   import AgentLogo from './AgentLogo.svelte';
   import { instances, type Telemetry } from '../runtime/host';
   import Metadata from './Metadata.svelte';
+  import { selectFields } from '../runtime/detail-fields';
   import { radarGroups, groupRecord, groupEvidence } from '../runtime/radar';
   import ObservationTable from './ObservationTable.svelte';
   import SectionTabs from './SectionTabs.svelte';
@@ -98,7 +99,23 @@
     if (!alive || ticket !== generation) return;
     stats = record(summary);
     appliedType = type;
-    const incoming = records(page);
+    const incoming = records(page).map((row) =>
+      row.type === 'network-connection'
+        ? {
+            ...selectFields(record(row.extra ?? row.details), [
+              'localIp',
+              'localPort',
+              'remoteIp',
+              'remotePort',
+              'domain',
+              'state',
+              'verdict',
+              'verdictReason',
+            ]),
+            ...row,
+          }
+        : row,
+    );
     rows = reset ? incoming : [...incoming, ...rows];
     exhausted = incoming.length < 100;
     const times = incoming
@@ -272,7 +289,11 @@
           <strong>{String(telemetry.stats.totalFiles ?? '—')}</strong><span>file observations</span>
         </div>
         <div>
-          <strong>{String(telemetry.stats.aiSensitive ?? '—')}</strong><span>sensitive</span>
+          <strong
+            >{telemetry.ready
+              ? telemetry.events.filter((event) => event.sensitive === true).length
+              : '—'}</strong
+          ><span>retained sensitive events</span>
         </div>
         <div>
           <strong>{telemetry.ready ? groups.length : '—'}</strong><span>agents</span>
