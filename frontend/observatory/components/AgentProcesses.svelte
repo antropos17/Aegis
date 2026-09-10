@@ -1,0 +1,103 @@
+<script lang="ts">
+  import { instances, measured, type Telemetry } from '../runtime/host';
+  import { isScopedProcess, type AgentScope } from '../runtime/agent-scope';
+  import { displayMeasure } from '../runtime/radar';
+  let {
+    telemetry,
+    scope,
+    change,
+  }: { telemetry: Telemetry; scope: AgentScope; change: (_scope: AgentScope) => void } = $props();
+  let expanded = $state(false);
+  let members = $derived(
+    instances(telemetry).filter((row) => row.agent === scope.agent && row.pid > 0),
+  );
+  let visible = $derived(expanded ? members : members.slice(0, 5));
+</script>
+
+<section class="panel agent-processes" aria-label="Agent worker processes">
+  <div class="panel-head">
+    <h2>Worker processes <small>{members.length}</small></h2>
+    {#if scope.instanceId}<button
+        class="text-button"
+        onclick={() => change({ agent: scope.agent, instanceId: '' })}>All processes</button
+      >{/if}
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead
+        ><tr><th>Process</th><th>Project / working directory</th><th>CPU</th><th>RAM</th></tr
+        ></thead
+      >
+      <tbody
+        >{#each visible as member (member.instanceId ?? member.pid)}
+          {@const reading = telemetry.resources.find(
+            (row) => !!member.instanceId && row.instanceId === member.instanceId,
+          )}
+          <tr class:chosen={scope.instanceId === member.instanceId}>
+            <td
+              ><button
+                class="text-button"
+                disabled={!isScopedProcess(member)}
+                title={isScopedProcess(member)
+                  ? 'Select this process throughout live views'
+                  : 'Process start time was not observed'}
+                onclick={() => change({ agent: scope.agent, instanceId: member.instanceId! })}
+                >PID {member.pid}</button
+              ><small>{member.process}</small>{#if !isScopedProcess(member)}<small
+                  >Start time not observed · selection unavailable</small
+                >{/if}</td
+            >
+            <td class="location" title={String(member.cwd ?? '')}
+              >{member.projectName || member.cwd || 'Working directory not recorded'}</td
+            >
+            <td>{displayMeasure(telemetry.stale ? null : measured(reading?.cpu), '%')}</td>
+            <td>{displayMeasure(telemetry.stale ? null : measured(reading?.memMb), ' MB')}</td>
+          </tr>
+        {:else}<tr
+            ><td colspan="4"
+              >No worker processes in the current observation. Retained activity remains available
+              above.</td
+            ></tr
+          >{/each}</tbody
+      >
+    </table>
+  </div>
+  {#if members.length > 5}<button class="more button" onclick={() => (expanded = !expanded)}
+      >{expanded ? 'Show fewer processes' : 'Show all ' + members.length + ' processes'}</button
+    >{/if}
+</section>
+
+<style>
+  .agent-processes {
+    min-width: 0;
+  }
+  .table-scroll {
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+  }
+  td {
+    font-variant-numeric: tabular-nums;
+  }
+  td small {
+    display: block;
+    color: var(--muted);
+    font-size: calc(10px * var(--ui-scale));
+  }
+  .location {
+    max-width: 320px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .chosen {
+    background: var(--accent-bg);
+  }
+  .more {
+    margin: 12px 16px;
+  }
+  h2 small {
+    color: var(--muted);
+    font-weight: 400;
+  }
+</style>

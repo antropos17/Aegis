@@ -1,4 +1,5 @@
 import { record, type RecordData } from './host';
+import { observationEvidenceLabel } from '../../../src/shared/observation-display.js';
 
 export interface InfoField {
   key: string;
@@ -17,6 +18,8 @@ const labels: Record<string, string> = {
   ppid: 'Parent process ID',
   instanceId: 'Process identity',
   instanceIdSource: 'Identity source',
+  verdict: 'Endpoint verification',
+  verdictReason: 'Verification evidence',
   cpu: 'CPU',
   memMb: 'RAM, MB',
   memMB: 'RAM, MB',
@@ -56,6 +59,22 @@ const states: Record<string, string> = {
   ambiguous: 'Ambiguous ownership',
   os: 'Operating system',
 };
+const missingFields: Record<string, string> = {
+  cwd: 'Working directory not recorded',
+  pid: 'Process ID not recorded',
+  instanceId: 'Process identity not recorded',
+  instanceIdSource: 'Identity source not recorded',
+  agent: 'Actor not recorded',
+  domain: 'Hostname not recorded',
+  model: 'Model not recorded',
+  verdict: 'Endpoint unverified',
+  verdictReason: 'Verification reason not recorded',
+};
+const endpointStates: Record<string, string> = {
+  allowlisted: 'Allowlisted',
+  flagged: 'Not allowlisted',
+  unknown: 'Endpoint unverified',
+};
 const privateField =
   /api.?key|secret|password|authorization|access.?token|refresh.?token|private.?key|file.?contents?|command.?line/i;
 
@@ -71,7 +90,14 @@ export function fieldLabel(key: string): string {
 }
 /** Format a scalar without serializing objects. @param value Wire value @param key Field @returns Display text @since 0.14.1 */
 export function fieldValue(value: unknown, key = ''): string {
-  if (value === null || value === undefined || value === '') return 'Unavailable';
+  if (value === null || value === undefined || value === '')
+    return Object.hasOwn(missingFields, key) ? missingFields[key] : 'Unavailable';
+  if (key === 'verdict')
+    return Object.hasOwn(endpointStates, String(value))
+      ? endpointStates[String(value)]
+      : String(value);
+  if (key === 'verdictReason') return observationEvidenceLabel(value);
+  if (key === 'instanceIdSource' && value === 'unknown') return 'Process start time not observed';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (['timestamp', 'firstSeen', 'lastSeen', 'startedAt', 'observedAt', 'at'].includes(key)) {
     const time = new Date(typeof value === 'number' ? value : String(value));
@@ -127,6 +153,7 @@ export function evidenceFields(row: RecordData): RecordData {
       'instanceId',
       'reason',
       'verdict',
+      'verdictReason',
       'localIp',
       'localPort',
       'remoteIp',
@@ -134,7 +161,7 @@ export function evidenceFields(row: RecordData): RecordData {
       'severity',
     ]),
     ...(Array.isArray(attribution.evidence)
-      ? { evidence: attribution.evidence.map((item) => fieldLabel(String(item))) }
+      ? { evidence: attribution.evidence.map(observationEvidenceLabel) }
       : {}),
     ...(attribution.status ? { attribution: attribution.status } : {}),
   };

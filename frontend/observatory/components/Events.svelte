@@ -1,6 +1,7 @@
 <script lang="ts">
   import { instances, type Telemetry, type RecordData } from '../runtime/host';
   import { describeObservation } from '../../../src/shared/observation-display.js';
+  import { scopeEvidence, type AgentScope } from '../runtime/agent-scope';
   import Icon from './Icon.svelte';
   import ObservationTable from './ObservationTable.svelte';
   let {
@@ -8,12 +9,14 @@
     network = false,
     showPause = true,
     viewPaused = false,
+    scope,
     inspect,
   }: {
     telemetry: Telemetry;
     network?: boolean;
     showPause?: boolean;
     viewPaused?: boolean;
+    scope?: AgentScope;
     inspect: (_title: string, _row: RecordData) => void;
   } = $props();
   let query = $state(''),
@@ -25,9 +28,11 @@
   let filtersOpen = $state(false);
   let showingPaused = $derived(paused || (!showPause && viewPaused));
   let grouping = $state<'resource' | 'agent' | 'none'>('resource');
-  let rows = $derived(
+  let rawRows = $derived(
     (paused ? held : network ? telemetry.network : telemetry.events) as unknown as RecordData[],
   );
+  let rows = $derived(scope ? scopeEvidence(rawRows, telemetry, scope) : rawRows);
+  let localAgentFilter = $derived(scope?.agent ? '' : agent);
   let agents = $derived(instances(telemetry) as unknown as RecordData[]);
   let agentNames = $derived(
     [...new Set(rows.map((row) => describeObservation(row, agents).label))].sort(),
@@ -36,7 +41,8 @@
     rows.filter((row) => {
       const info = describeObservation(row, agents);
       return (
-        (!agent || (agent === 'unattributed' ? !info.actor : info.label === agent)) &&
+        (!localAgentFilter ||
+          (localAgentFilter === 'unattributed' ? !info.actor : info.label === localAgentFilter)) &&
         (kind === 'all' ||
           (network
             ? (row.verdict ?? 'unknown') === kind
@@ -101,13 +107,14 @@
       aria-expanded={filtersOpen}
       aria-controls={network ? 'network-filters' : 'event-filters'}
       onclick={() => (filtersOpen = !filtersOpen)}
-      >Filters {#if kind !== 'all' || agent || severity !== 'all'}<span class="badge">Active</span
+      >Filters {#if kind !== 'all' || localAgentFilter || severity !== 'all'}<span class="badge"
+          >Active</span
         >{/if}</button
     >
     {#if showPause}<button
         class="button"
         onclick={() => {
-          if (!paused) held = rows;
+          if (!paused) held = [...rawRows];
           paused = !paused;
         }}
         ><Icon name={paused ? 'play' : 'pause'} />{paused
@@ -122,13 +129,13 @@
   id={network ? 'network-filters' : 'event-filters'}
   hidden={!filtersOpen}
 >
-  <label
-    >Agent / context<select aria-label="Event agent" bind:value={agent}
-      ><option value="">All agents and resources</option>{#each agentNames as name (name)}<option
-          >{name}</option
-        >{/each}<option value="unattributed">Actor not recorded</option></select
-    ></label
-  >
+  {#if !scope?.agent}<label
+      >Agent / context<select aria-label="Event agent" bind:value={agent}
+        ><option value="">All agents and resources</option>{#each agentNames as name (name)}<option
+            >{name}</option
+          >{/each}<option value="unattributed">Actor not recorded</option></select
+      ></label
+    >{/if}
   <label
     >{network ? 'Classification' : 'Type'}<select aria-label="Event kind" bind:value={kind}
       ><option value="all">All</option>{#if network}<option value="flagged">Not allowlisted</option
@@ -152,7 +159,7 @@
   <span
     >{filtered.length} of {rows.length}
     {network ? 'connections' : 'events'} · {showingPaused ? 'Paused snapshot' : 'Live view'}</span
-  >{#if query || kind !== 'all' || agent || severity !== 'all'}<span class="badge"
+  >{#if query || kind !== 'all' || localAgentFilter || severity !== 'all'}<span class="badge"
       >Filters active</span
     >{/if}
 </div>
@@ -161,7 +168,15 @@
   {telemetry}
   {inspect}
   {grouping}
-  resetKey={JSON.stringify([query, kind, agent, severity, network])}
+  resetKey={JSON.stringify([
+    query,
+    kind,
+    localAgentFilter,
+    severity,
+    network,
+    scope?.agent,
+    scope?.instanceId,
+  ])}
 />
 
 <style>

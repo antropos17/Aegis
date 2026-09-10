@@ -13,9 +13,11 @@
     selected = $bindable(null),
     inspect,
     openStatistics,
+    openAgent,
   }: {
     telemetry: Telemetry;
     openStatistics?: (_agent: string) => void;
+    openAgent?: (_agent: string) => void;
     selected: string | null;
     inspect: (_title: string, _row: RecordData) => void;
   } = $props();
@@ -52,7 +54,8 @@
       g.members.find((a) => a.instanceId === selected)?.instanceId ??
       g.members.find((a) => a.instanceId)?.instanceId ??
       null;
-    if (!selected) inspect(g.name, groupRecord(g));
+    if (openAgent) openAgent(g.key);
+    else if (!selected) inspect(g.name, groupRecord(g));
   }
   function position(g: RadarGroup, i: number) {
     const count = plotted.length;
@@ -66,7 +69,7 @@
   }
 </script>
 
-<div class="overview-grid radar-clarity">
+<div class="overview-grid radar-clarity" class:agent-launcher={!!openAgent}>
   <section class="panel radar-panel">
     <div class="panel-head">
       <div>
@@ -213,17 +216,21 @@
         </div>{/if}
     </div>
   </section>
-  <RadarInspector
-    {chosen}
-    group={chosenGroup}
-    {telemetry}
-    bind:selected
-    {inspect}
-    {openStatistics}
-  />
+  {#if !openAgent}<RadarInspector
+      {chosen}
+      group={chosenGroup}
+      {telemetry}
+      bind:selected
+      {inspect}
+      {openStatistics}
+    />{/if}
 </div>
 
 <style>
+  .overview-grid.radar-clarity.agent-launcher {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .radar-empty {
     position: absolute;
     inset: 0;

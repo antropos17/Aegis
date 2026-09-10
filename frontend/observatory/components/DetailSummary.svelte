@@ -2,7 +2,7 @@
   import { instances, measured, type RecordData, type Telemetry } from '../runtime/host';
   import { radarGroups, groupResource, displayMeasure } from '../runtime/radar';
   import { detailActivity, detailKind } from '../runtime/detail-model';
-  import { evidenceFields, selectFields } from '../runtime/detail-fields';
+  import { evidenceFields, fieldValue, selectFields } from '../runtime/detail-fields';
   import {
     describeObservation,
     observationTime,
@@ -83,14 +83,10 @@
         timestamp: observationTime(row.timestamp) || null,
         [info.kind === 'Network' ? 'State' : 'Action']: row.action || row.state || 'Not recorded',
         ...(row.sensitive || row.severity === 'sensitive' ? { Sensitivity: 'Sensitive' } : {}),
-        ...(row.verdict
+        ...(info.kind === 'Network'
           ? {
-              'Endpoint verification':
-                row.verdict === 'allowlisted'
-                  ? 'Allowlisted'
-                  : row.verdict === 'flagged'
-                    ? 'Not allowlisted'
-                    : 'Unverified',
+              'Endpoint verification': fieldValue(row.verdict, 'verdict'),
+              'Verification evidence': fieldValue(row.verdictReason, 'verdictReason'),
             }
           : {}),
       };
@@ -176,6 +172,7 @@
           agents={instances(telemetry) as unknown as RecordData[]}
         />
       </div>
+      <p class="entity-note">{info.explanation}</p>
     </section>{/if}
   {#if kind === 'catalog' && row.description}<p class="detail-description">
       {String(row.description)}

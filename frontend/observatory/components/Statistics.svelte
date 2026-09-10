@@ -3,6 +3,7 @@
   import { instances, record, type Telemetry, type RecordData } from '../runtime/host';
   import { radarGroups } from '../runtime/radar';
   import { scopeStatistics } from '../runtime/statistics-scope';
+  import type { AgentScope } from '../runtime/agent-scope';
   import {
     createStatisticsHistory,
     observeStatistics,
@@ -24,12 +25,16 @@
     inspect,
     sectionRequest,
     scopeRequest,
+    scope,
+    changeScope,
     paused = false,
   }: {
     telemetry: Telemetry;
     inspect: (_title: string, _row: RecordData) => void;
     sectionRequest?: { id: string; revision: number };
     scopeRequest?: { agent: string; revision: number };
+    scope?: AgentScope;
+    changeScope?: (_scope: AgentScope) => void;
     paused?: boolean;
   } = $props();
   let section = $state<StatsSection>('overview');
@@ -40,9 +45,12 @@
     tokens: 'tokens',
     sensors: 'ownCpu',
   });
-  let agent = $state('');
-  let instanceId = $state('');
-  let now = $state(Date.now());
+  let localAgent = $state('');
+  let localInstanceId = $state('');
+  let agent = $derived(scope?.agent ?? localAgent);
+  let instanceId = $derived(scope?.instanceId ?? localInstanceId);
+  let allNow = $state(Date.now());
+  let scopedNow = $state(Date.now());
   let historyPeriod = $state(60000);
   let processView = $state('comparison');
   const processViews = [
@@ -60,6 +68,7 @@
   let members = $derived(telemetry.agents.filter((row) => row.agent === agent));
   let scoped = $derived(scopeStatistics(telemetry, { agent, instanceId }));
   let sensorView = $derived(section === 'sensors');
+  let now = $derived(sensorView || !agent ? allNow : scopedNow);
   let samples = $derived(sensorView || !agent ? allSamples : scopedSamples);
   let metrics = $derived(
     statisticsMetrics.filter(
@@ -83,7 +92,8 @@
   let health = $derived(record(telemetry.stats.appHealth));
   onMount(() => {
     const timer = setInterval(() => {
-      if (!paused && !telemetry.stale) now = Date.now();
+      if (!paused && !telemetry.stale) allNow = Date.now();
+      if (!paused && !scoped.stale) scopedNow = Date.now();
     }, 1000);
     return () => clearInterval(timer);
   });
@@ -109,61 +119,64 @@
       lastRequest = request.revision;
       if (statisticsTabs.some((tab) => tab.id === request.id)) section = request.id as StatsSection;
     }
-    const scope = scopeRequest;
-    if (scope && scope.revision !== lastScopeRequest) {
-      lastScopeRequest = scope.revision;
-      agent = scope.agent;
-      instanceId = '';
+    const requestScope = scopeRequest;
+    if (!scope && requestScope && requestScope.revision !== lastScopeRequest) {
+      lastScopeRequest = requestScope.revision;
+      localAgent = requestScope.agent;
+      localInstanceId = '';
       section = 'overview';
     }
   });
 </script>
 
 <div class="statistics-workspace">
-  <div class="statistics-scope">
-    <label
-      >Agent
-      <select
-        aria-label="Statistics agent"
-        bind:value={agent}
-        disabled={sensorView}
-        onchange={() => {
-          instanceId = '';
-        }}
+  {#if !scope}<div class="statistics-scope">
+      <label
+        >Agent
+        <select
+          aria-label="Statistics agent"
+          bind:value={localAgent}
+          disabled={sensorView}
+          onchange={(event) => {
+            localInstanceId = '';
+            changeScope?.({ agent: event.currentTarget.value, instanceId: '' });
+          }}
+        >
+          <option value="">All agents</option>
+          {#each groups as group (group.key)}<option value={group.key}>{group.name}</option>{/each}
+          {#if agent && !groups.some((group) => group.key === agent)}
+            <option value={agent}>{agent} · no longer observed</option>
+          {/if}
+        </select>
+      </label>
+      <label
+        >Process
+        <select
+          aria-label="Statistics process"
+          bind:value={localInstanceId}
+          onchange={(event) =>
+            changeScope?.({ agent: localAgent, instanceId: event.currentTarget.value })}
+          disabled={sensorView || !agent}
+        >
+          <option value="">All processes</option>
+          {#each members.filter((row) => row.instanceId) as row (row.instanceId)}
+            <option value={row.instanceId}
+              >PID {row.pid}{row.projectName ? ' · ' + row.projectName : ''}</option
+            >
+          {/each}
+          {#if instanceId && !members.some((row) => row.instanceId === instanceId)}
+            <option value={instanceId}>Selected process · no longer observed</option>
+          {/if}
+        </select>
+      </label>
+      <span class="scope-caption"
+        >{sensorView
+          ? 'AEGIS health · independent of agent selection'
+          : agent
+            ? 'History starts with this selection.'
+            : 'Combined measurements of observed agents'}</span
       >
-        <option value="">All agents</option>
-        {#each groups as group (group.key)}<option value={group.key}>{group.name}</option>{/each}
-        {#if agent && !groups.some((group) => group.key === agent)}
-          <option value={agent}>{agent} · no longer observed</option>
-        {/if}
-      </select>
-    </label>
-    <label
-      >Process
-      <select
-        aria-label="Statistics process"
-        bind:value={instanceId}
-        disabled={sensorView || !agent}
-      >
-        <option value="">All processes</option>
-        {#each members.filter((row) => row.instanceId) as row (row.instanceId)}
-          <option value={row.instanceId}
-            >PID {row.pid}{row.projectName ? ' · ' + row.projectName : ''}</option
-          >
-        {/each}
-        {#if instanceId && !members.some((row) => row.instanceId === instanceId)}
-          <option value={instanceId}>Selected process · no longer observed</option>
-        {/if}
-      </select>
-    </label>
-    <span class="scope-caption"
-      >{sensorView
-        ? 'AEGIS health · independent of agent selection'
-        : agent
-          ? 'History starts with this selection.'
-          : 'Combined measurements of observed agents'}</span
-    >
-  </div>
+    </div>{/if}
   <div class="stats-navigation">
     <SectionTabs
       tabs={statisticsTabs}

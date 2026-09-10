@@ -107,7 +107,9 @@
             ><td
               ><button class="table-agent" onclick={() => inspect(a.name, groupRecord(a))}
                 ><AgentLogo id={a.key} name={a.name} /><strong>{a.name}</strong></button
-              ><button class="entity-link" onclick={() => inspect(a.name, groupRecord(a))}
+              ><button
+                class="entity-link"
+                onclick={() => inspect(a.name, { ...groupRecord(a), detailSection: 'processes' })}
                 >{a.members.length}
                 {a.members.length === 1 ? 'process' : 'processes'}<Icon name="chevron" /></button
               ></td

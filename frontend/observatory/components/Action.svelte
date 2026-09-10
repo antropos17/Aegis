@@ -5,6 +5,7 @@
     children,
     disabled = false,
   }: { action: () => Promise<unknown>; children: Snippet; disabled?: boolean } = $props();
+  const feedbackId = $props.id();
   let pending = $state(false);
   let error = $state('');
   let done = $state(false);
@@ -25,25 +26,40 @@
 </script>
 
 <div class="action-control">
-  <button class="button" disabled={disabled || pending} aria-busy={pending} onclick={run}
-    >{#if pending}Working…{:else}{@render children()}{/if}</button
+  <button
+    class="button"
+    disabled={disabled || pending}
+    aria-busy={pending}
+    aria-describedby={pending || error || done ? feedbackId : undefined}
+    onclick={run}>{@render children()}</button
   >
-  {#if error}<span role="alert" class="error">{error}</span>{:else if done}<span
-      role="status"
-      class="muted">Completed</span
-    >{/if}
+  <div class="action-feedback" id={feedbackId}>
+    {#if error}<span role="alert" class="error">{error}</span>{:else}<span
+        role="status"
+        class="muted">{pending ? 'Working…' : done ? 'Completed' : ''}</span
+      >{/if}
+  </div>
 </div>
 
 <style>
   .action-control {
-    display: inline-flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
+    display: inline-grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(1.5em, auto);
+    align-items: start;
+    row-gap: 3px;
+    vertical-align: top;
+    max-width: 100%;
+  }
+  .action-feedback {
+    min-width: 0;
+    font-size: calc(10px * var(--ui-scale));
+    line-height: 1.5;
+    min-height: 1.5em;
+    contain: inline-size;
+    overflow-wrap: anywhere;
   }
   .error {
     color: var(--red);
-    max-width: 36ch;
-    overflow-wrap: anywhere;
   }
 </style>

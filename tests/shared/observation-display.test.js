@@ -135,3 +135,31 @@ it('retains stored audit severity alongside endpoint verification', () => {
     observationGroupEvidence([{ type: 'network-connection', extra: { flagged: false } }]),
   ).toBe('Endpoint unverified');
 });
+
+it.each([
+  ['no-owner-match', 'No observed agent matched this resource.'],
+  ['no-ai-agents-online', 'No AI agent was observed when this event was recorded.'],
+  ['population-unavailable', 'Process observation was unavailable when this event was recorded.'],
+])('explains %s without replacing missing ownership with path context', (reason, explanation) => {
+  const row = {
+    file: 'C:/Users/test/.codex/config.toml',
+    agent: '',
+    instanceId: null,
+    attribution: { status: 'unattributed', evidence: [reason] },
+  };
+  const before = structuredClone(row);
+  expect(describeObservation(row)).toMatchObject({ actor: '', label: 'Codex', explanation });
+  expect(row).toEqual(before);
+});
+
+it('does not promote conflicting or future evidence to a confirmed actor', () => {
+  const row = {
+    file: '/tmp/file.txt',
+    agent: 'Codex',
+    instanceId: '7:old',
+    attribution: { status: 'unattributed', evidence: ['handle-scan-pid', 'future-code'] },
+  };
+  const info = describeObservation(row, [{ agent: 'Codex', instanceId: '7:new', pid: 7 }]);
+  expect(info.actor).toBe('');
+  expect(info.explanation).toBe('The observation does not identify an agent process.');
+});
