@@ -150,7 +150,7 @@ function getParentProcessMap() {
 /**
  * Get raw TCP connections for given PIDs via PowerShell Get-NetTCPConnection.
  * @param {number[]} pids
- * @returns {Promise<Array<{pid: number, ip: string, port: number, state: string}>>}
+ * @returns {Promise<import("../../shared/types/process").RawTcpConnection[]>}
  */
 function getRawTcpConnections(pids) {
   return new Promise((resolve, reject) => {
@@ -165,7 +165,7 @@ function getRawTcpConnections(pids) {
       `$pids=@(${pidStr})`,
       '$conns=Get-NetTCPConnection -OwningProcess $pids -EA SilentlyContinue|Where-Object{$_.State -ne "Listen" -and $_.State -ne "Bound" -and $_.RemoteAddress -ne "0.0.0.0" -and $_.RemoteAddress -ne "::" -and $_.RemoteAddress -ne "127.0.0.1" -and $_.RemoteAddress -ne "::1"}',
       '$r=@()',
-      'foreach($c in $conns){$r+=@{pid=[int]$c.OwningProcess;ip=$c.RemoteAddress;port=[int]$c.RemotePort;state=$c.State.ToString()}}',
+      'foreach($c in $conns){$r+=@{pid=[int]$c.OwningProcess;ip=$c.RemoteAddress;port=[int]$c.RemotePort;localIp=$c.LocalAddress;localPort=[int]$c.LocalPort;state=$c.State.ToString()}}',
       'if($r.Count -gt 0){$r|ConvertTo-Json -Compress}else{"[]"}',
     ].join('\n');
     execFile(

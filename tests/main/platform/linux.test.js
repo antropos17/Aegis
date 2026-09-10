@@ -96,6 +96,23 @@ describe('linux exec-based functions', () => {
       expect(results[0]).toMatchObject({ pid: 100, ip: '52.1.2.3', port: 443 });
     });
 
+    it('retains distinct local sockets in IPv4 and IPv6 ss output', async () => {
+      const stdout = [
+        'State Recv-Q Send-Q Local Address:Port Peer Address:Port Process',
+        'ESTAB 0 0 10.0.0.1:52001 52.1.2.3:443 users:(("node",pid=100,fd=3))',
+        'ESTAB 0 0 10.0.0.1:52002 52.1.2.3:443 users:(("node",pid=100,fd=4))',
+        'CLOSE-WAIT 0 0 [2001:db8::1]:52003 [2001:db8::2]:443 users:(("node",pid=100,fd=5))',
+      ].join('\n');
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, stdout));
+      const rows = await linux.getRawTcpConnections([100]);
+      expect(rows.map(({ localIp, localPort }) => ({ localIp, localPort }))).toEqual([
+        { localIp: '10.0.0.1', localPort: 52001 },
+        { localIp: '10.0.0.1', localPort: 52002 },
+        { localIp: '2001:db8::1', localPort: 52003 },
+      ]);
+      expect(rows[2]).toMatchObject({ ip: '2001:db8::2', port: 443, state: 'CLOSE-WAIT' });
+    });
+
     it('falls back to lsof when ss fails', async () => {
       const lsofOutput = 'p100\nn10.0.0.1:50000->8.8.8.8:443\n';
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {

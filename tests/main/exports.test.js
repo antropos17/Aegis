@@ -551,6 +551,65 @@ describe('exports', () => {
     });
   });
 
+  it('groups Windows paths while retaining mixed evidence and separate socket details', async () => {
+    initExporter({
+      activityLog: [
+        {
+          agent: 'Codex',
+          file: 'C:/work/notes.txt',
+          action: 'read',
+          timestamp: 1000,
+          attribution: { status: 'inferred' },
+        },
+        {
+          agent: 'Codex',
+          file: 'c:\\WORK\\NOTES.txt',
+          action: 'modified',
+          timestamp: 2000,
+          sensitive: true,
+          attribution: { status: 'confirmed' },
+        },
+      ],
+      netConns: [52001, 52002].map((localPort) => ({
+        agent: 'Codex',
+        remoteIp: '192.0.2.1',
+        remotePort: 443,
+        localIp: '10.0.0.2',
+        localPort,
+        state: 'Established',
+      })),
+    });
+    const result = await exporter.generateReport();
+    const html = fs.readFileSync(result.path, 'utf8');
+    expect(html.match(/class="resource-group"/g) || []).toHaveLength(2);
+    expect(html).toContain('Sensitive');
+    expect(html).toContain('Mixed attribution');
+    expect(html).toContain('>read<');
+    expect(html).toContain('>modified<');
+    expect(html).toContain('Local 10.0.0.2:52001');
+    expect(html).toContain('Local 10.0.0.2:52002');
+  });
+
+  it('keeps same-remote sockets distinguishable in the compatible CSV target column', async () => {
+    const filePath = path.join(tmpDir, 'socket-evidence.csv');
+    initExporter({
+      netConns: [52001, 52002].map((localPort) => ({
+        agent: 'Codex',
+        pid: 17,
+        remoteIp: '192.0.2.1',
+        remotePort: 443,
+        localIp: '10.0.0.2',
+        localPort,
+        state: 'Established',
+      })),
+    });
+    mockShowSaveDialog.mockResolvedValue({ filePath });
+    expect((await exporter.exportCsv()).success).toBe(true);
+    const csv = fs.readFileSync(filePath, 'utf8');
+    expect(csv).toContain('Local 10.0.0.2:52001 · PID 17 · Established');
+    expect(csv).toContain('Local 10.0.0.2:52002 · PID 17 · Established');
+  });
+
   describe('formatUptimeReport (tested through generateReport)', () => {
     it('formats hours, minutes, seconds correctly', async () => {
       initExporter({

@@ -3,6 +3,7 @@ import {
   radarGroups,
   groupResource,
   groupActivity,
+  groupEvidence,
 } from '../../frontend/observatory/runtime/radar';
 import { emptyTelemetry } from '../../frontend/observatory/runtime/host';
 const instance = (id, pid, risk = 0) => ({
@@ -49,4 +50,21 @@ describe('Grouped radar observations', () => {
     };
     expect(groupActivity(g, state, 300000).flatMap((b) => b.events)).toEqual([state.events[0]]);
   });
+});
+
+it('counts canonical Windows files consistently while keeping POSIX case distinct and exact ownership', () => {
+  const group = radarGroups([instance('a', 11)])[0];
+  const state = {
+    ...emptyTelemetry(),
+    events: [
+      { instanceId: 'a', file: 'C:/Work/Test.txt', timestamp: 1 },
+      { instanceId: 'a', file: 'c:\\work\\test.txt', timestamp: 2 },
+      { instanceId: 'a', file: '/work/Test.txt', timestamp: 3 },
+      { instanceId: 'a', file: '/work/test.txt', timestamp: 4 },
+      { instanceId: 'retired', file: 'C:/other.txt', timestamp: 5 },
+      { instanceId: 'a', file: '', timestamp: 6 },
+    ],
+  };
+  expect(groupEvidence(group, state).files).toBe(3);
+  expect(state.events).toHaveLength(6);
 });

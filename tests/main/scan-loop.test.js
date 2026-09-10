@@ -124,6 +124,70 @@ describe('scan-loop', () => {
       expect(result).toBeNull();
     });
 
+    it.each([
+      { action: 'accessed' },
+      { attribution: { status: 'confirmed', evidence: ['cwd-containment'] } },
+      { attribution: { status: 'confirmed', evidence: ['handle-scan-pid'] } },
+      { attribution: { status: 'inferred', evidence: ['self-config-path'] } },
+      { sensitive: true },
+      { selfAccess: true },
+      { reason: 'SSH credentials' },
+      { source: 'handle-scan' },
+      { category: 'credential' },
+    ])('preserves a changed observation within the suppression window: %j', (change) => {
+      const base = {
+        instanceId: '123:start',
+        file: '/work/config',
+        action: 'modified',
+        attribution: { status: 'inferred', evidence: ['cwd-containment'] },
+        sensitive: false,
+        selfAccess: false,
+        reason: '',
+        source: 'watcher',
+        category: 'ai',
+      };
+      expect(scanLoop.dedupFileEvent({ ...base })).not.toBeNull();
+      expect(scanLoop.dedupFileEvent({ ...base, ...change })).not.toBeNull();
+    });
+
+    it('treats evidence as an unordered set without changing the source array', () => {
+      const first = {
+        instanceId: '123:start',
+        file: '/x',
+        attribution: {
+          status: 'confirmed',
+          evidence: ['handle-scan-pid', 'self-config-path'],
+        },
+      };
+      const second = {
+        ...first,
+        attribution: {
+          status: 'confirmed',
+          evidence: ['self-config-path', 'handle-scan-pid'],
+        },
+      };
+      expect(scanLoop.dedupFileEvent(first)).not.toBeNull();
+      expect(scanLoop.dedupFileEvent(second)).toBeNull();
+      expect(second.attribution.evidence).toEqual(['self-config-path', 'handle-scan-pid']);
+    });
+
+    it('keeps counts independent for modified and accessed observations', () => {
+      const base = { instanceId: '123:start', file: '/x' };
+      scanLoop.dedupFileEvent({ ...base, action: 'modified' });
+      scanLoop.dedupFileEvent({ ...base, action: 'modified' });
+      expect(scanLoop.dedupFileEvent({ ...base, action: 'accessed' }).repeatCount).toBe(1);
+      vi.advanceTimersByTime(31000);
+      expect(scanLoop.dedupFileEvent({ ...base, action: 'modified' }).repeatCount).toBe(2);
+    });
+
+    it('passes an observation after the wall clock moves backward', () => {
+      vi.setSystemTime(60000);
+      const base = { instanceId: '123:start', file: '/x' };
+      scanLoop.dedupFileEvent({ ...base });
+      vi.setSystemTime(1000);
+      expect(scanLoop.dedupFileEvent({ ...base })).not.toBeNull();
+    });
+
     it('passes through after 30 second window for the same instance', () => {
       const ev1 = { agent: 'Cursor', instanceId: '1:aaa', file: '/etc/passwd' };
       scanLoop.dedupFileEvent(ev1);
@@ -1704,6 +1768,42 @@ describe('scan-loop', () => {
       expect(deps.audit.log.mock.calls.filter((c) => c[0] === 'file-access')).toHaveLength(1);
     });
 
+    it('tap 2 preserves a changed action and stronger evidence in both audit and sequence', async () => {
+      require_('../../src/main/session-tracker.js')._resetForTest();
+      const sequenceEngine = makeEngine();
+      const raw = twoEventsOnePath();
+      Object.assign(raw[0], {
+        action: 'modified',
+        sensitive: false,
+        attribution: { status: 'inferred', evidence: ['cwd-containment'] },
+      });
+      Object.assign(raw[1], {
+        action: 'accessed',
+        sensitive: true,
+        attribution: { status: 'confirmed', evidence: ['handle-scan-pid'] },
+      });
+      const deps = makeDeps({
+        getLatestAgents: vi.fn().mockReturnValue([{ agent: 'Claude Code' }]),
+        watcher: {
+          pruneKnownHandles: vi.fn(),
+          scanAllFileHandles: vi.fn().mockResolvedValue(raw),
+        },
+        sequenceEngine,
+      });
+      scanLoop.init(deps);
+      scanLoop.staggeredStartup(5000, true);
+      await vi.advanceTimersByTimeAsync(8000);
+      expect(sequenceEngine.ingest.mock.calls.map(([record]) => record)).toEqual(raw);
+      const audited = deps.audit.log.mock.calls.filter(([type]) => type === 'file-access');
+      expect(audited).toHaveLength(2);
+      expect(
+        audited.map(([, record]) => [record.action, record.severity, record.attribution.status]),
+      ).toEqual([
+        ['modified', 'normal', 'inferred'],
+        ['accessed', 'sensitive', 'confirmed'],
+      ]);
+    });
+
     it('tap 2: doHotReadScan ingests the deduped hot-read events through the same tap', async () => {
       const sequenceEngine = makeEngine();
       const raw = twoEventsOnePath();
@@ -1739,6 +1839,10 @@ describe('scan-loop', () => {
           instanceId: '100:1717000000000',
           remoteIp: '1.2.3.4',
           remotePort: 443,
+          localIp: '10.0.0.1',
+          localPort: 52001,
+          verdict: 'allowlisted',
+          verdictReason: 'ip-allowlist',
           state: 'ESTABLISHED',
           flagged: false,
         },
@@ -1770,6 +1874,26 @@ describe('scan-loop', () => {
       expect(sequenceEngine.ingest.mock.calls.map((c) => c[0])).toEqual(connections);
       // Beside `recordNetworkEndpoint`: one ingest per endpoint recorded, same objects.
       expect(deps.baselines.recordNetworkEndpoint).toHaveBeenCalledTimes(2);
+      expect(deps.audit.log).toHaveBeenCalledWith(
+        'network-connection',
+        expect.objectContaining({
+          extra: expect.objectContaining({
+            localIp: '10.0.0.1',
+            localPort: 52001,
+            remoteIp: '1.2.3.4',
+            remotePort: 443,
+            state: 'ESTABLISHED',
+            verdict: 'allowlisted',
+            verdictReason: 'ip-allowlist',
+          }),
+        }),
+      );
+      const legacyAudit = deps.audit.log.mock.calls.find(
+        ([type, record]) => type === 'network-connection' && record.pid === null,
+      )[1];
+      expect(legacyAudit.extra).not.toHaveProperty('verdict');
+      expect(legacyAudit.extra).not.toHaveProperty('verdictReason');
+      expect(legacyAudit.extra).not.toHaveProperty('localIp');
     });
 
     /**

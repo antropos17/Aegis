@@ -16,6 +16,7 @@
 'use strict';
 
 const dns = require('dns');
+const { isIP } = require('net');
 const fs = require('fs');
 const path = require('path');
 const _platform = require('./platform');
@@ -434,7 +435,27 @@ async function scanNetworkConnections(agents) {
     const seen = new Set();
     const deduped = raw.filter((c) => {
       if (isPrivateIp(c.ip)) return false;
-      const key = `${c.pid}:${c.ip}:${c.port}`;
+      // A remote endpoint can have many simultaneous sockets from the same process.
+      // Dedup only when both endpoints and the observation state identify the same
+      // socket. Missing local identity is uncertainty, never a shared empty bucket.
+      if (
+        !Number.isInteger(c.pid) ||
+        c.pid <= 0 ||
+        typeof c.localIp !== 'string' ||
+        !isIP(c.localIp) ||
+        !Number.isInteger(c.localPort) ||
+        c.localPort <= 0 ||
+        c.localPort > 65535 ||
+        typeof c.ip !== 'string' ||
+        !isIP(c.ip) ||
+        !Number.isInteger(c.port) ||
+        c.port <= 0 ||
+        c.port > 65535 ||
+        typeof c.state !== 'string' ||
+        !c.state
+      )
+        return true;
+      const key = JSON.stringify([c.pid, c.localIp, c.localPort, c.ip, c.port, c.state]);
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -469,6 +490,11 @@ async function scanNetworkConnections(agents) {
         category: agent ? agent.category : 'other',
         remoteIp: c.ip,
         remotePort: c.port,
+        localIp: typeof c.localIp === 'string' && isIP(c.localIp) ? c.localIp : null,
+        localPort:
+          Number.isInteger(c.localPort) && c.localPort > 0 && c.localPort <= 65535
+            ? c.localPort
+            : null,
         domain: domain || '',
         state: c.state,
         // Three outcomes, and the rule that produced each one. `verdict` is the honest

@@ -1,13 +1,27 @@
 <script lang="ts">
   import { instances, measured, type Telemetry, type RecordData } from '../runtime/host';
   import { radarGroups, groupEvidence, groupRecord } from '../runtime/radar';
-  import { statisticsValue } from '../runtime/statistics-metrics';
+  import { measuredStatisticsTotal, statisticsValue } from '../runtime/statistics-metrics';
   let {
     telemetry,
     inspect,
   }: { telemetry: Telemetry; inspect: (_title: string, _row: RecordData) => void } = $props();
   let groups = $derived(
-    radarGroups(instances(telemetry)).map((g) => ({ ...g, ...groupEvidence(g, telemetry) })),
+    radarGroups(instances(telemetry)).map((g) => {
+      const groupState = {
+        ...telemetry,
+        agents: g.members.map((member) => ({
+          ...member,
+          instanceId: member.instanceId ?? undefined,
+        })),
+      };
+      return {
+        ...g,
+        ...groupEvidence(g, telemetry),
+        tokenUsage: measuredStatisticsTotal(groupState, telemetry.tokens, 'totalTokens'),
+        costUsage: measuredStatisticsTotal(groupState, telemetry.tokens, 'costUsd'),
+      };
+    }),
   );
   let showSources = $state(false);
 </script>
@@ -27,27 +41,27 @@
       <thead><tr><th>Agent</th><th>Coverage</th><th>Tokens</th><th>Estimated cost</th></tr></thead
       ><tbody>
         {#each groups as group (group.key)}
-          {@const covered = group.members.filter(
-            (a) =>
-              a.instanceId &&
-              telemetry.tokens.some(
-                (t) => t.instanceId === a.instanceId && measured(t.totalTokens) !== null,
-              ),
-          ).length}
           <tr
             ><td
               ><button class="entity-link" onclick={() => inspect(group.name, groupRecord(group))}
                 >{group.name}</button
               ><small>{group.members.length} processes</small></td
-            ><td>{covered} / {group.members.length}</td><td
-              >{statisticsValue(group.tokens)}<small
-                >{group.estimated
-                  ? 'Includes estimates'
-                  : group.tokens === null
-                    ? 'Incomplete coverage'
-                    : 'From supported logs'}</small
+            ><td>{group.tokenUsage.measured} / {group.tokenUsage.total}</td><td
+              >{statisticsValue(group.tokenUsage.value)}<small
+                >{group.tokenUsage.value === null
+                  ? 'No current measurement'
+                  : group.tokenUsage.measured < group.tokenUsage.total
+                    ? 'Measured subtotal'
+                    : 'From supported logs'}{group.estimated ? ' · includes estimates' : ''}</small
               ></td
-            ><td>{statisticsValue(group.cost, 'USD')}</td></tr
+            ><td
+              >{statisticsValue(group.costUsage.value, 'USD')}<small
+                >{group.costUsage.measured} / {group.costUsage.total} processes priced{group
+                  .costUsage.value !== null && group.costUsage.measured < group.costUsage.total
+                  ? ' · subtotal'
+                  : ''}</small
+              ></td
+            ></tr
           >
         {:else}<tr><td colspan="4">No current agents with token attribution.</td></tr>{/each}
       </tbody>

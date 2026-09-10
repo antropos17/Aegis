@@ -29,6 +29,6 @@ export function validateCatalog(value: unknown): RecordData[] {
     )
       throw new Error('Product websites must use HTTP or HTTPS');
     ids.add(agent.id);
-    return { ...agent };
+    return { ...agent, names: [...new Set(agent.names)] };
   });
 }

@@ -576,4 +576,47 @@ describe('ai-analysis', () => {
       expect(result.error).toBe('ECONNRESET');
     });
   });
+  it.each(['agent', 'session'])(
+    'returns captured %s counts, not model counts or later mutable observations',
+    async (mode) => {
+      const agents = [
+        { agent: 'Codex', pid: 1 },
+        { agent: 'Codex', pid: 2 },
+        { agent: 'Cursor', pid: 3 },
+      ];
+      const activityLog = [
+        { agent: 'Codex', sensitive: true },
+        { agent: 'Codex' },
+        { agent: 'Cursor' },
+      ];
+      const netConns = [{ agent: 'Codex' }, { agent: 'Cursor' }];
+      setupState({ agents, activityLog, netConns });
+      mockHttpSuccess({
+        content: [
+          {
+            text: JSON.stringify({
+              summary: 'Fixture',
+              riskLevel: 'HIGH',
+              riskRating: 'HIGH',
+              counts: { totalFiles: 999 },
+            }),
+          },
+        ],
+      });
+      const pending =
+        mode === 'agent'
+          ? analysis.analyzeAgentActivity('Codex')
+          : analysis.analyzeSessionActivity();
+      agents.push({ agent: 'Later' });
+      activityLog.push({ agent: 'Later', sensitive: true });
+      netConns.push({ agent: 'Later' });
+      const result = await pending;
+      expect(result.success).toBe(true);
+      expect(result.counts).toEqual(
+        mode === 'agent'
+          ? { totalFiles: 2, totalSensitive: 1, totalAgents: 1, totalNet: 1 }
+          : { totalFiles: 3, totalSensitive: 1, totalAgents: 2, totalNet: 2 },
+      );
+    },
+  );
 });

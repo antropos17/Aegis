@@ -1,5 +1,6 @@
 import { instances, measured, type Telemetry, type RecordData } from './host';
 import { activityBins } from './activity';
+import { canonicalObservationPath } from '../../../src/shared/observation-display.js';
 export type ObservedInstance = ReturnType<typeof instances>[number];
 export interface RadarGroup {
   key: string;
@@ -62,7 +63,8 @@ export function groupEvidence(group: RadarGroup, state: Telemetry): GroupEvidenc
     files: new Set(
       events
         .filter((e) => !e.selfAccess && e.attribution?.status !== 'unattributed')
-        .map((e) => e.file),
+        .map((e) => canonicalObservationPath(e.file))
+        .filter(Boolean),
     ).size,
     network: state.network.filter((n) => n.instanceId && ids.has(n.instanceId)).length,
     latest: events.reduce<number | null>((latest, e) => Math.max(latest ?? 0, e.timestamp), null),

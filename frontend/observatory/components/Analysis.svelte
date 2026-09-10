@@ -86,11 +86,19 @@
   async function analyze() {
     const ticket = ++generation;
     const scope = mode === 'agent' ? agent : 'Session';
-    const counts = {
-      totalFiles: telemetry.stats.totalFiles,
-      totalSensitive: telemetry.stats.aiSensitive,
-      totalAgents: telemetry.stats.currentAgents,
-      totalNet: telemetry.network.length,
+    const selectedAgent = mode === 'agent' ? agent : null;
+    const events = telemetry.events.filter(
+      (event) => !selectedAgent || event.agent === selectedAgent,
+    );
+    const population = telemetry.agents.filter(
+      (item) => !selectedAgent || item.agent === selectedAgent,
+    );
+    const fallbackCounts = {
+      totalFiles: events.length,
+      totalSensitive: events.filter((event) => event.sensitive).length,
+      totalAgents: new Set(population.map((item) => item.agent).filter(Boolean)).size,
+      totalNet: telemetry.network.filter((item) => !selectedAgent || item.agent === selectedAgent)
+        .length,
     };
     const title = reportTitle.trim() || 'Activity assessment';
     const result = confirmed(
@@ -112,7 +120,24 @@
       }
     }
     if (!Object.keys(structured).length) structured = result;
-    report = { ...structured, title, scope, counts, createdAt: new Date().toISOString() };
+    const requestCounts = record(result.counts);
+    const captured = ['totalFiles', 'totalSensitive', 'totalAgents', 'totalNet'].every(
+      (key) =>
+        typeof requestCounts[key] === 'number' &&
+        Number.isFinite(requestCounts[key]) &&
+        Number(requestCounts[key]) >= 0,
+    );
+    const counts = captured
+      ? Object.fromEntries(Object.keys(fallbackCounts).map((key) => [key, requestCounts[key]]))
+      : fallbackCounts;
+    report = {
+      ...structured,
+      title,
+      scope,
+      counts,
+      countsSource: captured ? 'Captured analysis request' : 'Retained displayed observations',
+      createdAt: new Date().toISOString(),
+    };
     history = [report, ...history].slice(0, 20);
     section = 'summary';
   }
@@ -318,7 +343,10 @@
         </div>
         <div hidden={section !== 'evidence'} class="report-section inset">
           {#if report}<h2>Recorded scope</h2>
-            <p class="muted">Counters captured when this assessment was requested.</p>
+            <p class="muted">
+              {String(report.countsSource)} · {String(report.scope)}. Agents counts distinct
+              products.
+            </p>
             <Metadata value={record(report.counts)} />{:else}<div class="analysis-empty">
               <Icon name="file" />
               <h2>No assessment yet</h2>

@@ -10,6 +10,7 @@
     type RecordData,
     type Telemetry,
   } from '../runtime/host';
+  import { policyTargets, effectivePolicy, policySaveTarget } from '../runtime/policy-targets';
   import Action from './Action.svelte';
   import Icon from './Icon.svelte';
   import AgentLogo from './AgentLogo.svelte';
@@ -74,21 +75,16 @@
             ...Object.keys(permissions).filter((k) => !k.includes('::')),
           ]),
         ].map((name) => ({ key: name, label: name }))
-      : agents
-          .filter((a) => a.instanceId)
-          .map((a) => ({
-            key: a.instanceId!,
-            label: `${a.name} · PID ${a.pid} · ${a.cwd ?? a.parentEditor ?? 'standalone'}`,
-          })),
+      : policyTargets(agents, permissions, target),
   );
-  let chosen = $derived(agents.find((a) => a.instanceId === target));
-  let contextKey = $derived(scope === 'agent' ? target : chosen?.instanceKey);
+  let chosen = $derived(agents.find((a) => a.instanceKey === target));
+  let contextKey = $derived(target);
   $effect(() => {
     if (loaded && !target && options.length) target = options[0].key;
   });
   $effect(() => {
     const key = scope + ':' + (contextKey ?? target);
-    const current = record(contextKey ? permissions[contextKey] : undefined);
+    const current = effectivePolicy(contextKey, agents, permissions);
     const next = Object.fromEntries(
       categories.map((cat) => [cat, String(current[cat] ?? 'monitor')]),
     );
@@ -154,28 +150,10 @@
     const savingKey = activeKey;
     const savingDraft = { ...draft };
     const savingTarget = target;
-    if (scope === 'instance') {
-      const live = agents.find((a) => a.instanceId === target);
-      if (!live || telemetry.stale) throw new Error('Instance is no longer reliably observed');
-      confirmed(
-        await invoke(host, 'saveInstancePermissions', {
-          agentName: live.name,
-          parentEditor: live.parentEditor,
-          cwd: live.cwd,
-          permissions: savingDraft,
-        }),
-      );
-    } else {
-      // Host replaces the whole map. Preserve project overrides from a fresh read.
-      const fresh = record(await invoke(host, 'getAllPermissions'));
-      confirmed(
-        await invoke(host, 'saveAgentPermissions', {
-          ...record(fresh.permissions),
-          ...record(fresh.instancePermissions),
-          [savingTarget]: savingDraft,
-        }),
-      );
-    }
+    const context = policySaveTarget(savingTarget, agents, scope === 'instance');
+    confirmed(
+      await invoke(host, 'saveInstancePermissions', { ...context, permissions: savingDraft }),
+    );
     if (JSON.stringify(drafts[savingKey]) === JSON.stringify(savingDraft)) delete drafts[savingKey];
     if (activeKey === savingKey && JSON.stringify(draft) === JSON.stringify(savingDraft))
       draftBaseline = JSON.stringify(savingDraft);
@@ -201,10 +179,10 @@
   {#if error}<p role="alert">{error}</p>{/if}
   <div class="filterbar target-toolbar">
     <label
-      >Agent <AgentLogo name={scope === 'agent' ? target : (chosen?.name ?? '')} size={22} /><select
-        aria-label="Target"
-        disabled={mutation === 'reset'}
-        bind:value={target}
+      >Agent <AgentLogo
+        name={scope === 'agent' ? target : (chosen?.name ?? target.split('::')[0])}
+        size={22}
+      /><select aria-label="Target" disabled={mutation === 'reset'} bind:value={target}
         ><option value="">Select…</option>{#each options as option (option.key)}<option
             value={option.key}>{option.label}</option
           >{/each}</select
@@ -275,7 +253,7 @@
         disabled={!dirty || mutation !== null}
         action={async () => {
           delete drafts[activeKey];
-          const current = record(contextKey ? permissions[contextKey] : undefined);
+          const current = effectivePolicy(contextKey, agents, permissions);
           draft = Object.fromEntries(
             categories.map((cat) => [cat, String(current[cat] ?? 'monitor')]),
           );

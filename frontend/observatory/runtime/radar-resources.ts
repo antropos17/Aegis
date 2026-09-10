@@ -1,10 +1,15 @@
 import type { Telemetry, RecordData } from './host';
 import type { RadarGroup } from './radar';
-import { describeObservation } from '../../../src/shared/observation-display.js';
+import {
+  describeObservation,
+  canonicalObservationPath,
+} from '../../../src/shared/observation-display.js';
 
 export interface RadarResource {
   key: string;
   row: RecordData;
+  rows: RecordData[];
+  resourceKey: string;
   group: string | null;
   name: string;
   label: string;
@@ -67,11 +72,12 @@ export function radarResources(
         : 'No current agent link';
     // Ports and distinct IPs remain distinct even when reverse DNS returns the same name.
     const identity =
-      layer === 'files' ? file.replaceAll('\\', '/') : `${ip || domain}:${port ?? ''}`;
+      layer === 'files' ? canonicalObservationPath(file) : `${ip || domain}:${port ?? ''}`;
     const key = JSON.stringify([owner?.key ?? entry.instanceId ?? null, identity]);
     const existing = resources.get(key);
     if (existing) {
       existing.count++;
+      existing.rows.push(row);
       if (existing.attribution !== status) existing.attribution = 'Mixed attribution';
       if (Number(row.timestamp || 0) > Number(existing.row.timestamp || 0)) existing.row = row;
       continue;
@@ -79,6 +85,8 @@ export function radarResources(
     resources.set(key, {
       key,
       row,
+      rows: [row],
+      resourceKey: identity,
       group: owner?.key ?? null,
       name: owner?.name ?? info.label,
       label:

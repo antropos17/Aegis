@@ -185,6 +185,22 @@ describe('platform/win32', () => {
       expect(result).toEqual(conns);
     });
 
+    it('requests and preserves both local endpoint fields for simultaneous sockets', async () => {
+      const rows = [52001, 52002].map((localPort) => ({
+        pid: 100,
+        ip: '52.1.2.3',
+        port: 443,
+        state: 'Established',
+        localIp: '10.0.0.1',
+        localPort,
+      }));
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, JSON.stringify(rows)));
+      expect(await win32.getRawTcpConnections([100])).toEqual(rows);
+      const script = mockExecFile.mock.calls[0][1].at(-1);
+      expect(script).toContain('localIp=$c.LocalAddress');
+      expect(script).toContain('localPort=[int]$c.LocalPort');
+    });
+
     it('wraps single connection object in array', async () => {
       const conn = { pid: 100, ip: '1.2.3.4', port: 80, state: 'Established' };
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {

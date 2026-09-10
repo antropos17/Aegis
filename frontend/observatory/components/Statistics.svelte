@@ -42,6 +42,11 @@
   });
   let now = $state(Date.now());
   let historyPeriod = $state(60000);
+  let processView = $state('comparison');
+  const processViews = [
+    { id: 'comparison', label: 'Comparison' },
+    { id: 'table', label: 'Table' },
+  ];
   onMount(() => {
     const timer = setInterval(() => {
       if (!paused && !telemetry.stale) now = Date.now();
@@ -181,8 +186,33 @@
               disk and bandwidth measurements are not provided by the current sensors.
             </p>
           {:else if section === 'processes'}
-            <ResourceUsage {telemetry} {inspect} />
-            <Agents {telemetry} {inspect} />
+            <div class="process-view-selector">
+              <SectionTabs
+                tabs={processViews}
+                selected={processView}
+                change={(id) => {
+                  processView = id;
+                }}
+                prefix="statistics-process"
+                label="Process comparison view"
+              />
+            </div>
+            <div
+              role="tabpanel"
+              id="statistics-process-panel-comparison"
+              aria-labelledby="statistics-process-tab-comparison"
+              hidden={processView !== 'comparison'}
+            >
+              <ResourceUsage {telemetry} {inspect} />
+            </div>
+            <div
+              role="tabpanel"
+              id="statistics-process-panel-table"
+              aria-labelledby="statistics-process-tab-table"
+              hidden={processView !== 'table'}
+            >
+              <Agents {telemetry} {inspect} />
+            </div>
           {:else if section === 'activity'}
             <ActivityChart
               events={telemetry.events}
@@ -254,6 +284,15 @@
     display: grid;
     gap: 18px;
     margin-top: 18px;
+  }
+  .process-view-selector {
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--panel);
+    overflow: hidden;
+  }
+  .process-view-selector :global(.section-tabs) {
+    border: 0;
   }
   .distribution-grid {
     display: grid;

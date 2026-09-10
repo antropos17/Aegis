@@ -146,7 +146,8 @@ function register() {
       if (!data || typeof data !== 'object') {
         return { success: false, error: 'Invalid report data' };
       }
-      const { riskRating, summary, findings, recommendations, counts } = data;
+      const { summary, findings, recommendations, counts } = data;
+      const riskRating = data.riskRating ?? data.riskLevel;
       const safe = {
         riskRating: escapeHtml(riskRating || 'UNKNOWN'),
         summary: escapeHtml(summary || '').replace(/\n/g, '<br>'),

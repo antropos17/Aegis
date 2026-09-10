@@ -113,8 +113,15 @@ function analyzeAgentActivity(agentName) {
     const safeName = sanitizeField(agentName, FIELD_LIMITS.agentName);
     const agentEvents = _state.activityLog.filter((e) => e.agent === agentName);
     const sensitiveEvents = agentEvents.filter((e) => e.sensitive);
-    const agentInfo = _state.getLatestAgents().find((a) => a.agent === agentName);
+    const matchingAgents = _state.getLatestAgents().filter((a) => a.agent === agentName);
+    const agentInfo = matchingAgents[0];
     const agentNetConns = _state.getLatestNetConnections().filter((c) => c.agent === agentName);
+    const counts = {
+      totalFiles: agentEvents.length,
+      totalSensitive: sensitiveEvents.length,
+      totalAgents: matchingAgents.length ? 1 : 0,
+      totalNet: agentNetConns.length,
+    };
     const parentChain =
       agentInfo && agentInfo.parentChain
         ? agentInfo.parentChain.map((p) => sanitizeField(p, FIELD_LIMITS.agentName)).join(' -> ')
@@ -182,8 +189,8 @@ function analyzeAgentActivity(agentName) {
               const result = extractJSON(text);
               resolve(
                 result
-                  ? { success: true, analysis: text, structured: result }
-                  : { success: true, analysis: text },
+                  ? { success: true, analysis: text, structured: result, counts }
+                  : { success: true, analysis: text, counts },
               );
             } else if (parsed.error) {
               resolve({ success: false, error: parsed.error.message || 'API error' });
@@ -230,6 +237,12 @@ function analyzeSessionActivity() {
       (e) => e.reason && e.reason.startsWith('AI agent config'),
     );
     const netConns = _state.getLatestNetConnections();
+    const counts = {
+      totalFiles: allEvents.length,
+      totalSensitive: sensitiveEvents.length,
+      totalAgents: new Set(agents.map((agent) => agent.agent).filter(Boolean)).size,
+      totalNet: netConns.length,
+    };
     const anomalyScores = _state.getAnomalyScores ? _state.getAnomalyScores() : {};
 
     // Per-agent summary
@@ -294,7 +307,8 @@ function analyzeSessionActivity() {
     const telemetry = [
       'AEGIS Monitoring Session Data:',
       '',
-      `Active agents: ${agents.length}`,
+      `Active agent products: ${counts.totalAgents}`,
+      `Active processes: ${agents.length}`,
       `Total file events: ${allEvents.length}`,
       `Sensitive file accesses: ${sensitiveEvents.length}`,
       `AI config accesses: ${configAccessEvents.length}`,
@@ -348,6 +362,7 @@ function analyzeSessionActivity() {
               if (result) {
                 resolve({
                   success: true,
+                  counts,
                   summary: result.summary,
                   findings: result.findings || [],
                   riskRating: result.riskRating || 'UNKNOWN',
@@ -357,6 +372,7 @@ function analyzeSessionActivity() {
               } else {
                 resolve({
                   success: true,
+                  counts,
                   summary: text,
                   findings: [],
                   riskRating: 'UNKNOWN',

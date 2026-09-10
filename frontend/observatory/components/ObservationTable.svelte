@@ -3,6 +3,7 @@
   import {
     describeObservation,
     groupObservations,
+    observationGroupEvidence,
   } from '../../../src/shared/observation-display.js';
   import { instances, record, type RecordData, type Telemetry } from '../runtime/host';
   import ObservationIdentity from './ObservationIdentity.svelte';
@@ -62,6 +63,14 @@
         {#each visible as group (group.key)}
           {@const row = group.latest}
           {@const info = describeObservation(row, agents)}
+          {@const evidence = observationGroupEvidence(group.rows, agents)}
+          {@const actions = [
+            ...new Set(
+              group.rows.map((entry) =>
+                String(entry.action || entry.state || entry.type || 'Observed'),
+              ),
+            ),
+          ]}
           <tr class="observation-group">
             <td
               ><button class="observation-open" onclick={() => open(group)}
@@ -83,30 +92,26 @@
                 />{/if}
               <div class="row-evidence">
                 <span
-                  title={Array.isArray(record(row.attribution).evidence)
-                    ? (record(row.attribution).evidence as unknown[]).map(String).join(', ')
-                    : info.attribution}
+                  title={group.rows
+                    .flatMap((entry) =>
+                      Array.isArray(record(entry.attribution).evidence)
+                        ? (record(entry.attribution).evidence as string[])
+                        : [],
+                    )
+                    .join(', ') || evidence}
                   class="badge"
-                  class:medium={row.sensitive === true ||
-                    row.verdict === 'flagged' ||
-                    ['sensitive', 'high', 'critical', 'medium'].includes(String(row.severity))}
-                  >{row.remoteIp || row.domain
-                    ? row.verdict === 'allowlisted'
-                      ? 'Allowlisted'
-                      : row.verdict === 'flagged'
-                        ? 'Not allowlisted'
-                        : 'Endpoint unverified'
-                    : row.sensitive || row.severity === 'sensitive'
-                      ? 'Sensitive'
-                      : row.severity && !['normal', 'low'].includes(String(row.severity))
-                        ? String(row.severity)
-                        : info.attribution}</span
+                  class:medium={group.rows.some(
+                    (entry) =>
+                      entry.sensitive === true ||
+                      entry.verdict === 'flagged' ||
+                      ['sensitive', 'high', 'critical', 'medium'].includes(String(entry.severity)),
+                  )}>{evidence}</span
                 >
               </div></td
             >
             <td
               ><span class="event-type"
-                >{String(row.action || row.type || row.state || 'Observed')}</span
+                >{actions.length > 1 ? actions.length + ' activity types' : actions[0]}</span
               ></td
             >
             <td

@@ -51,6 +51,9 @@ export type InstanceIdSource = 'os' | 'synthetic' | 'unknown';
 
 /** Raw TCP connection from Get-NetTCPConnection */
 export interface RawTcpConnection {
+  /** Absent on legacy providers; null when the local endpoint is unavailable. */
+  readonly localIp?: string | null;
+  readonly localPort?: number | null;
   readonly pid: number;
   readonly ip: string;
   readonly port: number;

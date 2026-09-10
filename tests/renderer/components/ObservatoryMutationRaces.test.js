@@ -116,7 +116,7 @@ it('prevents reset-all racing a pending policy save', async () => {
       return {};
     }),
     getRules: async () => [],
-    saveAgentPermissions: vi.fn(async () => ({ success: true })),
+    saveInstancePermissions: vi.fn(async () => ({ success: true })),
     resetPermissionsToDefaults: vi.fn(async () => ({ success: true })),
   };
   render(Rules, { host, telemetry: telemetry() });

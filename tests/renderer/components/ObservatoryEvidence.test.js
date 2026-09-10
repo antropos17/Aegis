@@ -1,5 +1,7 @@
 import { it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/svelte';
+import ObservationHistory from '../../../frontend/observatory/components/ObservationHistory.svelte';
+import Reports from '../../../frontend/observatory/components/Reports.svelte';
 import Events from '../../../frontend/observatory/components/Events.svelte';
 import SensorStatus from '../../../frontend/observatory/components/SensorStatus.svelte';
 import Notifications from '../../../frontend/observatory/components/Notifications.svelte';
@@ -105,3 +107,85 @@ it('keeps population churn quiet and alerts only on an anomaly crossing', async 
   await mounted.rerender({ telemetry: { ...initial, anomalies: { a: 50 } } });
   expect(screen.getByText('Anomaly: Claude score 50')).toBeInTheDocument();
 });
+
+it('shows one Windows resource row with mixed activities and keeps every original observation', async () => {
+  const rows = [
+    {
+      agent: 'Codex',
+      file: 'C:/work/notes.txt',
+      action: 'read',
+      timestamp: 1000,
+      attribution: { status: 'inferred' },
+    },
+    {
+      agent: 'Codex',
+      file: 'c:\\WORK\\NOTES.txt',
+      action: 'modified',
+      timestamp: 2000,
+      sensitive: true,
+      attribution: { status: 'confirmed' },
+    },
+  ];
+  const inspect = vi.fn();
+  const mounted = render(Events, {
+    telemetry: { ...emptyTelemetry(), ready: true, events: rows },
+    inspect,
+  });
+  expect(mounted.container.querySelectorAll('.observation-group')).toHaveLength(1);
+  expect(screen.getByText('2 activity types')).toBeInTheDocument();
+  expect(screen.getByText(/Sensitive.*Mixed attribution/)).toBeInTheDocument();
+  await fireEvent.click(screen.getByRole('button', { name: /Open 2 observations/ }));
+  expect(inspect.mock.calls[0][1].observations).toEqual(rows);
+});
+
+it('distinguishes retained sockets sharing one remote endpoint by their local ports', () => {
+  const rows = [52001, 52002].map((localPort) => ({
+    remoteIp: '192.0.2.1',
+    remotePort: 443,
+    localIp: '10.0.0.2',
+    localPort,
+    pid: 17,
+    state: 'Established',
+  }));
+  render(ObservationHistory, { rows, navigate: vi.fn() });
+  expect(screen.getByText(/Local 10.0.0.2:52001/)).toBeInTheDocument();
+  expect(screen.getByText(/Local 10.0.0.2:52002/)).toBeInTheDocument();
+  expect(screen.getAllByRole('button')).toHaveLength(2);
+});
+
+it.each(['details', 'extra'])(
+  'opens grouped audit sockets with original %s metadata',
+  async (storage) => {
+    const entries = [52001, 52002].map((localPort) => ({
+      type: 'network-connection',
+      path: '192.0.2.1:443',
+      pid: 17,
+      agent: 'Codex',
+      timestamp: '2026-09-09T12:00:00Z',
+      [storage]: {
+        remoteIp: '192.0.2.1',
+        remotePort: 443,
+        localIp: '10.0.0.2',
+        localPort,
+        domain: '',
+        state: 'Established',
+        verdict: 'allowlisted',
+      },
+    }));
+    const inspect = vi.fn();
+    render(Reports, {
+      host: { getAuditStats: async () => ({}), getAuditEntriesBefore: async () => entries },
+      audit: true,
+      inspect,
+      telemetry: emptyTelemetry(),
+      navigate: vi.fn(),
+    });
+    await screen.findByText('Allowlisted');
+    await fireEvent.click(screen.getByRole('button', { name: /Open 2 observations/ }));
+    const rows = inspect.mock.calls[0][1].observations;
+    expect(rows.map((row) => row.localPort)).toEqual([52001, 52002]);
+    expect(rows[0][storage]).toEqual(entries[0][storage]);
+    expect(rows[0][storage].localPort).toBe(52001);
+    expect(rows[0].state).toBe('Established');
+  },
+);

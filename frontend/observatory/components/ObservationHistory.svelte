@@ -1,6 +1,10 @@
 <script lang="ts">
   import type { RecordData } from '../runtime/host';
-  import { describeObservation, observationTime } from '../../../src/shared/observation-display.js';
+  import {
+    describeObservation,
+    observationTime,
+    endpointLabel,
+  } from '../../../src/shared/observation-display.js';
   import ObservationResource from './ObservationResource.svelte';
   import Icon from './Icon.svelte';
   let {
@@ -65,9 +69,13 @@
       >
       <span
         ><ObservationResource {row} /><small
-          >{String(row.action || row.type || row.state || 'Observed')} · {info.actor ||
+          >{String(row.action || row.state || row.type || 'Observed')} · {info.actor ||
             info.context ||
-            'Actor not recorded'}{row.pid ? ` · PID ${row.pid}` : ''} · {info.attribution}</small
+            'Actor not recorded'}{row.pid ? ` · PID ${row.pid}` : ''}{row.localIp || row.localPort
+            ? ' · Local ' +
+              (endpointLabel({ remoteIp: row.localIp, remotePort: row.localPort }) ||
+                'port ' + row.localPort)
+            : ''} · {info.attribution}</small
         ></span
       >
     </button>

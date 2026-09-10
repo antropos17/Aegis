@@ -6,6 +6,7 @@
 'use strict';
 
 const { execFile: _origExecFile } = require('child_process');
+const { isIP } = require('net');
 
 let _execFile = _origExecFile;
 /** @internal Override execFile (for tests). */
@@ -53,14 +54,34 @@ function parsePsOutput(stdout) {
 }
 
 /**
- * Parse `lsof -i TCP -n -P -F pcnT` output.
+ * Parse a numeric TCP endpoint emitted by ss/lsof, keeping IPv6 scope identifiers.
+ * Unavailable or malformed endpoints return null rather than a synthetic identity.
+ * @param {string} endpoint
+ * @returns {{ip: string, port: number}|null}
+ * @since v0.14.1
+ */
+function parseTcpEndpoint(endpoint) {
+  const lastColon = endpoint.lastIndexOf(':');
+  if (lastColon < 1) return null;
+  const host = endpoint.slice(0, lastColon);
+  const ip = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
+  const portText = endpoint.slice(lastColon + 1);
+  const port = Number(portText);
+  if (!isIP(ip) || !/^\d+$/.test(portText) || port < 1 || port > 65535) return null;
+  return { ip, port };
+}
+
+/**
+ * Parse lsof TCP output with per-file state and both endpoints.
  * @param {string} stdout
  * @param {Set<number>} pidSet
- * @returns {Array<{pid: number, ip: string, port: number, state: string}>}
+ * @returns {import("../../shared/types/process").RawTcpConnection[]}
+ * @since v0.14.1
  */
 function parseLsofOutput(stdout, pidSet) {
   const results = [];
   let currentPid = -1;
+  let currentSocket = null;
 
   for (const line of stdout.split('\n')) {
     if (!line) continue;
@@ -68,23 +89,32 @@ function parseLsofOutput(stdout, pidSet) {
     const value = line.slice(1);
     if (code === 'p') {
       currentPid = parseInt(value, 10);
-    } else if (code === 'n' && pidSet.has(currentPid)) {
+      currentSocket = null;
+    } else if (code === 'f') {
+      currentSocket = null;
+    } else if (code === 'n') {
+      // Reset even for excluded sockets: their following TST must not mutate the
+      // most recent accepted socket of this PID.
+      currentSocket = null;
+      if (!pidSet.has(currentPid)) continue;
       const arrow = value.indexOf('->');
       if (arrow === -1) continue;
-      const remote = value.slice(arrow + 2);
-      const lastColon = remote.lastIndexOf(':');
-      if (lastColon === -1) continue;
-      const ip = remote.slice(0, lastColon);
-      const port = parseInt(remote.slice(lastColon + 1), 10);
-      if (isNaN(port)) continue;
-      if (ip === '127.0.0.1' || ip === '::1' || ip === '0.0.0.0' || ip === '::' || ip === '*')
-        continue;
-      results.push({ pid: currentPid, ip, port, state: 'Established' });
-    } else if (code === 'T' && value.startsWith('ST=')) {
-      const state = value.slice(3);
-      if (results.length > 0 && results[results.length - 1].pid === currentPid) {
-        results[results.length - 1].state = state;
-      }
+      const remote = parseTcpEndpoint(value.slice(arrow + 2));
+      if (!remote) continue;
+      const { ip, port } = remote;
+      if (ip === '127.0.0.1' || ip === '::1' || ip === '0.0.0.0' || ip === '::') continue;
+      const local = parseTcpEndpoint(value.slice(0, arrow));
+      currentSocket = {
+        pid: currentPid,
+        ip,
+        port,
+        localIp: local?.ip ?? null,
+        localPort: local?.port ?? null,
+        state: 'Established',
+      };
+      results.push(currentSocket);
+    } else if (code === 'T' && value.startsWith('ST=') && currentSocket) {
+      currentSocket.state = value.slice(3);
     }
   }
   return results;
@@ -218,6 +248,7 @@ module.exports = {
   isValidPid,
   parsePsOutput,
   parseLsofOutput,
+  parseTcpEndpoint,
   parseLsofFileHandles,
   parseLsofCwd,
   killProcess,

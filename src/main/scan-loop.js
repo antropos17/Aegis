@@ -34,10 +34,10 @@ let latestLocalModels = {
   ollama: { running: false, models: [] },
   lmstudio: { running: false, models: [] },
 };
-// Event dedup — same stamped instanceId + same file within 30s → suppress, track count.
+// Suppress equivalent observations of one stamped instance within 30s; track repeats.
 // F-E03: never key on display name / PID / empty agent (cross-instance + unattributed collapse).
 const eventDedupMap = new Map();
-/** Dedup window for same instance + same path (ms). */
+/** Dedup window for equivalent observations of one instance and path (ms). */
 const FILE_EVENT_DEDUP_WINDOW_MS = 30000;
 let activeScanCount = 0;
 let _lastTriggeredNetScan = 0;
@@ -54,10 +54,11 @@ function updateScanStatus(entering) {
 }
 
 /**
- * Dedup file events by stamped process instance + file path.
+ * Dedup equivalent file observations by stamped process instance and file path.
  *
- * Equivalence class (attributed): same non-empty `instanceId` + same `file` within
- * 30s. Display name and PID must not define the key (F-E03).
+ * Equivalence also requires the same action, classification and attribution evidence.
+ * A stronger or different observation must reach audit and sequence consumers even
+ * within 30s. Display name and PID must not define the key (F-E03).
  *
  * Unattributed (`instanceId` null/empty): bypass instance-scoped dedup entirely —
  * do not use `null|file` / `''|file` (that collapses independent observations).
@@ -74,10 +75,26 @@ function dedupFileEvent(ev) {
     if (ev.repeatCount == null) ev.repeatCount = 1;
     return ev;
   }
-  const key = `${instanceId}|${ev.file}`;
+  // Evidence order carries no meaning; copy before sorting so the audit record is untouched.
+  const attribution = ev.attribution;
+  const evidence = Array.isArray(attribution?.evidence)
+    ? [...new Set(attribution.evidence)].sort()
+    : (attribution?.evidence ?? null);
+  const key = JSON.stringify([
+    instanceId,
+    ev.file,
+    ev.action,
+    ev.sensitive,
+    ev.selfAccess,
+    ev.reason,
+    ev.source,
+    ev.category,
+    attribution?.status,
+    evidence,
+  ]);
   const now = Date.now();
   const prev = eventDedupMap.get(key);
-  if (prev && now - prev.lastSent < FILE_EVENT_DEDUP_WINDOW_MS) {
+  if (prev && now >= prev.lastSent && now - prev.lastSent < FILE_EVENT_DEDUP_WINDOW_MS) {
     prev.count++;
     return null;
   }
@@ -295,7 +312,20 @@ function doNetworkScan() {
             attribution: makeAttribution([
               conn.agent ? EVIDENCE.OS_TCP_OWNER_PID : EVIDENCE.NO_OWNER_MATCH,
             ]),
-            extra: { domain: conn.domain, flagged: conn.flagged },
+            extra: {
+              domain: conn.domain,
+              flagged: conn.flagged,
+              ...(typeof conn.remoteIp === 'string' ? { remoteIp: conn.remoteIp } : {}),
+              ...(Number.isInteger(conn.remotePort) ? { remotePort: conn.remotePort } : {}),
+              ...(typeof conn.state === 'string' ? { state: conn.state } : {}),
+              ...(typeof conn.verdict === 'string' ? { verdict: conn.verdict } : {}),
+              ...(typeof conn.verdictReason === 'string'
+                ? { verdictReason: conn.verdictReason }
+                : {}),
+              ...(conn.localIp != null || conn.localPort != null
+                ? { localIp: conn.localIp ?? null, localPort: conn.localPort ?? null }
+                : {}),
+            },
           });
           // Tap 3 (roadmap §5): the connection object itself, keyless ones included.
           ingestSequence(conn);

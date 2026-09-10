@@ -73,7 +73,7 @@ it('retains each agent policy draft across target changes and refresh without mi
   const host = {
     getAllPermissions: vi.fn(async () => ({ permissions: {}, instancePermissions: {} })),
     getRules: async () => [],
-    saveAgentPermissions: vi.fn(async () => ({ success: true })),
+    saveInstancePermissions: vi.fn(async () => ({ success: true })),
   };
   render(Rules, { host, telemetry: telemetry() });
   await waitFor(() => expect(screen.getByLabelText('Target')).toHaveValue('Codex'));
@@ -88,8 +88,8 @@ it('retains each agent policy draft across target changes and refresh without mi
   await waitFor(() => expect(host.getAllPermissions).toHaveBeenCalledTimes(2));
   expect(screen.getByLabelText('Network')).toHaveValue('block');
   await fireEvent.click(screen.getByRole('button', { name: 'Save permissions' }));
-  await waitFor(() => expect(host.saveAgentPermissions).toHaveBeenCalledTimes(1));
-  expect(host.saveAgentPermissions.mock.calls[0][0].Codex.network).toBe('block');
+  await waitFor(() => expect(host.saveInstancePermissions).toHaveBeenCalledTimes(1));
+  expect(host.saveInstancePermissions.mock.calls[0][0].permissions.network).toBe('block');
   await fireEvent.change(screen.getByLabelText('Target'), { target: { value: 'Claude Code' } });
   expect(screen.getByLabelText('File system')).toHaveValue('allow');
   await fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));

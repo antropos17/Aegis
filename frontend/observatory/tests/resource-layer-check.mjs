@@ -132,7 +132,12 @@ export async function checkResourceLayers(browser, url, out) {
     assert.match(await page.locator('.resource-scope').innerText(), /4 unique endpoints/);
     await page.locator('.resource-node').first().click();
     await page.getByRole('dialog').waitFor();
-    assert.match(await page.locator('.resource-path').innerText(), /192\.0\.2\.10:\d+/);
+    const dialog = page.getByRole('dialog');
+    assert.match(await dialog.getByRole('heading', { level: 2 }).innerText(), /192\.0\.2\.10:443/);
+    await dialog.getByRole('tab', { name: /Records/ }).click();
+    assert.equal(await dialog.locator('.observation-history .recent-event').count(), 2);
+    for (const entry of await dialog.locator('.observation-history .recent-event').all())
+      assert.match(await entry.innerText(), /192\.0\.2\.10:443/);
     await page.keyboard.press('Escape');
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
     await page.mouse.move(0, 0);

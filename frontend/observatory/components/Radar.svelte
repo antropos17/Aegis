@@ -15,7 +15,7 @@
   }: {
     telemetry: Telemetry;
     selected: string | null;
-    inspect: (title: string, row: RecordData) => void;
+    inspect: (_title: string, _row: RecordData) => void;
   } = $props();
   let agents = $derived(instances(telemetry));
   let groups = $derived(radarGroups(agents));
@@ -31,6 +31,7 @@
     groups.find((g) => g.members.some((a) => !!selected && a.instanceId === selected)),
   );
   let resources = $derived(radarResources(telemetry, layer, plotted, chosenGroup));
+  let uniqueResourceCount = $derived(new Set(resources.map((entry) => entry.resourceKey)).size);
   let resourcePages = $derived(Math.max(1, Math.ceil(resources.length / 2)));
   let resourceIndex = $derived(Math.min(resourcePage, resourcePages - 1));
   let linked = $derived(resources.slice(resourceIndex * 2, resourceIndex * 2 + 2));
@@ -86,10 +87,18 @@
         <div class="resource-scope">
           <strong>{chosenGroup?.name ?? 'All agents on this page'}</strong>
           <span
-            >{resources.length} unique {layer === 'files' ? 'files' : 'endpoints'} · {telemetry.stale
+            >{uniqueResourceCount} unique {layer === 'files'
+              ? uniqueResourceCount === 1
+                ? 'file'
+                : 'files'
+              : uniqueResourceCount === 1
+                ? 'endpoint'
+                : 'endpoints'}{uniqueResourceCount !== resources.length
+              ? ' · ' + resources.length + ' observation groups'
+              : ''} · {telemetry.stale
               ? 'Last reliable snapshot'
               : layer === 'files'
-                ? 'Observed this session'
+                ? 'Retained observations'
                 : 'Current snapshot'}</span
           >
         </div>
