@@ -22,6 +22,7 @@
   let query = $state(''),
     kind = $state('all'),
     agent = $state(''),
+    attribution = $state('all'),
     severity = $state('all');
   let paused = $state(false),
     held = $state<RecordData[]>([]);
@@ -32,7 +33,9 @@
     (paused ? held : network ? telemetry.network : telemetry.events) as unknown as RecordData[],
   );
   let rows = $derived(scope ? scopeEvidence(rawRows, telemetry, scope) : rawRows);
-  let localAgentFilter = $derived(scope?.agent ? '' : agent);
+  let localAgentFilter = $derived(scope ? '' : agent);
+  let attributionFilter = $derived(scope && !scope.agent ? attribution : 'all');
+  let effectiveKind = $derived(scope && kind === 'unattributed' ? 'all' : kind);
   let agents = $derived(instances(telemetry) as unknown as RecordData[]);
   let agentNames = $derived(
     [...new Set(rows.map((row) => describeObservation(row, agents).label))].sort(),
@@ -43,12 +46,13 @@
       return (
         (!localAgentFilter ||
           (localAgentFilter === 'unattributed' ? !info.actor : info.label === localAgentFilter)) &&
-        (kind === 'all' ||
+        (attributionFilter === 'all' || !info.actor) &&
+        (effectiveKind === 'all' ||
           (network
-            ? (row.verdict ?? 'unknown') === kind
-            : kind === 'skills'
+            ? (row.verdict ?? 'unknown') === effectiveKind
+            : effectiveKind === 'skills'
               ? !!info.skill
-              : kind === 'sensitive'
+              : effectiveKind === 'sensitive'
                 ? row.sensitive
                 : !info.actor)) &&
         (severity === 'all' ||
@@ -78,6 +82,7 @@
     query = '';
     kind = 'all';
     agent = '';
+    attribution = 'all';
     severity = 'all';
   }
 </script>
@@ -107,8 +112,8 @@
       aria-expanded={filtersOpen}
       aria-controls={network ? 'network-filters' : 'event-filters'}
       onclick={() => (filtersOpen = !filtersOpen)}
-      >Filters {#if kind !== 'all' || localAgentFilter || severity !== 'all'}<span class="badge"
-          >Active</span
+      >Filters {#if effectiveKind !== 'all' || localAgentFilter || attributionFilter !== 'all' || severity !== 'all'}<span
+          class="badge">Active</span
         >{/if}</button
     >
     {#if showPause}<button
@@ -129,12 +134,17 @@
   id={network ? 'network-filters' : 'event-filters'}
   hidden={!filtersOpen}
 >
-  {#if !scope?.agent}<label
+  {#if !scope}<label
       >Agent / context<select aria-label="Event agent" bind:value={agent}
         ><option value="">All agents and resources</option>{#each agentNames as name (name)}<option
             >{name}</option
           >{/each}<option value="unattributed">Actor not recorded</option></select
       ></label
+    >{:else if !scope.agent}<label
+      >Attribution<select aria-label="Attribution" bind:value={attribution}>
+        <option value="all">All attribution</option>
+        <option value="unattributed">Actor not recorded</option>
+      </select></label
     >{/if}
   <label
     >{network ? 'Classification' : 'Type'}<select aria-label="Event kind" bind:value={kind}
@@ -143,7 +153,7 @@
           >Allowlisted</option
         >{:else}<option value="skills">Skills</option><option value="sensitive"
           >Sensitive events</option
-        ><option value="unattributed">Actor not recorded</option>{/if}</select
+        >{#if !scope}<option value="unattributed">Actor not recorded</option>{/if}{/if}</select
     ></label
   >
   {#if !network}<label
@@ -159,8 +169,8 @@
   <span
     >{filtered.length} of {rows.length}
     {network ? 'connections' : 'events'} · {showingPaused ? 'Paused snapshot' : 'Live view'}</span
-  >{#if query || kind !== 'all' || localAgentFilter || severity !== 'all'}<span class="badge"
-      >Filters active</span
+  >{#if query || effectiveKind !== 'all' || localAgentFilter || attributionFilter !== 'all' || severity !== 'all'}<span
+      class="badge">Filters active</span
     >{/if}
 </div>
 <ObservationTable
@@ -170,8 +180,9 @@
   {grouping}
   resetKey={JSON.stringify([
     query,
-    kind,
+    effectiveKind,
     localAgentFilter,
+    attributionFilter,
     severity,
     network,
     scope?.agent,
