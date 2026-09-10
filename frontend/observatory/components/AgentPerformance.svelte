@@ -16,7 +16,7 @@
     paused = false,
   }: { telemetry: Telemetry; scope: AgentScope; paused?: boolean } = $props();
   let history = createStatisticsHistory();
-  let samples = $state<StatisticsSample[]>([]);
+  let samples = $state.raw<StatisticsSample[]>([]);
   let key = '';
   let selected = $state('cpu');
   let now = $state(Date.now());

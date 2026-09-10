@@ -402,3 +402,33 @@ it('ignores a delayed settings read failure after a confirmed settings update', 
     run.dispose();
   }
 });
+
+it('shares a held assessment while new deliveries refresh evidence and time decay', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(1000000);
+  try {
+    const frame = {
+      ...emptyTelemetry(),
+      agents: [agent('123:old')],
+      events: [
+        { instanceId: '123:old', file: '/fixture/item', timestamp: Date.now(), sensitive: true },
+      ],
+    };
+    const held = instances(frame);
+    expect(held[0].fileCount).toBe(1);
+    // Concurrent views share the captured assessment without re-reading the records.
+    const reads = vi.spyOn(frame.events, 'flat');
+    for (let i = 0; i < 50; i++) expect(instances(frame)).toBe(held);
+    expect(reads).not.toHaveBeenCalled();
+    vi.setSystemTime(Date.now() + 3600001);
+    expect(instances(frame)[0].fileCount).toBe(1);
+    expect(instances({ ...frame })[0].fileCount).toBe(0.5);
+    expect(instances({ ...frame, agents: [agent('123:new')] })[0].fileCount).toBe(0);
+    const updated = instances({ ...frame, anomalies: { '123:old': 80 } });
+    expect(updated[0].anomalyScore).toBe(80);
+    expect(held[0].anomalyScore).toBe(0);
+  } finally {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  }
+});

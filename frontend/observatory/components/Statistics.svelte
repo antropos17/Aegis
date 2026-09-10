@@ -59,8 +59,8 @@
   ];
   let allHistory = createStatisticsHistory();
   let scopedHistory = createStatisticsHistory();
-  let allSamples = $state<StatisticsSample[]>([]);
-  let scopedSamples = $state<StatisticsSample[]>([]);
+  let allSamples = $state.raw<StatisticsSample[]>([]);
+  let scopedSamples = $state.raw<StatisticsSample[]>([]);
   let historyKey = '';
   let lastRequest = -1;
   let lastScopeRequest = -1;

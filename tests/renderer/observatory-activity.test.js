@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { activityBins, activityTimeLabel } from '../../frontend/observatory/runtime/activity';
 import { cpuPercent } from '../../frontend/observatory/runtime/resources';
 
@@ -67,4 +67,46 @@ it('formats a complete local axis clock and leaves malformed dates unavailable',
   );
   expect(activityTimeLabel(NaN)).toBe('—');
   expect(activityTimeLabel(1e30)).toBe('—');
+});
+
+it('bounds formatter allocation across ticks and refreshes the default zone after time changes', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(10000);
+  const Original = Intl.DateTimeFormat;
+  let timeZone = 'UTC';
+  const constructor = vi
+    .spyOn(Intl, 'DateTimeFormat')
+    .mockImplementation(function (locale, options) {
+      return new Original(locale, { ...options, timeZone });
+    });
+  try {
+    const at = Date.UTC(2026, 8, 10, 12, 0);
+    for (let i = 0; i < 100; i++) {
+      activityTimeLabel(at + i * 1000);
+      activityTimeLabel(at + i * 1000, true);
+    }
+    expect(constructor).toHaveBeenCalledTimes(2);
+    timeZone = 'Asia/Tokyo';
+    vi.setSystemTime(70000);
+    expect(activityTimeLabel(at)).toBe(
+      new Original(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone,
+      }).format(at),
+    );
+    expect(constructor).toHaveBeenCalledTimes(3);
+    timeZone = 'UTC';
+    vi.setSystemTime(5000);
+    expect(activityTimeLabel(at)).toBe(
+      new Original(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone,
+      }).format(at),
+    );
+  } finally {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  }
 });

@@ -103,15 +103,40 @@ export function emptyTelemetry(): Telemetry {
     error: '',
   };
 }
-/** Share the existing exposure computation. @param state Telemetry @returns Enriched instances @since 0.14.1 */
+// Snapshot keys are weak: a closed view does not retain earlier observations or assessments.
+type Assessment = Pick<
+  Telemetry,
+  'agents' | 'events' | 'anomalies' | 'network' | 'falsePositives'
+> & {
+  rows: ReturnType<typeof enrichAgents>;
+};
+const assessments = new WeakMap<Telemetry, Assessment>();
+/** Share one assessment across consumers of an immutable telemetry snapshot.
+ * A new delivery recomputes time decay; a held snapshot keeps its captured assessment.
+ * @param state Telemetry snapshot @returns Shared enriched instances @since 0.14.1
+ */
 export function instances(state: Telemetry) {
-  return enrichAgents(
-    state.agents,
-    state.events,
-    state.anomalies,
-    state.network,
-    state.falsePositives,
-  );
+  const { agents, events, anomalies, network, falsePositives } = state;
+  let cached = assessments.get(state);
+  if (
+    !cached ||
+    cached.agents !== agents ||
+    cached.events !== events ||
+    cached.anomalies !== anomalies ||
+    cached.network !== network ||
+    cached.falsePositives !== falsePositives
+  ) {
+    cached = {
+      agents,
+      events,
+      anomalies,
+      network,
+      falsePositives,
+      rows: enrichAgents(agents, events, anomalies, network, falsePositives),
+    };
+    assessments.set(state, cached);
+  }
+  return cached.rows;
 }
 /** Re-resolve a process immediately before dispatch, including after confirmation. @param state Latest telemetry @param id Stamped identity @returns Live process @since 0.14.1 */
 export function actionTarget(state: Telemetry, id: string) {

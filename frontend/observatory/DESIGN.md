@@ -57,3 +57,10 @@ The shared sizing contract lives in styles/coherence.css: 4/8/12/16/24 px spacin
 The user's feedback supersedes the earlier sliding workspace/detail snapshots, control press scaling, hover lifts and animated disclosure height. Workspace navigation now commits directly, with scroll restoration in the same Svelte update; Back/Forward still restores each workspace. Ordinary selection, tabs and process filters never translate or scale controls or reading surfaces. Changing the shared scope retains the current scroll position; explicitly opening an agent starts its overview at the top. Section keyboard navigation scrolls only its horizontal tab strip. Editor sections capture scroll before the DOM changes.
 
 Feedback uses 140 ms colour/border changes and a 120 ms opacity-only dialog/entity reveal. Native disclosures resize once without height interpolation. Busy indicators do not change button width. Radar sweep, coordinate echoes and pending indicators remain subject to pause/stale and both reduced-motion settings. Verify full-motion interactions as well as reduced motion; disabling animation in tests must not conceal geometry or scroll regressions.
+
+
+## Renderer workload
+
+Host deliveries are immutable snapshots held with `$state.raw`; charts also receive immutable history arrays without deep proxying. Draft forms retain their ordinary reactive state. Consumers share an exposure assessment for one snapshot and invalidate it when source references change. Weak snapshot keys do not keep departed observations alive. A held snapshot preserves its captured assessment; new deliveries recalculate event age and evidence. Clock labels share two Intl formatters, refreshed at least once a minute or after a backwards clock change to pick up default locale/time-zone changes. Composition, motion preferences, history retention, selection and measurement provenance remain governed by the sections above.
+
+The identical-input comparison and its limits are recorded in [RENDERER-WORKLOAD.md](../../docs/current-state/RENDERER-WORKLOAD.md).

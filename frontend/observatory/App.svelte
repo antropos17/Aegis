@@ -92,9 +92,10 @@
     await navigate(entry.target);
     commands = false;
   }
-  let telemetry = $state(emptyTelemetry());
+  // Host deliveries replace immutable snapshots; deep proxies multiply work per record.
+  let telemetry = $state.raw(emptyTelemetry());
   let paused = $state(false);
-  let held = $state(emptyTelemetry());
+  let held = $state.raw(emptyTelemetry());
   let displayTelemetry = $derived(paused ? held : telemetry);
   const agentCount = $derived(new Set(displayTelemetry.agents.map((agent) => agent.agent)).size);
   const healthCaption = $derived(

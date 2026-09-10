@@ -48,15 +48,30 @@ export function activityBins(
   return bins;
 }
 
+// Intl formatters allocate native state; reuse the two formats across chart ticks.
+const clockFormats = new Map<boolean, Intl.DateTimeFormat>();
+let clockFormatsAt: number | null = null;
+
 /** Format the complete local clock without slicing locale-specific output.
  * @param at Timestamp @param seconds Include seconds for interval evidence
  * @returns Localized clock label or unavailable marker @since 0.14.1
  */
 export function activityTimeLabel(at: number, seconds = false): string {
   if (!Number.isFinite(at) || !Number.isFinite(new Date(at).getTime())) return '—';
-  return new Intl.DateTimeFormat(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    ...(seconds ? { second: '2-digit' as const } : {}),
-  }).format(at);
+  // Periodically pick up default locale/time-zone changes, including after clock rollback.
+  const now = Date.now();
+  if (clockFormatsAt === null || now < clockFormatsAt || now - clockFormatsAt >= 60000) {
+    clockFormats.clear();
+    clockFormatsAt = now;
+  }
+  let formatter = clockFormats.get(seconds);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+      ...(seconds ? { second: '2-digit' as const } : {}),
+    });
+    clockFormats.set(seconds, formatter);
+  }
+  return formatter.format(at);
 }
