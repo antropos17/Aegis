@@ -14,7 +14,13 @@
     row,
     telemetry,
     section = 'overview',
-  }: { row: RecordData; telemetry: Telemetry; section?: string } = $props();
+    changeSection,
+  }: {
+    row: RecordData;
+    telemetry: Telemetry;
+    section?: string;
+    changeSection?: (_section: string) => void;
+  } = $props();
   let kind = $derived(detailKind(row));
   let info = $derived(describeObservation(row, instances(telemetry) as unknown as RecordData[]));
   let group = $derived(radarGroups(instances(telemetry)).find((g) => g.key === row.agentGroupKey));
@@ -148,6 +154,16 @@
     />
   </section>
 {:else}
+  {#if kind === 'group' || kind === 'process'}<section class="detail-section">
+      <p class="entity-note">
+        {kind === 'group'
+          ? 'An agent can run several worker processes. This overview combines their usage and shows the highest process risk.'
+          : 'This is one worker process. Its activity is linked by its recorded identity.'}
+      </p>
+      {#if changeSection}<button class="button" onclick={() => changeSection?.('risk')}
+          >Why this score</button
+        >{/if}
+    </section>{/if}
   {#if kind === 'resource'}<section class="detail-section resource-summary">
       <div class="section-heading">
         <h3>Resource</h3>

@@ -11,6 +11,7 @@
   import EntityLinks from './EntityLinks.svelte';
   import Icon from './Icon.svelte';
   import DetailSummary from './DetailSummary.svelte';
+  import RiskExplanation from './RiskExplanation.svelte';
   import DetailControls from './DetailControls.svelte';
   import SectionTabs from './SectionTabs.svelte';
   let {
@@ -49,7 +50,11 @@
     return {
       title,
       row,
-      tab: detailKind(row) === 'records' ? 'records' : 'overview',
+      tab: sections.some((section) => section.id === row.detailSection)
+        ? String(row.detailSection)
+        : detailKind(row) === 'records'
+          ? 'records'
+          : 'overview',
       scroll: {},
       focus: {},
       query: Object.fromEntries(sections.map((s) => [s.id, ''])),
@@ -185,7 +190,9 @@
                 row={current.row}
                 {telemetry}
                 section={tab.id}
+                changeSection={changeTab}
               />
+            {:else if tab.id === 'risk'}<RiskExplanation row={current.row} {telemetry} {navigate} />
             {:else if tab.id === 'controls'}{#key current}<DetailControls
                   row={current.row}
                   {telemetry}

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { instances, type Telemetry, type RecordData } from '../runtime/host';
-  import { radarGroups } from '../runtime/radar';
+  import { radarGroups, groupRecord } from '../runtime/radar';
   import { measuredStatisticsTotal } from '../runtime/statistics-metrics';
   import Radar from './Radar.svelte';
   import ActivityChart from './ActivityChart.svelte';
@@ -30,6 +30,7 @@
   } = $props();
   let agents = $derived(instances(telemetry)),
     groups = $derived(radarGroups(agents));
+  let highestRisk = $derived([...groups].sort((a, b) => b.risk - a.risk)[0]);
   let now = $state(Date.now());
   onMount(() => {
     const timer = setInterval(() => {
@@ -60,14 +61,18 @@
       >
       <p>{agents.length} processes in snapshot</p>
     </button>
-    <div class="summary-stat">
-      <span>Average risk</span><strong
-        >{groups.length
-          ? Math.round(groups.reduce((sum, g) => sum + g.risk, 0) / groups.length)
-          : '—'}<small>/100</small></strong
-      >
-      <p>Highest: {groups.length ? Math.max(...groups.map((g) => g.risk)) : '—'}</p>
-    </div>
+    <button
+      class="summary-stat"
+      disabled={!highestRisk}
+      onclick={() =>
+        highestRisk &&
+        inspect(highestRisk.name, { ...groupRecord(highestRisk), detailSection: 'risk' })}
+    >
+      <span>Highest risk</span><strong>{highestRisk?.risk ?? '—'}<small>/100</small></strong>
+      <p>
+        {highestRisk ? highestRisk.name + ' · view explanation' : 'Waiting for observed agents'}
+      </p>
+    </button>
     <div class="summary-stat">
       <span>Events / min</span><strong>{telemetry.ready ? recent.length : '—'}</strong>
       <p>{telemetry.events.length} retained events</p>

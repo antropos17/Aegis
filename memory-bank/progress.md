@@ -2103,3 +2103,8 @@ Following merged PR #412, Settings and Analysis now save changed fields against 
 ## Session handoff — 2026-09-09, sections and duplicate handling
 
 The current all-section pass is recorded in docs/current-state/SECTION-DUPLICATES-2026-09-09.md. Canonical Windows display groups retain all original actions/evidence; local socket endpoints survive scan, audit and export. Statistics separates comparison/table, captured Analysis counts agree with reports, and catalog/policy targets use stable keys with atomic single-policy saves. 3203 tests passed (4 skipped), all required local gates, 464 browser states, 32 native section states, packaged restart/export checks and installed live-profile checks passed. The checked package is installed with distinct application/profile backups documented in the audit. Original dirty checkout preserved.
+
+
+## Session handoff — 2026-09-10, risk clarity
+
+Monitoring, radar and agent rows now lead to a shared Risk explanation. It shows the actual scoring contributions and saved exception, identifies the highest-scoring worker and preserves captured process evidence across live updates. The main reason remains visible at 900x600 / 150% scale. See docs/current-state/RISK-CLARITY-2026-09-10.md for checked scope and limits. 3212 tests passed (4 skipped), required repository gates, 480 browser states, focused final layout verification, packaged Electron smoke and installed-profile navigation passed. The verified package was installed with application/profile backups and settings preserved. Original dirty checkout was left untouched.

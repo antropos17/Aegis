@@ -51,16 +51,19 @@ export function detailActivity(row: RecordData, state: Telemetry): RecordData[] 
 export function detailTabs(row: RecordData, state: Telemetry): DetailTab[] {
   const overview = { id: 'overview', label: 'Overview' };
   const attributes = { id: 'attributes', label: 'Attributes' };
+  const risk = { id: 'risk', label: 'Risk explanation' };
   switch (detailKind(row)) {
     case 'group':
       return [
         overview,
+        risk,
         { id: 'processes', label: 'Processes', count: detailMembers(row, state).length },
         { id: 'activity', label: 'Activity', count: detailActivity(row, state).length },
       ];
     case 'process':
       return [
         overview,
+        risk,
         { id: 'activity', label: 'Activity', count: detailActivity(row, state).length },
         attributes,
         { id: 'controls', label: 'Controls' },

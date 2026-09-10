@@ -9,6 +9,7 @@
     type RadarGroup,
     type ObservedInstance,
   } from '../runtime/radar';
+  import { leadingRiskReason } from '../runtime/risk-context';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
   import ObservationResource from './ObservationResource.svelte';
@@ -59,7 +60,7 @@
         <div>
           <button class="entity-link" onclick={openGroup}>{group.name}</button><small
             >{group.members.length}
-            {group.members.length === 1 ? 'process' : 'processes'} combined</small
+            {group.members.length === 1 ? 'worker process' : 'worker processes'}</small
           >
         </div>
       </div>
@@ -77,6 +78,12 @@
             style={`transform:scaleX(${group.risk / 100});background:var(--${group.risk < 35 ? 'green' : group.risk < 66 ? 'amber' : 'red'})`}
           ></i>
         </div>
+        <p class="entity-note">{leadingRiskReason(group.members[0])}</p>
+        <button
+          class="entity-link"
+          onclick={() => inspect(group.name, { ...groupRecord(group), detailSection: 'risk' })}
+          >Why this score<Icon name="chevron" /></button
+        >
       </section>
       <section class="inspector-block" aria-label="Combined agent usage">
         <h3>Combined usage</h3>
