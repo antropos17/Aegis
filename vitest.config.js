@@ -63,6 +63,8 @@ export default defineConfig({
         'src/main/platform/etw-file-protocol.js',
         'src/main/platform/etw-file-schema.js',
         'src/main/platform/etw-file-health.js',
+        'src/main/platform/etw-file-diagnostics.js',
+        'src/main/platform/etw-file-supervisor.js',
         'src/main/platform/proc-snapshot-client.js',
         'src/main/platform/process-snapshot.js',
         'src/main/platform/linux.js',

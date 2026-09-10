@@ -68,7 +68,7 @@ has to remember to redo. The evidence-code row is not covered and still is one.
 | Agents | `node -p` over `src/shared/agent-database.json` | **110** |
 | Name signatures | sum of `names[]` in the same file | **262** |
 | Rules / YAML files | `- id:` matches in `rules/*.yaml`; `git ls-files 'rules/'` | **73** / **8** |
-| main CJS modules | `git ls-files 'src/main/'` split by depth | **74** = 56 top-level + 16 `platform/` + 2 `token-adapters/` |
+| main CJS modules | `git ls-files 'src/main/'` split by depth | **75** = 56 top-level + 17 `platform/` + 2 `token-adapters/` |
 | Svelte components | `git ls-files 'src/renderer/lib/components/*.svelte'` | **50** (plus `src/renderer/App.svelte` → **51** tracked `.svelte` in total) |
 | Renderer stores | `git ls-files 'src/renderer/lib/stores/'` | **16** files (4 of them demo-only) |
 | Renderer utils | `git ls-files 'src/renderer/lib/utils/'` | **21** files |

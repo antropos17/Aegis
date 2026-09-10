@@ -16,7 +16,8 @@ internal static class FileCollector
         bool checkLoss = args[0] == "check-loss-collector";
         if (checkLoss) FileLossFixture.OverflowIngress(ingress);
         using var pipeline = new FilePipeline(ingress, scope, live);
-        var send = new FileWire(args[1], args[2]);
+        var performance = new FilePerformance();
+        var send = new FileWire(args[1], args[2], performance);
         var read = new FileWire(args[1], args[2]);
         using var lifetime = new CancellationTokenSource();
         using var trace = live ? new FileTrace() : null;
@@ -36,7 +37,7 @@ internal static class FileCollector
         {
             await send.Write(pipe, "hello", new
             {
-                build = live ? "etw-file-diagnostic-dev-3" : "etw-file-synthetic-check-3",
+                build = live ? "etw-file-diagnostic-dev-4" : "etw-file-synthetic-check-4",
                 profile = FileWire.Profile,
                 schemas = FileWire.Schemas
             }, lifetime.Token);
@@ -98,7 +99,7 @@ internal static class FileCollector
                     Sample();
                     await send.Write(pipe, "heartbeat", Telemetry(), lifetime.Token);
                 }
-                if (!await Pump(lifetime.Token)) await Task.Delay(10, lifetime.Token);
+                if (!await Pump(lifetime.Token)) await Idle(lifetime.Token);
             }
             stopRequest = await stopSignal.Task;
             if (trace != null) { stats = trace.Stop(); stopped = stats.Status == 0; owns = !stopped; CheckStats(); }
@@ -108,7 +109,7 @@ internal static class FileCollector
             pipeline.Complete();
             while (!pipeline.Worker.IsCompleted)
             {
-                if (!await Pump(drain.Token)) await Task.Delay(10, drain.Token);
+                if (!await Pump(drain.Token)) await Idle(drain.Token);
             }
             await pipeline.Worker;
             while (await Pump(drain.Token)) { }
@@ -151,6 +152,7 @@ internal static class FileCollector
         }
         object Telemetry()
         {
+            var queues = pipeline.QueueSnapshot();
             return new
             {
                 operational = true,
@@ -164,10 +166,22 @@ internal static class FileCollector
                     asOfQpc = statsAsOf.ToString()
                 },
                 totals = pipeline.Totals(),
-                queues = pipeline.Queues(),
+                queues = queues.combined,
+                performance = performance.Snapshot(queues),
                 coverage = FileWire.Profile
             };
         }
-        Task<bool> Pump(CancellationToken token) => send.WriteObservations(pipe, pipeline.Take, token);
+        async Task<bool> Pump(CancellationToken token)
+        {
+            long start = performance.Now(); bool success = false;
+            try { bool result = await send.WriteObservations(pipe, pipeline.Take, token); success = true; return result; }
+            finally { performance.Pump.Record(performance.Now() - start, !success); }
+        }
+        async Task Idle(CancellationToken token)
+        {
+            long start = performance.Now(); bool success = false;
+            try { await Task.Delay(10, token); success = true; }
+            finally { performance.IdleWait.Record(performance.Now() - start, !success); }
+        }
     }
 }

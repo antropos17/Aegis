@@ -48,7 +48,7 @@ describe('offline ETW envelope', () => {
 
   it.each([
     { proto: 'etw-file/1' },
-    { proto: 'etw-file/4' },
+    { proto: 'etw-file/5' },
     { sessionId: '' },
     { launchId: 'x'.repeat(65) },
     { t: '__proto__' },

@@ -118,7 +118,12 @@ The dependency is those observations, not the absence of a Windows host.
    adds protocol v3 cause counters and single-pass encoding. Managed batch
    allocation fell about 54% in a controlled test; the new live run recorded
    51,648 output overflow drops and zero invalidation/ingress/native loss.
-   Next separate encoding service time from transport/main waits and idle polling.
+   The [service measurements](docs/roadmap/etw-service-timings.md) now add v4 bounded
+   collector/main timing and stage queue depths. The same workload retained 52,066
+   output overflow drops; non-write pump work took 49.225 ms, writes 124.442 ms,
+   and empty-pump waits averaged 15.587 ms. Next test an output-available wakeup
+   with existing cancellation/drain bounds; these aggregates alone do not prove
+   that polling caused the overflow.
 
 ## C — existing rules coverage
 

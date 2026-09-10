@@ -1,7 +1,8 @@
 # B5 follow-up — separate collector stage losses
 
 This records the v2 step. The [output-drain follow-up](etw-output-drain.md) extends
-the current protocol to v3 with mandatory output-cause measurements.
+that protocol to v3 with mandatory output-cause measurements. The current v4 adds
+[service measurements](etw-service-timings.md); this page preserves the v2 evidence.
 
 Implemented on `codex/etw-stage-loss-counters` from `4a23c9c`, after the previous
 live measurement could only report a combined application drop count.

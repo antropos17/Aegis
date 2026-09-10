@@ -2252,3 +2252,35 @@ Next E3 step: separate encoder service time, pipe/broker/main waits, retained qu
 depths and idle polling effects before choosing another throughput change.
 Sleep/wake remains deferred, the installed app was not replaced, and the original
 dirty UI checkout was preserved. Check the output-drain branch's final PR/CI/merge.
+
+## 2026-09-11 — ETW collector/main service measurements
+
+Implemented on `codex/etw-service-timings` from merged #432 / `4006268`. Protocol v4
+adds fixed collector pump/output-write/empty-delay aggregates, separate queue stage
+current/high-water values, and main decode/accept/retain/snapshot measurements.
+All durations are wall time; nested intervals and clocks are kept separate.
+Ended summaries retain the last collector sample and completed main counters;
+restart resets current counters. The bounded main ring was extracted intact.
+No IPC, attribution, queue-size, workload, retry or ownership changes were made.
+
+39 C# self-tests and 161 focused JS tests passed. Normal/loss process checks passed
+three scenarios each on matching binaries. The authorized live run completed
+66,000 reads in 19.738 s: delivered 117946, filtered 51927, output overflow 52066,
+invalidation/ingress/native loss 0, map resets 6, ring evictions 11775. Fixture
+Read/header-PID candidate observed; owned stop verified, exit 0, helpers 0.
+Collector pump total 173.667 ms contains output writes 124.442 ms, leaving 49.225 ms
+for other pump work. Empty-pump waits average 15.587 ms, maximum 24.365 ms; output
+high water 1922 records / 4193804 bytes. Main decode total 161.116 ms; snapshots
+687.099 ms include launch/UAC polling. Aggregate idle time includes settling and
+cannot prove polling caused overflow. Ambient load and burst rates changed.
+
+Next: test an output-available signal with existing cancellation/drain bounds
+and repeat the fixed workload. Broker timing, phase-local queue occupancy and
+wake latency are not yet measured. E3 and E4/E5 remain open, as do independent
+absence witnessing, protected crash recovery and deployment. Sleep/wake remains
+deferred and the installed app was not replaced. Evidence: three original reports
+and 26 measured source hashes in `etw-file-home-26200-service-timings.json`.
+The subsequent source change only documents the intentional fail-closed clock
+check for lint; evidence records its separate final hash. Full JS coverage passed
+200 files / 3354 tests with four skips. Check this branch's final PR/CI/merge before
+the next block; preserve the original dirty UI checkout.

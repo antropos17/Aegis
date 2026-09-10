@@ -1,6 +1,33 @@
 # AEGIS — старт следующего чата
 
-## Актуальное продолжение — причины output loss и сериализация, 2026-09-11
+## Актуальное продолжение — замеры ETW, 2026-09-11
+
+В `X:/tmp/aegis-etw-burst-20260911`, ветка `codex/etw-service-timings` от `4006268`
+(слитый #432), реализован протокол v4: collector pump/outputWrite/idleWait и
+раздельные глубины ingress/output; main decodeChunk/acceptFrame/retainBatch/snapshot.
+Это накопленное elapsed time, не CPU. Вложенные интервалы не складывать. Метрики
+ограничены по памяти, итоговые отчёты сохраняются после stop; старые v1–3 отвергаются.
+
+39 C# и 161 точечный JS-тест прошли. Normal/loss-check прошли по три сценария.
+Один live UAC на тех же бинарниках: все 66000 чтений за 19,738 с, delivered 117946,
+filtered 51927, overflow 52066, invalidation/ingress/native loss 0, resets 6,
+ring eviction 11775. Fixture Read/PID найден, stopVerified true, exit 0, helpers 0.
+Pump 173,667 мс, из них write 124,442; остальная работа pump 49,225. Empty wait
+19702,462 мс суммарно / 15,587 мс в среднем / 24,365 мс максимум. Main decode
+161,116 мс; snapshot 687,099 мс включает опросы во время ожидания UAC. Output high
+water 1922 записи / 4193804 байта. Вложения и разные процессы не складывать.
+
+Следующий эксперимент E3: пробуждать пустой output pump по появлению данных,
+сохранив cancellation, stop/drain и лимиты, затем повторить fixed profile.
+Большой idle total включает паузы теста, поэтому он не доказывает причину потерь.
+Нагрузка и фон изменились; throughput улучшенным не объявлять. E4/E5 identity,
+crash recovery, independent absence witness и deployment остаются открыты.
+Сон отложен, установленная программа не заменялась. Отчёт:
+`docs/roadmap/etw-service-timings.md`; три raw JSON и 26 хешей:
+`docs/recon/evidence/etw-file-home-26200-service-timings.json`.
+Проверить финальный PR/CI/merge этой ветки; исходную грязную UI-копию сохранить.
+
+## Предыдущий шаг — причины output loss и сериализация, 2026-09-11
 
 В `X:/tmp/aegis-etw-burst-20260911`, ветка `codex/etw-output-drain` от `93aae23`,
 реализованы `outputOverflowDropped` и `outputInvalidatedDropped`. Их сумма равна
