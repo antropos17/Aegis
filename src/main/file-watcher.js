@@ -560,15 +560,6 @@ function handleWatcherEvent(action, filePath) {
   // No agents → honest unattributed (NO_AI_AGENTS_ONLINE), not "no event happened".
   if (shouldIgnore(filePath)) return;
   const now = Date.now();
-  const prev = watcherDebounce.get(filePath);
-  if (prev && now - prev < 2000) return;
-  watcherDebounce.set(filePath, now);
-  if (watcherDebounce.size > 500) {
-    for (const [k, t] of watcherDebounce) {
-      if (now - t > 10000) watcherDebounce.delete(k);
-    }
-    if (watcherDebounce.size > 500) watcherDebounce.clear();
-  }
   const reason = classifySensitive(filePath);
   // G′: chokidar KEEPS OBSERVING under an untrusted population — a path event is
   // valid evidence regardless of who owns it, and dropping it would lose real
@@ -627,6 +618,33 @@ function handleWatcherEvent(action, filePath) {
     category: agent ? agent.category || 'other' : 'other',
     attribution,
   };
+  // Suppress only consecutive equivalent notifications. A create/delete/recreate
+  // sequence or stronger ownership evidence must reach audit and sequence consumers.
+  const debounceKey = process.platform === 'win32' ? filePath.toLowerCase() : filePath;
+  const signature = JSON.stringify([
+    action,
+    event.instanceId,
+    event.agent,
+    attribution,
+    event.sensitive,
+    selfAccess,
+    event.reason,
+  ]);
+  const previous = watcherDebounce.get(debounceKey);
+  if (
+    previous &&
+    previous.signature === signature &&
+    now >= previous.at &&
+    now - previous.at < 2000
+  )
+    return;
+  watcherDebounce.set(debounceKey, { at: now, signature });
+  if (watcherDebounce.size > 500) {
+    for (const [key, entry] of watcherDebounce) {
+      if (now - entry.at > 10000) watcherDebounce.delete(key);
+    }
+    if (watcherDebounce.size > 500) watcherDebounce.clear();
+  }
   _state.activityLog.push(event);
   if (_state.onActivityPush) _state.onActivityPush(event);
   if (_state.activityLog.length > 10000) {

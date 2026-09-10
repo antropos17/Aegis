@@ -130,7 +130,10 @@ function _setDepsForTest(overrides) {
 }
 /** @internal Clear caches + health (for tests). */
 function _resetForTest() {
+  dnsGeneration++;
   dnsCache.clear();
+  dnsPending.clear();
+  forwardPending.clear();
   networkScanRunning = false;
   _networkHealth = sensorHealth.createSensorHealth(NETWORK_SENSOR_ID);
 }
@@ -148,6 +151,11 @@ function getAgentDb() {
 
 const dnsCache = new Map();
 const DNS_CACHE_TTL = 300000;
+const DNS_NEGATIVE_TTL = 30000;
+const DNS_CACHE_CAPACITY = 500;
+const dnsPending = new Map();
+const forwardPending = new Map();
+let dnsGeneration = 0;
 let networkScanRunning = false;
 
 /**
@@ -337,46 +345,110 @@ function isKnownDomain(domain) {
  * @since v0.1.0
  */
 async function resolveIp(ip) {
-  const cached = dnsCache.get(ip);
-  if (cached && Date.now() - cached.timestamp < DNS_CACHE_TTL) return cached.domain;
-  // Prune stale entries when cache grows too large
-  if (dnsCache.size > 500) {
-    const now = Date.now();
-    for (const [key, entry] of dnsCache) {
-      if (now - entry.timestamp >= DNS_CACHE_TTL) dnsCache.delete(key);
+  return (await resolveIpEvidence(ip)).domain;
+}
+
+/** Resolve evidence for this caller even if a large scan evicts the shared cache entry.
+ * @param {string} ip Address @returns {Promise<{domain: string|null, reason: string}>} DNS evidence
+ * @since 0.14.1
+ */
+async function resolveIpEvidence(ip) {
+  const key = normalizeIp(ip);
+  if (!isIP(key)) return { domain: null, reason: VERDICT_REASONS.PTR_MISSING };
+  const cached = freshDnsEntry(key);
+  if (cached) return cached;
+  if (dnsPending.has(key)) return dnsPending.get(key);
+  const generation = dnsGeneration;
+  const reverse = _dnsReverse;
+  const forward = _dnsResolve;
+  const pending = Promise.resolve().then(async () => {
+    const result = await lookupIp(key, reverse, (name) =>
+      resolveHostname(name, forward, generation),
+    );
+    // A reset must not let an earlier lookup repopulate the next generation's cache.
+    if (generation === dnsGeneration) {
+      if (dnsCache.size >= DNS_CACHE_CAPACITY) dnsCache.delete(dnsCache.keys().next().value);
+      dnsCache.set(key, { ...result, timestamp: Date.now() });
     }
-    if (dnsCache.size > 500) dnsCache.clear();
+    return result;
+  });
+  dnsPending.set(key, pending);
+  try {
+    return await pending;
+  } finally {
+    if (dnsPending.get(key) === pending) dnsPending.delete(key);
   }
-  /** @param {string|null} domain @param {string} reason @returns {string|null} */
-  const remember = (domain, reason) => {
-    dnsCache.set(ip, { domain, reason, timestamp: Date.now() });
-    return domain;
+}
+
+/** Share concurrent forward queries across endpoints with the same PTR name.
+ * @param {string} name Normalized hostname @param {Function} resolve Forward resolver
+ * @param {number} generation Lookup generation
+ * @returns {Promise<string[]>} Resolver addresses @since 0.14.1
+ */
+async function resolveHostname(name, resolve, generation) {
+  if (generation !== dnsGeneration) return resolve(name);
+  if (forwardPending.has(name)) return forwardPending.get(name);
+  const pending = Promise.resolve().then(() => resolve(name));
+  forwardPending.set(name, pending);
+  try {
+    return await pending;
+  } finally {
+    if (forwardPending.get(name) === pending) forwardPending.delete(name);
+  }
+}
+
+/** Read an unexpired normalized DNS entry. @param {string} ip Address @returns {object|null} Cached result @since 0.14.1 */
+function freshDnsEntry(ip) {
+  const key = normalizeIp(ip);
+  const entry = dnsCache.get(key);
+  if (!entry) return null;
+  const age = Date.now() - entry.timestamp;
+  if (age < 0 || age >= (entry.domain ? DNS_CACHE_TTL : DNS_NEGATIVE_TTL)) {
+    dnsCache.delete(key);
+    return null;
+  }
+  return entry;
+}
+
+/** Check distinct PTR candidates until one forward-confirms.
+ * @param {string} ip Normalized address @param {Function} reverse Reverse resolver
+ * @param {Function} forward Forward resolver @returns {Promise<{domain: string|null, reason: string}>} Evidence
+ * @since 0.14.1
+ */
+async function lookupIp(ip, reverse, forward) {
+  let hostnames;
+  try {
+    hostnames = await reverse(ip);
+  } catch (_) {
+    return { domain: null, reason: VERDICT_REASONS.PTR_MISSING };
+  }
+  const candidates = Array.isArray(hostnames)
+    ? [
+        ...new Set(
+          hostnames
+            .filter((name) => typeof name === 'string')
+            .map((name) => name.trim().toLowerCase().replace(/\.$/, ''))
+            .filter(Boolean),
+        ),
+      ]
+    : [];
+  for (const candidate of candidates) {
+    try {
+      const addresses = await forward(candidate);
+      if (
+        Array.isArray(addresses) &&
+        addresses.some((address) => normalizeIp(String(address)) === ip)
+      ) {
+        return { domain: candidate, reason: 'forward-confirmed' };
+      }
+    } catch (_) {
+      // One broken PTR candidate does not discard the remaining candidates.
+    }
+  }
+  return {
+    domain: null,
+    reason: candidates.length ? VERDICT_REASONS.PTR_UNCONFIRMED : VERDICT_REASONS.PTR_MISSING,
   };
-
-  let hostnames = null;
-  try {
-    hostnames = await _dnsReverse(ip);
-  } catch (_) {
-    // Reverse lookup failed — `hostnames` stays null and the address is reported as unknown.
-  }
-  const candidate =
-    hostnames && hostnames.length > 0
-      ? String(hostnames[0]).trim().toLowerCase().replace(/\.$/, '')
-      : '';
-  if (!candidate) return remember(null, VERDICT_REASONS.PTR_MISSING);
-
-  let confirmed = false;
-  try {
-    const addresses = await _dnsResolve(candidate);
-    const target = normalizeIp(ip);
-    confirmed =
-      Array.isArray(addresses) && addresses.some((a) => normalizeIp(String(a)) === target);
-  } catch (_) {
-    // Forward lookup failed — the name stays unconfirmed and is discarded.
-  }
-  return confirmed
-    ? remember(candidate, 'forward-confirmed')
-    : remember(null, VERDICT_REASONS.PTR_UNCONFIRMED);
 }
 
 /**
@@ -386,14 +458,15 @@ async function resolveIp(ip) {
  * Absence of a name is NOT evidence of wrongdoing: it yields `unknown`. Only a
  * forward-confirmed name that is on no allowlist yields `flagged`.
  * @param {string} ip
+ * @param {{domain: string|null, reason: string}|null} [evidence] Same-scan DNS result
  * @returns {{verdict: 'allowlisted'|'unknown'|'flagged', reason: string, domain: string}}
  * @since 0.10.0
  */
-function classifyConnection(ip) {
+function classifyConnection(ip, evidence = freshDnsEntry(ip)) {
   if (isAllowlistedIp(ip)) {
     return { verdict: 'allowlisted', reason: VERDICT_REASONS.IP_ALLOWLIST, domain: '' };
   }
-  const cached = dnsCache.get(ip);
+  const cached = evidence;
   const domain = cached && cached.domain ? cached.domain : '';
   if (!domain) {
     const reason =
@@ -463,11 +536,15 @@ async function scanNetworkConnections(agents) {
     // The IP allowlist is checked BEFORE any DNS work: an address inside a published
     // operator range needs no name to be trusted, and asking for one would only make the
     // verdict depend on whether that operator happens to publish PTR records.
-    const uniqueIps = [...new Set(deduped.map((c) => c.ip))].filter((ip) => !isAllowlistedIp(ip));
-    await Promise.all(uniqueIps.map((ip) => resolveIp(ip)));
+    const uniqueIps = [...new Set(deduped.map((c) => normalizeIp(c.ip)))].filter(
+      (ip) => !isAllowlistedIp(ip),
+    );
+    const resolved = new Map(
+      await Promise.all(uniqueIps.map(async (ip) => [ip, await resolveIpEvidence(ip)])),
+    );
     const result = deduped.map((c) => {
       const agent = pidMap.get(c.pid);
-      const { verdict, reason, domain } = classifyConnection(c.ip);
+      const { verdict, reason, domain } = classifyConnection(c.ip, resolved.get(normalizeIp(c.ip)));
       const httpUnencrypted = c.port === 80;
       return {
         // C-01: `''` for an unmatched connection, never a synthesized `PID <n>` label. This
