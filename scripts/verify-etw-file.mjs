@@ -8,13 +8,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import supervisor from '../src/main/platform/etw-file-supervisor.js';
 import protocol from '../src/main/platform/etw-file-protocol.js';
+import { runFileLoad } from './etw-file-load.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const executable = path.join(root, 'sidecar/etw-file/bin/Release/net10.0-windows/EtwFile.exe');
 const live = process.argv.includes('--live');
 const lossCheck = process.argv.includes('--loss-check');
+const loadCheck = process.argv.includes('--load-check');
 if (live && lossCheck)
   throw new Error('--loss-check is synthetic and cannot be combined with --live');
+if (loadCheck && !live) throw new Error('--load-check requires --live');
 const destination = process.argv.find((value) => value.startsWith('--report='))?.slice(9);
 if (process.platform !== 'win32' || !destination || fs.existsSync(destination))
   throw new Error('Windows and a new --report=<file> are required');
@@ -27,6 +30,7 @@ const report = {
   synthetic: !live,
   protocol: protocol.PROTOCOL,
   lossCheck,
+  loadCheck,
   startedAt: new Date().toISOString(),
   binarySha256: createHash('sha256').update(fs.readFileSync(executable)).digest('hex'),
   assemblySha256: createHash('sha256')
@@ -64,10 +68,10 @@ try {
       named = false,
       fixtureRead = false,
       leaked = false;
-    const deadline = performance.now() + (live ? 10000 : 3000);
-    while (performance.now() < deadline) {
-      if (live) fs.readFileSync(file); // Only this ordinary process performs the fixture workload.
-      const records = sensor.getDiagnostics().records;
+    const inspect = () => {
+      const diagnostics = sensor.getDiagnostics();
+      if (diagnostics.phase !== 'running') throw new Error('capture-not-running');
+      const records = diagnostics.records;
       observed ||= records.some((r) => r.eventId === 15);
       named ||= records.some((r) => r.path === file);
       fixtureRead ||= records.some(
@@ -79,8 +83,18 @@ try {
           r.instanceId !== null ||
           (r.path !== null && !r.path.startsWith(fixture + '\\')),
       );
-      if (!live && observed) break;
-      await delay(25);
+    };
+    if (loadCheck) {
+      report.load = {};
+      await runFileLoad(file, inspect, report.load);
+    } else {
+      const deadline = performance.now() + (live ? 10000 : 3000);
+      while (performance.now() < deadline) {
+        if (live) fs.readFileSync(file); // Only this ordinary process reads the fixture.
+        inspect();
+        if (!live && observed) break;
+        await delay(25);
+      }
     }
     report.observationCheck = { observed, named, fixtureRead, leaked };
     if (!observed || leaked || (live && !fixtureRead)) throw new Error('observation-contract');
@@ -100,9 +114,10 @@ try {
     if (
       live &&
       (result.finalCounters?.queryStatus !== 0 ||
-        ['eventsLost', 'realTimeBuffersLost', 'logBuffersLost'].some(
-          (key) => result.finalCounters[key] !== '0',
-        ))
+        (!loadCheck &&
+          ['eventsLost', 'realTimeBuffersLost', 'logBuffersLost'].some(
+            (key) => result.finalCounters[key] !== '0',
+          )))
     )
       throw new Error('native-loss-or-unmeasured');
     report.cases.push({

@@ -111,7 +111,10 @@ The dependency is those observations, not the absence of a Windows host.
    open. [Stage loss accounting](docs/roadmap/etw-stage-loss.md) is now implemented
    in protocol v2 and verified through synthetic process saturation. The new live
    check recorded 57,927 inputs, zero ingress/output/native losses and 11 main-ring
-   evictions under lower ambient load. Repeatable burst measurement remains next.
+   evictions under lower ambient load. A [repeatable load check](docs/roadmap/etw-repeatable-load.md)
+   now completed 66,000 fixture reads: 956,985 delivered, zero ingress/native loss,
+   49,406 output drops and 16,362 main-ring evictions. E3 remains open; output-stage
+   throughput and discard causes are the next measured target.
 
 ## C — existing rules coverage
 

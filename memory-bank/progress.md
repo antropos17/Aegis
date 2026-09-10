@@ -2181,3 +2181,35 @@ were not performed. E3 remains open: use a repeatable burst workload next.
 `docs/recon/evidence/etw-file-home-26200-stage-loss.json` preserves all three
 original reports and 20 normalized source hashes matched to this implementation.
 Check final PR/CI/merge for the stage-counter branch before continuing.
+
+## Session handoff — 2026-09-11, repeatable ETW load
+
+Implemented on `codex/etw-repeatable-load` from `0f40a6d`, after stage counters
+merged in PR #430. `--live --load-check` uses a normal-token worker with a fixed
+three-cycle profile: 2000 paced and 20000 burst reads per cycle, one handle per
+phase, 4096-byte reads at offset zero and two seconds of settling after each phase.
+It retains achieved rates and partial results, limits the worker to 90 seconds,
+and keeps supervisor observation/cleanup on the parent event loop. No C# or main
+runtime code changed. The new mode allows measured losses without claiming clean
+capture; the ordinary live smoke's zero-native-loss requirement is unchanged.
+
+One authorized UAC run completed all 66000 reads in 19.896 seconds. The whole
+session delivered 956985 events and filtered 890960; ingress drops 0, output drops
+49406, native counters/decoder errors/map conflicts 0, map resets 6, main-ring
+evictions 16362. Scoped fixture Read/header PID passed, stop was verified, child
+exit was 0 and no EtwFile helpers remained. The binaries match the earlier stage
+check. Output loss is reproduced; its counter still combines overflow and
+invalidation. Ambient input, async delivery and phase attribution remain limits.
+
+All 13 workload/CLI tests passed in full coverage: 199 files / 3321 pass / four
+skips. Format/lint/build/types/Svelte, witness/sequence gates, counts and production
+audit passed. The unchanged C# build's prior 28 tests remain applicable. The normal
+process verifier passed all three cases with matching binaries. Original normal
+and live JSON reports plus 22 normalized source hashes are retained in
+`docs/recon/evidence/etw-file-home-26200-repeatable-load.json`; commands and limits
+are in `docs/roadmap/etw-repeatable-load.md`.
+
+Next E3 step: separate output discard causes and measure/improve draining and
+serialization with the same workload profile. Sleep/wake remains deferred, the
+installed application was not replaced, and the original dirty UI checkout was
+preserved. Check the repeatable-load branch's final PR/CI/merge before continuing.
