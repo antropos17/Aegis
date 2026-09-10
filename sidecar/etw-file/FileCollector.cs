@@ -14,6 +14,8 @@ internal static class FileCollector
         Security.Verify(pipe, parent, ulong.Parse(args[5]), false, false);
         var scope = new FileScope(args[6]);
         var ingress = new FileIngress();
+        bool checkLoss = args[0] == "check-loss-collector";
+        if (checkLoss) FileLossFixture.OverflowIngress(ingress);
         using var pipeline = new FilePipeline(ingress, scope, live);
         var send = new FileWire(args[1], args[2]);
         var read = new FileWire(args[1], args[2]);
@@ -35,7 +37,7 @@ internal static class FileCollector
         {
             await send.Write(pipe, "hello", new
             {
-                build = live ? "etw-file-diagnostic-dev-1" : "etw-file-synthetic-check-1",
+                build = live ? "etw-file-diagnostic-dev-2" : "etw-file-synthetic-check-2",
                 profile = FileWire.Profile,
                 schemas = FileWire.Schemas
             }, lifetime.Token);
@@ -51,6 +53,7 @@ internal static class FileCollector
                 if (stats.Status != 0) throw new InvalidOperationException();
                 CheckStats();
             }
+            else if (checkLoss) FileLossFixture.OverflowOutput(ingress, pipeline, scope);
             else
             {
                 // Check mode never calls ETW or observes other processes; null native counters.

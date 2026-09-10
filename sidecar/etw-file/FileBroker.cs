@@ -13,7 +13,8 @@ internal static class FileBroker
         using var pipe = Security.Server(pipeId);
         if (!Security.RestrictedAcl(pipe)) return 3;
         var self = Security.Current();
-        var info = Program.Child(live ? "collector" : "check-collector", args[1], args[2], pipeId,
+        string collector = live ? "collector" : args[0] == "check-loss-broker" ? "check-loss-collector" : "check-collector";
+        var info = Program.Child(collector, args[1], args[2], pipeId,
             self.Pid.ToString(), self.Birth.ToString(), scope.Root, FileWire.Profile);
         if (live)
         {

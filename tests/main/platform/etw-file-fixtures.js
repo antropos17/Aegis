@@ -14,6 +14,8 @@ export function telemetry(overrides = {}) {
       delivered: '10',
       filtered: '2',
       dropped: '0',
+      ingressDropped: '0',
+      outputDropped: '0',
       decoderErrors: '0',
       mapEpoch: '0',
       mapResets: '0',
@@ -79,7 +81,7 @@ export function message(t = 'hello', seq = '1', data) {
   };
   return {
     t,
-    proto: 'etw-file/1',
+    proto: 'etw-file/2',
     launchId: 'launch-1',
     sessionId: 'session-1',
     seq,

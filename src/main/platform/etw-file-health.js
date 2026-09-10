@@ -12,12 +12,21 @@ const TOTALS = [
   'delivered',
   'filtered',
   'dropped',
+  'ingressDropped',
+  'outputDropped',
   'decoderErrors',
   'mapEpoch',
   'mapResets',
   'mapConflicts',
 ];
-const LOSS_TOTALS = ['dropped', 'decoderErrors', 'mapResets', 'mapConflicts'];
+const LOSS_TOTALS = [
+  'dropped',
+  'ingressDropped',
+  'outputDropped',
+  'decoderErrors',
+  'mapResets',
+  'mapConflicts',
+];
 const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
 const error = (code) => {
   throw new Error(`etw-file:${code}`);

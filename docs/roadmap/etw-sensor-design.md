@@ -126,7 +126,7 @@ UAC storms. Each attempt has a new session ID and rejects old frames.
 
 ## 4. Proposed diagnostic wire and bounds
 
-Independent protocol `etw-file/1`: four-byte little-endian length, UTF-8 JSON,
+Independent protocol `etw-file/2`: four-byte little-endian length, UTF-8 JSON,
 maximum 256 KiB payload, maximum JSON depth 16. Reject length before allocating.
 Decode fragmentation/coalescing with a capped accumulator. No stdout text logs.
 All uint64 values (QPC, frequency, FILETIME, sequence/counters) are decimal strings
@@ -296,10 +296,10 @@ lifecycle harness for E1/E2; the live privilege/cleanup gates precede Electron w
 E3–E8 constrain subsequent capture/correlation/admission blocks. B3 completion
 approves no runtime integration and closes none of the remaining B1 questions.
 
-## 8. B3 offline contract details
+## 8. Diagnostic contract details (B3, updated by B5)
 
 Every envelope has exactly `{t, proto, launchId, sessionId, seq, data}`; `proto`
-is `etw-file/1`, IDs are 1–64 ASCII letters/digits/underscore/hyphen, and `seq` is
+is `etw-file/2`, IDs are 1–64 ASCII letters/digits/underscore/hyphen, and `seq` is
 a positive canonical uint64 decimal string. IDs bind one launch and session;
 they provide no authentication by themselves. Sequences are independent in each
 direction. Each nested object has closed fields; unknown keys and omitted nullable
@@ -326,8 +326,11 @@ is no sender-provided `HEALTHY` assertion. `counters` contains nullable uint64
 `eventsLost`, `realTimeBuffersLost`, `logBuffersLost`, uint32 `queryStatus` and
 uint64 `asOfQpc`. Nonzero queryStatus prevents using any native values for loss
 accounting; the received values remain available in the copied diagnostic sample.
-`totals` contains uint64 `delivered`, `filtered`, `dropped`, `decoderErrors`,
-`mapEpoch`, `mapResets`, `mapConflicts`. `queues` contains uint32 `records`, `bytes`,
+`totals` contains uint64 `delivered`, `filtered`, `dropped`, `ingressDropped`,
+`outputDropped`, `decoderErrors`, `mapEpoch`, `mapResets`, `mapConflicts`.
+The required stage counters sum exactly to `dropped`; absent measurements and
+version 1 peers are rejected. See [stage-loss accounting](etw-stage-loss.md) for
+discard semantics and normal/live evidence. `queues` contains uint32 `records`, `bytes`,
 `highWaterRecords`, `highWaterBytes`, with the section 4 caps and high-water checks.
 These reported counters do not implement a collector queue or prove a live bound.
 

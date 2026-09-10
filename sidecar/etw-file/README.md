@@ -12,6 +12,7 @@ Build on Windows x64 with .NET 10:
 dotnet build sidecar/etw-file/EtwFile.csproj -c Release
 & sidecar/etw-file/bin/Release/net10.0-windows/EtwFile.exe self-test
 node scripts/verify-etw-file.mjs --report=X:/tmp/etw-file-check-new.json
+node scripts/verify-etw-file.mjs --loss-check --report=X:/tmp/etw-file-loss-new.json
 ```
 
 The default process check launches only normal-token processes. File observations
@@ -20,6 +21,13 @@ C# broker/collector, framed JS decoder and supervisor, two clean sessions with
 different IDs, then parent EOF with unverified stop and blocked retry. The report
 retains build hashes and bounded session summaries, with no raw observations.
 Choose a new report path on every run. Temporary fixture folders are retained.
+`--loss-check` deliberately saturates the raw and outbound queues in fixed
+normal-token fixtures, requiring nonzero split losses in the final report. It
+cannot be combined with `--live` and never requests UAC or ETW.
+
+The matching main/helper now require `etw-file/2`. Each telemetry sample includes
+`ingressDropped` and `outputDropped` uint64 strings whose sum is exactly `dropped`.
+Version 1 peers are rejected; rebuild the helper together with the main reader.
 
 For a separately agreed live check, run the following from normal PowerShell and
 approve **one** UAC prompt. The ordinary Node process reads its own temporary test
@@ -71,7 +79,10 @@ way to start another capture. The separately owned frontend is unchanged.
   output reader, outside the mapper lock. Its outbound queue is separately capped
   at 4,096 entries / 4 MiB; retained records use a 2,048-byte allowance plus UTF-16
   path storage, without serializing to count bytes. Overflow
-  there counts loss without blocking raw mapping. The writer retains one bounded
+  there counts loss without blocking raw mapping. `ingressDropped` includes raw
+  overflow and buffered discard at gaps; `outputDropped` includes outbound overflow
+  and queued/in-flight invalidation. Decoder errors, deliberate filtering and main
+  ring eviction have separate counters. The writer retains one bounded
   batch, with at most 128 records and a 256 KiB wire limit. The v1 telemetry queue
   fields report maxima across the two separately capped stages, not their sum.
   Broker readers/writers retain one frame per direction, writes expire after five
@@ -129,4 +140,11 @@ scoped fixture Read/header-PID candidate and verified stop on matching binaries:
 errors or ring eviction. Both reports and source hashes are retained in the
 [live evidence](../../docs/recon/evidence/etw-file-home-26200-burst-live.json).
 Different ambient traffic prevents a controlled before/after comparison. E3 remains
-open; the aggregate still combines ingress and outbound drops.
+open. Those historical v1 reports combine ingress and outbound drops.
+
+The [stage-counter follow-up](../../docs/roadmap/etw-stage-loss.md) implements v2
+split accounting and verifies nonzero totals through the actual normal processes.
+Its live check delivered 57,927 events with zero ingress/output/native losses,
+but 11 evictions from the bounded main diagnostic ring. The lower ambient load
+does not establish loss-free burst capture. Reports and 20 source hashes are in
+the [stage evidence](../../docs/recon/evidence/etw-file-home-26200-stage-loss.json).

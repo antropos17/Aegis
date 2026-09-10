@@ -117,6 +117,8 @@ internal sealed class FilePipeline : IDisposable
                 delivered = total.Delivered.ToString(),
                 filtered = filtered.ToString(),
                 dropped = (total.Dropped + outputDropped).ToString(),
+                ingressDropped = total.Dropped.ToString(),
+                outputDropped = outputDropped.ToString(),
                 decoderErrors = total.Errors.ToString(),
                 mapEpoch = map.Epoch.ToString(),
                 mapResets = map.Resets.ToString(),

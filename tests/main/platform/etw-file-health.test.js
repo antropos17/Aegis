@@ -64,20 +64,26 @@ describe('offline ETW session health', () => {
     },
   );
 
-  it.each(['dropped', 'decoderErrors', 'mapResets', 'mapConflicts'])(
-    'retains %s across successful callbacks',
-    (field) => {
-      const sample = telemetry();
-      sample.totals[field] = '1';
-      const state = report(running(), sample);
-      expect(state.record.lossCount).toBe(0);
-      expect(state.sticky).toContain(field);
-      const next = report(state, telemetry(), 40);
-      expect(next.record.state).toBe('DEGRADED');
-      expect(next.sticky).toContain(field);
-      expect(next.record.lastSuccessAt).toBe(40);
-    },
-  );
+  it.each([
+    'dropped',
+    'ingressDropped',
+    'outputDropped',
+    'decoderErrors',
+    'mapResets',
+    'mapConflicts',
+  ])('retains %s across successful callbacks', (field) => {
+    const sample = telemetry();
+    sample.totals[field] = '1';
+    if (field === 'dropped') sample.totals.ingressDropped = '1';
+    if (field === 'ingressDropped' || field === 'outputDropped') sample.totals.dropped = '1';
+    const state = report(running(), sample);
+    expect(state.record.lossCount).toBe(0);
+    expect(state.sticky).toContain(field);
+    const next = report(state, telemetry(), 40);
+    expect(next.record.state).toBe('DEGRADED');
+    expect(next.sticky).toContain(field);
+    expect(next.record.lastSuccessAt).toBe(40);
+  });
 
   it.each(['eventsLost', 'realTimeBuffersLost', 'logBuffersLost'])(
     'keeps a gap when the %s query was unavailable',
