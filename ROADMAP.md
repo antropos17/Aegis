@@ -103,6 +103,10 @@ The dependency is those observations, not the absence of a Windows host.
    a scoped Read/header PID candidate and owned stop, with zero native losses but
    substantial counted ingress drops. E4/E5 authoritative attribution, independent
    cleanup/recovery and the remaining E3/E6–E8 live gates remain open.
+   The [2026-09-11 burst follow-up](docs/roadmap/etw-burst-handling.md) moves process
+   probes and serialization off the mapper. A controlled held-probe regression
+   drains 8,192 additional reads without ingress loss; new live loss measurements
+   are still needed for E3.
 
 ## C — existing rules coverage
 

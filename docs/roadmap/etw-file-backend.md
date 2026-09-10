@@ -76,6 +76,10 @@ event-time identity or the independent cleanup/recovery and deployment gates.
 
 ## API basis
 
+The [2026-09-11 burst follow-up](etw-burst-handling.md) moves process probes and
+JSON serialization off the mapper. Controlled blocked-probe and byte/loss tests
+pass; the historical live loss figures above have not been remeasured.
+
 The collector owns the session it successfully starts and stops by its original
 handle. Provider filtering follows Microsoft's [EnableTraceEx2 parameters](https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-enable_trace_parameters)
 and [ETW session configuration](https://learn.microsoft.com/en-us/windows/win32/etw/configuring-and-starting-an-event-tracing-session).

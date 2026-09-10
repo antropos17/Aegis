@@ -1,10 +1,9 @@
 using System.Diagnostics;
-using System.Text.Json;
 
 namespace Aegis.EtwLifecycle;
 
-// A separate bounded mapper keeps pipe writes and native statistics queries out
-// of the raw lifecycle ingress drain. All retained output has its own byte cap.
+// The mapper only resolves lifecycle evidence and queues bounded output. Process
+// probes, serialization, pipe writes and native statistics stay on the reader side.
 internal sealed class FilePipeline : IDisposable
 {
     private sealed record Output(FileObservation Record, int Bytes);
@@ -13,15 +12,22 @@ internal sealed class FilePipeline : IDisposable
     private readonly FileIngress ingress;
     private readonly FileMapping map;
     private readonly bool live;
+    private readonly Func<FileObservation, FileObservation> observe;
+    private readonly Func<long> clock;
     private readonly CancellationTokenSource cancel = new();
     private int bytes, highRecords, highBytes;
     private bool completed;
     private ulong filtered, outputDropped;
+    private ulong invalidation;
+    private long lastGeneration;
     internal ulong OutputDropped { get { lock (gate) return outputDropped; } }
     internal Task Worker { get; }
-    internal FilePipeline(FileIngress input, FileScope scope, bool native)
+    internal FilePipeline(FileIngress input, FileScope scope, bool native,
+        Func<FileObservation, FileObservation>? observer = null, Func<long>? timestamp = null)
     {
         ingress = input; map = new(scope, Stopwatch.Frequency); live = native;
+        observe = observer ?? FileGeneration.Observe;
+        clock = timestamp ?? Stopwatch.GetTimestamp;
         Worker = Task.Factory.StartNew(Run, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
     }
     internal void Invalidate(long qpc)
@@ -29,6 +35,7 @@ internal sealed class FilePipeline : IDisposable
         lock (gate)
         {
             map.Reset(qpc);
+            invalidation++;
             outputDropped += (ulong)outbound.Count; outbound.Clear(); bytes = 0;
         }
     }
@@ -36,7 +43,7 @@ internal sealed class FilePipeline : IDisposable
     internal void Cancel() => cancel.Cancel();
     private void Run()
     {
-        long lastGeneration = 0, lastUnresolved = 0;
+        long lastUnresolved = 0;
         try
         {
             while (true)
@@ -62,9 +69,9 @@ internal sealed class FilePipeline : IDisposable
                     if (time - lastUnresolved < Stopwatch.Frequency / 10) { lock (gate) filtered++; continue; }
                     lastUnresolved = time;
                 }
-                if (live && time - lastGeneration >= Stopwatch.Frequency / 100)
-                { record = FileGeneration.Observe(record); lastGeneration = time; }
-                int cost = 1024 + JsonSerializer.SerializeToUtf8Bytes(record).Length + (record.path?.Length ?? 0) * 2;
+                // Retained record/string allowance; JSON bytes are created only by the
+                // bounded writer. Counting memory must not serialize on the mapper.
+                int cost = 2048 + (record.path?.Length ?? 0) * 2;
                 lock (gate)
                 {
                     if (epoch != map.Epoch || outbound.Count >= 4096 || bytes + cost > 4 * 1024 * 1024)
@@ -78,10 +85,26 @@ internal sealed class FilePipeline : IDisposable
     }
     internal FileObservation? Take()
     {
+        FileObservation record;
+        ulong epoch;
         lock (gate)
         {
             if (!outbound.TryDequeue(out var item)) return null;
-            bytes -= item.Bytes; return item.Record;
+            bytes -= item.Bytes; record = item.Record; epoch = invalidation;
+        }
+        // One serial reader owns the probe budget. Never hold the map/queue lock
+        // across a native call, and never cache a process creation observation.
+        long time = clock();
+        if (live && time - lastGeneration >= Stopwatch.Frequency / 100)
+        {
+            lastGeneration = time;
+            record = observe(record);
+        }
+        lock (gate)
+        {
+            // A gap may have invalidated queued evidence while the probe ran.
+            if (epoch != invalidation) { outputDropped++; return null; }
+            return record;
         }
     }
     internal object Totals()
