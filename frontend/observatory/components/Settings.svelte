@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { confirmed, invoke, record, type Host, type RecordData } from '../runtime/host';
   import Action from './Action.svelte';
   import Icon from './Icon.svelte';
-  import AgentLogo from './AgentLogo.svelte';
+  import SettingsGroup from './SettingsGroup.svelte';
+  import SettingsAppearance from './SettingsAppearance.svelte';
+  import SettingsMonitoring from './SettingsMonitoring.svelte';
   import SectionTabs from './SectionTabs.svelte';
   const id = $props.id();
   const tabs = [
@@ -50,13 +52,44 @@
   let ignored = $state('');
   let patternInput = $state<HTMLTextAreaElement>();
   let dirty = $derived(loaded && baseline !== snapshot());
+  let validation = $derived(
+    !loaded
+      ? ''
+      : !Number.isFinite(Number(form.scanIntervalSec ?? 10)) ||
+          Number(form.scanIntervalSec ?? 10) <= 0
+        ? 'Scan interval must be a positive number of seconds.'
+        : !Number.isFinite(Number(form.uiScale ?? 1)) ||
+            Number(form.uiScale ?? 1) < 0.5 ||
+            Number(form.uiScale ?? 1) > 3
+          ? 'Interface scale must be between 50% and 300%.'
+          : '',
+  );
+  const updateLabels: Record<string, string> = {
+    idle: 'Ready to check for updates',
+    checking: 'Checking for updates...',
+    available: 'An update is available',
+    'up-to-date': 'You are up to date',
+    downloading: 'Downloading update...',
+    ready: 'Update ready to install',
+    installing: 'Installing update...',
+    unsupported: 'Automatic updates are unavailable in this build',
+    error: 'Update could not be completed',
+  };
+  const startupHelp: Record<string, string> = {
+    startMinimized: 'Open in the system tray instead of showing the window.',
+    autoStartWithWindows: 'Launch AEGIS when you sign in to Windows.',
+    hardwareAcceleration:
+      'Use the GPU to draw the interface. Restart AEGIS after changing this setting.',
+  };
   let alive = true;
   let previousTheme: string | null = null;
   $effect(() => {
     if (loaded && currentTheme && currentTheme !== previousTheme) {
+      const clean = untrack(() => baseline === snapshot());
       previousTheme = currentTheme;
       form.darkMode = currentTheme.startsWith('dark');
       contrast = currentTheme.endsWith('-hc');
+      if (clean) baseline = untrack(snapshot);
     }
   });
   async function load() {
@@ -90,6 +123,7 @@
   }
   async function save() {
     if (mutation) throw new Error('A settings operation is already in progress');
+    if (validation) throw new Error(validation);
     mutation = 'save';
     refreshWarning = '';
     const submitted = { form: { ...form }, patterns, ignored, contrast, motion };
@@ -158,7 +192,7 @@
       if (alive && cause instanceof Error && /pattern|regex/i.test(cause.message)) {
         section = 'monitoring';
         await tick();
-        patternInput?.focus();
+        patternInput?.focus({ preventScroll: true });
       }
       throw cause;
     } finally {
@@ -197,8 +231,9 @@
       .then((value) => {
         if (alive && revision === 0) updates = record(value);
       })
-      .catch((e) => {
-        if (alive) error = String(e);
+      .catch(() => {
+        if (alive)
+          updates = { status: 'error', error: 'Could not read update status. Try checking again.' };
       });
     return () => {
       alive = false;
@@ -220,9 +255,24 @@
   ] as const;
 </script>
 
-{#if error}<p role="alert" class="notice">{error}</p>{/if}
+{#if error}<div class="notice">
+    <p role="alert">{error}</p>
+    <Action
+      action={async () => {
+        await load();
+        if (alive) error = '';
+      }}>Retry loading</Action
+    >
+  </div>{/if}
 {#if refreshWarning}<p role="status" class="notice">{refreshWarning}</p>{/if}
 <div class="settings-workspace panel">
+  <div class="settings-intro">
+    <div>
+      <h2>Application preferences</h2>
+      <p>Configure this workstation. Your draft stays here when you switch sections.</p>
+    </div>
+    <span class="badge">Local settings</span>
+  </div>
   <SectionTabs
     {tabs}
     selected={section}
@@ -241,51 +291,7 @@
       aria-labelledby={id + '-tab-appearance'}
       hidden={section !== 'appearance'}
     >
-      <div class="settings-section">
-        <label class="setting"
-          ><span>Theme</span><select
-            aria-label="Theme"
-            value={(form.darkMode ? 'dark' : 'light') + (contrast ? '-hc' : '')}
-            onchange={(e) => {
-              const theme = e.currentTarget.value;
-              form.darkMode = theme.startsWith('dark');
-              contrast = theme.endsWith('-hc');
-              document.documentElement.dataset.theme = theme;
-            }}
-            ><option value="dark">Dark</option><option value="light">Light</option><option
-              value="dark-hc">Dark, high contrast</option
-            ><option value="light-hc">Light, high contrast</option></select
-          ></label
-        >
-        <label class="setting range"
-          ><span>Scale <output>{Math.round(Number(form.uiScale ?? 1) * 100)}%</output></span><input
-            aria-label="Interface scale"
-            type="range"
-            min="0.8"
-            max="1.5"
-            step="0.05"
-            value={Number(form.uiScale ?? 1)}
-            oninput={(e) => {
-              form.uiScale = Number(e.currentTarget.value);
-              document.documentElement.style.setProperty('--ui-scale', String(form.uiScale));
-            }}
-          /></label
-        >
-        <label class="setting"
-          ><span>Animations<small>Radar sweep, markers and transitions</small></span><input
-            type="checkbox"
-            bind:checked={motion}
-            onchange={(event) => {
-              document.documentElement.dataset.motion = event.currentTarget.checked
-                ? 'full'
-                : 'reduce';
-            }}
-          /></label
-        >
-        <div class="setting">
-          <span>Language<small>English interface</small></span><span class="badge">English</span>
-        </div>
-      </div>
+      <SettingsAppearance bind:form bind:contrast bind:motion />
     </div>
     <div
       class="settings-page"
@@ -295,54 +301,7 @@
       aria-labelledby={id + '-tab-monitoring'}
       hidden={section !== 'monitoring'}
     >
-      <div class="settings-section">
-        <label class="setting range"
-          ><span>Scan interval <output>{String(form.scanIntervalSec ?? 10)} s</output></span><input
-            aria-label="Scan interval (seconds)"
-            type="range"
-            min="1"
-            max={Math.max(60, Number(form.scanIntervalSec ?? 10))}
-            step="1"
-            value={Number(form.scanIntervalSec ?? 10)}
-            oninput={(e) => (form.scanIntervalSec = Number(e.currentTarget.value))}
-          /></label
-        >
-        <div class="setting">
-          <label class="switch"
-            ><input
-              type="checkbox"
-              checked={form.notificationsEnabled === true}
-              onchange={(e) => (form.notificationsEnabled = e.currentTarget.checked)}
-            />Notifications</label
-          ><Action action={async () => confirmed(await invoke(host, 'testNotification'))}
-            ><Icon name="bell" />Test</Action
-          >
-        </div>
-        <label class="setting"
-          ><span>Exclude build folders</span><input
-            type="checkbox"
-            checked={form.ignoreCommonBuildDirs === true}
-            onchange={(e) => (form.ignoreCommonBuildDirs = e.currentTarget.checked)}
-          /></label
-        >
-        <label class="setting-stack"
-          >Additional exclusions<textarea
-            aria-label="Additional exclusions"
-            rows="3"
-            maxlength="10000"
-            bind:value={ignored}
-          ></textarea><small>One directory per line</small></label
-        >
-        <label class="setting-stack"
-          >Sensitive paths<textarea
-            bind:this={patternInput}
-            aria-label="Sensitive paths"
-            rows="3"
-            maxlength="10000"
-            bind:value={patterns}
-          ></textarea><small>One regular expression per line</small></label
-        >
-      </div>
+      <SettingsMonitoring bind:form bind:patterns bind:ignored bind:patternInput {host} />
     </div>
     <div
       class="settings-page"
@@ -352,27 +311,34 @@
       aria-labelledby={id + '-tab-desktop'}
       hidden={section !== 'desktop'}
     >
-      <div class="settings-section">
-        <h2><Icon name="monitor" /><span>Desktop startup</span></h2>
+      <SettingsGroup
+        title="Desktop startup"
+        description="Choose how AEGIS starts and renders its interface."
+      >
         {#each toggles.slice(2, 5) as [key, label] (key)}<label class="setting"
-            ><span>{label}</span><input
+            ><span>{label}<small>{startupHelp[key]}</small></span><input
               type="checkbox"
+              aria-label={label}
               checked={form[key] === true}
               onchange={(e) => (form[key] = e.currentTarget.checked)}
             /></label
           >{/each}
-      </div>
-      <div class="settings-section">
-        <h2><Icon name="refresh" /><span>Updates</span></h2>
+      </SettingsGroup>
+      <SettingsGroup
+        title="Updates"
+        description="Check for releases and choose when to install them."
+      >
         <label class="setting"
-          ><span>Check automatically</span><input
+          ><span
+            >Check automatically<small>Look for available releases in the background.</small></span
+          ><input
             type="checkbox"
             checked={form.automaticUpdatesEnabled === true}
             onchange={(e) => (form.automaticUpdatesEnabled = e.currentTarget.checked)}
           /></label
         >
         <p class="muted" role="status">
-          {String(updates.status ?? 'Loading')}
+          {updateLabels[String(updates.status)] ?? 'Update status unavailable'}
           {String(updates.version ?? '')}
         </p>
         {#if updates.notes}<p class="muted">{String(updates.notes)}</p>{/if}{#if updates.error}<p
@@ -385,7 +351,9 @@
           ></progress>{/if}
         <div class="toolbar">
           <Action
-            disabled={['checking', 'downloading'].includes(String(updates.status))}
+            disabled={['checking', 'downloading', 'installing', 'unsupported'].includes(
+              String(updates.status),
+            )}
             action={() => update('checkForUpdates')}
             ><Icon name="refresh" />Check for updates</Action
           >{#if updates.status === 'available'}<Action action={() => update('downloadUpdate')}
@@ -394,7 +362,7 @@
               >Install and restart</Action
             >{/if}
         </div>
-      </div>
+      </SettingsGroup>
     </div>
     <div
       class="settings-page"
@@ -404,8 +372,10 @@
       aria-labelledby={id + '-tab-data'}
       hidden={section !== 'data'}
     >
-      <div class="settings-section">
-        <h2><AgentLogo name="Claude Code" /><span>Anthropic analysis</span></h2>
+      <SettingsGroup
+        title="Anthropic analysis"
+        description="Manage the provider connection and analysis options in their dedicated workspace."
+      >
         <p class="muted">
           Connect Anthropic, review evidence and customize reports in the AI analysis workspace.
         </p>
@@ -414,11 +384,14 @@
             ><Icon name="shield" />Open AI analysis</button
           >
         </div>
-      </div>
-      <div class="settings-section">
-        <h2><Icon name="settings" /><span>Configuration</span></h2>
+      </SettingsGroup>
+      <SettingsGroup
+        title="Configuration"
+        description="Back up saved preferences or restore them from a configuration file."
+      >
         <p class="muted">
-          Export settings without the API key. Imports are checked for valid format and values.
+          Export contains saved settings without the API key. Import replaces saved preferences and
+          the current draft; imported values are validated.
         </p>
         <div class="toolbar">
           <Action action={async () => confirmed(await invoke(host, 'exportConfig'))}
@@ -427,9 +400,11 @@
             ><Icon name="upload" />Import</Action
           >
         </div>
-      </div>
-      <div class="settings-section">
-        <h2><Icon name="keyboard" /><span>Keyboard shortcuts</span></h2>
+      </SettingsGroup>
+      <SettingsGroup
+        title="Keyboard shortcuts"
+        description="Navigate AEGIS without leaving the keyboard."
+      >
         <dl class="details-grid">
           <dt>Commands</dt>
           <dd><kbd>Ctrl K</kbd></dd>
@@ -442,16 +417,25 @@
           <dt>Close dialog</dt>
           <dd><kbd>Esc</kbd></dd>
         </dl>
-      </div>
+      </SettingsGroup>
     </div>
   </fieldset>
+  {#if validation}<p class="notice" role="alert">{validation}</p>{/if}
   <div class="settings-save">
     <span class="settings-draft" role="status"
-      >{!loaded ? 'Loading settings…' : dirty ? 'Unsaved changes' : 'Settings saved'}</span
+      >{!loaded
+        ? 'Loading settings…'
+        : mutation === 'save'
+          ? 'Saving changes…'
+          : mutation === 'replace'
+            ? 'Reloading settings…'
+            : dirty
+              ? 'Unsaved changes'
+              : 'Settings saved'}</span
     >
     <Action disabled={!loaded || !dirty || mutation !== null} action={() => replaceSettings()}
       ><Icon name="close" />Discard changes</Action
-    ><Action disabled={!loaded || !dirty || mutation !== null} action={save}
+    ><Action disabled={!loaded || !dirty || mutation !== null || !!validation} action={save}
       ><Icon name="check" />Save settings</Action
     >
   </div>
@@ -464,7 +448,7 @@
   }
   .settings-workspace :global(.section-tabs) {
     position: sticky;
-    top: 0;
+    top: var(--workspace-sticky-offset, 70px);
     z-index: 3;
     background: var(--panel);
   }
@@ -477,22 +461,36 @@
   }
   .settings-page {
     min-width: 0;
+    display: grid;
+    gap: var(--space-4);
+    padding: var(--panel-inset);
+    min-height: 420px;
+    align-content: start;
+  }
+  .settings-intro {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--panel-inset);
+  }
+  .settings-intro h2 {
+    margin: 0;
+    font-size: var(--text-section);
+  }
+  .settings-intro p {
+    margin: var(--space-1) 0 0;
+    color: var(--muted);
+    font-size: var(--text-body);
+    line-height: 1.5;
+  }
+  .settings-intro .badge {
+    flex-shrink: 0;
   }
   .settings-page[hidden] {
     display: none;
   }
-  .setting {
-    margin: 16px 0;
-  }
-  .settings-section {
-    max-width: 860px;
-  }
-  .settings-section h2 {
-    font-size: calc(14px * var(--ui-scale));
-  }
-  .settings-section + .settings-section {
-    border-top: 1px solid var(--border);
-  }
+
   .settings-save {
     position: sticky;
     bottom: 0;
@@ -513,15 +511,16 @@
     margin-top: 12px;
   }
   @media (max-width: 700px) {
-    .settings-section {
-      padding: 16px;
-    }
-    .setting {
-      gap: 12px;
+    .settings-intro {
       flex-wrap: wrap;
     }
     .settings-save {
-      padding: 12px 16px;
+      padding: var(--space-3) var(--panel-inset);
     }
+  }
+  .settings-save :global(.action-control:last-child .button:not(:disabled)) {
+    background: var(--ink);
+    color: var(--bg);
+    border-color: var(--ink);
   }
 </style>

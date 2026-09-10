@@ -223,3 +223,73 @@ it('does not replay saved appearance over a newer global theme or scale preview'
   expect(appearance).not.toHaveBeenCalled();
   expect(second.getByText('Unsaved changes')).toBeInTheDocument();
 });
+
+it('blocks invalid exact values and saves valid interval and scale changes as a patch', async () => {
+  const host = sharedHost();
+  mountSettings(host);
+  await screen.findByText('Settings saved');
+  await fireEvent.input(screen.getByLabelText('Interface scale percent'), {
+    target: { value: '125' },
+  });
+  expect(document.documentElement.style.getPropertyValue('--ui-scale')).toBe('1.25');
+  await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring' }));
+  const exact = screen.getByLabelText('Exact scan interval (seconds)');
+  await fireEvent.input(exact, { target: { value: '' } });
+  expect(exact).toHaveAttribute('aria-invalid', 'true');
+  expect(screen.getByRole('button', { name: 'Save settings' })).toBeDisabled();
+  expect(screen.getByRole('alert')).toHaveTextContent('positive number');
+  expect(host.saveSettings).not.toHaveBeenCalled();
+  await fireEvent.input(exact, { target: { value: '17' } });
+  expect(exact).toHaveAttribute('aria-invalid', 'false');
+  await fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+  await screen.findByText('Completed');
+  expect(host.saveSettings).toHaveBeenCalledExactlyOnceWith(
+    { uiScale: 1.25, scanIntervalSec: 17 },
+    { patch: true },
+  );
+});
+
+it('keeps presets as a draft and restores their preview when discarded', async () => {
+  const host = sharedHost();
+  const appearance = vi.fn();
+  mountSettings(host, { appearance });
+  await screen.findByText('Settings saved');
+  const savedTheme = screen.getByLabelText('Theme').value;
+  await fireEvent.click(screen.getByRole('button', { name: '125%', exact: true }));
+  expect(screen.getByLabelText('Interface scale percent')).toHaveValue(125);
+  await fireEvent.click(screen.getByRole('tab', { name: 'Monitoring' }));
+  await fireEvent.click(screen.getByRole('button', { name: '5 s', exact: true }));
+  expect(screen.getByLabelText('Exact scan interval (seconds)')).toHaveValue(5);
+  expect(host.saveSettings).not.toHaveBeenCalled();
+  await fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+  await waitFor(() =>
+    expect(screen.getByLabelText('Exact scan interval (seconds)')).toHaveValue(10),
+  );
+  expect(appearance).toHaveBeenLastCalledWith(
+    savedTheme.startsWith('dark'),
+    1,
+    savedTheme.endsWith('-hc'),
+  );
+});
+
+it('recovers a failed settings load without reloading the workspace', async () => {
+  const host = sharedHost();
+  host.getSettings.mockRejectedValueOnce(new Error('Settings temporarily unavailable'));
+  mountSettings(host);
+  await screen.findByRole('alert');
+  await fireEvent.click(screen.getByRole('button', { name: 'Retry loading' }));
+  await screen.findByText('Settings saved');
+  await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  expect(screen.getByLabelText('Theme')).toBeEnabled();
+});
+
+it('does not create a dirty draft when the initial shell theme settles after loading', async () => {
+  localStorage.setItem('aegis-theme', 'light');
+  const host = sharedHost();
+  mountSettings(host, { currentTheme: 'dark' });
+  await waitFor(() => expect(screen.getByLabelText('Theme')).toHaveValue('dark'));
+  expect(screen.getByText('Settings saved')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Save settings' })).toBeDisabled();
+  expect(host.saveSettings).not.toHaveBeenCalled();
+  localStorage.removeItem('aegis-theme');
+});
