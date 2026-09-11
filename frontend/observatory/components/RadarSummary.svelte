@@ -33,3 +33,13 @@
   >
   <Icon name="chevron" />
 </button>
+
+<style>
+  button.radar-agent-card {
+    padding-inline: var(--space-4);
+  }
+  button.radar-agent-card[aria-pressed='true'] {
+    box-shadow: none;
+    border-color: var(--ink);
+  }
+</style>

@@ -158,3 +158,10 @@ the displayed view is paused. A stale or missing population disables navigation.
 Filters preserve focus; choosing a resource focuses its detail heading. Visited
 layers retain state, and unchanged observation arrays reuse the resource model.
 All new styling remains scoped; the preserved reference and cascade are unchanged.
+
+### Radar selection spacing (2026-09-11)
+
+The selected roster row uses its background and a uniform border, without an
+inset stripe beside the ordinal. Horizontal padding keeps the number away from
+the edge. The radar toolbar grows with wrapped text and has no inner scrollbar.
+The viewport/theme/scale checks cover toolbar overflow and ordinal clearance.

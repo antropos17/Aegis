@@ -227,7 +227,16 @@ try {
               const overlaps = (a, b) =>
                 a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
               const cards = [...document.querySelectorAll('.radar-agent-card')];
+              const toolbar = document.querySelector('.radar-resource-toolbar');
               return {
+                toolbarOverflow: toolbar.scrollHeight > toolbar.clientHeight + 1,
+                crowdedNumbers: cards.some((card) => {
+                  const number = rect(card.querySelector('.roster-number'));
+                  return (
+                    number.left < rect(card).left + 12 ||
+                    number.right > rect(card.querySelector('.agent-mark')).left - 3
+                  );
+                }),
                 collisions: points.some((p, i) => points.slice(i + 1).some((q) => overlaps(p, q))),
                 clipped: points.some(
                   (p) =>
@@ -247,6 +256,16 @@ try {
               };
             });
             assert.equal(radar.collisions, false, `radar marker collision: ${size.width} ${scale}`);
+            assert.equal(
+              radar.toolbarOverflow,
+              false,
+              `radar toolbar scrolls: ${size.width} ${scale}`,
+            );
+            assert.equal(
+              radar.crowdedNumbers,
+              false,
+              `radar number crowded: ${size.width} ${scale}`,
+            );
             assert.equal(radar.clipped, false, `clipped radar marker: ${size.width} ${scale}`);
             assert.equal(
               radar.crowdedLogos,
