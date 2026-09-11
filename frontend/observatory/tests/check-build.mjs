@@ -14,6 +14,7 @@ import { checkGraphs } from './graph-check.mjs';
 import { checkDetails } from './detail-check.mjs';
 import { checkMotion } from './motion-check.mjs';
 import { checkResourceLayers } from './resource-layer-check.mjs';
+import { checkProtection } from './protection-check.mjs';
 
 const repo = process.cwd();
 const designRoot = resolve(repo, 'frontend/observatory');
@@ -84,6 +85,7 @@ const out = process.env.FRONTEND_QA_DIR || resolve(repo, 'dist/frontend-qa');
 await mkdir(out, { recursive: true });
 const errors = [];
 try {
+  await checkProtection(browser, base + '/preview/', out);
   for (const file of await readdir(resolve(roots['/desktop/'], 'assets'))) {
     if (!file.endsWith('.js')) continue;
     const js = await readFile(resolve(roots['/desktop/'], 'assets', file), 'utf8');
@@ -106,6 +108,7 @@ try {
     );
   });
   await page.goto(base + '/preview/');
+  await page.getByRole('button', { name: 'Detailed monitoring', exact: true }).click();
   await page.getByRole('heading', { name: 'Agent radar', exact: true }).waitFor();
   await page.getByRole('button', { name: /Select Claude Code, 1 processes/ }).waitFor();
   assert.equal(await page.evaluate(() => window.bridgeCalls), 0);
@@ -321,6 +324,7 @@ try {
     .filter({ hasText: /^Completed$/ })
     .waitFor();
   await page.reload();
+  await page.getByRole('button', { name: 'Detailed monitoring', exact: true }).click();
   await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'light-hc');
   await page.getByRole('button', { name: 'Toggle theme', exact: true }).click();

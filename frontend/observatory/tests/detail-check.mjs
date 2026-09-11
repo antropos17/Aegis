@@ -84,6 +84,7 @@ export async function checkDetails(browser, url, out) {
       );
     });
     await page.goto(url);
+    await page.getByRole('button', { name: 'Detailed monitoring', exact: true }).click();
     await page.getByRole('heading', { name: 'Agent radar', exact: true }).waitFor();
     await page.evaluate(() => {
       const agents = Array.from({ length: 26 }, (_, i) => ({

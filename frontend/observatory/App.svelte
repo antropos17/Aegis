@@ -21,6 +21,7 @@
   import Icon from './components/Icon.svelte';
   import Notifications from './components/Notifications.svelte';
   import Monitoring from './components/Monitoring.svelte';
+  import ProtectionOverview from './components/ProtectionOverview.svelte';
   import Events from './components/Events.svelte';
   import Rules from './components/Rules.svelte';
   import Catalog from './components/Catalog.svelte';
@@ -119,6 +120,17 @@
   });
   let selected = $state<string | null>(null);
   let view = $state('overview');
+  let detailedMonitoring = $state(false);
+  let monitoringMounted = $state(false);
+  let policyRevision = $state(0);
+  let policyTarget = $state<{ key: string; revision: number }>();
+  function openPolicy(key: string) {
+    policyTarget = { key, revision: ++sectionRevision };
+    void navigate('rules');
+  }
+  $effect(() => {
+    if (detailedMonitoring || view === 'agents') monitoringMounted = true;
+  });
   let group = $derived(workspaces.find((entry) => entry.id === view)?.group);
   let isLiveWorkspace = $derived(
     ['overview', 'agents', 'events', 'network', 'stats'].includes(view),
@@ -394,6 +406,12 @@
             >{/if}
         </div>
         {#if isLiveWorkspace}<div class="page-actions">
+            {#if view === 'overview'}<button
+                class="button"
+                aria-pressed={detailedMonitoring}
+                onclick={() => (detailedMonitoring = !detailedMonitoring)}
+                >{detailedMonitoring ? 'Protection overview' : 'Detailed monitoring'}</button
+              >{/if}
             <button
               class="button"
               title="Pause the displayed observations; backend monitoring continues"
@@ -421,21 +439,38 @@
       <SensorStatus health={record(telemetry.stats.appHealth)} />
       <div id="workspace-content" role="region" aria-labelledby="page-title">
         <div id="content" class:analysis-view={view === 'analysis'}>
-          <div hidden={view !== 'overview' && (view !== 'agents' || scope.agent !== '')}>
-            <Monitoring
+          <div hidden={view !== 'overview' || detailedMonitoring}>
+            <ProtectionOverview
+              {host}
+              liveTelemetry={telemetry}
               telemetry={displayTelemetry}
-              bind:selected
               {inspect}
-              mode={view}
-              {openStatistics}
-              openAgent={(agent) => inspect(agent, { agentGroupKey: agent, name: agent })}
-              {paused}
+              {openPolicy}
+              {policyRevision}
               navigate={(target) => {
                 changeScope({ agent: '', instanceId: '' });
                 return navigate(target);
               }}
             />
           </div>
+          {#if monitoringMounted}<div
+              hidden={(view !== 'overview' || !detailedMonitoring) &&
+                (view !== 'agents' || scope.agent !== '')}
+            >
+              <Monitoring
+                telemetry={displayTelemetry}
+                bind:selected
+                {inspect}
+                mode={view}
+                {openStatistics}
+                openAgent={(agent) => inspect(agent, { agentGroupKey: agent, name: agent })}
+                paused={paused || view !== 'overview' || !detailedMonitoring}
+                navigate={(target) => {
+                  changeScope({ agent: '', instanceId: '' });
+                  return navigate(target);
+                }}
+              />
+            </div>{/if}
           {#if scope.agent}<div hidden={view !== 'agents'}>
               <AgentWorkspace
                 telemetry={displayTelemetry}
@@ -470,7 +505,12 @@
               />
             </div>{/if}
           {#if tabs.includes('rules')}<div hidden={view !== 'rules'}>
-              <Rules {host} {telemetry} />
+              <Rules
+                {host}
+                {telemetry}
+                targetRequest={policyTarget}
+                onPermissionsChanged={() => policyRevision++}
+              />
             </div>{/if}
           {#if tabs.includes('database')}<div hidden={view !== 'database'}>
               <Catalog {host} {inspect} />
