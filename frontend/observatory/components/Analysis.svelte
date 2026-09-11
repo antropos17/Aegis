@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { onMount } from 'svelte';
   import {
     confirmed,
@@ -151,12 +153,12 @@
     <div class="analysis-provider-name">
       <AgentLogo name="Claude Code" size={32} />
       <div>
-        <strong>Anthropic</strong><span
+        <strong>{$t('Anthropic')}</strong><span
           >{preview
-            ? 'Preview · provider calls disabled'
+            ? $t('Preview · provider calls disabled')
             : configured
-              ? 'API key saved · verified on first analysis'
-              : 'Not connected'}</span
+              ? $t('API key saved · verified on first analysis')
+              : $t('Not connected')}</span
         >
       </div>
     </div>
@@ -169,15 +171,15 @@
           showProvider = true;
         }}
         ><Icon name="settings" />{configured
-          ? 'Connection settings'
-          : 'Connect AI analysis'}</button
+          ? $t('Connection settings')
+          : $t('Connect AI analysis')}</button
       >
     </div>
   </section>
   {#if showProvider}
     <EditorDialog
-      title="Anthropic connection"
-      caption="AI analysis"
+      title={$t('Anthropic connection')}
+      caption={$t('AI analysis')}
       tabs={[
         { id: 'connection', label: 'Connection' },
         { id: 'usage', label: 'Usage' },
@@ -192,27 +194,30 @@
       {#snippet children(section)}
         <section class="detail-section">
           {#if section === 'connection'}
-            <h3>Provider connection</h3>
+            <h3>{$t('Provider connection')}</h3>
             <div class="form-grid">
               <label class="full"
-                >New API key<input
+                >{$t('New API key')}<input
                   disabled={preview}
                   type="password"
                   autocomplete="off"
                   bind:value={key}
-                  placeholder="Anthropic API key"
+                  placeholder={$t('Anthropic API key')}
                 /></label
               >
             </div>
             <p class="dialog-copy">
-              Connection is verified when analysis runs. Saved keys are never displayed in this
-              form.
+              {$t(
+                'Connection is verified when analysis runs. Saved keys are never displayed in this form.',
+              )}
             </p>
             {#if !preview && !configured}<p class="dialog-copy">
-                A saved key may remain when the OS keychain is locked. Remove saved key clears it.
+                {$t(
+                  'A saved key may remain when the OS keychain is locked. Remove saved key clears it.',
+                )}
               </p>{/if}
           {:else}
-            <h3>Analysis scope</h3>
+            <h3>{$t('Analysis scope')}</h3>
             <Metadata
               value={{
                 Provider: 'Anthropic',
@@ -227,7 +232,7 @@
       {/snippet}
       {#snippet actions()}
         {#if !preview}<Action disabled={keyPending} action={() => saveKey(true)}
-            >Remove saved key</Action
+            >{$t('Remove saved key')}</Action
           >{/if}
         <button
           class="button"
@@ -235,10 +240,10 @@
             providerVisit++;
             showProvider = false;
             key = '';
-          }}>Close settings</button
+          }}>{$t('Close settings')}</button
         >
         <Action disabled={preview || keyPending || !key.trim()} action={() => saveKey()}
-          >Save key</Action
+          >{$t('Save key')}</Action
         >
       {/snippet}
     </EditorDialog>
@@ -246,33 +251,38 @@
   {#if error}<p role="alert">{error}</p>{/if}
   <div class="analysis-layout">
     <section class="panel analysis-config">
-      <div class="panel-head"><h2><Icon name="settings" />New assessment</h2></div>
+      <div class="panel-head"><h2><Icon name="settings" />{$t('New assessment')}</h2></div>
       <div class="analysis-config-body">
         <label class="analysis-field"
-          >Scope<select bind:value={mode}
-            ><option value="session">Entire session</option><option value="agent"
-              >Agent · all matching instances</option
+          >{$t('Scope')}<select bind:value={mode}
+            ><option value="session">{$t('Entire session')}</option><option value="agent"
+              >{$t('Agent · all matching instances')}</option
             ></select
           ></label
         >
         {#if mode === 'agent'}<label class="analysis-field"
-            >Agent<select bind:value={agent}
-              ><option value="">Select an agent</option>{#each names as name (name)}<option
+            >{$t('Agent')}<select bind:value={agent}
+              ><option value="">{$t('Select an agent')}</option>{#each names as name (name)}<option
                   >{name}</option
                 >{/each}</select
             ></label
           >{/if}
         <label class="analysis-field"
-          >Report title<input bind:value={reportTitle} maxlength="160" /></label
+          >{$t('Report title')}<input bind:value={reportTitle} maxlength="160" /></label
         >
         <div class="scope-details analysis-field">
-          <small>Evidence scope</small>
-          <p>Recorded session metadata</p>
-          <small>File observations, connections and agent activity supplied by AEGIS.</small>
+          <small>{$t('Evidence scope')}</small>
+          <p>{$t('Recorded session metadata')}</p>
+          <small>{$t('File observations, connections and agent activity supplied by AEGIS.')}</small
+          >
         </div>
         <div class="provider-note">
           <Icon name="shield" />
-          <p>Analysis sends recorded activity metadata to Anthropic and may incur API charges.</p>
+          <p>
+            {$t(
+              'Analysis sends recorded activity metadata to Anthropic and may incur API charges.',
+            )}
+          </p>
         </div>
       </div>
       <div class="assessment-actions">
@@ -281,42 +291,43 @@
             keyPending ||
             !configured ||
             (mode === 'agent' && !names.includes(agent))}
-          action={analyze}><Icon name="play" />Run analysis</Action
+          action={analyze}><Icon name="play" />{$t('Run analysis')}</Action
         >
       </div>
     </section>
     <section class="panel analysis-output">
-      <div class="subnav analysis-tabs" aria-label="Report sections">
+      <div class="subnav analysis-tabs" aria-label={$t('Report sections')}>
         {#each [['summary', 'Report', 'report'], ['evidence', 'Evidence', 'file'], ['history', 'History', 'history']] as [id, title, icon] (id)}<button
             aria-pressed={section === id}
-            onclick={() => (section = id)}><Icon name={icon} />{title}</button
+            onclick={() => (section = id)}><Icon name={icon} />{$t(title)}</button
           >{/each}
       </div>
       <div class="analysis-body">
         <div hidden={section !== 'summary'} class="report-section">
           {#if !report}<div class="analysis-empty">
               <Icon name="report" />
-              <h2>Review agent activity</h2>
+              <h2>{$t('Review agent activity')}</h2>
               <p>
-                Choose a scope and run an assessment. Review findings alongside their recorded
-                evidence.
+                {$t(
+                  'Choose a scope and run an assessment. Review findings alongside their recorded evidence.',
+                )}
               </p>
               <ol>
-                <li><span>1</span>Choose a session or an agent</li>
-                <li><span>2</span>Review the selected metadata</li>
-                <li><span>3</span>Assess findings and export the report</li>
+                <li><span>1</span>{$t('Choose a session or an agent')}</li>
+                <li><span>2</span>{$t('Review the selected metadata')}</li>
+                <li><span>3</span>{$t('Assess findings and export the report')}</li>
               </ol>
               <small
                 >{preview
-                  ? 'Provider calls are disabled in this preview.'
+                  ? $t('Provider calls are disabled in this preview.')
                   : configured
-                    ? 'Ready for a new assessment.'
-                    : 'Connect Anthropic to create your first assessment.'}</small
+                    ? $t('Ready for a new assessment.')
+                    : $t('Connect Anthropic to create your first assessment.')}</small
               >
             </div>
           {:else}<article class="analysis-document">
               <div class="analysis-document-meta">
-                <small>ANTHROPIC ASSESSMENT</small><span class="badge"
+                <small>{$t('ANTHROPIC ASSESSMENT')}</small><span class="badge"
                   >{String(report.riskRating || report.riskLevel || 'Not assessed')}</span
                 >
               </div>
@@ -324,33 +335,34 @@
               <small>{String(report.scope)} · {String(report.createdAt)}</small>
               <p class="report-text">{String(report.summary ?? 'No summary returned')}</p>
               <p>{String(report.riskJustification ?? '')}</p>
-              <h3><Icon name="shield" />Findings</h3>
+              <h3><Icon name="shield" />{$t('Findings')}</h3>
               <ol>
                 {#each strings(report.findings) as item, i (i)}<li>{item}</li>{:else}<li>
-                    No findings returned.
+                    {$t('No findings returned.')}
                   </li>{/each}
               </ol>
-              <h3><Icon name="check" />Recommended checks</h3>
+              <h3><Icon name="check" />{$t('Recommended checks')}</h3>
               <ol>
                 {#each strings(report.recommendations) as item, i (i)}<li>{item}</li>{:else}<li>
-                    No recommendations returned.
+                    {$t('No recommendations returned.')}
                   </li>{/each}
               </ol>
               <Action action={async () => confirmed(await invoke(host, 'openThreatReport', report))}
-                ><Icon name="report" />Open report</Action
+                ><Icon name="report" />{$t('Open report')}</Action
               >
             </article>{/if}
         </div>
         <div hidden={section !== 'evidence'} class="report-section inset">
-          {#if report}<h2>Recorded scope</h2>
+          {#if report}<h2>{$t('Recorded scope')}</h2>
             <p class="muted">
-              {String(report.countsSource)} · {String(report.scope)}. Agents counts distinct
-              products.
+              {String(report.countsSource)} · {String(report.scope)}{$t(
+                '. Agents counts distinct products.',
+              )}
             </p>
             <Metadata value={record(report.counts)} />{:else}<div class="analysis-empty">
               <Icon name="file" />
-              <h2>No assessment yet</h2>
-              <p>Evidence information appears after an analysis completes.</p>
+              <h2>{$t('No assessment yet')}</h2>
+              <p>{$t('Evidence information appears after an analysis completes.')}</p>
             </div>{/if}
         </div>
         <div hidden={section !== 'history'} class="report-section inset">
@@ -367,8 +379,8 @@
               ><Icon name="chevron" /></button
             >{:else}<div class="analysis-empty">
               <Icon name="history" />
-              <h2>No assessments yet</h2>
-              <p>Your completed assessments will appear here.</p>
+              <h2>{$t('No assessments yet')}</h2>
+              <p>{$t('Your completed assessments will appear here.')}</p>
             </div>{/each}
         </div>
       </div>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { onMount, tick } from 'svelte';
   import { confirmed, invoke, record, records, type Host, type RecordData } from '../runtime/host';
   let { host, agent }: { host: Host | null; agent: string } = $props();
@@ -128,22 +130,22 @@
   });
 </script>
 
-<section class="detail-section watchlist" aria-label="Alert watchlist">
+<section class="detail-section watchlist" aria-label={$t('Alert watchlist')}>
   <div class="watch-heading">
-    <h3>Alert watchlist</h3>
-    <button class="button" aria-disabled={busy} onclick={load}>Reload watchlist</button>
+    <h3>{$t('Alert watchlist')}</h3>
+    <button class="button" aria-disabled={busy} onclick={load}>{$t('Reload watchlist')}</button>
   </div>
   <p class="entity-note">
-    One entry per agent and scope. Entries raise alerts; they do not block execution.
+    {$t('One entry per agent and scope. Entries raise alerts; they do not block execution.')}
   </p>
   <div class="watch-subject" aria-busy={busy}>
     <div>
-      <strong>{agent || 'Agent not identified'}</strong><small
+      <strong>{agent || $t('Agent not identified')}</strong><small
         >{!loaded
-          ? 'Status unavailable'
+          ? $t('Status unavailable')
           : current
-            ? 'On the watchlist · all processes'
-            : 'Not on the watchlist for all processes'}</small
+            ? $t('On the watchlist · all processes')
+            : $t('Not on the watchlist for all processes')}</small
       >
     </div>
     <button
@@ -151,7 +153,7 @@
       class="button"
       aria-disabled={busy || !loaded || !agent.trim()}
       onclick={(event) => change(current, event.currentTarget)}
-      >{current ? 'Remove agent' : 'Watch agent'}</button
+      >{current ? $t('Remove agent') : $t('Watch agent')}</button
     >
   </div>
   <div class="watch-feedback">
@@ -159,20 +161,20 @@
     {#if error}<p role="alert" class="error">{error}</p>{/if}
   </div>
   {#if loaded && others.length}<details>
-      <summary>Other watchlist entries ({others.length})</summary>
+      <summary>{$t('Other watchlist entries (')}{others.length})</summary>
       <ul>
         {#each others.slice(0, limit) as entry (JSON.stringify( [entry.signature, entry.pid ?? null] ))}<li
           >
             <span>{label(entry)}</span><button
               class="button"
-              aria-label={`Remove ${label(entry)}`}
+              aria-label={$t('Remove {value0}', { value0: label(entry) })}
               aria-disabled={busy}
-              onclick={(event) => change(entry, event.currentTarget)}>Remove</button
+              onclick={(event) => change(entry, event.currentTarget)}>{$t('Remove')}</button
             >
           </li>{/each}
       </ul>
       {#if limit < others.length}<button class="button" onclick={() => (limit += 6)}
-          >Show more entries</button
+          >{$t('Show more entries')}</button
         >{/if}
     </details>{/if}
 </section>

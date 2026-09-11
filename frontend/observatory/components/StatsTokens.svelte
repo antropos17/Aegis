@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { instances, measured, type Telemetry, type RecordData } from '../runtime/host';
   import { radarGroups, groupEvidence, groupRecord } from '../runtime/radar';
   import { measuredStatisticsTotal, statisticsValue } from '../runtime/statistics-metrics';
@@ -29,41 +31,50 @@
 <section class="panel tokens-panel">
   <header>
     <div>
-      <h3>Usage by agent</h3>
-      <p>Current processes · exact identity coverage · estimates are labeled</p>
+      <h3>{$t('Usage by agent')}</h3>
+      <p>{$t('Current processes · exact identity coverage · estimates are labeled')}</p>
     </div>
     <button class="button" aria-expanded={showSources} onclick={() => (showSources = !showSources)}
-      >Source samples · {telemetry.tokens.length}</button
+      >{$t('Source samples ·')} {telemetry.tokens.length}</button
     >
   </header>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Agent</th><th>Coverage</th><th>Tokens</th><th>Estimated cost</th></tr></thead
+      <thead
+        ><tr
+          ><th>{$t('Agent')}</th><th>{$t('Coverage')}</th><th>{$t('Tokens')}</th><th
+            >{$t('Estimated cost')}</th
+          ></tr
+        ></thead
       ><tbody>
         {#each groups as group (group.key)}
           <tr
             ><td
               ><button class="entity-link" onclick={() => inspect(group.name, groupRecord(group))}
                 >{group.name}</button
-              ><small>{group.members.length} processes</small></td
+              ><small>{group.members.length} {$t('processes')}</small></td
             ><td>{group.tokenUsage.measured} / {group.tokenUsage.total}</td><td
               >{statisticsValue(group.tokenUsage.value)}<small
                 >{group.tokenUsage.value === null
-                  ? 'No current measurement'
+                  ? $t('No current measurement')
                   : group.tokenUsage.measured < group.tokenUsage.total
-                    ? 'Measured subtotal'
-                    : 'From supported logs'}{group.estimated ? ' · includes estimates' : ''}</small
+                    ? $t('Measured subtotal')
+                    : $t('From supported logs')}{group.estimated
+                  ? $t(' · includes estimates')
+                  : ''}</small
               ></td
             ><td
               >{statisticsValue(group.costUsage.value, 'USD')}<small
-                >{group.costUsage.measured} / {group.costUsage.total} processes priced{group
-                  .costUsage.value !== null && group.costUsage.measured < group.costUsage.total
-                  ? ' · subtotal'
+                >{group.costUsage.measured} / {group.costUsage.total}
+                {$t('processes priced')}{group.costUsage.value !== null &&
+                group.costUsage.measured < group.costUsage.total
+                  ? $t(' · subtotal')
                   : ''}</small
               ></td
             ></tr
           >
-        {:else}<tr><td colspan="4">No current agents with token attribution.</td></tr>{/each}
+        {:else}<tr><td colspan="4">{$t('No current agents with token attribution.')}</td></tr
+          >{/each}
       </tbody>
     </table>
   </div>
@@ -76,30 +87,30 @@
         <article>
           <div>
             <h4>
-              {agent?.agent || 'Unlinked source'}
+              {agent?.agent || $t('Unlinked source')}
               <small
                 >{typeof token.pid === 'number'
                   ? 'PID ' + token.pid
                   : 'Sample ' + (index + 1)}</small
               >
             </h4>
-            <span>{token.estimated === true ? 'Estimated' : 'Recorded'}</span>
+            <span>{token.estimated === true ? $t('Estimated') : $t('Recorded')}</span>
           </div>
           <dl>
             <div>
-              <dt>Total</dt>
+              <dt>{$t('Total')}</dt>
               <dd>{statisticsValue(measured(token.totalTokens))}</dd>
             </div>
             <div>
-              <dt>Input</dt>
+              <dt>{$t('Input')}</dt>
               <dd>{statisticsValue(measured(token.inputTokens))}</dd>
             </div>
             <div>
-              <dt>Output</dt>
+              <dt>{$t('Output')}</dt>
               <dd>{statisticsValue(measured(token.outputTokens))}</dd>
             </div>
             <div>
-              <dt>Estimated cost</dt>
+              <dt>{$t('Estimated cost')}</dt>
               <dd>{statisticsValue(measured(token.costUsd), 'USD')}</dd>
             </div>
           </dl>
@@ -107,12 +118,13 @@
               {token.models.filter((m) => typeof m === 'string').join(' · ')}
             </p>{/if}
         </article>
-      {:else}<p class="muted">No source samples are available.</p>{/each}
+      {:else}<p class="muted">{$t('No source samples are available.')}</p>{/each}
     </div>
   {/if}
   <p class="footnote">
-    Local log coverage is limited to supported agents. Pricing is an estimate and may be incomplete
-    or out of date. Missing source data does not mean zero usage.
+    {$t(
+      'Local log coverage is limited to supported agents. Pricing is an estimate and may be incomplete or out of date. Missing source data does not mean zero usage.',
+    )}
   </p>
 </section>
 

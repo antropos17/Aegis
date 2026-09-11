@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { instances, type Telemetry, type RecordData } from '../runtime/host';
   import { detailActivity, detailMembers } from '../runtime/detail-model';
   import {
@@ -59,14 +61,14 @@
 {#if section === 'processes'}
   <section class="detail-section">
     <div class="section-heading">
-      <h3>Individual processes</h3>
+      <h3>{$t('Individual processes')}</h3>
       <span class="badge">{members.length}</span>
     </div>
     <label class="detail-search"
       ><Icon name="search" /><input
-        aria-label="Find a process"
+        aria-label={$t('Find a process')}
         type="search"
-        placeholder="PID, process or project"
+        placeholder={$t('PID, process or project')}
         bind:value={query}
       /></label
     >
@@ -79,35 +81,40 @@
           onclick={() => navigate(a.name + ' · PID ' + a.pid, a as unknown as RecordData)}
         >
           <div class="detail-card-heading">
-            <strong>PID {a.pid}</strong><span class="badge">{a.riskScore}/100 risk</span>
+            <strong>{$t('PID')} {a.pid}</strong><span class="badge"
+              >{a.riskScore}{$t('/100 risk')}</span
+            >
           </div>
           <span>{a.process}</span><small title={a.cwd}
-            >{a.cwd || 'Working directory not recorded'}</small
+            >{a.cwd || $t('Working directory not recorded')}</small
           >
-          <span class="detail-card-link">Open process<Icon name="chevron" /></span>
+          <span class="detail-card-link">{$t('Open process')}<Icon name="chevron" /></span>
         </button>
-      {:else}<p class="entity-note">No processes match this view.</p>{/each}
+      {:else}<p class="entity-note">{$t('No processes match this view.')}</p>{/each}
     </div>
     {#if filtered.length > limit}<button class="button detail-load" onclick={() => (limit += 12)}
-        >Show {Math.min(12, filtered.length - limit)} more processes</button
+        >{$t('Show')} {Math.min(12, filtered.length - limit)} {$t('more processes')}</button
       >{/if}
   </section>
 {:else if section === 'activity'}
   <section class="detail-section">
     <div class="section-heading">
-      <h3>Files and connections</h3>
-      <span class="badge">{activity.length} observations</span>
+      <h3>{$t('Files and connections')}</h3>
+      <span class="badge">{activity.length} {$t('observations')}</span>
     </div>
     <label class="detail-search"
       ><Icon name="search" /><input
-        aria-label="Find activity"
+        aria-label={$t('Find activity')}
         type="search"
-        placeholder="Resource, address, action or PID"
+        placeholder={$t('Resource, address, action or PID')}
         bind:value={query}
       /></label
     >
     <p class="entity-note">
-      {matchingGroups.length} resources · {activity.length} observations retained
+      {matchingGroups.length}
+      {$t('resources ·')}
+      {activity.length}
+      {$t('observations retained')}
     </p>
     <div class="detail-card-grid">
       {#each matchingGroups.slice(0, limit) as group (group.key)}
@@ -125,23 +132,25 @@
           <ObservationResource row={group.latest} />
           <div class="detail-card-heading">
             <span>{String(group.latest.action || group.latest.state || 'Observed')}</span><span
-              class="badge">{group.rows.length} records</span
+              class="badge">{group.rows.length} {$t('records')}</span
             >
           </div>
           <small
-            >{group.last ? new Date(group.last).toLocaleTimeString() : 'Current snapshot'}</small
+            >{group.last
+              ? new Date(group.last).toLocaleTimeString()
+              : $t('Current snapshot')}</small
           >
         </button>
       {:else}<p class="entity-note">
           {activity.length
-            ? 'No resources match this search.'
-            : 'No retained activity for this exact process scope.'}
+            ? $t('No resources match this search.')
+            : $t('No retained activity for this exact process scope.')}
         </p>{/each}
     </div>
     {#if matchingGroups.length > limit}<button
         class="button detail-load"
         onclick={() => (limit += 12)}
-        >Show {Math.min(12, matchingGroups.length - limit)} more resources</button
+        >{$t('Show')} {Math.min(12, matchingGroups.length - limit)} {$t('more resources')}</button
       >{/if}
   </section>
 {:else if section === 'records'}
@@ -150,7 +159,7 @@
   </section>
 {:else}
   <section class="detail-section">
-    <h3>Related resources</h3>
+    <h3>{$t('Related resources')}</h3>
     <div class="detail-card-grid">
       {#if parent && parent !== path}<button
           class="detail-card"
@@ -159,7 +168,7 @@
             navigate('Parent folder', { cwd: parent, source: 'Parent of observed path' })}
         >
           <div class="detail-card-heading">
-            <Icon name="folder" /><strong>Parent folder</strong>
+            <Icon name="folder" /><strong>{$t('Parent folder')}</strong>
           </div>
           <small>{parent}</small>
         </button>{/if}
@@ -169,10 +178,12 @@
           onclick={() => navigate(agent.name, agent as unknown as RecordData)}
         >
           <div class="detail-card-heading"><Icon name="cpu" /><strong>{agent.name}</strong></div>
-          <span>PID {agent.pid}</span>
-          <small>Exact recorded process identity</small>
+          <span>{$t('PID')} {agent.pid}</span>
+          <small>{$t('Exact recorded process identity')}</small>
         </button>{/if}
     </div>
-    {#if !parent && !agent}<p class="entity-note">No related process or folder recorded.</p>{/if}
+    {#if !parent && !agent}<p class="entity-note">
+        {$t('No related process or folder recorded.')}
+      </p>{/if}
   </section>
 {/if}

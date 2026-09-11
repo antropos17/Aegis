@@ -37,15 +37,15 @@ const props = () => ({
   navigate: vi.fn(),
 });
 
-it('starts with a protection overview and only mounts the radar after it is requested', async () => {
+it('starts with the radar and keeps the protection overview reachable', async () => {
   const mounted = render(App, { host: null });
-  expect(screen.getByRole('region', { name: 'Protection overview' })).toBeVisible();
-  expect(mounted.container.querySelector('.radar-panel')).toBeNull();
-  expect(screen.getByText('Waiting for observations')).toBeVisible();
-  await fireEvent.click(screen.getByRole('button', { name: 'Detailed monitoring' }));
   expect(await screen.findByRole('heading', { name: 'Agent radar' })).toBeVisible();
+  expect(mounted.container.querySelector('.radar-panel')).toBeVisible();
   await fireEvent.click(screen.getByRole('button', { name: 'Protection overview' }));
   expect(screen.getByRole('region', { name: 'Protection overview' })).toBeVisible();
+  expect(mounted.container.querySelector('.radar-panel')).not.toBeVisible();
+  await fireEvent.click(screen.getByRole('button', { name: 'Detailed monitoring' }));
+  expect(screen.getByRole('heading', { name: 'Agent radar' })).toBeVisible();
 });
 
 it('connects evidence to the intended policy and keeps inferred ownership visible', async () => {

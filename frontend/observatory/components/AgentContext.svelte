@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import type { Telemetry } from '../runtime/host';
   import { isScopedProcess, type AgentScope } from '../runtime/agent-scope';
   import AgentLogo from './AgentLogo.svelte';
@@ -22,53 +24,53 @@
   );
 </script>
 
-<section class="agent-context" aria-label="Selected agent context">
+<section class="agent-context" aria-label={$t('Selected agent context')}>
   <div class="context-symbol"><AgentLogo name={scope.agent} size={22} /></div>
   <label
-    >Agent
+    >{$t('Agent')}
     <select
-      aria-label="Selected agent"
+      aria-label={$t('Selected agent')}
       value={scope.agent}
       onchange={(event) => change({ agent: event.currentTarget.value, instanceId: '' })}
     >
-      <option value="">All agents</option>
+      <option value="">{$t('All agents')}</option>
       {#each names as name (name)}<option value={name}>{name}</option>{/each}
       {#if scope.agent && !names.includes(scope.agent)}<option value={scope.agent}
-          >{scope.agent} · not currently observed</option
+          >{scope.agent} {$t('· not currently observed')}</option
         >{/if}
     </select>
   </label>
   <label
-    >Process
+    >{$t('Process')}
     <select
-      aria-label="Selected process"
+      aria-label={$t('Selected process')}
       value={scope.instanceId}
       disabled={!scope.agent || (!scope.instanceId && !members.some(isScopedProcess))}
       onchange={(event) => change({ agent: scope.agent, instanceId: event.currentTarget.value })}
     >
-      <option value="">All processes</option>
+      <option value="">{$t('All processes')}</option>
       {#each members.filter(isScopedProcess) as row (row.instanceId)}
         <option value={row.instanceId}
-          >PID {row.pid}{row.projectName ? ' · ' + row.projectName : ''}</option
+          >{$t('PID')} {row.pid}{row.projectName ? ' · ' + row.projectName : ''}</option
         >
       {/each}
       {#if scope.instanceId && missing}<option value={scope.instanceId}
-          >Selected process · no longer observed</option
+          >{$t('Selected process · no longer observed')}</option
         >{/if}
     </select>
   </label>
   <div class="context-note">
-    <strong>{scope.agent ? 'Shared across live views' : 'All observed agents'}</strong>
+    <strong>{scope.agent ? $t('Shared across live views') : $t('All observed agents')}</strong>
     <span
       >{missing
-        ? 'Selection retained · current measurements unavailable'
+        ? $t('Selection retained · current measurements unavailable')
         : scope.agent
-          ? 'Agent details, statistics, files and connections follow this selection.'
-          : 'Choose an agent to bring its information together.'}</span
+          ? $t('Agent details, statistics, files and connections follow this selection.')
+          : $t('Choose an agent to bring its information together.')}</span
     >
   </div>
   {#if scope.agent}<button class="button" onclick={() => change({ agent: '', instanceId: '' })}
-      >All agents</button
+      >{$t('All agents')}</button
     >{/if}
 </section>
 

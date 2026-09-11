@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import type { ProtectionActivity } from '../runtime/protection';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
@@ -26,7 +28,7 @@
     activity.filter(
       (item) =>
         (filter === 'all' || item.level === filter) &&
-        `${item.actor} ${item.target} ${item.action}`
+        `${item.actor} ${item.target} ${$t(item.action)}`
           .toLowerCase()
           .includes(query.trim().toLowerCase()),
     ),
@@ -37,25 +39,26 @@
   const labels = { review: 'Review needed', unverified: 'Unverified', observed: 'No risk flag' };
 </script>
 
-<section class="panel activity-panel" aria-label="Agent activity">
+<section class="panel activity-panel" aria-label={$t('Agent activity')}>
   <div class="activity-head">
-    <h3>Who did what, and where?</h3>
+    <h3>{$t('Who did what, and where?')}</h3>
     <p>
-      Retained file activity and the latest network snapshot. Select an activity for its
-      explanation.
+      {$t(
+        'Retained file activity and the latest network snapshot. Select an activity for its explanation.',
+      )}
     </p>
   </div>
   <div class="filters">
-    <div class="filter-buttons" aria-label="Activity filters">
+    <div class="filter-buttons" aria-label={$t('Activity filters')}>
       {#each [['all', 'All activity'], ['review', 'Needs review'], ['unverified', 'Unverified']] as [id, label] (id)}
-        <button aria-pressed={filter === id} onclick={() => chooseFilter(id)}>{label}</button>
+        <button aria-pressed={filter === id} onclick={() => chooseFilter(id)}>{$t(label)}</button>
       {/each}
     </div>
     <label class="search"
       ><Icon name="search" /><input
         type="search"
-        aria-label="Search agent activity"
-        placeholder="Agent, file or address…"
+        aria-label={$t('Search agent activity')}
+        placeholder={$t('Agent, file or address…')}
         bind:value={query}
         oninput={() => (limit = 8)}
       /></label
@@ -66,41 +69,52 @@
       <button
         class="activity-row"
         class:review={item.level === 'review'}
-        aria-label={`${item.actor}. ${item.attribution}. ${item.action}: ${item.target}. ${labels[item.level]}. ${item.rows.length} records.`}
+        aria-label={$t('{value0}. {value1}. {value2}: {value3}. {value4}. {value5} records.', {
+          value0: item.actor,
+          value1: $t(item.attribution),
+          value2: $t(item.action),
+          value3: item.target,
+          value4: $t(labels[item.level]),
+          value5: item.rows.length,
+        })}
         aria-pressed={selectedKey === item.key}
         onclick={(event) => select(item, event.currentTarget)}
       >
         <span class="who"
           ><AgentLogo name={item.actor} size={24} /><span
-            ><strong>{item.actor}</strong><small>{item.attribution}</small></span
+            ><strong>{item.actor}</strong><small>{$t(item.attribution)}</small></span
           ></span
         >
         <span class="what"
-          ><span>{item.action}</span><strong>{item.resource}</strong><small class="path"
+          ><span>{$t(item.action)}</span><strong>{item.resource}</strong><small class="path"
             >{item.target}</small
           ></span
         >
         <span class="verdict"
-          ><span class="activity-verdict">{labels[item.level]}</span><small
-            >{item.rows.length > 1 ? `${item.rows.length} records` : item.kind}</small
+          ><span class="activity-verdict">{$t(labels[item.level])}</span><small
+            >{item.rows.length > 1
+              ? $t('{value0} records', { value0: item.rows.length })
+              : $t(item.kind)}</small
           ></span
         >
       </button>
     {:else}<div class="empty">
-        <h4>{!ready ? 'Waiting for observations' : 'No matching activity'}</h4>
+        <h4>{!ready ? $t('Waiting for observations') : $t('No matching activity')}</h4>
         <p>
           {!ready
-            ? 'AEGIS has not received a reliable snapshot yet.'
+            ? $t('AEGIS has not received a reliable snapshot yet.')
             : filter === 'review'
-              ? 'No retained activity has these review flags. This is not a guarantee that the computer is safe.'
-              : 'Try another filter or wait for activity. AEGIS may not observe every action.'}
+              ? $t(
+                  'No retained activity has these review flags. This is not a guarantee that the computer is safe.',
+                )
+              : $t('Try another filter or wait for activity. AEGIS may not observe every action.')}
         </p>
       </div>{/each}
   </div>
   <div class="list-footer">
-    <span>{Math.min(limit, filtered.length)} of {filtered.length} groups</span
+    <span>{Math.min(limit, filtered.length)} {$t('of')} {filtered.length} {$t('groups')}</span
     >{#if filtered.length > limit}<button class="button" onclick={() => (limit += 8)}
-        >Show more activity</button
+        >{$t('Show more activity')}</button
       >{/if}
   </div>
 </section>

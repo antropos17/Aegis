@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { tick } from 'svelte';
   import type { Telemetry, RecordData } from '../runtime/host';
   import { radarResources, type RadarResource } from '../runtime/radar-resources';
@@ -91,7 +93,7 @@
 
 <section
   class="resource-explorer"
-  aria-label={layer === 'files' ? 'File activity explorer' : 'Network activity explorer'}
+  aria-label={layer === 'files' ? $t('File activity explorer') : $t('Network activity explorer')}
 >
   <div class="explorer-summary">
     <div>
@@ -99,54 +101,63 @@
         >{telemetry.ready && (layer === 'files' || telemetry.networkAt !== null)
           ? filtered.length
           : '—'}</strong
-      ><span>{layer === 'files' ? 'unique files' : 'unique destinations'}</span>
+      ><span>{layer === 'files' ? $t('unique files') : $t('unique destinations')}</span>
     </div>
     <div>
       <strong class:attention={attention > 0}
         >{telemetry.ready && (layer === 'files' || telemetry.networkAt !== null)
           ? attention
           : '—'}</strong
-      ><span>need review</span>
+      ><span>{$t('need review')}</span>
     </div>
     <div>
       <strong
         >{telemetry.ready && (layer === 'files' || telemetry.networkAt !== null)
           ? uncertain
           : '—'}</strong
-      ><span>{layer === 'files' ? 'without an identified agent' : 'unverified destinations'}</span>
+      ><span
+        >{layer === 'files'
+          ? $t('without an identified agent')
+          : $t('unverified destinations')}</span
+      >
     </div>
   </div>
   <p class="scope-note">
     {!ready
-      ? 'Waiting for observations'
+      ? $t('Waiting for observations')
       : telemetry.stale
-        ? 'Last available observations'
+        ? $t('Last available observations')
         : layer === 'files'
-          ? 'Retained file observations'
-          : 'Latest connection snapshot'} · All radar pages are included. {layer === 'files'
-      ? 'Activity in agents’ own files is included.'
-      : 'Connections do not establish what data was sent.'}
+          ? $t('Retained file observations')
+          : $t('Latest connection snapshot')}
+    {$t('· All radar pages are included.')}
+    {layer === 'files'
+      ? $t('Activity in agents’ own files is included.')
+      : $t('Connections do not establish what data was sent.')}
   </p>
   <div class="explorer-filters">
     <label
-      >Agent<select aria-label="Resource agent" bind:value={agent}
-        ><option value="">All agents</option>{#each actors as name (name)}<option value={name}
-            >{name}</option
+      >{$t('Agent')}<select aria-label={$t('Resource agent')} bind:value={agent}
+        ><option value="">{$t('All agents')}</option>{#each actors as name (name)}<option
+            value={name}>{name}</option
           >{/each}</select
       ></label
     >
     <label
-      >Show<select aria-label="Resource attention" bind:value={category}
-        ><option value="all">All observations</option><option value="review">Needs review</option
-        >{#if layer === 'network'}<option value="unverified">Unverified destinations</option
-          >{/if}<option value="unattributed">Agent not identified</option></select
+      >{$t('Show')}<select aria-label={$t('Resource attention')} bind:value={category}
+        ><option value="all">{$t('All observations')}</option><option value="review"
+          >{$t('Needs review')}</option
+        >{#if layer === 'network'}<option value="unverified">{$t('Unverified destinations')}</option
+          >{/if}<option value="unattributed">{$t('Agent not identified')}</option></select
       ></label
     >
     <label class="resource-search"
-      >Search<input
+      >{$t('Search')}<input
         type="search"
-        aria-label={layer === 'files' ? 'Search radar files' : 'Search radar destinations'}
-        placeholder={layer === 'files' ? 'File, path, agent or action…' : 'Domain, IP or agent…'}
+        aria-label={layer === 'files' ? $t('Search radar files') : $t('Search radar destinations')}
+        placeholder={layer === 'files'
+          ? $t('File, path, agent or action…')
+          : $t('Domain, IP or agent…')}
         bind:value={query}
       /></label
     >
@@ -156,7 +167,7 @@
           agent = '';
           query = '';
           category = 'all';
-        }}>Clear filters</button
+        }}>{$t('Clear filters')}</button
       >{/if}
   </div>
   <div class="explorer-body">
@@ -170,14 +181,15 @@
     <div class="resource-details">
       <div class="detail-heading">
         <h3 bind:this={heading} tabindex="-1">
-          {current ? 'Resource details' : 'Follow an agent’s activity'}
+          {current ? $t('Resource details') : $t('Follow an agent’s activity')}
         </h3>
-        {#if current}<button class="button" onclick={clear}>Clear resource selection</button>{/if}
+        {#if current}<button class="button" onclick={clear}>{$t('Clear resource selection')}</button
+          >{/if}
       </div>
       {#if current && retained && !filtered.some((resource) => resource.key === current.key)}<p
           class="scope-note"
         >
-          The selected resource is outside the current filters.
+          {$t('The selected resource is outside the current filters.')}
         </p>{/if}
       {#if current}<RadarLinks
           resource={current}
@@ -190,18 +202,23 @@
           <Icon name={layer === 'files' ? 'folder' : 'network'} />
           <h4>
             {layer === 'files'
-              ? 'Choose a file to see who touched it'
-              : 'Choose a destination to see who connected'}
+              ? $t('Choose a file to see who touched it')
+              : $t('Choose a destination to see who connected')}
           </h4>
-          <p>Each resource keeps its recorded agents, process identities and actions together.</p>
+          <p>
+            {$t(
+              'Each resource keeps its recorded agents, process identities and actions together.',
+            )}
+          </p>
           <div class="guide-flow">
-            <span>Agent / process</span><Icon name="chevron" /><span
-              >{layer === 'files' ? 'File + action' : 'Address + connection'}</span
+            <span>{$t('Agent / process')}</span><Icon name="chevron" /><span
+              >{layer === 'files' ? $t('File + action') : $t('Address + connection')}</span
             >
           </div>
           <p>
-            Solid links have confirmed ownership evidence. Dashed links carry indirect or older
-            attribution. Unidentified actors have no connecting line.
+            {$t(
+              'Solid links have confirmed ownership evidence. Dashed links carry indirect or older attribution. Unidentified actors have no connecting line.',
+            )}
           </p>
         </div>{/if}
     </div>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { activityBins, activityTimeLabel } from '../runtime/activity';
   import type { FileEvent } from '../../../src/shared/types';
   import type { RecordData } from '../runtime/host';
@@ -74,36 +76,36 @@
 
 <section class="panel activity-chart">
   <div class="panel-head">
-    <h2><Icon name="chart" />Activity</h2>
-    <div class="segmented" aria-label="Chart period">
+    <h2><Icon name="chart" />{$t('Activity')}</h2>
+    <div class="segmented" aria-label={$t('Chart period')}>
       {#each [[5, '5 min'], [15, '15 min'], [60, '1 hour']] as [n, label] (n)}<button
           aria-pressed={period === Number(n) * 60000}
-          onclick={() => (period = Number(n) * 60000)}>{label}</button
+          onclick={() => (period = Number(n) * 60000)}>{$t(String(label))}</button
         >{/each}
     </div>
   </div>
   <div class="chart-filters">
-    <select aria-label="Chart metric" bind:value={type}
-      ><option value="all">All file events</option><option value="sensitive"
-        >Sensitive events</option
+    <select aria-label={$t('Chart metric')} bind:value={type}
+      ><option value="all">{$t('All file events')}</option><option value="sensitive"
+        >{$t('Sensitive events')}</option
       ></select
-    ><select aria-label="Chart agent" bind:value={agent}
-      ><option value="">All agents</option>{#each names as name (name)}<option value={name}
+    ><select aria-label={$t('Chart agent')} bind:value={agent}
+      ><option value="">{$t('All agents')}</option>{#each names as name (name)}<option value={name}
           >{name}</option
         >{/each}{#if agent && !names.includes(agent)}<option value={agent}
-          >{agent} · no retained events</option
+          >{agent} {$t('· no retained events')}</option
         >{/if}</select
     >
   </div>
   <div class="chart-reading">
     <strong>{bins.reduce((sum, b) => sum + b.events.length, 0)}</strong><span
-      >retained events in period</span
-    ><span class="chart-max">Scale 0–{maximum} / interval</span>
+      >{$t('retained events in period')}</span
+    ><span class="chart-max">{$t('Scale 0–')}{maximum} {$t('/ interval')}</span>
   </div>
   <div
     class="activity-plot"
     role="group"
-    aria-label="File activity histogram"
+    aria-label={$t('File activity histogram')}
     onpointerleave={() => (hover = null)}
   >
     {#each bins as bin, i (i)}<button
@@ -135,12 +137,12 @@
   <div class="chart-readout">
     {selection === null
       ? observedAt === null && !events.length
-        ? 'Waiting for observations.'
+        ? $t('Waiting for observations.')
         : paused
-          ? 'View paused · retained window frozen.'
+          ? $t('View paused · retained window frozen.')
           : stale
-            ? 'Observation unavailable · retained window frozen.'
-            : 'Select an interval to inspect its events.'
+            ? $t('Observation unavailable · retained window frozen.')
+            : $t('Select an interval to inspect its events.')
       : caption(selection) + ' · Interval held while inspecting'}
   </div>
 </section>

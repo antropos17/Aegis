@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { instances, type RecordData, type Telemetry } from '../runtime/host';
   import {
     radarGroups,
@@ -57,22 +59,25 @@
   <label class="search-field"
     ><Icon name="search" /><input
       type="search"
-      aria-label="Search agents"
-      placeholder="Find agent, PID or project"
+      aria-label={$t('Search agents')}
+      placeholder={$t('Find agent, PID or project')}
       bind:value={query}
     /></label
   ><label
-    >Sort by<select bind:value={sort}
-      ><option value="risk">Risk</option><option value="name">Name</option><option value="cpu"
-        >CPU</option
-      ><option value="memMb">RAM</option><option value="files">Files</option><option value="network"
-        >Network</option
+    >{$t('Sort by')}<select bind:value={sort}
+      ><option value="risk">{$t('Risk')}</option><option value="name">{$t('Name')}</option><option
+        value="cpu">{$t('CPU')}</option
+      ><option value="memMb">{$t('RAM')}</option><option value="files">{$t('Files')}</option><option
+        value="network">{$t('Network')}</option
       ></select
     ></label
   ><button class="button" onclick={() => (descending = !descending)}
-    >{descending ? 'Descending' : 'Ascending'}</button
+    >{descending ? $t('Descending') : $t('Ascending')}</button
   ><span class="spacer"></span><span class="filter-count"
-    >{agents.length} agents · {agents.reduce((sum, a) => sum + a.members.length, 0)} processes</span
+    >{agents.length}
+    {$t('agents ·')}
+    {agents.reduce((sum, a) => sum + a.members.length, 0)}
+    {$t('processes')}</span
   >
 </div>
 <section class="panel">
@@ -83,7 +88,7 @@
       section = id;
     }}
     prefix={panelId}
-    label="Agent table sections"
+    label={$t('Agent table sections')}
   />
   <div
     class="table-wrap"
@@ -95,12 +100,12 @@
     <table>
       <thead
         ><tr
-          ><th>Agent</th>
-          {#if section === 'overview'}<th>Status</th><th>Risk</th>{/if}
-          {#if section !== 'activity'}<th>CPU</th><th>RAM</th>{/if}
-          {#if section === 'resources'}<th>Tokens</th><th>Cost</th>{/if}
-          {#if section === 'activity'}<th>Files</th><th>Network</th>{/if}
-          {#if section !== 'resources'}<th>Latest event</th>{/if}<th>Details</th>
+          ><th>{$t('Agent')}</th>
+          {#if section === 'overview'}<th>{$t('Status')}</th><th>{$t('Risk')}</th>{/if}
+          {#if section !== 'activity'}<th>{$t('CPU')}</th><th>{$t('RAM')}</th>{/if}
+          {#if section === 'resources'}<th>{$t('Tokens')}</th><th>{$t('Cost')}</th>{/if}
+          {#if section === 'activity'}<th>{$t('Files')}</th><th>{$t('Network')}</th>{/if}
+          {#if section !== 'resources'}<th>{$t('Latest event')}</th>{/if}<th>{$t('Details')}</th>
         </tr></thead
       ><tbody>
         {#each agents as a (a.key)}<tr class="agent-group-row"
@@ -111,14 +116,18 @@
                 class="entity-link"
                 onclick={() => inspect(a.name, { ...groupRecord(a), detailSection: 'processes' })}
                 >{a.members.length}
-                {a.members.length === 1 ? 'process' : 'processes'}<Icon name="chevron" /></button
+                {a.members.length === 1 ? $t('process') : $t('processes')}<Icon
+                  name="chevron"
+                /></button
               ></td
             >{#if section === 'overview'}<td
-                ><span class="badge low">{telemetry.stale ? 'Last snapshot' : 'Active'}</span></td
+                ><span class="badge low"
+                  >{telemetry.stale ? $t('Last snapshot') : $t('Active')}</span
+                ></td
               ><td
                 ><span
                   class={`risk-value ${riskBand(a.risk)}`}
-                  title="Highest risk among this agent's processes"
+                  title={$t("Highest risk among this agent's processes")}
                   >{a.risk}<small>/100</small></span
                 >
                 <button
@@ -137,16 +146,17 @@
                 >{a.latest === null ? '—' : new Date(a.latest).toLocaleTimeString()}</td
               >{/if}<td
               ><button class="text-button" onclick={() => inspect(a.name, groupRecord(a))}
-                >Open<Icon name="chevron" /></button
+                >{$t('Open')}<Icon name="chevron" /></button
               >{#if openStatistics}<button
                   class="text-button"
                   aria-label={a.name + ' statistics'}
-                  onclick={() => openStatistics?.(a.key)}>Statistics<Icon name="chart" /></button
+                  onclick={() => openStatistics?.(a.key)}
+                  >{$t('Statistics')}<Icon name="chart" /></button
                 >{/if}</td
             ></tr
           >{:else}<tr
             ><td colspan={section === 'activity' ? 5 : 7}
-              >{telemetry.ready ? 'No matching agents.' : 'Waiting for scan data.'}</td
+              >{telemetry.ready ? $t('No matching agents.') : $t('Waiting for scan data.')}</td
             ></tr
           >{/each}
       </tbody>
@@ -154,8 +164,9 @@
   </div>
 </section>
 <div class="notice" style="margin-top:18px">
-  <Icon name="cpu" />One row per agent. Usage combines its processes; risk shows the highest process
-  score. A dash means the total is incomplete. Open an agent to inspect individual processes.
+  <Icon name="cpu" />{$t(
+    'One row per agent. Usage combines its processes; risk shows the highest process score. A dash means the total is incomplete. Open an agent to inspect individual processes.',
+  )}
 </div>
 
 <style>

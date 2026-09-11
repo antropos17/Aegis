@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { onMount, untrack } from 'svelte';
   import type { Telemetry } from '../runtime/host';
   import type { AgentScope } from '../runtime/agent-scope';
@@ -47,7 +49,11 @@
 
 <div class="agent-performance">
   <StatsChart {samples} {metrics} {now} {paused} bind:selected stale={scoped.stale || paused} />
-  <p>History starts with this selection. A gap means the source has not supplied a measurement.</p>
+  <p>
+    {$t(
+      'History starts with this selection. A gap means the source has not supplied a measurement.',
+    )}
+  </p>
 </div>
 
 <style>

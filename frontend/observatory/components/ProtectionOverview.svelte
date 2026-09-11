@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { onMount, tick } from 'svelte';
   import { invoke, record, type Host, type Telemetry, type RecordData } from '../runtime/host';
   import { createProtectionActivityReader, type ProtectionActivity } from '../runtime/protection';
@@ -82,28 +84,30 @@
   }
 </script>
 
-<section class="protection" aria-label="Protection overview">
+<section class="protection" aria-label={$t('Protection overview')}>
   <div class="intro">
     <div>
-      <h2><Icon name="shield" />Know what your agents are doing</h2>
-      <p>Files, connections and actions that need your attention.</p>
+      <h2><Icon name="shield" />{$t('Know what your agents are doing')}</h2>
+      <p>{$t('Files, connections and actions that need your attention.')}</p>
     </div>
   </div>
   <div class="status-cards">
     <button class:attention={reviewCount > 0} onclick={() => (filter = 'review')}>
-      <span>Needs your review</span><strong
-        >{telemetry.ready ? reviewCount : '—'} <small>activity groups</small></strong
+      <span>{$t('Needs your review')}</span><strong
+        >{telemetry.ready ? reviewCount : '—'} <small>{$t('activity groups')}</small></strong
       >
     </button>
     <button onclick={() => navigate('agents')}
-      ><span>Agents observed</span><strong
+      ><span>{$t('Agents observed')}</span><strong
         >{telemetry.ready ? agentCount : '—'}
-        <small>{telemetry.stale ? 'last seen' : 'in this snapshot'}</small></strong
+        <small>{telemetry.stale ? $t('last seen') : $t('in this snapshot')}</small></strong
       >
     </button>
     <div class="protection-limit">
-      <span>Automatic access blocking</span><strong><Icon name="shield" />Not active</strong>
-      <p>Saved permissions do not block access.</p>
+      <span>{$t('Automatic access blocking')}</span><strong
+        ><Icon name="shield" />{$t('Not active')}</strong
+      >
+      <p>{$t('Saved permissions do not block access.')}</p>
     </div>
   </div>
   <div class="activity-layout" class:has-selection={!!current}>
@@ -118,14 +122,13 @@
         <div class="selection-tools">
           <span bind:this={selectionHeading} tabindex="-1"
             >{retained
-              ? 'Selected activity'
-              : 'Previously selected · no longer in the current data'}</span
-          ><button class="button" onclick={closeDetails}>Close details</button>
+              ? $t('Selected activity')
+              : $t('Previously selected · no longer in the current data')}</span
+          ><button class="button" onclick={closeDetails}>{$t('Close details')}</button>
         </div>
         {#if policyError}<p class="policy-error">
-            Saved preferences could not be loaded. <button class="button" onclick={loadPermissions}
-              >Retry preferences</button
-            >
+            {$t('Saved preferences could not be loaded.')}
+            <button class="button" onclick={loadPermissions}>{$t('Retry preferences')}</button>
           </p>{/if}
         <ProtectionDetails
           activity={current}
@@ -137,19 +140,22 @@
       </div>{/if}
   </div>
   <details class="help">
-    <summary><Icon name="shield" />New to AEGIS? Start here</summary>
+    <summary><Icon name="shield" />{$t('New to AEGIS? Start here')}</summary>
     <div class="help-grid">
       <p>
-        <strong>1. Check the action</strong>Review sensitive files and unexpected destinations.
-        “Unverified” means evidence is missing; it is not a danger verdict.
+        <strong>{$t('1. Check the action')}</strong>{$t(
+          'Review sensitive files and unexpected destinations. “Unverified” means evidence is missing; it is not a danger verdict.',
+        )}
       </p>
       <p>
-        <strong>2. Check who did it</strong>“Indirect match” is an estimate from a path. An open
-        file handle does not prove the file was read.
+        <strong>{$t('2. Check who did it')}</strong>{$t(
+          '“Indirect match” is an estimate from a path. An open file handle does not prove the file was read.',
+        )}
       </p>
       <p>
-        <strong>3. Decide what to do</strong>Open the evidence or the agent’s controls. Saving
-        “Block” records a preference; automatic file and network blocking is not implemented.
+        <strong>{$t('3. Decide what to do')}</strong>{$t(
+          'Open the evidence or the agent’s controls. Saving “Block” records a preference; automatic file and network blocking is not implemented.',
+        )}
       </p>
     </div>
   </details>

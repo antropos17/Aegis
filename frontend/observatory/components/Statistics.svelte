@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { onMount, untrack } from 'svelte';
   import { instances, record, type Telemetry, type RecordData } from '../runtime/host';
   import { radarGroups } from '../runtime/radar';
@@ -132,9 +134,9 @@
 <div class="statistics-workspace">
   {#if !scope}<div class="statistics-scope">
       <label
-        >Agent
+        >{$t('Agent')}
         <select
-          aria-label="Statistics agent"
+          aria-label={$t('Statistics agent')}
           bind:value={localAgent}
           disabled={sensorView}
           onchange={(event) => {
@@ -142,39 +144,39 @@
             changeScope?.({ agent: event.currentTarget.value, instanceId: '' });
           }}
         >
-          <option value="">All agents</option>
+          <option value="">{$t('All agents')}</option>
           {#each groups as group (group.key)}<option value={group.key}>{group.name}</option>{/each}
           {#if agent && !groups.some((group) => group.key === agent)}
-            <option value={agent}>{agent} · no longer observed</option>
+            <option value={agent}>{agent} {$t('· no longer observed')}</option>
           {/if}
         </select>
       </label>
       <label
-        >Process
+        >{$t('Process')}
         <select
-          aria-label="Statistics process"
+          aria-label={$t('Statistics process')}
           bind:value={localInstanceId}
           onchange={(event) =>
             changeScope?.({ agent: localAgent, instanceId: event.currentTarget.value })}
           disabled={sensorView || !agent}
         >
-          <option value="">All processes</option>
+          <option value="">{$t('All processes')}</option>
           {#each members.filter((row) => row.instanceId) as row (row.instanceId)}
             <option value={row.instanceId}
-              >PID {row.pid}{row.projectName ? ' · ' + row.projectName : ''}</option
+              >{$t('PID')} {row.pid}{row.projectName ? ' · ' + row.projectName : ''}</option
             >
           {/each}
           {#if instanceId && !members.some((row) => row.instanceId === instanceId)}
-            <option value={instanceId}>Selected process · no longer observed</option>
+            <option value={instanceId}>{$t('Selected process · no longer observed')}</option>
           {/if}
         </select>
       </label>
       <span class="scope-caption"
         >{sensorView
-          ? 'AEGIS health · independent of agent selection'
+          ? $t('AEGIS health · independent of agent selection')
           : agent
-            ? 'History starts with this selection.'
-            : 'Combined measurements of observed agents'}</span
+            ? $t('History starts with this selection.')
+            : $t('Combined measurements of observed agents')}</span
       >
     </div>{/if}
   <div class="stats-navigation">
@@ -185,7 +187,7 @@
         section = id as StatsSection;
       }}
       prefix="statistics"
-      label="Statistics sections"
+      label={$t('Statistics sections')}
     />
   </div>
   <div class="coverage-line">
@@ -193,16 +195,20 @@
       >{sensorView
         ? 'AEGIS main process · ' + String(health.state || 'Starting').toLowerCase()
         : agent && !scoped.agents.length
-          ? 'Selection no longer observed · last measurements retained'
+          ? $t('Selection no longer observed · last measurements retained')
           : section === 'tokens'
-            ? 'Supported agent logs · measured coverage'
+            ? $t('Supported agent logs · measured coverage')
             : section === 'activity'
-              ? 'Observed connections and risk'
+              ? $t('Observed connections and risk')
               : coverage + ' / ' + scoped.agents.length + ' process resource samples'}</span
     >
     <span class="live-state"
-      >{paused ? 'View paused · ' : telemetry.stale ? 'Last observation · ' : ''}{samples.length} source
-      updates · up to 5 minutes</span
+      >{paused
+        ? $t('View paused · ')
+        : telemetry.stale
+          ? $t('Last observation · ')
+          : ''}{samples.length}
+      {$t('source updates · up to 5 minutes')}</span
     >
   </div>
   {#each statisticsTabs as tab (tab.id)}
@@ -235,7 +241,7 @@
                 processView = id;
               }}
               prefix="statistics-process"
-              label="Process comparison view"
+              label={$t('Process comparison view')}
             />
           </div>
           <div
@@ -257,8 +263,12 @@
         {:else if section === 'activity'}
           <p class="scope-note">
             {agent
-              ? 'Only connections with an exact selected process identity are included. Per-agent cumulative file counters are unavailable, so file rates are not shown.'
-              : 'Connections are counts, not bandwidth. File rates use delivered global counters.'}
+              ? $t(
+                  'Only connections with an exact selected process identity are included. Per-agent cumulative file counters are unavailable, so file rates are not shown.',
+                )
+              : $t(
+                  'Connections are counts, not bandwidth. File rates use delivered global counters.',
+                )}
           </p>
         {:else if section === 'tokens'}
           <div class="supporting-content"><StatsTokens telemetry={scoped} {inspect} /></div>

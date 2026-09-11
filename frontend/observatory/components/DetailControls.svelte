@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import {
     actionTarget,
     confirmed,
@@ -30,35 +32,37 @@
 
 <section class="detail-section">
   <div class="section-heading">
-    <h3>Process controls</h3>
-    <span class="badge">PID {String(row.pid ?? 'Unavailable')}</span>
+    <h3>{$t('Process controls')}</h3>
+    <span class="badge">{$t('PID')} {String(row.pid ?? 'Unavailable')}</span>
   </div>
   <p class="entity-note">
     {canControl
-      ? 'Actions apply to this process identity.'
-      : 'Controls are unavailable until this identity is observed again.'}
+      ? $t('Actions apply to this process identity.')
+      : $t('Controls are unavailable until this identity is observed again.')}
   </p>
   <div class="control-grid">
     <Action
       disabled={!canControl}
-      action={() => processAction('suspendProcess', String(row.instanceId))}>Suspend</Action
+      action={() => processAction('suspendProcess', String(row.instanceId))}>{$t('Suspend')}</Action
     >
     <Action
       disabled={!canControl}
-      action={() => processAction('resumeProcess', String(row.instanceId))}>Resume</Action
+      action={() => processAction('resumeProcess', String(row.instanceId))}>{$t('Resume')}</Action
     >
     <button
       class="button danger"
       disabled={!canControl}
-      onclick={() => (stopId = String(row.instanceId))}>Stop…</button
+      onclick={() => (stopId = String(row.instanceId))}>{$t('Stop…')}</button
     >
   </div>
   {#if stopId}<div class="confirm-stop" role="alert">
-      <h3>Stop this process?</h3>
-      <p>Unsaved work may be lost. The process identity is checked again before stopping.</p>
+      <h3>{$t('Stop this process?')}</h3>
+      <p>
+        {$t('Unsaved work may be lost. The process identity is checked again before stopping.')}
+      </p>
       <div class="toolbar">
-        <Action action={() => processAction('killProcess', stopId!)}>Confirm stop</Action>
-        <button class="button" onclick={() => (stopId = null)}>Cancel</button>
+        <Action action={() => processAction('killProcess', stopId!)}>{$t('Confirm stop')}</Action>
+        <button class="button" onclick={() => (stopId = null)}>{$t('Cancel')}</button>
       </div>
     </div>{/if}
 </section>

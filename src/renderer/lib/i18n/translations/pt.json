@@ -1,0 +1,357 @@
+{
+  "brand": {
+    "name": "AEGIS"
+  },
+  "header": {
+    "settings_label": "Configurações",
+    "agents": "agentes",
+    "files": "arquivos"
+  },
+  "footer": {
+    "cpu": "CPU",
+    "mem": "MEM",
+    "heap": "HEAP",
+    "scan": "SCAN",
+    "up": "UP",
+    "perm_warn": "PERM",
+    "tokens": "TOK",
+    "sensors_degraded": "DEGRADADO",
+    "sensors_failed": "FALHOU"
+  },
+  "process_action": {
+    "stop_title": "Encerrar processo?",
+    "stop_body": "Encerrar o processo {name} (PID {pid})? Isso termina o processo.",
+    "stop_confirm": "Encerrar processo",
+    "cancel": "Cancelar"
+  },
+  "tabs": {
+    "shield": "Escudo",
+    "activity": "Atividade",
+    "rules": "Regras",
+    "reports": "Relatórios",
+    "stats": "Estatísticas"
+  },
+  "stats": {
+    "columns": {
+      "agent": "Agente",
+      "status": "Status",
+      "risk": "Risco",
+      "file_activity": "Arq",
+      "network": "Rede",
+      "last_seen": "Visto por último"
+    },
+    "status_active": "ativo",
+    "events": "{count} eventos",
+    "connections": "{count} conexões",
+    "no_agents": "Nenhum agente detectado"
+  },
+  "summary": {
+    "total_agents": "Total de Agentes",
+    "avg_risk_score": "Pontuação Média de Risco",
+    "events_per_min": "Eventos / min",
+    "sensitive_alerts": "Alertas Sensíveis",
+    "monitoring_duration": "Duração do Monitoramento"
+  },
+  "demo": {
+    "badge": "MODO DEMO",
+    "description": "Apenas dados simulados. Nenhum agente real está sendo monitorado.",
+    "cta": "Instalar AEGIS →"
+  },
+  "settings": {
+    "title": "Configurações",
+    "export_config": "Exportar Config",
+    "import_config": "Importar Config",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "appearance": {
+      "title": "Aparência",
+      "theme": "Tema",
+      "themes": {
+        "dark": "Escuro",
+        "light": "Claro",
+        "dark_hc": "Escuro AC",
+        "light_hc": "Claro AC"
+      },
+      "interface_scale": "Escala da Interface",
+      "language": "Idioma"
+    },
+    "monitoring": {
+      "title": "Monitoramento",
+      "scan_interval": "Intervalo de Verificação",
+      "notifications": "Notificações",
+      "toggle_notifications": "Alternar notificações",
+      "test": "Testar",
+      "ai_analysis": "Análise de IA",
+      "api_key": "Chave de API Anthropic",
+      "custom_patterns": "Padrões Sensíveis Personalizados",
+      "patterns_hint": "Um regex por linha",
+      "show": "Mostrar",
+      "hide": "Ocultar",
+      "api_key_placeholder": "sk-ant-...",
+      "not_available": "Indisponível",
+      "sent": "Enviado",
+      "failed": "Falhou",
+      "ignore_build_dirs": "Ignorar Diretórios Comuns de Build",
+      "toggle_ignore_dirs": "Alternar ignorar diretórios comuns de build",
+      "ignored_dirs_custom": "Diretórios Ignorados Personalizados",
+      "ignored_dirs_hint": "Um nome de diretório por linha"
+    }
+  },
+  "activity": {
+    "tabs": {
+      "feed": "Feed",
+      "network": "Rede"
+    },
+    "feed": {
+      "no_events": "Nenhuma atividade registrada ainda. Atividade de arquivos e rede aparecerá aqui conforme for registrada.",
+      "no_matches": "Nenhum evento corresponde a estes filtros. Redefina os filtros para ver toda a atividade registrada.",
+      "jump_latest": "Ir para o mais recente",
+      "severity": {
+        "denied": "NEGADO",
+        "config": "CONFIG",
+        "sensitive": "SENSÍVEL",
+        "deleted": "EXCLUÍDO"
+      }
+    },
+    "filters": {
+      "group_by_agent": "Agrupar por agente",
+      "agent": "Agente",
+      "reset": "Redefinir filtros",
+      "all_agents": "Todos os agentes",
+      "severity": "Severidade",
+      "type": "Tipo",
+      "severity_all": "todos",
+      "severity_critical": "crítico",
+      "severity_high": "alto",
+      "severity_medium": "médio",
+      "severity_low": "baixo",
+      "type_all": "todos",
+      "type_file": "arquivo",
+      "type_network": "rede"
+    },
+    "groups": {
+      "file_access": "Acesso a Arquivo",
+      "config_access": "Acesso a Config",
+      "network": "Rede",
+      "events_singular": "{count} evento",
+      "events_plural": "{count} eventos",
+      "unresolved": "não resolvido",
+      "domain_prefix": "Domínio:",
+      "ip_prefix": "IP:",
+      "show_more": "Mostrar mais {count}",
+      "show_less": "Mostrar menos"
+    }
+  },
+  "agents": {
+    "no_agents": "Nenhum agente de IA detectado",
+    "no_agents_hint": "O AEGIS está monitorando seu sistema — agentes de IA detectados aparecerão aqui automaticamente.",
+    "population_unknown": "População de agentes desconhecida",
+    "population_unknown_hint": "O sensor de processos não consegue enumerar os processos em execução no momento, então o AEGIS não sabe quais agentes de IA estão ativos. Esta é uma falha do sensor, não um sistema vazio.",
+    "pid": "PID {pid}",
+    "last_file": "Último: {file}",
+    "session_hours": "{h}h {m}m",
+    "session_minutes": "{m}m",
+    "pid_copied": "PID copiado",
+    "copy_pid": "Clique para copiar PID",
+    "stat_proc": "Proc",
+    "stat_apps": "Instâncias de app",
+    "app_instances_title": "Árvores de processos de aplicativos observadas. Não é uma contagem de chats ou janelas. ? significa que o agrupamento está indisponível.",
+    "app_tree": "App PID {pid} · {count} processos",
+    "stat_files": "Arq",
+    "stat_net": "Rede",
+    "tokens": "TOK",
+    "not_sampled": "sem amostra",
+    "cpu_title": "Participação de CPU da máquina inteira, amostrada por instância de processo",
+    "mem_title": "Memória residente desta instância de processo",
+    "no_sample_title": "Nenhuma amostra de recurso para esta instância ainda — isto é dado faltando, não uma carga de zero"
+  },
+  "timeline": {
+    "title": "Linha do Tempo de Eventos",
+    "zoom_hint": "role para ampliar"
+  },
+  "network": {
+    "all_agents": "Todos os agentes",
+    "class": "Classe",
+    "classes": {
+      "all": "todos",
+      "safe": "seguro",
+      "unknown": "desconhecido",
+      "flagged": "sinalizado"
+    },
+    "sort": "Ordenar",
+    "sort_options": {
+      "agent": "Agente",
+      "domain": "Domínio",
+      "classification": "Classificação"
+    },
+    "no_connections": "Nenhuma conexão de rede detectada",
+    "columns": {
+      "agent": "Agente",
+      "domain": "Domínio",
+      "port": "Porta",
+      "state": "Estado"
+    },
+    "reasons": {
+      "ip-allowlist": "Endereço está dentro de um intervalo de IP da Anthropic publicado — nenhum DNS necessário",
+      "domain-allowlist": "Nome resolve de volta para este endereço e está na lista de permissão",
+      "domain-not-allowlisted": "Nome resolve de volta para este endereço mas não está em nenhuma lista de permissão",
+      "ptr-missing": "Nenhum nome reverse-DNS para este endereço — identidade não estabelecida",
+      "ptr-unconfirmed": "Nome reverse-DNS não resolveu de volta para este endereço — descartado",
+      "legacy": "Registrado antes de existirem vereditos — classe derivada do sinal antigo"
+    }
+  },
+  "rules": {
+    "tabs": {
+      "permissions": "Permissões",
+      "agent_database": "Banco de Agentes"
+    },
+    "protection": {
+      "title": "Nível de Proteção",
+      "paranoid": "Paranoico",
+      "paranoid_desc": "Apenas alertar — execução planejada",
+      "strict": "Estrito",
+      "strict_desc": "Monitorar sensível — apenas alertar",
+      "balanced": "Equilibrado",
+      "balanced_desc": "Monitorar tudo, permitir operações seguras",
+      "developer": "Desenvolvedor",
+      "developer_desc": "Restrições mínimas"
+    },
+    "permissions": {
+      "title": "Permissões do Agente",
+      "reset_defaults": "Restaurar padrões",
+      "select_agent": "Selecione um agente...",
+      "overridden": "substituído",
+      "empty_state": "Selecione um agente para configurar permissões",
+      "category": "Categoria",
+      "states": {
+        "allow": "permitir",
+        "monitor": "monitorar",
+        "block": "alerta"
+      },
+      "categories": {
+        "file_access": "Acesso a Arquivo",
+        "file_access_desc": "Ler/escrever arquivos",
+        "credential_access": "Acesso a Credencial",
+        "credential_access_desc": ".env, chaves SSH, segredos",
+        "network": "Rede",
+        "network_desc": "Conexões de saída",
+        "process_spawn": "Criação de Processo",
+        "process_spawn_desc": "Execução de comando shell",
+        "config_write": "Escrita de Config",
+        "config_write_desc": "Ler/escrever área de transferência",
+        "system_mod": "Modificação do Sistema",
+        "system_mod_desc": "Acesso a captura de tela"
+      }
+    },
+    "database": {
+      "search_placeholder": "Buscar agentes...",
+      "categories": {
+        "all": "Todos",
+        "coding": "Coding",
+        "ai_ide": "AI IDE",
+        "cli": "CLI",
+        "autonomous": "Autônomo",
+        "desktop": "Desktop",
+        "browser": "Navegador",
+        "framework": "Framework",
+        "security": "Segurança",
+        "ide_ext": "Ext IDE"
+      },
+      "columns": {
+        "name": "Nome",
+        "category": "Categoria",
+        "detection": "Detecção",
+        "risk": "Risco"
+      },
+      "risk": {
+        "low": "baixo",
+        "medium": "médio",
+        "high": "alto"
+      },
+      "no_agents": "Nenhum agente encontrado",
+      "actions": "Ações",
+      "count": "{filtered} de {total} agentes",
+      "add_agent": "+ Adicionar Agente",
+      "import": "Importar",
+      "export": "Exportar",
+      "crud": {
+        "add_title": "Adicionar Agente Personalizado",
+        "edit_title": "Editar Agente",
+        "delete_title": "Excluir Agente",
+        "name": "Nome",
+        "process_name": "Nome do Processo",
+        "category": "Categoria",
+        "risk_level": "Nível de Risco",
+        "description": "Descrição",
+        "name_placeholder": "Nome do agente",
+        "process_placeholder": "ex. agent.exe",
+        "desc_placeholder": "Breve descrição",
+        "delete_confirm": "Remover \"{name}\"? Isto não pode ser desfeito.",
+        "cancel": "Cancelar",
+        "add": "Adicionar",
+        "save": "Salvar",
+        "delete": "Excluir",
+        "risk_low": "Baixo",
+        "risk_medium": "Médio",
+        "risk_high": "Alto"
+      }
+    }
+  },
+  "reports": {
+    "tabs": {
+      "overview": "Visão Geral",
+      "audit_log": "Log de Auditoria",
+      "threat_analysis": "Análise de Ameaça"
+    },
+    "overview": {
+      "summary": "Resumo",
+      "total_events": "Total de Eventos",
+      "sensitive": "Sensível",
+      "agents": "Agentes",
+      "shield": "Escudo",
+      "most_active": "Agentes Mais Ativos",
+      "columns": {
+        "name": "Nome",
+        "events": "Eventos",
+        "risk_score": "Pontuação de Risco",
+        "grade": "Nota"
+      },
+      "export": "Exportar",
+      "export_json": "JSON",
+      "export_csv": "CSV",
+      "export_html": "Relatório HTML",
+      "no_agents": "Nenhum agente detectado ainda"
+    },
+    "audit": {
+      "title": "Log de Auditoria",
+      "loading": "Carregando dados de auditoria...",
+      "no_data": "Nenhum dado de auditoria disponível",
+      "total_entries": "Total de Entradas",
+      "dropped_entries": "Descartadas (Não Escritas)",
+      "log_size": "Tamanho do Log",
+      "date_range": "Intervalo de Datas",
+      "view_logs": "Ver Diretório de Logs",
+      "export": "Exportar Auditoria Completa"
+    },
+    "threat": {
+      "title": "Análise de Ameaça de IA",
+      "analyze_session": "Analisar Sessão",
+      "analyze_agent": "Analisar Agente",
+      "select_agent": "Selecione um agente...",
+      "run": "Executar Análise",
+      "running": "Analisando...",
+      "levels": {
+        "clear": "LIMPO",
+        "low": "BAIXO",
+        "medium": "MÉDIO",
+        "high": "ALTO",
+        "unknown": "DESCONHECIDO"
+      },
+      "assessment": "Avaliação de Ameaça",
+      "summary": "Resumo",
+      "findings": "Descobertas",
+      "recommendations": "Recomendações",
+      "open_report": "Abrir Relatório Completo"
+    }
+  }
+}

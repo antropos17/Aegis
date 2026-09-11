@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import type { RecordData } from '../runtime/host';
   import {
     describeObservation,
@@ -44,18 +46,23 @@
 
 <div class="observation-history">
   <div class="section-heading">
-    <h3>Recorded observations</h3>
+    <h3>{$t('Recorded observations')}</h3>
     <span>{rows.length}</span>
   </div>
   <label class="detail-search"
     ><Icon name="search" /><input
-      aria-label="Find a record"
+      aria-label={$t('Find a record')}
       type="search"
-      placeholder="Resource, action, PID or attribution"
+      placeholder={$t('Resource, action, PID or attribution')}
       bind:value={query}
     /></label
   >
-  <p class="entity-note">{matching.length} of {rows.length} records · newest first</p>
+  <p class="entity-note">
+    {matching.length}
+    {$t('of')}
+    {rows.length}
+    {$t('records · newest first')}
+  </p>
   {#each sorted.slice(0, limit) as row, i (i)}{@const info = describeObservation(row)}
     <button
       class="recent-event"
@@ -65,13 +72,15 @@
       <time
         >{observationTime(row.timestamp)
           ? new Date(observationTime(row.timestamp)).toLocaleTimeString()
-          : 'Snapshot'}</time
+          : $t('Snapshot')}</time
       >
       <span
         ><ObservationResource {row} /><small
           >{String(row.action || row.state || row.type || 'Observed')} · {info.actor ||
             info.context ||
-            'Actor not recorded'}{row.pid ? ` · PID ${row.pid}` : ''}{row.localIp || row.localPort
+            $t('Actor not recorded')}{row.pid
+            ? $t(' · PID {value0}', { value0: row.pid })
+            : ''}{row.localIp || row.localPort
             ? ' · Local ' +
               (endpointLabel({ remoteIp: row.localIp, remotePort: row.localPort }) ||
                 'port ' + row.localPort)
@@ -80,10 +89,10 @@
       >
     </button>
   {:else}<p class="entity-note">
-      {rows.length ? 'No records match this search.' : 'No recorded observations.'}
+      {rows.length ? $t('No records match this search.') : $t('No recorded observations.')}
     </p>{/each}
   {#if sorted.length > limit}<button class="button" onclick={() => (limit += 20)}
-      >Show {Math.min(20, sorted.length - limit)} more</button
+      >{$t('Show')} {Math.min(20, sorted.length - limit)} {$t('more')}</button
     >{/if}
 </div>
 

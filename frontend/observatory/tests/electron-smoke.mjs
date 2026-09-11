@@ -43,12 +43,14 @@ try {
   assert(observed, 'No reliable population observed within 55 seconds');
   // Health becomes reliable before the scan pipeline finishes publishing its batch.
   // Assert the visible renderer population separately from the backend getter.
-  await window.getByRole('region', { name: 'Protection overview' }).waitFor();
+  await window.getByRole('heading', { name: 'Agent radar', exact: true }).waitFor();
   assert.equal(
     await window.locator('.radar-panel').count(),
-    0,
-    'default overview eagerly mounted radar',
+    1,
+    'default monitoring must mount the radar',
   );
+  await window.getByRole('button', { name: 'Protection overview', exact: true }).click();
+  await window.getByRole('region', { name: 'Protection overview' }).waitFor();
   await window.screenshot({ path: resolve(out, 'protection-overview.png') });
   await window.getByRole('button', { name: 'Detailed monitoring', exact: true }).click();
   await window.waitForFunction(

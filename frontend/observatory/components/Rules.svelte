@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { onMount, untrack } from 'svelte';
   import {
     confirmed,
@@ -184,93 +186,94 @@
 
 <div class="subnav">
   <button aria-pressed={section === 'permissions'} onclick={() => (section = 'permissions')}
-    ><Icon name="shield" />Agent permissions</button
+    ><Icon name="shield" />{$t('Agent permissions')}</button
   ><button aria-pressed={section === 'rules'} onclick={() => (section = 'rules')}
-    ><Icon name="file" />Detection rules <small>{rules.length}</small></button
+    ><Icon name="file" />{$t('Detection rules')} <small>{rules.length}</small></button
   >
 </div>
 <div hidden={section !== 'permissions'}>
   <div class="policy-explanation">
-    <strong>Saved preferences · automatic blocking is not active</strong>
+    <strong>{$t('Saved preferences · automatic blocking is not active')}</strong>
     <p>
-      These settings record your intended policy. They do not currently block file or network
-      access, or change which observations are collected. To pause or stop an agent, open its
-      process controls.
+      {$t(
+        'These settings record your intended policy. They do not currently block file or network access, or change which observations are collected. To pause or stop an agent, open its process controls.',
+      )}
     </p>
   </div>
   {#if error}<p role="alert">{error}</p>{/if}
   <div class="filterbar target-toolbar">
     <label
-      >Agent <AgentLogo
+      >{$t('Agent')}
+      <AgentLogo
         name={scope === 'agent' ? target : (chosen?.name ?? target.split('::')[0])}
         size={22}
-      /><select aria-label="Target" disabled={mutation === 'reset'} bind:value={target}
-        ><option value="">Select…</option>{#each options as option (option.key)}<option
+      /><select aria-label={$t('Target')} disabled={mutation === 'reset'} bind:value={target}
+        ><option value="">{$t('Select…')}</option>{#each options as option (option.key)}<option
             value={option.key}>{option.label}</option
           >{/each}</select
       ></label
     ><label
-      ><Icon name="cpu" />Apply to
+      ><Icon name="cpu" />{$t('Apply to')}
       <select
         disabled={mutation === 'reset'}
-        aria-label="Scope"
+        aria-label={$t('Scope')}
         bind:value={scope}
         onchange={() => (target = '')}
-        ><option value="agent">Agent defaults</option><option value="instance"
-          >Project / parent override</option
+        ><option value="agent">{$t('Agent defaults')}</option><option value="instance"
+          >{$t('Project / parent override')}</option
         ></select
       ></label
-    ><Action disabled={mutation !== null} action={load}>Refresh</Action>
+    ><Action disabled={mutation !== null} action={load}>{$t('Refresh')}</Action>
   </div>
   <section class="panel">
     <div class="preset-grid">
       {#each Object.entries(presets) as [name, values] (name)}<button
           class="preset"
-          aria-label={name}
-          title={profiles[name][1]}
-          data-id={name}
+          aria-label={$t(name)}
+          title={$t(profiles[name][1])}
+          data-id={$t(name)}
           disabled={!target || mutation === 'reset'}
           aria-pressed={!!target && categories.every((cat, i) => draft[cat] === values[i])}
           onclick={() => (draft = Object.fromEntries(categories.map((cat, i) => [cat, values[i]])))}
           ><span class="preset-heading"
-            ><Icon name={profiles[name][0]} /><strong>{name}</strong><Icon
+            ><Icon name={profiles[name][0]} /><strong>{$t(name)}</strong><Icon
               name="check"
               class="preset-check"
             /></span
-          ><small>{profiles[name][1]}</small></button
+          ><small>{$t(profiles[name][1])}</small></button
         >{/each}
     </div>
     <p class="preset-caption">
       {selectedProfile
-        ? profiles[selectedProfile][1]
-        : 'Custom permissions · adjust individual categories below'}
+        ? $t(profiles[selectedProfile][1])
+        : $t('Custom permissions · adjust individual categories below')}
     </p>
     {#each categories as category (category)}
       <div class="permission-row">
         <div class="permission-identity">
           <Icon name={labels[category][0]} />
           <div>
-            <h3>{labels[category][1]}</h3>
-            <p>{labels[category][2]}</p>
+            <h3>{$t(labels[category][1])}</h3>
+            <p>{$t(labels[category][2])}</p>
           </div>
         </div>
         <select
-          aria-label={labels[category][1]}
+          aria-label={$t(labels[category][1])}
           disabled={!target || mutation === 'reset'}
           bind:value={draft[category]}
         >
-          <option value="allow">Prefer allow</option><option value="monitor">Monitor</option><option
-            value="block">Request block</option
-          >
+          <option value="allow">{$t('Prefer allow')}</option><option value="monitor"
+            >{$t('Monitor')}</option
+          ><option value="block">{$t('Request block')}</option>
         </select>
       </div>
     {/each}
     <div class="toolbar inset permission-save">
       <span role="status" class="draft-status"
-        >{dirty ? 'Unsaved permissions' : 'Permissions saved'}</span
+        >{dirty ? $t('Unsaved permissions') : $t('Permissions saved')}</span
       >
       <Action disabled={!loaded || !target || !dirty || mutation !== null} action={save}
-        >Save permissions</Action
+        >{$t('Save permissions')}</Action
       ><Action
         disabled={!dirty || mutation !== null}
         action={async () => {
@@ -280,53 +283,61 @@
             categories.map((cat) => [cat, String(current[cat] ?? 'monitor')]),
           );
           draftBaseline = JSON.stringify(draft);
-        }}>Discard changes</Action
+        }}>{$t('Discard changes')}</Action
       >
     </div>
     <details class="permission-reset">
-      <summary>Restore default policy</summary>
-      <p>This restores permissions for every agent and project.</p>
-      <Action disabled={mutation !== null} action={reset}>Reset all to defaults</Action>
+      <summary>{$t('Restore default policy')}</summary>
+      <p>{$t('This restores permissions for every agent and project.')}</p>
+      <Action disabled={mutation !== null} action={reset}>{$t('Reset all to defaults')}</Action>
     </details>
   </section>
   <p class="policy-note">
-    Project overrides persist by agent, working directory and parent editor. Instances sharing that
-    context share permissions.
+    {$t(
+      'Project overrides persist by agent, working directory and parent editor. Instances sharing that context share permissions.',
+    )}
   </p>
 </div>
 <section class="panel" hidden={section !== 'rules'}>
   <div class="panel-head">
-    <h2>Loaded detection rules</h2>
+    <h2>{$t('Loaded detection rules')}</h2>
     <Action
       action={async () => {
         confirmed(await invoke(host, 'reloadRules'));
         await load();
-      }}>Reload rules</Action
+      }}>{$t('Reload rules')}</Action
     >
   </div>
   <div class="filterbar rules-filter">
     <label class="search-field"
       ><Icon name="search" /><input
         type="search"
-        aria-label="Search detection rules"
+        aria-label={$t('Search detection rules')}
         bind:value={ruleQuery}
-        placeholder="Name, category or rule ID…"
+        placeholder={$t('Name, category or rule ID…')}
       /></label
-    ><span class="muted">{filteredRules.length} of {rules.length} rules</span>
+    ><span class="muted">{filteredRules.length} {$t('of')} {rules.length} {$t('rules')}</span>
   </div>
   <div class="table-scroll">
     <table>
-      <thead><tr><th>ID</th><th>Name</th><th>Category</th><th>Risk</th><th>State</th></tr></thead
+      <thead
+        ><tr
+          ><th>{$t('ID')}</th><th>{$t('Name')}</th><th>{$t('Category')}</th><th>{$t('Risk')}</th><th
+            >{$t('State')}</th
+          ></tr
+        ></thead
       ><tbody
         >{#each filteredRules as rule (String(rule.id))}<tr
             ><td>{String(rule.id)}</td><td>{String(rule.name ?? rule.reason ?? '')}</td><td
               >{String(rule.category ?? '')}</td
             ><td>{String(rule.risk ?? '')}</td><td
-              >{rule.enabled === false ? 'Disabled' : 'Enabled'}</td
+              >{rule.enabled === false ? $t('Disabled') : $t('Enabled')}</td
             ></tr
           >{:else}<tr
             ><td colspan="5" class="empty-rules"
-              >{ruleQuery ? 'No rules match this search.' : 'No detection rules loaded.'}</td
+              >{ruleQuery
+                ? $t('No rules match this search.')
+                : $t('No detection rules loaded.')}</td
             ></tr
           >{/each}</tbody
       >

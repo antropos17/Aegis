@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import type { Snippet } from 'svelte';
   let {
     action,
@@ -36,7 +38,7 @@
   <div class="action-feedback" id={feedbackId}>
     {#if error}<span role="alert" class="error">{error}</span>{:else}<span
         role="status"
-        class="muted">{pending ? 'Working…' : done ? 'Completed' : ''}</span
+        class="muted">{pending ? $t('Working…') : done ? $t('Completed') : ''}</span
       >{/if}
   </div>
 </div>

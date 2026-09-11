@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { instances, measured, type Telemetry } from '../runtime/host';
   import { isScopedProcess, type AgentScope } from '../runtime/agent-scope';
   import { displayMeasure } from '../runtime/radar';
@@ -14,18 +16,20 @@
   let visible = $derived(expanded ? members : members.slice(0, 5));
 </script>
 
-<section class="panel agent-processes" aria-label="Agent worker processes">
+<section class="panel agent-processes" aria-label={$t('Agent worker processes')}>
   <div class="panel-head">
-    <h2>Worker processes <small>{members.length}</small></h2>
+    <h2>{$t('Worker processes')} <small>{members.length}</small></h2>
     {#if scope.instanceId}<button
         class="text-button"
-        onclick={() => change({ agent: scope.agent, instanceId: '' })}>All processes</button
+        onclick={() => change({ agent: scope.agent, instanceId: '' })}>{$t('All processes')}</button
       >{/if}
   </div>
   <div class="table-scroll">
     <table>
       <thead
-        ><tr><th>Process</th><th>Project / working directory</th><th>CPU</th><th>RAM</th></tr
+        ><tr
+          ><th>{$t('Process')}</th><th>{$t('Project / working directory')}</th><th>{$t('CPU')}</th
+          ><th>{$t('RAM')}</th></tr
         ></thead
       >
       <tbody
@@ -39,31 +43,32 @@
                 class="text-button"
                 disabled={!isScopedProcess(member)}
                 title={isScopedProcess(member)
-                  ? 'Select this process throughout live views'
-                  : 'Process start time was not observed'}
+                  ? $t('Select this process throughout live views')
+                  : $t('Process start time was not observed')}
                 onclick={() => change({ agent: scope.agent, instanceId: member.instanceId! })}
-                >PID {member.pid}</button
+                >{$t('PID')} {member.pid}</button
               ><small>{member.process}</small>{#if !isScopedProcess(member)}<small
-                  >Start time not observed · selection unavailable</small
+                  >{$t('Start time not observed · selection unavailable')}</small
                 >{/if}</td
             >
             <td class="location" title={String(member.cwd ?? '')}
-              >{member.projectName || member.cwd || 'Working directory not recorded'}</td
+              >{member.projectName || member.cwd || $t('Working directory not recorded')}</td
             >
             <td>{displayMeasure(telemetry.stale ? null : measured(reading?.cpu), '%')}</td>
             <td>{displayMeasure(telemetry.stale ? null : measured(reading?.memMb), ' MB')}</td>
           </tr>
         {:else}<tr
             ><td colspan="4"
-              >No worker processes in the current observation. Retained activity remains available
-              above.</td
+              >{$t(
+                'No worker processes in the current observation. Retained activity remains available above.',
+              )}</td
             ></tr
           >{/each}</tbody
       >
     </table>
   </div>
   {#if members.length > 5}<button class="more button" onclick={() => (expanded = !expanded)}
-      >{expanded ? 'Show fewer processes' : 'Show all ' + members.length + ' processes'}</button
+      >{expanded ? $t('Show fewer processes') : 'Show all ' + members.length + ' processes'}</button
     >{/if}
 </section>
 

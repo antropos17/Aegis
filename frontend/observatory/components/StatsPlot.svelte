@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import type { StatisticsSample } from '../runtime/statistics-history';
   import { nearestObservation, plotGeometry, plotX } from '../runtime/statistics-plot';
   import type { StatsMetric } from '../runtime/statistics-metrics';
@@ -96,12 +98,14 @@
       {#if focus}<circle class="focus" cx={focus.x} cy={focus.y} r="4" />{/if}
     </svg>
     {#if !geometry.points.length}<div class="plot-empty">
-        <strong>No measurements in this interval</strong><span
-          >Waiting for this metric’s source.</span
+        <strong>{$t('No measurements in this interval')}</strong><span
+          >{$t('Waiting for this metric’s source.')}</span
         >
       </div>{/if}
     <div class="plot-times" aria-hidden="true">
-      <span>{ago(1)} ago</span><span>{ago(0.5)} ago</span><span>{held ? 'Held' : 'Now'}</span>
+      <span>{ago(1)} {$t('ago')}</span><span>{ago(0.5)} {$t('ago')}</span><span
+        >{held ? $t('Held') : $t('Now')}</span
+      >
     </div>
   </div>
 </div>

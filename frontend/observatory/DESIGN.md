@@ -177,3 +177,19 @@ success or failure. Concurrent mutations and refreshes are guarded. Failed
 readback after a confirmed write is reported separately and requires reloading
 before another change. Removing a focused row returns focus to the stable agent
 action. Watchlist flags remain alert-only and do not grant or block access.
+
+### Localization and default radar (2026-09-11)
+
+The user's requested starting view is the radar in Monitoring. The protection
+overview remains available through the view switch. Agent markers use original
+local logos, a numbered index and a narrow risk-colored underline. Circular
+plates, shadow halos and marker echo animation are removed. Selection uses a
+single outline; the sweep and stable 44px pointer targets remain.
+
+English and Brazilian Portuguese share the same Svelte components. Language
+changes update navigation, controls and accessible labels immediately and persist
+under `aegis.language`, independently of the theme/scale draft. The root document
+language follows the selection. English source messages are the fallback for
+unknown copy; recorded names, paths, evidence text and provider responses retain
+their source language. The Portuguese vocabulary from PR #425 is reused alongside
+the Observatory message catalog in `translations/pt-BR.json`.

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { instances, type Telemetry, type RecordData } from '../runtime/host';
   import { radarGroups, riskBand, type RadarGroup } from '../runtime/radar';
   import AgentLogo from './AgentLogo.svelte';
@@ -75,43 +77,49 @@
   <section class="panel radar-panel">
     <div class="panel-head">
       <div>
-        <h2><Icon name="radar" />Agent radar</h2>
+        <h2><Icon name="radar" />{$t('Agent radar')}</h2>
         <p>
           {layer === 'radar'
-            ? 'Select an agent to focus · risk rises toward the edge'
+            ? $t('Select an agent to focus · risk rises toward the edge')
             : layer === 'files'
-              ? 'Find who touched a file, what changed and why it matters'
-              : 'Find who connected, where and what is known about the destination'}
+              ? $t('Find who touched a file, what changed and why it matters')
+              : $t('Find who connected, where and what is known about the destination')}
         </p>
       </div>
       <div
         class="segmented radar-layers"
-        aria-label="Radar layer"
+        aria-label={$t('Radar layer')}
         style={`--layer-index:${['radar', 'files', 'network'].indexOf(layer)}`}
       >
         {#each [['radar', 'Radar', 'radar'], ['files', 'Files', 'folder'], ['network', 'Network', 'network']] as [id, title, icon] (id)}<button
             aria-pressed={layer === id}
-            onclick={() => chooseLayer(id)}><Icon name={icon} />{title}</button
+            onclick={() => chooseLayer(id)}><Icon name={icon} />{$t(title)}</button
           >{/each}
       </div>
     </div>
     <div hidden={layer !== 'radar'}>
       <div class="radar-resource-toolbar">
         <div class="resource-scope">
-          <strong>Agent risk</strong><span
-            >Choose a marker or row. Open the focused agent when you need its controls.</span
+          <strong>{$t('Agent risk')}</strong><span
+            >{$t(
+              'Choose a marker or row. Open the focused agent when you need its controls.',
+            )}</span
           >
         </div>
-        {#if chosenGroup}<button class="button" onclick={clearSelection}>Clear agent focus</button
+        {#if chosenGroup}<button class="button" onclick={clearSelection}
+            >{$t('Clear agent focus')}</button
           >{/if}
       </div>
       <div id="radar-body">
         <div class="radar-workspace">
           <div class="radar-stage" class:stale={telemetry.stale} data-layer="radar">
-            <button class="radar-empty" aria-label="Clear radar selection" onclick={clearSelection}
+            <button
+              class="radar-empty"
+              aria-label={$t('Clear radar selection')}
+              onclick={clearSelection}
             ></button>
             <div class="radar-coordinate">
-              {telemetry.stale ? 'Last reliable snapshot' : 'Live observation'}
+              {telemetry.stale ? $t('Last reliable snapshot') : $t('Live observation')}
             </div>
             <div class="radar-dial">
               <div class="dial-grid"></div>
@@ -121,9 +129,17 @@
               {#each plotted as group, i (group.key)}{@const point = position(group, i)}<button
                   class={`radar-blip ${riskBand(group.risk)}`}
                   data-group={group.key}
-                  style={`left:${point.x}%;top:${point.y}%;--echo-delay:${point.angle / 60 - 6}s`}
-                  aria-label={`Select ${group.name}, ${group.members.length} processes, risk ${group.risk}`}
-                  title={`${group.name} · ${group.members.length} processes · risk ${group.risk}/100`}
+                  style={`left:${point.x}%;top:${point.y}%`}
+                  aria-label={$t('Select {value0}, {value1} processes, risk {value2}', {
+                    value0: group.name,
+                    value1: group.members.length,
+                    value2: group.risk,
+                  })}
+                  title={$t('{value0} · {value1} processes · risk {value2}/100', {
+                    value0: group.name,
+                    value1: group.members.length,
+                    value2: group.risk,
+                  })}
                   aria-pressed={group === chosenGroup}
                   onclick={() => select(group)}
                   onkeydown={(e) => {
@@ -139,13 +155,17 @@
                 </button>{/each}
             </div>
             {#if !groups.length && layer === 'radar'}<p class="radar-message">
-                {telemetry.ready ? 'No agents in this snapshot' : 'Waiting for a reliable scan'}
+                {telemetry.ready
+                  ? $t('No agents in this snapshot')
+                  : $t('Waiting for a reliable scan')}
               </p>{/if}
-            <div class="radar-scale">Centre: lower observed risk · Edge: higher observed risk</div>
+            <div class="radar-scale">
+              {$t('Centre: lower observed risk · Edge: higher observed risk')}
+            </div>
           </div>
-          <aside class="radar-roster" aria-label="Observed agents">
+          <aside class="radar-roster" aria-label={$t('Observed agents')}>
             <div class="roster-heading">
-              <h3>Agents</h3>
+              <h3>{$t('Agents')}</h3>
               <span>{groups.length}</span>
             </div>
             <div class="roster-items" use:reveal={String(Math.min(page, pages - 1))}>
@@ -158,36 +178,38 @@
                 />{/each}
             </div>
             {#if !groups.length}<p class="entity-note">
-                {telemetry.ready ? 'No agents observed.' : 'Waiting for a scan.'}
+                {telemetry.ready ? $t('No agents observed.') : $t('Waiting for a scan.')}
               </p>{/if}
             {#if openAgent && chosenGroup}<div class="radar-focus">
                 <strong>{chosenGroup.name} · {chosenGroup.risk}/100</strong>
-                <p>{leadingRiskReason(chosenGroup.members[0])}</p>
+                <p>{$t(leadingRiskReason(chosenGroup.members[0]))}</p>
                 <div>
-                  <button class="button" onclick={() => chooseLayer('files')}>View files</button
+                  <button class="button" onclick={() => chooseLayer('files')}
+                    >{$t('View files')}</button
                   ><button class="button" onclick={() => chooseLayer('network')}
-                    >View connections</button
+                    >{$t('View connections')}</button
                   ><button class="button" onclick={() => openAgent?.(chosenGroup.key)}
-                    >Open agent</button
+                    >{$t('Open agent')}</button
                   >
                 </div>
               </div>{/if}
-            <p class="roster-note">{agents.length} processes grouped by agent</p>
+            <p class="roster-note">{agents.length} {$t('processes grouped by agent')}</p>
           </aside>
         </div>
       </div>
       <div class="radar-bottom">
         <div class="radar-legend">
-          <span class="low"><i></i>Low 0–34</span><span class="medium"><i></i>Medium 35–65</span
-          ><span class="high"><i></i>High 66–100</span>
+          <span class="low"><i></i>{$t('Low 0–34')}</span><span class="medium"
+            ><i></i>{$t('Medium 35–65')}</span
+          ><span class="high"><i></i>{$t('High 66–100')}</span>
         </div>
         {#if pages > 1}<div class="radar-pages">
             <button
-              aria-label="Previous radar agents"
+              aria-label={$t('Previous radar agents')}
               disabled={page === 0}
               onclick={() => changePage(-1)}><Icon name="arrowLeft" /></button
             ><span>{Math.min(page, pages - 1) + 1}/{pages}</span><button
-              aria-label="Next radar agents"
+              aria-label={$t('Next radar agents')}
               disabled={page >= pages - 1}
               onclick={() => changePage(1)}><Icon name="chevron" /></button
             >

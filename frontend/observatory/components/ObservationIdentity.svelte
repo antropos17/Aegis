@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
   import { describeObservation } from '../../../src/shared/observation-display.js';
   import type { RecordData } from '../runtime/host';
   import AgentLogo from './AgentLogo.svelte';
@@ -17,7 +18,9 @@
       size={20}
     />{:else}<Icon name={info.skill ? 'settings' : 'activity'} />{/if}
   <span
-    ><strong>{info.label}</strong>{#if showHint}<small>{info.hint}</small>{/if}</span
+    ><strong>{info.actor || info.context || $t(info.label)}</strong>{#if showHint}<small
+        >{$t(info.hint)}</small
+      >{/if}</span
   >
 </span>
 

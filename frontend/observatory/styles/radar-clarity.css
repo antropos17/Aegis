@@ -99,24 +99,24 @@
   min-height: 44px;
   padding: 0;
   transform: translate(-50%, -50%);
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  background: var(--panel);
-  box-shadow: 0 2px 5px #0001;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--bg);
+  box-shadow: none;
 }
-.radar-clarity .radar-blip.low {
-  border-color: var(--green);
-}
-.radar-clarity .radar-blip.medium {
-  border-color: var(--amber);
-}
-.radar-clarity .radar-blip.high {
-  border-color: var(--red);
+.radar-clarity .radar-blip::before {
+  content: '';
+  position: absolute;
+  bottom: 1px;
+  left: 6px;
+  right: 6px;
+  height: 2px;
+  background: var(--marker-color);
 }
 .radar-clarity .radar-blip[aria-pressed='true'] {
-  border: 2px solid var(--ink);
-  box-shadow: 0 0 0 4px var(--selection-border);
-  background: var(--selection);
+  border-color: var(--ink);
+  box-shadow: none;
+  background: var(--bg);
 }
 .radar-clarity .blip-dot {
   --marker-size: 24px;
@@ -128,18 +128,18 @@
 }
 .marker-number {
   position: absolute;
-  top: -5px;
-  right: -5px;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
   display: grid;
   place-items: center;
-  width: 19px;
-  height: 19px;
-  border-radius: 50%;
-  background: var(--ink);
-  color: var(--panel);
-  border: 2px solid var(--panel);
+  min-width: 14px;
+  height: 12px;
+  padding-inline: 3px;
+  background: var(--bg);
+  color: var(--ink);
   font-size: 10px;
-  line-height: 1;
+  line-height: 12px;
   font-variant-numeric: tabular-nums;
 }
 .radar-roster {

@@ -14,9 +14,10 @@
 
 import { writable, derived } from 'svelte/store';
 import en from './translations/en.json';
+import pt from './translations/pt.json';
 
 const STORAGE_KEY = 'aegis.language';
-const SUPPORTED = new Set(['en']);
+const SUPPORTED = new Set(['en', 'pt']);
 
 function getStoredLang() {
   try {
@@ -28,9 +29,7 @@ function getStoredLang() {
 }
 
 function getTranslations(_lang) {
-  // Add additional language imports here as they become available:
-  // if (lang === 'es') return es;
-  // if (lang === 'fr') return fr;
+  if (_lang === 'pt') return pt;
   return en;
 }
 
@@ -85,6 +84,7 @@ export const t = derived(language, ($lang) => {
 /** Available language options for the Settings language selector. */
 export const LANGUAGE_OPTIONS = [
   { code: 'en', label: 'English' },
+  { code: 'pt', label: 'Português' },
   // Uncomment as translation files are added:
   // { code: 'es', label: 'Español' },
   // { code: 'fr', label: 'Français' },

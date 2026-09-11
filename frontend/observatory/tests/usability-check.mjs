@@ -20,7 +20,6 @@ export async function checkUsability(browser, url, out) {
   };
   try {
     await page.goto(url);
-    await page.getByRole('button', { name: 'Detailed monitoring', exact: true }).click();
     await page.getByRole('heading', { name: 'Agent radar', exact: true }).waitFor();
     for (const [width, height, scale] of [
       [1200, 800, 1],

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   let {
     title,
     subtitle,
@@ -24,14 +26,14 @@
 
 <section class="panel distribution">
   <header>
-    <h3>{title}</h3>
-    <p>{subtitle}</p>
+    <h3>{$t(title)}</h3>
+    <p>{$t(subtitle)}</p>
   </header>
   <div class="distribution-body">
     <div
       class="ring"
       role="img"
-      aria-label={rows.map((r) => r.label + ': ' + r.value).join(', ') || 'No observations'}
+      aria-label={rows.map((r) => r.label + ': ' + r.value).join(', ') || $t('No observations')}
     >
       <svg viewBox="0 0 120 120" aria-hidden="true">
         <circle class="track" cx="60" cy="60" r="48" />
@@ -44,7 +46,7 @@
             stroke-dasharray={(total ? (item.value / total) * 100 : 0) + ' 100'}
             stroke-dashoffset={-item.offset}
           />{/each}
-      </svg><strong>{total.toLocaleString()}<small>observed</small></strong>
+      </svg><strong>{total.toLocaleString()}<small>{$t('observed')}</small></strong>
     </div>
     <div class="bars">
       {#each rows as row, index (index)}
@@ -61,7 +63,7 @@
             ></span></span
           >
         </button>
-      {:else}<p class="muted">No observations available.</p>{/each}
+      {:else}<p class="muted">{$t('No observations available.')}</p>{/each}
     </div>
   </div>
 </section>
