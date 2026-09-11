@@ -23,7 +23,13 @@ export interface ProtectionActivity {
   time: number;
 }
 
-function describe(row: RecordData, network: boolean): Omit<ProtectionActivity, 'key' | 'rows'> {
+/** Explain one observation without inferring authorization or contents.
+ * @param row Recorded metadata @param network Connection flag @returns Display facts @since 0.14.1
+ */
+export function describeProtectionObservation(
+  row: RecordData,
+  network: boolean,
+): Omit<ProtectionActivity, 'key' | 'rows'> {
   const evidence = describeObservation(row);
   const actions: Record<string, string> = {
     created: 'Created a file',
@@ -87,7 +93,7 @@ export function createProtectionActivityReader() {
       [network, true],
     ] as const) {
       for (const row of rows) {
-        const entry = describe(row, isNetwork);
+        const entry = describeProtectionObservation(row, isNetwork);
         const key = JSON.stringify([
           entry.kind,
           row.instanceId ?? null,

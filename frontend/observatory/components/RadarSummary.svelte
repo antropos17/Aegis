@@ -6,14 +6,18 @@
     group,
     ordinal,
     selected,
+    active,
     select,
   }: {
     group: RadarGroup;
     ordinal: number;
     selected: string | null;
-    select: (group: RadarGroup) => void;
+    active?: boolean;
+    select: (_group: RadarGroup) => void;
   } = $props();
-  let chosen = $derived(group.members.some((a) => !!selected && a.instanceId === selected));
+  let chosen = $derived(
+    active ?? group.members.some((a) => !!selected && a.instanceId === selected),
+  );
 </script>
 
 <button class="radar-agent-card" aria-pressed={chosen} onclick={() => select(group)}>

@@ -140,6 +140,7 @@ try {
   assert.equal(await page.locator('.radar-agent-card').count(), 4);
   const sweep = await page.locator('.dial-sweep').elementHandle();
   await page.getByRole('button', { name: /Select Claude Code, 1 processes/ }).click();
+  await page.getByRole('button', { name: 'Open agent', exact: true }).click();
   await page.locator('.agent-workspace:visible').waitFor();
   assert.equal(await page.getByRole('dialog').count(), 0);
   await page
@@ -371,6 +372,7 @@ try {
   );
   await page.screenshot({ path: resolve(out, 'monitoring.png') });
   await page.getByRole('button', { name: /Select Claude Code, 1 processes/ }).click();
+  await page.getByRole('button', { name: 'Open agent', exact: true }).click();
   await page.locator('.agent-workspace:visible').waitFor();
   assert.equal(await page.getByRole('dialog').count(), 0);
   await page

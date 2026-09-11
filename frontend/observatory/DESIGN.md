@@ -129,3 +129,32 @@ The introductory help, native controls, focus return and responsive detail panel
 support keyboard use and larger text. Existing theme tokens and template files
 remain the visual base. Browser checks cover the new default and explicitly open
 detailed monitoring when checking the preserved radar layout.
+
+
+### Radar resource exploration (2026-09-11)
+
+The user's request to substantially improve Files and Network supersedes the
+previous two-resource overlay and immediate navigation on radar selection.
+Risk markers and roster rows now focus locally, with a leading risk reason and
+explicit links to files, connections and the agent workspace. The risk circle
+retains its measured score positioning.
+
+Files and Network each show a searchable resource catalog and a selected-resource
+relationship view. All radar pages, historical observations, own-file activity
+and unattributed resources remain available. Filters apply to summary counts;
+resource and relationship pagination bound the visible content. The responsive
+layout uses adjacent columns or stacked panels without absolute-positioned cards.
+
+Every resource retains all source records. Relationships separate process
+lifetimes and attribution evidence. Solid lines mean confirmed ownership; dashed
+lines mean indirect, ambiguous or legacy attribution. Unknown actors have no line.
+These static links never imply actual data transfer. A connection is not proof of
+its payload, an open handle is not proof of a read, and an endpoint allowlist is
+not access enforcement. Unknown destinations remain distinct from review flags.
+
+Selection survives layer changes and retention updates with explicit labels.
+Process navigation resolves against the unique current lifetime, including while
+the displayed view is paused. A stale or missing population disables navigation.
+Filters preserve focus; choosing a resource focuses its detail heading. Visited
+layers retain state, and unchanged observation arrays reuse the resource model.
+All new styling remains scoped; the preserved reference and cascade are unchanged.

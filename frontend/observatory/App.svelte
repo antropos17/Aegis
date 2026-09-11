@@ -458,6 +458,7 @@
                 (view !== 'agents' || scope.agent !== '')}
             >
               <Monitoring
+                liveTelemetry={telemetry}
                 telemetry={displayTelemetry}
                 bind:selected
                 {inspect}

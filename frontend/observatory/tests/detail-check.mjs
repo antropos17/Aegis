@@ -126,6 +126,7 @@ export async function checkDetails(browser, url, out) {
       ]);
     });
     await page.getByRole('button', { name: /Select Codex, 26 processes/ }).click();
+    await page.getByRole('button', { name: 'Open agent', exact: true }).click();
     const workspace = page.locator('.agent-workspace:visible');
     const context = page.locator('.agent-context');
     await workspace.waitFor();

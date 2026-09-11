@@ -1,26 +1,36 @@
-import type { Telemetry, RecordData } from './host';
-import type { RadarGroup } from './radar';
+import { record, type Telemetry, type RecordData } from './host';
+import { isScopedProcess } from './agent-scope';
+import { describeProtectionObservation, type ProtectionActivity } from './protection';
 import {
   describeObservation,
   canonicalObservationPath,
 } from '../../../src/shared/observation-display.js';
 
+export interface ResourceRelation {
+  key: string;
+  actor: string;
+  instanceId: string | null;
+  attribution: string;
+  status: string;
+  explanation: string;
+  actions: string[];
+  rows: RecordData[];
+}
 export interface RadarResource {
   key: string;
-  row: RecordData;
-  rows: RecordData[];
-  resourceKey: string;
-  group: string | null;
-  name: string;
   label: string;
   address: string;
-  detail: string;
-  count: number;
-  attribution: string;
+  ip: string;
+  level: ProtectionActivity['level'];
+  reason: string;
+  sensitive: boolean;
+  time: number;
+  rows: RecordData[];
+  relations: ResourceRelation[];
 }
 
-/** Format an observed endpoint, falling back to its IP when DNS is empty.
- * @param row Connection metadata @returns Address with an optional port @since 0.14.1
+/** Format an observed endpoint without discarding its port or IPv6 boundary.
+ * @param row Connection metadata @returns Address @since 0.14.1
  */
 export function networkAddress(row: RecordData): string {
   const host = String(row.domain || '').trim() || String(row.remoteIp || '').trim();
@@ -28,83 +38,112 @@ export function networkAddress(row: RecordData): string {
   return host ? `${host.includes(':') ? `[${host}]` : host}${port ? `:${port}` : ''}` : '';
 }
 
-/** Collect unique resources, keeping exact process attribution and the newest file evidence.
- * @param state Observed telemetry @param layer Resource layer @param plotted Visible agent groups
- * @param chosen Selected group @returns Resources available on this radar page @since 0.14.1
+/** Group all resources independently of radar pagination; retain every process lifetime and attribution boundary.
+ * @param state Recorded population and activity @param layer Resource kind @returns Unique resources @since 0.14.1
  */
-export function radarResources(
-  state: Telemetry,
-  layer: string,
-  plotted: RadarGroup[],
-  chosen?: RadarGroup,
-): RadarResource[] {
-  const owners = new Map(
-    plotted.flatMap((g) =>
-      g.members.filter((a) => a.instanceId).map((a) => [a.instanceId, g] as const),
-    ),
-  );
-  const allIds = new Set(state.agents.map((a) => a.instanceId).filter(Boolean));
-  const resources = new Map<string, RadarResource>();
-  const source = layer === 'files' ? state.events : state.network;
-  for (const entry of source) {
-    const row = entry as unknown as RecordData;
-    const info = describeObservation(row);
-    const evidence = row.attribution as { status?: string } | undefined;
-    if (row.selfAccess === true) continue;
-    const owner = evidence?.status === 'unattributed' ? undefined : owners.get(entry.instanceId);
-    if (chosen && owner?.key !== chosen.key) continue;
-    // Other radar pages have their own resources. Historical/unknown owners stay unlinked.
-    if (!chosen && !owner && entry.instanceId && allIds.has(entry.instanceId)) continue;
-    const file = String(row.file || '').trim();
-    const ip = String(row.remoteIp || '').trim();
-    const domain = String(row.domain || '').trim();
-    const port = typeof row.remotePort === 'number' && row.remotePort > 0 ? row.remotePort : null;
-    const address = layer === 'files' ? file : networkAddress(row);
-    if (!address) continue;
-    const status = owner
-      ? evidence?.status === 'inferred'
-        ? 'Indirect attribution'
-        : evidence?.status === 'confirmed'
-          ? 'Confirmed'
-          : 'Recorded owner'
-      : info.context || info.skill
-        ? 'Resource context · actor not recorded'
-        : 'No current agent link';
-    // Ports and distinct IPs remain distinct even when reverse DNS returns the same name.
-    const identity =
-      layer === 'files' ? canonicalObservationPath(file) : `${ip || domain}:${port ?? ''}`;
-    const key = JSON.stringify([owner?.key ?? entry.instanceId ?? null, identity]);
-    const existing = resources.get(key);
-    if (existing) {
-      existing.count++;
-      existing.rows.push(row);
-      if (existing.attribution !== status) existing.attribution = 'Mixed attribution';
-      if (Number(row.timestamp || 0) > Number(existing.row.timestamp || 0)) existing.row = row;
-      continue;
-    }
-    resources.set(key, {
-      key,
-      row,
-      rows: [row],
-      resourceKey: identity,
-      group: owner?.key ?? null,
-      name: owner?.name ?? info.label,
-      label:
-        layer === 'files' ? (info.skill ? 'Skill · ' + info.skill.name : info.resource) : address,
-      address,
-      detail:
-        layer === 'files'
-          ? file
-          : [domain && ip !== domain ? ip : '', row.state].filter(Boolean).join(' · '),
-      count: 1,
-      attribution: status,
-    });
+export function radarResources(state: Telemetry, layer: string): RadarResource[] {
+  const network = layer === 'network';
+  const grouped = new Map<string, RadarResource>();
+  const priority = { review: 0, unverified: 1, observed: 2 };
+  const identities = new Map<string, Telemetry['agents']>();
+  for (const agent of state.agents) {
+    if (agent.instanceId)
+      identities.set(agent.instanceId, [...(identities.get(agent.instanceId) ?? []), agent]);
   }
-  return [...resources.values()].sort((a, b) =>
-    layer === 'files'
-      ? Number(b.row.timestamp || 0) - Number(a.row.timestamp || 0) || a.key.localeCompare(b.key)
-      : a.name.localeCompare(b.name) ||
-        a.address.localeCompare(b.address) ||
-        a.key.localeCompare(b.key),
+  for (const entry of network ? state.network : state.events) {
+    const row = entry as unknown as RecordData;
+    const exact = typeof row.instanceId === 'string' ? (identities.get(row.instanceId) ?? []) : [];
+    const info = describeObservation(
+      row,
+      exact.length === 1 ? (exact as unknown as RecordData[]) : [],
+    );
+    const facts = describeProtectionObservation(row, network);
+    const address = network ? networkAddress(row) : String(row.file || '').trim();
+    if (!address) continue;
+    const ip = String(row.remoteIp || '').trim();
+    const key = network
+      ? JSON.stringify([
+          ip.toLowerCase() || String(row.domain || '').toLowerCase(),
+          row.remotePort ?? null,
+        ])
+      : canonicalObservationPath(address);
+    const resource: RadarResource = grouped.get(key) ?? {
+      key,
+      label: network ? address : info.resource,
+      address,
+      ip,
+      level: facts.level,
+      reason: facts.reason,
+      sensitive: row.sensitive === true,
+      time: facts.time,
+      rows: [],
+      relations: [],
+    };
+    if (priority[facts.level] < priority[resource.level]) {
+      resource.level = facts.level;
+      resource.reason = facts.reason;
+    }
+    resource.sensitive ||= row.sensitive === true;
+    resource.time = Math.max(resource.time, facts.time);
+    resource.rows.push(row);
+    const status = String(
+      record(row.attribution).status ??
+        (typeof row.attribution === 'string'
+          ? row.attribution
+          : info.actor
+            ? 'recorded'
+            : 'unattributed'),
+    );
+    const actor = status === 'unattributed' ? '' : info.actor;
+    const relationKey = JSON.stringify([
+      row.instanceId ?? null,
+      actor,
+      status,
+      record(row.attribution).evidence ?? [],
+    ]);
+    let relation = resource.relations.find((item) => item.key === relationKey);
+    if (!relation) {
+      relation = {
+        key: relationKey,
+        actor,
+        instanceId: typeof row.instanceId === 'string' ? row.instanceId : null,
+        attribution: info.attribution,
+        status,
+        explanation: info.explanation,
+        actions: [],
+        rows: [],
+      };
+      resource.relations.push(relation);
+    }
+    relation.rows.push(row);
+    if (!relation.actions.includes(facts.action)) relation.actions.push(facts.action);
+    grouped.set(key, resource);
+  }
+  return [...grouped.values()].sort(
+    (a, b) =>
+      priority[a.level] - priority[b.level] ||
+      b.time - a.time ||
+      a.address.localeCompare(b.address),
   );
+}
+
+/** Resolve navigation against the current lifetime; a PID, path or product name alone is insufficient.
+ * @param relation Recorded ownership @param state Current population @returns Exact current agent or null @since 0.14.1
+ */
+export function resourceProcess(
+  relation: ResourceRelation,
+  state: Telemetry,
+): Telemetry['agents'][number] | null {
+  if (
+    !state.ready ||
+    state.stale ||
+    !relation.actor ||
+    !relation.instanceId ||
+    ['unattributed', 'ambiguous'].includes(relation.status)
+  )
+    return null;
+  const matches = state.agents.filter((agent) => agent.instanceId === relation.instanceId);
+  return matches.length === 1 && matches[0].agent === relation.actor && isScopedProcess(matches[0])
+    ? matches[0]
+    : null;
 }

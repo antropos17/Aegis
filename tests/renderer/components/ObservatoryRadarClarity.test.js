@@ -68,6 +68,8 @@ it('opens metadata for an unstamped agent without inventing a process identity',
     inspect,
   });
   await fireEvent.click(screen.getByRole('button', { name: /Select ChatGPT Desktop,/ }));
+  expect(inspect).not.toHaveBeenCalled();
+  await fireEvent.click(screen.getByRole('button', { name: 'Open agent', exact: true }));
   expect(inspect.mock.calls[0][1]).toEqual({
     agentGroupKey: 'ChatGPT Desktop',
     name: 'ChatGPT Desktop',
