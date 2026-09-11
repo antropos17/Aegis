@@ -1,210 +1,314 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
-  import type { RecordData } from '../runtime/host';
-  import type { RadarResource } from '../runtime/radar-resources';
+  import type { RecordData, Telemetry } from '../runtime/host';
+  import {
+    resourceProcess,
+    type RadarResource,
+    type ResourceRelation,
+  } from '../runtime/radar-resources';
+  import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
   let {
-    rows,
+    resource,
     layer,
+    telemetry,
     inspect,
-    ready,
-    scoped,
+    retained = true,
   }: {
-    rows: RadarResource[];
+    resource: RadarResource;
     layer: string;
+    telemetry: Telemetry;
     inspect: (_title: string, _row: RecordData) => void;
-    ready: boolean;
-    scoped: boolean;
+    retained?: boolean;
   } = $props();
-  let svg: SVGSVGElement;
-  let stage: HTMLElement | null = null;
-  function align(): void {
-    if (!stage || !svg) return;
-    const bounds = svg.getBoundingClientRect();
-    if (!bounds.width || !bounds.height) return;
-    svg.setAttribute('viewBox', `0 0 ${bounds.width} ${bounds.height}`);
-    const routes = svg.querySelectorAll('g');
-    stage.querySelectorAll<HTMLElement>('.resource-node').forEach((resource, index) => {
-      const key = rows[index]?.group;
-      const dot = key
-        ? [...stage!.querySelectorAll<HTMLElement>('.radar-blip')]
-            .find((el) => el.dataset.group === key)
-            ?.querySelector('.blip-dot')
-        : null;
-      const route = routes[index];
-      if (!route) return;
-      route.style.display = dot ? '' : 'none';
-      if (!dot) return;
-      const a = dot.getBoundingClientRect(),
-        b = resource.getBoundingClientRect();
-      const x = a.left + a.width / 2 - bounds.left,
-        y = a.top + a.height / 2 - bounds.top;
-      const ex = b.left + b.width / 2 - bounds.left,
-        ey = b.top + b.height / 2 - bounds.top;
-      const path = `M${x} ${y} Q${(x + ex) / 2} ${y} ${ex} ${ey}`;
-      route.querySelector('path')?.setAttribute('d', path);
-      route.querySelector('animateMotion')?.setAttribute('path', path);
-    });
-    svg.dataset.routes = 'ready';
-  }
+  let page = $state(0);
+  let previousKey = '';
   $effect(() => {
-    rows;
-    layer;
-    void tick().then(align);
+    if (resource.key !== previousKey) {
+      previousKey = resource.key;
+      page = 0;
+    }
   });
-  onMount(() => {
-    stage = svg.parentElement;
-    const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(align);
-    if (stage) resize?.observe(stage);
-    const app = stage?.closest('.observatory-app');
-    const media = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    const syncMotion = () => {
-      const frozen =
-        media?.matches ||
-        document.documentElement.dataset.motion === 'reduce' ||
-        app?.classList.contains('paused') ||
-        stage?.classList.contains('stale');
-      if (frozen) svg.pauseAnimations?.();
-      else svg.unpauseAnimations?.();
-    };
-    const observer = new MutationObserver(syncMotion);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-motion'],
-    });
-    if (app) observer.observe(app, { attributes: true, attributeFilter: ['class'] });
-    if (stage) observer.observe(stage, { attributes: true, attributeFilter: ['class'] });
-    media?.addEventListener('change', syncMotion);
-    align();
-    syncMotion();
-    return () => {
-      resize?.disconnect();
-      observer.disconnect();
-      media?.removeEventListener('change', syncMotion);
-      stage = null;
-    };
-  });
+  const pages = $derived(Math.max(1, Math.ceil(resource.relations.length / 4)));
+  const index = $derived(Math.min(page, pages - 1));
+  const relations = $derived(resource.relations.slice(index * 4, index * 4 + 4));
+  const labels = {
+    review: 'Review needed',
+    unverified: 'Unverified destination',
+    observed: 'No risk flag',
+  };
+  function evidence(rows: RecordData[]) {
+    inspect(
+      layer === 'files' ? 'File observation' : 'Network observation',
+      rows.length === 1 ? rows[0] : { observationGroup: resource.label, observations: rows },
+    );
+  }
+  function process(relation: ResourceRelation) {
+    const agent = resourceProcess(relation, telemetry);
+    if (agent) inspect(agent.agent, { ...agent, name: agent.agent, detailSection: 'processes' });
+  }
 </script>
 
-<svg
-  bind:this={svg}
-  class="radar-links"
-  aria-hidden="true"
-  data-routes="pending"
-  preserveAspectRatio="none"
->
-  {#each rows as entry, i (entry.key)}<g data-resource-key={entry.key}
-      ><path /><circle r="2" opacity="0"
-        ><animateMotion dur={`${4 + i}s`} repeatCount="indefinite" /><animate
-          attributeName="opacity"
-          values="0;1;1;0"
-          keyTimes="0;0.12;0.88;1"
-          dur={`${4 + i}s`}
-          repeatCount="indefinite"
-        /></circle
-      ></g
-    >{/each}
-</svg>
-{#each rows as entry, i (entry.key)}<button
-    class="resource-node"
-    data-route-index={i}
-    data-resource-key={entry.key}
-    data-resource-group={entry.group}
-    title={entry.address}
-    onclick={() =>
-      inspect(
-        layer === 'files' ? 'File observation' : 'Network observation',
-        entry.rows.length > 1
-          ? { observationGroup: entry.label, observations: entry.rows }
-          : entry.row,
-      )}
-    ><span class="resource-title"
-      ><Icon name={layer === 'files' ? 'file' : 'network'} /><strong>{entry.label}</strong><span
-        class="resource-count">{entry.count}×</span
-      ></span
-    >
-    <span class="resource-detail">{entry.detail}</span>
-    <span class="resource-owner">{entry.name} · {entry.attribution}</span></button
-  >{:else}<div class="resource-empty" role="status">
-    <Icon name={layer === 'files' ? 'folder' : 'network'} />
-    <strong
-      >{ready
-        ? `No ${layer === 'files' ? 'file observations' : 'connections'}${scoped ? ' for this agent' : ' on this page'}`
-        : 'Waiting for a reliable scan'}</strong
-    >
+<section class="resource-investigation" aria-label="Resource relationships">
+  <header>
+    <span class="eyebrow">{layer === 'files' ? 'Selected file' : 'Selected destination'}</span>
+    <h3><Icon name={layer === 'files' ? 'file' : 'network'} />{resource.label}</h3>
+    {#if layer === 'files'}<code>{resource.address}</code>{/if}
+    {#if resource.ip}<p>Observed IP: <code>{resource.ip}</code></p>{/if}
+    {#if !retained}<p class="notice">
+        No longer in the current data. These are the records you selected earlier.
+      </p>{/if}
+    {#if telemetry.stale}<p class="notice">
+        Observation is stale. Current process navigation is unavailable.
+      </p>{/if}
+  </header>
+  <div class="resource-assessment" class:review={resource.level === 'review'}>
+    <strong>{labels[resource.level]}</strong>
+    <p>{resource.reason}</p>
+  </div>
+  <div class="relation-heading">
+    <h4>Who is linked to this resource?</h4>
+    <span>{resource.relations.length} relationships</span>
+  </div>
+  <div class="relations">
+    {#each relations as relation (relation.key)}
+      {@const live = resourceProcess(relation, telemetry)}
+      <article class="relation" data-evidence={relation.status}>
+        <div class="relationship-route">
+          <div class="source">
+            <AgentLogo name={relation.actor || 'Unknown'} size={26} />
+            <div>
+              <strong>{relation.actor || 'Agent not identified'}</strong><small
+                >{relation.instanceId
+                  ? `PID ${relation.rows[0].pid ?? live?.pid ?? 'not recorded'} · ${live ? 'currently observed' : 'no current process link'}`
+                  : 'No process identity recorded'}</small
+              >
+            </div>
+          </div>
+          <span
+            class="relationship-line"
+            class:inferred={relation.status !== 'confirmed'}
+            class:unlinked={!relation.actor}
+            aria-hidden="true"><Icon name="chevron" /></span
+          >
+          <span class="destination-icon" aria-hidden="true"
+            ><Icon name={layer === 'files' ? 'file' : 'network'} /></span
+          >
+        </div>
+        <div class="actions-observed">
+          {#each relation.actions as action (action)}<span>{action}</span>{/each}
+        </div>
+        <p class="attribution">{relation.attribution} · {relation.rows.length} record(s)</p>
+        <details>
+          <summary>How was this link established?</summary>
+          <p>{relation.explanation}</p>
+          <p>
+            Sources: {[
+              ...new Set(
+                relation.rows.map((row) =>
+                  String(row.source || (layer === 'network' ? 'Network snapshot' : 'Not recorded')),
+                ),
+              ),
+            ].join(', ')}
+          </p>
+          {#if relation.rows.some((row) => row.action === 'holding' || row.action === 'accessed')}<p
+            >
+              An open file handle does not prove that the contents were read.
+            </p>{/if}
+          {#if relation.rows.some((row) => row.selfAccess === true)}<p>
+              Includes activity in the agent’s own files.
+            </p>{/if}
+          {#if layer === 'network'}<p>
+              Connection states: {[
+                ...new Set(relation.rows.map((row) => String(row.state || 'Not recorded'))),
+              ].join(', ')}. A connection does not show what was sent.
+            </p>{/if}
+        </details>
+        <div class="relation-actions">
+          <button class="button" onclick={() => evidence(relation.rows)}>View records</button
+          ><button class="button" disabled={!live} onclick={() => process(relation)}
+            >Inspect process</button
+          >
+        </div>
+      </article>
+    {/each}
+  </div>
+  {#if pages > 1}<nav class="relation-pages" aria-label="Relationship pages">
+      <button
+        class="button"
+        aria-label="Previous relationships"
+        aria-disabled={index === 0}
+        onclick={() => {
+          if (index > 0) page = index - 1;
+        }}>Previous</button
+      ><span>{index + 1} / {pages}</span><button
+        class="button"
+        aria-label="Next relationships"
+        aria-disabled={index === pages - 1}
+        onclick={() => {
+          if (index < pages - 1) page = index + 1;
+        }}>Next</button
+      >
+    </nav>{/if}
+  <footer>
     <span
-      >{scoped
-        ? 'Choose another agent or show all agents.'
-        : layer === 'files'
-          ? 'Recorded file activity will appear here.'
-          : 'Observed endpoints will appear here.'}</span
-    >
-  </div>{/each}
+      >{resource.rows.length} retained record(s){resource.time
+        ? ` · latest ${new Date(resource.time).toLocaleString()}`
+        : ''}</span
+    ><button class="button" onclick={() => evidence(resource.rows)}>All resource records</button>
+  </footer>
+</section>
 
 <style>
-  .resource-empty {
-    position: absolute;
-    inset: auto 16px 16px;
-    padding: 14px;
-    display: grid;
-    justify-items: center;
-    gap: 6px;
+  .resource-investigation {
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--surface-radius);
     background: var(--panel);
-    text-align: center;
-    font-size: calc(11px * var(--ui-scale));
-    color: var(--muted);
-    pointer-events: none;
-  }
-  :global(.radar-stage) .resource-node {
-    display: grid;
-    gap: 4px;
-    width: min(300px, calc(100% - 32px));
-    max-width: calc(100% - 32px);
-    padding: 10px 12px;
-    text-align: left;
-    color: var(--ink);
-    border-color: var(--strong-border);
-    box-shadow: 0 2px 6px #0001;
-    animation: resource-arrive 220ms ease-out;
-  }
-  .resource-title {
-    display: flex;
-    align-items: center;
-    gap: 7px;
     min-width: 0;
+    font-size: var(--text-body);
+    line-height: 1.55;
   }
-  .resource-title strong {
-    overflow: hidden;
-    text-overflow: ellipsis;
+  header,
+  footer,
+  .resource-assessment,
+  .relation-heading {
+    padding: var(--space-4);
   }
-  .resource-title :global(svg) {
+  header {
+    border-bottom: 1px solid var(--border);
+  }
+  .eyebrow,
+  small,
+  footer,
+  .relation-heading span {
+    color: var(--muted);
+    font-size: var(--text-caption);
+  }
+  h3 {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    overflow-wrap: anywhere;
+    margin: var(--space-2) 0;
+    font-size: var(--text-section);
+  }
+  h3 :global(svg),
+  .source :global(.agent-mark) {
     flex: none;
   }
-  .resource-count {
-    margin-left: auto;
-    color: var(--muted);
-    font-size: calc(10px * var(--ui-scale));
+  code {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: var(--text-body);
   }
-  .resource-detail,
-  .resource-owner {
+  p {
+    margin: var(--space-2) 0 0;
+    overflow-wrap: anywhere;
+  }
+  .notice,
+  .review strong {
+    color: var(--amber);
+  }
+  .resource-assessment {
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .resource-assessment p {
+    color: var(--muted);
+  }
+  .relation-heading {
+    padding-bottom: var(--space-2);
+  }
+  h4 {
+    font-size: var(--text-body);
+    margin: 0 0 var(--space-1);
+  }
+  .relations {
+    padding-inline: var(--space-4);
+  }
+  .relation {
+    border: 1px solid var(--border);
+    border-radius: var(--control-radius);
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+  .relationship-route {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 40px 30px;
+    gap: var(--space-2);
+    align-items: center;
+  }
+  .source {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+  .source strong,
+  small {
     display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
+  }
+  .relationship-line {
+    border-top: 2px solid var(--muted);
+    position: relative;
+  }
+  .relationship-line :global(svg) {
+    position: absolute;
+    right: -5px;
+    top: -9px;
+  }
+  .relationship-line.inferred {
+    border-top-style: dashed;
+  }
+  .relationship-line.unlinked {
+    visibility: hidden;
+  }
+  .destination-icon {
     color: var(--muted);
-    font-size: calc(10px * var(--ui-scale));
   }
-  .resource-owner {
-    padding-top: 4px;
+  .actions-observed {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+  }
+  .actions-observed span {
+    background: var(--bg);
+    border-radius: var(--control-radius);
+    padding: var(--space-1) var(--space-2);
+  }
+  .attribution {
+    color: var(--muted);
+  }
+  details {
+    margin-top: var(--space-2);
+    color: var(--muted);
+  }
+  summary {
+    cursor: pointer;
+  }
+  .relation-actions,
+  .relation-pages,
+  footer {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .relation-actions {
+    margin-top: var(--space-3);
+  }
+  .relation-pages {
+    flex-direction: row;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+  }
+  footer {
     border-top: 1px solid var(--border);
+    justify-content: space-between;
   }
-  @keyframes resource-arrive {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+  button {
+    white-space: normal;
+    height: auto;
   }
 </style>

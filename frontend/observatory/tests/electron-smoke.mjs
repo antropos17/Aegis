@@ -67,6 +67,7 @@ try {
   assert.equal(await window.locator('.radar-blip').count(), rosterNames.length);
   assert.equal(await window.locator('.radar-info, .radar-mini-chart').count(), 0);
   await window.locator('.radar-agent-card').first().click();
+  await window.getByRole('button', { name: 'Open agent', exact: true }).click();
   await window.locator('.agent-workspace:visible').waitFor();
   assert.equal(await window.getByRole('dialog').count(), 0);
   const context = window.locator('.agent-context');
@@ -95,13 +96,13 @@ try {
   await window.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
   for (const layer of ['Files', 'Network']) {
     await window.locator('.radar-layers').getByRole('button', { name: layer, exact: true }).click();
-    const all = window.getByRole('button', { name: 'Show all agents', exact: true });
+    const all = window.getByRole('button', { name: 'Clear filters', exact: true });
     if (await all.isVisible()) await all.click();
     await window.mouse.move(0, 0);
     await checkResourceGeometry(window);
     // Check every endpoint currently visible to the native sensors, including empty DNS.
-    const next = window.getByLabel('Next radar resources');
-    while ((await next.isVisible()) && (await next.isEnabled())) {
+    const next = window.locator('.resource-explorer:visible').getByLabel('Next radar resources');
+    while ((await next.isVisible()) && (await next.getAttribute('aria-disabled')) !== 'true') {
       await next.click();
       await window.mouse.move(0, 0);
       await checkResourceGeometry(window);

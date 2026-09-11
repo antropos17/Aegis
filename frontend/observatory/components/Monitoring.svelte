@@ -14,6 +14,7 @@
   } from '../../../src/shared/observation-display.js';
   let {
     telemetry,
+    liveTelemetry,
     selected = $bindable(null),
     inspect,
     mode = 'overview',
@@ -23,6 +24,7 @@
     paused = false,
   }: {
     telemetry: Telemetry;
+    liveTelemetry?: Telemetry;
     selected: string | null;
     inspect: (_title: string, _row: RecordData) => void;
     mode?: string;
@@ -105,7 +107,7 @@
       </p>
     </div>
   </div>
-  <Radar {telemetry} bind:selected {inspect} {openStatistics} {openAgent} />
+  <Radar {telemetry} {liveTelemetry} bind:selected {inspect} {openStatistics} {openAgent} />
   <div class="monitoring-activity">
     <ActivityChart
       events={telemetry.events}

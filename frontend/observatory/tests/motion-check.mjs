@@ -45,6 +45,8 @@ export async function checkMotion(page) {
   await page.mouse.down();
   stable(await geometry(), beforeHover, 'press moved or resized the marker');
   await page.mouse.up();
+  assert.equal(await page.locator('.agent-workspace:visible').count(), 0);
+  await page.getByRole('button', { name: 'Open agent', exact: true }).click();
   await page.locator('.agent-workspace:visible').waitFor();
   await page.waitForFunction(() => !document.documentElement.dataset.transitionSurface);
   const context = page.locator('.agent-context');
@@ -63,7 +65,13 @@ export async function checkMotion(page) {
   const pillAfter = await layers.evaluate((node) => getComputedStyle(node, '::before').transform);
   assert.notEqual(pillBefore, pillAfter, 'layer indicator did not move');
   await page.getByRole('button', { name: 'Pause view', exact: true }).click();
-  assert.equal(await page.locator('.radar-links').evaluate((svg) => svg.animationsPaused()), true);
+  assert.equal(await page.locator('.resource-explorer:visible').count(), 1);
+  assert.equal(
+    await page
+      .locator('.resource-explorer:visible')
+      .evaluate((node) => node.getAnimations({ subtree: true }).length),
+    0,
+  );
   assert.equal(
     await page.locator('.dial-sweep').evaluate((node) => getComputedStyle(node).animationPlayState),
     'paused',
@@ -76,7 +84,12 @@ export async function checkMotion(page) {
     'paused',
   );
   await page.getByRole('button', { name: 'Resume view', exact: true }).click();
-  assert.equal(await page.locator('.radar-links').evaluate((svg) => svg.animationsPaused()), false);
+  assert.equal(
+    await page
+      .locator('.resource-explorer:visible')
+      .evaluate((node) => node.getAnimations({ subtree: true }).length),
+    0,
+  );
   await layers.getByRole('button', { name: 'Radar', exact: true }).click();
 
   const lastKey = await page.evaluate(() => {
@@ -88,6 +101,12 @@ export async function checkMotion(page) {
     return expected;
   });
   await page.waitForFunction(() => !document.documentElement.dataset.transitionSurface);
+  assert.equal(
+    await page.locator('.radar-blip[aria-pressed=true]').getAttribute('data-group'),
+    lastKey,
+  );
+  await page.getByRole('button', { name: 'Open agent', exact: true }).click();
+  await page.locator('.agent-workspace:visible').waitFor();
   assert.equal(await context.getByLabel('Selected agent', { exact: true }).inputValue(), lastKey);
   assert.equal(
     await page.locator('.agent-workspace:visible').count(),
@@ -102,6 +121,7 @@ export async function checkMotion(page) {
     'none',
   );
   await page.locator('.radar-agent-card').nth(1).click();
+  await page.getByRole('button', { name: 'Open agent', exact: true }).click();
   await page.locator('.agent-workspace:visible').waitFor();
   assert.equal(await page.getByRole('dialog').count(), 0);
   await context.getByLabel('Selected agent', { exact: true }).selectOption('');

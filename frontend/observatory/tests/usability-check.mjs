@@ -44,19 +44,25 @@ export async function checkUsability(browser, url, out) {
             .evaluate((node) => node.scrollWidth <= node.clientWidth + 1),
           'sidebar text overflows at enlarged scale',
         );
-        const heights = () =>
-          page.evaluate(() =>
-            ['.radar-panel', '.radar-stage'].map(
-              (selector) => document.querySelector(selector).getBoundingClientRect().height,
-            ),
-          );
-        const before = await heights();
         for (const layer of ['Files', 'Network', 'Radar']) {
           await page
             .locator('.radar-layers')
             .getByRole('button', { name: layer, exact: true })
             .click();
-          assert.deepEqual(await heights(), before, 'radar layer moved surrounding content');
+          assert.equal(
+            await page.locator('.radar-stage:visible').count(),
+            layer === 'Radar' ? 1 : 0,
+          );
+          assert.equal(
+            await page.locator('.resource-explorer:visible').count(),
+            layer === 'Radar' ? 0 : 1,
+          );
+          assert(
+            await page
+              .locator('#main')
+              .evaluate((node) => node.scrollWidth <= node.clientWidth + 1),
+            'layer overflows the workspace',
+          );
         }
         const monitoringScroll = await page.locator('#main').evaluate((node) => {
           node.scrollTop = 120;
@@ -64,6 +70,9 @@ export async function checkUsability(browser, url, out) {
         });
         // Trigger the same click handler without Playwright first scrolling the source page.
         await page.getByRole('button', { name: /Select Codex,/ }).evaluate((node) => node.click());
+        await page
+          .getByRole('button', { name: 'Open agent', exact: true })
+          .evaluate((node) => node.click());
         await page.locator('.agent-workspace:visible').waitFor();
         assert.equal(await page.getByRole('dialog').count(), 0, 'agent opened in a modal');
         assert.equal(await agent.inputValue(), 'Codex');

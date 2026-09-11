@@ -1,60 +1,46 @@
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 
-/** Check resource routes against rendered anchors after motion, resizing and data refresh.
+/** Check readable resources and evidence links at the current desktop size.
  * @param {import('playwright').Page} page Observatory page @returns {Promise<void>} Verified geometry @since 0.14.1
  */
 export async function checkResourceGeometry(page) {
-  await page.waitForFunction(
-    () => document.querySelector('.radar-links')?.dataset.routes === 'ready',
-  );
-  await page.waitForTimeout(350);
-  const issues = await page.locator('.radar-stage').evaluate((stage) => {
+  const explorer = page.locator('.resource-explorer:visible');
+  await explorer.waitFor();
+  if (await explorer.locator('.resource-choice').count()) {
+    await explorer.locator('.resource-choice').first().click();
+    await explorer.locator('.resource-investigation').waitFor();
+  }
+  const issues = await explorer.evaluate((root) => {
     const issues = [];
-    const svg = stage.querySelector('.radar-links');
-    const bounds = stage.getBoundingClientRect();
-    const nodes = [...stage.querySelectorAll('.resource-node')];
-    const center = (r) => ({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
-    for (const node of nodes) {
+    const bounds = root.getBoundingClientRect();
+    for (const node of root.querySelectorAll(
+      '.resource-choice, .resource-details, .relation, button, select, input',
+    )) {
       const box = node.getBoundingClientRect();
-      if (
-        box.left < bounds.left ||
-        box.right > bounds.right + 1 ||
-        box.top < bounds.top ||
-        box.bottom > bounds.bottom + 1
-      )
-        issues.push('resource outside stage');
-      if (!node.querySelector('strong')?.textContent.trim()) issues.push('empty resource label');
-      const route = [...svg.querySelectorAll('g')].find(
-        (g) => g.dataset.resourceKey === node.dataset.resourceKey,
-      );
-      const marker = [...stage.querySelectorAll('.radar-blip')].find(
-        (m) => m.dataset.group === node.dataset.resourceGroup,
-      );
-      if (!marker) {
-        if (getComputedStyle(route).display !== 'none')
-          issues.push('unattributed resource has a route');
-        continue;
-      }
-      for (const other of stage.querySelectorAll('.radar-blip')) {
-        const b = other.getBoundingClientRect();
-        if (box.left < b.right && box.right > b.left && box.top < b.bottom && box.bottom > b.top)
-          issues.push('resource overlaps marker');
-      }
-      const path = route.querySelector('path');
-      const matrix = path.getScreenCTM();
-      const start = path.getPointAtLength(0).matrixTransform(matrix);
-      const end = path.getPointAtLength(path.getTotalLength()).matrixTransform(matrix);
-      const dot = center(marker.querySelector('.blip-dot').getBoundingClientRect());
-      const resource = center(box);
-      if (Math.hypot(start.x - dot.x, start.y - dot.y) > 1.5)
-        issues.push('route detached from marker');
-      if (Math.hypot(end.x - resource.x, end.y - resource.y) > 1.5)
-        issues.push('route detached from resource');
+      if (box.width && (box.left < bounds.left - 1 || box.right > bounds.right + 1))
+        issues.push('content outside explorer: ' + node.className);
     }
+    for (const relation of root.querySelectorAll('.relation')) {
+      const line = relation.querySelector('.relationship-line');
+      if (line.classList.contains('unlinked')) {
+        if (getComputedStyle(line).visibility !== 'hidden') issues.push('unknown actor has a line');
+      } else {
+        const style = getComputedStyle(line);
+        if (
+          style.borderTopStyle !== (relation.dataset.evidence === 'confirmed' ? 'solid' : 'dashed')
+        )
+          issues.push('ownership style is misleading');
+        if (line.getAnimations({ subtree: true }).length)
+          issues.push('link implies live data transfer');
+      }
+    }
+    if (root.scrollWidth > root.clientWidth + 1) issues.push('explorer overflows');
+    if (root.querySelectorAll('.resource-choice').length > 6)
+      issues.push('resource pagination unbounded');
     return issues;
   });
-  assert.deepEqual(issues, [], 'resource layer geometry');
+  assert.deepEqual(issues, [], 'resource explorer geometry');
 }
 
 /** Exercise populated desktop resource layers through an isolated bridge fixture.
@@ -108,7 +94,7 @@ export async function checkResourceLayers(browser, url, out) {
       };
       window.resourceFixture.onScanBatch({ agents, stats: window.resourceStats });
       window.resourceFixture.onNetworkUpdate([
-        ...[443, 443, 80, 8080, 8443].map((remotePort) => ({
+        ...[443, 443, 80, 8080, 8443, 9000, 9443].map((remotePort) => ({
           instanceId: agents[0].instanceId,
           domain: '',
           remoteIp: '192.0.2.10',
@@ -118,9 +104,9 @@ export async function checkResourceLayers(browser, url, out) {
         { instanceId: agents[4].instanceId, domain: '', remoteIp: '2001:db8::1', remotePort: 443 },
       ]);
       window.resourceFixture.onFileAccess(
-        Array.from({ length: 8 }, (_, i) => ({
+        Array.from({ length: 14 }, (_, i) => ({
           instanceId: agents[0].instanceId,
-          file: `X:/Fixture/project-${i % 4}/settings.json`,
+          file: `X:/Fixture/project-${i % 7}/settings.json`,
           timestamp: Date.now() - i * 1000,
           attribution: { status: 'inferred' },
           action: 'modified',
@@ -129,22 +115,34 @@ export async function checkResourceLayers(browser, url, out) {
     });
     const layer = (name) =>
       page.locator('.radar-layers').getByRole('button', { name, exact: true });
+    const explorer = page.locator('.resource-explorer:visible');
     await layer('Network').click();
-    assert.match(await page.locator('.resource-scope').innerText(), /4 unique endpoints/);
-    await page.locator('.resource-node').first().click();
-    await page.getByRole('dialog').waitFor();
+    assert.match(
+      await explorer.locator('.explorer-summary').innerText(),
+      /7\s*unique destinations/,
+    );
+    await explorer.getByRole('button', { name: 'Inspect 192.0.2.10:443', exact: true }).click();
+    await explorer.getByRole('button', { name: 'All resource records' }).click();
     const dialog = page.getByRole('dialog');
+    await dialog.waitFor();
     assert.match(await dialog.getByRole('heading', { level: 2 }).innerText(), /192\.0\.2\.10:443/);
     await dialog.getByRole('tab', { name: /Records/ }).click();
     assert.equal(await dialog.locator('.observation-history .recent-event').count(), 2);
     for (const entry of await dialog.locator('.observation-history .recent-event').all())
       assert.match(await entry.innerText(), /192\.0\.2\.10:443/);
     await page.keyboard.press('Escape');
-    await page.getByRole('dialog').waitFor({ state: 'hidden' });
-    await page.mouse.move(0, 0);
+    await dialog.waitFor({ state: 'hidden' });
+    await explorer.getByRole('button', { name: 'Inspect process' }).click();
+    await page.locator('.agent-workspace:visible').waitFor();
+    assert.equal(
+      await page.getByLabel('Selected process', { exact: true }).inputValue(),
+      'resource-test:0',
+    );
+    await page.getByLabel('Selected agent', { exact: true }).selectOption('');
+    await page.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
     for (const size of [
       { width: 1200, height: 800 },
-      { width: 900, height: 700 },
+      { width: 900, height: 600 },
       { width: 1779, height: 1146 },
     ]) {
       await page.setViewportSize(size);
@@ -157,16 +155,24 @@ export async function checkResourceLayers(browser, url, out) {
           await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
           for (const name of ['Files', 'Network']) {
             await layer(name).click();
+            const previous = explorer.getByLabel('Previous radar resources');
+            if (await previous.isEnabled()) await previous.click();
             await checkResourceGeometry(page);
-            await page.getByLabel('Next radar resources').click();
+            assert.equal(
+              await explorer.getByLabel('Next radar resources').getAttribute('aria-disabled'),
+              'false',
+            );
+            await explorer.getByLabel('Next radar resources').click();
             await checkResourceGeometry(page);
+            assert.equal(
+              await explorer.getByLabel('Next radar resources').getAttribute('aria-disabled'),
+              'true',
+            );
           }
         }
       }
     }
-    await page.locator('.radar-stage').screenshot({ path: resolve(out, 'resources-network.png') });
-    // Same identities with new objects must not recreate resource nodes or detach routes.
-    const first = await page.locator('.resource-node').first().elementHandle();
+    const first = await explorer.locator('.resource-choice').first().elementHandle();
     await page.evaluate(() =>
       window.resourceFixture.onScanBatch({
         agents: structuredClone(window.resourceAgents),
@@ -174,23 +180,34 @@ export async function checkResourceLayers(browser, url, out) {
       }),
     );
     await checkResourceGeometry(page);
-    assert(await first.evaluate((node) => node.isConnected), 'scan recreated unchanged resources');
-    await page.getByLabel('Next radar agents').click();
-    await checkResourceGeometry(page);
-    assert.match(await page.locator('.resource-node').innerText(), /\[2001:db8::1\]:443/);
-    await layer('Files').click();
-    assert.match(
-      await page.locator('.resource-empty').innerText(),
-      /No file observations on this page/,
+    assert(
+      await first.evaluate((node) => node.isConnected),
+      'scan recreated unchanged resource buttons',
     );
-    await page.getByLabel('Previous radar agents').click();
+    await explorer.getByLabel('Resource agent').selectOption('Zeta');
+    assert.match(await explorer.locator('.resource-choice').innerText(), /\[2001:db8::1\]:443/);
+    await layer('Files').click();
+    assert.match(await explorer.locator('.resource-empty').innerText(), /No matching observations/);
+    await explorer.getByRole('button', { name: 'Clear filters' }).click();
     await checkResourceGeometry(page);
-    await page.locator('.radar-stage').screenshot({ path: resolve(out, 'resources-files.png') });
     await page.evaluate(() =>
       window.resourceFixture.onStatsUpdate({ appHealth: { populationReliable: false } }),
     );
-    await page.waitForFunction(() => document.querySelector('.radar-links').animationsPaused());
-    assert.match(await page.locator('.resource-scope').innerText(), /Last reliable snapshot/);
+    await explorer
+      .getByText('Observation is stale. Current process navigation is unavailable.')
+      .waitFor();
+    assert.match(
+      await explorer.locator('.scope-note').first().innerText(),
+      /Last available observations/,
+    );
+    for (const button of await explorer.getByRole('button', { name: 'Inspect process' }).all())
+      assert(await button.isDisabled());
+    for (const name of ['Files', 'Network']) {
+      await layer(name).click();
+      await explorer.getByLabel('Resource agent').selectOption('');
+      await checkResourceGeometry(page);
+      await explorer.screenshot({ path: resolve(out, 'resources-' + name.toLowerCase() + '.png') });
+    }
 
     // Product processes and skill observations have distinct, expandable grouping.
     await page.setViewportSize({ width: 1200, height: 800 });
@@ -250,7 +267,7 @@ export async function checkResourceLayers(browser, url, out) {
 
     assert.deepEqual(errors, []);
     console.log(
-      'Resource layers: 48 theme/scale/viewport combinations, all pages, exact route anchors, empty DNS, deduplication, refreshed identities, details, stale motion, product/skill grouping and keyboard disclosure passed.',
+      'Resource layers: 48 theme/scale/viewport combinations, all pages, readable relationship geometry, empty DNS, deduplication, refreshed identities, process navigation, stale controls, product/skill grouping and keyboard disclosure passed.',
     );
   } finally {
     await page.close();
