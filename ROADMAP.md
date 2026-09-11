@@ -121,9 +121,11 @@ The dependency is those observations, not the absence of a Windows host.
    The [service measurements](docs/roadmap/etw-service-timings.md) now add v4 bounded
    collector/main timing and stage queue depths. The same workload retained 52,066
    output overflow drops; non-write pump work took 49.225 ms, writes 124.442 ms,
-   and empty-pump waits averaged 15.587 ms. Next test an output-available wakeup
-   with existing cancellation/drain bounds; these aggregates alone do not prove
-   that polling caused the overflow.
+   and empty-pump waits averaged 15.587 ms. The [output-wakeup change](docs/roadmap/etw-output-wakeup.md)
+   now replaces polling with queue/lifecycle/deadline signals while preserving drain
+   bounds. Its live run recorded 40 empty waits and 50,246 output overflow drops.
+   Overflow remains; differing burst rates prevent a causal throughput claim.
+   Next measure burst-interval arrival/drain rates, wake latency and broker forwarding.
 
 ## C — existing rules coverage
 

@@ -37,7 +37,7 @@ internal static class FileCollector
         {
             await send.Write(pipe, "hello", new
             {
-                build = live ? "etw-file-diagnostic-dev-4" : "etw-file-synthetic-check-4",
+                build = live ? "etw-file-diagnostic-dev-4-wakeup" : "etw-file-synthetic-check-4-wakeup",
                 profile = FileWire.Profile,
                 schemas = FileWire.Schemas
             }, lifetime.Token);
@@ -94,12 +94,12 @@ internal static class FileCollector
                 lifetime.Token.ThrowIfCancellationRequested();
                 if (capture?.Consumer?.IsCompleted == true) throw new IOException();
                 if (pipeline.Worker.IsCompleted) throw new IOException();
-                if (Stopwatch.GetTimestamp() - lastSample > 2 * Stopwatch.Frequency)
+                if (Stopwatch.GetTimestamp() - lastSample >= 2 * Stopwatch.Frequency)
                 {
                     Sample();
                     await send.Write(pipe, "heartbeat", Telemetry(), lifetime.Token);
                 }
-                if (!await Pump(lifetime.Token)) await Idle(lifetime.Token);
+                if (!await Pump(lifetime.Token)) await Idle(lifetime.Token, stopSignal.Task, capture?.Consumer);
             }
             stopRequest = await stopSignal.Task;
             if (trace != null) { stats = trace.Stop(); stopped = stats.Status == 0; owns = !stopped; CheckStats(); }
@@ -177,10 +177,19 @@ internal static class FileCollector
             try { bool result = await send.WriteObservations(pipe, pipeline.Take, token); success = true; return result; }
             finally { performance.Pump.Record(performance.Now() - start, !success); }
         }
-        async Task Idle(CancellationToken token)
+        async Task Idle(CancellationToken token, Task? stop = null, Task? consumer = null)
         {
             long start = performance.Now(); bool success = false;
-            try { await Task.Delay(10, token); success = true; }
+            // During capture the next heartbeat is the only timer. During drain,
+            // mapper completion/output/cancellation suffice; completed stop and
+            // capture tasks must not keep waking an empty draining queue.
+            var timeout = stop == null ? Timeout.InfiniteTimeSpan : TimeSpan.FromSeconds(
+                Math.Max(0, 2 - (Stopwatch.GetTimestamp() - lastSample) / (double)Stopwatch.Frequency));
+            try
+            {
+                await FilePumpWait.WaitAsync(pipeline.OutputAvailable, pipeline.Worker, consumer, stop, timeout, token);
+                success = true;
+            }
             finally { performance.IdleWait.Record(performance.Now() - start, !success); }
         }
     }

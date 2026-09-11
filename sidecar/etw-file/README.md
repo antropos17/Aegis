@@ -34,6 +34,12 @@ ingress/output queue depths. Ended reports retain collector and main measurement
 see [service measurements](../../docs/roadmap/etw-service-timings.md) for clock regions,
 nested durations and interpretation limits. No per-event timing history is retained.
 
+The `-wakeup` collector build waits for output availability, lifecycle signals or
+the next heartbeat after an empty pump. The prior 10 ms output polling delay is
+removed. `idleWait` now measures this signal/deadline wait; quiet periods still
+contribute to its total. See [output wakeup](../../docs/roadmap/etw-output-wakeup.md)
+for race, cancellation, drain and live-load evidence.
+
 For a separately agreed live check, run the following from normal PowerShell and
 approve **one** UAC prompt. The ordinary Node process reads its own temporary test
 file for ten seconds; only the collector elevates. This never sleeps the computer.

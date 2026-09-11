@@ -9,6 +9,7 @@ internal sealed class FilePipeline : IDisposable
     private sealed record Output(FileObservation Record, int Bytes);
     private readonly object gate = new();
     private readonly Queue<Output> outbound = new();
+    private TaskCompletionSource<bool> outputReady = NewReady();
     private readonly FileIngress ingress;
     private readonly FileMapping map;
     private readonly bool live;
@@ -22,6 +23,10 @@ internal sealed class FilePipeline : IDisposable
     private long lastGeneration;
     internal ulong OutputDropped { get { lock (gate) return outputOverflowDropped + outputInvalidatedDropped; } }
     internal Task Worker { get; }
+    // Level-triggered under the queue lock: enqueue before or after registration
+    // cannot lose a wakeup. One current task, no accumulating signal tokens.
+    internal Task OutputAvailable { get { lock (gate) return outputReady.Task; } }
+    private static TaskCompletionSource<bool> NewReady() => new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal FilePipeline(FileIngress input, FileScope scope, bool native,
         Func<FileObservation, FileObservation>? observer = null, Func<long>? timestamp = null)
     {
@@ -37,6 +42,7 @@ internal sealed class FilePipeline : IDisposable
             map.Reset(qpc);
             invalidation++;
             outputInvalidatedDropped += (ulong)outbound.Count; outbound.Clear(); bytes = 0;
+            if (outputReady.Task.IsCompleted) outputReady = NewReady();
         }
     }
     internal void Complete() { lock (gate) completed = true; }
@@ -79,6 +85,7 @@ internal sealed class FilePipeline : IDisposable
                     { outputOverflowDropped++; continue; }
                     outbound.Enqueue(new(record, cost)); bytes += cost;
                     highRecords = Math.Max(highRecords, outbound.Count); highBytes = Math.Max(highBytes, bytes);
+                    if (outbound.Count == 1) outputReady.TrySetResult(true);
                 }
             }
         }
@@ -92,6 +99,7 @@ internal sealed class FilePipeline : IDisposable
         {
             if (!outbound.TryDequeue(out var item)) return null;
             bytes -= item.Bytes; record = item.Record; epoch = invalidation;
+            if (outbound.Count == 0) outputReady = NewReady();
         }
         // One serial reader owns the probe budget. Never hold the map/queue lock
         // across a native call, and never cache a process creation observation.

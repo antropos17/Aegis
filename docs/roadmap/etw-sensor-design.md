@@ -344,6 +344,8 @@ zero durations. Output-write calls/time cannot exceed enclosing pump calls/time.
 Each stage queue has the same four uint32 fields/caps as `queues`. Main keeps its
 own fixed timing groups in local diagnostics and ended summaries; none enter IPC
 or the health loss count. See [measurement boundaries](etw-service-timings.md).
+The [output-wakeup implementation](etw-output-wakeup.md) preserves v4 fields;
+`idleWait` now measures waiting for output/lifecycle/deadline after an empty pump.
 
 Observation uint64s are strings; PID/TID fields are uint32 with the payload/issuing
 fields nullable. `generationInterval` is null or `{fromQpc, toQpc}` with ordered
