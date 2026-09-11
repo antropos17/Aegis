@@ -150,7 +150,9 @@
               >{/each}
           </select></label
         >
-        <button class="button" onclick={openProcess} disabled={!chosen}>{$t('Process')}</button>
+        <button class="button" onclick={openProcess} disabled={!chosen}
+          ><Icon name="cpu" />{$t('Process')}</button
+        >
       </details>
     {:else}
       <div class="radar-no-selection">

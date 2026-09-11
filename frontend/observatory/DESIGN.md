@@ -238,3 +238,14 @@ pause, play and stop marks while retaining labels, capability limits and the sto
 confirmation. Selected activity repeats the resource symbol and type shown in
 the list. Known metadata labels for process IDs, paths, domains, IPs, ports and
 observation times use the same icon vocabulary; other attributes stay plain.
+
+### Section navigation cues (2026-09-12)
+
+Agent sections and detail tabs pair their existing labels with optional neutral
+SVG symbols. Risk uses the shield, resource usage a chart, activity the activity
+line and processes the processor. Attributes, retained records, recognition and
+related entities use clipboard, history, search and connection symbols. Catalog
+and provider editor tabs use the same vocabulary. Tab labels, counts, selection
+and keyboard navigation remain visible and operable at enlarged scale. The
+radar's individual-process action also uses the processor symbol. Worker counts
+in the agent heading follow the selected language.
