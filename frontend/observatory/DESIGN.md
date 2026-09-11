@@ -105,3 +105,27 @@ Startup explains restart-sensitive options, update states use readable labels,
 and failed initial settings reads can be retried. The shared save/discard bar
 stays reachable with a distinct primary action and saving/reloading status.
 Provider credentials remain outside the generic settings form and exports.
+
+### Protection overview (2026-09-11)
+
+The user's request to make protection understandable supersedes the previous
+radar-first landing composition. Monitoring starts with a compact review count,
+observed agents, and the explicit absence of automatic access blocking. A bounded,
+searchable activity list combines retained file events with the latest connection
+snapshot and puts review flags first. Repeated records retain separate process
+lifetimes, actions and attribution evidence.
+
+Selecting activity opens its path or endpoint, explanation, current saved policy
+and links to evidence, the exact policy context and existing process controls.
+Unknown destinations, inferred ownership and open handles keep their uncertainty.
+Saved allow/block values are preferences; the backend does not enforce them.
+Failed policy reads show unavailable data; successful saves invalidate the overview.
+Process navigation uses the current population even while the displayed activity
+is paused. Selected evidence survives retention changes with an explicit label.
+
+Detailed monitoring retains the radar and charts and is mounted on demand. The
+default activity model reuses immutable deliveries across resource-only updates.
+The introductory help, native controls, focus return and responsive detail panel
+support keyboard use and larger text. Existing theme tokens and template files
+remain the visual base. Browser checks cover the new default and explicitly open
+detailed monitoring when checking the preserved radar layout.

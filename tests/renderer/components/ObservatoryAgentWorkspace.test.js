@@ -106,6 +106,7 @@ async function start() {
     { instanceId: agents[0].instanceId, cpu: 10, memMb: 100 },
     { instanceId: agents[1].instanceId, cpu: 70, memMb: 700 },
   ]);
+  await fireEvent.click(screen.getByRole('button', { name: 'Detailed monitoring' }));
   await waitFor(() =>
     expect(screen.getByRole('heading', { name: 'Agent radar', exact: true })).toBeVisible(),
   );

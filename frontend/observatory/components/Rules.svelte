@@ -16,10 +16,10 @@
   import AgentLogo from './AgentLogo.svelte';
   let section = $state('permissions');
   const profiles: Record<string, [string, string]> = {
-    paranoid: ['bell', 'Alert on every category'],
-    strict: ['shield', 'More alerts for risky actions'],
-    balanced: ['balance', 'Monitor every category'],
-    developer: ['terminal', 'Fewer notifications'],
+    paranoid: ['bell', 'Request block for every category'],
+    strict: ['shield', 'Request block for sensitive actions'],
+    balanced: ['balance', 'Prefer monitoring every category'],
+    developer: ['terminal', 'Prefer allowing most categories'],
   };
   const labels: Record<string, [string, string, string]> = {
     filesystem: ['folder', 'File system', 'Read and write files'],
@@ -29,7 +29,26 @@
     clipboard: ['clipboard', 'Clipboard', 'Clipboard policy category'],
     screen: ['monitor', 'Screen', 'Screen capture policy category'],
   };
-  let { host, telemetry }: { host: Host | null; telemetry: Telemetry } = $props();
+  let {
+    host,
+    telemetry,
+    targetRequest,
+    onPermissionsChanged,
+  }: {
+    host: Host | null;
+    telemetry: Telemetry;
+    targetRequest?: { key: string; revision: number };
+    onPermissionsChanged?: () => void;
+  } = $props();
+  let appliedTargetRevision = 0;
+  $effect(() => {
+    if (!loaded || mutation || !targetRequest || targetRequest.revision === appliedTargetRevision)
+      return;
+    appliedTargetRevision = targetRequest.revision;
+    section = 'permissions';
+    scope = targetRequest.key.includes('::') ? 'instance' : 'agent';
+    target = targetRequest.key;
+  });
   let permissions = $state<RecordData>({});
   let rules = $state<RecordData[]>([]);
   let target = $state('');
@@ -140,6 +159,7 @@
   async function reset() {
     return mutate('reset', async () => {
       confirmed(await invoke(host, 'resetPermissionsToDefaults'));
+      onPermissionsChanged?.();
       for (const key of Object.keys(drafts)) delete drafts[key];
       draftBaseline = JSON.stringify(draft);
       await load();
@@ -154,6 +174,7 @@
     confirmed(
       await invoke(host, 'saveInstancePermissions', { ...context, permissions: savingDraft }),
     );
+    onPermissionsChanged?.();
     if (JSON.stringify(drafts[savingKey]) === JSON.stringify(savingDraft)) delete drafts[savingKey];
     if (activeKey === savingKey && JSON.stringify(draft) === JSON.stringify(savingDraft))
       draftBaseline = JSON.stringify(savingDraft);
@@ -169,13 +190,14 @@
   >
 </div>
 <div hidden={section !== 'permissions'}>
-  <details class="policy-explanation">
-    <summary>About monitoring permissions</summary>
+  <div class="policy-explanation">
+    <strong>Saved preferences · automatic blocking is not active</strong>
     <p>
-      Profiles control monitoring responses. Policy labels do not establish that an action was
-      blocked.
+      These settings record your intended policy. They do not currently block file or network
+      access, or change which observations are collected. To pause or stop an agent, open its
+      process controls.
     </p>
-  </details>
+  </div>
   {#if error}<p role="alert">{error}</p>{/if}
   <div class="filterbar target-toolbar">
     <label
@@ -237,8 +259,8 @@
           disabled={!target || mutation === 'reset'}
           bind:value={draft[category]}
         >
-          <option value="allow">Allow</option><option value="monitor">Monitor</option><option
-            value="block">Block</option
+          <option value="allow">Prefer allow</option><option value="monitor">Monitor</option><option
+            value="block">Request block</option
           >
         </select>
       </div>
@@ -315,11 +337,14 @@
 <style>
   .policy-explanation {
     margin: 10px 0;
+    padding: var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--surface-radius);
     color: var(--muted);
     font-size: calc(12px * var(--ui-scale));
   }
-  .policy-explanation summary {
-    cursor: pointer;
+  .policy-explanation strong {
+    color: var(--amber);
   }
   .policy-explanation p {
     margin-top: 8px;

@@ -1,0 +1,150 @@
+<script lang="ts">
+  import { instances, type RecordData, type Telemetry } from '../runtime/host';
+  import { protectionPolicy, type ProtectionActivity } from '../runtime/protection';
+  let {
+    activity,
+    telemetry,
+    permissions,
+    inspect,
+    openPolicy,
+  }: {
+    activity: ProtectionActivity;
+    telemetry: Telemetry;
+    permissions: RecordData | null;
+    inspect: (_title: string, _row: RecordData) => void;
+    openPolicy: (_key: string) => void;
+  } = $props();
+  const policy = $derived(protectionPolicy(activity, instances(telemetry), permissions));
+</script>
+
+<aside class="panel evidence" aria-label="Selected activity">
+  <h3>Understand this activity</h3>
+  <p class="actor">{activity.actor}</p>
+  <p>{activity.action}</p>
+  <div class="destination"><span>Where</span><code>{activity.target}</code></div>
+  {#if activity.latest.remoteIp}<p class="muted">
+      Observed IP: {String(activity.latest.remoteIp)}{activity.latest.remotePort
+        ? `:${activity.latest.remotePort}`
+        : ''}
+    </p>{/if}
+  <h4>{activity.level === 'review' ? 'Why review this?' : 'What is known?'}</h4>
+  <p>{activity.reason}</p>
+  {#if activity.latest.reason}<p class="muted">
+      Recorded reason: {String(activity.latest.reason)}
+    </p>{/if}
+  <details>
+    <summary>{activity.attribution} · how do we know?</summary>
+    <p>{activity.explanation}</p>
+    <p>Source: {activity.source}</p>
+    {#if activity.latest.action === 'holding' || activity.latest.action === 'accessed'}
+      <p>An open handle does not prove that file contents were read.</p>
+    {/if}
+    <p>
+      {activity.rows.length} retained record(s){activity.time
+        ? ` · latest ${new Date(activity.time).toLocaleString()}`
+        : ' · observation time unavailable'}
+    </p>
+  </details>
+  <div class="preference">
+    <h4>Current saved preference</h4>
+    <strong>{policy.label}</strong>
+    <p>
+      AEGIS does not automatically block file or network access. A saved rule does not prove an
+      action was allowed or denied.
+    </p>
+    {#if policy.agent}<button class="button" onclick={() => openPolicy(policy.agent!.instanceKey)}
+        >Edit this agent’s policy</button
+      >{/if}
+  </div>
+  <h4>What you can do</h4>
+  <p>
+    If this activity is unexpected, inspect the agent. Its process page offers pause and stop
+    controls.
+  </p>
+  <div class="actions">
+    <button
+      class="button"
+      onclick={() =>
+        inspect(
+          'Activity evidence',
+          activity.rows.length > 1 ? { observations: activity.rows } : activity.latest,
+        )}>Open evidence</button
+    >
+    <button
+      class="button"
+      disabled={!policy.agent || telemetry.stale}
+      onclick={() =>
+        policy.agent && inspect(policy.agent.name, { ...policy.agent, detailSection: 'processes' })}
+      >Agent &amp; controls</button
+    >
+  </div>
+  {#if !policy.agent || telemetry.stale}<p class="muted">
+      Process controls need an exact, currently observed agent.
+    </p>{/if}
+</aside>
+
+<style>
+  .evidence {
+    padding: var(--space-4);
+    align-self: start;
+    font-size: var(--text-body);
+    line-height: 1.6;
+    min-width: 0;
+  }
+  h3 {
+    font-size: var(--text-section);
+    margin: 0 0 var(--space-4);
+  }
+  h4 {
+    font-size: var(--text-body);
+    margin: var(--space-4) 0 var(--space-2);
+  }
+  p {
+    margin: var(--space-2) 0;
+    overflow-wrap: anywhere;
+  }
+  .actor {
+    font-weight: 650;
+    font-size: var(--text-section);
+  }
+  .destination {
+    background: var(--bg);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--control-radius);
+    margin: var(--space-3) 0;
+  }
+  .destination span {
+    display: block;
+    color: var(--muted);
+    margin-bottom: var(--space-1);
+  }
+  code {
+    overflow-wrap: anywhere;
+    white-space: normal;
+    font-size: var(--text-body);
+  }
+  details {
+    margin: var(--space-4) 0;
+  }
+  summary {
+    cursor: pointer;
+  }
+  .preference {
+    border-block: 1px solid var(--border);
+    padding-bottom: var(--space-4);
+  }
+  .preference strong {
+    color: var(--amber);
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  button {
+    white-space: normal;
+    height: auto;
+    min-height: var(--control-height);
+  }
+</style>

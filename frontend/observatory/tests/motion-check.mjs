@@ -122,6 +122,7 @@ export async function checkMotion(page) {
   await page.getByRole('button', { name: 'Save settings', exact: true }).click();
   await page.waitForFunction(() => localStorage.getItem('aegis-motion') === 'reduce');
   await page.reload();
+  await page.getByRole('button', { name: 'Detailed monitoring', exact: true }).click();
   await page.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
   assert.equal(
     await page.locator('.dial-sweep').evaluate((node) => getComputedStyle(node).animationName),
