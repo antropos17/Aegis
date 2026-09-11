@@ -65,7 +65,6 @@ export async function checkWatchlist(browser, url, out) {
       );
     });
     await page.goto(url);
-    await page.getByRole('button', { name: 'Detailed monitoring', exact: true }).click();
     await page.evaluate(() =>
       window.watchlistFixture.listeners.onScanBatch({
         agents: [

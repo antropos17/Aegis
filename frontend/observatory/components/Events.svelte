@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { instances, type Telemetry, type RecordData } from '../runtime/host';
   import { describeObservation } from '../../../src/shared/observation-display.js';
   import { scopeEvidence, type AgentScope } from '../runtime/agent-scope';
@@ -88,22 +90,24 @@
 </script>
 
 {#if network}<div class="notice">
-    <Icon name="network" />Endpoint verification describes the address. Agent identity is shown
-    separately.
+    <Icon name="network" />{$t(
+      'Endpoint verification describes the address. Agent identity is shown separately.',
+    )}
   </div>{/if}
 <div class="filterbar evidence-filters">
   <label class="search-field"
     ><Icon name="search" /><input
-      aria-label={network ? 'Search connections' : 'Search events'}
+      aria-label={network ? $t('Search connections') : $t('Search events')}
       type="search"
-      placeholder={network ? 'Address or agent' : 'Skill, path or agent'}
+      placeholder={network ? $t('Address or agent') : $t('Skill, path or agent')}
       bind:value={query}
     /></label
   >
   <label class="grouping-filter"
-    >Grouping<select aria-label="Grouping" bind:value={grouping}
-      ><option value="resource">By resource</option><option value="agent">By agent / context</option
-      ><option value="none">Every observation</option></select
+    >{$t('Grouping')}<select aria-label={$t('Grouping')} bind:value={grouping}
+      ><option value="resource">{$t('By resource')}</option><option value="agent"
+        >{$t('By agent / context')}</option
+      ><option value="none">{$t('Every observation')}</option></select
     ></label
   >
   <div class="filter-actions">
@@ -112,8 +116,9 @@
       aria-expanded={filtersOpen}
       aria-controls={network ? 'network-filters' : 'event-filters'}
       onclick={() => (filtersOpen = !filtersOpen)}
-      >Filters {#if effectiveKind !== 'all' || localAgentFilter || attributionFilter !== 'all' || severity !== 'all'}<span
-          class="badge">Active</span
+      >{$t('Filters')}
+      {#if effectiveKind !== 'all' || localAgentFilter || attributionFilter !== 'all' || severity !== 'all'}<span
+          class="badge">{$t('Active')}</span
         >{/if}</button
     >
     {#if showPause}<button
@@ -123,10 +128,10 @@
           paused = !paused;
         }}
         ><Icon name={paused ? 'play' : 'pause'} />{paused
-          ? 'Resume live view'
-          : 'Pause view'}</button
+          ? $t('Resume live view')
+          : $t('Pause view')}</button
       >{/if}
-    <button class="button" aria-label="Reset filters" onclick={reset}>Reset</button>
+    <button class="button" aria-label={$t('Reset filters')} onclick={reset}>{$t('Reset')}</button>
   </div>
 </div>
 <div
@@ -135,42 +140,52 @@
   hidden={!filtersOpen}
 >
   {#if !scope}<label
-      >Agent / context<select aria-label="Event agent" bind:value={agent}
-        ><option value="">All agents and resources</option>{#each agentNames as name (name)}<option
-            >{name}</option
-          >{/each}<option value="unattributed">Actor not recorded</option></select
+      >{$t('Agent / context')}<select aria-label={$t('Event agent')} bind:value={agent}
+        ><option value="">{$t('All agents and resources')}</option
+        >{#each agentNames as name (name)}<option>{name}</option>{/each}<option value="unattributed"
+          >{$t('Actor not recorded')}</option
+        ></select
       ></label
     >{:else if !scope.agent}<label
-      >Attribution<select aria-label="Attribution" bind:value={attribution}>
-        <option value="all">All attribution</option>
-        <option value="unattributed">Actor not recorded</option>
+      >{$t('Attribution')}<select aria-label={$t('Attribution')} bind:value={attribution}>
+        <option value="all">{$t('All attribution')}</option>
+        <option value="unattributed">{$t('Actor not recorded')}</option>
       </select></label
     >{/if}
   <label
-    >{network ? 'Classification' : 'Type'}<select aria-label="Event kind" bind:value={kind}
-      ><option value="all">All</option>{#if network}<option value="flagged">Not allowlisted</option
-        ><option value="unknown">Endpoint unverified</option><option value="allowlisted"
-          >Allowlisted</option
-        >{:else}<option value="skills">Skills</option><option value="sensitive"
-          >Sensitive events</option
-        >{#if !scope}<option value="unattributed">Actor not recorded</option>{/if}{/if}</select
+    >{network ? $t('Classification') : $t('Type')}<select
+      aria-label={$t('Event kind')}
+      bind:value={kind}
+      ><option value="all">{$t('All')}</option>{#if network}<option value="flagged"
+          >{$t('Not allowlisted')}</option
+        ><option value="unknown">{$t('Endpoint unverified')}</option><option value="allowlisted"
+          >{$t('Allowlisted')}</option
+        >{:else}<option value="skills">{$t('Skills')}</option><option value="sensitive"
+          >{$t('Sensitive events')}</option
+        >{#if !scope}<option value="unattributed">{$t('Actor not recorded')}</option
+          >{/if}{/if}</select
     ></label
   >
   {#if !network}<label
-      >Severity<select bind:value={severity}
-        ><option value="all">All</option><option value="attention">Needs review</option><option
-          value="high">High</option
-        ><option value="medium">Medium</option><option value="low">Low</option></select
+      >{$t('Severity')}<select bind:value={severity}
+        ><option value="all">{$t('All')}</option><option value="attention"
+          >{$t('Needs review')}</option
+        ><option value="high">{$t('High')}</option><option value="medium">{$t('Medium')}</option
+        ><option value="low">{$t('Low')}</option></select
       ></label
     >{/if}
 </div>
-{#if paused}<p class="notice">View paused · backend monitoring continues.</p>{/if}
+{#if paused}<p class="notice">{$t('View paused · backend monitoring continues.')}</p>{/if}
 <div class="evidence-status" role="status">
   <span
-    >{filtered.length} of {rows.length}
-    {network ? 'connections' : 'events'} · {showingPaused ? 'Paused snapshot' : 'Live view'}</span
+    >{filtered.length}
+    {$t('of')}
+    {rows.length}
+    {network ? $t('connections') : $t('events')} · {showingPaused
+      ? $t('Paused snapshot')
+      : $t('Live view')}</span
   >{#if query || effectiveKind !== 'all' || localAgentFilter || attributionFilter !== 'all' || severity !== 'all'}<span
-      class="badge">Filters active</span
+      class="badge">{$t('Filters active')}</span
     >{/if}
 </div>
 <ObservationTable

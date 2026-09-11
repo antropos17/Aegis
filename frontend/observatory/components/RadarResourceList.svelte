@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import type { RadarResource } from '../runtime/radar-resources';
   import Icon from './Icon.svelte';
   let {
@@ -24,23 +26,25 @@
 
 <section
   class="resource-catalog"
-  aria-label={layer === 'files' ? 'Observed files' : 'Observed destinations'}
+  aria-label={layer === 'files' ? $t('Observed files') : $t('Observed destinations')}
 >
   <div class="catalog-pages">
     <span
-      >{resources.length ? `${index * 6 + 1}–${Math.min(resources.length, index * 6 + 6)}` : '0'} of {resources.length}</span
+      >{resources.length ? `${index * 6 + 1}–${Math.min(resources.length, index * 6 + 6)}` : '0'}
+      {$t('of')}
+      {resources.length}</span
     >
-    <nav aria-label="Resource pages">
+    <nav aria-label={$t('Resource pages')}>
       <button
         class="button"
-        aria-label="Previous radar resources"
+        aria-label={$t('Previous radar resources')}
         aria-disabled={index === 0}
         onclick={() => {
           if (index > 0) page = index - 1;
         }}><Icon name="arrowLeft" /></button
       ><button
         class="button"
-        aria-label="Next radar resources"
+        aria-label={$t('Next radar resources')}
         aria-disabled={index === pages - 1}
         onclick={() => {
           if (index < pages - 1) page = index + 1;
@@ -54,14 +58,14 @@
     ]}
     <button
       class="resource-choice"
-      aria-label={`Inspect ${resource.address}`}
+      aria-label={$t('Inspect {value0}', { value0: resource.address })}
       aria-pressed={selected === resource.key}
       onclick={(event) => select(resource, event.currentTarget)}
     >
       <span class="choice-heading"
         ><Icon name={layer === 'files' ? 'file' : 'network'} /><strong>{resource.label}</strong
         ><span class="resource-level" class:review={resource.level === 'review'}
-          >{resource.sensitive ? 'Sensitive' : labels[resource.level]}</span
+          >{resource.sensitive ? $t('Sensitive') : labels[resource.level]}</span
         ></span
       >
       {#if layer === 'files'}<span class="resource-path">{resource.address}</span>{/if}
@@ -72,17 +76,22 @@
         >{actors.slice(0, 2).join(', ')}{actors.length > 2 ? ` +${actors.length - 2}` : ''}</span
       >
       <span class="record-count"
-        >{resource.rows.length} record(s) · {resource.relations.length} relationships</span
+        >{resource.rows.length}
+        {$t('record(s) ·')}
+        {resource.relations.length}
+        {$t('relationships')}</span
       >
     </button>
   {:else}<div class="resource-empty" role="status">
       <Icon name={layer === 'files' ? 'folder' : 'network'} /><strong
-        >{ready ? 'No matching observations' : 'Waiting for a reliable scan'}</strong
+        >{ready ? $t('No matching observations') : $t('Waiting for a reliable scan')}</strong
       >
       <p>
         {ready
-          ? 'Try another agent or filter. An empty list does not establish that no activity occurred.'
-          : 'Resources appear when observations are available.'}
+          ? $t(
+              'Try another agent or filter. An empty list does not establish that no activity occurred.',
+            )
+          : $t('Resources appear when observations are available.')}
       </p>
     </div>{/each}
 </section>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import type { StatisticsSample } from '../runtime/statistics-history';
   import { metricObservations, plotMaximum } from '../runtime/statistics-plot';
   import { statisticsValue, type StatsMetric } from '../runtime/statistics-metrics';
@@ -66,8 +68,8 @@
   }
 </script>
 
-<section class="panel monitor" aria-label="Live performance monitor">
-  <div class="metric-rail" aria-label="Performance metrics">
+<section class="panel monitor" aria-label={$t('Live performance monitor')}>
+  <div class="metric-rail" aria-label={$t('Performance metrics')}>
     {#each metrics as item (item.id)}
       {@const current = metricObservations(samples, item.id, -Infinity, end)
         .filter((s) => !paused || typeof s.values[item.id] === 'number')
@@ -78,11 +80,11 @@
         onclick={() => choose(item.id)}
       >
         <span
-          ><strong>{item.label}</strong><small
+          ><strong>{$t(item.label)}</strong><small
             >{statisticsValue(current?.values[item.id], item.unit)}</small
           >
           {#if current?.coverage?.[item.id] && current.coverage[item.id].measured < current.coverage[item.id].total}<em
-              >Partial coverage</em
+              >{$t('Partial coverage')}</em
             >{/if}
         </span>
       </button>
@@ -91,41 +93,47 @@
   <div class="monitor-detail">
     <header>
       <div>
-        <h2>{metric.label}</h2>
+        <h2>{$t(metric.label)}</h2>
         <p class="measurement-status">
           {stale
-            ? 'View held'
+            ? $t('View held')
             : inspecting === null
               ? collection
-                ? 'Latest collection'
-                : 'Latest measurement'
+                ? $t('Latest collection')
+                : $t('Latest measurement')
               : collection
-                ? 'Selected collection'
-                : 'Selected measurement'} · {time(focused?.at)}
+                ? $t('Selected collection')
+                : $t('Selected measurement')} · {time(focused?.at)}
         </p>
       </div>
       <strong class="current">{statisticsValue(focused?.values[metric.id], metric.unit)}</strong>
     </header>
     <div class="monitor-tools">
       <label
-        >Time window<select aria-label="Performance history length" bind:value={period}
-          ><option value={60000}>1 minute</option><option value={180000}>3 minutes</option><option
-            value={300000}>5 minutes</option
-          ></select
+        >{$t('Time window')}<select
+          aria-label={$t('Performance history length')}
+          bind:value={period}
+          ><option value={60000}>{$t('1 minute')}</option><option value={180000}
+            >{$t('3 minutes')}</option
+          ><option value={300000}>{$t('5 minutes')}</option></select
         ></label
       >
-      <span>{values.length} measured points</span>
+      <span>{values.length} {$t('measured points')}</span>
     </div>
     <p class="coverage" class:partial={coverage && coverage.measured < coverage.total}>
-      {#if coverage}{coverage.measured < coverage.total ? 'Measured subtotal' : 'Measured total'} · {coverage.measured}
-        / {coverage.total} processes
+      {#if coverage}{coverage.measured < coverage.total
+          ? $t('Measured subtotal')
+          : $t('Measured total')} · {coverage.measured}
+        / {coverage.total}
+        {$t('processes')}
         {#if collection && collection.oldest < collection.newest}
-          · readings span {((collection.newest - collection.oldest) / 1000).toLocaleString(
-            undefined,
-            { maximumFractionDigits: 1 },
-          )} s
+          {$t('· readings span')}
+          {((collection.newest - collection.oldest) / 1000).toLocaleString(undefined, {
+            maximumFractionDigits: 1,
+          })}
+          {$t('s')}
         {/if}
-      {:else}Coverage is shown when this source supplies measurements.{/if}
+      {:else}{$t('Coverage is shown when this source supplies measurements.')}{/if}
     </p>
     <StatsPlot
       {observations}
@@ -138,7 +146,7 @@
       hover={(at) => (hoverAt = at)}
     />
     <div class="scrubber">
-      <label for={chartId + '-sample-' + metric.id}>Inspect</label>
+      <label for={chartId + '-sample-' + metric.id}>{$t('Inspect')}</label>
       <input
         id={chartId + '-sample-' + metric.id}
         type="range"
@@ -158,25 +166,28 @@
         onclick={() => {
           pinnedAt = null;
           hoverAt = null;
-        }}>Latest</button
+        }}>{$t('Latest')}</button
       >
     </div>
     <div class="monitor-summary">
-      <div><span>Sample average</span><strong>{statisticsValue(average, metric.unit)}</strong></div>
       <div>
-        <span>Peak</span><strong
+        <span>{$t('Sample average')}</span><strong>{statisticsValue(average, metric.unit)}</strong>
+      </div>
+      <div>
+        <span>{$t('Peak')}</span><strong
           >{statisticsValue(values.length ? Math.max(...values) : null, metric.unit)}</strong
         >
       </div>
       <p>
         {collection
-          ? 'Latest collected readings. Cached replies add no points.'
-          : 'Each point is a delivered measurement.'} Gaps mean unavailable data.
+          ? $t('Latest collected readings. Cached replies add no points.')
+          : $t('Each point is a delivered measurement.')}
+        {$t('Gaps mean unavailable data.')}
       </p>
     </div>
     <details class="metric-help">
-      <summary>About this metric</summary>
-      <p>{metric.description}</p>
+      <summary>{$t('About this metric')}</summary>
+      <p>{$t(metric.description)}</p>
     </details>
   </div>
 </section>

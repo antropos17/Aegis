@@ -21,9 +21,9 @@ export const icons: Record<string, { tag: string; attrs: Record<string, string> 
   edit: [{ tag: 'path', attrs: { d: 'm16 3 5 5-12 12-6 1 1-6L16 3Zm-2 2 5 5' } }],
   sort: [{ tag: 'path', attrs: { d: 'M8 3v18m-4-4 4 4 4-4M16 21V3m-4 4 4-4 4 4' } }],
   radar: [
-    { tag: 'circle', attrs: { cx: '12', cy: '12', r: '9' } },
-    { tag: 'circle', attrs: { cx: '12', cy: '12', r: '5' } },
-    { tag: 'path', attrs: { d: 'm12 12 6-7' } },
+    { tag: 'path', attrs: { d: 'M12 3a9 9 0 1 0 9 9M12 7a5 5 0 1 0 5 5M12 12l7-7' } },
+    { tag: 'circle', attrs: { cx: '12', cy: '12', r: '1', fill: 'currentColor', stroke: 'none' } },
+    { tag: 'circle', attrs: { cx: '6', cy: '16', r: '1', fill: 'currentColor', stroke: 'none' } },
   ],
   agents: [
     { tag: 'rect', attrs: { x: '3', y: '3', width: '7', height: '7', rx: '1' } },

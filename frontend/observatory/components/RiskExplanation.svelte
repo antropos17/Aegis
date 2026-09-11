@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { riskContext } from '../runtime/risk-context';
   import { riskBand } from '../runtime/radar';
   import type { RecordData, Telemetry } from '../runtime/host';
@@ -18,13 +20,13 @@
 
 <section class="detail-section risk-explanation">
   <div class="section-heading">
-    <h3>Why this score</h3>
+    <h3>{$t('Why this score')}</h3>
     <span class="badge"
       >{telemetry.stale
-        ? 'Last reliable snapshot'
+        ? $t('Last reliable snapshot')
         : context.captured
-          ? 'Assessment when opened'
-          : 'Latest assessment'}</span
+          ? $t('Assessment when opened')
+          : $t('Latest assessment')}</span
     >
   </div>
   {#if context.subject}
@@ -40,40 +42,45 @@
       <div>
         <strong
           >{context.score === null
-            ? 'Unavailable'
+            ? $t('Unavailable')
             : riskBand(context.score) + ' observed risk'}</strong
         >
         <p class="primary-reason">
           {!context.subject.instanceId
-            ? 'Activity cannot be linked'
-            : (context.contributions[0]?.label ?? 'No scored activity')}
+            ? $t('Activity cannot be linked')
+            : (context.contributions[0]?.label ?? $t('No scored activity'))}
         </p>
       </div>
     </div>
     {#if row.agentGroupKey}
       <p class="scope">
-        {context.processCount} worker {context.processCount === 1 ? 'process' : 'processes'} · Highest
-        score: PID {String(context.subject.pid)}.
-        {#if context.tied > 1}{context.tied} processes share this score.{/if}
+        {context.processCount}
+        {$t('worker')}
+        {context.processCount === 1 ? $t('process') : $t('processes')}
+        {$t('· Highest score: PID')}
+        {String(context.subject.pid)}.
+        {#if context.tied > 1}{context.tied} {$t('processes share this score.')}{/if}
       </p>
       <button
         class="button"
         onclick={() => navigate(String(context.subject?.name || 'Process'), context.subject!)}
       >
-        View process PID {String(context.subject.pid)}<Icon name="chevron" />
+        {$t('View process PID')}
+        {String(context.subject.pid)}<Icon name="chevron" />
       </button>
     {:else}
       <p class="scope">
-        Assessment for PID {String(context.subject.pid)} · {String(
-          context.subject.process || 'Process',
-        )}
+        {$t('Assessment for PID')}
+        {String(context.subject.pid)} · {String(context.subject.process || 'Process')}
       </p>
     {/if}
     {#if context.unlinked}
       <p class="notice">
         {context.unlinked}
-        {context.unlinked === 1 ? 'process has' : 'processes have'} no recorded identity. Their activity
-        cannot be linked, so the assessment has limited coverage.
+        {context.unlinked === 1 ? $t('process has') : $t('processes have')}
+        {$t(
+          'no recorded identity. Their activity cannot be linked, so the assessment has limited coverage.',
+        )}
       </p>
     {/if}
     {#if context.available}
@@ -81,33 +88,39 @@
         <ul class="factor-list">
           {#each context.contributions as factor (factor.id)}
             <li>
-              <div><strong>{factor.label}</strong><span>+{points(factor.points)}</span></div>
-              <p>{factor.detail}</p>
+              <div><strong>{$t(factor.label)}</strong><span>+{points(factor.points)}</span></div>
+              <p>{$t(factor.detail)}</p>
             </li>
           {/each}
         </ul>
       {:else}
         <p class="notice">
-          No contributing file or network activity in the available observations. Coverage
-          determines what AEGIS can assess.
+          {$t(
+            'No contributing file or network activity in the available observations. Coverage determines what AEGIS can assess.',
+          )}
         </p>
       {/if}
       {#if context.adjustment < 0}
         <div class="adjustment">
-          <strong>Saved exception</strong><span>{points(context.adjustment)}</span>
+          <strong>{$t('Saved exception')}</strong><span>{points(context.adjustment)}</span>
         </div>
-        <p class="entity-note">An existing false-positive exception lowers this agent's score.</p>
+        <p class="entity-note">
+          {$t("An existing false-positive exception lowers this agent's score.")}
+        </p>
       {/if}
       <p class="entity-note">
-        The total is rounded and capped at 100 before saved adjustments. Older file activity carries
-        less weight. Behaviour anomaly is assessed separately.
+        {$t(
+          'The total is rounded and capped at 100 before saved adjustments. Older file activity carries less weight. Behaviour anomaly is assessed separately.',
+        )}
       </p>
     {:else}
-      <p class="notice">A factor breakdown is unavailable for this assessment.</p>
+      <p class="notice">{$t('A factor breakdown is unavailable for this assessment.')}</p>
     {/if}
   {:else}
     <p class="notice">
-      This agent is no longer in the available snapshot. A current risk explanation is unavailable.
+      {$t(
+        'This agent is no longer in the available snapshot. A current risk explanation is unavailable.',
+      )}
     </p>
   {/if}
 </section>

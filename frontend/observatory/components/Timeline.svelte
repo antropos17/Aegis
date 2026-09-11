@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { instances, type Telemetry, type RecordData } from '../runtime/host';
   import { activityBins, activityTimeLabel } from '../runtime/activity';
   import { radarGroups } from '../runtime/radar';
@@ -40,12 +42,13 @@
 
 <section class="panel timeline-panel">
   <div class="panel-head">
-    <h2><Icon name="activity" />Timeline</h2>
+    <h2><Icon name="activity" />{$t('Timeline')}</h2>
     <span class="filter-count"
-      >{telemetry.events.length} retained events{paused
-        ? ' · Paused'
+      >{telemetry.events.length}
+      {$t('retained events')}{paused
+        ? $t(' · Paused')
         : telemetry.stale
-          ? ' · Observation unavailable'
+          ? $t(' · Observation unavailable')
           : ''}</span
     >
   </div>
@@ -69,7 +72,10 @@
                 class="event-tick"
                 class:medium={b.events.some((e) => e.sensitive)}
                 style={`left:${((i + 0.5) / 12) * 100}%`}
-                aria-label={`${g.name}: ${b.events.length} events`}
+                aria-label={$t('{value0}: {value1} events', {
+                  value0: g.name,
+                  value1: b.events.length,
+                })}
                 onkeydown={keys}
                 onclick={() =>
                   inspect('Activity interval', {
@@ -79,7 +85,7 @@
                   })}>{b.events.length}</button
               >{/if}{/each}
         </div>
-      </div>{:else}<p class="inset muted">No observed agents.</p>{/each}
+      </div>{:else}<p class="inset muted">{$t('No observed agents.')}</p>{/each}
   </div>
   <div class="time-labels">
     {#each [0, 0.25, 0.5, 0.75, 1] as n (n)}<span
@@ -88,19 +94,19 @@
   </div>
   <div class="timeline-controls">
     <label
-      >Range<select bind:value={range}
-        ><option value={5}>5 min</option><option value={15}>15 min</option><option value={60}
-          >1 hour</option
+      >{$t('Range')}<select bind:value={range}
+        ><option value={5}>{$t('5 min')}</option><option value={15}>{$t('15 min')}</option><option
+          value={60}>{$t('1 hour')}</option
         ></select
       ></label
     ><input
       type="range"
-      aria-label="Timeline offset in seconds"
+      aria-label={$t('Timeline offset in seconds')}
       min="0"
       max="900"
       step="15"
       bind:value={offset}
-    /><button class="text-button" onclick={() => (offset = 0)}>Jump to now</button>
+    /><button class="text-button" onclick={() => (offset = 0)}>{$t('Jump to now')}</button>
   </div>
 </section>
 

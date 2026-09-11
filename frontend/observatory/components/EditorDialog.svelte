@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { onMount, tick, untrack, type Snippet } from 'svelte';
   import Icon from './Icon.svelte';
   import SectionTabs from './SectionTabs.svelte';
@@ -53,7 +55,7 @@
       <span class="muted">{caption}</span>
       <h2 {id} tabindex="-1" bind:this={heading}>{title}</h2>
     </div>
-    <button class="icon-button" aria-label="Close dialog" onclick={close}
+    <button class="icon-button" aria-label={$t('Close dialog')} onclick={close}
       ><Icon name="close" /></button
     >
   </div>

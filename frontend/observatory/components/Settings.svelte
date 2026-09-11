@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { onMount, tick, untrack } from 'svelte';
   import { confirmed, invoke, record, type Host, type RecordData } from '../runtime/host';
   import Action from './Action.svelte';
@@ -261,23 +263,23 @@
       action={async () => {
         await load();
         if (alive) error = '';
-      }}>Retry loading</Action
+      }}>{$t('Retry loading')}</Action
     >
   </div>{/if}
 {#if refreshWarning}<p role="status" class="notice">{refreshWarning}</p>{/if}
 <div class="settings-workspace panel">
   <div class="settings-intro">
     <div>
-      <h2>Application preferences</h2>
-      <p>Configure this workstation. Your draft stays here when you switch sections.</p>
+      <h2>{$t('Application preferences')}</h2>
+      <p>{$t('Configure this workstation. Your draft stays here when you switch sections.')}</p>
     </div>
-    <span class="badge">Local settings</span>
+    <span class="badge">{$t('Local settings')}</span>
   </div>
   <SectionTabs
     {tabs}
     selected={section}
     prefix={id}
-    label="Settings sections"
+    label={$t('Settings sections')}
     change={(value) => {
       section = value;
     }}
@@ -312,25 +314,27 @@
       hidden={section !== 'desktop'}
     >
       <SettingsGroup
-        title="Desktop startup"
-        description="Choose how AEGIS starts and renders its interface."
+        title={$t('Desktop startup')}
+        description={$t('Choose how AEGIS starts and renders its interface.')}
       >
         {#each toggles.slice(2, 5) as [key, label] (key)}<label class="setting"
-            ><span>{label}<small>{startupHelp[key]}</small></span><input
+            ><span>{$t(label)}<small>{$t(startupHelp[key])}</small></span><input
               type="checkbox"
-              aria-label={label}
+              aria-label={$t(label)}
               checked={form[key] === true}
               onchange={(e) => (form[key] = e.currentTarget.checked)}
             /></label
           >{/each}
       </SettingsGroup>
       <SettingsGroup
-        title="Updates"
-        description="Check for releases and choose when to install them."
+        title={$t('Updates')}
+        description={$t('Check for releases and choose when to install them.')}
       >
         <label class="setting"
           ><span
-            >Check automatically<small>Look for available releases in the background.</small></span
+            >{$t('Check automatically')}<small
+              >{$t('Look for available releases in the background.')}</small
+            ></span
           ><input
             type="checkbox"
             checked={form.automaticUpdatesEnabled === true}
@@ -338,7 +342,7 @@
           /></label
         >
         <p class="muted" role="status">
-          {updateLabels[String(updates.status)] ?? 'Update status unavailable'}
+          {$t(updateLabels[String(updates.status)] ?? 'Update status unavailable')}
           {String(updates.version ?? '')}
         </p>
         {#if updates.notes}<p class="muted">{String(updates.notes)}</p>{/if}{#if updates.error}<p
@@ -355,11 +359,11 @@
               String(updates.status),
             )}
             action={() => update('checkForUpdates')}
-            ><Icon name="refresh" />Check for updates</Action
+            ><Icon name="refresh" />{$t('Check for updates')}</Action
           >{#if updates.status === 'available'}<Action action={() => update('downloadUpdate')}
-              >Download update</Action
+              >{$t('Download update')}</Action
             >{/if}{#if updates.status === 'ready'}<Action action={() => update('installUpdate')}
-              >Install and restart</Action
+              >{$t('Install and restart')}</Action
             >{/if}
         </div>
       </SettingsGroup>
@@ -373,70 +377,75 @@
       hidden={section !== 'data'}
     >
       <SettingsGroup
-        title="Anthropic analysis"
-        description="Manage the provider connection and analysis options in their dedicated workspace."
+        title={$t('Anthropic analysis')}
+        description={$t(
+          'Manage the provider connection and analysis options in their dedicated workspace.',
+        )}
       >
         <p class="muted">
-          Connect Anthropic, review evidence and customize reports in the AI analysis workspace.
+          {$t(
+            'Connect Anthropic, review evidence and customize reports in the AI analysis workspace.',
+          )}
         </p>
         <div class="toolbar">
           <button class="button" onclick={() => navigate('analysis')}
-            ><Icon name="shield" />Open AI analysis</button
+            ><Icon name="shield" />{$t('Open AI analysis')}</button
           >
         </div>
       </SettingsGroup>
       <SettingsGroup
-        title="Configuration"
-        description="Back up saved preferences or restore them from a configuration file."
+        title={$t('Configuration')}
+        description={$t('Back up saved preferences or restore them from a configuration file.')}
       >
         <p class="muted">
-          Export contains saved settings without the API key. Import replaces saved preferences and
-          the current draft; imported values are validated.
+          {$t(
+            'Export contains saved settings without the API key. Import replaces saved preferences and the current draft; imported values are validated.',
+          )}
         </p>
         <div class="toolbar">
           <Action action={async () => confirmed(await invoke(host, 'exportConfig'))}
-            ><Icon name="download" />Export</Action
+            ><Icon name="download" />{$t('Export')}</Action
           ><Action disabled={mutation !== null} action={() => replaceSettings(true)}
-            ><Icon name="upload" />Import</Action
+            ><Icon name="upload" />{$t('Import')}</Action
           >
         </div>
       </SettingsGroup>
       <SettingsGroup
-        title="Keyboard shortcuts"
-        description="Navigate AEGIS without leaving the keyboard."
+        title={$t('Keyboard shortcuts')}
+        description={$t('Navigate AEGIS without leaving the keyboard.')}
       >
         <dl class="details-grid">
-          <dt>Commands</dt>
-          <dd><kbd>Ctrl K</kbd></dd>
-          <dt>Views</dt>
+          <dt>{$t('Commands')}</dt>
+          <dd><kbd>{$t('Ctrl K')}</kbd></dd>
+          <dt>{$t('Views')}</dt>
           <dd><kbd>1</kbd> — <kbd>5</kbd></dd>
-          <dt>Theme / settings</dt>
-          <dd><kbd>T</kbd> / <kbd>S</kbd></dd>
-          <dt>History</dt>
-          <dd><kbd>Alt ←</kbd> / <kbd>Alt →</kbd></dd>
-          <dt>Close dialog</dt>
-          <dd><kbd>Esc</kbd></dd>
+          <dt>{$t('Theme / settings')}</dt>
+          <dd><kbd>{$t('T')}</kbd> / <kbd>{$t('S')}</kbd></dd>
+          <dt>{$t('History')}</dt>
+          <dd><kbd>{$t('Alt ←')}</kbd> / <kbd>{$t('Alt →')}</kbd></dd>
+          <dt>{$t('Close dialog')}</dt>
+          <dd><kbd>{$t('Esc')}</kbd></dd>
         </dl>
       </SettingsGroup>
     </div>
   </fieldset>
-  {#if validation}<p class="notice" role="alert">{validation}</p>{/if}
+  {#if validation}<p class="notice" role="alert">{$t(validation)}</p>{/if}
   <div class="settings-save">
     <span class="settings-draft" role="status"
       >{!loaded
-        ? 'Loading settings…'
+        ? $t('Loading settings…')
         : mutation === 'save'
-          ? 'Saving changes…'
+          ? $t('Saving changes…')
           : mutation === 'replace'
-            ? 'Reloading settings…'
+            ? $t('Reloading settings…')
             : dirty
-              ? 'Unsaved changes'
-              : 'Settings saved'}</span
+              ? $t('Unsaved changes')
+              : $t('Settings saved')}</span
     >
     <Action disabled={!loaded || !dirty || mutation !== null} action={() => replaceSettings()}
-      ><Icon name="close" />Discard changes</Action
+      ><Icon name="close" />{$t('Discard changes')}</Action
     ><Action disabled={!loaded || !dirty || mutation !== null || !!validation} action={save}
-      ><Icon name="check" />Save settings</Action
+      ><Icon name="check" />{$t('Save settings')}</Action
     >
   </div>
 </div>

@@ -48,13 +48,7 @@
   color: var(--muted);
 }
 .radar-clarity .radar-blip::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border: 1px solid var(--marker-color, var(--green));
-  border-radius: 50%;
-  opacity: 0;
-  pointer-events: none;
+  content: none;
 }
 .radar-clarity .radar-blip.low {
   --marker-color: var(--green);
@@ -101,11 +95,9 @@
     border-color: var(--strong-border);
   }
   .radar-clarity .radar-blip:hover {
-    box-shadow: 0 0 0 5px color-mix(in srgb, var(--marker-color) 16%, transparent);
-  }
-  .radar-clarity .radar-blip::after {
-    animation: observation-echo 6s linear infinite;
-    animation-delay: var(--echo-delay, 0s);
+    background: var(--panel);
+    border-color: var(--strong-border);
+    box-shadow: none;
   }
   .radar-clarity .dial-sweep {
     animation-duration: 6s;

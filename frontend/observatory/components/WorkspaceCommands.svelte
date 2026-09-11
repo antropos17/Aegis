@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { tick } from 'svelte';
   import { findCommands, type WorkspaceCommand } from '../runtime/navigation';
   import Icon from './Icon.svelte';
@@ -17,7 +19,17 @@
   let input: HTMLInputElement;
   let query = $state('');
   let active = $state(0);
-  let filtered = $derived(findCommands(entries, query));
+  let filtered = $derived(
+    findCommands(
+      entries.map((entry) => ({
+        ...entry,
+        label: $t(entry.label),
+        caption: $t(entry.caption),
+        keywords: entry.keywords + ' ' + entry.label + ' ' + entry.caption,
+      })),
+      query,
+    ),
+  );
   let trigger: HTMLElement | null = null;
   $effect(() => {
     if (open && !dialog.open) {
@@ -57,10 +69,10 @@
 >
   <div class="command-head">
     <div>
-      <h2 id="command-title">Go to workspace or section</h2>
-      <p>Find related information without leaving a trail of open tabs.</p>
+      <h2 id="command-title">{$t('Go to workspace or section')}</h2>
+      <p>{$t('Find related information without leaving a trail of open tabs.')}</p>
     </div>
-    <button class="icon-button" aria-label="Close commands" onclick={close}
+    <button class="icon-button" aria-label={$t('Close commands')} onclick={close}
       ><Icon name="close" /></button
     >
   </div>
@@ -72,16 +84,16 @@
       bind:value={query}
       oninput={() => (active = 0)}
       role="combobox"
-      aria-label="Find a workspace or action"
+      aria-label={$t('Find a workspace or action')}
       aria-expanded="true"
       aria-controls="command-results"
       aria-autocomplete="list"
       aria-activedescendant={filtered[active] ? 'command-result-' + active : undefined}
-      placeholder="Workspace, chart, settings…"
+      placeholder={$t('Workspace, chart, settings…')}
       onkeydown={move}
     />
   </label>
-  <div id="command-results" role="listbox" aria-label="Destinations" class="command-results">
+  <div id="command-results" role="listbox" aria-label={$t('Destinations')} class="command-results">
     {#each filtered as entry, index (entry.id)}
       <button
         role="option"
@@ -94,9 +106,11 @@
           name="chevron"
         />
       </button>
-    {:else}<p class="inset muted">No matching destination.</p>{/each}
+    {:else}<p class="inset muted">{$t('No matching destination.')}</p>{/each}
   </div>
-  <div class="command-foot"><span>↑ ↓ to choose · Enter to open</span><kbd>Esc</kbd></div>
+  <div class="command-foot">
+    <span>{$t('↑ ↓ to choose · Enter to open')}</span><kbd>{$t('Esc')}</kbd>
+  </div>
 </dialog>
 
 <style>

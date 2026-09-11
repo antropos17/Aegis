@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { instances, type RecordData, type Telemetry } from '../runtime/host';
   import { protectionPolicy, type ProtectionActivity } from '../runtime/protection';
   let {
@@ -17,49 +19,54 @@
   const policy = $derived(protectionPolicy(activity, instances(telemetry), permissions));
 </script>
 
-<aside class="panel evidence" aria-label="Selected activity">
-  <h3>Understand this activity</h3>
+<aside class="panel evidence" aria-label={$t('Selected activity')}>
+  <h3>{$t('Understand this activity')}</h3>
   <p class="actor">{activity.actor}</p>
-  <p>{activity.action}</p>
-  <div class="destination"><span>Where</span><code>{activity.target}</code></div>
+  <p>{$t(activity.action)}</p>
+  <div class="destination"><span>{$t('Where')}</span><code>{activity.target}</code></div>
   {#if activity.latest.remoteIp}<p class="muted">
-      Observed IP: {String(activity.latest.remoteIp)}{activity.latest.remotePort
+      {$t('Observed IP:')}
+      {String(activity.latest.remoteIp)}{activity.latest.remotePort
         ? `:${activity.latest.remotePort}`
         : ''}
     </p>{/if}
-  <h4>{activity.level === 'review' ? 'Why review this?' : 'What is known?'}</h4>
-  <p>{activity.reason}</p>
+  <h4>{activity.level === 'review' ? $t('Why review this?') : $t('What is known?')}</h4>
+  <p>{$t(activity.reason)}</p>
   {#if activity.latest.reason}<p class="muted">
-      Recorded reason: {String(activity.latest.reason)}
+      {$t('Recorded reason:')}
+      {String(activity.latest.reason)}
     </p>{/if}
   <details>
-    <summary>{activity.attribution} · how do we know?</summary>
+    <summary>{$t(activity.attribution)} {$t('· how do we know?')}</summary>
     <p>{activity.explanation}</p>
-    <p>Source: {activity.source}</p>
+    <p>{$t('Source:')} {activity.source}</p>
     {#if activity.latest.action === 'holding' || activity.latest.action === 'accessed'}
-      <p>An open handle does not prove that file contents were read.</p>
+      <p>{$t('An open handle does not prove that file contents were read.')}</p>
     {/if}
     <p>
-      {activity.rows.length} retained record(s){activity.time
-        ? ` · latest ${new Date(activity.time).toLocaleString()}`
-        : ' · observation time unavailable'}
+      {activity.rows.length}
+      {$t('retained record(s)')}{activity.time
+        ? $t(' · latest {value0}', { value0: new Date(activity.time).toLocaleString() })
+        : $t(' · observation time unavailable')}
     </p>
   </details>
   <div class="preference">
-    <h4>Current saved preference</h4>
-    <strong>{policy.label}</strong>
+    <h4>{$t('Current saved preference')}</h4>
+    <strong>{$t(policy.label)}</strong>
     <p>
-      AEGIS does not automatically block file or network access. A saved rule does not prove an
-      action was allowed or denied.
+      {$t(
+        'AEGIS does not automatically block file or network access. A saved rule does not prove an action was allowed or denied.',
+      )}
     </p>
     {#if policy.agent}<button class="button" onclick={() => openPolicy(policy.agent!.instanceKey)}
-        >Edit this agent’s policy</button
+        >{$t('Edit this agent’s policy')}</button
       >{/if}
   </div>
-  <h4>What you can do</h4>
+  <h4>{$t('What you can do')}</h4>
   <p>
-    If this activity is unexpected, inspect the agent. Its process page offers pause and stop
-    controls.
+    {$t(
+      'If this activity is unexpected, inspect the agent. Its process page offers pause and stop controls.',
+    )}
   </p>
   <div class="actions">
     <button
@@ -68,18 +75,18 @@
         inspect(
           'Activity evidence',
           activity.rows.length > 1 ? { observations: activity.rows } : activity.latest,
-        )}>Open evidence</button
+        )}>{$t('Open evidence')}</button
     >
     <button
       class="button"
       disabled={!policy.agent || telemetry.stale}
       onclick={() =>
         policy.agent && inspect(policy.agent.name, { ...policy.agent, detailSection: 'processes' })}
-      >Agent &amp; controls</button
+      >{$t('Agent & controls')}</button
     >
   </div>
   {#if !policy.agent || telemetry.stale}<p class="muted">
-      Process controls need an exact, currently observed agent.
+      {$t('Process controls need an exact, currently observed agent.')}
     </p>{/if}
 </aside>
 

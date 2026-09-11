@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { onMount } from 'svelte';
   import { confirmed, invoke, record, records, type Host, type RecordData } from '../runtime/host';
   import Action from './Action.svelte';
@@ -155,7 +157,7 @@
       auditSection = id;
     }}
     prefix="audit"
-    label="Audit sections"
+    label={$t('Audit sections')}
   />
   <div
     role="tabpanel"
@@ -167,48 +169,48 @@
       <label class="search-field"
         ><Icon name="search" /><input
           type="search"
-          aria-label="Search audit entries"
-          placeholder="Resource, agent, action or PID"
+          aria-label={$t('Search audit entries')}
+          placeholder={$t('Resource, agent, action or PID')}
           bind:value={query}
         /></label
       >
       <label
-        >Type<select
+        >{$t('Type')}<select
           bind:value={type}
           disabled={loading}
           onchange={(event) => {
             type = event.currentTarget.value;
             void refresh(true).catch(() => {});
           }}
-          ><option value="">All entries</option
+          ><option value="">{$t('All entries')}</option
           >{#each ['file-access', 'config-access', 'network-connection', 'agent-enter', 'agent-exit', 'anomaly-alert', 'sequence-detection', 'observation-gap', 'permission-deny'] as name (name)}<option
               >{name}</option
             >{/each}</select
         ></label
       ><label
-        >Grouping<select aria-label="Audit grouping" bind:value={grouping}
-          ><option value="resource">By resource</option><option value="agent"
-            >By agent / context</option
-          ><option value="none">Every observation</option></select
+        >{$t('Grouping')}<select aria-label={$t('Audit grouping')} bind:value={grouping}
+          ><option value="resource">{$t('By resource')}</option><option value="agent"
+            >{$t('By agent / context')}</option
+          ><option value="none">{$t('Every observation')}</option></select
         ></label
       ><button
         class="button"
         disabled={loading}
         aria-busy={loading}
-        onclick={() => void refresh(true).catch(() => {})}>Refresh</button
+        onclick={() => void refresh(true).catch(() => {})}>{$t('Refresh')}</button
       ><span class="spacer"></span><Action
         action={async () => confirmed(await invoke(host, 'openAuditLogDir'))}
-        ><Icon name="folder" />Audit folder</Action
+        ><Icon name="folder" />{$t('Audit folder')}</Action
       ><Action action={async () => confirmed(await invoke(host, 'exportFullAudit'))}
-        ><Icon name="download" />Export full audit</Action
+        ><Icon name="download" />{$t('Export full audit')}</Action
       >
     </div>
     {#if error}<p role="alert" class="notice">{error}</p>{/if}
     <p class="entity-note" role="status">
       {loading
-        ? 'Loading audit entries…'
+        ? $t('Loading audit entries…')
         : filtered.length + ' of ' + rows.length + ' loaded entries'}{#if query}
-        · search covers loaded entries{/if}
+        {$t('· search covers loaded entries')}{/if}
     </p>
     <ObservationTable
       rows={filtered}
@@ -218,11 +220,11 @@
       resetKey={JSON.stringify([appliedType, query])}
     />
     <div class="pagination">
-      <span>{rows.length} audit entries loaded</span><button
+      <span>{rows.length} {$t('audit entries loaded')}</span><button
         class="button"
         disabled={exhausted || loading}
         aria-busy={loading}
-        onclick={() => void refresh().catch(() => {})}>Load older entries</button
+        onclick={() => void refresh().catch(() => {})}>{$t('Load older entries')}</button
       >
     </div>
   </div>
@@ -235,23 +237,29 @@
     <section class="panel">
       <div class="inline-stats">
         <div>
-          <strong>{String(stats.persistedEntries ?? '—')}</strong><span>persisted entries</span>
+          <strong>{String(stats.persistedEntries ?? '—')}</strong><span
+            >{$t('persisted entries')}</span
+          >
         </div>
-        <div><strong>{String(stats.bufferDepth ?? '—')}</strong><span>queued</span></div>
-        <div><strong>{String(stats.droppedEntries ?? '—')}</strong><span>dropped</span></div>
+        <div><strong>{String(stats.bufferDepth ?? '—')}</strong><span>{$t('queued')}</span></div>
+        <div>
+          <strong>{String(stats.droppedEntries ?? '—')}</strong><span>{$t('dropped')}</span>
+        </div>
         <div>
           <strong
             >{typeof stats.totalSize === 'number'
               ? (stats.totalSize / 1024).toFixed(1) + ' KB'
               : '—'}</strong
-          ><span>stored history</span>
+          ><span>{$t('stored history')}</span>
         </div>
       </div>
     </section>
 
     <section class="panel delivery-fields">
-      <h2>Audit delivery details</h2>
-      <p class="entity-note">Storage and delivery counters describe retained audit history.</p>
+      <h2>{$t('Audit delivery details')}</h2>
+      <p class="entity-note">
+        {$t('Storage and delivery counters describe retained audit history.')}
+      </p>
       <Metadata
         value={Object.fromEntries(
           Object.entries(stats).filter(
@@ -273,7 +281,7 @@
       reportSection = id;
     }}
     prefix="reports"
-    label="Report sections"
+    label={$t('Report sections')}
   />
   <div class="report-content">
     <div
@@ -283,25 +291,32 @@
       aria-labelledby="reports-tab-summary"
       hidden={reportSection !== 'summary'}
     >
-      <div class="panel-head"><h2><Icon name="report" />Session summary</h2></div>
+      <div class="panel-head"><h2><Icon name="report" />{$t('Session summary')}</h2></div>
       <div class="inline-stats">
         <div>
-          <strong>{String(telemetry.stats.totalFiles ?? '—')}</strong><span>file observations</span>
+          <strong>{String(telemetry.stats.totalFiles ?? '—')}</strong><span
+            >{$t('file observations')}</span
+          >
         </div>
         <div>
           <strong
             >{telemetry.ready
               ? telemetry.events.filter((event) => event.sensitive === true).length
               : '—'}</strong
-          ><span>retained sensitive events</span>
+          ><span>{$t('retained sensitive events')}</span>
         </div>
         <div>
-          <strong>{telemetry.ready ? groups.length : '—'}</strong><span>agents</span>
+          <strong>{telemetry.ready ? groups.length : '—'}</strong><span>{$t('agents')}</span>
         </div>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Agent</th><th>Processes</th><th>Highest risk</th><th>Files</th></tr></thead
+          <thead
+            ><tr
+              ><th>{$t('Agent')}</th><th>{$t('Processes')}</th><th>{$t('Highest risk')}</th><th
+                >{$t('Files')}</th
+              ></tr
+            ></thead
           >
           <tbody
             >{#each groups as group (group.key)}<tr class="report-agent-group"
@@ -314,7 +329,7 @@
                 ><td>{group.members.length}</td><td>{group.risk}/100</td><td
                   >{groupEvidence(group, telemetry).files}</td
                 ></tr
-              >{:else}<tr><td colspan="4">No observed agents.</td></tr>{/each}</tbody
+              >{:else}<tr><td colspan="4">{$t('No observed agents.')}</td></tr>{/each}</tbody
           >
         </table>
       </div>
@@ -326,15 +341,15 @@
       aria-labelledby="reports-tab-export"
       hidden={reportSection !== 'export'}
     >
-      <div class="panel-head"><h2><Icon name="download" />Export</h2></div>
+      <div class="panel-head"><h2><Icon name="download" />{$t('Export')}</h2></div>
       <div class="export-grid">
         {#each exports as [method, label] (method)}<Action
             action={async () => confirmed(await invoke(host, method))}
-            ><Icon name="download" />{label}</Action
+            ><Icon name="download" />{$t(label)}</Action
           >{/each}
       </div>
       <div class="notice" style="margin:0 20px 20px">
-        <Icon name="file" />Exports exclude watched file contents and API keys.
+        <Icon name="file" />{$t('Exports exclude watched file contents and API keys.')}
       </div>
     </div>
   </div>

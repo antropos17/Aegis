@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import {
     describeObservation,
     groupObservations,
@@ -45,21 +47,23 @@
 </script>
 
 <section class="panel observation-table">
-  <nav class="pagination" aria-label="Observation pages">
+  <nav class="pagination" aria-label={$t('Observation pages')}>
     <span
-      >{groups.length ? currentPage * 30 + 1 : 0}–{Math.min((currentPage + 1) * 30, groups.length)} of
+      >{groups.length ? currentPage * 30 + 1 : 0}–{Math.min((currentPage + 1) * 30, groups.length)}
+      {$t('of')}
       {groups.length}
-      {grouping === 'none' ? 'records' : 'groups'} · {rows.length} observations</span
+      {grouping === 'none' ? $t('records') : $t('groups')} · {rows.length}
+      {$t('observations')}</span
     >
     <div class="toolbar">
       <button
         class="button"
         aria-disabled={currentPage === 0}
-        onclick={() => changePage(currentPage - 1)}>Previous</button
+        onclick={() => changePage(currentPage - 1)}>{$t('Previous')}</button
       ><button
         class="button"
         aria-disabled={(currentPage + 1) * 30 >= groups.length}
-        onclick={() => changePage(currentPage + 1)}>Next</button
+        onclick={() => changePage(currentPage + 1)}>{$t('Next')}</button
       >
     </div>
   </nav>
@@ -67,9 +71,9 @@
     <table>
       <thead
         ><tr
-          ><th>{grouping === 'agent' ? 'Agent / context' : 'Resource'}</th><th
-            >{grouping === 'agent' ? 'Latest resource' : 'Agent / context'}</th
-          ><th>Activity</th><th>Count</th><th>Latest</th></tr
+          ><th>{grouping === 'agent' ? $t('Agent / context') : $t('Resource')}</th><th
+            >{grouping === 'agent' ? $t('Latest resource') : $t('Agent / context')}</th
+          ><th>{$t('Activity')}</th><th>{$t('Count')}</th><th>{$t('Latest')}</th></tr
         ></thead
       >
       <tbody>
@@ -130,25 +134,29 @@
             <td
               ><button
                 class="observation-count"
-                aria-label={`Open ${group.rows.length} observations for ${group.label}`}
+                aria-label={$t('Open {value0} observations for {value1}', {
+                  value0: group.rows.length,
+                  value1: group.label,
+                })}
                 onclick={() => open(group)}
-                >{group.rows.length}<small>{group.rows.length === 1 ? 'record' : 'records'}</small
+                >{group.rows.length}<small
+                  >{group.rows.length === 1 ? $t('record') : $t('records')}</small
                 ></button
               ></td
             >
             <td class="mono"
               >{group.last
                 ? new Date(group.last).toLocaleTimeString()
-                : 'Snapshot'}{#if group.first && group.first !== group.last}<small
-                  >since {new Date(group.first).toLocaleTimeString()}</small
+                : $t('Snapshot')}{#if group.first && group.first !== group.last}<small
+                  >{$t('since')} {new Date(group.first).toLocaleTimeString()}</small
                 >{/if}</td
             >
           </tr>
         {:else}<tr
             ><td colspan="5" class="observation-empty"
               >{telemetry.ready
-                ? 'No records match these filters.'
-                : 'Waiting for observations.'}</td
+                ? $t('No records match these filters.')
+                : $t('Waiting for observations.')}</td
             ></tr
           >{/each}
       </tbody>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { instances, measured, type RecordData, type Telemetry } from '../runtime/host';
   import { radarGroups, groupResource, displayMeasure } from '../runtime/radar';
   import { detailActivity, detailKind } from '../runtime/detail-model';
@@ -133,12 +135,12 @@
 
 {#if section === 'attributes'}
   <section class="detail-section">
-    <h3>{kind === 'resource' ? 'Recorded evidence' : 'Attributes'}</h3>
+    <h3>{kind === 'resource' ? $t('Recorded evidence') : $t('Attributes')}</h3>
     <Metadata value={attributes} />
   </section>
 {:else if section === 'signatures'}
   <section class="detail-section">
-    <h3>Recognition patterns</h3>
+    <h3>{$t('Recognition patterns')}</h3>
     <Metadata
       value={selectFields(row, [
         'names',
@@ -153,21 +155,25 @@
   {#if kind === 'group' || kind === 'process'}<section class="detail-section">
       <p class="entity-note">
         {kind === 'group'
-          ? 'An agent can run several worker processes. This overview combines their usage and shows the highest process risk.'
-          : 'This is one worker process. Its activity is linked by its recorded identity.'}
+          ? $t(
+              'An agent can run several worker processes. This overview combines their usage and shows the highest process risk.',
+            )
+          : $t('This is one worker process. Its activity is linked by its recorded identity.')}
       </p>
       {#if changeSection}<button class="button" onclick={() => changeSection?.('risk')}
-          >Why this score</button
+          >{$t('Why this score')}</button
         >{/if}
     </section>{/if}
   {#if kind === 'resource'}<section class="detail-section resource-summary">
       <div class="section-heading">
-        <h3>Resource</h3>
+        <h3>{$t('Resource')}</h3>
         <span class="badge">{info.kind}</span>
       </div>
-      <div class="resource-path"><span>Full path / address</span><code>{info.path}</code></div>
+      <div class="resource-path">
+        <span>{$t('Full path / address')}</span><code>{info.path}</code>
+      </div>
       <div class="resource-owner">
-        <span>Agent / context</span><ObservationIdentity
+        <span>{$t('Agent / context')}</span><ObservationIdentity
           {row}
           agents={instances(telemetry) as unknown as RecordData[]}
         />
@@ -180,10 +186,10 @@
   <section class="detail-section">
     <h3>
       {kind === 'resource'
-        ? 'Observation'
+        ? $t('Observation')
         : kind === 'records'
-          ? 'Observation summary'
-          : 'Overview'}
+          ? $t('Observation summary')
+          : $t('Overview')}
     </h3>
     <Metadata value={overview} />
   </section>

@@ -11,8 +11,14 @@ export async function checkProtection(browser, url, out) {
   page.on('pageerror', (error) => errors.push(error.message));
   try {
     await page.goto(url);
+    await page.getByRole('heading', { name: 'Agent radar', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Protection overview', exact: true }).click();
     await page.getByRole('region', { name: 'Protection overview' }).waitFor();
-    assert.equal(await page.locator('.radar-panel').count(), 0, 'radar mounted before requested');
+    assert.equal(
+      await page.locator('.radar-panel:visible').count(),
+      0,
+      'radar hidden in protection view',
+    );
     assert.equal(
       await page.locator('.activity-row').count(),
       8,

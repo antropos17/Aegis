@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
   import { tick } from 'svelte';
   import type { DetailTab } from '../runtime/detail-model';
   let {
@@ -43,7 +44,7 @@
   }
 </script>
 
-<div class="section-tabs" role="tablist" aria-label={label}>
+<div class="section-tabs" role="tablist" aria-label={$t(label)}>
   {#each tabs as tab, i (tab.id)}
     <button
       role="tab"
@@ -54,7 +55,7 @@
       onclick={() => change(tab.id)}
       onkeydown={(event) => keydown(event, i)}
     >
-      {tab.label}{#if tab.count !== undefined}<span class="tab-count">{tab.count}</span>{/if}
+      {$t(tab.label)}{#if tab.count !== undefined}<span class="tab-count">{tab.count}</span>{/if}
     </button>
   {/each}
 </div>

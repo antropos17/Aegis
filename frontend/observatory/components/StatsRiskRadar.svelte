@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { untrack } from 'svelte';
   import { groupRecord, riskBand, type RadarGroup } from '../runtime/radar';
   import type { RecordData } from '../runtime/host';
@@ -44,13 +46,13 @@
 <section class="panel risk-monitor">
   <header>
     <div>
-      <h3>Agent risk radar</h3>
-      <p>Distance from center follows each agent's highest process risk.</p>
+      <h3>{$t('Agent risk radar')}</h3>
+      <p>{$t("Distance from center follows each agent's highest process risk.")}</p>
     </div>
-    <span>{paused ? 'Held observation' : 'Current assessment'}</span>
+    <span>{paused ? $t('Held observation') : $t('Current assessment')}</span>
   </header>
   <div class="radar-body">
-    <div class="risk-dial" aria-label="Agent risk radar, outer rings indicate higher risk">
+    <div class="risk-dial" aria-label={$t('Agent risk radar, outer rings indicate higher risk')}>
       <svg viewBox="0 0 200 200" aria-hidden="true">
         {#each [40, 55.4, 69.04, 84] as radius (radius)}<circle
             cx="100"
@@ -73,14 +75,14 @@
           onclick={() => inspect(group.name, groupRecord(group))}>{index + 1}</button
         >
       {/each}
-      {#if !groups.length}<span class="empty">Waiting for agents</span>{/if}
+      {#if !groups.length}<span class="empty">{$t('Waiting for agents')}</span>{/if}
     </div>
     <div class="risk-list">
       {#each visible as group, index (group.key)}
         <button onclick={() => inspect(group.name, groupRecord(group))}
           ><span class="number">{index + 1}</span><span
             ><strong>{group.name}</strong><small
-              >{group.members.length} processes · {riskBand(group.risk)} risk</small
+              >{group.members.length} {$t('processes ·')} {riskBand(group.risk)} {$t('risk')}</small
             ></span
           ><b>{group.risk}</b></button
         >
@@ -88,17 +90,17 @@
     </div>
   </div>
   <footer>
-    <span>Low &lt;35 · Medium 35–65 · High ≥66</span>{#if count > 1}<div>
+    <span>{$t('Low <35 · Medium 35–65 · High ≥66')}</span>{#if count > 1}<div>
         <button
           class="button"
           disabled={current === 0}
           onclick={() => (page = current - 1)}
-          aria-label="Previous radar agents">←</button
+          aria-label={$t('Previous radar agents')}>←</button
         ><span>{current + 1} / {count}</span><button
           class="button"
           disabled={current >= count - 1}
           onclick={() => (page = current + 1)}
-          aria-label="Next radar agents">→</button
+          aria-label={$t('Next radar agents')}>→</button
         >
       </div>{/if}
   </footer>

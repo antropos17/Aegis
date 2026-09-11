@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import type { RecordData, Telemetry } from '../runtime/host';
   import {
     resourceProcess,
@@ -48,17 +50,19 @@
   }
 </script>
 
-<section class="resource-investigation" aria-label="Resource relationships">
+<section class="resource-investigation" aria-label={$t('Resource relationships')}>
   <header>
-    <span class="eyebrow">{layer === 'files' ? 'Selected file' : 'Selected destination'}</span>
+    <span class="eyebrow"
+      >{layer === 'files' ? $t('Selected file') : $t('Selected destination')}</span
+    >
     <h3><Icon name={layer === 'files' ? 'file' : 'network'} />{resource.label}</h3>
     {#if layer === 'files'}<code>{resource.address}</code>{/if}
-    {#if resource.ip}<p>Observed IP: <code>{resource.ip}</code></p>{/if}
+    {#if resource.ip}<p>{$t('Observed IP:')} <code>{resource.ip}</code></p>{/if}
     {#if !retained}<p class="notice">
-        No longer in the current data. These are the records you selected earlier.
+        {$t('No longer in the current data. These are the records you selected earlier.')}
       </p>{/if}
     {#if telemetry.stale}<p class="notice">
-        Observation is stale. Current process navigation is unavailable.
+        {$t('Observation is stale. Current process navigation is unavailable.')}
       </p>{/if}
   </header>
   <div class="resource-assessment" class:review={resource.level === 'review'}>
@@ -66,8 +70,8 @@
     <p>{resource.reason}</p>
   </div>
   <div class="relation-heading">
-    <h4>Who is linked to this resource?</h4>
-    <span>{resource.relations.length} relationships</span>
+    <h4>{$t('Who is linked to this resource?')}</h4>
+    <span>{resource.relations.length} {$t('relationships')}</span>
   </div>
   <div class="relations">
     {#each relations as relation (relation.key)}
@@ -77,10 +81,13 @@
           <div class="source">
             <AgentLogo name={relation.actor || 'Unknown'} size={26} />
             <div>
-              <strong>{relation.actor || 'Agent not identified'}</strong><small
+              <strong>{relation.actor || $t('Agent not identified')}</strong><small
                 >{relation.instanceId
-                  ? `PID ${relation.rows[0].pid ?? live?.pid ?? 'not recorded'} · ${live ? 'currently observed' : 'no current process link'}`
-                  : 'No process identity recorded'}</small
+                  ? $t('PID {value0} · {value1}', {
+                      value0: relation.rows[0].pid ?? live?.pid ?? 'not recorded',
+                      value1: live ? 'currently observed' : 'no current process link',
+                    })
+                  : $t('No process identity recorded')}</small
               >
             </div>
           </div>
@@ -97,12 +104,13 @@
         <div class="actions-observed">
           {#each relation.actions as action (action)}<span>{action}</span>{/each}
         </div>
-        <p class="attribution">{relation.attribution} · {relation.rows.length} record(s)</p>
+        <p class="attribution">{relation.attribution} · {relation.rows.length} {$t('record(s)')}</p>
         <details>
-          <summary>How was this link established?</summary>
+          <summary>{$t('How was this link established?')}</summary>
           <p>{relation.explanation}</p>
           <p>
-            Sources: {[
+            {$t('Sources:')}
+            {[
               ...new Set(
                 relation.rows.map((row) =>
                   String(row.source || (layer === 'network' ? 'Network snapshot' : 'Not recorded')),
@@ -112,49 +120,54 @@
           </p>
           {#if relation.rows.some((row) => row.action === 'holding' || row.action === 'accessed')}<p
             >
-              An open file handle does not prove that the contents were read.
+              {$t('An open file handle does not prove that the contents were read.')}
             </p>{/if}
           {#if relation.rows.some((row) => row.selfAccess === true)}<p>
-              Includes activity in the agent’s own files.
+              {$t('Includes activity in the agent’s own files.')}
             </p>{/if}
           {#if layer === 'network'}<p>
-              Connection states: {[
-                ...new Set(relation.rows.map((row) => String(row.state || 'Not recorded'))),
-              ].join(', ')}. A connection does not show what was sent.
+              {$t('Connection states:')}
+              {[...new Set(relation.rows.map((row) => String(row.state || 'Not recorded')))].join(
+                ', ',
+              )}{$t('. A connection does not show what was sent.')}
             </p>{/if}
         </details>
         <div class="relation-actions">
-          <button class="button" onclick={() => evidence(relation.rows)}>View records</button
+          <button class="button" onclick={() => evidence(relation.rows)}
+            >{$t('View records')}</button
           ><button class="button" disabled={!live} onclick={() => process(relation)}
-            >Inspect process</button
+            >{$t('Inspect process')}</button
           >
         </div>
       </article>
     {/each}
   </div>
-  {#if pages > 1}<nav class="relation-pages" aria-label="Relationship pages">
+  {#if pages > 1}<nav class="relation-pages" aria-label={$t('Relationship pages')}>
       <button
         class="button"
-        aria-label="Previous relationships"
+        aria-label={$t('Previous relationships')}
         aria-disabled={index === 0}
         onclick={() => {
           if (index > 0) page = index - 1;
-        }}>Previous</button
+        }}>{$t('Previous')}</button
       ><span>{index + 1} / {pages}</span><button
         class="button"
-        aria-label="Next relationships"
+        aria-label={$t('Next relationships')}
         aria-disabled={index === pages - 1}
         onclick={() => {
           if (index < pages - 1) page = index + 1;
-        }}>Next</button
+        }}>{$t('Next')}</button
       >
     </nav>{/if}
   <footer>
     <span
-      >{resource.rows.length} retained record(s){resource.time
-        ? ` · latest ${new Date(resource.time).toLocaleString()}`
+      >{resource.rows.length}
+      {$t('retained record(s)')}{resource.time
+        ? $t(' · latest {value0}', { value0: new Date(resource.time).toLocaleString() })
         : ''}</span
-    ><button class="button" onclick={() => evidence(resource.rows)}>All resource records</button>
+    ><button class="button" onclick={() => evidence(resource.rows)}
+      >{$t('All resource records')}</button
+    >
   </footer>
 </section>
 

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { onMount } from 'svelte';
   import { instances, type Telemetry, type RecordData } from '../runtime/host';
   import { radarGroups, groupRecord } from '../runtime/radar';
@@ -59,12 +61,12 @@
 <div hidden={mode !== 'overview'}>
   <div class="summary monitoring-summary">
     <button class="summary-stat" onclick={() => navigate?.('agents')}>
-      <span>Agents</span><strong
+      <span>{$t('Agents')}</span><strong
         >{telemetry.ready ? groups.length : '—'}<small
-          >{telemetry.stale ? 'last seen' : 'online'}</small
+          >{telemetry.stale ? $t('last seen') : $t('online')}</small
         ></strong
       >
-      <p>{agents.length} processes in snapshot</p>
+      <p>{agents.length} {$t('processes in snapshot')}</p>
     </button>
     <button
       class="summary-stat"
@@ -73,36 +75,46 @@
         highestRisk &&
         inspect(highestRisk.name, { ...groupRecord(highestRisk), detailSection: 'risk' })}
     >
-      <span>Highest risk</span><strong>{highestRisk?.risk ?? '—'}<small>/100</small></strong>
+      <span>{$t('Highest risk')}</span><strong>{highestRisk?.risk ?? '—'}<small>/100</small></strong
+      >
       <p>
-        {highestRisk ? highestRisk.name + ' · view explanation' : 'Waiting for observed agents'}
+        {highestRisk
+          ? $t('{agent} · view explanation', { agent: highestRisk.name })
+          : $t('Waiting for observed agents')}
       </p>
     </button>
     <div class="summary-stat">
-      <span>Events / min</span><strong>{telemetry.ready ? recent.length : '—'}</strong>
-      <p>{telemetry.events.length} retained events</p>
+      <span>{$t('Events / min')}</span><strong>{telemetry.ready ? recent.length : '—'}</strong>
+      <p>{telemetry.events.length} {$t('retained events')}</p>
     </div>
     <button
       class="summary-stat attention"
       onclick={() => inspect('Sensitive events', { observations: sensitiveEvents })}
-      ><span>Sensitive events</span><strong>{telemetry.ready ? sensitiveEvents.length : '—'}</strong
+      ><span>{$t('Sensitive events')}</span><strong
+        >{telemetry.ready ? sensitiveEvents.length : '—'}</strong
       >
-      <p>Retained file observations</p></button
+      <p>{$t('Retained file observations')}</p></button
     >
     <button class="summary-stat" onclick={() => navigate?.('network')}>
-      <span>Connections</span><strong>{telemetry.ready ? telemetry.network.length : '—'}</strong>
-      <p>{telemetry.network.filter((n) => n.verdict === 'unknown').length} unverified endpoints</p>
+      <span>{$t('Connections')}</span><strong
+        >{telemetry.ready ? telemetry.network.length : '—'}</strong
+      >
+      <p>
+        {telemetry.network.filter((n) => n.verdict === 'unknown').length}
+        {$t('unverified endpoints')}
+      </p>
     </button>
     <div class="summary-stat">
-      <span>Tokens</span><strong
+      <span>{$t('Tokens')}</span><strong
         >{tokenTotal.value === null
           ? '—'
           : Intl.NumberFormat('en', { notation: 'compact' }).format(tokenTotal.value)}</strong
       >
       <p>
-        {tokenTotal.measured} / {tokenTotal.total} current processes measured{tokenTotal.value !==
-          null && tokenTotal.measured < tokenTotal.total
-          ? ' · subtotal'
+        {tokenTotal.measured} / {tokenTotal.total}
+        {$t('current processes measured')}{tokenTotal.value !== null &&
+        tokenTotal.measured < tokenTotal.total
+          ? $t(' · subtotal')
           : ''}
       </p>
     </div>
@@ -120,9 +132,9 @@
   <div class="recent-evidence">
     <section class="panel recent-panel">
       <div class="panel-head">
-        <h2><Icon name="activity" />Recent events</h2>
+        <h2><Icon name="activity" />{$t('Recent events')}</h2>
         {#if navigate}<button class="button" onclick={() => navigate?.('events')}
-            >All events<Icon name="chevron" /></button
+            >{$t('All events')}<Icon name="chevron" /></button
           >{/if}
       </div>
       {#each groupObservations(telemetry.events as unknown as RecordData[]).slice(0, 3) as group (group.key)}
@@ -138,12 +150,13 @@
         >
           <div>
             <ObservationResource row={group.latest} /><small
-              >{describeObservation(group.latest).label} · {group.rows.length} records</small
+              >{describeObservation(group.latest).label} · {group.rows.length}
+              {$t('records')}</small
             >
           </div>
           <time>{group.last ? new Date(group.last).toLocaleTimeString() : '—'}</time>
         </button>
-      {:else}<p class="inset muted">No retained events.</p>{/each}
+      {:else}<p class="inset muted">{$t('No retained events.')}</p>{/each}
     </section>
   </div>
 </div>

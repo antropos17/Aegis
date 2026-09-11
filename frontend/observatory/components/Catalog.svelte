@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { onMount, tick } from 'svelte';
   import { SvelteMap } from 'svelte/reactivity';
   import { confirmed, invoke, record, records, type Host, type RecordData } from '../runtime/host';
@@ -115,14 +117,15 @@
   <label class="search-field"
     ><Icon name="search" /><input
       type="search"
-      aria-label="Search catalog"
+      aria-label={$t('Search catalog')}
       bind:value={query}
-      placeholder="Name, signature or vendor…"
+      placeholder={$t('Name, signature or vendor…')}
     /></label
   ><label
-    >Category <select aria-label="Catalog category" bind:value={category}
-      ><option value="">All categories</option>{#each CATEGORIES as [id, title] (id)}<option
-          value={id}>{title}</option
+    >{$t('Category')}
+    <select aria-label={$t('Catalog category')} bind:value={category}
+      ><option value="">{$t('All categories')}</option>{#each CATEGORIES as [id, title] (id)}<option
+          value={id}>{$t(title)}</option
         >{/each}</select
     ></label
   ><span class="spacer"></span><button
@@ -133,9 +136,10 @@
       editing = null;
       editorSection = 'general';
       showForm = true;
-    }}><Icon name="plus" />Add agent</button
-  ><Action disabled={mutating || !loaded} action={() => mutate(importAgents)}>Import</Action><Action
-    action={async () => confirmed(await invoke(host, 'exportAgentDatabase'))}>Export</Action
+    }}><Icon name="plus" />{$t('Add agent')}</button
+  ><Action disabled={mutating || !loaded} action={() => mutate(importAgents)}>{$t('Import')}</Action
+  ><Action action={async () => confirmed(await invoke(host, 'exportAgentDatabase'))}
+    >{$t('Export')}</Action
   >
 </div>
 
@@ -145,8 +149,9 @@
     <table>
       <thead
         ><tr
-          ><th>Agent</th><th>Category</th><th>Process signatures</th><th>Risk</th><th>Actions</th
-          ></tr
+          ><th>{$t('Agent')}</th><th>{$t('Category')}</th><th>{$t('Process signatures')}</th><th
+            >{$t('Risk')}</th
+          ><th>{$t('Actions')}</th></tr
         ></thead
       ><tbody
         >{#each rows as row ((row.custom ? 'custom:' : 'bundled:') + String(row.id))}{@const signatures =
@@ -159,7 +164,7 @@
                   ><strong>{String(row.displayName)}</strong><small
                     >{String(row.vendor ?? (row.custom ? 'Custom' : 'Bundled'))}</small
                   >{#if row.custom && base.some((bundled) => bundled.id === row.id)}<small
-                      >Bundled ID conflict · not used for detection</small
+                      >{$t('Bundled ID conflict · not used for detection')}</small
                     >{/if}</span
                 ></button
               ></td
@@ -173,7 +178,7 @@
                   >{/each}{#if signatures.length > 3}<button
                     class="text-link"
                     onclick={() => inspect(String(row.displayName), row)}
-                    >+{signatures.length - 3} more</button
+                    >+{signatures.length - 3} {$t('more')}</button
                   >{/if}
               </div></td
             ><td
@@ -187,7 +192,7 @@
             ><td
               ><div class="toolbar">
                 <button class="button" onclick={() => inspect(String(row.displayName), row)}
-                  >Details</button
+                  >{$t('Details')}</button
                 >
                 {#if row.custom}<button
                     class="button"
@@ -197,30 +202,32 @@
                       form = formFromAgent(row);
                       editorSection = 'general';
                       showForm = true;
-                    }}>Edit</button
+                    }}>{$t('Edit')}</button
                   ><Action
                     disabled={mutating}
                     action={() => mutate(() => persist(custom.filter((a) => a.id !== row.id)))}
-                    >Delete</Action
+                    >{$t('Delete')}</Action
                   >{/if}
               </div></td
             ></tr
           >{:else}<tr
             ><td colspan="5" class="catalog-empty"
               ><strong
-                >{query || category ? 'No matching agents' : 'No agents in the catalog'}</strong
+                >{query || category
+                  ? $t('No matching agents')
+                  : $t('No agents in the catalog')}</strong
               >
               <p>
                 {query || category
-                  ? 'Try another name or category.'
-                  : 'Add a custom agent to recognize its processes.'}
+                  ? $t('Try another name or category.')
+                  : $t('Add a custom agent to recognize its processes.')}
               </p>
               {#if query || category}<button
                   class="button"
                   onclick={() => {
                     query = '';
                     category = '';
-                  }}>Clear filters</button
+                  }}>{$t('Clear filters')}</button
                 >{/if}</td
             ></tr
           >{/each}</tbody
@@ -231,8 +238,8 @@
 
 {#if showForm}
   <EditorDialog
-    title={editing ? 'Edit custom agent' : 'Add custom agent'}
-    caption="Agent catalog"
+    title={editing ? $t('Edit custom agent') : $t('Add custom agent')}
+    caption={$t('Agent catalog')}
     tabs={[
       { id: 'general', label: 'General' },
       { id: 'recognition', label: 'Recognition' },
@@ -243,48 +250,56 @@
     {#snippet children(section)}
       <fieldset class="detail-section" disabled={mutating}>
         {#if section === 'general'}
-          <h3>Agent profile</h3>
+          <h3>{$t('Agent profile')}</h3>
           <div class="form-grid">
-            <label>Name<input bind:this={nameInput} bind:value={form.displayName} required /></label
+            <label
+              >{$t('Name')}<input
+                bind:this={nameInput}
+                bind:value={form.displayName}
+                required
+              /></label
             >
             <label
-              >Category<select bind:value={form.category}
-                >{#each CATEGORIES as [id, label] (id)}<option value={id}>{label}</option
+              >{$t('Category')}<select bind:value={form.category}
+                >{#each CATEGORIES as [id, label] (id)}<option value={id}>{$t(label)}</option
                   >{/each}</select
               ></label
             >
             <label
-              >Risk profile<select bind:value={form.riskProfile}
-                ><option>low</option><option>medium</option><option>high</option></select
+              >{$t('Risk profile')}<select bind:value={form.riskProfile}
+                ><option value="low">{$t('low')}</option><option value="medium"
+                  >{$t('medium')}</option
+                ><option value="high">{$t('high')}</option></select
               ></label
             >
             <label class="full"
-              >Description<textarea bind:value={form.description}></textarea></label
+              >{$t('Description')}<textarea bind:value={form.description}></textarea></label
             >
           </div>
         {:else}
-          <h3>Process recognition</h3>
+          <h3>{$t('Process recognition')}</h3>
           <div class="form-grid">
             <label class="full"
-              >Process name<input
+              >{$t('Process name')}<input
                 bind:this={processInput}
                 bind:value={form.processName}
                 required
-                placeholder="agent.exe"
+                placeholder={$t('agent.exe')}
               /></label
             >
           </div>
           <p class="dialog-copy">
-            The process signature identifies this agent in observed processes.
+            {$t('The process signature identifies this agent in observed processes.')}
           </p>
         {/if}
       </fieldset>
     {/snippet}
-    {#snippet actions()}<button class="button" onclick={() => (showForm = false)}>Cancel</button
-      ><Action disabled={mutating || !loaded} action={save}>Save agent</Action>{/snippet}
+    {#snippet actions()}<button class="button" onclick={() => (showForm = false)}
+        >{$t('Cancel')}</button
+      ><Action disabled={mutating || !loaded} action={save}>{$t('Save agent')}</Action>{/snippet}
   </EditorDialog>
 {/if}
-<p class="catalog-count muted">{base.length} bundled · {custom.length} custom</p>
+<p class="catalog-count muted">{base.length} {$t('bundled ·')} {custom.length} {$t('custom')}</p>
 
 <style>
   fieldset {

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { tick } from 'svelte';
   import { confirmed, invoke, type Host, type RecordData, type Telemetry } from '../runtime/host';
   import { detailKind, detailTitle, detailCaption, detailTabs } from '../runtime/detail-model';
@@ -153,26 +155,26 @@
     <div class="detail-navigation history-controls">
       <button
         class="history-arrow"
-        aria-label="Back"
+        aria-label={$t('Back')}
         disabled={index === 0}
         onclick={() => move(-1)}><Icon name="arrowLeft" /></button
       >
       <button
         class="history-arrow"
-        aria-label="Forward"
+        aria-label={$t('Forward')}
         disabled={index >= history.length - 1}
         onclick={() => move(1)}><Icon name="chevron" /></button
       >
     </div>
     <div>
       <span class="muted" id="modal-caption"
-        >{current ? detailCaption(current.row) : 'Details'}</span
+        >{current ? detailCaption(current.row) : $t('Details')}</span
       >
       <h2 id="modal-title" tabindex="-1">
-        {current ? detailTitle(current.row, current.title) : 'Details'}
+        {current ? detailTitle(current.row, current.title) : $t('Details')}
       </h2>
     </div>
-    <button class="icon-button" aria-label="Close details" onclick={close}
+    <button class="icon-button" aria-label={$t('Close details')} onclick={close}
       ><Icon name="close" /></button
     >
   </div>
@@ -181,7 +183,7 @@
       selected={current.tab}
       change={changeTab}
       prefix="detail"
-      label="Detail sections"
+      label={$t('Detail sections')}
     />{/if}
   <div id="modal-body" tabindex="-1" bind:this={body}>
     {#if current}{#each tabs as tab (tab.id)}
@@ -221,15 +223,15 @@
   <div class="modal-actions">
     {#if current?.row.website}<Action
         action={async () => confirmed(await invoke(host, 'openExternalUrl', current.row.website))}
-        ><Icon name="globe" />Website</Action
+        ><Icon name="globe" />{$t('Website')}</Action
       >{/if}
     {#if current?.row.instanceId && current.row.process}<button
         class="button"
         aria-pressed={$acknowledgedAgents.has(String(current.row.instanceId))}
         onclick={() => toggleAcknowledged(String(current.row.instanceId))}
         >{$acknowledgedAgents.has(String(current.row.instanceId))
-          ? 'Reviewed'
-          : 'Mark reviewed'}</button
+          ? $t('Reviewed')
+          : $t('Mark reviewed')}</button
       >{/if}
     {#if current && (current.row.file || current.row.cwd || (current.row.path && current.row.type !== 'network-connection'))}<Action
         action={async () =>
@@ -239,7 +241,7 @@
               'revealInExplorer',
               current.row.file || current.row.cwd || current.row.path,
             ),
-          )}>Show in folder</Action
+          )}>{$t('Show in folder')}</Action
       >{/if}
     {#if current?.row.file && current.row.agent}<Action
         action={async () => {
@@ -251,8 +253,8 @@
             }),
           );
           await refreshFalsePositives();
-        }}>Mark false positive</Action
+        }}>{$t('Mark false positive')}</Action
       >{/if}
-    <button class="button" onclick={close}>Close</button>
+    <button class="button" onclick={close}>{$t('Close')}</button>
   </div>
 </dialog>

@@ -1,4 +1,10 @@
 <script lang="ts">
+  import { t, language } from './runtime/i18n';
+
+  $effect(() => {
+    document.documentElement.lang = $language === 'pt' ? 'pt-BR' : 'en';
+  });
+
   import { onMount, tick } from 'svelte';
   import {
     connectHost,
@@ -120,8 +126,8 @@
   });
   let selected = $state<string | null>(null);
   let view = $state('overview');
-  let detailedMonitoring = $state(false);
-  let monitoringMounted = $state(false);
+  let detailedMonitoring = $state(true);
+  let monitoringMounted = $state(true);
   let policyRevision = $state(0);
   let policyTarget = $state<{ key: string; revision: number }>();
   function openPolicy(key: string) {
@@ -155,7 +161,7 @@
   let title = $derived(
     scope.agent && view === 'agents'
       ? scope.agent
-      : (views.find((row) => row[0] === view)?.[1] ?? 'Monitoring'),
+      : $t(views.find((row) => row[0] === view)?.[1] ?? 'Monitoring'),
   );
   function inspect(title: string, row: RecordData) {
     const kind = detailKind(row);
@@ -314,34 +320,36 @@
 </script>
 
 <svelte:window onkeydown={keydown} />
-<a href="#main" class="skip">Skip to content</a>
+<a href="#main" class="skip">{$t('Skip to content')}</a>
 <div class="app observatory-app" class:paused class:stale={telemetry.stale}>
   <aside class="sidebar">
     <a class="brand" href="#main"
-      ><img class="brand-symbol" src="assets/aegis.svg" alt="" width="28" height="28" />AEGIS<span
-        class="version">{version}</span
-      ></a
+      ><img class="brand-symbol" src="assets/aegis.svg" alt="" width="28" height="28" />{$t(
+        'AEGIS',
+      )}<span class="version">{version}</span></a
     >
     <div class="machine">
       <Icon name="monitor" />
       <div>
-        <strong>Workstation</strong><small>{preview ? 'Preview / local' : 'Desktop / local'}</small>
+        <strong>{$t('Workstation')}</strong><small
+          >{preview ? $t('Preview / local') : $t('Desktop / local')}</small
+        >
       </div>
       <span class="status-indicator"><Icon name="check" /></span>
     </div>
-    <nav aria-label="Main navigation">
+    <nav aria-label={$t('Main navigation')}>
       {#each workspaceGroups as category (category.id)}
         <div class="nav-group">
-          <span class="nav-group-label">{category.label}</span>
+          <span class="nav-group-label">{$t(category.label)}</span>
           {#each workspaces.filter((entry) => entry.group === category.id) as entry (entry.id)}
             <button
               class="nav"
-              aria-label={entry.label}
+              aria-label={$t(entry.label)}
               class:active={view === entry.id}
               aria-current={view === entry.id ? 'page' : undefined}
               onclick={() => navigate(entry.id)}
             >
-              <Icon name={entry.icon} /><span>{entry.label}</span>
+              <Icon name={entry.icon} /><span>{$t(entry.label)}</span>
               {#if entry.id === 'agents'}<small class="count"
                   >{displayTelemetry.ready ? agentCount : '—'}</small
                 >{/if}
@@ -353,10 +361,12 @@
     <div class="sidebar-bottom">
       <button class="sensor-mini" onclick={openSensors}
         ><span class="sensor-indicator"><Icon name="shield" /></span><span
-          >Sensors<small>{healthCaption}</small></span
+          >{$t('Sensors')}<small>{$t(healthCaption)}</small></span
         ><Icon name="chevron" /></button
       >
-      <div class="sidebar-foot">{preview ? 'Preview · simulated data' : 'Local observations'}</div>
+      <div class="sidebar-foot">
+        {preview ? $t('Preview · simulated data') : $t('Local observations')}
+      </div>
     </div>
   </aside>
   <div class="shell">
@@ -367,18 +377,20 @@
         canForward={historyIndex < history.length - 1}
       />
       <div class="breadcrumb">
-        {workspaceGroups.find((entry) => entry.id === group)?.label}<span>/</span><strong
+        {$t(workspaceGroups.find((entry) => entry.id === group)?.label ?? '')}<span>/</span><strong
           >{title}</strong
         >
       </div>
       <div class="top-actions">
         <button class="command-trigger" onclick={() => (commands = !commands)}
-          ><Icon name="search" />Commands<kbd>Ctrl K</kbd></button
-        ><button class="icon-button" aria-label="Toggle theme" onclick={toggleTheme}
+          ><Icon name="search" />{$t('Commands')}<kbd>{$t('Ctrl K')}</kbd></button
+        ><button class="icon-button" aria-label={$t('Toggle theme')} onclick={toggleTheme}
           ><Icon name="sun" /></button
         >
-        <button class="icon-button" aria-label="Open settings" onclick={() => navigate('settings')}
-          ><Icon name="settings" /></button
+        <button
+          class="icon-button"
+          aria-label={$t('Open settings')}
+          onclick={() => navigate('settings')}><Icon name="settings" /></button
         >
       </div>
     </header>
@@ -391,18 +403,18 @@
           </h1>
           {#if isLiveWorkspace}<span class="live-badge"
               ><Icon name="activity" />{paused
-                ? 'View paused'
+                ? $t('View paused')
                 : preview
-                  ? 'Demo stream'
+                  ? $t('Demo stream')
                   : telemetry.stale
-                    ? 'Observation unavailable / stale'
+                    ? $t('Observation unavailable / stale')
                     : telemetry.scanning
-                      ? 'Scanning'
-                      : 'Live'}</span
+                      ? $t('Scanning')
+                      : $t('Live')}</span
             >{:else}<span class="workspace-caption"
               >{view === 'analysis' || view === 'reports'
-                ? 'Review and share recorded activity'
-                : 'Configuration and recorded evidence'}</span
+                ? $t('Review and share recorded activity')
+                : $t('Configuration and recorded evidence')}</span
             >{/if}
         </div>
         {#if isLiveWorkspace}<div class="page-actions">
@@ -410,18 +422,20 @@
                 class="button"
                 aria-pressed={detailedMonitoring}
                 onclick={() => (detailedMonitoring = !detailedMonitoring)}
-                >{detailedMonitoring ? 'Protection overview' : 'Detailed monitoring'}</button
+                >{detailedMonitoring
+                  ? $t('Protection overview')
+                  : $t('Detailed monitoring')}</button
               >{/if}
             <button
               class="button"
-              title="Pause the displayed observations; backend monitoring continues"
+              title={$t('Pause the displayed observations; backend monitoring continues')}
               onclick={() => {
                 if (!paused) held = telemetry;
                 paused = !paused;
               }}
               ><Icon name={paused ? 'play' : 'pause'} />{paused
-                ? 'Resume view'
-                : 'Pause view'}</button
+                ? $t('Resume view')
+                : $t('Pause view')}</button
             >
           </div>{/if}
       </div>
@@ -433,8 +447,12 @@
       {#if telemetry.error}<p role="alert" class="health-banner">{telemetry.error}</p>{/if}
       {#if telemetry.stale}<p class="health-banner">
           {telemetry.ready
-            ? 'Showing the last reliable population. Process actions are unavailable until observation recovers.'
-            : 'Waiting for a reliable process observation. An empty screen does not establish that no agents are running.'}
+            ? $t(
+                'Showing the last reliable population. Process actions are unavailable until observation recovers.',
+              )
+            : $t(
+                'Waiting for a reliable process observation. An empty screen does not establish that no agents are running.',
+              )}
         </p>{/if}
       <SensorStatus health={record(telemetry.stats.appHealth)} />
       <div id="workspace-content" role="region" aria-labelledby="page-title">
@@ -570,14 +588,15 @@
           record(telemetry.stats.appHealth).state ?? 'Unobserved',
         )}</button
       ><span
-        >AEGIS CPU <b>{ownCpu === null ? '—' : ownCpu.toFixed(1)}%</b> · RAM
-        <b>{String(telemetry.own.memMB ?? '—')} MB</b>
-        · heap
-        <b>{String(telemetry.own.heapMB ?? '—')} MB</b></span
+        >{$t('AEGIS CPU')} <b>{ownCpu === null ? '—' : ownCpu.toFixed(1)}%</b>
+        {$t('· RAM')}
+        <b>{String(telemetry.own.memMB ?? '—')} {$t('MB')}</b>
+        {$t('· heap')}
+        <b>{String(telemetry.own.heapMB ?? '—')} {$t('MB')}</b></span
       ><span
         >{telemetry.lastScan
-          ? `Observed ${new Date(telemetry.lastScan).toLocaleTimeString()}`
-          : 'No reliable scan yet'}</span
+          ? $t('Observed {value0}', { value0: new Date(telemetry.lastScan).toLocaleTimeString() })
+          : $t('No reliable scan yet')}</span
       >
     </footer>
   </div>

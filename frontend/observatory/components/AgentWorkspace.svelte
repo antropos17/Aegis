@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import SectionTabs from './SectionTabs.svelte';
   import { instances, type Host, type Telemetry, type RecordData } from '../runtime/host';
   import { scopeEvidence, type AgentScope } from '../runtime/agent-scope';
@@ -85,28 +87,35 @@
 </script>
 
 <div class="agent-workspace">
-  <section id="agent-overview" tabindex="-1" class="agent-intro" aria-label="Agent overview">
+  <section id="agent-overview" tabindex="-1" class="agent-intro" aria-label={$t('Agent overview')}>
     <AgentLogo name={scope.agent} size={34} />
     <div class="agent-description">
-      <h2>{scope.instanceId ? 'Process overview' : 'Agent overview'}</h2>
+      <h2>{scope.instanceId ? $t('Process overview') : $t('Agent overview')}</h2>
       <p>
         {scope.instanceId
           ? 'PID ' + String(process?.pid ?? scope.instanceId.split(':')[0])
           : String(workerCount) + (workerCount === 1 ? ' worker process' : ' worker processes')} · {paused
-          ? 'View paused'
+          ? $t('View paused')
           : telemetry.stale
-            ? 'Last reliable observation'
+            ? $t('Last reliable observation')
             : absent
-              ? 'Not currently observed'
-              : 'Observed now'}
+              ? $t('Not currently observed')
+              : $t('Observed now')}
       </p>
     </div>
-    <button class="button" onclick={() => navigate('stats')}>Detailed statistics</button>
+    <button class="button" onclick={() => navigate('stats')}>{$t('Detailed statistics')}</button>
   </section>
-  <SectionTabs {tabs} selected={section} change={selectSection} {prefix} label="Agent sections" />
+  <SectionTabs
+    {tabs}
+    selected={section}
+    change={selectSection}
+    {prefix}
+    label={$t('Agent sections')}
+  />
   {#if absent}<p class="notice" role="status">
-      This selection is no longer observed. Its retained activity stays visible; AEGIS will not
-      switch to another process with the same PID.
+      {$t(
+        'This selection is no longer observed. Its retained activity stays visible; AEGIS will not switch to another process with the same PID.',
+      )}
     </p>{/if}
   <div
     id={prefix + '-panel-risk'}
@@ -119,19 +128,20 @@
     <details bind:open={riskOpen}>
       <summary
         ><span class="risk-heading"
-          >Observed risk <strong class={risk.score === null ? '' : riskBand(risk.score)}
+          >{$t('Observed risk')}
+          <strong class={risk.score === null ? '' : riskBand(risk.score)}
             >{risk.score ?? '—'}<small>/100</small></strong
           ></span
         >
         <span class="risk-reason"
           >{!risk.subject
-            ? 'Current assessment unavailable'
+            ? $t('Current assessment unavailable')
             : !risk.subject.instanceId
-              ? 'Process identity not recorded'
-              : (risk.contributions[0]?.label ?? 'No scored activity')}<small
-            >{scope.instanceId ? 'This process' : 'Highest process score'} · {riskOpen
-              ? 'Collapse explanation'
-              : 'Expand explanation'}</small
+              ? $t('Process identity not recorded')
+              : (risk.contributions[0]?.label ?? $t('No scored activity'))}<small
+            >{scope.instanceId ? $t('This process') : $t('Highest process score')} · {riskOpen
+              ? $t('Collapse explanation')
+              : $t('Expand explanation')}</small
           ></span
         >
       </summary>
@@ -182,7 +192,7 @@
     <AgentProcesses {telemetry} {scope} {change} />
     {#if process}
       <details class="process-information panel">
-        <summary>Process attributes and controls</summary>
+        <summary>{$t('Process attributes and controls')}</summary>
         <div class="process-information-body">
           <DetailSummary row={subject} {telemetry} section="attributes" />
           {#key scope.instanceId}<DetailControls

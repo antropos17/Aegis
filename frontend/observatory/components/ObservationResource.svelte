@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { describeObservation } from '../../../src/shared/observation-display.js';
   import type { RecordData } from '../runtime/host';
   import Icon from './Icon.svelte';
@@ -11,7 +13,7 @@
     ><Icon
       name={info.kind === 'Skill' ? 'settings' : info.kind === 'Network' ? 'network' : 'file'}
     /><strong>{info.resource}</strong>{#if info.kind === 'Skill'}<span class="evidence-tag"
-        >Skill</span
+        >{$t('Skill')}</span
       >{/if}</span
   >
   {#if info.path && info.path !== info.resource}<small>{info.path}</small>{/if}

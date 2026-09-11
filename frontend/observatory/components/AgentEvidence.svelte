@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import type { RecordData } from '../runtime/host';
   import { observationTime } from '../../../src/shared/observation-display.js';
   import ObservationResource from './ObservationResource.svelte';
@@ -23,11 +25,11 @@
 
 <section
   class="panel agent-evidence"
-  aria-label={network ? 'Selected agent connections' : 'Selected agent file activity'}
+  aria-label={network ? $t('Selected agent connections') : $t('Selected agent file activity')}
 >
   <div class="panel-head">
-    <h2>{network ? 'Connections' : 'File activity'} <small>{rows.length}</small></h2>
-    <button class="text-button" onclick={more}>View all</button>
+    <h2>{network ? $t('Connections') : $t('File activity')} <small>{rows.length}</small></h2>
+    <button class="text-button" onclick={more}>{$t('View all')}</button>
   </div>
   <div class="evidence-list">
     {#each ordered.slice(0, 4) as row, index (row.id ?? index)}
@@ -42,20 +44,20 @@
         <span class="evidence-time"
           >{observationTime(row.timestamp)
             ? new Date(observationTime(row.timestamp)).toLocaleTimeString()
-            : 'Time not recorded'}</span
+            : $t('Time not recorded')}</span
         >
       </button>
     {:else}<p class="empty">
         {network
-          ? 'No connections with a recorded owner match this selection.'
-          : 'No retained file observations with a recorded owner match this selection.'}
+          ? $t('No connections with a recorded owner match this selection.')
+          : $t('No retained file observations with a recorded owner match this selection.')}
       </p>{/each}
   </div>
   <p class="evidence-note">
     {network
-      ? 'Endpoint verification is separate from process identity.'
-      : 'Unattributed activity stays in the all-agent log.'}{#if rows.length > 4}
-      Showing 4 of {rows.length}.{/if}
+      ? $t('Endpoint verification is separate from process identity.')
+      : $t('Unattributed activity stays in the all-agent log.')}{#if rows.length > 4}
+      {$t('Showing 4 of')} {rows.length}.{/if}
   </p>
 </section>
 

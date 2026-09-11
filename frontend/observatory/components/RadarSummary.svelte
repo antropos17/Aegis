@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { riskBand, type RadarGroup } from '../runtime/radar';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
@@ -25,11 +27,11 @@
   <AgentLogo id={group.key} name={group.name} size={24} />
   <span class="roster-identity"
     ><strong>{group.name}</strong><small
-      >{group.members.length} {group.members.length === 1 ? 'process' : 'processes'}</small
+      >{group.members.length} {group.members.length === 1 ? $t('process') : $t('processes')}</small
     ></span
   >
-  <span class={`roster-risk ${riskBand(group.risk)}`} title="Highest process risk"
-    >{group.risk}<small>risk</small></span
+  <span class={`roster-risk ${riskBand(group.risk)}`} title={$t('Highest process risk')}
+    >{group.risk}<small>{$t('risk')}</small></span
   >
   <Icon name="chevron" />
 </button>

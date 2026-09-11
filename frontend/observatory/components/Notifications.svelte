@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { onDestroy } from 'svelte';
   import {
     addToast,
@@ -26,7 +28,9 @@
 <div class="notifications" aria-live="polite" aria-atomic="false">
   {#each $toasts as toast (toast.id)}<div class="notification">
       <p>{toast.message}</p>
-      <button aria-label="Dismiss notification" onclick={() => removeToast(toast.id)}>×</button>
+      <button aria-label={$t('Dismiss notification')} onclick={() => removeToast(toast.id)}
+        >×</button
+      >
     </div>{/each}
 </div>
 

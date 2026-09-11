@@ -77,7 +77,6 @@ export async function checkResourceLayers(browser, url, out) {
       );
     });
     await page.goto(url);
-    await page.getByRole('button', { name: 'Detailed monitoring', exact: true }).click();
     await page.getByRole('heading', { name: 'Agent radar', exact: true }).waitFor();
     await page.evaluate(() => {
       const agents = ['Claude Code', 'Codex', 'Cursor', 'Ollama', 'Zeta'].map((agent, i) => ({

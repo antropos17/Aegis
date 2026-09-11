@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../runtime/i18n';
+
   import { record, type Telemetry, type RecordData } from '../runtime/host';
   import { statisticsValue } from '../runtime/statistics-metrics';
   import { fieldLabel } from '../runtime/detail-fields';
@@ -22,8 +24,8 @@
 <section class="panel sensor-panel">
   <header>
     <div>
-      <h3>Observation sensors</h3>
-      <p>Raw sensor state and coverage. Display retention is tracked separately.</p>
+      <h3>{$t('Observation sensors')}</h3>
+      <p>{$t('Raw sensor state and coverage. Display retention is tracked separately.')}</p>
     </div>
     <span class="badge">{String(health.state || 'Starting').toLowerCase()}</span>
   </header>
@@ -38,11 +40,11 @@
         </div>
         <dl>
           <div>
-            <dt>Last success</dt>
+            <dt>{$t('Last success')}</dt>
             <dd>{time(sensor.lastSuccessAt)}</dd>
           </div>
           <div>
-            <dt>Failures</dt>
+            <dt>{$t('Failures')}</dt>
             <dd>
               {statisticsValue(
                 typeof sensor.consecutiveFailures === 'number' ? sensor.consecutiveFailures : null,
@@ -50,7 +52,7 @@
             </dd>
           </div>
           <div>
-            <dt>Observed loss</dt>
+            <dt>{$t('Observed loss')}</dt>
             <dd>
               {statisticsValue(typeof sensor.lossCount === 'number' ? sensor.lossCount : null)}
             </dd>
@@ -60,7 +62,7 @@
             {String(sensor.detail || sensor.lastError)}
           </p>{/if}
       </article>
-    {:else}<p class="muted">Sensor health has not been delivered yet.</p>{/each}
+    {:else}<p class="muted">{$t('Sensor health has not been delivered yet.')}</p>{/each}
   </div>
 </section>
 
