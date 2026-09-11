@@ -5,6 +5,7 @@
   import { observationTime } from '../../../src/shared/observation-display.js';
   import ObservationResource from './ObservationResource.svelte';
   import ObservationIdentity from './ObservationIdentity.svelte';
+  import Icon from './Icon.svelte';
   let {
     rows,
     agents,
@@ -28,7 +29,11 @@
   aria-label={network ? $t('Selected agent connections') : $t('Selected agent file activity')}
 >
   <div class="panel-head">
-    <h2>{network ? $t('Connections') : $t('File activity')} <small>{rows.length}</small></h2>
+    <h2>
+      <Icon name={network ? 'network' : 'folder'} />{network
+        ? $t('Connections')
+        : $t('File activity')} <small>{rows.length}</small>
+    </h2>
     <button class="text-button" onclick={more}>{$t('View all')}</button>
   </div>
   <div class="evidence-list">

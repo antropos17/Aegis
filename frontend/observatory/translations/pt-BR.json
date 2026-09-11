@@ -966,5 +966,14 @@
   "Monitor preference": "Preferência de monitoramento",
   "No saved preference for this category": "Nenhuma preferência salva para esta categoria",
   "Review needed": "Revisão necessária",
-  "File": "Arquivo"
+  "File": "Arquivo",
+  "Folder": "Pasta",
+  "Domain name": "Nome de domínio",
+  "IP address": "Endereço IP",
+  "Network destination": "Destino de rede",
+  "Configuration file": "Arquivo de configuração",
+  "Source file": "Código-fonte",
+  "Database file": "Arquivo de banco de dados",
+  "Image file": "Arquivo de imagem",
+  "Document": "Documento"
 }

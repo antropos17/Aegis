@@ -3,20 +3,22 @@
 
   import { describeObservation } from '../../../src/shared/observation-display.js';
   import type { RecordData } from '../runtime/host';
-  import Icon from './Icon.svelte';
+  import ResourceIcon from './ResourceIcon.svelte';
+  import { resourceVisual } from '../runtime/resource-visual';
   let { row }: { row: RecordData } = $props();
   let info = $derived(describeObservation(row));
+  let visual = $derived(resourceVisual(row));
 </script>
 
 <span class="observation-resource" title={info.path}>
   <span class="observation-resource-title"
-    ><Icon
-      name={info.kind === 'Skill' ? 'settings' : info.kind === 'Network' ? 'network' : 'file'}
-    /><strong>{info.resource}</strong>{#if info.kind === 'Skill'}<span class="evidence-tag"
-        >{$t('Skill')}</span
-      >{/if}</span
+    ><ResourceIcon {row} compact /><strong>{info.resource}</strong></span
   >
-  {#if info.path && info.path !== info.resource}<small>{info.path}</small>{/if}
+  <small
+    ><span class="resource-kind">{$t(visual.label)}</span
+    >{#if info.path && info.path !== info.resource}
+      · <span>{info.path}</span>{/if}</small
+  >
 </span>
 
 <style>
@@ -41,11 +43,7 @@
     font: calc(10px * var(--ui-scale))/1.45 var(--sans);
     overflow-wrap: anywhere;
   }
-  .evidence-tag {
-    padding: 1px 5px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    color: var(--muted);
-    font: calc(10px * var(--ui-scale))/1.4 var(--sans);
+  .resource-kind {
+    font-weight: 500;
   }
 </style>

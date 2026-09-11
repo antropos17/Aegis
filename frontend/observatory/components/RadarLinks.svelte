@@ -9,6 +9,8 @@
   } from '../runtime/radar-resources';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
+  import ResourceIcon from './ResourceIcon.svelte';
+  import { resourceVisual } from '../runtime/resource-visual';
   let {
     resource,
     layer,
@@ -53,9 +55,11 @@
 <section class="resource-investigation" aria-label={$t('Resource relationships')}>
   <header>
     <span class="eyebrow"
-      >{layer === 'files' ? $t('Selected file') : $t('Selected destination')}</span
+      >{layer === 'files' ? $t('Selected file') : $t('Selected destination')} · {$t(
+        resourceVisual(resource.rows[0]).label,
+      )}</span
     >
-    <h3><Icon name={layer === 'files' ? 'file' : 'network'} />{resource.label}</h3>
+    <h3><ResourceIcon row={resource.rows[0]} />{resource.label}</h3>
     {#if layer === 'files'}<code>{resource.address}</code>{/if}
     {#if resource.ip}<p>{$t('Observed IP:')} <code>{resource.ip}</code></p>{/if}
     {#if !retained}<p class="notice">
@@ -98,7 +102,7 @@
             aria-hidden="true"><Icon name="chevron" /></span
           >
           <span class="destination-icon" aria-hidden="true"
-            ><Icon name={layer === 'files' ? 'file' : 'network'} /></span
+            ><ResourceIcon row={resource.rows[0]} compact /></span
           >
         </div>
         <div class="actions-observed">
@@ -246,7 +250,7 @@
   }
   .relationship-route {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 40px 30px;
+    grid-template-columns: minmax(0, 1fr) 40px max-content;
     gap: var(--space-2);
     align-items: center;
   }

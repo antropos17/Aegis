@@ -1,5 +1,7 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
+  import ResourceIcon from './ResourceIcon.svelte';
+  import { resourceVisual } from '../runtime/resource-visual';
   import { t } from '../runtime/i18n';
 
   import { instances, measured, type RecordData, type Telemetry } from '../runtime/host';
@@ -167,8 +169,8 @@
     </section>{/if}
   {#if kind === 'resource'}<section class="detail-section resource-summary">
       <div class="section-heading">
-        <h3>{$t('Resource')}</h3>
-        <span class="badge">{info.kind}</span>
+        <h3 class="resource-heading"><ResourceIcon {row} compact />{$t('Resource')}</h3>
+        <span class="badge">{$t(resourceVisual(row).label)}</span>
       </div>
       <div class="resource-path">
         <span>{$t('Full path / address')}</span><code>{info.path}</code>
@@ -195,3 +197,11 @@
     <Metadata value={overview} />
   </section>
 {/if}
+
+<style>
+  .resource-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+</style>

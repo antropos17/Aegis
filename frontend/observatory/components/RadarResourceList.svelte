@@ -3,6 +3,8 @@
 
   import type { RadarResource } from '../runtime/radar-resources';
   import Icon from './Icon.svelte';
+  import ResourceIcon from './ResourceIcon.svelte';
+  import { resourceVisual } from '../runtime/resource-visual';
   let {
     resources,
     layer,
@@ -63,8 +65,9 @@
       onclick={(event) => select(resource, event.currentTarget)}
     >
       <span class="choice-heading"
-        ><Icon name={layer === 'files' ? 'file' : 'network'} /><strong>{resource.label}</strong
-        ><span class="resource-level" class:review={resource.level === 'review'}
+        ><ResourceIcon row={resource.rows[0]} /><strong>{resource.label}</strong><span
+          class="resource-level"
+          class:review={resource.level === 'review'}
           >{resource.sensitive ? $t('Sensitive') : labels[resource.level]}</span
         ></span
       >
@@ -76,7 +79,7 @@
         >{actors.slice(0, 2).join(', ')}{actors.length > 2 ? ` +${actors.length - 2}` : ''}</span
       >
       <span class="record-count"
-        >{resource.rows.length}
+        >{$t(resourceVisual(resource.rows[0]).label)} · {resource.rows.length}
         {$t('record(s) ·')}
         {resource.relations.length}
         {$t('relationships')}</span
