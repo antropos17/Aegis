@@ -45,6 +45,30 @@
   color: var(--muted);
   font-size: calc(12px * var(--ui-scale));
 }
+.monitoring-view-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: var(--space-4);
+  padding: var(--space-1);
+  border: 1px solid var(--strong-border);
+  border-radius: var(--surface-radius);
+  background: var(--panel);
+}
+.observatory-app .monitoring-view-switch .button {
+  flex: 1 1 auto;
+  white-space: normal;
+  border-color: transparent;
+  background: transparent;
+  font-weight: 600;
+}
+.observatory-app .monitoring-view-switch .button[aria-pressed='true'] {
+  border-color: var(--strong-border);
+  background: var(--selection);
+  color: var(--ink);
+}
 .page-head .live-badge {
   flex-shrink: 0;
 }

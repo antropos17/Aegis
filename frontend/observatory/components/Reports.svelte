@@ -197,7 +197,8 @@
         class="button"
         disabled={loading}
         aria-busy={loading}
-        onclick={() => void refresh(true).catch(() => {})}>{$t('Refresh')}</button
+        onclick={() => void refresh(true).catch(() => {})}
+        ><Icon name="refresh" />{$t('Refresh')}</button
       ><span class="spacer"></span><Action
         action={async () => confirmed(await invoke(host, 'openAuditLogDir'))}
         ><Icon name="folder" />{$t('Audit folder')}</Action
@@ -224,7 +225,8 @@
         class="button"
         disabled={exhausted || loading}
         aria-busy={loading}
-        onclick={() => void refresh().catch(() => {})}>{$t('Load older entries')}</button
+        onclick={() => void refresh().catch(() => {})}
+        ><Icon name="history" />{$t('Load older entries')}</button
       >
     </div>
   </div>

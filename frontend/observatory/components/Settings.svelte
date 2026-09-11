@@ -263,7 +263,7 @@
       action={async () => {
         await load();
         if (alive) error = '';
-      }}>{$t('Retry loading')}</Action
+      }}><Icon name="refresh" />{$t('Retry loading')}</Action
     >
   </div>{/if}
 {#if refreshWarning}<p role="status" class="notice">{refreshWarning}</p>{/if}
@@ -361,9 +361,9 @@
             action={() => update('checkForUpdates')}
             ><Icon name="refresh" />{$t('Check for updates')}</Action
           >{#if updates.status === 'available'}<Action action={() => update('downloadUpdate')}
-              >{$t('Download update')}</Action
+              ><Icon name="download" />{$t('Download update')}</Action
             >{/if}{#if updates.status === 'ready'}<Action action={() => update('installUpdate')}
-              >{$t('Install and restart')}</Action
+              ><Icon name="refresh" />{$t('Install and restart')}</Action
             >{/if}
         </div>
       </SettingsGroup>

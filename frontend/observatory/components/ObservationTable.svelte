@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { t } from '../runtime/i18n';
 
   import {
@@ -59,11 +60,12 @@
       <button
         class="button"
         aria-disabled={currentPage === 0}
-        onclick={() => changePage(currentPage - 1)}>{$t('Previous')}</button
+        onclick={() => changePage(currentPage - 1)}
+        ><Icon name="arrowLeft" />{$t('Previous')}</button
       ><button
         class="button"
         aria-disabled={(currentPage + 1) * 30 >= groups.length}
-        onclick={() => changePage(currentPage + 1)}>{$t('Next')}</button
+        onclick={() => changePage(currentPage + 1)}><Icon name="chevron" />{$t('Next')}</button
       >
     </div>
   </nav>

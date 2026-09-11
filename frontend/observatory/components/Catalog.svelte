@@ -137,9 +137,10 @@
       editorSection = 'general';
       showForm = true;
     }}><Icon name="plus" />{$t('Add agent')}</button
-  ><Action disabled={mutating || !loaded} action={() => mutate(importAgents)}>{$t('Import')}</Action
+  ><Action disabled={mutating || !loaded} action={() => mutate(importAgents)}
+    ><Icon name="upload" />{$t('Import')}</Action
   ><Action action={async () => confirmed(await invoke(host, 'exportAgentDatabase'))}
-    >{$t('Export')}</Action
+    ><Icon name="download" />{$t('Export')}</Action
   >
 </div>
 

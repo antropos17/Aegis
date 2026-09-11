@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { t } from '../runtime/i18n';
 
   import type { Telemetry } from '../runtime/host';
@@ -70,7 +71,7 @@
     >
   </div>
   {#if scope.agent}<button class="button" onclick={() => change({ agent: '', instanceId: '' })}
-      >{$t('All agents')}</button
+      ><Icon name="agents" />{$t('All agents')}</button
     >{/if}
 </section>
 

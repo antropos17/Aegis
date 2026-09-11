@@ -116,7 +116,7 @@
       aria-expanded={filtersOpen}
       aria-controls={network ? 'network-filters' : 'event-filters'}
       onclick={() => (filtersOpen = !filtersOpen)}
-      >{$t('Filters')}
+      ><Icon name="settings" />{$t('Filters')}
       {#if effectiveKind !== 'all' || localAgentFilter || attributionFilter !== 'all' || severity !== 'all'}<span
           class="badge">{$t('Active')}</span
         >{/if}</button
@@ -131,7 +131,9 @@
           ? $t('Resume live view')
           : $t('Pause view')}</button
       >{/if}
-    <button class="button" aria-label={$t('Reset filters')} onclick={reset}>{$t('Reset')}</button>
+    <button class="button" aria-label={$t('Reset filters')} onclick={reset}
+      ><Icon name="refresh" />{$t('Reset')}</button
+    >
   </div>
 </div>
 <div

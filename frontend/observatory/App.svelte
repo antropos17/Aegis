@@ -418,14 +418,6 @@
             >{/if}
         </div>
         {#if isLiveWorkspace}<div class="page-actions">
-            {#if view === 'overview'}<button
-                class="button"
-                aria-pressed={detailedMonitoring}
-                onclick={() => (detailedMonitoring = !detailedMonitoring)}
-                >{detailedMonitoring
-                  ? $t('Protection overview')
-                  : $t('Detailed monitoring')}</button
-              >{/if}
             <button
               class="button"
               title={$t('Pause the displayed observations; backend monitoring continues')}
@@ -439,6 +431,22 @@
             >
           </div>{/if}
       </div>
+      {#if view === 'overview'}
+        <div class="monitoring-view-switch" role="group" aria-label={$t('Monitoring')}>
+          <button
+            class="button"
+            aria-pressed={detailedMonitoring}
+            onclick={() => (detailedMonitoring = true)}
+            ><Icon name="radar" /><span>{$t('Detailed monitoring')}</span></button
+          >
+          <button
+            class="button"
+            aria-pressed={!detailedMonitoring}
+            onclick={() => (detailedMonitoring = false)}
+            ><Icon name="shield" /><span>{$t('Protection overview')}</span></button
+          >
+        </div>
+      {/if}
       {#if isLiveWorkspace && view !== 'overview'}<AgentContext
           telemetry={displayTelemetry}
           {scope}

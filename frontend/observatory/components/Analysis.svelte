@@ -232,7 +232,7 @@
       {/snippet}
       {#snippet actions()}
         {#if !preview}<Action disabled={keyPending} action={() => saveKey(true)}
-            >{$t('Remove saved key')}</Action
+            ><Icon name="trash" />{$t('Remove saved key')}</Action
           >{/if}
         <button
           class="button"
@@ -243,7 +243,7 @@
           }}>{$t('Close settings')}</button
         >
         <Action disabled={preview || keyPending || !key.trim()} action={() => saveKey()}
-          >{$t('Save key')}</Action
+          ><Icon name="key" />{$t('Save key')}</Action
         >
       {/snippet}
     </EditorDialog>

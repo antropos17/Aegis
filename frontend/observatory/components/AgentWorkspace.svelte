@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { t } from '../runtime/i18n';
 
   import SectionTabs from './SectionTabs.svelte';
@@ -103,7 +104,9 @@
               : $t('Observed now')}
       </p>
     </div>
-    <button class="button" onclick={() => navigate('stats')}>{$t('Detailed statistics')}</button>
+    <button class="button" onclick={() => navigate('stats')}
+      ><Icon name="chart" />{$t('Detailed statistics')}</button
+    >
   </section>
   <SectionTabs
     {tabs}

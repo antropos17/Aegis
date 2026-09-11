@@ -223,7 +223,9 @@
           >{$t('Project / parent override')}</option
         ></select
       ></label
-    ><Action disabled={mutation !== null} action={load}>{$t('Refresh')}</Action>
+    ><Action disabled={mutation !== null} action={load}
+      ><Icon name="refresh" />{$t('Refresh')}</Action
+    >
   </div>
   <section class="panel">
     <div class="preset-grid">
@@ -273,7 +275,7 @@
         >{dirty ? $t('Unsaved permissions') : $t('Permissions saved')}</span
       >
       <Action disabled={!loaded || !target || !dirty || mutation !== null} action={save}
-        >{$t('Save permissions')}</Action
+        ><Icon name="check" />{$t('Save permissions')}</Action
       ><Action
         disabled={!dirty || mutation !== null}
         action={async () => {
@@ -283,13 +285,15 @@
             categories.map((cat) => [cat, String(current[cat] ?? 'monitor')]),
           );
           draftBaseline = JSON.stringify(draft);
-        }}>{$t('Discard changes')}</Action
+        }}><Icon name="close" />{$t('Discard changes')}</Action
       >
     </div>
     <details class="permission-reset">
       <summary>{$t('Restore default policy')}</summary>
       <p>{$t('This restores permissions for every agent and project.')}</p>
-      <Action disabled={mutation !== null} action={reset}>{$t('Reset all to defaults')}</Action>
+      <Action disabled={mutation !== null} action={reset}
+        ><Icon name="refresh" />{$t('Reset all to defaults')}</Action
+      >
     </details>
   </section>
   <p class="policy-note">
@@ -305,7 +309,7 @@
       action={async () => {
         confirmed(await invoke(host, 'reloadRules'));
         await load();
-      }}>{$t('Reload rules')}</Action
+      }}><Icon name="refresh" />{$t('Reload rules')}</Action
     >
   </div>
   <div class="filterbar rules-filter">

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { t } from '../runtime/i18n';
 
   import { instances, type RecordData, type Telemetry } from '../runtime/host';
@@ -59,7 +60,7 @@
       )}
     </p>
     {#if policy.agent}<button class="button" onclick={() => openPolicy(policy.agent!.instanceKey)}
-        >{$t('Edit this agent’s policy')}</button
+        ><Icon name="edit" />{$t('Edit this agent’s policy')}</button
       >{/if}
   </div>
   <h4>{$t('What you can do')}</h4>
@@ -75,14 +76,14 @@
         inspect(
           'Activity evidence',
           activity.rows.length > 1 ? { observations: activity.rows } : activity.latest,
-        )}>{$t('Open evidence')}</button
+        )}><Icon name="file" />{$t('Open evidence')}</button
     >
     <button
       class="button"
       disabled={!policy.agent || telemetry.stale}
       onclick={() =>
         policy.agent && inspect(policy.agent.name, { ...policy.agent, detailSection: 'processes' })}
-      >{$t('Agent & controls')}</button
+      ><Icon name="cpu" />{$t('Agent & controls')}</button
     >
   </div>
   {#if !policy.agent || telemetry.stale}<p class="muted">
