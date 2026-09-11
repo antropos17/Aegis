@@ -165,3 +165,15 @@ The selected roster row uses its background and a uniform border, without an
 inset stripe beside the ordinal. Horizontal padding keeps the number away from
 the edge. The radar toolbar grows with wrapped text and has no inner scrollbar.
 The viewport/theme/scale checks cover toolbar overflow and ordinal clearance.
+
+### Watchlist feedback and grouping (2026-09-11)
+
+The process watchlist loads automatically and combines the selected agent's
+status and add/remove action into one stable row. Other entries live in one
+bounded disclosure. Duplicate signature/PID entries share one displayed action;
+distinct PID scopes remain separate. Agent names resolve through the catalog.
+A shared live status survives removal of its row and reports loading, saving,
+success or failure. Concurrent mutations and refreshes are guarded. Failed
+readback after a confirmed write is reported separately and requires reloading
+before another change. Removing a focused row returns focus to the stable agent
+action. Watchlist flags remain alert-only and do not grant or block access.
