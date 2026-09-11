@@ -167,7 +167,7 @@
           agent = '';
           query = '';
           category = 'all';
-        }}>{$t('Clear filters')}</button
+        }}><Icon name="refresh" />{$t('Clear filters')}</button
       >{/if}
   </div>
   <div class="explorer-body">
@@ -183,7 +183,8 @@
         <h3 bind:this={heading} tabindex="-1">
           {current ? $t('Resource details') : $t('Follow an agent’s activity')}
         </h3>
-        {#if current}<button class="button" onclick={clear}>{$t('Clear resource selection')}</button
+        {#if current}<button class="button" onclick={clear}
+            ><Icon name="close" />{$t('Clear resource selection')}</button
           >{/if}
       </div>
       {#if current && retained && !filtered.some((resource) => resource.key === current.key)}<p

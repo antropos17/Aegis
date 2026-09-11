@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { t } from '../runtime/i18n';
 
   import { instances, measured, type Telemetry, type RecordData } from '../runtime/host';
@@ -35,7 +36,7 @@
       <p>{$t('Current processes · exact identity coverage · estimates are labeled')}</p>
     </div>
     <button class="button" aria-expanded={showSources} onclick={() => (showSources = !showSources)}
-      >{$t('Source samples ·')} {telemetry.tokens.length}</button
+      ><Icon name="database" />{$t('Source samples ·')} {telemetry.tokens.length}</button
     >
   </header>
   <div class="table-wrap">

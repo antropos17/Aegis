@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { t } from '../runtime/i18n';
 
   import type { StatisticsSample } from '../runtime/statistics-history';
@@ -166,7 +167,7 @@
         onclick={() => {
           pinnedAt = null;
           hoverAt = null;
-        }}>{$t('Latest')}</button
+        }}><Icon name="activity" />{$t('Latest')}</button
       >
     </div>
     <div class="monitor-summary">

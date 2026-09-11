@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { t } from '../runtime/i18n';
 
   import { onMount, tick } from 'svelte';
@@ -133,7 +134,9 @@
 <section class="detail-section watchlist" aria-label={$t('Alert watchlist')}>
   <div class="watch-heading">
     <h3>{$t('Alert watchlist')}</h3>
-    <button class="button" aria-disabled={busy} onclick={load}>{$t('Reload watchlist')}</button>
+    <button class="button" aria-disabled={busy} onclick={load}
+      ><Icon name="refresh" />{$t('Reload watchlist')}</button
+    >
   </div>
   <p class="entity-note">
     {$t('One entry per agent and scope. Entries raise alerts; they do not block execution.')}
@@ -153,7 +156,9 @@
       class="button"
       aria-disabled={busy || !loaded || !agent.trim()}
       onclick={(event) => change(current, event.currentTarget)}
-      >{current ? $t('Remove agent') : $t('Watch agent')}</button
+      ><Icon name={current ? 'trash' : 'eye'} />{current
+        ? $t('Remove agent')
+        : $t('Watch agent')}</button
     >
   </div>
   <div class="watch-feedback">
@@ -169,7 +174,8 @@
               class="button"
               aria-label={$t('Remove {value0}', { value0: label(entry) })}
               aria-disabled={busy}
-              onclick={(event) => change(entry, event.currentTarget)}>{$t('Remove')}</button
+              onclick={(event) => change(entry, event.currentTarget)}
+              ><Icon name="trash" />{$t('Remove')}</button
             >
           </li>{/each}
       </ul>

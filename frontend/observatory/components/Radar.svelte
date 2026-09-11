@@ -107,7 +107,7 @@
           >
         </div>
         {#if chosenGroup}<button class="button" onclick={clearSelection}
-            >{$t('Clear agent focus')}</button
+            ><Icon name="close" />{$t('Clear agent focus')}</button
           >{/if}
       </div>
       <div id="radar-body">
@@ -185,11 +185,11 @@
                 <p>{$t(leadingRiskReason(chosenGroup.members[0]))}</p>
                 <div>
                   <button class="button" onclick={() => chooseLayer('files')}
-                    >{$t('View files')}</button
+                    ><Icon name="folder" />{$t('View files')}</button
                   ><button class="button" onclick={() => chooseLayer('network')}
-                    >{$t('View connections')}</button
+                    ><Icon name="network" />{$t('View connections')}</button
                   ><button class="button" onclick={() => openAgent?.(chosenGroup.key)}
-                    >{$t('Open agent')}</button
+                    ><Icon name="agents" />{$t('Open agent')}</button
                   >
                 </div>
               </div>{/if}

@@ -128,7 +128,9 @@
         </div>
         {#if policyError}<p class="policy-error">
             {$t('Saved preferences could not be loaded.')}
-            <button class="button" onclick={loadPermissions}>{$t('Retry preferences')}</button>
+            <button class="button" onclick={loadPermissions}
+              ><Icon name="refresh" />{$t('Retry preferences')}</button
+            >
           </p>{/if}
         <ProtectionDetails
           activity={current}

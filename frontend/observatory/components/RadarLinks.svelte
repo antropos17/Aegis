@@ -134,9 +134,9 @@
         </details>
         <div class="relation-actions">
           <button class="button" onclick={() => evidence(relation.rows)}
-            >{$t('View records')}</button
+            ><Icon name="file" />{$t('View records')}</button
           ><button class="button" disabled={!live} onclick={() => process(relation)}
-            >{$t('Inspect process')}</button
+            ><Icon name="cpu" />{$t('Inspect process')}</button
           >
         </div>
       </article>
@@ -149,14 +149,14 @@
         aria-disabled={index === 0}
         onclick={() => {
           if (index > 0) page = index - 1;
-        }}>{$t('Previous')}</button
+        }}><Icon name="arrowLeft" />{$t('Previous')}</button
       ><span>{index + 1} / {pages}</span><button
         class="button"
         aria-label={$t('Next relationships')}
         aria-disabled={index === pages - 1}
         onclick={() => {
           if (index < pages - 1) page = index + 1;
-        }}>{$t('Next')}</button
+        }}><Icon name="chevron" />{$t('Next')}</button
       >
     </nav>{/if}
   <footer>
@@ -166,7 +166,7 @@
         ? $t(' · latest {value0}', { value0: new Date(resource.time).toLocaleString() })
         : ''}</span
     ><button class="button" onclick={() => evidence(resource.rows)}
-      >{$t('All resource records')}</button
+      ><Icon name="database" />{$t('All resource records')}</button
     >
   </footer>
 </section>

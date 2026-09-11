@@ -41,7 +41,15 @@ it('starts with the radar and keeps the protection overview reachable', async ()
   const mounted = render(App, { host: null });
   expect(await screen.findByRole('heading', { name: 'Agent radar' })).toBeVisible();
   expect(mounted.container.querySelector('.radar-panel')).toBeVisible();
+  const radar = screen.getByRole('button', { name: 'Detailed monitoring' });
+  const protection = screen.getByRole('button', { name: 'Protection overview' });
+  expect(radar).toHaveAttribute('aria-pressed', 'true');
+  expect(protection).toHaveAttribute('aria-pressed', 'false');
+  await fireEvent.click(radar);
+  expect(mounted.container.querySelector('.radar-panel')).toBeVisible();
   await fireEvent.click(screen.getByRole('button', { name: 'Protection overview' }));
+  expect(radar).toHaveAttribute('aria-pressed', 'false');
+  expect(protection).toHaveAttribute('aria-pressed', 'true');
   expect(screen.getByRole('region', { name: 'Protection overview' })).toBeVisible();
   expect(mounted.container.querySelector('.radar-panel')).not.toBeVisible();
   await fireEvent.click(screen.getByRole('button', { name: 'Detailed monitoring' }));

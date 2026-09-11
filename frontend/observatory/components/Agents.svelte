@@ -72,7 +72,7 @@
       ></select
     ></label
   ><button class="button" onclick={() => (descending = !descending)}
-    >{descending ? $t('Descending') : $t('Ascending')}</button
+    ><Icon name="sort" />{descending ? $t('Descending') : $t('Ascending')}</button
   ><span class="spacer"></span><span class="filter-count"
     >{agents.length}
     {$t('agents ·')}

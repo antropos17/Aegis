@@ -201,3 +201,16 @@ a 44px circular surface, a thin risk-colored border and a circular ordinal at it
 lower edge. The inner artwork has a circular clip and uses normal image
 interpolation. Native CSS curves provide antialiasing without blurring the logos.
 Selection keeps a clear contrasting border. No marker shadows or pulses return.
+
+### Discoverable monitoring modes and action icons (2026-09-11)
+
+Both monitoring destinations remain visible in a bordered mode switch directly
+below the page heading. Radar and shield icons identify detailed monitoring and
+the protection overview; a filled selection and pressed state show the current
+view. Selecting the current view keeps it open. The group wraps at narrow widths.
+
+Primary navigation and operation buttons reuse the existing monochrome SVG set:
+open, filter, refresh, save, import/export and watchlist actions. Labels remain
+visible and icons stay hidden from assistive technology. Dense record rows,
+numeric presets, metric selectors and ordinary cancel/close actions retain their
+existing presentation to keep the interface quiet.

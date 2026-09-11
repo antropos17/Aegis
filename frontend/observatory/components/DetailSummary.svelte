@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { t } from '../runtime/i18n';
 
   import { instances, measured, type RecordData, type Telemetry } from '../runtime/host';
@@ -161,7 +162,7 @@
           : $t('This is one worker process. Its activity is linked by its recorded identity.')}
       </p>
       {#if changeSection}<button class="button" onclick={() => changeSection?.('risk')}
-          >{$t('Why this score')}</button
+          ><Icon name="shield" />{$t('Why this score')}</button
         >{/if}
     </section>{/if}
   {#if kind === 'resource'}<section class="detail-section resource-summary">
