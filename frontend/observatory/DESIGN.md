@@ -214,3 +214,18 @@ open, filter, refresh, save, import/export and watchlist actions. Labels remain
 visible and icons stay hidden from assistive technology. Dense record rows,
 numeric presets, metric selectors and ordinary cancel/close actions retain their
 existing presentation to keep the interface quiet.
+
+### Resource identity icons (2026-09-11)
+
+Resource rows now share a compact bordered SVG symbol and a written type label.
+Source, configuration, document, image and database files have distinct marks;
+unrecognized extensions retain the ordinary file mark. Folders require recorded
+directory metadata or a trailing path separator. Skill resources use a book.
+Domain names use a globe, IP-only destinations use a server and unspecified
+network destinations retain the connection symbol. These categories describe
+recorded names and metadata, never inspected contents, ownership or safety.
+
+The same ResourceIcon is used in radar lists, relationship diagrams, activity
+rows and resource details. ObservationResource carries it into Events, Network,
+agent evidence and retained history. Neutral surfaces and existing risk labels
+keep resource identity separate from assessment. All labels are localized.

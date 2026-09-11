@@ -81,6 +81,28 @@ export const icons: Record<string, { tag: string; attrs: Record<string, string> 
   chevron: [{ tag: 'path', attrs: { d: 'm9 5 7 7-7 7' } }],
   arrow: [{ tag: 'path', attrs: { d: 'M4 12h16m-6-6 6 6-6 6' } }],
   file: [{ tag: 'path', attrs: { d: 'M5 2h9l5 5v15H5Zm9 0v6h5' } }],
+  fileCode: [{ tag: 'path', attrs: { d: 'M5 2h9l5 5v15H5Zm9 0v6h5M10 12l-3 3 3 3m4-6 3 3-3 3' } }],
+  fileConfig: [
+    { tag: 'path', attrs: { d: 'M5 2h9l5 5v15H5Zm9 0v6h5M8 12h8M8 17h8M11 10v4m3 1v4' } },
+  ],
+  fileText: [{ tag: 'path', attrs: { d: 'M5 2h9l5 5v15H5Zm9 0v6h5M8 12h8m-8 4h8m-8 3h5' } }],
+  fileImage: [
+    { tag: 'path', attrs: { d: 'M5 2h9l5 5v15H5Zm9 0v6h5M7 19l4-5 3 3 2-2 3 4' } },
+    { tag: 'circle', attrs: { cx: '9', cy: '10', r: '1' } },
+  ],
+  book: [
+    {
+      tag: 'path',
+      attrs: {
+        d: 'M12 5C9 3 5 3 2 4v16c3-1 7-1 10 1 3-2 7-2 10-1V4c-3-1-7-1-10 1Zm0 0v16M5 8h4m-4 4h4m6-4h4m-4 4h4',
+      },
+    },
+  ],
+  server: [
+    { tag: 'rect', attrs: { x: '3', y: '3', width: '18', height: '7', rx: '2' } },
+    { tag: 'rect', attrs: { x: '3', y: '14', width: '18', height: '7', rx: '2' } },
+    { tag: 'path', attrs: { d: 'M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6' } },
+  ],
   folder: [{ tag: 'path', attrs: { d: 'M3 7V5h7l2 3h9v12H3Z' } }],
   key: [
     { tag: 'circle', attrs: { cx: '8', cy: '8', r: '5' } },

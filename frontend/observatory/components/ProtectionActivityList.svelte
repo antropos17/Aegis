@@ -4,6 +4,7 @@
   import type { ProtectionActivity } from '../runtime/protection';
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
+  import ResourceIcon from './ResourceIcon.svelte';
   let {
     activity,
     ready,
@@ -86,9 +87,9 @@
           ></span
         >
         <span class="what"
-          ><span>{$t(item.action)}</span><strong>{item.resource}</strong><small class="path"
-            >{item.target}</small
-          ></span
+          ><span>{$t(item.action)}</span><strong class="resource-name"
+            ><ResourceIcon row={item.latest} compact />{item.resource}</strong
+          ><small class="path">{item.target}</small></span
         >
         <span class="verdict"
           ><span class="activity-verdict">{$t(labels[item.level])}</span><small
@@ -210,6 +211,11 @@
   .who > span,
   .what {
     min-width: 0;
+  }
+  .what > .resource-name {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
   }
   .who strong,
   .who small,
