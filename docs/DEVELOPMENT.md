@@ -200,32 +200,30 @@ vi.fn stub — follow that pattern for new tests.
 
 ## CSS Tokens
 
-All colors and spacing come from M3 design tokens in
-`frontend/observatory/styles/theme.css`. Never hardcode hex values.
+The desktop and preview share `frontend/observatory/`. Read its `DESIGN.md`
+before changing the interface. `frontend/observatory/styles.ts` defines the
+stylesheet order: `styles/workbench.css` supplies the base layout and theme
+properties, followed by the workspace and interaction styles. Preserve this
+cascade; add scoped component CSS for additional behavior.
 
 ```css
-/* GOOD */
-color: var(--md-sys-color-primary);
-padding: var(--aegis-space-6);
-
-/* BAD */
-color: #7a8a9e;
-padding: 12px;
+color: var(--ink);
+background: var(--panel);
+border: 1px solid var(--border);
+font-family: var(--sans);
 ```
 
-Key token namespaces:
-- `--md-sys-color-*` — M3 color roles (surface, primary, error, etc.)
-- `--md-sys-typescale-*` — typography (body-medium, label-large, etc.)
-- `--md-sys-shape-corner-*` — border radii
-- `--aegis-space-*` — spacing scale (4px base unit, scale 1-12)
-- `--aegis-size-*` — structural sizes (header height, footer height)
-- `--aegis-color-*` — semantic aliases (header-bg, brand, etc.)
+Use existing semantic properties: `--bg`, `--panel`, `--ink`, `--muted`,
+`--border`, `--focus`, `--green`, `--amber` and `--red`. Typography uses `--sans`
+and `--mono`. Inspect the imported styles for dimensions and spacing; there is
+no M3 or `--aegis-space-*` token contract in the active renderer.
+Verify ordinary and high-contrast light/dark themes and supported UI scales.
 
 ---
 
 ## Conventions
 
-- **300-line soft limit** per file — a target for NEW files, not an invariant; 28 existing `src/` files already exceed it. Not enforced by the linter
+- **300-line soft limit** per file — a target for new files. Extract when adding to an oversized file. The current 28 existing `src/` files above 300 lines (JSON excluded) are tracked by `npm run counts:check`; this size target is not enforced by the linter
 - **JSDoc on all exported functions**: `@param`, `@returns`, `@since`
 - **Commit prefixes**: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`; see [BRANCHING.md](../BRANCHING.md)
 - **IPC channel names**: `kebab-case`

@@ -26,7 +26,7 @@ Sequence rules are consumed through five scan taps in `src/main/main.js` and `sr
 
 ## Verification
 
-Install dependencies with `npm ci`. The root `tsconfig.json` is a solution file with an empty file list: bare `npx tsc --noEmit` checks nothing and exits 0. Use `npm run typecheck` for both projects; `npm run typecheck:svelte` checks Svelte templates.
+Install dependencies with `npm ci`. The root `tsconfig.json` is a solution file with an empty file list: bare `npx tsc --noEmit` checks nothing and exits 0. Use `npm run typecheck` for main, retained renderer code and Observatory; `npm run typecheck:svelte` checks Svelte templates.
 
 The five required contexts in `.github/workflows/ci.yml` run these 10 verification commands after dependency installation:
 
