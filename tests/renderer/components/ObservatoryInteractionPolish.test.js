@@ -12,7 +12,7 @@ const agent = {
   instanceIdSource: 'os',
 };
 const props = (host = {}) => ({
-  host,
+  host: { blocklistList: vi.fn(async () => []), ...host },
   telemetry: { ...emptyTelemetry(), ready: true, stale: false, agents: [agent] },
   request: { title: 'Codex', row: agent },
   close: vi.fn(),

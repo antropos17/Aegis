@@ -15,6 +15,7 @@ import { checkDetails } from './detail-check.mjs';
 import { checkMotion } from './motion-check.mjs';
 import { checkResourceLayers } from './resource-layer-check.mjs';
 import { checkProtection } from './protection-check.mjs';
+import { checkWatchlist } from './watchlist-check.mjs';
 
 const repo = process.cwd();
 const designRoot = resolve(repo, 'frontend/observatory');
@@ -415,6 +416,7 @@ try {
   assert.equal(await page.evaluate(() => window.bridgeCalls), 0);
   await checkMotion(page);
   await page.close();
+  await checkWatchlist(browser, base + '/desktop/', out);
   await checkClarity(browser, base + '/desktop/', out);
   await checkResourceLayers(browser, base + '/desktop/', out);
   await checkDetails(browser, base + '/desktop/', out);
