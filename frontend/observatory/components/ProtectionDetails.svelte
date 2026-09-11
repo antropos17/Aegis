@@ -1,5 +1,7 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
+  import ResourceIcon from './ResourceIcon.svelte';
+  import { resourceVisual } from '../runtime/resource-visual';
   import { t } from '../runtime/i18n';
 
   import { instances, type RecordData, type Telemetry } from '../runtime/host';
@@ -24,7 +26,17 @@
   <h3>{$t('Understand this activity')}</h3>
   <p class="actor">{activity.actor}</p>
   <p>{$t(activity.action)}</p>
-  <div class="destination"><span>{$t('Where')}</span><code>{activity.target}</code></div>
+  <div class="destination">
+    <span class="destination-label">{$t('Where')}</span>
+    <div class="destination-resource">
+      <ResourceIcon row={activity.latest} />
+      <div>
+        <span class="destination-kind">{$t(resourceVisual(activity.latest).label)}</span><code
+          >{activity.target}</code
+        >
+      </div>
+    </div>
+  </div>
   {#if activity.latest.remoteIp}<p class="muted">
       {$t('Observed IP:')}
       {String(activity.latest.remoteIp)}{activity.latest.remotePort
@@ -122,10 +134,17 @@
     border-radius: var(--control-radius);
     margin: var(--space-3) 0;
   }
-  .destination span {
+  .destination-label,
+  .destination-kind {
     display: block;
     color: var(--muted);
     margin-bottom: var(--space-1);
+  }
+  .destination-resource {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-2);
   }
   code {
     overflow-wrap: anywhere;

@@ -229,3 +229,12 @@ The same ResourceIcon is used in radar lists, relationship diagrams, activity
 rows and resource details. ObservationResource carries it into Events, Network,
 agent evidence and retained history. Neutral surfaces and existing risk labels
 keep resource identity separate from assessment. All labels are localized.
+
+### Process and attribute details (2026-09-11)
+
+Worker rows and process cards pair PID with the processor symbol and recorded
+project paths with a folder. Suspend, resume and stop controls use their familiar
+pause, play and stop marks while retaining labels, capability limits and the stop
+confirmation. Selected activity repeats the resource symbol and type shown in
+the list. Known metadata labels for process IDs, paths, domains, IPs, ports and
+observation times use the same icon vocabulary; other attributes stay plain.

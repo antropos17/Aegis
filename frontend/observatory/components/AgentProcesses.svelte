@@ -4,6 +4,7 @@
   import { instances, measured, type Telemetry } from '../runtime/host';
   import { isScopedProcess, type AgentScope } from '../runtime/agent-scope';
   import { displayMeasure } from '../runtime/radar';
+  import Icon from './Icon.svelte';
   let {
     telemetry,
     scope,
@@ -18,7 +19,7 @@
 
 <section class="panel agent-processes" aria-label={$t('Agent worker processes')}>
   <div class="panel-head">
-    <h2>{$t('Worker processes')} <small>{members.length}</small></h2>
+    <h2><Icon name="cpu" />{$t('Worker processes')} <small>{members.length}</small></h2>
     {#if scope.instanceId}<button
         class="text-button"
         onclick={() => change({ agent: scope.agent, instanceId: '' })}>{$t('All processes')}</button
@@ -46,13 +47,17 @@
                   ? $t('Select this process throughout live views')
                   : $t('Process start time was not observed')}
                 onclick={() => change({ agent: scope.agent, instanceId: member.instanceId! })}
-                >{$t('PID')} {member.pid}</button
+                ><Icon name="cpu" />{$t('PID')} {member.pid}</button
               ><small>{member.process}</small>{#if !isScopedProcess(member)}<small
                   >{$t('Start time not observed · selection unavailable')}</small
                 >{/if}</td
             >
             <td class="location" title={String(member.cwd ?? '')}
-              >{member.projectName || member.cwd || $t('Working directory not recorded')}</td
+              ><span class="process-location"
+                >{#if member.projectName || member.cwd}<Icon name="folder" />{/if}<span
+                  >{member.projectName || member.cwd || $t('Working directory not recorded')}</span
+                ></span
+              ></td
             >
             <td>{displayMeasure(telemetry.stale ? null : measured(reading?.cpu), '%')}</td>
             <td>{displayMeasure(telemetry.stale ? null : measured(reading?.memMb), ' MB')}</td>
@@ -97,6 +102,11 @@
   }
   .chosen {
     background: var(--accent-bg);
+  }
+  .process-location {
+    display: flex;
+    align-items: start;
+    gap: var(--space-2);
   }
   .more {
     margin: 12px 16px;
