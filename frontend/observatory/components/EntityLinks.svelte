@@ -81,12 +81,14 @@
           onclick={() => navigate(a.name + ' · PID ' + a.pid, a as unknown as RecordData)}
         >
           <div class="detail-card-heading">
-            <strong>{$t('PID')} {a.pid}</strong><span class="badge"
-              >{a.riskScore}{$t('/100 risk')}</span
+            <strong class="process-identity"><Icon name="cpu" />{$t('PID')} {a.pid}</strong><span
+              class="badge">{a.riskScore}{$t('/100 risk')}</span
             >
           </div>
-          <span>{a.process}</span><small title={a.cwd}
-            >{a.cwd || $t('Working directory not recorded')}</small
+          <span>{a.process}</span><small class="process-location" title={a.cwd}
+            >{#if a.cwd}<Icon name="folder" />{/if}<span
+              >{a.cwd || $t('Working directory not recorded')}</span
+            ></small
           >
           <span class="detail-card-link">{$t('Open process')}<Icon name="chevron" /></span>
         </button>
@@ -187,3 +189,15 @@
       </p>{/if}
   </section>
 {/if}
+
+<style>
+  .process-identity,
+  .process-location {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .process-location {
+    align-items: start;
+  }
+</style>

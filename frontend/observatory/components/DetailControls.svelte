@@ -10,6 +10,7 @@
     type Telemetry,
   } from '../runtime/host';
   import Action from './Action.svelte';
+  import Icon from './Icon.svelte';
   import Watchlist from './Watchlist.svelte';
   let { row, host, telemetry }: { row: RecordData; host: Host | null; telemetry: Telemetry } =
     $props();
@@ -32,7 +33,7 @@
 
 <section class="detail-section">
   <div class="section-heading">
-    <h3>{$t('Process controls')}</h3>
+    <h3 class="controls-heading"><Icon name="cpu" />{$t('Process controls')}</h3>
     <span class="badge">{$t('PID')} {String(row.pid ?? 'Unavailable')}</span>
   </div>
   <p class="entity-note">
@@ -43,16 +44,18 @@
   <div class="control-grid">
     <Action
       disabled={!canControl}
-      action={() => processAction('suspendProcess', String(row.instanceId))}>{$t('Suspend')}</Action
+      action={() => processAction('suspendProcess', String(row.instanceId))}
+      ><Icon name="pause" />{$t('Suspend')}</Action
     >
     <Action
       disabled={!canControl}
-      action={() => processAction('resumeProcess', String(row.instanceId))}>{$t('Resume')}</Action
+      action={() => processAction('resumeProcess', String(row.instanceId))}
+      ><Icon name="play" />{$t('Resume')}</Action
     >
     <button
       class="button danger"
       disabled={!canControl}
-      onclick={() => (stopId = String(row.instanceId))}>{$t('Stop…')}</button
+      onclick={() => (stopId = String(row.instanceId))}><Icon name="stop" />{$t('Stop…')}</button
     >
   </div>
   {#if stopId}<div class="confirm-stop" role="alert">
@@ -61,9 +64,22 @@
         {$t('Unsaved work may be lost. The process identity is checked again before stopping.')}
       </p>
       <div class="toolbar">
-        <Action action={() => processAction('killProcess', stopId!)}>{$t('Confirm stop')}</Action>
+        <Action action={() => processAction('killProcess', stopId!)}
+          ><Icon name="stop" />{$t('Confirm stop')}</Action
+        >
         <button class="button" onclick={() => (stopId = null)}>{$t('Cancel')}</button>
       </div>
     </div>{/if}
 </section>
 {#key row.agent ?? row.name}<Watchlist {host} agent={String(row.agent ?? row.name ?? '')} />{/key}
+
+<style>
+  .control-grid {
+    align-items: start;
+  }
+  .controls-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+</style>
