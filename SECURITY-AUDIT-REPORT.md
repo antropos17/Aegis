@@ -1,4 +1,17 @@
-# AEGIS Security Audit Report (Pre-v1.0)
+# Historical AEGIS Security Audit Report (Pre-v1.0)
+
+**Historical record, not a current security assessment.** This report was added
+on 8 March 2026 in `91766201bde10eed6b3042709e861e6604dc8a89`; it did not record
+the audited revision. Its original findings and measurements are retained below.
+
+A documentation check on 11 September 2026 against `17a3c0d` confirmed that
+`src/main/main.js` already enables sandboxing and guards navigation/window
+creation. The current new-file size target is 300 lines (`AGENTS.md`). Key
+storage uses safeStorage conditionally and still falls back to plaintext when
+encryption is unavailable or fails; see [current security limitations](SECURITY.md#security-architecture).
+CI runs a production dependency audit. These observations do not revalidate the
+old coverage figures, dependency verdict or every finding below. A new security
+audit is required for a current release assessment.
 
 This report details the findings of a comprehensive security audit conducted on the AEGIS desktop application. The audit focused on Electron-specific threats, dependencies, code quality, test coverage, and OWASP Top 10 vulnerabilities for Desktop Applications.
 

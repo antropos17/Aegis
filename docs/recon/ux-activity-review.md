@@ -16,7 +16,7 @@ This is not a complete contrast, screen-reader or application-wide accessibility
 
 ## Verification
 
-- Seven regression tests in [ActivityUX.test.js](../../tests/renderer/components/ActivityUX.test.js)
+- Seven regression tests in [ActivityUX.test.js at the reviewed implementation](https://github.com/antropos17/Aegis/blob/1c21a506204d13f6720855ea441f1c4c3da6b8f6/tests/renderer/components/ActivityUX.test.js) (removed during the later Observatory integration)
   cover loading, network independence, grouping, resetting, empty states and scroll behavior.
 - Local full coverage run: 2901 tests passed, four skipped. After the final layout
   adjustments, 25 focused tests passed; renderer build, format, lint and both type

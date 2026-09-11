@@ -60,17 +60,17 @@ Merging the Release PR creates the version bump, changelog and GitHub Release; t
 - **Main process** (`.js`): annotated with JSDoc, which editors use for IntelliSense. `checkJs` is **off** in `tsconfig.base.json`, so `tsc` resolves these files but does not type-check their bodies — the annotations document intent, they are not enforced by the typecheck gate
 - **Renderer** (`.ts`/`.svelte`): native TypeScript with ES modules
 - Shared type definitions live in `src/shared/types/` (`npm run counts:check` derives the file count)
-- Run `npm run typecheck` before opening a PR — zero type errors required. It checks both projects (`tsconfig.main.json` + `tsconfig.renderer.json`); a bare `npx tsc --noEmit` resolves the root solution file and checks nothing
+- Run `npm run typecheck` before opening a PR — zero type errors required. It checks `tsconfig.main.json`, `tsconfig.renderer.json` and `frontend/observatory/tsconfig.json`; a bare `npx tsc --noEmit` resolves the root solution file and checks nothing
 - **Zero `any`** — use proper types, generics, or `unknown` instead. ESLint warns on `any`
 - Explicit return types on exported functions (`@typescript-eslint/explicit-function-return-type`)
 - Unused variables are errors, not warnings, in `.ts` files
 
 ### CSS
 
-- Scoped styles inside `frontend/observatory/components/*.svelte`; neutral tokens in `frontend/observatory/styles/theme.css` and shared layout in `styles/layout.css`
-- Always use CSS custom properties from `tokens.css` — never hardcode colors
-- Glassmorphism pattern with `backdrop-filter` blur and M3 design tokens
-- Both light and dark mode must work — test with the theme toggle
+- Follow `frontend/observatory/DESIGN.md` and preserve the stylesheet order in `frontend/observatory/styles.ts`. The base layout and tokens are in `styles/workbench.css`; subsequent imports add workspace and interaction styles.
+- Use existing semantic properties such as `--bg`, `--ink`, `--muted` and `--border`. Add scoped component CSS for new behavior; inspect the imported styles before introducing a token.
+- Match the approved Observatory hierarchy, typography and spacing.
+- Verify light, dark and both high-contrast themes, supported UI scales and keyboard focus.
 
 ## How to Add a New Agent
 
@@ -80,7 +80,7 @@ Add an entry to the `agents` array:
 
 ```json
 {
-  "name": "My Agent",
+  "id": "my-agent",
   "displayName": "My Agent",
   "names": ["myagent", "myagent.exe"],
   "icon": "🤖",
@@ -97,8 +97,9 @@ Add an entry to the `agents` array:
 ```
 
 **Required fields:**
-- `name` / `displayName` — Agent identifier (must be unique)
-- `names` — Substrings matched against running process names (case-insensitive). The field is `names`, not `processPatterns`; nothing in the codebase reads a `processPatterns` key
+- `id` — Unique stable identifier (1–128 ASCII letters, digits, underscores, dots or hyphens; reserved object keys are rejected)
+- `displayName` — Nonempty human-readable name, up to 200 characters
+- `names` — Nonempty array of nonempty strings (up to 256 characters each). Substrings matched against running process names (case-insensitive). The field is `names`, not `processPatterns`; nothing in the codebase reads a `processPatterns` key
 
 **Important fields:**
 - `knownDomains` — Vendor endpoint allowlist metadata. An allowlisted endpoint is not a guarantee of safe behavior; unresolved endpoints are `unknown` and resolved names outside the applicable allowlists are `flagged`
@@ -109,7 +110,7 @@ Add an entry to the `agents` array:
 
 ### Via the UI
 
-Users can also add custom agents through the Agent Database Manager in the RULES tab, with import/export support.
+Open **Agent catalog** to add a custom agent or import/export signatures. The supported fields are validated by `validateCustomAgent` in `src/main/settings-validation.js`.
 
 ## How to Add a New Monitoring Module
 
