@@ -99,29 +99,29 @@
   min-height: 44px;
   padding: 0;
   transform: translate(-50%, -50%);
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background: var(--bg);
+  border: 1.5px solid var(--marker-color, var(--strong-border));
+  border-radius: 50%;
+  background: var(--panel);
   box-shadow: none;
 }
 .radar-clarity .radar-blip::before {
-  content: '';
-  position: absolute;
-  bottom: 1px;
-  left: 6px;
-  right: 6px;
-  height: 2px;
-  background: var(--marker-color);
+  content: none;
 }
 .radar-clarity .radar-blip[aria-pressed='true'] {
   border-color: var(--ink);
   box-shadow: none;
-  background: var(--bg);
+  background: var(--selection);
 }
 .radar-clarity .blip-dot {
   --marker-size: 24px;
   width: 24px;
   height: 24px;
+  border-radius: 50%;
+  overflow: hidden;
+  clip-path: circle(50%);
+}
+.radar-clarity .blip-dot img {
+  image-rendering: auto;
 }
 .radar-clarity .blip-dot::after {
   display: none;
@@ -133,13 +133,13 @@
   transform: translateX(-50%);
   display: grid;
   place-items: center;
-  min-width: 14px;
-  height: 12px;
-  padding-inline: 3px;
-  background: var(--bg);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--panel);
   color: var(--ink);
   font-size: 10px;
-  line-height: 12px;
+  line-height: 16px;
   font-variant-numeric: tabular-nums;
 }
 .radar-roster {

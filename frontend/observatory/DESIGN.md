@@ -193,3 +193,11 @@ language follows the selection. English source messages are the fallback for
 unknown copy; recorded names, paths, evidence text and provider responses retain
 their source language. The Portuguese vocabulary from PR #425 is reused alongside
 the Observatory message catalog in `translations/pt-BR.json`.
+
+### Circular agent markers (2026-09-11 follow-up)
+
+The user requested circular agent icons with smooth edges. Radar markers now use
+a 44px circular surface, a thin risk-colored border and a circular ordinal at its
+lower edge. The inner artwork has a circular clip and uses normal image
+interpolation. Native CSS curves provide antialiasing without blurring the logos.
+Selection keeps a clear contrasting border. No marker shadows or pulses return.
