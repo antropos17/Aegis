@@ -69,10 +69,15 @@
   let section = $state('risk');
   let riskOpen = $state(true);
   let tabs = $derived([
-    { id: 'risk', label: 'Risk' },
-    { id: 'resources', label: 'Resources' },
-    { id: 'activity', label: 'Activity', count: files.length + connections.length },
-    { id: 'processes', label: 'Processes' },
+    { id: 'risk', label: 'Risk', icon: 'shield' },
+    { id: 'resources', label: 'Resources', icon: 'chart' },
+    {
+      id: 'activity',
+      label: 'Activity',
+      icon: 'activity',
+      count: files.length + connections.length,
+    },
+    { id: 'processes', label: 'Processes', icon: 'cpu' },
   ]);
   let lastRequest = -1;
   function selectSection(id: string) {
@@ -94,8 +99,10 @@
       <h2>{scope.instanceId ? $t('Process overview') : $t('Agent overview')}</h2>
       <p>
         {scope.instanceId
-          ? 'PID ' + String(process?.pid ?? scope.instanceId.split(':')[0])
-          : String(workerCount) + (workerCount === 1 ? ' worker process' : ' worker processes')} · {paused
+          ? $t('PID') + ' ' + String(process?.pid ?? scope.instanceId.split(':')[0])
+          : String(workerCount) +
+            ' ' +
+            $t(workerCount === 1 ? 'worker process' : 'worker processes')} · {paused
           ? $t('View paused')
           : telemetry.stale
             ? $t('Last reliable observation')

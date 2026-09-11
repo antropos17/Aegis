@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t } from '../runtime/i18n';
   import { tick } from 'svelte';
+  import Icon from './Icon.svelte';
   import type { DetailTab } from '../runtime/detail-model';
   let {
     tabs,
@@ -55,7 +56,9 @@
       onclick={() => change(tab.id)}
       onkeydown={(event) => keydown(event, i)}
     >
-      {$t(tab.label)}{#if tab.count !== undefined}<span class="tab-count">{tab.count}</span>{/if}
+      {#if tab.icon}<Icon name={tab.icon} />{/if}{$t(tab.label)}{#if tab.count !== undefined}<span
+          class="tab-count">{tab.count}</span
+        >{/if}
     </button>
   {/each}
 </div>

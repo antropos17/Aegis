@@ -242,8 +242,8 @@
     title={editing ? $t('Edit custom agent') : $t('Add custom agent')}
     caption={$t('Agent catalog')}
     tabs={[
-      { id: 'general', label: 'General' },
-      { id: 'recognition', label: 'Recognition' },
+      { id: 'general', label: 'General', icon: 'agents' },
+      { id: 'recognition', label: 'Recognition', icon: 'search' },
     ]}
     bind:selected={editorSection}
     close={() => (showForm = false)}

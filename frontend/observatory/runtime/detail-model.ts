@@ -4,6 +4,7 @@ import { describeObservation } from '../../../src/shared/observation-display.js'
 export interface DetailTab {
   id: string;
   label: string;
+  icon?: string;
   count?: number;
 }
 export type DetailKind = 'group' | 'process' | 'records' | 'catalog' | 'resource' | 'information';
@@ -49,34 +50,54 @@ export function detailActivity(row: RecordData, state: Telemetry): RecordData[] 
 }
 /** Sections available for this entity. @param row Record @param state Telemetry @returns Tabs @since 0.14.1 */
 export function detailTabs(row: RecordData, state: Telemetry): DetailTab[] {
-  const overview = { id: 'overview', label: 'Overview' };
-  const attributes = { id: 'attributes', label: 'Attributes' };
-  const risk = { id: 'risk', label: 'Risk explanation' };
+  const overview = { id: 'overview', label: 'Overview', icon: 'report' };
+  const attributes = { id: 'attributes', label: 'Attributes', icon: 'clipboard' };
+  const risk = { id: 'risk', label: 'Risk explanation', icon: 'shield' };
   switch (detailKind(row)) {
     case 'group':
       return [
         overview,
         risk,
-        { id: 'processes', label: 'Processes', count: detailMembers(row, state).length },
-        { id: 'activity', label: 'Activity', count: detailActivity(row, state).length },
+        {
+          id: 'processes',
+          label: 'Processes',
+          icon: 'cpu',
+          count: detailMembers(row, state).length,
+        },
+        {
+          id: 'activity',
+          label: 'Activity',
+          icon: 'activity',
+          count: detailActivity(row, state).length,
+        },
       ];
     case 'process':
       return [
         overview,
         risk,
-        { id: 'activity', label: 'Activity', count: detailActivity(row, state).length },
+        {
+          id: 'activity',
+          label: 'Activity',
+          icon: 'activity',
+          count: detailActivity(row, state).length,
+        },
         attributes,
-        { id: 'controls', label: 'Controls' },
+        { id: 'controls', label: 'Controls', icon: 'settings' },
       ];
     case 'records':
       return [
         overview,
-        { id: 'records', label: 'Records', count: records(row.observations).length },
+        {
+          id: 'records',
+          label: 'Records',
+          icon: 'history',
+          count: records(row.observations).length,
+        },
       ];
     case 'catalog':
-      return [overview, { id: 'signatures', label: 'Recognition' }];
+      return [overview, { id: 'signatures', label: 'Recognition', icon: 'search' }];
     case 'resource':
-      return [overview, attributes, { id: 'related', label: 'Related' }];
+      return [overview, attributes, { id: 'related', label: 'Related', icon: 'network' }];
     default:
       return [overview, attributes];
   }

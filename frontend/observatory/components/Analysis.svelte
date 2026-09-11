@@ -181,8 +181,8 @@
       title={$t('Anthropic connection')}
       caption={$t('AI analysis')}
       tabs={[
-        { id: 'connection', label: 'Connection' },
-        { id: 'usage', label: 'Usage' },
+        { id: 'connection', label: 'Connection', icon: 'network' },
+        { id: 'usage', label: 'Usage', icon: 'chart' },
       ]}
       bind:selected={providerSection}
       close={() => {
