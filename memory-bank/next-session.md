@@ -1,6 +1,36 @@
 # AEGIS — старт следующего чата
 
-## Актуальное продолжение — замеры ETW, 2026-09-11
+## Актуальное продолжение — пробуждение output pump, 2026-09-11
+
+В `X:/tmp/aegis-etw-burst-20260911`, ветка `codex/etw-output-wakeup` от `3d88df4`
+(слитый #433), вместо `Task.Delay(10)` реализован сигнал готовности выходной очереди.
+Один TaskCompletionSource под тем же lock, завершение при первом enqueue,
+перевзвод при последнем Take/invalidation; пустая invalidation не бросает waiter.
+`FilePumpWait` также ждёт stop, mapper/capture completion, cancellation или heartbeat.
+При drain завершённые stop/capture исключены, срок пять секунд сохранён.
+Протокол v4, build suffix `-wakeup`; main, workload и лимиты не менялись.
+
+49 C# self-tests, normal/loss-check по три сценария и все локальные проверки прошли.
+JS: 200 файлов / 3354 passed / 4 skipped. Live на тех же бинарниках: 66000 чтений
+за 19,800 с, delivered 111722, filtered 45703, overflow 50246,
+invalidation/ingress/native loss 0, map resets 6, ring evictions 15516.
+Fixture Read/PID найден, stopVerified true, exit 0, helpers 0.
+Output high water 1922 / 4193804 байта; pump 340,821 мс, write 263,684 мс,
+остальная работа pump 77,137 мс; main decode 307,434 мс. Idle waits 40 вместо 1264,
+теперь это ожидание сигнала/heartbeat, а не периодическая проверка. Idle total
+19589,352 мс включает тишину; максимум 1983,918 мс не является wake latency.
+
+Потери остаются. 50246 против прежних 52066 не доказывает throughput gain:
+реальный темп burst и фон отличаются. Следующий шаг E3 — короткие интервалы
+arrival/drain/occupancy, задержка output-ready→resume и время broker forwarding,
+затем выбирать следующую правку. Буферы вслепую не увеличивать. E4/E5 identity,
+independent absence, crash recovery и deployment открыты. Сон отложен.
+Отчёт: `docs/roadmap/etw-output-wakeup.md`; три raw JSON и 28 хешей:
+`docs/recon/evidence/etw-file-home-26200-output-wakeup.json`.
+Проверить финальный PR/CI/merge. Установленное приложение не заменялось;
+исходную грязную UI-копию сохранить.
+
+## Предыдущий шаг — замеры ETW, 2026-09-11
 
 В `X:/tmp/aegis-etw-burst-20260911`, ветка `codex/etw-service-timings` от `4006268`
 (слитый #432), реализован протокол v4: collector pump/outputWrite/idleWait и

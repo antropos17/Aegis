@@ -2284,3 +2284,36 @@ The subsequent source change only documents the intentional fail-closed clock
 check for lint; evidence records its separate final hash. Full JS coverage passed
 200 files / 3354 tests with four skips. Check this branch's final PR/CI/merge before
 the next block; preserve the original dirty UI checkout.
+
+## 2026-09-11 — wake ETW output when records arrive
+
+Implemented on `codex/etw-output-wakeup` from merged #433 / `3d88df4`. The empty
+output pump now waits on a level-triggered queue notification, lifecycle tasks,
+cancellation or the next heartbeat. Enqueue/drain/invalidation share the queue
+lock; empty invalidation preserves existing waiters. Drain excludes completed
+stop/capture tasks and keeps the existing five-second cancellation bound.
+Protocol v4 and timing fields remain; `idleWait` now measures signal/deadline
+waiting. Main, workload, buffer caps, identity and native cleanup ownership are
+unchanged. No elevated kill or automatic UAC retry was added.
+
+49 C# self-tests passed, including ten notification/race/cancellation/drain cases.
+Normal and saturation process checks passed three scenarios each; EOF without
+acknowledgement remained unverified. One live run on matching binaries completed
+66,000 reads in 19.800 s: delivered 111722, filtered 45703, output overflow 50246,
+invalidation/ingress/native losses 0, map resets 6, ring evictions 15516. Scoped
+Read/header-PID candidate observed, stop verified, child exit 0, remaining helpers 0.
+
+Empty waits were 40 versus 1264 previously. Their total 19589.352 ms includes quiet
+periods; their maximum 1983.918 ms is not enqueue-to-resume latency. Pump total
+340.821 ms contains writes 263.684 ms; main decode 307.434 ms. Output still reached
+1922 records / 4193804 bytes. Different burst rates and ambient delivery preclude
+a causal throughput claim from 50246 versus 52066 drops. E3 remains open.
+
+Next measure short burst arrival/drain rates, occupancy, output wake latency and
+broker forwarding; aggregate session totals cannot select the next throughput
+change. E4/E5, independent absence, protected crash recovery and deployment remain
+open. Sleep/wake remains deferred. Three raw reports and 28 source hashes are in
+`etw-file-home-26200-output-wakeup.json`; design/results are in `etw-output-wakeup.md`.
+Full JS coverage passed 200 files / 3354 tests / four skips, and all required local
+checks passed. Check this branch's final PR/CI/merge before continuing. Original
+dirty UI work and the installed application were preserved.

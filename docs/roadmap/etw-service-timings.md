@@ -1,5 +1,9 @@
 # B5 follow-up — collector and main service measurements
 
+This records the first v4 timing run. The [output-wakeup follow-up](etw-output-wakeup.md)
+replaces the measured 10 ms polling delay with a signal/deadline wait. Its idle
+duration retains the same field but measures the updated waiting behavior.
+
 Implemented on `codex/etw-service-timings` from `4006268` (merged #432). The
 diagnostic protocol is v4. This step measures existing behavior; output overflow
 and E3 remain open. Main/helper v1–3 are rejected rather than given invented zeros.
