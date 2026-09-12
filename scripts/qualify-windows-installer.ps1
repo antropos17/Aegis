@@ -48,8 +48,10 @@ function UninstallAndCheck {
   $process.Refresh()
   if ($process.ExitCode -ne 0) { throw "Uninstaller failed with exit $($process.ExitCode)" }
   $deadline = [DateTime]::UtcNow.AddSeconds(45)
-  while ((Test-Path -LiteralPath $appExe) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 250 }
-  if ((Test-Path -LiteralPath $appExe) -or (Registrations).Count) { throw 'Application or registration survived uninstall' }
+  # NSIS starts a temporary uninstaller process: the launcher can exit before
+  # that process removes the registry entry after deleting the application.
+  while (((Test-Path -LiteralPath $appExe) -or (Registrations).Count) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 250 }
+  if ((Test-Path -LiteralPath $appExe) -or (Registrations).Count) { throw "Uninstall did not finish: applicationPresent=$(Test-Path -LiteralPath $appExe), registrations=$(@(Registrations).Count)" }
   if ((Get-FileHash -LiteralPath $settings).Hash -ne $before -or (Get-FileHash -LiteralPath $sentinel).Hash -ne $sentinelBefore) { throw 'Uninstaller changed the preserved profile' }
 }
 RunInstaller $oldInstaller[0].FullName

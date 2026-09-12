@@ -25,10 +25,19 @@ jobs:
           path: candidate
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: '24'
+          # Includes libuv's Windows short-path fs-event fix (nodejs/node#65118).
+          node-version: '24.21.0'
           cache: npm
           cache-dependency-path: candidate/package-lock.json
       - run: npm ci
+      - name: Check native watcher in isolation with and without coverage
+        run: |
+          $env:NODE_OPTIONS = '--require="' + ("$env:GITHUB_WORKSPACE/scripts/release-test-diagnostics.cjs".Replace('\', '/')) + '"'
+          npx vitest run tests/main/watch-worker-integration.test.js --maxWorkers=1 --testTimeout=10000 --reporter=verbose
+          $plainExit = $LASTEXITCODE
+          npx vitest run tests/main/watch-worker-integration.test.js --coverage --maxWorkers=1 --testTimeout=10000 --reporter=verbose
+          $coverageExit = $LASTEXITCODE
+          if ($plainExit -or $coverageExit) { throw "Isolated watcher checks failed: plain=$plainExit coverage=$coverageExit" }
       - name: Verify candidate sources
         run: |
           npm run format:check

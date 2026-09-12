@@ -45,6 +45,8 @@ async function launch() {
     env,
     timeout: 60000,
   });
+  const window = await app.firstWindow();
+  await window.waitForFunction(() => typeof window.aegis?.getSettings === 'function');
   const state = await app.evaluate(({ app }) => ({
     version: app.getVersion(),
     profile: app.getPath('userData'),
@@ -53,8 +55,6 @@ async function launch() {
   assert.equal(normalize(state.profile), normalize(profile));
   assert.equal(state.version, options.version);
   assert.equal(state.packaged, true);
-  const window = await app.firstWindow();
-  await window.waitForFunction(() => typeof window.aegis?.getSettings === 'function');
   return window;
 }
 async function verify(window) {
