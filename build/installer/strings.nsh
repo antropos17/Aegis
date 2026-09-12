@@ -1,0 +1,11 @@
+; English-only installer; the application language setting is independent.
+LangString ObservatoryWelcome ${LANG_ENGLISH} "Install AEGIS"
+LangString ObservatoryWelcomeDetail ${LANG_ENGLISH} "See what your AI agents do.$\r$\n$\r$\nFollow processes, file access and network activity in one workspace.$\r$\n$\r$\nChoose who can use AEGIS and where to install it. Your existing settings are kept when you update."
+LangString ObservatoryDirectory ${LANG_ENGLISH} "Choose where AEGIS will be installed. Your settings are stored separately and are kept when you update."
+LangString ObservatoryReady ${LANG_ENGLISH} "AEGIS is ready"
+LangString ObservatoryReadyDetail ${LANG_ENGLISH} "Installation is complete.$\r$\n$\r$\nOpen AEGIS to see your agents on the radar and explore their activity."
+LangString ObservatoryRun ${LANG_ENGLISH} "Open AEGIS"
+LangString ObservatoryRemove ${LANG_ENGLISH} "Uninstall AEGIS"
+LangString ObservatoryRemoveDetail ${LANG_ENGLISH} "AEGIS will be removed from this computer.$\r$\n$\r$\nYour settings and monitoring history will be kept, so you can use them again if you reinstall."
+LangString ObservatoryRemoved ${LANG_ENGLISH} "AEGIS was uninstalled"
+LangString ObservatoryRemovedDetail ${LANG_ENGLISH} "The application has been removed.$\r$\n$\r$\nYour settings and monitoring history are still on this computer. They will be available when you reinstall AEGIS."

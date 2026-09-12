@@ -78,7 +78,17 @@
       "icon": "assets/icon.png"
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "include": "build/installer/observatory.nsh",
+      "installerIcon": "build/installer/installer.ico",
+      "uninstallerIcon": "build/installer/installer.ico",
+      "installerSidebar": "build/installer/sidebar.bmp",
+      "uninstallerSidebar": "build/installer/sidebar.bmp",
+      "installerHeader": "build/installer/header.bmp",
+      "installerLanguages": [
+        "en_US"
+      ],
       "deleteAppDataOnUninstall": false
     },
     "files": [

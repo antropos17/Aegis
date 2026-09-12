@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="492" height="942" viewBox="0 0 164 314">
+  <rect width="164" height="314" fill="#202224"/>
+  <g fill="none" stroke="#ececea" stroke-width="1.5" stroke-linejoin="round">
+    <path d="M29 24 40 28v10c0 7-11 14-11 14S18 45 18 38V28Z"/>
+    <path d="m24 41 5-10 5 10m-8-3h6"/>
+  </g>
+  <text x="51" y="43" fill="#ececea" font-family="Segoe UI" font-size="21" font-weight="600" letter-spacing="1">AEGIS</text>
+  <path d="M20 70h124" stroke="#36393c"/>
+  <g fill="#2b2d30" stroke="#36393c">
+    <rect x="20" y="116" width="124" height="40" rx="8"/>
+    <rect x="20" y="164" width="124" height="40" rx="8"/>
+    <rect x="20" y="212" width="124" height="40" rx="8"/>
+  </g>
+  <g fill="none" stroke="#bcbdbb" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="33" y="129" width="14" height="14" rx="3"/>
+    <path d="M37 133h6v6h-6Zm-1-7v3m8-3v3m-8 14v3m8-3v3m-14-14h3m-3 8h3m14-8h3m-3 8h3"/>
+    <path d="M35 177h7l5 5v11H35Zm7 0v5h5m-9 5h6m-6 3h4"/>
+    <circle cx="40" cy="232" r="8"/>
+    <ellipse cx="40" cy="232" rx="3.5" ry="8"/>
+    <path d="M32 232h16"/>
+  </g>
+  <g stroke="#656a6f" stroke-width="2" stroke-linecap="round">
+    <path d="M62 132h60m-60 8h38M62 180h48m-48 8h60M62 228h60m-60 8h30"/>
+  </g>
+  <text x="20" y="291" fill="#bcbdbb" font-family="Segoe UI" font-size="9" letter-spacing="1.5">OBSERVATORY</text>
+</svg>
