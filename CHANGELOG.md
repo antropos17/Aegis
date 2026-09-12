@@ -20,6 +20,96 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.15.0-alpha (2026-09-12)
+
+## What's Changed
+* docs: record verified 0.14.1-alpha release by @antropos17 in https://github.com/antropos17/Aegis/pull/363
+* docs: record installed 0.14.1-alpha upgrade by @antropos17 in https://github.com/antropos17/Aegis/pull/365
+* docs: record WSL observation recovery by @antropos17 in https://github.com/antropos17/Aegis/pull/366
+* feat: add consent-driven signed Windows updates by @antropos17 in https://github.com/antropos17/Aegis/pull/367
+* feat(ui): show navigation keyboard shortcut hints by @antropos17 in https://github.com/antropos17/Aegis/pull/368
+* fix: recover WSL discovery after availability changes by @antropos17 in https://github.com/antropos17/Aegis/pull/369
+* fix: reject incomplete audit exports by @antropos17 in https://github.com/antropos17/Aegis/pull/370
+* fix: retain stale WSL observations through discovery outages by @antropos17 in https://github.com/antropos17/Aegis/pull/371
+* perf: share fresh Windows process observations across scan stages by @antropos17 in https://github.com/antropos17/Aegis/pull/372
+* perf: stream audit exports with atomic destination replacement by @antropos17 in https://github.com/antropos17/Aegis/pull/373
+* perf: retire completed baseline instances after confirmed exits by @antropos17 in https://github.com/antropos17/Aegis/pull/374
+* docs: reconcile remaining development roadmap with shipped work by @antropos17 in https://github.com/antropos17/Aegis/pull/375
+* test: cover YAML failure boundaries and OpenClaw detection by @antropos17 in https://github.com/antropos17/Aegis/pull/376
+* feat: observe fresh Linux process generations by @antropos17 in https://github.com/antropos17/Aegis/pull/377
+* feat: group application process trees in data and cards by @antropos17 in https://github.com/antropos17/Aegis/pull/378
+* fix: show skill names in observed file events by @antropos17 in https://github.com/antropos17/Aegis/pull/379
+* feat: prepare Windows ETW measurement harness by @antropos17 in https://github.com/antropos17/Aegis/pull/380
+* feat: add repeated ETW load measurements by @antropos17 in https://github.com/antropos17/Aegis/pull/381
+* feat: compare ETW buffer budgets and sample sustained memory by @antropos17 in https://github.com/antropos17/Aegis/pull/382
+* docs: update ETW results and new-session handoff by @antropos17 in https://github.com/antropos17/Aegis/pull/383
+* docs(etw): design sensor boundary and offline B3 contract by @antropos17 in https://github.com/antropos17/Aegis/pull/384
+* feat(etw): add offline protocol and session health contract by @antropos17 in https://github.com/antropos17/Aegis/pull/385
+* feat(etw): add isolated broker collector lifecycle harness by @antropos17 in https://github.com/antropos17/Aegis/pull/386
+* docs(etw): record successful real UAC session stop by @antropos17 in https://github.com/antropos17/Aegis/pull/387
+* feat(etw): verify elevated cleanup through independent receipt pipe by @antropos17 in https://github.com/antropos17/Aegis/pull/388
+* fix(ui): make activity controls and compact layouts usable by @antropos17 in https://github.com/antropos17/Aegis/pull/389
+* fix(ui): quiet background scans and improve tab contrast by @antropos17 in https://github.com/antropos17/Aegis/pull/390
+* feat(etw): verify broker death with independent query witness by @antropos17 in https://github.com/antropos17/Aegis/pull/391
+* feat(etw): add controlled consent rejection probes by @antropos17 in https://github.com/antropos17/Aegis/pull/392
+* docs(etw): retain unexpected early consent evidence by @antropos17 in https://github.com/antropos17/Aegis/pull/393
+* docs(etw): record verified refusal and late consent by @antropos17 in https://github.com/antropos17/Aegis/pull/394
+* feat(etw): add bounded suspend lifecycle harness by @antropos17 in https://github.com/antropos17/Aegis/pull/395
+* docs: align GitHub project pages with current behavior by @antropos17 in https://github.com/antropos17/Aegis/pull/396
+* docs: refresh contributor credits and workflow examples by @antropos17 in https://github.com/antropos17/Aegis/pull/397
+* docs: simplify README and remove outdated previews by @antropos17 in https://github.com/antropos17/Aegis/pull/398
+* docs: restore star history chart by @antropos17 in https://github.com/antropos17/Aegis/pull/399
+* feat(etw): connect bounded diagnostic file backend by @antropos17 in https://github.com/antropos17/Aegis/pull/400
+* feat(ui): integrate Observatory desktop workspace by @antropos17 in https://github.com/antropos17/Aegis/pull/401
+* fix(ui): restore reviewed Observatory layout and visual behavior by @antropos17 in https://github.com/antropos17/Aegis/pull/402
+* fix(ui): preserve the approved Observatory template throughout desktop by @antropos17 in https://github.com/antropos17/Aegis/pull/403
+* fix(ui): group agent processes and correct theme behavior by @antropos17 in https://github.com/antropos17/Aegis/pull/404
+* fix(ui): clarify radar groups and separate monitoring panels by @antropos17 in https://github.com/antropos17/Aegis/pull/405
+* feat(ui): add motion feedback throughout Observatory by @antropos17 in https://github.com/antropos17/Aegis/pull/406
+* fix(radar): restore file and network resource layers by @antropos17 in https://github.com/antropos17/Aegis/pull/407
+* fix(observatory): clarify resource identity and group repeated evidence by @antropos17 in https://github.com/antropos17/Aegis/pull/408
+* feat(ui): organize detail windows into readable tabs by @antropos17 in https://github.com/antropos17/Aegis/pull/409
+* feat(ui): organize workspaces and add live performance monitors by @antropos17 in https://github.com/antropos17/Aegis/pull/410
+* fix(charts): separate source clocks and correct live graph history by @antropos17 in https://github.com/antropos17/Aegis/pull/411
+* fix: reconcile telemetry and settings workflows by @antropos17 in https://github.com/antropos17/Aegis/pull/412
+* fix: preserve settings patches and resource collection history by @antropos17 in https://github.com/antropos17/Aegis/pull/413
+* fix: align section grouping and preserve observation evidence by @antropos17 in https://github.com/antropos17/Aegis/pull/414
+* feat(ui): explain agent risk and worker processes by @antropos17 in https://github.com/antropos17/Aegis/pull/415
+* fix(ui): simplify navigation and scope agent statistics by @antropos17 in https://github.com/antropos17/Aegis/pull/416
+* perf(main): avoid redundant resource and token collection by @antropos17 in https://github.com/antropos17/Aegis/pull/417
+* feat(ui): center monitoring on a shared agent workspace by @antropos17 in https://github.com/antropos17/Aegis/pull/418
+* fix(ui): keep Monitoring global and unify control sizing by @antropos17 in https://github.com/antropos17/Aegis/pull/419
+* fix(ui): remove jumping motion and preserve navigation scroll by @antropos17 in https://github.com/antropos17/Aegis/pull/420
+* fix(monitoring): retain file transitions and recover DNS evidence by @antropos17 in https://github.com/antropos17/Aegis/pull/421
+* perf(ui): share snapshot assessments and reuse clock formatters by @antropos17 in https://github.com/antropos17/Aegis/pull/422
+* fix(ui): switch agent sections without scrolling by @antropos17 in https://github.com/antropos17/Aegis/pull/423
+* fix(ui): keep evidence pagination and focus stationary by @antropos17 in https://github.com/antropos17/Aegis/pull/424
+* fix(ui): separate activity panels and hold inspected intervals by @antropos17 in https://github.com/antropos17/Aegis/pull/426
+* feat(ui): refine settings layout and precise controls by @antropos17 in https://github.com/antropos17/Aegis/pull/427
+* fix(etw): keep process probes off the ingress drain by @antropos17 in https://github.com/antropos17/Aegis/pull/428
+* docs(etw): record live mapper burst measurement by @antropos17 in https://github.com/antropos17/Aegis/pull/429
+* feat(etw): report losses by collector stage by @antropos17 in https://github.com/antropos17/Aegis/pull/430
+* test(etw): add repeatable live file load measurement by @antropos17 in https://github.com/antropos17/Aegis/pull/431
+* perf(etw): encode output batches once and classify drops by @antropos17 in https://github.com/antropos17/Aegis/pull/432
+* feat(etw): measure collector and main service intervals by @antropos17 in https://github.com/antropos17/Aegis/pull/433
+* perf(etw): wake output pump on queued records by @antropos17 in https://github.com/antropos17/Aegis/pull/434
+* feat(ui): make agent activity and protection limits clear by @antropos17 in https://github.com/antropos17/Aegis/pull/435
+* feat(radar): make file and network relationships explorable by @antropos17 in https://github.com/antropos17/Aegis/pull/436
+* fix(radar): keep selection clear of agent numbers by @antropos17 in https://github.com/antropos17/Aegis/pull/437
+* fix(ui): keep watchlist feedback and controls together by @antropos17 in https://github.com/antropos17/Aegis/pull/438
+* docs: align project instructions with Observatory and CI by @antropos17 in https://github.com/antropos17/Aegis/pull/439
+* feat(ui): restore localization and make radar the default view by @antropos17 in https://github.com/antropos17/Aegis/pull/440
+* fix(ui): smooth circular radar agent markers by @antropos17 in https://github.com/antropos17/Aegis/pull/441
+* feat(ui): expose monitoring modes and add action icons by @antropos17 in https://github.com/antropos17/Aegis/pull/442
+* feat(ui): distinguish file and network resource icons by @antropos17 in https://github.com/antropos17/Aegis/pull/443
+* feat(ui): clarify process controls and resource details by @antropos17 in https://github.com/antropos17/Aegis/pull/444
+* feat(ui): add section navigation icons by @antropos17 in https://github.com/antropos17/Aegis/pull/445
+* ci(release): qualify signed Windows candidate without publishing by @antropos17 in https://github.com/antropos17/Aegis/pull/446
+* fix(ci): stabilize Windows release qualification by @antropos17 in https://github.com/antropos17/Aegis/pull/448
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.14.1-alpha...aegis-v0.15.0-alpha
+
 ## 0.14.1-alpha (2026-09-07)
 
 ## What's Changed
