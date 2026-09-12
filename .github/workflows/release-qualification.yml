@@ -25,7 +25,8 @@ jobs:
           path: candidate
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: '24'
+          # Includes libuv's Windows short-path fs-event fix (nodejs/node#65118).
+          node-version: '24.21.0'
           cache: npm
           cache-dependency-path: candidate/package-lock.json
       - run: npm ci
