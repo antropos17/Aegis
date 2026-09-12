@@ -40,7 +40,6 @@ jobs:
           if ($plainExit -or $coverageExit) { throw "Isolated watcher checks failed: plain=$plainExit coverage=$coverageExit" }
       - name: Verify candidate sources
         run: |
-          $env:NODE_OPTIONS = '--require="' + ("$env:GITHUB_WORKSPACE/scripts/release-test-diagnostics.cjs".Replace('\', '/')) + '"'
           npm run format:check
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           npm run lint
