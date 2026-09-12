@@ -27,6 +27,7 @@ src/main/.mutants/
 .DS_Store
 Thumbs.db
 *.ps1
+!/scripts/qualify-windows-installer.ps1
 !/sidecar/etw-lifecycle/Capture-SuspendContext.ps1
 cdp_*.js
 # Local assistant tooling — kept on disk, not part of the public tree

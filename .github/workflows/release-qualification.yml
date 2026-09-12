@@ -1,0 +1,93 @@
+name: Qualify Windows release candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      CANDIDATE_SHA: d62e589f2f56e9bcab153fef73df205f814fcc7d
+      CANDIDATE_TAG: aegis-v0.15.0-alpha
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: candidate
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: d62e589f2f56e9bcab153fef73df205f814fcc7d
+          path: candidate
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: candidate/package-lock.json
+      - run: npm ci
+      - name: Verify candidate sources
+        run: |
+          npm run format:check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run lint
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run typecheck
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run typecheck:svelte
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run test:coverage -- --maxWorkers=2 --testTimeout=10000
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run verify:gate
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run verify:seq-gate
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run counts:check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm audit --audit-level=high --omit=dev
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Verify renderer and package candidate
+        run: |
+          npm run build:renderer
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npx electron-builder --win --x64 --publish never
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $signed = Join-Path $env:RUNNER_TEMP 'aegis-release-qa/signed'
+          New-Item -ItemType Directory -Path $signed -Force | Out-Null
+          Copy-Item -Path 'dist/*.exe' -Destination $signed
+      - name: Sign candidate manifest and verify against repository public key
+        env:
+          AEGIS_RELEASE_SIGNING_KEY: ${{ secrets.AEGIS_RELEASE_SIGNING_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:AEGIS_RELEASE_SIGNING_KEY)) { throw 'Release signing key is unavailable' }
+          $signed = Join-Path $env:RUNNER_TEMP 'aegis-release-qa/signed'
+          node scripts/release-sign.js --dir $signed --tag $env:CANDIDATE_TAG --commit $env:CANDIDATE_SHA --repository antropos17/Aegis
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node scripts/release-verify.js --dir $signed
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Download and verify previous released installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $previous = Join-Path $env:RUNNER_TEMP 'aegis-release-qa/previous'
+          gh release download aegis-v0.14.1-alpha --repo antropos17/Aegis --dir $previous
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node scripts/release-verify.js --dir $previous
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Install previous version, upgrade, uninstall and reinstall
+        run: |
+          & "$env:GITHUB_WORKSPACE/scripts/qualify-windows-installer.ps1" -CandidateRoot (Get-Location).Path -ProfileChecker "$env:GITHUB_WORKSPACE/scripts/release-profile-check.cjs"
+      - name: Preserve qualification results and signed candidate as Actions artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: aegis-0.15.0-alpha-qualification
+          retention-days: 7
+          path: |
+            ${{ runner.temp }}/aegis-release-qa/signed
+            ${{ runner.temp }}/aegis-release-qa/*.json
+            ${{ runner.temp }}/aegis-release-qa/*.png
+            candidate/dist/builder-debug.yml
