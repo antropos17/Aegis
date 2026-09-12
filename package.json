@@ -1,6 +1,6 @@
 {
   "name": "aegis",
-  "version": "0.14.1-alpha",
+  "version": "0.15.0-alpha",
   "description": "OS-level monitor for AI agents: observes processes, file access, and network activity on the local machine and attributes each event to an agent instance.",
   "main": "src/main/main.js",
   "scripts": {
@@ -49,7 +49,7 @@
   "build": {
     "appId": "com.aegis.oversight",
     "productName": "AEGIS - AI Monitoring & Threat Detection",
-    "copyright": "Copyright \u00a9 2026 AEGIS Contributors",
+    "copyright": "Copyright © 2026 AEGIS Contributors",
     "beforeBuild": "scripts/electron-builder-before-build.js",
     "win": {
       "target": "nsis",
