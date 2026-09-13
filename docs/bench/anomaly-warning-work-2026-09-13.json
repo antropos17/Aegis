@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "kind": "offline-anomaly-warning-work",
+  "baseline": "726743b9086d1e0217f599ce8b10445ead398c6a",
+  "node": "v24.11.1",
+  "platform": "win32",
+  "arch": "x64",
+  "sourceSha256": {
+    "previous": "b68d8b43748446a9dfa74cffd86948ce0f1695c9215cb6b3814ace879f6b8ba4",
+    "current": "1518dc228f3ff18e892b0fafb270ef53ec54ed470148a75b34fc9be76a0ca993"
+  },
+  "scoringSha256": "b768f9bd1d3f650d65787394d31943fdd5de3ccab54a6358f115aa25a2fa45c6",
+  "cases": [
+    {
+      "instances": 8,
+      "mode": "normal",
+      "checksPerArm": 100,
+      "previous": {
+        "medianMsPerCheck": 0.8701799999999992,
+        "dimensionCalls": 3200
+      },
+      "current": {
+        "medianMsPerCheck": 0.4151800000000037,
+        "dimensionCalls": 0
+      },
+      "matchingResults": true
+    },
+    {
+      "instances": 8,
+      "mode": "already-warned",
+      "checksPerArm": 100,
+      "previous": {
+        "medianMsPerCheck": 0.6317199999999957,
+        "dimensionCalls": 3200
+      },
+      "current": {
+        "medianMsPerCheck": 0.3298400000000015,
+        "dimensionCalls": 0
+      },
+      "matchingResults": true
+    },
+    {
+      "instances": 8,
+      "mode": "new-warnings",
+      "checksPerArm": 100,
+      "previous": {
+        "medianMsPerCheck": 0.7468399999999974,
+        "dimensionCalls": 3200
+      },
+      "current": {
+        "medianMsPerCheck": 0.7881000000000086,
+        "dimensionCalls": 3200
+      },
+      "matchingResults": true
+    },
+    {
+      "instances": 64,
+      "mode": "normal",
+      "checksPerArm": 100,
+      "previous": {
+        "medianMsPerCheck": 5.149080000000003,
+        "dimensionCalls": 25600
+      },
+      "current": {
+        "medianMsPerCheck": 2.724759999999969,
+        "dimensionCalls": 0
+      },
+      "matchingResults": true
+    },
+    {
+      "instances": 64,
+      "mode": "already-warned",
+      "checksPerArm": 100,
+      "previous": {
+        "medianMsPerCheck": 5.104879999999957,
+        "dimensionCalls": 25600
+      },
+      "current": {
+        "medianMsPerCheck": 2.742699999999968,
+        "dimensionCalls": 0
+      },
+      "matchingResults": true
+    },
+    {
+      "instances": 64,
+      "mode": "new-warnings",
+      "checksPerArm": 100,
+      "previous": {
+        "medianMsPerCheck": 8.636400000000048,
+        "dimensionCalls": 25600
+      },
+      "current": {
+        "medianMsPerCheck": 8.529140000000007,
+        "dimensionCalls": 25600
+      },
+      "matchingResults": true
+    }
+  ]
+}
