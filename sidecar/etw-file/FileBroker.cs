@@ -43,11 +43,12 @@ internal static class FileBroker
             });
             var outbound = Task.Run(async () =>
             {
+                var performance = new FileForwardProfile();
                 while (true)
                 {
                     var frame = await read.Read(pipe, false, lifetime.Token);
                     if (frame.t == "stopped") Volatile.Write(ref terminalObserved, 1);
-                    await FileWire.Forward(output, frame, lifetime.Token);
+                    await performance.Forward(output, frame, lifetime.Token);
                     if (frame.t == "stopped") return;
                 }
             });

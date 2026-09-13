@@ -1,7 +1,7 @@
 'use strict';
 
 // Closed ETW diagnostic schemas, separate from framing and session validation.
-const PROTOCOL = 'etw-file/4';
+const PROTOCOL = 'etw-file/5';
 const PROFILE = 'home-26200-diagnostic-v1';
 const MAX_FRAME_BYTES = 256 * 1024;
 const MAX_DEPTH = 16;
@@ -97,6 +97,48 @@ const duration = (v) =>
   BigInt(v.maxTicks) <= BigInt(v.totalTicks) &&
   BigInt(v.totalTicks) <= BigInt(v.calls) * BigInt(v.maxTicks) &&
   (v.calls !== '0' || (v.totalTicks === '0' && v.maxTicks === '0'));
+const outputWindowShape = shape({
+  fromQpc: uint64,
+  toQpc: uint64,
+  startRecords: uint32,
+  records: uint32,
+  highWaterRecords: uint32,
+  highWaterBytes: uint32,
+  enqueued: uint64,
+  dequeued: uint64,
+  overflow: uint64,
+  invalidated: uint64,
+});
+const outputWindow = (v) =>
+  outputWindowShape(v) &&
+  BigInt(v.fromQpc) <= BigInt(v.toQpc) &&
+  v.startRecords <= v.highWaterRecords &&
+  v.records <= v.highWaterRecords &&
+  v.highWaterRecords <= 4096 &&
+  v.highWaterBytes <= 4 * 1024 * 1024 &&
+  BigInt(v.startRecords) + BigInt(v.enqueued) ===
+    BigInt(v.records) + BigInt(v.dequeued) + BigInt(v.invalidated);
+const outputFlowShape = shape({
+  asOfQpc: uint64,
+  windowTicks: positive64,
+  evictedWindows: uint64,
+  readyToTake: duration,
+  windows: array(outputWindow, 256),
+});
+const outputFlow = (v) =>
+  outputFlowShape(v) &&
+  v.readyToTake.failed === '0' &&
+  v.windows.length > 0 &&
+  v.windows.every(
+    (w, index, all) =>
+      BigInt(w.fromQpc) % BigInt(v.windowTicks) === 0n &&
+      BigInt(w.toQpc) - BigInt(w.fromQpc) <= BigInt(v.windowTicks) &&
+      BigInt(w.toQpc) <= BigInt(v.asOfQpc) &&
+      (index === 0 ||
+        (BigInt(w.fromQpc) > BigInt(all[index - 1].fromQpc) &&
+          BigInt(w.fromQpc) >= BigInt(all[index - 1].toQpc) &&
+          w.startRecords === all[index - 1].records)),
+  );
 const performanceShape = shape({
   frequency: positive64,
   asOfQpc: uint64,
@@ -105,9 +147,14 @@ const performanceShape = shape({
   idleWait: duration,
   ingress: boundedQueue,
   output: boundedQueue,
+  outputFlow,
+  brokerForward: shape({ asOfQpc: uint64, duration }),
 });
 const performance = (v) =>
   performanceShape(v) &&
+  BigInt(v.outputFlow.asOfQpc) <= BigInt(v.asOfQpc) &&
+  BigInt(v.outputFlow.windowTicks) === BigInt(v.frequency) / 10n &&
+  v.outputFlow.windows.at(-1).records === v.output.records &&
   BigInt(v.outputWrite.totalTicks) <= BigInt(v.pump.totalTicks) &&
   BigInt(v.outputWrite.calls) <= BigInt(v.pump.calls);
 const telemetryShape = shape({

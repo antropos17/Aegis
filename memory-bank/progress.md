@@ -2317,3 +2317,37 @@ open. Sleep/wake remains deferred. Three raw reports and 28 source hashes are in
 Full JS coverage passed 200 files / 3354 tests / four skips, and all required local
 checks passed. Check this branch's final PR/CI/merge before continuing. Original
 dirty UI work and the installed application were preserved.
+
+### 2026-09-13 — ETW burst diagnostics, live run deferred
+
+Implemented on `codex/etw-burst-diagnostics` from `ef5f39c` / merged #449, in an
+isolated worktree. Installer work in `codex/installer-typography` and the dirty
+original checkout remain separate. The user authorized normal-token tests only
+and explicitly deferred the proposed new UAC/66,000-read run.
+
+Protocol v5 adds output queue transitions/high water in at most 256 active 100 ms
+windows, readiness-to-first-dequeue delay and normal-token broker forwarding
+durations. Queues, frames, identity/attribution and native ownership retain their
+existing limits. Window dequeues do not prove transport; invalidation in flight
+remains in existing loss totals. Broker duration excludes pipe reading/decoding
+and the telemetry frame carrying its own sample. Main validates closed bounded
+profiles and retains them in ended summaries; no new renderer IPC or path export.
+
+The initial missing-profile regression failed, then 54 C# self-tests and normal/
+saturation process checks passed (three scenarios each). The saturation report
+reconciles 1,922 enqueues/dequeues and 6,270 output overflows, plus 4,097 ingress
+drops. Both clean stops verified; parent EOF stayed unverified with retry blocked.
+No EtwFile helpers remained. Reports/binary hashes and 32 source hashes are in
+`docs/recon/evidence/etw-file-home-26200-burst-diagnostics.json`; measurement regions
+and limits are in `docs/roadmap/etw-burst-diagnostics.md`.
+
+Full coverage passed 206 files / 3,398 tests / four skips with two workers. An
+initial run concurrent with build/lint had 12 failures involving UI timeouts;
+the isolated rerun kept the same test timeouts and assertions. E3 remains open:
+instrumentation is implemented, but live overhead, burst cause and a throughput
+fix remain unverified. Sleep/wake, protected crash recovery, deployment and the
+installer are deferred. Check this branch's final PR/CI/merge before continuing.
+
+All required local checks passed, including both four-mutant gates; the .NET
+Release build and whitespace verification passed separately. The existing five
+repository CI contexts do not compile the diagnostic C# sidecar.

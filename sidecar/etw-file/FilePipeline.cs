@@ -15,6 +15,7 @@ internal sealed class FilePipeline : IDisposable
     private readonly bool live;
     private readonly Func<FileObservation, FileObservation> observe;
     private readonly Func<long> clock;
+    private readonly FileOutputProfile profile = new(Stopwatch.Frequency);
     private readonly CancellationTokenSource cancel = new();
     private int bytes, highRecords, highBytes;
     private bool completed;
@@ -41,6 +42,7 @@ internal sealed class FilePipeline : IDisposable
         {
             map.Reset(qpc);
             invalidation++;
+            profile.Invalidate(clock());
             outputInvalidatedDropped += (ulong)outbound.Count; outbound.Clear(); bytes = 0;
             if (outputReady.Task.IsCompleted) outputReady = NewReady();
         }
@@ -82,8 +84,9 @@ internal sealed class FilePipeline : IDisposable
                 {
                     if (epoch != map.Epoch) { outputInvalidatedDropped++; continue; }
                     if (outbound.Count >= 4096 || bytes + cost > 4 * 1024 * 1024)
-                    { outputOverflowDropped++; continue; }
+                    { outputOverflowDropped++; profile.Overflow(clock()); continue; }
                     outbound.Enqueue(new(record, cost)); bytes += cost;
+                    profile.Enqueue(clock(), cost);
                     highRecords = Math.Max(highRecords, outbound.Count); highBytes = Math.Max(highBytes, bytes);
                     if (outbound.Count == 1) outputReady.TrySetResult(true);
                 }
@@ -98,6 +101,7 @@ internal sealed class FilePipeline : IDisposable
         lock (gate)
         {
             if (!outbound.TryDequeue(out var item)) return null;
+            profile.Dequeue(clock(), item.Bytes);
             bytes -= item.Bytes; record = item.Record; epoch = invalidation;
             if (outbound.Count == 0) outputReady = NewReady();
         }
@@ -149,7 +153,7 @@ internal sealed class FilePipeline : IDisposable
                 new(Math.Max(input.Records, outbound.Count), Math.Max(input.Bytes, bytes),
                     Math.Max(input.HighRecords, highRecords), Math.Max(input.HighBytes, highBytes)),
                 new(input.Records, input.Bytes, input.HighRecords, input.HighBytes),
-                new(outbound.Count, bytes, highRecords, highBytes));
+                new(outbound.Count, bytes, highRecords, highBytes), profile.Snapshot(clock()));
         }
     }
     public void Dispose() { cancel.Cancel(); if (Worker.IsCompleted) cancel.Dispose(); }

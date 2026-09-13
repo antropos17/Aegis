@@ -41,6 +41,27 @@ export function collectorPerformance() {
     idleWait: duration(),
     ingress: queue(),
     output: queue(),
+    outputFlow: {
+      asOfQpc: '100',
+      windowTicks: '1000000',
+      evictedWindows: '0',
+      readyToTake: duration(),
+      windows: [
+        {
+          fromQpc: '0',
+          toQpc: '100',
+          startRecords: 0,
+          records: 0,
+          highWaterRecords: 0,
+          highWaterBytes: 0,
+          enqueued: '0',
+          dequeued: '0',
+          overflow: '0',
+          invalidated: '0',
+        },
+      ],
+    },
+    brokerForward: { asOfQpc: '100', duration: duration() },
   };
 }
 
@@ -98,7 +119,7 @@ export function message(t = 'hello', seq = '1', data) {
   };
   return {
     t,
-    proto: 'etw-file/4',
+    proto: 'etw-file/5',
     launchId: 'launch-1',
     sessionId: 'session-1',
     seq,

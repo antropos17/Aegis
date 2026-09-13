@@ -166,6 +166,11 @@ internal static class FileBurstTests
             Check(Counter("decoderErrors") == 0 && Counter("filtered") == 1, "distinct-filtering");
             Check(Counter("dropped") == Counter("ingressDropped") + Counter("outputDropped"), "stage-sum");
             Check(Counter("delivered") == Counter("filtered") + Counter("dropped") + output, "total-accounting");
+            var sample = JsonSerializer.SerializeToElement(pipeline.QueueSnapshot());
+            var windows = sample.GetProperty("flow").GetProperty("windows").EnumerateArray().ToArray();
+            Check(sample.GetProperty("flow").GetProperty("evictedWindows").GetString() == "0", "fixture-window-eviction");
+            Check(windows.Sum(w => long.Parse(w.GetProperty("overflow").GetString()!)) == (long)Counter("outputOverflowDropped"), "window-overflow-accounting");
+            Check(windows.Sum(w => long.Parse(w.GetProperty("dequeued").GetString()!)) == (long)output, "window-drain-accounting");
         });
         test("output invalidation counts every queued record independently of overflow", () =>
         {

@@ -6,6 +6,28 @@ internal static class FilePerformanceTests
 {
     internal static void Run(Action<string, Action> test)
     {
+        test("output readiness timing excludes quiet time and does not repeat for a backlog", () =>
+        {
+            long clock = 100;
+            var ingress = new FileIngress();
+            using var pipeline = new FilePipeline(ingress, new FileScope(@"C:\fixture", false), false,
+                timestamp: () => Interlocked.Read(ref clock));
+            Interlocked.Exchange(ref clock, 1000000);
+            ingress.Enqueue(new(1, 12, 1, 1, 71, 72, 72, null, 1, 0, @"C:\fixture\a"));
+            for (int i = 2; i <= 4; i++) ingress.Enqueue(new((ulong)i, 15, 1, i, 71, 72, 72, null, 1, 0, null));
+            pipeline.Complete(); pipeline.Worker.WaitAsync(TimeSpan.FromSeconds(3)).GetAwaiter().GetResult();
+            Interlocked.Exchange(ref clock, 1000025);
+            Check(pipeline.Take() != null);
+            Interlocked.Exchange(ref clock, 1000050);
+            Check(pipeline.Take() != null && pipeline.Take() != null && pipeline.Take() == null);
+            var sample = JsonSerializer.SerializeToElement(pipeline.QueueSnapshot());
+            var timing = sample.GetProperty("flow").GetProperty("readyToTake");
+            Check(timing.GetProperty("calls").GetString() == "1");
+            Check(timing.GetProperty("totalTicks").GetString() == "25");
+            var windows = sample.GetProperty("flow").GetProperty("windows");
+            Check(windows.EnumerateArray().Sum(w => int.Parse(w.GetProperty("enqueued").GetString()!)) == 3);
+            Check(windows.EnumerateArray().Sum(w => int.Parse(w.GetProperty("dequeued").GetString()!)) == 3);
+        });
         test("duration totals include failures and preserve a detached snapshot", () =>
         {
             var duration = new FileDuration();

@@ -34,9 +34,11 @@ internal sealed class FilePerformance(Func<long>? timestamp = null, long? freque
         outputWrite = OutputWrite.Snapshot(),
         idleWait = IdleWait.Snapshot(),
         ingress = queues.ingress,
-        output = queues.output
+        output = queues.output,
+        outputFlow = queues.flow,
+        brokerForward = (object?)null // Filled by the normal-token broker, never invented here.
     };
 }
 
 internal sealed record FileQueueDepth(int records, int bytes, int highWaterRecords, int highWaterBytes);
-internal sealed record FileQueueSnapshot(FileQueueDepth combined, FileQueueDepth ingress, FileQueueDepth output);
+internal sealed record FileQueueSnapshot(FileQueueDepth combined, FileQueueDepth ingress, FileQueueDepth output, object? flow = null);
