@@ -141,6 +141,7 @@ internal static class FileTests
         FileOutputTests.Run(Test);
         FilePerformanceTests.Run(Test);
         FileOutputProfileTests.Run(Test);
+        FileForwardingTests.Run(Test);
         FileWakeTests.Run(Test);
         Console.WriteLine($"{passed} self-tests passed; no ETW session or UAC requested.");
         return 0;

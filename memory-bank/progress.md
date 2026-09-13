@@ -2351,3 +2351,31 @@ installer are deferred. Check this branch's final PR/CI/merge before continuing.
 All required local checks passed, including both four-mutant gates; the .NET
 Release build and whitespace verification passed separately. The existing five
 repository CI contexts do not compile the diagnostic C# sidecar.
+
+### 2026-09-13 — ETW broker forwarding optimization
+
+The user requested backend optimization, keeping work in Astra, without Claude
+adapter work or other agents. No new UAC/live/sleep run was requested. Branch
+`codex/etw-broker-forwarding` starts from merged #451 / `4fe774a` in the clean
+`X:/tmp/aegis-etw-throughput-20260913` worktree; original dirty/installer work is
+preserved separately.
+
+`FileWire.ReadFrame` binds each validated envelope to its original bounded body.
+The broker forwards unchanged observations without re-encoding; all four telemetry
+kinds still receive current broker timings and are serialized from the updated
+envelope. Main payload validation, protocol v5, queue/frame caps and cleanup remain
+in place. The helper build marker is `-5-forward`.
+
+The allocation test first failed with equal 16,637,576-byte results. On the final
+controlled 100-frame / 6,400-record fixture, the re-encoding arm allocated 16,641,576
+bytes and production forwarding 13,933,888 bytes (16.27% less). Five interleaved
+trials reported medians 86.9696 vs 58.7634 ms; elapsed time is informational, not a
+test threshold or a live throughput claim. The .NET Release build, whitespace
+check, 61 self-tests and normal/saturation process checks (three scenarios each)
+passed. No EtwFile helpers remained. Reports and 33 source hashes are retained in
+`etw-file-home-26200-broker-forwarding.json`; behavior/limits are documented in
+`docs/roadmap/etw-broker-forwarding.md`.
+
+This change does not close live burst loss E3. New live overhead/throughput and
+capture completeness remain unverified. JS/main/renderer source is unchanged;
+the required repository CI contexts must pass on this branch before merge.

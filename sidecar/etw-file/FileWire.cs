@@ -8,6 +8,13 @@ namespace Aegis.EtwLifecycle;
 internal sealed record Envelope(string t, string proto, string launchId, string sessionId, string seq, JsonElement data);
 internal sealed class FileWire(string launch, string session, FilePerformance? performance = null)
 {
+    // A validated envelope and its original bounded body travel together. Changing
+    // an Envelope via 'with' never silently reuses a stale serialized body.
+    internal sealed class ReceivedFrame(Envelope message, ReadOnlyMemory<byte> body)
+    {
+        internal Envelope Message { get; } = message;
+        internal Task Forward(Stream stream, CancellationToken token) => WriteBody(stream, body, token);
+    }
     internal const string Protocol = "etw-file/5", Profile = "home-26200-diagnostic-v1";
     internal const int Limit = 256 * 1024;
     internal static readonly string[] Schemas = ["10:0", "12:1", "13:1", "14:1", "15:1"];
@@ -21,7 +28,10 @@ internal sealed class FileWire(string launch, string session, FilePerformance? p
         if (actual.Length != names.Length || actual.Distinct().Count() != names.Length || names.Any(n => !value.TryGetProperty(n, out _)))
             throw new InvalidDataException();
     }
-    internal async Task<Envelope> Read(Stream stream, bool control, CancellationToken token)
+    internal async Task<Envelope> Read(Stream stream, bool control, CancellationToken token) =>
+        (await ReadFrame(stream, control, token)).Message;
+
+    internal async Task<ReceivedFrame> ReadFrame(Stream stream, bool control, CancellationToken token)
     {
         byte[] header = new byte[4];
         await stream.ReadExactlyAsync(header, token);
@@ -51,7 +61,7 @@ internal sealed class FileWire(string launch, string session, FilePerformance? p
         }
         else if (frame.t is not ("hello" or "ready" or "observations" or "health" or "heartbeat" or "stopped" or "error"))
             throw new InvalidDataException();
-        return frame with { data = frame.data.Clone() };
+        return new ReceivedFrame(frame with { data = frame.data.Clone() }, body);
     }
     internal Task Write(Stream stream, string kind, object data, CancellationToken token) =>
         WriteCore(stream, kind, writer => { JsonSerializer.Serialize(writer, data); return true; }, token);

@@ -37,7 +37,7 @@ internal static class FileCollector
         {
             await send.Write(pipe, "hello", new
             {
-                build = live ? "etw-file-diagnostic-dev-5-burst" : "etw-file-synthetic-check-5-burst",
+                build = live ? "etw-file-diagnostic-dev-5-forward" : "etw-file-synthetic-check-5-forward",
                 profile = FileWire.Profile,
                 schemas = FileWire.Schemas
             }, lifetime.Token);
