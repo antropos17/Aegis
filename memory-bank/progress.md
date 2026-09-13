@@ -2491,3 +2491,35 @@ Renderer build, formatting, lint (zero errors / 56 existing warnings), both type
 checks, witness and sequence mutation gates and counts check passed; production dependency audit
 reported zero vulnerabilities. The final benchmark uses the mean of the two
 middle observations for its 20-sample median; output/provider parity passed.
+
+### 2026-09-14 — Reuse historical lookups during deviation checks
+
+Following merged #456 / `7212ef8`, branch `codex/deviation-profile-work` builds
+warning-comparison endpoint, sensitive-category and directory sets once per
+eligible profile object within `checkDeviations`. The map lasts only for that
+synchronous pass. Each instance keeps its own warning suppression and scores;
+score dimensions remain independently computed for instances with new warnings.
+The next pass reads profile edits/replacements afresh, including the last-five
+session endpoint window.
+
+The new work regression failed with eight historical-array reads instead of one.
+All 62 focused tests passed after implementation, including in-place profile
+updates, replacement, separate profiles, instance scores and warning retirement.
+The controlled actual-source comparison found eight-instance shared-profile
+checks at 0.32526 to 0.12752 ms normally and 0.64435 to 0.42237 ms with new warnings.
+Single-instance and distinct-profile cases showed no improvement. Warning output,
+scoring-call counts and unchanged inputs matched in all nine fixtures. See
+`docs/bench/deviation-profile-work-2026-09-14.md` and its JSON report for method,
+hashes and limits; this is not a full-application CPU measurement.
+
+The session continues using the verified process-local X: TEMP/cache directory
+and storage guard from the previous block. Operation receipts remain under
+ignored `.agent/network-20260914`; disposable fixtures are cleaned after checks.
+WSL trace cleanup is limited to closed matching files during guard checks;
+no persistent rotation or service configuration has been installed.
+
+Local coverage passed 211 files / 3,415 tests / four skips with two workers.
+Renderer build, formatting, both type checks and both four-mutant gates passed.
+Lint passed with zero errors and 56 pre-existing warnings; the production
+dependency audit reported zero vulnerabilities. All five CI contexts must pass
+on the final PR head before merge.
