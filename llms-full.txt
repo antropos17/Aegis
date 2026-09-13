@@ -59,7 +59,7 @@ JSON, CSV, HTML reports, one-click ZIP archive and hash-chained JSONL audit logg
 - **Stack**: Electron, Svelte 5, Vite; CommonJS JavaScript in main, TypeScript in the renderer and shared types. Exact versions: package.json
 - **Tests**: Vitest; run `npm test` for current pass/skip and file counts
 - **License**: MIT
-- **Version**: 0.15.0-alpha <!-- x-release-please-version -->
+- **Version**: 0.16.0-alpha <!-- x-release-please-version -->
 - **Platform**: Windows primary; macOS/Linux experimental
 
 ## Links
