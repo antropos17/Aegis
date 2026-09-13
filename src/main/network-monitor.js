@@ -536,15 +536,23 @@ async function scanNetworkConnections(agents) {
     // The IP allowlist is checked BEFORE any DNS work: an address inside a published
     // operator range needs no name to be trusted, and asking for one would only make the
     // verdict depend on whether that operator happens to publish PTR records.
-    const uniqueIps = [...new Set(deduped.map((c) => normalizeIp(c.ip)))].filter(
-      (ip) => !isAllowlistedIp(ip),
-    );
+    const remoteIps = [...new Set(deduped.map((c) => normalizeIp(c.ip)))];
+    const uniqueIps = remoteIps.filter((ip) => !isAllowlistedIp(ip));
     const resolved = new Map(
       await Promise.all(uniqueIps.map(async (ip) => [ip, await resolveIpEvidence(ip)])),
     );
+    // A verdict depends on the remote address and this scan's DNS evidence, not
+    // the socket or owner. Keep it only for this scan; all socket fields stay separate.
+    const verdicts = remoteIps.length < deduped.length ? new Map() : null;
     const result = deduped.map((c) => {
       const agent = pidMap.get(c.pid);
-      const { verdict, reason, domain } = classifyConnection(c.ip, resolved.get(normalizeIp(c.ip)));
+      const key = normalizeIp(c.ip);
+      let classification = verdicts?.get(key);
+      if (!classification) {
+        classification = classifyConnection(c.ip, resolved.get(key));
+        verdicts?.set(key, classification);
+      }
+      const { verdict, reason, domain } = classification;
       const httpUnencrypted = c.port === 80;
       return {
         // C-01: `''` for an unmatched connection, never a synthesized `PID <n>` label. This

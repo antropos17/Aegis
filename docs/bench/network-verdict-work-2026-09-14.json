@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "kind": "offline-network-verdicts",
+  "baseline": "bca004f466c2b0107f120bfc74d3bc32562f6a2f",
+  "node": "v24.11.1",
+  "platform": "win32",
+  "arch": "x64",
+  "sourceSha256": {
+    "previous": "c1fe5cd98b9dcc167bdacac426f8a6eca942969f853677fc341c115b3f41ef13",
+    "current": "653d093cb0bec3fd13e7774231e510750cbaffe891217d9f1debeb317ab59a26"
+  },
+  "inputsSha256": {
+    "src/shared/constants.js": "c3886eace9abcc220688443e81dd20243b9b2b002207c5fbf17d560f3ffd81b2",
+    "src/shared/agent-database.json": "c7ac5f4aab02c5561af8fd5766bd1686a8eb2d0a8c67b345a5b2f0963956b16e",
+    "src/main/process-identity.js": "f9d841c67dae7a54b068111a00f72d19754a809c419bd19f26f9103f756d905e",
+    "src/main/sensor-health.js": "79aa9ff87ad6863f411c558b9cdcb889a7dc3074c41bb1e82ff95674f914715f"
+  },
+  "cases": [
+    {
+      "sockets": 256,
+      "uniqueAddresses": 1,
+      "scansPerArm": 100,
+      "previous": {
+        "medianMsPerScan": 0.8089799999999968
+      },
+      "current": {
+        "medianMsPerScan": 0.23213000000000078
+      },
+      "measuredProviderCallsPerArm": {
+        "tcp": 100,
+        "reverse": 0,
+        "forward": 0
+      },
+      "matchingResults": true
+    },
+    {
+      "sockets": 2048,
+      "uniqueAddresses": 1,
+      "scansPerArm": 100,
+      "previous": {
+        "medianMsPerScan": 5.312909999999999
+      },
+      "current": {
+        "medianMsPerScan": 1.432030000000009
+      },
+      "measuredProviderCallsPerArm": {
+        "tcp": 100,
+        "reverse": 0,
+        "forward": 0
+      },
+      "matchingResults": true
+    },
+    {
+      "sockets": 256,
+      "uniqueAddresses": 256,
+      "scansPerArm": 100,
+      "previous": {
+        "medianMsPerScan": 0.9570199999999887
+      },
+      "current": {
+        "medianMsPerScan": 1.0048199999999952
+      },
+      "measuredProviderCallsPerArm": {
+        "tcp": 100,
+        "reverse": 0,
+        "forward": 0
+      },
+      "matchingResults": true
+    }
+  ]
+}
