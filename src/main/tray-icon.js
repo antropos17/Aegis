@@ -18,13 +18,17 @@ const { UNKNOWN_SOURCE_LABEL } = require('./attribution');
 
 const TRAY_COLORS = { green: [0, 230, 118], yellow: [255, 193, 7], red: [255, 23, 68] };
 let _state = null;
+let lastTooltip = null;
+let lastMenu = null;
 
 /**
- * @param {Object} state - shared refs (tray, currentTrayColor, lastNotificationTime, getActivityLog, getSettings, isMonitoringPaused, setMonitoringPaused, stopScanIntervals, startScanIntervals, getMainWindow, setIsQuitting, appQuit)
+ * @param {Object} state - shared refs (tray, currentTrayColor, lastNotificationTime, getSensitiveCount, getSettings, isMonitoringPaused, setMonitoringPaused, stopScanIntervals, startScanIntervals, getMainWindow, setIsQuitting, appQuit)
  * @returns {void} @since v0.1.0
  */
 function init(state) {
   _state = state;
+  lastTooltip = null;
+  lastMenu = null;
 }
 
 function crc32(buf) {
@@ -103,7 +107,7 @@ function getTrayThreatColor(n) {
 /** @returns {void} @since v0.1.0 */
 function updateTrayIcon() {
   if (!_state || !_state.tray) return;
-  const total = _state.getActivityLog().filter((e) => e.sensitive).length;
+  const total = _state.getSensitiveCount();
   const color = getTrayThreatColor(total);
   if (color !== _state.currentTrayColor) {
     _state.currentTrayColor = color;
@@ -111,9 +115,11 @@ function updateTrayIcon() {
   }
   const labels = { green: 'Clear', yellow: 'Elevated', red: 'Critical' };
   const agentCount = typeof _state.getAgentCount === 'function' ? _state.getAgentCount() : 0;
-  _state.tray.setToolTip(
-    `AEGIS \u2014 ${labels[color]}${_state.isMonitoringPaused() ? ' [PAUSED]' : ''} | ${agentCount} agents | ${total} sensitive alerts`,
-  );
+  const tooltip = `AEGIS \u2014 ${labels[color]}${_state.isMonitoringPaused() ? ' [PAUSED]' : ''} | ${agentCount} agents | ${total} sensitive alerts`;
+  if (lastTooltip?.tray !== _state.tray || lastTooltip.value !== tooltip) {
+    _state.tray.setToolTip(tooltip);
+    lastTooltip = { tray: _state.tray, value: tooltip };
+  }
   rebuildTrayMenu();
 }
 
@@ -143,6 +149,16 @@ function notifySensitive(events) {
 /** @returns {void} @since v0.1.0 */
 function rebuildTrayMenu() {
   if (!_state || !_state.tray) return;
+  const paused = _state.isMonitoringPaused();
+  const agentCount = typeof _state.getAgentCount === 'function' ? _state.getAgentCount() : 0;
+  // Menu actions read current state when clicked. Only these two labels vary.
+  // Remember successful native writes, and never reuse them for another Tray.
+  if (
+    lastMenu?.tray === _state.tray &&
+    lastMenu.paused === paused &&
+    lastMenu.agentCount === agentCount
+  )
+    return;
   _state.tray.setContextMenu(
     Menu.buildFromTemplate([
       {
@@ -156,12 +172,12 @@ function rebuildTrayMenu() {
         },
       },
       {
-        label: `${typeof _state.getAgentCount === 'function' ? _state.getAgentCount() : 0} active agents`,
+        label: `${agentCount} active agents`,
         enabled: false,
       },
       { type: 'separator' },
       {
-        label: _state.isMonitoringPaused() ? 'Resume Monitoring' : 'Pause Monitoring',
+        label: paused ? 'Resume Monitoring' : 'Pause Monitoring',
         click: () => {
           const p = !_state.isMonitoringPaused();
           _state.setMonitoringPaused(p);
@@ -181,6 +197,7 @@ function rebuildTrayMenu() {
       },
     ]),
   );
+  lastMenu = { tray: _state.tray, paused, agentCount };
 }
 
 /**

@@ -1,0 +1,110 @@
+{
+  "schema": 1,
+  "kind": "offline-tray-updates",
+  "baseline": "4b5cbdf135bb041e35f171c9d367ed389d469d13",
+  "node": "v24.11.1",
+  "platform": "win32",
+  "arch": "x64",
+  "sourceSha256": {
+    "previous": "a6425fcd2964c4e2b60c2b517123873d7619fefc13fbd5612c9e555463c43094",
+    "current": "17b08c2ddc95fa2e10e83321449be518142f342095e795366054fe6b4a2bb9af"
+  },
+  "cases": [
+    {
+      "events": 1000,
+      "changingSensitiveCount": false,
+      "updatesPerArm": 10000,
+      "previous": {
+        "medianMsPerUpdate": 0.006061300000000017,
+        "calls": {
+          "history": 10000,
+          "tooltip": 10000,
+          "menu": 10000,
+          "image": 0
+        }
+      },
+      "current": {
+        "medianMsPerUpdate": 0.00040040000000001895,
+        "calls": {
+          "history": 0,
+          "tooltip": 0,
+          "menu": 0,
+          "image": 0
+        }
+      },
+      "matchingVisibleState": true
+    },
+    {
+      "events": 1000,
+      "changingSensitiveCount": true,
+      "updatesPerArm": 10000,
+      "previous": {
+        "medianMsPerUpdate": 0.03492989999999997,
+        "calls": {
+          "history": 10000,
+          "tooltip": 10000,
+          "menu": 10000,
+          "image": 10000
+        }
+      },
+      "current": {
+        "medianMsPerUpdate": 0.03504210000000001,
+        "calls": {
+          "history": 0,
+          "tooltip": 10000,
+          "menu": 0,
+          "image": 10000
+        }
+      },
+      "matchingVisibleState": true
+    },
+    {
+      "events": 10000,
+      "changingSensitiveCount": false,
+      "updatesPerArm": 10000,
+      "previous": {
+        "medianMsPerUpdate": 0.05951710000000003,
+        "calls": {
+          "history": 10000,
+          "tooltip": 10000,
+          "menu": 10000,
+          "image": 0
+        }
+      },
+      "current": {
+        "medianMsPerUpdate": 0.0003029999999998836,
+        "calls": {
+          "history": 0,
+          "tooltip": 0,
+          "menu": 0,
+          "image": 0
+        }
+      },
+      "matchingVisibleState": true
+    },
+    {
+      "events": 10000,
+      "changingSensitiveCount": true,
+      "updatesPerArm": 10000,
+      "previous": {
+        "medianMsPerUpdate": 0.08802669999999989,
+        "calls": {
+          "history": 10000,
+          "tooltip": 10000,
+          "menu": 10000,
+          "image": 10000
+        }
+      },
+      "current": {
+        "medianMsPerUpdate": 0.029043300000000046,
+        "calls": {
+          "history": 0,
+          "tooltip": 10000,
+          "menu": 0,
+          "image": 10000
+        }
+      },
+      "matchingVisibleState": true
+    }
+  ]
+}
