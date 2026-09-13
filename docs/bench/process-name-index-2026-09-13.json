@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "kind": "offline-process-name-index",
+  "baseline": "607faa2efd6f5cb79ac208b13f47f1bd89246f86",
+  "node": "v24.11.1",
+  "platform": "win32",
+  "arch": "x64",
+  "sourceSha256": {
+    "previous": "3e38a4c163fcbc8c8925f3869a7ea6dd71cd9c4d2be27f798f362dfa088a5ca4",
+    "current": "0bbc8f23775c059a9b1488f5af9de32d0ee92db53783f177138d52b99f0a6ed9"
+  },
+  "inputsSha256": {
+    "src/shared/agent-database.json": "c7ac5f4aab02c5561af8fd5766bd1686a8eb2d0a8c67b345a5b2f0963956b16e",
+    "src/shared/constants.js": "c3886eace9abcc220688443e81dd20243b9b2b002207c5fbf17d560f3ffd81b2",
+    "src/main/settings-validation.js": "18e94e8b09972bc00c6e9fd8d9dc7a3c1c01026bd5dd4c4f07f85f2daa73fbcf"
+  },
+  "cases": [
+    {
+      "processes": 128,
+      "agents": 8,
+      "providerCallsPerArm": 150,
+      "previous": {
+        "samples": 30,
+        "scans": 150,
+        "medianMsPerScan": 0.604219999999998,
+        "p95MsPerScan": 1.159559999999999,
+        "cpuMsPerScan": 0.7266666666666667
+      },
+      "current": {
+        "samples": 30,
+        "scans": 150,
+        "medianMsPerScan": 0.09428000000000339,
+        "p95MsPerScan": 0.15673999999999638,
+        "cpuMsPerScan": 0.21333333333333335
+      },
+      "matchingResults": true
+    },
+    {
+      "processes": 512,
+      "agents": 32,
+      "providerCallsPerArm": 150,
+      "previous": {
+        "samples": 30,
+        "scans": 150,
+        "medianMsPerScan": 2.2167000000000145,
+        "p95MsPerScan": 2.508119999999997,
+        "cpuMsPerScan": 2.3866666666666667
+      },
+      "current": {
+        "samples": 30,
+        "scans": 150,
+        "medianMsPerScan": 0.26592000000000554,
+        "p95MsPerScan": 0.39926000000000383,
+        "cpuMsPerScan": 0.32
+      },
+      "matchingResults": true
+    },
+    {
+      "processes": 2048,
+      "agents": 128,
+      "providerCallsPerArm": 150,
+      "previous": {
+        "samples": 30,
+        "scans": 150,
+        "medianMsPerScan": 8.882540000000017,
+        "p95MsPerScan": 12.233259999999973,
+        "cpuMsPerScan": 8.1
+      },
+      "current": {
+        "samples": 30,
+        "scans": 150,
+        "medianMsPerScan": 0.7851000000000112,
+        "p95MsPerScan": 1.1273000000000137,
+        "cpuMsPerScan": 1.0666666666666667
+      },
+      "matchingResults": true
+    }
+  ]
+}

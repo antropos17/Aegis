@@ -225,22 +225,29 @@ function _ensureAgentDb() {
 }
 
 /**
- * Merge the current validated custom catalog for this scan without mutating the bundled cache.
- * Bundled IDs and process patterns keep precedence; the first valid custom ID owns its names.
- * @returns {Array<{name: string, patterns: string[]}>} Current detection signatures
+ * Index this scan's validated catalog by lowercase process name. First ownership
+ * wins, including bundled patterns and duplicate custom IDs. Rebuild per scan so
+ * catalog edits take effect immediately; no process observation is cached here.
+ * @returns {Map<string, string>} Process name to agent display name
  * @since 0.14.1
  */
-function detectionSignatures() {
+function detectionIndex() {
   const signatures = [..._aiAgents];
   const ids = new Set(_agentDb.agents.map((agent) => agent.id));
   const custom = _getCustomAgents();
-  if (!Array.isArray(custom)) return signatures;
-  for (const agent of custom) {
+  for (const agent of Array.isArray(custom) ? custom : []) {
     if (!validateCustomAgent(agent).valid || ids.has(agent.id)) continue;
     ids.add(agent.id);
     signatures.push({ name: agent.displayName, patterns: [...agent.names] });
   }
-  return signatures;
+  const index = new Map();
+  for (const agent of signatures) {
+    for (const pattern of agent.patterns) {
+      const name = pattern.toLowerCase();
+      if (!index.has(name)) index.set(name, agent.name);
+    }
+  }
+  return index;
 }
 
 /** Set of editor host process names (lowercased) for fast lookup */
@@ -352,22 +359,20 @@ async function scanProcesses(opts = {}) {
     // pid-set and peakAgents bookkeeping run, and the return shape stays stable.
   }
   const detected = [];
-  const signatures = detectionSignatures();
+  const signatures = detectionIndex();
   for (const proc of processes) {
     const procName = proc.name.toLowerCase();
     if (IGNORE_PROCESS_PATTERNS.some((p) => procName.includes(p))) continue;
     if (EDITOR_HOST_SET.has(procName)) continue;
-    for (const agent of signatures) {
-      if (agent.patterns.some((p) => procName === p.toLowerCase())) {
-        detected.push({
-          agent: agent.name,
-          process: proc.name,
-          pid: proc.pid,
-          status: 'running',
-          category: 'ai',
-        });
-        break;
-      }
+    const agent = signatures.get(procName);
+    if (agent !== undefined) {
+      detected.push({
+        agent,
+        process: proc.name,
+        pid: proc.pid,
+        status: 'running',
+        category: 'ai',
+      });
     }
   }
   const seen = new Set();

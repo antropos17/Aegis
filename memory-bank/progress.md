@@ -2379,3 +2379,28 @@ passed. No EtwFile helpers remained. Reports and 33 source hashes are retained i
 This change does not close live burst loss E3. New live overhead/throughput and
 capture completeness remain unverified. JS/main/renderer source is unchanged;
 the required repository CI contexts must pass on this branch before merge.
+
+### 2026-09-13 — Per-scan process-name index
+
+Following merged #452 / `607faa2`, branch `codex/process-name-index` optimizes
+ordinary process recognition in the same isolated worktree. The scanner now
+normalizes the validated catalog once per scan and uses a first-owner Map lookup
+for each process. It still fetches fresh observations and reads the current custom
+catalog after the provider resolves; no cross-scan cache or scan cadence change.
+The existing shared snapshot and batched resource queries were already in place.
+
+The normalization-work regression failed on the old implementation and passed
+after the change. Five new tests cover work growth, matching precedence/exclusions,
+duplicate PIDs, catalog edits, arrivals/exits and shared-map freshness/outages.
+The offline benchmark executes both actual scanner versions against the same
+provider: median milliseconds per scan were 0.60422 to 0.09428 (128 processes),
+2.21670 to 0.26592 (512), and 8.88254 to 0.78510 (2,048). Outputs and provider-call
+counts matched. Method, limits and source hashes are retained in
+`docs/bench/process-name-index-2026-09-13.md` and its JSON report. These are controlled
+JavaScript measurements, not total application CPU or live ETW throughput results.
+No UAC/live ETW run, installer work or Claude adapter change was performed.
+
+Local coverage passed 207 files / 3,403 tests / four skips with two workers.
+Renderer build, formatting, both type checks, both four-mutant gates and production
+dependency audit passed. ESLint passed with 56 warnings in unchanged files.
+The required five CI contexts must pass on the final PR head before merge.
