@@ -20,6 +20,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.16.0-alpha (2026-09-13)
+
+## What's Changed
+* feat(installer): add Observatory Windows setup wizard by @antropos17 in https://github.com/antropos17/Aegis/pull/449
+* feat(etw): measure bounded burst flow and broker forwarding by @antropos17 in https://github.com/antropos17/Aegis/pull/451
+* perf(etw): forward validated frames without re-encoding by @antropos17 in https://github.com/antropos17/Aegis/pull/452
+* perf(scanner): index process names once per scan by @antropos17 in https://github.com/antropos17/Aegis/pull/453
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.15.0-alpha...aegis-v0.16.0-alpha
+
 ## 0.15.0-alpha (2026-09-12)
 
 ## What's Changed
