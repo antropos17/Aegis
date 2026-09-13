@@ -49,6 +49,13 @@ count are retained. These counters contain no observations or paths. See
 snapshot timing and why dequeue counts do not certify delivery. This instrumentation
 has synthetic/process evidence only; a new live load check is deferred by the user.
 
+The `-5-forward` build preserves that v5 contract and forwards the original bounded
+body after envelope/identity/sequence validation for outbound frames that need no
+annotation. Telemetry is re-encoded with current broker measurements. This removes
+an observation serialization/allocation in the broker; it does not bypass main's
+payload validation. See [broker forwarding](../../docs/roadmap/etw-broker-forwarding.md)
+for the controlled allocation result, byte-preservation tests and live limits.
+
 For a separately agreed live check, run the following from normal PowerShell and
 approve **one** UAC prompt. The ordinary Node process reads its own temporary test
 file for ten seconds; only the collector elevates. This never sleeps the computer.

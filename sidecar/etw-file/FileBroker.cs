@@ -46,10 +46,10 @@ internal static class FileBroker
                 var performance = new FileForwardProfile();
                 while (true)
                 {
-                    var frame = await read.Read(pipe, false, lifetime.Token);
-                    if (frame.t == "stopped") Volatile.Write(ref terminalObserved, 1);
+                    var frame = await read.ReadFrame(pipe, false, lifetime.Token);
+                    if (frame.Message.t == "stopped") Volatile.Write(ref terminalObserved, 1);
                     await performance.Forward(output, frame, lifetime.Token);
-                    if (frame.t == "stopped") return;
+                    if (frame.Message.t == "stopped") return;
                 }
             });
             try

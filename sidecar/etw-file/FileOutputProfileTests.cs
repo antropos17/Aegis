@@ -86,8 +86,13 @@ internal static class FileOutputProfileTests
             Check(!read.data.GetRawText().Contains("private-error"));
         });
     }
-    private static Envelope Frame(string kind, object data) =>
-        new(kind, FileWire.Protocol, "launch", "session", "1", JsonSerializer.SerializeToElement(data));
+    private static FileWire.ReceivedFrame Frame(string kind, object data)
+    {
+        using var stream = new MemoryStream();
+        new FileWire("launch", "session").Write(stream, kind, data, default).GetAwaiter().GetResult();
+        stream.Position = 0;
+        return new FileWire("launch", "session").ReadFrame(stream, false, default).GetAwaiter().GetResult();
+    }
     private static void Check(bool value) { if (!value) throw new InvalidOperationException("output-profile-check-failed"); }
     private sealed class TimedStream(Action advance) : MemoryStream
     {

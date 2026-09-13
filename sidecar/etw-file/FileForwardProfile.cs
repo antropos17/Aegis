@@ -9,11 +9,12 @@ internal sealed class FileForwardProfile(Func<long>? timestamp = null)
 {
     private readonly FileDuration duration = new();
     private long Now() => (timestamp ?? Stopwatch.GetTimestamp)();
-    internal async Task Forward(Stream stream, Envelope frame, CancellationToken token)
+    internal async Task Forward(Stream stream, FileWire.ReceivedFrame received, CancellationToken token)
     {
         long start = Now(); bool success = false;
         try
         {
+            var frame = received.Message;
             if (frame.t is "ready" or "health" or "heartbeat" or "stopped")
             {
                 var data = JsonNode.Parse(frame.data.GetRawText())!;
@@ -25,8 +26,10 @@ internal sealed class FileForwardProfile(Func<long>? timestamp = null)
                     duration = duration.Snapshot()
                 });
                 frame = frame with { data = JsonSerializer.SerializeToElement(data) };
+                await FileWire.Forward(stream, frame, token);
             }
-            await FileWire.Forward(stream, frame, token); success = true;
+            else await received.Forward(stream, token);
+            success = true;
         }
         finally { duration.Record(Now() - start, !success); }
     }
