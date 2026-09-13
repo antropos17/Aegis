@@ -2404,3 +2404,27 @@ Local coverage passed 207 files / 3,403 tests / four skips with two workers.
 Renderer build, formatting, both type checks, both four-mutant gates and production
 dependency audit passed. ESLint passed with 56 warnings in unchanged files.
 The required five CI contexts must pass on the final PR head before merge.
+
+### 2026-09-13 — Score only new deviation warnings
+
+After merged #453 / `726743b`, branch `codex/backend-event-work` removes unused
+dimension scoring from `checkDeviations()`. Each instance that produces new
+warnings still gets one current score for all of its warnings before return.
+Checks without new warnings skip dimension construction. The separate renderer
+score path, thresholds, suppression, identity and scan cadence are unchanged;
+there is no cross-check score cache.
+
+Two of three new work/freshness regressions failed before the implementation;
+all three then passed alongside existing detector/baseline tests (56 tests).
+The offline comparison covers normal, already-warned and new-warning cases with
+8 and 64 instances, each with 256 known endpoints and 128 directories. At eight
+normal instances, median check time was 0.87018 to 0.41518 ms, with 32 to zero
+dimension calls per check. Warning payloads matched. New-warning cases keep the
+same scoring work and do not demonstrate an improvement. Reports, hashes and
+limits are in `docs/bench/anomaly-warning-work-2026-09-13.md` and its JSON report.
+No total application CPU claim, live ETW/UAC run or installer change is included.
+
+Full coverage passed 208 files / 3,406 tests / four skips with two workers.
+Renderer build, formatting, TypeScript/Svelte checks, both four-mutant gates and
+production dependency audit passed. Lint passed with 56 warnings in unchanged
+files. The final PR head must pass all five required CI contexts before merge.

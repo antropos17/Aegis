@@ -111,7 +111,7 @@ function checkDeviations() {
     if (!deviationWarningsSent[instanceId]) deviationWarningsSent[instanceId] = new Set();
     const sent = deviationWarningsSent[instanceId];
     const avg = ab.averages;
-    const { score: anomalyScore } = calculateAnomalyScore(instanceId);
+    const firstWarning = warnings.length;
 
     // File volume 3x above average
     if (avg.filesPerSession > 0 && sd.files.size > avg.filesPerSession * 3) {
@@ -123,7 +123,7 @@ function checkDeviations() {
           instanceId,
           type: 'files',
           message: `${agentName} normally accesses ~${Math.round(avg.filesPerSession)} files, now ${sd.files.size}`,
-          anomalyScore,
+          anomalyScore: 0,
         });
       }
     }
@@ -138,7 +138,7 @@ function checkDeviations() {
           instanceId,
           type: 'sensitive',
           message: `${agentName}: sensitive file access (${sd.sensitiveCount}) is ${Math.round(sd.sensitiveCount / avg.sensitivePerSession)}x above average (${Math.round(avg.sensitivePerSession)})`,
-          anomalyScore,
+          anomalyScore: 0,
         });
       }
     }
@@ -155,7 +155,7 @@ function checkDeviations() {
             instanceId,
             type: 'new-sensitive',
             message: `${agentName} never accessed "${reason}" before`,
-            anomalyScore,
+            anomalyScore: 0,
           });
         }
       }
@@ -176,7 +176,7 @@ function checkDeviations() {
             instanceId,
             type: 'network',
             message: `${agentName}: connecting to new endpoint ${ep}`,
-            anomalyScore,
+            anomalyScore: 0,
           });
         }
       }
@@ -194,7 +194,7 @@ function checkDeviations() {
           instanceId,
           type: 'directories',
           message: `${agentName}: accessing ${newDirs.length} new directories not seen in previous sessions`,
-          anomalyScore,
+          anomalyScore: 0,
         });
       }
     }
@@ -211,11 +211,18 @@ function checkDeviations() {
             instanceId,
             type: 'timing',
             message: `${agentName}: activity at unusual hour (${String(h).padStart(2, '0')}:00) — not seen in previous sessions`,
-            anomalyScore,
+            anomalyScore: 0,
           });
         }
         break;
       }
+    }
+    // Build dimensions only when this instance produced new warnings. The local
+    // array is unpublished until return; fill every new record with one fresh score.
+    // No score survives this check or crosses instance boundaries.
+    if (warnings.length > firstWarning) {
+      const { score } = calculateAnomalyScore(instanceId);
+      for (let i = firstWarning; i < warnings.length; i++) warnings[i].anomalyScore = score;
     }
   }
   return warnings;
