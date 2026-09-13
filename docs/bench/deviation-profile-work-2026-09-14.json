@@ -1,0 +1,155 @@
+{
+  "schema": 1,
+  "kind": "offline-deviation-profile-work",
+  "baseline": "7212ef8ea4af8cb6440b0dd60d137d16f0413106",
+  "node": "v24.11.1",
+  "platform": "win32",
+  "arch": "x64",
+  "sourceSha256": {
+    "previous": "c8f5172a9d6f9d723f99f895c89682c64370213ecb3ee5c1edd7f6598958115e",
+    "current": "7e7204647c498270d27a3d9f378c9da206e829faccc6dbfd63bf079e7cbc2b3a"
+  },
+  "scoringSha256": "b768f9bd1d3f650d65787394d31943fdd5de3ccab54a6358f115aa25a2fa45c6",
+  "fixture": {
+    "historicalSessions": 5,
+    "endpointsPerSession": 256,
+    "typicalDirectories": 128
+  },
+  "cases": [
+    {
+      "instances": 1,
+      "profiles": 1,
+      "mode": "normal",
+      "checksPerArm": 100,
+      "previous": {
+        "medianMsPerCheck": 0.03953000000000202,
+        "dimensionCalls": 0
+      },
+      "current": {
+        "medianMsPerCheck": 0.043139999999999644,
+        "dimensionCalls": 0
+      },
+      "matchingResults": true
+    },
+    {
+      "instances": 1,
+      "profiles": 1,
+      "mode": "already-warned",
+      "checksPerArm": 100,
+      "previous": {
+        "medianMsPerCheck": 0.036430000000001427,
+        "dimensionCalls": 0
+      },
+      "current": {
+        "medianMsPerCheck": 0.03667000000000087,
+        "dimensionCalls": 0
+      },
+      "matchingResults": true
+    },
+    {
+      "instances": 1,
+      "profiles": 1,
+      "mode": "new-warnings",
+      "checksPerArm": 100,
+      "previous": {
+        "medianMsPerCheck": 0.09088999999999886,
+        "dimensionCalls": 400
+      },
+      "current": {
+        "medianMsPerCheck": 0.09604999999999961,
+        "dimensionCalls": 400
+      },
+      "matchingResults": true
+    },
+    {
+      "instances": 8,
+      "profiles": 1,
+      "mode": "normal",
+      "checksPerArm": 100,
+      "previous": {
+        "medianMsPerCheck": 0.3252600000000001,
+        "dimensionCalls": 0
+      },
+      "current": {
+        "medianMsPerCheck": 0.12751999999999553,
+        "dimensionCalls": 0
+      },
+      "matchingResults": true
+    },
+    {
+      "instances": 8,
+      "profiles": 1,
+      "mode": "already-warned",
+      "checksPerArm": 100,
+      "previous": {
+        "medianMsPerCheck": 0.34408000000000244,
+        "dimensionCalls": 0
+      },
+      "current": {
+        "medianMsPerCheck": 0.14585000000000148,
+        "dimensionCalls": 0
+      },
+      "matchingResults": true
+    },
+    {
+      "instances": 8,
+      "profiles": 1,
+      "mode": "new-warnings",
+      "checksPerArm": 100,
+      "previous": {
+        "medianMsPerCheck": 0.6443499999999972,
+        "dimensionCalls": 3200
+      },
+      "current": {
+        "medianMsPerCheck": 0.4223700000000008,
+        "dimensionCalls": 3200
+      },
+      "matchingResults": true
+    },
+    {
+      "instances": 8,
+      "profiles": 8,
+      "mode": "normal",
+      "checksPerArm": 100,
+      "previous": {
+        "medianMsPerCheck": 0.30849999999999794,
+        "dimensionCalls": 0
+      },
+      "current": {
+        "medianMsPerCheck": 0.3154500000000041,
+        "dimensionCalls": 0
+      },
+      "matchingResults": true
+    },
+    {
+      "instances": 8,
+      "profiles": 8,
+      "mode": "already-warned",
+      "checksPerArm": 100,
+      "previous": {
+        "medianMsPerCheck": 0.2940599999999904,
+        "dimensionCalls": 0
+      },
+      "current": {
+        "medianMsPerCheck": 0.29884999999999307,
+        "dimensionCalls": 0
+      },
+      "matchingResults": true
+    },
+    {
+      "instances": 8,
+      "profiles": 8,
+      "mode": "new-warnings",
+      "checksPerArm": 100,
+      "previous": {
+        "medianMsPerCheck": 0.5535399999999981,
+        "dimensionCalls": 3200
+      },
+      "current": {
+        "medianMsPerCheck": 0.5985000000000014,
+        "dimensionCalls": 3200
+      },
+      "matchingResults": true
+    }
+  ]
+}

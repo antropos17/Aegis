@@ -101,6 +101,9 @@ function calculateAnomalyScore(instanceId) {
  */
 function checkDeviations() {
   const warnings = [];
+  // Same-named live instances share a historical profile. Reuse only its lookup
+  // sets during this synchronous pass; the next pass reads profile changes anew.
+  const profileLookups = new Map();
   for (const [instanceId, sd] of Object.entries(bl.getSessionData())) {
     const agentName = sd.agentName;
     const ab = agentName ? bl.getBaselines().agents[agentName] : undefined;
@@ -111,6 +114,19 @@ function checkDeviations() {
     if (!deviationWarningsSent[instanceId]) deviationWarningsSent[instanceId] = new Set();
     const sent = deviationWarningsSent[instanceId];
     const avg = ab.averages;
+    let lookups = profileLookups.get(ab);
+    if (!lookups) {
+      const recentEndpoints = new Set();
+      for (const sess of ab.sessions.slice(-5))
+        for (const ep of sess.networkEndpoints) recentEndpoints.add(ep);
+      lookups = {
+        recentEndpoints,
+        knownReasons: new Set(avg.knownSensitiveReasons || []),
+        typicalDirs: new Set(avg.typicalDirectories),
+      };
+      profileLookups.set(ab, lookups);
+    }
+    const { knownReasons, recentEndpoints, typicalDirs } = lookups;
     const firstWarning = warnings.length;
 
     // File volume 3x above average
@@ -144,7 +160,6 @@ function checkDeviations() {
     }
 
     // New sensitive category never seen before
-    const knownReasons = new Set(avg.knownSensitiveReasons || []);
     for (const reason of sd.sensitiveReasons) {
       if (!knownReasons.has(reason)) {
         const key = `new-sens:${reason}`;
@@ -162,10 +177,6 @@ function checkDeviations() {
     }
 
     // New network endpoint not seen in last 5 sessions
-    const recentEndpoints = new Set();
-    const recentSessions = ab.sessions.slice(-5);
-    for (const sess of recentSessions)
-      for (const ep of sess.networkEndpoints) recentEndpoints.add(ep);
     for (const ep of sd.endpoints) {
       if (!recentEndpoints.has(ep)) {
         const key = `new-ep:${ep}`;
@@ -183,7 +194,6 @@ function checkDeviations() {
     }
 
     // Accessing 4+ new directories
-    const typicalDirs = new Set(avg.typicalDirectories);
     const newDirs = [...sd.directories].filter((d) => !typicalDirs.has(d));
     if (newDirs.length >= 4) {
       const key = 'new-dirs-4+';
