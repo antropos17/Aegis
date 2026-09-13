@@ -2456,3 +2456,38 @@ kept the test and timeout unchanged. Build, formatting, TypeScript/Svelte checks
 both four-mutant gates and production dependency audit passed. Lint passed after
 fixing one unused benchmark variable; 56 warnings remain in unchanged files.
 All five CI contexts must pass on the final PR head before merge.
+
+### 2026-09-14 — Reuse network verdicts within a scan
+
+Following merged #455 / `bca004f`, branch `codex/network-verdict-work` reuses each
+normalized remote address's classification when a TCP snapshot contains repeated
+addresses. Distinct-address snapshots skip the verdict Map. No classification
+survives the scan; DNS TTL/evidence, socket deduplication, ports, owner/instance
+fields, HTTP flags and sensor health retain their contracts.
+
+The normalization-work regression first failed (1,000 checks against a limit of
+11); all 84 focused network tests passed after initial implementation. The final
+controlled benchmark compares actual scanner revisions using stubbed TCP/DNS:
+2,048 same-address sockets took median 5.31291 to 1.43203 ms per scan, with equal
+outputs and provider counts. Distinct-address timing did not demonstrate an
+improvement. Method, final source hashes and limits are in
+`docs/bench/network-verdict-work-2026-09-14.md` and its JSON report.
+
+Per the updated disk rules, task TEMP/TMP and npm cache are isolated on X:.
+The first full run rejected a TEMP path inside the repository: the benchmark
+sensor requires its Electron profile outside watched source. TEMP/cache were
+moved to the dedicated `X:/tmp/aegis-network-20260914-runtime` directory and Node's
+actual temp path was verified. The test and production behavior were preserved.
+Before/during/after-run receipts remain in ignored `.agent/network-20260914`.
+WSL RdClientAutoTrace growth recurred during read-only work. A session-local guard
+targets 128 MiB / 24 hours of matching ETL files at each check, removing only closed
+files older than a minute in the exact validated non-reparse directory. Deletion
+receipts are preserved. This does not install permanent rotation or fix the WSL
+source. Disposable task TEMP/cache limits are 256/512 MiB and 48 hours; clean up
+closed task files at completion, preserving verification receipts.
+
+Final local coverage passed: 210 files, 3,412 tests passed and four skipped.
+Renderer build, formatting, lint (zero errors / 56 existing warnings), both type
+checks, witness and sequence mutation gates and counts check passed; production dependency audit
+reported zero vulnerabilities. The final benchmark uses the mean of the two
+middle observations for its 20-sample median; output/provider parity passed.
