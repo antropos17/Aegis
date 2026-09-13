@@ -25,20 +25,29 @@ Choose a new report path on every run. Temporary fixture folders are retained.
 normal-token fixtures, requiring nonzero split losses in the final report. It
 cannot be combined with `--live` and never requests UAC or ETW.
 
-The matching main/helper now require `etw-file/4`. Each telemetry sample includes
+The matching main/helper now require `etw-file/5`. Each telemetry sample includes
 `ingressDropped` and `outputDropped` uint64 strings whose sum is exactly `dropped`.
 `outputOverflowDropped + outputInvalidatedDropped` must equal `outputDropped`.
-Versions 1–3 are rejected; rebuild the helper together with the main reader.
+Versions 1–4 are rejected; rebuild the helper together with the main reader.
 Collector telemetry also requires bounded elapsed-time aggregates and separate
 ingress/output queue depths. Ended reports retain collector and main measurements;
 see [service measurements](../../docs/roadmap/etw-service-timings.md) for clock regions,
 nested durations and interpretation limits. No per-event timing history is retained.
 
-The `-wakeup` collector build waits for output availability, lifecycle signals or
+The collector waits for output availability, lifecycle signals or
 the next heartbeat after an empty pump. The prior 10 ms output polling delay is
 removed. `idleWait` now measures this signal/deadline wait; quiet periods still
 contribute to its total. See [output wakeup](../../docs/roadmap/etw-output-wakeup.md)
 for race, cancellation, drain and live-load evidence.
+
+The `-5-burst` build adds a bounded output-queue history in 100 ms windows,
+empty-to-nonempty readiness-to-first-dequeue timing, and completed broker-forward
+timing. Ended summaries retain these measurements. Quiet intervals without queue
+activity or a telemetry sample are omitted; the last 256 windows and an eviction
+count are retained. These counters contain no observations or paths. See
+[burst measurements](../../docs/roadmap/etw-burst-diagnostics.md) for stage boundaries,
+snapshot timing and why dequeue counts do not certify delivery. This instrumentation
+has synthetic/process evidence only; a new live load check is deferred by the user.
 
 For a separately agreed live check, run the following from normal PowerShell and
 approve **one** UAC prompt. The ordinary Node process reads its own temporary test

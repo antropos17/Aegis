@@ -120,6 +120,87 @@ describe('ETW service measurements', () => {
     expect(() => protocol.validateMessage(message('health', '3', sample))).toThrow();
   });
 
+  it.each([
+    (p) => {
+      delete p.outputFlow;
+    },
+    (p) => {
+      p.brokerForward = null;
+    },
+    (p) => {
+      p.brokerForward.duration.failed = '1';
+    },
+    (p) => {
+      p.outputFlow.windows = [];
+    },
+    (p) => {
+      p.outputFlow.windowTicks = '0';
+    },
+    (p) => {
+      p.outputFlow.windowTicks = '1';
+    },
+    (p) => {
+      p.outputFlow.asOfQpc = '101';
+    },
+    (p) => {
+      p.outputFlow.windows[0].toQpc = '101';
+    },
+    (p) => {
+      p.outputFlow.windows[0].fromQpc = '1';
+    },
+    (p) => {
+      p.outputFlow.windows[0].enqueued = '1';
+    },
+    (p) => {
+      p.outputFlow.windows[0].highWaterBytes = 4194305;
+    },
+    (p) => {
+      p.outputFlow.windows[0].path = 'private';
+    },
+    (p) => {
+      p.outputFlow.windows.push({ ...p.outputFlow.windows[0] });
+    },
+    (p) => {
+      p.outputFlow.windows = Array(257).fill(p.outputFlow.windows[0]);
+    },
+  ])('rejects incomplete or inconsistent burst profiles %#', (change) => {
+    const sample = telemetry();
+    change(sample.performance);
+    expect(() => protocol.validateMessage(message('health', '3', sample))).toThrow();
+  });
+
+  it('round trips a full bounded profile including quiet gaps and exact counters', () => {
+    const sample = telemetry();
+    const flow = sample.performance.outputFlow;
+    const width = BigInt(flow.windowTicks);
+    const base = flow.windows[0];
+    flow.windows = Array.from({ length: 256 }, (_, i) => ({
+      ...base,
+      fromQpc: String(BigInt(i) * 2n * width),
+      toQpc: String((BigInt(i) * 2n + 1n) * width),
+      enqueued: '9007199254740993',
+      dequeued: '9007199254740993',
+      overflow: '123',
+      highWaterRecords: 1,
+      highWaterBytes: 2048,
+    }));
+    flow.asOfQpc = flow.windows.at(-1).toQpc;
+    sample.performance.asOfQpc = flow.asOfQpc;
+    const accepted = [];
+    const bytes = protocol.encodeFrame(message('health', '3', sample));
+    expect(bytes.length).toBeLessThanOrEqual(protocol.MAX_FRAME_BYTES + 4);
+    protocol
+      .createFrameDecoder({
+        launchId: 'launch-1',
+        sessionId: 'session-1',
+        onMessage: (value) => {
+          accepted.push(value);
+        },
+      })
+      .push(bytes);
+    expect(accepted[0].data.performance.outputFlow).toEqual(flow);
+  });
+
   it('preserves uint64 measurements beyond Number precision in frames', () => {
     const sample = telemetry();
     sample.performance.pump = {

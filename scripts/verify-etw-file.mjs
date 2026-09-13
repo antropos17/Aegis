@@ -108,6 +108,9 @@ try {
       !result.mainPerformance ||
       BigInt(result.collectorPerformance.pump.calls) === 0n ||
       BigInt(result.collectorPerformance.outputWrite.calls) === 0n ||
+      BigInt(result.collectorPerformance.brokerForward?.duration.calls ?? 0) === 0n ||
+      BigInt(result.collectorPerformance.outputFlow?.readyToTake.calls ?? 0) === 0n ||
+      !result.collectorPerformance.outputFlow?.windows.length ||
       BigInt(result.mainPerformance.decodeChunk.calls) === 0n
     )
       throw new Error('service-measurements-missing');
