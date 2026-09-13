@@ -61,7 +61,8 @@ describe('tray-icon', () => {
       tray: null,
       currentTrayColor: 'green',
       lastNotificationTime: 0,
-      getActivityLog: () => overrides.activityLog || [],
+      getSensitiveCount: () =>
+        (overrides.activityLog || []).filter((event) => event.sensitive).length,
       getSettings: () => ({ notificationsEnabled: true, ...overrides.settings }),
       isMonitoringPaused: () => overrides.paused || false,
       setMonitoringPaused: vi.fn(),

@@ -2428,3 +2428,31 @@ Full coverage passed 208 files / 3,406 tests / four skips with two workers.
 Renderer build, formatting, TypeScript/Svelte checks, both four-mutant gates and
 production dependency audit passed. Lint passed with 56 warnings in unchanged
 files. The final PR head must pass all five required CI contexts before merge.
+
+### 2026-09-13 — Tray event-path work
+
+After merged #454 / `4b5cbdf`, `codex/tray-update-work` connects the tray to main's
+existing retained-log sensitive counter. Every accepted watcher event updates the
+tray; it previously filtered up to 10,000 log entries and rebuilt the native menu
+on each call. Tooltip/menu writes now occur only when their visible inputs change,
+with state scoped to the Tray object and reset on init. Failed tooltip/menu writes remain
+retryable. Counter push/eviction accounting, thresholds and notification behavior
+are unchanged.
+
+All three new regressions failed before implementation and then passed alongside
+tray and main stats tests (30 tests). They cover unchanged bursts, additions and
+evictions, agent count, pause actions, replacement trays and native write failures.
+The offline benchmark compares actual tray revisions with fake native APIs.
+After warm-up, 10,000 unchanged updates eliminated 10,000 history scans, tooltip
+writes and menu rebuilds apiece. For a 10,000-event history, median JS time changed
+from 0.0595171 to 0.0003030 ms per unchanged update; alternating five/six alerts
+still updates every tooltip/image. This excludes native API cost and is not a
+total application CPU measurement. Reports and limits are in
+`docs/bench/tray-update-work-2026-09-13.md` and its JSON report.
+
+Full coverage passed 209 files / 3,409 tests / four skips with one worker. The first
+two-worker run had one 5-second timeout in ObservatoryProtection; the full rerun
+kept the test and timeout unchanged. Build, formatting, TypeScript/Svelte checks,
+both four-mutant gates and production dependency audit passed. Lint passed after
+fixing one unused benchmark variable; 56 warnings remain in unchanged files.
+All five CI contexts must pass on the final PR head before merge.

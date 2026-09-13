@@ -826,7 +826,7 @@ app.whenReady().then(() => {
     tray: null,
     currentTrayColor: 'green',
     lastNotificationTime: 0,
-    getActivityLog: () => (scanner ? scanner.activityLog : []),
+    getSensitiveCount: () => totalSensitive,
     getSettings: config.getSettings,
     isMonitoringPaused: () => monitoringPaused,
     setMonitoringPaused: (v) => {
