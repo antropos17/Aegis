@@ -8,6 +8,7 @@
 
 // ═══ CLI MODE (before Electron imports) ═══
 const _cliFlags = new Set([
+  '--static-import-json',
   '--static-scan-json',
   '--scan-json',
   '--inventory-json',

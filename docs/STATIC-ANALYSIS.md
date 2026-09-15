@@ -7,9 +7,10 @@ It reads local bytes without running commands, starting MCP servers, installing
 packages, resolving DNS, uploading content or modifying files.
 
 This is the first A4 slice. It has no JavaScript/Python AST or interprocedural
-dataflow analysis, semantic prompt-injection detector, vulnerability database or
-Cisco integration. Those remain A4.2. It does not connect findings to the live
-dashboard or block an action.
+dataflow analysis, semantic prompt-injection detector or vulnerability database.
+The separate [external report importer](STATIC-REPORT-IMPORT.md) accepts explicit
+Cisco JSON/SARIF results alongside this local review. It does not add those
+analysis engines to AEGIS, connect findings to the dashboard or block an action.
 
 ## Commands and scope
 

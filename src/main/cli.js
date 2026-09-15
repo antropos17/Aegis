@@ -14,6 +14,8 @@ const USAGE = `AEGIS — Independent AI Oversight Layer
 Usage:  aegis [options]
 
 Options:
+  --static-import-json <adapter> <directory> <format> <report> [--baseline <prior-scan>]
+    Formats: cisco-skill-json, cisco-skill-sarif, cisco-mcp-json (explicit offline inputs)
   --static-scan-json <adapter> <directory>  Review literal commands and agent/package settings
     Static adapter: package (whole directory), project, or any profile below
   --inventory-json <directory>  Inventory project components without executing them
@@ -78,6 +80,9 @@ async function handleCLI(argv) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  if (flag === '--static-import-json') {
+    return require('./static-import-cli').handleStaticImportCLI(args, write);
+  }
   if (flag === '--static-scan-json') {
     return require('./static-analysis-cli').handleStaticAnalysisCLI(args, write);
   }
