@@ -1,6 +1,6 @@
 /**
  * @file scripts/build-sidecar.js
- * @description Compile the process-snapshot sidecar with the C# compiler that ships
+ * @description Compile the process-snapshot and resource-counter helpers with the C# compiler that ships
  *   inside Windows.
  *
  *   `csc.exe` under `%WINDIR%\Microsoft.NET\Framework64\v4.0.30319` is present on
@@ -81,6 +81,23 @@ function main() {
     ...sources,
   ];
   execFileSync(csc, args, { stdio: 'inherit' });
+
+  const resourceExe = path.join(OUT_DIR, 'aegis-resources.exe');
+  execFileSync(
+    csc,
+    [
+      '/nologo',
+      '/target:exe',
+      '/platform:x64',
+      '/optimize+',
+      '/warnaserror+',
+      '/reference:System.Management.dll',
+      `/out:${resourceExe}`,
+      path.join(ROOT, 'sidecar', 'resources', 'Program.cs'),
+    ],
+    { stdio: 'inherit' },
+  );
+  console.log(`built  ${resourceExe}`);
 
   const bytes = fs.readFileSync(OUT_EXE);
   const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');

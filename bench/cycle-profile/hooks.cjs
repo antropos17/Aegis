@@ -86,6 +86,7 @@ function install(root, metrics, state, now) {
         'tasklist',
         'nvidia-smi',
         'aegis-procsnap',
+        'aegis-resources',
         'handle64',
         'handle',
         'where',
