@@ -2,6 +2,15 @@ import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import Module from 'module';
 
 const mockExecFile = vi.fn();
+const cimRows = (rows) =>
+  rows.map((row) => ({
+    OwningProcess: row.pid,
+    RemoteAddress: row.ip,
+    RemotePort: row.port,
+    LocalAddress: row.localIp,
+    LocalPort: row.localPort,
+    State: 5,
+  }));
 
 const originalLoad = Module._load;
 Module._load = function (request, _parent, _isMain) {
@@ -176,9 +185,18 @@ describe('platform/win32', () => {
     });
 
     it('parses PowerShell connection output', async () => {
-      const conns = [{ pid: 100, ip: '52.1.2.3', port: 443, state: 'Established' }];
+      const conns = [
+        {
+          pid: 100,
+          ip: '52.1.2.3',
+          port: 443,
+          state: 'Established',
+          localIp: '10.0.0.1',
+          localPort: 52001,
+        },
+      ];
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
-        cb(null, JSON.stringify(conns));
+        cb(null, JSON.stringify(cimRows(conns)));
       });
 
       const result = await win32.getRawTcpConnections([100]);
@@ -194,17 +212,25 @@ describe('platform/win32', () => {
         localIp: '10.0.0.1',
         localPort,
       }));
-      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, JSON.stringify(rows)));
+      mockExecFile.mockImplementation((cmd, args, opts, cb) =>
+        cb(null, JSON.stringify(cimRows(rows))),
+      );
       expect(await win32.getRawTcpConnections([100])).toEqual(rows);
       const script = mockExecFile.mock.calls[0][1].at(-1);
-      expect(script).toContain('localIp=$c.LocalAddress');
-      expect(script).toContain('localPort=[int]$c.LocalPort');
+      expect(script).toContain('LocalAddress,LocalPort');
     });
 
     it('wraps single connection object in array', async () => {
-      const conn = { pid: 100, ip: '1.2.3.4', port: 80, state: 'Established' };
+      const conn = {
+        pid: 100,
+        ip: '1.2.3.4',
+        port: 80,
+        state: 'Established',
+        localIp: '10.0.0.1',
+        localPort: 52001,
+      };
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
-        cb(null, JSON.stringify(conn));
+        cb(null, JSON.stringify(cimRows([conn])[0]));
       });
 
       const result = await win32.getRawTcpConnections([100]);

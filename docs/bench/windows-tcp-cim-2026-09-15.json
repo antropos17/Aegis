@@ -1,0 +1,138 @@
+{
+  "schema": 1,
+  "baseline": "9c6b8b3",
+  "samples": [
+    {
+      "provider": "cmdlet",
+      "ms": 3457.0365,
+      "connections": 2
+    },
+    {
+      "provider": "cim",
+      "ms": 1438.5817000000002,
+      "connections": 2
+    },
+    {
+      "provider": "cim",
+      "ms": 1208.6023999999998,
+      "connections": 2
+    },
+    {
+      "provider": "cmdlet",
+      "ms": 2549.4143000000004,
+      "connections": 2
+    },
+    {
+      "provider": "cmdlet",
+      "ms": 2129.3997999999992,
+      "connections": 2
+    },
+    {
+      "provider": "cim",
+      "ms": 1332.255000000001,
+      "connections": 2
+    },
+    {
+      "provider": "cim",
+      "ms": 1244.5267999999996,
+      "connections": 2
+    },
+    {
+      "provider": "cmdlet",
+      "ms": 2593.2145999999993,
+      "connections": 2
+    },
+    {
+      "provider": "cmdlet",
+      "ms": 2185.7827000000016,
+      "connections": 2
+    },
+    {
+      "provider": "cim",
+      "ms": 1300.7747999999992,
+      "connections": 2
+    },
+    {
+      "provider": "cim",
+      "ms": 1211.1872000000003,
+      "connections": 2
+    },
+    {
+      "provider": "cmdlet",
+      "ms": 2600.8744000000006,
+      "connections": 2
+    }
+  ],
+  "exactEndpointStateMatches": 12,
+  "emptyScopeMatched": true,
+  "hashes": {
+    "src/main/platform/win32.js": "95d76e0f3253cdcb78a8de27126ee8c57638ee558e32773c276fb034b4836fc7",
+    "src/main/platform/windows-tcp.js": "097a548a45ad5f6d3c281333b7b066007b9eb0927a0463c1d5fa7a8cacb984e0"
+  },
+  "medianMs": {
+    "cmdlet": 2571.31445,
+    "cim": 1272.6507999999994
+  },
+  "live": {
+    "complete": true,
+    "elapsedMs": 180010.3477,
+    "warmupMs": 90000,
+    "reportSha256": "6b8796cfc26c0ab7eebb860c532a387a047c49de684377ff3c4ba486991c2839",
+    "manifestSha256": "29c50b2fb29d5c47ef1560c00e27e808ea7fd1e9e1be783ec38613f4ffef1efe",
+    "networkStages": [
+      {
+        "phase": "startup",
+        "label": "getRawTcpConnections",
+        "calls": 3,
+        "failures": 0,
+        "totalMs": 4856.4416,
+        "maxMs": 1747.9307000000008,
+        "medianMs": 1691.6113999999998,
+        "p95Ms": 1747.9307000000008,
+        "sampled": 3,
+        "truncated": false
+      },
+      {
+        "phase": "startup",
+        "label": "scanNetworkConnections",
+        "calls": 3,
+        "failures": 0,
+        "totalMs": 5020.185899999998,
+        "maxMs": 1907.0875999999998,
+        "medianMs": 1691.9706000000006,
+        "p95Ms": 1907.0875999999998,
+        "sampled": 3,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "getRawTcpConnections",
+        "calls": 3,
+        "failures": 0,
+        "totalMs": 5176.298899999994,
+        "maxMs": 1806.3367000000144,
+        "medianMs": 1692.984999999986,
+        "p95Ms": 1806.3367000000144,
+        "sampled": 3,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "scanNetworkConnections",
+        "calls": 3,
+        "failures": 0,
+        "totalMs": 5193.129899999971,
+        "maxMs": 1813.5498999999836,
+        "medianMs": 1696.6935999999987,
+        "p95Ms": 1813.5498999999836,
+        "sampled": 3,
+        "truncated": false
+      }
+    ],
+    "networkLaunches": {
+      "startup:child:powershell:getRawTcpConnections": 3,
+      "steady:child:powershell:getRawTcpConnections": 3
+    },
+    "steadyProcessTicks": 9
+  }
+}
