@@ -7,6 +7,7 @@ const OPAQUE = /^(?:ClassDefinition|LambdaExpression|TypeParamList|.*Comprehensi
 /** Pre-index Python bindings, including function-local assignments before use. @param {object} parsed @param {Set<string>} issues @returns {object} Lexical scopes and mutation targets. @since v0.15.1 */
 function indexPythonScopes(parsed, issues) {
   const scopes = new WeakMap();
+  const parents = new WeakMap();
   const mutations = [];
   function bind(node, scope, description = { kind: 'unknown' }) {
     if (!node) return;
@@ -14,6 +15,7 @@ function indexPythonScopes(parsed, issues) {
       const name = parsed.identifier(node);
       scope.bindings.set(name, {
         ...description,
+        node,
         scope,
         from: node.from,
         mutated: scope.bindings.has(name),
@@ -44,14 +46,16 @@ function indexPythonScopes(parsed, issues) {
       bind(local, scope, { kind: 'import', module: selected, method: from ? name : null });
     }
   }
-  function walk(node, scope) {
+  function walk(node, scope, parent = null) {
     scopes.set(node, scope);
+    parents.set(node, parent);
     if (node.type === 'FunctionDefinition') {
+      const inner = { parent: scope, bindings: new Map(), dynamic: false, kind: 'function' };
       bind(
         node.children.find((child) => child.type === 'VariableName'),
         scope,
+        { kind: 'function', definition: node, inner },
       );
-      const inner = { parent: scope, bindings: new Map(), dynamic: false, kind: 'function' };
       if (node.children.some((child) => child.type === 'TypeParamList')) {
         inner.dynamic = true;
         issues.add('python-scope-not-analyzed');
@@ -61,8 +65,9 @@ function indexPythonScopes(parsed, issues) {
         bind(
           group.find((child) => child.type === 'VariableName'),
           inner,
+          { kind: 'parameter' },
         );
-      node.children.forEach((child) => walk(child, child.type === 'Body' ? inner : scope));
+      node.children.forEach((child) => walk(child, child.type === 'Body' ? inner : scope, node));
       return;
     }
     if (OPAQUE.test(node.type)) {
@@ -105,10 +110,11 @@ function indexPythonScopes(parsed, issues) {
       node.children.forEach((child, index) => {
         if (child.type === 'as') bind(node.children[index + 1], scope);
       });
-    node.children.forEach((child) => walk(child, scope));
+    node.children.forEach((child) => walk(child, scope, node));
   }
-  walk(parsed.root, { parent: null, bindings: new Map(), dynamic: false, kind: 'module' });
-  return { scopes, mutations };
+  const moduleScope = { parent: null, bindings: new Map(), dynamic: false, kind: 'module' };
+  walk(parsed.root, moduleScope);
+  return { scopes, parents, moduleScope, mutations };
 }
 
 /** Resolve a name through lexical scopes; opaque constructs prevent assumptions. @param {object} scope @param {string} name @returns {object|null} Binding or absent global. @since v0.15.1 */

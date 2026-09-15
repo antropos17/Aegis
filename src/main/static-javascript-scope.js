@@ -43,7 +43,7 @@ function indexScopes(ast, mode) {
   function walk(node, parent, parentNode) {
     let scope = parent;
     if (node.type === 'FunctionDeclaration') {
-      bind(node.id, parent, { kind: 'local-function' });
+      bind(node.id, parent, { kind: 'local-function', node });
       if (mode === 'commonjs' && parent.kind === 'block' && !parent.functionBody) {
         let owner = parent;
         while (owner.parent && owner.kind !== 'function') owner = owner.parent;
@@ -53,8 +53,9 @@ function indexScopes(ast, mode) {
     if (node.type === 'ClassDeclaration') bind(node.id, parent, { kind: 'unknown' });
     if (FUNCTIONS.has(node.type)) {
       scope = { parent, kind: 'function', bindings: new Map() };
-      if (node.id) bind(node.id, scope, { kind: 'local-function' });
-      node.params.forEach((parameter) => bind(parameter, scope, { kind: 'unknown' }));
+      if (node.type === 'FunctionExpression' && node.id)
+        bind(node.id, scope, { kind: 'local-function', node });
+      node.params.forEach((parameter) => bind(parameter, scope, { kind: 'parameter' }));
     } else if (
       [
         'BlockStatement',
@@ -95,7 +96,9 @@ function indexScopes(ast, mode) {
           imported:
             specifier.type === 'ImportSpecifier'
               ? (specifier.imported.name ?? specifier.imported.value)
-              : '*',
+              : specifier.type === 'ImportDefaultSpecifier'
+                ? 'default'
+                : '*',
         });
     }
     children(node).forEach((child) => walk(child, scope, node));
@@ -107,7 +110,7 @@ function indexScopes(ast, mode) {
     if (!['const', 'let', 'import'].includes(owner.bindings.get(name)?.kind))
       owner.bindings.set(name, { kind: 'unknown' });
   }
-  return { scopes, nodes };
+  return { scopes, nodes, root };
 }
 
 /** Find a lexical declaration; dynamic with-scopes block global assumptions. @param {object} scope @param {string} name @returns {object|null} Binding or absent global. @since v0.15.1 */

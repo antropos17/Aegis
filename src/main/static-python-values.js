@@ -17,8 +17,8 @@ const METHODS = new Set([
   'os.popen',
 ]);
 
-/** Resolve a bounded subset of Python values without evaluating expressions. @param {object} parsed @param {object} index @param {Set<string>} issues @returns {object} Value reader and mutation state. @since v0.15.1 */
-function createPythonValues(parsed, index, issues) {
+/** Resolve a bounded subset of Python values without evaluating expressions. @param {object} parsed @param {object} index @param {Set<string>} issues @param {object} [flow] Optional bounded local-flow hooks. @returns {object} Value reader and mutation state. @since v0.15.1 */
+function createPythonValues(parsed, index, issues, flow = {}) {
   let steps = 0;
   const resolving = new Set();
   const state = { modulesInvalid: false };
@@ -49,13 +49,19 @@ function createPythonValues(parsed, index, issues) {
         issues.add('python-binding-not-resolved');
         return UNKNOWN;
       }
+      if (flow.visible && !flow.visible(binding)) return UNKNOWN;
       if (binding.scope === scope && binding.from > node.from) return UNKNOWN;
       if (binding.kind === 'import') {
-        if (state.modulesInvalid || !['os', 'subprocess'].includes(binding.module)) return UNKNOWN;
+        if (state.modulesInvalid) return UNKNOWN;
+        if (!['os', 'subprocess'].includes(binding.module))
+          return flow.import?.(binding) ?? UNKNOWN;
         return binding.method
           ? method(binding.module + '.' + binding.method)
           : { kind: 'module', name: binding.module };
       }
+      if (binding.kind === 'parameter') return flow.parameter ? flow.parameter(binding) : UNKNOWN;
+      if (binding.kind === 'function')
+        return state.modulesInvalid ? UNKNOWN : (flow.function?.(binding) ?? UNKNOWN);
       if (binding.kind !== 'assignment' || resolving.has(binding)) return UNKNOWN;
       resolving.add(binding);
       const value = next(binding.init);
@@ -74,7 +80,7 @@ function createPythonValues(parsed, index, issues) {
       const target = next(node.children[0]);
       return target?.kind === 'module'
         ? method(target.name + '.' + parsed.identifier(node.children[2]))
-        : UNKNOWN;
+        : (flow.member?.(target, parsed.identifier(node.children[2])) ?? UNKNOWN);
     }
     if (node.type === 'ParenthesizedExpression' && node.children.length === 3)
       return next(node.children[1]);
