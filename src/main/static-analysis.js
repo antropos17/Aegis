@@ -8,7 +8,7 @@ const {
   COMMANDS_PER_FILE,
 } = require('./static-config-analysis');
 const { analyzeCommand } = require('./static-command-analysis');
-const { COMMAND_CHARS, COMMAND_TOKENS } = require('./static-command-parser');
+const { COMMAND_CHARS, COMMAND_TOKENS, COMMAND_REDIRECTIONS } = require('./static-command-parser');
 const { analyzeJavaScript } = require('./static-javascript');
 const { JAVASCRIPT_LIMITS } = require('./static-javascript-ast');
 const { VALUE_STEPS } = require('./static-javascript-values');
@@ -264,6 +264,7 @@ async function scanStaticDirectory(adapter, directory, options = {}) {
       commandsPerFile: COMMANDS_PER_FILE,
       commandChars: COMMAND_CHARS,
       commandTokens: COMMAND_TOKENS,
+      commandRedirections: COMMAND_REDIRECTIONS,
       scriptLines: SCRIPT_LINES,
       ...JAVASCRIPT_LIMITS,
       javascriptValueSteps: VALUE_STEPS,

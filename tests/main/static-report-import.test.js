@@ -59,6 +59,18 @@ afterEach(() => {
 });
 
 describe('explicit external static review', () => {
+  it('requires a fresh baseline when ordered shell redirection coverage was absent', async () => {
+    const before = await scanStaticDirectory('package', root);
+    before.ruleSet.version = 5;
+    delete before.scope.shellRedirections;
+    delete before.limits.commandRedirections;
+    const result = await review(skillReport(), { baselineFile: artifact('before.json', before) });
+    expect(result.external.baseline.status).toBe('incompatible');
+    expect(result.external.issues).toContain('external-baseline-incompatible');
+    expect(result.external.findings[0].locations[0].binding).toBe('current-path-only');
+    expect(result.reviewRequired).toBe(true);
+  });
+
   it('requires a fresh baseline when primitive return-flow coverage was absent', async () => {
     const before = await scanStaticDirectory('package', root);
     before.ruleSet.version = 4;

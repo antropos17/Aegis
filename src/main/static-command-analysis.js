@@ -2,6 +2,7 @@
 
 const semver = require('semver');
 const { parseLiteralCommands, COMMAND_CHARS, COMMAND_TOKENS } = require('./static-command-parser');
+const { redirectStreams } = require('./static-command-redirections');
 const SHELLS = new Set(['sh', 'bash', 'dash', 'zsh']);
 const POWERSHELL = new Set(['powershell', 'pwsh']);
 const nameOf = (name) =>
@@ -207,12 +208,12 @@ function inspect(argv, depth, expanded = argv.map(() => false)) {
     issues.add('command-wrapper-not-resolved');
   if (/[$%^]/.test(argv[0] || '')) issues.add('dynamic-command-not-resolved');
   const syntaxOnly = args.some((arg) => /^-[a-z]*n[a-z]*$/.test(arg));
-  const stdinShell =
+  const readsShellInput =
     SHELLS.has(command) &&
     !help &&
-    !syntaxOnly &&
     args.every((arg) => /^-(?:[a-z]+)?$/.test(arg)) &&
     !lower.includes('-c');
+  const stdinShell = readsShellInput && !syntaxOnly;
   const stdinPowerShell =
     isPowerShell &&
     (!args.length ||
@@ -220,14 +221,17 @@ function inspect(argv, depth, expanded = argv.map(() => false)) {
   const executeInput =
     stdinShell || stdinPowerShell || ['iex', 'invoke-expression'].includes(command);
   const passthrough =
-    command === 'tee' ||
-    (['cat', 'base64'].includes(command) && args.every((arg) => arg.startsWith('-')));
+    !help &&
+    (command === 'tee' ||
+      (['cat', 'base64'].includes(command) && args.every((arg) => arg.startsWith('-'))));
   return {
     rules,
     issues,
     download,
     source,
     executeInput,
+    readsCodeInput:
+      readsShellInput || stdinPowerShell || ['iex', 'invoke-expression'].includes(command),
     passthrough,
     uploadInput: inputs.some((input) => input.value === '-'),
   };
@@ -253,13 +257,17 @@ function analyzeCommand(text, depth = 0) {
   let download = false;
   let secret = false;
   for (const segment of parsed.segments) {
+    const streams = redirectStreams(segment, { download, secret }, secretReference);
+    streams.issues.forEach((issue) => issues.add(issue));
     const result = inspect(segment.argv, depth, segment.expanded);
     result.rules.forEach((rule) => rules.add(rule));
     result.issues.forEach((issue) => issues.add(issue));
-    if (download && result.executeInput) rules.add('STA001');
-    if (secret && result.uploadInput) rules.add('STA002');
-    download = segment.separator === '|' && (result.download || (download && result.passthrough));
-    secret = segment.separator === '|' && (result.source || (secret && result.passthrough));
+    if (streams.input.download && result.executeInput) rules.add('STA001');
+    if (streams.input.secret && result.uploadInput) rules.add('STA002');
+    if (streams.inputFile && result.readsCodeInput) issues.add('referenced-code-not-analyzed');
+    download =
+      streams.outputPipe && (result.download || (streams.input.download && result.passthrough));
+    secret = streams.outputPipe && (result.source || (streams.input.secret && result.passthrough));
   }
   return { rules: [...rules].sort(), issues: [...issues].sort() };
 }

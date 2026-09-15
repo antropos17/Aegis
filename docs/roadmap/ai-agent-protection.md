@@ -32,7 +32,7 @@ coverage gaps. Do not label these states "safe".
 | A3 | Trust snapshots, comparison and update revalidation | File, tool schema/description and package changes are visible; acceptance is bound to content; changes are never accepted automatically | Implemented through CLI; MCP uses an explicitly supplied offline tools/list; [contract](../INVENTORY-SNAPSHOTS.md) |
 | A4 | Local static analysis of skills/hooks/MCP | Whole-package analysis of downloads, scripts, dependencies and data transfer; positive and negative fixtures; Cisco integrations through a versioned JSON/SARIF contract; external analyzers only when explicitly selected | Partial: A4.1, external-result import and bounded JavaScript/Python command and selected-source flow review are implemented; deeper analysis remains in A4.2 |
 | A4.1 | Local command and configuration checks | CLI for projects, profiles and package trees; review reasons bound to hash/path; bounded shell/MCP/hooks/npm parsing; visible incompleteness; no execution or data transmission | Implemented; [contract](../STATIC-ANALYSIS.md) |
-| A4.2 | Deeper analysis and Cisco integrations | Versioned JSON/SARIF contract, explicit offline inputs and result provenance; JS/Python and interfile flow analysis; complex shell and instruction semantics; unsupported cases receive no safety verdict | Partial: [Cisco JSON/SARIF import](../STATIC-REPORT-IMPORT.md), [JavaScript](../JAVASCRIPT-STATIC-ANALYSIS.md), [Python](../PYTHON-STATIC-ANALYSIS.md) and [selected-source literal/wrapper/primitive-return flow](../STATIC-COMMAND-FLOW.md) are implemented; broader flow, complex shell and instruction semantics remain |
+| A4.2 | Deeper analysis and Cisco integrations | Versioned JSON/SARIF contract, explicit offline inputs and result provenance; JS/Python and interfile flow analysis; complex shell and instruction semantics; unsupported cases receive no safety verdict | Partial: [Cisco JSON/SARIF import](../STATIC-REPORT-IMPORT.md), [JavaScript](../JAVASCRIPT-STATIC-ANALYSIS.md), [Python](../PYTHON-STATIC-ANALYSIS.md), [selected-source literal/wrapper/primitive-return flow](../STATIC-COMMAND-FLOW.md) and [ordered shell redirections](../SHELL-REDIRECTIONS.md) are implemented; broader flow, shell control/substitution and instruction semantics remain |
 | A5 | Refine SEQ001 and add behavioral chains | Ordinary work is not treated as proven exfiltration; missed-detection/noise tests; parent/child and cross-agent relationships retain attribution strength | Planned |
 | B1 | Shared policy and adapter contract | Versioned events before/after actions; `allow/ask/deny`; supported and unsupported surfaces listed; ACS alignment assessed | Planned |
 | B2 | MCP gateway and operation control | Validate schemas, arguments, responses, recipients, access scopes and tool changes; stdio and HTTP have separate trust boundaries | Planned |
@@ -63,6 +63,8 @@ to a fresh local scan. Provenance remains unverified; comparison with an earlier
 that the external tool analyzed those bytes. Built-in JavaScript and Python review
 resolve bounded literal process-call subsets and selected-source wrapper flows;
 they do not evaluate control flow or establish runtime module identity.
+Ordered shell redirections associate literal stdin/stdout endpoints while
+retaining an explicit gap for the unverified shell and operating-system dialect.
 A4.2 remains incomplete.
 
 ## Architecture decisions
@@ -256,4 +258,17 @@ Do not start another heavy batch while diagnostic-log growth is unexplained.
   older baselines. CLI checks cover non-execution, redaction, changed dependency
   bytes and adapter exclusions. Next in A4.2: complex shell and instruction
   semantics; general object/closure flow remains outside this bounded subset.
+  Verification and merge results are recorded in the PR.
+- 2026-09-16: ordered shell redirections extend the literal-command A4.2 subset.
+  Overridden stdout no longer becomes a download-to-shell pipe, and sensitive
+  file paths supplied through stdin can produce STA002 without reading those
+  targets. Descriptor copies retain their position in the redirect sequence;
+  unknown descriptors and unsupported copies/moves invalidate stream inference.
+  Parsing permits at most 64 redirections within the existing command/token
+  bounds. Rule-set version 6 declares the new scope and requires fresh comparison
+  for older baselines. CLI, JS/Python, MCP, hooks and npm-script fixtures check
+  the public boundaries, redaction, original hashes and non-execution. The actual
+  shell dialect, prior file content, arbitrary nested shell flow, control flow,
+  substitutions and instruction semantics remain unresolved. Next in A4.2:
+  instruction-content review with explicit evidence and bounded coverage.
   Verification and merge results are recorded in the PR.
