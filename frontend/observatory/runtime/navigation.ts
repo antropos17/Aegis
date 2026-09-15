@@ -55,6 +55,13 @@ export const workspaces: Workspace[] = [
     keywords: 'history evidence log audit',
   },
   {
+    id: 'local-security',
+    label: 'Local security',
+    icon: 'shield',
+    group: 'assess',
+    keywords: 'local security scan static inventory package skill hooks mcp snapshot changes cisco',
+  },
+  {
     id: 'analysis',
     label: 'AI analysis',
     icon: 'shield',

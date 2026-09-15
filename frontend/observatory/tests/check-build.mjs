@@ -18,6 +18,7 @@ import { checkProtection } from './protection-check.mjs';
 import { checkWatchlist } from './watchlist-check.mjs';
 import { checkLocalization } from './localization-check.mjs';
 import { checkUxRecovery } from './ux-recovery-check.mjs';
+import { checkLocalSecurity } from './local-security-check.mjs';
 
 const repo = process.cwd();
 const designRoot = resolve(repo, 'frontend/observatory');
@@ -88,6 +89,7 @@ const out = process.env.FRONTEND_QA_DIR || resolve(repo, 'dist/frontend-qa');
 await mkdir(out, { recursive: true });
 const errors = [];
 try {
+  await checkLocalSecurity(browser, base + '/preview/', out);
   await checkUxRecovery(browser, base + '/preview/', out);
   await checkProtection(browser, base + '/preview/', out);
   await checkLocalization(browser, base + '/preview/', out);
@@ -96,6 +98,10 @@ try {
     const js = await readFile(resolve(roots['/desktop/'], 'assets', file), 'utf8');
     assert(!js.includes('demo:observatory:'), 'desktop includes preview identities');
     assert(!js.includes('service-0.example.test'), 'desktop includes fixture endpoints');
+    assert(
+      !js.includes('Example / agent-project (simulated)'),
+      'desktop includes local security fixtures',
+    );
     assert(!js.includes('PendingIntegration'), 'desktop still includes pending gate');
   }
   const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });

@@ -68,12 +68,12 @@ has to remember to redo. The evidence-code row is not covered and still is one.
 | Agents | `node -p` over `src/shared/agent-database.json` | **110** |
 | Name signatures | sum of `names[]` in the same file | **262** |
 | Rules / YAML files | `- id:` matches in `rules/*.yaml`; `git ls-files 'rules/'` | **73** / **8** |
-| main CJS modules | `git ls-files 'src/main/'` split by depth | **123** = 101 top-level + 20 `platform/` + 2 `token-adapters/` |
+| main CJS modules | `git ls-files 'src/main/'` split by depth | **125** = 103 top-level + 20 `platform/` + 2 `token-adapters/` |
 | Svelte components | `git ls-files 'src/renderer/lib/components/*.svelte'` | **50** (plus `src/renderer/App.svelte` → **51** tracked `.svelte` in total) |
 | Renderer stores | `git ls-files 'src/renderer/lib/stores/'` | **16** files (4 of them demo-only) |
 | Renderer utils | `git ls-files 'src/renderer/lib/utils/'` | **21** files |
 | Shared types | `.ts` under `src/shared/types` | **9** |
-| IPC surface | `ipcRenderer.invoke` / `ipcRenderer.on` in `src/main/preload.js` | **44 invoke + 10 push = 54** |
+| IPC surface | `ipcRenderer.invoke` / `ipcRenderer.on` in `src/main/preload.js` | **45 invoke + 10 push = 55** |
 | Attribution evidence codes | `require('./src/main/attribution.js').EVIDENCE_CODES` | **7** |
 
 At audit time these read 46 main modules, 47 components (against 46 documented), 13 stores, 16
@@ -348,7 +348,7 @@ would re-seed the drift. Current state at `d027f0c`:
   (1079 total) across 68 files". That figure was stale when the audit found it and is staler now.
   It is a hand-maintained counter with no gate behind it (`ai-mistakes.md` #24) — the fix is to
   delete it, not to refresh it.
-- **IPC narrative.** 44 invoke + 10 push = 54 bridge endpoints. Two of the audit's three
+- **IPC narrative.** 45 invoke + 10 push = 55 bridge endpoints. Two of the audit's three
   unconsumed push channels now have subscribers; `rules:reloaded` does not (F-E11).
 
 ---

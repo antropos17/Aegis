@@ -60,10 +60,11 @@ Patch SHA256 verified; frontend contents match prepared worktree. Main checkout 
 
 ## Transfer matrix
 
-All 54 preload methods; source references captured from the current backend base. Payloads, destination and evidence are filled as each path is implemented.
+All 55 preload methods; the original transfer matrix is extended with the Local security review channel. Payloads, destination and evidence are filled as each path is implemented.
 
 | Method | Existing consumers | Observatory destination | Evidence/status |
 | --- | --- | --- | --- |
+| localSecurityReview | Added with Local security | `LocalSecurity.svelte` | Component/browser tests and isolated Electron scan, export, fresh acceptance, reload and foreign-document checks |
 | getStats | lib/stores/ipc.ts | `host.ts` | Implemented; host/component tests and Electron workspace smoke |
 | getResourceUsage | lib/stores/ipc.ts | `host.ts` | Implemented; host/component tests and Electron workspace smoke |
 | exportLog | App.svelte, lib/components/Reports.svelte | `Reports.svelte` | Implemented; host/component tests and Electron workspace smoke |

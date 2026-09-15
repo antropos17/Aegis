@@ -1,5 +1,21 @@
 # AEGIS Observatory
 
+## Local security workspace — 16 September 2026
+
+The requested interface integration adds Local security under Assess. A compact
+native form selects the offline review and directory layout; native dialogs choose
+all actual files. One result retains its source and capture time through navigation,
+cancellation and failure. Result sections group findings, files, packages, MCP tool
+fingerprints, changes and coverage. Lists retain all rows through search/pagination;
+expandable evidence preserves hashes, source binding and attribution uncertainty.
+
+No-findings and unchanged-content states retain a safety-not-determined label.
+Snapshot acceptance requires explicit review acknowledgment and a fresh matching
+capture. Export, snapshot and acceptance feedback require confirmed host success.
+Preview fixtures stay explicit and persistence actions are disabled. Existing
+Observatory surfaces, spacing, typography, themes and stationary controls apply;
+new styles are scoped and the reference cascade is unchanged.
+
 ## UI/UX recovery corrections — 15 September 2026
 
 Catalog loading, failure and an empty successful result are distinct states. A

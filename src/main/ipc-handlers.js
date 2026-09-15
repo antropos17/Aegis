@@ -6,6 +6,7 @@
 'use strict';
 const { ipcMain, app, dialog, shell, Notification } = require('electron');
 const path = require('path');
+const { pathToFileURL } = require('node:url');
 const fs = require('fs');
 const config = require('./config-manager');
 const scanner = require('./process-scanner');
@@ -19,6 +20,7 @@ const blocklist = require('./blocklist');
 const logger = require('./logger');
 const { validateSettings, validateFalsePositive } = require('./settings-validation');
 const { resolveProcessRequest } = require('../shared/process-request');
+const localSecurity = require('./local-security-ipc');
 
 let deps = {};
 
@@ -42,10 +44,18 @@ function escapeHtml(str) {
  */
 function init(injected) {
   deps = injected;
+  localSecurity.init({
+    getWindow: deps.getWindow,
+    dialog,
+    rendererUrl:
+      process.env.VITE_DEV_SERVER_URL ||
+      pathToFileURL(path.join(__dirname, '..', '..', 'dist', 'renderer', 'index.html')).href,
+  });
 }
 
 /** @returns {void} @since v0.1.0 */
 function register() {
+  ipcMain.handle('local-security:review', (event, request) => localSecurity.handle(event, request));
   // Only the owned top-level renderer may request an update operation. No URLs,
   // file paths, versions, command arguments or updater options cross this boundary.
   const updateAction = (event, action) => {

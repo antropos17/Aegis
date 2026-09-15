@@ -29,7 +29,7 @@ coverage gaps. Do not label these states "safe".
 | A2 | User/system profile adapters, JSONC/TOML and provenance | Agent/version/OS/scope matrix; unsupported formats identified; local version and provenance evidence; scanning without execution | Implemented within A2.1–A2.2 scope; publisher and installation status remain unknown |
 | A2.1 | Explicitly selected profiles, structural parsing and file provenance | CLI for user/managed directories; JSONC/TOML; hash, agent and scope; separate Codex profiles and Claude policy fragments; visible incompleteness and unknown version | Implemented |
 | A2.2 | Local version and package provenance evidence | Associate a file with a manifest; compare name/full version with npm lockfile v2/v3; verify the manifest against local Git objects; explicitly report unknown publisher and installation status | Implemented; [contract](../PACKAGE-EVIDENCE.md) |
-| A3 | Trust snapshots, comparison and update revalidation | File, tool schema/description and package changes are visible; acceptance is bound to content; changes are never accepted automatically | Implemented through CLI; MCP uses an explicitly supplied offline tools/list; [contract](../INVENTORY-SNAPSHOTS.md) |
+| A3 | Trust snapshots, comparison and update revalidation | File, tool schema/description and package changes are visible; acceptance is bound to content; changes are never accepted automatically | Implemented through CLI and [Local security](../LOCAL-SECURITY-UI.md); MCP uses an explicitly supplied offline tools/list; [contract](../INVENTORY-SNAPSHOTS.md) |
 | A4 | Local static analysis of skills/hooks/MCP | Whole-package analysis of downloads, scripts, dependencies and data transfer; positive and negative fixtures; Cisco integrations through a versioned JSON/SARIF contract; external analyzers only when explicitly selected | Partial: A4.1, external-result import, bounded JavaScript/Python command and selected-source flow review, and instruction-pattern review are implemented; deeper analysis remains in A4.2 |
 | A4.1 | Local command and configuration checks | CLI for projects, profiles and package trees; review reasons bound to hash/path; bounded shell/MCP/hooks/npm parsing; visible incompleteness; no execution or data transmission | Implemented; [contract](../STATIC-ANALYSIS.md) |
 | A4.2 | Deeper analysis and Cisco integrations | Versioned JSON/SARIF contract, explicit offline inputs and result provenance; JS/Python and interfile flow analysis; complex shell and instruction semantics; unsupported cases receive no safety verdict | Partial: [Cisco JSON/SARIF import](../STATIC-REPORT-IMPORT.md), [JavaScript](../JAVASCRIPT-STATIC-ANALYSIS.md), [Python](../PYTHON-STATIC-ANALYSIS.md), [selected-source literal/wrapper/primitive-return flow](../STATIC-COMMAND-FLOW.md), [ordered shell redirections](../SHELL-REDIRECTIONS.md) and [bounded instruction-pattern review](../INSTRUCTION-REVIEW.md) are implemented; broader flow, shell control/substitution, general instruction semantics and additional MCP content channels remain |
@@ -289,3 +289,11 @@ Do not start another heavy batch while diagnostic-log growth is unexplained.
   General instruction semantics and additional MCP channels remain open in A4.2.
   Next in the implementation queue: A5, behavioral chains with explicit attribution
   and noise/missed-detection tests. Verification and merge results are in the PR.
+- 2026-09-16: the Observatory Local security workspace exposes the implemented
+  A1–A4 workflows: scoped local scans, component/package inventory, offline MCP
+  catalogs, snapshot comparison and Cisco report import. Evidence retains source
+  locations and hashes, incomplete coverage and unverified external claims. Native
+  dialogs select files; exports create new redacted reports, and explicit snapshot
+  acceptance rechecks the observed content before saving. Browser preview uses
+  labeled fixtures with persistent actions disabled. See [the UI guide](../LOCAL-SECURITY-UI.md)
+  for operating limits. A5 remains queued for the next implementation stage.

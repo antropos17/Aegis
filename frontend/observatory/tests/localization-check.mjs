@@ -29,6 +29,7 @@ export async function checkLocalization(browser, url, out) {
       'Eventos',
       'Rede',
       'Auditoria',
+      'Segurança local',
       'Análise por IA',
       'Relatórios',
       'Regras e permissões',
@@ -76,7 +77,7 @@ export async function checkLocalization(browser, url, out) {
     assert.equal(await page.locator('html').getAttribute('lang'), 'en');
     assert.deepEqual(errors, []);
     console.log(
-      'Localization: 11 workspaces, saved locale, command search and 16 radar layouts passed.',
+      'Localization: 12 workspaces, saved locale, command search and 16 radar layouts passed.',
     );
   } finally {
     await page.close();

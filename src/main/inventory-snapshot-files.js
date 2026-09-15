@@ -74,10 +74,11 @@ async function readSnapshotJson(filename, subject = null) {
  * @param {string} filename Caller-selected new path in an existing outside directory.
  * @param {object} snapshot Validated content-only snapshot.
  * @param {object} subject Canonical subject, used to reject in-project storage.
+ * @param {function} [authorize] Optional caller-lifetime guard, checked around asynchronous writes.
  * @returns {Promise<void>} Resolves only after syncing and closing the complete file.
  * @since v0.15.1
  */
-async function writeSnapshotFile(filename, snapshot, subject) {
+async function writeSnapshotFile(filename, snapshot, subject, authorize = () => {}) {
   validateSnapshot(snapshot);
   const data = Buffer.from(JSON.stringify(snapshot) + '\n', 'utf8');
   if (data.length > SNAPSHOT_BYTES) throw new Error('snapshot-size-limit');
@@ -85,7 +86,9 @@ async function writeSnapshotFile(filename, snapshot, subject) {
   let handle;
   let created;
   let succeeded = false;
+  let createdPath = target.absolute;
   try {
+    authorize();
     handle = await fs.promises.open(
       target.absolute,
       fs.constants.O_WRONLY |
@@ -96,6 +99,16 @@ async function writeSnapshotFile(filename, snapshot, subject) {
     );
     created = await handle.stat();
     if (!created.isFile()) throw new Error('snapshot-unavailable');
+    createdPath = await fs.promises.realpath(target.absolute);
+    if (
+      createdPath !== target.absolute ||
+      (await fs.promises.realpath(target.directory)) !== target.directory
+    )
+      throw new Error('snapshot-unavailable');
+    const opened = await fs.promises.lstat(target.absolute);
+    if (!opened.isFile() || opened.ino !== created.ino || opened.dev !== created.dev)
+      throw new Error('snapshot-unavailable');
+    authorize();
     await handle.writeFile(data);
     await handle.sync();
     await handle.close();
@@ -109,6 +122,7 @@ async function writeSnapshotFile(filename, snapshot, subject) {
       (await fs.promises.realpath(target.absolute)) !== target.absolute
     )
       throw new Error('snapshot-unavailable');
+    authorize();
     succeeded = true;
   } catch (error) {
     // Filesystem causes contain private absolute paths and must not escape this API.
@@ -119,14 +133,14 @@ async function writeSnapshotFile(filename, snapshot, subject) {
     if (!succeeded && created?.isFile()) {
       // Remove only this call's closed partial file, never an existing/replaced path.
       try {
-        const current = await fs.promises.lstat(target.absolute);
+        const current = await fs.promises.lstat(createdPath);
         if (
           current.isFile() &&
           current.dev === created.dev &&
           current.ino === created.ino &&
-          (await fs.promises.realpath(target.absolute)) === target.absolute
+          (await fs.promises.realpath(createdPath)) === createdPath
         )
-          await fs.promises.unlink(target.absolute);
+          await fs.promises.unlink(createdPath);
       } catch (_) {
         /* Fixed failure already returned; never expose filesystem error text. */
       }
