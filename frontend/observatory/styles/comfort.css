@@ -76,6 +76,17 @@
   white-space: nowrap;
 }
 @media (max-height: 700px) {
+  .radar-panel > .panel-head {
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+  }
+  .radar-panel > .panel-head > div:first-child {
+    flex: 1;
+    min-width: 0;
+  }
+  .radar-panel > .panel-head p {
+    display: none;
+  }
   .sidebar .machine {
     display: none;
   }

@@ -1,5 +1,23 @@
 # AEGIS Observatory
 
+## UI/UX recovery corrections — 15 September 2026
+
+Catalog loading, failure and an empty successful result are distinct states. A
+failed read offers Retry; creation stays unavailable until the catalog is loaded.
+Settings validation lives in the sticky save area and links back to the invalid
+field, preserving the draft and making that field visible above fixed controls.
+Explicitly opening an agent focuses the inline overview heading once; ordinary
+section changes and telemetry updates retain their current focus.
+
+At window heights up to 700 px, Monitoring initially shows compact agent/risk
+totals with More metrics to expose the complete summary and coverage explanations.
+The complete summary remains visible by default in taller windows. The small-window
+radar header omits its repeated introductory subtitle; the risk legend and layer
+instructions remain available. Agent/process selectors use a compact horizontal
+label layout at this height. Statistical coverage captions follow the shared
+scaled caption token. These corrections preserve the existing themes, motion
+policy, measurement meanings and navigation destinations.
+
 The approved visual source is preserved in reference/ui/ and reference/DESIGN.md. Its full stylesheet set is imported in styles.ts. The earlier Shield/Fancy UI designs and the superseded integration layouts have no design authority.
 
 Preserve the template's composition, hierarchy, spacing, typography, artwork, controls, radar and dialogs while connecting real telemetry through runtime/host.ts. Runtime behavior is implemented in Svelte; simulated observations must never enter a desktop build.

@@ -31,6 +31,7 @@
   let error = $state('');
   let alive = true;
   let loaded = $state(false);
+  let loading = $state(false);
   let mutating = $state(false);
   let rows = $derived(
     [
@@ -43,20 +44,27 @@
     ) as RecordData[],
   );
   async function load() {
-    const [database, user] = await Promise.all([
-      invoke(host, 'getAgentDatabase'),
-      invoke(host, 'getCustomAgents'),
-    ]);
-    if (alive) {
-      base = records(record(database).agents ?? database);
-      custom = records(user);
-      loaded = true;
+    loading = true;
+    try {
+      const [database, user] = await Promise.all([
+        invoke(host, 'getAgentDatabase'),
+        invoke(host, 'getCustomAgents'),
+      ]);
+      if (alive) {
+        base = records(record(database).agents ?? database);
+        custom = records(user);
+        loaded = true;
+        error = '';
+      }
+    } catch (cause) {
+      if (alive) error = cause instanceof Error ? cause.message : String(cause);
+      throw cause;
+    } finally {
+      if (alive) loading = false;
     }
   }
   onMount(() => {
-    load().catch((e) => {
-      if (alive) error = String(e);
-    });
+    void load().catch(() => {});
     return () => {
       alive = false;
     };
@@ -130,7 +138,7 @@
     ></label
   ><span class="spacer"></span><button
     class="button"
-    disabled={mutating}
+    disabled={mutating || !loaded || loading}
     onclick={() => {
       form = createEmptyForm();
       editing = null;
@@ -145,7 +153,12 @@
 </div>
 
 <section class="panel">
-  {#if error}<p role="alert" class="inset">{error}</p>{/if}
+  {#if error}<div class="inset">
+      <p role="alert">{error}</p>
+      <Action action={load} disabled={loading || mutating}
+        ><Icon name="refresh" />{$t('Retry loading')}</Action
+      >
+    </div>{/if}
   <div class="table-wrap">
     <table>
       <thead
@@ -214,14 +227,20 @@
           >{:else}<tr
             ><td colspan="5" class="catalog-empty"
               ><strong
-                >{query || category
-                  ? $t('No matching agents')
-                  : $t('No agents in the catalog')}</strong
+                >{!loaded
+                  ? loading
+                    ? $t('Loading catalog…')
+                    : $t('Catalog unavailable')
+                  : query || category
+                    ? $t('No matching agents')
+                    : $t('No agents in the catalog')}</strong
               >
               <p>
-                {query || category
-                  ? $t('Try another name or category.')
-                  : $t('Add a custom agent to recognize its processes.')}
+                {!loaded
+                  ? $t('Catalog entries will appear after a successful load.')
+                  : query || category
+                    ? $t('Try another name or category.')
+                    : $t('Add a custom agent to recognize its processes.')}
               </p>
               {#if query || category}<button
                   class="button"
@@ -300,7 +319,12 @@
       ><Action disabled={mutating || !loaded} action={save}>{$t('Save agent')}</Action>{/snippet}
   </EditorDialog>
 {/if}
-<p class="catalog-count muted">{base.length} {$t('bundled ·')} {custom.length} {$t('custom')}</p>
+{#if loaded}<p class="catalog-count muted">
+    {base.length}
+    {$t('bundled ·')}
+    {custom.length}
+    {$t('custom')}
+  </p>{/if}
 
 <style>
   fieldset {

@@ -126,4 +126,22 @@
       flex: 1 1 140px;
     }
   }
+  @media (max-height: 700px) {
+    .agent-context {
+      padding-block: var(--space-2);
+      gap: var(--space-2);
+    }
+    .context-symbol {
+      display: none;
+    }
+    label {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    select {
+      flex: 1;
+      width: 0;
+    }
+  }
 </style>
