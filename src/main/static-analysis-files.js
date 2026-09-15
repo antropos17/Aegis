@@ -60,6 +60,8 @@ async function visitStaticFiles(adapter, root, onFile, limits) {
       dependencies: 'manifest-declarations-only',
       configurationPrecedence: 'not-resolved',
       instructionSemantics: 'not-analyzed',
+      javascript: 'literal-node-child-process-calls',
+      javascriptControlFlow: 'not-evaluated',
       runtimeBehavior: 'not-observed',
       snapshot: 'best-effort',
     },

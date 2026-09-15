@@ -59,6 +59,19 @@ afterEach(() => {
 });
 
 describe('explicit external static review', () => {
+  it('requires review when a baseline predates JavaScript analysis coverage', async () => {
+    const before = await scanStaticDirectory('package', root);
+    before.ruleSet.version = 1;
+    delete before.scope.javascript;
+    delete before.scope.javascriptControlFlow;
+    for (const key of Object.keys(before.limits))
+      if (key.startsWith('javascript')) delete before.limits[key];
+    const result = await review(skillReport(), { baselineFile: artifact('before.json', before) });
+    expect(result.external.issues).toContain('external-baseline-incompatible');
+    expect(result.external.findings[0].locations[0].binding).toBe('current-path-only');
+    expect(result.reviewRequired).toBe(true);
+  });
+
   it('keeps Cisco claims separate, hashes source IDs and strips free text', async () => {
     const result = await review(skillReport());
     expect(result).toMatchObject({

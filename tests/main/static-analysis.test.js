@@ -82,7 +82,10 @@ describe('bounded static directory review', () => {
         expect.objectContaining({ ruleId: 'STA001', path: 'scripts/bootstrap.sh', line: 2 }),
       ]),
     );
-    expect(report.issues).toContainEqual({ path: 'tool.cjs', reason: 'file-type-not-analyzed' });
+    expect(report.issues).toContainEqual({
+      path: 'tool.cjs',
+      reason: 'javascript-module-not-resolved',
+    });
     expect(result.stdout).not.toContain('PRIVATE');
     expect(result.stdout).not.toContain(root);
     expect(fs.existsSync(marker)).toBe(false);

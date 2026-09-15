@@ -9,6 +9,9 @@ const {
 } = require('./static-config-analysis');
 const { analyzeCommand } = require('./static-command-analysis');
 const { COMMAND_CHARS, COMMAND_TOKENS } = require('./static-command-parser');
+const { analyzeJavaScript } = require('./static-javascript');
+const { JAVASCRIPT_LIMITS } = require('./static-javascript-ast');
+const { VALUE_STEPS } = require('./static-javascript-values');
 const { staticRule, staticRuleSet } = require('./static-analysis-rules');
 const { parseInventoryConfig, PARSE_DEPTH } = require('./inventory-config');
 const { resolveSnapshotSubject, checkSnapshotSubject } = require('./inventory-snapshot-files');
@@ -130,6 +133,8 @@ function analyzeFile(name, data, entry) {
   }
   if (text.includes('\0'))
     return { mode: 'unsupported', findings: [], issues: ['binary-not-analyzed'], commands: 0 };
+  if (/\.(?:js|mjs|cjs)$/i.test(base))
+    return { mode: 'javascript-command-ast', ...analyzeJavaScript(text, name) };
   if (
     /\.(?:sh|bash|zsh|ps1)$/i.test(base) ||
     /^#![^\r\n]*(?:\/(?:ba|da|z)?sh|\benv\s+(?:ba|da|z)?sh)\b/.test(text)
@@ -236,6 +241,8 @@ async function scanStaticDirectory(adapter, directory, options = {}) {
       commandChars: COMMAND_CHARS,
       commandTokens: COMMAND_TOKENS,
       scriptLines: SCRIPT_LINES,
+      ...JAVASCRIPT_LIMITS,
+      javascriptValueSteps: VALUE_STEPS,
       findings: FINDING_LIMIT,
       issues: ISSUE_LIMIT,
     },

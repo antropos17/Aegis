@@ -1,4 +1,4 @@
-# Local static review (A4.1)
+# Local static review (A4.1 and the JavaScript part of A4.2)
 
 AEGIS can inspect a selected agent directory or package for literal command and
 configuration patterns. It returns review findings with the original file hash,
@@ -6,8 +6,9 @@ relative path, fixed explanation and, for script/code-block matches, a line numb
 It reads local bytes without running commands, starting MCP servers, installing
 packages, resolving DNS, uploading content or modifying files.
 
-This is the first A4 slice. It has no JavaScript/Python AST or interprocedural
-dataflow analysis, semantic prompt-injection detector or vulnerability database.
+The built-in engine includes [bounded JavaScript command analysis](JAVASCRIPT-STATIC-ANALYSIS.md).
+Python, interprocedural dataflow, semantic prompt-injection detection and a
+vulnerability database remain outside this scope.
 The separate [external report importer](STATIC-REPORT-IMPORT.md) accepts explicit
 Cisco JSON/SARIF results alongside this local review. It does not add those
 analysis engines to AEGIS, connect findings to the dashboard or block an action.
@@ -57,6 +58,12 @@ selectors ending in a full commit identifier avoid that particular finding;
 the identifier is not verified and does not authenticate the publisher. Lockfiles
 are parsed and fingerprinted without resolving or auditing a dependency graph.
 
+JavaScript inspection covers `.js`, `.cjs` and `.mjs` files. It resolves a bounded
+subset of Node `child_process` calls through imports, aliases and constant strings,
+reusing STA001–STA006. Inline argv stays separate from shell text unless a supported
+shell is explicitly selected. Dynamic inputs, mutations and unresolved call targets
+produce coverage issues. Control flow and whether a call executes are not evaluated.
+
 Shell inspection covers a bounded literal subset in `.sh`, `.bash`, `.zsh`, `.ps1`
 and recognized shell shebang files. Markdown/text instructions contribute only
 fenced blocks labeled `sh`, `bash`, `shell`, `zsh`, `console`, `powershell`, `pwsh`
@@ -77,7 +84,7 @@ visible in `issues`. Their file hashes remain in `files` when reading succeeded.
 
 ## Built-in checks
 
-Rule-set ID: `aegis-static-patterns`, version `1`. Each report includes fixed rule
+Rule-set ID: `aegis-static-patterns`, version `2`. Each report includes fixed rule
 metadata. Severity prioritizes review; every finding has `confidence: heuristic`.
 
 | ID | Severity | Review trigger |
@@ -121,6 +128,8 @@ Read limits are 1,024 entries, 1 MiB per file, 8 MiB total and depth 6. Parser d
 is capped at 64. Each file permits 256 command inspections; each command permits
 16,384 characters and 256 tokens. Configuration traversal permits 2,048 items;
 scripts permit 8,192 physical lines. Explicit shell-wrapper recursion is bounded.
+JavaScript adds per-file character, token, AST-node, nesting and value-work budgets,
+all exposed in `limits` and detailed in its [contract](JAVASCRIPT-STATIC-ANALYSIS.md).
 Output is capped at 256 findings and 1,024 issues. Reaching a limit produces an
 incomplete report. Truncated subsets can depend on filesystem enumeration order.
 

@@ -30,9 +30,9 @@ coverage gaps. Do not label these states "safe".
 | A2.1 | Explicitly selected profiles, structural parsing and file provenance | CLI for user/managed directories; JSONC/TOML; hash, agent and scope; separate Codex profiles and Claude policy fragments; visible incompleteness and unknown version | Implemented |
 | A2.2 | Local version and package provenance evidence | Associate a file with a manifest; compare name/full version with npm lockfile v2/v3; verify the manifest against local Git objects; explicitly report unknown publisher and installation status | Implemented; [contract](../PACKAGE-EVIDENCE.md) |
 | A3 | Trust snapshots, comparison and update revalidation | File, tool schema/description and package changes are visible; acceptance is bound to content; changes are never accepted automatically | Implemented through CLI; MCP uses an explicitly supplied offline tools/list; [contract](../INVENTORY-SNAPSHOTS.md) |
-| A4 | Local static analysis of skills/hooks/MCP | Whole-package analysis of downloads, scripts, dependencies and data transfer; positive and negative fixtures; Cisco integrations through a versioned JSON/SARIF contract; external analyzers only when explicitly selected | Partial: A4.1 and external-result import are implemented; deeper analysis remains in A4.2 |
+| A4 | Local static analysis of skills/hooks/MCP | Whole-package analysis of downloads, scripts, dependencies and data transfer; positive and negative fixtures; Cisco integrations through a versioned JSON/SARIF contract; external analyzers only when explicitly selected | Partial: A4.1, external-result import and bounded JavaScript command review are implemented; deeper analysis remains in A4.2 |
 | A4.1 | Local command and configuration checks | CLI for projects, profiles and package trees; review reasons bound to hash/path; bounded shell/MCP/hooks/npm parsing; visible incompleteness; no execution or data transmission | Implemented; [contract](../STATIC-ANALYSIS.md) |
-| A4.2 | Deeper analysis and Cisco integrations | Versioned JSON/SARIF contract, explicit offline inputs and result provenance; JS/Python and interfile flow analysis; complex shell and instruction semantics; unsupported cases receive no safety verdict | Partial: [Cisco JSON/SARIF import](../STATIC-REPORT-IMPORT.md) is implemented; built-in language, flow and semantic analysis is the next PR |
+| A4.2 | Deeper analysis and Cisco integrations | Versioned JSON/SARIF contract, explicit offline inputs and result provenance; JS/Python and interfile flow analysis; complex shell and instruction semantics; unsupported cases receive no safety verdict | Partial: [Cisco JSON/SARIF import](../STATIC-REPORT-IMPORT.md) and [bounded JavaScript command review](../JAVASCRIPT-STATIC-ANALYSIS.md) are implemented; Python, flow and semantic analysis remain |
 | A5 | Refine SEQ001 and add behavioral chains | Ordinary work is not treated as proven exfiltration; missed-detection/noise tests; parent/child and cross-agent relationships retain attribution strength | Planned |
 | B1 | Shared policy and adapter contract | Versioned events before/after actions; `allow/ask/deny`; supported and unsupported surfaces listed; ACS alignment assessed | Planned |
 | B2 | MCP gateway and operation control | Validate schemas, arguments, responses, recipients, access scopes and tool changes; stdio and HTTP have separate trust boundaries | Planned |
@@ -60,7 +60,9 @@ remain gaps. This slice does not complete all of A4.
 The `--static-import-json` command adds an explicitly selected external result
 to a fresh local scan. Provenance remains unverified; comparison with an earlier
 `--static-scan-json` report shows changes to observed bytes but does not prove
-that the external tool analyzed those bytes. A4.2 remains incomplete.
+that the external tool analyzed those bytes. Built-in JavaScript review now resolves
+a bounded literal Node process-call subset; it does not evaluate control flow.
+A4.2 remains incomplete.
 
 ## Architecture decisions
 
@@ -217,3 +219,13 @@ Do not start another heavy batch while diagnostic-log growth is unexplained.
   signed proof of execution. This PR adds no Cisco installation/invocation,
   network transmission, AST/dataflow engine or semantic analysis.
   Next in A4.2: built-in JS/Python and interfile-flow checks.
+- 2026-09-15: the JavaScript A4.2 slice parses selected `.js`, `.cjs` and `.mjs`
+  files without executing them. Imports, aliases, constant strings and inline
+  argv/options reach existing STA001–STA006 checks with original hashes and call
+  locations. Lexical shadows, mutations, dynamic inputs, unexamined control flow
+  and resource caps remain visible. Rule-set version 2 adds explicit JS scope
+  and budgets; earlier scan baselines require fresh comparison. Acorn 8.16.0 is
+  promoted from an existing locked entry to an exact production dependency.
+  Tests cover findings, negative cases, non-execution, redaction and bounded work.
+  Next in A4.2: Python, then interfile/interprocedural flow and instruction semantics.
+  Checks and merge results are recorded in the PR.
