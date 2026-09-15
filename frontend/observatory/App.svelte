@@ -177,7 +177,11 @@
       scrolls.agents = 0;
       if (view === 'agents' && workspace) workspace.scrollTop = 0;
       agentSection = { id: String(row.detailSection || 'overview'), revision: ++sectionRevision };
-      void navigate('agents');
+      void navigate('agents').then(() => {
+        if (view === 'agents' && scope.agent === agent) {
+          document.getElementById('agent-workspace-heading')?.focus({ preventScroll: true });
+        }
+      });
       return;
     }
     detail = { title, row };

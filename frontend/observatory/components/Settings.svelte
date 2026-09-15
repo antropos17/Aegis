@@ -8,6 +8,7 @@
   import SettingsGroup from './SettingsGroup.svelte';
   import SettingsAppearance from './SettingsAppearance.svelte';
   import SettingsMonitoring from './SettingsMonitoring.svelte';
+  import SettingsSaveBar from './SettingsSaveBar.svelte';
   import SectionTabs from './SectionTabs.svelte';
   const id = $props.id();
   const tabs = [
@@ -53,6 +54,19 @@
   let patterns = $state('');
   let ignored = $state('');
   let patternInput = $state<HTMLTextAreaElement>();
+  let intervalInput = $state<HTMLInputElement>();
+  let scaleInput = $state<HTMLInputElement>();
+  const validationId = id + '-validation';
+  async function fixValidation() {
+    const intervalInvalid =
+      !Number.isFinite(Number(form.scanIntervalSec ?? 10)) ||
+      Number(form.scanIntervalSec ?? 10) <= 0;
+    section = intervalInvalid ? 'monitoring' : 'appearance';
+    await tick();
+    const input = intervalInvalid ? intervalInput : scaleInput;
+    input?.focus({ preventScroll: true });
+    input?.scrollIntoView?.({ block: 'center', behavior: 'instant' });
+  }
   let dirty = $derived(loaded && baseline !== snapshot());
   let validation = $derived(
     !loaded
@@ -293,7 +307,13 @@
       aria-labelledby={id + '-tab-appearance'}
       hidden={section !== 'appearance'}
     >
-      <SettingsAppearance bind:form bind:contrast bind:motion />
+      <SettingsAppearance
+        bind:form
+        bind:contrast
+        bind:motion
+        bind:scaleInput
+        validationId={validation.startsWith('Interface scale') ? validationId : undefined}
+      />
     </div>
     <div
       class="settings-page"
@@ -303,7 +323,15 @@
       aria-labelledby={id + '-tab-monitoring'}
       hidden={section !== 'monitoring'}
     >
-      <SettingsMonitoring bind:form bind:patterns bind:ignored bind:patternInput {host} />
+      <SettingsMonitoring
+        bind:form
+        bind:patterns
+        bind:ignored
+        bind:patternInput
+        bind:intervalInput
+        validationId={validation.startsWith('Scan interval') ? validationId : undefined}
+        {host}
+      />
     </div>
     <div
       class="settings-page"
@@ -429,25 +457,16 @@
       </SettingsGroup>
     </div>
   </fieldset>
-  {#if validation}<p class="notice" role="alert">{$t(validation)}</p>{/if}
-  <div class="settings-save">
-    <span class="settings-draft" role="status"
-      >{!loaded
-        ? $t('Loading settings…')
-        : mutation === 'save'
-          ? $t('Saving changes…')
-          : mutation === 'replace'
-            ? $t('Reloading settings…')
-            : dirty
-              ? $t('Unsaved changes')
-              : $t('Settings saved')}</span
-    >
-    <Action disabled={!loaded || !dirty || mutation !== null} action={() => replaceSettings()}
-      ><Icon name="close" />{$t('Discard changes')}</Action
-    ><Action disabled={!loaded || !dirty || mutation !== null || !!validation} action={save}
-      ><Icon name="check" />{$t('Save settings')}</Action
-    >
-  </div>
+  <SettingsSaveBar
+    {loaded}
+    {dirty}
+    {mutation}
+    {validation}
+    {validationId}
+    fix={fixValidation}
+    {save}
+    discard={() => replaceSettings()}
+  />
 </div>
 
 <style>
@@ -500,22 +519,6 @@
     display: none;
   }
 
-  .settings-save {
-    position: sticky;
-    bottom: 0;
-    z-index: 2;
-    margin: 0;
-    padding: 14px 20px;
-    background: var(--panel);
-    border-top: 1px solid var(--border);
-    align-items: center;
-    flex-wrap: wrap;
-  }
-  .settings-draft {
-    margin-right: auto;
-    font-size: calc(12px * var(--ui-scale));
-    color: var(--muted);
-  }
   .toolbar {
     margin-top: 12px;
   }
@@ -523,13 +526,5 @@
     .settings-intro {
       flex-wrap: wrap;
     }
-    .settings-save {
-      padding: var(--space-3) var(--panel-inset);
-    }
-  }
-  .settings-save :global(.action-control:last-child .button:not(:disabled)) {
-    background: var(--ink);
-    color: var(--bg);
-    border-color: var(--ink);
   }
 </style>

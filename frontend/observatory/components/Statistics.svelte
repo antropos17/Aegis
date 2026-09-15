@@ -297,7 +297,7 @@
     min-width: 0;
     flex: 1 1 160px;
     color: var(--muted);
-    font-size: 11px;
+    font-size: var(--text-caption);
   }
   .statistics-scope select {
     width: 100%;
@@ -308,7 +308,7 @@
     flex: 1 1 180px;
     min-height: 32px;
     color: var(--muted);
-    font-size: 11px;
+    font-size: var(--text-caption);
     line-height: 1.5;
   }
   .stats-navigation {
@@ -330,7 +330,7 @@
     min-height: 16px;
     margin-bottom: 10px;
     color: var(--muted);
-    font-size: 10px;
+    font-size: var(--text-caption);
   }
   .supporting-content {
     margin-top: 18px;
@@ -347,7 +347,7 @@
   }
   .scope-note {
     color: var(--muted);
-    font-size: 11px;
+    font-size: var(--text-caption);
     line-height: 1.7;
     margin: 12px 0 0;
   }
