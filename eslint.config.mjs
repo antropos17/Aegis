@@ -116,10 +116,10 @@ export default [
     // The bench harness is a Node CLI, same shape as scripts/: CommonJS, and
     // stdout IS its interface, so no-console stays off. The MEASUREMENT column may
     // not import from src/ — a sensor must not contribute to its own measurement
-    // record — while bench/trace/ may, because it re-executes the system under test
-    // rather than measuring it. Both halves are a review rule, not something ESLint
+    // record. bench/trace/ and bench/cycle-profile/ load the system under test for
+    // replay and diagnostic instrumentation. This is a review rule, not something ESLint
     // can enforce; bench/README.md carries the split name by name.
-    files: ['bench/**/*.js'],
+    files: ['bench/**/*.{js,cjs}'],
     languageOptions: {
       globals: { ...globals.node },
       sourceType: 'commonjs',
