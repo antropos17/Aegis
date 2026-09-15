@@ -68,13 +68,15 @@ possible mutation, indirect dynamic execution or dependency side effect.
 Branches and function bodies are scanned syntactically, including unreachable
 code. A fixed issue states that control flow was not evaluated. No interfile or
 interprocedural dataflow, module execution order, environment expansion, deobfuscation,
-filesystem/network API analysis or instruction semantics is implemented. Python,
-TypeScript and JSX remain unsupported. Imported libraries and child program paths
+filesystem/network API analysis or instruction semantics is implemented.
+TypeScript and JSX remain unsupported; Python has a separate
+[command-review subset](PYTHON-STATIC-ANALYSIS.md). Imported libraries and child program paths
 are not followed; files already inside the selected traversal are inspected independently.
 
 ## Report and resource bounds
 
-Reports keep schema version 1 and advance `aegis-static-patterns` to version 2.
+JavaScript review was introduced in `aegis-static-patterns` version 2. Reports keep
+schema version 1; [Local static review](STATIC-ANALYSIS.md) lists the current rule-set version.
 Findings reuse STA001–STA006 with `context: javascript-command`, the call's starting
 line, relative filename and SHA-256 of the original bytes. No commands, literals,
 URLs, source snippets or parser exception messages are emitted. The full report

@@ -12,6 +12,9 @@ const { COMMAND_CHARS, COMMAND_TOKENS } = require('./static-command-parser');
 const { analyzeJavaScript } = require('./static-javascript');
 const { JAVASCRIPT_LIMITS } = require('./static-javascript-ast');
 const { VALUE_STEPS } = require('./static-javascript-values');
+const { analyzePython } = require('./static-python');
+const { PYTHON_LIMITS } = require('./static-python-tree');
+const { PYTHON_VALUE_STEPS } = require('./static-python-values');
 const { staticRule, staticRuleSet } = require('./static-analysis-rules');
 const { parseInventoryConfig, PARSE_DEPTH } = require('./inventory-config');
 const { resolveSnapshotSubject, checkSnapshotSubject } = require('./inventory-snapshot-files');
@@ -135,6 +138,7 @@ function analyzeFile(name, data, entry) {
     return { mode: 'unsupported', findings: [], issues: ['binary-not-analyzed'], commands: 0 };
   if (/\.(?:js|mjs|cjs)$/i.test(base))
     return { mode: 'javascript-command-ast', ...analyzeJavaScript(text, name) };
+  if (/\.py$/i.test(base)) return { mode: 'python-command-syntax', ...analyzePython(text) };
   if (
     /\.(?:sh|bash|zsh|ps1)$/i.test(base) ||
     /^#![^\r\n]*(?:\/(?:ba|da|z)?sh|\benv\s+(?:ba|da|z)?sh)\b/.test(text)
@@ -243,6 +247,8 @@ async function scanStaticDirectory(adapter, directory, options = {}) {
       scriptLines: SCRIPT_LINES,
       ...JAVASCRIPT_LIMITS,
       javascriptValueSteps: VALUE_STEPS,
+      ...PYTHON_LIMITS,
+      pythonValueSteps: PYTHON_VALUE_STEPS,
       findings: FINDING_LIMIT,
       issues: ISSUE_LIMIT,
     },

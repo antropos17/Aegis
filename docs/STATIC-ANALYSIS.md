@@ -1,4 +1,4 @@
-# Local static review (A4.1 and the JavaScript part of A4.2)
+# Local static review (A4.1 and the language subsets of A4.2)
 
 AEGIS can inspect a selected agent directory or package for literal command and
 configuration patterns. It returns review findings with the original file hash,
@@ -6,9 +6,10 @@ relative path, fixed explanation and, for script/code-block matches, a line numb
 It reads local bytes without running commands, starting MCP servers, installing
 packages, resolving DNS, uploading content or modifying files.
 
-The built-in engine includes [bounded JavaScript command analysis](JAVASCRIPT-STATIC-ANALYSIS.md).
-Python, interprocedural dataflow, semantic prompt-injection detection and a
-vulnerability database remain outside this scope.
+The built-in engine includes bounded [JavaScript](JAVASCRIPT-STATIC-ANALYSIS.md)
+and [Python](PYTHON-STATIC-ANALYSIS.md) command analysis. Interprocedural dataflow,
+semantic prompt-injection detection and a vulnerability database remain outside
+this scope.
 The separate [external report importer](STATIC-REPORT-IMPORT.md) accepts explicit
 Cisco JSON/SARIF results alongside this local review. It does not add those
 analysis engines to AEGIS, connect findings to the dashboard or block an action.
@@ -64,6 +65,12 @@ reusing STA001–STA006. Inline argv stays separate from shell text unless a sup
 shell is explicitly selected. Dynamic inputs, mutations and unresolved call targets
 produce coverage issues. Control flow and whether a call executes are not evaluated.
 
+Python inspection covers `.py` files through an in-process syntax parser. It reviews
+literal `subprocess` and `os.system`/`os.popen` calls, including aliases and selected
+single-assignment strings. Python module identity and execution order are not resolved.
+Sequences preserve argv boundaries; `shell=True` with a sequence remains a coverage
+gap because its behavior depends on the platform. No Python interpreter is required.
+
 Shell inspection covers a bounded literal subset in `.sh`, `.bash`, `.zsh`, `.ps1`
 and recognized shell shebang files. Markdown/text instructions contribute only
 fenced blocks labeled `sh`, `bash`, `shell`, `zsh`, `console`, `powershell`, `pwsh`
@@ -84,7 +91,7 @@ visible in `issues`. Their file hashes remain in `files` when reading succeeded.
 
 ## Built-in checks
 
-Rule-set ID: `aegis-static-patterns`, version `2`. Each report includes fixed rule
+Rule-set ID: `aegis-static-patterns`, version `3`. Each report includes fixed rule
 metadata. Severity prioritizes review; every finding has `confidence: heuristic`.
 
 | ID | Severity | Review trigger |
@@ -130,6 +137,8 @@ is capped at 64. Each file permits 256 command inspections; each command permits
 scripts permit 8,192 physical lines. Explicit shell-wrapper recursion is bounded.
 JavaScript adds per-file character, token, AST-node, nesting and value-work budgets,
 all exposed in `limits` and detailed in its [contract](JAVASCRIPT-STATIC-ANALYSIS.md).
+Python adds bounded parsing advances, syntax-tree nodes/depth and static value
+work; its [contract](PYTHON-STATIC-ANALYSIS.md) lists the corresponding limits.
 Output is capped at 256 findings and 1,024 issues. Reaching a limit produces an
 incomplete report. Truncated subsets can depend on filesystem enumeration order.
 
