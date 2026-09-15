@@ -5,8 +5,8 @@
  *   detected AI-agent processes. The OS is queried BY PID — that is the only handle
  *   it offers — but every sample is requested, cached and returned under the caller's
  *   `instanceId`, so a recycled pid can never inherit the previous holder's numbers.
- *   Self-contained: spawns its own metrics queries
- *   via execFile (NOT the platform dispatcher) so integration can be wired later.
+ *   Windows transport lives in platform/windows-resources; all queries use the
+ *   injectable execFile runner. Collection and cache provenance stay here.
  *   CPU is normalized to 0–100 % of total machine per-PID (C-01). GPU memory is
  *   reported ONLY when nvidia-smi exists — else gpu:null + a one-time warning
  *   (fail honest: never fabricate a number).
@@ -22,6 +22,7 @@
 const { execFile } = require('child_process');
 const os = require('os');
 const logger = require('./logger');
+const { createWindowsResources } = require('./platform/windows-resources');
 
 /** @typedef {{ pid: number, cpu: number|null, memMb: number|null, gpu: {memMb: number}|null }} Resource */
 /** @typedef {{ cpuRaw: number|null, memMb: number|null }} CpuMem */
@@ -100,9 +101,12 @@ let _exec = (cmd, argv, opts) =>
   });
 
 /** @internal Override the command runner (tests). */
-function _setExecForTest(fn) {
+function _setExecForTest(fn, options = {}) {
   _exec = fn;
+  _windows = createWindowsResources({ exec: fn, resolveExe: () => null, ...options });
 }
+
+let _windows = createWindowsResources({ exec: (...args) => _exec(...args) });
 
 /** Injectable logger (real by default). Tests inject a spy via DI, not module-mock
  * — dodges the ESM/CJS interop identity trap. @type {{ warn: Function }} */
@@ -253,18 +257,15 @@ function isGpuAvailable() {
 
 /**
  * Spawn-and-parse CPU/RAM for the given PIDs in a single batched query.
- * Win32 uses PowerShell perf counters; posix uses `ps`. Errors → empty map.
+ * Win32 uses the formatted-counter helper with PowerShell fallback; posix uses `ps`.
+ * Errors → empty map.
  * @param {number[]} pids
  * @returns {Promise<Map<number, CpuMem>>}
  */
 function _fetchCpuMem(pids) {
   if (process.platform === 'win32') {
-    const filter = pids.map((p) => `IDProcess=${p}`).join(' OR ');
-    const psScript =
-      `$ErrorActionPreference="SilentlyContinue";` +
-      `Get-CimInstance Win32_PerfFormattedData_PerfProc_Process -Filter '${filter}' ` +
-      `| Select-Object IDProcess,PercentProcessorTime,WorkingSet | ConvertTo-Json -Compress`;
-    return _exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psScript])
+    return _windows
+      .fetch(pids)
       .then(_parsePerfJson)
       .catch(() => new Map());
   }

@@ -2563,3 +2563,39 @@ sequence gate and derived-count checks passed. Full coverage completed with 3,41
 one existing ObservatoryProtection five-second timeout. An unchanged focused
 rerun passed all six tests in that component plus the five new recorder tests.
 The final PR CI must complete the full coverage run before merge.
+
+### 2026-09-15 — Remove PowerShell startup from Windows resource collection
+
+Following merged #463 (`98cb50d`), `codex/resource-snapshot` adds the one-shot
+`aegis-resources.exe` helper and a Windows transport under `platform/`. It queries
+the same formatted WMI class/fields and retains resource-monitor normalization,
+null behavior, instance cache, collection provenance and sampler scheduling. The
+existing build/Windows packaging hook compiles and includes the helper without
+new dependencies. Missing, invalid or timed-out helpers use the old PowerShell
+query with a 60-second retry cooldown; the startup rollback variable is
+`AEGIS_RESOURCE_PROVIDER=powershell`. A failed attempt can add five seconds before
+the existing fallback. No process identity, IPC or collection interval changed.
+
+Six alternating pairs on an idle target: helper median 489.79 ms, PowerShell
+1,293.29 ms. Six pairs on one bounded busy child: 483.23 ms versus 1,304.21 ms;
+both observed nonzero CPU and comparable working sets. These are warmed elapsed
+times. The first experimental helper attempt failed and fell back; its cause was
+not established. The subsequent 180-second real Electron capture completed nine
+steady resource collections: median 581.32 ms, nine helper launches, zero resource
+PowerShell launches. Startup reached 2,263.86 ms. Other providers still use
+PowerShell; no total-application CPU speedup is claimed. Numeric records and
+limitations are in `docs/bench/windows-resource-helper-2026-09-15.*`.
+
+Windows compilation, six native invalid-input rejections and real execution passed.
+The local full coverage run passed 3,435 tests with four skips (214 files). Three
+additional packaged/development path cases then passed in the focused 18-test
+provider/integration run. Renderer build, formatting, lint (zero errors; 56
+existing warnings), both typechecks, production audit (zero vulnerabilities),
+both mutation gates and derived counts passed. CI must check the final full suite.
+
+The private live profile and report remain at `X:/tmp/aegis-resources-live-20260915`;
+comparison and native validation receipts remain in the ignored
+`.agent/network-20260914/receipts/` directory of this worktree. Preserve profile
+logs, audit and databases as verification evidence. Disposable test TEMP/cache
+uses the guarded X: runtime; closed diagnostic ETL cleanup is checked during the
+task and does not install persistent rotation.

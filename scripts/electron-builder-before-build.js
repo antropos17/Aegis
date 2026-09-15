@@ -1,7 +1,7 @@
 /**
  * @file scripts/electron-builder-before-build.js
  * @description electron-builder `beforeBuild` hook — compiles the process-snapshot
- *   sidecar so it exists before the Windows target is packed.
+ *   and resource-counter helpers before the Windows target is packed.
  *
  *   Wired here rather than as a step in the release workflow so that BOTH paths get
  *   it: `npm run dist` on a developer machine and `npx electron-builder --win` in
@@ -24,7 +24,7 @@ module.exports = function beforeBuild(context) {
     console.log(`[before-build] target "${target}" needs no sidecar — skipping`);
     return true;
   }
-  console.log('[before-build] building the process-snapshot sidecar');
+  console.log('[before-build] building the process-snapshot and resource-counter helpers');
   execFileSync(process.execPath, [path.join(__dirname, 'build-sidecar.js')], { stdio: 'inherit' });
   return true;
 };

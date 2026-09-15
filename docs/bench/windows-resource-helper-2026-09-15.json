@@ -1,0 +1,334 @@
+{
+  "date": "2026-09-15",
+  "base": "98cb50da58d3bcf63040105f02867d4b6daf1f79",
+  "resourceBinarySha256": "bb75553e5f96a13887ca1e7a3759d7f6538a9cb80cb999102f0a2b6fe359dcf2",
+  "sources": {
+    "src/main/resource-monitor.js": "e690a3db3e76fa05f719fee6b06642df85a5481e38d20b3e2b587bde7769392d",
+    "src/main/platform/windows-resources.js": "6240313f4b23f1a04a932ca00087c7ce69a65d8bfdc2a77f90970007de41d9a6",
+    "sidecar/resources/Program.cs": "a20865d353fa54518ba13f01e8031fa6f445cdd005744ce029a03de02c1ff66d"
+  },
+  "comparisons": [
+    {
+      "kind": "idle harness process",
+      "samples": [
+        {
+          "source": "helper",
+          "commands": [
+            "aegis-resources.exe"
+          ],
+          "ms": 527.559,
+          "present": true,
+          "cpu": 0,
+          "workingSet": 50917376
+        },
+        {
+          "source": "powershell",
+          "commands": [
+            "powershell.exe"
+          ],
+          "ms": 1284.8285999999998,
+          "present": true,
+          "cpu": 0,
+          "workingSet": 51240960
+        },
+        {
+          "source": "powershell",
+          "commands": [
+            "powershell.exe"
+          ],
+          "ms": 1296.4344999999998,
+          "present": true,
+          "cpu": 0,
+          "workingSet": 52088832
+        },
+        {
+          "source": "helper",
+          "commands": [
+            "aegis-resources.exe"
+          ],
+          "ms": 490.34469999999965,
+          "present": true,
+          "cpu": 0,
+          "workingSet": 52367360
+        },
+        {
+          "source": "helper",
+          "commands": [
+            "aegis-resources.exe"
+          ],
+          "ms": 477.0324999999998,
+          "present": true,
+          "cpu": 0,
+          "workingSet": 52506624
+        },
+        {
+          "source": "powershell",
+          "commands": [
+            "powershell.exe"
+          ],
+          "ms": 1291.5018,
+          "present": true,
+          "cpu": 0,
+          "workingSet": 52641792
+        },
+        {
+          "source": "powershell",
+          "commands": [
+            "powershell.exe"
+          ],
+          "ms": 1280.1468999999997,
+          "present": true,
+          "cpu": 0,
+          "workingSet": 52781056
+        },
+        {
+          "source": "helper",
+          "commands": [
+            "aegis-resources.exe"
+          ],
+          "ms": 478.8104999999996,
+          "present": true,
+          "cpu": 0,
+          "workingSet": 53194752
+        },
+        {
+          "source": "helper",
+          "commands": [
+            "aegis-resources.exe"
+          ],
+          "ms": 505.3708999999999,
+          "present": true,
+          "cpu": 0,
+          "workingSet": 53334016
+        },
+        {
+          "source": "powershell",
+          "commands": [
+            "powershell.exe"
+          ],
+          "ms": 1314.9328000000005,
+          "present": true,
+          "cpu": 0,
+          "workingSet": 52002816
+        },
+        {
+          "source": "powershell",
+          "commands": [
+            "powershell.exe"
+          ],
+          "ms": 1295.0756000000001,
+          "present": true,
+          "cpu": 0,
+          "workingSet": 52158464
+        },
+        {
+          "source": "helper",
+          "commands": [
+            "aegis-resources.exe"
+          ],
+          "ms": 489.2343000000001,
+          "present": true,
+          "cpu": 0,
+          "workingSet": 52252672
+        }
+      ],
+      "mediansMs": {
+        "helper": 489.78949999999986,
+        "powershell": 1293.2887
+      }
+    },
+    {
+      "kind": "one busy child with 64 MiB allocation",
+      "samples": [
+        {
+          "source": "helper",
+          "commands": [
+            "aegis-resources.exe"
+          ],
+          "ms": 540.3365,
+          "present": true,
+          "cpu": 98,
+          "workingSet": 119037952
+        },
+        {
+          "source": "powershell",
+          "commands": [
+            "powershell.exe"
+          ],
+          "ms": 1333.8270000000002,
+          "present": true,
+          "cpu": 91,
+          "workingSet": 119115776
+        },
+        {
+          "source": "powershell",
+          "commands": [
+            "powershell.exe"
+          ],
+          "ms": 1280.5303000000001,
+          "present": true,
+          "cpu": 91,
+          "workingSet": 119283712
+        },
+        {
+          "source": "helper",
+          "commands": [
+            "aegis-resources.exe"
+          ],
+          "ms": 474.3764000000001,
+          "present": true,
+          "cpu": 89,
+          "workingSet": 119287808
+        },
+        {
+          "source": "helper",
+          "commands": [
+            "aegis-resources.exe"
+          ],
+          "ms": 490.2325999999998,
+          "present": true,
+          "cpu": 91,
+          "workingSet": 119320576
+        },
+        {
+          "source": "powershell",
+          "commands": [
+            "powershell.exe"
+          ],
+          "ms": 1318.188,
+          "present": true,
+          "cpu": 93,
+          "workingSet": 119377920
+        },
+        {
+          "source": "powershell",
+          "commands": [
+            "powershell.exe"
+          ],
+          "ms": 1309.2039999999997,
+          "present": true,
+          "cpu": 100,
+          "workingSet": 119435264
+        },
+        {
+          "source": "helper",
+          "commands": [
+            "aegis-resources.exe"
+          ],
+          "ms": 476.21929999999975,
+          "present": true,
+          "cpu": 89,
+          "workingSet": 119472128
+        },
+        {
+          "source": "helper",
+          "commands": [
+            "aegis-resources.exe"
+          ],
+          "ms": 500.7016000000003,
+          "present": true,
+          "cpu": 87,
+          "workingSet": 119488512
+        },
+        {
+          "source": "powershell",
+          "commands": [
+            "powershell.exe"
+          ],
+          "ms": 1291.1958000000004,
+          "present": true,
+          "cpu": 93,
+          "workingSet": 119590912
+        },
+        {
+          "source": "powershell",
+          "commands": [
+            "powershell.exe"
+          ],
+          "ms": 1299.2254000000012,
+          "present": true,
+          "cpu": 92,
+          "workingSet": 119660544
+        },
+        {
+          "source": "helper",
+          "commands": [
+            "aegis-resources.exe"
+          ],
+          "ms": 475.6137999999992,
+          "present": true,
+          "cpu": 95,
+          "workingSet": 119664640
+        }
+      ],
+      "mediansMs": {
+        "helper": 483.2259499999998,
+        "powershell": 1304.2147000000004
+      }
+    }
+  ],
+  "live": {
+    "complete": true,
+    "elapsedMs": 180004.6362,
+    "warmupMs": 90000,
+    "reportSha256": "60e56d4872ebe3470705748a28001ddd74f4a34c7335b8aeded7462469d867e9",
+    "manifestSha256": "d55174c9bc52029e73c09f77101125816816833c190bbf4920117b579b76416b",
+    "resourceStages": [
+      {
+        "phase": "startup",
+        "label": "child:aegis-resources:getResourcesForPids",
+        "calls": 3,
+        "failures": 0,
+        "totalMs": 3314.903599999987,
+        "maxMs": 2150.7420999999995,
+        "medianMs": 586.5181999999913,
+        "p95Ms": 2150.7420999999995,
+        "sampled": 3,
+        "truncated": false
+      },
+      {
+        "phase": "startup",
+        "label": "getResourcesForPids",
+        "calls": 3,
+        "failures": 0,
+        "totalMs": 3439.0939000000035,
+        "maxMs": 2263.862799999999,
+        "medianMs": 597.2082999999984,
+        "p95Ms": 2263.862799999999,
+        "sampled": 3,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "child:aegis-resources:getResourcesForPids",
+        "calls": 9,
+        "failures": 0,
+        "totalMs": 5204.324800000017,
+        "maxMs": 608.0543999999936,
+        "medianMs": 570.2881000000052,
+        "p95Ms": 608.0543999999936,
+        "sampled": 9,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "getResourcesForPids",
+        "calls": 9,
+        "failures": 0,
+        "totalMs": 5219.644899999999,
+        "maxMs": 608.6577000000107,
+        "medianMs": 581.3202000000019,
+        "p95Ms": 608.6577000000107,
+        "sampled": 9,
+        "truncated": false
+      }
+    ],
+    "resourceLaunches": {
+      "startup:child:nvidia-smi:getResourcesForPids": 4,
+      "startup:child:aegis-resources:getResourcesForPids": 3,
+      "steady:child:aegis-resources:getResourcesForPids": 9,
+      "steady:child:nvidia-smi:getResourcesForPids": 9
+    },
+    "steadyProcessTicks": 9
+  }
+}

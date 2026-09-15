@@ -51,6 +51,8 @@ export default defineConfig({
         'src/main/process-utils.js',
         'src/main/application-groups.js',
         'src/main/process-scanner.js',
+        'src/main/resource-monitor.js',
+        'src/main/platform/windows-resources.js',
         'src/main/file-watcher.js',
         'src/main/ipc-batcher.js',
         'src/main/file-access-batching.js',

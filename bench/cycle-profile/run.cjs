@@ -14,7 +14,7 @@ if (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolu
 fs.mkdirSync(output, { recursive: true });
 fs.mkdirSync(path.join(output, 'temp'));
 const fingerprint = {};
-for (const folder of ['src/main', 'bench/cycle-profile', 'dist/renderer']) {
+for (const folder of ['src/main', 'bench/cycle-profile', 'dist/renderer', 'sidecar/resources']) {
   for (const name of fs.readdirSync(path.join(root, folder), { recursive: true })) {
     const file = path.join(root, folder, name);
     if (fs.lstatSync(file).isFile())
@@ -35,6 +35,11 @@ fs.writeFileSync(
       snapshotBinarySha256: fs.existsSync(path.join(root, 'build/sidecar/aegis-procsnap.exe'))
         ? createHash('sha256')
             .update(fs.readFileSync(path.join(root, 'build/sidecar/aegis-procsnap.exe')))
+            .digest('hex')
+        : null,
+      resourceBinarySha256: fs.existsSync(path.join(root, 'build/sidecar/aegis-resources.exe'))
+        ? createHash('sha256')
+            .update(fs.readFileSync(path.join(root, 'build/sidecar/aegis-resources.exe')))
             .digest('hex')
         : null,
       fingerprint,
