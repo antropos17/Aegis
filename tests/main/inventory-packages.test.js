@@ -67,10 +67,14 @@ describe('bounded local package evidence', () => {
   it('redacts metadata values and never executes package scripts through the real CLI', () => {
     const secret = 'CANARY-PRIVATE-235';
     const marker = path.join(root, 'executed');
+    put(
+      'record-execution.cjs',
+      `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'executed')`,
+    );
     const value = {
       name: secret,
       version: `1.2.3-${secret}+${secret}`,
-      scripts: { preinstall: `node -e "require('fs').writeFileSync('${marker}', 'x')"` },
+      scripts: { preinstall: 'node ./record-execution.cjs' },
     };
     put('package.json', value);
     put(
