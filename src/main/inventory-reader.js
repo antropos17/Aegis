@@ -56,10 +56,12 @@ async function createInventoryReader(directory, overrides = {}) {
     }
     let absolute = root;
     let stat;
-    for (const part of parts) {
+    for (let index = 0; index < parts.length; index++) {
+      const part = parts[index];
       absolute = path.join(absolute, part);
       stat = await fs.promises.lstat(absolute);
       if (stat.isSymbolicLink()) throw new Error('link-skipped');
+      if (index < parts.length - 1 && !stat.isDirectory()) throw new Error('unsupported-file-type');
     }
     if ((await fs.promises.realpath(absolute)) !== absolute) throw new Error('path-changed');
     return { absolute, stat };
@@ -117,7 +119,7 @@ async function createInventoryReader(directory, overrides = {}) {
   }
 
   /** Visit only named paths, optionally walking a known skills directory. */
-  async function visit(relativePath, onFile, recursive = false, depth = 0) {
+  async function visit(relativePath, onFile, recursive = false, depth = 0, excludedNames = []) {
     if (!takeEntry(relativePath)) return;
     let observed = false;
     try {
@@ -134,7 +136,14 @@ async function createInventoryReader(directory, overrides = {}) {
         const directoryHandle = await fs.promises.opendir(absolute);
         for await (const entry of directoryHandle) {
           if (stopped) break;
-          await visit(`${relativePath}/${entry.name}`, onFile, true, depth + 1);
+          const name = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+          if (
+            excludedNames.some((excluded) => excluded.toLowerCase() === entry.name.toLowerCase())
+          ) {
+            if (!takeEntry(name)) break;
+            continue;
+          }
+          await visit(name, onFile, true, depth + 1, excludedNames);
         }
       } else {
         issue(relativePath, 'unsupported-file-type');
@@ -143,7 +152,13 @@ async function createInventoryReader(directory, overrides = {}) {
       // Missing selected locations are normal. Missing entries after enumeration
       // indicate a changing snapshot. Never return OS/parser error messages.
       if (error.code === 'ENOENT' && depth === 0 && !observed) return;
-      const known = ['link-skipped', 'path-changed', 'file-changed', 'invalid-path'];
+      const known = [
+        'link-skipped',
+        'path-changed',
+        'file-changed',
+        'invalid-path',
+        'unsupported-file-type',
+      ];
       issue(relativePath, known.includes(error.message) ? error.message : 'unreadable');
     }
   }
@@ -168,12 +183,19 @@ async function createInventoryReader(directory, overrides = {}) {
       }
     } catch (error) {
       if (error.code === 'ENOENT' && !observed) return;
-      const known = ['link-skipped', 'path-changed', 'invalid-path'];
+      const known = ['link-skipped', 'path-changed', 'invalid-path', 'unsupported-file-type'];
       issue(relativePath, known.includes(error.message) ? error.message : 'unreadable');
     }
   }
 
-  return { visit, visitMatching, issues, limits, usage: () => ({ entries, bytes }) };
+  return {
+    visit,
+    visitMatching,
+    issues,
+    limits,
+    usage: () => ({ entries, bytes }),
+    isStopped: () => stopped,
+  };
 }
 
 module.exports = { createInventoryReader };

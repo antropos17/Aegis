@@ -56,10 +56,14 @@ claimed. All adapters operate on the caller's selected directory without OS APIs
 | VS Code user | `%APPDATA%/Code/User` | `~/Library/Application Support/Code/User` | `~/.config/Code/User` | [MCP configuration](https://code.visualstudio.com/docs/agent-customization/mcp-servers), [profile directories](https://code.visualstudio.com/docs/configure/profiles); named profiles use `profiles/<ID>` |
 
 The report's adapter version describes AEGIS's layout implementation. Component
-`provenance.agentVersion` stays `null`; `packageIdentity` stays `not-resolved`.
-File location and SHA-256 are observable evidence. They cannot establish which
-agent is installed, who published a package, whether an `npx` request is pinned,
-or whether a policy is effective. Authenticated package identity remains A2.2.
+`provenance.agentVersion` stays `null`. A component inside an observed skill
+package can carry `packageIdentity: "contained-in-local-package"` and a
+`packageRef`; other components retain `not-resolved`. [Package evidence](PACKAGE-EVIDENCE.md)
+records declared versions, npm lockfile agreement and local Git manifest bytes.
+Profile inventory reads package metadata only inside the listed skills roots;
+it does not read a home-level package manifest. File location and hashes cannot
+establish which agent is installed, who published a package, whether an `npx`
+request is pinned, or whether a policy is effective.
 
 ## Coverage boundaries
 
@@ -76,7 +80,7 @@ machines are not automatically discovered or merged. Selecting a copied managed
 directory does not make its policy trusted. Empty JSON settings files are reported
 as invalid JSON, even where a client treats an empty managed file as an empty object.
 
-## Schema 2 example
+## Schema 3 component example
 
 ```json
 {
