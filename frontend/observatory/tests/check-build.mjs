@@ -17,6 +17,7 @@ import { checkResourceLayers } from './resource-layer-check.mjs';
 import { checkProtection } from './protection-check.mjs';
 import { checkWatchlist } from './watchlist-check.mjs';
 import { checkLocalization } from './localization-check.mjs';
+import { checkUxRecovery } from './ux-recovery-check.mjs';
 
 const repo = process.cwd();
 const designRoot = resolve(repo, 'frontend/observatory');
@@ -87,6 +88,7 @@ const out = process.env.FRONTEND_QA_DIR || resolve(repo, 'dist/frontend-qa');
 await mkdir(out, { recursive: true });
 const errors = [];
 try {
+  await checkUxRecovery(browser, base + '/preview/', out);
   await checkProtection(browser, base + '/preview/', out);
   await checkLocalization(browser, base + '/preview/', out);
   for (const file of await readdir(resolve(roots['/desktop/'], 'assets'))) {

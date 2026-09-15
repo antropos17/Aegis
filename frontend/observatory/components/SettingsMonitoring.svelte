@@ -10,12 +10,16 @@
     patterns = $bindable(),
     ignored = $bindable(),
     patternInput = $bindable(),
+    intervalInput = $bindable(),
+    validationId,
     host,
   }: {
     form: RecordData;
     patterns: string;
     ignored: string;
     patternInput: HTMLTextAreaElement | undefined;
+    intervalInput?: HTMLInputElement;
+    validationId?: string;
     host: Host | null;
   } = $props();
 </script>
@@ -52,6 +56,11 @@
     <span>{$t('Exact interval')}<small>{$t('Enter a positive number of seconds.')}</small></span>
     <input
       class="interval-number"
+      bind:this={intervalInput}
+      aria-describedby={!Number.isFinite(Number(form.scanIntervalSec ?? 10)) ||
+      Number(form.scanIntervalSec ?? 10) <= 0
+        ? validationId
+        : undefined}
       aria-label={$t('Exact scan interval (seconds)')}
       aria-invalid={!Number.isFinite(Number(form.scanIntervalSec ?? 10)) ||
         Number(form.scanIntervalSec ?? 10) <= 0}

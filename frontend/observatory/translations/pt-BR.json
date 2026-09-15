@@ -975,5 +975,11 @@
   "Source file": "Código-fonte",
   "Database file": "Arquivo de banco de dados",
   "Image file": "Arquivo de imagem",
-  "Document": "Documento"
+  "Document": "Documento",
+  "Loading catalog…": "Carregando catálogo…",
+  "Catalog unavailable": "Catálogo indisponível",
+  "Catalog entries will appear after a successful load.": "As entradas do catálogo aparecerão após o carregamento.",
+  "Fix invalid setting": "Corrigir configuração inválida",
+  "More metrics": "Mais métricas",
+  "Fewer metrics": "Menos métricas"
 }

@@ -8,7 +8,15 @@
     form = $bindable(),
     contrast = $bindable(),
     motion = $bindable(),
-  }: { form: RecordData; contrast: boolean; motion: boolean } = $props();
+    scaleInput = $bindable(),
+    validationId,
+  }: {
+    form: RecordData;
+    contrast: boolean;
+    motion: boolean;
+    scaleInput?: HTMLInputElement;
+    validationId?: string;
+  } = $props();
 </script>
 
 <SettingsGroup
@@ -63,6 +71,12 @@
     >
     <input
       class="scale-number"
+      bind:this={scaleInput}
+      aria-describedby={!Number.isFinite(Number(form.uiScale ?? 1)) ||
+      Number(form.uiScale ?? 1) < 0.5 ||
+      Number(form.uiScale ?? 1) > 3
+        ? validationId
+        : undefined}
       aria-label={$t('Interface scale percent')}
       aria-invalid={!Number.isFinite(Number(form.uiScale ?? 1)) ||
         Number(form.uiScale ?? 1) < 0.5 ||

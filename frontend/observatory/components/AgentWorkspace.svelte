@@ -96,7 +96,9 @@
   <section id="agent-overview" tabindex="-1" class="agent-intro" aria-label={$t('Agent overview')}>
     <AgentLogo name={scope.agent} size={34} />
     <div class="agent-description">
-      <h2>{scope.instanceId ? $t('Process overview') : $t('Agent overview')}</h2>
+      <h2 id="agent-workspace-heading" tabindex="-1">
+        {scope.instanceId ? $t('Process overview') : $t('Agent overview')}
+      </h2>
       <p>
         {scope.instanceId
           ? $t('PID') + ' ' + String(process?.pid ?? scope.instanceId.split(':')[0])

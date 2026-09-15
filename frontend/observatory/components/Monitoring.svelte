@@ -3,8 +3,7 @@
 
   import { onMount } from 'svelte';
   import { instances, type Telemetry, type RecordData } from '../runtime/host';
-  import { radarGroups, groupRecord } from '../runtime/radar';
-  import { measuredStatisticsTotal } from '../runtime/statistics-metrics';
+  import MonitoringSummary from './MonitoringSummary.svelte';
   import Radar from './Radar.svelte';
   import ActivityChart from './ActivityChart.svelte';
   import Agents from './Agents.svelte';
@@ -35,9 +34,7 @@
     openAgent?: (_agent: string) => void;
     navigate?: (_view: string) => void | Promise<void>;
   } = $props();
-  let agents = $derived(instances(telemetry)),
-    groups = $derived(radarGroups(agents));
-  let highestRisk = $derived([...groups].sort((a, b) => b.risk - a.risk)[0]);
+  let agents = $derived(instances(telemetry));
   let now = $state(Date.now());
   onMount(() => {
     const timer = setInterval(() => {
@@ -50,8 +47,6 @@
       (e) => Number.isFinite(e.timestamp) && e.timestamp > now - 60000 && e.timestamp <= now,
     ),
   );
-  let tokenTotal = $derived(measuredStatisticsTotal(telemetry, telemetry.tokens, 'totalTokens'));
-  let sensitiveEvents = $derived(telemetry.events.filter((event) => event.sensitive === true));
   $effect(() => {
     if (!telemetry.stale && selected && !agents.some((a) => a.instanceId === selected))
       selected = null;
@@ -59,66 +54,7 @@
 </script>
 
 <div hidden={mode !== 'overview'}>
-  <div class="summary monitoring-summary">
-    <button class="summary-stat" onclick={() => navigate?.('agents')}>
-      <span>{$t('Agents')}</span><strong
-        >{telemetry.ready ? groups.length : '—'}<small
-          >{telemetry.stale ? $t('last seen') : $t('online')}</small
-        ></strong
-      >
-      <p>{agents.length} {$t('processes in snapshot')}</p>
-    </button>
-    <button
-      class="summary-stat"
-      disabled={!highestRisk}
-      onclick={() =>
-        highestRisk &&
-        inspect(highestRisk.name, { ...groupRecord(highestRisk), detailSection: 'risk' })}
-    >
-      <span>{$t('Highest risk')}</span><strong>{highestRisk?.risk ?? '—'}<small>/100</small></strong
-      >
-      <p>
-        {highestRisk
-          ? $t('{agent} · view explanation', { agent: highestRisk.name })
-          : $t('Waiting for observed agents')}
-      </p>
-    </button>
-    <div class="summary-stat">
-      <span>{$t('Events / min')}</span><strong>{telemetry.ready ? recent.length : '—'}</strong>
-      <p>{telemetry.events.length} {$t('retained events')}</p>
-    </div>
-    <button
-      class="summary-stat attention"
-      onclick={() => inspect('Sensitive events', { observations: sensitiveEvents })}
-      ><span>{$t('Sensitive events')}</span><strong
-        >{telemetry.ready ? sensitiveEvents.length : '—'}</strong
-      >
-      <p>{$t('Retained file observations')}</p></button
-    >
-    <button class="summary-stat" onclick={() => navigate?.('network')}>
-      <span>{$t('Connections')}</span><strong
-        >{telemetry.ready ? telemetry.network.length : '—'}</strong
-      >
-      <p>
-        {telemetry.network.filter((n) => n.verdict === 'unknown').length}
-        {$t('unverified endpoints')}
-      </p>
-    </button>
-    <div class="summary-stat">
-      <span>{$t('Tokens')}</span><strong
-        >{tokenTotal.value === null
-          ? '—'
-          : Intl.NumberFormat('en', { notation: 'compact' }).format(tokenTotal.value)}</strong
-      >
-      <p>
-        {tokenTotal.measured} / {tokenTotal.total}
-        {$t('current processes measured')}{tokenTotal.value !== null &&
-        tokenTotal.measured < tokenTotal.total
-          ? $t(' · subtotal')
-          : ''}
-      </p>
-    </div>
-  </div>
+  <MonitoringSummary {telemetry} recentCount={recent.length} {inspect} {navigate} />
   <Radar {telemetry} {liveTelemetry} bind:selected {inspect} {openStatistics} {openAgent} />
   <div class="monitoring-activity">
     <ActivityChart
