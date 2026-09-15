@@ -63,7 +63,7 @@ const RULES = Object.freeze({
 function staticRuleSet() {
   return {
     id: 'aegis-static-patterns',
-    version: 2,
+    version: 3,
     rules: Object.entries(RULES).map(([id, [severity, title, recommendation]]) => ({
       id,
       severity,
