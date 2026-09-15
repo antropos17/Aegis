@@ -18,6 +18,10 @@ Options:
   --inventory-profile-json <profile> <directory>  Inventory one explicit profile directory
     Profiles: user-home, codex-user, claude-user, cursor-user, vscode-user,
               claude-managed, codex-managed
+  --inventory-snapshot-json <adapter> <directory> <new-file>  Save an unreviewed snapshot
+  --inventory-accept-json <snapshot> <digest> <directory> <new-file>  Accept reviewed unchanged content
+  --inventory-diff-json <snapshot> <adapter> <directory>  Compare a fresh capture
+    Snapshot adapter: project or any profile above; optional --tools-file <tools-list.json>
   --scan-json   Run a single scan and output JSON to stdout
   --version     Print version and exit
   --help        Show this help message`.trim();
@@ -72,6 +76,9 @@ async function handleCLI(argv) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  if (require('./inventory-snapshot-cli').FLAGS.includes(flag)) {
+    return require('./inventory-snapshot-cli').handleSnapshotCLI(args, write);
+  }
   if (flag === '--inventory-profile-json') {
     if (args.length !== 3 || args.slice(1).some((arg) => !arg || arg.startsWith('--'))) {
       write(JSON.stringify({ error: 'expected-profile-and-directory' }));

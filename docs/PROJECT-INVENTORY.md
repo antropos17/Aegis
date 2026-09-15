@@ -12,6 +12,10 @@ It does not start MCP servers, run hooks/scripts, install packages, make network
 requests or store a baseline. Discovery does not prove installation, activation,
 trust or safety. `assessment: "not-performed"` is always present.
 
+Separate [snapshot commands](INVENTORY-SNAPSHOTS.md) add explicit persistence,
+exact-digest acceptance and fresh comparison. The inventory commands above remain
+read-only. Snapshot acceptance does not establish package safety.
+
 User and managed directories have a separate explicit command:
 
 ```powershell
@@ -123,5 +127,6 @@ Parser references: [Microsoft API](https://github.com/microsoft/node-jsonc-parse
 [smol-toml behavior and limitations](https://github.com/squirrelchat/smol-toml).
 Exact dependency versions and registry integrity digests are pinned in the lockfile.
 
-Persistent trust comparison, static threat analysis, publisher authentication and UI
-are tracked separately in [the protection plan](roadmap/ai-agent-protection.md).
+[Persistent snapshot comparison](INVENTORY-SNAPSHOTS.md) is available through
+separate explicit CLI commands. Static threat analysis, publisher authentication,
+live MCP collection/enforcement and UI remain in [the protection plan](roadmap/ai-agent-protection.md).
