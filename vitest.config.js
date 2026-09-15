@@ -82,6 +82,7 @@ export default defineConfig({
         'src/main/static-analysis-rules.js',
         'src/main/static-command-parser.js',
         'src/main/static-command-analysis.js',
+        'src/main/static-command-redirections.js',
         'src/main/static-config-analysis.js',
         'src/main/audit-logger.js',
         'src/main/audit-index.js',

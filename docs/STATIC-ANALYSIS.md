@@ -81,8 +81,12 @@ a block can require review even when the surrounding prose advises against it.
 The parser distinguishes quoted literals, process arguments and potential shell
 expansion. It never substitutes a variable or decodes an executable payload.
 Common command forms are covered, without full shell grammar, alias resolution
-or all command options. Substitutions, grouping, unfamiliar wrappers and several
-dynamic forms produce fixed coverage issues. At an unresolved multiline quote,
+or all command options. Bounded [ordered redirection review](SHELL-REDIRECTIONS.md)
+associates stdin/stdout across literal pipelines and avoids carrying a payload
+through an overridden stream. It can recognize a sensitive input path without
+opening that path. Every redirection retains a runtime-dialect coverage issue.
+Substitutions, grouping, unfamiliar wrappers and several dynamic forms produce
+fixed coverage issues. At an unresolved multiline quote,
 here-document or PowerShell block-comment opener, script inspection stops and
 reports incompleteness; subsequent text is not treated as independent commands.
 
@@ -92,7 +96,7 @@ visible in `issues`. Their file hashes remain in `files` when reading succeeded.
 
 ## Built-in checks
 
-Rule-set ID: `aegis-static-patterns`, version `5`. Each report includes fixed rule
+Rule-set ID: `aegis-static-patterns`, version `6`. Each report includes fixed rule
 metadata. Severity prioritizes review; every finding has `confidence: heuristic`.
 
 | ID | Severity | Review trigger |
