@@ -73,8 +73,8 @@ run. An earlier simultaneous build/typecheck run had eight UI timeouts; no test
 timeouts or product code were changed to obtain the passing rerun. Three later
 path/Unicode cases passed in the focused transport suite (29 passes). Windows
 compilation, twelve quiet native input rejections, actual PID scope and the
-36-query comparison passed. Renderer build, formatting, lint (zero errors and
-56 existing warnings), both typechecks, production audit, both mutation gates and
+36-query comparison passed. Renderer build, formatting, lint (zero errors;
+existing warnings: 56), both typechecks, production audit, both mutation gates and
 derived counts passed. Implementation CI passed all five required contexts:
 3,489 tests passed, five skipped; final documentation CI is required before merge.
 
