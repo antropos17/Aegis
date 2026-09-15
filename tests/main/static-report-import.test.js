@@ -59,6 +59,27 @@ afterEach(() => {
 });
 
 describe('explicit external static review', () => {
+  it('requires a fresh baseline when instruction-pattern coverage was absent', async () => {
+    const before = await scanStaticDirectory('package', root);
+    before.ruleSet.version = 6;
+    delete before.scope.instructionPatterns;
+    delete before.scope.mcpToolDescriptions;
+    for (const key of Object.keys(before.limits))
+      if (key.startsWith('instruction') || key.startsWith('mcpCatalog')) delete before.limits[key];
+    const result = await review(skillReport(), { baselineFile: artifact('before.json', before) });
+    expect(result.external.baseline.status).toBe('incompatible');
+    expect(result.external.findings[0].locations[0].binding).toBe('current-path-only');
+    expect(result.reviewRequired).toBe(true);
+  });
+
+  it('does not reuse a catalog-selected baseline when the fresh scan omits that catalog', async () => {
+    const toolsFile = artifact('tools.json', { tools: [] });
+    const before = await scanStaticDirectory('package', root, { toolsFile });
+    const result = await review(skillReport(), { baselineFile: artifact('before.json', before) });
+    expect(result.external.baseline.status).toBe('incompatible');
+    expect(result.external.findings[0].locations[0].binding).toBe('current-path-only');
+  });
+
   it('requires a fresh baseline when ordered shell redirection coverage was absent', async () => {
     const before = await scanStaticDirectory('package', root);
     before.ruleSet.version = 5;

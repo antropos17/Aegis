@@ -7,7 +7,7 @@ const {
   CONFIG_ITEMS,
   COMMANDS_PER_FILE,
 } = require('./static-config-analysis');
-const { analyzeCommand } = require('./static-command-analysis');
+const { commandFile, SCRIPT_LINES } = require('./static-command-file');
 const { COMMAND_CHARS, COMMAND_TOKENS, COMMAND_REDIRECTIONS } = require('./static-command-parser');
 const { analyzeJavaScript } = require('./static-javascript');
 const { JAVASCRIPT_LIMITS } = require('./static-javascript-ast');
@@ -16,93 +16,17 @@ const { analyzePython } = require('./static-python');
 const { PYTHON_LIMITS } = require('./static-python-tree');
 const { PYTHON_VALUE_STEPS } = require('./static-python-values');
 const { createStaticCatalog, bindStaticFlow, FLOW_LIMITS } = require('./static-code-catalog');
+const { analyzeInstructions, INSTRUCTION_LIMITS } = require('./static-instruction-analysis');
+const {
+  analyzeInstructionCatalog,
+  INSTRUCTION_CATALOG_LIMITS,
+} = require('./static-instruction-catalog');
 const { staticRule, staticRuleSet } = require('./static-analysis-rules');
 const { parseInventoryConfig, PARSE_DEPTH } = require('./inventory-config');
 const { resolveSnapshotSubject, checkSnapshotSubject } = require('./inventory-snapshot-files');
 
 const FINDING_LIMIT = 256;
 const ISSUE_LIMIT = 1024;
-const SCRIPT_LINES = 8192;
-const FENCE_LANGUAGES = new Set([
-  'sh',
-  'bash',
-  'shell',
-  'zsh',
-  'console',
-  'powershell',
-  'pwsh',
-  'ps1',
-]);
-
-function commandFile(text, markdown) {
-  const findings = [];
-  const issues = new Set();
-  const lines = text.split(/\r\n|\n|\r/);
-  let commands = 0;
-  let fence = null;
-  let pending = '';
-  let startLine = 1;
-  let stopped = false;
-  function inspect(command, line) {
-    if (!command.trim() || command.trimStart().startsWith('#')) return;
-    if (commands >= COMMANDS_PER_FILE) {
-      issues.add('command-count-limit');
-      return;
-    }
-    commands++;
-    const result = analyzeCommand(command);
-    if (
-      result.issues.some((issue) =>
-        ['multiline-shell-not-analyzed', 'unclosed-command-quote'].includes(issue),
-      )
-    )
-      stopped = true;
-    result.rules.forEach((ruleId) =>
-      findings.push({ ruleId, line, context: markdown ? 'instruction-code' : 'script-command' }),
-    );
-    result.issues.forEach((issue) => issues.add(issue));
-  }
-  if (lines.length > SCRIPT_LINES) issues.add('script-line-limit');
-  for (let index = 0; index < Math.min(lines.length, SCRIPT_LINES); index++) {
-    if (stopped) break;
-    let line = lines[index];
-    if (markdown) {
-      const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
-      if (marker) {
-        if (!fence) {
-          const language = marker[2].trim().toLowerCase();
-          fence = {
-            char: marker[1][0],
-            length: marker[1].length,
-            language,
-            supported: FENCE_LANGUAGES.has(language),
-          };
-          if (!fence.supported) issues.add('unsupported-code-block');
-          continue;
-        }
-        if (marker[1][0] === fence.char && marker[1].length >= fence.length && !marker[2].trim()) {
-          if (pending) issues.add('unfinished-command');
-          pending = '';
-          fence = null;
-          continue;
-        }
-      }
-      if (!fence?.supported) continue;
-      if (fence.language === 'console') line = line.replace(/^\s*\$ /, '');
-    }
-    if (!pending) startLine = index + 1;
-    const continuation =
-      /(?:^|[^\\])(?:\\\\)*\\$/.test(line) || line.endsWith(String.fromCharCode(96));
-    pending += continuation ? line.slice(0, -1) : line;
-    if (continuation) continue;
-    inspect(pending, startLine);
-    pending = '';
-  }
-  if (pending) issues.add('unfinished-command');
-  if (fence) issues.add('unclosed-code-block');
-  return { findings, issues: [...issues], commands };
-}
-
 function analyzeFile(name, data, entry, catalog) {
   const base = name.split(/[/\\]/).at(-1);
   if (entry.kind === 'policy')
@@ -146,8 +70,16 @@ function analyzeFile(name, data, entry, catalog) {
     /^#![^\r\n]*(?:\/(?:ba|da|z)?sh|\benv\s+(?:ba|da|z)?sh)\b/.test(text)
   )
     return { mode: 'literal-shell', ...commandFile(text, false) };
-  if (entry.kind === 'instruction' || /\.(?:md|mdx|txt)$/i.test(base) || base === '.cursorrules')
-    return { mode: 'instruction-code-blocks', ...commandFile(text, true) };
+  if (entry.kind === 'instruction' || /\.(?:md|mdx|txt)$/i.test(base) || base === '.cursorrules') {
+    const commands = commandFile(text, true);
+    const instructions = analyzeInstructions(text);
+    return {
+      mode: 'instruction-patterns-and-code',
+      findings: [...commands.findings, ...instructions.findings],
+      issues: [...new Set([...commands.issues, ...instructions.issues])],
+      commands: commands.commands,
+    };
+  }
   return { mode: 'unsupported', findings: [], issues: ['file-type-not-analyzed'], commands: 0 };
 }
 
@@ -156,12 +88,14 @@ function analyzeFile(name, data, entry, catalog) {
  * Completeness concerns the declared subset; no result certifies safety or grants trust.
  * @param {string} adapter Built-in inventory adapter or package for a whole directory tree.
  * @param {string} directory Caller-selected directory, with no implicit discovery.
- * @param {{limits?: object}} [options] Optional lower filesystem limits.
+ * @param {{limits?: object, toolsFile?: string}} [options] Lower tree limits and an explicit offline tools/list file.
  * @returns {Promise<object>} Versioned redacted findings, file hashes and coverage gaps.
  * @since v0.15.1
  */
 async function scanStaticDirectory(adapter, directory, options = {}) {
   const subject = await resolveSnapshotSubject(directory);
+  const mcpCatalog =
+    options.toolsFile !== undefined ? await analyzeInstructionCatalog(options.toolsFile) : null;
   const files = [];
   const findings = [];
   const issues = [];
@@ -226,6 +160,7 @@ async function scanStaticDirectory(adapter, directory, options = {}) {
         sha256: file.sha256,
         line: finding.line ?? null,
         context: finding.context,
+        ...(finding.instruction ? { instruction: { signal: finding.instruction.signal } } : {}),
         ...(flow ? { flow: flow.value } : {}),
       });
     }
@@ -244,19 +179,23 @@ async function scanStaticDirectory(adapter, directory, options = {}) {
   issues.sort((a, b) =>
     a.path < b.path ? -1 : a.path > b.path ? 1 : a.reason.localeCompare(b.reason),
   );
-  const complete = issues.length === 0;
+  const complete = issues.length === 0 && (!mcpCatalog || mcpCatalog.complete);
+  const findingCount = findings.length + (mcpCatalog?.findings.length ?? 0);
   return {
     schemaVersion: 1,
     mode: 'static-analysis',
     assessment: 'static-patterns',
     safety: 'not-determined',
-    status: findings.length ? 'findings' : complete ? 'no-findings' : 'incomplete',
-    reviewRequired: findings.length > 0 || !complete,
+    status: findingCount ? 'findings' : complete ? 'no-findings' : 'incomplete',
+    reviewRequired: findingCount > 0 || !complete,
     complete,
     subjectSha256: subject.rootSha256,
     adapter: visit.adapter,
     ruleSet: staticRuleSet(),
-    scope: visit.scope,
+    scope: {
+      ...visit.scope,
+      mcpToolDescriptions: mcpCatalog ? 'explicit-offline-catalog' : 'not-selected',
+    },
     limits: {
       ...visit.limits,
       parseDepth: PARSE_DEPTH,
@@ -271,6 +210,8 @@ async function scanStaticDirectory(adapter, directory, options = {}) {
       ...PYTHON_LIMITS,
       pythonValueSteps: PYTHON_VALUE_STEPS,
       ...FLOW_LIMITS,
+      ...INSTRUCTION_LIMITS,
+      ...INSTRUCTION_CATALOG_LIMITS,
       findings: FINDING_LIMIT,
       issues: ISSUE_LIMIT,
     },
@@ -279,12 +220,15 @@ async function scanStaticDirectory(adapter, directory, options = {}) {
       filesRead: files.length,
       unsupportedFiles: files.filter((file) => file.analysis === 'unsupported').length,
       commands: files.reduce((sum, file) => sum + file.commands, 0),
-      findings: findings.length,
-      issues: issues.length,
+      findings: findingCount,
+      issues: issues.length + (mcpCatalog?.issues.length ?? 0),
+      mcpTools: mcpCatalog?.summary.tools ?? 0,
+      mcpDescriptions: mcpCatalog?.summary.descriptions ?? 0,
     },
     files,
     findings,
     issues,
+    mcpCatalog,
   };
 }
 

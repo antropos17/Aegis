@@ -9,6 +9,8 @@ packages, resolving DNS, uploading content or modifying files.
 The built-in engine includes bounded [JavaScript](JAVASCRIPT-STATIC-ANALYSIS.md)
 and [Python](PYTHON-STATIC-ANALYSIS.md) command analysis, including bounded
 [selected-source literal, wrapper and primitive return flow](STATIC-COMMAND-FLOW.md).
+Bounded [instruction-pattern review](INSTRUCTION-REVIEW.md) inspects selected
+English directives and explicitly supplied offline MCP tool descriptions.
 General dataflow, semantic prompt-injection detection and a vulnerability database
 remain outside this scope.
 The separate [external report importer](STATIC-REPORT-IMPORT.md) accepts explicit
@@ -23,10 +25,14 @@ From an AEGIS checkout with Node.js 24:
 node src/main/main.js --static-scan-json package "X:/reviews/downloaded-skill"
 node src/main/main.js --static-scan-json project "X:/work/example"
 node src/main/main.js --static-scan-json codex-user "X:/reviews/copied-codex-profile"
+node src/main/main.js --static-scan-json project "X:/work/example" --tools-file "X:/reviews/tools.json"
 ```
 
 The caller selects both the adapter and an existing directory. There is no
 automatic home discovery or environment-variable expansion.
+The optional `--tools-file` reads one bounded offline export into a separate
+`mcpCatalog` report section. It does not start the server or select additional
+content through references in the artifact.
 
 | Adapter | Read scope |
 | --- | --- |
@@ -73,10 +79,11 @@ Sequences preserve argv boundaries; `shell=True` with a sequence remains a cover
 gap because its behavior depends on the platform. No Python interpreter is required.
 
 Shell inspection covers a bounded literal subset in `.sh`, `.bash`, `.zsh`, `.ps1`
-and recognized shell shebang files. Markdown/text instructions contribute only
+and recognized shell shebang files. Within Markdown/text, command review uses
 fenced blocks labeled `sh`, `bash`, `shell`, `zsh`, `console`, `powershell`, `pwsh`
-or `ps1`. Free prose is not semantically analyzed. A command example inside such
-a block can require review even when the surrounding prose advises against it.
+or `ps1`. Prose receives the separate bounded directive checks below; general
+semantics remain unknown. A command example inside a supported block can require
+review even when the surrounding prose advises against it.
 
 The parser distinguishes quoted literals, process arguments and potential shell
 expansion. It never substitutes a variable or decodes an executable payload.
@@ -96,7 +103,13 @@ visible in `issues`. Their file hashes remain in `files` when reading succeeded.
 
 ## Built-in checks
 
-Rule-set ID: `aegis-static-patterns`, version `6`. Each report includes fixed rule
+Instruction prose also receives four fixed directive checks. Every nonempty
+inspected text retains `instruction-semantics-not-analyzed`; finding-free prose
+can therefore be incomplete and require review. The supported grammar,
+source-line conventions and catalog bounds are documented in
+[Instruction-pattern review](INSTRUCTION-REVIEW.md).
+
+Rule-set ID: `aegis-static-patterns`, version `7`. Each report includes fixed rule
 metadata. Severity prioritizes review; every finding has `confidence: heuristic`.
 
 | ID | Severity | Review trigger |
@@ -112,6 +125,10 @@ metadata. Severity prioritizes review; every finding has `confidence: heuristic`
 | STA009 | medium | Nonempty `ANTHROPIC_BASE_URL` override |
 | STA010 | info | npm installation/preparation lifecycle script is declared |
 | STA011 | medium | Recognized remote dependency selector lacks a supported full Git commit suffix |
+| STA012 | medium | Instruction directive asks to override prior/system instructions |
+| STA013 | high | Instruction directive associates sensitive material with a transfer destination |
+| STA014 | medium | Instruction directive asks to bypass approval or consent |
+| STA015 | medium | Instruction directive asks to conceal an action from the user |
 
 STA002 includes common `.env` variants, `.npmrc`, selected SSH private-key names,
 AWS credentials and kubeconfig paths. Template/example `.env` names are excluded.
@@ -127,7 +144,7 @@ The report has `schemaVersion: 1`, `mode: static-analysis`,
 
 - Exit `0`: `status: no-findings`, with no reported gaps in the declared subset.
 - Exit `2`: findings or incomplete inspection; `reviewRequired: true`.
-- Exit `1`: malformed invocation, unknown adapter or unavailable root; fixed error
+- Exit `1`: malformed invocation, unknown adapter, unavailable root or invalid/unavailable selected catalog; fixed error
   code, `safety: not-determined` and `reviewRequired: true`.
 
 `status: findings` can coexist with `complete: false`. Always inspect `complete`,
@@ -146,8 +163,12 @@ Python adds bounded parsing advances, syntax-tree nodes/depth and static value
 work; its [contract](PYTHON-STATIC-ANALYSIS.md) lists the corresponding limits.
 Selected-source flow adds shared source, resolution and work limits plus bounded
 module/call depth. Its [contract](STATIC-COMMAND-FLOW.md) describes hash-bound evidence.
-Output is capped at 256 findings and 1,024 issues. Reaching a limit produces an
-incomplete report. Truncated subsets can depend on filesystem enumeration order.
+Directory output is capped at 256 findings and 1,024 issues. The optional MCP
+catalog has a separate 1 MiB input limit, 256-tool limit and 256-finding/1,024-issue
+output limits. Summary totals include both sections. Per-text instruction bounds
+are listed in [Instruction-pattern review](INSTRUCTION-REVIEW.md). Reaching a
+limit produces an incomplete report. Truncated tree subsets can depend on
+filesystem enumeration order.
 
 No source snippets, command values, MCP names, URLs, dependency names, environment
 values or parser/OS exception messages appear in findings. Relative paths, file
