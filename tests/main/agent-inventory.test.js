@@ -93,20 +93,20 @@ describe('static project inventory', () => {
     expect(first.components[1].sha256).not.toBe(next.components[1].sha256);
   });
 
-  it('distinguishes absent paths from malformed JSON, unsupported formats and invalid shapes', async () => {
+  it('distinguishes absent paths from malformed configurations and invalid shapes', async () => {
     expect((await inventoryProject(project)).complete).toBe(true);
     put('.mcp.json', '{ PRIVATE_BROKEN_JSON');
     put('.cursor/mcp.json', '{"mcpServers":[]}');
-    put('.codex/config.toml', 'token="PRIVATE_TOML"');
-    put('.vscode/mcp.json', '// comment\n{"servers":{}}');
+    put('.codex/config.toml', 'token="PRIVATE_TOML');
+    put('.vscode/mcp.json', '/* PRIVATE_JSONC');
     const result = await inventoryProject(project);
     expect(result.complete).toBe(false);
     expect(result.issues).toEqual(
       expect.arrayContaining([
         { path: '.mcp.json', reason: 'invalid-json' },
         { path: '.cursor/mcp.json', reason: 'invalid-shape' },
-        { path: '.codex/config.toml', reason: 'unsupported-format' },
-        { path: '.vscode/mcp.json', reason: 'unsupported-format' },
+        { path: '.codex/config.toml', reason: 'invalid-toml' },
+        { path: '.vscode/mcp.json', reason: 'invalid-jsonc' },
       ]),
     );
     expect(JSON.stringify(result)).not.toContain('PRIVATE');

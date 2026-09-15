@@ -108,6 +108,7 @@ Inspect a project's AI component files without starting agents or MCP servers:
 
 ```powershell
 node src/main/main.js --inventory-json "X:/path/to/project"
+node src/main/main.js --inventory-profile-json codex-user "X:/copied-codex-profile"
 ```
 
 This produces a bounded local inventory with fingerprints, not a security
