@@ -9,6 +9,8 @@ This is a CLI workflow. It does not intercept tool calls or block processes.
 `assessment: "not-performed"` remains present, including in accepted snapshot files.
 Acceptance records a local review decision about bytes; it does not establish
 publisher identity or absence of malicious behavior.
+The separate [static review command](STATIC-ANALYSIS.md) can provide additional
+review findings; it never accepts or replaces a snapshot.
 
 ## Commands
 

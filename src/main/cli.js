@@ -14,6 +14,8 @@ const USAGE = `AEGIS — Independent AI Oversight Layer
 Usage:  aegis [options]
 
 Options:
+  --static-scan-json <adapter> <directory>  Review literal commands and agent/package settings
+    Static adapter: package (whole directory), project, or any profile below
   --inventory-json <directory>  Inventory project components without executing them
   --inventory-profile-json <profile> <directory>  Inventory one explicit profile directory
     Profiles: user-home, codex-user, claude-user, cursor-user, vscode-user,
@@ -76,6 +78,9 @@ async function handleCLI(argv) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  if (flag === '--static-scan-json') {
+    return require('./static-analysis-cli').handleStaticAnalysisCLI(args, write);
+  }
   if (require('./inventory-snapshot-cli').FLAGS.includes(flag)) {
     return require('./inventory-snapshot-cli').handleSnapshotCLI(args, write);
   }
