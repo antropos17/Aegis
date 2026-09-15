@@ -15,6 +15,9 @@ Usage:  aegis [options]
 
 Options:
   --inventory-json <directory>  Inventory project components without executing them
+  --inventory-profile-json <profile> <directory>  Inventory one explicit profile directory
+    Profiles: user-home, codex-user, claude-user, cursor-user, vscode-user,
+              claude-managed, codex-managed
   --scan-json   Run a single scan and output JSON to stdout
   --version     Print version and exit
   --help        Show this help message`.trim();
@@ -69,6 +72,28 @@ async function handleCLI(argv) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  if (flag === '--inventory-profile-json') {
+    if (args.length !== 3 || args.slice(1).some((arg) => !arg || arg.startsWith('--'))) {
+      write(JSON.stringify({ error: 'expected-profile-and-directory' }));
+      return 1;
+    }
+    try {
+      const { inventoryProfile } = require('./agent-inventory');
+      const data = await inventoryProfile(args[1], args[2]);
+      write(JSON.stringify(data, null, 2));
+      return data.complete ? 0 : 2;
+    } catch (error) {
+      write(
+        JSON.stringify({
+          error:
+            error.message === 'unsupported-profile'
+              ? 'unsupported-profile'
+              : 'inventory-unavailable',
+        }),
+      );
+      return 1;
+    }
+  }
   if (flag === '--inventory-json') {
     if (args.length !== 2 || !args[1] || args[1].startsWith('--')) {
       write(JSON.stringify({ error: 'expected-project-directory' }));

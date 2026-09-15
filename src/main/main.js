@@ -7,7 +7,13 @@
 'use strict';
 
 // ═══ CLI MODE (before Electron imports) ═══
-const _cliFlags = new Set(['--scan-json', '--inventory-json', '--version', '--help']);
+const _cliFlags = new Set([
+  '--scan-json',
+  '--inventory-json',
+  '--inventory-profile-json',
+  '--version',
+  '--help',
+]);
 if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
   require('./cli')
     .handleCLI()

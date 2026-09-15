@@ -48,6 +48,8 @@ async function createInventoryReader(directory, overrides = {}) {
   }
 
   async function checkedPath(relativePath) {
+    // Empty path is used only to enumerate the explicitly selected root.
+    if (relativePath === '') return { absolute: root, stat: await fs.promises.lstat(root) };
     const parts = relativePath.split('/');
     if (parts.some((p) => !p || p === '.' || p === '..' || p.includes('\\') || p.includes(':'))) {
       throw new Error('invalid-path');
@@ -103,15 +105,20 @@ async function createInventoryReader(directory, overrides = {}) {
     }
   }
 
-  /** Visit only named paths, optionally walking a known skills directory. */
-  async function visit(relativePath, onFile, recursive = false, depth = 0) {
-    if (stopped) return;
+  function takeEntry(relativePath) {
+    if (stopped) return false;
     if (entries >= limits.entries) {
       stopped = true;
       issue(relativePath, 'entry-limit');
-      return;
+      return false;
     }
     entries++;
+    return true;
+  }
+
+  /** Visit only named paths, optionally walking a known skills directory. */
+  async function visit(relativePath, onFile, recursive = false, depth = 0) {
+    if (!takeEntry(relativePath)) return;
     let observed = false;
     try {
       const { absolute, stat } = await checkedPath(relativePath);
@@ -141,7 +148,32 @@ async function createInventoryReader(directory, overrides = {}) {
     }
   }
 
-  return { visit, issues, limits, usage: () => ({ entries, bytes }) };
+  /** Enumerate direct children, reading only matches; every enumerated name costs budget. */
+  async function visitMatching(relativePath, matches, onFile) {
+    if (!takeEntry(relativePath)) return;
+    let observed = false;
+    try {
+      const { absolute, stat } = await checkedPath(relativePath);
+      observed = true;
+      if (!stat.isDirectory()) {
+        issue(relativePath, 'unsupported-file-type');
+        return;
+      }
+      const directoryHandle = await fs.promises.opendir(absolute);
+      for await (const entry of directoryHandle) {
+        if (stopped) break;
+        const name = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+        if (matches(entry.name)) await visit(name, onFile, false, 1);
+        else if (!takeEntry(name)) break;
+      }
+    } catch (error) {
+      if (error.code === 'ENOENT' && !observed) return;
+      const known = ['link-skipped', 'path-changed', 'invalid-path'];
+      issue(relativePath, known.includes(error.message) ? error.message : 'unreadable');
+    }
+  }
+
+  return { visit, visitMatching, issues, limits, usage: () => ({ entries, bytes }) };
 }
 
 module.exports = { createInventoryReader };

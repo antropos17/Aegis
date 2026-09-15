@@ -1,0 +1,254 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createRequire } from 'node:module';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+
+const require = createRequire(import.meta.url);
+const { inventoryProfile, inventoryProject } = require('../../src/main/agent-inventory');
+const { getInventoryProfile } = require('../../src/main/inventory-profiles');
+const main = path.resolve(import.meta.dirname, '../../src/main/main.js');
+let fixture;
+let root;
+let links;
+
+function put(name, contents) {
+  const target = path.join(root, name);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, contents);
+  return target;
+}
+
+beforeEach(() => {
+  fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-profiles-'));
+  root = path.join(fixture, 'copied user Юникод');
+  fs.mkdirSync(root);
+  links = [];
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  for (const link of links) fs.unlinkSync(link);
+  fs.rmSync(fixture, { recursive: true, force: true });
+});
+
+describe('explicit inventory profiles', () => {
+  it('covers user declarations, scripts and named profiles without reading auth/history', async () => {
+    const config = '[mcp_servers.demo]\ncommand="DO_NOT_EXECUTE"\n[hooks]\nPreToolUse=[]';
+    put('.codex/config.toml', config);
+    put('.codex/private-review.config.toml', config);
+    put('.codex/auth.json', 'PRIVATE_AUTH');
+    put('.codex/history.jsonl', 'PRIVATE_HISTORY');
+    put('.claude/settings.json', '{"hooks":{}}');
+    put(
+      '.claude.json',
+      '{"mcpServers":{"global":{}},"projects":{"PRIVATE_PROJECT":{"mcpServers":{"local":{}}}}}',
+    );
+    put('.cursor/mcp.json', '{"mcpServers":{}}');
+    put('.agents/skills/demo/SKILL.md', 'PRIVATE_SKILL');
+    put('.agents/skills/demo/run.js', 'DO_NOT_EXECUTE');
+    put('.codex/AGENTS.md', 'PRIVATE_INSTRUCTION');
+    put('.codex/deeper/ignored.config.toml', config);
+    const open = vi.spyOn(fs.promises, 'open');
+    const report = await inventoryProfile('user-home', root);
+    expect(report).toMatchObject({
+      schemaVersion: 2,
+      mode: 'profile-inventory',
+      complete: true,
+      adapter: { id: 'user-home', version: 1 },
+      assessment: 'not-performed',
+    });
+    expect(report.components.map((entry) => entry.path)).toEqual([
+      '.agents/skills/demo/SKILL.md',
+      '.agents/skills/demo/run.js',
+      '.claude.json',
+      '.claude/settings.json',
+      '.codex/AGENTS.md',
+      '.codex/config.toml',
+      '.codex/private-review.config.toml',
+      '.cursor/mcp.json',
+    ]);
+    expect(report.components.find((entry) => entry.path === '.codex/config.toml')).toMatchObject({
+      declaredSections: { mcp_servers: 1, hooks: 1 },
+      sha256: createHash('sha256').update(config).digest('hex'),
+      provenance: {
+        agent: 'codex',
+        scope: 'user',
+        basis: 'selected-layout',
+        agentVersion: null,
+        packageIdentity: 'not-resolved',
+      },
+    });
+    expect(report.components.find((entry) => entry.path === '.claude.json')).toMatchObject({
+      declaredEntries: 1,
+      projectScopedEntries: 1,
+    });
+    expect(
+      open.mock.calls.map(([name]) => name).some((name) => /auth|history|deeper/.test(name)),
+    ).toBe(false);
+    expect(JSON.stringify(report)).not.toMatch(/PRIVATE|DO_NOT_EXECUTE/);
+    expect(JSON.stringify(report)).not.toContain(root);
+  });
+
+  it('parses project TOML/JSONC and records scope without changing original hashes', async () => {
+    put('.vscode/mcp.json', '// comment\n{"servers":{"one":{},},}');
+    put('.codex/config.toml', '[mcp_servers.one]\ncommand="PRIVATE"');
+    put('AGENTS.override.md', 'private instruction override');
+    const report = await inventoryProject(root);
+    expect(report.complete).toBe(true);
+    expect(
+      report.components.filter((entry) => entry.parseStatus).map((entry) => entry.declaredEntries),
+    ).toEqual([1, 1]);
+    expect(report.components.every((entry) => entry.provenance.scope === 'project')).toBe(true);
+  });
+
+  it.each([
+    ['codex-user', 'config.toml', '[mcp_servers.one]\ncommand="PRIVATE"', 'codex'],
+    ['claude-user', 'settings.json', '{"hooks":{"PreToolUse":[]}}', 'claude-code'],
+    ['cursor-user', 'mcp.json', '{"mcpServers":{"one":{}}}', 'cursor'],
+    ['vscode-user', 'mcp.json', '/* comment */ {"servers":{"one":{},},}', 'vscode'],
+    [
+      'codex-managed',
+      'requirements.toml',
+      '[mcp_servers.one]\nidentity={command="PRIVATE"}',
+      'codex',
+    ],
+    ['claude-managed', 'managed-mcp.json', '{"mcpServers":{"one":{}}}', 'claude-code'],
+  ])(
+    'reads only the selected %s layout from an arbitrary copied directory',
+    async (profile, file, content, agent) => {
+      put(file, content);
+      put('history.jsonl', 'PRIVATE_HISTORY');
+      const report = await inventoryProfile(profile, root);
+      expect(report.complete).toBe(true);
+      expect(report.components).toHaveLength(1);
+      expect(report.components[0]).toMatchObject({
+        path: file,
+        declaredEntries: 1,
+        provenance: { agent },
+      });
+      expect(JSON.stringify(report)).not.toContain('PRIVATE');
+    },
+  );
+
+  it('reads direct managed drop-ins and reports malformed ones without descending into other state', async () => {
+    put('managed-settings.json', '{"hooks":{}}');
+    put('managed-settings.d/10-hooks.json', '{"hooks":{"PreToolUse":[]}}');
+    put('managed-settings.d/20-broken.json', '{ PRIVATE_BROKEN');
+    put('managed-settings.d/.hidden.json', 'PRIVATE_HIDDEN');
+    put('managed-settings.d/readme.txt', 'PRIVATE_TEXT');
+    put('managed-settings.d/nested/30-ignored.json', '{}');
+    const open = vi.spyOn(fs.promises, 'open');
+    const report = await inventoryProfile('claude-managed', root);
+    expect(report.complete).toBe(false);
+    expect(report.components.map((entry) => entry.path)).toEqual([
+      'managed-settings.d/10-hooks.json',
+      'managed-settings.d/20-broken.json',
+      'managed-settings.json',
+    ]);
+    expect(report.issues).toEqual([
+      { path: 'managed-settings.d/20-broken.json', reason: 'invalid-json' },
+    ]);
+    expect(open).toHaveBeenCalledTimes(3);
+    expect(JSON.stringify(report)).not.toContain('PRIVATE');
+  });
+
+  it('bounds directory enumeration even when no names match', async () => {
+    for (let i = 0; i < 30; i++) put(`history-${i}.jsonl`, 'PRIVATE');
+    const open = vi.spyOn(fs.promises, 'open');
+    const report = await inventoryProfile('codex-user', root, { limits: { entries: 8 } });
+    expect(report.complete).toBe(false);
+    expect(report.usage.entries).toBe(8);
+    expect(report.issues).toHaveLength(1);
+    expect(report.issues[0].reason).toBe('entry-limit');
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('skips linked config directories and never reads the external target', async () => {
+    const outside = path.join(fixture, 'outside');
+    fs.mkdirSync(outside);
+    fs.writeFileSync(path.join(outside, '10-hooks.json'), '{"hooks":{}}');
+    const link = path.join(root, 'managed-settings.d');
+    fs.symlinkSync(outside, link, process.platform === 'win32' ? 'junction' : 'dir');
+    links.push(link);
+    const open = vi.spyOn(fs.promises, 'open');
+    const report = await inventoryProfile('claude-managed', root);
+    expect(report.issues).toContainEqual({ path: 'managed-settings.d', reason: 'link-skipped' });
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('reports a matching directory as an unsupported file rather than recursively reading it', async () => {
+    put('fake.config.toml/config.toml', 'PRIVATE');
+    const report = await inventoryProfile('codex-user', root);
+    expect(report.issues).toContainEqual({
+      path: 'fake.config.toml',
+      reason: 'unsupported-file-type',
+    });
+    expect(report.components).toEqual([]);
+  });
+
+  it('reports an unreadable pattern directory with a fixed reason', async () => {
+    fs.mkdirSync(path.join(root, 'managed-settings.d'));
+    vi.spyOn(fs.promises, 'opendir').mockRejectedValue(new Error('PRIVATE_OS_ERROR'));
+    const report = await inventoryProfile('claude-managed', root);
+    expect(report.issues).toContainEqual({ path: 'managed-settings.d', reason: 'unreadable' });
+    expect(JSON.stringify(report)).not.toContain('PRIVATE');
+  });
+
+  it.each(['unknown', '__proto__', 'constructor', 'project'])(
+    'rejects %s before filesystem access',
+    async (id) => {
+      const realpath = vi.spyOn(fs.promises, 'realpath');
+      await expect(inventoryProfile(id, root)).rejects.toThrow('unsupported-profile');
+      expect(realpath).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps built-in layouts isolated from caller mutation', () => {
+    getInventoryProfile('codex-user').configs[0].path = '../auth.json';
+    expect(getInventoryProfile('codex-user').configs[0].path).toBe('config.toml');
+  });
+});
+
+describe('profile inventory CLI', () => {
+  const run = (...args) =>
+    spawnSync(process.execPath, [main, '--inventory-profile-json', ...args], {
+      encoding: 'utf8',
+      timeout: 10000,
+    });
+
+  it('runs without Electron and uses the chosen directory, not CODEX_HOME', () => {
+    put('config.toml', '[mcp_servers.a]\ncommand="DO_NOT_EXECUTE"');
+    const result = spawnSync(
+      process.execPath,
+      [main, '--inventory-profile-json', 'codex-user', root],
+      {
+        encoding: 'utf8',
+        timeout: 10000,
+        env: { ...process.env, CODEX_HOME: path.join(fixture, 'not-selected') },
+      },
+    );
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe('');
+    expect(JSON.parse(result.stdout)).toMatchObject({ mode: 'profile-inventory', complete: true });
+    expect(JSON.parse(result.stdout).components[0].declaredEntries).toBe(1);
+  });
+
+  it('distinguishes CLI errors, unsupported profiles, unavailable roots and incomplete data', () => {
+    const missing = run('codex-user');
+    expect(missing.status).toBe(1);
+    expect(JSON.parse(missing.stdout).error).toBe('expected-profile-and-directory');
+    expect(JSON.parse(run('unknown', root).stdout).error).toBe('unsupported-profile');
+    expect(JSON.parse(run('codex-user', path.join(root, 'absent')).stdout).error).toBe(
+      'inventory-unavailable',
+    );
+    put('config.toml', '[ PRIVATE_BROKEN');
+    const incomplete = run('codex-user', root);
+    expect(incomplete.status).toBe(2);
+    expect(JSON.parse(incomplete.stdout).complete).toBe(false);
+    expect(incomplete.stdout).not.toContain('PRIVATE');
+    expect(run('codex-user', root, '--scan-json').status).toBe(1);
+  });
+});
