@@ -164,6 +164,7 @@
     "vitest": "^4.1.11"
   },
   "dependencies": {
+    "acorn": "8.16.0",
     "ajv": "^6.14.0",
     "chokidar": "^3.6.0",
     "electron-updater": "6.8.9",
