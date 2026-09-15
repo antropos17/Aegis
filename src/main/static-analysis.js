@@ -15,6 +15,7 @@ const { VALUE_STEPS } = require('./static-javascript-values');
 const { analyzePython } = require('./static-python');
 const { PYTHON_LIMITS } = require('./static-python-tree');
 const { PYTHON_VALUE_STEPS } = require('./static-python-values');
+const { createStaticCatalog, bindStaticFlow, FLOW_LIMITS } = require('./static-code-catalog');
 const { staticRule, staticRuleSet } = require('./static-analysis-rules');
 const { parseInventoryConfig, PARSE_DEPTH } = require('./inventory-config');
 const { resolveSnapshotSubject, checkSnapshotSubject } = require('./inventory-snapshot-files');
@@ -102,7 +103,7 @@ function commandFile(text, markdown) {
   return { findings, issues: [...issues], commands };
 }
 
-function analyzeFile(name, data, entry) {
+function analyzeFile(name, data, entry, catalog) {
   const base = name.split(/[/\\]/).at(-1);
   if (entry.kind === 'policy')
     return {
@@ -137,8 +138,9 @@ function analyzeFile(name, data, entry) {
   if (text.includes('\0'))
     return { mode: 'unsupported', findings: [], issues: ['binary-not-analyzed'], commands: 0 };
   if (/\.(?:js|mjs|cjs)$/i.test(base))
-    return { mode: 'javascript-command-ast', ...analyzeJavaScript(text, name) };
-  if (/\.py$/i.test(base)) return { mode: 'python-command-syntax', ...analyzePython(text) };
+    return { mode: 'javascript-command-ast', ...analyzeJavaScript(text, name, catalog) };
+  if (/\.py$/i.test(base))
+    return { mode: 'python-command-syntax', ...analyzePython(text, name, catalog) };
   if (
     /\.(?:sh|bash|zsh|ps1)$/i.test(base) ||
     /^#![^\r\n]*(?:\/(?:ba|da|z)?sh|\benv\s+(?:ba|da|z)?sh)\b/.test(text)
@@ -175,41 +177,59 @@ async function scanStaticDirectory(adapter, directory, options = {}) {
     issueKeys.add(key);
     issues.push({ path, reason });
   }
+  const snapshots = [];
   const visit = await visitStaticFiles(
     adapter,
     subject.root,
-    (name, file, entry) => {
-      let analysis;
-      try {
-        analysis = analyzeFile(name, file.data, entry);
-      } catch (_) {
-        analysis = { mode: 'unsupported', findings: [], issues: ['analysis-failed'], commands: 0 };
-      }
-      files.push({
-        path: name,
-        sha256: file.sha256,
-        size: file.size,
-        analysis: analysis.mode,
-        commands: analysis.commands,
-        complete: analysis.issues.length === 0,
-      });
-      analysis.issues.forEach((reason) => issue(name, reason));
-      for (const finding of analysis.findings) {
-        if (findings.length >= FINDING_LIMIT) {
-          issue('', 'finding-limit');
-          break;
-        }
-        findings.push({
-          ...staticRule(finding.ruleId),
-          path: name,
-          sha256: file.sha256,
-          line: finding.line ?? null,
-          context: finding.context,
-        });
-      }
-    },
+    (name, file, entry) => snapshots.push({ path: name, file, entry }),
     options.limits,
   );
+  snapshots.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  const catalog = createStaticCatalog(snapshots, visit.issues);
+  const excludedFlowFiles = new Set(catalog.issues.map(({ path }) => path));
+  catalog.issues.forEach(({ path, reason }) => issue(path, reason));
+  for (const { path: name, file, entry } of snapshots) {
+    let analysis;
+    try {
+      analysis = analyzeFile(name, file.data, entry, catalog);
+    } catch (_) {
+      analysis = { mode: 'unsupported', findings: [], issues: ['analysis-failed'], commands: 0 };
+    }
+    files.push({
+      path: name,
+      sha256: file.sha256,
+      size: file.size,
+      analysis: analysis.mode,
+      commands: analysis.commands,
+      complete: analysis.issues.length === 0 && !excludedFlowFiles.has(name),
+    });
+    analysis.issues.forEach((reason) => issue(name, reason));
+    for (const finding of analysis.findings) {
+      if (findings.length >= FINDING_LIMIT) {
+        issue('', 'finding-limit');
+        break;
+      }
+      let flow = null;
+      try {
+        if (finding.flow) flow = bindStaticFlow(finding.flow, name, catalog);
+      } catch (_) {
+        flow = { issue: 'flow-evidence-invalid' };
+      }
+      if (flow?.issue) {
+        issue(name, flow.issue);
+        files.at(-1).complete = false;
+        continue;
+      }
+      findings.push({
+        ...staticRule(finding.ruleId),
+        path: name,
+        sha256: file.sha256,
+        line: finding.line ?? null,
+        context: finding.context,
+        ...(flow ? { flow: flow.value } : {}),
+      });
+    }
+  }
   visit.issues.forEach(({ path, reason }) => issue(path, reason));
   await checkSnapshotSubject(subject);
   if (issueOverflow) issues.push({ path: '', reason: 'analysis-issue-limit' });
@@ -249,10 +269,11 @@ async function scanStaticDirectory(adapter, directory, options = {}) {
       javascriptValueSteps: VALUE_STEPS,
       ...PYTHON_LIMITS,
       pythonValueSteps: PYTHON_VALUE_STEPS,
+      ...FLOW_LIMITS,
       findings: FINDING_LIMIT,
       issues: ISSUE_LIMIT,
     },
-    usage: visit.usage,
+    usage: { ...visit.usage, ...catalog.usage() },
     summary: {
       filesRead: files.length,
       unsupportedFiles: files.filter((file) => file.analysis === 'unsupported').length,

@@ -5,7 +5,7 @@ const { getInventoryProfile, matchesInventoryConfig } = require('./inventory-pro
 
 /**
  * Visit explicit layouts or an entire selected package with the shared read bounds.
- * The callback consumes bytes synchronously; no file contents are returned in scope metadata.
+ * The callback receives bounded bytes; no file contents are returned in scope metadata.
  * @param {string} adapter Built-in inventory adapter or package.
  * @param {string} root Canonical selected directory.
  * @param {function} onFile Internal byte consumer.
@@ -65,6 +65,9 @@ async function visitStaticFiles(adapter, root, onFile, limits) {
       python: 'literal-subprocess-and-os-calls',
       pythonControlFlow: 'not-evaluated',
       pythonModules: 'names-only-not-resolved',
+      codeFlow: 'bounded-selected-source-literals-and-simple-wrappers',
+      codeFlowResolution: 'syntactic-associations-runtime-not-verified',
+      codeFlowSnapshot: 'per-file-bytes-no-atomic-project-snapshot',
       runtimeBehavior: 'not-observed',
       snapshot: 'best-effort',
     },

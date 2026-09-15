@@ -65,14 +65,17 @@ the affected scope. This conservative behavior can miss real calls and is visibl
 in coverage issues. Runtime name lookup, closures, decorators and type evaluation
 are not fully modeled.
 
-This slice has no interfile/interprocedural dataflow, arbitrary filesystem or
-network API analysis, payload decoding, instruction semantics or action blocking.
+A bounded [selected-source flow layer](STATIC-COMMAND-FLOW.md) now associates
+imported strings and simple wrapper calls. General dataflow, arbitrary filesystem
+or network API analysis, payload decoding, instruction semantics and action blocking
+remain outside this subset.
 An unmatched package is not declared safe. Review the reported gaps and the source
 before making a separate trust decision.
 
 ## Contract and limits
 
-Reports retain schema version 1 and use `aegis-static-patterns` version 3.
+Python review was introduced in `aegis-static-patterns` version 3. Reports retain
+schema version 1; [Local static review](STATIC-ANALYSIS.md) lists the current rule-set version.
 Findings reuse STA001–STA006, with `context: python-command`, a call's starting
 line, the relative path and SHA-256 of original bytes. Commands, strings, URLs,
 snippets and parser exception messages are not emitted. Paths and hashes remain

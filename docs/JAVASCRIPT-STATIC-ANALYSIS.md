@@ -66,12 +66,14 @@ resolution and report dynamic code. These conservative checks do not model every
 possible mutation, indirect dynamic execution or dependency side effect.
 
 Branches and function bodies are scanned syntactically, including unreachable
-code. A fixed issue states that control flow was not evaluated. No interfile or
-interprocedural dataflow, module execution order, environment expansion, deobfuscation,
-filesystem/network API analysis or instruction semantics is implemented.
+code. A fixed issue states that control flow was not evaluated. A bounded
+[selected-source flow layer](STATIC-COMMAND-FLOW.md) associates imported literal
+values and simple wrapper calls. General dataflow, module execution order,
+environment expansion, deobfuscation, filesystem/network API analysis and
+instruction semantics remain outside this subset.
 TypeScript and JSX remain unsupported; Python has a separate
 [command-review subset](PYTHON-STATIC-ANALYSIS.md). Imported libraries and child program paths
-are not followed; files already inside the selected traversal are inspected independently.
+cause no additional reads; eligible files already selected can participate in flow review.
 
 ## Report and resource bounds
 

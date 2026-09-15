@@ -1,17 +1,49 @@
 'use strict';
 
 const { parseJavaScript } = require('./static-javascript-ast');
-const { inspectJavaScriptInvocation } = require('./static-javascript-invocation');
 const { indexScopes, lookup, children, FUNCTIONS } = require('./static-javascript-scope');
-const { createValues } = require('./static-javascript-values');
+const { createValues, UNKNOWN, VALUE_STEPS } = require('./static-javascript-values');
+const { createJavaScriptModules } = require('./static-javascript-modules');
+const { createJavaScriptFlow } = require('./static-javascript-flow');
 const { COMMANDS_PER_FILE } = require('./static-config-analysis');
 
 function invalidateMutations(index, values, issues) {
+  let escapeSteps = 0;
   function carriesModule(value) {
     if (values.isModule(value)) return true;
     if (Array.isArray(value)) return value.some(carriesModule);
     if (value instanceof Map) return [...value.values()].some(carriesModule);
     return false;
+  }
+  function carriesModuleSyntax(node) {
+    const seen = new Set();
+    function visit(current, depth) {
+      if (!current) return false;
+      if (++escapeSteps > VALUE_STEPS || depth > 64) {
+        issues.add('javascript-value-limit');
+        return true;
+      }
+      const value = values.read(current);
+      if (carriesModule(value)) return true;
+      const next = (child) => visit(child, depth + 1);
+      if (current.type === 'Identifier' && value === UNKNOWN) {
+        const binding = lookup(index.scopes.get(current), current.name);
+        if (binding?.kind === 'const' && !seen.has(binding)) {
+          seen.add(binding);
+          return next(binding.init);
+        }
+      }
+      if (['ArrayExpression', 'ObjectExpression', 'LogicalExpression'].includes(current.type))
+        return children(current).some(next);
+      if (current.type === 'Property') return next(current.value);
+      if (['SpreadElement', 'AwaitExpression'].includes(current.type))
+        return next(current.argument);
+      if (current.type === 'ConditionalExpression')
+        return next(current.consequent) || next(current.alternate);
+      if (current.type === 'SequenceExpression') return next(current.expressions.at(-1));
+      return false;
+    }
+    return visit(node, 0);
   }
   function mutation(node) {
     if (!node) return;
@@ -54,14 +86,24 @@ function invalidateMutations(index, values, issues) {
         values.state.moduleMutated = true;
         values.state.loaderMutated = true;
       }
-      if (node.arguments.some((argument) => carriesModule(values.read(argument)))) {
+      if (node.arguments.some(carriesModuleSyntax)) {
         issues.add('javascript-module-escape-not-resolved');
         values.state.moduleMutated = true;
       }
     }
     if (
-      ['ObjectExpression', 'ArrayExpression'].includes(node.type) &&
-      carriesModule(values.read(node))
+      (['ObjectExpression', 'ArrayExpression'].includes(node.type) && carriesModuleSyntax(node)) ||
+      (['ReturnStatement', 'YieldExpression'].includes(node.type) &&
+        carriesModuleSyntax(node.argument)) ||
+      (node.type === 'ArrowFunctionExpression' &&
+        node.body.type !== 'BlockStatement' &&
+        carriesModuleSyntax(node.body)) ||
+      (node.type === 'AssignmentExpression' &&
+        node.left.type === 'MemberExpression' &&
+        carriesModuleSyntax(node.right)) ||
+      (node.type === 'VariableDeclaration' &&
+        node.kind !== 'const' &&
+        node.declarations.some((declaration) => carriesModuleSyntax(declaration.init)))
     ) {
       issues.add('javascript-module-escape-not-resolved');
       values.state.moduleMutated = true;
@@ -69,16 +111,30 @@ function invalidateMutations(index, values, issues) {
   }
 }
 
-/** Inspect a bounded JavaScript command subset without loading the source. @param {string} text @param {string} name @returns {object} Fixed findings and coverage gaps. @since v0.15.1 */
-function analyzeJavaScript(text, name) {
-  const result = parseJavaScript(text, name);
+/** Inspect bounded JavaScript and admitted snapshot call relations without execution. @param {string} text @param {string} name @param {object} [catalog] Read-only admitted source catalog. @returns {object} Fixed findings and coverage gaps. @since v0.15.1 */
+function analyzeJavaScript(text, name, catalog) {
   const findings = [];
   const issues = new Set();
   let commands = 0;
-  if (result.issue) return { findings, issues: [result.issue], commands };
-  const index = indexScopes(result.ast, result.mode);
-  const values = createValues(index, result.mode, issues);
-  invalidateMutations(index, values, issues);
+  const modules = createJavaScriptModules(catalog, issues, (model) => {
+    const result = parseJavaScript(model.text, model.path);
+    if (result.issue) {
+      issues.add(result.issue);
+      return;
+    }
+    model.ast = result.ast;
+    model.index = indexScopes(result.ast, result.mode);
+    model.values = createValues(model.index, result.mode, issues, {
+      owner: model,
+      importValue: (source, key) => modules.resolve(model, source, key),
+      memberValue: modules.member,
+    });
+    invalidateMutations(model.index, model.values, issues);
+  });
+  const root = modules.add(name, text);
+  if (!root?.index) return { findings, issues: [...issues].sort(), commands };
+  const { index, values } = root;
+  const flow = createJavaScriptFlow(catalog, issues);
   for (const node of index.nodes) {
     if (
       FUNCTIONS.has(node.type) ||
@@ -101,15 +157,13 @@ function analyzeJavaScript(text, name) {
       ].includes(node.type)
     )
       issues.add('javascript-control-flow-not-evaluated');
+    if (node.type === 'ImportExpression') issues.add('javascript-module-not-resolved');
     if (
-      node.type === 'ImportExpression' ||
-      (node.source &&
-        ['ImportDeclaration', 'ExportNamedDeclaration', 'ExportAllDeclaration'].includes(
-          node.type,
-        ) &&
-        !['child_process', 'node:child_process'].includes(node.source.value))
+      node.source &&
+      ['ImportDeclaration', 'ExportNamedDeclaration', 'ExportAllDeclaration'].includes(node.type) &&
+      !['child_process', 'node:child_process'].includes(node.source.value)
     )
-      issues.add('javascript-module-not-resolved');
+      modules.resolve(root, node.source.value, '*');
     if (
       ['NewExpression', 'TaggedTemplateExpression', 'ClassDeclaration', 'ClassExpression'].includes(
         node.type,
@@ -121,21 +175,20 @@ function analyzeJavaScript(text, name) {
       values.read(node);
       continue;
     }
-    const target = values.read(node.callee);
-    if (target?.kind !== 'method') {
-      issues.add('javascript-call-target-not-resolved');
-      continue;
-    }
     if (commands >= COMMANDS_PER_FILE) {
       issues.add('command-count-limit');
       break;
     }
-    commands++;
-    const analysis = inspectJavaScriptInvocation(target.name, node, values.read);
+    const analysis = flow.inspect(root, node);
+    commands += analysis.commands;
     analysis.rules.forEach((ruleId) =>
-      findings.push({ ruleId, line: node.loc.start.line, context: 'javascript-command' }),
+      findings.push({
+        ruleId,
+        line: node.loc.start.line,
+        context: analysis.flow ? 'javascript-command-flow' : 'javascript-command',
+        ...(analysis.flow ? { flow: analysis.flow } : {}),
+      }),
     );
-    analysis.issues.forEach((issue) => issues.add(issue));
   }
   return { findings, issues: [...issues].sort(), commands };
 }

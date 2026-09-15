@@ -7,9 +7,9 @@ It reads local bytes without running commands, starting MCP servers, installing
 packages, resolving DNS, uploading content or modifying files.
 
 The built-in engine includes bounded [JavaScript](JAVASCRIPT-STATIC-ANALYSIS.md)
-and [Python](PYTHON-STATIC-ANALYSIS.md) command analysis. Interprocedural dataflow,
-semantic prompt-injection detection and a vulnerability database remain outside
-this scope.
+and [Python](PYTHON-STATIC-ANALYSIS.md) command analysis, including bounded
+[selected-source literal and wrapper flow](STATIC-COMMAND-FLOW.md). General dataflow,
+semantic prompt-injection detection and a vulnerability database remain outside this scope.
 The separate [external report importer](STATIC-REPORT-IMPORT.md) accepts explicit
 Cisco JSON/SARIF results alongside this local review. It does not add those
 analysis engines to AEGIS, connect findings to the dashboard or block an action.
@@ -91,7 +91,7 @@ visible in `issues`. Their file hashes remain in `files` when reading succeeded.
 
 ## Built-in checks
 
-Rule-set ID: `aegis-static-patterns`, version `3`. Each report includes fixed rule
+Rule-set ID: `aegis-static-patterns`, version `4`. Each report includes fixed rule
 metadata. Severity prioritizes review; every finding has `confidence: heuristic`.
 
 | ID | Severity | Review trigger |
@@ -139,6 +139,8 @@ JavaScript adds per-file character, token, AST-node, nesting and value-work budg
 all exposed in `limits` and detailed in its [contract](JAVASCRIPT-STATIC-ANALYSIS.md).
 Python adds bounded parsing advances, syntax-tree nodes/depth and static value
 work; its [contract](PYTHON-STATIC-ANALYSIS.md) lists the corresponding limits.
+Selected-source flow adds shared source, resolution and work limits plus bounded
+module/call depth. Its [contract](STATIC-COMMAND-FLOW.md) describes hash-bound evidence.
 Output is capped at 256 findings and 1,024 issues. Reaching a limit produces an
 incomplete report. Truncated subsets can depend on filesystem enumeration order.
 

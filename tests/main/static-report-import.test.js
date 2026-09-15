@@ -62,11 +62,16 @@ describe('explicit external static review', () => {
   it.each([
     [1, ['javascript', 'python']],
     [2, ['python']],
+    [3, []],
   ])(
-    'requires review when a baseline predates language coverage (rule-set %i)',
+    'requires review when a baseline predates language or flow coverage (rule-set %i)',
     async (version, languages) => {
       const before = await scanStaticDirectory('package', root);
       before.ruleSet.version = version;
+      for (const key of Object.keys(before.scope))
+        if (key.startsWith('codeFlow')) delete before.scope[key];
+      for (const key of Object.keys(before.limits))
+        if (key.startsWith('flow')) delete before.limits[key];
       for (const language of languages) {
         delete before.scope[language];
         delete before.scope[language + 'ControlFlow'];
