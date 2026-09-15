@@ -50,6 +50,13 @@ prose around the numbers survives a re-run — the precedent is
 
 ## Running
 
+`node bench/observer-compare.cjs` compares the native Windows observer with its
+PowerShell fallbacks using disposable loopback connections, a held fixture file
+and its owning child process. It imports production transports as the system
+under test, verifies endpoint/state tuples, command lines and holder release,
+and prints only numeric results and source/binary hashes. This diagnostic is
+separate from the accuracy/oracle method below and does not establish event recall.
+
 For opt-in profiling of the real monitoring cycle, see
 [`cycle-profile/README.md`](cycle-profile/README.md). That diagnostic harness loads
 `src/main/main.js` and wraps selected calls to record timing and resource aggregates.

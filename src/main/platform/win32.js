@@ -10,6 +10,8 @@ const logger = require('../logger');
 const restartManager = require('./restart-manager');
 const snapshot = require('./process-snapshot');
 const { buildTcpQuery, parseTcpRows } = require('./windows-tcp');
+const { createWindowsObserver, validateCwds } = require('./windows-observer');
+const observer = createWindowsObserver({ execFile });
 
 /**
  * Whether the handle.exe/handle64.exe binary is on PATH — the LEGACY read-detect
@@ -149,17 +151,18 @@ function getParentProcessMap() {
 }
 
 /**
- * Get raw TCP connections via the CIM table underlying Get-NetTCPConnection.
+ * Get raw TCP connections via the native observer, with direct CIM fallback.
  * @param {number[]} pids
  * @returns {Promise<import("../../shared/types/process").RawTcpConnection[]>}
  */
-function getRawTcpConnections(pids) {
+async function getRawTcpConnections(pids) {
+  const validPids = pids.filter((p) => Number.isInteger(p) && p > 0 && p <= 0xffffffff);
+  if (!validPids.length) return [];
+  const native = await observer.tryRequest('tcp', { pids: validPids }, (rows) =>
+    parseTcpRows(JSON.stringify(rows), validPids),
+  );
+  if (native !== null) return native;
   return new Promise((resolve, reject) => {
-    const validPids = pids.filter((p) => Number.isInteger(p) && p > 0 && p <= 0xffffffff);
-    if (validPids.length === 0) {
-      resolve([]);
-      return;
-    }
     const psScript = buildTcpQuery(validPids);
     execFile(
       'powershell.exe',
@@ -378,7 +381,7 @@ function getProcessCwd(pid) {
   pid = Number(pid);
   if (!Number.isInteger(pid) || pid <= 0) return Promise.resolve(null);
   return new Promise((resolve) => {
-    const psScript = `$ErrorActionPreference="SilentlyContinue";$p=Get-CimInstance Win32_Process -Filter "ProcessId=${pid}";if($p -and $p.CommandLine){$m=$p.CommandLine -match '(?:--cwd|--project)\\s+"?([^"]+)"?';if($m){$Matches[1]}else{""}}else{""}`;
+    const psScript = `$ErrorActionPreference="SilentlyContinue";[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false);$p=Get-CimInstance Win32_Process -Filter "ProcessId=${pid}";if($p -and $p.CommandLine){$m=$p.CommandLine -match '(?:--cwd|--project)\\s+"?([^"]+)"?';if($m){$Matches[1]}else{""}}else{""}`;
     execFile(
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-Command', psScript],
@@ -408,18 +411,25 @@ function extractCwdFromCommandLine(commandLine) {
 }
 
 /**
- * Batch CWD lookup — single PowerShell call for multiple PIDs.
+ * Batch CWD lookup — one native observation or PowerShell fallback for multiple PIDs.
  * Returns a Map<number, string|null> of pid → cwd.
  * @param {number[]} pids
  * @returns {Promise<Map<number, string|null>>}
  * @since v0.5.0
  */
-function getProcessCwds(pids) {
-  const validPids = pids.filter((p) => Number.isInteger(Number(p)) && Number(p) > 0);
+async function getProcessCwds(pids) {
+  const validPids = pids.map(Number).filter((p) => Number.isInteger(p) && p > 0 && p <= 0xffffffff);
   if (validPids.length === 0) return Promise.resolve(new Map());
+  const native = await observer.tryRequest('cwd', { pids: validPids }, (rows) =>
+    validateCwds(rows, validPids),
+  );
+  if (native !== null)
+    return new Map(
+      native.map((row) => [row.ProcessId, extractCwdFromCommandLine(row.CommandLine)]),
+    );
   return new Promise((resolve) => {
     const pidFilter = validPids.map((p) => `ProcessId=${p}`).join(' OR ');
-    const psScript = `$ErrorActionPreference="SilentlyContinue";Get-CimInstance Win32_Process -Filter '${pidFilter}' -Property ProcessId,CommandLine | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress`;
+    const psScript = `$ErrorActionPreference="SilentlyContinue";[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false);Get-CimInstance Win32_Process -Filter '${pidFilter}' -Property ProcessId,CommandLine | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress`;
     const t0 = performance.now();
     execFile(
       'powershell.exe',

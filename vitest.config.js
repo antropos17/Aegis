@@ -54,6 +54,7 @@ export default defineConfig({
         'src/main/resource-monitor.js',
         'src/main/platform/windows-resources.js',
         'src/main/platform/windows-tcp.js',
+        'src/main/platform/windows-observer.js',
         'src/main/file-watcher.js',
         'src/main/ipc-batcher.js',
         'src/main/file-access-batching.js',

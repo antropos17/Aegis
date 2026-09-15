@@ -2634,3 +2634,45 @@ at `X:/tmp/aegis-tcp-cim-live-20260915` and ignored comparison/command receipts 
 logs, audit and databases. Temporary test output uses the guarded X: runtime;
 closed diagnostic ETL files are checked during work, with no persistent rotation
 installed. All native checks ran without ETW opt-in or UAC.
+
+### 2026-09-15 — Close the combined Windows observer optimization pass
+
+`codex/final-monitor-optimization` / PR #466 adds the one-shot native observer for
+Restart Manager holders, TCP and batch CWD. The same Windows APIs, registration
+groups, collection intervals and attribution are preserved, with bounded stdin
+and stdout, per-mode fallback cooldown and a PowerShell startup rollback switch.
+The existing Windows packaging hook builds it with the inbox compiler. CWD/RM
+fallback output now explicitly uses UTF-8 after a Cyrillic fixture exposed `?`
+substitution. No release or installed-app replacement was performed.
+
+Six alternating pairs per mode matched all 36 expected observations, two absent
+PID scopes and holder release. Median elapsed milliseconds: TCP 1,722.06 -> 478.66;
+CWD 1,378.42 -> 301.27; one holder group 1,556.52 -> 353.76. These are transport
+latencies, not total CPU savings. Final source/binary hashes and numeric samples
+are in docs/bench/windows-observer-final-2026-09-15.*.
+
+The user ended the planned two-hour diagnostic early. The retained checkpoint
+covers 48.51 minutes and 282 steady process ticks. Report complete remains false;
+the owned diagnostic Electron tree was terminated, and the runner's duration /
+graceful-exit gate returned 1 as expected. Do not call this a completed two-hour
+soak or claim final flush/persistence. During the captured window there were no
+recorded observer failures, steady PowerShell launches, IPC evictions or audit
+drops. Last audit buffer depth was one. Main RSS first/last ten-minute medians
+were 217.98 / 232.45 MiB, heap 13.85 / 15.13 MiB; this does not rule out leaks.
+Sequence state remained empty, so its capacity was not stressed by this window.
+
+Full local coverage passed 3,487 / four skipped (218 files), isolated with two
+workers after eight UI timeouts in a run concurrent with builds/typechecks.
+Three subsequent helper-path/Unicode tests passed in the final focused 29-test
+run. Native compilation, twelve invalid-input checks and actual fixture execution
+passed. Build, both typechecks, formatting, lint (zero errors; 56 existing warnings),
+production audit, both mutation gates and counts passed. Implementation CI passed
+all five contexts with 3,489 tests / five skipped; final documentation CI must pass
+before merge. ETW/UAC and installed-app verification remain outside this pass.
+
+Preserve X:/tmp/aegis-final-soak-20260915, including user-stop-checkpoint.json,
+user-stop.json and the normal profile/audit/database, plus ignored receipts under
+.agent/network-20260914/receipts. The per-run supervisor checked storage and closed
+RdClientAutoTrace files every 30 seconds; it stops with this run and does not
+install persistent system rotation. Disposable task TEMP/cache is cleaned after
+all local hooks finish. Earlier dirty and installer worktrees remain untouched.

@@ -11,12 +11,14 @@ Module._load = function (request, _parent, _isMain) {
 
 afterAll(() => {
   Module._load = originalLoad;
+  vi.unstubAllEnvs();
 });
 
 describe('platform/restart-manager', () => {
   let rm;
 
   beforeEach(async () => {
+    vi.stubEnv('AEGIS_OBSERVER_PROVIDER', 'powershell');
     mockExecFile.mockReset();
     vi.resetModules();
     const mod = await import('../../../src/main/platform/restart-manager.js');

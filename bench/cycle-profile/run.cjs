@@ -5,6 +5,7 @@ const { createHash } = require('node:crypto');
 const { spawn, execFileSync } = require('node:child_process');
 const root = path.resolve(__dirname, '../..');
 const output = process.argv[2];
+const limits = require('./limits.cjs').limits(process.argv[3]);
 if (!output || !path.isAbsolute(output) || fs.existsSync(output)) {
   throw new Error('Pass a new absolute output directory outside the repository');
 }
@@ -14,7 +15,13 @@ if (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolu
 fs.mkdirSync(output, { recursive: true });
 fs.mkdirSync(path.join(output, 'temp'));
 const fingerprint = {};
-for (const folder of ['src/main', 'bench/cycle-profile', 'dist/renderer', 'sidecar/resources']) {
+for (const folder of [
+  'src/main',
+  'bench/cycle-profile',
+  'dist/renderer',
+  'sidecar/resources',
+  'sidecar/observer',
+]) {
   for (const name of fs.readdirSync(path.join(root, folder), { recursive: true })) {
     const file = path.join(root, folder, name);
     if (fs.lstatSync(file).isFile())
@@ -42,9 +49,14 @@ fs.writeFileSync(
             .update(fs.readFileSync(path.join(root, 'build/sidecar/aegis-resources.exe')))
             .digest('hex')
         : null,
+      observerBinarySha256: fs.existsSync(path.join(root, 'build/sidecar/aegis-observer.exe'))
+        ? createHash('sha256')
+            .update(fs.readFileSync(path.join(root, 'build/sidecar/aegis-observer.exe')))
+            .digest('hex')
+        : null,
       fingerprint,
       startedAt: new Date().toISOString(),
-      limits: { durationMs: 180000, watchdogMs: 210000, reportSamplesPerStage: 4096 },
+      limits: { ...limits, reportSamplesPerStage: 4096 },
     },
     null,
     2,
@@ -53,6 +65,7 @@ fs.writeFileSync(
 const env = {
   ...process.env,
   AEGIS_CYCLE_OUTPUT: output,
+  AEGIS_CYCLE_SECONDS: String(limits.durationMs / 1000),
   AEGIS_PROC_SNAPSHOT: 'auto',
   TEMP: path.join(output, 'temp'),
   TMP: path.join(output, 'temp'),
@@ -86,7 +99,7 @@ const deadline = setTimeout(() => {
       timeout: 10000,
     });
   else child.kill('SIGKILL');
-}, 210000);
+}, limits.watchdogMs);
 child.once('error', () => {
   clearInterval(progress);
   clearTimeout(deadline);

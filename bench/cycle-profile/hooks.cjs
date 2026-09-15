@@ -49,7 +49,7 @@ function install(root, metrics, state, now) {
       const debug = result.debug;
       result.debug = function (mod, message, meta) {
         if (mod === 'scan' && ['process', 'network', 'file', 'hot-read'].includes(message)) {
-          if (state.ticks.length < 512)
+          if (state.ticks.length < 8192)
             state.ticks.push({
               atMs: now(),
               kind: message,
@@ -87,6 +87,7 @@ function install(root, metrics, state, now) {
         'nvidia-smi',
         'aegis-procsnap',
         'aegis-resources',
+        'aegis-observer',
         'handle64',
         'handle',
         'where',

@@ -1,0 +1,644 @@
+{
+  "comparison": {
+    "schema": 1,
+    "samples": [
+      {
+        "kind": "tcp",
+        "provider": "powershell",
+        "ms": 1712.3974000000003,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "native",
+        "ms": 458.91679999999997,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "native",
+        "ms": 498.3961999999997,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "powershell",
+        "ms": 1799.8078999999998,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "powershell",
+        "ms": 1752.9318000000003,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "native",
+        "ms": 570.7831999999999,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "native",
+        "ms": 555.6731,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "powershell",
+        "ms": 1731.7203000000009,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "powershell",
+        "ms": 1681.1382999999987,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "native",
+        "ms": 451.03160000000025,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "native",
+        "ms": 436.91699999999946,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "powershell",
+        "ms": 1695.5108,
+        "rows": 2
+      },
+      {
+        "kind": "cwd",
+        "provider": "powershell",
+        "ms": 1473.8991999999998,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "native",
+        "ms": 307.1362000000008,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "native",
+        "ms": 293.8061000000016,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "powershell",
+        "ms": 1433.5816999999988,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "powershell",
+        "ms": 1365.1670999999988,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "native",
+        "ms": 295.41219999999885,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "native",
+        "ms": 308.9621999999981,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "powershell",
+        "ms": 1360.797300000002,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "powershell",
+        "ms": 1390.272100000002,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "native",
+        "ms": 293.4179000000004,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "native",
+        "ms": 307.73049999999785,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "powershell",
+        "ms": 1366.5629999999983,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "powershell",
+        "ms": 1673.4313999999977,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "native",
+        "ms": 346.8233,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "native",
+        "ms": 359.22369999999864,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "powershell",
+        "ms": 1609.9867999999988,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "powershell",
+        "ms": 1503.2790999999997,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "native",
+        "ms": 347.94780000000173,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "native",
+        "ms": 351.4423999999999,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "powershell",
+        "ms": 1508.9833999999973,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "powershell",
+        "ms": 1509.6820999999982,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "native",
+        "ms": 356.07049999999435,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "native",
+        "ms": 364.73339999999735,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "powershell",
+        "ms": 1603.3551000000007,
+        "rows": 1
+      }
+    ],
+    "exactMatches": 36,
+    "emptyScopes": 2,
+    "releasedHolderEmpty": true,
+    "hashes": {
+      "sidecar/observer/Program.cs": "417bac3e9728e813d6bcfe6c77ed1353803e54e41b752eed0c7967d75bd62f96",
+      "src/main/platform/windows-observer.js": "55b731b34a01b3d32ee9591847871b8b93d057436f0e8a408b63640a046890de",
+      "src/main/platform/rm-csharp.js": "ca28bb43a5bce388833bf177733259e30686b897f9faf24d0e36ace2dfce4275",
+      "build/sidecar/aegis-observer.exe": "b3d309dc7196d977c607a9c80c245d860832e19480f20112c6fb3bf937b046ff"
+    }
+  },
+  "live": {
+    "complete": false,
+    "termination": {
+      "plannedDurationMs": 7200000,
+      "utc": "2026-09-15T14:20:22.4800957Z",
+      "reason": "user-requested-stop",
+      "checkpointElapsedMs": 2910778.0365,
+      "termination": "owned diagnostic Electron tree terminated; deadline/graceful-exit gate not completed"
+    },
+    "plannedDurationMs": 7200000,
+    "elapsedMs": 2910778.0365,
+    "warmupMs": 90000,
+    "samples": 563,
+    "resources": {
+      "mainRssMiB": {
+        "firstTenMinuteMedian": 217.98046875,
+        "lastTenMinuteMedian": 232.451171875,
+        "min": 198.8203125,
+        "max": 247.63671875
+      },
+      "mainHeapMiB": {
+        "firstTenMinuteMedian": 13.84585952758789,
+        "lastTenMinuteMedian": 15.1300048828125,
+        "min": 11.164695739746094,
+        "max": 17.597454071044922
+      },
+      "electronWorkingSetMiB": {
+        "firstTenMinuteMedian": 572.45703125,
+        "lastTenMinuteMedian": 598.873046875,
+        "min": 471.828125,
+        "max": 616.484375
+      },
+      "loopP99Ms": {
+        "firstTenMinuteMedian": 32.751615,
+        "lastTenMinuteMedian": 32.563199,
+        "min": 32.030719,
+        "max": 45.842431
+      },
+      "loopMaxMs": {
+        "firstTenMinuteMedian": 34.603007,
+        "lastTenMinuteMedian": 34.095102999999995,
+        "min": 32.112639,
+        "max": 171.573247
+      }
+    },
+    "queues": {
+      "activityEntries": {
+        "first": 57,
+        "last": 833,
+        "max": 833
+      },
+      "ipcBuffered": {
+        "first": 0,
+        "last": 0,
+        "max": 2
+      },
+      "ipcHighWater": {
+        "first": 14,
+        "last": 14,
+        "max": 14
+      },
+      "ipcEvicted": {
+        "first": 0,
+        "last": 0,
+        "max": 0
+      },
+      "sequenceOpen": {
+        "first": 0,
+        "last": 0,
+        "max": 0
+      },
+      "sequencePeak": {
+        "first": 0,
+        "last": 0,
+        "max": 0
+      },
+      "auditBuffered": {
+        "first": 0,
+        "last": 1,
+        "max": 44
+      },
+      "auditDropped": {
+        "first": 0,
+        "last": 0,
+        "max": 0
+      },
+      "auditBytes": {
+        "first": 63787,
+        "last": 2397661,
+        "max": 2397661
+      }
+    },
+    "mainCpuPercentOneCore": 4.367809080411019,
+    "electronCpuPercentOneCore": 10.680038425931373,
+    "stages": [
+      {
+        "phase": "steady",
+        "label": "getParentProcessMap",
+        "calls": 282,
+        "failures": 0,
+        "totalMs": 3037.760099998457,
+        "maxMs": 18.704800000414252,
+        "medianMs": 10.991399999940768,
+        "p95Ms": 14.29120000009425,
+        "sampled": 282,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "scanProcesses",
+        "calls": 282,
+        "failures": 0,
+        "totalMs": 3182.9653000042017,
+        "maxMs": 19.10980000020936,
+        "medianMs": 11.496500000124797,
+        "p95Ms": 14.834600000001956,
+        "sampled": 282,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "enrichWithParentChains",
+        "calls": 282,
+        "failures": 0,
+        "totalMs": 31.863799997547176,
+        "maxMs": 1.075599999865517,
+        "medianMs": 0.08279999997466803,
+        "p95Ms": 0.40429999999469146,
+        "sampled": 282,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "annotateHostApps",
+        "calls": 282,
+        "failures": 0,
+        "totalMs": 4.803799999994226,
+        "maxMs": 0.6152000000001863,
+        "medianMs": 0.012749999994412065,
+        "p95Ms": 0.030499999993480742,
+        "sampled": 282,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "annotateWorkingDirs",
+        "calls": 282,
+        "failures": 0,
+        "totalMs": 30108.333200000532,
+        "maxMs": 605.1942999996245,
+        "medianMs": 0.021899999992456287,
+        "p95Ms": 480.14999999990687,
+        "sampled": 282,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "detectLMStudioModels",
+        "calls": 282,
+        "failures": 0,
+        "totalMs": 601.0741999977763,
+        "maxMs": 20.025900000007823,
+        "medianMs": 1.910650000005262,
+        "p95Ms": 3.082599999848753,
+        "sampled": 282,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "detectOllamaModels",
+        "calls": 282,
+        "failures": 0,
+        "totalMs": 617.9029999988852,
+        "maxMs": 19.95659999991767,
+        "medianMs": 1.982999999949243,
+        "p95Ms": 3.166399999987334,
+        "sampled": 282,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "checkDeviations",
+        "calls": 282,
+        "failures": 0,
+        "totalMs": 5.735200002614874,
+        "maxMs": 0.10080000013113022,
+        "medianMs": 0.0185500000952743,
+        "p95Ms": 0.03179999999701977,
+        "sampled": 282,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "calculateAnomalyScore",
+        "calls": 6213,
+        "failures": 0,
+        "totalMs": 10.828799980590702,
+        "maxMs": 0.38859999971464276,
+        "medianMs": 0.00139999995008111,
+        "p95Ms": 0.0034000000450760126,
+        "sampled": 4096,
+        "truncated": true
+      },
+      {
+        "phase": "steady",
+        "label": "collectTokenCosts",
+        "calls": 282,
+        "failures": 0,
+        "totalMs": 7.938999996520579,
+        "maxMs": 0.11700000008568168,
+        "medianMs": 0.027349999989382923,
+        "p95Ms": 0.046600000001490116,
+        "sampled": 282,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "child:nvidia-smi:getResourcesForPids",
+        "calls": 282,
+        "failures": 0,
+        "totalMs": 28477.528099999312,
+        "maxMs": 153.2182999998331,
+        "medianMs": 99.32915000012144,
+        "p95Ms": 121.61759999999776,
+        "sampled": 282,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "child:aegis-observer:scanHotFileHolders",
+        "calls": 188,
+        "failures": 0,
+        "totalMs": 56593.46760000099,
+        "maxMs": 467.7296999999962,
+        "medianMs": 291.4229499999783,
+        "p95Ms": 386.40159999998286,
+        "sampled": 188,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "scanHotFileHolders",
+        "calls": 282,
+        "failures": 0,
+        "totalMs": 56911.410899998955,
+        "maxMs": 469.64160000000265,
+        "medianMs": 272.7726500000572,
+        "p95Ms": 367.2054999996908,
+        "sampled": 282,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "child:aegis-resources:getResourcesForPids",
+        "calls": 282,
+        "failures": 0,
+        "totalMs": 185123.4548999982,
+        "maxMs": 1808.0432000001892,
+        "medianMs": 640.9403000000166,
+        "p95Ms": 717.628500000108,
+        "sampled": 282,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "getResourcesForPids",
+        "calls": 282,
+        "failures": 0,
+        "totalMs": 185420.7381999951,
+        "maxMs": 1808.621999999974,
+        "medianMs": 641.4388999999501,
+        "p95Ms": 718.15690000006,
+        "sampled": 282,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "child:aegis-observer:getRawTcpConnections",
+        "calls": 116,
+        "failures": 0,
+        "totalMs": 77372.23649999926,
+        "maxMs": 1261.9351000000024,
+        "medianMs": 599.7949500000104,
+        "p95Ms": 1071.1044000000693,
+        "sampled": 116,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "getRawTcpConnections",
+        "calls": 116,
+        "failures": 0,
+        "totalMs": 77420.59810000136,
+        "maxMs": 1262.2480000000214,
+        "medianMs": 600.3428500000155,
+        "p95Ms": 1071.4579000000376,
+        "sampled": 116,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "scanNetworkConnections",
+        "calls": 116,
+        "failures": 0,
+        "totalMs": 83157.93119999957,
+        "maxMs": 1377.878200000152,
+        "medianMs": 618.3632999999681,
+        "p95Ms": 1256.251099999994,
+        "sampled": 116,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "child:aegis-observer:scanAllFileHandles",
+        "calls": 94,
+        "failures": 0,
+        "totalMs": 231121.699599999,
+        "maxMs": 3318.1650000000373,
+        "medianMs": 2445.520200000028,
+        "p95Ms": 2968.821700000204,
+        "sampled": 94,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "scanAllFileHandles",
+        "calls": 94,
+        "failures": 0,
+        "totalMs": 231620.52359999955,
+        "maxMs": 3323.7922999998555,
+        "medianMs": 2449.529499999946,
+        "p95Ms": 2973.8738000000594,
+        "sampled": 94,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "child:tasklist:startup-or-unwrapped",
+        "calls": 70,
+        "failures": 0,
+        "totalMs": 65541.11960000116,
+        "maxMs": 1607.546399999992,
+        "medianMs": 879.2204000000493,
+        "p95Ms": 1290.593399999998,
+        "sampled": 70,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "child:aegis-observer:getProcessCwds",
+        "calls": 68,
+        "failures": 0,
+        "totalMs": 30076.970700000995,
+        "maxMs": 604.7178999995813,
+        "medianMs": 432.78859999997076,
+        "p95Ms": 512.2913000001572,
+        "sampled": 68,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "getProcessCwds",
+        "calls": 68,
+        "failures": 0,
+        "totalMs": 30100.90010000032,
+        "maxMs": 605.1433999999426,
+        "medianMs": 433.11344999994617,
+        "p95Ms": 512.7017999999225,
+        "sampled": 68,
+        "truncated": false
+      },
+      {
+        "phase": "steady",
+        "label": "child:wsl:startup-or-unwrapped",
+        "calls": 80,
+        "failures": 0,
+        "totalMs": 21512.240599999262,
+        "maxMs": 717.8146999999881,
+        "medianMs": 150.070149999985,
+        "p95Ms": 636.2418000001926,
+        "sampled": 80,
+        "truncated": false
+      }
+    ],
+    "launches": {
+      "startup:child:powershell:startup-or-unwrapped": 2,
+      "startup:child:aegis-procsnap:getParentProcessMap": 1,
+      "startup:child:aegis-observer:getProcessCwds": 2,
+      "startup:child:tasklist:startup-or-unwrapped": 3,
+      "startup:child:wsl:startup-or-unwrapped": 4,
+      "startup:child:nvidia-smi:getResourcesForPids": 4,
+      "startup:child:aegis-observer:getRawTcpConnections": 3,
+      "startup:child:aegis-resources:getResourcesForPids": 3,
+      "startup:child:aegis-observer:scanAllFileHandles": 2,
+      "startup:child:aegis-observer:scanHotFileHolders": 1,
+      "steady:child:aegis-observer:scanHotFileHolders": 188,
+      "steady:child:aegis-resources:getResourcesForPids": 282,
+      "steady:child:nvidia-smi:getResourcesForPids": 282,
+      "steady:child:aegis-observer:getRawTcpConnections": 116,
+      "steady:child:aegis-observer:scanAllFileHandles": 94,
+      "steady:child:tasklist:startup-or-unwrapped": 70,
+      "steady:child:aegis-observer:getProcessCwds": 68,
+      "steady:child:wsl:startup-or-unwrapped": 80
+    },
+    "snapshotSources": {
+      "class5": 285
+    },
+    "steadyProcessTicks": 282,
+    "manifestSha256": "4744c2ee8245c2ed8674da33687388bf05e7cac9e907e8be3434ee9067ba98f5",
+    "reportSha256": "7804973c2e2c65fed2a2864593710648efe3d08ec1110d021a2f655a142a89dd",
+    "sourceMismatch": []
+  }
+}
