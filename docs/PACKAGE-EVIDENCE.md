@@ -90,7 +90,9 @@ not change the exit code. Consumers must inspect evidence statuses.
 
 The snapshot is best effort, without atomic capture, signing or persistence.
 Hashes and paths are metadata, not anonymization; filenames can contain private
-values. See [the protection plan](roadmap/ai-agent-protection.md) for trust snapshots.
+values. [Snapshot commands](INVENTORY-SNAPSHOTS.md) can separately persist these
+fingerprints, record explicit review and detect later changes; they do not add
+publisher authentication.
 
 ## Verified references
 

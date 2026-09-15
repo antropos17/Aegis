@@ -11,6 +11,9 @@ const _cliFlags = new Set([
   '--scan-json',
   '--inventory-json',
   '--inventory-profile-json',
+  '--inventory-snapshot-json',
+  '--inventory-accept-json',
+  '--inventory-diff-json',
   '--version',
   '--help',
 ]);
