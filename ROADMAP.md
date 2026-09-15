@@ -1,5 +1,13 @@
 # AEGIS Roadmap
 
+## AI agent protection
+
+The user-approved [AI agent protection plan](docs/roadmap/ai-agent-protection.md)
+records the 2026-09-15 research, sources, implementation stages and acceptance
+criteria. Work starts with a bounded local project inventory (A1), then proceeds
+to component analysis, action policies and protected Windows execution. Planned
+prevention capabilities must not be presented as already available.
+
 Baseline checked against `11215d4` on 2026-09-07; ETW status updated through
 the completed live experiments, B3 (`cc47212`) and the isolated B4 lifecycle harness
 on 2026-09-08. Package version: `0.14.1-alpha`;

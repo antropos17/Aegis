@@ -104,6 +104,16 @@ See the [architecture](ARCHITECTURE.md), [correctness audit](docs/current-state/
 
 ## Development and roadmap
 
+Inspect a project's AI component files without starting agents or MCP servers:
+
+```powershell
+node src/main/main.js --inventory-json "X:/path/to/project"
+```
+
+This produces a bounded local inventory with fingerprints, not a security
+verdict. See [scope, privacy and exit codes](docs/PROJECT-INVENTORY.md) and the
+[AI agent protection plan](docs/roadmap/ai-agent-protection.md).
+
 The monitoring engine uses CommonJS JavaScript; the Svelte renderer and shared types use TypeScript. See [development setup](CONTRIBUTING.md), the [development reference](docs/DEVELOPMENT.md) and [package.json](package.json) for the stack and commands.
 
 CI runs build, lint, type checks, tests and dependency auditing. `npm run counts:check` verifies selected inventory declarations. `npm run verify:gate` checks identity-witness behavior with fault injection (4 mutants); `npm run verify:seq-gate` checks sequence behavior. Run `npm test` for current suite results.
