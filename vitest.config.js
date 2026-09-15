@@ -42,6 +42,8 @@ export default defineConfig({
         'frontend/observatory/App.svelte',
         'src/renderer/lib/utils/enrich-agents.ts',
         'src/main/logger.js',
+        'src/main/agent-inventory.js',
+        'src/main/inventory-reader.js',
         'src/main/audit-logger.js',
         'src/main/audit-index.js',
         'src/main/audit-index-query.js',
