@@ -30,9 +30,9 @@ coverage gaps. Do not label these states "safe".
 | A2.1 | Explicitly selected profiles, structural parsing and file provenance | CLI for user/managed directories; JSONC/TOML; hash, agent and scope; separate Codex profiles and Claude policy fragments; visible incompleteness and unknown version | Implemented |
 | A2.2 | Local version and package provenance evidence | Associate a file with a manifest; compare name/full version with npm lockfile v2/v3; verify the manifest against local Git objects; explicitly report unknown publisher and installation status | Implemented; [contract](../PACKAGE-EVIDENCE.md) |
 | A3 | Trust snapshots, comparison and update revalidation | File, tool schema/description and package changes are visible; acceptance is bound to content; changes are never accepted automatically | Implemented through CLI; MCP uses an explicitly supplied offline tools/list; [contract](../INVENTORY-SNAPSHOTS.md) |
-| A4 | Local static analysis of skills/hooks/MCP | Whole-package analysis of downloads, scripts, dependencies and data transfer; positive and negative fixtures; Cisco integrations through a versioned JSON/SARIF contract; external analyzers only when explicitly selected | Partial: A4.1, external-result import and bounded JavaScript/Python command and selected-source flow review are implemented; deeper analysis remains in A4.2 |
+| A4 | Local static analysis of skills/hooks/MCP | Whole-package analysis of downloads, scripts, dependencies and data transfer; positive and negative fixtures; Cisco integrations through a versioned JSON/SARIF contract; external analyzers only when explicitly selected | Partial: A4.1, external-result import, bounded JavaScript/Python command and selected-source flow review, and instruction-pattern review are implemented; deeper analysis remains in A4.2 |
 | A4.1 | Local command and configuration checks | CLI for projects, profiles and package trees; review reasons bound to hash/path; bounded shell/MCP/hooks/npm parsing; visible incompleteness; no execution or data transmission | Implemented; [contract](../STATIC-ANALYSIS.md) |
-| A4.2 | Deeper analysis and Cisco integrations | Versioned JSON/SARIF contract, explicit offline inputs and result provenance; JS/Python and interfile flow analysis; complex shell and instruction semantics; unsupported cases receive no safety verdict | Partial: [Cisco JSON/SARIF import](../STATIC-REPORT-IMPORT.md), [JavaScript](../JAVASCRIPT-STATIC-ANALYSIS.md), [Python](../PYTHON-STATIC-ANALYSIS.md), [selected-source literal/wrapper/primitive-return flow](../STATIC-COMMAND-FLOW.md) and [ordered shell redirections](../SHELL-REDIRECTIONS.md) are implemented; broader flow, shell control/substitution and instruction semantics remain |
+| A4.2 | Deeper analysis and Cisco integrations | Versioned JSON/SARIF contract, explicit offline inputs and result provenance; JS/Python and interfile flow analysis; complex shell and instruction semantics; unsupported cases receive no safety verdict | Partial: [Cisco JSON/SARIF import](../STATIC-REPORT-IMPORT.md), [JavaScript](../JAVASCRIPT-STATIC-ANALYSIS.md), [Python](../PYTHON-STATIC-ANALYSIS.md), [selected-source literal/wrapper/primitive-return flow](../STATIC-COMMAND-FLOW.md), [ordered shell redirections](../SHELL-REDIRECTIONS.md) and [bounded instruction-pattern review](../INSTRUCTION-REVIEW.md) are implemented; broader flow, shell control/substitution, general instruction semantics and additional MCP content channels remain |
 | A5 | Refine SEQ001 and add behavioral chains | Ordinary work is not treated as proven exfiltration; missed-detection/noise tests; parent/child and cross-agent relationships retain attribution strength | Planned |
 | B1 | Shared policy and adapter contract | Versioned events before/after actions; `allow/ask/deny`; supported and unsupported surfaces listed; ACS alignment assessed | Planned |
 | B2 | MCP gateway and operation control | Validate schemas, arguments, responses, recipients, access scopes and tool changes; stdio and HTTP have separate trust boundaries | Planned |
@@ -65,6 +65,10 @@ resolve bounded literal process-call subsets and selected-source wrapper flows;
 they do not evaluate control flow or establish runtime module identity.
 Ordered shell redirections associate literal stdin/stdout endpoints while
 retaining an explicit gap for the unverified shell and operating-system dialect.
+Instruction-pattern review adds four English directive checks and an explicit
+offline `--tools-file` input for MCP descriptions, with fixed signals and hashes.
+Nonempty instruction text retains a semantic-coverage gap, including when no
+pattern matched. No classifier result grants permission or suppresses that gap.
 A4.2 remains incomplete.
 
 ## Architecture decisions
@@ -272,3 +276,16 @@ Do not start another heavy batch while diagnostic-log growth is unexplained.
   substitutions and instruction semantics remain unresolved. Next in A4.2:
   instruction-content review with explicit evidence and bounded coverage.
   Verification and merge results are recorded in the PR.
+- 2026-09-16: bounded instruction-pattern review adds STA012–STA015 for prior-rule
+  override, sensitive transfer, consent bypass and action concealment. Original
+  file hashes/lines and fixed signals bind findings without returning source text.
+  Optional `--tools-file` reuses strict offline catalog admission and reviews
+  top-level descriptions, preserving source/descriptor hashes and original tool
+  ordinals. It never connects to a server or follows catalog references. Negation,
+  quoted context, source boundaries and resource caps have explicit tests.
+  Every nonempty text retains the semantic gap; unknown content is never declared
+  safe. Rule-set version 7 and scope/limits require fresh older-baseline review;
+  a catalog-selected baseline cannot match an import scan that omitted it.
+  General instruction semantics and additional MCP channels remain open in A4.2.
+  Next in the implementation queue: A5, behavioral chains with explicit attribution
+  and noise/missed-detection tests. Verification and merge results are in the PR.

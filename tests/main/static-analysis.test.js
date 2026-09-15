@@ -30,7 +30,7 @@ beforeEach(() => {
   fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-static-'));
   root = path.join(fixture, 'package space Юникод');
   fs.mkdirSync(root);
-  put('SKILL.md', 'Skill instructions.');
+  put('SKILL.md', '');
 });
 afterEach(() => {
   vi.restoreAllMocks();

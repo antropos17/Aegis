@@ -57,13 +57,33 @@ const RULES = Object.freeze({
     'Dependency uses a mutable remote source',
     'Review the remote source and bind it to a reviewed immutable revision or artifact.',
   ],
+  STA012: [
+    'medium',
+    'Instruction text asks to override prior instructions',
+    'Review the instruction source and its authority before following this directive.',
+  ],
+  STA013: [
+    'high',
+    'Instruction text asks to transfer sensitive material',
+    'Review the data, destination and explicit authorization for the requested transfer.',
+  ],
+  STA014: [
+    'medium',
+    'Instruction text asks to bypass consent',
+    'Review the requested action and required approval before proceeding.',
+  ],
+  STA015: [
+    'medium',
+    'Instruction text asks to conceal an action from the user',
+    'Review the concealed action and ensure the user can inspect its purpose and effects.',
+  ],
 });
 
 /** Return fresh versioned rule metadata. @returns {object} Built-in review rules. @since v0.15.1 */
 function staticRuleSet() {
   return {
     id: 'aegis-static-patterns',
-    version: 6,
+    version: 7,
     rules: Object.entries(RULES).map(([id, [severity, title, recommendation]]) => ({
       id,
       severity,
