@@ -1,6 +1,7 @@
 import { buildInstanceKey } from '../../../src/shared/instance-key.js';
 import database from '../../../src/shared/agent-database.json';
 import type { Host, RecordData } from '../runtime/host';
+import { previewLocalSecurity } from './local-security';
 
 /** Isolated fixture bridge; never calls the real preload.
  * @returns Simulated capabilities @since 0.14.1
@@ -98,6 +99,7 @@ export function createPreviewHost(): Host {
     error: 'Preview only: no OS, persistent export or provider action was performed',
   });
   const host: Record<string, (...args: unknown[]) => unknown> = {
+    localSecurityReview: previewLocalSecurity,
     getStats: async () => stats(),
     getResourceUsage: async () => ({ memMB: 142, heapMB: 68 }),
     getFalsePositives: async () => [],

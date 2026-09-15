@@ -1,6 +1,6 @@
 # AEGIS Architecture
 
-## Main Process (src/main/) — 123 CommonJS modules (101 top-level + 20 platform/ + 2 token-adapters/)
+## Main Process (src/main/) — 125 CommonJS modules (103 top-level + 20 platform/ + 2 token-adapters/)
 
 Optional development ETW: main → platform/etw-file-runtime → etw-file-supervisor
 → normal `sidecar/etw-file` broker → authenticated elevated file collector.
@@ -13,7 +13,7 @@ Core modules:
 - scan-loop.js — periodic scan intervals, staggered startup, event dedup
 - ipc-batcher.js — batches high-frequency IPC events (append/latest modes)
 - ipc-handlers.js — all IPC handlers (invoke + listeners)
-- preload.js — IPC bridge (window.aegis via contextBridge, 44 invoke + 10 events = 54 channels)
+- preload.js — IPC bridge (window.aegis via contextBridge, 45 invoke + 10 events = 55 channels)
 - process-scanner.js — bundled and validated custom signatures over platform process snapshots
 - process-utils.js — parent chain resolution + editor annotation
 - file-watcher.js — watcher health, main-thread attribution + handle scanning
@@ -37,7 +37,7 @@ Core modules:
 - tray-icon.js — system tray with procedural icon
 
 ## Renderer (frontend/observatory/) — Svelte 5 + Vite 7
-59 Svelte components, 16 stores, 22 utils. Component count refers to frontend/observatory/components; retained store/utility counts refer to src/renderer/lib.
+62 Svelte components, 16 stores, 22 utils. Component count refers to frontend/observatory/components; retained store/utility counts refer to src/renderer/lib.
 
 App.svelte owns workspace tabs, history and the host connection. Monitoring groups products and exposes stamped instances for process actions; Events and ActivityChart show retained evidence; Details and EntityLinks connect observations; Rules, Catalog, Analysis, Reports, Statistics and Settings expose host actions. SensorStatus renders effective sensor IDs; Notifications tracks anomaly crossings.
 

@@ -44,7 +44,7 @@ AEGIS is an **Independent AI Oversight Layer** for local agent processes, file a
 │  └───────────────┬──────────────┘     └──────────────┬───────────────┘  │
 │                  │          preload.js                │                  │
 │                  └─────── (IPC bridge) ───────────────┘                  │
-│              contextBridge API (54 channels: 44 invoke + 10 push)        │
+│              contextBridge API (55 channels: 45 invoke + 10 push)        │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -181,10 +181,11 @@ There are no standalone `scan-results`, `baseline-warnings` or `anomaly-scores` 
 
 ### Invoke (Renderer → Main → Response)
 
-The 44 invoke channels below are exposed through `src/main/preload.js`. Handlers are registered in `src/main/ipc-handlers.js`; update operations delegate to `src/main/app-updates.js`. The bridge exposes named operations rather than arbitrary IPC access.
+The 45 invoke channels below are exposed through `src/main/preload.js`. Handlers are registered in `src/main/ipc-handlers.js`; update operations delegate to `src/main/app-updates.js`. The bridge exposes named operations rather than arbitrary IPC access.
 
 | Channel | Module | Purpose |
 |---|---|---|
+| `local-security:review` | local-security-ipc + local-security-review | Dialog-selected local review, retained-report export and snapshot actions |
 | `get-stats` | main | File counts, agent counts, uptime, attribution counters |
 | `get-resource-usage` | main | CPU, memory, heap metrics |
 | `get-settings` | config-manager | Read settings |

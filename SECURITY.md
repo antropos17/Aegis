@@ -68,11 +68,12 @@ AEGIS follows Electron security best practices:
 
 - **Context isolation:** Enabled. The renderer process cannot access Node.js APIs.
 - **Node integration:** Disabled in the renderer.
-- **Preload bridge:** All IPC passes through `contextBridge.exposeInMainWorld` with a defined, enumerated API surface (54 channels: 44 invoke + 10 push). No arbitrary IPC.
+- **Preload bridge:** All IPC passes through `contextBridge.exposeInMainWorld` with a defined, enumerated API surface (55 channels: 45 invoke + 10 push). No arbitrary IPC.
 - **Content Security Policy:** `default-src 'self'` and `script-src 'self'`, with no `unsafe-eval` or external font loading. `style-src` permits `unsafe-inline` for application styles.
 - **No remote content:** The app loads only local files. No external URLs in the renderer.
 - **Output escaping:** Svelte escapes ordinary text interpolations. Generated HTML reports use explicit escaping; raw HTML insertion and new export paths require their own review.
 - **Single-instance lock:** Prevents duplicate application instances. It does not replace IPC sender checks or protect against a compromised local account.
+- **Local security review:** Native dialogs select inputs and new output files. The review channel validates the owned top-level document, invalidates results on navigation and retains reports in main. Exports contain the redacted report; snapshot acceptance requires a fresh matching capture. Canonical path and file-identity checks reduce filesystem races but do not form an OS sandbox. See [the UI guide](docs/LOCAL-SECURITY-UI.md).
 - **Application updates:** Windows installer metadata requires an Ed25519 signature from the bundled release public key. SHA-256 and byte length are checked after download and again after native installation confirmation. This authenticates release artifacts independently of Windows Authenticode. Update IPC rejects foreign senders and subframes and accepts no paths or URLs. See [update architecture](ARCHITECTURE.md#application-updates) for supported builds and limitations.
 
 ### Privacy Architecture

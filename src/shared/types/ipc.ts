@@ -6,6 +6,7 @@
 
 /** IPC invoke channel names (renderer -> main, request-response) */
 export type IpcInvokeChannel =
+  | 'local-security:review'
   | 'updates:status'
   | 'updates:check'
   | 'updates:download'

@@ -87,6 +87,11 @@ The preview uses simulated data and an isolated host. It shares the desktop comp
 
 ## The evidence graph
 
+The **Local security** workspace reviews selected project/profile files, commands,
+scripts and instruction patterns, compares content snapshots, and imports offline
+Cisco results. It keeps incomplete coverage and unverified claims visible. See the
+[workspace guide](docs/LOCAL-SECURITY-UI.md) for inputs, evidence and limitations.
+
 - **Instance identity:** Windows PID and OS birth time distinguish process lifetimes when birth time is available. Missing birth times and synthetic discoveries provide weaker identity.
 - **Attribution:** Records distinguish confirmed, inferred and unattributed ownership. Identity or attribution can be null when unknown or not applicable.
 - **Audit trail:** Hash-chained JSONL records rotate daily and have 30-day retention. Chain verification detects edits relative to a trusted chain state; it does not guarantee that no events were lost.

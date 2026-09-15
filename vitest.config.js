@@ -54,6 +54,8 @@ export default defineConfig({
         'src/main/inventory-snapshot-cli.js',
         'src/main/inventory-tool-catalog.js',
         'src/main/static-analysis.js',
+        'src/main/local-security-review.js',
+        'src/main/local-security-ipc.js',
         'src/main/static-code-catalog.js',
         'src/main/static-javascript.js',
         'src/main/static-javascript-ast.js',
