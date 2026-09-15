@@ -91,5 +91,5 @@ export const LANGUAGE_OPTIONS = [
   // { code: 'de', label: 'Deutsch' },
   // { code: 'ja', label: '日本語' },
   // { code: 'zh', label: '中文' },
-  // { code: 'ru', label: 'Русский' },
+  // { code: 'ru', label: 'Russian' },
 ];

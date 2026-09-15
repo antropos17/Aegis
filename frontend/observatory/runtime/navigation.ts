@@ -17,77 +17,77 @@ export const workspaces: Workspace[] = [
     label: 'Monitoring',
     icon: 'radar',
     group: 'observe',
-    keywords: 'radar live monitor радар мониторинг',
+    keywords: 'radar live monitor monitoring',
   },
   {
     id: 'agents',
     label: 'Agents',
     icon: 'agents',
     group: 'observe',
-    keywords: 'process pid агент процессы',
+    keywords: 'process pid agent processes',
   },
   {
     id: 'stats',
     label: 'Statistics',
     icon: 'chart',
     group: 'observe',
-    keywords: 'performance charts cpu ram графики статистика диспетчер',
+    keywords: 'performance charts cpu ram graphs statistics task manager',
   },
   {
     id: 'events',
     label: 'Events',
     icon: 'activity',
     group: 'investigate',
-    keywords: 'files skills observations события файлы скилы',
+    keywords: 'files skills observations events',
   },
   {
     id: 'network',
     label: 'Network',
     icon: 'network',
     group: 'investigate',
-    keywords: 'connections endpoints сеть соединения',
+    keywords: 'connections endpoints network',
   },
   {
     id: 'audit',
     label: 'Audit',
     icon: 'history',
     group: 'investigate',
-    keywords: 'history evidence журнал аудит',
+    keywords: 'history evidence log audit',
   },
   {
     id: 'analysis',
     label: 'AI analysis',
     icon: 'shield',
     group: 'assess',
-    keywords: 'provider ai assessment анализ',
+    keywords: 'provider ai assessment analysis',
   },
   {
     id: 'reports',
     label: 'Reports',
     icon: 'report',
     group: 'assess',
-    keywords: 'export session report отчеты отчёты экспорт',
+    keywords: 'export session report reports',
   },
   {
     id: 'rules',
     label: 'Rules & permissions',
     icon: 'shield',
     group: 'configure',
-    keywords: 'policy access rules правила разрешения',
+    keywords: 'policy access rules permissions',
   },
   {
     id: 'database',
     label: 'Agent catalog',
     icon: 'database',
     group: 'configure',
-    keywords: 'custom recognition catalog каталог распознавание',
+    keywords: 'custom recognition catalog',
   },
   {
     id: 'settings',
     label: 'Settings',
     icon: 'settings',
     group: 'configure',
-    keywords: 'preferences theme motion scale настройки тема анимации',
+    keywords: 'preferences theme motion scale settings animations',
   },
 ];
 export interface WorkspaceCommand {
@@ -106,7 +106,7 @@ export function workspaceCommands(): WorkspaceCommand[] {
     target: view.id,
   }));
 }
-/** Matching destinations, accepting localized aliases and several words. @param commands Entries @param query Search @returns Matches @since 0.14.1 */
+/** Matching destinations, accepting aliases and several words. @param commands Entries @param query Search @returns Matches @since 0.14.1 */
 export function findCommands(commands: WorkspaceCommand[], query: string): WorkspaceCommand[] {
   const words = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   return commands.filter((entry) =>

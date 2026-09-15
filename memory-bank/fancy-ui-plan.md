@@ -197,41 +197,41 @@ EASING: cubic-bezier(0.4, 0, 0.2, 1) — default
 
 **Claude Code Prompt for F1:**
 ```
-Прочитай .claude/skills/aegis-context/SKILL.md и CLAUDE.md.
-Создай ветку feat/fancy-ui от master.
+Read .claude/skills/aegis-context/SKILL.md and CLAUDE.md.
+Create branch feat/fancy-ui from master.
 
-ЗАДАЧА: Phase F1 — Design System + Bento Grid Shield
+TASK: Phase F1 — Design System + Bento Grid Shield
 
-F1.1: Обнови tokens.css — добавь новые CSS переменные (НЕ удаляй старые, только добавляй):
-- Цвета: --bg: #050507, --surface: rgba(20,20,25,0.6), --surface-hover: rgba(30,30,40,0.8), --border: rgba(255,255,255,0.08), --border-highlight: rgba(255,255,255,0.15), --text-1: #fff, --text-2: #8a8f98, --accent: #00ff88, --danger: #ff3366, --warning: #ff8800, --info: #9aafcc
-- Шрифты: --font-title: 'Outfit', sans-serif; --font-body: 'DM Sans', sans-serif; --font-mono: 'DM Mono', monospace
-- Spacing: --space-xs: 4px через --space-2xl: 48px
-- Radius: --radius-sm: 8px через --radius-xl: 20px
+F1.1: Update tokens.css — add new CSS variables (preserve existing variables; only add new ones):
+- Colors: --bg: #050507, --surface: rgba(20,20,25,0.6), --surface-hover: rgba(30,30,40,0.8), --border: rgba(255,255,255,0.08), --border-highlight: rgba(255,255,255,0.15), --text-1: #fff, --text-2: #8a8f98, --accent: #00ff88, --danger: #ff3366, --warning: #ff8800, --info: #9aafcc
+- Fonts: --font-title: 'Outfit', sans-serif; --font-body: 'DM Sans', sans-serif; --font-mono: 'DM Mono', monospace
+- Spacing: --space-xs: 4px through --space-2xl: 48px
+- Radius: --radius-sm: 8px through --radius-xl: 20px
 - Transitions: --transition-micro: 150ms, --transition-normal: 300ms, --transition-dramatic: 600ms
 - Glass tokens: .panel class (surface bg, border, blur 20px, inset shadow)
 
-В global.css: добавь @import для Google Fonts (Outfit 500-700, DM Sans 400-600, DM Mono 400-500). Добавь subtle radial gradients на body.
+In global.css: add a Google Fonts @import (Outfit 500-700, DM Sans 400-600, DM Mono 400-500). Add subtle radial gradients to body.
 
-F1.2: Переделай ShieldTab.svelte в Bento Grid:
-- CSS Grid 3 колонки: 350px 1fr 380px, 2 ряда: 250px 1fr
+F1.2: Convert ShieldTab.svelte to a Bento Grid:
+- CSS Grid with 3 columns: 350px 1fr 380px, and 2 rows: 250px 1fr
 - Radar: grid-column 1, grid-row 1/span 2
 - Summary cards: grid-column 2, grid-row 1
 - Feed: grid-column 2, grid-row 2  
 - Agents: grid-column 3, grid-row 1/span 2
-- Каждая секция обёрнута в .panel
+- Wrap each section in .panel
 
-F1.3: Создай src/renderer/components/SummaryCards.svelte:
-- 3 карточки в ряд (flexbox): Active Agents, Events/hr, Threat Level
-- Берёт данные из существующих stores
-- Шрифт: --font-mono для чисел, --font-body для label
+F1.3: Create src/renderer/components/SummaryCards.svelte:
+- 3 cards in a row (flexbox): Active Agents, Events/hr, Threat Level
+- Read data from existing stores
+- Font: --font-mono for numbers, --font-body for labels
 - Hover: border-highlight + translateY(-2px), transition 300ms
 
-ПРАВИЛА:
-- Новые файлы = .svelte (компоненты) или .ts (утилиты)
-- Максимум 300 строк на файл
-- Все анимации: transform/opacity только (GPU)
-- НЕ ломай существующий функционал
-- После каждого шага: npm test && npm run build && npx tsc --noEmit
+RULES:
+- New files: .svelte for components or .ts for utilities
+- Maximum 300 lines per file
+- All animations: transform/opacity only (GPU)
+- Preserve existing functionality
+- After each step: npm test && npm run build && npx tsc --noEmit
 - Conventional commits: feat: redesign Shield tab with bento grid layout
 ```
 
@@ -268,37 +268,37 @@ F1.3: Создай src/renderer/components/SummaryCards.svelte:
 
 **Claude Code Prompt for F2:**
 ```
-Продолжаем feat/fancy-ui. Phase F2 — Agent Cards.
+Continue on feat/fancy-ui. Phase F2 — Agent Cards.
 
-F2.1: Создай src/renderer/components/Sparkline.svelte:
+F2.1: Create src/renderer/components/Sparkline.svelte:
 - Svelte 5 runes. Props: data (number[]), color (string, default 'var(--accent)'), width (number, default 100), height (number, default 30)
-- SVG polyline. Нормализуй data в диапазон 0-height. Points = data.map((v, i) => `${i * (width/data.length)},${height - normalized}`)
-- Опционально: линейный gradient fill ниже линии (opacity 0.1)
-- CSS анимация на mount: stroke-dasharray + stroke-dashoffset → 0 за 600ms
-- НЕ используй canvas. Чистый SVG.
+- SVG polyline. Normalize data to the 0-height range. Points = data.map((v, i) => `${i * (width/data.length)},${height - normalized}`)
+- Optional: linear gradient fill below the line (opacity 0.1)
+- CSS animation on mount: stroke-dasharray + stroke-dashoffset → 0 over 600ms
+- Use SVG only; do not use canvas.
 
-F2.2: Создай src/renderer/components/TrustBadge.svelte:
+F2.2: Create src/renderer/components/TrustBadge.svelte:
 - Props: grade (string), size ('sm'|'md', default 'sm')
-- Маппинг: A+/A → --accent, B → --info, C → --warning, D/F → --danger
+- Mapping: A+/A → --accent, B → --info, C → --warning, D/F → --danger
 - Pill shape (border-radius: 20px), padding 4px 8px
-- Background: rgba версия цвета (opacity 0.1), text = полный цвет
+- Background: rgba version of the color (opacity 0.1), text = full color
 - Font: var(--font-mono), weight 700, size 11px (sm) / 13px (md)
 
-F2.3: Обнови AgentCard.svelte:
-- Импортируй Sparkline и TrustBadge
-- Header: имя слева, TrustBadge справа (вместо старого текста score)
-- Под header: Sparkline (данные из agent.riskHistory или последние 60 точек)
-- Если agent.riskScore > 70: добавь border-left: 3px solid var(--danger)
-- Spotlight hover: on:mousemove → вычисли позицию мыши относительно карточки → CSS переменные --mouse-x, --mouse-y → background: radial-gradient(circle at var(--mouse-x) var(--mouse-y), rgba(255,255,255,0.06), transparent 40%)
-- Stats row: PID, Files, Net — font-mono, text-2, разделители " • "
-- Hover: translateY(-2px), box-shadow усиление, transition 300ms cubic-bezier(0.4,0,0.2,1)
+F2.3: Update AgentCard.svelte:
+- Import Sparkline and TrustBadge
+- Header: name on the left, TrustBadge on the right (replacing the old score text)
+- Below the header: Sparkline (data from agent.riskHistory or the last 60 points)
+- If agent.riskScore > 70: add border-left: 3px solid var(--danger)
+- Spotlight hover: on:mousemove → calculate the mouse position relative to the card → CSS variables --mouse-x, --mouse-y → background: radial-gradient(circle at var(--mouse-x) var(--mouse-y), rgba(255,255,255,0.06), transparent 40%)
+- Stats row: PID, Files, Net — font-mono, text-2, separators " • "
+- Hover: translateY(-2px), stronger box-shadow, transition 300ms cubic-bezier(0.4,0,0.2,1)
 
-ПРАВИЛА:
-- Sparkline и TrustBadge — независимые компоненты, будут использованы в других местах
-- riskHistory может не существовать — fallback на пустой массив
-- Все hover/transitions на transform/opacity ТОЛЬКО
-- npm test && npm run build после каждого шага
-- Коммиты: feat: add Sparkline component, feat: add TrustBadge component, feat: redesign AgentCard with sparklines and trust badges
+RULES:
+- Sparkline and TrustBadge are independent components for reuse elsewhere
+- riskHistory may be absent; fall back to an empty array
+- All hover/transitions use transform/opacity ONLY
+- npm test && npm run build after each step
+- Commits: feat: add Sparkline component, feat: add TrustBadge component, feat: redesign AgentCard with sparklines and trust badges
 ```
 
 ---
@@ -331,34 +331,34 @@ F2.3: Обнови AgentCard.svelte:
 
 **Claude Code Prompt for F3:**
 ```
-Продолжаем feat/fancy-ui. Phase F3 — Feed & Footer.
+Continue on feat/fancy-ui. Phase F3 — Feed & Footer.
 
-F3.1: Обнови GroupedFeedItem.svelte:
-- Новые события появляются с анимацией: translateY(-8px)→0 + opacity 0→1 за 300ms
-- Используй Svelte transition:fly или CSS animation class
+F3.1: Update GroupedFeedItem.svelte:
+- New events appear with animation: translateY(-8px)→0 + opacity 0→1 over 300ms
+- Use Svelte transition:fly or a CSS animation class
 - Severity color: border-left 3px — critical=var(--danger), high=var(--warning), medium=var(--info), low=transparent
-- Чередование фона: :nth-child(even) rgba(255,255,255,0.02)
+- Alternating background: :nth-child(even) rgba(255,255,255,0.02)
 
-F3.2: Обнови Footer.svelte:
-- Замени "CPU 0%" на: label "CPU" + Sparkline(width=40, height=16, data=cpuHistory) + значение
-- То же для MEM
-- cpuHistory/memHistory — массивы последних 60 значений из stats-update IPC
-- Если данных нет — показывай пустой sparkline
-- Добавь пульсирующую зелёную точку (6px, animation: pulse 2s infinite) когда scan активен
-- Стиль точки: box-shadow: 0 0 8px var(--accent)
+F3.2: Update Footer.svelte:
+- Replace "CPU 0%" with: label "CPU" + Sparkline(width=40, height=16, data=cpuHistory) + value
+- Do the same for MEM
+- cpuHistory/memHistory are arrays of the last 60 values from stats-update IPC
+- If data is unavailable, show an empty sparkline
+- Add a pulsing green dot (6px, animation: pulse 2s infinite) while scanning is active
+- Dot style: box-shadow: 0 0 8px var(--accent)
 
-F3.3: Добавь tab transition:
-- При смене таба: уходящий контент opacity 1→0 + translateY(0→-4px) за 150ms
-- Входящий контент: opacity 0→1 + translateY(4px→0) за 150ms (с задержкой 50ms)
-- CSS only: используй Svelte transition или CSS класс .tab-enter / .tab-exit
-- НЕ используй {#key} если это ломает текущий show/hide паттерн (tab switch <1ms)
+F3.3: Add a tab transition:
+- On tab change: outgoing content opacity 1→0 + translateY(0→-4px) over 150ms
+- Incoming content: opacity 0→1 + translateY(4px→0) over 150ms (with a 50ms delay)
+- CSS only: use a Svelte transition or .tab-enter / .tab-exit CSS classes
+- Do not use {#key} if it breaks the current show/hide pattern (tab switch <1ms)
 
-ПРАВИЛА:
-- Переиспользуй Sparkline.svelte из F2
-- Footer sparklines берут данные из существующего stats-update IPC
-- Tab transition НЕ должна заменить show/hide оптимизацию — это overlay эффект поверх
+RULES:
+- Reuse Sparkline.svelte from F2
+- Footer sparklines read data from the existing stats-update IPC
+- The tab transition must preserve the show/hide optimization as an overlay effect
 - npm test && npm run build
-- Коммиты: feat: add feed entry animations, feat: add footer sparkline charts, feat: add tab switch transition
+- Commits: feat: add feed entry animations, feat: add footer sparkline charts, feat: add tab switch transition
 ```
 
 ---
@@ -390,37 +390,37 @@ F3.3: Добавь tab transition:
 
 **Claude Code Prompt for F4:**
 ```
-Продолжаем feat/fancy-ui. Phase F4 — Risk Ring + Polish.
+Continue on feat/fancy-ui. Phase F4 — Risk Ring + Polish.
 
-F4.1: Создай src/renderer/components/RiskRing.svelte:
-- SVG кольцо (stroke-dasharray). Props: score (number 0-100), size (number, default 280)
-- Рассчитай circumference = 2 * PI * radius. dashoffset = circumference * (1 - score/100)
-- Цвет: score < 40 → var(--accent), 40-70 → var(--warning), >70 → var(--danger)
+F4.1: Create src/renderer/components/RiskRing.svelte:
+- SVG ring (stroke-dasharray). Props: score (number 0-100), size (number, default 280)
+- Calculate circumference = 2 * PI * radius. dashoffset = circumference * (1 - score/100)
+- Color: score < 40 → var(--accent), 40-70 → var(--warning), >70 → var(--danger)
 - Glow: filter: drop-shadow(0 0 20px {color} / 0.4)
-- Пульс: когда score > 80, кольцо пульсирует (scale 1→1.02→1, 3s, infinite)
-- Центр: число score, font-mono, 32px, bold, цвет кольца
-- Подпись под числом: "SYSTEM HEALTH" text-2, 11px, uppercase
-- Фон кольца: circle stroke rgba(255,255,255,0.05) — "track"
-- Анимация mount: dashoffset от circumference до расчётного за 1.5s ease-out
+- Pulse: when score > 80, the ring pulses (scale 1→1.02→1, 3s, infinite)
+- Center: score number, font-mono, 32px, bold, ring color
+- Label below the number: "SYSTEM HEALTH" text-2, 11px, uppercase
+- Ring background: circle stroke rgba(255,255,255,0.05) — "track"
+- Mount animation: dashoffset from circumference to the calculated value over 1.5s ease-out
 
-F4.2: Типографика — пройдись по ВСЕМ компонентам:
+F4.2: Typography — review ALL components:
 - .panel-title, .brand, tab labels → font-family: var(--font-title)
-- Все body text, labels → font-family: var(--font-body)
-- Все data (PID, timestamp, score, path) → font-family: var(--font-mono)
-- НЕ трогай JetBrains Mono если он используется для terminal/code контекстов
+- All body text and labels → font-family: var(--font-body)
+- All data (PID, timestamp, score, path) → font-family: var(--font-mono)
+- Leave JetBrains Mono unchanged where used for terminal/code contexts
 
-F4.3: Атмосфера в body:
+F4.3: Body atmosphere:
 - background-image: radial-gradient(circle at 15% 50%, rgba(0,255,136,0.03), transparent 25%), radial-gradient(circle at 85% 30%, rgba(255,51,102,0.03), transparent 25%)
-- Это CSS only, zero perf impact
+- CSS only, zero performance impact
 
-ФИНАЛ:
-- npm test (все 489+ тестов зелёные)
+FINAL CHECKS:
+- npm test (all 489+ tests green)
 - npm run build (0 errors)
 - npx tsc --noEmit (0 errors)
 - npx eslint src/ --quiet (0 errors)
-- Коммиты: feat: add RiskRing component, style: apply typography system, style: add atmospheric background
-- Финальный коммит: feat: Fancy Aegis UI redesign — complete
-- НЕ мержи в master пока я не подтвержу
+- Commits: feat: add RiskRing component, style: apply typography system, style: add atmospheric background
+- Final commit: feat: Fancy Aegis UI redesign — complete
+- Do not merge into master until I confirm
 ```
 
 ---

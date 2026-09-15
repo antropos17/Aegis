@@ -4,8 +4,8 @@ import WorkspaceCommands from '../../../frontend/observatory/components/Workspac
 import WorkspaceNavigation from '../../../frontend/observatory/components/WorkspaceNavigation.svelte';
 import { workspaceCommands, findCommands } from '../../../frontend/observatory/runtime/navigation';
 
-it('finds destinations through localized aliases and several search words', () => {
-  expect(findCommands(workspaceCommands(), 'графики')).toMatchObject([{ target: 'stats' }]);
+it('finds destinations through English aliases and several search words', () => {
+  expect(findCommands(workspaceCommands(), 'graphs')).toMatchObject([{ target: 'stats' }]);
   expect(findCommands(workspaceCommands(), 'files skills')).toMatchObject([{ target: 'events' }]);
   expect(findCommands(workspaceCommands(), 'never-existing-destination')).toEqual([]);
 });
@@ -24,7 +24,7 @@ it('opens a searched command from the keyboard and restores focus on close', asy
   });
   const input = await screen.findByRole('combobox');
   await waitFor(() => expect(input).toHaveFocus());
-  await fireEvent.input(input, { target: { value: 'статистика' } });
+  await fireEvent.input(input, { target: { value: 'statistics' } });
   await fireEvent.keyDown(input, { key: 'Enter' });
   expect(choose).toHaveBeenCalledWith(expect.objectContaining({ target: 'stats' }));
   await fireEvent.keyDown(input, { key: 'Escape' });

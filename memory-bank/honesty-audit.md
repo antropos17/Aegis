@@ -119,7 +119,7 @@ Reality: the **main-process monitoring engine is plain JavaScript (CommonJS)** -
 **Task:** confirm README/docs make NO current-capability claim absent from the code. Banned-term scan + TypeScript reality check. Read-only. No files changed.
 **Method:** `Grep` over each doc for the term list; primary-source verification against `src/`, `rules/`, `anomaly-detector.js`; file-count via `find`.
 
-## Term scan -- every hit, classified (что нашёл | файл:строка | правда/враньё)
+## Term scan -- every hit, classified (finding | file:line | true/false)
 
 | What was found | file:line | Truth / Lie |
 |----------------|-----------|-------------|

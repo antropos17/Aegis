@@ -1,216 +1,219 @@
-# AEGIS: защита от опасных действий ИИ-агентов
+# AEGIS: protection from unsafe AI-agent actions
 
-Дата исследования: 2026-09-15. План принят пользователем в этой задаче.
-База реализации: `27c275a` из `origin/master`, версия `0.15.0-alpha`.
-Исследование сравнивало документацию, отдельные исходники и тесты; внешние
-продукты и атаки не запускались. Эффективность конкурентов не измерена.
+Research date: 2026-09-15. The user approved this plan in the current task.
+Implementation baseline: `27c275a` from `origin/master`, version `0.15.0-alpha`.
+The research compared documentation, selected source files and tests; external
+products and attacks were not run. Competitor effectiveness was not measured.
 
-## Цель и границы
+## Goal and boundaries
 
-Целевой продукт: «AEGIS защищает компьютер и данные от опасных действий
-ИИ-агентов». Это включает ошибки, вредоносные skills/MCP, перехват инструкций,
-утечки, разрушительные операции и обход разрешений.
+Target product: "AEGIS protects your computer and data from unsafe AI-agent
+actions." This includes mistakes, malicious skills/MCP, instruction hijacking,
+data leaks, destructive operations and permission bypasses.
 
-Текущая основа — независимое наблюдение процессов, файлов, TCP-соединений,
-атрибуция, история и корреляции. Наличие наблюдения не означает предотвращение.
-Название «антивирус от ИИ» подкреплять испытаниями предотвращённого ущерба;
-происхождение произвольного malware от ИИ не является критерием обнаружения.
+The current foundation is independent observation of processes, files and TCP
+connections, attribution, history and correlations. Observation does not imply
+prevention. Support the "antivirus against AI" description with tests of prevented
+harm; whether arbitrary malware was created by AI is not a detection criterion.
 
-Каждый пункт проходит отдельный PR с проверками. Автоматическое сдерживание
-включается только для явно подключённой и проверенной точки исполнения.
-Неизвестный агент, неподдержанная версия или потеря датчика должны оставаться
-видимыми как пробел покрытия. Не присваивать таким состояниям статус «безопасно».
+Each item goes through a separate PR with checks. Automatic containment is
+enabled only at an explicitly connected and tested execution control point.
+Unknown agents, unsupported versions and sensor loss must remain visible as
+coverage gaps. Do not label these states "safe".
 
-## Очередь реализации
+## Implementation queue
 
-| ID | Работа | Критерий готовности | Статус |
+| ID | Work | Completion criteria | Status |
 | --- | --- | --- | --- |
-| A1 | Локальный снимок компонентов указанного проекта: MCP-конфиги, hooks, инструкции и файлы skills | Рабочий CLI; ограниченный обход и чтение; хеши и структурные счётчики; никакого запуска серверов, команд, сетевых запросов или выдачи содержимого/ключей; ошибки и неполнота видимы | Реализован |
-| A2 | Адаптеры пользовательских/системных профилей, JSONC/TOML, provenance | Матрица агент/версия/ОС/область; неподдержанные форматы обозначены; локальные свидетельства версии и происхождения; сканирование без исполнения | Реализован в области A2.1–A2.2; издатель и факт установки неизвестны |
-| A2.1 | Явно выбранные профили, структурный разбор, происхождение файла | CLI для user/managed каталогов; JSONC/TOML; хеш, агент и область; отдельные профили Codex и фрагменты политики Claude; неполнота и неизвестная версия видимы | Реализован |
-| A2.2 | Локальная версия и свидетельства происхождения пакета | Связать файл с manifest; сравнить имя/полную версию с npm lockfile v2/v3; проверить manifest по локальным Git-объектам; отдельно показать неизвестного издателя и факт установки | Реализован; [контракт](../PACKAGE-EVIDENCE.md) |
-| A3 | Снимки доверия, сравнение и повторная проверка обновлений | Изменения файла, схемы/описания инструмента или пакета видны; принятие привязано к содержимому; изменение не принимается автоматически | Реализован через CLI; MCP — явно переданный offline tools/list; [контракт](../INVENTORY-SNAPSHOTS.md) |
-| A4 | Локальный статический анализ skills/hooks/MCP | Анализ пакета целиком, загрузок, скриптов, зависимостей и передачи данных; позитивные и негативные fixtures; интеграции Cisco через версионированный JSON/SARIF контракт; внешние анализаторы только явно | Частично: A4.1 и импорт внешних результатов реализованы; углублённый анализ остаётся в A4.2 |
-| A4.1 | Локальные проверки команд и конфигурации | CLI для проекта, профиля и дерева пакета; причины проверки привязаны к хешу/пути; ограниченный разбор shell/MCP/hooks/npm; неполнота видима; без исполнения и отправки данных | Реализован; [контракт](../STATIC-ANALYSIS.md) |
-| A4.2 | Углублённый анализ и интеграции Cisco | Версионированный JSON/SARIF контракт, явные offline-входы и происхождение результата; анализ JS/Python и межфайловых потоков; сложный shell и семантика инструкций; неподдержанное не получает статус безопасности | Частично: [импорт Cisco JSON/SARIF](../STATIC-REPORT-IMPORT.md) реализован; собственный анализ языков, потоков и семантики — следующий PR |
-| A5 | Уточнение SEQ001 и дополнительные цепочки поведения | Обычная работа не считается доказанной утечкой; тесты пропусков/шума; связь родитель/ребёнок и разных агентов с сохранением силы атрибуции | Запланировано |
-| B1 | Общий контракт политики и адаптеров | Версионированные события до/после действия; `allow/ask/deny`; поддержанные и неподдержанные поверхности перечислены; соответствие ACS оценено | Запланировано |
-| B2 | MCP-шлюз и контроль операций | Проверка схем, аргументов, ответов, получателей, областей доступа и смены инструментов; stdio и HTTP имеют отдельные границы доверия | Запланировано |
-| B3 | Защита секретов и ограниченные разрешения | Секрет не попадает в контекст/исходящий запрос вне политики; разрешение привязано к операции, получателю и задаче; срок/однократность; защита от повторного использования | Запланировано |
-| B4 | Защита разрушительных действий | Контроль удаления, записи вне проекта, публикации и опасных API-операций до исполнения; подтверждение точных аргументов; таймаут не превращается в разрешение | Запланировано |
-| B5 | Интерфейс покрытия в Observatory | «Наблюдается», «Блокировка проверена», «Покрытие потеряно»; агент/версия/поверхность/последняя проверка; безопасная проверка установленного адаптера | Запланировано |
-| C1 | Защищённый запуск Windows | Отдельный ограниченный контекст, права файлов и WFP; политика охватывает потомков; credentials выдаёт отдельный посредник; обычный запуск остаётся явно наблюдаемым режимом | Запланировано |
-| C2 | Защита самого AEGIS и обходов | Проверка процессов по свежей идентичности, защита политик/ключей/журнала, прямого выхода мимо прокси, IPC и управления сервисом | Запланировано |
-| C3 | Доказательства и эксплуатационная проверка | Связь решения с действием, версией политики и состоянием датчиков; подписанные контрольные точки; различать целостность и полноту аудита; ограниченная ротация | Запланировано |
-| D1 | Публичный стенд эффективности | Атаки и обычные задачи на фиксированных версиях; пропуски, ложные блокировки, успешность задач, задержка/нагрузка и платформа публикуются отдельно | Запланировано |
+| A1 | Local component snapshot of a specified project: MCP configs, hooks, instructions and skill files | Working CLI; bounded traversal and reads; hashes and structural counts; no server or command execution, network requests, or disclosure of contents/keys; visible errors and incompleteness | Implemented |
+| A2 | User/system profile adapters, JSONC/TOML and provenance | Agent/version/OS/scope matrix; unsupported formats identified; local version and provenance evidence; scanning without execution | Implemented within A2.1–A2.2 scope; publisher and installation status remain unknown |
+| A2.1 | Explicitly selected profiles, structural parsing and file provenance | CLI for user/managed directories; JSONC/TOML; hash, agent and scope; separate Codex profiles and Claude policy fragments; visible incompleteness and unknown version | Implemented |
+| A2.2 | Local version and package provenance evidence | Associate a file with a manifest; compare name/full version with npm lockfile v2/v3; verify the manifest against local Git objects; explicitly report unknown publisher and installation status | Implemented; [contract](../PACKAGE-EVIDENCE.md) |
+| A3 | Trust snapshots, comparison and update revalidation | File, tool schema/description and package changes are visible; acceptance is bound to content; changes are never accepted automatically | Implemented through CLI; MCP uses an explicitly supplied offline tools/list; [contract](../INVENTORY-SNAPSHOTS.md) |
+| A4 | Local static analysis of skills/hooks/MCP | Whole-package analysis of downloads, scripts, dependencies and data transfer; positive and negative fixtures; Cisco integrations through a versioned JSON/SARIF contract; external analyzers only when explicitly selected | Partial: A4.1 and external-result import are implemented; deeper analysis remains in A4.2 |
+| A4.1 | Local command and configuration checks | CLI for projects, profiles and package trees; review reasons bound to hash/path; bounded shell/MCP/hooks/npm parsing; visible incompleteness; no execution or data transmission | Implemented; [contract](../STATIC-ANALYSIS.md) |
+| A4.2 | Deeper analysis and Cisco integrations | Versioned JSON/SARIF contract, explicit offline inputs and result provenance; JS/Python and interfile flow analysis; complex shell and instruction semantics; unsupported cases receive no safety verdict | Partial: [Cisco JSON/SARIF import](../STATIC-REPORT-IMPORT.md) is implemented; built-in language, flow and semantic analysis is the next PR |
+| A5 | Refine SEQ001 and add behavioral chains | Ordinary work is not treated as proven exfiltration; missed-detection/noise tests; parent/child and cross-agent relationships retain attribution strength | Planned |
+| B1 | Shared policy and adapter contract | Versioned events before/after actions; `allow/ask/deny`; supported and unsupported surfaces listed; ACS alignment assessed | Planned |
+| B2 | MCP gateway and operation control | Validate schemas, arguments, responses, recipients, access scopes and tool changes; stdio and HTTP have separate trust boundaries | Planned |
+| B3 | Secret protection and limited permissions | Secrets cannot enter context or outbound requests outside policy; permission is bound to operation, recipient and task; expiry/single-use limits; replay protection | Planned |
+| B4 | Protection against destructive actions | Control deletion, writes outside the project, publication and dangerous API operations before execution; confirm exact arguments; a timeout never becomes permission | Planned |
+| B5 | Coverage interface in Observatory | "Observed", "Blocking verified", "Coverage lost"; agent/version/surface/last check; safe testing of an installed adapter | Planned |
+| C1 | Protected Windows launch | Separate restricted context, file permissions and WFP; policy covers descendants; a separate broker supplies credentials; ordinary launch remains explicitly labeled observation mode | Planned |
+| C2 | Protect AEGIS itself and resist bypasses | Validate processes using fresh identity; protect policies, keys, logs, IPC and service control; address direct egress that bypasses the proxy | Planned |
+| C3 | Evidence and operational verification | Link decisions to actions, policy versions and sensor states; signed checkpoints; distinguish audit integrity from completeness; bounded rotation | Planned |
+| D1 | Public effectiveness benchmark | Attacks and ordinary tasks on fixed versions; publish misses, false blocks, task success, latency/load and platform separately | Planned |
 
-Первый законченный срез — A1 через `node src/main/main.js --inventory-json <project>`.
-Это снимок известных мест внутри одного явно выбранного каталога. Он не
-считает найденное установленным, активным, проверенным на malware или безопасным.
-Пользовательские и системные каталоги добавлены в A2.1 отдельной командой
-`--inventory-profile-json <adapter> <directory>`; [матрица и ограничения](../PROFILE-INVENTORY.md).
-В A3 добавлены отдельные команды сохранения снимка, принятия точного digest после
-повторного чтения и сравнения. Произвольные ссылки из конфигов, загружаемые
-зависимости, живые MCP-вызовы, защита хранилища от записи агентом и UI остаются
-в следующих пунктах. Локальный снимок не подписан и не доказывает автора принятия.
-В A4.1 команда `--static-scan-json <adapter> <directory>` выдаёт локальные
-эвристические находки. `package` читает дерево выбранного пакета в пределах
-лимитов; обычные адаптеры сохраняют объявленную область. Неподдержанные языки и
-сложные конструкции остаются пробелами. Этот срез не завершает A4 целиком.
-Команда `--static-import-json` добавляет явно выбранный внешний результат к
-свежей локальной проверке. Происхождение остаётся неподтверждённым; сравнение с
-предыдущим `--static-scan-json` показывает изменение наблюдаемых байтов, но не
-доказывает, что именно их анализировал внешний инструмент. A4.2 ещё не завершён.
+The first completed slice is A1 through `node src/main/main.js --inventory-json <project>`.
+It snapshots known locations inside one explicitly selected directory. Discovery
+does not establish installation, activity, malware checks or safety.
+A2.1 added user and system directories through the separate command
+`--inventory-profile-json <adapter> <directory>`; [matrix and limits](../PROFILE-INVENTORY.md).
+A3 added separate commands to save a snapshot, accept an exact digest after a
+fresh read, and compare snapshots. Arbitrary configuration references, downloaded
+dependencies, live MCP calls, protection of the store against agent writes and
+UI remain future work. A local snapshot is unsigned and does not prove who accepted it.
+In A4.1, `--static-scan-json <adapter> <directory>` returns local heuristic
+findings. `package` reads the selected package tree within limits; ordinary
+adapters retain their declared scope. Unsupported languages and complex constructs
+remain gaps. This slice does not complete all of A4.
+The `--static-import-json` command adds an explicitly selected external result
+to a fresh local scan. Provenance remains unverified; comparison with an earlier
+`--static-scan-json` report shows changes to observed bytes but does not prove
+that the external tool analyzed those bytes. A4.2 remains incomplete.
 
-## Архитектурные решения
+## Architecture decisions
 
-- Сохранить внешние OS-наблюдения как независимое доказательство. Hook сообщает
-  намерение/результат, но сам по себе не доказывает полноту действий процесса.
-- Проверку до исполнения проводить в шлюзе/адаптере. Блокировка постфактум не
-  возвращает уже отправленный секрет и не отменяет выполненное удаление.
-- Для обязательного сетевого маршрута нужен контроль ОС. Переменная proxy или
-  перехват shell не защищает от прямого сокета/другого исполняемого файла.
-- Разрешённый домен не равен разрешённой операции. Проверять API-метод, путь,
-  репозиторий, получателя и содержимое. Доверенный LLM API тоже может получить секрет.
-- Не запускать неизвестный MCP ради первичной проверки. Активный handshake
-  возможен отдельно в ограниченной среде с явно выбранным сервером.
-- Контент конфигов, env, токены, аргументы с секретами и текст памяти не включать
-  в логи/IPC/экспорт по умолчанию. Относительные пути остаются чувствительными
-  метаданными; хеш не является удостоверением безопасности.
-- Все лимиты обхода, чтения, времени, очередей и хранения должны иметь видимое
-  состояние неполноты. Не делать глобальное сканирование диска при старте приложения.
-- Базовую политику исполнять детерминированно. LLM-анализ может помогать объяснению,
-  но не должен самостоятельно выдавать дополнительные права.
-- Не переносить устаревшие ограничения старого renderer: активный интерфейс
-  выбранной базы расположен в `frontend/observatory/`.
+- Retain external OS observations as independent evidence. A hook reports intent
+  or a result but does not by itself prove that all process actions were captured.
+- Perform pre-execution checks in the gateway/adapter. Blocking after the fact
+  cannot recover an already transmitted secret or undo a completed deletion.
+- Enforcing a required network route needs OS controls. A proxy variable or shell
+  interception cannot prevent a direct socket or another executable from bypassing it.
+- An allowed domain does not authorize every operation. Check the API method,
+  path, repository, recipient and content. A trusted LLM API can also receive a secret.
+- Do not launch an unknown MCP server for an initial check. A separate active
+  handshake may run in a restricted environment with an explicitly selected server.
+- Exclude config contents, env values, tokens, secret-bearing arguments and memory
+  text from logs/IPC/exports by default. Relative paths remain sensitive metadata;
+  a hash is not a safety certificate.
+- All traversal, read, time, queue and storage limits must expose incompleteness.
+  Do not scan the entire disk at application startup.
+- Enforce the base policy deterministically. LLM analysis may help explain a
+  decision but must not independently grant additional permissions.
+- Do not carry over obsolete constraints from the old renderer: the active
+  interface in the selected baseline is `frontend/observatory/`.
 
-## Проверенные проекты и заимствования
+## Reviewed projects and ideas to adopt
 
-| Проект / первоисточник | Подтверждённый механизм | Ограничение / решение для AEGIS |
+| Project / primary source | Verified mechanism | Limitation / decision for AEGIS |
 | --- | --- | --- |
-| [Anthropic Sandbox Runtime](https://github.com/anthropics/sandbox-runtime) | Файловая и сетевая изоляция дерева процессов; в текущем Windows-коде отдельная учётная запись и WFP | Research preview, требует запуска в sandbox, чтение нужно ограничить явно; прототипировать C1 отдельно |
-| [Windows wrapper source](https://github.com/anthropics/sandbox-runtime/blob/main/src/sandbox/windows-sandbox-utils.ts) | Обёртка над `srt-win`, SID и прокси | Наличие исходника не подтверждает испытание на наших ОС/сборках |
-| [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell) | Политики файлов/процессов/сети, HTTP method/path, привязанные к endpoint credentials | Собственная среда выполнения; взять профиль доступа на задачу |
-| [Pipelock](https://github.com/luckyPipewrench/pipelock) | Проверка проходящего HTTP/MCP, DLP, подмена описаний, подписанные решения | [Обходы и границы](https://github.com/luckyPipewrench/pipelock/blob/main/docs/bypass-resistance.md): обход прокси, не-HTTP каналы, ограничения regex; HTTPS payload требует соответствующего перехвата |
-| [Pipelock tests](https://github.com/luckyPipewrench/pipelock/blob/main/internal/mcp/tool_description_rug_pull_test.go) | Проверки подмены описаний и обычного уточнения описания | Перенести идеи позитивных/негативных сценариев, не заявлять чужой процент эффективности |
-| [Pipelock failure tests](https://github.com/luckyPipewrench/pipelock/blob/main/internal/proxy/scanner_unavailable_failclosed_test.go) | Отказ операций при недоступности сканера | Для подключённой блокировки проверять каждую транспортную поверхность |
-| [Cisco DefenseClaw](https://github.com/cisco-ai-defense/defenseclaw) | Сканеры, runtime-политики, аудит, адаптеры | [Native Windows](https://cisco-ai-defense.github.io/defenseclaw/docs/get-started/windows/): ограничение поверхностями hooks, нет встроенного OpenShell sandbox/model proxy; взять [матрицу совместимости](https://cisco-ai-defense.github.io/defenseclaw/docs/connectors/compatibility/) |
-| [Rampart](https://github.com/peg/rampart) | Локальные allow/ask/deny, аудит и безопасная проверка адаптеров | Не видит произвольные внутренние действия разрешённого процесса; взять проверку фактической работоспособности точки контроля |
-| [Snyk Agent Scan](https://github.com/snyk/agent-scan) | Инвентарь агентов, skills и MCP; бывший MCP-Scan | API получает данные компонентов после redaction; stdio-скан запускает сервер; CLI schema нестабилен; взять discovery без неявного запуска/отправки |
-| [Cisco Skill Scanner](https://github.com/cisco-ai-defense/skill-scanner) | Локальные YARA, анализ кода и потоков команд | Дополнительные LLM/API анализаторы отдельно; отсутствие находок не означает безопасность |
-| [Cisco MCP Scanner](https://github.com/cisco-ai-defense/mcp-scanner) | Статическая проверка сохранённых tools/prompts/resources | Предпочесть offline вход; не выполнять содержимое в привилегированном процессе |
-| [AgentDojo](https://github.com/ethz-spylab/agentdojo) | Исследовательская среда атак и обычных задач | Добавить собственные OS-сценарии, проверять корректность оценочных функций |
-| [LLM Guard](https://github.com/protectai/llm-guard), [garak](https://github.com/NVIDIA/garak) | Контентные проверки и испытания моделей | Дополнительные инструменты; не заменяют контроль файлов, сети и исполнения |
+| [Anthropic Sandbox Runtime](https://github.com/anthropics/sandbox-runtime) | Filesystem and network isolation of a process tree; the current Windows code uses a separate account and WFP | Research preview; requires sandboxed launch; reads need explicit restrictions; prototype C1 separately |
+| [Windows wrapper source](https://github.com/anthropics/sandbox-runtime/blob/main/src/sandbox/windows-sandbox-utils.ts) | Wrapper around `srt-win`, SID and proxy | Source availability does not establish testing on our OS versions/builds |
+| [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell) | File/process/network policies, HTTP method/path and endpoint-bound credentials | Requires its own runtime; adopt task-specific access profiles |
+| [Pipelock](https://github.com/luckyPipewrench/pipelock) | Inspection of HTTP/MCP traffic passing through it, DLP, description-tampering checks and signed decisions | [Bypasses and boundaries](https://github.com/luckyPipewrench/pipelock/blob/main/docs/bypass-resistance.md): proxy bypass, non-HTTP channels and regex limits; HTTPS payload inspection requires appropriate interception |
+| [Pipelock tests](https://github.com/luckyPipewrench/pipelock/blob/main/internal/mcp/tool_description_rug_pull_test.go) | Tests for description tampering and ordinary description refinement | Adopt positive/negative scenario ideas without claiming another project's effectiveness rate |
+| [Pipelock failure tests](https://github.com/luckyPipewrench/pipelock/blob/main/internal/proxy/scanner_unavailable_failclosed_test.go) | Operations fail when the scanner is unavailable | Test every transport surface where blocking is connected |
+| [Cisco DefenseClaw](https://github.com/cisco-ai-defense/defenseclaw) | Scanners, runtime policies, audit and adapters | [Native Windows](https://cisco-ai-defense.github.io/defenseclaw/docs/get-started/windows/): limited to hook surfaces; no built-in OpenShell sandbox/model proxy; adopt the [compatibility matrix](https://cisco-ai-defense.github.io/defenseclaw/docs/connectors/compatibility/) |
+| [Rampart](https://github.com/peg/rampart) | Local allow/ask/deny, audit and safe adapter checks | Cannot observe arbitrary internal actions of an allowed process; adopt checks that verify the control point actually works |
+| [Snyk Agent Scan](https://github.com/snyk/agent-scan) | Agent, skill and MCP inventory; formerly MCP-Scan | Its API receives component data after redaction; stdio scanning launches the server; the CLI schema is unstable; adopt discovery without implicit execution/transmission |
+| [Cisco Skill Scanner](https://github.com/cisco-ai-defense/skill-scanner) | Local YARA, code and command-flow analysis | Keep optional LLM/API analyzers separate; no findings does not mean safe |
+| [Cisco MCP Scanner](https://github.com/cisco-ai-defense/mcp-scanner) | Static checks of saved tools/prompts/resources | Prefer offline input; never execute contents in a privileged process |
+| [AgentDojo](https://github.com/ethz-spylab/agentdojo) | Research environment for attacks and ordinary tasks | Add our own OS scenarios and validate scoring functions |
+| [LLM Guard](https://github.com/protectai/llm-guard), [garak](https://github.com/NVIDIA/garak) | Content checks and model testing | Supplementary tools; they do not replace file, network and execution controls |
 
-До переноса чужого кода зафиксировать commit и проверить LICENSE/NOTICE конкретного
-файла и зависимостей. Исследование обнаружило Apache-2.0 у SRT, Pipelock, Rampart и
-Snyk; LICENSE Cisco Skill Scanner также содержит Apache-2.0, хотя GitHub API
-вернул NOASSERTION. Не трактовать метаданные API как окончательную лицензию.
+Before copying external code, record its commit and check LICENSE/NOTICE for the
+specific file and dependencies. The research found Apache-2.0 for SRT, Pipelock,
+Rampart and Snyk; Cisco Skill Scanner's LICENSE also contains Apache-2.0, although
+the GitHub API returned NOASSERTION. API metadata is not a definitive license.
 
-## Угрозы и первоисточники
+## Threats and primary sources
 
-| Угроза | Доказательство и статус | Пункты |
+| Threat | Evidence and status | Items |
 | --- | --- | --- |
-| Инструкция в описании MCP-инструмента, подмена после доверия | [Invariant: Tool Poisoning](https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks), демонстрация | A3, B2 |
-| Приватные данные + недоверенный ввод + разрешённая публикация | [Invariant: Toxic Flows](https://invariantlabs.ai/blog/toxic-flow-analysis1), исследование | A5, B2–B4 |
-| Hooks/MCP до согласия и подмена адреса API | [Check Point](https://research.checkpoint.com/2026/rce-and-api-token-exfiltration-through-claude-code-project-files-cve-2025-59536/), раскрытые проблемы исправлены | A2–A4, B3 |
-| Вредоносный сторонний skill | [Cisco: OpenClaw](https://blogs.cisco.com/ai/personal-ai-agents-like-openclaw-are-a-security-nightmare), демонстрация конкретного образца; не оценка заражённости всего каталога | A4, B3 |
-| Отравление постоянной памяти | [OWASP: Memory](https://genai.owasp.org/2026/05/13/memory-is-a-feature-it-is-also-an-attack-surface/), руководство | A3, A5 |
-| Опасная композиция нескольких по отдельности правдоподобных skills | [ColluSkill](https://arxiv.org/abs/2608.09732), препринт от 2026-08-10; результаты авторов не воспроизведены | A4–A5, D1 |
-| Выход из sandbox и обход сетевой политики защиты | [NVIDIA bulletin 2026-08-25](https://github.com/NVIDIA/product-security/blob/main/2026/5872/5872.md), перечисленные OpenShell проблемы исправлены в 0.0.34 | C1–C3, D1 |
+| Instructions in an MCP tool description; changes after trust is granted | [Invariant: Tool Poisoning](https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks), demonstration | A3, B2 |
+| Private data + untrusted input + permitted publication | [Invariant: Toxic Flows](https://invariantlabs.ai/blog/toxic-flow-analysis1), research | A5, B2–B4 |
+| Hooks/MCP before consent and API endpoint substitution | [Check Point](https://research.checkpoint.com/2026/rce-and-api-token-exfiltration-through-claude-code-project-files-cve-2025-59536/), disclosed issues have been fixed | A2–A4, B3 |
+| Malicious third-party skill | [Cisco: OpenClaw](https://blogs.cisco.com/ai/personal-ai-agents-like-openclaw-are-a-security-nightmare), demonstration of a specific sample; not an estimate of catalog-wide infection | A4, B3 |
+| Persistent memory poisoning | [OWASP: Memory](https://genai.owasp.org/2026/05/13/memory-is-a-feature-it-is-also-an-attack-surface/), guidance | A3, A5 |
+| Dangerous composition of individually plausible skills | [ColluSkill](https://arxiv.org/abs/2608.09732), preprint dated 2026-08-10; the authors' results were not reproduced | A4–A5, D1 |
+| Sandbox escape and protective network-policy bypass | [NVIDIA bulletin 2026-08-25](https://github.com/NVIDIA/product-security/blob/main/2026/5872/5872.md), listed OpenShell issues fixed in 0.0.34 | C1–C3, D1 |
 
-## Документация безопасности
+## Security documentation
 
-- [OWASP Agentic Top 10 2026](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/): карта угроз для функций и проверок.
-- [OWASP Agent Control Standard](https://genai.owasp.org/resource/agent-control-standard-acs/) и [код/спецификация](https://github.com/GenAI-Security-Project/agent-control-standard): portable hooks и политики; опубликован в OWASP в сентябре 2026.
-- [OWASP September update](https://genai.owasp.org/2026/09/01/owasp-genai-security-project-unveils-2026-top-10-for-llm-applications-new-agent-control-standard-and-sponsors-as-community-tops-30000-members/): учитывать обновление LLM Top 10, не смешивать с Agentic Top 10.
-- [MCP Security Best Practices](https://modelcontextprotocol.io/docs/2025-11-25/tutorials/security/security_best_practices): token audience, запрет token passthrough, SSRF, OAuth, сессии, локальные серверы, scope minimization.
-- [MITRE ATLAS](https://ctid.mitre.org/blog/2026/05/06/secure-ai-v2-release/): техники, реальные кейсы и зрелость доказательств; связать правила с идентификаторами.
-- [NIST Agent Identity and Authorization](https://www.nist.gov/news-events/news/2026/02/new-concept-paper-identity-and-authority-software-agents): концептуальный документ о полномочиях и идентичности, не сертификация.
-- [GitHub Agentic Workflow Firewall](https://github.github.com/gh-aw-firewall/reference/security-architecture/): принудительный egress и режимы отказа для CI; файловая изоляция требует отдельного механизма.
+- [OWASP Agentic Top 10 2026](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/): map threats to features and checks.
+- [OWASP Agent Control Standard](https://genai.owasp.org/resource/agent-control-standard-acs/) and [code/specification](https://github.com/GenAI-Security-Project/agent-control-standard): portable hooks and policies; published by OWASP in September 2026.
+- [OWASP September update](https://genai.owasp.org/2026/09/01/owasp-genai-security-project-unveils-2026-top-10-for-llm-applications-new-agent-control-standard-and-sponsors-as-community-tops-30000-members/): account for the LLM Top 10 update and keep it distinct from Agentic Top 10.
+- [MCP Security Best Practices](https://modelcontextprotocol.io/docs/2025-11-25/tutorials/security/security_best_practices): token audience, no token passthrough, SSRF, OAuth, sessions, local servers and scope minimization.
+- [MITRE ATLAS](https://ctid.mitre.org/blog/2026/05/06/secure-ai-v2-release/): techniques, real cases and evidence maturity; associate rules with identifiers.
+- [NIST Agent Identity and Authorization](https://www.nist.gov/news-events/news/2026/02/new-concept-paper-identity-and-authority-software-agents): a concept paper on authority and identity, not a certification.
+- [GitHub Agentic Workflow Firewall](https://github.github.com/gh-aw-firewall/reference/security-architecture/): enforced egress and failure modes for CI; filesystem isolation needs a separate mechanism.
 
-## Reddit: идеи, не доказательства эффективности
+## Reddit: ideas, not effectiveness evidence
 
-- [Rampart discussion](https://www.reddit.com/r/aiagents/comments/1rq7j7l/i_built_an_opensource_firewall_after_watching/): утечка секретов в контекст, временные разрешения, обходы shell/LD_PRELOAD. Функции сверены с текущим репозиторием; старые инструкции интеграции могут устареть.
-- [MCP-DecayBench discussion](https://www.reddit.com/r/mcp/comments/1vn8u43/mcpdecaybench_two_mcp_security_scanners_score/): одинаковая общая оценка скрывает разные пропуски. Взять перефразирование и переименование при неизменном поведении; рейтинг из обсуждения не считать проверенным.
+- [Rampart discussion](https://www.reddit.com/r/aiagents/comments/1rq7j7l/i_built_an_opensource_firewall_after_watching/): secret leakage into context, temporary permissions and shell/LD_PRELOAD bypasses. Features were checked against the current repository; older integration instructions may be outdated.
+- [MCP-DecayBench discussion](https://www.reddit.com/r/mcp/comments/1vn8u43/mcpdecaybench_two_mcp_security_scanners_score/): identical aggregate scores can conceal different misses. Adopt rephrasing and renaming with unchanged behavior; do not treat the discussion's ranking as verified.
 
-## Испытания и условия выпуска
+## Tests and release criteria
 
-Для каждого контролируемого действия проверять нормальный сценарий, опасный
-сценарий, отказ защитного компонента и попытку обхода. Набор D1 включает:
+For every controlled action, test an ordinary scenario, a dangerous scenario,
+protective-component failure and an attempted bypass. D1 includes:
 
-- чтение секрета и отправку на новый и разрешённый адрес;
-- передачу секрета LLM API, в URL/заголовке/теле/кодированном виде;
-- смену MCP-описания/схемы, hooks, skills, памяти и API base URL;
-- удаление/запись вне проекта, публикацию не тому получателю;
-- прямой IP, IPv6, DNS, дочерний процесс, обход proxy, symlink/reparse point;
-- подмену PID, остановку датчика, потерю аудита, заполнение очереди/диска;
-- обычные build/test/git операции с фиксацией ложных блокировок.
+- reading a secret and sending it to a new or allowed destination;
+- sending a secret to an LLM API, in a URL/header/body or encoded form;
+- changes to MCP descriptions/schemas, hooks, skills, memory and API base URLs;
+- deletion/writes outside the project and publication to the wrong recipient;
+- direct IP, IPv6, DNS, child processes, proxy bypass and symlink/reparse points;
+- PID substitution, sensor termination, audit loss and queue/disk exhaustion;
+- ordinary build/test/git operations, recording false blocks.
 
-Измерять предотвращённый ущерб, успех атаки, успешность обычной задачи,
-ложные блокировки, пропущенные события и задержку/нагрузку отдельно. Фиксировать
-версии клиента/ОС/политик, seed и hash корпуса. Внешние интеграции испытывать
-на отдельных fixtures с фиктивными credentials и локальным приёмником.
+Measure prevented harm, attack success, ordinary-task success, false blocks,
+missed events and latency/load separately. Record client/OS/policy versions,
+seed and corpus hash. Test external integrations with separate fixtures,
+dummy credentials and a local receiver.
 
-Текущие десять CI-проверок и пять required contexts сохраняются. Новые тесты
-используют disposable fixtures. Cache располагается в рабочей копии на X:,
-тестовый TEMP — в отдельном каталоге на X: вне репозитория (benchmark запрещает
-профиль внутри наблюдаемого проекта);
-закрытые временные результаты удаляются после проверок, receipts сохраняются.
-Не запускать новую тяжёлую пачку при необъяснённом росте диагностических логов.
+Retain the current ten CI checks and five required contexts. New tests use
+disposable fixtures. Cache lives in the worktree on X:; test TEMP lives in a
+separate directory on X: outside the repository, because the benchmark forbids
+a profile inside the observed project.
+Remove closed temporary results after checks and retain receipts.
+Do not start another heavy batch while diagnostic-log growth is unexplained.
 
-## Журнал исполнения
+## Execution log
 
-- 2026-09-15: A1 реализован через существующий CLI до импорта Electron.
-  [Контракт и использование](../PROJECT-INVENTORY.md) описывают область,
-  ограничения и коды выхода. Полный локальный test:coverage прошёл после переноса
-  TEMP за пределы репозитория; исходный сбой был проверкой расположения benchmark
-  profile. Build, format, lint, typecheck, svelte-check, audit и оба mutation gate
-  прошли. Следующий пункт — A2; A2–D1 ещё не реализованы. Результаты GitHub CI и
-  merge фиксируются в PR, а установленный релиз обновляется отдельно.
-- 2026-09-15: A2.1 добавляет JSONC/TOML и семь явно выбираемых profile adapters.
-  Отдельно читаются `NAME.config.toml` Codex и `managed-settings.d/*.json` Claude;
-  `.claude.json` даёт только счётчики user/project-local MCP. Schema 2 содержит
-  происхождение файла по выбранной структуре, но `agentVersion: null` и
-  `packageIdentity: not-resolved`: проверку пакета не заменяет имя каталога.
-  Следующий шаг — A2.2. Две parser-зависимости закреплены точными версиями;
-  существующие записи lockfile сохранены. Проверки и merge фиксируются в PR.
-- 2026-09-15: A2.2 добавляет schema 3: локальные package manifest, сравнение с
-  npm lockfile v2/v3 и проверку содержимого manifest по loose Git-объектам.
-  Сравнивается полная версия, а приватные имена и суффиксы версии выходят только
-  как хеши. `packageRef` означает принадлежность каталогу пакета; установка,
-  издатель и подпись не подтверждаются. Packfiles, внешние Git-хранилища и
-  indirection не читаются. Лимиты общие с инвентаризацией, распаковка отдельно
-  ограничена. Новых зависимостей и изменений lockfile нет. Следующий шаг — A3:
-  сохранение снимка, сравнение обновлений и повторное решение о доверии.
-  Локальные проверки и GitHub CI фиксируются в PR.
-- 2026-09-15: A3 сохраняет отдельный observed-снимок вне проверяемого каталога.
-  Принятие требует точного digest и свежего совпадения; создаёт новый файл и не
-  перезаписывает прежний. Diff показывает файлы, метаданные, пакеты и явно
-  переданные MCP-описания/схемы, возвращает необходимость проверки при изменении,
-  смене области или неполноте. Отсутствие данных не объявляется удалением.
-  MCP-каталог читается из одного ограниченного JSON-экспорта без запуска сервера;
-  nextCursor не позволяет считать первый лист полным. Подпись, защита от отката,
-  права на хранилище и блокировка действий не заявляются. Следующий пункт — A4,
-  локальный статический анализ skills/hooks/MCP. Проверки и merge фиксируются в PR.
-- 2026-09-15: A4.1 добавляет статические проверки STA001–STA011: загрузка в
-  интерпретатор, передача чувствительных файлов/переменных, удаление корня/home,
-  encoded PowerShell, обход разрешений Claude, изменяемые npx/remote-источники,
-  MCP URL, ANTHROPIC_BASE_URL и lifecycle scripts. Отчёт содержит причины, хеши,
-  пути и строки, но не исходный текст, команды, адреса или значения секретов.
-  Реальные процессы/серверы не запускаются. Кавычки, argv, неисполняемые примеры,
-  неполнота и лимиты проверяются позитивными и негативными fixtures. JS/Python,
-  семантика prompt injection, межфайловые потоки и Cisco JSON/SARIF остаются A4.2.
-  Общий A4 отмечен частично выполненным. Проверки и merge фиксируются в PR.
-- 2026-09-15: первый PR A4.2 добавляет импорт одного Cisco Skill Scanner JSON,
-  подмножества SARIF 2.1.0 и raw-envelope JSON MCP Scanner. Контракт AEGIS
-  версионирован; указаны проверенные upstream-ревизии. Чужие флаги безопасности,
-  исключения, сообщения и snippets не превращаются в разрешения или свободный
-  текст отчёта. Сохраняются фиксированные категории, severity, порядковые номера,
-  хеши идентификаторов и явно сопоставленные пути. SARIF suppressions не скрывают
-  находки; сбои анализаторов, meta-фильтрация, неподдержанные ссылки/потоки и
-  лимиты видимы. MCP-сводки сохраняют число заявленных срабатываний без выдачи их
-  за отдельные находки. Предыдущий локальный отчёт необязателен и не считается
-  подписанным доказательством запуска. Никаких установок/вызовов Cisco, сетевой
-  отправки, AST/dataflow-движка или семантического анализа этот PR не добавляет.
-  Следующая работа в A4.2 — собственные проверки JS/Python и межфайловых потоков.
+- 2026-09-15: A1 implemented through the existing CLI before Electron is imported.
+  [Contract and usage](../PROJECT-INVENTORY.md) describe scope, limits and exit
+  codes. Full local test:coverage passed after moving TEMP outside the repository;
+  the initial failure was the benchmark profile-location check. Build, format,
+  lint, typecheck, svelte-check, audit and both mutation gates passed. Next is A2;
+  A2–D1 are not yet implemented. GitHub CI and merge results are recorded in the PR;
+  the installed release is updated separately.
+- 2026-09-15: A2.1 adds JSONC/TOML and seven explicitly selected profile adapters.
+  Codex `NAME.config.toml` files and Claude `managed-settings.d/*.json` fragments
+  are read separately; `.claude.json` provides only user/project-local MCP counts.
+  Schema 2 records file provenance from the selected layout, but retains
+  `agentVersion: null` and `packageIdentity: not-resolved`: a directory name
+  does not verify a package. Next is A2.2. Two parser dependencies are pinned to
+  exact versions; existing lockfile entries were preserved. Checks and merge
+  results are recorded in the PR.
+- 2026-09-15: A2.2 adds schema 3: local package manifests, comparison against npm
+  lockfile v2/v3 and manifest-content verification against loose Git objects.
+  Full versions are compared; private names and version suffixes are emitted
+  only as hashes. `packageRef` indicates membership in a package directory;
+  installation, publisher and signature are unverified. Packfiles, external Git
+  stores and indirection are not read. Limits are shared with inventory, with a
+  separate decompression bound. No new dependencies or lockfile changes. Next is
+  A3: saving snapshots, comparing updates and making a new trust decision.
+  Local checks and GitHub CI are recorded in the PR.
+- 2026-09-15: A3 saves a separate observed snapshot outside the inspected directory.
+  Acceptance requires an exact digest and a fresh match; it creates a new file
+  without overwriting the previous one. Diff shows files, metadata, packages and
+  explicitly supplied MCP descriptions/schemas, requiring review for changes,
+  scope changes or incompleteness. Missing data is not declared deleted.
+  The MCP catalog is read from one bounded JSON export without launching a
+  server; nextCursor prevents treating the first page as complete. No signature,
+  rollback protection, store-permission protection or action blocking is claimed.
+  Next is A4, local static analysis of skills/hooks/MCP. Checks and merge results
+  are recorded in the PR.
+- 2026-09-15: A4.1 adds static checks STA001–STA011: downloads piped into an
+  interpreter, sensitive-file/variable transfer, root/home deletion, encoded
+  PowerShell, Claude permission bypass, mutable npx/remote sources, MCP URLs,
+  ANTHROPIC_BASE_URL and lifecycle scripts. The report contains reasons, hashes,
+  paths and line numbers, without source text, commands, addresses or secret
+  values. No real processes/servers are launched. Quotes, argv, non-executable
+  examples, incompleteness and limits are tested with positive and negative
+  fixtures. JS/Python, prompt-injection semantics, interfile flows and Cisco
+  JSON/SARIF remain in A4.2. Overall A4 is marked partially complete. Checks and
+  merge results are recorded in the PR.
+- 2026-09-15: the first A4.2 PR adds import of one Cisco Skill Scanner JSON result,
+  a SARIF 2.1.0 subset and MCP Scanner raw-envelope JSON. The AEGIS contract is
+  versioned and lists the checked upstream revisions. External safety flags,
+  exceptions, messages and snippets do not become permissions or free-form report
+  text. Fixed categories, severity, ordinals, identifier hashes and explicitly
+  mapped paths are retained. SARIF suppressions do not hide findings; analyzer
+  failures, meta-filtering, unsupported references/flows and limits are visible.
+  MCP summaries retain the reported hit count without presenting those hits as
+  individual findings. A previous local report is optional and is not treated as
+  signed proof of execution. This PR adds no Cisco installation/invocation,
+  network transmission, AST/dataflow engine or semantic analysis.
+  Next in A4.2: built-in JS/Python and interfile-flow checks.
