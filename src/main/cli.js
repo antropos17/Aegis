@@ -1,6 +1,6 @@
 /**
  * @file cli.js
- * @description Minimal CLI interface. --scan-json, --version, --help.
+ * @description CLI interface for process scans and static project inventories.
  *   Returns null when no CLI flag matched (GUI mode).
  * @since v0.4.0
  */
@@ -14,6 +14,7 @@ const USAGE = `AEGIS — Independent AI Oversight Layer
 Usage:  aegis [options]
 
 Options:
+  --inventory-json <directory>  Inventory project components without executing them
   --scan-json   Run a single scan and output JSON to stdout
   --version     Print version and exit
   --help        Show this help message`.trim();
@@ -68,6 +69,21 @@ async function handleCLI(argv) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  if (flag === '--inventory-json') {
+    if (args.length !== 2 || !args[1] || args[1].startsWith('--')) {
+      write(JSON.stringify({ error: 'expected-project-directory' }));
+      return 1;
+    }
+    try {
+      const { inventoryProject } = require('./agent-inventory');
+      const data = await inventoryProject(args[1]);
+      write(JSON.stringify(data, null, 2));
+      return data.complete ? 0 : 2;
+    } catch (_) {
+      write(JSON.stringify({ error: 'inventory-unavailable' }));
+      return 1;
+    }
+  }
   if (flag === '--version') {
     write(getVersion());
     return 0;
