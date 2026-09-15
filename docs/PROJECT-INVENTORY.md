@@ -15,6 +15,8 @@ trust or safety. `assessment: "not-performed"` is always present.
 Separate [snapshot commands](INVENTORY-SNAPSHOTS.md) add explicit persistence,
 exact-digest acceptance and fresh comparison. The inventory commands above remain
 read-only. Snapshot acceptance does not establish package safety.
+Separate [static review](STATIC-ANALYSIS.md) checks a bounded subset of commands
+and agent/package settings. It reports heuristic findings and coverage gaps.
 
 User and managed directories have a separate explicit command:
 
