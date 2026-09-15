@@ -8,8 +8,9 @@ packages, resolving DNS, uploading content or modifying files.
 
 The built-in engine includes bounded [JavaScript](JAVASCRIPT-STATIC-ANALYSIS.md)
 and [Python](PYTHON-STATIC-ANALYSIS.md) command analysis, including bounded
-[selected-source literal and wrapper flow](STATIC-COMMAND-FLOW.md). General dataflow,
-semantic prompt-injection detection and a vulnerability database remain outside this scope.
+[selected-source literal, wrapper and primitive return flow](STATIC-COMMAND-FLOW.md).
+General dataflow, semantic prompt-injection detection and a vulnerability database
+remain outside this scope.
 The separate [external report importer](STATIC-REPORT-IMPORT.md) accepts explicit
 Cisco JSON/SARIF results alongside this local review. It does not add those
 analysis engines to AEGIS, connect findings to the dashboard or block an action.
@@ -91,7 +92,7 @@ visible in `issues`. Their file hashes remain in `files` when reading succeeded.
 
 ## Built-in checks
 
-Rule-set ID: `aegis-static-patterns`, version `4`. Each report includes fixed rule
+Rule-set ID: `aegis-static-patterns`, version `5`. Each report includes fixed rule
 metadata. Severity prioritizes review; every finding has `confidence: heuristic`.
 
 | ID | Severity | Review trigger |

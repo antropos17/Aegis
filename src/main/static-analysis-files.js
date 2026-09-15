@@ -66,6 +66,7 @@ async function visitStaticFiles(adapter, root, onFile, limits) {
       pythonControlFlow: 'not-evaluated',
       pythonModules: 'names-only-not-resolved',
       codeFlow: 'bounded-selected-source-literals-and-simple-wrappers',
+      codeFlowReturns: 'bounded-primitive-function-returns',
       codeFlowResolution: 'syntactic-associations-runtime-not-verified',
       codeFlowSnapshot: 'per-file-bytes-no-atomic-project-snapshot',
       runtimeBehavior: 'not-observed',

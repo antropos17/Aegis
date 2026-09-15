@@ -68,8 +68,8 @@ possible mutation, indirect dynamic execution or dependency side effect.
 Branches and function bodies are scanned syntactically, including unreachable
 code. A fixed issue states that control flow was not evaluated. A bounded
 [selected-source flow layer](STATIC-COMMAND-FLOW.md) associates imported literal
-values and simple wrapper calls. General dataflow, module execution order,
-environment expansion, deobfuscation, filesystem/network API analysis and
+values, simple wrapper calls and primitive function returns. General dataflow,
+module execution order, environment expansion, deobfuscation, filesystem/network API analysis and
 instruction semantics remain outside this subset.
 TypeScript and JSX remain unsupported; Python has a separate
 [command-review subset](PYTHON-STATIC-ANALYSIS.md). Imported libraries and child program paths

@@ -66,8 +66,9 @@ in coverage issues. Runtime name lookup, closures, decorators and type evaluatio
 are not fully modeled.
 
 A bounded [selected-source flow layer](STATIC-COMMAND-FLOW.md) now associates
-imported strings and simple wrapper calls. General dataflow, arbitrary filesystem
-or network API analysis, payload decoding, instruction semantics and action blocking
+imported strings, simple wrapper calls and primitive function returns. General
+dataflow, arbitrary filesystem or network API analysis, payload decoding,
+instruction semantics and action blocking
 remain outside this subset.
 An unmatched package is not declared safe. Review the reported gaps and the source
 before making a separate trust decision.

@@ -41,6 +41,7 @@ function createPythonValues(parsed, index, issues, flow = {}) {
     }
     if (node.type === 'Boolean') return parsed.source(node) === 'True';
     if (node.type === 'None') return null;
+    if (node.type === 'CallExpression') return flow.call?.(node) ?? UNKNOWN;
     if (node.type === 'VariableName') {
       const scope = index.scopes.get(node);
       const binding = lookupPython(scope, parsed.source(node));
@@ -64,8 +65,14 @@ function createPythonValues(parsed, index, issues, flow = {}) {
         return state.modulesInvalid ? UNKNOWN : (flow.function?.(binding) ?? UNKNOWN);
       if (binding.kind !== 'assignment' || resolving.has(binding)) return UNKNOWN;
       resolving.add(binding);
-      const value = next(binding.init);
-      resolving.delete(binding);
+      let value;
+      try {
+        value = flow.assignment
+          ? flow.assignment(binding, () => next(binding.init))
+          : next(binding.init);
+      } finally {
+        resolving.delete(binding);
+      }
       if (Array.isArray(value)) {
         issues.add('python-mutable-binding-not-resolved');
         return UNKNOWN;

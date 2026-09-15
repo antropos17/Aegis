@@ -13,12 +13,14 @@ function indexPythonScopes(parsed, issues) {
     if (!node) return;
     if (node.type === 'VariableName') {
       const name = parsed.identifier(node);
+      const previous = scope.bindings.get(name);
       scope.bindings.set(name, {
         ...description,
         node,
         scope,
         from: node.from,
-        mutated: scope.bindings.has(name),
+        previous,
+        mutated: Boolean(previous),
       });
     } else if (
       ['TupleExpression', 'ArrayExpression', 'ParenthesizedExpression'].includes(node.type)
