@@ -30,7 +30,9 @@ The project command never expands its scope to the user's home directory.
 | `.vscode/mcp.json` | SHA-256, JSONC parsing (comments/trailing commas), number of keys in `servers` |
 | `.codex/config.toml` | SHA-256, TOML parsing, separate counts for `mcp_servers` and `hooks` |
 | Root `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, `.cursorrules` | Fingerprint only |
-| `.agents/skills`, `.claude/skills`, `.codex/skills`, `.cursor/skills` | Bounded recursive fingerprints of manifests and other regular files, including scripts |
+| Root `package.json`, `npm-shrinkwrap.json`, `package-lock.json` | Fingerprint and local package evidence |
+| `.agents/skills`, `.claude/skills`, `.codex/skills`, `.cursor/skills` | Bounded recursive fingerprints, including scripts and package metadata; `.git` entries excluded case-insensitively |
+| Enclosing `.git` directories inside the selected scope | Only HEAD, required refs and loose objects for package-manifest evidence; no Git command or config execution |
 
 `declaredEntries` counts declarations/event groups; it is not a count of valid,
 enabled, installed or running tools. Empty/missing sections are zero. Recognized
@@ -45,11 +47,14 @@ selected root or a future profile adapter.
 
 ## Output and privacy
 
-`schemaVersion: 2` includes components (`path`, `kind`, `size`, `sha256`), optional
-parse status/counts, issues, scope and usage. It adds adapter ID/version/reference
-date and component provenance (agent, declared scope, `basis: "selected-layout"`).
-`agentVersion: null` and `packageIdentity: "not-resolved"` explicitly preserve
-unknown installation/package identity. These fields do not attest a publisher.
+`schemaVersion: 3` includes components (`path`, `kind`, `size`, `sha256`), optional
+parse status/counts, issues, scope and usage, adapter ID/version/reference date,
+and component provenance (agent, declared scope, `basis: "selected-layout"`).
+It adds `packages` and a component `packageRef` when a containing local manifest
+was processed. `packageIdentity: "contained-in-local-package"` describes that
+containment; otherwise it remains `not-resolved`. `agentVersion` remains `null`.
+See [package evidence](PACKAGE-EVIDENCE.md) for the distinction between a declared
+version, agreement with a lockfile and Git content evidence. No field attests a publisher.
 Components are sorted by relative
 path. Hashing the original bytes makes changes in bundled scripts visible even
 when their `SKILL.md` stays the same. It does not attest authorship or harmlessness.
@@ -79,6 +84,10 @@ file, 8 MiB total bytes read and six directory levels below each skills root.
 Pattern enumeration also charges ignored names against the entry budget; only
 matching direct children are opened. `limits.parseDepth` is 64 for configuration
 nesting, independent of the filesystem depth limit.
+Package evidence is capped at 64 manifests. Git objects share the filesystem
+budgets and have a separate 8 MiB decompression budget; one expanded object is
+capped at the file-byte limit plus 64 header bytes. Rejected expansion attempts
+also consume that budget. The report exposes both limits and consumed bytes.
 One extra byte is reserved while reading to detect growth. A file limit skips
 that file; total-byte/entry exhaustion stops further traversal. Depth exhaustion
 skips that subtree. Every such skip makes the snapshot incomplete.
@@ -114,5 +123,5 @@ Parser references: [Microsoft API](https://github.com/microsoft/node-jsonc-parse
 [smol-toml behavior and limitations](https://github.com/squirrelchat/smol-toml).
 Exact dependency versions and registry integrity digests are pinned in the lockfile.
 
-Persistent trust comparison, static threat analysis, package provenance and UI
+Persistent trust comparison, static threat analysis, publisher authentication and UI
 are tracked separately in [the protection plan](roadmap/ai-agent-protection.md).

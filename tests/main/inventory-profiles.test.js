@@ -54,7 +54,7 @@ describe('explicit inventory profiles', () => {
     const open = vi.spyOn(fs.promises, 'open');
     const report = await inventoryProfile('user-home', root);
     expect(report).toMatchObject({
-      schemaVersion: 2,
+      schemaVersion: 3,
       mode: 'profile-inventory',
       complete: true,
       adapter: { id: 'user-home', version: 1 },

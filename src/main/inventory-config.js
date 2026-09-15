@@ -79,16 +79,14 @@ function checkTomlDepth(config) {
 }
 
 /**
- * Parse one bounded UTF-8 config without returning values, names or parser errors.
- * Counts describe declarations only; they do not validate client schemas or policy.
+ * Parse bounded configuration for internal inventory consumers only.
+ * The returned value is untrusted and may contain secrets: never log/export it.
  * @param {Buffer} data Original bytes already bounded by inventory-reader.
  * @param {string} format json, jsonc or toml.
- * @param {string[]} sections Fixed top-level sections from a built-in adapter.
- * @param {boolean} [localProjects] Also count Claude's project-local MCP declarations.
- * @returns {object} Parse status and structural counts, safe to include in a report.
+ * @returns {object} Fixed parse status and an INTERNAL parsed object on success.
  * @since v0.15.1
  */
-function summarizeConfig(data, format, sections, localProjects = false) {
+function parseInventoryConfig(data, format) {
   if (!['json', 'jsonc', 'toml'].includes(format)) return { parseStatus: 'unsupported-format' };
   let text;
   try {
@@ -113,6 +111,22 @@ function summarizeConfig(data, format, sections, localProjects = false) {
     return { parseStatus: reason };
   }
   if (!isRecord(config)) return { parseStatus: 'invalid-shape' };
+  return { parseStatus: 'parsed', value: config };
+}
+
+/**
+ * Count fixed sections without returning configuration values or parser errors.
+ * @param {Buffer} data Original bytes bounded by inventory-reader.
+ * @param {string} format json, jsonc or toml.
+ * @param {string[]} sections Fixed section names from a built-in adapter.
+ * @param {boolean} [localProjects] Count Claude's project-local MCP declarations.
+ * @returns {object} JSON-safe parse status and structural counts.
+ * @since v0.15.1
+ */
+function summarizeConfig(data, format, sections, localProjects = false) {
+  const parsed = parseInventoryConfig(data, format);
+  if (parsed.parseStatus !== 'parsed') return parsed;
+  const config = parsed.value;
   try {
     const declaredSections = Object.fromEntries(
       sections.map((key) => [key, countSection(config, key)]),
@@ -135,4 +149,4 @@ function summarizeConfig(data, format, sections, localProjects = false) {
   }
 }
 
-module.exports = { summarizeConfig, PARSE_DEPTH };
+module.exports = { summarizeConfig, parseInventoryConfig, PARSE_DEPTH };

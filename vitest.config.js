@@ -46,6 +46,8 @@ export default defineConfig({
         'src/main/inventory-reader.js',
         'src/main/inventory-config.js',
         'src/main/inventory-profiles.js',
+        'src/main/inventory-packages.js',
+        'src/main/inventory-git.js',
         'src/main/audit-logger.js',
         'src/main/audit-index.js',
         'src/main/audit-index-query.js',

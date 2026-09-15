@@ -4,11 +4,18 @@
 const { createInventoryReader } = require('./inventory-reader');
 const { summarizeConfig, PARSE_DEPTH } = require('./inventory-config');
 const { getInventoryProfile, matchesInventoryConfig } = require('./inventory-profiles');
+const { createPackageInventory, PACKAGE_FILES, PACKAGE_LIMIT } = require('./inventory-packages');
 
 async function inventoryLayout(directory, profile, options) {
   const reader = await createInventoryReader(directory, options.limits);
+  const packageInventory = createPackageInventory(reader);
   const components = [];
   function record(relativePath, file, entry, metadata = {}) {
+    packageInventory.observe(
+      relativePath,
+      file,
+      profile.id === 'project' ? '' : (entry.packageBoundary ?? null),
+    );
     components.push({
       path: relativePath,
       kind: entry.kind,
@@ -46,19 +53,34 @@ async function inventoryLayout(directory, profile, options) {
       record(name, file, { ...entry, kind: 'instruction' }),
     );
   }
+  if (profile.id === 'project') {
+    for (const name of PACKAGE_FILES) {
+      await reader.visit(name, (relativePath, file) =>
+        record(relativePath, file, {
+          kind: name === 'package.json' ? 'package-manifest' : 'package-lock',
+          agent: 'unspecified',
+          scope: 'project',
+        }),
+      );
+    }
+  }
   for (const entry of profile.skillRoots) {
     await reader.visit(
       entry.path,
       (name, file) =>
         record(name, file, {
           ...entry,
+          packageBoundary: entry.path,
           kind: name.split('/').at(-1) === 'SKILL.md' ? 'skill-manifest' : 'skill-file',
         }),
       true,
+      0,
+      ['.git'],
     );
   }
+  const packageEvidence = await packageInventory.finish(components);
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     mode: profile.id === 'project' ? 'project-inventory' : 'profile-inventory',
     adapter: {
       id: profile.id,
@@ -75,13 +97,26 @@ async function inventoryLayout(directory, profile, options) {
       })),
       instructions: profile.instructions.map((entry) => entry.path),
       skillRoots: profile.skillRoots.map((entry) => entry.path),
+      skillExclusions: ['.git (case-insensitive)'],
+      packageFiles: profile.id === 'project' ? [...PACKAGE_FILES] : [],
+      packageEvidence:
+        profile.id === 'project'
+          ? 'selected-project-root-and-scanned-skills'
+          : 'scanned-skills-only',
+      gitEvidence: 'loose-objects-manifest-only',
       links: 'skipped-below-selected-root',
       snapshot: 'best-effort',
       selection: 'explicit-directory',
       configurationPrecedence: 'not-resolved',
     },
-    limits: { ...reader.limits, parseDepth: PARSE_DEPTH },
-    usage: reader.usage(),
+    limits: {
+      ...reader.limits,
+      parseDepth: PARSE_DEPTH,
+      packages: PACKAGE_LIMIT,
+      gitInflatedBytes: reader.limits.totalBytes,
+    },
+    usage: { ...reader.usage(), gitInflatedBytes: packageEvidence.gitUsage.inflatedBytes },
+    packages: packageEvidence.packages,
     components: components.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)),
     issues: reader.issues,
   };
