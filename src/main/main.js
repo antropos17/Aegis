@@ -588,7 +588,7 @@ function onFileEvent(ev) {
  * EVENT — inside the ingest that completed it, not on the next tick — and one log line.
  * The record is the engine's payload handed over field for field: `agent` / `pid` /
  * `instanceId` are the first step's (already in the audit conventions, `''` and `null`
- * for absent), `action` is the rule id, `severity` the rule level, `attribution` the
+ * for absent), `action` is the rule id, `severity` the assessed level, `attribution` the
  * weakest link across the steps, and `extra` carries the rule and every step's own
  * attribution evidence. Nothing is re-derived here.
  *
@@ -613,6 +613,7 @@ function onSequenceDetection(detection) {
       title: detection.title,
       timespan: detection.timespan,
       steps: detection.steps,
+      ...(detection.assessment ? { assessment: detection.assessment } : {}),
     },
   });
   logger.info('sequence-engine', `Sequence ${detection.ruleId} detected`, detection);

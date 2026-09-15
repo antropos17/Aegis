@@ -550,6 +550,10 @@ describe('network-monitor DI tests', () => {
       expect(results).toHaveLength(1);
       expect(results[0].agent).toBe('Claude Code');
       expect(results[0].instanceId).toBe('100:1700000000111');
+      expect(results[0].attribution).toEqual({
+        status: 'confirmed',
+        evidence: ['os-tcp-owner-pid'],
+      });
     });
 
     // Same C-01 rule that keeps `agent` blank: an unowned connection gets no key.
@@ -566,6 +570,10 @@ describe('network-monitor DI tests', () => {
       expect(results[0].agent).toBe('');
       expect(results[0].instanceId).toBeNull();
       expect(results[0].instanceId).not.toBe('100:1700000000111');
+      expect(results[0].attribution).toEqual({
+        status: 'unattributed',
+        evidence: ['no-owner-match'],
+      });
     });
 
     // Read, never re-derive: this agent has a pid and a startTime, so

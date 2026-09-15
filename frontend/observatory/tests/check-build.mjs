@@ -19,6 +19,7 @@ import { checkWatchlist } from './watchlist-check.mjs';
 import { checkLocalization } from './localization-check.mjs';
 import { checkUxRecovery } from './ux-recovery-check.mjs';
 import { checkLocalSecurity } from './local-security-check.mjs';
+import { checkSequence } from './sequence-check.mjs';
 
 const repo = process.cwd();
 const designRoot = resolve(repo, 'frontend/observatory');
@@ -428,6 +429,7 @@ try {
   await checkClarity(browser, base + '/desktop/', out);
   await checkResourceLayers(browser, base + '/desktop/', out);
   await checkDetails(browser, base + '/desktop/', out);
+  await checkSequence(browser, base + '/desktop/', out);
   await checkSettings(browser, base + '/desktop/', out);
   await checkActivity(browser, base + '/desktop/', out);
   await checkPagination(browser, base + '/desktop/', out);

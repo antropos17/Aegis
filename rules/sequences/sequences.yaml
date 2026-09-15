@@ -3,11 +3,10 @@
 # (loadDir) — a multi-document file of base detection documents plus the correlation
 # documents that order them. Rejection is per FILE: one bad document drops every rule here.
 #
-# v1 noise note for SEQ001: the network step matches ANY destination on port 443 or 80,
-# including the agent's own API host, which every agent talks to continuously. Negation
-# (`not`, a `filter` selection, `condition: selection and not filter`) is outside the
-# accepted subset, so that noise is expected in v1 and is not a defect of the engine.
-title: Credential file read
+# The opted-in policy records temporal evidence and limits severity. Existing TCP
+# tuples remain informational; handle holds never establish a read. All observed
+# TCP ports and allowlisted destinations remain eligible. No payload is inspected.
+title: Credential file observation
 name: cred_file_read
 logsource:
   product: aegis
@@ -17,24 +16,23 @@ detection:
     event.action:
       - file-accessed
       - file-handle-held
-    file.path|re|i: '[\\/](?:[^\\/]*[._\d-])?(?:passwords?|credentials?)[^\\/]*$'
+    file.path|re|i: '[\\/](?:\.env(?:\.[^\\/]*)?|id_(?:rsa|dsa|ecdsa|ed25519)|(?:[^\\/]*[._\d-])?(?:passwords?|credentials?)[^\\/]*)$'
   condition: selection
 ---
-title: Outbound network connection
+title: TCP connection observation
 name: outbound_conn
 logsource:
   product: aegis
   category: network
 detection:
   selection:
-    destination.port:
-      - 443
-      - 80
+    network.transport: tcp
   condition: selection
 ---
-title: Credential file read followed by outbound connection
+title: Credential file observation followed by TCP observation
 id: SEQ001
-level: high
+level: medium
+evidence-policy: credential-egress-v1
 correlation:
   type: temporal_ordered
   rules:

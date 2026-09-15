@@ -23,6 +23,7 @@ const _platform = require('./platform');
 const sensorHealth = require('./sensor-health');
 const { ALLOWLIST_DOMAINS, ALLOWLIST_IP_RANGES } = require('../shared/constants');
 const { readInstanceId } = require('./process-identity');
+const { makeAttribution, EVIDENCE } = require('./attribution');
 
 /** Authoritative agent-scoped TCP observation sensor id (Block B4). */
 const NETWORK_SENSOR_ID = 'network';
@@ -570,6 +571,7 @@ async function scanNetworkConnections(agents) {
         // agents this scan was invoked with, which is what makes the OS_TCP_OWNER_PID
         // evidence a same-tick observation rather than a later re-resolution.
         instanceId: readInstanceId(agent),
+        attribution: makeAttribution([agent ? EVIDENCE.OS_TCP_OWNER_PID : EVIDENCE.NO_OWNER_MATCH]),
         parentEditor: agent ? agent.parentEditor || null : null,
         cwd: agent ? agent.cwd || null : null,
         category: agent ? agent.category : 'other',

@@ -1,6 +1,6 @@
 # AEGIS Architecture
 
-## Main Process (src/main/) — 125 CommonJS modules (103 top-level + 20 platform/ + 2 token-adapters/)
+## Main Process (src/main/) — 126 CommonJS modules (104 top-level + 20 platform/ + 2 token-adapters/)
 
 Optional development ETW: main → platform/etw-file-runtime → etw-file-supervisor
 → normal `sidecar/etw-file` broker → authenticated elevated file collector.
@@ -20,6 +20,7 @@ Core modules:
 - watch-worker-client.js / watch-worker-thread.js — dedicated chokidar worker per evidence watch group; close invalidates delivery before termination
 - watch-event-queue.js — bounded, acknowledged worker delivery; counted drop-newest overflow reaches sensor health
 - network-monitor.js — TCP scanning + DNS + domain classification
+- sequence-evidence.js — bounded TCP tuple history and opt-in credential/TCP evidence calibration
 - rule-loader.js — YAML rule loading + categoryIndex (Map<category, rules[]>) exposed via getRulesByCategory(); built and tested, but no production caller consumes it yet (C-16)
 - config-manager.js — validated atomic settings persistence, changed-field patch merging, encrypted key retention and permissions
 - baselines.js — session tracking + rolling averages
@@ -37,7 +38,7 @@ Core modules:
 - tray-icon.js — system tray with procedural icon
 
 ## Renderer (frontend/observatory/) — Svelte 5 + Vite 7
-62 Svelte components, 16 stores, 22 utils. Component count refers to frontend/observatory/components; retained store/utility counts refer to src/renderer/lib.
+63 Svelte components, 16 stores, 22 utils. Component count refers to frontend/observatory/components; retained store/utility counts refer to src/renderer/lib.
 
 App.svelte owns workspace tabs, history and the host connection. Monitoring groups products and exposes stamped instances for process actions; Events and ActivityChart show retained evidence; Details and EntityLinks connect observations; Rules, Catalog, Analysis, Reports, Statistics and Settings expose host actions. SensorStatus renders effective sensor IDs; Notifications tracks anomaly crossings.
 

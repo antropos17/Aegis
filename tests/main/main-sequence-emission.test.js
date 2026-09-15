@@ -128,6 +128,27 @@ afterAll(() => {
 });
 
 describe('main — onSequenceDetection writes the sequence-detection audit record', () => {
+  it('preserves calibrated severity and evidence assessment in the audit record', () => {
+    const audit = { log: vi.fn() };
+    main._setAuditForTest(audit);
+    const assessment = {
+      policy: 'credential-egress-v1',
+      dataTransfer: 'unobserved',
+      ownershipComplete: false,
+      reasons: ['ownership-incomplete'],
+    };
+    main.onSequenceDetection({
+      ...detection(),
+      level: 'low',
+      assessment,
+      attribution: { status: 'unattributed', evidence: ['handle-scan-pid'] },
+    });
+    expect(audit.log.mock.calls[0][1]).toMatchObject({
+      severity: 'low',
+      attribution: { status: 'unattributed' },
+      extra: { assessment },
+    });
+  });
   it('writes the record on the event, in the shape roadmap §5 "Emission" states', () => {
     const audit = { log: vi.fn() };
     main._setAuditForTest(audit);
