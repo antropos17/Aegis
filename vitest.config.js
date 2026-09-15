@@ -69,6 +69,7 @@ export default defineConfig({
         'src/main/static-python-values.js',
         'src/main/static-python-invocation.js',
         'src/main/static-python-flow.js',
+        'src/main/static-python-functions.js',
         'src/main/static-import-values.js',
         'src/main/static-import-skill.js',
         'src/main/static-import-sarif.js',

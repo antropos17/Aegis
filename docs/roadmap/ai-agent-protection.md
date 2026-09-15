@@ -32,7 +32,7 @@ coverage gaps. Do not label these states "safe".
 | A3 | Trust snapshots, comparison and update revalidation | File, tool schema/description and package changes are visible; acceptance is bound to content; changes are never accepted automatically | Implemented through CLI; MCP uses an explicitly supplied offline tools/list; [contract](../INVENTORY-SNAPSHOTS.md) |
 | A4 | Local static analysis of skills/hooks/MCP | Whole-package analysis of downloads, scripts, dependencies and data transfer; positive and negative fixtures; Cisco integrations through a versioned JSON/SARIF contract; external analyzers only when explicitly selected | Partial: A4.1, external-result import and bounded JavaScript/Python command and selected-source flow review are implemented; deeper analysis remains in A4.2 |
 | A4.1 | Local command and configuration checks | CLI for projects, profiles and package trees; review reasons bound to hash/path; bounded shell/MCP/hooks/npm parsing; visible incompleteness; no execution or data transmission | Implemented; [contract](../STATIC-ANALYSIS.md) |
-| A4.2 | Deeper analysis and Cisco integrations | Versioned JSON/SARIF contract, explicit offline inputs and result provenance; JS/Python and interfile flow analysis; complex shell and instruction semantics; unsupported cases receive no safety verdict | Partial: [Cisco JSON/SARIF import](../STATIC-REPORT-IMPORT.md), [JavaScript](../JAVASCRIPT-STATIC-ANALYSIS.md), [Python](../PYTHON-STATIC-ANALYSIS.md) and [selected-source literal/wrapper flow](../STATIC-COMMAND-FLOW.md) are implemented; broader flow, complex shell and instruction semantics remain |
+| A4.2 | Deeper analysis and Cisco integrations | Versioned JSON/SARIF contract, explicit offline inputs and result provenance; JS/Python and interfile flow analysis; complex shell and instruction semantics; unsupported cases receive no safety verdict | Partial: [Cisco JSON/SARIF import](../STATIC-REPORT-IMPORT.md), [JavaScript](../JAVASCRIPT-STATIC-ANALYSIS.md), [Python](../PYTHON-STATIC-ANALYSIS.md) and [selected-source literal/wrapper/primitive-return flow](../STATIC-COMMAND-FLOW.md) are implemented; broader flow, complex shell and instruction semantics remain |
 | A5 | Refine SEQ001 and add behavioral chains | Ordinary work is not treated as proven exfiltration; missed-detection/noise tests; parent/child and cross-agent relationships retain attribution strength | Planned |
 | B1 | Shared policy and adapter contract | Versioned events before/after actions; `allow/ask/deny`; supported and unsupported surfaces listed; ACS alignment assessed | Planned |
 | B2 | MCP gateway and operation control | Validate schemas, arguments, responses, recipients, access scopes and tool changes; stdio and HTTP have separate trust boundaries | Planned |
@@ -247,3 +247,13 @@ Do not start another heavy batch while diagnostic-log growth is unexplained.
   Rule-set version 4 adds flow scope/budgets and requires fresh older-baseline
   comparison. Next in A4.2: broader value/return flows, complex shell and instruction
   semantics. Checks and merge results are recorded in the PR.
+- 2026-09-16: primitive function-return flow extends the selected-source A4.2
+  subset. Simple JavaScript/Python return helpers can feed command arguments and
+  supported wrappers while retaining caller, sink and transitive source hashes.
+  Return and wrapper expansion share recursion, call and work limits. Unsupported
+  bodies, mutable/escaped identities and process-call return values remain unknown.
+  Rule-set version 5 declares return coverage and requires fresh comparison for
+  older baselines. CLI checks cover non-execution, redaction, changed dependency
+  bytes and adapter exclusions. Next in A4.2: complex shell and instruction
+  semantics; general object/closure flow remains outside this bounded subset.
+  Verification and merge results are recorded in the PR.

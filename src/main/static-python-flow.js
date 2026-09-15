@@ -1,61 +1,32 @@
 'use strict';
 
-const { commaGroups } = require('./static-python-tree');
 const { UNKNOWN } = require('./static-python-values');
+const { createPythonFunctions, isPythonPrimitive } = require('./static-python-functions');
 const { inspectPythonInvocation } = require('./static-python-invocation');
 const { COMMANDS_PER_FILE } = require('./static-config-analysis');
 
 const DEFAULT_LIMITS = { flowDepth: 8, flowModules: 32, flowCalls: 256, flowEvidence: 16 };
 
-/** Recognize a straight-line Python process wrapper without executing it. @param {object} model @param {object} binding @returns {object|null} Parameter bindings and one call, or unsupported. @since v0.15.1 */
-function pythonWrapperShape(model, binding) {
-  const { definition, inner } = binding;
-  if (
-    !definition ||
-    binding.mutated ||
-    inner.dynamic ||
-    model.index.parents.get(definition) !== model.parsed.root ||
-    definition.children.length !== 4 ||
-    definition.children[0]?.type !== 'def'
-  )
-    return null;
-  const params = definition.children.find((node) => node.type === 'ParamList');
-  const groups = commaGroups(params?.children.slice(1, -1) ?? []);
-  if (
-    groups.length > 8 ||
-    groups.some((group) => group.length !== 1 || group[0].type !== 'VariableName')
-  )
-    return null;
-  const parameters = groups.map(([node]) => inner.bindings.get(model.parsed.identifier(node)));
-  if (parameters.some((parameter) => parameter?.kind !== 'parameter' || parameter.mutated))
-    return null;
-  const body = definition.children.find((node) => node.type === 'Body');
-  const statements = (body?.children ?? []).filter((node) => ![':', 'Comment'].includes(node.type));
-  if (statements[0]?.type === 'ExpressionStatement' && statements[0].children[0]?.type === 'String')
-    statements.shift();
-  if (statements.length !== 1) return null;
-  const statement = statements[0];
-  const call =
-    statement.type === 'ExpressionStatement'
-      ? statement.children[0]
-      : statement.type === 'ReturnStatement'
-        ? statement.children[1]
-        : null;
-  return call?.type === 'CallExpression' ? { parameters, call } : null;
-}
-
-/** Follow bounded selected-file constants and simple Python call wrappers. @param {string} name @param {object|undefined} catalog Read-only selected-source catalog. @param {Set<string>} issues @param {function} prepare Bounded model factory. @returns {object} Model hooks, call inspection and fixed results. @since v0.15.1 */
+/** Follow bounded selected-file constants, primitive returns and Python call wrappers. @param {string} name @param {object|undefined} catalog Read-only selected-source catalog. @param {Set<string>} issues @param {function} prepare Bounded model factory. @returns {object} Model hooks, call inspection and fixed results. @since v0.15.1 */
 function createPythonFlow(name, catalog, issues, prepare) {
   const limits = { ...DEFAULT_LIMITS, ...catalog?.limits };
   const models = new Map();
   const resolving = new Set();
-  const frames = [];
   const findings = [];
   let paths = null,
     entry = null,
     overflow = false,
-    expansions = 0,
+    expanded = false,
     commands = 0;
+  const functions = createPythonFunctions(limits, {
+    fail,
+    work,
+    remember,
+    expanded() {
+      expanded = true;
+      issues.add('python-control-flow-not-evaluated');
+    },
+  });
   function fail(reason) {
     issues.add(reason);
     return UNKNOWN;
@@ -83,6 +54,12 @@ function createPythonFlow(name, catalog, issues, prepare) {
     }
     const model = prepare(record.text, record.path, hooks);
     models.set(record.path, model);
+    model.finalizing = true;
+    try {
+      model.validateReturnEscapes?.();
+    } finally {
+      model.finalizing = false;
+    }
     return model;
   }
   function exported(record, symbol) {
@@ -95,6 +72,7 @@ function createPythonFlow(name, catalog, issues, prepare) {
       const model = modelFor(record);
       if (
         !model ||
+        model.finalizing ||
         model.parsed.issue ||
         model.values.state.modulesInvalid ||
         model.values.state.flowInvalid ||
@@ -107,7 +85,7 @@ function createPythonFlow(name, catalog, issues, prepare) {
         return fail('python-export-not-resolved');
       if (binding.kind === 'function') return { kind: 'function', binding, model };
       if (binding.kind !== 'assignment') return fail('python-export-not-resolved');
-      const value = model.values.read(binding.init);
+      const value = model.values.read(binding.node);
       return typeof value === 'string' ? value : fail('python-export-not-resolved');
     } finally {
       resolving.delete(key);
@@ -134,7 +112,7 @@ function createPythonFlow(name, catalog, issues, prepare) {
         model.values.state.flowInvalid ? UNKNOWN : { kind: 'function', binding, model },
       visible(binding) {
         if (
-          frames.length &&
+          functions.hasFrames() &&
           entry?.path === model.path &&
           binding.scope === model.index.moduleScope &&
           binding.from > entry.from
@@ -144,18 +122,47 @@ function createPythonFlow(name, catalog, issues, prepare) {
         }
         return true;
       },
-      parameter(binding) {
-        const frame = frames.findLast((candidate) => candidate.has(binding));
-        return frame ? frame.get(binding) : UNKNOWN;
+      parameter: functions.parameter,
+      call: (node) => returned(model, node),
+      assignment(binding, read) {
+        const previous = entry;
+        if (binding.scope === model.index.moduleScope)
+          entry = { path: model.path, from: binding.init.from };
+        try {
+          return read();
+        } finally {
+          entry = previous;
+        }
       },
     };
   }
-  function invoke(model, node, origin, stack) {
-    if (model.escapesArguments(node)) {
+  function escaped(model, node) {
+    if (model.escapesCall(node)) {
       model.values.state.modulesInvalid = true;
       fail('python-module-escape-not-resolved');
-      return;
+      return true;
     }
+    return false;
+  }
+  function returned(model, node) {
+    if (
+      !paths ||
+      model.validating ||
+      model.values.state.returnsDisabled ||
+      model.values.state.modulesInvalid ||
+      model.values.state.flowInvalid
+    )
+      return UNKNOWN;
+    if (escaped(model, node)) return UNKNOWN;
+    const target = model.values.read(node.children[0]);
+    if (target?.kind !== 'function') return fail('python-return-not-resolved');
+    const value = functions.expand(model, node, target, true, (shape) =>
+      target.model.values.read(shape.expression),
+    );
+    return isPythonPrimitive(value) ? value : fail('python-return-not-resolved');
+  }
+  function invoke(model, node, origin) {
+    if (escaped(model, node)) return;
     const target = model.values.read(node.children[0]);
     if (target?.kind === 'method') {
       if (commands >= COMMANDS_PER_FILE) {
@@ -171,7 +178,7 @@ function createPythonFlow(name, catalog, issues, prepare) {
       );
       result.issues.forEach((reason) => issues.add(reason));
       if (overflow) return;
-      const flowed = stack.length > 0 || paths.size > 1;
+      const flowed = expanded || paths.size > 1;
       result.rules.forEach((ruleId) =>
         findings.push({
           ruleId,
@@ -193,54 +200,11 @@ function createPythonFlow(name, catalog, issues, prepare) {
       fail('python-call-target-not-resolved');
       return;
     }
-    if (!work()) return;
-    if (expansions++ >= limits.flowCalls) {
-      fail('flow-call-limit');
-      return;
-    }
-    if (stack.length >= limits.flowDepth) {
-      fail('flow-depth-limit');
-      return;
-    }
-    if (stack.includes(target.binding)) {
-      fail('python-call-cycle-not-resolved');
-      return;
-    }
-    const shape = pythonWrapperShape(target.model, target.binding);
-    if (!shape) {
-      fail('python-function-not-resolved');
-      return;
-    }
-    const argList = node.children[1];
-    const arguments_ = commaGroups(argList?.children.slice(1, -1) ?? []);
-    if (
-      argList?.type !== 'ArgList' ||
-      arguments_.length !== shape.parameters.length ||
-      arguments_.some((group) => group.length !== 1)
-    ) {
-      fail('python-function-arguments-not-resolved');
-      return;
-    }
-    const values = arguments_.map(([argument]) => model.values.read(argument));
-    if (
-      values.some(
-        (value) =>
-          !['string', 'boolean'].includes(typeof value) &&
-          value !== null &&
-          !(Array.isArray(value) && value.every((item) => typeof item === 'string')),
-      )
-    ) {
-      fail('python-function-arguments-not-resolved');
-      return;
-    }
-    if (!remember(target.model.path)) return;
-    issues.add('python-control-flow-not-evaluated');
-    frames.push(new Map(shape.parameters.map((parameter, index) => [parameter, values[index]])));
-    try {
-      invoke(target.model, shape.call, origin, [...stack, target.binding]);
-    } finally {
-      frames.pop();
-    }
+    functions.expand(model, node, target, false, (shape) => {
+      if (shape.expression.type === 'CallExpression')
+        invoke(target.model, shape.expression, origin);
+      else fail('python-call-target-not-resolved');
+    });
   }
   return {
     root: (text) => modelFor({ path: name, text }),
@@ -248,7 +212,8 @@ function createPythonFlow(name, catalog, issues, prepare) {
       paths = new Set([model.path]);
       entry = { path: model.path, from: node.from };
       overflow = false;
-      invoke(model, node, { line: model.parsed.lineAt(node.from) }, []);
+      expanded = false;
+      invoke(model, node, { line: model.parsed.lineAt(node.from) });
       paths = null;
       entry = null;
     },
@@ -256,4 +221,4 @@ function createPythonFlow(name, catalog, issues, prepare) {
   };
 }
 
-module.exports = { createPythonFlow, pythonWrapperShape };
+module.exports = { createPythonFlow };

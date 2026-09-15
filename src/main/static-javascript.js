@@ -116,6 +116,16 @@ function analyzeJavaScript(text, name, catalog) {
   const findings = [];
   const issues = new Set();
   let commands = 0;
+  let returnsSuppressed = 0;
+  function withoutReturns(callback) {
+    returnsSuppressed++;
+    try {
+      return callback();
+    } finally {
+      returnsSuppressed--;
+    }
+  }
+  const flow = createJavaScriptFlow(catalog, issues);
   const modules = createJavaScriptModules(catalog, issues, (model) => {
     const result = parseJavaScript(model.text, model.path);
     if (result.issue) {
@@ -128,13 +138,14 @@ function analyzeJavaScript(text, name, catalog) {
       owner: model,
       importValue: (source, key) => modules.resolve(model, source, key),
       memberValue: modules.member,
+      callValue: (node) => (returnsSuppressed ? UNKNOWN : flow.returned(model, node)),
+      moduleSource: withoutReturns,
     });
-    invalidateMutations(model.index, model.values, issues);
+    withoutReturns(() => invalidateMutations(model.index, model.values, issues));
   });
   const root = modules.add(name, text);
   if (!root?.index) return { findings, issues: [...issues].sort(), commands };
   const { index, values } = root;
-  const flow = createJavaScriptFlow(catalog, issues);
   for (const node of index.nodes) {
     if (
       FUNCTIONS.has(node.type) ||

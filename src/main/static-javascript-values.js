@@ -106,13 +106,15 @@ function createValues(index, mode, issues, hooks = {}) {
     }
     if (node.type === 'CallExpression' && loader(node.callee)) {
       if (node.arguments.length === 1) {
-        const source = next(node.arguments[0]);
+        const readSource = () => next(node.arguments[0]);
+        const source = hooks.moduleSource ? hooks.moduleSource(readSource) : readSource();
         if (NODE_MODULES.has(source)) return state.moduleMutated ? UNKNOWN : MODULE;
         if (typeof source === 'string') return imported(source, '*');
       }
       issues.add('javascript-module-not-resolved');
       return UNKNOWN;
     }
+    if (node.type === 'CallExpression' && hooks.callValue) return hooks.callValue(node);
     if (node.type === 'MemberExpression' && !node.optional) {
       const target = next(node.object);
       const key = node.computed ? next(node.property) : node.property.name;

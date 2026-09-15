@@ -59,6 +59,17 @@ afterEach(() => {
 });
 
 describe('explicit external static review', () => {
+  it('requires a fresh baseline when primitive return-flow coverage was absent', async () => {
+    const before = await scanStaticDirectory('package', root);
+    before.ruleSet.version = 4;
+    delete before.scope.codeFlowReturns;
+    const result = await review(skillReport(), { baselineFile: artifact('before.json', before) });
+    expect(result.external.baseline.status).toBe('incompatible');
+    expect(result.external.issues).toContain('external-baseline-incompatible');
+    expect(result.external.findings[0].locations[0].binding).toBe('current-path-only');
+    expect(result.reviewRequired).toBe(true);
+  });
+
   it.each([
     [1, ['javascript', 'python']],
     [2, ['python']],
