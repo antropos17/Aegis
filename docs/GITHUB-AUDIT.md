@@ -2,60 +2,60 @@
 
 > **Status:** This audit was conducted during v0.2.0-alpha. Most items have been resolved in v0.3.0-alpha — see resolution table at the bottom.
 
-## Чек-лист: Что есть у топовых репо и чего НЕТ в Aegis
+## Checklist: repository practices and gaps in Aegis
 
 ### 1. README best practices
-*   **Что у них есть:**
-    *   **Оглавление (Table of Contents):** Позволяет легко перемещаться по длинным README (например, со ссылками на установку, использование, контрибьютинг).
-    *   **"Back to top" ссылки:** Удобная навигация в конце каждого раздела.
-    *   **Четкие требования для локального развертывания:** Открытые инструкции к подготовке окружения, линтингу, тестам и troubleshooting.
-    *   **Бейджи статуса проекта:** Показывают не только CI/загрузки, но и версию Node, покрытие кода (CodeCov), статус зависимостей, PRs welcome, All Contributors.
-    *   **Секция FAQ и Support:** Направление пользователей туда, где они могут получить помощь или ответы.
-*   **Чего у нас НЕТ:**
-    *   Нет оглавления (Table of Contents).
-    *   Нет четко выделенных бейджей комьюнити (PRs welcome, All Contributors, chat/discord).
-    *   Нет ссылок возврата наверх документа.
-    *   Раздел Roadmap представлен простым Markdown чек-листом, а не ссылкой на Projects/Issues GitHub.
-    *   Мало информации о том, где просить помощи (комьюнити/чат).
+*   **Practices in other repositories:**
+    *   **Table of Contents:** Helps readers navigate a long README, with links to installation, usage and contribution instructions.
+    *   **"Back to top" links:** Navigation at the end of each section.
+    *   **Clear local setup requirements:** Public instructions for environment setup, linting, tests and troubleshooting.
+    *   **Project status badges:** CI, downloads, Node version, code coverage (CodeCov), dependency status, PRs Welcome and All Contributors.
+    *   **FAQ and Support sections:** Direct users to help and answers.
+*   **Gaps in Aegis:**
+    *   No Table of Contents.
+    *   No dedicated community badges (PRs Welcome, All Contributors, chat/Discord).
+    *   No links back to the top of the document.
+    *   The Roadmap is a simple Markdown checklist without links to GitHub Projects or Issues.
+    *   Little information about where to ask for help (community/chat).
 
 ### 2. Contributors & community
-*   **Что у них есть:**
-    *   **Таблица All Contributors (или аналоги):** Визуальная галерея с аватарами всех, кто внес вклад (от кода до документации и баг-репортов).
-    *   **Автоматизация `all-contributors` (бот) или GitHub Actions:** Автоматическое добавление контрибьюторов через комменты к PR (`@all-contributors please add @username for doc`) или сбор списка пушей.
-    *   **Спецификация:** Официальный `emoji-key` (кто что сделал: 🐛 для багов, 📖 для доков, 💻 для кода).
-*   **Чего у нас НЕТ:**
-    *   Вообще отсутствует секция Contributors/Authors с визуальными аватарами в README. Указан только один автор текстом.
-    *   Не настроен бот `@all-contributors`, равно как и GitHub Action `contribute-list` для автообновления доски почета.
+*   **Practices in other repositories:**
+    *   **All Contributors table or equivalent:** An avatar gallery of everyone who contributed code, documentation or bug reports.
+    *   **`all-contributors` bot or GitHub Actions automation:** Adds contributors through PR comments (`@all-contributors please add @username for doc`) or by collecting push activity.
+    *   **Specification:** The official `emoji-key` identifies contribution types: 🐛 for bugs, 📖 for documentation and 💻 for code.
+*   **Gaps in Aegis:**
+    *   The README has no Contributors/Authors section with avatars. Only one author is credited in text.
+    *   Neither the `@all-contributors` bot nor the `contribute-list` GitHub Action is configured to update contributor credits automatically.
 
 ### 3. GitHub profile & repo polish
-*   **Что у них есть:**
-    *   **Profile README (`.github/profile/README.md`):** Интерактивный или визуальный рассказ о создателе/организации (через `abhisheknaiidu/awesome-github-profile-readme`).
-    *   **Динамические виджеты (Tools, Stats):** Используют `gprm.itsvg.in` для добавления графиков активности, WakaTime времени кодинга, Top Languages, "Current focus".
-    *   **Custom Shields.io:** Унифицированный стиль бейджей (например `for-the-badge` или `flat-square` с кастомными иконками во всем репо).
-*   **Чего у нас НЕТ:**
-    *   Нет файла Profile README (ни на уровне пользователя `antropos17`, ни в организации проекта, если она есть).
-    *   Нет динамической метрики/статистики по репозиторию или автору.
-    *   Стили бейджей (badges) в README смешаны: есть `flat-square`, есть `flat`, и дефолтные SVG GitHub Actions. Не приведены к одному красивому формату.
+*   **Practices in other repositories:**
+    *   **Profile README (`.github/profile/README.md`):** An interactive or visual introduction to the creator or organization, with examples from `abhisheknaiidu/awesome-github-profile-readme`.
+    *   **Dynamic widgets (Tools, Stats):** `gprm.itsvg.in` provides activity charts, WakaTime coding time, Top Languages and "Current focus".
+    *   **Custom Shields.io badges:** A consistent badge style, such as `for-the-badge` or `flat-square`, with custom icons across the repository.
+*   **Gaps in Aegis:**
+    *   No Profile README for the `antropos17` user or the project organization, if one exists.
+    *   No dynamic repository or author metrics.
+    *   The README mixes `flat-square`, `flat` and default GitHub Actions SVG badges without a consistent format.
 
 ### 4. Vibe coding repos
-*   **Что у них есть:**
-    *   **Папка `memory-bank` со стандартами агентов:** `progress.md` (шаги), `implementation-plan.md` (план текущей фичи), `tech-stack.md` (технологии).
-    *   **Системные инструкции (CLAUDE.md / AGENTS.md):** Развернутые правила, которые *всегда* подтягиваются ИИ.
-    *   **Модульность и запрет монолитов:** Явные указания LLM разбивать всё на мелкие файлы.
-*   **Чего у нас НЕТ:**
-    *   Хотя у нас есть `AGENTS.md` и `CLAUDE.md`, в нашей папке `memory-bank` традиционно не хранятся файлы `progress.md`, `tech-stack.md`, и `implementation-plan.md` (как советует `vibe-coding` guide V1.2.2). У нас документация агента рассредоточена.
-    *   Нет явного "Game Design Document" / "Product Requirements Document", закрепленного как единый источник правды (мы полагаемся на разрозненные описания и AGENTS.md).
+*   **Practices in other repositories:**
+    *   **A `memory-bank` directory with agent conventions:** `progress.md` for completed steps, `implementation-plan.md` for the current feature plan and `tech-stack.md` for technologies.
+    *   **System instructions (CLAUDE.md / AGENTS.md):** Detailed rules that the AI always loads.
+    *   **Modularity requirements:** Explicit instructions for the LLM to split work into small files and avoid monoliths.
+*   **Gaps in Aegis:**
+    *   Although `AGENTS.md` and `CLAUDE.md` exist, our `memory-bank` has not traditionally contained `progress.md`, `tech-stack.md` and `implementation-plan.md`, as recommended by the `vibe-coding` guide V1.2.2. Agent documentation is scattered.
+    *   No designated Game Design Document or Product Requirements Document serves as the source of truth; we rely on separate descriptions and AGENTS.md.
 
-### 5. Топовые Electron apps (Electron, PostHog) для сравнения
-*   **Что у них есть:**
-    *   **"Elevator Pitch" сразу под H1:** Очень короткий слоган. У PostHog он звучит как "PostHog is an all-in-one developer platform...", затем идет четкий TOC. У Electron - "Build cross-platform desktop apps...".
-    *   **Переводы (Translations):** Ссылки на переводы README на другие языки (особенно открытые проекты типа Electron).
-    *   **Ссылка на Спонсорство (We're hiring / Open-source vs. paid / Sponsor):** Как способ финансировать проект или привлечь в команду.
-    *   **Разветвленная документация по API:** Ссылки на GitBook, Docusaurus или выделенный поддомен для развернутой технической документации.
-*   **Чего у нас НЕТ:**
-    *   Слоган "Independent AI Oversight Layer" хорош, но сразу за ним идут огромные скриншоты, сдвигающие текст вниз. В топ-репо картинки часто упакованы лучше, или дается короткий GIF, показывающий продукт в действии (TTY GIF или видео).
-    *   Огромный раздел "How It Works" в README (может стоить вынести его в Wiki или отдельный Markdown).
-    *   Нет ссылок на Community (Discord/Slack/Twitter), которые есть у всех топовых проектов.
+### 5. Comparison examples: Electron and PostHog
+*   **Practices in other repositories:**
+    *   **An elevator pitch directly below H1:** A short tagline. PostHog uses "PostHog is an all-in-one developer platform...", followed by a clear TOC. Electron uses "Build cross-platform desktop apps...".
+    *   **Translations:** Links to README translations, particularly in open-source projects such as Electron.
+    *   **Sponsorship or recruitment links (We're hiring / Open-source vs. paid / Sponsor):** Ways to fund the project or recruit contributors.
+    *   **Detailed API documentation:** Links to GitBook, Docusaurus or a dedicated documentation subdomain.
+*   **Gaps in Aegis:**
+    *   The "Independent AI Oversight Layer" tagline is followed immediately by large screenshots that push the text down. Comparison repositories often use more compact imagery or a short GIF or video showing the product in action.
+    *   The README's large "How It Works" section could move to a Wiki or a separate Markdown file.
+    *   No community links (Discord/Slack/Twitter) like those in the comparison projects.
 
 ---
 

@@ -12,7 +12,7 @@
 > **The architecture below is valid and stays as-is — only the MOTIVATION changes** from
 > "fix freezes" to **process isolation / self-protection**: the monitoring engine surviving a
 > renderer crash, and a hardened process boundary around the code that watches
-> `.ssh` / `.aws` / `.env` (master-plan §5 "Self-protection", §8 "ступенька к sidecar").
+> `.ssh` / `.aws` / `.env` (master-plan §5 "Self-protection", §8 "stepping stone to a sidecar").
 >
 > **Re-open trigger:** only a *measured* CPU-bound Windows scan tick (via the
 > `feat/scan-timing-instrumentation` PR — Tier 0 #1) would re-motivate this as a perf change.

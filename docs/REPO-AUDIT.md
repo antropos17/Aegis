@@ -1,56 +1,56 @@
-# Полный аудит GitHub-репозитория AEGIS
+# Full audit of the AEGIS GitHub repository
 
 > **Status:** This audit was conducted during v0.2.0-alpha. Most issues have been resolved in v0.3.0-alpha. See "Resolution Status" section below.
 
-Этот отчет содержит анализ текущего состояния документации, настроек и файлов сообщества репозитория, а также список того, что необходимо исправить или добавить.
+This report reviews the repository's documentation, settings and community files at the time of the audit, and lists the fixes and additions needed.
 
-## 1. README.md: что устарело?
-- **Количество агентов:** В `README.md` указано 94 агента, однако `CHANGELOG.md` (0.2.0-alpha) говорит об увеличении до 95, а `AGENTS.md` заявляет 98 агентов. Необходимо синхронизировать цифры.
-- **Пути к скриншотам:** `README.md` до сих пор ссылается на старые изображения из папки `screenshots/` (например, исторический путь `screenshots/activity-feed.png`; этот артефакт отсутствует в текущем дереве). Следует обновить пути, чтобы они вели на актуальные скриншоты нового Svelte-интерфейса в `docs/screenshots/` (например, `01-shield-tab.png`). Главный `screenshot.png` в корне также нужно проверить на актуальность.
-- **Количество тестов:** Указано 130 тестов. Это значение стоит актуализировать, учитывая недавние масштабные изменения и переписывание на Svelte 5.
-- **Особенности и платформы (Features / OS):** В разделе скачивания указано "Mac and Linux are supported experimentally", но в Roadmap пункты по Mac/Linux всё ещё не отмечены чекбоксами. Нужно привести это в соответствие (особенно учитывая, что changelog упоминает macOS build). 
+## 1. README.md: what is outdated?
+- **Agent count:** `README.md` lists 94 agents, but `CHANGELOG.md` (0.2.0-alpha) reports an increase to 95, and `AGENTS.md` claims 98. These counts need to agree.
+- **Screenshot paths:** `README.md` still references old images in `screenshots/`, such as the historical path `screenshots/activity-feed.png`; that artifact is absent from the current tree. Update the paths to the new Svelte interface screenshots in `docs/screenshots/`, such as `01-shield-tab.png`. Also check whether the root `screenshot.png` is current.
+- **Test count:** The stated count is 130 tests. Update it to reflect the recent changes and Svelte 5 rewrite.
+- **Features / OS:** The download section says "Mac and Linux are supported experimentally", but the corresponding Roadmap checkboxes remain unchecked. Align these statements, especially since the changelog mentions a macOS build.
 
 ## 2. package.json
-- **keywords:** ✅ Указаны (`["ai", "security", "monitoring", "electron", "oversight", "agents", "privacy"]`)
-- **homepage:** ✅ Указан (`"https://github.com/antropos17/Aegis"`)
-- **bugs URL:** ✅ Указан
-- **repository URL:** ✅ Указан
+- **keywords:** ✅ Present (`["ai", "security", "monitoring", "electron", "oversight", "agents", "privacy"]`)
+- **homepage:** ✅ Present (`"https://github.com/antropos17/Aegis"`)
+- **bugs URL:** ✅ Present
+- **repository URL:** ✅ Present
 
-## 3. Настройки GitHub Repo
-- **topics:** ✅ Присутствуют (`ai-agents`, `cybersecurity`, `developer-tools`, `electron`, `monitoring`, `open-source`, `privacy`, `ai-security`)
-- **description:** ✅ Присутствует ("Independent AI Oversight Layer — monitors what AI agents do on your computer...")
-- **website URL:** ❌ **Отсутствует** в настройках About на главной странице репозитория (в данных API ссылка пустая, хотя в самом `package.json` она есть). Необходимо добавить URL-адрес в панель настроек (About) справа в репозитории.
+## 3. GitHub repository settings
+- **topics:** ✅ Present (`ai-agents`, `cybersecurity`, `developer-tools`, `electron`, `monitoring`, `open-source`, `privacy`, `ai-security`)
+- **description:** ✅ Present ("Independent AI Oversight Layer — monitors what AI agents do on your computer...")
+- **website URL:** ❌ **Missing** from the About settings on the repository home page. The API returns an empty link, although `package.json` contains it. Add the URL to the repository's About panel on the right.
 
-## 4. Community Health Files (чего не хватает)
-Базовые файлы на месте (`CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue/PR шаблоны), но не хватает следующих:
-- ❌ **`FUNDING.yml`**: Важный механизм для поддержки открытых проектов (добавление кнопок GitHub Sponsors, Patreon, Ko-fi).
-- ❌ **`CODEOWNERS`**: Крайне полезно для автоматизации назначения ревьюеров в pull request'ах.
-- ❌ **`SUPPORT.md`**: Нужен для описания каналов поддержки, чтобы снизить нагрузку на раздел Issues.
+## 4. Missing community health files
+The basic files are present (`CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, and issue/PR templates), but the following are missing:
+- ❌ **`FUNDING.yml`**: Provides support links for open-source projects, such as GitHub Sponsors, Patreon and Ko-fi.
+- ❌ **`CODEOWNERS`**: Helps assign pull request reviewers automatically.
+- ❌ **`SUPPORT.md`**: Describes support channels to reduce support traffic in Issues.
 
-## 5. Наличие GIF/видео демо
-- ❌ **Отсутствует.** В топовых open-source проектах прямо под заголовком `README.md` обычно находится анимированная GIF-демонстрация или короткое видео `.mp4`, мгновенно показывающие работу и ценность продукта (в данном случае радар и сканирование). AEGIS имеет только статические `.png`.
+## 5. GIF/video demo
+- ❌ **Missing.** Open-source projects often place an animated GIF or short `.mp4` directly below the `README.md` heading to show how the product works and why it is useful: in this case, the radar and scanning. AEGIS has only static `.png` images.
 
-## 6. Раздел Contributors в README
-- ❌ **Отсутствует.** Сейчас есть только раздел "Author" (Built by Antropos7). В README нет визуальной секции «Contributors» с аватарками. Использование ботов вроде `@all-contributors` или `contrib.rocks` сильно помогает мотивировать внешних разработчиков.
+## 6. Contributors section in README
+- ❌ **Missing.** There is only an "Author" section (Built by Antropos7). The README has no Contributors section with avatars. Tools such as `@all-contributors` or `contrib.rocks` can help recognize external developers.
 
-## 7. Бейджи (Badges)
-- **Текущие бейджи:** License (MIT), Platform (Windows), Electron (33), Agents count, Downloads, CI (GitHub Actions).
-- **Чего не хватает / стоит добавить:**
-  - `Version` (текущая версия релиза GitHub или package.json).
-  - `Code Coverage` (учитывая, что используется Vitest с v8 coverge, идеальными кандидатами стали бы Codecov или Coveralls).
-  - `Community / Chat` (бейджик Discord или Telegram, если таковые есть).
-  - `PRs Welcome` (хороший тон для open-source).
+## 7. Badges
+- **Existing badges:** License (MIT), Platform (Windows), Electron (33), Agents count, Downloads, CI (GitHub Actions).
+- **Missing or suggested additions:**
+  - `Version`: the current GitHub release or package.json version.
+  - `Code Coverage`: with Vitest and V8 coverage already in use, Codecov or Coveralls are candidates.
+  - `Community / Chat`: a Discord or Telegram badge, if either exists.
+  - `PRs Welcome`: an invitation to open-source contributors.
 
-## 8. Состояние Changelog
-- ✅ **Актуален.** `CHANGELOG.md` полностью обновлен до последней версии `0.2.0-alpha` (от 24 февраля 2026), где детализированы перенос приложения на архитектуру Svelte 5 / Vite 7 и запуск новой системы мониторинга.
+## 8. Changelog status
+- ✅ **Up to date.** `CHANGELOG.md` covers the latest version, `0.2.0-alpha` (February 24, 2026), including the migration to Svelte 5 / Vite 7 and the new monitoring system.
 
-## 9. Очистка старых файлов (screenshots/ vs docs/screenshots/)
-- ❌ **Резервные и старые файлы:** В корневой папке `screenshots/` по-прежнему лежат старые (legacy) скриншоты (`activity-feed.png`, `settings.png`). При этом все актуальные интерфейсы перерисованы и выложены в `docs/screenshots/`.
-- **Что исправить:** Полностью удалить старую директорию `screenshots/`, а в файле `README.md` массово заменить пути к изображениям на `docs/screenshots/...`.
+## 9. Cleaning up old files (screenshots/ vs docs/screenshots/)
+- ❌ **Backup and old files:** The root `screenshots/` directory still contains legacy screenshots (`activity-feed.png`, `settings.png`). Current interface screenshots are in `docs/screenshots/`.
+- **Suggested fix:** Remove the old `screenshots/` directory and update image paths throughout `README.md` to `docs/screenshots/...`.
 
-## 10. Версия в Footer.svelte
-- ❌ **Захардкожена.** В файле `src/renderer/lib/components/Footer.svelte` (строка 72) версия жестко прописана статичным текстом: `<span class="footer-version">AEGIS v0.2.0-alpha</span>`.
-- **Что исправить:** Версия должна быть динамической и извлекаться автоматически во время сборки — например, пробрасываться через `import.meta.env` средства Vite (через плагин `vite-plugin-version-mark` или определение `__APP_VERSION__` в конфигурации) либо считываться через IPC напрямую из процесса Node.
+## 10. Version in Footer.svelte
+- ❌ **Hardcoded.** `src/renderer/lib/components/Footer.svelte` (line 72) contains the static version text `<span class="footer-version">AEGIS v0.2.0-alpha</span>`.
+- **Suggested fix:** Resolve the version dynamically at build time, for example through Vite's `import.meta.env` using `vite-plugin-version-mark` or a configured `__APP_VERSION__`, or read it from the Node process through IPC.
 
 ---
 

@@ -1,480 +1,502 @@
-# AEGIS — старт следующего чата
+# AEGIS — starting the next chat
 
-## Актуальное состояние — инструкции и документация, 2026-09-11
+## Current state — instructions and documentation, 2026-09-11
 
-База: `17a3c0d`, слитый PR #438. После backend-проходов #428–434 завершены
-обзор защиты #435, Files/Network радара #436, выделение/toolbar #437 и отклик
-Alert watchlist #438. Это список усиленного наблюдения, без разрешения или
-блокировки доступа. Пять обязательных CI contexts #438 прошли.
+Baseline: `17a3c0d`, merged PR #438. Backend passes #428–434 were followed by
+protection overview #435, radar Files/Network #436, selection/toolbar #437 and
+Alert watchlist feedback #438. The watchlist increases observation; it neither
+grants nor blocks access. All five required CI contexts for #438 passed.
 
-Текущий проход исправляет инструкции, пример агента, CSS-руководства и
-исторические ссылки; код приложения не меняется. Результат публикации этого
-прохода проверять по ветке/PR `codex/instructions-docs-repair`.
+The current pass repairs instructions, the agent example, CSS guidance and
+historical links; application code is unchanged. Check publication results through
+the `codex/instructions-docs-repair` branch/PR.
 
-Рабочая копия: `X:/tmp/aegis-etw-burst-20260911`. Перед продолжением проверить
-refs/status. Грязную исходную копию `X:/Future/ESCAPE/AEGIS` сохранить.
-Локальные `.agents/` и `.claude/` игнорируются Git; их исправления не входят
-в публичный PR. Проверенный `aegis-context` не требует содержательных правок.
+Worktree: `X:/tmp/aegis-etw-burst-20260911`. Check refs/status before continuing.
+Preserve the dirty original checkout at `X:/Future/ESCAPE/AEGIS`.
+Local `.agents/` and `.claude/` are Git-ignored; their fixes are outside the
+public PR. The reviewed `aegis-context` needs no substantive changes.
 
-Исходники и установка различаются: последнее известное установленное приложение
-соответствует #427; обновления #428–438 в него не устанавливались. Последний
-preview был на порту 8875 с демонстрационными данными; доступность проверить
-заново. Старые PID и tool session ID не использовать для управления процессами.
+Source and installation differ: the last known installed application corresponds
+to #427; updates #428–438 were not installed. The last preview ran on port 8875
+with demo data; check availability again. Do not use old PIDs or tool session IDs
+to control processes.
 
-Backend-ограничения ниже сохраняются: всплески теряют события, E4/E5 identity,
-independent absence, crash recovery и deployment открыты, сон отложен.
-Исторические инструкции «проверить финальный merge» ниже относятся к уже
-завершённым проходам и не являются новым поручением.
+Backend limits below remain: bursts lose events; E4/E5 identity, independent
+absence, crash recovery and deployment are open; sleep testing is deferred.
+Historical instructions below to "check the final merge" refer to completed passes
+and do not create a new assignment.
 
-## Предыдущий шаг — пробуждение output pump, 2026-09-11
+## Previous step — output-pump wakeup, 2026-09-11
 
-В `X:/tmp/aegis-etw-burst-20260911`, ветка `codex/etw-output-wakeup` от `3d88df4`
-(слитый #433), вместо `Task.Delay(10)` реализован сигнал готовности выходной очереди.
-Один TaskCompletionSource под тем же lock, завершение при первом enqueue,
-перевзвод при последнем Take/invalidation; пустая invalidation не бросает waiter.
-`FilePumpWait` также ждёт stop, mapper/capture completion, cancellation или heartbeat.
-При drain завершённые stop/capture исключены, срок пять секунд сохранён.
-Протокол v4, build suffix `-wakeup`; main, workload и лимиты не менялись.
+In `X:/tmp/aegis-etw-burst-20260911`, branch `codex/etw-output-wakeup` from
+`3d88df4` (merged #433), an output-queue readiness signal replaces `Task.Delay(10)`.
+One TaskCompletionSource uses the same lock, completes on the first enqueue and
+resets on the final Take/invalidation; an empty invalidation does not abandon a waiter.
+`FilePumpWait` also waits for stop, mapper/capture completion, cancellation or
+heartbeat. Completed stop/capture tasks are excluded during drain; the five-second
+deadline is preserved. Protocol v4, build suffix `-wakeup`; main, workload and
+limits are unchanged.
 
-49 C# self-tests, normal/loss-check по три сценария и все локальные проверки прошли.
-JS: 200 файлов / 3354 passed / 4 skipped. Live на тех же бинарниках: 66000 чтений
-за 19,800 с, delivered 111722, filtered 45703, overflow 50246,
+49 C# self-tests, three normal/loss-check scenarios each and all local checks passed.
+JS: 200 files / 3354 passed / 4 skipped. Live on the same binaries: 66000 reads
+in 19.800 s, delivered 111722, filtered 45703, overflow 50246,
 invalidation/ingress/native loss 0, map resets 6, ring evictions 15516.
-Fixture Read/PID найден, stopVerified true, exit 0, helpers 0.
-Output high water 1922 / 4193804 байта; pump 340,821 мс, write 263,684 мс,
-остальная работа pump 77,137 мс; main decode 307,434 мс. Idle waits 40 вместо 1264,
-теперь это ожидание сигнала/heartbeat, а не периодическая проверка. Idle total
-19589,352 мс включает тишину; максимум 1983,918 мс не является wake latency.
+Fixture Read/PID found, stopVerified true, exit 0, helpers 0.
+Output high water 1922 / 4193804 bytes; pump 340.821 ms, write 263.684 ms,
+remaining pump work 77.137 ms; main decode 307.434 ms. Idle waits 40 versus 1264;
+these now wait for a signal/heartbeat instead of polling. Idle total 19589.352 ms
+includes quiet periods; the 1983.918 ms maximum is not wake latency.
 
-Потери остаются. 50246 против прежних 52066 не доказывает throughput gain:
-реальный темп burst и фон отличаются. Следующий шаг E3 — короткие интервалы
-arrival/drain/occupancy, задержка output-ready→resume и время broker forwarding,
-затем выбирать следующую правку. Буферы вслепую не увеличивать. E4/E5 identity,
-independent absence, crash recovery и deployment открыты. Сон отложен.
-Отчёт: `docs/roadmap/etw-output-wakeup.md`; три raw JSON и 28 хешей:
+Loss remains. 50246 versus the previous 52066 does not prove throughput gain:
+actual burst rate and background activity differ. Next E3 step: short
+arrival/drain/occupancy intervals, output-ready→resume latency and broker
+forwarding time, then choose the next change. Do not increase buffers blindly.
+E4/E5 identity, independent absence, crash recovery and deployment are open.
+Sleep testing is deferred. Report: `docs/roadmap/etw-output-wakeup.md`;
+three raw JSON reports and 28 hashes:
 `docs/recon/evidence/etw-file-home-26200-output-wakeup.json`.
-Проверить финальный PR/CI/merge. Установленное приложение не заменялось;
-исходную грязную UI-копию сохранить.
+Check the final PR/CI/merge. The installed application was not replaced;
+preserve the original dirty UI checkout.
 
-## Предыдущий шаг — замеры ETW, 2026-09-11
+## Previous step — ETW timings, 2026-09-11
 
-В `X:/tmp/aegis-etw-burst-20260911`, ветка `codex/etw-service-timings` от `4006268`
-(слитый #432), реализован протокол v4: collector pump/outputWrite/idleWait и
-раздельные глубины ingress/output; main decodeChunk/acceptFrame/retainBatch/snapshot.
-Это накопленное elapsed time, не CPU. Вложенные интервалы не складывать. Метрики
-ограничены по памяти, итоговые отчёты сохраняются после stop; старые v1–3 отвергаются.
+In `X:/tmp/aegis-etw-burst-20260911`, branch `codex/etw-service-timings` from
+`4006268` (merged #432), protocol v4 adds collector pump/outputWrite/idleWait,
+separate ingress/output depths, and main decodeChunk/acceptFrame/retainBatch/snapshot.
+These are accumulated elapsed times, not CPU times. Do not add nested intervals.
+Metrics use bounded memory; final reports survive stop; old v1–3 are rejected.
 
-39 C# и 161 точечный JS-тест прошли. Normal/loss-check прошли по три сценария.
-Один live UAC на тех же бинарниках: все 66000 чтений за 19,738 с, delivered 117946,
+39 C# and 161 focused JS tests passed. Normal/loss-check passed three scenarios each.
+One live UAC run on the same binaries: all 66000 reads in 19.738 s, delivered 117946,
 filtered 51927, overflow 52066, invalidation/ingress/native loss 0, resets 6,
-ring eviction 11775. Fixture Read/PID найден, stopVerified true, exit 0, helpers 0.
-Pump 173,667 мс, из них write 124,442; остальная работа pump 49,225. Empty wait
-19702,462 мс суммарно / 15,587 мс в среднем / 24,365 мс максимум. Main decode
-161,116 мс; snapshot 687,099 мс включает опросы во время ожидания UAC. Output high
-water 1922 записи / 4193804 байта. Вложения и разные процессы не складывать.
+ring eviction 11775. Fixture Read/PID found, stopVerified true, exit 0, helpers 0.
+Pump 173.667 ms, including write 124.442; remaining pump work 49.225. Empty wait
+19702.462 ms total / 15.587 ms average / 24.365 ms maximum. Main decode 161.116 ms;
+snapshot 687.099 ms includes polling while waiting for UAC. Output high water
+1922 records / 4193804 bytes. Do not add nested timings or timings from different processes.
 
-Следующий эксперимент E3: пробуждать пустой output pump по появлению данных,
-сохранив cancellation, stop/drain и лимиты, затем повторить fixed profile.
-Большой idle total включает паузы теста, поэтому он не доказывает причину потерь.
-Нагрузка и фон изменились; throughput улучшенным не объявлять. E4/E5 identity,
-crash recovery, independent absence witness и deployment остаются открыты.
-Сон отложен, установленная программа не заменялась. Отчёт:
-`docs/roadmap/etw-service-timings.md`; три raw JSON и 26 хешей:
+Next E3 experiment: wake an empty output pump when data arrives, preserving
+cancellation, stop/drain and limits, then repeat the fixed profile.
+The large idle total includes test pauses and does not establish the cause of loss.
+Load and background activity changed; do not claim improved throughput.
+E4/E5 identity, crash recovery, independent absence witness and deployment remain open.
+Sleep testing is deferred; the installed program was not replaced. Report:
+`docs/roadmap/etw-service-timings.md`; three raw JSON reports and 26 hashes:
 `docs/recon/evidence/etw-file-home-26200-service-timings.json`.
-Проверить финальный PR/CI/merge этой ветки; исходную грязную UI-копию сохранить.
+Check this branch's final PR/CI/merge; preserve the original dirty UI checkout.
 
-## Предыдущий шаг — причины output loss и сериализация, 2026-09-11
+## Previous step — output-loss causes and serialization, 2026-09-11
 
-В `X:/tmp/aegis-etw-burst-20260911`, ветка `codex/etw-output-drain` от `93aae23`,
-реализованы `outputOverflowDropped` и `outputInvalidatedDropped`. Их сумма равна
-`outputDropped`, а ingress + output равны `dropped`. Протокол теперь `etw-file/3`;
-v1/v2 отвергаются. Main сохраняет раздельные причины и максимумы в отчёте.
+In `X:/tmp/aegis-etw-burst-20260911`, branch `codex/etw-output-drain` from
+`93aae23`, `outputOverflowDropped` and `outputInvalidatedDropped` are implemented.
+Their sum equals `outputDropped`; ingress + output equals `dropped`.
+The protocol is now `etw-file/3`; v1/v2 are rejected. Main retains separate
+causes and maximum values in the report.
 
-`FileWire.WriteObservations` кодирует записи сразу в итоговый UTF-8 frame,
-без отдельной сериализации для размера и промежуточного JsonElement. Лимиты
-очередей, 128 записей, цель 32 KiB и wire cap 256 KiB сохранены. Encoding buffer
-начинается с 64 KiB; резерв для Utf8JsonWriter ограничен 768 KiB, фактический JSON
-по-прежнему 256 KiB. Пустая очередь не выделяет frame и не расходует seq.
-В тесте 30 пакетов managed allocations: 4301280 → 1983120 байт (примерно −54%).
-35 C# self-tests, 141 точечный JS-тест, build/formatter прошли; normal/loss-check
-прошли по три сценария на одинаковых бинарниках.
+`FileWire.WriteObservations` encodes records directly into the final UTF-8 frame,
+without separate size serialization or an intermediate JsonElement. Queue limits,
+128 records, the 32 KiB target and 256 KiB wire cap are preserved. The encoding
+buffer starts at 64 KiB; Utf8JsonWriter reserve is bounded at 768 KiB, while actual
+JSON remains capped at 256 KiB. An empty queue allocates no frame and consumes no seq.
+In a 30-batch test, managed allocations fell from 4301280 to 1983120 bytes (about −54%).
+35 C# self-tests, 141 focused JS tests and build/formatter passed; normal/loss-check
+passed three scenarios each on identical binaries.
 
-Live с тем же `repeated-read-4k-v1`: все 66000 чтений за 20,005 с. За весь сеанс
-290598 delivered, 224580 filtered, overflow 51648, invalidation 0, ingress/native
-loss 0, decoder errors/conflicts 0, map resets 6, ring eviction 14113. Scoped
-Read/PID найден; stopVerified true, exit 0, helpers 0. Потери остаются; изменились
-фон и фактический темп burst, поэтому сравнение с прежними 49406 не доказывает
-изменение throughput. Расположены именно в переполнении выходной очереди.
+Live with the same `repeated-read-4k-v1`: all 66000 reads in 20.005 s. Whole session:
+290598 delivered, 224580 filtered, overflow 51648, invalidation 0,
+ingress/native loss 0, decoder errors/conflicts 0, map resets 6, ring eviction 14113.
+Scoped Read/PID found; stopVerified true, exit 0, helpers 0. Loss remains;
+background activity and actual burst rate changed, so comparison with the previous
+49406 does not establish a throughput change. Loss is localized to output-queue overflow.
 
-Следующий шаг E3: измерить время кодирования и ожидания pipe/broker/main, глубину
-очередей и влияние idle polling, затем выбрать следующую правку. Не увеличивать
-буферы вслепую. Отчёт: `docs/roadmap/etw-output-drain.md`; исходные normal/loss/live
-JSON и 23 хеша: `docs/recon/evidence/etw-file-home-26200-output-drain.json`.
-Сон отложен, установленное приложение не заменялось. Проверить финальный PR/CI/merge;
-исходную грязную UI-копию сохранить.
+Next E3 step: measure encoding and pipe/broker/main waiting times, queue depths
+and idle-polling effects, then choose the next change. Do not increase buffers blindly.
+Report: `docs/roadmap/etw-output-drain.md`; original normal/loss/live JSON and
+23 hashes: `docs/recon/evidence/etw-file-home-26200-output-drain.json`.
+Sleep testing is deferred; the installed application was not replaced.
+Check the final PR/CI/merge; preserve the original dirty UI checkout.
 
-## Предыдущий шаг — воспроизводимая нагрузка ETW, 2026-09-11
+## Previous step — repeatable ETW load, 2026-09-11
 
-В `X:/tmp/aegis-etw-burst-20260911`, ветка `codex/etw-repeatable-load` от `0f40a6d`,
-добавлен `node scripts/verify-etw-file.mjs --live --load-check --report=<новый файл>`.
-Один UAC; normal-token worker выполняет три цикла 2000 paced + 20000 burst чтений
-по 4096 байт, один handle на фазу, пауза 2 секунды после каждой. Профиль фиксирован;
-фактический темп, задержки и частичный результат сохраняются. Main/helper не менялись.
+In `X:/tmp/aegis-etw-burst-20260911`, branch `codex/etw-repeatable-load` from
+`0f40a6d`, added `node scripts/verify-etw-file.mjs --live --load-check --report=<new file>`.
+One UAC prompt; a normal-token worker performs three cycles of 2000 paced +
+20000 burst reads of 4096 bytes, with one handle per phase and a two-second pause
+after each. The profile is fixed; actual rate, delays and partial results are
+retained. Main/helper are unchanged.
 
-Live на прежних бинарниках завершил все 66000 чтений за 19,896 с. За весь ETW-сеанс:
+Live on the previous binaries completed all 66000 reads in 19.896 s. Whole ETW session:
 956985 delivered, 890960 filtered, ingressDropped 0, outputDropped 49406,
 native loss/decoder errors/map conflicts 0, map resets 6, ring eviction 16362.
-Fixture Read с путём/PID найден; stopVerified true, exit 0, helper-процессов 0.
-Потери воспроизведены в выходной стадии. `outputDropped` объединяет переполнение
-и аннулирование, поэтому точная причина ещё не доказана. Счётчики включают фон и
-не разбиты по фазам; один прогон не доказывает статистическую повторяемость.
+Fixture Read with path/PID found; stopVerified true, exit 0, helper processes 0.
+Loss was reproduced at the output stage. `outputDropped` combines overflow and
+invalidation, so the exact cause is not yet established. Counters include
+background activity and are not divided by phase; one run does not prove
+statistical repeatability.
 
-Следующий шаг E3: измерить и улучшить выдачу/сериализацию, разделив причины output
-discard; сравнивать на том же профиле. Отчёт: `docs/roadmap/etw-repeatable-load.md`;
-два исходных JSON и 22 хеша: `docs/recon/evidence/etw-file-home-26200-repeatable-load.json`.
-`passed` нагрузочного режима означает завершённый замер/stop, потери допускаются
-и сохраняются. Сон отложен, установленное приложение не заменялось. Проверить
-финальный PR/CI/merge ветки; исходную грязную UI-копию сохранять.
+Next E3 step: measure and improve output/serialization, separating output-discard
+causes; compare using the same profile. Report: `docs/roadmap/etw-repeatable-load.md`;
+two original JSON reports and 22 hashes:
+`docs/recon/evidence/etw-file-home-26200-repeatable-load.json`.
+`passed` in load mode means measurement/stop completed; losses are allowed and
+retained. Sleep testing is deferred; the installed application was not replaced.
+Check the branch's final PR/CI/merge; preserve the original dirty UI checkout.
 
-## Предыдущий шаг — потери по стадиям ETW, 2026-09-11
+## Previous step — ETW loss by stage, 2026-09-11
 
-В `X:/tmp/aegis-etw-burst-20260911`, ветка `codex/etw-stage-loss-counters`,
-реализованы `ingressDropped` и `outputDropped`; их сумма обязана равняться `dropped`.
-Протокол main/helper теперь `etw-file/2`, старый v1 отвергается. Новая схема вынесена
-в `etw-file-schema.js`; main сохраняет раздельные максимумы и итоговые значения.
-Фильтрация, decoder errors, native losses и вытеснение main ring учитываются отдельно.
-Output loss включает аннулирование данных, поэтому сам по себе не доказывает медленный writer.
+In `X:/tmp/aegis-etw-burst-20260911`, branch `codex/etw-stage-loss-counters`,
+`ingressDropped` and `outputDropped` are implemented; their sum must equal `dropped`.
+The main/helper protocol is now `etw-file/2`; old v1 is rejected. The new schema
+lives in `etw-file-schema.js`; main retains separate maximum and final values.
+Filtering, decoder errors, native losses and main-ring evictions are counted separately.
+Output loss includes invalidation, so it does not by itself establish a slow writer.
 
-28 C# self-tests и 128 точечных JS-тестов прошли. Обычный process-check и новый
-`--loss-check` прошли по три сценария: намеренное переполнение дало 4097 ingress и
-6270 output drops, значения дошли в отчёт через реальные normal-token процессы.
-Реальный UAC/ETW-замер на тех же бинарниках прошёл: 57927 delivered, 57597 filtered,
-ingress/output/native loss 0, decoder errors 0, map resets 321, ring eviction 11.
-Fixture Read с путём/PID найден, stopVerified true, exit 0, helper-процессов 0.
-Нагрузка ниже прежней — перегрузку этим не объявлять исправленной. Следующий шаг:
-воспроизводимая нагрузка для локализации остаточных потерь; E3 остаётся открыт.
-Отчёт: `docs/roadmap/etw-stage-loss.md`; три исходных JSON и 20 хешей исходников:
-`docs/recon/evidence/etw-file-home-26200-stage-loss.json`.
-Сон отложен, установленная программа не заменялась. Проверить финальный PR/CI/merge
-ветки перед следующей работой; исходную грязную UI-копию сохранять.
+28 C# self-tests and 128 focused JS tests passed. The ordinary process-check and
+new `--loss-check` passed three scenarios each: deliberate overflow produced
+4097 ingress and 6270 output drops, which reached the report through real
+normal-token processes. A real UAC/ETW run on the same binaries passed:
+57927 delivered, 57597 filtered, ingress/output/native loss 0, decoder errors 0,
+map resets 321, ring eviction 11. Fixture Read with path/PID found,
+stopVerified true, exit 0, helper processes 0.
+Load was lower than before; this does not establish that overload is fixed.
+Next: repeatable load to localize remaining loss; E3 remains open.
+Report: `docs/roadmap/etw-stage-loss.md`; three original JSON reports and
+20 source hashes: `docs/recon/evidence/etw-file-home-26200-stage-loss.json`.
+Sleep testing is deferred; the installed program was not replaced.
+Check the branch's final PR/CI/merge before further work; preserve the original dirty UI checkout.
 
-## Предыдущий шаг — очереди ETW и live-замер, 2026-09-11
+## Previous step — ETW queues and live measurement, 2026-09-11
 
-Backend продолжен от `8b16692` в отдельном checkout
-`X:/tmp/aegis-etw-burst-20260911`. PR #428 слит как `7b1e153`, все пять CI прошли.
-`FilePipeline` больше не выполняет process queries и JSON-сериализацию в mapper:
-свежие process witnesses собираются при выдаче, без блокировки карты и с прежним
-лимитом частоты. Потеря во время запроса аннулирует и учитывает этот результат.
-Регрессионная проверка сначала упала на прежнем mapper, затем прошла: 8 192
-дополнительных чтения и Close обработаны при заблокированном witness-запросе,
-ingress drops 0; переполнение выходной очереди учтено отдельно.
+Backend work continued from `8b16692` in the separate checkout
+`X:/tmp/aegis-etw-burst-20260911`. PR #428 merged as `7b1e153`; all five CI contexts passed.
+`FilePipeline` no longer performs process queries or JSON serialization in the
+mapper: fresh process witnesses are collected at output, without locking the map
+and with the previous rate limit. Loss during a query invalidates and counts its result.
+The regression check first failed with the old mapper, then passed: 8,192 additional
+reads and Close were handled while the witness query was blocked, with ingress
+drops 0; output-queue overflow was counted separately.
 
-27 C# self-tests, Release build/formatter, три normal-token процессных сценария
-и 110 точечных JS-тестов прошли. Отчёт/границы: `docs/roadmap/etw-burst-handling.md`.
-После этого пользователь разрешил реальный UAC/ETW-замер. Он прошёл на тех же
-бинарниках: 463 125 delivered, 456 150 filtered, 6 674 dropped (~1,44%); все три
-native loss counters 0, decoder errors и ring eviction 0. Найден fixture Read с
-путём и PID тестового процесса; stopVerified true, exit 0, helper-процессов 0.
-Исходные отчёты и 18 хешей исходников:
+27 C# self-tests, Release build/formatter, three normal-token process scenarios
+and 110 focused JS tests passed. Report/boundaries: `docs/roadmap/etw-burst-handling.md`.
+The user then authorized a real UAC/ETW run. It passed on the same binaries:
+463,125 delivered, 456,150 filtered, 6,674 dropped (~1.44%); all three native loss
+counters 0, decoder errors and ring eviction 0. Fixture Read with its path and
+test-process PID found; stopVerified true, exit 0, helper processes 0.
+Original reports and 18 source hashes:
 `docs/recon/evidence/etw-file-home-26200-burst-live.json`.
-Фоновая нагрузка отличалась от прежнего прогона — не объявлять измеренное ускорение
-или устранение всех потерь. Счётчик dropped пока объединяет обе очереди. Следующий
-backend-шаг: разделить потери по стадиям и воспроизвести нагрузку; E3 остаётся открыт.
-Сон отложен, установленная программа не заменялась. Evidence-ветка:
-`codex/etw-burst-live-evidence`; перед продолжением проверить её PR/CI/merge.
+Background load differed from the earlier run; do not claim a measured speedup
+or elimination of all loss. The dropped counter still combines both queues.
+Next backend step: separate loss by stage and reproduce the load; E3 remains open.
+Sleep testing is deferred; the installed program was not replaced. Evidence branch:
+`codex/etw-burst-live-evidence`; check its PR/CI/merge before continuing.
 
-## Предыдущее продолжение — B5, 2026-09-09
+## Previous continuation — B5, 2026-09-09
 
-Пользователь попросил весь блок файловых событий/транспорта/backend, оставив сон
-на потом. На `codex/etw-file-backend` реализован новый диагностический сборщик
-`sidecar/etw-file`, supervisor/runtime и подключение листа здоровья в main.
-Проверь финальный PR/CI/merge статус. Подробности и команды:
+The user requested the full file-event/transport/backend block, leaving sleep
+testing for later. `codex/etw-file-backend` implements the new diagnostic collector
+`sidecar/etw-file`, supervisor/runtime and the health leaf connection in main.
+Check the final PR/CI/merge status. Details and commands:
 `docs/roadmap/etw-file-backend.md`, `sidecar/etw-file/README.md`.
 
-Это заменяет старое утверждение ниже, что протокол/health не импортируются приложением.
-Захват требует явного development-флага с одним корнем; packaged-сборка не включает
-его. Файловые события остаются кандидатами в ограниченной памяти main, agent и
-instanceId всегда null. Нет передачи в FileEvent, risk, baseline, sequence или audit.
-Нельзя объявлять весь пункт «надёжная атрибуция» завершённым: E4/E5 ещё открыты.
+This supersedes the older statement below that the application does not import
+the protocol/health modules. Capture requires an explicit development flag with
+one root; packaged builds do not include it. File events remain candidates in
+bounded main-process memory; agent and instanceId are always null. Nothing is
+forwarded to FileEvent, risk, baseline, sequence or audit.
+Do not declare all of "reliable attribution" complete: E4/E5 remain open.
 
-Прошли 22 C# self-test и три настоящих normal-token процессных сценария: две
-штатные сессии и EOF с неподтверждённой остановкой. События синтетические, native
-counters null. Последний результат `X:/tmp/aegis-etw-file-check-20260909-v6.json`.
-JS-проверки протокола/reducer/supervisor и main-composer прошли (110 тестов).
-Пользователь разрешил реальный UAC-тест. Финальный live smoke прошёл:
-`X:/tmp/aegis-etw-file-live-20260909-05.json`, совпавшие с normal binaries, кандидат
-Read с путём/PID тестового процесса, native counters 0, stop/child exit 0.
-Но очереди приложения отбросили 12 061 из 88 772 событий; это оставшаяся деградация,
-а не завершённый E3. 76 418 событий отфильтрованы по политике, ring eviction 0.
-Mapper отделён от query/write вторым ограниченным буфером; каждый 4096 / 4 МиБ.
-В telemetry очередей указаны максимумы между двумя этапами, не сумма; dropped общий.
-Агрегат `docs/recon/evidence/etw-file-home-26200-backend.json` сохраняет 20 LF-хешей
-исходников, final normal/live и четыре ранних live-попытки, включая первый отказ
-приёмки. Независимого absence witness и подтверждённой атрибуции нет.
-СОН ПО-ПРЕЖНЕМУ ОТЛОЖЕН. Следующее backend-улучшение — потери на всплесках нагрузки.
+22 C# self-tests and three real normal-token process scenarios passed: two normal
+sessions and EOF with unverified stop. Events are synthetic; native counters are null.
+Latest result: `X:/tmp/aegis-etw-file-check-20260909-v6.json`.
+JS protocol/reducer/supervisor and main-composer checks passed (110 tests).
+The user authorized a real UAC test. Final live smoke passed:
+`X:/tmp/aegis-etw-file-live-20260909-05.json`, binaries matching the normal run,
+a Read candidate with the test process's path/PID, native counters 0, stop/child exit 0.
+However, application queues dropped 12,061 of 88,772 events; this remains degraded
+and does not complete E3. 76,418 events were filtered by policy; ring eviction 0.
+A second bounded buffer separates the mapper from query/write; each is 4096 / 4 MiB.
+Queue telemetry reports maxima across the two stages, not their sum; dropped is combined.
+The aggregate `docs/recon/evidence/etw-file-home-26200-backend.json` retains 20 LF
+source hashes, final normal/live reports and four early live attempts, including
+the first acceptance failure. There is no independent absence witness or confirmed attribution.
+SLEEP TESTING REMAINS DEFERRED. The next backend improvement is loss during load bursts.
 
-Чистая копия backend-патча прошла format/build/lint, TypeScript/Svelte, coverage
-(2928 pass, 4 skip при maxWorkers=2), оба verify gate, counts и npm audit.
-Первый неограниченный local coverage упёрся в ENOMEM/отсутствующий Electron dist;
-после установки dist и ограничения workers повтор прошёл без изменения тестов.
-Проверка NuGet с transitive dependencies также не нашла известных уязвимостей.
-Это локальные результаты; финальные пять CI и merge проверяй отдельно.
+A clean checkout of the backend patch passed format/build/lint, TypeScript/Svelte,
+coverage (2928 pass, 4 skip with maxWorkers=2), both verification gates, counts and npm audit.
+The first unbounded local coverage run hit ENOMEM/missing Electron dist; after
+installing dist and limiting workers, the rerun passed without test changes.
+The NuGet check, including transitive dependencies, also found no known vulnerabilities.
+These are local results; check the final five CI contexts and merge separately.
 
-Во время работы появились отдельные изменения App/AgentCard/DemoBanner/ShieldTab,
-observatory components/styles/assets и LiveRadar test. Они пользовательские, как
-и `.codex/agents/ui-designer.toml`, `memory-bank/fancy-ui-plan.md`; не включать их
-в backend-коммит. Полную проверку backend проводить на чистом checkout коммита.
+Separate changes appeared during work in App/AgentCard/DemoBanner/ShieldTab,
+Observatory components/styles/assets and the LiveRadar test. These belong to the
+user, as do `.codex/agents/ui-designer.toml` and `memory-bank/fancy-ui-plan.md`;
+exclude them from the backend commit. Run full backend verification on a clean
+checkout of the commit.
 
-## Предыдущая передача — B4
+## Previous handoff — B4
 
-Обновлено 2026-09-08 после реализации отдельного suspend-стенда без реального сна.
-B2: PR #384, `f2f1ac4`; B3: PR #385, `cc47212`, оба merged с пятью зелёными CI.
-B4: PR #386, `01bf403`; первый UAC stop: PR #387, `1f7cd82`, оба merged с пятью
-зелёными CI. Elevated cleanup merged: PR #388, `75c943d`, пять зелёных CI.
-Первый UX-блок merged: PR #389, `69530bd`, пять зелёных CI.
-Второй UX-блок merged: PR #390, `8519796`, пять зелёных CI.
-Broker-death merged: PR #391, `37eac4a`, пять зелёных CI.
-Consent probes merged: PR #392, `7646463`, пять зелёных CI.
-Первая неуспешная live-попытка сохранена: PR #393, `045f2b0`, пять зелёных CI.
-Реальные refusal/late прошли: PR #394, `54f22ee`, пять зелёных CI.
-Текущий backend-блок — `codex/etw-suspend-harness`; проверь финальный статус PR.
-Эта инструкция и последний Session handoff в `memory-bank/progress.md` — точка
-продолжения. Сначала проверь текущую ветку и состояние файлов: пользователь может
-принести другие изменения после записи этого контекста.
+Updated 2026-09-08 after implementing a separate suspend harness without real sleep.
+B2: PR #384, `f2f1ac4`; B3: PR #385, `cc47212`, both merged with five green CI contexts.
+B4: PR #386, `01bf403`; first UAC stop: PR #387, `1f7cd82`, both merged with five green CI contexts.
+Elevated cleanup merged: PR #388, `75c943d`, five green CI contexts.
+First UX block merged: PR #389, `69530bd`, five green CI contexts.
+Second UX block merged: PR #390, `8519796`, five green CI contexts.
+Broker-death merged: PR #391, `37eac4a`, five green CI contexts.
+Consent probes merged: PR #392, `7646463`, five green CI contexts.
+First unsuccessful live attempt retained: PR #393, `045f2b0`, five green CI contexts.
+Real refusal/late cases passed: PR #394, `54f22ee`, five green CI contexts.
+Current backend block: `codex/etw-suspend-harness`; check the final PR status.
+This instruction and the latest Session handoff in `memory-bank/progress.md` are
+the continuation point. Check the current branch and file status first: the user
+may have added other changes since this context was recorded.
 
-## Что уже готово
+## Completed work
 
-Пользователь отдельно разрешил лёгкий UX-аудит и правки текущего интерфейса.
-Исправлены ожидание первой активности, доступ к Network, группировка Shield,
-сброс фильтров, сообщения пустой ленты, переход к свежим событиям и клавиатурный
-ввод в select. Индекс риска перенесён из перекрывающей ленту панели в компактную
-сводку рядом с навигацией; узкий Shield сохраняет высоту ленты и прокрутку.
-Отчёт: `docs/recon/ux-activity-review.md`. Браузерная проверка выполнена на собранном
-demo: 1440/1100 px dark и 1440 px light. Семь новых регрессионных тестов.
-Это отдельная точечная UI-задача; ETW-код и завершённые замеры не менялись.
+The user separately authorized a lightweight UX audit and changes to the current
+interface. Fixed the wait for first activity, Network access, Shield grouping,
+filter resets, empty-feed messages, navigation to fresh events and keyboard input
+in select controls. The risk index moved from a panel overlapping the feed into a
+compact summary beside navigation; narrow Shield layouts retain feed height and scrolling.
+Report: `docs/recon/ux-activity-review.md`. Browser checks used the built demo:
+1440/1100 px dark and 1440 px light. Seven new regression tests.
+This was a separate focused UI task; ETW code and completed measurements were unchanged.
 
-Во втором проходе исправлен цвет активной вкладки во всех четырёх темах. Удалён
-ложный toast «Scan complete», который появлялся при изменении числа процессов и
-называл их агентами. Шапка уже показывает отдельные числа и Scanning/Idle;
-уведомления аномалий сохранены. Два App-теста проверяют эти сценарии, 41 точечный
-тест прошёл. Минимальный измеренный контраст выбранной вкладки и её подсказки —
-9.29:1; это не проверка контраста всего интерфейса. Отчёт дополнен тем же файлом.
+The second pass fixed active-tab color in all four themes. Removed the false
+"Scan complete" toast that appeared when the process count changed and called
+processes agents. The header already shows separate counts and Scanning/Idle;
+anomaly notifications are preserved. Two App tests cover these scenarios;
+41 focused tests passed. Minimum measured contrast for the selected tab and its
+hint was 9.29:1; this is not a contrast audit of the entire interface.
+The same report was updated.
 
-Группировка процессов приложений — PR #378 (`60b66f0`). Названия скиллов в событиях
-файлов — PR #379 (`e98a199`): название берётся из пути, неизвестный агент остаётся
-неизвестным; создание папки не считается использованием скилла.
+Application-process grouping: PR #378 (`60b66f0`). Skill names in file events:
+PR #379 (`e98a199`); names come from paths, unknown agents remain unknown,
+and directory creation is not treated as skill use.
 
-Изолированный стенд `sidecar/etw-probe` — PR #380 (`59ca1ec`), повторная нагрузка —
-PR #381 (`39da76e`), сравнение буферов и длительный прогон — PR #382 (`52cfbe7`).
-Это .NET 10 / TraceEvent 3.2.6, без подключения к Electron. Все пять обязательных
-CI-контекстов этих PR прошли перед merge. Установленное приложение не обновляли.
+Isolated `sidecar/etw-probe` harness: PR #380 (`59ca1ec`); repeated load:
+PR #381 (`39da76e`); buffer comparison and extended run: PR #382 (`52cfbe7`).
+It uses .NET 10 / TraceEvent 3.2.6 without Electron integration. All five required
+CI contexts for these PRs passed before merge. The installed application was not updated.
 
-Пользователь уже выполнил реальные замеры из обычного PowerShell с отдельным UAC
-для сборщика. Повторять команды без нового основания не нужно:
+The user already ran real measurements from ordinary PowerShell with a separate
+UAC prompt for the collector. Do not repeat these commands without a new reason:
 
-- `X:/tmp/aegis-etw-matrix-20260908`: 11 сценариев.
-- `X:/tmp/aegis-etw-load-20260908`: 9 замеров фон/npm CLI/сборка.
-- `X:/tmp/aegis-etw-tune-20260908`: 9 сравнений буферов и одна непрерывная сессия 10 минут.
+- `X:/tmp/aegis-etw-matrix-20260908`: 11 scenarios.
+- `X:/tmp/aegis-etw-load-20260908`: 9 background/npm CLI/build measurements.
+- `X:/tmp/aegis-etw-tune-20260908`: 9 buffer comparisons and one continuous 10-minute session.
 
-Все завершились с кодом 0 и без сообщённых потерь/ошибок сбора. Запрошенные
-16 МиБ действительно дали 256 буферов по 64 КиБ; это на 48 МиБ меньше, чем 64 МиБ.
-На длинном прогоне память процесса колебалась 67–78 МиБ и закончила около 71 МиБ.
-16 МиБ — проверенный кандидат для этих нагрузок на Windows 11 Home 26200.8655,
-а не уже применённый производственный бюджет и не универсальная гарантия.
+All finished with exit code 0 and no reported collection loss/errors. The requested
+16 MiB actually produced 256 buffers of 64 KiB, saving 48 MiB compared with 64 MiB.
+During the long run, process memory fluctuated between 67–78 MiB and ended near 71 MiB.
+16 MiB is a tested candidate for these workloads on Windows 11 Home 26200.8655;
+it is not an already applied production budget or a universal guarantee.
 
-Детали и агрегаты с хешами исходных файлов:
+Details and aggregates with original-file hashes:
 `docs/recon/kernel-file-etw-measurements.md`, `docs/recon/evidence/etw-home-26200-*.json`.
-Матрица из 13 вопросов остаётся частично открытой: обычные тестовые чтения связаны
-с процессом/путём/QPC; PID-фильтр пропустил оба тестовых процесса; заранее открытые
-файлы остались без пути; для warm mmap не получены связанные с файлом Read-события.
-Нулевые счётчики потерь не доказывают полноту чтений. Не считать header PID или
-поздний запрос владельца TID универсально доказанной идентичностью.
+The 13-question matrix remains partly open: ordinary test reads are linked to
+process/path/QPC; the PID filter admitted both test processes; preopened files
+remained pathless; warm mmap produced no Read events associated with the file.
+Zero loss counters do not prove complete read coverage. Do not treat header PID
+or a late TID-owner lookup as universally proven identity.
 
-## B2/B3 готовы; B4 подготовлен, реальные E1/E2 ещё открыты
+## B2/B3 complete; B4 prepared; real E1/E2 remain open
 
-`docs/roadmap/etw-sensor-design.md` — первый проект решения, сверенный с исходниками
-на `53b20e4`. Его подготовка не утверждает производственное подключение. Документ
-описывает один `etw-file`, обычный C# broker и elevated collector, framed transport,
-очереди/потери, границы identity, неизвестные пути и агентов, health и восемь групп
-точечных проверок E1–E8. Текущий FileEvent и его `confirmed` не подходят для прямого
-приёма ETW-кандидатов; diagnostic observations не идут в baseline/risk/audit/sequence.
+`docs/roadmap/etw-sensor-design.md` is the first design draft, checked against
+source at `53b20e4`. Preparing it does not approve production integration.
+It describes one `etw-file`, an ordinary C# broker and elevated collector, framed
+transport, queues/loss, identity boundaries, unknown paths and agents, health,
+and eight groups of focused checks E1–E8. Current FileEvent and its `confirmed`
+state are unsuitable for direct ETW-candidate ingestion; diagnostic observations
+do not enter baseline/risk/audit/sequence.
 
-В B3 реализованы `src/main/platform/etw-file-protocol.js` и `etw-file-health.js`,
-их тесты/fixtures в `tests/main/platform/`; точный offline-контракт — раздел 8
-проекта. Декодер хранит один ограниченный кадр, требует синхронный consumer,
-проверяет UTF-8, закрытые поля, uint64 и привязку launch/session. Reducer сохраняет
-потери/неизмеренные интервалы, проверяет hello/ready/terminal, отвергает старые
-сессии и не превращает diagnostic profile в HEALTHY. В нём нет массива событий.
+B3 implements `src/main/platform/etw-file-protocol.js` and `etw-file-health.js`,
+with tests/fixtures in `tests/main/platform/`; the exact offline contract is
+section 8 of the design. The decoder retains one bounded frame, requires a
+synchronous consumer, and validates UTF-8, closed fields, uint64 and launch/session
+binding. The reducer retains loss/unmeasured intervals, validates hello/ready/terminal,
+rejects old sessions and never turns a diagnostic profile into HEALTHY.
+It contains no event array.
 
-Модули B3 не импортируются приложением. В B4 добавлен отдельный
-`sidecar/etw-lifecycle` (.NET 10, без NuGet-пакетов). Текущий `etw-lifecycle/2` проверяет
-собственный транспорт: защищённый локальный pipe, взаимную проверку PID/полного
-FILETIME/image/user/logon/elevation, authorize до создания сессии, lease и stop.
-При совпавшем имени существующей сессии стенд отказывает; чужую сессию не очищает.
+The application does not import B3 modules. B4 adds a separate
+`sidecar/etw-lifecycle` (.NET 10, no NuGet packages). Current `etw-lifecycle/2`
+checks its own transport: a secured local pipe, mutual PID/full FILETIME/image/
+user/logon/elevation verification, authorization before session creation, lease and stop.
+A collision with an existing session name makes the harness refuse; it never
+cleans up another session.
 
-Прошли 12 self-test и восемь сценариев с реальными обычными процессами: stop,
-stdin EOF, смерть broker, exit/kill collector, lease, blocked write и имитация
-отказа запуска. Они не вызывают ETW и не показывают нулевые native counters:
-счётчики остаются null. Итог `X:/tmp/aegis-etw-lifecycle-check-20260908-v3/result.json`;
-агрегат с хешами — `docs/recon/evidence/etw-lifecycle-home-26200-check.json`.
-Сборка Release и C# formatter прошли. После проверки процессов стенда не осталось.
+12 self-tests and eight scenarios with real ordinary processes passed: stop,
+stdin EOF, broker death, collector exit/kill, lease, blocked write and simulated
+launch refusal. They do not call ETW or report zero native counters: counters remain null.
+Result: `X:/tmp/aegis-etw-lifecycle-check-20260908-v3/result.json`;
+aggregate with hashes: `docs/recon/evidence/etw-lifecycle-home-26200-check.json`.
+Release build and C# formatter passed. No harness processes remained after verification.
 
-**Реальный UAC normal-stop уже прошёл — не запускай его заново без новой причины.**
-После команды пользователя «дальше» агент запустил подготовленный `uac` из обычного
-процесса; повышенный сборщик успешно прошёл взаимную проверку и штатно остановил
-пустую `AEGIS-EtwLifecycle`. Итог:
+**Real UAC normal-stop already passed; do not rerun it without a new reason.**
+After the user's "continue", the agent launched the prepared `uac` from an
+ordinary process; the elevated collector passed mutual verification and stopped
+the empty `AEGIS-EtwLifecycle` session normally. Result:
 `X:/tmp/aegis-etw-lifecycle-uac-20260908/result.json`, exit 0.
-Начальный query и конечный stop: status 0; 256 × 64 КиБ; все три loss counters 0.
-Получены stopped, child exit 0 и отсутствие сессии после stop (4201).
-Файловый provider не включался; процессов стенда после запуска не осталось.
-Агрегат — `docs/recon/evidence/etw-lifecycle-home-26200-uac-stop.json`.
-Apphost/assembly совпали с normal-token прогоном; LF-хеши исходников проверены
-против merged commit. Исторические raw-хеши до checkout сохранены отдельно:
-их нельзя напрямую сравнивать после преобразования переносов Git.
-Same-account cross-integrity подтверждён на этом хосте.
+Initial query and final stop: status 0; 256 × 64 KiB; all three loss counters 0.
+Received stopped, child exit 0 and session absence after stop (4201).
+The file provider was not enabled; no harness processes remained after the run.
+Aggregate: `docs/recon/evidence/etw-lifecycle-home-26200-uac-stop.json`.
+Apphost/assembly matched the normal-token run; LF source hashes were checked
+against the merged commit. Historical raw hashes from before checkout are retained
+separately and cannot be compared directly after Git line-ending conversion.
+Same-account cross-integrity operation is confirmed on this host.
 
-**Новые graceful-failure сценарии тоже реализованы и проверены.** В версии 2 два
-pipe с отдельными ID и одинаковыми DACL/проверками процессов; authorize отправляется
-после проверки обоих. Второй переносит единственный `cleanup` после попытки stop,
-со своим timeout 1 с. Частично записанный основной поток никогда не дочитывается
-в blocked-write. Primary ack и cleanup receipt сохраняются отдельно.
+**New graceful-failure scenarios are also implemented and verified.** Version 2
+uses two pipes with separate IDs and identical DACL/process checks; authorization
+is sent after both are verified. The second carries a single `cleanup` after the
+stop attempt, with its own 1 s timeout. In blocked-write, a partially written
+primary stream is never resumed for reading. Primary ack and cleanup receipt
+are retained separately.
 
-Прошли 14 self-test, восемь normal-token сценариев и `uac-failures` с четырьмя
-реальными сессиями: stop, parent stdin EOF, lease, blocked write. Во всех stop 0,
-absence 4201, 256 × 64 КиБ и loss counters 0; child exit 0/0/9/10 соответственно.
-В blocked-write primary ack false, cleanup receipt true. Процессов стенда не осталось.
-Отчёты: `X:/tmp/aegis-etw-cleanup-check-20260908/result.json` и
-`X:/tmp/aegis-etw-cleanup-uac-20260908/result.json`; агрегат —
-`docs/recon/evidence/etw-lifecycle-home-26200-cleanup.json`, canonical LF-хеши исходников
-и одинаковые binary-хеши обоих прогонов. Не повторяй их без новой причины.
+14 self-tests, eight normal-token scenarios and `uac-failures` with four real
+sessions passed: stop, parent stdin EOF, lease and blocked write. All had stop 0,
+absence 4201, 256 × 64 KiB and loss counters 0; child exits were 0/0/9/10 respectively.
+In blocked-write, primary ack was false and cleanup receipt true. No harness processes remained.
+Reports: `X:/tmp/aegis-etw-cleanup-check-20260908/result.json` and
+`X:/tmp/aegis-etw-cleanup-uac-20260908/result.json`; aggregate:
+`docs/recon/evidence/etw-lifecycle-home-26200-cleanup.json`, with canonical LF
+source hashes and identical binary hashes for both runs. Do not repeat without a new reason.
 
-**Независимая проверка broker death теперь реализована и реально прошла.**
-`check-broker-death` не вызывает ETW; `uac-broker-death` запускает query-only witness
-перед broker/collector. После взаимной аутентификации координатор удерживает
-collector через QUERY_LIMITED_INFORMATION | SYNCHRONIZE, сверяет FILETIME/образ/
-user/logon/elevation и наблюдает сессию до kill. Завершается только обычный broker;
-после его выхода и выхода collector свидетель повторно запрашивает фиксированное
-имя. У witness нет операции stop/start или произвольного имени сессии.
+**Independent broker-death verification is now implemented and passed a real run.**
+`check-broker-death` does not call ETW; `uac-broker-death` launches a query-only
+witness before broker/collector. After mutual authentication, the coordinator
+holds the collector through QUERY_LIMITED_INFORMATION | SYNCHRONIZE, verifies
+FILETIME/image/user/logon/elevation and observes the session before the kill.
+Only the ordinary broker is terminated; after it and the collector exit, the
+witness queries the fixed name again. The witness has no stop/start operation
+or arbitrary session-name input.
 
-19 self-test и девять normal-token случаев прошли. Реальный прогон
-`X:/tmp/aegis-etw-broker-death-uac-20260908-v2/result.json` прошёл: before query 0,
-256 × 64 КиБ, broker killed/exited, collector exit 0, after query 4201, witness exit 0.
-После прогона процессов стенда не осталось. Финальные счётчики null: отсутствие
-сессии не восстанавливает потерянный terminal/stop receipt. Агрегат с 14 LF-хешами,
-тремя успешными отчётами и первой неуспешной попыткой:
+19 self-tests and nine normal-token cases passed. The real run
+`X:/tmp/aegis-etw-broker-death-uac-20260908-v2/result.json` passed: before query 0,
+256 × 64 KiB, broker killed/exited, collector exit 0, after query 4201, witness exit 0.
+No harness processes remained after the run. Final counters are null: session
+absence cannot reconstruct a lost terminal/stop receipt. Aggregate with 14 LF
+hashes, three successful reports and the first unsuccessful attempt:
 `docs/recon/evidence/etw-lifecycle-home-26200-broker-death.json`.
 
-`docs/roadmap/etw-crash-ownership.md` фиксирует правило для orphan: занятое имя
-блокирует запуск; совпадение имени, старого PID или GUID из файла не разрешает
-удаление. Для будущей очистки нужен защищённый владелец сессии и доказанная связь
-с её поколением, включая гонку замены. Сервис/автоочистка не реализованы.
+`docs/roadmap/etw-crash-ownership.md` records the orphan rule: an occupied name
+blocks launch; a matching name, old PID or file-stored GUID does not authorize
+deletion. Future cleanup requires a protected session owner and proven association
+with its generation, including the replacement race. Service/automatic cleanup
+are not implemented.
 
-**Управляемые refusal/late-UAC команды проверены без elevation и реально прошли.**
-`check-consent` — явная инъекция 1223 и задержанный запуск обычного процесса.
-`uac-refusal` требует «Да» для query-only witness, затем «Нет» для collector.
-`uac-late` требует «Да» для witness, затем подождать 10 секунд и нажать «Да» для
-collector тем же пользователем. Новый consent-broker закрывает оба pipe через
-5 секунд и при возврате запуска; authorize не посылает даже при раннем «Да».
-Обычный Broker.cs и его launch deadline не изменены. Live acceptance требует
-независимого absence 4201 до/после, действительного исхода запуска и завершения
-процессов. OS consent dialog код не отменяет; подвисший диалог решает человек.
+**Controlled refusal/late-UAC commands were checked without elevation and passed real runs.**
+`check-consent` explicitly injects 1223 and delays ordinary-process launch.
+`uac-refusal` requires "Yes" for the query-only witness, then "No" for the collector.
+`uac-late` requires "Yes" for the witness, then a 10-second wait and "Yes" for the
+collector under the same user. The new consent-broker closes both pipes after
+5 seconds and when launch returns; it never sends authorize, even after an early "Yes".
+Ordinary Broker.cs and its launch deadline are unchanged. Live acceptance requires
+independent absence 4201 before/after, a valid launch outcome and process exit.
+The code does not cancel the OS consent dialog; a person handles a stuck dialog.
 
-22 self-test и десять normal-token случаев прошли на финальных одинаковых binaries.
-Отчёты: `X:/tmp/aegis-etw-consent-check-20260908-v3/result.json` и
-`X:/tmp/aegis-etw-consent-regression-20260908-v2/result.json`; агрегат с 17 LF-хешами —
-`docs/recon/evidence/etw-lifecycle-home-26200-consent-check.json`. ETW не вызывался;
-все native stats null, процессов стенда после проверки нет.
-Не выдавай эти normal-token проверки за реальные UAC-исходы.
+22 self-tests and ten normal-token cases passed on the final identical binaries.
+Reports: `X:/tmp/aegis-etw-consent-check-20260908-v3/result.json` and
+`X:/tmp/aegis-etw-consent-regression-20260908-v2/result.json`; aggregate with
+17 LF hashes: `docs/recon/evidence/etw-lifecycle-home-26200-consent-check.json`.
+ETW was not called; all native stats are null; no harness processes remained.
+Do not present these normal-token checks as real UAC outcomes.
 
-После «далее» запущен настоящий `uac-refusal`, но вместо отказа сборщик запустился
-через 1567.0161 мс. Тест корректно НЕ прошёл (exitCode 2): early-consent, native
-error null, authorize false, identity verified, child exit 2. Независимые before
-и after вернули 4201, witness exit 0; процессов стенда не осталось. Полный отчёт
-`X:/tmp/aegis-etw-refusal-20260908/result.json`, агрегат с 17 LF-хешами и совпадающими
-с normal-check binaries — `docs/recon/evidence/etw-lifecycle-home-26200-consent-live.json`.
-Это не подтверждает, видел ли человек диалог или нажимал «Да». UAC UI не
-автоматизировался, политики не менялись. После первоначальных сообщений об отсутствии
-окон пользователь подтвердил два окна и нажатие «Да» в обоих в недавних попытках.
-Не переносить это объяснение автоматически на каждый старый прогон.
+After "continue", a real `uac-refusal` was launched, but the collector started
+after 1567.0161 ms instead of being refused. The test correctly failed (exitCode 2):
+early-consent, native error null, authorize false, identity verified, child exit 2.
+Independent before/after queries returned 4201, witness exit 0; no harness processes remained.
+Full report: `X:/tmp/aegis-etw-refusal-20260908/result.json`; aggregate with
+17 LF hashes and binaries matching normal-check:
+`docs/recon/evidence/etw-lifecycle-home-26200-consent-live.json`.
+This does not establish whether a person saw a dialog or clicked "Yes". The UAC
+UI was not automated and policies were unchanged. After initially reporting no
+windows, the user confirmed two windows and clicking "Yes" in both during recent
+attempts. Do not automatically apply that explanation to every earlier run.
 
-**Оба нужных live-исхода теперь реально прошли; не повторять без нового вопроса.**
-Отказ: `X:/tmp/aegis-etw-refusal-retry-20260908-192954/result.json` — Windows error
-1223, injected false, child не запускался, authorize false, exitCode 0.
-Позднее подтверждение: `X:/tmp/aegis-etw-late-20260908-193019/result.json` — возврат
-запуска через 14130.4995 мс, каналы просрочены, identity verified, child exit 2,
-authorize false, итог exitCode 0. В обоих независимые before/after query 4201,
-счётчики null, witness/broker exit 0, процессов стенда после прогона нет.
-Агрегат `docs/recon/evidence/etw-lifecycle-home-26200-consent-verified.json` содержит
-17 canonical LF-хешей, оба успешных отчёта и пять ранних неуспешных попыток.
-Apphost/assembly совпали с normal-token проверками. Код и настройки UAC не менялись.
-Доказаны отдельные negative-broker сценарии; обычный Broker.cs и его timeout не
-менялись. Отмена при всё ещё открытом OS-диалоге и весь E1/E2 этим не закрыты.
-Диагностика `X:/tmp/aegis-uac-no-dialog-diagnostic-20260908.md` — более ранняя
-промежуточная запись; не возобновлять из неё поиски отсутствующих окон автоматически.
+**Both required live outcomes have now passed; do not repeat without a new question.**
+Refusal: `X:/tmp/aegis-etw-refusal-retry-20260908-192954/result.json` — Windows
+error 1223, injected false, child not launched, authorize false, exitCode 0.
+Late consent: `X:/tmp/aegis-etw-late-20260908-193019/result.json` — launch returned
+after 14130.4995 ms, channels expired, identity verified, child exit 2,
+authorize false, final exitCode 0. Both had independent before/after query 4201,
+counters null, witness/broker exit 0 and no remaining harness processes.
+The aggregate `docs/recon/evidence/etw-lifecycle-home-26200-consent-verified.json`
+contains 17 canonical LF hashes, both successful reports and five early failed attempts.
+Apphost/assembly matched normal-token checks. UAC code and settings were unchanged.
+These establish separate negative-broker scenarios; ordinary Broker.cs and its
+timeout were unchanged. Cancellation while the OS dialog is still open and all
+of E1/E2 are not resolved by these checks.
+`X:/tmp/aegis-uac-no-dialog-diagnostic-20260908.md` is an earlier intermediate
+diagnostic note; do not automatically resume missing-window investigation from it.
 
-**Suspend-режим реализован; пользователь явно отложил настоящий сон.**
-На вопрос о готовности ответил «Сон проверим позже». Не запускать live-проверку
-или отправку компьютера в сон без нового указания о готовности.
-`check-suspend` проверяет реальные normal-token процессы с явной синтетической
-парой событий питания; `uac-suspend` регистрирует native callback и требует
-реального suspend 4 → automatic resume 18. В обоих UAC нажать «Да», дождаться
-READY FOR MANUAL SLEEP, вручную выбрать Windows «Сон», через ~20 секунд разбудить.
-`Capture-SuspendContext.ps1 -ReportDirectory <run>` после окончания сохраняет
-powercfg /a и ограниченные метаданные событий System, включая неуспешные прогоны.
-В текущем хосте доступен connected S0 Modern Standby; S3/гибернация недоступны.
+**Suspend mode is implemented; the user explicitly deferred real sleep.**
+The readiness question was answered "We will test sleep later". Do not launch
+the live check or put the computer to sleep without a new indication of readiness.
+`check-suspend` checks real normal-token processes with an explicitly synthetic
+pair of power events; `uac-suspend` registers a native callback and requires real
+suspend 4 → automatic resume 18. Select "Yes" in both UAC prompts, wait for
+READY FOR MANUAL SLEEP, manually select Windows "Sleep", then wake it after ~20 seconds.
+After completion, `Capture-SuspendContext.ps1 -ReportDirectory <run>` saves
+powercfg /a and bounded System-event metadata, including unsuccessful runs.
+This host supports connected S0 Modern Standby; S3/hibernation are unavailable.
 
-`PowerObserver` хранит максимум 16 событий с UTC/QPC/unbiased clock, не делает
-ETW/I/O в callback, отвергает подстановку событий в native-режиме и проверяет
-снятие подписки. Witness-suspend использует preflight/before/after; старый witness
-оставил before/after. Suspend-роль: broker/peer 600 с, witness 720 с, coordinator
-480 с; lease 4 с и короткие I/O bounds сохранены. Реальное поведение .NET timers
-во сне пока не измерено. Запрос owned stop отправляется после suspend; приёмка
-требует power pair + primary/cleanup receipts + final counters + independent
-absence + exits. Нет restart, auto-sleep или elevated kill.
+`PowerObserver` retains at most 16 events with UTC/QPC/unbiased clock, performs
+no ETW/I/O in the callback, rejects event injection in native mode and verifies
+unsubscription. Witness-suspend uses preflight/before/after; the old witness
+retains before/after. Suspend-role deadlines: broker/peer 600 s, witness 720 s,
+coordinator 480 s; the 4 s lease and short I/O bounds are preserved.
+Actual .NET timer behavior during sleep is not yet measured. An owned stop request
+is sent after suspend; acceptance requires the power pair, primary/cleanup receipts,
+final counters, independent absence and exits. No restart, automatic sleep or elevated kill.
 
-29 self-test и 12 normal-token случаев прошли на одинаковых финальных binaries.
-Проверена настоящая регистрация/снятие native power callback без сна; переходы в
-процессном сценарии синтетические, ETW не вызывался, native stats null. Тест отмены
-после ready также дождался normal collector/broker/witness exit 0. Процессов нет.
-Итоги: `X:/tmp/aegis-etw-suspend-check-20260908-v3/result.json` и `power-context.json`;
-регрессии — `aegis-etw-suspend-regression-20260908-v2`,
+29 self-tests and 12 normal-token cases passed on identical final binaries.
+Actual native power callback registration/unregistration was checked without sleep;
+transitions in the process scenario are synthetic, ETW was not called and native
+stats are null. The cancellation-after-ready test also waited for normal
+collector/broker/witness exit 0. No processes remain.
+Results: `X:/tmp/aegis-etw-suspend-check-20260908-v3/result.json` and `power-context.json`;
+regressions: `aegis-etw-suspend-regression-20260908-v2`,
 `aegis-etw-suspend-consent-regression-20260908-v2`,
-`aegis-etw-suspend-death-regression-20260908-v2` под `X:/tmp/`.
-Агрегат `docs/recon/evidence/etw-lifecycle-home-26200-suspend-check.json` содержит
-21 LF-хеш исходников (включая ps1), четыре полных отчёта и power context. Скрипт
-контекста проверен и в Windows PowerShell 5.1. Точные шаги и ограничения —
-`docs/roadmap/etw-consent-suspend.md`. Следующие задачи — ручной sleep, когда
-пользователь будет готов, и защищённое владение/восстановление при collector crash.
-E1/E2 ещё требуют
-других credentials/logon и remote clients.
-Автоудаления orphan нет; смерть elevated collector может оставить сессию.
-Не выдавай normal-token kill за проверку очистки ETW. CI не собирает этот C# проект.
-Не повторяй три завершённых набора замеров. Подключение к Electron и установка
-в этот стенд не входят; полный B1 и E3–E8 остаются открыты.
+`aegis-etw-suspend-death-regression-20260908-v2` under `X:/tmp/`.
+The aggregate `docs/recon/evidence/etw-lifecycle-home-26200-suspend-check.json`
+contains 21 LF source hashes, including ps1, four full reports and power context.
+An [English translation of the captured sleep-state output](../docs/recon/evidence/etw-lifecycle-home-26200-suspend-check.en.md)
+is available; the original evidence retains the captured Windows text.
+The context script was also checked in Windows PowerShell 5.1. Exact steps and
+limits: `docs/roadmap/etw-consent-suspend.md`. Next tasks: manual sleep when the
+user is ready, and protected ownership/recovery after collector crash.
+E1/E2 still require other credentials/logons and remote clients.
+There is no automatic orphan deletion; elevated collector death may leave a session.
+Do not present normal-token kill as an ETW cleanup test. CI does not build this C# project.
+Do not repeat the three completed measurement sets. Electron integration and
+installation are outside this harness; full B1 and E3–E8 remain open.
 
-Start/stop correlation, таймеры/lease, уникальность ID и хранение завершённых
-summary — обязанности будущего supervisor. Обычный byte EOF не подтверждает
-остановку ETW: владелец транспорта должен вызвать failSession, если stopped не
-получен. Для подтверждённой атрибуции ещё нужны E4/E5; поздний lookup PID/TID или
-совпадение публичного instanceId этого не доказывает. Полный B1 остаётся открытым.
+Start/stop correlation, timers/lease, ID uniqueness and completed-summary storage
+are the future supervisor's responsibilities. Ordinary byte EOF does not confirm
+ETW stop: the transport owner must call failSession if stopped was not received.
+Confirmed attribution still requires E4/E5; late PID/TID lookup or a matching
+public instanceId does not establish it. Full B1 remains open.
 
-Применяй навыки проекта, выполняй проверки по объёму изменения и обычный разрешённый
-git-цикл через PR, пять CI-контекстов и merge. UI, зависимости, workflows, установка
-и бюджет по умолчанию остаются вне этого продолжения без отдельного основания.
+Apply project skills, run checks appropriate to the change and use the authorized
+Git workflow through a PR, five CI contexts and merge. UI, dependencies, workflows,
+installation and the default budget remain outside this continuation without a
+separate basis.
 
-## Остальная очередь и правила
+## Remaining queue and rules
 
-A1: гонка списка работающих WSL-дистрибутивов и `wsl -d` ещё может запустить
-остановленный дистрибутив; повторный опрос не даёт атомарной гарантии. Затем A2
-POSIX-сигнатуры и A3 Docker/Podman. Отдельно D2 macOS identity, A4 GPU recon.
-C1/C2, D1, SQLite и Sensor Health уже завершены; не начинать их заново.
+A1: the race between listing running WSL distributions and `wsl -d` can still
+start a stopped distribution; polling again provides no atomic guarantee.
+Then A2 POSIX signatures and A3 Docker/Podman. Separately, D2 macOS identity and
+A4 GPU reconnaissance. C1/C2, D1, SQLite and Sensor Health are complete; do not restart them.
 
-Открытые PR при проверке: #352/#353 Vitest, #354 Vite, #364 выпуск 0.15.0-alpha.
-Они не входят в текущий ETW-блок. Релиз/тег и защищённые конфиги требуют отдельного
-разрешения. AGENTS.md задаёт актуальные правила git и проверок; обычный полный
-цикл уже разрешён. Не запускать других агентов без просьбы пользователя.
+Open PRs when checked: #352/#353 Vitest, #354 Vite, #364 release 0.15.0-alpha.
+These are outside the current ETW block. A release/tag and protected configurations
+require separate authorization. AGENTS.md defines the current Git and verification
+rules; the ordinary full cycle is already authorized. Do not launch other agents
+unless the user asks.
 
-Большой фронтенд пользователь делает отдельно; оба лёгких UX-прохода завершены.
-Последний запрос вернул работу к backend: сделать несколько связанных ETW-задач.
-Не повторяй успешную broker-death проверку без нового основания. Отвечать коротко,
-по-русски, обычными словами.
+The user is handling the large frontend effort separately; both lightweight UX
+passes are complete. The latest request returned work to the backend to complete
+several related ETW tasks. Do not repeat the successful broker-death check without
+a new reason. Respond briefly in Russian, using plain language.

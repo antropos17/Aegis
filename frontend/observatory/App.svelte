@@ -53,22 +53,22 @@
       caption: 'Live monitors',
       keywords: (
         {
-          processes: 'cpu ram memory processes нагрузка память процессы',
-          activity: 'events network files активность события сеть',
-          tokens: 'tokens cost input output токены стоимость',
-          sensors: 'sensors health aegis датчики здоровье',
+          processes: 'cpu ram memory processes load',
+          activity: 'events network files activity',
+          tokens: 'tokens cost input output',
+          sensors: 'sensors health aegis',
         } as Record<string, string>
       )[id],
       target: 'stats',
       section: id,
     })),
     ...[
-      ['settings', 'appearance', 'Appearance', 'theme scale motion тема масштаб анимации'],
-      ['settings', 'monitoring', 'Monitoring settings', 'sensors scan retention мониторинг'],
-      ['settings', 'desktop', 'Desktop & updates', 'updates notifications обновления'],
-      ['settings', 'data', 'Data & help', 'import export help данные помощь'],
-      ['reports', 'export', 'Export reports', 'download report экспорт отчёт'],
-      ['audit', 'delivery', 'Audit delivery', 'audit diagnostics доставка аудит'],
+      ['settings', 'appearance', 'Appearance', 'theme scale motion animations'],
+      ['settings', 'monitoring', 'Monitoring settings', 'sensors scan retention monitoring'],
+      ['settings', 'desktop', 'Desktop & updates', 'updates notifications'],
+      ['settings', 'data', 'Data & help', 'import export help data'],
+      ['reports', 'export', 'Export reports', 'download report export'],
+      ['audit', 'delivery', 'Audit delivery', 'audit diagnostics delivery'],
     ].map(([target, section, label, keywords]) => ({
       id: target + '-' + section,
       label,

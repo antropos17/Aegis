@@ -1,83 +1,83 @@
-# AEGIS: рабочее пространство выбранного агента
+# AEGIS: selected agent workspace
 
-Дата: 10 сентября 2026 года. Статус: организация интерфейса реализована и прошла локальные проверки; результаты CI фиксируются в PR. Этот документ связывает жалобы пользователя, исследование и конкретные изменения Observatory. Он не является отчётом об измеренном росте удобства.
+Date: September 10, 2026. Status: the interface organization is implemented and has passed local checks; CI results are recorded in the PR. This document connects user complaints, research and specific Observatory changes. It does not report a measured improvement in usability.
 
-Уточнение после пользовательской проверки: Monitoring всегда показывает общий обзор. Область выбранного агента действует в Agents, Events, Network и Statistics. Актуальная конвенция размеров и маршрутов описана в [DESIGN.md](../../frontend/observatory/DESIGN.md#monitoring-and-sizing-correction); она заменяет включение Monitoring в общую область ниже.
+Clarification after user review: Monitoring always shows the overall view. The selected agent scope applies to Agents, Events, Network and Statistics. The current sizing and routing conventions are described in [DESIGN.md](../../frontend/observatory/DESIGN.md#monitoring-and-sizing-correction); they supersede the inclusion of Monitoring in the shared scope below.
 
-## Задача и границы
+## Goal and scope
 
-Пользователь описал избыток Unknown, разброс информации, вложенные вкладки в окнах и постоянные переходы. Главная задача прохода — дать устойчивый ответ на вопрос «что происходит с выбранным агентом»: его процессы, нагрузка, наблюдения и причина риска должны восприниматься как одна связанная область. Сохраняются визуальная иерархия Observatory, локальные логотипы, нейтральные поверхности, семантика цветов и системная типографика Segoe UI. Изменение организации информации не требует новой темы или набора декоративных графиков.
+The user reported too many Unknown labels, scattered information, nested tabs in dialogs and constant navigation. This pass aims to provide a consistent answer to "what is happening with the selected agent": its processes, resource use, observations and risk reason should form one connected workspace. Observatory's visual hierarchy, local logos, neutral surfaces, color semantics and Segoe UI system typography are preserved. Reorganizing information does not require a new theme or decorative charts.
 
-Работа опирается на чтение действующих компонентов, разделённый аудит несколькими агентами и опубликованные рекомендации. Проверка исходников обнаруживает потерю контекста и противоречивые состояния, но не измеряет субъективное удобство. Для последнего нужен отдельный наблюдаемый пользовательский сценарий с заранее выбранными критериями.
+The work draws on source inspection, an audit divided among several agents and published guidance. Source review can reveal lost context and contradictory states, but it cannot measure subjective usability. That requires a separate observed user scenario with criteria chosen in advance.
 
-## Что показал аудит исходников
+## Source audit findings
 
-До текущих правок `App.selected` обслуживал только Monitoring/Radar. `Statistics.svelte` отдельно хранил продукт и процесс, а два экземпляра `Events.svelte` независимо хранили фильтр агента внутри раскрываемой панели. Переход из инспектора в статистику передавал продукт и сбрасывал выбранный процесс. Внешне это выглядело как продолжение работы с агентом, хотя область данных менялась.
+Before these changes, `App.selected` served only Monitoring/Radar. `Statistics.svelte` stored its own product and process selection, while two instances of `Events.svelte` independently stored agent filters inside expandable panels. Moving from the inspector to statistics passed the product and reset the selected process. It appeared to continue work on the same agent while changing the data scope.
 
-Группу на радаре представлял один рабочий процесс. Его исчезновение и смена страницы радара могли сбросить выбор. При этом инспектор показывал суммарные значения группы рядом с переключателем отдельного процесса. Это разные сущности, которым не хватало явного разделения в состоянии приложения.
+A single worker process represented each radar group. Its disappearance or a radar page change could reset the selection. Meanwhile, the inspector displayed group totals next to an individual-process selector. These are different entities that needed explicit separation in application state.
 
-`Details.svelte` содержал собственные историю, прокрутку и вкладки. Путь через группу, процессы, отдельный процесс, активность и ресурс образовывал вторую навигацию внутри основного приложения. Кнопки имени агента, числа процессов и Open часто открывали одинаковую начальную страницу окна. Общий экран также повторял представление активности в нескольких блоках. Названия Unknown объединяли разные причины отсутствия сведений, поэтому не объясняли, чего именно не знает AEGIS.
+`Details.svelte` maintained its own history, scrolling and tabs. Moving through a group, its processes, an individual process, activity and a resource created a second navigation system inside the application. Agent-name buttons, process counts and Open often led to the same initial dialog page. The overall screen also repeated activity in several blocks. Unknown labels combined different reasons for missing information and did not explain what AEGIS actually lacked.
 
-Исходная точка аудита — компоненты в [frontend/observatory](../../frontend/observatory/), особенно App, Statistics, Events, RadarInspector, Details и runtime/detail-model. Перечисленные недостатки описывают состояние до этого прохода; новые решения зафиксированы ниже.
+The audit started with components in [frontend/observatory](../../frontend/observatory/), especially App, Statistics, Events, RadarInspector, Details and runtime/detail-model. These findings describe the state before this pass; the adopted changes are recorded below.
 
-## Что дают внешние источники
+## Guidance from external sources
 
-Grafana рекомендует строить панель вокруг вопроса, использовать параметры для повторного применения одного представления, ограничивать разрастание дубликатов и показывать графики с понятным назначением. Это основание для общей области агента и устранения повторных представлений, а не доказательство, что любая конкретная компоновка AEGIS эффективнее. [Grafana: dashboard best practices](https://grafana.com/docs/grafana/latest/visualizations/dashboards/build-dashboards/best-practices/).
+Grafana recommends organizing a dashboard around a question, using parameters to reuse views, limiting duplication and giving charts a clear purpose. This supports a shared agent scope and fewer repeated views; it does not prove that a particular AEGIS layout is more effective. [Grafana: dashboard best practices](https://grafana.com/docs/grafana/latest/visualizations/dashboards/build-dashboards/best-practices/).
 
-Модальное окно блокирует основной контекст и требует отдельного взаимодействия. NNGroup описывает его как средство привлечения внимания к ограниченной задаче. Применительно к AEGIS перенос длительного расследования агента на страницу — наш вывод из этого свойства, а не готовый шаблон из статьи. [NNGroup: modal and nonmodal dialogs](https://www.nngroup.com/articles/modal-nonmodal-dialog/).
+A modal dialog blocks the main context and requires separate interaction. NNGroup describes it as a way to focus attention on a bounded task. Moving extended agent investigations onto a page is our inference for AEGIS, rather than a ready-made pattern from the article. [NNGroup: modal and nonmodal dialogs](https://www.nngroup.com/articles/modal-nonmodal-dialog/).
 
-Carbon разделяет отсутствие данных, отсутствие результатов фильтра и ошибку получения данных. Сообщение должно объяснять конкретную ситуацию и, когда возможно, следующий шаг. Это поддерживает отдельные формулировки для неизвестного владельца, недоступного измерения и завершившегося процесса. [Carbon: empty states](https://carbondesignsystem.com/patterns/empty-states-pattern/).
+Carbon distinguishes no data, no filter results and failed data retrieval. A message should explain the specific situation and, when possible, the next step. This supports separate wording for an unrecorded actor, an unavailable measurement and a departed process. [Carbon: empty states](https://carbondesignsystem.com/patterns/empty-states-pattern/).
 
-NNGroup связывает количественное сравнение с длиной и положением на общей шкале; цвет лучше использовать как дополнительный сигнал. Поэтому ресурсная история остаётся линейной, а цвет риска сопровождается значением и объяснением. Сохранение обзорного радара — решение AEGIS с учётом существующего визуального языка. [NNGroup: dashboard perception](https://www.nngroup.com/articles/dashboards-preattentive/).
+NNGroup associates quantitative comparison with length and position on a common scale; color works better as an additional cue. Resource history therefore remains a line chart, and risk color is accompanied by a value and explanation. Retaining the overview radar is an AEGIS decision based on its existing visual language. [NNGroup: dashboard perception](https://www.nngroup.com/articles/dashboards-preattentive/).
 
-W3C APG определяет роли вкладок, связь с панелями, порядок фокуса и движение стрелками. Сокращение количества вкладок не отменяет этих требований для оставшихся Statistics, Settings и других разделов. [W3C: tabs pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/).
+W3C APG defines tab roles, panel relationships, focus order and arrow-key navigation. Reducing the number of tabs does not remove these requirements from the remaining Statistics, Settings and other sections. [W3C: tabs pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/).
 
-Исследование Dashboard Design Patterns систематизирует повторяющиеся решения и компромиссы между содержимым, взаимодействием и пространством. Мы используем его как основание явно описать компромиссы: общая страница требует прокрутки, подробные журналы остаются отдельными представлениями, а компактный обзор не показывает каждую запись сразу. Исследование не оценивает AEGIS. [Bach и соавторы: Dashboard Design Patterns](https://arxiv.org/abs/2205.00757).
+Dashboard Design Patterns organizes recurring solutions and tradeoffs among content, interaction and space. We use it to make tradeoffs explicit: a shared page requires scrolling, detailed logs remain separate views, and a compact overview cannot show every record at once. The study does not evaluate AEGIS. [Bach et al.: Dashboard Design Patterns](https://arxiv.org/abs/2205.00757).
 
-## Принятая организация интерфейса
+## Adopted interface organization
 
-Область `{ agent, instanceId }` принадлежит App. Пустой продукт означает все агенты, пустой instanceId при выбранном продукте — все его процессы. Общая панель AgentContext доступна в живых разделах. Переходы между обзором, Agents, Events, Network и Statistics сохраняют выбор. Возврат к общей картине выполняется явным All agents. Это интерфейсная память текущего сеанса; документ не обещает её сохранения после перезапуска.
+App owns the `{ agent, instanceId }` scope. An empty product means all agents; an empty instanceId with a selected product means all its processes. The shared AgentContext bar is available in live sections. Moving between the overview, Agents, Events, Network and Statistics preserves the selection. All agents explicitly returns to the overall view. This is interface state for the current session; the document does not promise persistence after restart.
 
-Выбранный агент открывается в основной области AgentWorkspace. Порядок блоков: имя и состояние наблюдения; риск с ведущей причиной и раскрываемым объяснением; один ресурсный график с выбором CPU, памяти или токенов; сохранённые файлы и соединения; рабочие процессы. Короткие ссылки перемещают к секциям этой страницы. Технические атрибуты и управление процессом раскрываются возле выбранного рабочего процесса. Отдельный исторический график под каждой метрикой не добавляется.
+The selected agent opens in the main AgentWorkspace area. Sections appear in this order: name and observation state; risk with its leading reason and an expandable explanation; one resource chart with CPU, memory or token selection; retained files and connections; worker processes. Short links navigate to sections on the page. Technical attributes and process controls expand near the selected worker process. No separate history chart is added below every metric.
 
-Общий Monitoring сохраняет обзорную роль: сводка, радар как вход к агенту, график активности и последние наблюдения. Пустой боковой инспектор в основном приложении убран, повторный Timeline не монтируется. Самостоятельные компоненты могут сохранять прежний контракт для тестов и повторного использования; это не дополнительный пользовательский маршрут.
+The overall Monitoring view retains its overview role: summary, radar as an entry point to an agent, activity chart and recent observations. The empty side inspector is removed from the main application, and the duplicate Timeline is no longer mounted. Standalone components may retain their previous contracts for tests and reuse; this does not create another user route.
 
-Statistics остаётся местом подробного изучения измерений. При внешней области его собственные селекторы скрываются; смена продукта сохраняет выбранную секцию и метрику, если пользователь явно не запросил другую секцию. Sensors показывает AEGIS независимо от агента. История выбранной области начинается при изменении выбора; отсутствующие значения и неполное покрытие остаются видимыми.
+Statistics remains the place for detailed measurement analysis. Its own selectors are hidden when an external scope is supplied; changing the product preserves the selected section and metric unless the user explicitly requests another section. Sensors shows AEGIS independently of the selected agent. History for a scope starts when the selection changes; missing values and incomplete coverage remain visible.
 
-Модальные детали предназначены для ограниченного просмотра наблюдения, набора записей одного ресурса и служебных действий. Они больше не служат основным рабочим пространством агента. Переход от записи к её процессу возвращает пользователя в основной контекст. Подтверждение потенциально опасного действия остаётся отдельным взаимодействием.
+Modal details support bounded inspection of an observation, a resource's records and utility actions. They no longer serve as the primary agent workspace. Navigating from a record to its process returns the user to the main context. Confirmation of a potentially dangerous action remains a separate interaction.
 
-## Честная неопределённость и идентичность
+## Accurate uncertainty and identity
 
-Сетевой `unknown` отображается как Endpoint unverified; отсутствие владельца — Actor not recorded; отсутствие рабочего каталога — Working directory not recorded. Когда источник передал причину, интерфейс раскрывает её понятным текстом. Это уточнение описания существующих данных, оно не создаёт новую атрибуцию.
+Network `unknown` appears as Endpoint unverified; a missing actor appears as Actor not recorded; a missing working directory appears as Working directory not recorded. When the source provides a reason, the interface explains it in readable text. These labels clarify existing data and do not create new attribution.
 
-Путь внутри `.codex` или `.claude` может назвать ресурсный контекст, но не доказывает владельца. Общие журналы сохраняют такие наблюдения. Область конкретного агента исключает selfAccess и явно unattributed; продукт сопоставляется по записанному владельцу или пригодному точному stamp текущего процесса. Область процесса использует сохранённый instanceId. Повторное использование PID не переносит старые события и измерения на новый процесс.
+A path inside `.codex` or `.claude` can identify resource context but does not establish an actor. General logs retain these observations. A specific agent scope excludes selfAccess and explicitly unattributed records; the product is matched through the recorded actor or a usable exact stamp of the current process. Process scope uses the retained instanceId. PID reuse never transfers old events or measurements to a new process.
 
-Деградировавшая идентичность с окончанием `:u`, неизвестное время запуска и синтетические наблюдения не становятся выбираемыми реальными рабочими процессами. Они могут присутствовать в общей картине с объяснением ограничения. Завершившийся выбранный процесс остаётся выбранным: текущие измерения недоступны, сохранённая активность доступна. При сбое сенсора последняя надёжная популяция не подменяется пустым списком.
+Degraded identities ending in `:u`, unknown start times and synthetic observations do not become selectable real worker processes. They may appear in the overall view with an explanation of the limitation. A selected process remains selected after departure: current measurements are unavailable, while retained activity remains accessible. A sensor outage does not replace the last reliable population with an empty list.
 
-## Сценарии до и после
+## Before and after scenarios
 
-| Задача | До прохода | Принятое поведение |
+| Task | Before this pass | Adopted behavior |
 | --- | --- | --- |
-| Проверить Codex | Выбрать на радаре, затем открыть отдельное окно | Выбрать Codex и получить страницу риска, ресурсов, активности и процессов |
-| Сравнить нагрузку и сеть | Перейти в другой раздел и заново искать фильтр | Перейти в Network или Statistics с сохранённой областью |
-| Изучить рабочий процесс | Группа → вкладка процессов → новое содержимое окна | Выбрать процесс в общей панели или строке Worker processes |
-| Процесс завершился | Выбор мог исчезнуть; новая популяция меняла контекст | Сохранить точный выбор, показать отсутствие текущего процесса и доступную историю |
-| Понять Unknown | Увидеть общее неопределённое слово | Прочитать, не установлен ли владелец, адрес, время запуска или измерение |
+| Inspect Codex | Select it on the radar, then open a separate dialog | Select Codex to open its risk, resources, activity and processes page |
+| Compare resource use and network activity | Open another section and find the filter again | Move to Network or Statistics with the scope preserved |
+| Inspect a worker process | Group → processes tab → new dialog contents | Select a process in the shared bar or a Worker processes row |
+| A process departs | Selection could disappear; a new population changed the context | Keep the exact selection and show the absent current process alongside available history |
+| Understand Unknown | Read a generic uncertainty label | Learn whether the actor, address, start time or measurement is unavailable |
 
-Здесь описано изменение маршрутов, а не замер времени выполнения. Количество действий зависит от исходного состояния и способа входа, поэтому численное обещание ускорения не приводится.
+These are routing changes, not measured task times. The number of actions depends on the starting state and entry point, so no numerical speedup is claimed.
 
-## Проверка и оставшиеся ограничения
+## Verification and remaining limits
 
-Компонентные проверки уже подтвердили согласованность области между App, Events, Network и Statistics, открытие строки агента без модального окна, сохранение истории после повторного использования PID, поведение паузы и разделение Ctrl/Meta+S/T с одноклавишными командами. Соответствующие файлы — `ObservatoryAgentWorkspace.test.js`, `ObservatorySharedScope.test.js`, `observatory-agent-scope.test.js` и прежний `ObservatoryStatisticsScope.test.js`. Дополнительный ObservatoryDepartedHistory.test.js проверяет удержание временного окна после завершения процесса и независимое обновление Sensors. Проверки типов и Svelte прошли без ошибок. Полный набор тестов прошёл в CI, включая правку часов завершившегося процесса. При локальном повторе под нагрузкой существующий тест запуска временного бинарника один раз превысил таймаут; отдельный повтор прошёл. Результаты проверок последнего коммита фиксируются в PR.
+Component checks confirmed consistent scope across App, Events, Network and Statistics; opening an agent row without a modal; history retention after PID reuse; pause behavior; and separation of Ctrl/Meta+S/T from single-key commands. Relevant files are `ObservatoryAgentWorkspace.test.js`, `ObservatorySharedScope.test.js`, `observatory-agent-scope.test.js` and the existing `ObservatoryStatisticsScope.test.js`. The additional ObservatoryDepartedHistory.test.js checks time-window retention after a process departs and independent Sensors updates. Type and Svelte checks passed without errors. The full suite passed in CI, including the departed-process clock fix. During a local rerun under load, an existing test that launches a temporary binary exceeded its timeout once; an isolated rerun passed. The PR records checks for the latest commit.
 
-| Область QA | Обязательные состояния |
+| QA area | Required states |
 | --- | --- |
-| Геометрия | 1200×800 и 900×600 из исходного эталона; ограниченная высота; масштаб 100–150%; длинные пути |
-| Представление | Светлая, тёмная и контрастная темы; обычное и уменьшенное движение |
-| Данные | Пустой запуск, надёжный пустой снимок, сбой сенсора, частичные ресурсы, неподдерживаемые токены |
-| Выбор | Все агенты, продукт, конкретный процесс, завершение, повторный PID, `:u`, синтетический источник |
-| Навигация | Sidebar, строки, общая панель, Back/Forward, журнал → процесс, возвращение из записи |
-| Клавиатура | Tab, стрелки вкладок, Escape, системные сочетания, возврат фокуса, недоступные действия |
-| Нативное окно | Изолированный Electron-профиль, реальные размеры, отсутствие вмешательства в пользовательские процессы |
+| Geometry | Reference viewports of 1200×800 and 900×600; limited height; 100–150% scale; long paths |
+| Presentation | Light, dark and high-contrast themes; ordinary and reduced motion |
+| Data | Empty startup, reliable empty snapshot, sensor outage, partial resources, unsupported tokens |
+| Selection | All agents, product, exact process, departure, reused PID, `:u`, synthetic source |
+| Navigation | Sidebar, rows, shared bar, Back/Forward, log → process, return from a record |
+| Keyboard | Tab, tab arrow keys, Escape, system shortcuts, focus return, unavailable actions |
+| Native window | Isolated Electron profile, actual dimensions, no interventions against user processes |
 
-Браузерный проход frontend:test проверил темы, масштаб, размеры, общую область, прямые переходы, отсутствие переполнения и возврат фокуса. Снимки страницы агента осмотрены в светлой и тёмной темах, включая 900×600 при 150%. Нативный проход Electron завершился без runtime-ошибок; проверены перезапуск и сохранение настроек на одноразовом профиле. Это ограниченная матрица регрессий, а не обещание полного отсутствия ошибок интерфейса. Этот проход не расширяет возможности сенсоров, не восстанавливает утраченную атрибуцию и не создаёт исторические измерения до начала наблюдения. Дальнейшую оценку удобства следует проводить на сценариях из таблицы, отдельно отмечая ошибки навигации, необходимость повторного выбора и понятность причин отсутствующих данных.
+The frontend:test browser pass checked themes, scale, viewports, shared scope, direct navigation, overflow and focus return. Agent-page screenshots were inspected in light and dark themes, including 900×600 at 150%. The native Electron pass completed without runtime errors; restart and settings persistence were checked with a disposable profile. This is a bounded regression matrix, not a guarantee of an error-free interface. This pass does not extend sensors, recover lost attribution or create historical measurements from before observation began. Further usability evaluation should use the scenarios above and separately record navigation errors, repeated selection and the clarity of explanations for missing data.
