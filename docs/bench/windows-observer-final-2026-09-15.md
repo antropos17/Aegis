@@ -40,7 +40,44 @@ still observes handles held at the tick, may miss brief reads, and retains its
 existing empty-on-native-error semantics. Collection intervals, attribution and
 identity stamping are unchanged.
 
-The extended live capture and final verification are recorded below when complete.
+## Recorded live window and verification
+
+The user ended the planned two-hour run early. Its last checkpoint covers
+48.51 minutes (2,910,778.04 ms), including a 90-second startup window and 282
+steady process ticks. Only the owned diagnostic Electron process tree was
+terminated. The original report remains `complete:false`; the runner returned 1
+because its duration/graceful-exit gate did not complete. The stop reason is
+recorded separately. This is an interrupted observation window, not a completed
+two-hour soak or a successful shutdown/flush test. All source fingerprints still
+matched the running manifest when the summary was produced.
+
+Steady medians: hot holders 272.77 ms (282 calls), full holders 2,449.53 ms
+(94 calls), TCP 600.34 ms (116 calls), batch CWD source 433.11 ms (68 calls).
+These stages recorded zero failures. No steady PowerShell launch was recorded;
+the full RM scan still pays for its individual registration groups. Live load
+differs from the one-group fixture, so these are not controlled before/after
+application comparisons.
+
+Main RSS median moved from 217.98 MiB in the first ten steady minutes to
+232.45 MiB in the last ten (observed steady range 198.82–247.64 MiB). Heap medians
+were 13.85 and 15.13 MiB. These measurements do not prove absence of a leak.
+IPC eviction and audit-drop counters remained zero. Sampled IPC buffering peaked
+at two; its retained high-water counter was 14. Audit buffering peaked at 44 and
+was one at the final checkpoint, so persistence of every final buffered entry is
+not established after termination. Sequence state stayed empty: this workload
+does not stress sequence-state capacity. Recorded audit size reached 2,397,661
+bytes. Private profiles and stop/guard receipts remain outside Git on X:.
+
+Local full coverage passed 3,487 tests with four skips in an isolated two-worker
+run. An earlier simultaneous build/typecheck run had eight UI timeouts; no test
+timeouts or product code were changed to obtain the passing rerun. Three later
+path/Unicode cases passed in the focused transport suite (29 passes). Windows
+compilation, twelve quiet native input rejections, actual PID scope and the
+36-query comparison passed. Renderer build, formatting, lint (zero errors and
+56 existing warnings), both typechecks, production audit, both mutation gates and
+derived counts passed. Implementation CI passed all five required contexts:
+3,489 tests passed, five skipped; final documentation CI is required before merge.
+
 This work does not establish event recall, foreground UI responsiveness, packaged
 installation behavior or ETW throughput. The user's installed application is not
 replaced and no release is cut by this optimization pass.
