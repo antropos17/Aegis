@@ -17,7 +17,7 @@ Two rules are non-negotiable and are the reason the harness is shaped this way:
   the sensor are scored against it, never against each other.
 - **A sensor is never its own oracle.** Nothing in the MEASUREMENT column imports from `src/` —
   see [Trace replay and the `src/` boundary](#trace-replay-and-the-src-boundary) for the
-  name-by-name split, and for the one subtree where the rule does not apply because it is the
+  name-by-name split, and for the replay subtree where the rule does not apply because it is the
   system under test rather than a measurement of it. Where a scenario needs ground truth about
   process identity, that truth comes from Sysmon EID 1 ordinality — never from the
   process-snapshot provider AEGIS itself reads.
@@ -49,6 +49,12 @@ prose around the numbers survives a re-run — the precedent is
 `docs/bench/generation-v2-2026-08-12.md`.
 
 ## Running
+
+For opt-in profiling of the real monitoring cycle, see
+[`cycle-profile/README.md`](cycle-profile/README.md). That diagnostic harness loads
+`src/main/main.js` and wraps selected calls to record timing and resource aggregates.
+It is separate from the independent accuracy measurement and oracle comparison
+described here; it does not establish recall or calibrated overhead figures.
 
 ```
 npm run bench:run                                        # defaults: no-scenario, arm A

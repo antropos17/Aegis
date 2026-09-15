@@ -2523,3 +2523,43 @@ Renderer build, formatting, both type checks and both four-mutant gates passed.
 Lint passed with zero errors and 56 pre-existing warnings; the production
 dependency audit reported zero vulnerabilities. All five CI contexts must pass
 on the final PR head before merge.
+
+### 2026-09-15 — Measure the real monitoring cycle
+
+Following merged #457 / `b42d4c0`, branch `codex/scan-cycle-profile` adds an opt-in
+development harness under `bench/cycle-profile`. It observes real main exports,
+process spawns, process-tick completion, Electron/main CPU and memory, and event
+loop delay. Numeric reports omit monitored paths, command arguments, identities,
+results and exception text. Production algorithms and collection intervals are
+unchanged. The recorder preserves receiver/result/promise identity and uses async
+context to attribute concurrent child launches.
+
+Two 180-second minimized runs used separate profiles on X:, no ETW opt-in/UAC,
+and a 90-second startup exclusion. Run A found the snapshot binary absent in this
+development checkout: all 12 observations used CIM. The normal `build:sidecar`
+command built the existing source; run B used class5 for all 12 observations.
+Each had nine steady process ticks. Run B's median cycle was 19 ms, with one
+1,700 ms cycle coinciding with the 60-second CWD cache refresh. Its snapshot
+median was 11.26 ms. This is checkout preparation, not a new runtime optimization
+or evidence about the user's installed application.
+
+The next measured candidate is CPU/RAM collection: nine PowerShell launches in
+90 seconds, median 1,948.63 ms. Full file and network scans also remain expensive.
+See `docs/bench/live-cycle-profile-2026-09-15.md` and JSON for counts, CPU/memory,
+hashes and caveats. Sequential live runs are not a controlled speedup comparison;
+external-helper CPU and mature baseline behavior remain unmeasured.
+
+Original report/profile receipts are retained at `X:/tmp/aegis-cycle-20260915-a`
+and `X:/tmp/aegis-cycle-20260915-b` (about 3 MiB each). Preserve their logs/audit/DB;
+only the aggregate summary is tracked. The final launcher additionally records
+the helper hash, isolates child TEMP in each run directory and requires three
+steady ticks for successful exit. The recorded runs used the already isolated
+`X:/tmp/aegis-network-20260914-runtime` TEMP. Storage checks and closed-ETL cleanup
+continue through the existing local guard; persistent WSL rotation is not installed.
+
+Local verification: renderer build, both typechecks, lint (zero errors; 56 existing
+warnings), formatting, production audit (zero vulnerabilities), witness gate,
+sequence gate and derived-count checks passed. Full coverage completed with 3,419 passes, four skips and
+one existing ObservatoryProtection five-second timeout. An unchanged focused
+rerun passed all six tests in that component plus the five new recorder tests.
+The final PR CI must complete the full coverage run before merge.
