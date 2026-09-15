@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { createMetrics } = require('../../bench/cycle-profile/metrics.cjs');
+const { limits } = require('../../bench/cycle-profile/limits.cjs');
+
+it('bounds long diagnostic runs and keeps a finite watchdog/sample budget', () => {
+  expect(limits()).toEqual({ durationMs: 180000, watchdogMs: 210000, sampleMs: 1000 });
+  expect(limits('7200')).toEqual({ durationMs: 7200000, watchdogMs: 7230000, sampleMs: 5000 });
+  for (const value of ['', '0', '179', '7201', 'Infinity', 'NaN', '180.5'])
+    expect(() => limits(value)).toThrow();
+});
 
 describe('cycle timing recorder', () => {
   it('attributes concurrent async work to the correct stage', async () => {

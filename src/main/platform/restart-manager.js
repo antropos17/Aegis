@@ -16,7 +16,7 @@
  *
  *   Grouping: one Restart Manager SESSION per directory group, opened and CLOSED
  *   before the next (so only one session is ever live — the 64-session/user cap is
- *   never approached). All groups run inside ONE powershell.exe spawn per scan
+ *   never approached). All groups run inside ONE helper or fallback PowerShell spawn per scan
  *   (the spawn COUNT is the cost we cut, not the in-process RM session count).
  *
  * @author AEGIS Contributors
@@ -33,6 +33,8 @@ const logger = require('../logger');
 const { getAllRules } = require('../rule-loader');
 const { AGENT_CONFIG_PATHS, SENSITIVE_AGENT_DIRS } = require('../../shared/constants');
 const { RM_CSHARP } = require('./rm-csharp');
+const { createWindowsObserver, parseNativeHolders } = require('./windows-observer');
+const observer = createWindowsObserver({ execFile });
 
 /**
  * Secret credential directories watched for held handles. Each existing dir
@@ -76,6 +78,7 @@ const MAX_FILES_PER_GROUP = 64;
  */
 const PS_BODY = [
   '$ErrorActionPreference="Stop"',
+  '[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false)',
   `Add-Type -TypeDefinition @'\n${RM_CSHARP}\n'@`,
   '$groups = $env:AEGIS_RM_GROUPS | ConvertFrom-Json',
   '$out = @()',
@@ -174,7 +177,7 @@ function logSpawnTax(spawn, t0) {
 }
 
 /**
- * Run the Restart Manager scan: ONE powershell.exe spawn, one RM session per
+ * Run the Restart Manager scan: one helper (or fallback PowerShell), one RM session per
  * group (sequentially opened/closed), returning every process holding a handle
  * to a registered sensitive resource. Holders are returned RAW (including
  * non-agent PIDs and possibly AEGIS itself) — the caller maps PIDs to agents and
@@ -188,10 +191,16 @@ function logSpawnTax(spawn, t0) {
  * @returns {Promise<Array<{pid: number, group: string, reason: string}>>}
  * @since v0.10.0
  */
-function getSensitiveHolders(dirNames, includeEnv) {
+async function getSensitiveHolders(dirNames, includeEnv) {
   if (!_rmAvailable) return Promise.resolve([]);
   const groups = buildSensitiveGroups(dirNames, includeEnv);
   if (groups.length === 0) return Promise.resolve([]);
+  const native = await observer.tryRequest(
+    'holders',
+    { groups: groups.map((g) => g.files) },
+    (rows) => parseNativeHolders(rows, groups),
+  );
+  if (native !== null) return native;
   return new Promise((resolve) => {
     const t0 = performance.now();
     execFile(

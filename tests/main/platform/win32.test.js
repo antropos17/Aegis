@@ -20,12 +20,14 @@ Module._load = function (request, _parent, _isMain) {
 
 afterAll(() => {
   Module._load = originalLoad;
+  vi.unstubAllEnvs();
 });
 
 describe('platform/win32', () => {
   let win32;
 
   beforeEach(async () => {
+    vi.stubEnv('AEGIS_OBSERVER_PROVIDER', 'powershell');
     mockExecFile.mockReset();
     vi.resetModules();
     const mod = await import('../../../src/main/platform/win32.js');

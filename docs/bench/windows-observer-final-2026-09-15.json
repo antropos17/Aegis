@@ -1,0 +1,232 @@
+{
+  "comparison": {
+    "schema": 1,
+    "samples": [
+      {
+        "kind": "tcp",
+        "provider": "powershell",
+        "ms": 1712.3974000000003,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "native",
+        "ms": 458.91679999999997,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "native",
+        "ms": 498.3961999999997,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "powershell",
+        "ms": 1799.8078999999998,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "powershell",
+        "ms": 1752.9318000000003,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "native",
+        "ms": 570.7831999999999,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "native",
+        "ms": 555.6731,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "powershell",
+        "ms": 1731.7203000000009,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "powershell",
+        "ms": 1681.1382999999987,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "native",
+        "ms": 451.03160000000025,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "native",
+        "ms": 436.91699999999946,
+        "rows": 2
+      },
+      {
+        "kind": "tcp",
+        "provider": "powershell",
+        "ms": 1695.5108,
+        "rows": 2
+      },
+      {
+        "kind": "cwd",
+        "provider": "powershell",
+        "ms": 1473.8991999999998,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "native",
+        "ms": 307.1362000000008,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "native",
+        "ms": 293.8061000000016,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "powershell",
+        "ms": 1433.5816999999988,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "powershell",
+        "ms": 1365.1670999999988,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "native",
+        "ms": 295.41219999999885,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "native",
+        "ms": 308.9621999999981,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "powershell",
+        "ms": 1360.797300000002,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "powershell",
+        "ms": 1390.272100000002,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "native",
+        "ms": 293.4179000000004,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "native",
+        "ms": 307.73049999999785,
+        "rows": 1
+      },
+      {
+        "kind": "cwd",
+        "provider": "powershell",
+        "ms": 1366.5629999999983,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "powershell",
+        "ms": 1673.4313999999977,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "native",
+        "ms": 346.8233,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "native",
+        "ms": 359.22369999999864,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "powershell",
+        "ms": 1609.9867999999988,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "powershell",
+        "ms": 1503.2790999999997,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "native",
+        "ms": 347.94780000000173,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "native",
+        "ms": 351.4423999999999,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "powershell",
+        "ms": 1508.9833999999973,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "powershell",
+        "ms": 1509.6820999999982,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "native",
+        "ms": 356.07049999999435,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "native",
+        "ms": 364.73339999999735,
+        "rows": 1
+      },
+      {
+        "kind": "holders",
+        "provider": "powershell",
+        "ms": 1603.3551000000007,
+        "rows": 1
+      }
+    ],
+    "exactMatches": 36,
+    "emptyScopes": 2,
+    "releasedHolderEmpty": true,
+    "hashes": {
+      "sidecar/observer/Program.cs": "417bac3e9728e813d6bcfe6c77ed1353803e54e41b752eed0c7967d75bd62f96",
+      "src/main/platform/windows-observer.js": "55b731b34a01b3d32ee9591847871b8b93d057436f0e8a408b63640a046890de",
+      "src/main/platform/rm-csharp.js": "ca28bb43a5bce388833bf177733259e30686b897f9faf24d0e36ace2dfce4275",
+      "build/sidecar/aegis-observer.exe": "b3d309dc7196d977c607a9c80c245d860832e19480f20112c6fb3bf937b046ff"
+    }
+  }
+}

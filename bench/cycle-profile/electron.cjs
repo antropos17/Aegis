@@ -7,6 +7,7 @@ const { createMetrics } = require('./metrics.cjs');
 const { install } = require('./hooks.cjs');
 const root = path.resolve(__dirname, '../..');
 const output = process.env.AEGIS_CYCLE_OUTPUT;
+const limits = require('./limits.cjs').limits(process.env.AEGIS_CYCLE_SECONDS);
 if (!output || !path.isAbsolute(output) || fs.existsSync(path.join(output, 'profile'))) {
   throw new Error('A new absolute AEGIS_CYCLE_OUTPUT directory is required');
 }
@@ -63,11 +64,13 @@ function sample() {
     intervalMs: elapsed,
     mainCpuMs: (cpu.user + cpu.system - previousCpu.user - previousCpu.system) / 1000,
     mainRssMiB: memory.rss / 1048576,
+    mainHeapMiB: memory.heapUsed / 1048576,
     electronCpuMs: electronCpuAvailable && previousChildren.size ? electronCpuMs : null,
     electronWorkingSetMiB: workingSetKiB / 1024,
     electronProcesses: rows.length,
     loopP99Ms: Number.isFinite(lag.percentile(99)) ? lag.percentile(99) / 1e6 : null,
     loopMaxMs: Number.isFinite(lag.max) ? lag.max / 1e6 : null,
+    queues: queueSample(),
   });
   previousCpu = cpu;
   previousTime = atMs;
@@ -85,7 +88,7 @@ function write(complete) {
         elapsedMs: now(),
         versions: { node: process.versions.node, electron: process.versions.electron },
         warmupMs: 90000,
-        configuredDurationMs: 180000,
+        configuredDurationMs: limits.durationMs,
         settings: { minimized: true, scanIntervalSec: 10, etw: false },
         stages: metrics.snapshot(),
         ...state,
@@ -96,7 +99,26 @@ function write(complete) {
     ),
   );
 }
-const timer = setInterval(sample, 1000);
+// Only numeric counters are retained; never copy identities, events or paths.
+function queueSample() {
+  const main = require.cache[path.join(root, 'src/main/main.js')]?.exports;
+  const audit = require.cache[path.join(root, 'src/main/audit-logger.js')]?.exports;
+  const stats = main?.getStats?.(),
+    a = audit?.getStats?.();
+  const ipc = stats?.ipc?.fileAccess;
+  return {
+    activityEntries: stats?.totalFiles ?? null,
+    ipcBuffered: ipc?.buffered ?? null,
+    ipcHighWater: ipc?.highWater ?? null,
+    ipcEvicted: ipc?.retainedEvicted ?? null,
+    sequenceOpen: stats?.sequences?.openNow ?? null,
+    sequencePeak: stats?.sequences?.peakOpen ?? null,
+    auditBuffered: a?.bufferDepth ?? null,
+    auditDropped: a?.droppedEntries ?? null,
+    auditBytes: a?.totalSize ?? null,
+  };
+}
+const timer = setInterval(sample, limits.sampleMs);
 const checkpoint = setInterval(() => write(false), 30000);
 const deadline = setTimeout(() => {
   clearInterval(timer);
@@ -105,7 +127,7 @@ const deadline = setTimeout(() => {
   lag.disable();
   write(true);
   app.quit();
-}, 180000);
+}, limits.durationMs);
 app.on('will-quit', () => {
   clearInterval(timer);
   clearInterval(checkpoint);

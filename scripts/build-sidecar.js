@@ -99,6 +99,32 @@ function main() {
   );
   console.log(`built  ${resourceExe}`);
 
+  // Compile the exact existing RM implementation; keep fallback and helper in sync.
+  const rmSource = path.join(OUT_DIR, 'Rm.generated.cs');
+  fs.writeFileSync(rmSource, require('../src/main/platform/rm-csharp').RM_CSHARP);
+  const observerExe = path.join(OUT_DIR, 'aegis-observer.exe');
+  try {
+    execFileSync(
+      csc,
+      [
+        '/nologo',
+        '/target:exe',
+        '/platform:x64',
+        '/optimize+',
+        '/warnaserror+',
+        '/reference:System.Management.dll',
+        '/reference:System.Web.Extensions.dll',
+        `/out:${observerExe}`,
+        path.join(ROOT, 'sidecar', 'observer', 'Program.cs'),
+        rmSource,
+      ],
+      { stdio: 'inherit' },
+    );
+  } finally {
+    fs.unlinkSync(rmSource);
+  }
+  console.log(`built  ${observerExe}`);
+
   const bytes = fs.readFileSync(OUT_EXE);
   const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
   console.log(`built  ${OUT_EXE}`);
