@@ -49,7 +49,7 @@ export interface ParentProcessInfo {
  */
 export type InstanceIdSource = 'os' | 'synthetic' | 'unknown';
 
-/** Raw TCP connection from Get-NetTCPConnection */
+/** Raw TCP connection from the platform provider. */
 export interface RawTcpConnection {
   /** Absent on legacy providers; null when the local endpoint is unavailable. */
   readonly localIp?: string | null;

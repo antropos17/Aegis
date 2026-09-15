@@ -56,6 +56,12 @@ For opt-in profiling of the real monitoring cycle, see
 It is separate from the independent accuracy measurement and oracle comparison
 described here; it does not establish recall or calibrated overhead figures.
 
+`node bench/tcp-query-compare.cjs` compares the Windows TCP provider with the frozen
+pre-change cmdlet query on this harness's own loopback sockets. It imports the
+production provider as the system under test and checks exact expected endpoint
+tuples and states. It emits numeric counts/timings only, requires Windows, and
+does not run in CI or establish event recall for a live fleet.
+
 ```
 npm run bench:run                                        # defaults: no-scenario, arm A
 npm run bench:run -- --scenario S1-agent-lifecycle --arm A

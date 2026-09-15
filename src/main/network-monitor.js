@@ -1,7 +1,7 @@
 /**
  * @file network-monitor.js
  * @module main/network-monitor
- * @description Network connection scanning via PowerShell Get-NetTCPConnection,
+ * @description Network connection scanning via the platform TCP provider,
  *   forward-confirmed reverse-DNS resolution with TTL cache, and allowlist-based
  *   classification of every remote endpoint into allowlisted / unknown / flagged.
  * @requires child_process

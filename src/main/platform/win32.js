@@ -9,6 +9,7 @@ const { execFile } = require('child_process');
 const logger = require('../logger');
 const restartManager = require('./restart-manager');
 const snapshot = require('./process-snapshot');
+const { buildTcpQuery, parseTcpRows } = require('./windows-tcp');
 
 /**
  * Whether the handle.exe/handle64.exe binary is on PATH — the LEGACY read-detect
@@ -148,30 +149,24 @@ function getParentProcessMap() {
 }
 
 /**
- * Get raw TCP connections for given PIDs via PowerShell Get-NetTCPConnection.
+ * Get raw TCP connections via the CIM table underlying Get-NetTCPConnection.
  * @param {number[]} pids
  * @returns {Promise<import("../../shared/types/process").RawTcpConnection[]>}
  */
 function getRawTcpConnections(pids) {
   return new Promise((resolve, reject) => {
-    const validPids = pids.filter((p) => Number.isInteger(p) && p > 0);
+    const validPids = pids.filter((p) => Number.isInteger(p) && p > 0 && p <= 0xffffffff);
     if (validPids.length === 0) {
       resolve([]);
       return;
     }
-    const pidStr = validPids.join(',');
-    const psScript = [
-      '$ErrorActionPreference="SilentlyContinue"',
-      `$pids=@(${pidStr})`,
-      '$conns=Get-NetTCPConnection -OwningProcess $pids -EA SilentlyContinue|Where-Object{$_.State -ne "Listen" -and $_.State -ne "Bound" -and $_.RemoteAddress -ne "0.0.0.0" -and $_.RemoteAddress -ne "::" -and $_.RemoteAddress -ne "127.0.0.1" -and $_.RemoteAddress -ne "::1"}',
-      '$r=@()',
-      'foreach($c in $conns){$r+=@{pid=[int]$c.OwningProcess;ip=$c.RemoteAddress;port=[int]$c.RemotePort;localIp=$c.LocalAddress;localPort=[int]$c.LocalPort;state=$c.State.ToString()}}',
-      'if($r.Count -gt 0){$r|ConvertTo-Json -Compress}else{"[]"}',
-    ].join('\n');
+    const psScript = buildTcpQuery(validPids);
     execFile(
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-Command', psScript],
-      { timeout: 10000 },
+      // CIM property names are longer than the former short aliases; retain a
+      // bounded response budget with room for the same connection population.
+      { timeout: 10000, maxBuffer: 2 * 1024 * 1024 },
       (err, stdout) => {
         // B-S05: hard provider failure must reject so network health can mark FAILED.
         // True empty tables ("[]" / blank stdout with success) still resolve [].
@@ -180,14 +175,7 @@ function getRawTcpConnections(pids) {
           return;
         }
         try {
-          const raw = (stdout || '').trim();
-          if (!raw || raw === '[]') {
-            resolve([]);
-            return;
-          }
-          let conns = JSON.parse(raw);
-          if (!Array.isArray(conns)) conns = [conns];
-          resolve(conns);
+          resolve(parseTcpRows(stdout, validPids));
         } catch (parseErr) {
           reject(parseErr instanceof Error ? parseErr : new Error('tcp-provider-parse-error'));
         }

@@ -2599,3 +2599,38 @@ comparison and native validation receipts remain in the ignored
 logs, audit and databases as verification evidence. Disposable test TEMP/cache
 uses the guarded X: runtime; closed diagnostic ETL cleanup is checked during the
 task and does not install persistent rotation.
+
+### 2026-09-15 — Query the Windows TCP table directly
+
+Following merged #464 (`9c6b8b3`), `codex/network-provider` replaces the
+Get-NetTCPConnection wrapper with a PID-filtered Get-CimInstance query of its
+underlying MSFT_NetTCPConnection class. The normalizer retains both endpoints,
+TCP state names, simultaneous sockets and the existing literal exclusions.
+Provider and malformed-output failures reject the observation. Shared exclusions
+also run before JSON serialization; a bounded 2 MiB transport accommodates the
+longer CIM property names. No dependency, binary, IPC or scan interval changes.
+PowerShell still starts once per network observation.
+
+Six alternating pairs matched all twelve exact fixture endpoint/state sets and
+an absent PID returned an empty table. Median elapsed query time fell from
+2,571.31 to 1,272.65 ms. A final 180-second real Electron capture completed nine
+steady process ticks and three steady network observations without provider
+failures: raw median 1,692.98 ms, full network stage median 1,696.69 ms. This is
+not a total-application CPU comparison or an event-recall measurement. Numeric
+records, source hashes, reproduction instructions and limits are in
+`docs/bench/windows-tcp-cim-2026-09-15.*`.
+
+Local full coverage passed 3,459 tests with four skips (215 files) before the
+final pre-serialization filter fix. After that fix, all 139 focused tests passed,
+including a native Windows pipeline fixture with 10,000 excluded rows and two
+retained sockets producing less than 4 KiB of JSON. The final comparator and live
+capture used the fixed provider. Renderer build, formatting, lint (zero errors;
+56 existing warnings), both typechecks, production audit (zero vulnerabilities)
+and both mutation gates passed. Final PR CI must complete the full suite.
+
+Private final capture: `X:/tmp/aegis-tcp-cim-final-20260915`; the earlier capture
+at `X:/tmp/aegis-tcp-cim-live-20260915` and ignored comparison/command receipts in
+`.agent/network-20260914/receipts/` remain available. Preserve these profiles,
+logs, audit and databases. Temporary test output uses the guarded X: runtime;
+closed diagnostic ETL files are checked during work, with no persistent rotation
+installed. All native checks ran without ETW opt-in or UAC.
