@@ -141,12 +141,20 @@ describe('main — onSequenceDetection writes the sequence-detection audit recor
       ...detection(),
       level: 'low',
       assessment,
+      relationship: {
+        source: 'fresh-process-table',
+        parentInstanceId: 'parent',
+        childInstanceId: INSTANCE_ID,
+      },
       attribution: { status: 'unattributed', evidence: ['handle-scan-pid'] },
     });
     expect(audit.log.mock.calls[0][1]).toMatchObject({
       severity: 'low',
       attribution: { status: 'unattributed' },
-      extra: { assessment },
+      extra: {
+        assessment,
+        relationship: { parentInstanceId: 'parent', childInstanceId: INSTANCE_ID },
+      },
     });
   });
   it('writes the record on the event, in the shape roadmap §5 "Emission" states', () => {

@@ -105,6 +105,58 @@ describe('scan-loop', () => {
     };
   }
 
+  it('publishes lineage only after identity stamping and invalidates it on failed observations or stop', async () => {
+    const population = [{ agent: 'A', process: 'a', pid: 10 }];
+    const sequenceEngine = { observePopulation: vi.fn() };
+    const deps = makeDeps({ sequenceEngine });
+    deps.scanner.scanProcesses.mockResolvedValue({ agents: population, reliable: true });
+    deps.procUtil.enrichWithParentChains.mockImplementation(async (rows) => {
+      rows[0].instanceId = 'fresh:10';
+      rows[0].instanceIdSource = 'os';
+    });
+    scanLoop.init(deps);
+    scanLoop.startScanIntervals(5000);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(sequenceEngine.observePopulation).toHaveBeenLastCalledWith(
+      [expect.objectContaining({ instanceId: 'fresh:10' })],
+      true,
+    );
+    deps.scanner.scanProcesses.mockResolvedValue({ agents: population, reliable: false });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(sequenceEngine.observePopulation).toHaveBeenLastCalledWith(population, false);
+    deps.scanner.scanProcesses.mockRejectedValue(new Error('provider failed'));
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(sequenceEngine.observePopulation).toHaveBeenLastCalledWith([], false);
+    sequenceEngine.observePopulation.mockClear();
+    scanLoop.stopScanIntervals();
+    expect(sequenceEngine.observePopulation).toHaveBeenCalledWith([], false);
+  });
+
+  it('does not restore lineage when an in-flight scan completes after monitoring stops', async () => {
+    const population = [{ agent: 'A', process: 'a', pid: 10 }];
+    const sequenceEngine = { observePopulation: vi.fn() };
+    const deps = makeDeps({ sequenceEngine });
+    let finish;
+    deps.scanner.scanProcesses.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    scanLoop.init(deps);
+    scanLoop.startScanIntervals(5000);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(finish).toBeTypeOf('function');
+    scanLoop.stopScanIntervals();
+    sequenceEngine.observePopulation.mockClear();
+    finish({ agents: population, reliable: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sequenceEngine.observePopulation).toHaveBeenCalledWith(population, false);
+    expect(sequenceEngine.observePopulation.mock.calls.some(([, reliable]) => reliable)).toBe(
+      false,
+    );
+  });
+
   // ── dedupFileEvent (F-E03: instanceId-scoped, not display-name) ──
 
   describe('dedupFileEvent', () => {

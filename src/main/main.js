@@ -614,6 +614,7 @@ function onSequenceDetection(detection) {
       timespan: detection.timespan,
       steps: detection.steps,
       ...(detection.assessment ? { assessment: detection.assessment } : {}),
+      ...(detection.relationship ? { relationship: detection.relationship } : {}),
     },
   });
   logger.info('sequence-engine', `Sequence ${detection.ruleId} detected`, detection);

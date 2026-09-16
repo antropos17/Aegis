@@ -1,5 +1,12 @@
 # AEGIS Observatory
 
+## Related sequence evidence — 16 September 2026
+
+SEQ002 uses the existing Audit detail overview. It shows separate recorded actors,
+the observed parent/child PIDs and relationship snapshot times. Causality and
+transferred content remain explicitly unproven. SEQ001 keeps its same-instance
+description. Existing scoped detail styles and the reference cascade are preserved.
+
 ## Local security workspace — 16 September 2026
 
 The requested interface integration adds Local security under Assess. A compact

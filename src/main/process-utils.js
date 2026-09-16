@@ -451,6 +451,7 @@ async function enrichWithParentChains(agents, opts = {}) {
     a.instanceIdSource = identity.instanceIdSource;
   }
   annotateApplicationGroups(agents, processMap);
+  require('./process-lineage').annotateParentRelations(agents, processMap);
 }
 
 /**

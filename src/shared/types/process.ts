@@ -104,6 +104,13 @@ export interface DetectedAgent {
   readonly instanceId?: string;
   /** Where {@link DetectedAgent.instanceId} came from. */
   readonly instanceIdSource?: InstanceIdSource;
+  /** Direct monitored parent observed during this record's fresh identity pass.
+   * This records a process-table relationship; delegation and data transfer are unproven. */
+  readonly parentRelation?: {
+    readonly parentPid: number;
+    readonly parentInstanceId: string;
+    readonly source: 'fresh-process-table';
+  };
   /**
    * Generation witness from THIS record's own enrichment pass — the proof that a
    * cached parent chain or working directory still belongs to the process living

@@ -173,6 +173,7 @@ function sequenceScoreFor(instanceId) {
 }
 
 function stopScanIntervals() {
+  deps.sequenceEngine?.observePopulation?.([], false);
   resourceScanGeneration++;
   resourceSampler.invalidate();
   for (const t of startupTimers) clearTimeout(t);
@@ -515,6 +516,10 @@ async function doProcessScan() {
     // before the audit writes below so a downstream throw cannot leave a real
     // observation uncredited.
     const observed = reliable && !identityDegraded && !gapStraddled;
+    deps.sequenceEngine?.observePopulation?.(
+      agents,
+      observed && resourceGeneration === resourceScanGeneration,
+    );
     if (observed && deps.observationGap) deps.observationGap.noteObserved(Date.now());
     // Reconcile alone decides exits. Outages/suspend produce none, so no baseline
     // is retired without reliable evidence. Persist once for the whole exit batch.
@@ -724,6 +729,7 @@ async function doProcessScan() {
     // catch) and a downstream pipeline throw (health deliberately untouched — the
     // observation succeeded). Log only: no leaf here names delivery or persistence, and
     // inventing one would answer a question this record was never asked.
+    deps.sequenceEngine?.observePopulation?.([], false);
     logger.error('main', 'Process scan failed', { error: err.message });
   } finally {
     updateScanStatus(false);

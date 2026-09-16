@@ -1,6 +1,6 @@
 # AEGIS Architecture
 
-## Main Process (src/main/) — 126 CommonJS modules (104 top-level + 20 platform/ + 2 token-adapters/)
+## Main Process (src/main/) — 128 CommonJS modules (106 top-level + 20 platform/ + 2 token-adapters/)
 
 Optional development ETW: main → platform/etw-file-runtime → etw-file-supervisor
 → normal `sidecar/etw-file` broker → authenticated elevated file collector.
@@ -21,6 +21,7 @@ Core modules:
 - watch-event-queue.js — bounded, acknowledged worker delivery; counted drop-newest overflow reaches sensor health
 - network-monitor.js — TCP scanning + DNS + domain classification
 - sequence-evidence.js — bounded TCP tuple history and opt-in credential/TCP evidence calibration
+- process-lineage.js / sequence-related.js — fresh direct monitored-parent evidence and bounded SEQ002 correlations with distinct actors
 - rule-loader.js — YAML rule loading + categoryIndex (Map<category, rules[]>) exposed via getRulesByCategory(); built and tested, but no production caller consumes it yet (C-16)
 - config-manager.js — validated atomic settings persistence, changed-field patch merging, encrypted key retention and permissions
 - baselines.js — session tracking + rolling averages
