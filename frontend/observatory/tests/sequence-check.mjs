@@ -125,23 +125,14 @@ export async function checkSequence(browser, url, out, related = false, ancestry
     });
     assert.equal(await evidence.locator('.steps > li').count(), 2);
     assert((await evidence.innerText()).includes('203.0.113.9:8443'));
-    assert(
-      (await evidence.innerText()).includes(
-        ancestry
-          ? 'Observed process path (ancestor → descendant)'
-          : related
-            ? 'Observed parent PID 10 → child PID 42.'
-            : 'already observed before the file event',
-      ),
-    );
-    if (ancestry) {
-      assert.equal(
-        await evidence.getByRole('list', { name: 'Observed process path' }).locator('li').count(),
-        5,
-      );
-      assert((await evidence.innerText()).includes('fixture:intermediate-3'));
-      assert(!(await evidence.innerText()).includes('Observed parent PID 10 → child PID 42.'));
-    }
+    const disclosure = evidence.locator('details.evidence-details');
+    const summary = disclosure.locator('summary');
+    const body = page.locator('#modal-body');
+    const insideBody = async (locator) => {
+      const box = await locator.boundingBox();
+      const bounds = await body.boundingBox();
+      assert(box && bounds && box.y >= bounds.y && box.y + box.height <= bounds.y + bounds.height);
+    };
     for (const size of [
       { width: 1200, height: 800 },
       { width: 900, height: 600 },
@@ -149,32 +140,70 @@ export async function checkSequence(browser, url, out, related = false, ancestry
       await page.setViewportSize(size);
       for (const theme of ['dark', 'light']) {
         await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
-        const overflow = await evidence.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
-        assert.equal(overflow, false);
-        await page.screenshot({
-          path: resolve(out, `sequence-${related ? scope + '-' : ''}${theme}-${size.width}.png`),
-        });
-        if (related) {
-          await page.evaluate(() =>
-            document.documentElement.style.setProperty('--ui-scale', '1.5'),
+        for (const scale of [1, 1.5]) {
+          await page.evaluate(
+            (scale) => document.documentElement.style.setProperty('--ui-scale', String(scale)),
+            scale,
           );
-          assert.equal(await evidence.evaluate((el) => el.scrollWidth > el.clientWidth + 1), false);
-          await page.screenshot({
-            path: resolve(out, `sequence-${scope}-${theme}-${size.width}-150.png`),
-          });
-          await evidence.locator('.steps > li').last().scrollIntoViewIfNeeded();
-          const tcpHeading = evidence.getByText('2. TCP observation', { exact: true });
-          const headingBox = await tcpHeading.boundingBox();
-          const bodyBox = await page.locator('#modal-body').boundingBox();
-          assert(headingBox && bodyBox && headingBox.y >= bodyBox.y);
-          assert(headingBox.y + headingBox.height <= bodyBox.y + bodyBox.height);
-          await page.screenshot({
-            path: resolve(out, `sequence-${scope}-${theme}-${size.width}-150-steps.png`),
-          });
-          await page.locator('#modal-body').evaluate((el) => {
+          await body.evaluate((el) => {
             el.scrollTop = 0;
           });
-          await page.evaluate(() => document.documentElement.style.setProperty('--ui-scale', '1'));
+          assert.equal(await disclosure.evaluate((el) => el.open), false);
+          // Core conclusion and first actual event must be readable without scrolling.
+          await insideBody(evidence.getByText('Data transfer was not observed.', { exact: true }));
+          await insideBody(evidence.getByText('1. File access observation', { exact: true }));
+          assert.equal(await evidence.evaluate((el) => el.scrollWidth > el.clientWidth + 1), false);
+          const name = `sequence-${related ? scope : 'same-instance'}-${theme}-${size.width}-${scale * 100}`;
+          await page.screenshot({ path: resolve(out, `${name}.png`) });
+          await evidence.locator('.steps > li').last().scrollIntoViewIfNeeded();
+          await insideBody(evidence.getByText('2. TCP observation', { exact: true }));
+          await summary.focus();
+          await summary.press('Enter');
+          assert.equal(await disclosure.evaluate((el) => el.open), true);
+          assert.equal(await summary.evaluate((el) => document.activeElement === el), true);
+          const focus = await summary.evaluate((el) => ({
+            style: getComputedStyle(el).outlineStyle,
+            width: parseFloat(getComputedStyle(el).outlineWidth),
+          }));
+          assert(
+            focus.style !== 'none' && focus.width > 0,
+            'disclosure keyboard focus is invisible',
+          );
+          assert(
+            (await evidence.innerText()).includes(
+              ancestry
+                ? 'Observed process path (ancestor → descendant)'
+                : related
+                  ? 'Observed parent PID 10 → child PID 42.'
+                  : 'already observed before the file event',
+            ),
+          );
+          if (ancestry) {
+            assert.equal(
+              await evidence
+                .getByRole('list', { name: 'Observed process path' })
+                .locator('li')
+                .count(),
+              5,
+            );
+            assert((await evidence.innerText()).includes('fixture:intermediate-3'));
+            assert(
+              !(await evidence.innerText()).includes('Observed parent PID 10 → child PID 42.'),
+            );
+          }
+          assert.equal(
+            await evidence
+              .getByRole('list', { name: 'Recorded process identities' })
+              .locator('li')
+              .count(),
+            2,
+          );
+          assert((await evidence.innerText()).includes('fixture:42'));
+          assert.equal(await evidence.evaluate((el) => el.scrollWidth > el.clientWidth + 1), false);
+          await summary.scrollIntoViewIfNeeded();
+          await page.screenshot({ path: resolve(out, `${name}-details.png`) });
+          await summary.press('Space');
+          assert.equal(await disclosure.evaluate((el) => el.open), false);
         }
       }
     }

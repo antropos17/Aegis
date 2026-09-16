@@ -33,6 +33,14 @@
   let ancestry = $derived(related && path.length >= 3);
   let calibrated = $derived(assessment.policy === 'credential-egress-v1');
   let steps = $derived(Array.isArray(details.steps) ? details.steps.slice(0, 16).map(record) : []);
+  let hasDetails = $derived(
+    related ||
+      calibrated ||
+      steps.some((step) => {
+        const evidence = record(step.attribution).evidence;
+        return text(step.instanceId) || (Array.isArray(evidence) && evidence.length > 0);
+      }),
+  );
   let explanation = $derived(
     Array.isArray(assessment.reasons)
       ? assessment.reasons.filter(
@@ -59,6 +67,14 @@
     <h3>{$t('Sequence evidence')}</h3>
     <span class="badge">{text(details.ruleId) || text(row.action)}</span>
   </div>
+  {#if calibrated}
+    <p class="assessment">
+      <strong>{$t('Data transfer was not observed.')}</strong>
+      {$t('This is a temporal correlation, not proof of credential theft.')}
+    </p>
+  {:else}
+    <p class="entity-note">{$t('Evidence assessment was not recorded for this rule.')}</p>
+  {/if}
   <p class="entity-note">
     {ancestry
       ? $t(
@@ -70,42 +86,6 @@
           )
         : $t('These observations are linked to the same recorded process instance.')}
   </p>
-  {#if related}
-    {#if ancestry}
-      <p class="entity-note">{$t('Observed process path (ancestor → descendant)')}</p>
-      <ol class="ancestry-path" aria-label={$t('Observed process path')}>
-        {#each path as node, index (index)}
-          <li>
-            PID {typeof node.pid === 'number' ? node.pid : '—'}<code class="identity"
-              >{text(node.instanceId) || '—'}</code
-            >
-          </li>
-        {/each}
-      </ol>
-    {:else}<p class="entity-note">
-        {$t('Observed parent PID {parent} → child PID {child}.', {
-          parent: relationship.parentPid,
-          child: relationship.childPid,
-        })}
-      </p>{/if}
-    <dl>
-      <dt>{$t('Relationship snapshot at file event')}</dt>
-      <dd>{time(relationship.fileRelationObservedAt)}</dd>
-      <dt>{$t('Relationship snapshot at TCP event')}</dt>
-      <dd>{time(relationship.observedAt)}</dd>
-    </dl>
-  {/if}
-  {#if calibrated}
-    <p class="assessment">
-      <strong>{$t('Data transfer was not observed.')}</strong>
-      {$t('This is a temporal correlation, not proof of credential theft.')}
-    </p>
-    <ul class="reasons">
-      {#each explanation as reason, index (index)}<li>{$t(reasons[reason])}</li>{/each}
-    </ul>
-  {:else}
-    <p class="entity-note">{$t('Evidence assessment was not recorded for this rule.')}</p>
-  {/if}
   {#if steps.length}
     <ol class="steps">
       {#each steps as step, index (index)}
@@ -153,30 +133,84 @@
             {#if typeof step.pid === 'number'}
               · PID {step.pid}{/if}
           </p>
-          {#if step.instanceId}<code class="identity">{text(step.instanceId)}</code>{/if}
-          {#if Array.isArray(owner.evidence) && owner.evidence.length}
-            <code class="identity"
-              >{owner.evidence.filter((value) => typeof value === 'string').join(', ')}</code
-            >
-          {/if}
         </li>
       {/each}
     </ol>
   {:else}<p class="entity-note">{$t('Ordered steps were not recorded.')}</p>{/if}
-  {#if calibrated}
-    <p class="entity-note">
-      {$t(
-        ancestry
-          ? 'Only paths of two to four parent links between monitored processes are covered. The identical full path must be observed within 30 seconds of both events. Missing participants and polling gaps break the correlation; no delegated action or transferred content is established.'
-          : related
-            ? 'Only a direct parent relationship observed within 30 seconds is covered. Polling gaps, limited process identity resolution and unobserved processes can break this correlation. No delegated action or transferred content is established.'
-            : 'Polling records observation order. File contents and TCP payloads are not inspected. Tuple reuse, gaps and bounded history limit the assessment; transfers over existing connections and activity across different processes remain unresolved.',
-      )}
-    </p>
-  {/if}
+  {#if hasDetails}<details class="attribute-group evidence-details">
+      <summary>{$t('Process and assessment details')}</summary>
+      <div class="attribute-group-body">
+        {#if calibrated}
+          <ul class="reasons">
+            {#each explanation as reason, index (index)}<li>{$t(reasons[reason])}</li>{/each}
+          </ul>
+        {/if}
+        {#if related}
+          {#if ancestry}
+            <p class="entity-note">{$t('Observed process path (ancestor → descendant)')}</p>
+            <ol class="ancestry-path" aria-label={$t('Observed process path')}>
+              {#each path as node, index (index)}
+                <li>
+                  PID {typeof node.pid === 'number' ? node.pid : '—'}<code class="identity"
+                    >{text(node.instanceId) || '—'}</code
+                  >
+                </li>
+              {/each}
+            </ol>
+          {:else}<p class="entity-note">
+              {$t('Observed parent PID {parent} → child PID {child}.', {
+                parent: relationship.parentPid,
+                child: relationship.childPid,
+              })}
+            </p>{/if}
+          <dl>
+            <dt>{$t('Relationship snapshot at file event')}</dt>
+            <dd>{time(relationship.fileRelationObservedAt)}</dd>
+            <dt>{$t('Relationship snapshot at TCP event')}</dt>
+            <dd>{time(relationship.observedAt)}</dd>
+          </dl>
+        {/if}
+
+        {#if steps.length}
+          <ol class="identities" aria-label={$t('Recorded process identities')}>
+            {#each steps as step, index (index)}
+              {@const owner = record(step.attribution)}
+              <li>
+                <span
+                  >{$t('Observation')}
+                  {index + 1}{#if typeof step.pid === 'number'}
+                    · PID {step.pid}{/if}</span
+                >
+                {#if step.instanceId}<code class="identity">{text(step.instanceId)}</code>{/if}
+                {#if Array.isArray(owner.evidence) && owner.evidence.length}
+                  <code class="identity"
+                    >{owner.evidence.filter((value) => typeof value === 'string').join(', ')}</code
+                  >
+                {/if}
+              </li>
+            {/each}
+          </ol>
+        {/if}
+        {#if calibrated}
+          <p class="entity-note">
+            {$t(
+              ancestry
+                ? 'Only paths of two to four parent links between monitored processes are covered. The identical full path must be observed within 30 seconds of both events. Missing participants and polling gaps break the correlation; no delegated action or transferred content is established.'
+                : related
+                  ? 'Only a direct parent relationship observed within 30 seconds is covered. Polling gaps, limited process identity resolution and unobserved processes can break this correlation. No delegated action or transferred content is established.'
+                  : 'Polling records observation order. File contents and TCP payloads are not inspected. Tuple reuse, gaps and bounded history limit the assessment; transfers over existing connections and activity across different processes remain unresolved.',
+            )}
+          </p>
+        {/if}
+      </div>
+    </details>{/if}
 </section>
 
 <style>
+  .evidence-details > summary {
+    min-height: var(--control-height);
+    align-content: center;
+  }
   .assessment {
     color: var(--ink);
     line-height: 1.6;

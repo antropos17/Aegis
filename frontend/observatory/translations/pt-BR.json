@@ -1140,5 +1140,7 @@
   "These observations belong to distinct process instances linked by an observed ancestor path.": "Estas observações pertencem a instâncias distintas de processos ligadas por um caminho de ancestralidade observado.",
   "Observed process path (ancestor → descendant)": "Caminho de processos observado (ancestral → descendente)",
   "Observed process path": "Caminho de processos observado",
-  "Only paths of two to four parent links between monitored processes are covered. The identical full path must be observed within 30 seconds of both events. Missing participants and polling gaps break the correlation; no delegated action or transferred content is established.": "Apenas caminhos de dois a quatro vínculos de parentesco entre processos monitorados são cobertos. O mesmo caminho completo deve ser observado nos 30 segundos anteriores a cada evento. Participantes ausentes e lacunas na coleta interrompem a correlação; nenhuma ação delegada nem conteúdo transferido é comprovado."
+  "Only paths of two to four parent links between monitored processes are covered. The identical full path must be observed within 30 seconds of both events. Missing participants and polling gaps break the correlation; no delegated action or transferred content is established.": "Apenas caminhos de dois a quatro vínculos de parentesco entre processos monitorados são cobertos. O mesmo caminho completo deve ser observado nos 30 segundos anteriores a cada evento. Participantes ausentes e lacunas na coleta interrompem a correlação; nenhuma ação delegada nem conteúdo transferido é comprovado.",
+  "Process and assessment details": "Detalhes dos processos e da avaliação",
+  "Recorded process identities": "Identidades de processos registradas"
 }

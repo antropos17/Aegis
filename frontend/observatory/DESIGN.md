@@ -1,5 +1,16 @@
 # AEGIS Observatory
 
+## Sequence evidence hierarchy — 16 September 2026
+
+Audit sequence details begin with the transfer-not-observed assessment, then the
+relationship summary and actual file/TCP events. Owners, PIDs and endpoints stay
+with their events. Process paths, full identities, evidence codes, snapshot times
+and detailed assessment reasons move into a native disclosure after the events.
+The disclosure starts closed, uses the existing attribute-group styling and
+supports Enter/Space with visible focus. The primary caveat and first event heading
+must fit without scrolling at 900x600 and 150% scale. Expanded evidence remains
+available without horizontal overflow. Legacy missing assessments stay explicit.
+
 ## Related sequence evidence — 16 September 2026
 
 SEQ003 adds an ordered ancestor-to-descendant list containing the PID and recorded
