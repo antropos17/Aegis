@@ -38,7 +38,7 @@ The raw network carrier now retains the OS TCP-owner evidence produced by its
 same-call agent match. Missing owner evidence on either policy step makes aggregate
 ownership unattributed; known evidence codes on the other step remain available.
 SEQ001 performs no later PID lookup, agent-name join or parent/child merge.
-SEQ002 uses the separately recorded relationship described below.
+SEQ002 and SEQ003 use the separately recorded relationships described below.
 
 Only bounded metadata enters the sequence assessment. File contents, network
 payloads, commands and arbitrary carrier fields are not copied. The existing
@@ -96,10 +96,47 @@ shared credentials, transferred content or causal wrongdoing.
 `getStats().sequences.related` reports edges, pending anchors, emitted detections,
 invalidations, expiry, eviction and dropped-edge counts. The tracker admits at most
 4,096 population records, 1,024 edges, 64 neighbors per instance and 256 pending file
-anchors across its rules. Oversized populations invalidate the tracker; edge and
-anchor caps expose drops. It stores metadata only, with no file or TCP payload reads.
+anchors across its rules. With SEQ003 enabled, edges include expanded ancestor
+paths and the neighbor bound counts endpoint relationships. Oversized populations
+invalidate the tracker; edge and anchor caps expose drops. It stores metadata only,
+with no file or TCP payload reads.
 
 Audit details show both participants and the relationship snapshots alongside the
 ordered evidence. Siblings, indirect descendants, unmonitored helper processes and
 unrelated agents sharing names, working directories or display groups remain outside
-this slice. General causal chains and independently linked agent handoffs remain A5 work.
+SEQ002. SEQ003 covers a bounded subset of indirect descendants below.
+
+## SEQ003: monitored ancestor paths
+
+`relationship: ancestor-descendant` requires a path of two to four direct parent
+links. Each link must have passed the same fresh identity and birth-order checks
+as SEQ002. Every participant, including intermediates, must be monitored. The
+tracker walks upwards through this pass's admitted direct edges; it never joins
+siblings through a common parent, crosses a missing process, or follows cached
+names. It performs at most three ancestor expansion steps per admitted direct edge.
+
+The complete ordered instance path identifies the relationship, with PID and instance
+identity retained for every node in `relationship.path`. For these records the
+legacy `parentPid` / `parentInstanceId` fields name the ancestor endpoint, and
+`childPid` / `childInstanceId` name the descendant. The UI labels the full path
+explicitly rather than describing these endpoints as a direct parent and child.
+No intermediate event ownership or command content is invented.
+
+The identical path must be present at the file event and at the later TCP event,
+within the existing 30-second snapshot age and original five-minute event window.
+Losing, replacing or reparenting an intermediate node invalidates its pending path;
+restoring it later does not restore the earlier file anchor. Explicit exit of any
+path participant also discards that path. Reliability, stop, reload, expiry and
+clock-reset handling remain shared with SEQ002.
+
+Both directions retain the actual event actors. Severity is capped at low, old TCP
+tuples remain informational, and only the TCP actor can receive the score. A direct
+pair remains exclusively SEQ002. All related rules share the 1,024 relationship,
+64 endpoint-neighbor and 256 pending-anchor caps. Direct edges are admitted before
+expanded paths; capacity drops are counted in `related.droppedEdges`, and
+`related.maxHops` reports four. Only strictly stronger observations re-emit per path.
+
+This establishes observed ancestry and temporal order, not delegation or data
+transfer. Unmonitored helpers, paths deeper than four links, shared-parent joins
+and independently evidenced handoffs remain uncovered. The next A5 slice concerns
+explicit handoff evidence; general causal inference and prevention remain open.

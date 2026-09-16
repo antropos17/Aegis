@@ -125,8 +125,13 @@ function assess(rule, steps) {
   if (!readObserved) reasons.push('file-read-unobserved');
   if (!ownershipComplete) reasons.push('ownership-incomplete');
   else if (!pidBacked) reasons.push('ownership-inferred');
-  const related = rule.relationship === 'direct-parent-child';
-  if (related) reasons.push('process-relationship-only');
+  const related = ['direct-parent-child', 'ancestor-descendant'].includes(rule.relationship);
+  if (related)
+    reasons.push(
+      rule.relationship === 'ancestor-descendant'
+        ? 'process-ancestry-only'
+        : 'process-relationship-only',
+    );
   const cap = before
     ? 'informational'
     : !related && readObserved && pidBacked && Number.isFinite(first)
@@ -147,7 +152,11 @@ function assess(rule, steps) {
         'polling-order-only',
         'bounded-tuple-history',
         'existing-connection-transfer-unobserved',
-        related ? 'direct-relation-only' : 'same-instance-only',
+        related
+          ? rule.relationship === 'ancestor-descendant'
+            ? 'bounded-ancestry-only'
+            : 'direct-relation-only'
+          : 'same-instance-only',
         'file-contents-unobserved',
       ],
     },

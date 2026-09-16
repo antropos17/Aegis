@@ -38,7 +38,7 @@ const BASELINE = {
   /** Every tracked file under rules/sequences, repo-relative, as `git ls-files` prints it. */
   trackedFiles: ['rules/sequences/sequences.yaml'],
   /** The one file's documents in order — base documents by `name`, correlations by `id`. */
-  documents: ['cred_file_read', 'outbound_conn', 'SEQ001', 'SEQ002'],
+  documents: ['cred_file_read', 'outbound_conn', 'SEQ001', 'SEQ002', 'SEQ003'],
   /** Every `|re` / `|re|i` pair in the file, as `[document name, selection key]`. */
   regexPairs: [['cred_file_read', 'file.path|re|i']],
   rules: [
@@ -54,7 +54,7 @@ const BASELINE = {
     },
   ],
   /** Each correlation uses nullable-entity carriers. */
-  warnings: ['SEQ001', 'SEQ002'].map((rule) => ({
+  warnings: ['SEQ001', 'SEQ002', 'SEQ003'].map((rule) => ({
     rule,
     step: null,
     reason: 'nullable-entity-id-steps',
@@ -113,14 +113,15 @@ describe('sequence rules — production file parity', () => {
   it('sequences.yaml parses to exactly the baseline documents, in document order', () => {
     const docs = parseRaw('sequences.yaml');
     expect(docs.map(keyOf)).toEqual(BASELINE.documents);
-    // Two correlations share the same file/TCP base documents.
+    // Three correlations share the same file/TCP base documents.
     expect(docs.filter((d) => d.correlation !== undefined).map((d) => d.id)).toEqual([
       'SEQ001',
       'SEQ002',
+      'SEQ003',
     ]);
   });
 
-  it('loads the distinct same-instance and direct-relative rules with expected warnings', () => {
+  it('loads the distinct same-instance, direct-relative and ancestor rules with expected warnings', () => {
     const out = loader.loadDir(PROD_SEQUENCES_DIR);
 
     expect(out.loadErrors).toBe(0);
@@ -130,7 +131,14 @@ describe('sequence rules — production file parity', () => {
     );
     expect(out.warnings[0].message.startsWith('sequences.yaml: ')).toBe(true);
 
-    expect(out.rules).toHaveLength(2);
+    expect(out.rules).toHaveLength(3);
+    expect(out.rules[2]).toMatchObject({
+      id: 'SEQ003',
+      level: 'low',
+      relationship: 'ancestor-descendant',
+      evidencePolicy: 'credential-egress-v1',
+      timespanMs: 300000,
+    });
     expect(out.rules[1]).toMatchObject({
       id: 'SEQ002',
       level: 'low',
@@ -156,7 +164,7 @@ describe('sequence rules — production file parity', () => {
 
     // The logger saw exactly the warning line and no rejection line: the return value
     // carries the counts, the log carries the causes, and the two must agree.
-    expect(warnSpy).toHaveBeenCalledTimes(2);
+    expect(warnSpy).toHaveBeenCalledTimes(3);
     expect(warnSpy.mock.calls[0][0]).toBe('sequence-loader');
     expect(warnSpy.mock.calls[0][2]).toEqual({
       rule: 'SEQ001',
@@ -168,7 +176,7 @@ describe('sequence rules — production file parity', () => {
   it('loadDir with no argument reads the same production file', () => {
     const out = loader.loadDir();
     expect(out.loadErrors).toBe(0);
-    expect(out.rules.map((r) => r.id)).toEqual(['SEQ001', 'SEQ002']);
+    expect(out.rules.map((r) => r.id)).toEqual(['SEQ001', 'SEQ002', 'SEQ003']);
   });
 
   it('every re pattern reaches RegExp byte-for-byte as written in YAML, flags pinned', () => {

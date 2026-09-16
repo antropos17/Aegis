@@ -9,6 +9,8 @@
       : {};
   const text = (value: unknown) => (typeof value === 'string' ? value : '');
   const reasons: Record<string, string> = {
+    'process-ancestry-only':
+      'The observed ancestor path does not establish delegation or data transfer.',
     'process-relationship-only':
       'The observed parent relationship does not establish delegation or data transfer.',
     'connection-observed-before-file':
@@ -25,6 +27,10 @@
   let assessment = $derived(record(details.assessment));
   let relationship = $derived(record(details.relationship));
   let related = $derived(relationship.source === 'fresh-process-table');
+  let path = $derived(
+    Array.isArray(relationship.path) ? relationship.path.slice(0, 5).map(record) : [],
+  );
+  let ancestry = $derived(related && path.length >= 3);
   let calibrated = $derived(assessment.policy === 'credential-egress-v1');
   let steps = $derived(Array.isArray(details.steps) ? details.steps.slice(0, 16).map(record) : []);
   let explanation = $derived(
@@ -54,19 +60,34 @@
     <span class="badge">{text(details.ruleId) || text(row.action)}</span>
   </div>
   <p class="entity-note">
-    {related
+    {ancestry
       ? $t(
-          'These observations belong to two distinct process instances with an observed parent relationship.',
+          'These observations belong to distinct process instances linked by an observed ancestor path.',
         )
-      : $t('These observations are linked to the same recorded process instance.')}
+      : related
+        ? $t(
+            'These observations belong to two distinct process instances with an observed parent relationship.',
+          )
+        : $t('These observations are linked to the same recorded process instance.')}
   </p>
   {#if related}
-    <p class="entity-note">
-      {$t('Observed parent PID {parent} → child PID {child}.', {
-        parent: relationship.parentPid,
-        child: relationship.childPid,
-      })}
-    </p>
+    {#if ancestry}
+      <p class="entity-note">{$t('Observed process path (ancestor → descendant)')}</p>
+      <ol class="ancestry-path" aria-label={$t('Observed process path')}>
+        {#each path as node, index (index)}
+          <li>
+            PID {typeof node.pid === 'number' ? node.pid : '—'}<code class="identity"
+              >{text(node.instanceId) || '—'}</code
+            >
+          </li>
+        {/each}
+      </ol>
+    {:else}<p class="entity-note">
+        {$t('Observed parent PID {parent} → child PID {child}.', {
+          parent: relationship.parentPid,
+          child: relationship.childPid,
+        })}
+      </p>{/if}
     <dl>
       <dt>{$t('Relationship snapshot at file event')}</dt>
       <dd>{time(relationship.fileRelationObservedAt)}</dd>
@@ -145,9 +166,11 @@
   {#if calibrated}
     <p class="entity-note">
       {$t(
-        related
-          ? 'Only a direct parent relationship observed within 30 seconds is covered. Polling gaps, limited process identity resolution and unobserved processes can break this correlation. No delegated action or transferred content is established.'
-          : 'Polling records observation order. File contents and TCP payloads are not inspected. Tuple reuse, gaps and bounded history limit the assessment; transfers over existing connections and activity across different processes remain unresolved.',
+        ancestry
+          ? 'Only paths of two to four parent links between monitored processes are covered. The identical full path must be observed within 30 seconds of both events. Missing participants and polling gaps break the correlation; no delegated action or transferred content is established.'
+          : related
+            ? 'Only a direct parent relationship observed within 30 seconds is covered. Polling gaps, limited process identity resolution and unobserved processes can break this correlation. No delegated action or transferred content is established.'
+            : 'Polling records observation order. File contents and TCP payloads are not inspected. Tuple reuse, gaps and bounded history limit the assessment; transfers over existing connections and activity across different processes remain unresolved.',
       )}
     </p>
   {/if}

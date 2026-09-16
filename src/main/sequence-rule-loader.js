@@ -187,7 +187,7 @@ const NULLABLE_KEY_CATEGORIES = new Set(['file', 'network']);
  * @property {number} timespanMs - the window, already in milliseconds.
  * @property {SequenceStep[]} steps - 2 to 5, in the order the correlation lists them.
  * @property {string} [evidencePolicy] - Optional credential-egress-v1 evidence calibration.
- * @property {string} [relationship] - Optional direct-parent-child observed relationship.
+ * @property {string} [relationship] - Optional direct-parent-child or ancestor-descendant scope.
  */
 
 /**
@@ -662,13 +662,14 @@ function _checkCorrelation(sink, doc, index) {
   const level = doc.level === undefined ? DEFAULT_LEVEL : doc.level;
   if (
     doc.relationship !== undefined &&
-    (doc.relationship !== 'direct-parent-child' ||
+    (typeof doc.relationship !== 'string' ||
+      !['direct-parent-child', 'ancestor-descendant'].includes(doc.relationship) ||
       doc['evidence-policy'] !== 'credential-egress-v1')
   ) {
     _reject(
       sink,
       'unsupported-relationship',
-      'direct-parent-child requires credential-egress-v1',
+      'direct-parent-child or ancestor-descendant requires credential-egress-v1',
       where,
     );
   }
@@ -770,7 +771,7 @@ function _checkCorrelation(sink, doc, index) {
     level,
     timespanMs,
     names: /** @type {string[]} */ (rules),
-    ...(doc.relationship === 'direct-parent-child' ? { relationship: doc.relationship } : {}),
+    ...(typeof doc.relationship === 'string' ? { relationship: doc.relationship } : {}),
     ...(doc['evidence-policy'] === 'credential-egress-v1'
       ? { evidencePolicy: doc['evidence-policy'] }
       : {}),

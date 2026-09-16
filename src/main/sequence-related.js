@@ -5,7 +5,13 @@ const MAX_AGENTS = 4096;
 const MAX_EDGES = 1024;
 const MAX_NEIGHBORS = 64;
 const MAX_PENDING = 256;
-const keyOf = (edge) => JSON.stringify([edge.parentInstanceId, edge.childInstanceId]);
+const MAX_HOPS = 4;
+const keyOf = (edge) =>
+  JSON.stringify(
+    edge.path?.map((node) => node.instanceId) ?? [edge.parentInstanceId, edge.childInstanceId],
+  );
+const matchesScope = (rule, edge) =>
+  rule.relationship === 'ancestor-descendant' ? !!edge.path : !edge.path;
 const valid = (a) =>
   a?.instanceIdSource === 'os' &&
   Number.isInteger(a.pid) &&
@@ -14,7 +20,7 @@ const valid = (a) =>
   a.instanceId.length > 0 &&
   a.instanceId.length <= 512;
 
-/** Bounded direct-relative correlation; every step retains its original process identity.
+/** Bounded ancestor correlation; every step retains its original process identity.
  * @param {object[]} rules Opted-in file/TCP rules.
  * @param {Function} emit Engine publication callback.
  * @param {Function} evidence Build allowlisted step metadata.
@@ -75,6 +81,22 @@ function createRelated(rules, emit, evidence, now) {
         }
       const next = new Map(),
         adjacent = new Map();
+      const admit = (edge) => {
+        const ids = [edge.parentInstanceId, edge.childInstanceId];
+        if (
+          next.size >= MAX_EDGES ||
+          ids.some((id) => (adjacent.get(id)?.size ?? 0) >= MAX_NEIGHBORS)
+        ) {
+          counters.droppedEdges++;
+          return;
+        }
+        const edgeKey = keyOf(edge);
+        next.set(edgeKey, edge);
+        for (const id of ids) {
+          if (!adjacent.has(id)) adjacent.set(id, new Set());
+          adjacent.get(id).add(edgeKey);
+        }
+      };
       for (const child of byId.values()) {
         const relation = child.parentRelation;
         const parent = byId.get(relation?.parentInstanceId);
@@ -95,19 +117,29 @@ function createRelated(rules, emit, evidence, now) {
           source: 'fresh-process-table',
           observedAt: at,
         };
-        const ids = [parent.instanceId, child.instanceId];
-        if (
-          next.size >= MAX_EDGES ||
-          ids.some((id) => (adjacent.get(id)?.size ?? 0) >= MAX_NEIGHBORS)
-        ) {
-          counters.droppedEdges++;
-          continue;
-        }
-        const edgeKey = keyOf(edge);
-        next.set(edgeKey, edge);
-        for (const id of ids) {
-          if (!adjacent.has(id)) adjacent.set(id, new Set());
-          adjacent.get(id).add(edgeKey);
+        admit(edge);
+      }
+      // Build only from admitted direct edges of THIS pass; direct rules keep priority.
+      // Walking upwards cannot join siblings. Full ordered identities key each path.
+      if (rules.some((rule) => rule.relationship === 'ancestor-descendant')) {
+        const parents = new Map([...next.values()].map((edge) => [edge.childInstanceId, edge]));
+        for (const first of parents.values()) {
+          const path = [
+            { pid: first.parentPid, instanceId: first.parentInstanceId },
+            { pid: first.childPid, instanceId: first.childInstanceId },
+          ];
+          for (let hops = 2; hops <= MAX_HOPS; hops++) {
+            const previous = parents.get(path[0].instanceId);
+            if (!previous || path.some((node) => node.instanceId === previous.parentInstanceId))
+              break;
+            path.unshift({ pid: previous.parentPid, instanceId: previous.parentInstanceId });
+            admit({
+              ...first,
+              parentPid: previous.parentPid,
+              parentInstanceId: previous.parentInstanceId,
+              path: path.map((node) => ({ ...node })),
+            });
+          }
         }
       }
       for (const [key, anchor] of pending) {
@@ -126,6 +158,8 @@ function createRelated(rules, emit, evidence, now) {
       sweep(at);
       if (snapshotAt === null || !neighbors.has(key)) return;
       for (const rule of rules) {
+        const eligible = [...neighbors.get(key)].filter((id) => matchesScope(rule, edges.get(id)));
+        if (!eligible.length) continue;
         if (categories.includes('file') && rule.steps[0].matcher(doc)) {
           const id = JSON.stringify([rule.id, key]);
           if (!pending.has(id) && pending.size >= MAX_PENDING) {
@@ -137,14 +171,12 @@ function createRelated(rules, emit, evidence, now) {
             rule,
             at,
             evidence: evidence(rule.steps[0], doc, at, true),
-            edges: new Map(
-              [...neighbors.get(key)].map((edgeKey) => [edgeKey, { at: snapshotAt, reported: -1 }]),
-            ),
+            edges: new Map(eligible.map((edgeKey) => [edgeKey, { at: snapshotAt, reported: -1 }])),
           });
         }
         if (!categories.includes('network') || !rule.steps[1].matcher(doc)) continue;
         const network = evidence(rule.steps[1], doc, at, true);
-        for (const edgeKey of neighbors.get(key)) {
+        for (const edgeKey of eligible) {
           const edge = edges.get(edgeKey);
           const other =
             key === edge.parentInstanceId ? edge.childInstanceId : edge.parentInstanceId;
@@ -180,7 +212,11 @@ function createRelated(rules, emit, evidence, now) {
     },
     close(key) {
       for (const [id, edge] of edges)
-        if (edge.parentInstanceId === key || edge.childInstanceId === key) {
+        if (
+          edge.parentInstanceId === key ||
+          edge.childInstanceId === key ||
+          edge.path?.some((node) => node.instanceId === key)
+        ) {
           edges.delete(id);
           neighbors.get(edge.parentInstanceId)?.delete(id);
           neighbors.get(edge.childInstanceId)?.delete(id);
@@ -204,6 +240,7 @@ function createRelated(rules, emit, evidence, now) {
         maxEdges: MAX_EDGES,
         maxNeighbors: MAX_NEIGHBORS,
         maxPending: MAX_PENDING,
+        maxHops: MAX_HOPS,
       };
     },
   };

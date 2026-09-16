@@ -55,3 +55,17 @@ correlation:
   group-by:
     - process.entity_id
   timespan: 5m
+---
+title: Credential and TCP observations across an ancestor path
+id: SEQ003
+level: low
+evidence-policy: credential-egress-v1
+relationship: ancestor-descendant
+correlation:
+  type: temporal_ordered
+  rules:
+    - cred_file_read
+    - outbound_conn
+  group-by:
+    - process.entity_id
+  timespan: 5m
