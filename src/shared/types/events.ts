@@ -137,6 +137,8 @@ export type NetworkVerdictReason =
 
 /** Enriched network connection from scanNetworkConnections */
 export interface NetworkConnection {
+  /** Same-snapshot TCP owner evidence; absent on legacy or demo rows. */
+  readonly attribution?: Attribution;
   readonly agent: string;
   readonly pid: number;
   /**
@@ -204,9 +206,10 @@ export interface NetworkConnection {
  * it. See {@link AuditRecordV1} for what its identity fields hold.
  *
  * `sequence-detection` is a completed `temporal_ordered` sequence (`sequence-engine.js`,
- * written by `main.js`): `action` is the rule id, `severity` the rule level, `attribution`
+ * written by `main.js`): `action` is the rule id, `severity` the assessed rule level, `attribution`
  * the weakest link across the steps, and `details` carries
- * `{ ruleId, title, timespan, steps[] }`. Additive — no exhaustive narrowing over this
+ * `{ ruleId, title, timespan, steps[], assessment? }`. The optional assessment records
+ * evidence-policy calibration and observation limits. Additive — no exhaustive narrowing over this
  * union exists in the code, so a consumer that switches on it keeps its default branch.
  *
  * `observation-gap` is an OS suspend/resume pair (`observation-gap.js`, written by

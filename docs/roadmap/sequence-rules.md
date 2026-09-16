@@ -1,5 +1,10 @@
 # Sequence rules — `temporal_ordered` correlations keyed on `process.entity_id`
 
+**2026-09-16 extension:** production SEQ001 now opts into the
+[credential/TCP evidence policy](../SEQUENCE-EVIDENCE.md), with calibrated severity,
+bounded tuple history and ordered evidence in Observatory. The original generic
+engine contract below still describes rules without that policy.
+
 **Status (as of 2026-08-25):** Block 1 implemented. `src/main/sequence-rule-loader.js`,
 `tests/main/sequence-rule-loader.test.js`, `tests/fixtures/sequences/`,
 `rules/sequences/sequences.yaml` (1 sequence correlation rule, SEQ001, in 1 sequence rule file),

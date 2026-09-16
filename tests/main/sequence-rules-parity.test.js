@@ -44,8 +44,8 @@ const BASELINE = {
   rules: [
     {
       id: 'SEQ001',
-      title: 'Credential file read followed by outbound connection',
-      level: 'high',
+      title: 'Credential file observation followed by TCP observation',
+      level: 'medium',
       timespanMs: 300_000,
       steps: [
         { name: 'cred_file_read', category: 'file' },
@@ -129,7 +129,8 @@ describe('sequence rules — production file parity', () => {
     const [rule] = out.rules;
     expect(rule.id).toBe('SEQ001');
     expect(rule.title).toBe(BASELINE.rules[0].title);
-    expect(rule.level).toBe('high');
+    expect(rule.level).toBe('medium');
+    expect(rule.evidencePolicy).toBe('credential-egress-v1');
     expect(rule.timespanMs).toBe(300_000);
     expect(rule.steps).toHaveLength(2);
     expect(rule.steps.map(({ name, category }) => ({ name, category }))).toEqual(
@@ -214,7 +215,7 @@ describe('sequence rules — production file parity', () => {
 
     expect(networkStep.matcher(net(443))).toBe(true);
     expect(networkStep.matcher(net(80))).toBe(true);
-    expect(networkStep.matcher(net(8080))).toBe(false);
+    expect(networkStep.matcher(net(8080))).toBe(true);
     // Neither step accepts the other's carrier.
     expect(networkStep.matcher(file('C:\\Users\\me\\.aws\\credentials'))).toBe(false);
     expect(fileStep.matcher(net(443))).toBe(false);

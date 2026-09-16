@@ -33,7 +33,7 @@ coverage gaps. Do not label these states "safe".
 | A4 | Local static analysis of skills/hooks/MCP | Whole-package analysis of downloads, scripts, dependencies and data transfer; positive and negative fixtures; Cisco integrations through a versioned JSON/SARIF contract; external analyzers only when explicitly selected | Partial: A4.1, external-result import, bounded JavaScript/Python command and selected-source flow review, and instruction-pattern review are implemented; deeper analysis remains in A4.2 |
 | A4.1 | Local command and configuration checks | CLI for projects, profiles and package trees; review reasons bound to hash/path; bounded shell/MCP/hooks/npm parsing; visible incompleteness; no execution or data transmission | Implemented; [contract](../STATIC-ANALYSIS.md) |
 | A4.2 | Deeper analysis and Cisco integrations | Versioned JSON/SARIF contract, explicit offline inputs and result provenance; JS/Python and interfile flow analysis; complex shell and instruction semantics; unsupported cases receive no safety verdict | Partial: [Cisco JSON/SARIF import](../STATIC-REPORT-IMPORT.md), [JavaScript](../JAVASCRIPT-STATIC-ANALYSIS.md), [Python](../PYTHON-STATIC-ANALYSIS.md), [selected-source literal/wrapper/primitive-return flow](../STATIC-COMMAND-FLOW.md), [ordered shell redirections](../SHELL-REDIRECTIONS.md) and [bounded instruction-pattern review](../INSTRUCTION-REVIEW.md) are implemented; broader flow, shell control/substitution, general instruction semantics and additional MCP content channels remain |
-| A5 | Refine SEQ001 and add behavioral chains | Ordinary work is not treated as proven exfiltration; missed-detection/noise tests; parent/child and cross-agent relationships retain attribution strength | Planned |
+| A5 | Refine SEQ001 and add behavioral chains | Ordinary work is not treated as proven exfiltration; missed-detection/noise tests; parent/child and cross-agent relationships retain attribution strength | Partial: SEQ001 evidence calibration and UI; cross-process causal chains remain |
 | B1 | Shared policy and adapter contract | Versioned events before/after actions; `allow/ask/deny`; supported and unsupported surfaces listed; ACS alignment assessed | Planned |
 | B2 | MCP gateway and operation control | Validate schemas, arguments, responses, recipients, access scopes and tool changes; stdio and HTTP have separate trust boundaries | Planned |
 | B3 | Secret protection and limited permissions | Secrets cannot enter context or outbound requests outside policy; permission is bound to operation, recipient and task; expiry/single-use limits; replay protection | Planned |
@@ -296,4 +296,14 @@ Do not start another heavy batch while diagnostic-log growth is unexplained.
   dialogs select files; exports create new redacted reports, and explicit snapshot
   acceptance rechecks the observed content before saving. Browser preview uses
   labeled fixtures with persistent actions disabled. See [the UI guide](../LOCAL-SECURITY-UI.md)
-  for operating limits. A5 remains queued for the next implementation stage.
+  for operating limits. A5 is the next implementation stage.
+- 2026-09-16: the first A5 slice calibrates SEQ001 using bounded TCP observation
+  history, file event kind and per-step ownership. Existing connections remain
+  informational audit evidence; incomplete evidence caps severity at low and a
+  file-access event followed by a first TCP observation caps at medium. Sensitive
+  basenames include `.env` and standard SSH private keys, and all TCP ports are
+  eligible regardless of endpoint allowlisting. The Audit detail view exposes
+  ordered steps, endpoints, owner evidence and the absence of transfer proof.
+  See [the evidence contract](../SEQUENCE-EVIDENCE.md). Tests cover noise, missed
+  cases, identity separation, score retention and bounded metadata/history.
+  Next in A5: parent/child and cross-agent causal evidence with explicit uncertainty.

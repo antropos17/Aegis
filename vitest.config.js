@@ -130,6 +130,7 @@ export default defineConfig({
         'src/main/ipc-handlers.js',
         'src/main/sequence-rule-loader.js',
         'src/main/sequence-engine.js',
+        'src/main/sequence-evidence.js',
         'src/renderer/lib/utils/risk-scoring.js',
         'src/renderer/lib/utils/threat-report.js',
         'src/renderer/lib/stores/toast.ts',

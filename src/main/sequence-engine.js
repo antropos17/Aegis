@@ -136,6 +136,9 @@
 
 const logger = require('./logger');
 const { normalizeToEcs } = require('../shared/ecs-normalizer');
+const sequenceEvidence = require('./sequence-evidence');
+/** @type {ReturnType<typeof sequenceEvidence.createHistory>|null} */
+let _tupleHistory = null;
 
 /** Logger module tag — every line this file emits carries it. @type {string} */
 const LOG_MODULE = 'sequence-engine';
@@ -203,6 +206,9 @@ const NO_CATEGORIES = Object.freeze([]);
  * @property {string} [action] - the ECS `event.action`, when the projection carries one.
  * @property {string} [path] - `file.path`, truncated to {@link EVIDENCE_PATH_MAX}.
  * @property {StepAttribution|null} attribution - `null` when the carrier projects none (neutral).
+ * @property {number} [pid] - Observed process id for an evidence-policy rule.
+ * @property {string} [instanceId] - Same-snapshot process instance, never re-resolved.
+ * @property {object} [network] - Bounded TCP observation metadata.
  */
 
 /**
@@ -212,6 +218,7 @@ const NO_CATEGORIES = Object.freeze([]);
  * @property {string} agent - the first step's `aegis.agent.name`, `''` when it had none.
  * @property {number|null} pid - the first step's `process.pid`, `null` when it had none.
  * @property {SequenceStepEvidence[]} evidence - one entry per satisfied step, in order.
+ * @property {number} [reportedScore] - Strongest weak policy observation already emitted.
  */
 
 /**
@@ -224,6 +231,7 @@ const NO_CATEGORIES = Object.freeze([]);
  * @property {string} agent - from the first step; `''` when it carried none.
  * @property {number|null} pid - from the first step; `null` when it carried none.
  * @property {StepAttribution} attribution - the weakest link across the attributed steps.
+ * @property {object} [assessment] - Evidence-policy calibration and observation limitations.
  * @property {SequenceStepEvidence[]} steps - the emitting state's own array; the state is
  *   deleted in the same call, so nothing shares it afterwards.
  */
@@ -438,8 +446,9 @@ function _stepAttribution(doc) {
  * @param {Record<string, unknown>} doc
  * @param {number} observedAt
  * @returns {SequenceStepEvidence}
+ * @param {boolean} [includeContext] - Retain policy evidence without changing legacy payloads.
  */
-function _evidence(step, doc, observedAt) {
+function _evidence(step, doc, observedAt, includeContext = false) {
   /** @type {SequenceStepEvidence} */
   const out = { step: step.name, at: observedAt, attribution: null };
   const event = doc.event;
@@ -451,6 +460,14 @@ function _evidence(step, doc, observedAt) {
     out.path = file.path.slice(0, EVIDENCE_PATH_MAX);
   }
   out.attribution = _stepAttribution(doc);
+  if (includeContext) {
+    const proc = doc.process;
+    if (_isMap(proc)) {
+      if (typeof proc.pid === 'number') out.pid = proc.pid;
+      if (_isString(proc.entity_id)) out.instanceId = proc.entity_id;
+    }
+    if (_isMap(doc.sequenceNetwork)) out.network = { ...doc.sequenceNetwork };
+  }
   return out;
 }
 
@@ -644,7 +661,7 @@ function _openState(rule, key, doc, observedAt) {
     openedAt: observedAt,
     agent,
     pid,
-    evidence: [_evidence(rule.steps[0], doc, observedAt)],
+    evidence: [_evidence(rule.steps[0], doc, observedAt, Boolean(rule.evidencePolicy))],
   });
   _openCount++;
   if (_openCount > _peakOpen) _peakOpen = _openCount;
@@ -680,7 +697,25 @@ function _applyRule(rule, key, doc, categories, observedAt) {
       // 2 — advance, and complete on the last step. The boundary is inclusive by construction:
       // anything past `timespanMs` was already discarded above.
       if (_matches(wanted, doc, categories)) {
-        state.evidence.push(_evidence(wanted, doc, observedAt));
+        const nextEvidence = _evidence(wanted, doc, observedAt, Boolean(rule.evidencePolicy));
+        if (rule.evidencePolicy) {
+          const candidate = [...state.evidence, nextEvidence];
+          const calibrated = sequenceEvidence.assess(rule, candidate);
+          const score = LEVEL_SCORE.get(calibrated?.level ?? rule.level) ?? 0;
+          const ceiling = Math.min(55, LEVEL_SCORE.get(rule.level) ?? 0);
+          // One TCP snapshot can list old sockets before new ones. Retain the file anchor
+          // after weaker observations so enumeration order cannot hide stronger evidence.
+          // Repeats do not emit again or move the original five-minute window.
+          if (score < ceiling) {
+            if (state.reportedScore === undefined || score > state.reportedScore) {
+              state.reportedScore = score;
+              _count(rule.id, 'completed');
+              _emit(rule, key, { ...state, evidence: candidate }, observedAt);
+            }
+            return;
+          }
+        }
+        state.evidence.push(nextEvidence);
         if (state.stepIndex === rule.steps.length - 1) {
           _drop(states, rule.id, key);
           _count(rule.id, 'completed');
@@ -697,7 +732,13 @@ function _applyRule(rule, key, doc, categories, observedAt) {
           state.openedAt = observedAt;
           state.agent = agent;
           state.pid = pid;
-          state.evidence[0] = _evidence(rule.steps[0], doc, observedAt);
+          delete state.reportedScore;
+          state.evidence[0] = _evidence(
+            rule.steps[0],
+            doc,
+            observedAt,
+            Boolean(rule.evidencePolicy),
+          );
           _count(rule.id, 'slid');
         } else {
           _count(rule.id, 'retriggerIgnored');
@@ -723,18 +764,32 @@ function _applyRule(rule, key, doc, categories, observedAt) {
  * @returns {void}
  */
 function _emit(rule, key, state, observedAt) {
-  _lastDetection.set(key, { level: rule.level, at: observedAt });
+  const calibrated = sequenceEvidence.assess(rule, state.evidence);
+  const level = calibrated?.level ?? rule.level;
+  const prior = _lastDetection.get(key);
+  // A weaker policy observation cannot erase or prolong an unexpired stronger signal.
+  if (
+    !calibrated ||
+    !prior ||
+    observedAt - prior.at > SCORE_HOLD_MS ||
+    (LEVEL_SCORE.get(level) ?? 0) >= (LEVEL_SCORE.get(prior.level) ?? 0)
+  ) {
+    _lastDetection.set(key, { level, at: observedAt });
+  }
   if (_onDetection === null) return;
+  const attribution = _foldAttribution(state.evidence);
+  if (calibrated && !calibrated.assessment.ownershipComplete) attribution.status = 'unattributed';
   _onDetection({
     ruleId: rule.id,
     title: rule.title,
-    level: rule.level,
+    level,
     timespan: rule.timespanMs,
     instanceId: key,
     agent: state.agent,
     pid: state.pid,
-    attribution: _foldAttribution(state.evidence),
+    attribution,
     steps: state.evidence,
+    ...(calibrated ? { assessment: calibrated.assessment } : {}),
   });
 }
 
@@ -754,6 +809,7 @@ function _closeOnExit(key, observedAt) {
     _count(rule.id, 'closedOnExit');
   }
   _recentlyExited.set(key, observedAt + EXIT_TTL_MS);
+  _tupleHistory?.close(key);
 }
 
 /**
@@ -795,6 +851,9 @@ function _warnIngestError(err, observedAt, ruleId) {
 function init(options) {
   const opts = _isMap(options) ? options : {};
   _rules = Array.isArray(opts.rules) ? opts.rules.slice() : [];
+  _tupleHistory = _rules.some((rule) => rule.evidencePolicy === sequenceEvidence.POLICY)
+    ? sequenceEvidence.createHistory()
+    : null;
   _onDetection = typeof opts.onDetection === 'function' ? opts.onDetection : null;
   _now = typeof opts.now === 'function' ? opts.now : Date.now;
   _maxOpenPerRule = _positiveInt(opts.maxOpenPerRule, MAX_OPEN_PER_RULE);
@@ -854,6 +913,8 @@ function ingest(carrier) {
     return;
   }
   const categories = _categoriesOf(doc);
+  const network = _tupleHistory?.observe(carrier, observedAt);
+  if (network) doc.sequenceNetwork = network;
   for (const rule of _rules) {
     try {
       _applyRule(rule, key, doc, categories, observedAt);
@@ -876,6 +937,7 @@ function ingest(carrier) {
  */
 function sweep() {
   const at = _now();
+  _tupleHistory?.sweep(at);
   for (const rule of _rules) _sweepRule(rule, at);
   for (const [key, refusesUntil] of _recentlyExited) {
     if (at > refusesUntil) _recentlyExited.delete(key);
@@ -949,6 +1011,7 @@ function getStats() {
     peakOpen: _peakOpen,
     recentlyExited: _recentlyExited.size,
     rules,
+    ...(_tupleHistory ? { tcpHistory: _tupleHistory.stats() } : {}),
   };
 }
 

@@ -316,9 +316,9 @@ function doNetworkScan() {
             // The owner came from the OS connection table and was matched inside this same
             // call, so it is `confirmed` — the same strength as a handle-scan pid. An
             // unmatched connection keeps no agent and says so.
-            attribution: makeAttribution([
-              conn.agent ? EVIDENCE.OS_TCP_OWNER_PID : EVIDENCE.NO_OWNER_MATCH,
-            ]),
+            attribution:
+              conn.attribution ??
+              makeAttribution([conn.agent ? EVIDENCE.OS_TCP_OWNER_PID : EVIDENCE.NO_OWNER_MATCH]),
             extra: {
               domain: conn.domain,
               flagged: conn.flagged,

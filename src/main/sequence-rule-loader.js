@@ -10,10 +10,9 @@
  *   only, grouped by `process.entity_id` only, over the ECS view `src/shared/ecs-normalizer.js`
  *   projects (`docs/ECS-MAPPING.md` §4 is the field dictionary).
  *
- *   NOTHING CONSUMES THIS YET. The rule file exists — `rules/sequences/sequences.yaml` with
- *   SEQ001, since PR #309 — and so does the §2 state machine, but no production caller loads
- *   the one into the other: the format and its refusals were fixed first, on the ecs-normalizer
- *   precedent (PR #294), and the wiring is roadmap §7 block 3.
+ *   main.js loads this ruleset into sequence-engine; five scan taps offer live carriers.
+ *   The optional credential-egress-v1 evidence policy calibrates a two-step file/TCP
+ *   correlation. Other rules retain their configured severity and legacy evidence shape.
  *   The top-level `rules/` gates are untouched by the subdirectory: `rule-loader.js` reads one
  *   level of `rules/` filtered on `.yaml`/`.yml`, and so do the parity baseline and
  *   `scripts/counts.js` `deriveRules()` — a directory entry named `sequences` passes none of them.
@@ -91,7 +90,15 @@ const GROUP_BY_FIELD = 'process.entity_id';
 const BASE_KEYS = new Set(['title', 'name', 'id', 'logsource', 'detection']);
 
 /** @type {ReadonlySet<string>} */
-const CORRELATION_KEYS = new Set(['title', 'id', 'level', 'status', 'description', 'correlation']);
+const CORRELATION_KEYS = new Set([
+  'title',
+  'id',
+  'level',
+  'status',
+  'description',
+  'correlation',
+  'evidence-policy',
+]);
 
 /** `aliases`, `condition` and `generate` are refused BY NAME below, so they are not listed here. */
 const CORRELATION_BODY_KEYS = new Set(['type', 'rules', 'group-by', 'timespan']);
@@ -115,6 +122,7 @@ const CATEGORY_FIELDS = {
     'aegis.attribution.status',
   ]),
   network: new Set([
+    'network.transport',
     'destination.ip',
     'destination.port',
     'destination.domain',
@@ -177,6 +185,7 @@ const NULLABLE_KEY_CATEGORIES = new Set(['file', 'network']);
  * @property {string} level - `informational` … `critical`; `medium` when the document omits it.
  * @property {number} timespanMs - the window, already in milliseconds.
  * @property {SequenceStep[]} steps - 2 to 5, in the order the correlation lists them.
+ * @property {string} [evidencePolicy] - Optional credential-egress-v1 evidence calibration.
  */
 
 /**
@@ -619,7 +628,7 @@ function _checkTimespan(sink, raw, where) {
  * @param {Sink} sink
  * @param {Record<string, unknown>} doc
  * @param {number} index
- * @returns {{id: string, title: string, level: string, timespanMs: number, names: string[]}|null}
+ * @returns {{id: string, title: string, level: string, timespanMs: number, names: string[], evidencePolicy?: string}|null}
  */
 function _checkCorrelation(sink, doc, index) {
   const id = _isText(doc.id) ? doc.id : null;
@@ -649,6 +658,9 @@ function _checkCorrelation(sink, doc, index) {
     }
   }
   const level = doc.level === undefined ? DEFAULT_LEVEL : doc.level;
+  if (doc['evidence-policy'] !== undefined && doc['evidence-policy'] !== 'credential-egress-v1') {
+    _reject(sink, 'unsupported-evidence-policy', 'unsupported sequence evidence policy', where);
+  }
   if (!_isText(level) || !LEVELS.has(level)) {
     _reject(
       sink,
@@ -738,7 +750,16 @@ function _checkCorrelation(sink, doc, index) {
   if (timespanMs === null || !_isText(doc.title) || !_isText(level) || !LEVELS.has(level)) {
     return null;
   }
-  return { id, title: doc.title, level, timespanMs, names: /** @type {string[]} */ (rules) };
+  return {
+    id,
+    title: doc.title,
+    level,
+    timespanMs,
+    names: /** @type {string[]} */ (rules),
+    ...(doc['evidence-policy'] === 'credential-egress-v1'
+      ? { evidencePolicy: doc['evidence-policy'] }
+      : {}),
+  };
 }
 
 /**
@@ -803,7 +824,7 @@ function loadFromString(text, fileName) {
   // ── Stage A: one document at a time ────────────────────────────────────────
   /** @type {Map<string, {category: string, selection: Record<string, unknown>}>} */
   const bases = new Map();
-  /** @type {Array<{id: string, title: string, level: string, timespanMs: number, names: string[]}>} */
+  /** @type {Array<{id: string, title: string, level: string, timespanMs: number, names: string[], evidencePolicy?: string}>} */
   const correlations = [];
   /** @type {Set<string>} */
   const seenIds = new Set();
@@ -844,6 +865,19 @@ function loadFromString(text, fileName) {
   /** @type {Set<string>} */
   const referenced = new Set();
   for (const correlation of correlations) {
+    if (
+      correlation.evidencePolicy &&
+      (correlation.names.length !== 2 ||
+        bases.get(correlation.names[0])?.category !== 'file' ||
+        bases.get(correlation.names[1])?.category !== 'network')
+    ) {
+      _reject(
+        sink,
+        'invalid-evidence-policy-steps',
+        'credential-egress-v1 requires file then network',
+        { rule: correlation.id },
+      );
+    }
     for (const name of correlation.names) {
       if (correlationIds.has(name)) {
         _reject(
@@ -894,6 +928,7 @@ function loadFromString(text, fileName) {
       title: correlation.title,
       level: correlation.level,
       timespanMs: correlation.timespanMs,
+      ...(correlation.evidencePolicy ? { evidencePolicy: correlation.evidencePolicy } : {}),
       steps,
     };
     _checkWarnings(sink, rule);

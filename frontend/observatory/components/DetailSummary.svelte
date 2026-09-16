@@ -15,6 +15,7 @@
   } from '../../../src/shared/observation-display.js';
   import Metadata from './Metadata.svelte';
   import ObservationIdentity from './ObservationIdentity.svelte';
+  import SequenceEvidence from './SequenceEvidence.svelte';
   let {
     row,
     telemetry,
@@ -155,6 +156,7 @@
     />
   </section>
 {:else}
+  {#if row.type === 'sequence-detection'}<SequenceEvidence {row} />{/if}
   {#if kind === 'group' || kind === 'process'}<section class="detail-section">
       <p class="entity-note">
         {kind === 'group'
