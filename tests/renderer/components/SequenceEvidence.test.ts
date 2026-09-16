@@ -3,6 +3,38 @@ import { render, screen } from '@testing-library/svelte';
 import DetailSummary from '../../../frontend/observatory/components/DetailSummary.svelte';
 import { emptyTelemetry } from '../../../frontend/observatory/runtime/host';
 
+it('shows every ancestor-path identity without calling endpoints a direct parent and child', () => {
+  render(DetailSummary, {
+    telemetry: emptyTelemetry(),
+    row: {
+      type: 'sequence-detection',
+      extra: {
+        ruleId: 'SEQ003',
+        relationship: {
+          source: 'fresh-process-table',
+          parentPid: 10,
+          childPid: 12,
+          path: [
+            { pid: 10, instanceId: 'ancestor' },
+            { pid: 11, instanceId: 'intermediate' },
+            { pid: 12, instanceId: 'descendant' },
+          ],
+        },
+        assessment: { policy: 'credential-egress-v1', reasons: ['process-ancestry-only'] },
+        steps: [],
+      },
+    },
+  });
+  expect(
+    screen.getByRole('list', { name: 'Observed process path' }).querySelectorAll('li'),
+  ).toHaveLength(3);
+  expect(screen.getByText('intermediate')).toBeTruthy();
+  expect(
+    screen.getByText('The observed ancestor path does not establish delegation or data transfer.'),
+  ).toBeTruthy();
+  expect(screen.queryByText('Observed parent PID 10 → child PID 12.')).toBeNull();
+});
+
 it('shows distinct actors and observed relationship without claiming shared ownership', () => {
   render(DetailSummary, {
     telemetry: emptyTelemetry(),

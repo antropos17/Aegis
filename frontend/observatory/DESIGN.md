@@ -2,6 +2,12 @@
 
 ## Related sequence evidence — 16 September 2026
 
+SEQ003 adds an ordered ancestor-to-descendant list containing the PID and recorded
+instance identity of all two-to-four-hop path participants. Intermediates are path
+evidence only. The event steps still show their actual actors. The list shares
+the existing scrolling detail body; snapshot times, uncertainty and enlarged-scale
+access to the TCP step remain visible. Endpoint labels never imply a direct edge.
+
 SEQ002 uses the existing Audit detail overview. It shows separate recorded actors,
 the observed parent/child PIDs and relationship snapshot times. Causality and
 transferred content remain explicitly unproven. SEQ001 keeps its same-instance

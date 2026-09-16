@@ -5,94 +5,110 @@ import { resolve } from 'node:path';
  * @param {import('playwright').Browser} browser Browser
  * @param {string} url Desktop build URL @param {string} out Screenshot directory
  * @param {boolean} [related] Exercise direct-relative evidence.
+ * @param {boolean} [ancestry] Exercise the maximum ancestor path.
  * @returns {Promise<void>} Completion @since 0.15.1
  */
-export async function checkSequence(browser, url, out, related = false) {
+export async function checkSequence(browser, url, out, related = false, ancestry = false) {
+  const scope = ancestry ? 'ancestry' : 'related';
   const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   try {
-    await page.addInitScript((related) => {
-      const entry = {
-        type: 'sequence-detection',
-        action: 'SEQ001',
-        severity: 'informational',
-        timestamp: new Date().toISOString(),
-        agent: 'Fixture agent',
-        pid: 42,
-        instanceId: 'fixture:42',
-        attribution: { status: 'confirmed', evidence: ['handle-scan-pid', 'os-tcp-owner-pid'] },
-        extra: {
-          ruleId: 'SEQ001',
-          title: 'Credential file observation followed by TCP observation',
-          assessment: {
-            policy: 'credential-egress-v1',
-            dataTransfer: 'unobserved',
-            reasons: ['connection-observed-before-file'],
-          },
-          steps: [
-            {
-              action: 'file-accessed',
-              at: 12000,
-              pid: 42,
-              instanceId: 'fixture:42',
-              path: 'C:/Fixture/project/.env',
-              attribution: { status: 'confirmed', evidence: ['handle-scan-pid'] },
+    await page.addInitScript(
+      ({ related, ancestry }) => {
+        const entry = {
+          type: 'sequence-detection',
+          action: 'SEQ001',
+          severity: 'informational',
+          timestamp: new Date().toISOString(),
+          agent: 'Fixture agent',
+          pid: 42,
+          instanceId: 'fixture:42',
+          attribution: { status: 'confirmed', evidence: ['handle-scan-pid', 'os-tcp-owner-pid'] },
+          extra: {
+            ruleId: 'SEQ001',
+            title: 'Credential file observation followed by TCP observation',
+            assessment: {
+              policy: 'credential-egress-v1',
+              dataTransfer: 'unobserved',
+              reasons: ['connection-observed-before-file'],
             },
-            {
-              action: 'network-connection',
-              at: 13000,
-              pid: 42,
-              instanceId: 'fixture:42',
-              network: {
-                remoteIp: '203.0.113.9',
-                remotePort: 8443,
-                localIp: '192.0.2.1',
-                localPort: 50001,
-                firstObservedAt: 10000,
+            steps: [
+              {
+                action: 'file-accessed',
+                at: 12000,
+                pid: 42,
+                instanceId: 'fixture:42',
+                path: 'C:/Fixture/project/.env',
+                attribution: { status: 'confirmed', evidence: ['handle-scan-pid'] },
               },
-              attribution: { status: 'confirmed', evidence: ['os-tcp-owner-pid'] },
-            },
-          ],
-        },
-      };
-      if (related) {
-        entry.action = 'SEQ002';
-        entry.extra.ruleId = 'SEQ002';
-        entry.extra.assessment.reasons = ['process-relationship-only'];
-        entry.extra.relationship = {
-          source: 'fresh-process-table',
-          parentPid: 10,
-          childPid: 42,
-          fileRelationObservedAt: 10000,
-          observedAt: 11000,
-        };
-        entry.extra.steps[0].pid = 10;
-        entry.extra.steps[0].instanceId = 'fixture:parent';
-        entry.extra.steps[0].agent = 'Parent agent';
-        entry.extra.steps[1].agent = 'Child agent';
-      }
-      window.aegis = new Proxy(
-        {},
-        {
-          get: (_, method) => {
-            if (method.startsWith('on')) return () => () => {};
-            return async () =>
-              method === 'getAuditEntriesBefore'
-                ? [entry]
-                : method === 'getSettings'
-                  ? { darkMode: true, uiScale: 1 }
-                  : method === 'getAppVersion'
-                    ? 'Fixture'
-                    : method === 'getAgentDatabase'
-                      ? { agents: [] }
-                      : method === 'getCustomAgents' || method === 'getFalsePositives'
-                        ? []
-                        : {};
+              {
+                action: 'network-connection',
+                at: 13000,
+                pid: 42,
+                instanceId: 'fixture:42',
+                network: {
+                  remoteIp: '203.0.113.9',
+                  remotePort: 8443,
+                  localIp: '192.0.2.1',
+                  localPort: 50001,
+                  firstObservedAt: 10000,
+                },
+                attribution: { status: 'confirmed', evidence: ['os-tcp-owner-pid'] },
+              },
+            ],
           },
-        },
-      );
-    }, related);
+        };
+        if (related) {
+          entry.action = 'SEQ002';
+          entry.extra.ruleId = 'SEQ002';
+          entry.extra.assessment.reasons = ['process-relationship-only'];
+          entry.extra.relationship = {
+            source: 'fresh-process-table',
+            parentPid: 10,
+            childPid: 42,
+            fileRelationObservedAt: 10000,
+            observedAt: 11000,
+          };
+          entry.extra.steps[0].pid = 10;
+          entry.extra.steps[0].instanceId = 'fixture:parent';
+          entry.extra.steps[0].agent = 'Parent agent';
+          entry.extra.steps[1].agent = 'Child agent';
+        }
+        if (ancestry) {
+          entry.action = entry.extra.ruleId = 'SEQ003';
+          entry.extra.assessment.reasons = ['process-ancestry-only'];
+          entry.extra.relationship.path = [
+            { pid: 10, instanceId: 'fixture:parent' },
+            { pid: 11, instanceId: 'fixture:intermediate-1' },
+            { pid: 12, instanceId: 'fixture:intermediate-2' },
+            { pid: 13, instanceId: 'fixture:intermediate-3' },
+            { pid: 42, instanceId: 'fixture:42' },
+          ];
+        }
+        window.aegis = new Proxy(
+          {},
+          {
+            get: (_, method) => {
+              if (method.startsWith('on')) return () => () => {};
+              return async () =>
+                method === 'getAuditEntriesBefore'
+                  ? [entry]
+                  : method === 'getSettings'
+                    ? { darkMode: true, uiScale: 1 }
+                    : method === 'getAppVersion'
+                      ? 'Fixture'
+                      : method === 'getAgentDatabase'
+                        ? { agents: [] }
+                        : method === 'getCustomAgents' || method === 'getFalsePositives'
+                          ? []
+                          : {};
+            },
+          },
+        );
+      },
+      { related, ancestry },
+    );
     await page.goto(url);
     await page.locator('.sidebar').getByRole('button', { name: 'Audit', exact: true }).click();
     await page.locator('.observation-open').first().click();
@@ -111,11 +127,21 @@ export async function checkSequence(browser, url, out, related = false) {
     assert((await evidence.innerText()).includes('203.0.113.9:8443'));
     assert(
       (await evidence.innerText()).includes(
-        related
-          ? 'Observed parent PID 10 → child PID 42.'
-          : 'already observed before the file event',
+        ancestry
+          ? 'Observed process path (ancestor → descendant)'
+          : related
+            ? 'Observed parent PID 10 → child PID 42.'
+            : 'already observed before the file event',
       ),
     );
+    if (ancestry) {
+      assert.equal(
+        await evidence.getByRole('list', { name: 'Observed process path' }).locator('li').count(),
+        5,
+      );
+      assert((await evidence.innerText()).includes('fixture:intermediate-3'));
+      assert(!(await evidence.innerText()).includes('Observed parent PID 10 → child PID 42.'));
+    }
     for (const size of [
       { width: 1200, height: 800 },
       { width: 900, height: 600 },
@@ -126,7 +152,7 @@ export async function checkSequence(browser, url, out, related = false) {
         const overflow = await evidence.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
         assert.equal(overflow, false);
         await page.screenshot({
-          path: resolve(out, `sequence-${related ? 'related-' : ''}${theme}-${size.width}.png`),
+          path: resolve(out, `sequence-${related ? scope + '-' : ''}${theme}-${size.width}.png`),
         });
         if (related) {
           await page.evaluate(() =>
@@ -134,7 +160,7 @@ export async function checkSequence(browser, url, out, related = false) {
           );
           assert.equal(await evidence.evaluate((el) => el.scrollWidth > el.clientWidth + 1), false);
           await page.screenshot({
-            path: resolve(out, `sequence-related-${theme}-${size.width}-150.png`),
+            path: resolve(out, `sequence-${scope}-${theme}-${size.width}-150.png`),
           });
           await evidence.locator('.steps > li').last().scrollIntoViewIfNeeded();
           const tcpHeading = evidence.getByText('2. TCP observation', { exact: true });
@@ -143,7 +169,7 @@ export async function checkSequence(browser, url, out, related = false) {
           assert(headingBox && bodyBox && headingBox.y >= bodyBox.y);
           assert(headingBox.y + headingBox.height <= bodyBox.y + bodyBox.height);
           await page.screenshot({
-            path: resolve(out, `sequence-related-${theme}-${size.width}-150-steps.png`),
+            path: resolve(out, `sequence-${scope}-${theme}-${size.width}-150-steps.png`),
           });
           await page.locator('#modal-body').evaluate((el) => {
             el.scrollTop = 0;

@@ -236,7 +236,7 @@ const NO_CATEGORIES = Object.freeze([]);
  * @property {number|null} pid - from the first step; `null` when it carried none.
  * @property {StepAttribution} attribution - the weakest link across the attributed steps.
  * @property {object} [assessment] - Evidence-policy calibration and observation limitations.
- * @property {object} [relationship] - Observed direct parent/child relation; causation unproven.
+ * @property {object} [relationship] - Observed parent relation or ancestor path; causation unproven.
  * @property {SequenceStepEvidence[]} steps - the emitting state's own array; the state is
  *   deleted in the same call, so nothing shares it afterwards.
  */
@@ -864,7 +864,9 @@ function init(options) {
     : null;
   _onDetection = typeof opts.onDetection === 'function' ? opts.onDetection : null;
   _now = typeof opts.now === 'function' ? opts.now : Date.now;
-  const relatedRules = _rules.filter((rule) => rule.relationship === 'direct-parent-child');
+  const relatedRules = _rules.filter((rule) =>
+    ['direct-parent-child', 'ancestor-descendant'].includes(rule.relationship ?? ''),
+  );
   _related = relatedRules.length
     ? require('./sequence-related').createRelated(relatedRules, _emit, _evidence, _now)
     : null;
@@ -949,7 +951,7 @@ function ingest(carrier) {
   if (_isExit(doc, categories)) _closeOnExit(key, observedAt);
 }
 
-/** Publish the reliable stamped population for direct-relative sequence rules.
+/** Publish the reliable stamped population for related-process sequence rules.
  * @param {object[]} agents Stamped records from the completed process pass.
  * @param {boolean} reliable False invalidates related evidence, without changing sessions.
  * @returns {void} @since 0.15.1
