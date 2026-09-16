@@ -20,6 +20,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.16.0-alpha (2026-09-16)
+
+## What's Changed
+* feat(installer): add Observatory Windows setup wizard by @antropos17 in https://github.com/antropos17/Aegis/pull/449
+* feat(etw): measure bounded burst flow and broker forwarding by @antropos17 in https://github.com/antropos17/Aegis/pull/451
+* perf(etw): forward validated frames without re-encoding by @antropos17 in https://github.com/antropos17/Aegis/pull/452
+* perf(scanner): index process names once per scan by @antropos17 in https://github.com/antropos17/Aegis/pull/453
+* perf(anomaly): score only newly emitted warnings by @antropos17 in https://github.com/antropos17/Aegis/pull/454
+* perf(tray): avoid history scans and redundant native updates by @antropos17 in https://github.com/antropos17/Aegis/pull/455
+* perf(network): classify shared remote addresses once per scan by @antropos17 in https://github.com/antropos17/Aegis/pull/456
+* perf(anomaly): reuse profile lookups within deviation checks by @antropos17 in https://github.com/antropos17/Aegis/pull/457
+* feat(bench): profile the live monitoring cycle by @antropos17 in https://github.com/antropos17/Aegis/pull/463
+* perf(resources): query Windows counters without PowerShell startup by @antropos17 in https://github.com/antropos17/Aegis/pull/464
+* perf(network): query the Windows TCP table directly by @antropos17 in https://github.com/antropos17/Aegis/pull/465
+* perf(windows): remove recurring PowerShell observer startup by @antropos17 in https://github.com/antropos17/Aegis/pull/466
+* feat(security): add scoped AI component inventory and protection plan by @antropos17 in https://github.com/antropos17/Aegis/pull/467
+* fix(ui): recover failed workflows and improve compact layouts by @antropos17 in https://github.com/antropos17/Aegis/pull/468
+* feat(inventory): parse configs and inspect explicit agent profiles by @antropos17 in https://github.com/antropos17/Aegis/pull/469
+* feat(inventory): verify local package metadata and Git manifests by @antropos17 in https://github.com/antropos17/Aegis/pull/470
+* feat(inventory): add reviewed snapshots and change detection by @antropos17 in https://github.com/antropos17/Aegis/pull/471
+* feat(security): add bounded static review for agent packages by @antropos17 in https://github.com/antropos17/Aegis/pull/472
+* feat(security): import offline Cisco analysis reports by @antropos17 in https://github.com/antropos17/Aegis/pull/473
+* docs: translate Russian project text into English by @antropos17 in https://github.com/antropos17/Aegis/pull/474
+* feat(security): inspect literal JavaScript process calls by @antropos17 in https://github.com/antropos17/Aegis/pull/475
+* feat(security): inspect literal Python process calls by @antropos17 in https://github.com/antropos17/Aegis/pull/477
+* feat(security): trace commands across selected source files by @antropos17 in https://github.com/antropos17/Aegis/pull/478
+* feat(security): trace primitive function return values by @antropos17 in https://github.com/antropos17/Aegis/pull/479
+* feat(static-analysis): track ordered shell redirections by @antropos17 in https://github.com/antropos17/Aegis/pull/480
+* feat(static-analysis): review bounded instruction patterns by @antropos17 in https://github.com/antropos17/Aegis/pull/481
+* feat(observatory): add local security review workspace by @antropos17 in https://github.com/antropos17/Aegis/pull/482
+* fix(sequences): calibrate credential and TCP evidence by @antropos17 in https://github.com/antropos17/Aegis/pull/483
+* feat(sequences): correlate direct process relatives by @antropos17 in https://github.com/antropos17/Aegis/pull/484
+* feat(sequences): correlate bounded ancestor paths by @antropos17 in https://github.com/antropos17/Aegis/pull/485
+* fix(ui): prioritize sequence conclusions and events by @antropos17 in https://github.com/antropos17/Aegis/pull/486
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.15.0-alpha...aegis-v0.16.0-alpha
+
 ## 0.15.0-alpha (2026-09-12)
 
 ## What's Changed
