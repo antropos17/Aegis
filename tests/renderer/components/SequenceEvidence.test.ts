@@ -1,9 +1,9 @@
 import { expect, it } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
 import DetailSummary from '../../../frontend/observatory/components/DetailSummary.svelte';
 import { emptyTelemetry } from '../../../frontend/observatory/runtime/host';
 
-it('shows every ancestor-path identity without calling endpoints a direct parent and child', () => {
+it('keeps ancestor identities in a closed disclosure without claiming direct parenthood', async () => {
   render(DetailSummary, {
     telemetry: emptyTelemetry(),
     row: {
@@ -25,6 +25,11 @@ it('shows every ancestor-path identity without calling endpoints a direct parent
       },
     },
   });
+  const summary = screen.getByText('Process and assessment details');
+  const disclosure = summary.closest('details');
+  expect(disclosure?.open).toBe(false);
+  await fireEvent.click(summary);
+  expect(disclosure?.open).toBe(true);
   expect(
     screen.getByRole('list', { name: 'Observed process path' }).querySelectorAll('li'),
   ).toHaveLength(3);
@@ -33,6 +38,8 @@ it('shows every ancestor-path identity without calling endpoints a direct parent
     screen.getByText('The observed ancestor path does not establish delegation or data transfer.'),
   ).toBeTruthy();
   expect(screen.queryByText('Observed parent PID 10 → child PID 12.')).toBeNull();
+  await fireEvent.click(summary);
+  expect(disclosure?.open).toBe(false);
 });
 
 it('shows distinct actors and observed relationship without claiming shared ownership', () => {
@@ -108,12 +115,24 @@ it('exposes temporal limits and missing ownership through the real detail overvi
   expect(container.querySelectorAll('.steps > li')).toHaveLength(2);
 });
 
-it('does not invent an assessment or ordered steps for a legacy record', () => {
-  render(DetailSummary, {
+it('does not invent an assessment or empty technical details for a legacy record', async () => {
+  const { rerender } = render(DetailSummary, {
     telemetry: emptyTelemetry(),
     row: { type: 'sequence-detection', details: { ruleId: 'SEQ001' } },
   });
   expect(screen.getByText('Evidence assessment was not recorded for this rule.')).toBeTruthy();
   expect(screen.getByText('Ordered steps were not recorded.')).toBeTruthy();
   expect(screen.queryByText('Data transfer was not observed.')).toBeNull();
+  expect(screen.queryByText('Process and assessment details')).toBeNull();
+  await rerender({
+    telemetry: emptyTelemetry(),
+    row: {
+      type: 'sequence-detection',
+      details: {
+        ruleId: 'SEQ001',
+        steps: [{ action: 'file-accessed', attribution: { evidence: [] } }],
+      },
+    },
+  });
+  expect(screen.queryByText('Process and assessment details')).toBeNull();
 });

@@ -29,9 +29,12 @@ sample `.env` files can match, and credentials in arbitrary filenames can be mis
 
 ## Evidence and interface
 
-Audit → open a sequence observation → Overview shows ordered steps, file path,
-local/remote socket, first TCP observation time, recorded process identity,
-per-step owner evidence and assessment reasons. Attributes retains the full record.
+Audit → open a sequence observation → Overview leads with the assessment and its
+transfer-not-observed caveat, followed by ordered events, file path, local/remote
+socket, first TCP observation time and per-step owner status. The initially closed
+"Process and assessment details" disclosure retains full process identities,
+relationship paths, snapshot times, evidence codes, reasons and detailed limits.
+Enter and Space toggle the disclosure. Attributes retains the full record.
 Legacy records without an assessment show that absence explicitly.
 
 The raw network carrier now retains the OS TCP-owner evidence produced by its
