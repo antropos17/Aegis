@@ -141,5 +141,8 @@ expanded paths; capacity drops are counted in `related.droppedEdges`, and
 
 This establishes observed ancestry and temporal order, not delegation or data
 transfer. Unmonitored helpers, paths deeper than four links, shared-parent joins
-and independently evidenced handoffs remain uncovered. The next A5 slice concerns
-explicit handoff evidence; general causal inference and prevention remain open.
+and independently evidenced handoffs remain uncovered. The [handoff source review
+and design](HANDOFF-EVIDENCE.md) defines the next A5 slice: bounded offline import
+of provider-reported lifecycle metadata, with no process binding or scoring. Live
+handoff correlation requires the B1 adapter boundary and independent evidence;
+general causal inference and prevention remain open.
