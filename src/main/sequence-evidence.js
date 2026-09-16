@@ -125,9 +125,11 @@ function assess(rule, steps) {
   if (!readObserved) reasons.push('file-read-unobserved');
   if (!ownershipComplete) reasons.push('ownership-incomplete');
   else if (!pidBacked) reasons.push('ownership-inferred');
+  const related = rule.relationship === 'direct-parent-child';
+  if (related) reasons.push('process-relationship-only');
   const cap = before
     ? 'informational'
-    : readObserved && pidBacked && Number.isFinite(first)
+    : !related && readObserved && pidBacked && Number.isFinite(first)
       ? 'medium'
       : 'low';
   const level = levels[Math.min(Math.max(0, levels.indexOf(rule.level)), levels.indexOf(cap))];
@@ -145,7 +147,7 @@ function assess(rule, steps) {
         'polling-order-only',
         'bounded-tuple-history',
         'existing-connection-transfer-unobserved',
-        'same-instance-only',
+        related ? 'direct-relation-only' : 'same-instance-only',
         'file-contents-unobserved',
       ],
     },

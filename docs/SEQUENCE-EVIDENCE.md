@@ -37,7 +37,8 @@ Legacy records without an assessment show that absence explicitly.
 The raw network carrier now retains the OS TCP-owner evidence produced by its
 same-call agent match. Missing owner evidence on either policy step makes aggregate
 ownership unattributed; known evidence codes on the other step remain available.
-No later PID lookup, agent-name join or parent/child merge is performed.
+SEQ001 performs no later PID lookup, agent-name join or parent/child merge.
+SEQ002 uses the separately recorded relationship described below.
 
 Only bounded metadata enters the sequence assessment. File contents, network
 payloads, commands and arbitrary carrier fields are not copied. The existing
@@ -59,7 +60,46 @@ resets are counted in `getStats().sequences.tcpHistory` when the policy is enabl
 Tuple history is not an OS socket-lifetime registry: reuse, startup, eviction,
 polling gaps and sensor outages can change the apparent first-observed time.
 
-Cross-process and cross-agent causal chains remain the next A5 slice. Tests protect
-the current boundary: separate instances, including reused PIDs and related agents,
-cannot advance each other's chain. No pre-execution prevention or MCP gateway is
-implemented by this change.
+SEQ001 still isolates process instances. The separate SEQ002 rule below observes
+direct relatives. No pre-execution prevention or MCP gateway is implemented here.
+
+## SEQ002: direct relatives
+
+`relationship: direct-parent-child` opts a credential-egress policy rule into a
+separate bounded tracker. The file's `process.entity_id` keys its anchor; a later
+TCP observation must belong to the other endpoint of a directly observed parent
+edge. Both directions are supported, including differently named AI agents.
+The network actor is the detection's top-level subject; each step retains its own
+agent, PID, instance identity and attribution. No identity or file owner is rewritten.
+
+`process-utils` stamps `parentRelation` from the same fresh process map used for
+birth/identity enrichment. Both endpoints must be monitored, unambiguous OS-backed
+instances whose births match that map. The parent must be strictly older than the
+child. Equal timestamps, missing births, recycled newer parents, synthetic identities
+and cached name chains cannot establish a relation. The relation is rebuilt each pass.
+
+The engine accepts a population after reliable, non-degraded, non-straddled
+reconciliation. A relationship must be available at the file event and still present
+at the TCP event. Receipt time of the completed process pass timestamps the snapshot;
+this is not an OS event creation time. Its usable age is at most 30 seconds. Long
+scan intervals can therefore leave periods without related coverage. Failure, missing
+edges, stop, exit, reload, backward clock movement and stale snapshots invalidate
+pending related evidence. Normal fresh snapshots preserve the original five-minute
+file window. Query latency and observation gaps remain limits.
+
+SEQ002 caps severity at low (score 30) and existing TCP tuples remain informational.
+Only a strictly stronger observation for an edge emits again within that file anchor;
+repeats do not prolong a score. Only the TCP actor can receive this related score,
+and a stronger existing score survives. Process ancestry does not establish delegation,
+shared credentials, transferred content or causal wrongdoing.
+
+`getStats().sequences.related` reports edges, pending anchors, emitted detections,
+invalidations, expiry, eviction and dropped-edge counts. The tracker admits at most
+4,096 population records, 1,024 edges, 64 neighbors per instance and 256 pending file
+anchors across its rules. Oversized populations invalidate the tracker; edge and
+anchor caps expose drops. It stores metadata only, with no file or TCP payload reads.
+
+Audit details show both participants and the relationship snapshots alongside the
+ordered evidence. Siblings, indirect descendants, unmonitored helper processes and
+unrelated agents sharing names, working directories or display groups remain outside
+this slice. General causal chains and independently linked agent handoffs remain A5 work.

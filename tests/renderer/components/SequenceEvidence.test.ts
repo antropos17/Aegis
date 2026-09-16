@@ -3,6 +3,41 @@ import { render, screen } from '@testing-library/svelte';
 import DetailSummary from '../../../frontend/observatory/components/DetailSummary.svelte';
 import { emptyTelemetry } from '../../../frontend/observatory/runtime/host';
 
+it('shows distinct actors and observed relationship without claiming shared ownership', () => {
+  render(DetailSummary, {
+    telemetry: emptyTelemetry(),
+    row: {
+      type: 'sequence-detection',
+      extra: {
+        ruleId: 'SEQ002',
+        relationship: {
+          source: 'fresh-process-table',
+          parentPid: 10,
+          childPid: 20,
+          fileRelationObservedAt: 10000,
+          observedAt: 20000,
+        },
+        assessment: { policy: 'credential-egress-v1', reasons: ['process-relationship-only'] },
+        steps: [
+          { agent: 'Parent agent', instanceId: 'p', pid: 10, action: 'file-accessed' },
+          { agent: 'Child agent', instanceId: 'c', pid: 20, action: 'network-connection' },
+        ],
+      },
+    },
+  });
+  expect(screen.getByText('Observed parent PID 10 → child PID 20.')).toBeTruthy();
+  expect(screen.getByText('Recorded agent: Parent agent')).toBeTruthy();
+  expect(screen.getByText('Recorded agent: Child agent')).toBeTruthy();
+  expect(
+    screen.getByText(
+      'The observed parent relationship does not establish delegation or data transfer.',
+    ),
+  ).toBeTruthy();
+  expect(
+    screen.queryByText('These observations are linked to the same recorded process instance.'),
+  ).toBeNull();
+});
+
 it('exposes temporal limits and missing ownership through the real detail overview', () => {
   const { container } = render(DetailSummary, {
     telemetry: emptyTelemetry(),

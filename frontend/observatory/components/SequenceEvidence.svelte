@@ -9,6 +9,8 @@
       : {};
   const text = (value: unknown) => (typeof value === 'string' ? value : '');
   const reasons: Record<string, string> = {
+    'process-relationship-only':
+      'The observed parent relationship does not establish delegation or data transfer.',
     'connection-observed-before-file':
       'This TCP connection was already observed before the file event.',
     'first-tcp-observation-after-file':
@@ -21,6 +23,8 @@
   };
   let details = $derived(record(row.extra ?? row.details));
   let assessment = $derived(record(details.assessment));
+  let relationship = $derived(record(details.relationship));
+  let related = $derived(relationship.source === 'fresh-process-table');
   let calibrated = $derived(assessment.policy === 'credential-egress-v1');
   let steps = $derived(Array.isArray(details.steps) ? details.steps.slice(0, 16).map(record) : []);
   let explanation = $derived(
@@ -50,8 +54,26 @@
     <span class="badge">{text(details.ruleId) || text(row.action)}</span>
   </div>
   <p class="entity-note">
-    {$t('These observations are linked to the same recorded process instance.')}
+    {related
+      ? $t(
+          'These observations belong to two distinct process instances with an observed parent relationship.',
+        )
+      : $t('These observations are linked to the same recorded process instance.')}
   </p>
+  {#if related}
+    <p class="entity-note">
+      {$t('Observed parent PID {parent} → child PID {child}.', {
+        parent: relationship.parentPid,
+        child: relationship.childPid,
+      })}
+    </p>
+    <dl>
+      <dt>{$t('Relationship snapshot at file event')}</dt>
+      <dd>{time(relationship.fileRelationObservedAt)}</dd>
+      <dt>{$t('Relationship snapshot at TCP event')}</dt>
+      <dd>{time(relationship.observedAt)}</dd>
+    </dl>
+  {/if}
   {#if calibrated}
     <p class="assessment">
       <strong>{$t('Data transfer was not observed.')}</strong>
@@ -83,6 +105,9 @@
             >
             <span>{time(step.at)}</span>
           </div>
+          {#if related && step.agent}<p class="owner">
+              {$t('Recorded agent')}: {text(step.agent)}
+            </p>{/if}
           {#if step.path}<code>{text(step.path)}</code>{/if}
           {#if step.network}
             <dl>
@@ -120,7 +145,9 @@
   {#if calibrated}
     <p class="entity-note">
       {$t(
-        'Polling records observation order. File contents and TCP payloads are not inspected. Tuple reuse, gaps and bounded history limit the assessment; transfers over existing connections and activity across different processes remain unresolved.',
+        related
+          ? 'Only a direct parent relationship observed within 30 seconds is covered. Polling gaps, limited process identity resolution and unobserved processes can break this correlation. No delegated action or transferred content is established.'
+          : 'Polling records observation order. File contents and TCP payloads are not inspected. Tuple reuse, gaps and bounded history limit the assessment; transfers over existing connections and activity across different processes remain unresolved.',
       )}
     </p>
   {/if}

@@ -139,6 +139,8 @@ const { normalizeToEcs } = require('../shared/ecs-normalizer');
 const sequenceEvidence = require('./sequence-evidence');
 /** @type {ReturnType<typeof sequenceEvidence.createHistory>|null} */
 let _tupleHistory = null;
+/** @type {ReturnType<import('./sequence-related').createRelated>|null} */
+let _related = null;
 
 /** Logger module tag — every line this file emits carries it. @type {string} */
 const LOG_MODULE = 'sequence-engine';
@@ -207,6 +209,7 @@ const NO_CATEGORIES = Object.freeze([]);
  * @property {string} [path] - `file.path`, truncated to {@link EVIDENCE_PATH_MAX}.
  * @property {StepAttribution|null} attribution - `null` when the carrier projects none (neutral).
  * @property {number} [pid] - Observed process id for an evidence-policy rule.
+ * @property {string} [agent] - Recorded agent name, never a grouping key.
  * @property {string} [instanceId] - Same-snapshot process instance, never re-resolved.
  * @property {object} [network] - Bounded TCP observation metadata.
  */
@@ -219,6 +222,7 @@ const NO_CATEGORIES = Object.freeze([]);
  * @property {number|null} pid - the first step's `process.pid`, `null` when it had none.
  * @property {SequenceStepEvidence[]} evidence - one entry per satisfied step, in order.
  * @property {number} [reportedScore] - Strongest weak policy observation already emitted.
+ * @property {object} [relationship] - Separate observed parent relation for related rules.
  */
 
 /**
@@ -232,6 +236,7 @@ const NO_CATEGORIES = Object.freeze([]);
  * @property {number|null} pid - from the first step; `null` when it carried none.
  * @property {StepAttribution} attribution - the weakest link across the attributed steps.
  * @property {object} [assessment] - Evidence-policy calibration and observation limitations.
+ * @property {object} [relationship] - Observed direct parent/child relation; causation unproven.
  * @property {SequenceStepEvidence[]} steps - the emitting state's own array; the state is
  *   deleted in the same call, so nothing shares it afterwards.
  */
@@ -461,6 +466,7 @@ function _evidence(step, doc, observedAt, includeContext = false) {
   }
   out.attribution = _stepAttribution(doc);
   if (includeContext) {
+    out.agent = _actorOf(doc).agent.slice(0, 256);
     const proc = doc.process;
     if (_isMap(proc)) {
       if (typeof proc.pid === 'number') out.pid = proc.pid;
@@ -790,6 +796,7 @@ function _emit(rule, key, state, observedAt) {
     attribution,
     steps: state.evidence,
     ...(calibrated ? { assessment: calibrated.assessment } : {}),
+    ...(state.relationship ? { relationship: state.relationship } : {}),
   });
 }
 
@@ -810,6 +817,7 @@ function _closeOnExit(key, observedAt) {
   }
   _recentlyExited.set(key, observedAt + EXIT_TTL_MS);
   _tupleHistory?.close(key);
+  _related?.close(key);
 }
 
 /**
@@ -856,6 +864,10 @@ function init(options) {
     : null;
   _onDetection = typeof opts.onDetection === 'function' ? opts.onDetection : null;
   _now = typeof opts.now === 'function' ? opts.now : Date.now;
+  const relatedRules = _rules.filter((rule) => rule.relationship === 'direct-parent-child');
+  _related = relatedRules.length
+    ? require('./sequence-related').createRelated(relatedRules, _emit, _evidence, _now)
+    : null;
   _maxOpenPerRule = _positiveInt(opts.maxOpenPerRule, MAX_OPEN_PER_RULE);
   _maxOpenTotal = _positiveInt(opts.maxOpenTotal, MAX_OPEN_TOTAL);
   _open.clear();
@@ -917,6 +929,7 @@ function ingest(carrier) {
   if (network) doc.sequenceNetwork = network;
   for (const rule of _rules) {
     try {
+      if (rule.relationship) continue;
       _applyRule(rule, key, doc, categories, observedAt);
     } catch (err) {
       // A matcher is consulted before any state is touched on every branch, so a throw leaves
@@ -925,7 +938,24 @@ function ingest(carrier) {
       _warnIngestError(err, observedAt, rule.id);
     }
   }
+  try {
+    if (observedAt > (_recentlyExited.get(key) ?? -Infinity)) {
+      _related?.ingest(key, doc, categories, observedAt);
+    }
+  } catch (err) {
+    _global.ingestErrors++;
+    _warnIngestError(err, observedAt, null);
+  }
   if (_isExit(doc, categories)) _closeOnExit(key, observedAt);
+}
+
+/** Publish the reliable stamped population for direct-relative sequence rules.
+ * @param {object[]} agents Stamped records from the completed process pass.
+ * @param {boolean} reliable False invalidates related evidence, without changing sessions.
+ * @returns {void} @since 0.15.1
+ */
+function observePopulation(agents, reliable) {
+  _related?.observePopulation(agents, reliable);
 }
 
 /**
@@ -938,6 +968,7 @@ function ingest(carrier) {
 function sweep() {
   const at = _now();
   _tupleHistory?.sweep(at);
+  _related?.sweep(at);
   for (const rule of _rules) _sweepRule(rule, at);
   for (const [key, refusesUntil] of _recentlyExited) {
     if (at > refusesUntil) _recentlyExited.delete(key);
@@ -956,6 +987,7 @@ function sweep() {
  * @since v0.14.0
  */
 function reset(reason) {
+  _related?.clear();
   let discarded = 0;
   for (const [ruleId, states] of _open) {
     _ledger(ruleId).reloadDiscarded += states.size;
@@ -1012,10 +1044,12 @@ function getStats() {
     recentlyExited: _recentlyExited.size,
     rules,
     ...(_tupleHistory ? { tcpHistory: _tupleHistory.stats() } : {}),
+    ...(_related ? { related: _related.stats() } : {}),
   };
 }
 
 module.exports = {
+  observePopulation,
   init,
   ingest,
   sweep,

@@ -4,14 +4,15 @@ import { resolve } from 'node:path';
 /** Verify calibrated audit evidence through the production details route.
  * @param {import('playwright').Browser} browser Browser
  * @param {string} url Desktop build URL @param {string} out Screenshot directory
+ * @param {boolean} [related] Exercise direct-relative evidence.
  * @returns {Promise<void>} Completion @since 0.15.1
  */
-export async function checkSequence(browser, url, out) {
+export async function checkSequence(browser, url, out, related = false) {
   const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   try {
-    await page.addInitScript(() => {
+    await page.addInitScript((related) => {
       const entry = {
         type: 'sequence-detection',
         action: 'SEQ001',
@@ -55,6 +56,22 @@ export async function checkSequence(browser, url, out) {
           ],
         },
       };
+      if (related) {
+        entry.action = 'SEQ002';
+        entry.extra.ruleId = 'SEQ002';
+        entry.extra.assessment.reasons = ['process-relationship-only'];
+        entry.extra.relationship = {
+          source: 'fresh-process-table',
+          parentPid: 10,
+          childPid: 42,
+          fileRelationObservedAt: 10000,
+          observedAt: 11000,
+        };
+        entry.extra.steps[0].pid = 10;
+        entry.extra.steps[0].instanceId = 'fixture:parent';
+        entry.extra.steps[0].agent = 'Parent agent';
+        entry.extra.steps[1].agent = 'Child agent';
+      }
       window.aegis = new Proxy(
         {},
         {
@@ -75,7 +92,7 @@ export async function checkSequence(browser, url, out) {
           },
         },
       );
-    });
+    }, related);
     await page.goto(url);
     await page.locator('.sidebar').getByRole('button', { name: 'Audit', exact: true }).click();
     await page.locator('.observation-open').first().click();
@@ -92,7 +109,13 @@ export async function checkSequence(browser, url, out) {
     });
     assert.equal(await evidence.locator('.steps > li').count(), 2);
     assert((await evidence.innerText()).includes('203.0.113.9:8443'));
-    assert((await evidence.innerText()).includes('already observed before the file event'));
+    assert(
+      (await evidence.innerText()).includes(
+        related
+          ? 'Observed parent PID 10 → child PID 42.'
+          : 'already observed before the file event',
+      ),
+    );
     for (const size of [
       { width: 1200, height: 800 },
       { width: 900, height: 600 },
@@ -102,7 +125,31 @@ export async function checkSequence(browser, url, out) {
         await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme);
         const overflow = await evidence.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
         assert.equal(overflow, false);
-        await page.screenshot({ path: resolve(out, `sequence-${theme}-${size.width}.png`) });
+        await page.screenshot({
+          path: resolve(out, `sequence-${related ? 'related-' : ''}${theme}-${size.width}.png`),
+        });
+        if (related) {
+          await page.evaluate(() =>
+            document.documentElement.style.setProperty('--ui-scale', '1.5'),
+          );
+          assert.equal(await evidence.evaluate((el) => el.scrollWidth > el.clientWidth + 1), false);
+          await page.screenshot({
+            path: resolve(out, `sequence-related-${theme}-${size.width}-150.png`),
+          });
+          await evidence.locator('.steps > li').last().scrollIntoViewIfNeeded();
+          const tcpHeading = evidence.getByText('2. TCP observation', { exact: true });
+          const headingBox = await tcpHeading.boundingBox();
+          const bodyBox = await page.locator('#modal-body').boundingBox();
+          assert(headingBox && bodyBox && headingBox.y >= bodyBox.y);
+          assert(headingBox.y + headingBox.height <= bodyBox.y + bodyBox.height);
+          await page.screenshot({
+            path: resolve(out, `sequence-related-${theme}-${size.width}-150-steps.png`),
+          });
+          await page.locator('#modal-body').evaluate((el) => {
+            el.scrollTop = 0;
+          });
+          await page.evaluate(() => document.documentElement.style.setProperty('--ui-scale', '1'));
+        }
       }
     }
     assert.deepEqual(errors, []);

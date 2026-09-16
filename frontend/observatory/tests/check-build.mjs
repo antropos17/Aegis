@@ -430,6 +430,7 @@ try {
   await checkResourceLayers(browser, base + '/desktop/', out);
   await checkDetails(browser, base + '/desktop/', out);
   await checkSequence(browser, base + '/desktop/', out);
+  await checkSequence(browser, base + '/desktop/', out, true);
   await checkSettings(browser, base + '/desktop/', out);
   await checkActivity(browser, base + '/desktop/', out);
   await checkPagination(browser, base + '/desktop/', out);

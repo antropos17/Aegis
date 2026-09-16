@@ -131,6 +131,8 @@ export default defineConfig({
         'src/main/sequence-rule-loader.js',
         'src/main/sequence-engine.js',
         'src/main/sequence-evidence.js',
+        'src/main/sequence-related.js',
+        'src/main/process-lineage.js',
         'src/renderer/lib/utils/risk-scoring.js',
         'src/renderer/lib/utils/threat-report.js',
         'src/renderer/lib/stores/toast.ts',

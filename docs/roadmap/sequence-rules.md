@@ -2,12 +2,14 @@
 
 **2026-09-16 extension:** production SEQ001 now opts into the
 [credential/TCP evidence policy](../SEQUENCE-EVIDENCE.md), with calibrated severity,
-bounded tuple history and ordered evidence in Observatory. The original generic
-engine contract below still describes rules without that policy.
+bounded tuple history and ordered evidence in Observatory. SEQ002 adds bounded
+direct parent/child observations with separate actor identities; the same evidence
+document defines its freshness limits and low severity cap. The original generic
+engine contract below still describes rules without either extension.
 
 **Status (as of 2026-08-25):** Block 1 implemented. `src/main/sequence-rule-loader.js`,
 `tests/main/sequence-rule-loader.test.js`, `tests/fixtures/sequences/`,
-`rules/sequences/sequences.yaml` (1 sequence correlation rule, SEQ001, in 1 sequence rule file),
+`rules/sequences/sequences.yaml` (2 sequence correlation rules, SEQ001 and SEQ002, in 1 sequence rule file),
 `tests/main/sequence-rules-parity.test.js` and the `sequences.*` counters in `scripts/counts.js`
 now exist and are green, and so do `src/main/sequence-engine.js` and
 `tests/main/sequence-engine.test.js` — the §2 state machine with the §3 caps and counters, the

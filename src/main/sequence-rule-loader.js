@@ -98,6 +98,7 @@ const CORRELATION_KEYS = new Set([
   'description',
   'correlation',
   'evidence-policy',
+  'relationship',
 ]);
 
 /** `aliases`, `condition` and `generate` are refused BY NAME below, so they are not listed here. */
@@ -186,6 +187,7 @@ const NULLABLE_KEY_CATEGORIES = new Set(['file', 'network']);
  * @property {number} timespanMs - the window, already in milliseconds.
  * @property {SequenceStep[]} steps - 2 to 5, in the order the correlation lists them.
  * @property {string} [evidencePolicy] - Optional credential-egress-v1 evidence calibration.
+ * @property {string} [relationship] - Optional direct-parent-child observed relationship.
  */
 
 /**
@@ -628,7 +630,7 @@ function _checkTimespan(sink, raw, where) {
  * @param {Sink} sink
  * @param {Record<string, unknown>} doc
  * @param {number} index
- * @returns {{id: string, title: string, level: string, timespanMs: number, names: string[], evidencePolicy?: string}|null}
+ * @returns {{id: string, title: string, level: string, timespanMs: number, names: string[], evidencePolicy?: string, relationship?: string}|null}
  */
 function _checkCorrelation(sink, doc, index) {
   const id = _isText(doc.id) ? doc.id : null;
@@ -658,6 +660,18 @@ function _checkCorrelation(sink, doc, index) {
     }
   }
   const level = doc.level === undefined ? DEFAULT_LEVEL : doc.level;
+  if (
+    doc.relationship !== undefined &&
+    (doc.relationship !== 'direct-parent-child' ||
+      doc['evidence-policy'] !== 'credential-egress-v1')
+  ) {
+    _reject(
+      sink,
+      'unsupported-relationship',
+      'direct-parent-child requires credential-egress-v1',
+      where,
+    );
+  }
   if (doc['evidence-policy'] !== undefined && doc['evidence-policy'] !== 'credential-egress-v1') {
     _reject(sink, 'unsupported-evidence-policy', 'unsupported sequence evidence policy', where);
   }
@@ -756,6 +770,7 @@ function _checkCorrelation(sink, doc, index) {
     level,
     timespanMs,
     names: /** @type {string[]} */ (rules),
+    ...(doc.relationship === 'direct-parent-child' ? { relationship: doc.relationship } : {}),
     ...(doc['evidence-policy'] === 'credential-egress-v1'
       ? { evidencePolicy: doc['evidence-policy'] }
       : {}),
@@ -824,7 +839,7 @@ function loadFromString(text, fileName) {
   // ── Stage A: one document at a time ────────────────────────────────────────
   /** @type {Map<string, {category: string, selection: Record<string, unknown>}>} */
   const bases = new Map();
-  /** @type {Array<{id: string, title: string, level: string, timespanMs: number, names: string[], evidencePolicy?: string}>} */
+  /** @type {Array<{id: string, title: string, level: string, timespanMs: number, names: string[], evidencePolicy?: string, relationship?: string}>} */
   const correlations = [];
   /** @type {Set<string>} */
   const seenIds = new Set();
@@ -929,6 +944,7 @@ function loadFromString(text, fileName) {
       level: correlation.level,
       timespanMs: correlation.timespanMs,
       ...(correlation.evidencePolicy ? { evidencePolicy: correlation.evidencePolicy } : {}),
+      ...(correlation.relationship ? { relationship: correlation.relationship } : {}),
       steps,
     };
     _checkWarnings(sink, rule);
