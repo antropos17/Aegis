@@ -3,6 +3,7 @@
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { debuglog } = require('node:util');
+const { isExecutionApprovalActive, consumeExecutionApproval } = require('./execution-approval');
 const LIMITS = Object.freeze({
   prepareMs: 1500,
   runtimeMs: 5000,
@@ -66,14 +67,22 @@ function ownLaunch(launch) {
  * returned or persisted. Descendants and operating-system isolation are unsupported.
  * @param {string} policyPath Explicit selected policy file.
  * @param {string} requestPath Explicit selected request file.
- * @param {{signal?: AbortSignal, binding?: object}} [options] Optional cancellation for an owning adapter.
+ * @param {{signal?: AbortSignal, binding?: object, approval?: object}} [options] Owned cancellation, revision and one-use approval.
  * @returns {Promise<object>} Fixed decision and direct-child outcome metadata.
  * @since v0.15.1
  */
 async function executeAction(policyPath, requestPath, options = {}) {
-  const { signal, binding } = options;
+  const { signal, binding, approval } = options;
   const pinned = Object.hasOwn(options, 'binding');
+  const approved = Object.hasOwn(options, 'approval');
   if (signal?.aborted) return report('deny', 'action-cancelled');
+  if (
+    approved &&
+    (!pinned ||
+      !isExecutionApprovalActive(approval, binding) ||
+      !require('./execution-binding').isExecutionBindingActive(binding, policyPath, requestPath))
+  )
+    return report('deny', 'approval-unavailable');
   if (
     !['win32', 'linux', 'darwin'].includes(process.platform) ||
     process.permission ||
@@ -83,7 +92,11 @@ async function executeAction(policyPath, requestPath, options = {}) {
   const deps = testDeps || {};
   const prepare =
     deps.prepare ||
-    ((p, r) => require('./execution-policy').prepareExecution(p, r, pinned ? { binding } : {}));
+    ((p, r) =>
+      require('./execution-policy').prepareExecution(p, r, {
+        ...(pinned ? { binding } : {}),
+        ...(approved ? { review: true } : {}),
+      }));
   const launchChild = deps.spawn || spawn;
   const now = deps.now || (() => performance.now());
   const started = now();
@@ -113,7 +126,7 @@ async function executeAction(policyPath, requestPath, options = {}) {
     return report('deny', 'preparation-unavailable');
   if (!['allow', 'ask', 'deny'].includes(prepared.decision))
     return report('deny', 'decision-invalid');
-  if (prepared.decision !== 'allow')
+  if (prepared.decision !== 'allow' && !(approved && prepared.decision === 'ask'))
     return report(
       prepared.decision,
       ['configuration-changed', 'configuration-unavailable'].includes(prepared.reason)
@@ -134,6 +147,8 @@ async function executeAction(policyPath, requestPath, options = {}) {
     return report('deny', 'configuration-changed');
   if (signal?.aborted) return report('deny', 'action-cancelled');
   if (now() - started >= LIMITS.prepareMs) return report('deny', 'preparation-unavailable');
+  if (approved && !consumeExecutionApproval(approval, binding))
+    return report('deny', 'approval-unavailable');
 
   return new Promise((resolve) => {
     let child;
@@ -157,8 +172,8 @@ async function executeAction(policyPath, requestPath, options = {}) {
       child?.stdout?.destroy();
       child?.stderr?.destroy();
       if (interrupted && !exitObserved) child?.unref?.();
-      resolve(
-        report('allow', spawnFailed ? 'spawn-failed' : reason, {
+      resolve({
+        ...report('allow', spawnFailed ? 'spawn-failed' : reason, {
           state: spawnFailed ? 'spawn-failed' : interrupted ? 'interrupted' : 'exited',
           exitCode,
           termination: interrupted ? (exitObserved ? 'confirmed' : 'unconfirmed') : 'not-requested',
@@ -166,7 +181,10 @@ async function executeAction(policyPath, requestPath, options = {}) {
           stderrBytes,
           outputComplete: outputComplete && !outputTruncated,
         }),
-      );
+        ...(approved
+          ? { authorization: 'operator-confirmed', policyDecision: prepared.decision }
+          : {}),
+      });
     };
     const cleanup = () => {
       if (!cleanupTimer) cleanupTimer = setTimeout(() => finish(false), LIMITS.cleanupMs);

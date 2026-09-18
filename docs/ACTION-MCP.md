@@ -139,6 +139,9 @@ The added unit and native stdio revision tests cover changed selected bytes, res
 capture failures, close during initialization and private-capability handling;
 provider/CI receipts belong to the implementation PR.
 
-Remaining B1 work includes operator-facing approval bound to the exact action,
-policy revision and expiry, broader deliberate agent routing and coverage display.
+The separate [terminal confirmation CLI](ACTION-CONFIRMATION.md) now binds local
+review to the selected action, policy revision and an expiring one-attempt grant.
+It does not change this MCP tool: MCP ask remains unstarted, and no approval
+capability is exposed to the client. An MCP approval bridge, broader deliberate
+agent routing and coverage display remain B1 work.
 MCP gateway inspection and process-tree isolation remain separate roadmap work.

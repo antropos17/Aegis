@@ -34,7 +34,7 @@ coverage gaps. Do not label these states "safe".
 | A4.1 | Local command and configuration checks | CLI for projects, profiles and package trees; review reasons bound to hash/path; bounded shell/MCP/hooks/npm parsing; visible incompleteness; no execution or data transmission | Implemented; [contract](../STATIC-ANALYSIS.md) |
 | A4.2 | Deeper analysis and Cisco integrations | Versioned JSON/SARIF contract, explicit offline inputs and result provenance; JS/Python and interfile flow analysis; complex shell and instruction semantics; unsupported cases receive no safety verdict | Partial: [Cisco JSON/SARIF import](../STATIC-REPORT-IMPORT.md), [JavaScript](../JAVASCRIPT-STATIC-ANALYSIS.md), [Python](../PYTHON-STATIC-ANALYSIS.md), [selected-source literal/wrapper/primitive-return flow](../STATIC-COMMAND-FLOW.md), [ordered shell redirections](../SHELL-REDIRECTIONS.md) and [bounded instruction-pattern review](../INSTRUCTION-REVIEW.md) are implemented; broader flow, shell control/substitution, general instruction semantics and additional MCP content channels remain |
 | A5 | Refine SEQ001 and add behavioral chains | Ordinary work is not treated as proven exfiltration; missed-detection/noise tests; parent/child and cross-agent relationships retain attribution strength | Partial: SEQ001 calibration, SEQ002 direct relations, SEQ003 monitored ancestor paths and [offline lifecycle import](../HANDOFF-EVIDENCE.md) implemented; live collection, independent handoffs and general causal chains remain |
-| B1 | Shared policy and adapter contract | Versioned events before/after actions; `allow/ask/deny`; supported and unsupported surfaces listed; ACS alignment assessed | Partial: [receiver envelope and policy contract](../AGENT-EVENT-CONTRACT.md), offline/live CLI consumers and initial ACS schema assessment; Windows provider fixture, decision/after session and explicit direct-execution CLI added; selected-action MCP routing added; broader coverage and exact approval binding remain |
+| B1 | Shared policy and adapter contract | Versioned events before/after actions; `allow/ask/deny`; supported and unsupported surfaces listed; ACS alignment assessed | Partial: [receiver envelope and policy contract](../AGENT-EVENT-CONTRACT.md), offline/live consumers, ACS assessment, provider fixture, decision/after session and direct execution; MCP revision binding and [one-attempt terminal confirmation](../ACTION-CONFIRMATION.md) added; MCP approval bridge and broader coverage remain |
 | B2 | MCP gateway and operation control | Validate schemas, arguments, responses, recipients, access scopes and tool changes; stdio and HTTP have separate trust boundaries | Planned |
 | B3 | Secret protection and limited permissions | Secrets cannot enter context or outbound requests outside policy; permission is bound to operation, recipient and task; expiry/single-use limits; replay protection | Planned |
 | B4 | Protection against destructive actions | Control deletion, writes outside the project, publication and dangerous API operations before execution; confirm exact arguments; a timeout never becomes permission | Planned |
@@ -395,5 +395,13 @@ policy bytes privately for that connection. Observed changes and read failures
 revoke the scope; restoring files cannot revive it. Each evaluation checks the
 same bytes it parses, and launch rechecks scope liveness. Native stdio mutation
 fixtures and the installed Claude allow/deny/ask fixture passed. This is not
-human approval or continuous change detection. Next: operator-facing approval
-bound to the exact action, policy revision and expiry.
+human approval or continuous change detection.
+
+B1 terminal confirmation: `--action-exec-confirm` displays the complete effective
+action privately on a terminal and requires a fresh literal challenge response.
+The owner pins configuration before review and grants one launch attempt for five
+seconds after confirmation; deny cannot be overridden. The runner rereads pinned
+files before launch. TTY/PTY interaction does not authenticate a human. MCP ask
+remains unstarted; an agent-facing approval bridge and broader coverage remain.
+See [the confirmation boundary](../ACTION-CONFIRMATION.md) for privacy, limits and
+verification scope.

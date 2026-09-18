@@ -119,11 +119,16 @@ and complete output accounting. Invalid CLI arguments exit 1; all other failures
 ask, deny, interruptions or incomplete results exit 2. An unexpected outer error
 reports unknown execution state rather than asserting nothing ran.
 
-Permission is evaluated anew per invocation; there is no approval prompt,
-single-use approval token or replay ledger. Ask remains not-started. The direct
+Permission is evaluated anew per standalone JSON invocation; that route has no
+approval prompt, approval grant or replay ledger. Ask remains not-started. The
+separate [terminal confirmation route](ACTION-CONFIRMATION.md) reviews pinned
+configuration and passes a private five-second, one-attempt grant to this runner.
+An approved ask may launch; policy deny never does. A supplied invalid grant denies
+even when the policy says allow. Approved reports retain the original
+`policyDecision` and label authorization `operator-confirmed`. The direct
 result is distinct from provider-reported after events in the session API.
 Neither mechanism proves that all agent activity flowed through AEGIS. B1 still
-needs broader deliberate agent routing and approval binding; protected process trees,
+needs broader deliberate agent routing and an agent-facing approval bridge; protected process trees,
 filesystem/network isolation and tamper resistance remain later roadmap work.
 
 
@@ -144,3 +149,6 @@ direct-child termination with the same bounded confirmation semantics.
 Its optional opaque revision binding remains private to the execution owner;
 serialized copies cannot authorize a launch. Closing the owner revokes the binding
 and cancels active work through the separate AbortSignal.
+The terminal owner additionally supplies an opaque approval bound to that same
+revision capability. The runner consumes it immediately before the sole spawn
+attempt, including a spawn that fails; normal JSON and MCP callers omit it.

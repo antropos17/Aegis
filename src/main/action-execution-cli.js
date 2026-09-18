@@ -10,15 +10,26 @@
 async function handleActionExecutionCLI(args, write) {
   if (
     args.length !== 3 ||
-    args[0] !== '--action-exec-json' ||
+    !['--action-exec-json', '--action-exec-confirm'].includes(args[0]) ||
     args.slice(1).some((arg) => typeof arg !== 'string' || !arg || arg.startsWith('--'))
   ) {
     write(JSON.stringify({ error: 'expected-action-exec-arguments' }));
     return 1;
   }
+  const interactive = args[0] === '--action-exec-confirm';
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (interactive) {
+    process.on('SIGINT', abort);
+    process.on('SIGTERM', abort);
+  }
   let report;
   try {
-    report = await require('./action-execution').executeAction(args[1], args[2]);
+    report = interactive
+      ? await require('./action-confirmation').confirmSelectedAction(args[1], args[2], {
+          signal: controller.signal,
+        })
+      : await require('./action-execution').executeAction(args[1], args[2]);
   } catch {
     report = {
       schemaVersion: 1,
@@ -29,6 +40,10 @@ async function handleActionExecutionCLI(args, write) {
       control: 'direct-child-only',
       descendantControl: 'unsupported',
     };
+  }
+  if (interactive) {
+    process.removeListener('SIGINT', abort);
+    process.removeListener('SIGTERM', abort);
   }
   write(JSON.stringify(report));
   return report.decision === 'allow' &&
