@@ -7,7 +7,8 @@ bearer-possession checks. Installed-provider fixtures and an experimental
 [before-only Bash policy hook](ACTION-POLICY-HOOK.md) are now implemented.
 A bounded [decision/after-report session](ACTION-POLICY-SESSION.md) is connected
 in the provider fixture. The [explicit direct-execution CLI](ACTION-EXECUTION.md)
-now owns its child launch; automatic agent routing and exact approval binding remain open.
+now owns its child launch. The [selected-action MCP adapter](ACTION-MCP.md)
+connects an explicit agent tool; broader routing and exact approval binding remain open.
 
 ## Receiver ownership and versioning
 
@@ -117,7 +118,8 @@ arguments, output, credentials or file contents to accommodate that future work.
 | SDK and A2A sources | Not connected |
 | Claude PreToolUse Bash | Experimental exact-input allow/ask/deny hook; specific allow/deny fixture verified, provider failure bypasses remain |
 | PostToolUse / PostToolUseFailure | Experimental session API correlates exact input once; provider fixture consumer only |
-| MCP stdio/HTTP | No correlated action/policy mediation |
+| Selected-action MCP stdio | Explicit fixed tool routes through AEGIS-owned execution; other tools are outside scope |
+| MCP gateway / HTTP | Not implemented |
 | Explicit action-exec CLI | Exact policy decides direct child launch; preparation failures do not launch; no descendant isolation |
 | Other direct shell, filesystem, network and descendants | No blocking through this boundary |
 | Audit/UI, scoring and OS binding | No consumer added here; CLI report is the implemented consumer |

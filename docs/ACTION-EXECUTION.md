@@ -4,8 +4,9 @@
 AEGIS reads both selected files, evaluates an exact operation and starts its own
 direct child only on allow. Deny, ask, invalid input, unavailable policy and
 preparation timeout never authorize a launch. This closes the launch-decision
-failure path for this explicit CLI route. Agents launched normally, provider
-hooks and commands outside this route receive no such protection.
+failure path for this explicit CLI route. The [selected-action MCP adapter](ACTION-MCP.md) connects an explicitly configured
+agent tool to this owner. Agents launched normally, provider hooks and commands
+outside these routes receive no such protection.
 
 This is not a sandbox. An allowed executable runs with the caller's account and
 can read files, use the network, spawn descendants or change the system. AEGIS
@@ -115,7 +116,7 @@ Permission is evaluated anew per invocation; there is no approval prompt,
 single-use approval token or replay ledger. Ask remains not-started. The direct
 result is distinct from provider-reported after events in the session API.
 Neither mechanism proves that all agent activity flowed through AEGIS. B1 still
-needs connected agent routing and approval binding; protected process trees,
+needs broader deliberate agent routing and approval binding; protected process trees,
 filesystem/network isolation and tamper resistance remain later roadmap work.
 
 
@@ -129,3 +130,7 @@ shell metacharacters, runtime and output-limit termination with an observed exit
 The CLI is not an installed Claude/Codex routing integration; no external agent
 was configured to send its commands through this runner. Linux CI verifies the
 same native fixtures; macOS has not been exercised locally.
+
+The owning MCP adapter may pass an AbortSignal to the execution API. Cancellation
+during preparation denies without launch; cancellation after launch requests
+direct-child termination with the same bounded confirmation semantics.

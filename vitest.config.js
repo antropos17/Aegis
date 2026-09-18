@@ -48,6 +48,8 @@ export default defineConfig({
         'src/main/execution-policy.js',
         'src/main/action-execution.js',
         'src/main/action-execution-cli.js',
+        'src/main/action-mcp.js',
+        'src/main/action-mcp-stdio.js',
         'src/main/action-policy-hook.js',
         'src/main/handoff-live.js',
         'src/main/handoff-send.js',
