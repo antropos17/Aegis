@@ -421,3 +421,12 @@ synthetic API requests produced the expected results; private-canary checks and
 broker, endpoint and scratch cleanup passed. This establishes the selected route
 only; it does not authenticate human presence, verify a cloud model or provide OS
 isolation. Reproduction and receipt location are in the broker contract.
+
+B1 route coverage check: `--action-route-check-json` now evaluates explicitly
+selected policy/request files for direct, terminal, MCP stdio and MCP review
+routes. Its machine-readable result separates current-process prerequisites and
+policy decisions from unknown outside-route coverage and unverified connection/
+blocking. It performs no execution, confirmation or listener setup; exit zero
+includes a valid deny and grants nothing. The check retains no revision binding.
+See [the route-check contract](../ACTION-ROUTE-CHECK.md). Broader routing and
+observed coverage display remain open.

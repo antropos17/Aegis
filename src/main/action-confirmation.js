@@ -1,6 +1,6 @@
 'use strict';
 
-const { debuglog } = require('node:util');
+const { isExecutionRuntimeSupported } = require('./execution-runtime');
 const {
   captureExecutionBinding,
   revokeExecutionBinding,
@@ -62,12 +62,7 @@ async function confirmSelectedAction(policyPath, requestPath, options = {}) {
   if (signal?.aborted) return refused('action-cancelled');
   if (borrowed && !isExecutionBindingActive(borrowedBinding, policyPath, requestPath))
     return refused('configuration-changed');
-  if (
-    !['win32', 'linux', 'darwin'].includes(process.platform) ||
-    process.permission ||
-    debuglog('child_process').enabled
-  )
-    return refused('runtime-unsupported');
+  if (!isExecutionRuntimeSupported()) return refused('runtime-unsupported');
   const deps = testDeps || {};
   if (!(deps.available || terminal.isTerminalAvailable)()) return refused('terminal-required');
   const now = deps.now || (() => performance.now());

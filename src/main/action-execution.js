@@ -2,7 +2,7 @@
 
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const { debuglog } = require('node:util');
+const { isExecutionRuntimeSupported } = require('./execution-runtime');
 const { isExecutionApprovalActive, consumeExecutionApproval } = require('./execution-approval');
 const LIMITS = Object.freeze({
   prepareMs: 1500,
@@ -83,12 +83,7 @@ async function executeAction(policyPath, requestPath, options = {}) {
       !require('./execution-binding').isExecutionBindingActive(binding, policyPath, requestPath))
   )
     return report('deny', 'approval-unavailable');
-  if (
-    !['win32', 'linux', 'darwin'].includes(process.platform) ||
-    process.permission ||
-    debuglog('child_process').enabled
-  )
-    return report('deny', 'runtime-unsupported');
+  if (!isExecutionRuntimeSupported()) return report('deny', 'runtime-unsupported');
   const deps = testDeps || {};
   const prepare =
     deps.prepare ||
