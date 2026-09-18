@@ -66,10 +66,12 @@ function ownLaunch(launch) {
  * returned or persisted. Descendants and operating-system isolation are unsupported.
  * @param {string} policyPath Explicit selected policy file.
  * @param {string} requestPath Explicit selected request file.
+ * @param {{signal?: AbortSignal}} [options] Optional cancellation for an owning adapter.
  * @returns {Promise<object>} Fixed decision and direct-child outcome metadata.
  * @since v0.15.1
  */
-async function executeAction(policyPath, requestPath) {
+async function executeAction(policyPath, requestPath, { signal } = {}) {
+  if (signal?.aborted) return report('deny', 'action-cancelled');
   if (
     !['win32', 'linux', 'darwin'].includes(process.platform) ||
     process.permission ||
@@ -83,9 +85,15 @@ async function executeAction(policyPath, requestPath) {
   const started = now();
   let prepareTimer;
   let prepared;
+  let onPrepareAbort;
   try {
     prepared = await Promise.race([
-      Promise.resolve().then(() => prepare(policyPath, requestPath)),
+      Promise.resolve().then(() => (signal?.aborted ? null : prepare(policyPath, requestPath))),
+      new Promise((resolve) => {
+        onPrepareAbort = () => resolve(null);
+        signal?.addEventListener('abort', onPrepareAbort, { once: true });
+        if (signal?.aborted) resolve(null);
+      }),
       new Promise((resolve) => {
         prepareTimer = setTimeout(() => resolve(null), LIMITS.prepareMs);
       }),
@@ -94,7 +102,9 @@ async function executeAction(policyPath, requestPath) {
     return report('deny', 'preparation-failed');
   } finally {
     clearTimeout(prepareTimer);
+    signal?.removeEventListener('abort', onPrepareAbort);
   }
+  if (signal?.aborted) return report('deny', 'action-cancelled');
   if (now() - started >= LIMITS.prepareMs || !prepared)
     return report('deny', 'preparation-unavailable');
   if (!['allow', 'ask', 'deny'].includes(prepared.decision))
@@ -108,6 +118,7 @@ async function executeAction(policyPath, requestPath) {
     return report('deny', 'launch-invalid');
   }
   if (!launch) return report('deny', 'launch-invalid');
+  if (signal?.aborted) return report('deny', 'action-cancelled');
   if (now() - started >= LIMITS.prepareMs) return report('deny', 'preparation-unavailable');
 
   return new Promise((resolve) => {
@@ -128,6 +139,7 @@ async function executeAction(policyPath, requestPath) {
       settled = true;
       clearTimeout(runtimeTimer);
       clearTimeout(cleanupTimer);
+      signal?.removeEventListener('abort', onAbort);
       child?.stdout?.destroy();
       child?.stderr?.destroy();
       if (interrupted && !exitObserved) child?.unref?.();
@@ -157,6 +169,7 @@ async function executeAction(policyPath, requestPath) {
         /* Confirmation requires an exit event. */
       }
     };
+    const onAbort = () => interrupt('action-cancelled');
     const count = (kind, chunk) => {
       if (settled || interrupted) return;
       const bytes = Buffer.isBuffer(chunk) ? chunk.length : Buffer.byteLength(chunk);
@@ -195,6 +208,8 @@ async function executeAction(policyPath, requestPath) {
       child.stderr.on('data', (chunk) => count('stderr', chunk));
       child.stdout.on('error', () => interrupt('output-unavailable'));
       child.stderr.on('error', () => interrupt('output-unavailable'));
+      signal?.addEventListener('abort', onAbort, { once: true });
+      if (signal?.aborted) onAbort();
     } catch (_) {
       if (child) interrupt('launch-failed');
       else finish(false, true);

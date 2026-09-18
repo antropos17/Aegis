@@ -10,7 +10,9 @@ was added afterward; fetch and check its publication status before continuing.
 Continue [the AI-agent protection roadmap](../docs/roadmap/ai-agent-protection.md).
 The product goal is protection from unsafe AI-agent actions, with explicit limits
 on observation, attribution and prevention. The next stage is **B1 in that roadmap**:
-connected agent routing and exact approval binding. The explicit direct-execution
+exact operator approval binding and broader deliberate agent routing. A fixed
+selected-action MCP tool now connects to the execution owner (docs/ACTION-MCP.md).
+The explicit direct-execution
 CLI now owns a selected child launch; see docs/ACTION-EXECUTION.md.
 The bounded action-policy-session API now connects local decisions to after reports
 in the opt-in provider fixture; see docs/ACTION-POLICY-SESSION.md. It does not own
@@ -30,6 +32,20 @@ experimental; it cannot guarantee protection when the provider fails to run it.
 Live transport authenticates bearer possession only. B1 remains partial.
 A5 remains partial after offline import; independent handoffs and broad causal
 inference remain uncovered. Do not restart the completed work below.
+
+## B1 selected-action MCP route
+
+--action-mcp-stdio <policy> <request> exposes one argument-free tool,
+aegis_execute_selected. Only selected files reach the execution owner. The protocol
+core and transport bound initialization, message IDs, concurrency, frames and
+output. Disconnect/cancellation abort preparation or interrupt the direct child;
+cleanup is awaited. Other agent tools/descendants remain outside this route.
+
+The opt-in scripts/verify-claude-action-mcp.mjs uses real installed Claude with
+synthetic local model responses and disposable MCP settings. Inspect ignored
+.agent/b1-mcp-provider-receipt.json and .agent/b1-mcp-receipt.json for actual run,
+CI and publication evidence. No permanent user configuration was modified.
+Next: approval bound to exact action/policy/expiry and broader coverage display.
 
 ## B1 explicit direct-execution slice
 
