@@ -373,3 +373,8 @@ Do not start another heavy batch while diagnostic-log growth is unexplained.
   Provider hook launch/timeout bypasses, delegated approval, input mutation and
   after-action binding remain open; this is not a general fail-closed gate.
   B1 stays partial. CI/publication receipts are in the implementation PR.
+
+B1 continuation: the bounded [action session](../ACTION-POLICY-SESSION.md) links a
+local policy decision to one exact-input after report, with replay tombstones,
+deadlines and capacity bounds. Its consumer is the opt-in installed-provider
+fixture; production execution mediation and exact approval binding remain open.

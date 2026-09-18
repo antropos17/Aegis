@@ -8,6 +8,7 @@ import { randomBytes } from 'node:crypto';
 
 import { quote, toolInput, sendReply } from './claude-hook-fixture.mjs';
 import { options, treeBytes, removeOwned, createRunner } from './claude-hook-runtime.mjs';
+import { startPolicySessionFixture } from './claude-policy-session-fixture.mjs';
 
 const require = createRequire(import.meta.url);
 const repo = fileURLToPath(new URL('../', import.meta.url));
@@ -42,6 +43,7 @@ async function main(args) {
   let scenario = null;
   let collector;
   let server;
+  let policyFixture;
   try {
     for (const folder of ['config', 'temp', 'work', 'profile'])
       fs.mkdirSync(path.join(owned, folder));
@@ -193,7 +195,15 @@ async function main(args) {
     env.AEGIS_HANDOFF_TOKEN = token;
     env.AEGIS_HANDOFF_PORT = String(collector.port);
     const prefix = `${quote(process.execPath)} ${quote(path.join(repo, 'src/main/main.js'))}`;
-    for (const kind of ['baseline', 'allow', 'deny', 'missing-hook', 'agent']) {
+    for (const kind of [
+      'baseline',
+      'allow',
+      'deny',
+      'missing-hook',
+      'agent',
+      'linked-allow',
+      'linked-deny',
+    ]) {
       fs.writeFileSync(marker, '');
       scenario = { kind, requests: 0, sentinel: path.join(owned, 'sentinel') };
       if (fs.existsSync(scenario.sentinel)) fs.unlinkSync(scenario.sentinel);
@@ -206,7 +216,7 @@ async function main(args) {
           defaultDecision: 'deny',
           rules: ['agent', 'baseline', 'missing-hook'].includes(kind)
             ? []
-            : [{ tool: 'Bash', input: toolInput(scenario), decision: kind }],
+            : [{ tool: 'Bash', input: toolInput(scenario), decision: kind.replace('linked-', '') }],
         }),
       );
       const hooks = observe(['SessionStart', 'PreToolUse', 'PostToolUse']);
@@ -239,6 +249,13 @@ async function main(args) {
         hooks[event] = [
           { hooks: [{ type: 'command', command: `${prefix} --handoff-send`, timeout: 5 }] },
         ];
+      if (kind.startsWith('linked-')) {
+        policyFixture = await startPolicySessionFixture({ policyPath: policy, env });
+        for (const event of ['PreToolUse', 'PostToolUse', 'PostToolUseFailure'])
+          hooks[event] = [
+            { hooks: [{ type: 'command', command: policyFixture.command, timeout: 4 }] },
+          ];
+      }
       fs.writeFileSync(settings, JSON.stringify({ hooks }));
       const result = await run([
         '-p',
@@ -263,7 +280,9 @@ async function main(args) {
         exceeded: !!result.exceeded,
         hooks: readEvents(),
         sentinel: fs.existsSync(scenario.sentinel),
+        ...(policyFixture ? { linkage: await policyFixture.close() } : {}),
       });
+      policyFixture = null;
       scenario = null;
       if (result.code !== 0 || result.timedOut || result.exceeded) throw Error('scenario');
     }
@@ -282,6 +301,22 @@ async function main(args) {
       receipt.scenarios[1].sentinel &&
       !receipt.scenarios[2].sentinel &&
       receipt.scenarios[3].sentinel &&
+      receipt.scenarios[5].sentinel &&
+      !receipt.scenarios[6].sentinel &&
+      receipt.scenarios[5].linkage.before.length === 1 &&
+      receipt.scenarios[5].linkage.before[0].decision === 'allow' &&
+      receipt.scenarios[5].linkage.after.length === 1 &&
+      receipt.scenarios[5].linkage.after[0].status === 'linked' &&
+      receipt.scenarios[5].linkage.after[0].sameActionRef &&
+      receipt.scenarios[6].linkage.before.length === 1 &&
+      receipt.scenarios[6].linkage.before[0].decision === 'deny' &&
+      receipt.scenarios[6].linkage.after.length === 0 &&
+      !receipt.scenarios[5].linkage.lossDetected &&
+      !receipt.scenarios[6].linkage.lossDetected &&
+      receipt.scenarios[5].linkage.transport.requests === 2 &&
+      receipt.scenarios[6].linkage.transport.requests === 1 &&
+      receipt.scenarios[5].linkage.transport.rejected === 0 &&
+      receipt.scenarios[6].linkage.transport.rejected === 0 &&
       receipt.scenarios[0].hooks.includes('PostToolUse') &&
       receipt.scenarios[1].hooks.includes('PostToolUse') &&
       !receipt.scenarios[2].hooks.includes('PostToolUse') &&
@@ -294,6 +329,7 @@ async function main(args) {
     receipt.pass = false;
     receipt.error = 'verification-failed';
   } finally {
+    if (policyFixture) await policyFixture.close();
     if (collector) await collector.close();
     if (server?.listening) {
       server.closeAllConnections();
@@ -301,7 +337,12 @@ async function main(args) {
     }
     try {
       receipt.scratchBytesBeforeCleanup = treeBytes(owned);
-      if (!receipt.unreapedProcess) removeOwned(owned, owned);
+      if (!receipt.unreapedProcess) {
+        for (let attempt = 0; attempt < 3 && fs.existsSync(owned); attempt++) {
+          if (attempt) await new Promise((resolve) => setTimeout(resolve, 100));
+          removeOwned(owned, owned);
+        }
+      }
       receipt.cleanup = !fs.existsSync(owned);
     } catch {
       receipt.cleanup = false;

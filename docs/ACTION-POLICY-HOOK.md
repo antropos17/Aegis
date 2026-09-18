@@ -2,8 +2,9 @@
 
 Status: a connected **before-only** Claude command-hook adapter. It returns
 `allow`, `ask` or `deny` for `PreToolUse` Bash requests. B1 remains partial:
-after-action correlation, reusable permission protection, exact approval binding
-and a mediator that controls execution during provider-hook failure are open.
+a separate [in-process session](ACTION-POLICY-SESSION.md) now correlates decisions
+with after reports in the provider fixture. Production linkage, reusable permission
+protection, exact approval binding and failure-resistant execution mediation remain open.
 This adapter does not reuse the lifecycle collector or send arguments over HTTP.
 
 ## Explicit configuration
@@ -138,6 +139,6 @@ Interactive ask/approval binding, other provider-hook failure modes, macOS and a
 real cloud model session are not verified by that fixture. Linux CI verifies AEGIS
 unit/CLI behavior independently of an installed Claude executable.
 
-Next: before/after action linkage and an AEGIS-owned execution or SDK mediation
-point with verified failure behavior. The [B1 contract](AGENT-EVENT-CONTRACT.md)
+Next: a production consumer for the session API and an AEGIS-owned execution or
+SDK mediation point with verified failure behavior. The [B1 contract](AGENT-EVENT-CONTRACT.md)
 and ACS assessment still require those pieces before B1 can be marked complete.

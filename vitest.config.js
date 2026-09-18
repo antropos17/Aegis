@@ -44,6 +44,7 @@ export default defineConfig({
         'src/main/logger.js',
         'src/main/agent-event-receiver.js',
         'src/main/action-policy.js',
+        'src/main/action-policy-session.js',
         'src/main/action-policy-hook.js',
         'src/main/handoff-live.js',
         'src/main/handoff-send.js',

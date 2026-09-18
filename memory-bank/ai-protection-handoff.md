@@ -10,12 +10,16 @@ was added afterward; fetch and check its publication status before continuing.
 Continue [the AI-agent protection roadmap](../docs/roadmap/ai-agent-protection.md).
 The product goal is protection from unsafe AI-agent actions, with explicit limits
 on observation, attribution and prevention. The next stage is **B1 in that roadmap**:
-before/after action linkage and a mediation point with verified failure behavior.
+production mediation with verified failure behavior and exact approval binding.
+The bounded action-policy-session API now connects local decisions to after reports
+in the opt-in provider fixture; see docs/ACTION-POLICY-SESSION.md. It does not own
+execution and is not a production transport.
 The [exact-input Bash policy hook](../docs/ACTION-POLICY-HOOK.md) now supplies
 experimental before-only allow/ask/deny. Actual Windows Claude 2.1.263 exercised
 AEGIS allow/deny and lifecycle delivery against an isolated loopback model stub.
 No user hook configuration or provider credentials were used. Interactive ask,
-provider-hook failure bypasses, after linkage and independent OS binding remain.
+other provider-hook failure modes and independent OS binding remain. The missing-hook
+bypass was demonstrated in the provider fixture.
 
 B1's offline consumer now uses receiver-owned registration, envelope schema 1,
 ordinal replay rejection, sticky loss and shared lifetime budgets. Import reports
@@ -25,6 +29,19 @@ experimental; it cannot guarantee protection when the provider fails to run it.
 Live transport authenticates bearer possession only. B1 remains partial.
 A5 remains partial after offline import; independent handoffs and broad causal
 inference remain uncovered. Do not restart the completed work below.
+
+## B1 decision/after-report session
+
+`action-policy-session.js` owns atomic reservations, exact input comparison,
+single after consumption, replay tombstones, lifetime caps and bounded decision
+and correlation deadlines. It never runs a command. The one-shot hook is unchanged;
+the current consumer is the test-only relay used by the provider fixture.
+Deny-no-after is expected, ask is still delegated, and reported completion cannot
+prove execution or permission. No production listener or user configuration changed.
+
+Validation/publication receipts are `.agent/b1-linkage-provider-receipt.json` and
+`.agent/b1-linkage-receipt.json`; inspect them before claiming provider/CI/merge status.
+Next: execution-owning production mediation and approval/action/policy binding.
 
 ## B1 before-only policy slice and provider verification
 
