@@ -69,6 +69,9 @@ it('runs real main.js before Electron starts and writes only redacted JSON', () 
   expect(result.stderr).toBe('');
   expect(result.stdout).not.toContain('PRIVATE');
   expect(JSON.parse(result.stdout)).toMatchObject({
+    schemaVersion: 2,
+    receiver: { state: 'closed', sourceAuthentication: 'none', accepted: 1 },
+    events: [{ phase: 'observation', decision: 'not-applicable', processBinding: 'unbound' }],
     counts: { accepted: 1 },
     processBinding: 'unbound',
   });
@@ -99,5 +102,9 @@ it('does not initialize the monitoring, scoring or audit pipeline', () => {
     timeout: 10000,
   });
   expect(result.status).toBe(0);
-  expect(JSON.parse(result.stdout)).toEqual(['handoff-import.js', 'handoff-reader.js']);
+  expect(JSON.parse(result.stdout)).toEqual([
+    'agent-event-receiver.js',
+    'handoff-import.js',
+    'handoff-reader.js',
+  ]);
 });

@@ -1,32 +1,50 @@
 # AI-agent protection: continuation context
 
 Updated 2026-09-18 at the user's request to continue in a new chat.
-Implementation baseline: `cb23c581a51228e09aab29e4f5db13b276cfb7b2`, merged
-[PR #488](https://github.com/antropos17/Aegis/pull/488). Fetch and check the tree
-before continuing; this document's publication may be a later documentation commit.
+Offline-import baseline: `cb23c581a51228e09aab29e4f5db13b276cfb7b2`, merged
+[PR #488](https://github.com/antropos17/Aegis/pull/488). The B1 receiver slice below
+was added afterward; fetch and check its publication status before continuing.
 
 ## Objective and next action
 
 Continue [the AI-agent protection roadmap](../docs/roadmap/ai-agent-protection.md).
 The product goal is protection from unsafe AI-agent actions, with explicit limits
 on observation, attribution and prevention. The next stage is **B1 in that roadmap**:
-the shared event/policy and adapter boundary, followed by opt-in live lifecycle
-collection. Older ETW or sensor-health tasks also use B1; they are separate queues
-and are not the current assignment.
+opt-in live lifecycle collection on the receiver boundary now implemented in the
+[first B1 slice](../docs/AGENT-EVENT-CONTRACT.md). Before implementation, define
+transport authentication, byte/rate/queue limits, source expiry and restart/loss
+handling, then test pinned producer/adapter versions. Keep source authentication,
+logical identities and fresh OS process binding separate. No live listener or
+source installation exists yet.
 
-Read [HANDOFF-EVIDENCE.md](../docs/HANDOFF-EVIDENCE.md), the roadmap's B1 criteria
-and current source before designing the next slice. Define receiver-owned source
-registration, a versioned event envelope, delivery/replay/loss handling and bounds.
-Keep source authentication, logical identities and fresh OS process binding
-separate. Then implement a bounded, testable slice connected to an actual consumer;
-do not add an unused framework or claim that lifecycle telemetry blocks actions.
-The full B1 scope still includes before/after actions, allow/ask/deny semantics,
-supported execution points and the planned ACS alignment assessment.
-
-No B1 runtime implementation was started in the preceding chat. Live hooks, source
-installation, UI integration of lifecycle imports, and execution control are open.
+B1's offline consumer now uses receiver-owned registration, envelope schema 1,
+ordinal replay rejection, sticky loss and shared lifetime budgets. Import reports
+are schema 2. The contract also defines planned before/after and allow/ask/deny
+semantics and a pinned initial ACS schema assessment. No executable policy gate,
+live authentication or blocking behavior is implemented. B1 remains partial.
 A5 remains partial after offline import; independent handoffs and broad causal
 inference remain uncovered. Do not restart the completed work below.
+
+## B1 receiver slice
+
+`src/main/agent-event-receiver.js` projects the same two Claude lifecycle events
+and is consumed by `handoff-import.js`. A source handle is an in-process capability,
+not a transport credential. Serialized/cross-receiver/closed handles fail admission.
+Input sequence numbers come from the reader; replay/late records are rejected,
+gaps and invalid payloads retain loss, and source closure clears raw logical IDs.
+No input PID, verification flag or policy decision can override receiver evidence.
+
+Per receiver lifetime: 32 source registrations, 10,000 attempts, 2,000 events and
+2,000 combined identities; existing byte/identifier bounds remain. Closing sources
+does not replenish budgets. Events carry `phase: observation`,
+`decision: not-applicable` and `control: not-supported`. The final receiver summary
+labels intake-only receipts and unknown activity coverage. The importer remains
+isolated from monitoring, scoring, audit and Electron initialization.
+
+Tests: `tests/main/agent-event-receiver.test.js` plus importer/reader/CLI regression
+suites. Local focused run passed 68 tests on Windows; typecheck and focused ESLint
+passed. Final CI and merge receipts belong to the implementation PR and ignored
+`.agent/b1-receiver-receipt.json`; check them before claiming publication.
 
 ## Completed foundation
 
@@ -55,7 +73,7 @@ node src/main/main.js --handoff-import-json claude-code <events.jsonl>
 ```
 
 `src/main/main.js` routes the flag before Electron imports; `src/main/cli.js`
-validates arguments and emits JSON. `src/main/handoff-import.js` projects only
+validates arguments and emits JSON. `src/main/agent-event-receiver.js`, consumed by `handoff-import.js`, projects only
 `SubagentStart`/`SubagentStop` into event kinds, input ordinals and opaque references
 scoped to the import. `src/main/handoff-reader.js` reads the selected regular file
 in 16 KiB blocks and checks file identity before/after reading.
@@ -124,14 +142,14 @@ lockfile regeneration and protected workflow/config edits require separate scope
 
 Use process-local TEMP/TMP `X:/tmp/aegis-inventory-test-temp` and npm cache
 `X:/tmp/aegis-ai-protection-plan/.agent/npm-cache`. Check free space before/after
-heavy work. C: had about 5.6 GB free at PR #488 completion, X: about 51.8 GB.
+heavy work. At the B1 local checks C: had about 3.36 GB free, X: about 51.72 GB.
 External `C:/Users/murtu/AppData/Local/Temp/DiagOutputDir/RdClientAutoTrace`
-was about 8.0 GB and still growing; persistent rotation was not installed by this
+was about 8.17 GB (unchanged across the B1 local checks); persistent rotation was not installed by this
 task, and other changes in C: free space have not been fully attributed.
 Do not claim this is fixed, clear global Temp, alter services or delete user data.
 Local full coverage was left to CI while this disk issue remained unresolved.
 
-Task logs use fixed `.agent/handoff-*.log` names, manual retention of 14 days and
+Task logs use fixed `.agent/handoff-*.log` / `.agent/b1-*.log` names, manual retention of 14 days and
 64 MiB combined; there is no automatic enforcement. Preserve verification receipts
 and application profiles/audit/databases. No owned test/build process was left
 running at the end of the implementation task. Historical PIDs/session IDs are
