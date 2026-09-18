@@ -1,5 +1,23 @@
 # AEGIS — starting the next chat
 
+## Current assignment — AI-agent protection, 2026-09-18
+
+Start with [the current handoff](ai-protection-handoff.md). PR #488 is merged at
+`cb23c581a51228e09aab29e4f5db13b276cfb7b2`; all five CI contexts passed, with
+4,728 tests passed and five skipped. The bounded offline Claude subagent lifecycle
+importer is complete. Next: **B1 in docs/roadmap/ai-agent-protection.md**, the shared
+event/policy and adapter boundary, followed by opt-in live lifecycle collection.
+No B1 runtime work has started. A5 remains partial; no new blocking is implemented.
+
+Use `X:/tmp/aegis-ai-protection-plan`, preserve the dirty original checkout, and
+read the handoff for source paths, evidence limits, receipts and disk precautions.
+Earlier ETW/other-roadmap assignments below are historical context and do not
+replace this queue. Check current refs/status before doing new work.
+
+---
+
+## Historical handoffs
+
 ## Current state — instructions and documentation, 2026-09-11
 
 Baseline: `17a3c0d`, merged PR #438. Backend passes #428–434 were followed by
