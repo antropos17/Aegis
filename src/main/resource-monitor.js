@@ -321,7 +321,7 @@ function _normalizeTargets(targets) {
     if (!Number.isInteger(pid) || pid <= 0) continue;
     const raw = /** @type {{instanceId: unknown}} */ (t).instanceId;
     const instanceId = typeof raw === 'string' && raw !== '' ? raw : null;
-    const dedupKey = `${instanceId ?? ''} ${pid}`;
+    const dedupKey = `${instanceId ?? ''}\u0000${pid}`;
     if (seen.has(dedupKey)) continue;
     seen.add(dedupKey);
     out.push({ pid, instanceId });
