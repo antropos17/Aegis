@@ -30,11 +30,17 @@ const notification = (method, params) => ({
   method,
   ...(params ? { params } : {}),
 });
-function setup(execute = vi.fn(async () => ok)) {
-  api._setDepsForTest({ execute });
+function setup(execute = vi.fn(async () => ok), overrides = {}) {
+  const binding = Object.freeze({ PRIVATE_BINDING: true });
+  const capture = vi.fn(async () => binding);
+  const revoke = vi.fn();
+  api._setDepsForTest({ execute, capture, revoke, ...overrides });
   return {
     server: api.createActionMcp({ policyPath: 'PRIVATE_POLICY', requestPath: 'PRIVATE_REQUEST' }),
     execute,
+    binding,
+    capture,
+    revoke,
   };
 }
 async function ready(server) {
@@ -42,6 +48,138 @@ async function ready(server) {
   await server.receive(notification('notifications/initialized'));
 }
 afterEach(() => api._resetForTest());
+describe('connection-owned selected-file binding', () => {
+  it('waits for capture and ignores premature initialized notifications', async () => {
+    let complete;
+    const captured = Object.freeze({ PRIVATE_HANDLE: true });
+    const capture = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const { server, execute } = setup(undefined, { capture });
+    let resolved = false;
+    const pending = server.receive(init()).then((result) => {
+      resolved = true;
+      return result;
+    });
+    await server.receive(notification('notifications/initialized'));
+    expect((await server.receive(call(1))).error.code).toBe(-32002);
+    expect((await server.receive(init(2))).error.code).toBe(-32600);
+    expect(resolved).toBe(false);
+    expect(execute).not.toHaveBeenCalled();
+    complete(captured);
+    expect((await pending).result.serverInfo.version).toBe('1.1.0');
+    expect((await server.receive(call(3))).error.code).toBe(-32002);
+    await server.receive(notification('notifications/initialized'));
+    await server.receive(call(4));
+    expect(execute).toHaveBeenCalledExactlyOnceWith('PRIVATE_POLICY', 'PRIVATE_REQUEST', {
+      signal: expect.any(AbortSignal),
+      binding: captured,
+    });
+    expect(capture).toHaveBeenCalledOnce();
+  });
+
+  it('captures once and passes the opaque binding only through trusted execution options', async () => {
+    const { server, execute, capture, binding } = setup();
+    const initialized = await server.receive(init());
+    expect(capture).toHaveBeenCalledExactlyOnceWith('PRIVATE_POLICY', 'PRIVATE_REQUEST', {
+      signal: expect.any(AbortSignal),
+    });
+    await server.receive(notification('notifications/initialized'));
+    const listed = await server.receive(request(1, 'tools/list'));
+    const first = await server.receive(call(2));
+    const second = await server.receive(call(3));
+    expect(execute.mock.calls.every((args) => args[2].binding === binding)).toBe(true);
+    expect(capture).toHaveBeenCalledOnce();
+    expect(JSON.stringify([initialized, listed, first, second])).not.toContain('PRIVATE');
+  });
+
+  it('makes failed capture permanent for this connection without leaking errors', async () => {
+    const capture = vi.fn(async () => {
+      throw new Error('PRIVATE_FILE_CONTENT');
+    });
+    const { server, execute } = setup(undefined, { capture });
+    const result = await server.receive(init());
+    expect(result).toEqual({
+      jsonrpc: '2.0',
+      id: 0,
+      error: { code: -32000, message: 'Configuration unavailable' },
+    });
+    await server.receive(notification('notifications/initialized'));
+    expect((await server.receive(call(1))).error.code).toBe(-32002);
+    expect((await server.receive(init(2))).error.code).toBe(-32600);
+    expect(capture).toHaveBeenCalledOnce();
+    expect(execute).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain('PRIVATE');
+  });
+
+  it.each([null, undefined, 'PRIVATE', []])(
+    'rejects an invalid captured capability %#',
+    async (value) => {
+      const { server, execute } = setup(undefined, { capture: async () => value });
+      expect((await server.receive(init())).error).toEqual({
+        code: -32000,
+        message: 'Configuration unavailable',
+      });
+      await server.receive(notification('notifications/initialized'));
+      expect((await server.receive(call(1))).error).toBeDefined();
+      expect(execute).not.toHaveBeenCalled();
+    },
+  );
+
+  it('aborts pending capture on close and revokes a late result without initialization output', async () => {
+    let complete, signal;
+    const captured = Object.freeze({ PRIVATE_HANDLE: true });
+    const { server, revoke, execute } = setup(undefined, {
+      capture: (_p, _r, options) => {
+        signal = options.signal;
+        return new Promise((resolve) => {
+          complete = resolve;
+        });
+      },
+    });
+    const pending = server.receive(init());
+    server.close();
+    expect(signal.aborted).toBe(true);
+    complete(captured);
+    expect(await pending).toBeNull();
+    expect(revoke).toHaveBeenCalledExactlyOnceWith(captured);
+    expect(await server.receive(init(1))).toBeNull();
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('suppresses a failed capture response after close', async () => {
+    let fail;
+    const { server, revoke } = setup(undefined, {
+      capture: () =>
+        new Promise((_resolve, reject) => {
+          fail = reject;
+        }),
+    });
+    const pending = server.receive(init());
+    server.close();
+    fail(new Error('PRIVATE_ABORT_ERROR'));
+    expect(await pending).toBeNull();
+    expect(revoke).not.toHaveBeenCalled();
+  });
+
+  it('revokes exactly once on close and on lifetime admission shutdown', async () => {
+    const first = setup();
+    await ready(first.server);
+    first.server.close();
+    first.server.close();
+    expect(first.revoke).toHaveBeenCalledExactlyOnceWith(first.binding);
+    const second = setup();
+    await ready(second.server);
+    for (let i = 0; i < api.LIMITS.messages; i++)
+      await second.server.receive(notification('unknown'));
+    expect(second.revoke).toHaveBeenCalledExactlyOnceWith(second.binding);
+    expect(await second.server.receive(call(1))).toBeNull();
+  });
+});
+
 describe('selected-action MCP protocol', () => {
   it.each(api.VERSIONS)(
     'negotiates %s and exposes one fixed argument-free tool',
@@ -77,11 +215,12 @@ describe('selected-action MCP protocol', () => {
     expect(execute).not.toHaveBeenCalled();
   });
   it('calls only the selected files and returns fixed execution metadata', async () => {
-    const { server, execute } = setup();
+    const { server, execute, binding } = setup();
     await ready(server);
     const result = await server.receive(call(1));
     expect(execute).toHaveBeenCalledWith('PRIVATE_POLICY', 'PRIVATE_REQUEST', {
       signal: expect.any(AbortSignal),
+      binding,
     });
     expect(result.result).toMatchObject({ isError: false, structuredContent: ok });
     expect(JSON.parse(result.result.content[0].text)).toEqual(ok);

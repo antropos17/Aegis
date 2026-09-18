@@ -389,3 +389,11 @@ B1 agent route: the [selected-action MCP stdio adapter](../ACTION-MCP.md) expose
 one operator-selected action through AEGIS-owned execution, with bounded protocol
 handling, typed replay protection and cancellation on disconnect. It does not
 route native agent Bash or other MCP tools and does not implement the B2 gateway.
+
+B1 revision continuity: MCP initialization now pins the selected request and
+policy bytes privately for that connection. Observed changes and read failures
+revoke the scope; restoring files cannot revive it. Each evaluation checks the
+same bytes it parses, and launch rechecks scope liveness. Native stdio mutation
+fixtures and the installed Claude allow/deny/ask fixture passed. This is not
+human approval or continuous change detection. Next: operator-facing approval
+bound to the exact action, policy revision and expiry.

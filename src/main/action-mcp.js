@@ -22,15 +22,30 @@ let testDeps = null;
  */
 function createActionMcp({ policyPath, requestPath }) {
   const execute = testDeps?.execute || executeAction;
+  const capture =
+    testDeps?.capture ||
+    ((...args) => require('./execution-binding').captureExecutionBinding(...args));
+  const revoke =
+    testDeps?.revoke ||
+    ((binding) => require('./execution-binding').revokeExecutionBinding(binding));
   let phase = 'new';
   let messages = 0;
   let executions = 0;
   let protocolVersion = VERSIONS[0];
   let active = null;
+  let binding = null;
+  let initializing = null;
   const ids = new Set();
   const close = () => {
+    if (phase === 'closed') return;
     phase = 'closed';
+    initializing?.abort();
     active?.controller.abort();
+    if (binding) {
+      const current = binding;
+      binding = null;
+      revoke(current);
+    }
     ids.clear();
   };
 
@@ -80,6 +95,24 @@ function createActionMcp({ policyPath, requestPath }) {
         typeof params.clientInfo.version !== 'string'
       )
         return error(id, -32602, 'Invalid initialization');
+      phase = 'binding';
+      const controller = new AbortController();
+      initializing = controller;
+      try {
+        const captured = await capture(policyPath, requestPath, { signal: controller.signal });
+        if (phase === 'closed') {
+          if (captured) revoke(captured);
+          return null;
+        }
+        if (!object(captured)) throw new Error('binding-unavailable');
+        binding = captured;
+      } catch (_) {
+        if (phase === 'closed') return null;
+        phase = 'failed';
+        return error(id, -32000, 'Configuration unavailable');
+      } finally {
+        if (initializing === controller) initializing = null;
+      }
       phase = 'initializing';
       protocolVersion = VERSIONS.includes(params.protocolVersion)
         ? params.protocolVersion
@@ -87,7 +120,7 @@ function createActionMcp({ policyPath, requestPath }) {
       return response(id, {
         protocolVersion,
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'aegis-selected-action', version: '1.0.0' },
+        serverInfo: { name: 'aegis-selected-action', version: '1.1.0' },
       });
     }
     if (phase !== 'ready') return error(id, -32002, 'Initialization required');
@@ -124,7 +157,10 @@ function createActionMcp({ policyPath, requestPath }) {
     const current = { id, controller: new AbortController() };
     active = current;
     try {
-      const report = await execute(policyPath, requestPath, { signal: current.controller.signal });
+      const report = await execute(policyPath, requestPath, {
+        signal: current.controller.signal,
+        binding,
+      });
       if (phase === 'closed' || current.cancelled) return null;
       const succeeded =
         report.decision === 'allow' &&
@@ -152,7 +188,7 @@ function createActionMcp({ policyPath, requestPath }) {
   return { receive, close };
 }
 
-/** @param {object} deps Trusted execution seam. @returns {void} @since v0.15.1 */
+/** @param {object} deps Trusted execution, capture and revocation seams. @returns {void} @since v0.15.1 */
 function _setDepsForTest(deps) {
   testDeps = deps;
 }

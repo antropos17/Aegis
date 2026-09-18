@@ -164,6 +164,14 @@ freezes sessions rather than establishing process exits.
 
 ## E — longer-term architecture
 
+The separate [AI-agent protection track](docs/roadmap/ai-agent-protection.md)
+has a partial B1 implementation: explicit direct execution and a selected-action
+MCP tool with connection-scoped policy/request revision binding. Initialization
+captures the selected JSON bytes; observed changes or read failures require a new
+connection. [The contract](docs/ACTION-MCP.md) retains the limits: no human approval,
+continuous watcher, executable-content identity or descendant isolation. This
+bounded tool route does not complete general MCP interception.
+
 Browser extension, cross-device correlation, daemon operation, MCP interception and
 SIEM export remain unscoped. Each needs requirements and recon before an estimate.
 Keep them outside the active queue while the first ETW sensor is being established.

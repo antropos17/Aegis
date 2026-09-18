@@ -89,6 +89,13 @@ a shell/interpreter still gives that executable its normal capabilities.
 Executable bytes, libraries, scripts, symlink targets and cwd contents are not
 pinned; a matching path is not content identity. A same-user process may alter
 the selected policy or executable. The launch descriptors remain private memory.
+The standalone CLI evaluates current selected files each time and has no retained
+revision binding. The MCP owner adds a connection-scoped binding of policy and
+request bytes captured during initialization. With that binding, evaluation
+checks the same buffers it parses, then checks capability liveness before launch.
+An observed mismatch or selected-file read failure permanently revokes that scope;
+restoring the files requires a new MCP connection. This is configuration continuity,
+not human approval, executable-content binding or continuous change detection.
 The operating system can expose child command lines; crash dumps and files written
 by the allowed program are outside this report-privacy boundary.
 
@@ -134,3 +141,6 @@ same native fixtures; macOS has not been exercised locally.
 The owning MCP adapter may pass an AbortSignal to the execution API. Cancellation
 during preparation denies without launch; cancellation after launch requests
 direct-child termination with the same bounded confirmation semantics.
+Its optional opaque revision binding remains private to the execution owner;
+serialized copies cannot authorize a launch. Closing the owner revokes the binding
+and cancels active work through the separate AbortSignal.

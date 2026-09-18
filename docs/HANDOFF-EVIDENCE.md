@@ -189,7 +189,13 @@ provider. Verification and platform results are recorded in the implementation P
    verified on Windows Claude 2.1.263 with a local synthetic API; other versions
    and platforms remain unverified. Credential and same-user attacker boundaries must be
    explicit; a shared loopback secret alone does not establish process ownership.
-3. Add Audit display with separate labels for reported activity, source delivery,
+3. [Explicit direct execution](ACTION-EXECUTION.md) and the
+   [selected-action MCP route](ACTION-MCP.md) now provide one policy-controlled
+   launch point. MCP initialization privately pins selected policy/request bytes;
+   observed mismatches or read failures revoke the binding until reconnection.
+   This provides configuration continuity, not human approval or OS-process
+   attribution. Executable contents and descendants remain outside that binding.
+4. Add Audit display with separate labels for reported activity, source delivery,
    OS binding and transfer evidence. Only propose a new correlation rule after a
    concrete adapter supplies the required independently observed relationships.
 
@@ -201,6 +207,7 @@ exports, crash paths and disk retention as well as the nominal event payload.
 
 A5 is not complete after the importer or lifecycle collector. Explicit directional
 handoffs, unmonitored helpers, broader causal evidence and measured noise/misses
-remain open. B1 also still requires policy decisions, execution-point support and
-the planned ACS comparison; this document defines only its evidence prerequisite.
-Blocking claims require a connected, separately tested pre-execution control point.
+remain open. B1 now has policy decisions at the narrow execution route above and
+an initial ACS assessment in the event contract. Operator approval bound to the
+exact action, policy revision and expiry, broader routing and coverage display
+remain open. This evidence importer itself supplies no blocking authority.
