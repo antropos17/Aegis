@@ -89,7 +89,7 @@ None is a safety verdict. An empty file can be processed completely while activi
 coverage remains unknown. Input order is preserved without asserting execution
 order, duration, complete start/stop pairs or successful task delivery.
 
-The normalized report uses `schemaVersion: 1`, an adapter identifier and an
+The normalized report uses `schemaVersion: 2` (the B1 envelope integration), an adapter identifier and an
 import-local source identifier. Each event contains a fixed event kind
 (`subagent-start` or `subagent-stop`), input record ordinal and opaque report-local
 session/agent references. Source session/agent strings are bounded inputs used only
@@ -97,6 +97,10 @@ for in-memory equality; they are never echoed, hashed into an export identifier,
 logged or retained after import. Allocate opaque references scoped to the import;
 they deliberately cannot be joined across imports. Agent names/types remain
 excluded in this first slice because they can contain arbitrary user text.
+
+Events now use the [B1 receiver envelope](AGENT-EVENT-CONTRACT.md), with
+receiver-owned source/event IDs, observation phase and no applicable policy
+decision. The report includes a final receiver summary with delivery/loss metadata.
 
 The report fixes `provenance: imported-unverified`, `processBinding: unbound`,
 `transferEvidence: unobserved` and `activityCoverage: unknown`. It includes numeric accepted/rejected/unsupported
@@ -176,9 +180,10 @@ provider. Verification and platform results are recorded in the implementation P
 
 1. Completed: the offline importer above, its experimental support matrix and
    bounded metadata output. Review its output contract before UI integration.
-2. Define B1's receiver-owned event envelope, transport/source registration,
-   authenticated binding where supportable, replay handling, loss reporting and
-   bounded retention. Then test an opt-in live lifecycle collector against pinned
+2. The [first B1 receiver slice](AGENT-EVENT-CONTRACT.md) now supplies the offline
+   envelope, registration, ordinal replay checks, loss reporting and lifetime bounds.
+   Transport authentication and live binding remain open. Test an opt-in live
+   lifecycle collector against pinned
    agent/adapter versions. Credential and same-user attacker boundaries must be
    explicit; a shared loopback secret alone does not establish process ownership.
 3. Add Audit display with separate labels for reported activity, source delivery,

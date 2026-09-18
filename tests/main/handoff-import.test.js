@@ -50,12 +50,21 @@ describe('unverified lifecycle import', () => {
       ['subagent-stop', 3],
     ]);
     expect(new Set(report.events.map((e) => e.agentRef)).size).toBe(1);
-    expect(Object.keys(report.events[0]).sort()).toEqual([
-      'agentRef',
-      'kind',
-      'record',
-      'sessionRef',
-    ]);
+    expect(report.events[0]).toMatchObject({
+      schemaVersion: 1,
+      sourceId: report.sourceId,
+      phase: 'observation',
+      sourceAuthentication: 'none',
+      decision: 'not-applicable',
+      control: 'not-supported',
+    });
+    expect(report.receiver).toMatchObject({
+      state: 'closed',
+      accepted: 3,
+      lossDetected: false,
+      receiptScope: 'receiver-intake-only',
+      activityCoverage: 'unknown',
+    });
     expect(JSON.stringify(report)).not.toContain('PRIVATE');
   });
 
@@ -100,7 +109,7 @@ describe('unverified lifecycle import', () => {
     expect(open.mock.calls[0][0]).toBe(fs.realpathSync(file));
     expect(JSON.stringify(report)).not.toMatch(/PRIVATE|666|critical/);
     expect(report).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       processBinding: 'unbound',
       transferEvidence: 'unobserved',
     });
@@ -116,6 +125,7 @@ describe('unverified lifecycle import', () => {
     expect(report.counts).toMatchObject({ accepted: 0, rejected: 5, unsupported: 1 });
     expect(report.complete).toBe(false);
     expect(codes(report)).toContain('unterminated-record');
+    expect(report.receiver).toMatchObject({ state: 'closed', lossDetected: true, accepted: 0 });
     expect(JSON.stringify(report)).not.toContain('PRIVATE');
   });
 
@@ -207,6 +217,7 @@ describe('unverified lifecycle import', () => {
     expect(open).not.toHaveBeenCalled();
     expect(report).toMatchObject({ complete: false, inputAvailable: false, usage: { bytes: 0 } });
     expect(codes(report)).toEqual(['file-size-limit']);
+    expect(report.receiver).toMatchObject({ state: 'closed', lastSequence: 0, lossDetected: true });
   });
 
   it('rejects an unsupported adapter before reading', async () => {
