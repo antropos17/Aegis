@@ -103,13 +103,14 @@ async function selectedJson(filename, check) {
  * report. A matching rule binds strings, not executable bytes or filesystem state.
  * @param {string} policyPath Schema 2 exact execution policy.
  * @param {string} requestPath Schema 1 direct execution request.
- * @param {{binding?: object}} [options] Optional connection-owned configuration binding.
+ * @param {{binding?: object, review?: boolean}} [options] Binding and trusted private-review mode.
  * @returns {Promise<object>} Fixed decision and optional private launch descriptor.
  * @since v0.15.1
  */
 async function prepareExecution(policyPath, requestPath, options = {}) {
   const pinned = Object.hasOwn(options, 'binding');
   const binding = options.binding;
+  const review = options.review === true;
   if (pinned && !isExecutionBindingActive(binding, policyPath, requestPath))
     return { decision: 'deny', reason: 'configuration-changed' };
   const check = (kind) =>
@@ -143,13 +144,14 @@ async function prepareExecution(policyPath, requestPath, options = {}) {
   }
   const rule = policy.rules.find((candidate) => equalActionValue(candidate.action, request.action));
   const decision = rule ? rule.decision : policy.defaultDecision;
-  if (decision !== 'allow') return { decision, reason: `policy-${decision}` };
+  if (decision !== 'allow' && !(review && decision === 'ask'))
+    return { decision, reason: `policy-${decision}` };
   // Node/libuv otherwise silently copy these names from the parent's environment.
   const env = Object.create(null);
   for (const name of process.platform === 'win32' ? WINDOWS_DEFAULTS : []) env[name] = '';
   env.NODE_V8_COVERAGE = '';
   for (const [name, value] of Object.entries(request.action.env)) env[name] = value;
-  return { decision, reason: 'policy-allow', launch: { ...request.action, env } };
+  return { decision, reason: `policy-${decision}`, launch: { ...request.action, env } };
 }
 
 module.exports = { prepareExecution, LIMITS };

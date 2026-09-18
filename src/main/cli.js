@@ -15,6 +15,7 @@ Usage:  aegis [options]
 
 Options:
   --action-mcp-stdio <policy.json> <request.json>  Serve one selected action through finite MCP stdio
+  --action-exec-confirm <policy.json> <request.json>  Review exact action in a terminal and confirm one launch
   --action-exec-json <policy.json> <request.json>  Run one explicit executable request under local policy
   --action-policy-hook <policy.json>  Experimental Claude PreToolUse Bash decision hook
   --handoff-listen-json claude-code <port> <seconds>  Observe live hooks on loopback (opt-in)
@@ -88,7 +89,7 @@ async function handleCLI(argv) {
   const flag = args[0];
   if (flag === '--action-mcp-stdio')
     return require('./action-mcp-stdio').handleActionMcpStdio(args);
-  if (flag === '--action-exec-json')
+  if (flag === '--action-exec-json' || flag === '--action-exec-confirm')
     return require('./action-execution-cli').handleActionExecutionCLI(args, write);
   if (flag === '--action-policy-hook')
     return require('./action-policy-hook').handleActionPolicyHook(args, write);

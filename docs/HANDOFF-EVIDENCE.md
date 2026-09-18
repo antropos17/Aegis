@@ -208,6 +208,7 @@ exports, crash paths and disk retention as well as the nominal event payload.
 A5 is not complete after the importer or lifecycle collector. Explicit directional
 handoffs, unmonitored helpers, broader causal evidence and measured noise/misses
 remain open. B1 now has policy decisions at the narrow execution route above and
-an initial ACS assessment in the event contract. Operator approval bound to the
-exact action, policy revision and expiry, broader routing and coverage display
-remain open. This evidence importer itself supplies no blocking authority.
+an initial ACS assessment in the event contract. A separate
+[terminal-confirmed execution route](ACTION-CONFIRMATION.md) binds one launch to
+the reviewed action, policy revision and expiry. An MCP approval bridge, broader
+routing and coverage display remain open. This evidence importer itself supplies no blocking authority.

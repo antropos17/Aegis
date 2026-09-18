@@ -11,6 +11,7 @@ const _cliFlags = new Set([
   '--handoff-import-json',
   '--action-policy-hook',
   '--action-exec-json',
+  '--action-exec-confirm',
   '--action-mcp-stdio',
   '--handoff-listen-json',
   '--handoff-send',
@@ -33,7 +34,11 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
         // The transport already drained bounded output and awaited child cleanup.
         process.exit(code ?? 2);
       }
-      if (['--action-policy-hook', '--action-exec-json'].includes(process.argv[2])) {
+      if (
+        ['--action-policy-hook', '--action-exec-json', '--action-exec-confirm'].includes(
+          process.argv[2],
+        )
+      ) {
         // These commands emit small bounded reports; drain before ending even
         // when a late operation outlives the evaluation or cleanup deadline.
         await new Promise((resolve) => process.stdout.write('', resolve));

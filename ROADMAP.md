@@ -168,8 +168,10 @@ The separate [AI-agent protection track](docs/roadmap/ai-agent-protection.md)
 has a partial B1 implementation: explicit direct execution and a selected-action
 MCP tool with connection-scoped policy/request revision binding. Initialization
 captures the selected JSON bytes; observed changes or read failures require a new
-connection. [The contract](docs/ACTION-MCP.md) retains the limits: no human approval,
-continuous watcher, executable-content identity or descendant isolation. This
+connection. A separate [terminal confirmation](docs/ACTION-CONFIRMATION.md) now
+permits one exact launch after local review. The MCP route still has no approval
+bridge; continuous watching, executable-content identity and descendant isolation
+remain unsupported. This
 bounded tool route does not complete general MCP interception.
 
 Browser extension, cross-device correlation, daemon operation, MCP interception and
