@@ -17,10 +17,13 @@ let testDeps = null;
  * Start one operator-terminal broker for one bearer-authenticated MCP connection.
  * No action data or token is printed; the endpoint is a caller-selected new file.
  * @param {string[]} args Flag, policy, request and new endpoint file.
+ * @param {{signal?: AbortSignal}} [options] Trusted owner cancellation, retained through cleanup.
  * @returns {Promise<number>} 0 for completed session, 2 for unavailable/closed review.
  * @since v0.15.1
  */
-async function handleActionMcpReview(args) {
+async function handleActionMcpReview(args, options = {}) {
+  const signal = options.signal;
+  if (signal?.aborted) return 2;
   const deps = testDeps || {};
   if (
     args.length !== 4 ||
@@ -59,6 +62,8 @@ async function handleActionMcpReview(args) {
     server.close(() => {});
     if (!startup) resolveDone();
   };
+  signal?.addEventListener('abort', stop, { once: true });
+  if (signal?.aborted) stop();
   output.on?.('error', stop);
   output.on?.('close', stop);
   const stopWatching = (deps.watchTerminal || terminal.watchTerminalLifetime)(stop);
@@ -210,6 +215,7 @@ async function handleActionMcpReview(args) {
     startup = false;
     stop();
     await work;
+    signal?.removeEventListener('abort', stop);
     stopIdleInput();
     stopWatching();
     host.removeListener('SIGINT', stop);

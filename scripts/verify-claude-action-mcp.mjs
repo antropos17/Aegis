@@ -5,11 +5,12 @@ import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { options, treeBytes, removeOwned, createRunner } from './claude-hook-runtime.mjs';
 import { replyWithSelectedTool } from './claude-action-mcp-fixture.mjs';
+import { verifyReviewRoute } from './claude-mcp-review-fixture.mjs';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const tool = 'mcp__aegis__aegis_execute_selected';
 const usage =
-  'Windows only: node scripts/verify-claude-action-mcp.mjs --claude <absolute claude.exe> --bash <absolute bash.exe> --scratch <existing spacious directory>\nExplicitly configures a disposable local MCP server; uses a dummy credential and synthetic loopback API. No OS firewall isolation; managed policy still applies. Stdout is a redacted receipt. No saved user settings are changed.';
+  'Windows only: node scripts/verify-claude-action-mcp.mjs [--review] --claude <absolute claude.exe> --bash <absolute bash.exe> --scratch <existing spacious directory>\nExplicitly configures a disposable local MCP server; uses a dummy credential and synthetic loopback API. --review requires a live terminal for confirmation and refusal. No OS firewall isolation; managed policy still applies. Stdout contains fixed readiness JSON lines and a final redacted receipt. No saved user settings are changed.';
 
 async function main(args) {
   if (args.length === 1 && args[0] === '--help') {
@@ -17,8 +18,10 @@ async function main(args) {
     return;
   }
   let selected;
+  const review = args[0] === '--review';
   try {
-    selected = options(args);
+    selected = options(review ? args.slice(1) : args);
+    if (review && (!process.stdin.isTTY || !process.stderr.isTTY)) throw Error('terminal');
   } catch {
     console.log(JSON.stringify({ error: 'invalid-options-or-insufficient-space', usage }));
     process.exitCode = 1;
@@ -27,7 +30,9 @@ async function main(args) {
   const owned = fs.realpathSync(fs.mkdtempSync(path.join(selected.scratch, 'aegis-mcp-owned-')));
   const receipt = {
     checkedAt: new Date().toISOString(),
-    mode: 'claude-selected-action-mcp-synthetic-api',
+    mode: review
+      ? 'claude-mcp-terminal-review-synthetic-api'
+      : 'claude-selected-action-mcp-synthetic-api',
     localHttpRequests: 0,
     rejectedProxyRequests: 0,
     scenarios: [],
@@ -153,6 +158,24 @@ async function main(args) {
       },
     };
     fs.writeFileSync(requestPath, JSON.stringify({ schemaVersion: 1, action }));
+    if (review) {
+      await verifyReviewRoute({
+        owned,
+        repo,
+        env,
+        run,
+        receipt,
+        action,
+        sentinel,
+        policyPath,
+        requestPath,
+        configPath,
+        setScenario: (current) => {
+          scenario = current;
+        },
+      });
+      return;
+    }
     fs.writeFileSync(
       configPath,
       JSON.stringify({

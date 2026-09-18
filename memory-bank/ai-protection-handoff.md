@@ -9,8 +9,9 @@ was added afterward; fetch and check its publication status before continuing.
 
 Continue [the AI-agent protection roadmap](../docs/roadmap/ai-agent-protection.md).
 The product goal is protection from unsafe AI-agent actions, with explicit limits
-on observation, attribution and prevention. The next stage is **B1 in that roadmap**:
-exact operator approval binding and broader deliberate agent routing. A fixed
+on observation, attribution and prevention. The current stage is **partial B1**:
+exact operator approval binding and the selected MCP review route now exist;
+broader deliberate agent routing and coverage display remain. A fixed
 selected-action MCP tool now connects to the execution owner (docs/ACTION-MCP.md).
 The explicit direct-execution
 CLI now owns a selected child launch; see docs/ACTION-EXECUTION.md.
@@ -45,9 +46,40 @@ The opt-in scripts/verify-claude-action-mcp.mjs uses real installed Claude with
 synthetic local model responses and disposable MCP settings. Inspect ignored
 .agent/b1-mcp-provider-receipt.json and .agent/b1-mcp-receipt.json for actual run,
 CI and publication evidence. No permanent user configuration was modified.
-Next: approval bound to exact action/policy/expiry and broader coverage display.
+Current continuation: approval is now bound to exact action/policy/expiry through
+the terminal owner, also available per call via the separate review broker below.
+Broader deliberate routing and coverage display remain open.
+
+## B1 MCP review broker: current provider evidence
+
+`--action-mcp-review <policy> <request> <new-endpoint>` keeps exact per-call
+confirmation on an operator terminal; `--action-mcp-connect <endpoint>` is the
+agent's relay. The MCP connection pins selected revisions once and lends that
+binding to each fresh review. Deny remains final. The private descriptor bearer
+permits one connection and requires a trusted private directory; TTY/PTY control
+does not authenticate a human. See [the broker contract](../docs/ACTION-MCP-REVIEW.md).
+
+The inspected `.agent/b1-claude-review-provider-receipt.json` records installed
+Windows Claude Code 2.1.263 passing all four cases: confirmed ask, explicit typed
+negative answer, hard policy deny without preview, and disconnect after a drained
+review preview. The last case confirmed taskkill cleanup of the provider tree,
+with no result or sentinel. All brokers closed and endpoints were removed without
+fallback owner abort; owned scratch was removed. Seven loopback synthetic API
+requests were observed. Full tool-result and Claude stdout canary checks passed.
+The fixture uses dummy credentials and disposable MCP configuration, with no
+permanent settings change, cloud-model verification or OS isolation claim.
+
+Reproduce using `scripts/verify-claude-action-mcp.mjs --review` with the explicit
+Claude/Bash/scratch arguments documented in the broker contract. Keep stdin and
+stderr on a terminal; answer the first challenge and then type `no`. Preserve only
+the redacted stdout receipt if needed, not a combined private-preview transcript.
+This local provider evidence does not establish CI or merge status; inspect the
+current branch and publication receipts before making those claims.
 
 ## B1 explicit direct-execution slice
+
+The following slice notes retain their original next-step context. Execution
+ownership and approval binding have since advanced as described above.
 
 `execution-policy.js` validates distinct schema 2 exact launch policies and
 schema 1 requests. `action-execution.js` starts its direct child only after allow;

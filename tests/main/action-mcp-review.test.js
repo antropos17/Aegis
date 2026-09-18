@@ -43,7 +43,7 @@ function fixture(decision = 'ask') {
   );
   return { dir, policy, request, endpoint, action };
 }
-async function start(f, confirm = async () => true) {
+async function start(f, confirm = async () => true, options = {}) {
   const host = new EventEmitter();
   const output = [];
   let ready;
@@ -70,12 +70,10 @@ async function start(f, confirm = async () => true) {
       },
     },
   });
-  const done = broker.handleActionMcpReview([
-    '--action-mcp-review',
-    f.policy,
-    f.request,
-    f.endpoint,
-  ]);
+  const done = broker.handleActionMcpReview(
+    ['--action-mcp-review', f.policy, f.request, f.endpoint],
+    options,
+  );
   owners.push({ host, done });
   await waiting;
   return { host, done, output, endpoint: JSON.parse(fs.readFileSync(f.endpoint, 'utf8')) };
@@ -403,4 +401,73 @@ it('caps pending authenticators and shuts down after the connection budget', asy
   await closeAfter(final);
   expect(await owner.done).toBe(2);
   expect(fs.existsSync(f.endpoint)).toBe(false);
+});
+it('rejects pre-aborted owners before terminal, server or endpoint access', async () => {
+  const f = fixture();
+  const controller = new AbortController();
+  controller.abort();
+  const available = vi.fn();
+  const createServer = vi.fn();
+  broker._setDepsForTest({ available, createServer });
+  expect(
+    await broker.handleActionMcpReview(['--action-mcp-review', f.policy, f.request, f.endpoint], {
+      signal: controller.signal,
+    }),
+  ).toBe(2);
+  expect(available).not.toHaveBeenCalled();
+  expect(createServer).not.toHaveBeenCalled();
+  expect(fs.existsSync(f.endpoint)).toBe(false);
+});
+
+it('snapshots owner cancellation and closes idle authentication with endpoint cleanup', async () => {
+  const f = fixture();
+  const controller = new AbortController();
+  const remove = vi.spyOn(controller.signal, 'removeEventListener');
+  const options = { signal: controller.signal };
+  const owner = await start(f, undefined, options);
+  options.signal = new AbortController().signal;
+  const peer = await connect(owner.endpoint, '');
+  const closed = new Promise((resolve) => peer.once('close', resolve));
+  controller.abort();
+  expect(await owner.done).toBe(2);
+  await closed;
+  expect(fs.existsSync(f.endpoint)).toBe(false);
+  expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
+});
+
+it('owner cancellation aborts pending review, waits core cleanup and suppresses late approval', async () => {
+  const f = fixture();
+  const controller = new AbortController();
+  let entered;
+  let answer;
+  let reviewSignal;
+  const waiting = new Promise((resolve) => {
+    entered = resolve;
+  });
+  const owner = await start(
+    f,
+    (_launch, options) => {
+      reviewSignal = options.signal;
+      entered();
+      return new Promise((resolve) => {
+        answer = resolve;
+      });
+    },
+    { signal: controller.signal },
+  );
+  const peer = await connect(owner.endpoint);
+  const c = client(peer);
+  await c.ready();
+  peer.write(
+    '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"aegis_execute_selected"}}\n',
+  );
+  await waiting;
+  controller.abort();
+  expect(await owner.done).toBe(2);
+  expect(reviewSignal.aborted).toBe(true);
+  expect(fs.existsSync(f.endpoint)).toBe(false);
+  answer(true);
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(fs.existsSync(path.join(f.dir, 'sentinel'))).toBe(false);
+  expect(c.received.some((reply) => reply.id === 7)).toBe(false);
 });

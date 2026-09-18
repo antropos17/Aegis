@@ -65,56 +65,127 @@ export function removeOwned(dir, owned) {
 }
 
 /** @param {object} context Isolated process context. @returns {Function} Bounded CLI runner. @since v0.15.1 */
-export function createRunner({ selected, owned, env, system32, receipt }) {
-  return (argv) =>
+export function createRunner({ selected, owned, env, system32, receipt, spawnProcess = spawn }) {
+  return (argv, { signal, timeoutMs = 20000 } = {}) =>
     new Promise((resolve) => {
       let timedOut = false;
+      let cancelled = false;
       let exceeded = false;
       let stdout = '';
       let stderrBytes = 0;
-      const child = spawn(selected.claude, argv, {
-        cwd: path.join(owned, 'work'),
-        env,
-        windowsHide: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
+      let child;
+      let killer;
       let killing = false;
+      let settled = false;
+      let parentClosed = false;
+      let exitCode = 1;
+      let killResult;
+      let killerTimedOut = false;
+      let timer;
+      let monitor;
       let killDeadline;
-      const kill = () => {
-        if (killing) return;
-        killing = true;
-        killDeadline = setTimeout(() => {
-          child.kill();
-          child.stdout.destroy();
-          child.stderr.destroy();
-          child.unref();
-          clearTimeout(timer);
-          clearInterval(monitor);
+      let killerTimeout;
+      const bestEffort = (target, method) => {
+        try {
+          target?.[method]?.();
+        } catch {
+          /* A failed fallback never establishes cleanup. */
+        }
+      };
+      const finish = (code, treeCleanupConfirmed, error) => {
+        if (settled) return;
+        settled = true;
+        for (const t of [timer, killDeadline, killerTimeout]) clearTimeout(t);
+        clearInterval(monitor);
+        signal?.removeEventListener('abort', abort);
+        if (killing && !treeCleanupConfirmed) {
           receipt.unreapedProcess = true;
-          resolve({ code: 1, timedOut: true, exceeded, stdout, stderrBytes });
-        }, 3000);
-        if (child.pid) {
-          const killer = spawn(
+          receipt.cleanupUnconfirmed = true;
+        }
+        resolve({
+          code,
+          timedOut,
+          cancelled,
+          exceeded,
+          stdout,
+          stderrBytes,
+          treeCleanupConfirmed,
+          ...(error ? { error } : {}),
+        });
+      };
+      const complete = () => {
+        if (!parentClosed) return;
+        if (!killing) finish(exitCode, false);
+        else if (!child?.pid) finish(1, true);
+        else if (killResult !== undefined) finish(1, killResult === 0 && !killerTimedOut);
+      };
+      const reap = () => {
+        if (settled || killer || killResult !== undefined || !child?.pid) return;
+        try {
+          killer = spawnProcess(
             path.join(system32, 'taskkill.exe'),
             ['/PID', String(child.pid), '/T', '/F'],
             { windowsHide: true, stdio: 'ignore', env },
           );
-          killer.on('error', () => child.kill());
-          killer.on('close', (code) => {
-            if (code !== 0) child.kill();
+          killer.on('error', () => {
+            killResult = -1;
+            bestEffort(child, 'kill');
+            complete();
           });
-          const killerTimeout = setTimeout(() => {
-            killer.kill();
-            child.kill();
+          killer.on('close', (code) => {
+            clearTimeout(killerTimeout);
+            if (killResult === undefined) killResult = code === 0 ? 0 : -1;
+            if (killResult !== 0) bestEffort(child, 'kill');
+            complete();
+          });
+          killerTimeout = setTimeout(() => {
+            killerTimedOut = true;
+            bestEffort(killer, 'kill');
+            bestEffort(child, 'kill');
           }, 2000);
-          killer.on('close', () => clearTimeout(killerTimeout));
+        } catch {
+          killResult = -1;
+          bestEffort(child, 'kill');
+          complete();
         }
       };
-      const timer = setTimeout(() => {
+      const kill = () => {
+        if (settled || killing) return;
+        killing = true;
+        clearTimeout(timer);
+        clearInterval(monitor);
+        killDeadline = setTimeout(() => {
+          killerTimedOut = true;
+          bestEffort(killer, 'kill');
+          bestEffort(killer, 'unref');
+          bestEffort(child, 'kill');
+          bestEffort(child?.stdout, 'destroy');
+          bestEffort(child?.stderr, 'destroy');
+          bestEffort(child, 'unref');
+          finish(1, false);
+        }, 3000);
+        reap();
+      };
+      function abort() {
+        if (settled) return;
+        cancelled = true;
+        kill();
+      }
+      if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 90000) {
+        finish(1, true, 'invalid-timeout');
+        return;
+      }
+      if (signal?.aborted) {
+        cancelled = true;
+        finish(1, true);
+        return;
+      }
+      signal?.addEventListener('abort', abort, { once: true });
+      timer = setTimeout(() => {
         timedOut = true;
         kill();
-      }, 20000);
-      const monitor = setInterval(() => {
+      }, timeoutMs);
+      monitor = setInterval(() => {
         try {
           if (treeBytes(owned) > 16 * 1024 ** 2) {
             exceeded = true;
@@ -125,30 +196,48 @@ export function createRunner({ selected, owned, env, system32, receipt }) {
           kill();
         }
       }, 1000);
+      try {
+        child = spawnProcess(selected.claude, argv, {
+          cwd: path.join(owned, 'work'),
+          env,
+          windowsHide: true,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+      } catch {
+        finish(1, true, 'spawn-failed');
+        return;
+      }
       child.stdout.on('data', (b) => {
-        if (Buffer.byteLength(stdout) + b.length > 32768) {
+        if (settled || killing) return;
+        const text = b.toString();
+        if (Buffer.byteLength(stdout) + Buffer.byteLength(text) > 32768) {
           exceeded = true;
           kill();
-        } else stdout += b;
+        } else stdout += text;
       });
       child.stderr.on('data', (b) => {
+        if (settled || killing) return;
         stderrBytes += b.length;
         if (stderrBytes > 32768) {
           exceeded = true;
           kill();
         }
       });
+      child.stdout.on('error', kill);
+      child.stderr.on('error', kill);
+      child.on('spawn', () => {
+        if (killing) reap();
+      });
       child.on('error', () => {
-        clearTimeout(killDeadline);
-        clearTimeout(timer);
-        clearInterval(monitor);
-        resolve({ code: 1, error: 'spawn-failed', stdout: '' });
+        if (!child.pid) finish(1, true, 'spawn-failed');
+        else kill();
       });
       child.on('close', (code) => {
-        clearTimeout(killDeadline);
-        clearTimeout(timer);
-        clearInterval(monitor);
-        resolve({ code, timedOut, exceeded, stdout, stderrBytes });
+        parentClosed = true;
+        exitCode = code;
+        complete();
       });
+      if (killing) reap();
+      else if (signal?.aborted) abort();
     });
 }
