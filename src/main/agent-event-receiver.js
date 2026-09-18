@@ -20,8 +20,8 @@ const identifier = (value) =>
   Buffer.byteLength(value, 'utf8') <= LIMITS.identifierBytes;
 
 /**
- * Create an in-memory metadata receiver. Only receiver-selected offline Claude
- * registration is supported. Handles are object capabilities, not credentials or
+ * Create an in-memory metadata receiver. Receiver-selected offline and loopback Claude
+ * registrations are supported. Handles are object capabilities, not credentials or
  * OS bindings. No transport, persistence, scoring or execution is initialized.
  * @returns {object} Registration, intake, loss, snapshot and close operations.
  * @since v0.15.1
@@ -35,14 +35,19 @@ function createAgentEventReceiver() {
 
   /**
    * Register one source epoch using receiver-owned adapter selection.
-   * @param {string} adapter Only claude-code-offline is implemented.
+   * @param {string} adapter claude-code-offline or claude-code-loopback.
    * @returns {object|null} Opaque handle, or null for unsupported/capacity failure.
    * @since v0.15.1
    */
   function register(adapter) {
-    if (adapter !== 'claude-code-offline' || sources.size >= LIMITS.sources) return null;
+    if (
+      !['claude-code-offline', 'claude-code-loopback'].includes(adapter) ||
+      sources.size >= LIMITS.sources
+    )
+      return null;
     const handle = Object.freeze({ sourceId: randomUUID() });
     sources.set(handle, {
+      live: adapter === 'claude-code-loopback',
       closed: false,
       lastSequence: 0,
       missingSequences: 0,
@@ -129,8 +134,8 @@ function createAgentEventReceiver() {
         record: sequence,
         sessionRef: source.sessions.get(sessionKey),
         agentRef: source.agents.get(agentKey),
-        provenance: 'imported-unverified',
-        sourceAuthentication: 'none',
+        provenance: source.live ? 'source-reported' : 'imported-unverified',
+        sourceAuthentication: source.live ? 'bearer-possession' : 'none',
         processBinding: 'unbound',
         transferEvidence: 'unobserved',
         activityCoverage: 'unknown',
@@ -165,10 +170,10 @@ function createAgentEventReceiver() {
       sourceId: handle.sourceId,
       adapter: 'claude-code',
       adapterVersion: 1,
-      transport: 'offline-file',
-      sourceAuthentication: 'none',
+      transport: source.live ? 'loopback-http' : 'offline-file',
+      sourceAuthentication: source.live ? 'bearer-possession' : 'none',
       receiptScope: 'receiver-intake-only',
-      sequenceScope: 'selected-input-records',
+      sequenceScope: source.live ? 'receiver-arrival' : 'selected-input-records',
       state: source.closed ? 'closed' : 'open',
       lastSequence: source.lastSequence,
       accepted: source.accepted,
