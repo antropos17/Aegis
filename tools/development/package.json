@@ -1,0 +1,11 @@
+{
+  "name": "aegis-development-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "map": "node map.mjs"
+  },
+  "dependencies": {
+    "dependency-cruiser": "18.3.1"
+  }
+}

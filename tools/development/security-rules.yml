@@ -1,0 +1,24 @@
+rules:
+  - id: aegis-electron-unsafe-preferences
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Electron isolation was weakened. Review this production configuration.
+    pattern-either:
+      - pattern: '{ ..., nodeIntegration: true, ... }'
+      - pattern: '{ ..., contextIsolation: false, ... }'
+      - pattern: '{ ..., sandbox: false, ... }'
+      - pattern: '{ ..., webSecurity: false, ... }'
+  - id: aegis-raw-ipc-bridge
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Expose validated, narrow bridge methods instead of the raw IPC renderer.
+    pattern-either:
+      - pattern: contextBridge.exposeInMainWorld($NAME, ipcRenderer)
+      - pattern: 'contextBridge.exposeInMainWorld($NAME, { ..., ipcRenderer: ipcRenderer, ... })'
+  - id: aegis-dynamic-code-execution
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Dynamic code execution needs a security review; do not evaluate telemetry or model output.
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)

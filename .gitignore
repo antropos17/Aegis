@@ -1,4 +1,6 @@
 node_modules/
+.serena/
+/tools/development/local.json
 dist/
 out/
 coverage/
