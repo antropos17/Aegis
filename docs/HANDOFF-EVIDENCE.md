@@ -1,6 +1,7 @@
 # Agent handoff evidence: source review and implementation contract
 
-Status: offline lifecycle import implemented; live collection remains planned.
+Status: offline import and [opt-in live transport](LIVE-LIFECYCLE.md) implemented;
+provider-driven hook verification and execution control remain open.
 Source review: 2026-09-16 against AEGIS baseline `b744da5`. A5 remains partial.
 External sources were inspected; live hooks, SDK integrations and their
 effectiveness were not tested. No handoff sequence rule or enforcement adapter is
@@ -182,9 +183,9 @@ provider. Verification and platform results are recorded in the implementation P
    bounded metadata output. Review its output contract before UI integration.
 2. The [first B1 receiver slice](AGENT-EVENT-CONTRACT.md) now supplies the offline
    envelope, registration, ordinal replay checks, loss reporting and lifetime bounds.
-   Transport authentication and live binding remain open. Test an opt-in live
-   lifecycle collector against pinned
-   agent/adapter versions. Credential and same-user attacker boundaries must be
+   The [live transport](LIVE-LIFECYCLE.md) now checks bearer possession and bounds
+   intake; independent OS binding remains open. Verify provider-driven hooks
+   against pinned agent/adapter versions. Credential and same-user attacker boundaries must be
    explicit; a shared loopback secret alone does not establish process ownership.
 3. Add Audit display with separate labels for reported activity, source delivery,
    OS binding and transfer evidence. Only propose a new correlation rule after a

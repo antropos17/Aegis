@@ -9,6 +9,8 @@
 // ═══ CLI MODE (before Electron imports) ═══
 const _cliFlags = new Set([
   '--handoff-import-json',
+  '--handoff-listen-json',
+  '--handoff-send',
   '--static-import-json',
   '--static-scan-json',
   '--scan-json',
@@ -23,7 +25,12 @@ const _cliFlags = new Set([
 if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
   require('./cli')
     .handleCLI()
-    .then((code) => process.exit(code ?? 0));
+    .then((code) => {
+      // Finite live commands close their sockets/timers and let stdout drain.
+      if (['--handoff-listen-json', '--handoff-send'].includes(process.argv[2]))
+        process.exitCode = code ?? 0;
+      else process.exit(code ?? 0);
+    });
   return; // CJS module-scope return — stops rest of file from executing
 }
 

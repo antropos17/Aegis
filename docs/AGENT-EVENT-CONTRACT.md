@@ -2,13 +2,15 @@
 
 Status: first bounded runtime slice implemented, consumed by
 `--handoff-import-json claude-code <events.jsonl>`. B1 remains partial.
-Live collection, transport authentication and execution control are not implemented.
+The [opt-in live collector](LIVE-LIFECYCLE.md) adds bounded loopback intake and
+bearer-possession checks. Provider-driven verification and execution control remain open.
 
 ## Receiver ownership and versioning
 
 `src/main/agent-event-receiver.js` owns registration and normalization. Its only
-supported registration is `claude-code-offline`, selected by the importer after
-validating CLI arguments. An opaque object handle authorizes in-process intake;
+offline registration is `claude-code-offline`, selected by the importer after
+validating CLI arguments. The live collector selects `claude-code-loopback` after
+validating its local configuration and checks the bearer before intake. An opaque object handle authorizes in-process intake;
 copies, another receiver's handle and closed handles are rejected. It is not an
 authentication credential and is never serialized into provider input. The public
 source UUID identifies one receiver-allocated registration epoch, not a principal.
@@ -18,13 +20,14 @@ malicious code already running inside AEGIS.
 The import report is now schema **2**. Its events are envelope schema **1** and
 the source summary (`receiver`) is schema **1**. Existing kind, record, sessionRef
 and agentRef fields remain; consumers must recognize the new report version.
-There is no wire-envelope decoder or negotiation yet. The adapter parses bounded
+The live transport checks protocol version 1 in its required HTTP header; it
+accepts provider JSON after authentication. There is no ACS envelope negotiation. The adapter parses bounded
 provider JSON; a provider's `schemaVersion` is an ignored field. Future envelope
 decoders must explicitly reject unsupported versions before admission.
 
 Each event carries a receiver-owned eventId (`sourceId:record`), sourceId,
 adapter/adapterVersion, phase, kind, input ordinal and opaque scoped logical IDs.
-The current fixed claims are:
+The offline fixed claims are (live differences are documented in LIVE-LIFECYCLE.md):
 
 | Field | Implemented value and meaning |
 | --- | --- |
@@ -75,7 +78,8 @@ retains no event list; the importing consumer retains at most 2,000 immutable
 metadata envelopes. The reader still enforces 8 MiB total input, bounded chunks and
 32 report diagnostics. No queue, background task or disk retention is introduced.
 
-Before a live transport is added it must enforce framing/byte/rate/connection and
+The live collector separately implements bounded transport intake. Any further
+transport must enforce framing/byte/rate/connection and
 queue limits before parsing, source expiry and revocation, authentication and
 sequence epochs, explicit restart/drop notices and bounded receipt retention.
 An in-memory handle or public source UUID alone must not authorize a network sender.
@@ -104,7 +108,8 @@ arguments, output, credentials or file contents to accommodate that future work.
 | Surface | Current support |
 | --- | --- |
 | Explicit Claude lifecycle JSONL | Experimental offline observation; Node 24 synthetic Windows/Linux tests; producer version unknown |
-| Live Claude hooks, SDK and A2A sources | Not connected; no installed source or live version verified |
+| Claude command-hook sender | Opt-in loopback transport, synthetic integration tests; installed provider execution not verified |
+| SDK and A2A sources | Not connected |
 | MCP stdio/HTTP, before/after tool actions | Not connected; no action gate or policy decision |
 | Direct shell, filesystem, network and descendants | No blocking through this boundary |
 | Audit/UI, scoring and OS binding | No consumer added here; CLI report is the implemented consumer |
@@ -122,7 +127,6 @@ This is a schema comparison; no ACS implementation or conformance test was run.
 | [Response envelope](https://github.com/GenAI-Security-Project/agent-control-standard/blob/dc265475139a922824f0c817e2ecc2a2ce31c06c/specification/v0.1.0/response-envelope.json) includes allow/deny/modify/ask/defer and policy references | Planned AEGIS allow/ask/deny is a subset. No runtime response mapping exists; unsupported modify/defer must never silently become allow. |
 | [Ask details](https://github.com/GenAI-Security-Project/agent-control-standard/blob/dc265475139a922824f0c817e2ecc2a2ce31c06c/specification/v0.1.0/ask-details.json) includes approver, timeout and timeout disposition | AEGIS requires timeout without permission. A future adapter must reject incompatible behavior and verify approval/action binding. |
 
-Next: a separately bounded, opt-in live lifecycle collector with pinned adapter and
-producer tests. Completing B1 additionally requires executable before/after policy
+Next: verify the opt-in collector against a pinned running provider in isolation. Completing B1 additionally requires executable before/after policy
 handling at an actual mediation point, failure/bypass tests and an updated ACS
 assessment of that implementation. Telemetry tests alone cannot close those items.

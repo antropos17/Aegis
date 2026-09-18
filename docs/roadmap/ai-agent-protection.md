@@ -34,7 +34,7 @@ coverage gaps. Do not label these states "safe".
 | A4.1 | Local command and configuration checks | CLI for projects, profiles and package trees; review reasons bound to hash/path; bounded shell/MCP/hooks/npm parsing; visible incompleteness; no execution or data transmission | Implemented; [contract](../STATIC-ANALYSIS.md) |
 | A4.2 | Deeper analysis and Cisco integrations | Versioned JSON/SARIF contract, explicit offline inputs and result provenance; JS/Python and interfile flow analysis; complex shell and instruction semantics; unsupported cases receive no safety verdict | Partial: [Cisco JSON/SARIF import](../STATIC-REPORT-IMPORT.md), [JavaScript](../JAVASCRIPT-STATIC-ANALYSIS.md), [Python](../PYTHON-STATIC-ANALYSIS.md), [selected-source literal/wrapper/primitive-return flow](../STATIC-COMMAND-FLOW.md), [ordered shell redirections](../SHELL-REDIRECTIONS.md) and [bounded instruction-pattern review](../INSTRUCTION-REVIEW.md) are implemented; broader flow, shell control/substitution, general instruction semantics and additional MCP content channels remain |
 | A5 | Refine SEQ001 and add behavioral chains | Ordinary work is not treated as proven exfiltration; missed-detection/noise tests; parent/child and cross-agent relationships retain attribution strength | Partial: SEQ001 calibration, SEQ002 direct relations, SEQ003 monitored ancestor paths and [offline lifecycle import](../HANDOFF-EVIDENCE.md) implemented; live collection, independent handoffs and general causal chains remain |
-| B1 | Shared policy and adapter contract | Versioned events before/after actions; `allow/ask/deny`; supported and unsupported surfaces listed; ACS alignment assessed | Partial: [receiver envelope and policy contract](../AGENT-EVENT-CONTRACT.md), offline consumer and initial ACS schema assessment; live transport and executable before/after policy handling remain |
+| B1 | Shared policy and adapter contract | Versioned events before/after actions; `allow/ask/deny`; supported and unsupported surfaces listed; ACS alignment assessed | Partial: [receiver envelope and policy contract](../AGENT-EVENT-CONTRACT.md), offline/live CLI consumers and initial ACS schema assessment; provider-driven live verification and executable before/after policy handling remain |
 | B2 | MCP gateway and operation control | Validate schemas, arguments, responses, recipients, access scopes and tool changes; stdio and HTTP have separate trust boundaries | Planned |
 | B3 | Secret protection and limited permissions | Secrets cannot enter context or outbound requests outside policy; permission is bound to operation, recipient and task; expiry/single-use limits; replay protection | Planned |
 | B4 | Protection against destructive actions | Control deletion, writes outside the project, publication and dangerous API operations before execution; confirm exact arguments; a timeout never becomes permission | Planned |
@@ -355,3 +355,12 @@ Do not start another heavy batch while diagnostic-log growth is unexplained.
   allow/ask/deny semantics, surface gaps and an initial pinned ACS comparison.
   Next: opt-in live lifecycle intake and, separately, a tested execution adapter.
   B1 and A5 remain partial. Verification and merge receipts are in the PR.
+
+- 2026-09-18: B1 now includes an explicitly started finite loopback collector and
+  a command-hook sender that projects lifecycle metadata before sending. Bearer
+  possession, per-run delivery IDs and byte/time/rate/connection/identity limits
+  bound intake without asserting agent identity or prevention. Real HTTP/Node
+  synthetic tests exercise privacy, rejection, replay, expiry and capacity. The
+  [live contract](../LIVE-LIFECYCLE.md) documents setup and trust limits. Running
+  provider-driven hooks remains unverified; no existing settings were changed.
+  Next: isolated provider verification and the separate execution/policy adapter.
