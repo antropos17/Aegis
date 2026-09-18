@@ -46,6 +46,7 @@ export default defineConfig({
         'src/main/action-policy.js',
         'src/main/action-policy-session.js',
         'src/main/execution-policy.js',
+        'src/main/execution-binding.js',
         'src/main/action-execution.js',
         'src/main/action-execution-cli.js',
         'src/main/action-mcp.js',

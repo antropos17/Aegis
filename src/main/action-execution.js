@@ -66,11 +66,13 @@ function ownLaunch(launch) {
  * returned or persisted. Descendants and operating-system isolation are unsupported.
  * @param {string} policyPath Explicit selected policy file.
  * @param {string} requestPath Explicit selected request file.
- * @param {{signal?: AbortSignal}} [options] Optional cancellation for an owning adapter.
+ * @param {{signal?: AbortSignal, binding?: object}} [options] Optional cancellation for an owning adapter.
  * @returns {Promise<object>} Fixed decision and direct-child outcome metadata.
  * @since v0.15.1
  */
-async function executeAction(policyPath, requestPath, { signal } = {}) {
+async function executeAction(policyPath, requestPath, options = {}) {
+  const { signal, binding } = options;
+  const pinned = Object.hasOwn(options, 'binding');
   if (signal?.aborted) return report('deny', 'action-cancelled');
   if (
     !['win32', 'linux', 'darwin'].includes(process.platform) ||
@@ -79,7 +81,9 @@ async function executeAction(policyPath, requestPath, { signal } = {}) {
   )
     return report('deny', 'runtime-unsupported');
   const deps = testDeps || {};
-  const prepare = deps.prepare || ((p, r) => require('./execution-policy').prepareExecution(p, r));
+  const prepare =
+    deps.prepare ||
+    ((p, r) => require('./execution-policy').prepareExecution(p, r, pinned ? { binding } : {}));
   const launchChild = deps.spawn || spawn;
   const now = deps.now || (() => performance.now());
   const started = now();
@@ -110,7 +114,12 @@ async function executeAction(policyPath, requestPath, { signal } = {}) {
   if (!['allow', 'ask', 'deny'].includes(prepared.decision))
     return report('deny', 'decision-invalid');
   if (prepared.decision !== 'allow')
-    return report(prepared.decision, `policy-${prepared.decision}`);
+    return report(
+      prepared.decision,
+      ['configuration-changed', 'configuration-unavailable'].includes(prepared.reason)
+        ? prepared.reason
+        : `policy-${prepared.decision}`,
+    );
   let launch;
   try {
     launch = ownLaunch(prepared.launch);
@@ -118,6 +127,11 @@ async function executeAction(policyPath, requestPath, { signal } = {}) {
     return report('deny', 'launch-invalid');
   }
   if (!launch) return report('deny', 'launch-invalid');
+  if (
+    pinned &&
+    !require('./execution-binding').isExecutionBindingActive(binding, policyPath, requestPath)
+  )
+    return report('deny', 'configuration-changed');
   if (signal?.aborted) return report('deny', 'action-cancelled');
   if (now() - started >= LIMITS.prepareMs) return report('deny', 'preparation-unavailable');
 

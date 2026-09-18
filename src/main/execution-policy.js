@@ -1,6 +1,11 @@
 'use strict';
 
 const path = require('node:path');
+const {
+  matchesExecutionBinding,
+  isExecutionBindingActive,
+  revokeExecutionBinding,
+} = require('./execution-binding');
 const { readActionFile, parseActionJson, equalActionValue } = require('./action-policy');
 const LIMITS = Object.freeze({ rules: 32, args: 128, env: 64 });
 const WINDOWS_DEFAULTS = [
@@ -82,9 +87,10 @@ function validPolicy(policy) {
   return true;
 }
 
-async function selectedJson(filename) {
+async function selectedJson(filename, check) {
   const bytes = await readActionFile(filename);
   try {
+    if (check && !check(bytes)) throw new Error('configuration-changed');
     return parseActionJson(bytes);
   } finally {
     bytes.fill(0);
@@ -97,23 +103,42 @@ async function selectedJson(filename) {
  * report. A matching rule binds strings, not executable bytes or filesystem state.
  * @param {string} policyPath Schema 2 exact execution policy.
  * @param {string} requestPath Schema 1 direct execution request.
+ * @param {{binding?: object}} [options] Optional connection-owned configuration binding.
  * @returns {Promise<object>} Fixed decision and optional private launch descriptor.
  * @since v0.15.1
  */
-async function prepareExecution(policyPath, requestPath) {
+async function prepareExecution(policyPath, requestPath, options = {}) {
+  const pinned = Object.hasOwn(options, 'binding');
+  const binding = options.binding;
+  if (pinned && !isExecutionBindingActive(binding, policyPath, requestPath))
+    return { decision: 'deny', reason: 'configuration-changed' };
+  const check = (kind) =>
+    pinned
+      ? (bytes) => matchesExecutionBinding(binding, policyPath, requestPath, kind, bytes)
+      : undefined;
   let request;
   let policy;
   try {
-    request = await selectedJson(requestPath);
+    request = await selectedJson(requestPath, check('request'));
     if (
       !keys(request, ['schemaVersion', 'action']) ||
       request.schemaVersion !== 1 ||
       !validAction(request.action)
     )
       return { decision: 'deny', reason: 'request-invalid' };
-    policy = await selectedJson(policyPath);
+    policy = await selectedJson(policyPath, check('policy'));
     if (!validPolicy(policy)) return { decision: 'deny', reason: 'policy-invalid' };
-  } catch {
+  } catch (error) {
+    if (pinned) {
+      revokeExecutionBinding(binding);
+      return {
+        decision: 'deny',
+        reason:
+          error.message === 'configuration-changed'
+            ? 'configuration-changed'
+            : 'configuration-unavailable',
+      };
+    }
     return { decision: 'deny', reason: 'input-unavailable' };
   }
   const rule = policy.rules.find((candidate) => equalActionValue(candidate.action, request.action));
