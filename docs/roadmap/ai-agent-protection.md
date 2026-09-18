@@ -33,7 +33,7 @@ coverage gaps. Do not label these states "safe".
 | A4 | Local static analysis of skills/hooks/MCP | Whole-package analysis of downloads, scripts, dependencies and data transfer; positive and negative fixtures; Cisco integrations through a versioned JSON/SARIF contract; external analyzers only when explicitly selected | Partial: A4.1, external-result import, bounded JavaScript/Python command and selected-source flow review, and instruction-pattern review are implemented; deeper analysis remains in A4.2 |
 | A4.1 | Local command and configuration checks | CLI for projects, profiles and package trees; review reasons bound to hash/path; bounded shell/MCP/hooks/npm parsing; visible incompleteness; no execution or data transmission | Implemented; [contract](../STATIC-ANALYSIS.md) |
 | A4.2 | Deeper analysis and Cisco integrations | Versioned JSON/SARIF contract, explicit offline inputs and result provenance; JS/Python and interfile flow analysis; complex shell and instruction semantics; unsupported cases receive no safety verdict | Partial: [Cisco JSON/SARIF import](../STATIC-REPORT-IMPORT.md), [JavaScript](../JAVASCRIPT-STATIC-ANALYSIS.md), [Python](../PYTHON-STATIC-ANALYSIS.md), [selected-source literal/wrapper/primitive-return flow](../STATIC-COMMAND-FLOW.md), [ordered shell redirections](../SHELL-REDIRECTIONS.md) and [bounded instruction-pattern review](../INSTRUCTION-REVIEW.md) are implemented; broader flow, shell control/substitution, general instruction semantics and additional MCP content channels remain |
-| A5 | Refine SEQ001 and add behavioral chains | Ordinary work is not treated as proven exfiltration; missed-detection/noise tests; parent/child and cross-agent relationships retain attribution strength | Partial: SEQ001 calibration, SEQ002 direct relations and SEQ003 monitored ancestor paths; [handoff source review and importer design](../HANDOFF-EVIDENCE.md) complete; importer, independent handoffs and general causal chains remain |
+| A5 | Refine SEQ001 and add behavioral chains | Ordinary work is not treated as proven exfiltration; missed-detection/noise tests; parent/child and cross-agent relationships retain attribution strength | Partial: SEQ001 calibration, SEQ002 direct relations, SEQ003 monitored ancestor paths and [offline lifecycle import](../HANDOFF-EVIDENCE.md) implemented; live collection, independent handoffs and general causal chains remain |
 | B1 | Shared policy and adapter contract | Versioned events before/after actions; `allow/ask/deny`; supported and unsupported surfaces listed; ACS alignment assessed | Planned; [handoff evidence prerequisite](../HANDOFF-EVIDENCE.md) documented, runtime adapter and policy contract remain |
 | B2 | MCP gateway and operation control | Validate schemas, arguments, responses, recipients, access scopes and tool changes; stdio and HTTP have separate trust boundaries | Planned |
 | B3 | Secret protection and limited permissions | Secrets cannot enter context or outbound requests outside policy; permission is bound to operation, recipient and task; expiry/single-use limits; replay protection | Planned |
@@ -336,3 +336,12 @@ Do not start another heavy batch while diagnostic-log growth is unexplained.
   an explicit bounded offline lifecycle importer with opaque report-local IDs,
   privacy tests and no scoring. Live correlation depends on B1's adapter boundary;
   no handoff collection or additional protection is implemented by this review.
+- 2026-09-18: `--handoff-import-json claude-code <events.jsonl>` now imports an
+  explicitly selected offline JSONL file before Electron starts. Fixed byte,
+  record, event, identity and diagnostic bounds expose incomplete processing.
+  Reports contain only event kinds, record ordinals and opaque import-local
+  references; producer text, paths, raw IDs and forged ownership are discarded.
+  Provenance remains unverified, process binding absent and transfer unobserved.
+  Synthetic tests cover malformed/private data, limits, file changes and the CLI
+  boundary. This does not alter monitoring, scoring or Audit. Next: B1's shared
+  event/adapter boundary and tested opt-in live collection; A5 remains partial.

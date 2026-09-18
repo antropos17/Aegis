@@ -14,6 +14,7 @@ const USAGE = `AEGIS — Independent AI Oversight Layer
 Usage:  aegis [options]
 
 Options:
+  --handoff-import-json claude-code <events.jsonl>  Import unverified subagent lifecycle metadata
   --static-import-json <adapter> <directory> <format> <report> [--baseline <prior-scan>]
     Formats: cisco-skill-json, cisco-skill-sarif, cisco-mcp-json (explicit offline inputs)
   --static-scan-json <adapter> <directory>  Review literal commands and agent/package settings
@@ -80,6 +81,24 @@ async function handleCLI(argv) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  if (flag === '--handoff-import-json') {
+    if (args.length !== 3 || args.slice(1).some((arg) => !arg || arg.startsWith('--'))) {
+      write(JSON.stringify({ error: 'expected-handoff-import-arguments' }));
+      return 1;
+    }
+    if (args[1] !== 'claude-code') {
+      write(JSON.stringify({ error: 'handoff-adapter-unsupported' }));
+      return 1;
+    }
+    try {
+      const report = await require('./handoff-import').importHandoffEvents(args[1], args[2]);
+      write(JSON.stringify(report, null, 2));
+      return report.inputAvailable ? (report.complete ? 0 : 2) : 1;
+    } catch (_) {
+      write(JSON.stringify({ error: 'handoff-import-unavailable' }));
+      return 1;
+    }
+  }
   if (flag === '--static-import-json') {
     return require('./static-import-cli').handleStaticImportCLI(args, write);
   }
