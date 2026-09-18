@@ -1,5 +1,10 @@
 # Selected-action MCP terminal review (B1)
 
+Before starting this route, the optional
+[route checker](ACTION-ROUTE-CHECK.md) can inspect selected files and current
+runtime/terminal prerequisites without opening a listener or requesting approval.
+Its result does not establish a future broker connection or authorize execution.
+
 This opt-in route connects an MCP client to one operator-selected action while
 keeping each execution review on the operator's terminal. Start the broker with
 live terminal input and error output, using a new endpoint file in a trusted,

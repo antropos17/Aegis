@@ -11,7 +11,8 @@ Continue [the AI-agent protection roadmap](../docs/roadmap/ai-agent-protection.m
 The product goal is protection from unsafe AI-agent actions, with explicit limits
 on observation, attribution and prevention. The current stage is **partial B1**:
 exact operator approval binding and the selected MCP review route now exist;
-broader deliberate agent routing and coverage display remain. A fixed
+an executable route checker now reports selected configuration and prerequisites.
+Broader deliberate agent routing and observed coverage display remain. A fixed
 selected-action MCP tool now connects to the execution owner (docs/ACTION-MCP.md).
 The explicit direct-execution
 CLI now owns a selected child launch; see docs/ACTION-EXECUTION.md.
@@ -49,6 +50,16 @@ CI and publication evidence. No permanent user configuration was modified.
 Current continuation: approval is now bound to exact action/policy/expiry through
 the terminal owner, also available per call via the separate review broker below.
 Broader deliberate routing and coverage display remain open.
+
+The current [route checker](../docs/ACTION-ROUTE-CHECK.md),
+`--action-route-check-json <route> <policy> <request>`, supports `direct`,
+`terminal`, `mcp-stdio` and `mcp-review`. It reads actual bounded files and reports
+fixed policy/runtime/current-terminal metadata with explicit coverage gaps, without
+launching, prompting or listening. Exit zero means a valid completed check,
+including policy deny; no approval or revision binding is retained. Future route
+connection, provider identity and blocking remain unverified by this check.
+The local focused suites passed 20 native CLI, 27 core and nine runtime checks;
+inspect current publication receipts before claiming CI or merge status.
 
 ## B1 MCP review broker: current provider evidence
 

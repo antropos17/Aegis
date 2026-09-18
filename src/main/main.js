@@ -8,6 +8,7 @@
 
 // ═══ CLI MODE (before Electron imports) ═══
 const _cliFlags = new Set([
+  '--action-route-check-json',
   '--handoff-import-json',
   '--action-policy-hook',
   '--action-exec-json',
@@ -41,9 +42,12 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
         process.exit(code ?? 2);
       }
       if (
-        ['--action-policy-hook', '--action-exec-json', '--action-exec-confirm'].includes(
-          process.argv[2],
-        )
+        [
+          '--action-policy-hook',
+          '--action-exec-json',
+          '--action-exec-confirm',
+          '--action-route-check-json',
+        ].includes(process.argv[2])
       ) {
         // These commands emit small bounded reports; drain before ending even
         // when a late operation outlives the evaluation or cleanup deadline.
