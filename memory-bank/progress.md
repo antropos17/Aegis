@@ -5,7 +5,8 @@ The current version lives in `package.json` (`node -p "require('./package.json')
 Agent, signature, rule and module counts are derived from the tree by `scripts/counts.js` (`npm run counts:check`), not pinned here.
 Entries in this file are appended chronologically, newest at the bottom.
 
-Latest handoff: see the final "Session handoff" entry below. Audit-index blocks 1 and 2
+Latest handoff: [AI-agent protection, 2026-09-18](ai-protection-handoff.md), also
+summarized in the final "Session handoff" entry below. Audit-index blocks 1 and 2
 are merged; the earlier entry naming block 2 as next work is historical.
 
 ## feat/identity-main — identity migration (branch `feat/identity-main`)
@@ -2676,3 +2677,36 @@ user-stop.json and the normal profile/audit/database, plus ignored receipts unde
 RdClientAutoTrace files every 30 seconds; it stops with this run and does not
 install persistent system rotation. Disposable task TEMP/cache is cleaned after
 all local hooks finish. Earlier dirty and installer worktrees remain untouched.
+
+## Session handoff — AI-agent protection and offline lifecycle import (2026-09-18)
+
+The user requested a context update to continue in a new chat. Read
+[ai-protection-handoff.md](ai-protection-handoff.md) and the current section of
+[next-session.md](next-session.md). The active roadmap is
+[AI-agent protection](../docs/roadmap/ai-agent-protection.md); its IDs are separate
+from the older ETW and sensor-health queues.
+
+The completed A1–A4 foundation is available through the Local security workspace,
+with A4's deeper/general analysis still partial. A5 adds calibrated SEQ001,
+direct-parent/child SEQ002, bounded monitored-ancestry SEQ003 and the improved Audit
+evidence hierarchy. PR #487 established the handoff evidence design. PR #488 now
+implements `--handoff-import-json claude-code <events.jsonl>` before Electron starts.
+The importer retains only bounded lifecycle metadata and opaque import-local
+references. It excludes source text/IDs/paths and forged ownership, leaves activity
+coverage unknown, and never changes monitoring, scoring or audit ownership.
+
+PR #488 head `d152b3cb8dfa07f72b65633d367454ef9dded243` merged as
+`cb23c581a51228e09aab29e4f5db13b276cfb7b2`; the merged tree matches tested tree
+`325ca16b1a752a628032875bd4cacd52486dcb4b`. All five contexts passed in
+[CI 35360260388](https://github.com/antropos17/Aegis/actions/runs/35360260388):
+4,728 tests passed, five skipped, mutation gates and counts passed. Local focused
+tests: 50 passed; format, lint, types, Svelte and renderer build passed. Existing
+lint/chunk-size warnings remain. No release or installed-app update occurred.
+
+Next: B1's shared event/policy and adapter boundary, then tested opt-in live
+lifecycle collection. No B1 runtime implementation has started. A5's independent
+handoffs, general causal evidence, UI integration of lifecycle metadata and
+prevention remain open. Continue in `X:/tmp/aegis-ai-protection-plan`; preserve
+the original dirty checkout. Receipts and filesystem/disk limitations are listed
+in the dedicated handoff. C: diagnostic growth remains unresolved; no persistent
+global rotation was installed by this task.
