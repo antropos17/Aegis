@@ -10,7 +10,8 @@ was added afterward; fetch and check its publication status before continuing.
 Continue [the AI-agent protection roadmap](../docs/roadmap/ai-agent-protection.md).
 The product goal is protection from unsafe AI-agent actions, with explicit limits
 on observation, attribution and prevention. The next stage is **B1 in that roadmap**:
-production mediation with verified failure behavior and exact approval binding.
+connected agent routing and exact approval binding. The explicit direct-execution
+CLI now owns a selected child launch; see docs/ACTION-EXECUTION.md.
 The bounded action-policy-session API now connects local decisions to after reports
 in the opt-in provider fixture; see docs/ACTION-POLICY-SESSION.md. It does not own
 execution and is not a production transport.
@@ -29,6 +30,21 @@ experimental; it cannot guarantee protection when the provider fails to run it.
 Live transport authenticates bearer possession only. B1 remains partial.
 A5 remains partial after offline import; independent handoffs and broad causal
 inference remain uncovered. Do not restart the completed work below.
+
+## B1 explicit direct-execution slice
+
+`execution-policy.js` validates distinct schema 2 exact launch policies and
+schema 1 requests. `action-execution.js` starts its direct child only after allow;
+`action-execution-cli.js` exposes --action-exec-json before Electron initialization.
+Ask never launches. Preparation timeout/failed policy do not fall through.
+Fixed empty environment defaults suppress native inheritance; explicit Windows
+SYSTEMROOT/WINDIR may be needed. Parent debug/permission runtime is unsupported.
+Output is counted/discarded, runtime and cleanup are bounded, direct-child
+termination evidence is distinct from descendants (unsupported).
+
+Publication receipt: .agent/b1-execution-receipt.json; inspect before claiming
+merge/test results. No installed hook or user configuration was changed.
+Next: explicit agent routing into execution ownership and approval/action binding.
 
 ## B1 decision/after-report session
 

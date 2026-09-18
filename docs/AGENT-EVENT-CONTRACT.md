@@ -6,7 +6,8 @@ The [opt-in live collector](LIVE-LIFECYCLE.md) adds bounded loopback intake and
 bearer-possession checks. Installed-provider fixtures and an experimental
 [before-only Bash policy hook](ACTION-POLICY-HOOK.md) are now implemented.
 A bounded [decision/after-report session](ACTION-POLICY-SESSION.md) is connected
-in the provider fixture. Production mediation and failure-resistant execution remain open.
+in the provider fixture. The [explicit direct-execution CLI](ACTION-EXECUTION.md)
+now owns its child launch; automatic agent routing and exact approval binding remain open.
 
 ## Receiver ownership and versioning
 
@@ -117,7 +118,8 @@ arguments, output, credentials or file contents to accommodate that future work.
 | Claude PreToolUse Bash | Experimental exact-input allow/ask/deny hook; specific allow/deny fixture verified, provider failure bypasses remain |
 | PostToolUse / PostToolUseFailure | Experimental session API correlates exact input once; provider fixture consumer only |
 | MCP stdio/HTTP | No correlated action/policy mediation |
-| Direct shell, filesystem, network and descendants | No blocking through this boundary |
+| Explicit action-exec CLI | Exact policy decides direct child launch; preparation failures do not launch; no descendant isolation |
+| Other direct shell, filesystem, network and descendants | No blocking through this boundary |
 | Audit/UI, scoring and OS binding | No consumer added here; CLI report is the implemented consumer |
 | macOS and unusual filesystem providers | Not verified in this slice; reader caveats remain in the handoff contract |
 
