@@ -438,3 +438,13 @@ entry's revision binding and the existing execution owner. Initialization is
 atomic under one deadline; manifest edits apply on a new connection. This broadens
 operator-selected routing while other agent tools and observed coverage remain
 outside scope.
+
+B1 catalog provider verification: installed Windows Claude Code 2.1.263 passed
+two distinct allowed calls in one connection and separate deny/ask checks, plus a
+terminal sequence of confirmation, explicit refusal and disconnect before a third
+launch. Correlated reports and intermediate sentinel observations prove the order.
+Ten synthetic loopback API requests covered the direct and review runs; private
+canary checks, provider-tree cleanup and endpoint/scratch removal passed. This
+evidence covers the configured catalog route with local model replies; cloud-model
+behavior, human authentication and OS isolation remain unverified. Reproduction
+commands and redacted receipt locations are in the catalog contract.

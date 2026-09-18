@@ -91,6 +91,42 @@ The second sentinel stayed absent; broker/relay exited zero, the endpoint and
 owned scratch were removed. The ignored receipt is
 `.agent/b1-catalog-pty-receipt.json`. Automated terminal control is not human
 authentication.
-No installed-Claude catalog verification is claimed here. This adds deliberate
-selection among bounded actions; native agent tools, arbitrary MCP servers,
+The installed-provider verifier has two catalog modes. Pass absolute paths to
+the installed Windows Claude executable, Git Bash and an existing spacious scratch
+directory:
+
+```sh
+node scripts/verify-claude-action-mcp.mjs --catalog --claude <claude.exe> --bash <bash.exe> --scratch <directory>
+node scripts/verify-claude-action-mcp.mjs --catalog-review --claude <claude.exe> --bash <bash.exe> --scratch <directory>
+```
+
+Direct mode requests two different allowed actions in one connection, then checks
+deny and ask on the second action in separate connections. It verifies actual
+correlated tool reports and records sentinel sizes before requesting the next
+action. Review mode keeps one connection for three calls: confirm the first
+terminal challenge, type `no` for the second, and let the fixture disconnect
+Claude automatically after the third preview. The third call must have no result
+or side effect; provider-tree cleanup and broker/endpoint cleanup are required.
+Keep stdin and stderr on a terminal and preserve only redacted stdout receipts,
+not the private preview transcript.
+
+Installed Windows Claude Code 2.1.263 passed all three direct catalog scenarios
+using seven synthetic API requests. Both allowed actions ran once in the expected
+order; deny and ask left both sentinels absent. The redacted local receipt is
+`.agent/b1-catalog-provider-direct-receipt.json`; its owned scratch was removed.
+The same CLI version passed the review sequence using three API requests: first
+confirmed once, second explicitly declined, third pending at disconnect with no
+result or side effect. The receipt
+`.agent/b1-catalog-provider-review-receipt.json` records confirmed provider-tree
+cleanup, broker closure without fallback owner abort, removed endpoint and removed
+scratch. Forced relay termination produced broker status 2 (abnormal transport
+closure); the verifier accepts 0 or 2 only alongside those cancellation and cleanup
+proofs. A transport regression verifies that status 2 waits for pending cleanup.
+
+Both modes use disposable configuration, dummy credentials and synthetic local
+model responses. They check private canaries in complete tool results and provider
+stdout. Historical provider wrappers may change; the fixture compares sanitized
+report semantics while preserving strict current-call IDs and scanning all raw
+results for canaries. These checks do not authenticate a human, verify a cloud
+model or provide OS firewall isolation. Native agent tools, arbitrary MCP servers,
 descendant isolation and general observed activity coverage remain outside scope.

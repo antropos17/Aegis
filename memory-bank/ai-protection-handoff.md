@@ -14,6 +14,8 @@ exact operator approval binding and the selected MCP review route now exist;
 an executable route checker now reports selected configuration and prerequisites.
 The [MCP action catalog](../docs/ACTION-MCP-CATALOG.md) additionally exposes up to
 eight operator-selected actions through direct stdio or the terminal-review broker.
+Installed Windows Claude 2.1.263 now exercises two catalog actions through both
+routes with local synthetic model replies; see the catalog evidence below.
 Broader deliberate agent routing and observed coverage display remain. A fixed
 selected-action MCP tool now connects to the execution owner (docs/ACTION-MCP.md).
 The explicit direct-execution
@@ -70,8 +72,23 @@ Catalog continuation: `--action-mcp-catalog-stdio <manifest>` and
 MCP limits and relay. Initialization snapshots the manifest and atomically captures
 per-entry revision bindings; manifest edits apply only on a new connection. Each
 reviewed allow/ask invocation needs fresh terminal confirmation. The four-route
-preflight checker does not validate a whole catalog. The provider evidence below
-concerns the original single-action route, not installed-Claude catalog behavior.
+preflight checker does not validate a whole catalog.
+
+Catalog provider evidence: `scripts/verify-claude-action-mcp.mjs --catalog` passed
+two allowed actions in sequence, second-action deny and second-action ask (seven
+local API requests). `--catalog-review` passed first-action confirmation, explicit
+second-action refusal and third-call disconnect in one connection (three requests).
+Actual result IDs, sanitized reports and intermediate sentinel sizes establish the
+sequence. The pending third call has no result or effect. Forced relay termination
+returned broker status 2 after cleanup; provider-tree termination, endpoint removal
+and broker closure without fallback owner abort were confirmed. Both runs removed
+owned scratch and passed canary checks. Inspect ignored receipts
+`.agent/b1-catalog-provider-direct-receipt.json` and
+`.agent/b1-catalog-provider-review-receipt.json` for these observations, and
+`.agent/b1-catalog-provider-receipt.json` for publication evidence. These are
+installed-CLI checks with dummy credentials and synthetic loopback responses;
+cloud models, human identity and OS isolation remain unverified.
+The following evidence concerns the original single-action route.
 
 `--action-mcp-review <policy> <request> <new-endpoint>` keeps exact per-call
 confirmation on an operator terminal; `--action-mcp-connect <endpoint>` is the
