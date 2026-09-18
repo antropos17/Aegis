@@ -127,19 +127,18 @@ one failed connection; they are not a count of lost provider actions.
 
 The [Claude hook reference](https://code.claude.com/docs/en/hooks#subagentstart)
 was reviewed on 2026-09-18 for command-hook input and the two lifecycle event
-shapes. The installed CLI reports 2.1.263, but no real agent session was launched
-for verification. Producer version remains unknown in reports; an installed
-version alone does not establish the sender. The protocol is pinned to AEGIS
-adapter version 1. No claim of live Claude integration verification is made.
+shapes. Windows Claude 2.1.263 was then run against a local model-response stub
+in isolation: its actual SubagentStart/Stop hooks invoked the AEGIS sender and
+the collector accepted both. See [the provider fixture](ACTION-POLICY-HOOK.md#verification).
+Producer version remains unknown in ordinary reports: this fixture does not
+authenticate future senders. The protocol remains AEGIS adapter version 1.
 
 Synthetic tests exercise real loopback HTTP and Node CLI processes: successful
 start/stop delivery, pre-socket privacy projection, forged evidence, unauthorized
 input, duplicates, invalid versions, size/rate/concurrency/time bounds, interrupted
 input, shutdown/restart and occupied ports. Windows is checked locally; Linux is
-checked in CI. macOS and provider-driven hook installation/execution remain
-unverified. No agent credentials, transcripts or real secret files are used.
+checked in CI. macOS, interactive approval and cloud-model execution remain unverified. No agent credentials, transcripts or real secret files are used.
 
-Next: verify opt-in hooks against a pinned running provider in an isolated
-environment, then add a separately tested pre-execution policy adapter. The
+Next: continue action/policy mediation beyond the experimental before-only hook. The
 [B1 event/policy contract](AGENT-EVENT-CONTRACT.md) and its ACS assessment remain
 the completion criteria; live lifecycle telemetry cannot fulfill blocking claims.

@@ -43,6 +43,8 @@ export default defineConfig({
         'src/renderer/lib/utils/enrich-agents.ts',
         'src/main/logger.js',
         'src/main/agent-event-receiver.js',
+        'src/main/action-policy.js',
+        'src/main/action-policy-hook.js',
         'src/main/handoff-live.js',
         'src/main/handoff-send.js',
         'src/main/handoff-live-cli.js',

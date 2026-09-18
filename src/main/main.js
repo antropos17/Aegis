@@ -9,6 +9,7 @@
 // ═══ CLI MODE (before Electron imports) ═══
 const _cliFlags = new Set([
   '--handoff-import-json',
+  '--action-policy-hook',
   '--handoff-listen-json',
   '--handoff-send',
   '--static-import-json',
@@ -25,7 +26,13 @@ const _cliFlags = new Set([
 if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
   require('./cli')
     .handleCLI()
-    .then((code) => {
+    .then(async (code) => {
+      if (process.argv[2] === '--action-policy-hook') {
+        // The hook has a fixed small response; drain it before ending even if a
+        // late filesystem operation outlives the internal evaluation deadline.
+        await new Promise((resolve) => process.stdout.write('', resolve));
+        process.exit(code ?? 2);
+      }
       // Finite live commands close their sockets/timers and let stdout drain.
       if (['--handoff-listen-json', '--handoff-send'].includes(process.argv[2]))
         process.exitCode = code ?? 0;
