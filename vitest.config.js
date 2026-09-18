@@ -55,6 +55,7 @@ export default defineConfig({
         'src/main/action-execution.js',
         'src/main/action-execution-cli.js',
         'src/main/action-mcp.js',
+        'src/main/action-mcp-catalog.js',
         'src/main/action-mcp-stdio.js',
         'src/main/action-mcp-review.js',
         'src/main/action-mcp-endpoint.js',

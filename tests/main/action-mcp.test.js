@@ -48,6 +48,223 @@ async function ready(server) {
   await server.receive(notification('notifications/initialized'));
 }
 afterEach(() => api._resetForTest());
+function catalogSetup(overrides = {}, ownerExecute) {
+  const cap = Object.freeze({ PRIVATE_CATALOG: true });
+  const entries = ['first', 'second'].map((name) => ({
+    name: 'aegis_action_' + name,
+    policyPath: 'PRIVATE_POLICY_' + name,
+    requestPath: 'PRIVATE_REQUEST_' + name,
+    binding: Object.freeze({ PRIVATE_ENTRY: name }),
+  }));
+  const deps = {
+    execute: vi.fn(async () => ok),
+    capture: vi.fn(),
+    revoke: vi.fn(),
+    captureCatalog: vi.fn(async () => cap),
+    revokeCatalog: vi.fn(),
+    listCatalog: vi.fn(() =>
+      entries.map(({ name }) => ({
+        name,
+        description: 'Operator selected action',
+        inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      })),
+    ),
+    selectCatalog: vi.fn((_cap, name) => entries.find((entry) => entry.name === name)),
+    ...overrides,
+  };
+  api._setDepsForTest(deps);
+  return {
+    ...deps,
+    entries,
+    cap,
+    server: api.createActionMcp({ catalogPath: 'PRIVATE_CATALOG_PATH', execute: ownerExecute }),
+  };
+}
+const catalogCall = (id, name = 'first', args = {}) =>
+  request(id, 'tools/call', { name: 'aegis_action_' + name, arguments: args });
+
+describe('trusted selected-action catalog', () => {
+  it('captures one catalog and selects separate private bindings without exposing them', async () => {
+    const t = catalogSetup();
+    const initialized = await t.server.receive(init());
+    await t.server.receive(notification('notifications/initialized'));
+    const listed = await t.server.receive(request(1, 'tools/list'));
+    expect(listed.result.tools.map((tool) => tool.name)).toEqual(
+      t.entries.map((entry) => entry.name),
+    );
+    const first = await t.server.receive(catalogCall(2));
+    const second = await t.server.receive(catalogCall(3, 'second'));
+    for (const [i, entry] of t.entries.entries()) {
+      expect(t.execute.mock.calls[i]).toEqual([
+        entry.policyPath,
+        entry.requestPath,
+        { binding: entry.binding, signal: expect.any(AbortSignal) },
+      ]);
+    }
+    expect(t.captureCatalog).toHaveBeenCalledExactlyOnceWith('PRIVATE_CATALOG_PATH', {
+      signal: expect.any(AbortSignal),
+    });
+    expect(t.capture).not.toHaveBeenCalled();
+    expect(JSON.stringify([initialized, listed, first, second])).not.toContain('PRIVATE');
+    t.server.close();
+    t.server.close();
+    expect(t.revokeCatalog).toHaveBeenCalledExactlyOnceWith(t.cap);
+    expect(t.revoke).not.toHaveBeenCalled();
+  });
+
+  it.each([{ policyPath: 'private' }, { requestPath: 'private' }])(
+    'rejects mixed trusted selection %#',
+    (extra) => {
+      expect(() => api.createActionMcp({ catalogPath: 'catalog', ...extra })).toThrow(
+        'catalog-owner-invalid',
+      );
+    },
+  );
+
+  it('shares replay IDs and execution budget across all catalog names', async () => {
+    const t = catalogSetup();
+    await ready(t.server);
+    await t.server.receive(catalogCall(1));
+    expect((await t.server.receive(catalogCall(1, 'second'))).error.message).toBe(
+      'Duplicate request identifier',
+    );
+    for (let i = 2; i <= api.LIMITS.executions; i++)
+      await t.server.receive(catalogCall(i, i % 2 ? 'first' : 'second'));
+    expect((await t.server.receive(catalogCall(99, 'second'))).error.message).toBe(
+      'Execution limit reached',
+    );
+    expect(t.execute).toHaveBeenCalledTimes(api.LIMITS.executions);
+  });
+
+  it('keeps busy and cancellation global across catalog names', async () => {
+    let complete;
+    const execute = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const t = catalogSetup({ execute });
+    await ready(t.server);
+    const pending = t.server.receive(catalogCall(1));
+    expect((await t.server.receive(catalogCall(2, 'second'))).error.message).toBe('Execution busy');
+    expect(t.selectCatalog).toHaveBeenCalledTimes(1);
+    await t.server.receive(notification('notifications/cancelled', { requestId: 1 }));
+    expect(execute.mock.calls[0][2].signal.aborted).toBe(true);
+    expect((await t.server.receive(catalogCall(3, 'second'))).error.message).toBe('Execution busy');
+    complete(ok);
+    expect(await pending).toBeNull();
+    execute.mockResolvedValue(ok);
+    expect((await t.server.receive(catalogCall(4, 'second'))).result.isError).toBe(false);
+  });
+
+  it.each([
+    catalogCall(1, 'unknown'),
+    catalogCall(1, 'first', { catalogPath: 'PRIVATE' }),
+    request(1, 'tools/call', { name: 'aegis_action_first', requestPath: 'PRIVATE' }),
+    call(1),
+  ])('rejects client selection/configuration and arguments %#', async (message) => {
+    const t = catalogSetup();
+    await ready(t.server);
+    expect((await t.server.receive(message)).error.code).toBe(-32602);
+    expect(t.selectCatalog).not.toHaveBeenCalled();
+    expect(t.execute).not.toHaveBeenCalled();
+  });
+
+  it('returns configuration error before execution when private selection is revoked', async () => {
+    const t = catalogSetup({
+      selectCatalog: vi.fn(() => {
+        throw Error('PRIVATE_CAP_REVOKED');
+      }),
+    });
+    await ready(t.server);
+    const result = await t.server.receive(catalogCall(1));
+    expect(result.error).toEqual({ code: -32000, message: 'Configuration unavailable' });
+    expect(JSON.stringify(result)).not.toMatch(/PRIVATE|may have started/);
+    expect(t.execute).not.toHaveBeenCalled();
+    expect((await t.server.receive(catalogCall(2, 'second'))).error.message).toBe(
+      'Configuration unavailable',
+    );
+  });
+
+  it('revokes a late catalog initialization with its correct owner', async () => {
+    let complete, signal;
+    const t = catalogSetup({
+      captureCatalog: vi.fn((_path, options) => {
+        signal = options.signal;
+        return new Promise((resolve) => {
+          complete = resolve;
+        });
+      }),
+    });
+    const pending = t.server.receive(init());
+    t.server.close();
+    expect(signal.aborted).toBe(true);
+    complete(t.cap);
+    expect(await pending).toBeNull();
+    expect(t.revokeCatalog).toHaveBeenCalledExactlyOnceWith(t.cap);
+    expect(t.revoke).not.toHaveBeenCalled();
+  });
+
+  it('makes failed catalog initialization permanent and private', async () => {
+    const t = catalogSetup({
+      captureCatalog: vi.fn(async () => {
+        throw Error('PRIVATE_LOAD');
+      }),
+    });
+    expect((await t.server.receive(init())).error.message).toBe('Configuration unavailable');
+    expect((await t.server.receive(init(1))).error.message).toBe('Already initialized');
+    expect(t.captureCatalog).toHaveBeenCalledTimes(1);
+    expect(t.execute).not.toHaveBeenCalled();
+  });
+
+  it('revokes capture if initial catalog listing fails and sanitizes later listing errors', async () => {
+    const t = catalogSetup({
+      listCatalog: vi.fn(() => {
+        throw Error('PRIVATE_LIST');
+      }),
+    });
+    expect((await t.server.receive(init())).error.message).toBe('Configuration unavailable');
+    expect(t.revokeCatalog).toHaveBeenCalledExactlyOnceWith(t.cap);
+    const other = catalogSetup();
+    await ready(other.server);
+    other.listCatalog.mockImplementation(() => {
+      throw Error('PRIVATE_LIST');
+    });
+    expect((await other.server.receive(request(1, 'tools/list'))).error).toEqual({
+      code: -32000,
+      message: 'Configuration unavailable',
+    });
+  });
+
+  it('closes the entire catalog at the shared message budget', async () => {
+    const t = catalogSetup();
+    await ready(t.server);
+    for (let i = 0; i < api.LIMITS.messages; i++) await t.server.receive(notification('unknown'));
+    expect(t.revokeCatalog).toHaveBeenCalledExactlyOnceWith(t.cap);
+    expect(await t.server.receive(catalogCall(1))).toBeNull();
+  });
+
+  it('uses a trusted owner executor for catalog review and aborts it on close', async () => {
+    let complete;
+    const owner = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const t = catalogSetup({}, owner);
+    await ready(t.server);
+    const pending = t.server.receive(catalogCall(1, 'second'));
+    expect(owner.mock.calls[0][2].binding).toBe(t.entries[1].binding);
+    t.server.close();
+    expect(owner.mock.calls[0][2].signal.aborted).toBe(true);
+    expect(t.revokeCatalog).toHaveBeenCalledExactlyOnceWith(t.cap);
+    complete(ok);
+    expect(await pending).toBeNull();
+    expect(t.execute).not.toHaveBeenCalled();
+  });
+});
 describe('connection-owned selected-file binding', () => {
   it('waits for capture and ignores premature initialized notifications', async () => {
     let complete;

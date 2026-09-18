@@ -47,6 +47,27 @@ afterEach(() => {
 });
 
 describe('bounded MCP stdio framing', () => {
+  it('passes only the selected catalog to the session owner', async () => {
+    const t = setup();
+    const done = t.run(['--action-mcp-catalog-stdio', 'PRIVATE_CATALOG']);
+    expect(t.createSession).toHaveBeenCalledExactlyOnceWith({ catalogPath: 'PRIVATE_CATALOG' });
+    t.input.end();
+    expect(await done).toBe(0);
+  });
+
+  it('rejects mixed catalog and single-action transport selection before session creation', async () => {
+    const t = setup();
+    expect(
+      await api.serveActionMcp({
+        input: t.input,
+        output: t.output,
+        catalogPath: 'PRIVATE_CATALOG',
+        policyPath: 'PRIVATE_POLICY',
+        requestPath: 'PRIVATE_REQUEST',
+      }),
+    ).toBe(2);
+    expect(t.createSession).not.toHaveBeenCalled();
+  });
   it('supports an owner-supplied executor and aborts admission while awaiting active cleanup', async () => {
     let complete;
     const t = setup(
@@ -492,8 +513,136 @@ describe('actual Node MCP entry', () => {
     }
   }, 15000);
 
+  it('routes a native catalog to two distinct actions and keeps the initialized manifest snapshot', async () => {
+    const first = nativeFixture();
+    const second = nativeFixture();
+    const manifest = path.join(first.directory, 'PRIVATE_CATALOG.json');
+    fs.writeFileSync(
+      manifest,
+      JSON.stringify({
+        schemaVersion: 1,
+        actions: [
+          { id: 'first', policyPath: first.policyPath, requestPath: first.requestPath },
+          { id: 'second', policyPath: second.policyPath, requestPath: second.requestPath },
+        ],
+      }),
+    );
+    const client = nativeLaunch(['--action-mcp-catalog-stdio', manifest]);
+    try {
+      const initialized = await client.request({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-11-25',
+          capabilities: {},
+          clientInfo: { name: 'fixture', version: '1' },
+        },
+      });
+      expect(initialized.error).toBeUndefined();
+      client.child.stdin.write(line({ jsonrpc: '2.0', method: 'notifications/initialized' }));
+      fs.writeFileSync(manifest, '{"PRIVATE_REPLACEMENT":true}');
+      const listed = await client.request({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+      expect(listed.result.tools.map((tool) => tool.name)).toEqual([
+        'aegis_action_first',
+        'aegis_action_second',
+      ]);
+      const call = (id, name, args = {}) =>
+        client.request({
+          jsonrpc: '2.0',
+          id,
+          method: 'tools/call',
+          params: { name, arguments: args },
+        });
+      expect((await call(3, 'aegis_action_first', { executable: 'PRIVATE' })).error.code).toBe(
+        -32602,
+      );
+      const a = await call(4, 'aegis_action_first');
+      expect(a.result.structuredContent.execution.exitCode).toBe(0);
+      expect(fs.existsSync(path.join(first.directory, 'sentinel'))).toBe(true);
+      expect(fs.existsSync(path.join(second.directory, 'sentinel'))).toBe(false);
+      expect((await call(4, 'aegis_action_second')).error.code).toBe(-32600);
+      expect(
+        (await call(5, 'aegis_action_second')).result.structuredContent.execution.exitCode,
+      ).toBe(0);
+      expect(fs.existsSync(path.join(second.directory, 'sentinel'))).toBe(true);
+      client.child.stdin.end();
+      const result = await client.done;
+      expect(result.code).toBe(0);
+      expect(result.stderr).toBe('');
+      for (const secret of ['PRIVATE', first.directory, second.directory])
+        expect(result.stdout).not.toContain(secret);
+    } finally {
+      client.child.kill();
+      await client.done;
+    }
+  }, 15000);
+
+  it('revokes subsequent catalog selections after one bound action observes a configuration change', async () => {
+    const first = nativeFixture();
+    const second = nativeFixture();
+    const manifest = path.join(first.directory, 'PRIVATE_CATALOG.json');
+    fs.writeFileSync(
+      manifest,
+      JSON.stringify({
+        schemaVersion: 1,
+        actions: [
+          { id: 'first', policyPath: first.policyPath, requestPath: first.requestPath },
+          { id: 'second', policyPath: second.policyPath, requestPath: second.requestPath },
+        ],
+      }),
+    );
+    const client = nativeLaunch(['--action-mcp-catalog-stdio', manifest]);
+    try {
+      await client.request({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-11-25',
+          capabilities: {},
+          clientInfo: { name: 'fixture', version: '1' },
+        },
+      });
+      client.child.stdin.write(line({ jsonrpc: '2.0', method: 'notifications/initialized' }));
+      const original = fs.readFileSync(first.policyPath);
+      fs.appendFileSync(first.policyPath, ' ');
+      const denied = await client.request({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: { name: 'aegis_action_first' },
+      });
+      expect(denied.result.structuredContent).toMatchObject({
+        decision: 'deny',
+        reason: 'configuration-changed',
+        execution: { state: 'not-started' },
+      });
+      fs.writeFileSync(first.policyPath, original);
+      const next = await client.request({
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: { name: 'aegis_action_second' },
+      });
+      expect(next.error).toEqual({ code: -32000, message: 'Configuration unavailable' });
+      for (const f of [first, second])
+        expect(fs.existsSync(path.join(f.directory, 'sentinel'))).toBe(false);
+      client.child.stdin.end();
+      expect((await client.done).code).toBe(0);
+    } finally {
+      client.child.kill();
+      await client.done;
+    }
+  }, 15000);
+
   it('rejects partial frames and invalid arguments without raw output', async () => {
-    for (const argv of [args, ['--action-mcp-stdio']]) {
+    for (const argv of [
+      args,
+      ['--action-mcp-stdio'],
+      ['--action-mcp-catalog-stdio'],
+      ['--action-mcp-catalog-stdio', 'PRIVATE_CATALOG', 'EXTRA'],
+    ]) {
       const client = nativeLaunch(argv);
       client.child.stdin.end('{"PRIVATE":"partial');
       const result = await client.done;

@@ -12,6 +12,8 @@ The product goal is protection from unsafe AI-agent actions, with explicit limit
 on observation, attribution and prevention. The current stage is **partial B1**:
 exact operator approval binding and the selected MCP review route now exist;
 an executable route checker now reports selected configuration and prerequisites.
+The [MCP action catalog](../docs/ACTION-MCP-CATALOG.md) additionally exposes up to
+eight operator-selected actions through direct stdio or the terminal-review broker.
 Broader deliberate agent routing and observed coverage display remain. A fixed
 selected-action MCP tool now connects to the execution owner (docs/ACTION-MCP.md).
 The explicit direct-execution
@@ -62,6 +64,14 @@ The local focused suites passed 20 native CLI, 27 core and nine runtime checks;
 inspect current publication receipts before claiming CI or merge status.
 
 ## B1 MCP review broker: current provider evidence
+
+Catalog continuation: `--action-mcp-catalog-stdio <manifest>` and
+`--action-mcp-catalog-review <manifest> <new-endpoint>` share the existing global
+MCP limits and relay. Initialization snapshots the manifest and atomically captures
+per-entry revision bindings; manifest edits apply only on a new connection. Each
+reviewed allow/ask invocation needs fresh terminal confirmation. The four-route
+preflight checker does not validate a whole catalog. The provider evidence below
+concerns the original single-action route, not installed-Claude catalog behavior.
 
 `--action-mcp-review <policy> <request> <new-endpoint>` keeps exact per-call
 confirmation on an operator terminal; `--action-mcp-connect <endpoint>` is the

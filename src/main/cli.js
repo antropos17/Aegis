@@ -14,6 +14,8 @@ const USAGE = `AEGIS — Independent AI Oversight Layer
 Usage:  aegis [options]
 
 Options:
+  --action-mcp-catalog-stdio <catalog.json>  Serve up to eight operator-selected actions through MCP
+  --action-mcp-catalog-review <catalog.json> <new-endpoint.json>  Confirm catalog MCP actions in this terminal
   --action-route-check-json <route> <policy.json> <request.json>  Check a selected route without execution
     Routes: direct, terminal, mcp-stdio, mcp-review (this check grants no permission)
   --action-mcp-review <policy.json> <request.json> <new-endpoint.json>  Confirm MCP actions in this terminal
@@ -93,11 +95,11 @@ async function handleCLI(argv) {
   const flag = args[0];
   if (flag === '--action-route-check-json')
     return require('./action-route-check').handleActionRouteCheckCLI(args, write);
-  if (flag === '--action-mcp-review')
+  if (flag === '--action-mcp-review' || flag === '--action-mcp-catalog-review')
     return require('./action-mcp-review').handleActionMcpReview(args);
   if (flag === '--action-mcp-connect')
     return require('./action-mcp-connect').handleActionMcpConnect(args);
-  if (flag === '--action-mcp-stdio')
+  if (flag === '--action-mcp-stdio' || flag === '--action-mcp-catalog-stdio')
     return require('./action-mcp-stdio').handleActionMcpStdio(args);
   if (flag === '--action-exec-json' || flag === '--action-exec-confirm')
     return require('./action-execution-cli').handleActionExecutionCLI(args, write);

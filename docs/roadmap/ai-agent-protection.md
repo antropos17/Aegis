@@ -430,3 +430,11 @@ blocking. It performs no execution, confirmation or listener setup; exit zero
 includes a valid deny and grants nothing. The check retains no revision binding.
 See [the route-check contract](../ACTION-ROUTE-CHECK.md). Broader routing and
 observed coverage display remain open.
+
+B1 deliberate routing: the [operator-selected MCP catalog](../ACTION-MCP-CATALOG.md)
+publishes up to eight fixed argument-free actions, with one shared execution slot,
+replay set and budget. Direct stdio and terminal-review broker routes reuse each
+entry's revision binding and the existing execution owner. Initialization is
+atomic under one deadline; manifest edits apply on a new connection. This broadens
+operator-selected routing while other agent tools and observed coverage remain
+outside scope.

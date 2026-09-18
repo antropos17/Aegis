@@ -5,6 +5,10 @@ Before starting this route, the optional
 runtime/terminal prerequisites without opening a listener or requesting approval.
 Its result does not establish a future broker connection or authorize execution.
 
+For several selected actions on the same connection, use the separate
+[catalog review entry](ACTION-MCP-CATALOG.md). It reuses this terminal owner and
+relay, with one shared active review slot.
+
 This opt-in route connects an MCP client to one operator-selected action while
 keeping each execution review on the operator's terminal. Start the broker with
 live terminal input and error output, using a new endpoint file in a trusted,

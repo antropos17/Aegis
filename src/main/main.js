@@ -9,6 +9,8 @@
 // ═══ CLI MODE (before Electron imports) ═══
 const _cliFlags = new Set([
   '--action-route-check-json',
+  '--action-mcp-catalog-stdio',
+  '--action-mcp-catalog-review',
   '--handoff-import-json',
   '--action-policy-hook',
   '--action-exec-json',
@@ -34,9 +36,13 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
     .handleCLI()
     .then(async (code) => {
       if (
-        ['--action-mcp-stdio', '--action-mcp-review', '--action-mcp-connect'].includes(
-          process.argv[2],
-        )
+        [
+          '--action-mcp-stdio',
+          '--action-mcp-review',
+          '--action-mcp-connect',
+          '--action-mcp-catalog-stdio',
+          '--action-mcp-catalog-review',
+        ].includes(process.argv[2])
       ) {
         // The transport already drained bounded output and awaited child cleanup.
         process.exit(code ?? 2);
