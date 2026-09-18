@@ -210,5 +210,7 @@ handoffs, unmonitored helpers, broader causal evidence and measured noise/misses
 remain open. B1 now has policy decisions at the narrow execution route above and
 an initial ACS assessment in the event contract. A separate
 [terminal-confirmed execution route](ACTION-CONFIRMATION.md) binds one launch to
-the reviewed action, policy revision and expiry. An MCP approval bridge, broader
-routing and coverage display remain open. This evidence importer itself supplies no blocking authority.
+the reviewed action, policy revision and expiry. The opt-in
+[MCP review broker](ACTION-MCP-REVIEW.md) adds per-call confirmation for the selected
+tool while preserving its connection binding. Broader routing and coverage
+display remain open. This evidence importer itself supplies no blocking authority.

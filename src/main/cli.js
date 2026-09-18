@@ -14,6 +14,8 @@ const USAGE = `AEGIS — Independent AI Oversight Layer
 Usage:  aegis [options]
 
 Options:
+  --action-mcp-review <policy.json> <request.json> <new-endpoint.json>  Confirm MCP actions in this terminal
+  --action-mcp-connect <endpoint.json>  Connect an MCP client to an operator review terminal
   --action-mcp-stdio <policy.json> <request.json>  Serve one selected action through finite MCP stdio
   --action-exec-confirm <policy.json> <request.json>  Review exact action in a terminal and confirm one launch
   --action-exec-json <policy.json> <request.json>  Run one explicit executable request under local policy
@@ -87,6 +89,10 @@ async function handleCLI(argv) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  if (flag === '--action-mcp-review')
+    return require('./action-mcp-review').handleActionMcpReview(args);
+  if (flag === '--action-mcp-connect')
+    return require('./action-mcp-connect').handleActionMcpConnect(args);
   if (flag === '--action-mcp-stdio')
     return require('./action-mcp-stdio').handleActionMcpStdio(args);
   if (flag === '--action-exec-json' || flag === '--action-exec-confirm')

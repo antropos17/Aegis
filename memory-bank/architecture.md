@@ -1,6 +1,6 @@
 # AEGIS Architecture
 
-## Main Process (src/main/) — 146 CommonJS modules (124 top-level + 20 platform/ + 2 token-adapters/)
+## Main Process (src/main/) — 149 CommonJS modules (127 top-level + 20 platform/ + 2 token-adapters/)
 
 Optional development ETW: main → platform/etw-file-runtime → etw-file-supervisor
 → normal `sidecar/etw-file` broker → authenticated elevated file collector.
@@ -9,7 +9,8 @@ in bounded main memory and never become FileEvents. Packaged enablement is gated
 see [backend record](../docs/roadmap/etw-file-backend.md).
 
 Core modules:
-- action-confirmation.js / action-confirmation-terminal.js / execution-approval.js — private terminal review of pinned configuration and expiring one-attempt grants; no MCP approval bridge or authenticated human identity
+- action-mcp-review.js / action-mcp-endpoint.js / action-mcp-connect.js — opt-in loopback broker and bearer relay for fresh terminal confirmation per selected MCP call; private endpoint directory required, one connection, bounded transport and conservative descriptor cleanup
+- action-confirmation.js / action-confirmation-terminal.js / execution-approval.js — private terminal review of pinned configuration and expiring one-attempt grants; no reusable approval or authenticated human identity
 - execution-binding.js — private selected-file revision capabilities for MCP; observed mismatch/read failure revokes until reconnection, without executable-content or human-approval claims
 - main.js — orchestrator, module wiring, lifecycle
 - scan-loop.js — periodic scan intervals, staggered startup, event dedup

@@ -21,8 +21,26 @@ let testDeps = null;
  * @since v0.15.1
  */
 function handleActionMcpStdio(args) {
-  const input = testDeps?.input || process.stdin;
-  const output = testDeps?.output || process.stdout;
+  const valid =
+    args.length === 3 &&
+    args[0] === '--action-mcp-stdio' &&
+    args.slice(1).every((arg) => typeof arg === 'string' && arg && !arg.startsWith('--'));
+  return serveActionMcp({
+    input: testDeps?.input || process.stdin,
+    output: testDeps?.output || process.stdout,
+    policyPath: valid ? args[1] : undefined,
+    requestPath: valid ? args[2] : undefined,
+  });
+}
+
+/**
+ * Serve bounded MCP over owner-selected streams, including a shared duplex.
+ * The optional executor is trusted local configuration, never client input.
+ * @param {{input: NodeJS.ReadableStream, output: NodeJS.WritableStream, policyPath: string, requestPath: string, execute?: Function, signal?: AbortSignal}} options Owner transport and execution.
+ * @returns {Promise<number>} Clean EOF status or failure after active cleanup.
+ * @since v0.15.1
+ */
+function serveActionMcp({ input, output, policyPath, requestPath, execute, signal }) {
   const createSession = testDeps?.createSession || require('./action-mcp').createActionMcp;
   return new Promise((resolve) => {
     const active = new Set();
@@ -55,6 +73,7 @@ function handleActionMcpStdio(args) {
       settled = true;
       clearTimeout(lifetime);
       clearTimeout(drainTimer);
+      signal?.removeEventListener('abort', onAbort);
       resolve(exitCode);
     };
     const close = (code = 2, brokenOutput = false) => {
@@ -174,6 +193,9 @@ function handleActionMcpStdio(args) {
     function onOutputError() {
       close(2, true);
     }
+    function onAbort() {
+      close(2, input === output);
+    }
     function onOutputClose() {
       if (!settled) close(2, true);
       output.removeListener('error', onOutputError);
@@ -184,20 +206,28 @@ function handleActionMcpStdio(args) {
     output.on('error', onOutputError);
     output.on('close', onOutputClose);
     if (
-      args.length !== 3 ||
-      args[0] !== '--action-mcp-stdio' ||
-      args.slice(1).some((arg) => typeof arg !== 'string' || !arg || arg.startsWith('--'))
+      [policyPath, requestPath].some((arg) => typeof arg !== 'string' || !arg) ||
+      signal?.aborted
     ) {
       close();
       return;
     }
     try {
-      session = createSession({ policyPath: args[1], requestPath: args[2] });
+      session = createSession({
+        policyPath,
+        requestPath,
+        ...(execute === undefined ? {} : { execute }),
+      });
     } catch (_) {
       close();
       return;
     }
     lifetime = setTimeout(() => close(), LIMITS.lifetimeMs);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) {
+      close();
+      return;
+    }
     input.on('end', onEnd);
     input.on('data', onData);
   });
@@ -211,4 +241,4 @@ function _setDepsForTest(deps) {
 function _resetForTest() {
   testDeps = null;
 }
-module.exports = { handleActionMcpStdio, LIMITS, _setDepsForTest, _resetForTest };
+module.exports = { handleActionMcpStdio, serveActionMcp, LIMITS, _setDepsForTest, _resetForTest };

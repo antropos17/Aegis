@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
+import { PassThrough } from 'node:stream';
+import { once } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -67,6 +69,139 @@ afterEach(() => {
 });
 
 describe('terminal confirmation owner', () => {
+  it('aborts a pending terminal review through the reusable MCP transport and waits for cleanup', async () => {
+    const f = fixture();
+    const transport = require('../../src/main/action-mcp-stdio');
+    const bindingApi = require('../../src/main/execution-binding');
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const controller = new AbortController();
+    let entered, borrowed;
+    const reviewing = new Promise((resolve) => {
+      entered = resolve;
+    });
+    setup(
+      (_launch, { signal }) =>
+        new Promise((resolve) => {
+          signal.addEventListener('abort', () => resolve(false), { once: true });
+          entered();
+        }),
+    );
+    const done = transport.serveActionMcp({
+      input,
+      output,
+      policyPath: f.policy,
+      requestPath: f.request,
+      signal: controller.signal,
+      execute: (p, r, options) => {
+        borrowed = options.binding;
+        return api.confirmSelectedAction(p, r, options);
+      },
+    });
+    try {
+      const initialized = once(output, 'data');
+      input.write(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: 0,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-11-25',
+            capabilities: {},
+            clientInfo: { name: 'test', version: '1' },
+          },
+        }) + '\n',
+      );
+      expect(JSON.parse((await initialized)[0].toString()).result).toBeDefined();
+      input.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
+      input.write(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'aegis_execute_selected', arguments: {} },
+        }) + '\n',
+      );
+      await reviewing;
+      controller.abort();
+      expect(await done).toBe(2);
+      expect(bindingApi.isExecutionBindingActive(borrowed, f.policy, f.request)).toBe(false);
+      expect(fs.existsSync(f.sentinel)).toBe(false);
+    } finally {
+      controller.abort();
+      await done;
+      input.destroy();
+      output.destroy();
+    }
+  });
+
+  it('reuses a borrowed live binding but obtains fresh confirmation for each call', async () => {
+    const f = fixture();
+    const bindingApi = require('../../src/main/execution-binding');
+    const binding = await bindingApi.captureExecutionBinding(f.policy, f.request);
+    const confirm = vi.fn(async () => true);
+    setup(confirm);
+    try {
+      for (let i = 0; i < 2; i++) {
+        expect(
+          (await api.confirmSelectedAction(f.policy, f.request, { binding })).execution.exitCode,
+        ).toBe(0);
+        expect(bindingApi.isExecutionBindingActive(binding, f.policy, f.request)).toBe(true);
+      }
+      expect(confirm).toHaveBeenCalledTimes(2);
+      expect(fs.readFileSync(f.sentinel, 'utf8')).toBe('onceonce');
+    } finally {
+      bindingApi.revokeExecutionBinding(binding);
+    }
+  });
+
+  it('refuses explicit invalid, revoked or differently pathed borrowed bindings without recapture', async () => {
+    const f = fixture();
+    const other = fixture();
+    const bindingApi = require('../../src/main/execution-binding');
+    const binding = await bindingApi.captureExecutionBinding(other.policy, other.request);
+    const confirm = vi.fn(async () => true);
+    setup(confirm);
+    for (const borrowed of [null, undefined, {}, binding])
+      notStarted(await api.confirmSelectedAction(f.policy, f.request, { binding: borrowed }), f);
+    bindingApi.revokeExecutionBinding(binding);
+    notStarted(await api.confirmSelectedAction(other.policy, other.request, { binding }), other);
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('snapshots borrowed options and leaves revocation to the connection owner', async () => {
+    const f = fixture();
+    const bindingApi = require('../../src/main/execution-binding');
+    const binding = await bindingApi.captureExecutionBinding(f.policy, f.request);
+    const options = { binding };
+    setup(async () => {
+      options.binding = null;
+      return true;
+    });
+    try {
+      expect(
+        (await api.confirmSelectedAction(f.policy, f.request, options)).execution.exitCode,
+      ).toBe(0);
+      expect(bindingApi.isExecutionBindingActive(binding, f.policy, f.request)).toBe(true);
+    } finally {
+      bindingApi.revokeExecutionBinding(binding);
+    }
+  });
+
+  it('keeps an observed mismatch revoked across later borrowed-binding calls', async () => {
+    const f = fixture();
+    const bindingApi = require('../../src/main/execution-binding');
+    const binding = await bindingApi.captureExecutionBinding(f.policy, f.request);
+    setup(async () => {
+      fs.appendFileSync(f.request, '\n');
+      return true;
+    });
+    notStarted(await api.confirmSelectedAction(f.policy, f.request, { binding }), f);
+    f.write();
+    notStarted(await api.confirmSelectedAction(f.policy, f.request, { binding }), f);
+    expect(bindingApi.isExecutionBindingActive(binding, f.policy, f.request)).toBe(false);
+  });
+
   it('keeps terminal loss connected after affirmation and before child launch', async () => {
     const f = fixture();
     let disconnect;

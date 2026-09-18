@@ -141,7 +141,8 @@ provider/CI receipts belong to the implementation PR.
 
 The separate [terminal confirmation CLI](ACTION-CONFIRMATION.md) now binds local
 review to the selected action, policy revision and an expiring one-attempt grant.
-It does not change this MCP tool: MCP ask remains unstarted, and no approval
-capability is exposed to the client. An MCP approval bridge, broader deliberate
-agent routing and coverage display remain B1 work.
+The direct `--action-mcp-stdio` route keeps ask unstarted and exposes no approval
+capability to the client. The separate [terminal review broker and relay](ACTION-MCP-REVIEW.md)
+connect this selected tool to fresh operator confirmation for each allow/ask call.
+Broader deliberate agent routing and coverage display remain B1 work.
 MCP gateway inspection and process-tree isolation remain separate roadmap work.

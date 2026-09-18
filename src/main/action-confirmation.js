@@ -1,7 +1,11 @@
 'use strict';
 
 const { debuglog } = require('node:util');
-const { captureExecutionBinding, revokeExecutionBinding } = require('./execution-binding');
+const {
+  captureExecutionBinding,
+  revokeExecutionBinding,
+  isExecutionBindingActive,
+} = require('./execution-binding');
 const { prepareExecution } = require('./execution-policy');
 const { executeAction } = require('./action-execution');
 const terminal = require('./action-confirmation-terminal');
@@ -48,12 +52,16 @@ async function bounded(work, ms, signal) {
  * Callback/TTY data stays private; the returned report contains fixed metadata.
  * @param {string} policyPath Selected schema 2 policy.
  * @param {string} requestPath Selected schema 1 request.
- * @param {{signal?: AbortSignal}} [options] Cancellation through review and execution.
+ * @param {{signal?: AbortSignal, binding?: object}} [options] Cancellation and optional borrowed owner binding.
  * @returns {Promise<object>} Redacted execution outcome.
  * @since v0.15.1
  */
-async function confirmSelectedAction(policyPath, requestPath, { signal } = {}) {
+async function confirmSelectedAction(policyPath, requestPath, options = {}) {
+  const { signal, binding: borrowedBinding } = options;
+  const borrowed = Object.hasOwn(options, 'binding');
   if (signal?.aborted) return refused('action-cancelled');
+  if (borrowed && !isExecutionBindingActive(borrowedBinding, policyPath, requestPath))
+    return refused('configuration-changed');
   if (
     !['win32', 'linux', 'darwin'].includes(process.platform) ||
     process.permission ||
@@ -73,7 +81,9 @@ async function confirmSelectedAction(policyPath, requestPath, { signal } = {}) {
   let stopReading = () => {};
   let delegated = false;
   try {
-    binding = await captureExecutionBinding(policyPath, requestPath, { signal: controller.signal });
+    binding = borrowed
+      ? borrowedBinding
+      : await captureExecutionBinding(policyPath, requestPath, { signal: controller.signal });
     const started = now();
     const prepared = await bounded(
       () => prepareExecution(policyPath, requestPath, { binding, review: true }),
@@ -119,7 +129,7 @@ async function confirmSelectedAction(policyPath, requestPath, { signal } = {}) {
   } finally {
     controller.abort();
     if (approval) require('./execution-approval').revokeExecutionApproval(approval);
-    revokeExecutionBinding(binding);
+    if (!borrowed) revokeExecutionBinding(binding);
     signal?.removeEventListener('abort', abort);
     stopReading();
     stopWatching();

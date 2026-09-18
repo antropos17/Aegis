@@ -169,9 +169,10 @@ has a partial B1 implementation: explicit direct execution and a selected-action
 MCP tool with connection-scoped policy/request revision binding. Initialization
 captures the selected JSON bytes; observed changes or read failures require a new
 connection. A separate [terminal confirmation](docs/ACTION-CONFIRMATION.md) now
-permits one exact launch after local review. The MCP route still has no approval
-bridge; continuous watching, executable-content identity and descendant isolation
-remain unsupported. This
+permits one exact launch after local review. An opt-in
+[MCP review broker and relay](docs/ACTION-MCP-REVIEW.md) now require fresh local
+confirmation for each selected allow/ask call. Continuous watching,
+executable-content identity and descendant isolation remain unsupported. This
 bounded tool route does not complete general MCP interception.
 
 Browser extension, cross-device correlation, daemon operation, MCP interception and
