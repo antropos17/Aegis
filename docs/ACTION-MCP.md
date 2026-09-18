@@ -9,6 +9,10 @@ both selected JSON files for that connection. Each invocation still requires an
 exact allow decision from those unchanged files. Ask and deny return tool errors
 without launch.
 
+The separate [operator-selected catalog](ACTION-MCP-CATALOG.md) publishes up to
+eight fixed actions while sharing this protocol's replay, concurrency and call
+budgets. This page describes the original single-action entry.
+
 This provides one explicit agent route. Native Bash, other MCP servers and other
 agent actions remain outside it. It is not an MCP gateway, sandbox or automatic
 installation. Allowed executables retain their account privileges; descendants

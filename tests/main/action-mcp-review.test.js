@@ -71,7 +71,9 @@ async function start(f, confirm = async () => true, options = {}) {
     },
   });
   const done = broker.handleActionMcpReview(
-    ['--action-mcp-review', f.policy, f.request, f.endpoint],
+    f.catalog
+      ? ['--action-mcp-catalog-review', f.catalog, f.endpoint]
+      : ['--action-mcp-review', f.policy, f.request, f.endpoint],
     options,
   );
   owners.push({ host, done });
@@ -143,6 +145,93 @@ afterEach(async () => {
     expect(fs.lstatSync(dir).isSymbolicLink()).toBe(false);
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+function catalogFixture(firstDecision = 'ask', secondDecision = 'ask') {
+  const first = fixture(firstDecision);
+  const second = fixture(secondDecision);
+  first.catalog = path.join(first.dir, 'PRIVATE_CATALOG.json');
+  fs.writeFileSync(
+    first.catalog,
+    JSON.stringify({
+      schemaVersion: 1,
+      actions: [
+        { id: 'first', policyPath: first.policy, requestPath: first.request },
+        { id: 'second', policyPath: second.policy, requestPath: second.request },
+      ],
+    }),
+  );
+  return { first, second };
+}
+
+it('catalog broker reviews the selected action on each call without sharing approvals', async () => {
+  const { first, second } = catalogFixture('ask', 'allow');
+  let count = 0;
+  const previewed = [];
+  const owner = await start(first, async (launch) => {
+    previewed.push(launch.cwd);
+    return ++count !== 2;
+  });
+  const peer = await connect(owner.endpoint);
+  const c = client(peer);
+  await c.ready();
+  expect((await c.call('tools/list')).result.tools.map((tool) => tool.name)).toEqual([
+    'aegis_action_first',
+    'aegis_action_second',
+  ]);
+  for (const [name, decision] of [
+    ['first', 'allow'],
+    ['second', 'deny'],
+    ['second', 'allow'],
+  ]) {
+    const reply = await c.call('tools/call', { name: `aegis_action_${name}`, arguments: {} });
+    expect(reply.result.structuredContent.decision).toBe(decision);
+    if (decision === 'deny') expect(fs.existsSync(path.join(second.dir, 'sentinel'))).toBe(false);
+    else expect(reply.result.structuredContent.authorization).toBe('operator-confirmed');
+  }
+  expect(previewed).toEqual([first.dir, second.dir, second.dir]);
+  for (const f of [first, second])
+    expect(fs.readFileSync(path.join(f.dir, 'sentinel'), 'utf8')).toBe('x');
+  const visible = JSON.stringify(c.received) + owner.output.join('');
+  for (const secret of [first.dir, second.dir, owner.endpoint.token, 'PRIVATE'])
+    expect(visible).not.toContain(secret);
+  peer.end();
+  await owner.done;
+  expect(fs.existsSync(first.endpoint)).toBe(false);
+});
+
+it('catalog disconnect during a second action review cancels that action and cleans its scope', async () => {
+  const { first, second } = catalogFixture();
+  let entered, answer, signal;
+  const waiting = new Promise((resolve) => {
+    entered = resolve;
+  });
+  const owner = await start(first, (launch, options) => {
+    if (launch.cwd === first.dir) return true;
+    signal = options.signal;
+    entered();
+    return new Promise((resolve) => {
+      answer = resolve;
+    });
+  });
+  const peer = await connect(owner.endpoint);
+  const c = client(peer);
+  await c.ready();
+  const doneFirst = await c.call('tools/call', { name: 'aegis_action_first' });
+  expect(doneFirst.result.structuredContent.execution.exitCode).toBe(0);
+  peer.write(
+    '{"jsonrpc":"2.0","id":77,"method":"tools/call","params":{"name":"aegis_action_second"}}\n',
+  );
+  await waiting;
+  peer.destroy();
+  await owner.done;
+  expect(signal.aborted).toBe(true);
+  answer(true);
+  await new Promise(setImmediate);
+  expect(fs.readFileSync(path.join(first.dir, 'sentinel'), 'utf8')).toBe('x');
+  expect(fs.existsSync(path.join(second.dir, 'sentinel'))).toBe(false);
+  expect(c.received.some((reply) => reply.id === 77)).toBe(false);
+  expect(fs.existsSync(first.endpoint)).toBe(false);
 });
 
 it.each(['ask', 'allow'])(

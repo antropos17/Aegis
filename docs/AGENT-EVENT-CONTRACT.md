@@ -119,6 +119,7 @@ arguments, output, credentials or file contents to accommodate that future work.
 | Claude PreToolUse Bash | Experimental exact-input allow/ask/deny hook; specific allow/deny fixture verified, provider failure bypasses remain |
 | PostToolUse / PostToolUseFailure | Experimental session API correlates exact input once; provider fixture consumer only |
 | Selected-action MCP stdio | Explicit fixed tool routes through AEGIS-owned execution; other tools are outside scope |
+| Operator-selected MCP catalog | Up to eight fixed argument-free actions share one bounded connection; optional terminal review per eligible call; other tools remain outside scope |
 | MCP gateway / HTTP | Not implemented |
 | Explicit action-exec CLI | Exact policy decides direct child launch; preparation failures do not launch; no descendant isolation |
 | Other direct shell, filesystem, network and descendants | No blocking through this boundary |

@@ -16,20 +16,40 @@ let testDeps = null;
 /**
  * Own one MCP stdio connection for an operator-selected exact action. The client
  * can invoke the fixed action but cannot supply paths, argv or environment.
- * @param {{policyPath:string,requestPath:string,execute?: Function}} options Selected files and trusted owner execution callback.
+ * @param {{policyPath?:string,requestPath?:string,catalogPath?:string,execute?: Function}} options Selected files or catalog and trusted owner execution callback.
  * @returns {object} Async receive and immediate admission-revoking close.
  * @since v0.15.1
  */
-function createActionMcp({ policyPath, requestPath, execute: ownerExecute }) {
+function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerExecute }) {
+  const deps = testDeps;
+  const catalogMode = catalogPath !== undefined;
+  if (
+    catalogMode &&
+    (typeof catalogPath !== 'string' ||
+      !catalogPath ||
+      policyPath !== undefined ||
+      requestPath !== undefined)
+  )
+    throw new Error('catalog-owner-invalid');
   if (ownerExecute !== undefined && typeof ownerExecute !== 'function')
     throw new Error('execution-owner-invalid');
-  const execute = ownerExecute || testDeps?.execute || executeAction;
-  const capture =
-    testDeps?.capture ||
-    ((...args) => require('./execution-binding').captureExecutionBinding(...args));
-  const revoke =
-    testDeps?.revoke ||
-    ((binding) => require('./execution-binding').revokeExecutionBinding(binding));
+  const execute = ownerExecute || deps?.execute || executeAction;
+  const listCatalog =
+    deps?.listCatalog || ((cap) => require('./action-mcp-catalog').listActionCatalog(cap));
+  const selectCatalog =
+    deps?.selectCatalog ||
+    ((cap, name) => require('./action-mcp-catalog').selectActionCatalog(cap, name));
+  const capture = catalogMode
+    ? (_p, _r, options) =>
+        (deps?.captureCatalog || require('./action-mcp-catalog').captureActionCatalog)(
+          catalogPath,
+          options,
+        )
+    : deps?.capture ||
+      ((...args) => require('./execution-binding').captureExecutionBinding(...args));
+  const revoke = catalogMode
+    ? (cap) => (deps?.revokeCatalog || require('./action-mcp-catalog').revokeActionCatalog)(cap)
+    : deps?.revoke || ((binding) => require('./execution-binding').revokeExecutionBinding(binding));
   let phase = 'new';
   let messages = 0;
   let executions = 0;
@@ -37,6 +57,7 @@ function createActionMcp({ policyPath, requestPath, execute: ownerExecute }) {
   let active = null;
   let binding = null;
   let initializing = null;
+  let catalogNames;
   const ids = new Set();
   const close = () => {
     if (phase === 'closed') return;
@@ -108,8 +129,13 @@ function createActionMcp({ policyPath, requestPath, execute: ownerExecute }) {
         }
         if (!object(captured)) throw new Error('binding-unavailable');
         binding = captured;
+        if (catalogMode) catalogNames = new Set(listCatalog(captured).map((tool) => tool.name));
       } catch (_) {
         if (phase === 'closed') return null;
+        if (binding) {
+          revoke(binding);
+          binding = null;
+        }
         phase = 'failed';
         return error(id, -32000, 'Configuration unavailable');
       } finally {
@@ -128,6 +154,13 @@ function createActionMcp({ policyPath, requestPath, execute: ownerExecute }) {
     if (phase !== 'ready') return error(id, -32002, 'Initialization required');
     if (method === 'tools/list') {
       if (!only(params, ['_meta'])) return error(id, -32602, 'Invalid parameters');
+      if (catalogMode) {
+        try {
+          return response(id, { tools: listCatalog(binding) });
+        } catch {
+          return error(id, -32000, 'Configuration unavailable');
+        }
+      }
       return response(id, {
         tools: [
           {
@@ -148,7 +181,7 @@ function createActionMcp({ policyPath, requestPath, execute: ownerExecute }) {
     if (method !== 'tools/call') return error(id, -32601, 'Method not found');
     if (
       !only(params, ['name', 'arguments', '_meta']) ||
-      params.name !== NAME ||
+      (catalogMode ? !catalogNames.has(params.name) : params.name !== NAME) ||
       (params.arguments !== undefined &&
         (!object(params.arguments) || Object.keys(params.arguments).length))
     )
@@ -159,9 +192,17 @@ function createActionMcp({ policyPath, requestPath, execute: ownerExecute }) {
     const current = { id, controller: new AbortController() };
     active = current;
     try {
-      const report = await execute(policyPath, requestPath, {
+      let selected = { policyPath, requestPath, binding };
+      if (catalogMode) {
+        try {
+          selected = selectCatalog(binding, params.name);
+        } catch {
+          return error(id, -32000, 'Configuration unavailable');
+        }
+      }
+      const report = await execute(selected.policyPath, selected.requestPath, {
         signal: current.controller.signal,
-        binding,
+        binding: selected.binding,
       });
       if (phase === 'closed' || current.cancelled) return null;
       const succeeded =

@@ -16,7 +16,7 @@ let testDeps = null;
 /**
  * Start one operator-terminal broker for one bearer-authenticated MCP connection.
  * No action data or token is printed; the endpoint is a caller-selected new file.
- * @param {string[]} args Flag, policy, request and new endpoint file.
+ * @param {string[]} args Single-action flag/pair/endpoint, or catalog flag/manifest/endpoint.
  * @param {{signal?: AbortSignal}} [options] Trusted owner cancellation, retained through cleanup.
  * @returns {Promise<number>} 0 for completed session, 2 for unavailable/closed review.
  * @since v0.15.1
@@ -25,12 +25,17 @@ async function handleActionMcpReview(args, options = {}) {
   const signal = options.signal;
   if (signal?.aborted) return 2;
   const deps = testDeps || {};
+  const catalog = args[0] === '--action-mcp-catalog-review';
   if (
-    args.length !== 4 ||
-    args[0] !== '--action-mcp-review' ||
+    args.length !== (catalog ? 3 : 4) ||
+    (!catalog && args[0] !== '--action-mcp-review') ||
     args.slice(1).some((a) => typeof a !== 'string' || !a || a.startsWith('--'))
   )
     return 2;
+  const selection = catalog
+    ? { catalogPath: args[1] }
+    : { policyPath: args[1], requestPath: args[2] };
+  const endpointPath = args[catalog ? 2 : 3];
   if (!(deps.available || terminal.isTerminalAvailable)()) return 2;
   const controller = new AbortController();
   const host = deps.process || process;
@@ -131,8 +136,7 @@ async function handleActionMcpReview(args, options = {}) {
           const serving = (deps.serve || require('./action-mcp-stdio').serveActionMcp)({
             input: peer,
             output: peer,
-            policyPath: args[1],
-            requestPath: args[2],
+            ...selection,
             execute: async (...parameters) => {
               stopIdleInput();
               stopIdleInput = () => {};
@@ -189,7 +193,7 @@ async function handleActionMcpReview(args, options = {}) {
       });
     });
     if (closed) return 2;
-    removeEndpoint = await publishActionEndpoint(args[3], {
+    removeEndpoint = await publishActionEndpoint(endpointPath, {
       schemaVersion: 1,
       port: server.address().port,
       token: secret.toString('hex'),

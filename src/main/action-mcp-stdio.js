@@ -16,31 +16,33 @@ let testDeps = null;
  * Serve one finite newline-delimited MCP session on explicitly owned stdio.
  * Closing admission cancels the session and awaits its in-flight operations;
  * child cleanup must finish before the CLI exits. No diagnostic text is emitted.
- * @param {string[]} args Flag, selected policy path and selected request path.
+ * @param {string[]} args Single-action flag and selected pair, or catalog flag and manifest.
  * @returns {Promise<number>} 0 for clean EOF, otherwise 2; stdout is protocol only.
  * @since v0.15.1
  */
 function handleActionMcpStdio(args) {
+  const catalog = args[0] === '--action-mcp-catalog-stdio';
   const valid =
-    args.length === 3 &&
-    args[0] === '--action-mcp-stdio' &&
+    args.length === (catalog ? 2 : 3) &&
+    (catalog || args[0] === '--action-mcp-stdio') &&
     args.slice(1).every((arg) => typeof arg === 'string' && arg && !arg.startsWith('--'));
   return serveActionMcp({
     input: testDeps?.input || process.stdin,
     output: testDeps?.output || process.stdout,
-    policyPath: valid ? args[1] : undefined,
-    requestPath: valid ? args[2] : undefined,
+    ...(catalog
+      ? { catalogPath: valid ? args[1] : '' }
+      : { policyPath: valid ? args[1] : undefined, requestPath: valid ? args[2] : undefined }),
   });
 }
 
 /**
  * Serve bounded MCP over owner-selected streams, including a shared duplex.
  * The optional executor is trusted local configuration, never client input.
- * @param {{input: NodeJS.ReadableStream, output: NodeJS.WritableStream, policyPath: string, requestPath: string, execute?: Function, signal?: AbortSignal}} options Owner transport and execution.
+ * @param {{input: NodeJS.ReadableStream, output: NodeJS.WritableStream, policyPath?: string, requestPath?: string, catalogPath?: string, execute?: Function, signal?: AbortSignal}} options Owner transport and exclusive selected pair or catalog.
  * @returns {Promise<number>} Clean EOF status or failure after active cleanup.
  * @since v0.15.1
  */
-function serveActionMcp({ input, output, policyPath, requestPath, execute, signal }) {
+function serveActionMcp({ input, output, policyPath, requestPath, catalogPath, execute, signal }) {
   const createSession = testDeps?.createSession || require('./action-mcp').createActionMcp;
   return new Promise((resolve) => {
     const active = new Set();
@@ -205,17 +207,20 @@ function serveActionMcp({ input, output, policyPath, requestPath, execute, signa
     input.on('close', onInputClose);
     output.on('error', onOutputError);
     output.on('close', onOutputClose);
-    if (
-      [policyPath, requestPath].some((arg) => typeof arg !== 'string' || !arg) ||
-      signal?.aborted
-    ) {
+    const catalog = catalogPath !== undefined;
+    const validSelection = catalog
+      ? typeof catalogPath === 'string' &&
+        !!catalogPath &&
+        policyPath === undefined &&
+        requestPath === undefined
+      : [policyPath, requestPath].every((arg) => typeof arg === 'string' && !!arg);
+    if (!validSelection || signal?.aborted) {
       close();
       return;
     }
     try {
       session = createSession({
-        policyPath,
-        requestPath,
+        ...(catalog ? { catalogPath } : { policyPath, requestPath }),
         ...(execute === undefined ? {} : { execute }),
       });
     } catch (_) {
