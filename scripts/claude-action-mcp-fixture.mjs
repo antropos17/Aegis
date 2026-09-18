@@ -2,6 +2,69 @@
 const TOOL_ID = 'toolu_aegislocal0001';
 const TOOL_NAME = 'mcp__aegis__aegis_execute_selected';
 const known = (value, choices) => (choices.includes(value) ? value : 'unexpected');
+const privateCanaries = new WeakMap();
+const REASONS = [
+  'policy-allow',
+  'policy-ask',
+  'policy-deny',
+  'child-exited',
+  'spawn-failed',
+  'action-cancelled',
+  'approval-unavailable',
+  'runtime-unsupported',
+  'preparation-failed',
+  'preparation-unavailable',
+  'decision-invalid',
+  'launch-invalid',
+  'configuration-changed',
+  'configuration-unavailable',
+  'terminal-required',
+  'confirmation-denied',
+  'confirmation-unavailable',
+  'execution-unavailable',
+  'output-limit',
+  'runtime-timeout',
+  'child-error',
+  'output-unavailable',
+  'launch-failed',
+];
+
+/** Register bounded private markers outside the enumerable receipt sink.
+ * @param {object} scenario Observation sink. @param {string[]} values Private markers.
+ * @returns {void} @since v0.15.1 */
+export function setPrivateCanaries(scenario, values) {
+  if (
+    !scenario ||
+    typeof scenario !== 'object' ||
+    Array.isArray(scenario) ||
+    !Array.isArray(values) ||
+    values.length > 8 ||
+    !Array.from(values).every(
+      (value) => typeof value === 'string' && value.length > 0 && value.length <= 1024,
+    )
+  )
+    throw new Error('fixture-canaries-invalid');
+  privateCanaries.set(scenario, [...values]);
+}
+
+/** Inspect complete provider output without returning private markers.
+ * @param {unknown} value Provider text or parsed JSON. @param {object} scenario Observation sink.
+ * @returns {boolean} Whether a private marker occurs. @since v0.15.1 */
+export function hasPrivateCanary(value, scenario) {
+  const text = typeof value === 'string' ? value : JSON.stringify(value) || '';
+  if (/PRIVATE|aegis-mcp-owned/i.test(text)) return true;
+  for (const canary of privateCanaries.get(scenario) || []) {
+    let form = canary;
+    // Provider wrappers can nest JSON text; match raw and escaped representations.
+    for (let depth = 0; depth <= 10; depth++) {
+      if (text.includes(form)) return true;
+      const escaped = JSON.stringify(form).slice(1, -1);
+      if (escaped === form) break;
+      form = escaped;
+    }
+  }
+  return false;
+}
 
 function reportFrom(value, depth = 0) {
   if (depth > 8 || value == null) return null;
@@ -39,8 +102,7 @@ export function captureToolResult(input, scenario) {
       scenario.resultIsError = block.is_error === true;
       scenario.resultContainsReportMarker = JSON.stringify(block.content).includes('action-exec');
       scenario.privacyLeakDetected =
-        scenario.privacyLeakDetected === true ||
-        /PRIVATE|aegis-mcp-owned/i.test(JSON.stringify(block));
+        scenario.privacyLeakDetected === true || hasPrivateCanary(block, scenario);
       scenario.privacyPass = !scenario.privacyLeakDetected && !!scenario.report;
       const report = reportFrom(block.content);
       if (!report) continue;
@@ -49,6 +111,13 @@ export function captureToolResult(input, scenario) {
         schemaVersion: report.schemaVersion,
         mode: report.mode,
         decision: known(report.decision, ['allow', 'ask', 'deny', 'unknown']),
+        reason: known(report.reason, REASONS),
+        ...(report.authorization === 'operator-confirmed'
+          ? { authorization: 'operator-confirmed' }
+          : {}),
+        ...(['allow', 'ask', 'deny'].includes(report.policyDecision)
+          ? { policyDecision: report.policyDecision }
+          : {}),
         execution: {
           state: known(report.execution?.state, [
             'not-started',

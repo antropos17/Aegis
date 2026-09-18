@@ -76,8 +76,43 @@ A native Windows PTY fixture has exercised a real MCP relay, an affirmative ask
 execution with exit code zero, and disconnect during a second review with cleanup.
 A second run confirmed an ask call, then rejected a subsequent call with a typed
 negative response: the report was `confirmation-denied` with no launch, both
-processes exited zero and the endpoint was removed. This fixture uses a native
-MCP driver; the new broker route has not been verified through the installed
-Claude provider CLI. These automated interactions do not establish human
-presence. Executable-content binding, continuous file watching,
+processes exited zero and the endpoint was removed.
+
+Installed Windows Claude Code 2.1.263 also passed all four broker/relay scenarios:
+approved ask returned `operator-confirmed`, original policy `ask`, child exit zero
+and a sentinel; declined ask required an observed negative answer and returned
+`confirmation-denied` without launch; policy deny returned `policy-deny` without
+a preview; disconnect after a drained preview cancelled the Claude process tree
+with confirmed taskkill cleanup, no tool result and no sentinel. Every broker
+closed and removed its endpoint without fallback owner cancellation. The run made
+seven local model requests, rejected no proxy requests and removed owned scratch.
+Provider tool results and captured Claude stdout passed exact private-canary scans,
+including the descriptor bearer and selected private paths. The ignored receipt is
+`.agent/b1-claude-review-provider-receipt.json`.
+
+To reproduce on Windows, replace the executable and scratch paths with explicitly
+selected local paths; scratch must already exist on a spacious drive:
+
+```powershell
+node scripts/verify-claude-action-mcp.mjs --review --claude 'C:/absolute/claude.exe' --bash 'C:/absolute/bash.exe' --scratch 'X:/existing/private-scratch'
+```
+
+Keep stdin and stderr attached to a real terminal. Enter the displayed `RUN`
+challenge for the first scenario, then `no` for the second. Policy deny needs no
+answer. The verifier accepts the negative answer only within 55 seconds of the
+drained preview, so an answer after the production review's 60-second deadline
+cannot turn a timeout into a successful refusal check. The production deadline
+remains 60 seconds. The disconnect scenario automatically cancels Claude after the preview
+has drained. Stdout contains readiness JSON lines followed by the final redacted
+receipt. The private preview remains on stderr; do not save a combined terminal
+transcript as a receipt.
+
+The unchanged default fixture also passed its allow/deny/ask regression with six
+local model requests; `.agent/b1-claude-review-direct-regression.json` records that
+separate direct-stdio run.
+
+The fixture uses a synthetic loopback API, dummy credential and disposable MCP
+configuration. It does not verify a cloud model or enforce OS network isolation.
+These automated interactions do not establish human presence. Executable-content
+binding, continuous file watching,
 process-tree isolation and activity outside this selected route remain unsupported.

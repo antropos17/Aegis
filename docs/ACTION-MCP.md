@@ -144,5 +144,8 @@ review to the selected action, policy revision and an expiring one-attempt grant
 The direct `--action-mcp-stdio` route keeps ask unstarted and exposes no approval
 capability to the client. The separate [terminal review broker and relay](ACTION-MCP-REVIEW.md)
 connect this selected tool to fresh operator confirmation for each allow/ask call.
+Its installed-Claude `--review` fixture has separately passed approved ask,
+explicit refusal, policy deny and disconnect during review; see that contract for
+the reproducible command and evidence limits.
 Broader deliberate agent routing and coverage display remain B1 work.
 MCP gateway inspection and process-tree isolation remain separate roadmap work.

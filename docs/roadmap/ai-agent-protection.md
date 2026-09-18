@@ -413,3 +413,11 @@ against the same connection revision binding. Deny cannot be overridden. The
 bearer requires a trusted private directory, and terminal automation does not
 authenticate a human. See [the broker boundary](../ACTION-MCP-REVIEW.md) for finite
 transport limits, conservative cleanup and native verification scope.
+
+B1 broker provider verification: installed Windows Claude Code 2.1.263 passed
+approved ask, explicit negative answer, policy deny without a preview, and
+disconnect after a drained preview through the actual relay. Seven local
+synthetic API requests produced the expected results; private-canary checks and
+broker, endpoint and scratch cleanup passed. This establishes the selected route
+only; it does not authenticate human presence, verify a cloud model or provide OS
+isolation. Reproduction and receipt location are in the broker contract.
