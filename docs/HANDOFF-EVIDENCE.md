@@ -1,9 +1,10 @@
 # Agent handoff evidence: source review and implementation contract
 
-Status: design, reviewed 2026-09-16 against AEGIS baseline `b744da5`.
-No handoff collector, import command, sequence rule or enforcement adapter is
-implemented by this document. A5 remains partial. External sources were inspected;
-live hooks, SDK integrations and their effectiveness were not tested.
+Status: offline lifecycle import implemented; live collection remains planned.
+Source review: 2026-09-16 against AEGIS baseline `b744da5`. A5 remains partial.
+External sources were inspected; live hooks, SDK integrations and their
+effectiveness were not tested. No handoff sequence rule or enforcement adapter is
+implemented by this slice.
 
 ## Decision
 
@@ -15,7 +16,7 @@ distinct throughout ingestion, audit, display and export.
 
 A handoff record must never create an OS parent edge, move a file event to another
 actor, increase a sequence score by itself, or establish transferred content.
-SEQ001–SEQ003 retain their current contracts. The next implementation slice is the
+SEQ001–SEQ003 retain their current contracts. The implemented first slice is the
 bounded offline importer described below; live collection requires the B1 adapter
 boundary and separate identity and delivery verification.
 
@@ -44,8 +45,10 @@ Record the exact tested agent/adapter versions and OS before enabling a live sou
 | [Token collector](../src/main/token-cost-collector.js), `collectTokenCosts` | Maps the source PID to the current process instance for accounting. | Logical subagent activity cannot inherit independent file/network ownership from that mapping. |
 | [Process lineage](../src/main/process-lineage.js) and [related sequences](../src/main/sequence-related.js) | Use fresh process observations and bounded monitored ancestry. | Preserve their identity, outage, age and attribution requirements; see [sequence evidence](SEQUENCE-EVIDENCE.md). |
 
-The reviewed runtime has no `SubagentStart`/`SubagentStop` intake or handoff-span
-adapter. No user transcripts or credentials were read during this review.
+At the review baseline, the runtime had no `SubagentStart`/`SubagentStop` intake or
+handoff-span adapter. The offline importer now accepts these two lifecycle event
+kinds from an explicit file. No user transcripts or credentials were read during
+the source review or implementation tests.
 
 ## Trust and identity contract
 
@@ -74,10 +77,17 @@ parentage, task delivery or fresh ownership from a timeout.
 
 ## First implementation slice: explicit offline import
 
-Proposed CLI: `--handoff-import-json claude-code <events.jsonl>`. This is a future
-interface, not an existing command. It reads only an explicitly selected regular
-file and emits a metadata report. It must not install hooks, start an agent, follow
-transcript references, contact a service, or feed the sequence scorer.
+CLI: `node src/main/main.js --handoff-import-json claude-code <events.jsonl>`.
+It reads an explicitly selected regular file and emits a metadata report to stdout
+before Electron starts. It installs no hooks, starts no agent, follows no transcript
+references and does not feed the sequence scorer. The importer makes no outbound
+service requests. The caller controls whether to save its stdout.
+
+Exit code 0 means the selected input was processed completely; 2 means incomplete
+processing; 1 means invalid arguments, an unsupported adapter or unavailable input.
+None is a safety verdict. An empty file can be processed completely while activity
+coverage remains unknown. Input order is preserved without asserting execution
+order, duration, complete start/stop pairs or successful task delivery.
 
 The normalized report uses `schemaVersion: 1`, an adapter identifier and an
 import-local source identifier. Each event contains a fixed event kind
@@ -88,23 +98,23 @@ logged or retained after import. Allocate opaque references scoped to the import
 they deliberately cannot be joined across imports. Agent names/types remain
 excluded in this first slice because they can contain arbitrary user text.
 
-The report fixes `provenance: imported-unverified`, `processBinding: unbound` and
-`transferEvidence: unobserved`. It includes numeric accepted/rejected/unsupported
+The report fixes `provenance: imported-unverified`, `processBinding: unbound`,
+`transferEvidence: unobserved` and `activityCoverage: unknown`. It includes numeric accepted/rejected/unsupported
 counts, bounded fixed-code diagnostics, limit usage and an explicit completeness
 field. Completeness describes processing of the selected file only; it cannot
 describe coverage of the agent's activity. Do not accept producer-supplied versions
 of these receiver-owned fields. Do not emit per-record wall-clock timestamps when
 the source supplies none; an import timestamp labels import time only.
 
-Initial engineering limits, to be tested rather than presented as measured tuning:
+Implemented engineering limits; these are not measured tuning recommendations:
 
-| Resource | Proposed bound | On exhaustion or invalid input |
+| Resource | Bound | On exhaustion or invalid input |
 | --- | --- | --- |
-| Selected file | 8 MiB, regular file; reject symlinks/reparse points using the existing safe-reader approach | Fixed error; no alternate path or recursive discovery |
+| Selected file | 8 MiB, regular file; reject leaf links/junctions recognized by Node | Fixed error; no alternate path or recursive discovery |
 | JSONL record | 64 KiB of bytes before parsing | Mark incomplete; skip within the total byte budget, retaining no raw bytes |
 | Records / accepted events | 10,000 / 2,000 per import | Stop at the bound; mark incomplete |
 | Session/agent input identifiers | Nonempty strings, at most 256 UTF-8 bytes each, no control characters | Reject record without echoing the value |
-| Distinct identity entries | 2,000 combined scoped sessions and agents | Stop admitting new identities; mark incomplete |
+| Distinct identity entries | 2,000 combined scoped sessions and agents | Stop import before an event would exceed the bound; mark incomplete |
 | Diagnostics | 32 fixed-code entries plus aggregate counters | Count further errors without retaining input or exception messages |
 
 Read bounded chunks and compare file identity/size before and after import; visible
@@ -114,8 +124,34 @@ limits. Reuse established safe-file helpers only after checking their actual
 guarantees. Unrecognized events count as unsupported. Missing required fields,
 malformed JSON, an unterminated final record and read failures remain visible.
 Discard unknown fields, nested payloads, tool arguments, prompts, outputs, env
-values and transcript paths before constructing results. Error diagnostics must
-never include a `JSON.parse` message, file body or arbitrary exception text.
+values and transcript paths before constructing results. Error diagnostics never
+include a `JSON.parse` message, file body or arbitrary exception text.
+
+`usage.bytes` counts bytes read in 16 KiB blocks, including read-ahead within the
+last block. `usage.records` counts newline-terminated records examined, including
+the record that triggers the event or identity cap. Accepted, rejected and
+unsupported counts exclude unprocessed records and unterminated tails. A rejected
+record or unsupported kind makes processing incomplete. Diagnostics retain at most
+32 entries; their total count remains available when entries are omitted. A
+line's byte bound excludes LF and includes an optional CR. Invalid UTF-8 and lone
+surrogates in identifiers are rejected; valid multibyte identifiers use byte limits.
+
+The selected parent directory is canonicalized once. Leaf symlinks, Node-recognized
+junctions, nonregular files, UNC/device namespace paths and alternate-stream leaf
+names are rejected. This is best-effort Node filesystem checking: it does not
+establish that a mount/drive is physically local, cover every Windows reparse tag,
+or prevent all same-size rewrites/path races by a hostile same-user process.
+Size, device/inode and modification/change times are checked against the open
+handle and pathname before and after reads. Detected changes retain any accepted
+metadata with `complete: false`; they never upgrade its unverified provenance.
+
+| Surface | Support in this slice |
+| --- | --- |
+| Node 24 CLI, Windows regular files | Experimental; synthetic file, race and junction tests |
+| Node 24 CLI, Linux regular files | Experimental; same synthetic suite in CI, including leaf symlinks |
+| macOS, unusual filesystem/reparse providers | Not verified in this slice |
+| Claude producer versions | Unknown; only the documented two event shapes are accepted, without asserting a tested installed version |
+| Live hooks, SDK traces, A2A, UI and prevention | Not connected |
 
 ## Verification required for that slice
 
@@ -130,14 +166,16 @@ never include a `JSON.parse` message, file body or arbitrary exception text.
 | Unsupported event, missing stop or unknown producer version | Explicit limits; no claim of full lifecycle or prevention coverage |
 | Import while monitoring is running | Existing process identities, sequence state, risk score and audit ownership are unaffected |
 
-Use synthetic fixtures. A successful import test does not verify a live provider.
-No new tests are needed for this design-only change; implementation must supply
-behavioral and privacy tests before adding the command to user-facing help.
+Synthetic behavioral, filesystem and CLI fixtures live in
+`tests/main/handoff-{import,reader,cli}.test.js`. They exercise the real Node entry,
+verify the import module graph stays isolated from monitoring/audit/scoring, and
+check privacy and limit failures. A successful import test does not verify a live
+provider. Verification and platform results are recorded in the implementation PR.
 
 ## Following slices and completion boundary
 
-1. Implement the offline importer above, with an explicit experimental support
-   matrix and checked limits. Review its output contract before UI integration.
+1. Completed: the offline importer above, its experimental support matrix and
+   bounded metadata output. Review its output contract before UI integration.
 2. Define B1's receiver-owned event envelope, transport/source registration,
    authenticated binding where supportable, replay handling, loss reporting and
    bounded retention. Then test an opt-in live lifecycle collector against pinned

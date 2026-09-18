@@ -42,6 +42,8 @@ export default defineConfig({
         'frontend/observatory/App.svelte',
         'src/renderer/lib/utils/enrich-agents.ts',
         'src/main/logger.js',
+        'src/main/handoff-import.js',
+        'src/main/handoff-reader.js',
         'src/main/agent-inventory.js',
         'src/main/inventory-reader.js',
         'src/main/inventory-config.js',
