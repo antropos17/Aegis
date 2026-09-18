@@ -99,7 +99,8 @@ requests and removed its owned scratch. PostToolUseFailure and ask correlation
 are covered by synthetic unit tests, not an installed-provider approval exercise.
 There is no OS firewall isolation or real cloud model verification.
 
-Remaining B1 work includes a production mediation point that owns execution,
+The separate [direct-execution CLI](ACTION-EXECUTION.md) now owns one explicit
+child launch. Remaining B1 work includes connected agent routing,
 failure behavior that cannot silently permit an action, approval bound to exact
 action/policy revision/expiry, and independent OS identity. This correlation
 window is not an expiring execution permit. Policy changes after a before

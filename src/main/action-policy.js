@@ -18,6 +18,12 @@ const keys = (value, expected) =>
   Object.keys(value).length === expected.length &&
   expected.every((key) => Object.hasOwn(value, key));
 
+/**
+ * Parse bounded private JSON without retaining its source bytes.
+ * @param {Buffer} buffer Explicit input bytes.
+ * @returns {unknown} Validated JSON value; private to the calling evaluator.
+ * @since v0.15.1
+ */
 function parse(buffer) {
   if (!Buffer.isBuffer(buffer) || buffer.length > LIMITS.bytes) throw new Error('invalid');
   const value = JSON.parse(
@@ -92,6 +98,12 @@ const sameFile = (a, b) =>
   a.mtimeMs === b.mtimeMs &&
   a.ctimeMs === b.ctimeMs;
 
+/**
+ * Read one explicitly selected bounded regular policy/request file.
+ * @param {string} filename Selected path.
+ * @returns {Promise<Buffer>} Private bytes; caller must clear after parsing.
+ * @since v0.15.1
+ */
 async function readPolicy(filename) {
   let handle;
   try {
@@ -210,4 +222,11 @@ async function evaluateActionPolicy(policyPath, inputBuffer) {
   return { decision, reason: `policy-${decision}` };
 }
 
-module.exports = { evaluateActionPolicy, decodeActionRequest, equalActionValue, LIMITS };
+module.exports = {
+  evaluateActionPolicy,
+  decodeActionRequest,
+  equalActionValue,
+  LIMITS,
+  parseActionJson: parse,
+  readActionFile: readPolicy,
+};

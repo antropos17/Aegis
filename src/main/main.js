@@ -10,6 +10,7 @@
 const _cliFlags = new Set([
   '--handoff-import-json',
   '--action-policy-hook',
+  '--action-exec-json',
   '--handoff-listen-json',
   '--handoff-send',
   '--static-import-json',
@@ -27,9 +28,9 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
   require('./cli')
     .handleCLI()
     .then(async (code) => {
-      if (process.argv[2] === '--action-policy-hook') {
-        // The hook has a fixed small response; drain it before ending even if a
-        // late filesystem operation outlives the internal evaluation deadline.
+      if (['--action-policy-hook', '--action-exec-json'].includes(process.argv[2])) {
+        // These commands emit small bounded reports; drain before ending even
+        // when a late operation outlives the evaluation or cleanup deadline.
         await new Promise((resolve) => process.stdout.write('', resolve));
         process.exit(code ?? 2);
       }
