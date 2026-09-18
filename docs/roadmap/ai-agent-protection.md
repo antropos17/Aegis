@@ -448,3 +448,11 @@ canary checks, provider-tree cleanup and endpoint/scratch removal passed. This
 evidence covers the configured catalog route with local model replies; cloud-model
 behavior, human authentication and OS isolation remain unverified. Reproduction
 commands and redacted receipt locations are in the catalog contract.
+
+B1 whole-catalog preflight: `--action-catalog-check-json` reports current
+configuration and per-tool policy decisions for direct stdio or terminal review.
+The check reuses catalog admission and revision-bound evaluation under one
+deadline, then revokes all temporary bindings. It never launches, listens,
+connects or grants permission. Cancellation, timeout and observed revocation
+discard partial results. Valid deny remains a successful configuration check.
+See [the catalog-check contract](../ACTION-ROUTE-CHECK.md#whole-catalog-check).

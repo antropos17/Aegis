@@ -8,6 +8,7 @@
 
 // ═══ CLI MODE (before Electron imports) ═══
 const _cliFlags = new Set([
+  '--action-catalog-check-json',
   '--action-route-check-json',
   '--action-mcp-catalog-stdio',
   '--action-mcp-catalog-review',
@@ -53,6 +54,7 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
           '--action-exec-json',
           '--action-exec-confirm',
           '--action-route-check-json',
+          '--action-catalog-check-json',
         ].includes(process.argv[2])
       ) {
         // These commands emit small bounded reports; drain before ending even

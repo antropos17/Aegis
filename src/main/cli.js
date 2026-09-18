@@ -18,6 +18,8 @@ Options:
   --action-mcp-catalog-review <catalog.json> <new-endpoint.json>  Confirm catalog MCP actions in this terminal
   --action-route-check-json <route> <policy.json> <request.json>  Check a selected route without execution
     Routes: direct, terminal, mcp-stdio, mcp-review (this check grants no permission)
+  --action-catalog-check-json <route> <catalog.json>  Check all selected catalog actions without execution
+    Routes: mcp-stdio, mcp-review (this check grants no permission)
   --action-mcp-review <policy.json> <request.json> <new-endpoint.json>  Confirm MCP actions in this terminal
   --action-mcp-connect <endpoint.json>  Connect an MCP client to an operator review terminal
   --action-mcp-stdio <policy.json> <request.json>  Serve one selected action through finite MCP stdio
@@ -93,6 +95,8 @@ async function handleCLI(argv) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  if (flag === '--action-catalog-check-json')
+    return require('./action-catalog-check').handleActionCatalogCheckCLI(args, write);
   if (flag === '--action-route-check-json')
     return require('./action-route-check').handleActionRouteCheckCLI(args, write);
   if (flag === '--action-mcp-review' || flag === '--action-mcp-catalog-review')
