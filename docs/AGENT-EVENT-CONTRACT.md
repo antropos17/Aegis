@@ -3,7 +3,9 @@
 Status: first bounded runtime slice implemented, consumed by
 `--handoff-import-json claude-code <events.jsonl>`. B1 remains partial.
 The [opt-in live collector](LIVE-LIFECYCLE.md) adds bounded loopback intake and
-bearer-possession checks. Provider-driven verification and execution control remain open.
+bearer-possession checks. Installed-provider fixtures and an experimental
+[before-only Bash policy hook](ACTION-POLICY-HOOK.md) are now implemented.
+After-action linkage and failure-resistant execution mediation remain open.
 
 ## Receiver ownership and versioning
 
@@ -86,7 +88,8 @@ An in-memory handle or public source UUID alone must not authorize a network sen
 
 ## Policy contract for subsequent execution adapters
 
-These semantics are design requirements, not implemented policy evaluation:
+These are B1 completion requirements. The experimental Bash hook implements
+exact-input decisions only; its limitations do not satisfy full action binding:
 
 | Phase / decision | Required behavior at a supported execution point |
 | --- | --- |
@@ -108,9 +111,10 @@ arguments, output, credentials or file contents to accommodate that future work.
 | Surface | Current support |
 | --- | --- |
 | Explicit Claude lifecycle JSONL | Experimental offline observation; Node 24 synthetic Windows/Linux tests; producer version unknown |
-| Claude command-hook sender | Opt-in loopback transport, synthetic integration tests; installed provider execution not verified |
+| Claude command-hook sender | Opt-in loopback transport; Windows Claude 2.1.263 provider fixture with local model stub verified |
 | SDK and A2A sources | Not connected |
-| MCP stdio/HTTP, before/after tool actions | Not connected; no action gate or policy decision |
+| Claude PreToolUse Bash | Experimental exact-input allow/ask/deny hook; specific allow/deny fixture verified, provider failure bypasses remain |
+| PostToolUse, MCP stdio/HTTP | No correlated action/policy mediation |
 | Direct shell, filesystem, network and descendants | No blocking through this boundary |
 | Audit/UI, scoring and OS binding | No consumer added here; CLI report is the implemented consumer |
 | macOS and unusual filesystem providers | Not verified in this slice; reader caveats remain in the handoff contract |
@@ -124,9 +128,9 @@ This is a schema comparison; no ACS implementation or conformance test was run.
 | ACS v0.1.0 source | AEGIS decision / gap |
 | --- | --- |
 | [Request envelope](https://github.com/GenAI-Security-Project/agent-control-standard/blob/dc265475139a922824f0c817e2ecc2a2ce31c06c/specification/v0.1.0/request-envelope.json) uses JSON-RPC methods, request IDs, timestamps, metadata and payloads, with nonce/signature fields | AEGIS has local source/event scopes only. It cannot claim wire compatibility, authentication or replay conformance. Do not synthesize a provider timestamp. |
-| [Response envelope](https://github.com/GenAI-Security-Project/agent-control-standard/blob/dc265475139a922824f0c817e2ecc2a2ce31c06c/specification/v0.1.0/response-envelope.json) includes allow/deny/modify/ask/defer and policy references | Planned AEGIS allow/ask/deny is a subset. No runtime response mapping exists; unsupported modify/defer must never silently become allow. |
+| [Response envelope](https://github.com/GenAI-Security-Project/agent-control-standard/blob/dc265475139a922824f0c817e2ecc2a2ce31c06c/specification/v0.1.0/response-envelope.json) includes allow/deny/modify/ask/defer and policy references | The Claude hook implements an allow/ask/deny subset; there is no ACS wire adapter. Unsupported modify/defer must never silently become allow. |
 | [Ask details](https://github.com/GenAI-Security-Project/agent-control-standard/blob/dc265475139a922824f0c817e2ecc2a2ce31c06c/specification/v0.1.0/ask-details.json) includes approver, timeout and timeout disposition | AEGIS requires timeout without permission. A future adapter must reject incompatible behavior and verify approval/action binding. |
 
-Next: verify the opt-in collector against a pinned running provider in isolation. Completing B1 additionally requires executable before/after policy
-handling at an actual mediation point, failure/bypass tests and an updated ACS
-assessment of that implementation. Telemetry tests alone cannot close those items.
+Next: correlate before/after actions and verify a mediation point whose failures
+cannot silently permit execution. Provider ask is delegated, not an AEGIS approval
+protocol. ACS wire mapping and implementation conformance remain open. Telemetry tests alone cannot close those items.

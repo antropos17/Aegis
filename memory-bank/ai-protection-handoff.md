@@ -10,19 +10,43 @@ was added afterward; fetch and check its publication status before continuing.
 Continue [the AI-agent protection roadmap](../docs/roadmap/ai-agent-protection.md).
 The product goal is protection from unsafe AI-agent actions, with explicit limits
 on observation, attribution and prevention. The next stage is **B1 in that roadmap**:
-isolated provider-driven verification of the [opt-in live collector](../docs/LIVE-LIFECYCLE.md),
-then a separately tested execution/policy adapter. The live collector and hook
-sender have synthetic HTTP/Node tests, fixed bounds and explicit bearer-possession
-limits. No user hook configuration was changed and no real agent was launched.
-Installed Claude reports 2.1.263; that alone is not integration verification.
+before/after action linkage and a mediation point with verified failure behavior.
+The [exact-input Bash policy hook](../docs/ACTION-POLICY-HOOK.md) now supplies
+experimental before-only allow/ask/deny. Actual Windows Claude 2.1.263 exercised
+AEGIS allow/deny and lifecycle delivery against an isolated loopback model stub.
+No user hook configuration or provider credentials were used. Interactive ask,
+provider-hook failure bypasses, after linkage and independent OS binding remain.
 
 B1's offline consumer now uses receiver-owned registration, envelope schema 1,
 ordinal replay rejection, sticky loss and shared lifetime budgets. Import reports
 are schema 2. The contract also defines planned before/after and allow/ask/deny
-semantics and a pinned initial ACS schema assessment. No executable policy gate or blocking behavior is implemented. Live transport
-authenticates bearer possession only, with no independent process binding. B1 remains partial.
+semantics and a pinned initial ACS schema assessment. The before-only hook is
+experimental; it cannot guarantee protection when the provider fails to run it.
+Live transport authenticates bearer possession only. B1 remains partial.
 A5 remains partial after offline import; independent handoffs and broad causal
 inference remain uncovered. Do not restart the completed work below.
+
+## B1 before-only policy slice and provider verification
+
+`action-policy.js` reads one bounded selected policy file and compares the full
+Bash tool_input and exact cwd. No shell analysis, command execution or content
+hashes are emitted. `action-policy-hook.js` implements stdin/total-deadline bounds,
+fixed provider JSON and deny on controlled failures; CLI flag is
+`--action-policy-hook <policy.json>`. Policies are reread per invocation, so there
+is no session ledger, replay-protected approval token or after-action correlation.
+
+Parallel security review found no confirmed blocker; a candidate late stdin error
+was fixed and tested before publication. Core and adapter focused tests passed.
+The opt-in script `scripts/verify-claude-hooks.mjs` reproduces the installed-provider
+fixture with explicitly selected Windows executable/bash/scratch paths. It runs
+real hooks with local synthetic model responses; no OS firewall isolation is
+claimed. AEGIS allow created a sentinel, deny prevented it; the live collector
+accepted two lifecycle events. Interactive ask was not exercised.
+
+Ignored `.agent/b1-provider-receipt.json` retains local fixture evidence and
+`.agent/b1-policy-receipt.json` records final CI/publication. Consult those and the
+implementation PR before claiming merge. User authorized parallel agents in this
+continuation; otherwise retain the ordinary no-unsolicited-delegation preference.
 
 ## B1 live transport slice
 

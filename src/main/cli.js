@@ -14,6 +14,7 @@ const USAGE = `AEGIS — Independent AI Oversight Layer
 Usage:  aegis [options]
 
 Options:
+  --action-policy-hook <policy.json>  Experimental Claude PreToolUse Bash decision hook
   --handoff-listen-json claude-code <port> <seconds>  Observe live hooks on loopback (opt-in)
   --handoff-send  Forward one hook from stdin using AEGIS_HANDOFF_PORT/TOKEN
   --handoff-import-json claude-code <events.jsonl>  Import unverified subagent lifecycle metadata
@@ -83,6 +84,8 @@ async function handleCLI(argv) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  if (flag === '--action-policy-hook')
+    return require('./action-policy-hook').handleActionPolicyHook(args, write);
   if (flag === '--handoff-listen-json' || flag === '--handoff-send')
     return require('./handoff-live-cli').handleHandoffLiveCLI(args, write);
   if (flag === '--handoff-import-json') {
