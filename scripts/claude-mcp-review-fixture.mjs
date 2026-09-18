@@ -8,7 +8,9 @@ import { observeReviewPreview, observeNegativeAnswer } from './claude-review-obs
 const names = ['approved-ask', 'declined-ask', 'policy-deny', 'disconnect-during-review'];
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function settleWithin(promise, ms) {
+/** @param {Promise<unknown>} promise Owner completion. @param {number} ms Wait bound.
+ * @returns {Promise<boolean>} Whether it settled within the bound. @since v0.15.1 */
+export async function settleWithin(promise, ms) {
   let timer;
   try {
     return await Promise.race([
@@ -22,7 +24,9 @@ async function settleWithin(promise, ms) {
   }
 }
 
-async function readEndpoint(file, isClosed) {
+/** @param {string} file Owned descriptor. @param {() => boolean} isClosed Owner state.
+ * @returns {Promise<object>} Private descriptor; never serialize into a receipt. @since v0.15.1 */
+export async function readEndpoint(file, isClosed) {
   const deadline = performance.now() + 3000;
   while (!isClosed() && performance.now() < deadline) {
     try {

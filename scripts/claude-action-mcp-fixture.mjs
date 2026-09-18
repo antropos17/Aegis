@@ -93,11 +93,12 @@ function reportFrom(value, depth = 0) {
 }
 
 /** @param {object} input Synthetic model request. @param {object} scenario Redacted observation sink.
+ * @param {string} [toolId] Trusted expected tool-use identifier.
  * @returns {void} @since v0.15.1 */
-export function captureToolResult(input, scenario) {
+export function captureToolResult(input, scenario, toolId = TOOL_ID) {
   for (const message of Array.isArray(input.messages) ? input.messages : []) {
     for (const block of Array.isArray(message.content) ? message.content : []) {
-      if (block.type !== 'tool_result' || block.tool_use_id !== TOOL_ID) continue;
+      if (block.type !== 'tool_result' || block.tool_use_id !== toolId) continue;
       scenario.toolResultSeen = true;
       scenario.resultIsError = block.is_error === true;
       scenario.resultContainsReportMarker = JSON.stringify(block.content).includes('action-exec');
@@ -155,6 +156,15 @@ export function replyWithSelectedTool(res, input, scenario) {
   const block = first
     ? { type: 'tool_use', id: TOOL_ID, name: selected.name, input: {} }
     : { type: 'text', text: 'OK' };
+  emitSyntheticToolReply(res, input, block);
+}
+
+/** Emit one fixed fixture response using JSON or SSE.
+ * @param {object} res HTTP response. @param {object} input Model request.
+ * @param {object} block Owned fixed tool call or terminal text.
+ * @returns {void} @since v0.15.1 */
+export function emitSyntheticToolReply(res, input, block) {
+  const first = block.type === 'tool_use';
   const message = {
     id: 'msg_aegislocal',
     type: 'message',

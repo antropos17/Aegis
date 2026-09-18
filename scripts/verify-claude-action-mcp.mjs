@@ -6,11 +6,13 @@ import { fileURLToPath } from 'node:url';
 import { options, treeBytes, removeOwned, createRunner } from './claude-hook-runtime.mjs';
 import { replyWithSelectedTool } from './claude-action-mcp-fixture.mjs';
 import { verifyReviewRoute } from './claude-mcp-review-fixture.mjs';
+import { verifySelectedRoute } from './claude-single-provider-fixture.mjs';
+import { replyWithCatalogTools } from './claude-catalog-model-fixture.mjs';
+import { verifyCatalogRoute } from './claude-catalog-provider-fixture.mjs';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
-const tool = 'mcp__aegis__aegis_execute_selected';
 const usage =
-  'Windows only: node scripts/verify-claude-action-mcp.mjs [--review] --claude <absolute claude.exe> --bash <absolute bash.exe> --scratch <existing spacious directory>\nExplicitly configures a disposable local MCP server; uses a dummy credential and synthetic loopback API. --review requires a live terminal for confirmation and refusal. No OS firewall isolation; managed policy still applies. Stdout contains fixed readiness JSON lines and a final redacted receipt. No saved user settings are changed.';
+  'Windows only: node scripts/verify-claude-action-mcp.mjs [--review | --catalog | --catalog-review] --claude <absolute claude.exe> --bash <absolute bash.exe> --scratch <existing spacious directory>\nExplicitly configures disposable local MCP servers; uses a dummy credential and synthetic loopback API. Review modes require a live terminal for confirmation and refusal. No OS firewall isolation; managed policy still applies. Stdout contains fixed readiness JSON lines and a final redacted receipt. No saved user settings are changed.';
 
 async function main(args) {
   if (args.length === 1 && args[0] === '--help') {
@@ -18,9 +20,10 @@ async function main(args) {
     return;
   }
   let selected;
-  const review = args[0] === '--review';
+  const catalog = ['--catalog', '--catalog-review'].includes(args[0]);
+  const review = ['--review', '--catalog-review'].includes(args[0]);
   try {
-    selected = options(review ? args.slice(1) : args);
+    selected = options(review || catalog ? args.slice(1) : args);
     if (review && (!process.stdin.isTTY || !process.stderr.isTTY)) throw Error('terminal');
   } catch {
     console.log(JSON.stringify({ error: 'invalid-options-or-insufficient-space', usage }));
@@ -30,9 +33,13 @@ async function main(args) {
   const owned = fs.realpathSync(fs.mkdtempSync(path.join(selected.scratch, 'aegis-mcp-owned-')));
   const receipt = {
     checkedAt: new Date().toISOString(),
-    mode: review
-      ? 'claude-mcp-terminal-review-synthetic-api'
-      : 'claude-selected-action-mcp-synthetic-api',
+    mode: catalog
+      ? review
+        ? 'claude-catalog-review-synthetic-api'
+        : 'claude-catalog-stdio-synthetic-api'
+      : review
+        ? 'claude-mcp-terminal-review-synthetic-api'
+        : 'claude-selected-action-mcp-synthetic-api',
     localHttpRequests: 0,
     rejectedProxyRequests: 0,
     scenarios: [],
@@ -80,7 +87,8 @@ async function main(args) {
           return;
         }
         current.requests++;
-        replyWithSelectedTool(res, input, current);
+        if (catalog) replyWithCatalogTools(res, input, current);
+        else replyWithSelectedTool(res, input, current);
       });
     });
     server.on('connect', (_req, socket) => {
@@ -158,6 +166,22 @@ async function main(args) {
       },
     };
     fs.writeFileSync(requestPath, JSON.stringify({ schemaVersion: 1, action }));
+    if (catalog) {
+      await verifyCatalogRoute({
+        owned,
+        repo,
+        env,
+        run,
+        receipt,
+        action,
+        configPath,
+        review,
+        setScenario: (current) => {
+          scenario = current;
+        },
+      });
+      return;
+    }
     if (review) {
       await verifyReviewRoute({
         owned,
@@ -176,94 +200,20 @@ async function main(args) {
       });
       return;
     }
-    fs.writeFileSync(
+    await verifySelectedRoute({
+      repo,
+      env,
+      run,
+      receipt,
+      action,
+      sentinel,
+      policyPath,
+      requestPath,
       configPath,
-      JSON.stringify({
-        mcpServers: {
-          aegis: {
-            type: 'stdio',
-            command: process.execPath,
-            args: [
-              path.join(repo, 'src/main/main.js'),
-              '--action-mcp-stdio',
-              policyPath,
-              requestPath,
-            ],
-            env,
-          },
-        },
-      }),
-    );
-    for (const decision of ['allow', 'deny', 'ask']) {
-      if (fs.existsSync(sentinel)) fs.unlinkSync(sentinel);
-      fs.writeFileSync(
-        policyPath,
-        JSON.stringify({
-          schemaVersion: 2,
-          defaultDecision: 'deny',
-          rules: [{ action, decision }],
-        }),
-      );
-      scenario = {
-        decision,
-        requests: 0,
-        toolDiscovered: false,
-        toolResultSeen: false,
-        privacyPass: false,
-      };
-      const result = await run([
-        '-p',
-        'Use the configured selected-action tool once.',
-        '--setting-sources',
-        '',
-        '--strict-mcp-config',
-        '--mcp-config',
-        configPath,
-        '--no-chrome',
-        '--no-session-persistence',
-        '--permission-mode',
-        'dontAsk',
-        '--tools',
-        '',
-        '--allowedTools',
-        tool,
-        '--model',
-        'claude-sonnet-4-6',
-        '--output-format',
-        'json',
-      ]);
-      const report = scenario.report;
-      const hasSentinel = fs.existsSync(sentinel);
-      const pass =
-        result.code === 0 &&
-        !result.timedOut &&
-        !result.exceeded &&
-        scenario.toolDiscovered &&
-        scenario.toolResultSeen &&
-        scenario.privacyPass &&
-        report?.decision === decision &&
-        (decision === 'allow'
-          ? hasSentinel &&
-            report.execution.state === 'exited' &&
-            report.execution.exitCode === 0 &&
-            report.execution.outputComplete === true &&
-            !scenario.resultIsError
-          : !hasSentinel && report.execution.state === 'not-started' && scenario.resultIsError);
-      receipt.scenarios.push({
-        ...scenario,
-        sentinel: hasSentinel,
-        exitCode: result.code,
-        timedOut: !!result.timedOut,
-        exceeded: !!result.exceeded,
-        pass: !!pass,
-      });
-      scenario = null;
-      if (result.code !== 0 || result.timedOut || result.exceeded) break;
-    }
-    receipt.pass =
-      receipt.scenarios.length === 3 &&
-      receipt.scenarios.every((item) => item.pass) &&
-      receipt.rejectedProxyRequests === 0;
+      setScenario: (current) => {
+        scenario = current;
+      },
+    });
   } catch {
     receipt.pass = false;
     receipt.error = 'verification-failed';
