@@ -13,6 +13,8 @@ const _cliFlags = new Set([
   '--action-exec-json',
   '--action-exec-confirm',
   '--action-mcp-stdio',
+  '--action-mcp-review',
+  '--action-mcp-connect',
   '--handoff-listen-json',
   '--handoff-send',
   '--static-import-json',
@@ -30,7 +32,11 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
   require('./cli')
     .handleCLI()
     .then(async (code) => {
-      if (process.argv[2] === '--action-mcp-stdio') {
+      if (
+        ['--action-mcp-stdio', '--action-mcp-review', '--action-mcp-connect'].includes(
+          process.argv[2],
+        )
+      ) {
         // The transport already drained bounded output and awaited child cleanup.
         process.exit(code ?? 2);
       }

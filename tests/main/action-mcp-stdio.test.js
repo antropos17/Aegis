@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
-import { PassThrough, Writable } from 'node:stream';
+import { PassThrough, Writable, Duplex } from 'node:stream';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import fs from 'node:fs';
@@ -47,6 +47,82 @@ afterEach(() => {
 });
 
 describe('bounded MCP stdio framing', () => {
+  it('supports an owner-supplied executor and aborts admission while awaiting active cleanup', async () => {
+    let complete;
+    const t = setup(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const controller = new AbortController();
+    const execute = vi.fn();
+    let finished = false;
+    const pending = api
+      .serveActionMcp({
+        input: t.input,
+        output: t.output,
+        policyPath: 'policy',
+        requestPath: 'request',
+        execute,
+        signal: controller.signal,
+      })
+      .then((code) => {
+        finished = true;
+        return code;
+      });
+    t.input.write('{}\n');
+    controller.abort();
+    await tick();
+    expect(t.createSession).toHaveBeenCalledExactlyOnceWith({
+      policyPath: 'policy',
+      requestPath: 'request',
+      execute,
+    });
+    expect(t.session.close).toHaveBeenCalledOnce();
+    expect(finished).toBe(false);
+    complete({ jsonrpc: '2.0', id: 1, result: {} });
+    expect(await pending).toBe(2);
+    expect(t.text()).toBe('');
+  });
+
+  it('can read and write the same duplex without reflecting responses back as input', async () => {
+    let written = '';
+    const socket = new Duplex({
+      read() {},
+      write(chunk, _encoding, callback) {
+        written += chunk;
+        callback();
+      },
+    });
+    streams.push(socket);
+    const t = setup(async () => ({ jsonrpc: '2.0', id: 1, result: {} }));
+    const pending = api.serveActionMcp({
+      input: socket,
+      output: socket,
+      policyPath: 'policy',
+      requestPath: 'request',
+    });
+    socket.push('{}\n');
+    await tick();
+    socket.push(null);
+    expect(await pending).toBe(0);
+    expect(t.session.receive).toHaveBeenCalledOnce();
+    expect(JSON.parse(written)).toMatchObject({ id: 1, result: {} });
+  });
+
+  it('rejects an already-aborted transport before creating a session', async () => {
+    const t = setup();
+    const pending = api.serveActionMcp({
+      input: t.input,
+      output: t.output,
+      policyPath: 'policy',
+      requestPath: 'request',
+      signal: AbortSignal.abort(),
+    });
+    expect(await pending).toBe(2);
+    expect(t.createSession).not.toHaveBeenCalled();
+  });
   it('decodes split UTF-8 frames and emits only newline protocol responses', async () => {
     const t = setup(async () => ({ jsonrpc: '2.0', id: 1, result: {} }));
     const done = t.run();

@@ -12,9 +12,10 @@ node src/main/main.js --action-exec-confirm /absolute/policy.json /absolute/requ
 
 Standard input and standard error must both be live TTY streams. Piped input,
 redirected review output and missing terminals refuse execution. Standard output
-contains only the redacted execution report. The standalone JSON CLI and MCP
-tool retain their existing behavior; MCP does not acquire an approval prompt
-from this addition.
+contains only the redacted execution report. The standalone JSON CLI and direct
+MCP stdio tool retain their existing behavior. The separate
+[MCP review broker](ACTION-MCP-REVIEW.md) reuses this confirmation owner for each
+selected tool call, borrowing the connection's revision binding without recapture.
 
 ## Exact private review
 
@@ -69,7 +70,7 @@ separately. The report contains no grant, private revision digest or preview.
 ## Scope and verification
 
 This route adds an explicit operator interaction for one selected action. It does
-not provide an MCP approval bridge, reusable approval, task-wide authorization,
+not provide reusable approval, task-wide authorization,
 process-tree isolation or authenticated human presence. Revision checks are not
 continuous watchers and do not pin executable bytes, loaded libraries, scripts or
 cwd contents. Allowed executables retain the caller's account privileges.

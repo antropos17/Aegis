@@ -181,6 +181,32 @@ describe('connection-owned selected-file binding', () => {
 });
 
 describe('selected-action MCP protocol', () => {
+  it('uses a per-instance trusted execution callback that protocol input cannot replace', async () => {
+    const fallback = vi.fn(async () => ok);
+    setup(fallback);
+    const execute = vi.fn(async () => ok);
+    const server = api.createActionMcp({
+      policyPath: 'PRIVATE_POLICY',
+      requestPath: 'PRIVATE_REQUEST',
+      execute,
+    });
+    await ready(server);
+    expect(
+      (
+        await server.receive(
+          request(1, 'tools/call', { name: api.NAME, arguments: {}, execute: 'PRIVATE_CALLBACK' }),
+        )
+      ).error.code,
+    ).toBe(-32602);
+    await server.receive(call(2));
+    expect(execute).toHaveBeenCalledOnce();
+    expect(fallback).not.toHaveBeenCalled();
+    expect(execute.mock.calls[0][2]).toMatchObject({
+      binding: expect.any(Object),
+      signal: expect.any(AbortSignal),
+    });
+    server.close();
+  });
   it.each(api.VERSIONS)(
     'negotiates %s and exposes one fixed argument-free tool',
     async (version) => {

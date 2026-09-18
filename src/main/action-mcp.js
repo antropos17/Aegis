@@ -16,12 +16,14 @@ let testDeps = null;
 /**
  * Own one MCP stdio connection for an operator-selected exact action. The client
  * can invoke the fixed action but cannot supply paths, argv or environment.
- * @param {{policyPath:string,requestPath:string}} options Selected local files.
+ * @param {{policyPath:string,requestPath:string,execute?: Function}} options Selected files and trusted owner execution callback.
  * @returns {object} Async receive and immediate admission-revoking close.
  * @since v0.15.1
  */
-function createActionMcp({ policyPath, requestPath }) {
-  const execute = testDeps?.execute || executeAction;
+function createActionMcp({ policyPath, requestPath, execute: ownerExecute }) {
+  if (ownerExecute !== undefined && typeof ownerExecute !== 'function')
+    throw new Error('execution-owner-invalid');
+  const execute = ownerExecute || testDeps?.execute || executeAction;
   const capture =
     testDeps?.capture ||
     ((...args) => require('./execution-binding').captureExecutionBinding(...args));
