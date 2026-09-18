@@ -48,6 +48,7 @@ export default defineConfig({
         'src/main/execution-policy.js',
         'src/main/execution-runtime.js',
         'src/main/action-route-check.js',
+        'src/main/action-catalog-check.js',
         'src/main/execution-binding.js',
         'src/main/execution-approval.js',
         'src/main/action-confirmation.js',

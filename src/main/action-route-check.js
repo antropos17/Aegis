@@ -7,6 +7,9 @@ const ROUTES = Object.freeze(['direct', 'terminal', 'mcp-stdio', 'mcp-review']);
 const LIMITS = Object.freeze({ checkMs: 1500 });
 let testDeps = null;
 
+/** @param {string} route Selected route. @param {string} runtime Runtime observation.
+ * @param {string} terminal Terminal observation. @returns {object} Fixed report baseline.
+ * @since v0.15.1 */
 function baseReport(route, runtime, terminal) {
   return {
     schemaVersion: 1,
@@ -174,6 +177,7 @@ function _resetForTest() {
   testDeps = null;
 }
 module.exports = {
+  baseReport,
   checkActionRoute,
   handleActionRouteCheckCLI,
   ROUTES,

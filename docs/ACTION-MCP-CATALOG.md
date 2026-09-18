@@ -75,9 +75,13 @@ Cancellation targets the current request; disconnect waits for bounded review or
 direct-child cleanup. Already completed effects cannot be undone.
 
 The original single-tool routes remain compatible. The
-[route checker](ACTION-ROUTE-CHECK.md) still accepts only its four single-action
-routes; it is not a whole-catalog validation command. Catalog initialization is
-the implemented catalog admission check.
+[catalog checker](ACTION-ROUTE-CHECK.md#whole-catalog-check),
+`--action-catalog-check-json <mcp-stdio|mcp-review> <catalog.json>`, checks the whole
+manifest and every selected policy/request pair without executing or connecting.
+It reports each public tool's policy decision and current-process prerequisites;
+its temporary revision bindings are revoked before return. The original
+`--action-route-check-json` keeps its four single-action routes. A completed check
+grants no permission and does not replace catalog admission on a real connection.
 
 ## Verification and remaining scope
 

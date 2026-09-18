@@ -11,7 +11,8 @@ Continue [the AI-agent protection roadmap](../docs/roadmap/ai-agent-protection.m
 The product goal is protection from unsafe AI-agent actions, with explicit limits
 on observation, attribution and prevention. The current stage is **partial B1**:
 exact operator approval binding and the selected MCP review route now exist;
-an executable route checker now reports selected configuration and prerequisites.
+an executable route checker now reports selected configuration and prerequisites,
+including a whole-catalog check through `--action-catalog-check-json`.
 The [MCP action catalog](../docs/ACTION-MCP-CATALOG.md) additionally exposes up to
 eight operator-selected actions through direct stdio or the terminal-review broker.
 Installed Windows Claude 2.1.263 now exercises two catalog actions through both
@@ -72,7 +73,18 @@ Catalog continuation: `--action-mcp-catalog-stdio <manifest>` and
 MCP limits and relay. Initialization snapshots the manifest and atomically captures
 per-entry revision bindings; manifest edits apply only on a new connection. Each
 reviewed allow/ask invocation needs fresh terminal confirmation. The four-route
-preflight checker does not validate a whole catalog.
+single-action preflight checker keeps its original contract. The separate
+`--action-catalog-check-json <mcp-stdio|mcp-review> <catalog>` now checks all entries
+under one 1,500 ms deadline. It captures the real catalog, evaluates each action
+against its revision binding, and revokes temporary capabilities before returning.
+Each public tool has its own fixed configuration/decision result; a valid deny
+can exit zero because this grants no authority. Review checks observe only the
+current process's terminal. Cancellation or observed revocation discards partial
+results. See [the contract](../docs/ACTION-ROUTE-CHECK.md#whole-catalog-check).
+The native Windows TTY receipt `.agent/b1-catalog-check-native-receipt.json`
+records mixed allow/ask/deny on both routes with no action sentinel or prompt,
+available terminal for review, and removed owned scratch. Inspect
+`.agent/b1-catalog-check-receipt.json` for publication and CI evidence.
 
 Catalog provider evidence: `scripts/verify-claude-action-mcp.mjs --catalog` passed
 two allowed actions in sequence, second-action deny and second-action ask (seven
