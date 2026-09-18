@@ -90,7 +90,7 @@ passed all five contexts on its first attempt: build, lint, svelte-check, test,
 audit. Full coverage: **4,728 passed, five skipped**. Both mutation gates and
 derived counts passed. Local focused suite: **50 passed**, Node 24.11.1 on Windows.
 Local format, lint, types, Svelte check, renderer build and counts passed.
-There are 56 existing lint warnings and a renderer chunk-size warning.
+Existing lint warnings and the renderer chunk-size warning remain.
 
 Ignored receipts live in the active worktree's `.agent/handoff-import-receipt.json`
 and `.agent/handoff-ci-test.log`; earlier `.agent/handoff-contract-receipt.json`
