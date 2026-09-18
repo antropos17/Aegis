@@ -10,20 +10,34 @@ was added afterward; fetch and check its publication status before continuing.
 Continue [the AI-agent protection roadmap](../docs/roadmap/ai-agent-protection.md).
 The product goal is protection from unsafe AI-agent actions, with explicit limits
 on observation, attribution and prevention. The next stage is **B1 in that roadmap**:
-opt-in live lifecycle collection on the receiver boundary now implemented in the
-[first B1 slice](../docs/AGENT-EVENT-CONTRACT.md). Before implementation, define
-transport authentication, byte/rate/queue limits, source expiry and restart/loss
-handling, then test pinned producer/adapter versions. Keep source authentication,
-logical identities and fresh OS process binding separate. No live listener or
-source installation exists yet.
+isolated provider-driven verification of the [opt-in live collector](../docs/LIVE-LIFECYCLE.md),
+then a separately tested execution/policy adapter. The live collector and hook
+sender have synthetic HTTP/Node tests, fixed bounds and explicit bearer-possession
+limits. No user hook configuration was changed and no real agent was launched.
+Installed Claude reports 2.1.263; that alone is not integration verification.
 
 B1's offline consumer now uses receiver-owned registration, envelope schema 1,
 ordinal replay rejection, sticky loss and shared lifetime budgets. Import reports
 are schema 2. The contract also defines planned before/after and allow/ask/deny
-semantics and a pinned initial ACS schema assessment. No executable policy gate,
-live authentication or blocking behavior is implemented. B1 remains partial.
+semantics and a pinned initial ACS schema assessment. No executable policy gate or blocking behavior is implemented. Live transport
+authenticates bearer possession only, with no independent process binding. B1 remains partial.
 A5 remains partial after offline import; independent handoffs and broad causal
 inference remain uncovered. Do not restart the completed work below.
+
+## B1 live transport slice
+
+`handoff-live.js` binds only 127.0.0.1 for a finite CLI-selected window;
+`handoff-send.js` reads bounded stdin and projects three lifecycle fields before
+sending. `handoff-live-cli.js` handles both flags before Electron imports:
+`--handoff-listen-json claude-code <port> <seconds>` and `--handoff-send`.
+Credentials use AEGIS_HANDOFF_TOKEN (fresh 32-byte hex bearer per run), with
+AEGIS_HANDOFF_PORT for the sender. Nothing installs or launches automatically.
+
+The live source is separate from offline imports: provenance source-reported,
+authentication bearer-possession, OS binding unbound, decision not-applicable.
+Delivery UUIDs reject same-run repeats; new IDs and restarts do not prove continuity.
+Read docs/LIVE-LIFECYCLE.md before use. Final verification/publication receipts
+are in the implementation PR and `.agent/b1-live-receipt.json`.
 
 ## B1 receiver slice
 

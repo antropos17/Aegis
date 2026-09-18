@@ -14,6 +14,8 @@ const USAGE = `AEGIS — Independent AI Oversight Layer
 Usage:  aegis [options]
 
 Options:
+  --handoff-listen-json claude-code <port> <seconds>  Observe live hooks on loopback (opt-in)
+  --handoff-send  Forward one hook from stdin using AEGIS_HANDOFF_PORT/TOKEN
   --handoff-import-json claude-code <events.jsonl>  Import unverified subagent lifecycle metadata
   --static-import-json <adapter> <directory> <format> <report> [--baseline <prior-scan>]
     Formats: cisco-skill-json, cisco-skill-sarif, cisco-mcp-json (explicit offline inputs)
@@ -81,6 +83,8 @@ async function handleCLI(argv) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  if (flag === '--handoff-listen-json' || flag === '--handoff-send')
+    return require('./handoff-live-cli').handleHandoffLiveCLI(args, write);
   if (flag === '--handoff-import-json') {
     if (args.length !== 3 || args.slice(1).some((arg) => !arg || arg.startsWith('--'))) {
       write(JSON.stringify({ error: 'expected-handoff-import-arguments' }));
