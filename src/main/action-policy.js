@@ -139,6 +139,41 @@ async function readPolicy(filename) {
 }
 
 /**
+ * Decode a bounded private provider request; never publish the returned payload.
+ * @param {Buffer} buffer Provider input.
+ * @param {string[]} phases Explicit phases accepted by the caller.
+ * @returns {object} Validated input with private IDs, cwd and tool arguments.
+ * @since v0.15.1
+ */
+function decodeActionRequest(buffer, phases) {
+  const input = parse(buffer);
+  if (!object(input) || !phases.includes(input.hook_event_name) || input.tool_name !== 'Bash')
+    throw new Error('surface-unsupported');
+  if (
+    !identifier(input.session_id) ||
+    !identifier(input.tool_use_id) ||
+    typeof input.cwd !== 'string' ||
+    !path.isAbsolute(input.cwd) ||
+    !object(input.tool_input) ||
+    typeof input.tool_input.command !== 'string' ||
+    !input.tool_input.command
+  )
+    throw new Error('input-invalid');
+  return input;
+}
+
+/**
+ * Compare validated private JSON values with every own key retained.
+ * @param {unknown} left First validated JSON value.
+ * @param {unknown} right Second validated JSON value.
+ * @returns {boolean} Exact structural equality, ignoring object key order.
+ * @since v0.15.1
+ */
+function equalActionValue(left, right) {
+  return equal(left, right);
+}
+
+/**
  * Evaluate one Claude PreToolUse Bash input against a selected immutable read.
  * Exact input matching is not executable/content/OS identity binding. No command
  * is run here; the hook consumer returns a provider decision. All failures deny.
@@ -150,22 +185,10 @@ async function readPolicy(filename) {
 async function evaluateActionPolicy(policyPath, inputBuffer) {
   let input;
   try {
-    input = parse(inputBuffer);
-  } catch (_) {
-    return deny('input-invalid');
+    input = decodeActionRequest(inputBuffer, ['PreToolUse']);
+  } catch (error) {
+    return deny(error.message === 'surface-unsupported' ? 'surface-unsupported' : 'input-invalid');
   }
-  if (!object(input) || input.hook_event_name !== 'PreToolUse' || input.tool_name !== 'Bash')
-    return deny('surface-unsupported');
-  if (
-    !identifier(input.session_id) ||
-    !identifier(input.tool_use_id) ||
-    typeof input.cwd !== 'string' ||
-    !path.isAbsolute(input.cwd) ||
-    !object(input.tool_input) ||
-    typeof input.tool_input.command !== 'string' ||
-    !input.tool_input.command
-  )
-    return deny('input-invalid');
   let bytes;
   try {
     bytes = await readPolicy(policyPath);
@@ -187,4 +210,4 @@ async function evaluateActionPolicy(policyPath, inputBuffer) {
   return { decision, reason: `policy-${decision}` };
 }
 
-module.exports = { evaluateActionPolicy, LIMITS };
+module.exports = { evaluateActionPolicy, decodeActionRequest, equalActionValue, LIMITS };
