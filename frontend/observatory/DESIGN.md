@@ -1,5 +1,19 @@
 # AEGIS Observatory
 
+## Dashboard reference audit — 19 September 2026
+
+The supplied “AEGIS — идеальный дашборд” boards inform a focused protection-overview
+polish. The default radar and workspace destinations remain as documented below.
+The overview uses the shared body/section tokens, a compact wrapping summary and
+filter counts with accessible descriptions. At short window heights the redundant
+intro is omitted; observation scope and the absence of automatic access blocking
+remain visible. At wide widths selected evidence receives more space than the list;
+smaller windows retain the single-column reading order. Evidence time, record count
+and the held-handle limitation are visible before disclosures. Evidence/process
+actions precede saved policy preferences. No telemetry, attribution, permissions
+or review persistence contract changes. The comparison and measured checks are in
+[DASHBOARD-DESIGN-AUDIT.md](../../docs/current-state/DASHBOARD-DESIGN-AUDIT.md).
+
 ## Desktop icon and tray menu — 19 September 2026
 
 The app and tray icons reuse the neutral installer shield; the tray retains a

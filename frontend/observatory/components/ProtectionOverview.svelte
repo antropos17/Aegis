@@ -170,8 +170,7 @@
 
 <style>
   .protection {
-    --body-size: calc(13px * var(--ui-scale));
-    font-size: var(--body-size);
+    font-size: var(--text-body);
   }
   .intro {
     margin-bottom: var(--space-4);
@@ -180,8 +179,8 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: var(--text-title);
-    margin: 0 0 var(--space-2);
+    font-size: var(--text-section);
+    margin: 0 0 var(--space-1);
   }
   p {
     color: var(--muted);
@@ -189,16 +188,18 @@
     margin: 0;
   }
   .status-cards {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1.2fr;
-    gap: var(--space-3);
-    margin-bottom: var(--space-5);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
   }
   .status-cards > * {
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: var(--surface-radius);
-    padding: var(--space-4);
+    padding: var(--space-3);
+    flex: 1 1 150px;
+    min-width: 0;
     text-align: left;
     color: inherit;
     font: inherit;
@@ -211,7 +212,7 @@
     align-items: center;
     flex-wrap: wrap;
     gap: var(--space-2);
-    margin: var(--space-2) 0;
+    margin: var(--space-1) 0 0;
     font-size: var(--text-title);
   }
   .status-cards small {
@@ -219,9 +220,18 @@
     font-weight: 400;
     color: var(--muted);
   }
-  .attention strong,
-  .protection-limit strong {
+  .attention strong {
     color: var(--amber);
+  }
+  .status-cards .protection-limit {
+    flex: 2 1 240px;
+  }
+  .protection-limit strong {
+    font-size: var(--text-section);
+  }
+  .status-cards > button:hover {
+    background: var(--raised);
+    border-color: var(--strong-border);
   }
   .activity-layout {
     display: grid;
@@ -229,7 +239,7 @@
     align-items: start;
   }
   .has-selection {
-    grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+    grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.6fr);
   }
   .selection {
     min-width: 0;
@@ -291,9 +301,13 @@
     }
   }
   @media (max-width: 750px) {
-    .status-cards,
     .help-grid {
       grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  @media (max-height: 700px) {
+    .intro {
+      display: none;
     }
   }
 </style>

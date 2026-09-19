@@ -97,6 +97,22 @@ export async function checkProtection(browser, url, out) {
               await page.locator('main').evaluate((node) => {
                 node.scrollTop = 0;
               });
+            if (!selected && size.width === 900 && scale === 1) {
+              const firstRow = await page.locator('.activity-row').first().boundingBox();
+              const footer = await page.locator('.observatory-app footer').boundingBox();
+              assert(
+                firstRow.y + firstRow.height <= footer.y,
+                'first activity visible without scrolling',
+              );
+            }
+            if (selected && size.width === 1200) {
+              const list = await page.locator('.activity-panel').boundingBox();
+              const evidence = await page.locator('.selection').boundingBox();
+              assert(
+                evidence.width > list.width,
+                'selected evidence gets more reading space than list',
+              );
+            }
             await page.screenshot({
               path: resolve(
                 out,

@@ -1329,5 +1329,6 @@
   "Start your selected AEGIS MCP route with --observe and a new endpoint JSON path in a private directory. Choose that file here while the route is running. Each endpoint accepts one observer; start a new route to reconnect.": "Inicie a rota MCP do AEGIS selecionada com --observe e um novo caminho JSON em um diretório privado. Escolha esse arquivo aqui enquanto a rota estiver em execução. Cada ponto aceita um observador; inicie uma nova rota para reconectar.",
   "Observation uses a separate local connection. Selecting an endpoint does not install or configure an agent.": "A observação usa uma conexão local separada. Selecionar um ponto não instala nem configura um agente.",
   "Observation request could not be completed.": "Não foi possível concluir a solicitação de observação.",
-  "Not available": "Indisponível"
+  "Not available": "Indisponível",
+  "Retained file observations and latest connections.": "Observações de arquivos retidas e conexões mais recentes."
 }
