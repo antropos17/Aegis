@@ -2,6 +2,8 @@
 
 > Aegis is an open-source, monitor-first desktop app for local AI-agent processes, file activity, TCP endpoints and behavioral anomalies. It combines polling with event-based file watchers; coverage and attribution have documented limits.
 
+Current source also provides opt-in exact-action execution policies and explicitly configured MCP action routes. These do not turn default monitoring into automatic command interception or OS isolation. Installed builds contain only the features at their release tag.
+
 ## Documentation
 
 - [README](https://github.com/antropos17/Aegis/blob/master/README.md)
@@ -19,8 +21,16 @@
 - Local LLM detection (Ollama, LM Studio, vLLM, llama.cpp)
 - Export to JSON, CSV, HTML reports and ZIP archives
 - YAML rulesets with JSON Schema validation; edits to existing files hot-reload in unpacked runs
+- Explicit policy-controlled direct child execution, with optional fresh terminal confirmation for one launch attempt
+- Selected-action MCP catalogs of up to eight fixed argument-free action tools, with revision binding and optional terminal review per call
+- Nonexecuting route/catalog configuration checks and read-only current-MCP-connection counters; neither grants execution permission nor proves outside-route coverage
+- Node-only MCP client configuration generation for selected-action, catalog or relay routes; emits an `mcpServers.aegis` entry for explicit client loading, without reading selected files or installing settings
 
 Local monitoring has no telemetry. Optional AI analysis sends activity metadata to Anthropic on request; update actions contact GitHub. AEGIS does not automatically enforce OS-level restrictions.
+
+Opt-in execution does not isolate descendants. Allowed programs retain caller privileges. Private action previews can expose secrets in terminal scrollback; a TTY does not authenticate human presence. No client settings are changed automatically.
+
+Generated client configuration intentionally includes local executable and selected-file paths. Keep it private; generation does not verify those files or a client's compatibility.
 
 ## Technical Details
 
@@ -35,3 +45,8 @@ Local monitoring has no telemetry. Optional AI analysis sends activity metadata 
 - Repository: https://github.com/antropos17/Aegis
 - Local demo instructions: https://github.com/antropos17/Aegis#try-without-ai-agents
 - Privacy and external requests: https://github.com/antropos17/Aegis/blob/master/SECURITY.md#privacy-architecture
+- Exact execution contract: https://github.com/antropos17/Aegis/blob/master/docs/ACTION-EXECUTION.md
+- MCP catalog and review: https://github.com/antropos17/Aegis/blob/master/docs/ACTION-MCP-CATALOG.md
+- Nonexecuting checks: https://github.com/antropos17/Aegis/blob/master/docs/ACTION-ROUTE-CHECK.md
+- Connection status: https://github.com/antropos17/Aegis/blob/master/docs/ACTION-MCP-STATUS.md
+- Explicit MCP client configuration: https://github.com/antropos17/Aegis/blob/master/docs/ACTION-MCP-CONFIG.md
