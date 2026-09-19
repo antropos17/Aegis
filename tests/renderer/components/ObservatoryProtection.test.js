@@ -70,6 +70,10 @@ it('connects evidence to the intended policy and keeps inferred ownership visibl
   const details = screen.getByRole('complementary', { name: 'Selected activity' });
   expect(await within(details).findByText('Block requested · not enforced')).toBeVisible();
   expect(within(details).getByText('C:/work/.env')).toBeVisible();
+  expect(
+    within(details).getByText('An open handle does not prove that file contents were read.'),
+  ).toBeVisible();
+  expect(within(details).getByText(/retained record\(s\).*latest/)).toBeVisible();
   await fireEvent.click(within(details).getByRole('button', { name: 'Edit this agent’s policy' }));
   expect(input.openPolicy).toHaveBeenCalledExactlyOnceWith('Codex::C:/work');
   await fireEvent.click(within(details).getByRole('button', { name: 'Agent & controls' }));
