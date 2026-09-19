@@ -512,7 +512,7 @@ also passed selected/catalog observation with synthetic loopback replies for
 allow/deny/ask: counters agreed with status/action/status results, only allow
 created its sentinel, connection generations differed, owner exit caused sticky
 loss, and descriptors/owned scratch were removed. Independent provider identity,
-cancel notifications, cancellation of a running action and outside-route
+installed-provider cancellation of a running action and outside-route
 control remain open; B5 stays partial.
 
 B5 selected review observation: the opt-in `--review-observation` verifier now
@@ -523,7 +523,7 @@ action. Each case checked a fresh connection generation, sticky coverage loss an
 descriptor removal. Terminal answers were supplied externally by automation; the
 fixture does not prove human identity. Pending disconnect left no action effect
 and no tool result, with zero MCP cancellation notifications.
-Running-child cancellation, abrupt owner kill, independent provider binding and
+Installed-provider running-child cancellation, abrupt owner kill, independent provider binding and
 outside-route control are still open. See [live observation](../ACTION-LIVE-OBSERVATION.md).
 
 B5 catalog review observation: `--catalog-review-observation` passed with installed
@@ -533,6 +533,18 @@ disconnect during the third pending review. Live checkpoints showed counters
 1/0, 2/1 and 3/2 while awaiting answers; only the first action produced one owned
 marker byte. Sticky loss, unchanged self-reported metadata, no third tool result,
 provider-tree cleanup and both descriptor removals were verified. Automation
-supplied terminal answers; independent human identity is not established. MCP
-cancel notifications, running-child interruption, abrupt owner death and
+supplied terminal answers; independent human identity is not established.
+Installed-provider running-child cancellation, abrupt owner death and
 outside-route control remain open. B5 stays partial.
+
+B5 protocol cancellation verification: two native Windows integration cases now
+combine production MCP streams, policy/binding, execution and the observation
+socket with real disposable Node children. Wrong-type and unrelated IDs leave
+the child running; duplicate matching notifications count once. Held ChildProcess
+exit/close events and the private executor result establish direct-child termination
+with reason action-cancelled, separately from public settlement counters. Cancelled
+results are suppressed, reused IDs cannot relaunch, the other catalog action stays
+unused, and normal owner close produces sticky loss and descriptor cleanup. A
+mutation removing cancellation delivery fails both cases. This fixture does not
+launch a provider or exercise terminal approval. Installed-provider cancellation,
+descendant control, abrupt owner death and independent identity remain open.

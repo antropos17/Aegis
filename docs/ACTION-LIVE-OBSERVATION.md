@@ -192,7 +192,31 @@ frames and fixed outcome fields; paths and terminal challenges are excluded.
 Terminal answers were supplied by automation, which does not authenticate a
 human. This uses the same 90-second run, 2.5-second checkpoint and 4-second cleanup
 bounds, disposable configuration and synthetic local replies described above.
-Abrupt owner death and interruption of an already-running child remain unverified.
+Abrupt owner death and installed-provider cancellation of a running child remain unverified.
+
+## Running-child cancellation in the protocol fixture
+
+`tests/main/action-observation-cancellation.test.js` joins the production MCP
+stream transport, policy/binding checks, execution owner and observation socket.
+For both one selected action and a two-action catalog, a disposable real Node
+child writes a bounded-lifetime progress marker. A wrong JSON ID type and an
+unrelated ID leave the same child running; two matching cancellation notifications
+produce one cancellation count and one settlement. The executor reports
+`action-cancelled`, `interrupted` and confirmed termination. An existing test seam
+forwards the real spawn unchanged and retains that ChildProcess object's exit and
+close events as separate evidence of termination.
+
+Both native Windows cases passed: marker growth stopped, the other catalog action
+stayed unused, the cancelled tool result was suppressed and reuse of its request
+ID was rejected without another launch. Observation retained its connection and
+client metadata, then recorded sticky loss after normal owner close; the descriptor
+was removed. Removing cancellation delivery made both tests fail. Public status
+and observation still make no termination claim and include no private marker paths.
+
+These tests use local in-memory MCP streams, a real observation socket and real
+direct children. Terminal approval, an installed provider's cancellation behavior,
+descendant termination, abrupt owner death and independent provider identity are
+outside this verification. No provider or cloud model is launched by this fixture.
 
 Independent agent/version binding, safe installed-adapter blocking tests and
 verified outside-route control remain open. B5 is partial.
