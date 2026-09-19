@@ -34,10 +34,11 @@ function localPath(value, platform) {
  * This generation performs no preflight and grants no approval or connection guarantee.
  * @param {'selected'|'catalog'|'relay'} mode Fixed route selector.
  * @param {string[]} paths Fully qualified local paths, retained without normalization.
+ * @param {string} [observationPath] New private descriptor path for selected/catalog owners only.
  * @returns {object} Exact MCP stdio client configuration.
  * @since v0.15.1
  */
-function buildActionMcpConfig(mode, paths) {
+function buildActionMcpConfig(mode, paths, observationPath) {
   const runtime = testDeps || {};
   const platform = runtime.platform ?? process.platform;
   if (
@@ -45,7 +46,8 @@ function buildActionMcpConfig(mode, paths) {
     !Object.hasOwn(MODES, mode) ||
     !Array.isArray(paths) ||
     paths.length !== MODES[mode].paths ||
-    !Array.from(paths).every((value) => localPath(value, platform))
+    !Array.from(paths).every((value) => localPath(value, platform)) ||
+    (observationPath !== undefined && (mode === 'relay' || !localPath(observationPath, platform)))
   )
     throw new ArgumentsError();
   const command = runtime.execPath ?? process.execPath;
@@ -57,13 +59,24 @@ function buildActionMcpConfig(mode, paths) {
   )
     throw Error('action-mcp-config-unavailable');
   return {
-    mcpServers: { aegis: { type: 'stdio', command, args: [entry, MODES[mode].flag, ...paths] } },
+    mcpServers: {
+      aegis: {
+        type: 'stdio',
+        command,
+        args: [
+          entry,
+          MODES[mode].flag,
+          ...paths,
+          ...(observationPath === undefined ? [] : ['--observe', observationPath]),
+        ],
+      },
+    },
   };
 }
 
 /**
  * Print exactly one configuration or fixed error; never install or launch it.
- * @param {string[]} args Flag, mode and selected path arguments.
+ * @param {string[]} args Flag, mode, selected paths and optional trailing --observe path.
  * @param {(text:string)=>void} write JSON output sink.
  * @returns {number} 0 generated, 1 invalid arguments, 2 unsupported/unavailable runtime.
  * @since v0.15.1
@@ -72,8 +85,22 @@ function handleActionMcpConfigCLI(args, write) {
   let value,
     code = 0;
   try {
-    if (!Array.isArray(args) || args[0] !== '--action-mcp-config-json') throw new ArgumentsError();
-    value = buildActionMcpConfig(args[1], args.slice(2));
+    if (
+      !Array.isArray(args) ||
+      args[0] !== '--action-mcp-config-json' ||
+      typeof args[1] !== 'string' ||
+      !Object.hasOwn(MODES, args[1])
+    )
+      throw new ArgumentsError();
+    const end = 2 + MODES[args[1]].paths;
+    const observation = args.length === end + 2 && args[end] === '--observe';
+    if (args.length !== end && !observation) throw new ArgumentsError();
+    if (observation && typeof args[end + 1] !== 'string') throw new ArgumentsError();
+    value = buildActionMcpConfig(
+      args[1],
+      args.slice(2, end),
+      observation ? args[end + 1] : undefined,
+    );
   } catch (error) {
     code = error instanceof ArgumentsError ? 1 : 2;
     value = {

@@ -501,3 +501,11 @@ updates and receiver-time expiry cause sticky coverage loss; last evidence stays
 visible. Observation never invokes an executor or consumes MCP budgets. Independent
 agent/version binding and installed-adapter blocking verification remain open.
 See [the observation contract](../ACTION-LIVE-OBSERVATION.md).
+
+B5 observation setup: the configuration generator now accepts an explicit trailing
+`--observe <new-endpoint>` for selected/catalog owners. It preserves literal local
+paths and performs no reads, endpoint creation or client-settings installation.
+Relay observation is rejected because the separately launched review broker owns
+that endpoint. Native generated-config fixtures verify observed-to-lost transitions,
+zero action attempts and descriptor cleanup. Installed-provider validation of this
+optional generated configuration path remains open; B5 stays partial.
