@@ -223,7 +223,7 @@ Verify ordinary and high-contrast light/dark themes and supported UI scales.
 
 ## Conventions
 
-- **300-line soft limit** per file — a target for new files. Extract when adding to an oversized file. The current 28 existing `src/` files above 300 lines (JSON excluded) are tracked by `npm run counts:check`; this size target is not enforced by the linter
+- **300-line soft limit** per file — a target for new files. Extract when adding to an oversized file. The current 29 existing `src/` files above 300 lines (JSON excluded) are tracked by `npm run counts:check`; this size target is not enforced by the linter
 - **JSDoc on all exported functions**: `@param`, `@returns`, `@since`
 - **Commit prefixes**: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`; see [BRANCHING.md](../BRANCHING.md)
 - **IPC channel names**: `kebab-case`

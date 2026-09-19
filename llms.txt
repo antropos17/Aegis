@@ -28,6 +28,7 @@ Current source also provides opt-in exact-action execution policies and explicit
 - Nonexecuting route/catalog configuration checks and read-only current-MCP-connection counters; neither grants execution permission nor proves outside-route coverage
 - Node-only MCP client configuration generation for selected-action, catalog or relay routes; emits an `mcpServers.aegis` entry for explicit client loading, without reading selected files or installing settings
 - Observatory Action control workspace: main-owned native file selection and nonexecuting route/catalog checks; captured results do not establish a connected agent or verified blocking
+- Opt-in --observe endpoint for selected/catalog MCP owners: separate read-only desktop observation, bounded counters, self-reported client label/version and sticky coverage loss; no independently verified provider identity or blocking
 - Local security workspace: selected project/profile static reviews, bounded inventory, saved snapshot comparison and offline report import, with explicit coverage limits
 - Guided Observatory navigation with distinct local SVG icons, task search, result-first review screens and optional technical details; English and Brazilian Portuguese
 

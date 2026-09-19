@@ -63,6 +63,7 @@ function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerE
     cancellationRequests: 0,
   };
   let protocolVersion = VERSIONS[0];
+  let clientInfo = null;
   let active = null;
   let binding = null;
   let initializing = null;
@@ -154,6 +155,7 @@ function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerE
         if (initializing === controller) initializing = null;
       }
       phase = 'initializing';
+      clientInfo = require('./action-observation-schema').clientMetadata(params.clientInfo);
       protocolVersion = VERSIONS.includes(params.protocolVersion)
         ? params.protocolVersion
         : VERSIONS[0];
@@ -269,7 +271,20 @@ function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerE
       if (active === current) active = null;
     }
   }
-  return { receive, close };
+  const observation = () => ({
+    state:
+      phase === 'ready'
+        ? 'observed'
+        : ['failed', 'closed'].includes(phase)
+          ? 'coverage-lost'
+          : 'awaiting-client',
+    client: clientInfo,
+    selection: catalogMode ? 'catalog' : 'single-action',
+    selectedActionCount,
+    actionAttempts: executions,
+    ...counters,
+  });
+  return { receive, close, observation };
 }
 
 /** @param {object} deps Trusted execution, capture and revocation seams. @returns {void} @since v0.15.1 */

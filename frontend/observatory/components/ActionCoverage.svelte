@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ActionObservation from './ActionObservation.svelte';
   import { onDestroy } from 'svelte';
   import { t } from '../runtime/i18n';
   import { invoke, record, type Host } from '../runtime/host';
@@ -78,6 +79,7 @@
 </script>
 
 <div class="action-coverage-workspace">
+  <ActionObservation {host} {preview} />
   {#if result}
     <section class="panel result" tabindex="-1" aria-label={$t('Action check result')}>
       <button

@@ -17,16 +17,18 @@ let testDeps = null;
  * Closing admission cancels the session and awaits its in-flight operations;
  * child cleanup must finish before the CLI exits. No diagnostic text is emitted.
  * @param {string[]} args Single-action flag and selected pair, or catalog flag and manifest.
+ * @param {{observe?: Function}} [options] Trusted read-only observer hook.
  * @returns {Promise<number>} 0 for clean EOF, otherwise 2; stdout is protocol only.
  * @since v0.15.1
  */
-function handleActionMcpStdio(args) {
+function handleActionMcpStdio(args, options = {}) {
   const catalog = args[0] === '--action-mcp-catalog-stdio';
   const valid =
     args.length === (catalog ? 2 : 3) &&
     (catalog || args[0] === '--action-mcp-stdio') &&
     args.slice(1).every((arg) => typeof arg === 'string' && arg && !arg.startsWith('--'));
   return serveActionMcp({
+    ...(options.observe ? { observe: options.observe } : {}),
     input: testDeps?.input || process.stdin,
     output: testDeps?.output || process.stdout,
     ...(catalog
@@ -38,11 +40,20 @@ function handleActionMcpStdio(args) {
 /**
  * Serve bounded MCP over owner-selected streams, including a shared duplex.
  * The optional executor is trusted local configuration, never client input.
- * @param {{input: NodeJS.ReadableStream, output: NodeJS.WritableStream, policyPath?: string, requestPath?: string, catalogPath?: string, execute?: Function, signal?: AbortSignal}} options Owner transport and exclusive selected pair or catalog.
+ * @param {{input: NodeJS.ReadableStream, output: NodeJS.WritableStream, policyPath?: string, requestPath?: string, catalogPath?: string, execute?: Function, signal?: AbortSignal, observe?: Function}} options Owner transport and exclusive selected pair or catalog.
  * @returns {Promise<number>} Clean EOF status or failure after active cleanup.
  * @since v0.15.1
  */
-function serveActionMcp({ input, output, policyPath, requestPath, catalogPath, execute, signal }) {
+function serveActionMcp({
+  input,
+  output,
+  policyPath,
+  requestPath,
+  catalogPath,
+  execute,
+  signal,
+  observe,
+}) {
   const createSession = testDeps?.createSession || require('./action-mcp').createActionMcp;
   return new Promise((resolve) => {
     const active = new Set();
@@ -223,6 +234,7 @@ function serveActionMcp({ input, output, policyPath, requestPath, catalogPath, e
         ...(catalog ? { catalogPath } : { policyPath, requestPath }),
         ...(execute === undefined ? {} : { execute }),
       });
+      observe?.(session.observation);
     } catch (_) {
       close();
       return;

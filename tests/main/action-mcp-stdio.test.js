@@ -451,6 +451,73 @@ async function nativeStatus(client, id) {
 }
 
 describe('actual Node MCP entry', () => {
+  it.each(['single', 'catalog'])(
+    'observes native %s execution through the opt-in CLI and loses coverage on exit',
+    async (selection) => {
+      const f = nativeFixture();
+      const endpoint = path.join(f.directory, 'observation.json');
+      const manifest = path.join(f.directory, 'catalog.json');
+      fs.writeFileSync(
+        manifest,
+        JSON.stringify({
+          schemaVersion: 1,
+          actions: [{ id: 'first', policyPath: f.policyPath, requestPath: f.requestPath }],
+        }),
+      );
+      const args =
+        selection === 'single'
+          ? ['--action-mcp-stdio', f.policyPath, f.requestPath]
+          : ['--action-mcp-catalog-stdio', manifest];
+      const client = nativeLaunch([...args, '--observe', endpoint]);
+      let observer;
+      try {
+        await vi.waitFor(() => expect(fs.existsSync(endpoint)).toBe(true));
+        observer = require('../../src/main/action-observation-client').observeActionRoute(endpoint);
+        await vi.waitFor(() => expect(observer.snapshot().state).toBe('awaiting-client'));
+        await client.request({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-11-25',
+            capabilities: {},
+            clientInfo: { name: 'claude-code', version: '2.1.263' },
+          },
+        });
+        client.child.stdin.write(line({ jsonrpc: '2.0', method: 'notifications/initialized' }));
+        await vi.waitFor(() => expect(observer.snapshot().state).toBe('observed'), {
+          timeout: 2500,
+        });
+        expect(observer.snapshot().snapshot.actionAttempts).toBe(0);
+        expect(fs.existsSync(path.join(f.directory, 'sentinel'))).toBe(false);
+        const reply = await client.request({
+          jsonrpc: '2.0',
+          id: 2,
+          method: 'tools/call',
+          params: {
+            name: selection === 'single' ? 'aegis_execute_selected' : 'aegis_action_first',
+            arguments: {},
+          },
+        });
+        expect(reply.result.isError).toBe(false);
+        expect(fs.readFileSync(path.join(f.directory, 'sentinel'), 'utf8')).toBe('ok');
+        await vi.waitFor(() => expect(observer.snapshot().snapshot.ownerSettled).toBe(1), {
+          timeout: 2500,
+        });
+        expect(observer.snapshot().snapshot.actionAttempts).toBe(1);
+        expect(JSON.stringify(observer.snapshot())).not.toMatch(/PRIVATE|token|policyPath/);
+        expect((await nativeStatus(client, 3)).messagesObserved).toBe(4);
+        client.child.stdin.end();
+        expect((await client.done).code).toBe(0);
+        await vi.waitFor(() => expect(observer.snapshot().state).toBe('coverage-lost'));
+        expect(fs.existsSync(endpoint)).toBe(false);
+      } finally {
+        observer?.close();
+        client.child.stdin.end();
+        await client.done;
+      }
+    },
+  );
   it('serves status while an actual child is pending and records cancellation without claiming termination', async () => {
     const f = nativeFixture(
       "require('node:fs').writeFileSync('started',String(process.pid));setTimeout(()=>{},15000)",

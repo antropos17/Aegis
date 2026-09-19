@@ -1,0 +1,111 @@
+# Live observation of a selected MCP route
+
+Action control can observe an explicitly selected running AEGIS MCP owner. This
+B5 slice displays `Observed`, `Coverage lost`, connection generation, route,
+selection, bounded counters, client-declared label/version and last receipt time.
+It does not verify blocking, independently identify an installed agent, bind an
+OS process, or cover other agent tools and descendants.
+
+## Connect
+
+Append `--observe <new-observation.json>` to one of the four owner commands:
+
+```text
+node src/main/main.js --action-mcp-stdio <policy> <request> --observe <new-observation.json>
+node src/main/main.js --action-mcp-catalog-stdio <catalog> --observe <new-observation.json>
+node src/main/main.js --action-mcp-review <policy> <request> <new-review.json> --observe <new-observation.json>
+node src/main/main.js --action-mcp-catalog-review <catalog> <new-review.json> --observe <new-observation.json>
+```
+
+Use a private local directory controlled by the operator for the new descriptor.
+In an MCP client configuration, append the two observation arguments to the
+generated selected/catalog owner's `args`. For terminal review, add them to the
+broker command; leave the agent's relay configuration unchanged. The configuration
+generator does not append these optional arguments itself.
+
+While the owner is running, open **Action control → Live route observation →
+Choose observation endpoint** and select its observation JSON. The desktop uses
+its own read-only connection. Endpoint creation never overwrites an existing
+file. Explicit opt-in startup failure returns status 2 before the MCP owner runs.
+Observation is off by default.
+
+Each endpoint accepts one authenticated observer. Stop observing detaches the
+desktop without cancelling actions or stopping the agent. To reconnect, explicitly
+start a new owner with a new endpoint and select it. There is no automatic retry,
+installation, global discovery or retained trust across app restarts.
+
+## Meaning of the states
+
+`Waiting for MCP initialization` means the observation source is reachable but
+the owner has not completed capture and the MCP initialized notification.
+`Observed` means those steps completed and a valid fresh owner snapshot arrived.
+Heartbeats occur once per second, including while execution/review is pending.
+They do not consume MCP message IDs, messages or action-attempt budgets.
+
+After an observed connection, owner closure, socket loss, malformed/replayed or
+regressing data, a different generation, or 3.5 seconds without a valid update
+causes sticky `Coverage lost`. Initial failures show `Observation unavailable`.
+Freshness uses receiver monotonic time; displayed wall time is the last valid
+receipt, not exact action time. Last received counters remain visible. Loss does
+not prove an agent or direct child stopped. Desktop host failure also removes the
+live label. An explicitly stopped observer stays stopped.
+Sampling can miss short-lived states and work completed after the last heartbeat;
+the retained snapshot is not a complete action history.
+
+Client name/version come from MCP `initialize.clientInfo` and are **self-reported**.
+Only fixed recognized labels and a bounded numeric three-part version survive;
+other labels become `other`, other version formats become unavailable. They are
+bound to this connection generation, not authenticated provider or process
+identity. A local process can claim a recognized label/version.
+
+Action attempts, owner invocations, settlements, failures and cancellation
+requests keep their [MCP status meanings](ACTION-MCP-STATUS.md). An owner call can
+settle with deny/ask without a launch; cancellation is not verified termination.
+Configuration preflight remains a separate captured result.
+
+## Boundary and retention
+
+The descriptor has distinct `purpose: aegis-action-observation`, an ephemeral
+loopback port and 256-bit bearer. Review-relay descriptors are rejected. The
+observation server accepts only bearer authentication; subsequent client data
+disconnects it. It never dispatches to an executor. One observer and at most eight
+authentication attempts are accepted, with a three-second auth limit, 65-byte auth
+buffer and 15-minute lifetime. Heartbeat output is bounded; a slow observer is
+disconnected independently of execution.
+
+The receiver accepts 4 KiB frames, at most 1 MiB total and a finite sequence. Exact
+schema validation rejects extra fields, contradictory counters, rollback and
+generation changes. Snapshots contain no paths, commands, arguments, environment,
+request IDs, execution reports, bearer or raw client text. IPC adds only fixed
+`observe-route`, `route-observation` and `stop-observing-route` selectors to the
+existing owned-document local-review channel. Main owns native file selection.
+Readback remains available during unrelated review dialogs. Document navigation
+and window destruction close the observer.
+
+Bearer possession permits reading metadata; it does not attest the publisher
+binary or defend against a hostile same-user writer. Windows file ACLs are
+inherited from the private parent directory; mode 0600 alone does not enforce
+Windows privacy. Normal cleanup removes only the unchanged descriptor through
+the existing endpoint helper. Abrupt process death may leave one stale descriptor;
+it never establishes a live connection and is not reused automatically. No history
+or per-heartbeat files are written. Do not publish the descriptor or its token.
+
+## Verification and remaining work
+
+Behavioral suites cover initialization/closure, auth rejection, read-only input,
+replay/generation mismatch, rollback, malformed/oversized updates, expiry, endpoint
+cleanup, native selection, navigation/disposal and renderer evidence loss. Native
+Node fixtures exercise selected and catalog execution alongside observation
+without consuming the MCP budget.
+
+`node frontend/observatory/tests/action-observation-electron.mjs` runs a disposable
+Node owner and production Electron renderer/preload/IPC. It uses a synthetic MCP
+client and a native dialog stub selecting only the owned descriptor. It checks
+initialization, policy deny with no sentinel effect, counters, disconnect, canaries,
+keyboard activation and light/dark geometry. Fixed QA files go under
+`.agent/b5-observation-native/`; review screenshots after 14 days or 64 MiB and
+preserve receipts. No automatic cleanup policy is claimed.
+
+Installed-provider validation of this new observation path, independent
+agent/version binding, safe installed-adapter blocking tests and verified
+outside-route control remain open. B5 is partial.

@@ -1,5 +1,15 @@
 # AEGIS Observatory
 
+## Live route observation — 19 September 2026
+
+Action control starts with a separate live-observation panel using the existing
+neutral panel, native buttons, spacing and typography. It presents the current
+evidence state before counters, keeps last receipt time and self-reported identity
+limits visible, and retains the final evidence on loss. A polite region announces
+state changes without announcing every heartbeat. Preview disables attachment
+and explicitly explains its desktop-only availability. Stop observing affects
+only the observation connection. Configuration results and setup stay separate.
+
 ## Icon and interaction audit — 19 September 2026
 
 The requested audit replaces ambiguous repeated navigation symbols with fourteen

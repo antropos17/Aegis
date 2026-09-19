@@ -164,6 +164,59 @@ function catalogFixture(firstDecision = 'ask', secondDecision = 'ask') {
   return { first, second };
 }
 
+it.each(['single', 'catalog'])(
+  'keeps %s observation live during pending terminal review without authorizing it',
+  async (selection) => {
+    const f = selection === 'catalog' ? catalogFixture().first : fixture();
+    const source = await require('../../src/main/action-observation-server').startActionObservation(
+      path.join(f.dir, 'observation.json'),
+      'mcp-review',
+      selection === 'catalog' ? 'catalog' : 'single-action',
+    );
+    const observer = require('../../src/main/action-observation-client').observeActionRoute(
+      path.join(f.dir, 'observation.json'),
+    );
+    let release, owner;
+    try {
+      owner = await start(
+        f,
+        () =>
+          new Promise((resolve) => {
+            release = resolve;
+          }),
+        { observe: source.observe },
+      );
+      const peer = await connect(owner.endpoint),
+        c = client(peer);
+      await c.ready();
+      await vi.waitFor(() => expect(observer.snapshot().state).toBe('observed'), { timeout: 2500 });
+      const call = c.call('tools/call', {
+        name: selection === 'catalog' ? 'aegis_action_first' : 'aegis_execute_selected',
+        arguments: {},
+      });
+      await vi.waitFor(() => expect(observer.snapshot().snapshot.ownerInvocations).toBe(1), {
+        timeout: 2500,
+      });
+      expect(observer.snapshot().snapshot.ownerSettled).toBe(0);
+      expect(fs.existsSync(path.join(f.dir, 'sentinel'))).toBe(false);
+      release(false);
+      expect((await call).result.structuredContent.decision).toBe('deny');
+      await vi.waitFor(() => expect(observer.snapshot().snapshot.ownerSettled).toBe(1), {
+        timeout: 2500,
+      });
+      expect(observer.snapshot().state).toBe('observed');
+      expect(fs.existsSync(path.join(f.dir, 'sentinel'))).toBe(false);
+    } finally {
+      release?.(false);
+      owner?.host.emit('SIGTERM');
+      await owner?.done;
+      observer.close();
+      await source.close();
+    }
+  },
+  15000,
+);
+
 it('catalog broker reviews the selected action on each call without sharing approvals', async () => {
   const { first, second } = catalogFixture('ask', 'allow');
   let count = 0;
