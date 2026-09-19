@@ -100,7 +100,6 @@ const logger = require('./logger');
 const desktopShell = require('./platform/desktop-shell').createDesktopShell({
   app,
   platform: process.platform,
-  appId: require('../../package.json').build.appId,
 });
 const tray = require('./tray-icon');
 const ipc = require('./ipc-handlers');
