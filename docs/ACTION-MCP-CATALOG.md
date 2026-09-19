@@ -4,6 +4,11 @@ An opt-in catalog publishes up to eight exact operator-selected actions on one
 MCP connection. The client chooses a published tool with empty arguments; it
 cannot supply executable paths, argv, environment or policy files.
 
+The separate read-only [`aegis_route_status`](ACTION-MCP-STATUS.md) tool reports
+owner lifecycle counters and pending/cancellation state for this connection.
+It does not count toward the eight selected actions or consume action attempts.
+It shares the normal message and replay limits and grants no authority.
+
 ```json
 {
   "schemaVersion": 1,

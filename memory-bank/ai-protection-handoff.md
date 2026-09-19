@@ -42,8 +42,9 @@ inference remain uncovered. Do not restart the completed work below.
 
 ## B1 selected-action MCP route
 
---action-mcp-stdio <policy> <request> exposes one argument-free tool,
-aegis_execute_selected. Only selected files reach the execution owner. The protocol
+--action-mcp-stdio <policy> <request> exposes one argument-free action tool,
+aegis_execute_selected, plus the read-only aegis_route_status tool. Only selected
+files reach the execution owner. The protocol
 core and transport bound initialization, message IDs, concurrency, frames and
 output. Disconnect/cancellation abort preparation or interrupt the direct child;
 cleanup is awaited. Other agent tools/descendants remain outside this route.
@@ -55,6 +56,21 @@ CI and publication evidence. No permanent user configuration was modified.
 Current continuation: approval is now bound to exact action/policy/expiry through
 the terminal owner, also available per call via the separate review broker below.
 Broader deliberate routing and coverage display remain open.
+
+The [connection status tool](../docs/ACTION-MCP-STATUS.md) now reports actual
+owner lifecycle counters for single-action and catalog MCP connections. It stays
+available during pending execution/review and after the action quota, consumes
+the normal message/replay budget, and performs no execution or configuration read.
+Cancellation requests remain distinct from owner settlement and process
+termination. Counters reset on reconnect and contain no client identity, request
+IDs, private paths or raw reports. This provides bounded observations; it does not
+establish verified blocking, provider identity or outside-route coverage.
+Native stdio tests cover status around real launches and cancellation; broker
+tests cover pending review and per-call outcomes. Installed Claude 2.1.263 still
+passed the existing single-action and catalog execution fixtures after discovery
+gained the status tool. Those provider regressions did not invoke the status tool.
+Inspect `.agent/b1-session-status-receipt.json` for CI/publication evidence and
+the associated provider regression receipts before claiming a published result.
 
 The current [route checker](../docs/ACTION-ROUTE-CHECK.md),
 `--action-route-check-json <route> <policy> <request>`, supports `direct`,

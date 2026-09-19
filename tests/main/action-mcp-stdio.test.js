@@ -424,8 +424,112 @@ function nativeLaunch(argv) {
     });
   return { child, done, request };
 }
+async function nativeStatus(client, id) {
+  const reply = await client.request({
+    jsonrpc: '2.0',
+    id,
+    method: 'tools/call',
+    params: { name: 'aegis_route_status', arguments: {} },
+  });
+  expect(reply.result.isError).toBe(false);
+  const status = reply.result.structuredContent;
+  expect(JSON.parse(reply.result.content[0].text)).toEqual(status);
+  expect(status).toMatchObject({
+    schemaVersion: 1,
+    mode: 'action-route-status',
+    scope: 'current-mcp-connection',
+    authorization: 'none',
+    control: 'direct-child-only',
+    outsideRouteCoverage: 'unknown',
+    descendantControl: 'unsupported',
+    blockingVerification: 'not-performed',
+    providerIdentity: 'unverified',
+    limits: { messages: 128, actionAttempts: 16 },
+  });
+  expect(JSON.stringify(status)).not.toMatch(/PRIVATE|policyPath|requestPath|executable|argv/);
+  return status;
+}
 
 describe('actual Node MCP entry', () => {
+  it('serves status while an actual child is pending and records cancellation without claiming termination', async () => {
+    const f = nativeFixture(
+      "require('node:fs').writeFileSync('started',String(process.pid));setTimeout(()=>{},15000)",
+    );
+    const client = nativeLaunch(['--action-mcp-stdio', f.policyPath, f.requestPath]);
+    let called;
+    try {
+      await client.request({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-11-25',
+          capabilities: {},
+          clientInfo: { name: 'test', version: '1' },
+        },
+      });
+      client.child.stdin.write(line({ jsonrpc: '2.0', method: 'notifications/initialized' }));
+      called = client
+        .request({
+          jsonrpc: '2.0',
+          id: 2,
+          method: 'tools/call',
+          params: { name: 'aegis_execute_selected', arguments: {} },
+        })
+        .catch(() => null);
+      const started = path.join(f.directory, 'started');
+      const deadline = Date.now() + 3000;
+      while (!fs.existsSync(started) && Date.now() < deadline)
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      expect(fs.existsSync(started)).toBe(true);
+      const pid = Number(fs.readFileSync(started, 'utf8'));
+      const pending = await nativeStatus(client, 3);
+      expect(pending).toMatchObject({
+        activity: 'owner-pending',
+        actionAttempts: 1,
+        ownerInvocations: 1,
+        ownerSettled: 0,
+        cancellationRequests: 0,
+      });
+      const cancellation = line({
+        jsonrpc: '2.0',
+        method: 'notifications/cancelled',
+        params: { requestId: 2 },
+      });
+      client.child.stdin.write(cancellation + cancellation);
+      let after = await nativeStatus(client, 4);
+      expect(after.cancellationRequests).toBe(1);
+      expect(['cancellation-requested', 'idle']).toContain(after.activity);
+      expect(after).not.toHaveProperty('termination');
+      const cleanupDeadline = Date.now() + 2000;
+      for (let id = 10; after.ownerSettled !== 1 && Date.now() < cleanupDeadline; id++) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        after = await nativeStatus(client, id);
+      }
+      expect(after).toMatchObject({
+        activity: 'idle',
+        actionAttempts: 1,
+        ownerInvocations: 1,
+        ownerSettled: 1,
+        ownerFailures: 0,
+        cancellationRequests: 1,
+      });
+      expect(() => process.kill(pid, 0)).toThrow();
+      client.child.stdin.end();
+      const result = await client.done;
+      await called;
+      expect(result.code).toBe(0);
+      expect(result.messages.some((message) => message.id === 2)).toBe(false);
+      expect(result.stderr).toBe('');
+      expect(result.stdout).not.toContain('PRIVATE');
+      expect(result.stdout).not.toContain(f.directory);
+    } finally {
+      client.child.kill();
+      await client.done;
+      await called;
+    }
+  }, 15000);
+
   it('awaits direct-child termination when stdin closes during execution', async () => {
     const f = nativeFixture(
       "require('node:fs').writeFileSync('started',String(process.pid));setTimeout(()=>process.exit(0),15000)",
@@ -493,7 +597,22 @@ describe('actual Node MCP entry', () => {
         method: 'tools/list',
         params: {},
       });
-      expect(listed.result.tools.map((tool) => tool.name)).toEqual(['aegis_execute_selected']);
+      expect(listed.result.tools.map((tool) => tool.name)).toEqual([
+        'aegis_execute_selected',
+        'aegis_route_status',
+      ]);
+      expect(await nativeStatus(client, 10)).toMatchObject({
+        selection: 'single-action',
+        selectedActionCount: 1,
+        activity: 'idle',
+        actionAttempts: 0,
+        ownerInvocations: 0,
+        ownerSettled: 0,
+        ownerFailures: 0,
+        selectionRejected: 0,
+        cancellationRequests: 0,
+        messagesObserved: 4,
+      });
       const called = await client.request({
         jsonrpc: '2.0',
         id: 3,
@@ -502,6 +621,16 @@ describe('actual Node MCP entry', () => {
       });
       expect(called.result).toBeDefined();
       expect(fs.existsSync(path.join(f.directory, 'sentinel'))).toBe(true);
+      expect(await nativeStatus(client, 11)).toMatchObject({
+        activity: 'idle',
+        actionAttempts: 1,
+        ownerInvocations: 1,
+        ownerSettled: 1,
+        ownerFailures: 0,
+        selectionRejected: 0,
+        cancellationRequests: 0,
+        messagesObserved: 6,
+      });
       client.child.stdin.end();
       const result = await client.done;
       expect(result.code).toBe(0);
@@ -546,7 +675,16 @@ describe('actual Node MCP entry', () => {
       expect(listed.result.tools.map((tool) => tool.name)).toEqual([
         'aegis_action_first',
         'aegis_action_second',
+        'aegis_route_status',
       ]);
+      expect(await nativeStatus(client, 10)).toMatchObject({
+        selection: 'catalog',
+        selectedActionCount: 2,
+        activity: 'idle',
+        actionAttempts: 0,
+        ownerInvocations: 0,
+        ownerSettled: 0,
+      });
       const call = (id, name, args = {}) =>
         client.request({
           jsonrpc: '2.0',
@@ -566,6 +704,17 @@ describe('actual Node MCP entry', () => {
         (await call(5, 'aegis_action_second')).result.structuredContent.execution.exitCode,
       ).toBe(0);
       expect(fs.existsSync(path.join(second.directory, 'sentinel'))).toBe(true);
+      expect(await nativeStatus(client, 11)).toMatchObject({
+        selection: 'catalog',
+        selectedActionCount: 2,
+        activity: 'idle',
+        actionAttempts: 2,
+        selectionRejected: 0,
+        ownerInvocations: 2,
+        ownerSettled: 2,
+        ownerFailures: 0,
+        cancellationRequests: 0,
+      });
       client.child.stdin.end();
       const result = await client.done;
       expect(result.code).toBe(0);
@@ -626,6 +775,16 @@ describe('actual Node MCP entry', () => {
         params: { name: 'aegis_action_second' },
       });
       expect(next.error).toEqual({ code: -32000, message: 'Configuration unavailable' });
+      expect(await nativeStatus(client, 10)).toMatchObject({
+        selection: 'catalog',
+        selectedActionCount: 2,
+        activity: 'idle',
+        actionAttempts: 2,
+        selectionRejected: 1,
+        ownerInvocations: 1,
+        ownerSettled: 1,
+        ownerFailures: 0,
+      });
       for (const f of [first, second])
         expect(fs.existsSync(path.join(f.directory, 'sentinel'))).toBe(false);
       client.child.stdin.end();
