@@ -51,13 +51,6 @@
   let sectionRevision = 0;
   const commandEntries: WorkspaceCommand[] = [
     ...workspaceCommands(),
-    ...[...guidedTasks, ...moreTasks].map((task) => ({
-      id: 'task-' + task.target,
-      label: task.title,
-      caption: task.description,
-      keywords: task.description,
-      target: task.target,
-    })),
     ...['processes', 'activity', 'tokens', 'sensors'].map((id) => ({
       id: 'stats-' + id,
       label: 'Statistics · ' + id[0].toUpperCase() + id.slice(1),
@@ -87,6 +80,13 @@
       keywords,
       target,
       section,
+    })),
+    ...[...guidedTasks, ...moreTasks].map((task) => ({
+      id: 'task-' + task.target,
+      label: task.title,
+      caption: task.description,
+      keywords: task.description,
+      target: task.target,
     })),
   ];
   let scope = $state<AgentScope>({ agent: '', instanceId: '' });
