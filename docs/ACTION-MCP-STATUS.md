@@ -83,6 +83,12 @@ shared message limits, exhausted action quotas, selection failure, owner excepti
 and text-only negotiation. Broker tests query status during review and after
 confirmed or refused calls. Privacy fixtures check status results for private canaries.
 
+The running-cancellation observation fixture also verifies direct-child exit/close
+events and the executor's interrupted result while status remains counter-only.
+It covers wrong-type IDs, duplicate cancellation and rejected reuse of the cancelled
+ID for both selection modes. See [running-child verification](ACTION-LIVE-OBSERVATION.md#running-child-cancellation-in-the-protocol-fixture)
+for evidence and the distinction from installed-provider behavior.
+
 Installed Windows Claude Code 2.1.263 passed the existing single-action and
 catalog execution fixtures after tool discovery gained status (six and seven
 synthetic loopback API requests respectively). These provider regressions did
