@@ -135,6 +135,17 @@ it('uses current process availability while the displayed activity is paused', a
   expect(screen.getByRole('button', { name: 'Agent & controls' })).toBeDisabled();
 });
 
+it('returns focus to the activity region when the selected row is filtered away', async () => {
+  render(ProtectionOverview, props());
+  await fireEvent.click(screen.getByRole('button', { name: /Codex.*Held a file open/ }));
+  await fireEvent.input(screen.getByRole('searchbox', { name: 'Search agent activity' }), {
+    target: { value: 'no matching observation' },
+  });
+  expect(screen.queryByRole('button', { name: /Codex.*Held a file open/ })).toBeNull();
+  await fireEvent.click(screen.getByRole('button', { name: 'Close details' }));
+  expect(screen.getByRole('region', { name: 'Agent activity' })).toHaveFocus();
+});
+
 it('opens the requested project policy without a write, and invalidates the overview only after a successful save', async () => {
   const transport = {
     ...host(),

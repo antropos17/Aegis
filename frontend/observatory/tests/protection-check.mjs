@@ -61,6 +61,35 @@ export async function checkProtection(browser, url, out) {
         .first()
         .evaluate((node) => document.activeElement === node),
     );
+    await page.evaluate(() => document.documentElement.style.setProperty('--ui-scale', '1.5'));
+    const lastVisibleRow = page.locator('.activity-row').nth(7);
+    await lastVisibleRow.focus();
+    await page.keyboard.press('Enter');
+    await page.getByRole('button', { name: 'Close details' }).focus();
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(
+      () => {
+        const row = document.activeElement;
+        if (!row?.classList.contains('activity-row')) return false;
+        const rect = row.getBoundingClientRect();
+        return (
+          rect.top >= document.querySelector('.page-head').getBoundingClientRect().bottom &&
+          rect.bottom <=
+            document.querySelector('.observatory-app footer').getBoundingClientRect().top
+        );
+      },
+      null,
+      { timeout: 2000 },
+    );
+    assert(await lastVisibleRow.evaluate((node) => document.activeElement === node));
+    await page.keyboard.press('Enter');
+    await page.getByLabel('Search agent activity').fill('no matching observation');
+    await page.getByRole('button', { name: 'Close details' }).click();
+    assert(
+      await page.locator('.activity-panel').evaluate((node) => document.activeElement === node),
+      'filtered-away activity returns focus to the activity region',
+    );
+    await page.getByLabel('Search agent activity').fill('');
     for (const size of [
       { width: 1200, height: 800 },
       { width: 900, height: 600 },
