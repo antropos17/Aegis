@@ -1,6 +1,6 @@
 # Contributing to AEGIS
 
-AEGIS is building an independent AI oversight layer — a tool that monitors what AI agents do on your computer, independent of any AI vendor. When AI becomes embedded in operating systems, browsers, and every application, oversight must not belong to those same companies. Your contributions help make that vision real.
+AEGIS monitors local AI agents, reviews selected project files and checks explicitly configured actions. Contributions help make the observations, controls and their limits easier to understand. Start with the [documentation index](docs/README.md) for user guides and technical contracts.
 
 ## Development Setup
 
@@ -18,7 +18,7 @@ Requires the Node.js version in `engines` in `package.json` (also pinned in `.nv
 1. **Fork** the repository
 2. **Branch** from `master`: `git checkout -b feat/your-feature` (see [BRANCHING.md](BRANCHING.md) for the full prefix list)
 3. **Implement** your changes following the code standards below
-4. **Test**: run `npm test` — the suite prints its own pass/skip and file counts — and `npm start`; verify no console errors, all tabs render, existing features work
+4. **Verify**: run the checks appropriate to the change, including `npm run typecheck` and `npm run typecheck:svelte` for renderer changes. Visual changes require both `npm run build:renderer` and `npm run build:demo`, plus `npm run frontend:test`. Use the [repository verification table](AGENTS.md#verification) for the required CI checks; use `npm start` when checking native desktop behavior.
 5. **Commit** with [conventional commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
 6. **Push** your branch and open a **Pull Request** with a clear description of what changed and why
 
@@ -45,7 +45,7 @@ Merging the Release PR creates the version bump, changelog and GitHub Release; t
 - **JSDoc headers on all exported functions** — `@param`, `@returns`, `@since` tags required. Include `@file`, `@module`, `@description` at top of every file.
 - **Aim for 300 lines in new files.** Extract a focused module when adding to an oversized file; do not split existing files solely to meet the target.
 - **`const` over `let`** when the binding doesn't change. Never use `var`.
-- **Justify new dependencies.** The runtime dependencies in `package.json` are `ajv` (schema validation), `chokidar` (file watching), `electron-updater` (updates), `js-yaml` (ruleset parsing) and `semver` (version comparison). Electron is a devDependency used to build and run the desktop shell.
+- **Justify new dependencies.** Keep the runtime dependency inventory in [package.json](package.json). It includes parsers for supported project files, schema validation, file watching and updates. Electron is a devDependency used to build and run the desktop shell.
 
 ### Naming Conventions
 

@@ -1,7 +1,7 @@
 {
   "name": "aegis",
   "version": "0.15.0-alpha",
-  "description": "OS-level monitor for AI agents: observes processes, file access, and network activity on the local machine and attributes each event to an agent instance.",
+  "description": "Desktop monitoring and local security reviews for AI agents, with opt-in policy-controlled execution and MCP action tools.",
   "main": "src/main/main.js",
   "scripts": {
     "dev:context": "node tools/development/context.mjs",

@@ -70,7 +70,7 @@ AEGIS follows Electron security best practices:
 - **Node integration:** Disabled in the renderer.
 - **Preload bridge:** All IPC passes through `contextBridge.exposeInMainWorld` with a defined, enumerated API surface (55 channels: 45 invoke + 10 push). No arbitrary IPC.
 - **Content Security Policy:** `default-src 'self'` and `script-src 'self'`, with no `unsafe-eval` or external font loading. `style-src` permits `unsafe-inline` for application styles.
-- **No remote content:** The app loads only local files. No external URLs in the renderer.
+- **Local desktop content:** The desktop loads local application files. Explicit documentation links open in the system browser; remote pages are not loaded inside the desktop renderer. Interface icons are bundled locally.
 - **Output escaping:** Svelte escapes ordinary text interpolations. Generated HTML reports use explicit escaping; raw HTML insertion and new export paths require their own review.
 - **Single-instance lock:** Prevents duplicate application instances. It does not replace IPC sender checks or protect against a compromised local account.
 - **Local security review:** Native dialogs select inputs and new output files. The review channel validates the owned top-level document, invalidates results on navigation and retains reports in main. Exports contain the redacted report; snapshot acceptance requires a fresh matching capture. Canonical path and file-identity checks reduce filesystem races but do not form an OS sandbox. See [the UI guide](docs/LOCAL-SECURITY-UI.md).
@@ -78,7 +78,9 @@ AEGIS follows Electron security best practices:
 
 ### Privacy Architecture
 
-- **Local storage by default.** Settings, baselines and audit logs are stored locally. There is no telemetry, cloud sync, analytics or usage tracking. Optional external requests are described below.
+- **Local storage by default.** Settings, baselines and audit logs are stored locally. There is no telemetry, cloud sync, analytics or usage tracking. Network requests are described below.
+- **Endpoint naming uses DNS.** Network monitoring automatically queries the configured DNS resolver for reverse names of observed IP addresses and forward confirmation of those names. These queries expose the IP addresses and queried hostnames to the resolver, not monitored file contents.
+- **Documentation links are user-opened.** Opening a guide sends the browser to its public GitHub page. Monitoring does not require opening these links.
 - **AI analysis is opt-in.** An explicit analysis request sends activity metadata to Anthropic using the configured API key. Depending on the analysis, this includes agent/process names, PIDs, parent chains, sensitive file paths, event counts and network endpoints. Monitoring does not require this service; analysis is not sent in the background.
 - **Update requests are opt-in.** Automatic checks/downloads default to off; manual actions contact public GitHub releases. These requests send no monitoring records, settings or API keys. Installation always requires native confirmation.
 - **Audit records contain metadata.** File-monitoring records include paths, names and attribution evidence, not the contents of observed sensitive files. Token accounting separately reads local agent transcript JSONL to extract usage; that is distinct from the file-monitoring pipeline.
@@ -86,7 +88,8 @@ AEGIS follows Electron security best practices:
 
 ### Known Limitations
 
-- **Monitor-only:** AEGIS observes and does not enforce at the OS level. Permission states (allow/monitor/block) affect UI display and alerting. OS-level blocking by kernel driver is a deliberate non-goal.
+- **Default monitoring:** Agent permission states (allow/monitor/block) affect UI display and alerting. They do not enforce OS-level blocking; a kernel blocking driver is a deliberate non-goal.
+- **Opt-in selected-action execution:** Explicit CLI and MCP routes can gate an AEGIS-owned direct child on an exact policy decision, with a fresh terminal confirmation on confirmation routes. An allowed process and its descendants retain the caller's privileges; this is not OS isolation. Exact terminal previews can expose arguments and environment secrets in scrollback. See [direct execution](docs/ACTION-EXECUTION.md) and [terminal confirmation](docs/ACTION-CONFIRMATION.md) for the distinct authorization contracts.
 - **Configuration exports omit the API key:** Export Config and the diagnostic ZIP remove the configured Anthropic key from their settings copy. Importing configuration without a key preserves the local key. Paths, endpoints and agent metadata remain sensitive.
 - **Audit logs are plaintext:** JSONL files in `userData/audit-logs/` are unencrypted. They contain file paths and agent names but not file contents.
 - **Process attribution:** chokidar file watchers cannot attribute events to specific processes. Handle-based scanning provides per-process attribution but runs on a timer, not in real-time.

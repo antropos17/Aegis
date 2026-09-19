@@ -1,6 +1,6 @@
 # Verifying an AEGIS release
 
-Every GitHub Release built by CI carries two extra files next to the installer:
+CI releases starting with `0.13.0-alpha` carry two extra files next to the installer. Older releases may lack them:
 
 | File                | What it is                                                                    |
 | ------------------- | ----------------------------------------------------------------------------- |
@@ -8,9 +8,10 @@ Every GitHub Release built by CI carries two extra files next to the installer:
 | `manifest.json.sig` | A detached Ed25519 signature over the exact bytes of `manifest.json`, base64-encoded. |
 
 The public key is committed in this repository at
-[`keys/aegis-release-pubkey.pub`](../keys/aegis-release-pubkey.pub). The matching
-private key exists only as the `AEGIS_RELEASE_SIGNING_KEY` GitHub Actions secret; it is
-not on any developer machine and is never written to the build workspace.
+[`keys/aegis-release-pubkey.pub`](../keys/aegis-release-pubkey.pub). The
+CI signing step receives the matching private key through the
+`AEGIS_RELEASE_SIGNING_KEY` GitHub Actions secret. The committed public key does
+not establish who may hold additional copies of the private key.
 
 ## What the signature proves
 
