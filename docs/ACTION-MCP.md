@@ -2,8 +2,10 @@
 
 `--action-mcp-stdio <policy.json> <request.json>` connects an MCP client to
 [AEGIS-owned direct execution](ACTION-EXECUTION.md). The operator selects one
-policy and one request file when launching the server. The only exposed tool is
-`aegis_execute_selected`, with empty arguments. The client cannot choose files,
+policy and one request file when launching the server. The action tool is
+`aegis_execute_selected`, with empty arguments. The separate read-only
+[`aegis_route_status`](ACTION-MCP-STATUS.md) reports bounded observations from the
+current connection without invoking the execution owner. The client cannot choose files,
 executable, command arguments or environment. Initialization pins the raw bytes of
 both selected JSON files for that connection. Each invocation still requires an
 exact allow decision from those unchanged files. Ask and deny return tool errors

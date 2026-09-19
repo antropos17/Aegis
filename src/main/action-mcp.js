@@ -1,6 +1,7 @@
 'use strict';
 
 const { executeAction } = require('./action-execution');
+const status = require('./action-mcp-status');
 const VERSIONS = Object.freeze(['2025-11-25', '2025-06-18', '2025-03-26']);
 const LIMITS = Object.freeze({ messages: 128, executions: 16 });
 const NAME = 'aegis_execute_selected';
@@ -53,6 +54,14 @@ function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerE
   let phase = 'new';
   let messages = 0;
   let executions = 0;
+  let selectedActionCount = 0;
+  const counters = {
+    selectionRejected: 0,
+    ownerInvocations: 0,
+    ownerSettled: 0,
+    ownerFailures: 0,
+    cancellationRequests: 0,
+  };
   let protocolVersion = VERSIONS[0];
   let active = null;
   let binding = null;
@@ -94,9 +103,11 @@ function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerE
       if (
         message.method === 'notifications/cancelled' &&
         active &&
-        params.requestId === active.id
+        params.requestId === active.id &&
+        !active.cancelled
       ) {
         active.cancelled = true;
+        counters.cancellationRequests++;
         active.controller.abort();
       }
       return null;
@@ -130,6 +141,7 @@ function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerE
         if (!object(captured)) throw new Error('binding-unavailable');
         binding = captured;
         if (catalogMode) catalogNames = new Set(listCatalog(captured).map((tool) => tool.name));
+        selectedActionCount = catalogMode ? catalogNames.size : 1;
       } catch (_) {
         if (phase === 'closed') return null;
         if (binding) {
@@ -148,7 +160,7 @@ function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerE
       return response(id, {
         protocolVersion,
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'aegis-selected-action', version: '1.1.0' },
+        serverInfo: { name: 'aegis-selected-action', version: '1.2.0' },
       });
     }
     if (phase !== 'ready') return error(id, -32002, 'Initialization required');
@@ -156,7 +168,7 @@ function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerE
       if (!only(params, ['_meta'])) return error(id, -32602, 'Invalid parameters');
       if (catalogMode) {
         try {
-          return response(id, { tools: listCatalog(binding) });
+          return response(id, { tools: [...listCatalog(binding), status.statusDescriptor()] });
         } catch {
           return error(id, -32000, 'Configuration unavailable');
         }
@@ -175,17 +187,36 @@ function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerE
               openWorldHint: true,
             },
           },
+          status.statusDescriptor(),
         ],
       });
     }
     if (method !== 'tools/call') return error(id, -32601, 'Method not found');
     if (
       !only(params, ['name', 'arguments', '_meta']) ||
-      (catalogMode ? !catalogNames.has(params.name) : params.name !== NAME) ||
+      (params.name !== status.NAME &&
+        (catalogMode ? !catalogNames.has(params.name) : params.name !== NAME)) ||
       (params.arguments !== undefined &&
         (!object(params.arguments) || Object.keys(params.arguments).length))
     )
       return error(id, -32602, 'Invalid tool parameters');
+    if (params.name === status.NAME) {
+      const snapshot = status.statusSnapshot({
+        ...counters,
+        catalogMode,
+        selectedActionCount,
+        messages,
+        executions,
+        activity: !active ? 'idle' : active.cancelled ? 'cancellation-requested' : 'owner-pending',
+        messageLimit: LIMITS.messages,
+        executionLimit: LIMITS.executions,
+      });
+      return response(id, {
+        content: [{ type: 'text', text: JSON.stringify(snapshot) }],
+        ...(protocolVersion === '2025-03-26' ? {} : { structuredContent: snapshot }),
+        isError: false,
+      });
+    }
     if (active) return error(id, -32000, 'Execution busy');
     if (executions >= LIMITS.executions) return error(id, -32000, 'Execution limit reached');
     executions++;
@@ -197,13 +228,23 @@ function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerE
         try {
           selected = selectCatalog(binding, params.name);
         } catch {
+          counters.selectionRejected++;
           return error(id, -32000, 'Configuration unavailable');
         }
       }
-      const report = await execute(selected.policyPath, selected.requestPath, {
-        signal: current.controller.signal,
-        binding: selected.binding,
-      });
+      let report;
+      counters.ownerInvocations++;
+      try {
+        report = await execute(selected.policyPath, selected.requestPath, {
+          signal: current.controller.signal,
+          binding: selected.binding,
+        });
+      } catch (error) {
+        counters.ownerFailures++;
+        throw error;
+      } finally {
+        counters.ownerSettled++;
+      }
       if (phase === 'closed' || current.cancelled) return null;
       const succeeded =
         report.decision === 'allow' &&

@@ -89,9 +89,10 @@ describe('trusted selected-action catalog', () => {
     const initialized = await t.server.receive(init());
     await t.server.receive(notification('notifications/initialized'));
     const listed = await t.server.receive(request(1, 'tools/list'));
-    expect(listed.result.tools.map((tool) => tool.name)).toEqual(
-      t.entries.map((entry) => entry.name),
-    );
+    expect(listed.result.tools.map((tool) => tool.name)).toEqual([
+      ...t.entries.map((entry) => entry.name),
+      'aegis_route_status',
+    ]);
     const first = await t.server.receive(catalogCall(2));
     const second = await t.server.receive(catalogCall(3, 'second'));
     for (const [i, entry] of t.entries.entries()) {
@@ -287,7 +288,7 @@ describe('connection-owned selected-file binding', () => {
     expect(resolved).toBe(false);
     expect(execute).not.toHaveBeenCalled();
     complete(captured);
-    expect((await pending).result.serverInfo.version).toBe('1.1.0');
+    expect((await pending).result.serverInfo.version).toBe('1.2.0');
     expect((await server.receive(call(3))).error.code).toBe(-32002);
     await server.receive(notification('notifications/initialized'));
     await server.receive(call(4));
@@ -433,7 +434,7 @@ describe('selected-action MCP protocol', () => {
       expect((await server.receive(call(1))).error).toBeDefined();
       await server.receive(notification('notifications/initialized'));
       const list = await server.receive(request(2, 'tools/list'));
-      expect(list.result.tools).toHaveLength(1);
+      expect(list.result.tools).toHaveLength(2);
       expect(list.result.tools[0]).toMatchObject({
         name: api.NAME,
         inputSchema: { additionalProperties: false },
@@ -590,5 +591,164 @@ describe('selected-action MCP protocol', () => {
     const { server, execute } = setup();
     expect((await server.receive(value)).error.code).toBe(-32600);
     expect(execute).not.toHaveBeenCalled();
+  });
+});
+
+const statusCall = (id, args = {}) =>
+  request(id, 'tools/call', { name: 'aegis_route_status', arguments: args });
+const getStatus = async (server, id) =>
+  (await server.receive(statusCall(id))).result.structuredContent;
+
+describe('owner-observed route status', () => {
+  it('advertises a detached read-only tool and returns private-free idle counters without execution', async () => {
+    const t = setup();
+    await ready(t.server);
+    const listed = await t.server.receive(request(1, 'tools/list'));
+    expect(listed.result.tools.at(-1)).toMatchObject({
+      name: 'aegis_route_status',
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    });
+    const snapshot = await getStatus(t.server, 2);
+    expect(snapshot).toMatchObject({
+      schemaVersion: 1,
+      mode: 'action-route-status',
+      selection: 'single-action',
+      selectedActionCount: 1,
+      activity: 'idle',
+      messagesObserved: 4,
+      actionAttempts: 0,
+      ownerInvocations: 0,
+      ownerSettled: 0,
+      ownerFailures: 0,
+      cancellationRequests: 0,
+      authorization: 'none',
+      blockingVerification: 'not-performed',
+      providerIdentity: 'unverified',
+    });
+    expect(JSON.stringify(snapshot)).not.toContain('PRIVATE');
+    expect(t.execute).not.toHaveBeenCalled();
+    expect(t.capture).toHaveBeenCalledOnce();
+    snapshot.limits.messages = 0;
+    expect((await getStatus(t.server, 3)).limits.messages).toBe(api.LIMITS.messages);
+  });
+
+  it('observes pending and cancellation until owner settles; duplicate/wrong typed cancellation does not count', async () => {
+    let resolve;
+    const t = setup(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    await ready(t.server);
+    const pending = t.server.receive(call(1));
+    expect(await getStatus(t.server, 2)).toMatchObject({
+      activity: 'owner-pending',
+      ownerInvocations: 1,
+      ownerSettled: 0,
+      actionAttempts: 1,
+    });
+    await t.server.receive(notification('notifications/cancelled', { requestId: '1' }));
+    expect((await getStatus(t.server, 3)).cancellationRequests).toBe(0);
+    await t.server.receive(notification('notifications/cancelled', { requestId: 1 }));
+    await t.server.receive(notification('notifications/cancelled', { requestId: 1 }));
+    expect(await getStatus(t.server, 4)).toMatchObject({
+      activity: 'cancellation-requested',
+      cancellationRequests: 1,
+      ownerSettled: 0,
+    });
+    resolve(ok);
+    expect(await pending).toBeNull();
+    expect(await getStatus(t.server, 5)).toMatchObject({
+      activity: 'idle',
+      ownerSettled: 1,
+      ownerFailures: 0,
+    });
+  });
+
+  it('distinguishes catalog selection failures from invocation and does not inspect bindings for status', async () => {
+    const t = catalogSetup({
+      selectCatalog: vi.fn(() => {
+        throw Error('PRIVATE_FAILURE');
+      }),
+    });
+    await ready(t.server);
+    await t.server.receive(catalogCall(1));
+    const count = t.listCatalog.mock.calls.length;
+    expect(await getStatus(t.server, 2)).toMatchObject({
+      selection: 'catalog',
+      selectedActionCount: 2,
+      actionAttempts: 1,
+      selectionRejected: 1,
+      ownerInvocations: 0,
+      ownerFailures: 0,
+      ownerSettled: 0,
+    });
+    expect(t.selectCatalog).toHaveBeenCalledOnce();
+    expect(t.listCatalog).toHaveBeenCalledTimes(count);
+    expect(t.execute).not.toHaveBeenCalled();
+  });
+
+  it('counts owner exceptions but not serialization or report-handling failures', async () => {
+    const execute = vi
+      .fn()
+      .mockRejectedValueOnce(Error('PRIVATE_ERROR'))
+      .mockResolvedValueOnce(null);
+    const cyclic = { ...ok };
+    cyclic.cycle = cyclic;
+    execute.mockResolvedValueOnce(cyclic);
+    const t = setup(execute);
+    await ready(t.server);
+    for (let id = 1; id <= 3; id++) await t.server.receive(call(id));
+    expect(await getStatus(t.server, 4)).toMatchObject({
+      ownerInvocations: 3,
+      ownerSettled: 3,
+      ownerFailures: 1,
+      actionAttempts: 3,
+    });
+  });
+
+  it('status remains available after execution limit without consuming attempts', async () => {
+    const t = setup();
+    await ready(t.server);
+    for (let i = 1; i <= api.LIMITS.executions; i++) await t.server.receive(call(i));
+    await t.server.receive(call(30));
+    expect(await getStatus(t.server, 31)).toMatchObject({
+      actionAttempts: 16,
+      ownerInvocations: 16,
+      ownerSettled: 16,
+    });
+  });
+
+  it('shares argument validation, replay, initialization and message limits', async () => {
+    const t = setup();
+    expect((await t.server.receive(statusCall('early'))).error).toBeDefined();
+    await ready(t.server);
+    expect((await t.server.receive(statusCall(1, { PRIVATE: true }))).error).toBeDefined();
+    expect((await t.server.receive(statusCall(1))).error).toBeDefined();
+    expect((await getStatus(t.server, 2)).actionAttempts).toBe(0);
+    let last;
+    for (let i = 0; i < api.LIMITS.messages; i++)
+      last = await t.server.receive(statusCall('s' + i));
+    expect(last).toBeNull();
+    expect(t.revoke).toHaveBeenCalledOnce();
+    expect(t.execute).not.toHaveBeenCalled();
+  });
+
+  it('returns only text JSON for the oldest negotiated protocol', async () => {
+    const t = setup();
+    await t.server.receive(init(0, '2025-03-26'));
+    await t.server.receive(notification('notifications/initialized'));
+    const reply = await t.server.receive(statusCall(1));
+    expect(reply.result.structuredContent).toBeUndefined();
+    expect(JSON.parse(reply.result.content[0].text).mode).toBe('action-route-status');
+    expect(reply.result.isError).toBe(false);
+    t.server.close();
+    expect(await t.server.receive(statusCall(2))).toBeNull();
   });
 });

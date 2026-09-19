@@ -178,6 +178,7 @@ it('catalog broker reviews the selected action on each call without sharing appr
   expect((await c.call('tools/list')).result.tools.map((tool) => tool.name)).toEqual([
     'aegis_action_first',
     'aegis_action_second',
+    'aegis_route_status',
   ]);
   for (const [name, decision] of [
     ['first', 'allow'],
@@ -190,6 +191,21 @@ it('catalog broker reviews the selected action on each call without sharing appr
     else expect(reply.result.structuredContent.authorization).toBe('operator-confirmed');
   }
   expect(previewed).toEqual([first.dir, second.dir, second.dir]);
+  expect(
+    (await c.call('tools/call', { name: 'aegis_route_status', arguments: {} })).result
+      .structuredContent,
+  ).toMatchObject({
+    selection: 'catalog',
+    selectedActionCount: 2,
+    activity: 'idle',
+    actionAttempts: 3,
+    ownerInvocations: 3,
+    ownerSettled: 3,
+    ownerFailures: 0,
+    authorization: 'none',
+    blockingVerification: 'not-performed',
+  });
+  expect(previewed).toHaveLength(3);
   for (const f of [first, second])
     expect(fs.readFileSync(path.join(f.dir, 'sentinel'), 'utf8')).toBe('x');
   const visible = JSON.stringify(c.received) + owner.output.join('');
@@ -223,6 +239,17 @@ it('catalog disconnect during a second action review cancels that action and cle
     '{"jsonrpc":"2.0","id":77,"method":"tools/call","params":{"name":"aegis_action_second"}}\n',
   );
   await waiting;
+  expect(
+    (await c.call('tools/call', { name: 'aegis_route_status', arguments: {} })).result
+      .structuredContent,
+  ).toMatchObject({
+    selection: 'catalog',
+    activity: 'owner-pending',
+    actionAttempts: 2,
+    ownerInvocations: 2,
+    ownerSettled: 1,
+    cancellationRequests: 0,
+  });
   peer.destroy();
   await owner.done;
   expect(signal.aborted).toBe(true);
@@ -348,7 +375,7 @@ it('rejects wrong or overlong auth without exposing protocol, then permits a val
   const peer = await connect(owner.endpoint);
   const c = client(peer);
   await c.ready();
-  expect((await c.call('tools/list')).result.tools).toHaveLength(1);
+  expect((await c.call('tools/list')).result.tools).toHaveLength(2);
 });
 
 it('preserves coalesced auth and MCP bytes while consuming auth only', async () => {
@@ -441,7 +468,7 @@ it('closes admission after the sole authenticated connection', async () => {
   const c = client(peer);
   await c.ready();
   await expect(connect(owner.endpoint)).rejects.toBeDefined();
-  expect((await c.call('tools/list')).result.tools).toHaveLength(1);
+  expect((await c.call('tools/list')).result.tools).toHaveLength(2);
 });
 
 it('disconnect after a real confirmed child starts awaits its termination', async () => {

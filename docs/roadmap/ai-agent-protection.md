@@ -456,3 +456,12 @@ deadline, then revokes all temporary bindings. It never launches, listens,
 connects or grants permission. Cancellation, timeout and observed revocation
 discard partial results. Valid deny remains a successful configuration check.
 See [the catalog-check contract](../ACTION-ROUTE-CHECK.md#whole-catalog-check).
+
+B1 connection observations: the fixed read-only MCP tool
+[`aegis_route_status`](../ACTION-MCP-STATUS.md) reports owner invocation,
+settlement, failure and cancellation counters for the current connection. It is
+available during execution/review without invoking an action, while preserving
+the message/replay limits. Cancellation remains a request; neither settlement nor
+idle status establishes execution success, termination or global protection.
+No private action data or client identity is retained in these observations.
+The Observatory coverage interface and verified outside-route control remain open.

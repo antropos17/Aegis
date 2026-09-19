@@ -8,7 +8,10 @@ bearer-possession checks. Installed-provider fixtures and an experimental
 A bounded [decision/after-report session](ACTION-POLICY-SESSION.md) is connected
 in the provider fixture. The [explicit direct-execution CLI](ACTION-EXECUTION.md)
 now owns its child launch. The [selected-action MCP adapter](ACTION-MCP.md)
-connects an explicit agent tool; broader routing and exact approval binding remain open.
+connects an explicit agent tool, with exact approval binding available through
+the [terminal review route](ACTION-MCP-REVIEW.md). Broader routing remains open.
+Its [read-only status tool](ACTION-MCP-STATUS.md) reports current-connection owner
+lifecycle counters without granting permission or claiming verified blocking.
 
 ## Receiver ownership and versioning
 
