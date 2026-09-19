@@ -9,10 +9,12 @@ import { verifyReviewRoute } from './claude-mcp-review-fixture.mjs';
 import { verifySelectedRoute } from './claude-single-provider-fixture.mjs';
 import { replyWithCatalogTools } from './claude-catalog-model-fixture.mjs';
 import { verifyCatalogRoute } from './claude-catalog-provider-fixture.mjs';
+import { replyWithStatusTools } from './claude-status-model-fixture.mjs';
+import { verifyStatusRoute } from './claude-status-provider-fixture.mjs';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const usage =
-  'Windows only: node scripts/verify-claude-action-mcp.mjs [--review | --catalog | --catalog-review] --claude <absolute claude.exe> --bash <absolute bash.exe> --scratch <existing spacious directory>\nExplicitly configures disposable local MCP servers; uses a dummy credential and synthetic loopback API. Review modes require a live terminal for confirmation and refusal. No OS firewall isolation; managed policy still applies. Stdout contains fixed readiness JSON lines and a final redacted receipt. No saved user settings are changed.';
+  'Windows only: node scripts/verify-claude-action-mcp.mjs [--review | --catalog | --catalog-review | --status | --catalog-status] --claude <absolute claude.exe> --bash <absolute bash.exe> --scratch <existing spacious directory>\nExplicitly configures disposable local MCP servers; uses a dummy credential and synthetic loopback API. Status modes query current-connection counters before and after allow/deny/ask actions. Review modes require a live terminal for confirmation and refusal. No OS firewall isolation; managed policy still applies. Stdout contains fixed readiness JSON lines and a final redacted receipt. No saved user settings are changed.';
 
 async function main(args) {
   if (args.length === 1 && args[0] === '--help') {
@@ -20,10 +22,11 @@ async function main(args) {
     return;
   }
   let selected;
-  const catalog = ['--catalog', '--catalog-review'].includes(args[0]);
+  const status = ['--status', '--catalog-status'].includes(args[0]);
+  const catalog = ['--catalog', '--catalog-review', '--catalog-status'].includes(args[0]);
   const review = ['--review', '--catalog-review'].includes(args[0]);
   try {
-    selected = options(review || catalog ? args.slice(1) : args);
+    selected = options(review || catalog || status ? args.slice(1) : args);
     if (review && (!process.stdin.isTTY || !process.stderr.isTTY)) throw Error('terminal');
   } catch {
     console.log(JSON.stringify({ error: 'invalid-options-or-insufficient-space', usage }));
@@ -33,13 +36,17 @@ async function main(args) {
   const owned = fs.realpathSync(fs.mkdtempSync(path.join(selected.scratch, 'aegis-mcp-owned-')));
   const receipt = {
     checkedAt: new Date().toISOString(),
-    mode: catalog
-      ? review
-        ? 'claude-catalog-review-synthetic-api'
-        : 'claude-catalog-stdio-synthetic-api'
-      : review
-        ? 'claude-mcp-terminal-review-synthetic-api'
-        : 'claude-selected-action-mcp-synthetic-api',
+    mode: status
+      ? catalog
+        ? 'claude-catalog-status-synthetic-api'
+        : 'claude-selected-status-synthetic-api'
+      : catalog
+        ? review
+          ? 'claude-catalog-review-synthetic-api'
+          : 'claude-catalog-stdio-synthetic-api'
+        : review
+          ? 'claude-mcp-terminal-review-synthetic-api'
+          : 'claude-selected-action-mcp-synthetic-api',
     localHttpRequests: 0,
     rejectedProxyRequests: 0,
     scenarios: [],
@@ -87,7 +94,8 @@ async function main(args) {
           return;
         }
         current.requests++;
-        if (catalog) replyWithCatalogTools(res, input, current);
+        if (status) replyWithStatusTools(res, input, current);
+        else if (catalog) replyWithCatalogTools(res, input, current);
         else replyWithSelectedTool(res, input, current);
       });
     });
@@ -166,6 +174,24 @@ async function main(args) {
       },
     };
     fs.writeFileSync(requestPath, JSON.stringify({ schemaVersion: 1, action }));
+    if (status) {
+      await verifyStatusRoute({
+        owned,
+        env,
+        run,
+        receipt,
+        action,
+        sentinel,
+        policyPath,
+        requestPath,
+        configPath,
+        catalog,
+        setScenario: (current) => {
+          scenario = current;
+        },
+      });
+      return;
+    }
     if (catalog) {
       await verifyCatalogRoute({
         owned,
@@ -225,7 +251,9 @@ async function main(args) {
     try {
       receipt.scratchBytesBeforeCleanup = treeBytes(owned);
       if (!receipt.unreapedProcess)
-        for (let attempt = 0; attempt < 10 && fs.existsSync(owned); attempt++) {
+        // Windows may briefly retain an empty fixture cwd after provider exit.
+        // Retry the same owned boundary for at most three seconds; never force it.
+        for (let attempt = 0; attempt < 30 && fs.existsSync(owned); attempt++) {
           if (attempt) await new Promise((resolve) => setTimeout(resolve, 100));
           removeOwned(owned, owned);
         }

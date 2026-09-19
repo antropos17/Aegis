@@ -473,3 +473,13 @@ and performs no file read, server start, preflight or settings installation.
 The export intentionally contains selected paths and no bearer, environment or
 action contents. Native generated-config checks and installed Claude fixtures
 cover all three modes. See [the setup contract](../ACTION-MCP-CONFIG.md).
+
+B1 installed-provider status evidence: `--status` and `--catalog-status` now
+exercise status/action/status through installed Windows Claude Code 2.1.263.
+Allow, deny and ask each have actual correlated tool results and intermediate
+sentinel observations. Both routes passed 12 synthetic local API requests each;
+owner counters advance once even when policy prevents launch, while status adds
+no action attempt. Final scratch cleanup passed. The verifier retains failure
+on incomplete cleanup after a bounded retry. This covers idle direct-stdio
+status; installed-provider pending review/cancellation and the Observatory
+coverage interface remain separate. See [status evidence](../ACTION-MCP-STATUS.md).

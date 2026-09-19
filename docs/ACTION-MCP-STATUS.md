@@ -89,3 +89,47 @@ synthetic loopback API requests respectively). These provider regressions did
 not invoke the status tool itself. Their owned scratch was removed; receipts are
 `.agent/b1-session-status-single-provider-regression.json` and
 `.agent/b1-session-status-catalog-provider-regression.json`.
+
+### Installed-provider status sequence
+
+The opt-in verifier can explicitly ask installed Windows Claude to query status,
+call one selected action, then query status again in the same connection:
+
+```powershell
+node scripts/verify-claude-action-mcp.mjs --status --claude <absolute-claude.exe> --bash <absolute-bash.exe> --scratch <existing-directory>
+node scripts/verify-claude-action-mcp.mjs --catalog-status --claude <absolute-claude.exe> --bash <absolute-bash.exe> --scratch <existing-directory>
+```
+
+Each mode runs allow, deny and ask in separate provider processes with generated
+disposable MCP settings and synthetic loopback model replies. Catalog mode selects
+the second of two actions and independently checks that the first stays unused.
+The verifier correlates actual tool results and observes fixture side effects
+after every result. It requires zero initial owner counters, one settled owner
+invocation afterward (including deny and ask), and no additional action attempt
+for either status query. Only allow may append one byte to its selected sentinel.
+
+Status counters alone cannot establish that outcome: the action report and
+intermediate sentinel observations must agree. Missing, malformed, mismatched or
+changed tool results fail verification. Private canaries are checked across tool
+result history and final provider output; receipts contain fixed metadata and
+bounded counters. All files and processes belong to disposable fixture setup.
+The script leaves saved user settings unchanged and reports cleanup explicitly.
+
+These modes exercise idle status before and after a completed direct-stdio call.
+They do not verify installed-provider polling during a pending owner, terminal
+review, cancellation, a cloud model, provider identity or outside-route protection.
+
+Installed Windows Claude Code 2.1.263 passed both modes: three scenarios and
+12 synthetic API requests per mode. Observed message counters advanced from four
+to six, while action attempts, owner invocations and settlements advanced from
+zero to one for allow, deny and ask. Only allow appended its one sentinel byte;
+the unused catalog action had no side effect. Both final runs removed owned
+scratch. Receipts are `.agent/b1-provider-status-single.json` and
+`.agent/b1-provider-status-catalog.json`.
+
+An initial selected-action run passed its scenarios but failed cleanup because
+an empty fixture working directory remained. That failed receipt is preserved
+separately; the empty directory was later removed after path validation. The
+verifier now retries the same conservative cleanup for up to three seconds and
+still fails if removal is incomplete. This is no guarantee about Windows handle
+release or descendant termination.
