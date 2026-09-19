@@ -38,7 +38,7 @@ coverage gaps. Do not label these states "safe".
 | B2 | MCP gateway and operation control | Validate schemas, arguments, responses, recipients, access scopes and tool changes; stdio and HTTP have separate trust boundaries | Planned |
 | B3 | Secret protection and limited permissions | Secrets cannot enter context or outbound requests outside policy; permission is bound to operation, recipient and task; expiry/single-use limits; replay protection | Planned |
 | B4 | Protection against destructive actions | Control deletion, writes outside the project, publication and dangerous API operations before execution; confirm exact arguments; a timeout never becomes permission | Planned |
-| B5 | Coverage interface in Observatory | "Observed", "Blocking verified", "Coverage lost"; agent/version/surface/last check; safe testing of an installed adapter | Partial: [Action control preflight workspace](../ACTION-COVERAGE-UI.md); live connection/agent binding, verified blocking and coverage-loss transitions remain |
+| B5 | Coverage interface in Observatory | "Observed", "Blocking verified", "Coverage lost"; agent/version/surface/last check; safe testing of an installed adapter | Partial: [preflight workspace](../ACTION-COVERAGE-UI.md) and [opt-in live MCP observation](../ACTION-LIVE-OBSERVATION.md) with sticky loss and self-reported client metadata; independent agent binding and verified blocking remain |
 | C1 | Protected Windows launch | Separate restricted context, file permissions and WFP; policy covers descendants; a separate broker supplies credentials; ordinary launch remains explicitly labeled observation mode | Planned |
 | C2 | Protect AEGIS itself and resist bypasses | Validate processes using fresh identity; protect policies, keys, logs, IPC and service control; address direct egress that bypasses the proxy | Planned |
 | C3 | Evidence and operational verification | Link decisions to actions, policy versions and sensor states; signed checkpoints; distinguish audit integrity from completeness; bounded rotation | Planned |
@@ -490,6 +490,14 @@ the existing bounded checkers return fixed metadata without launching actions.
 Captured route, policy outcomes and completion time remain separate from draft
 changes. Current-process prerequisites and unverified connection/blocking/outside
 coverage remain explicit. Navigation invalidates pending host requests; check IDs
-grant no export or acceptance authority. Preview examples stay simulated. Live
-connection/agent binding, safe installed-adapter checks and coverage-loss states
-remain open. See [the interface contract](../ACTION-COVERAGE-UI.md).
+grant no export or acceptance authority. Preview examples stay simulated.
+See [the interface contract](../ACTION-COVERAGE-UI.md).
+
+B5 live observation: an opt-in `--observe` endpoint now delivers selected MCP
+owner snapshots to Action control through a separate read-only connection.
+Successful initialization, self-reported client metadata, route, selection and
+counters belong to a fresh connection generation. Disconnect, invalid/replayed
+updates and receiver-time expiry cause sticky coverage loss; last evidence stays
+visible. Observation never invokes an executor or consumes MCP budgets. Independent
+agent/version binding and installed-adapter blocking verification remain open.
+See [the observation contract](../ACTION-LIVE-OBSERVATION.md).

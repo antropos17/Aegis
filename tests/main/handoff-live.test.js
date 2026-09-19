@@ -85,7 +85,10 @@ describe('finite loopback lifecycle intake', () => {
       transport: 'loopback-http',
       activityCoverage: 'unknown',
     });
-    expect(JSON.stringify(report)).not.toMatch(/PRIVATE|123|aaaaaa/);
+    // Random receiver UUIDs may legitimately contain the input PID's digits.
+    expect(report.events[0]).not.toHaveProperty('pid');
+    expect(JSON.stringify(report)).not.toContain('PRIVATE');
+    expect(JSON.stringify(report)).not.toContain(token);
   });
 
   it('rejects duplicate delivery IDs but preserves repeated lifecycle events with new IDs', async () => {

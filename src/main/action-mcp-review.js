@@ -17,7 +17,7 @@ let testDeps = null;
  * Start one operator-terminal broker for one bearer-authenticated MCP connection.
  * No action data or token is printed; the endpoint is a caller-selected new file.
  * @param {string[]} args Single-action flag/pair/endpoint, or catalog flag/manifest/endpoint.
- * @param {{signal?: AbortSignal}} [options] Trusted owner cancellation, retained through cleanup.
+ * @param {{signal?: AbortSignal, observe?: Function}} [options] Trusted cancellation and read-only observation.
  * @returns {Promise<number>} 0 for completed session, 2 for unavailable/closed review.
  * @since v0.15.1
  */
@@ -134,6 +134,7 @@ async function handleActionMcpReview(args, options = {}) {
         .then(() => {
           if (closed) return 2;
           const serving = (deps.serve || require('./action-mcp-stdio').serveActionMcp)({
+            ...(options.observe ? { observe: options.observe } : {}),
             input: peer,
             output: peer,
             ...selection,

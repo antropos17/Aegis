@@ -25,6 +25,7 @@ Options:
   --action-mcp-review <policy.json> <request.json> <new-endpoint.json>  Confirm MCP actions in this terminal
   --action-mcp-connect <endpoint.json>  Connect an MCP client to an operator review terminal
   --action-mcp-stdio <policy.json> <request.json>  Serve one selected action through finite MCP stdio
+    MCP stdio/review routes accept: --observe <new-private-endpoint.json> (read-only desktop observation)
   --action-exec-confirm <policy.json> <request.json>  Review exact action in a terminal and confirm one launch
   --action-exec-json <policy.json> <request.json>  Run one explicit executable request under local policy
   --action-policy-hook <policy.json>  Experimental Claude PreToolUse Bash decision hook
@@ -97,6 +98,25 @@ async function handleCLI(argv) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  if (
+    [
+      '--action-mcp-stdio',
+      '--action-mcp-catalog-stdio',
+      '--action-mcp-review',
+      '--action-mcp-catalog-review',
+    ].includes(flag) &&
+    args.includes('--observe')
+  ) {
+    const review = flag.endsWith('-review');
+    const run = review
+      ? require('./action-mcp-review').handleActionMcpReview
+      : require('./action-mcp-stdio').handleActionMcpStdio;
+    return require('./action-observation-server').runObservedMcp(
+      args,
+      run,
+      review ? 'mcp-review' : 'mcp-stdio',
+    );
+  }
   if (flag === '--action-mcp-config-json')
     return require('./action-mcp-config').handleActionMcpConfigCLI(args, write);
   if (flag === '--action-catalog-check-json')

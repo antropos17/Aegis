@@ -6,6 +6,99 @@ import path from 'node:path';
 const require = createRequire(import.meta.url);
 const ipc = require('../../src/main/local-security-ipc');
 let window, event, dialog, backend, retained;
+it('observes only native-selected endpoints, permits readback while busy, and closes on navigation', async () => {
+  const observation = { snapshot: vi.fn(() => ({ state: 'observed' })), close: vi.fn() };
+  const observeActionRoute = vi.fn(() => observation);
+  ipc.init({
+    getWindow: () => window,
+    dialog,
+    backend,
+    observeActionRoute,
+    rendererUrl: 'file:///app/index.html',
+  });
+  expect(await ipc.handle(event, { action: 'observe-route', path: 'PRIVATE' })).toMatchObject({
+    error: 'invalid-review-request',
+  });
+  expect(observeActionRoute).not.toHaveBeenCalled();
+  expect(await ipc.handle(event, { action: 'observe-route' })).toMatchObject({
+    success: true,
+    observation: { state: 'observed' },
+  });
+  expect(observeActionRoute).toHaveBeenCalledExactlyOnceWith('/selected/project');
+  let resolve;
+  dialog.showOpenDialog.mockReturnValue(
+    new Promise((done) => {
+      resolve = done;
+    }),
+  );
+  const pending = ipc.handle(event, run());
+  expect(await ipc.handle(event, { action: 'route-observation' })).toMatchObject({
+    success: true,
+    observation: { state: 'observed' },
+  });
+  const navigation = window.webContents.on.mock.calls.find(
+    ([name]) => name === 'did-start-navigation',
+  )[1];
+  navigation({ isMainFrame: true, isSameDocument: false });
+  expect(observation.close).toHaveBeenCalledOnce();
+  resolve({ canceled: true });
+  await pending;
+  expect(await ipc.handle(event, { action: 'route-observation' })).toEqual({
+    success: true,
+    observation: null,
+  });
+});
+
+it('cancels endpoint selection without replacing evidence; rejects foreign observer controls', async () => {
+  const observation = { snapshot: () => ({ state: 'observed' }), close: vi.fn() };
+  const observeActionRoute = vi.fn(() => observation);
+  ipc.init({
+    getWindow: () => window,
+    dialog,
+    backend,
+    observeActionRoute,
+    rendererUrl: 'file:///app/index.html',
+  });
+  await ipc.handle(event, { action: 'observe-route' });
+  dialog.showOpenDialog.mockResolvedValue({ canceled: true });
+  expect(await ipc.handle(event, { action: 'observe-route' })).toMatchObject({ cancelled: true });
+  expect(observation.close).not.toHaveBeenCalled();
+  for (const action of ['observe-route', 'route-observation', 'stop-observing-route'])
+    expect(await ipc.handle({ ...event, senderFrame: {} }, { action })).toMatchObject({
+      error: 'request-denied',
+    });
+  await ipc.handle(event, { action: 'stop-observing-route' });
+  expect(observation.close).toHaveBeenCalledOnce();
+});
+
+it('does not attach after navigation during endpoint selection, and destroys an attached observer with its window', async () => {
+  const observation = { snapshot: () => ({ state: 'connecting' }), close: vi.fn() };
+  const observeActionRoute = vi.fn(() => observation);
+  ipc.init({
+    getWindow: () => window,
+    dialog,
+    backend,
+    observeActionRoute,
+    rendererUrl: 'file:///app/index.html',
+  });
+  let finish;
+  dialog.showOpenDialog.mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  const pending = ipc.handle(event, { action: 'observe-route' });
+  window.webContents.on.mock.calls.find(([name]) => name === 'did-start-navigation')[1]({
+    isMainFrame: true,
+    isSameDocument: false,
+  });
+  finish({ filePaths: ['/private/endpoint'] });
+  expect(await pending).toMatchObject({ success: false });
+  expect(observeActionRoute).not.toHaveBeenCalled();
+  await ipc.handle(event, { action: 'observe-route' });
+  window.webContents.on.mock.calls.find(([name]) => name === 'destroyed')[1]();
+  expect(observation.close).toHaveBeenCalledOnce();
+});
 const run = (extra = {}) => ({
   action: 'run',
   mode: 'scan',

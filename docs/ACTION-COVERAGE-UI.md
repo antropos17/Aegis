@@ -2,7 +2,10 @@
 
 **Action control** in the Assess group brings the existing nonexecuting route
 and catalog checks into the desktop app. It is the first B5 interface slice.
-It does not report a connected agent or verified blocking.
+The configuration check does not report a connected agent or verified blocking.
+The separate [Live route observation](ACTION-LIVE-OBSERVATION.md) panel observes
+an explicitly selected running MCP owner, with self-reported client metadata and
+sticky coverage loss. Neither panel establishes verified blocking.
 
 Choose a single action or a catalog, select the intended route, then choose the
 files in native dialogs. A single action needs a schema 2 execution policy and a
@@ -35,12 +38,13 @@ The timestamp marks when this check completed; no continuous watch follows it.
 
 Catalog results show each captured action's policy outcome and configuration
 reason. Invalid, unavailable, cancelled and timed-out checks remain distinct.
-There is no safe badge, coverage percentage, automatic installation, action
-launch, network connection, export or snapshot acceptance on this page.
+Configuration checks provide no safe badge, coverage percentage, automatic
+installation, action launch, network connection, export or snapshot acceptance.
+The separately opted-in observation panel uses its own local connection.
 
 ## Host boundary
 
-The existing `local-security:review` invoke accepts only an action selector
+For configuration checks, the existing `local-security:review` invoke accepts an action selector
 (`check-route` or `check-catalog`) and a fixed route enum. Renderer-supplied paths,
 commands, URLs, report bodies and extra options are rejected. Main owns the native
 file selection and returns only the check report with its generated ID, selection,
@@ -58,9 +62,9 @@ Production builds exclude that fixture module.
 
 ## Remaining B5 work
 
-Live connection observations, independently bound agent/version identity,
-installed-adapter verification controls and coverage-loss transitions remain
-separate work. The CLI [preflight contract](ACTION-ROUTE-CHECK.md),
+Live selected-route observation and coverage-loss transitions now have a separate
+panel. Independent agent/version identity and installed-adapter verification
+controls remain open. The CLI [preflight contract](ACTION-ROUTE-CHECK.md),
 [MCP status contract](ACTION-MCP-STATUS.md) and installed-provider receipts explain
 which evidence is available today. A preflight result cannot substitute for those
 connection or execution observations.

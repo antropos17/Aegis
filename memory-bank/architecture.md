@@ -1,6 +1,6 @@
 # AEGIS Architecture
 
-## Main Process (src/main/) — 155 CommonJS modules (133 top-level + 20 platform/ + 2 token-adapters/)
+## Main Process (src/main/) — 158 CommonJS modules (136 top-level + 20 platform/ + 2 token-adapters/)
 
 Optional development ETW: main → platform/etw-file-runtime → etw-file-supervisor
 → normal `sidecar/etw-file` broker → authenticated elevated file collector.
@@ -42,7 +42,7 @@ Core modules:
 - tray-icon.js — system tray with procedural icon
 
 ## Renderer (frontend/observatory/) — Svelte 5 + Vite 7
-65 Svelte components, 16 stores, 22 utils. Component count refers to frontend/observatory/components; retained store/utility counts refer to src/renderer/lib.
+66 Svelte components, 16 stores, 22 utils. Component count refers to frontend/observatory/components; retained store/utility counts refer to src/renderer/lib.
 
 App.svelte owns workspace tabs, history and the host connection. Monitoring groups products and exposes stamped instances for process actions; Events and ActivityChart show retained evidence; Details and EntityLinks connect observations; Rules, Catalog, Analysis, Reports, Statistics and Settings expose host actions. SensorStatus renders effective sensor IDs; Notifications tracks anomaly crossings.
 

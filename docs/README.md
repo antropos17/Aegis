@@ -30,6 +30,7 @@ desktop's agent catalog contains recognition signatures.
 | Generate an explicit client configuration | [MCP configuration](ACTION-MCP-CONFIG.md) |
 | Check selected files without executing | [Route check](ACTION-ROUTE-CHECK.md) and [catalog preflight](ACTION-MCP-CATALOG.md) |
 | Inspect one connection's counters | [MCP status](ACTION-MCP-STATUS.md) |
+| Observe a running route and coverage loss in desktop | [Live route observation](ACTION-LIVE-OBSERVATION.md) |
 
 ## Understand the evidence
 

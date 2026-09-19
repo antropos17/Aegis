@@ -26,6 +26,8 @@ const ERRORS = new Set([
 function valid(request) {
   if (!request || typeof request !== 'object' || Array.isArray(request)) return false;
   const keys = Object.keys(request);
+  if (['observe-route', 'route-observation', 'stop-observing-route'].includes(request.action))
+    return keys.length === 1;
   if (['check-route', 'check-catalog'].includes(request.action))
     return (
       keys.length === 2 &&
@@ -116,18 +118,30 @@ async function handle(event, request) {
         session.revision++;
         session.controller?.abort();
         session.retained = null;
+        session.observation?.close();
+        session.observation = null;
       }
     });
     event.sender.on?.('destroyed', () => {
       session.revision++;
       session.controller?.abort();
+      session.observation?.close();
+      session.observation = null;
     });
+  }
+  if (session.frame === event.senderFrame && request.action === 'route-observation')
+    return { success: true, observation: session.observation?.snapshot() ?? null };
+  if (session.frame === event.senderFrame && request.action === 'stop-observing-route') {
+    session.observation?.close();
+    return { success: true, observation: session.observation?.snapshot() ?? null };
   }
   if (session.busy) {
     if (session.frame !== event.senderFrame) session.controller?.abort();
     return { success: false, error: 'review-busy' };
   }
   if (session.frame !== event.senderFrame) {
+    session.observation?.close();
+    session.observation = null;
     session.frame = event.senderFrame;
     session.revision++;
     session.retained = null;
@@ -152,6 +166,15 @@ async function handle(event, request) {
     return result.filePaths[0];
   };
   try {
+    if (request.action === 'observe-route') {
+      const file = await pick('Select the private AEGIS observation endpoint');
+      assertOwned();
+      session.observation?.close();
+      session.observation = (
+        deps.observeActionRoute || require('./action-observation-client').observeActionRoute
+      )(file);
+      return { success: true, observation: session.observation.snapshot() };
+    }
     if (request.action === 'check-route' || request.action === 'check-catalog') {
       const kind = request.action === 'check-route' ? 'single' : 'catalog';
       const route = request.route;
