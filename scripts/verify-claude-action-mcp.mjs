@@ -13,10 +13,11 @@ import { replyWithStatusTools } from './claude-status-model-fixture.mjs';
 import { verifyStatusRoute } from './claude-status-provider-fixture.mjs';
 import { prepareObservationReply } from './claude-observation-provider-fixture.mjs';
 import { prepareReviewObservationReply } from './claude-review-observation-fixture.mjs';
+import { prepareCatalogReviewObservationReply } from './claude-catalog-review-observation.mjs';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const usage =
-  'Windows only: node scripts/verify-claude-action-mcp.mjs [--review | --review-observation | --catalog | --catalog-review | --status | --catalog-status | --observation | --catalog-observation] --claude <absolute claude.exe> --bash <absolute bash.exe> --scratch <existing spacious directory>\nExplicitly configures disposable local MCP servers; uses a dummy credential and synthetic loopback API. Status modes query current-connection counters before and after allow/deny/ask actions. Observation modes additionally require live snapshots, owner-exit loss and descriptor cleanup. Review modes require a live terminal for confirmation and refusal. Review observation also waits for pendingObserved before an answer and records pending disconnect. No OS firewall isolation; managed policy still applies. Stdout contains fixed readiness JSON lines and a final redacted receipt. No saved user settings are changed.';
+  'Windows only: node scripts/verify-claude-action-mcp.mjs [--review | --review-observation | --catalog-review-observation | --catalog | --catalog-review | --status | --catalog-status | --observation | --catalog-observation] --claude <absolute claude.exe> --bash <absolute bash.exe> --scratch <existing spacious directory>\nExplicitly configures disposable local MCP servers; uses a dummy credential and synthetic loopback API. Status modes query current-connection counters before and after allow/deny/ask actions. Observation modes additionally require live snapshots, owner-exit loss and descriptor cleanup. Review modes require a live terminal for confirmation and refusal. Review observation also waits for pendingObserved before an answer and records pending disconnect. No OS firewall isolation; managed policy still applies. Stdout contains fixed readiness JSON lines and a final redacted receipt. No saved user settings are changed.';
 
 async function main(args) {
   if (args.length === 1 && args[0] === '--help') {
@@ -24,7 +25,9 @@ async function main(args) {
     return;
   }
   let selected;
-  const reviewObservation = args[0] === '--review-observation';
+  const reviewObservation = ['--review-observation', '--catalog-review-observation'].includes(
+    args[0],
+  );
   const observation = ['--observation', '--catalog-observation'].includes(args[0]);
   const status = observation || ['--status', '--catalog-status'].includes(args[0]);
   const catalog = [
@@ -32,6 +35,7 @@ async function main(args) {
     '--catalog-review',
     '--catalog-status',
     '--catalog-observation',
+    '--catalog-review-observation',
   ].includes(args[0]);
   const review = reviewObservation || ['--review', '--catalog-review'].includes(args[0]);
   try {
@@ -105,7 +109,9 @@ async function main(args) {
         }
         current.requests++;
         const ready = reviewObservation
-          ? await prepareReviewObservationReply(current)
+          ? catalog
+            ? await prepareCatalogReviewObservationReply(current)
+            : await prepareReviewObservationReply(current)
           : !observation || (await prepareObservationReply(current));
         if (scenario !== current || res.destroyed) return;
         if (!ready) {
@@ -225,6 +231,7 @@ async function main(args) {
         action,
         configPath,
         review,
+        reviewObservation,
         setScenario: (current) => {
           scenario = current;
         },

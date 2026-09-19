@@ -106,7 +106,7 @@ The second sentinel stayed absent; broker/relay exited zero, the endpoint and
 owned scratch were removed. The ignored receipt is
 `.agent/b1-catalog-pty-receipt.json`. Automated terminal control is not human
 authentication.
-The installed-provider verifier has two catalog modes. Pass absolute paths to
+The installed-provider verifier provides direct and terminal-review catalog checks. Pass absolute paths to
 the installed Windows Claude executable, Git Bash and an existing spacious scratch
 directory:
 
@@ -150,3 +150,11 @@ For idle status before and after an action, the separate `--catalog-status`
 verification mode exercises allow, deny and ask with installed Claude. It also
 checks that the other catalog action remains unused. See
 [status verification](ACTION-MCP-STATUS.md#installed-provider-status-sequence).
+
+The opt-in `--catalog-review-observation` mode also captures live observation
+before, during and after the first two reviews, then verifies sticky coverage loss
+after disconnect during the third. Installed Claude 2.1.263 passed with synthetic
+local replies: the first action ran once, the second stayed unused, both endpoint
+descriptors and owned scratch were removed. Wait for each numbered
+`pendingObserved` marker before answering. See
+[live observation](ACTION-LIVE-OBSERVATION.md) for the command, receipt and limits.

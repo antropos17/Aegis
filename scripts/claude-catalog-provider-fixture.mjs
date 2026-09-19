@@ -7,6 +7,11 @@ import { configureCatalogScenario } from './claude-catalog-model-fixture.mjs';
 import { setPrivateCanaries, hasPrivateCanary } from './claude-action-mcp-fixture.mjs';
 import { readEndpoint, settleWithin } from './claude-mcp-review-fixture.mjs';
 import { observeReviewPreview, observeNegativeAnswer } from './claude-review-observer.mjs';
+import observation from '../src/main/action-observation-server.js';
+import {
+  createCatalogReviewObservation,
+  catalogReviewObservationPassed,
+} from './claude-catalog-review-observation.mjs';
 
 const tools = ['mcp__aegis__aegis_action_first', 'mcp__aegis__aegis_action_second'];
 const size = (file) => (fs.existsSync(file) ? fs.statSync(file).size : 0);
@@ -175,6 +180,10 @@ export async function verifyCatalogRoute(context) {
       );
     }
     const scenario = { name, requests: 0, previewCount: 0, observations: [] };
+    const observationPath = path.join(owned, 'PRIVATE_CATALOG_OBSERVATION.json');
+    const probe = context.reviewObservation
+      ? createCatalogReviewObservation(scenario, observationPath, sentinelPaths)
+      : null;
     const plan = review
       ? ['first', 'second', 'second']
       : name === 'two-allowed'
@@ -192,20 +201,49 @@ export async function verifyCatalogRoute(context) {
       failed = false,
       runStarted = false;
     let restore = () => {};
+    let pendingCheckpoint = Promise.resolve();
     try {
       if (review) {
         restore = observeReviewPreview(process.stderr, () => {
           scenario.previewCount++;
           if (scenario.previewCount === 2) negativeObserver = observeNegativeAnswer(process.stdin);
-          if (scenario.previewCount === 3) runnerAbort.abort();
+          const index = scenario.previewCount - 1;
+          if (probe) {
+            pendingCheckpoint = probe
+              .pending(index)
+              .then((ready) => {
+                if (ready)
+                  process.stdout.write(
+                    JSON.stringify({
+                      mode: 'catalog-review-observation',
+                      pendingObserved: true,
+                      review: index + 1,
+                    }) + '\n',
+                  );
+                if (!ready || index === 2) runnerAbort.abort();
+              })
+              .catch(() => runnerAbort.abort());
+          } else if (scenario.previewCount === 3) runnerAbort.abort();
         });
         process.stderr.write(
-          '\nAEGIS catalog verifier: confirm FIRST with its RUN challenge; decline SECOND with no; THIRD disconnects automatically.\n',
+          '\nAEGIS catalog verifier: confirm FIRST with its RUN challenge; decline SECOND with no; THIRD disconnects automatically.\n' +
+            (probe ? 'Wait for the matching pendingObserved marker before each answer.\n' : ''),
         );
-        serving = broker
-          .handleActionMcpReview(['--action-mcp-catalog-review', catalogPath, endpointPath], {
+        const args = ['--action-mcp-catalog-review', catalogPath, endpointPath];
+        const runBroker = (selected, options = {}) =>
+          broker.handleActionMcpReview(selected, {
+            ...options,
             signal: ownerAbort.signal,
-          })
+          });
+        serving = (
+          probe
+            ? observation.runObservedMcp(
+                [...args, '--observe', observationPath],
+                runBroker,
+                'mcp-review',
+              )
+            : runBroker(args)
+        )
           .then((code) => {
             brokerCode = code;
           })
@@ -263,6 +301,8 @@ export async function verifyCatalogRoute(context) {
         ownerAbort.abort();
       }
       const cleaned = await settleWithin(serving, 4000);
+      await pendingCheckpoint;
+      await probe?.finish();
       restore();
       negativeObserver?.stop();
       setScenario(null);
@@ -287,7 +327,10 @@ export async function verifyCatalogRoute(context) {
       endpointRemoved: !fs.existsSync(endpointPath),
       ownerAbortRequired,
     };
-    item.pass = !failed && catalogScenarioPassed(item);
+    item.pass =
+      !failed &&
+      catalogScenarioPassed(item) &&
+      (!probe || catalogReviewObservationPassed(item.catalogReviewObservation));
     receipt.scenarios.push(item);
     if (!item.pass) break;
   }

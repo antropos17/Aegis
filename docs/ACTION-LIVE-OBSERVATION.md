@@ -159,11 +159,40 @@ passed all four cases. Only confirmed ask created the sentinel. Pending disconne
 returned no tool result and created no sentinel; its last observed settlement
 count remained zero. `cancellationRequests` stayed zero: this verifies a transport
 disconnect during review, not an MCP cancellation notification or interruption of
-an already-running child. Catalog review observation remains unverified. Review
+an already-running child. Review
 runs retain their 90-second provider deadline and 60-second confirmation timeout;
 observation checkpoints keep the 2.5-second/4-second bounds above. Preserve the
 redacted receipt separately; the verification receipt is
 `.agent/b5-review-observation-passed.json`.
+
+Catalog terminal review observation is available through the same verifier:
+
+```text
+node scripts/verify-claude-action-mcp.mjs --catalog-review-observation --claude <absolute claude.exe> --bash <absolute Git bash.exe> --scratch <existing spacious private directory>
+```
+
+It keeps two selected actions in one connection. Before answering the first or
+second preview, wait for `pendingObserved:true` with the matching `review` number
+in the `catalog-review-observation` readiness line. Confirm the first challenge,
+decline the second with `no`; the third review disconnects automatically after
+its pending observation. Terminal input remains external to the fixture.
+
+Installed Windows Claude Code 2.1.263 passed this sequence using three local
+synthetic API requests and no rejected proxy requests. Pending snapshots showed
+invocation/settlement counts 1/0, 2/1 and 3/2; the first two returned reports had
+settled snapshots 1/1 and 2/2. Only the confirmed first action wrote one byte.
+The second marker stayed absent, including after disconnect. The final retained
+snapshot was 3/2 with sticky connection-closed loss, unchanged self-reported
+client metadata and zero cancellation notifications. Both descriptors and owned
+scratch were removed without fallback owner abort. Broker exit 2 reflected the
+forced relay transport closure and was accepted only with confirmed cleanup.
+
+The receipt `.agent/b5-catalog-review-observation-passed.json` contains public
+frames and fixed outcome fields; paths and terminal challenges are excluded.
+Terminal answers were supplied by automation, which does not authenticate a
+human. This uses the same 90-second run, 2.5-second checkpoint and 4-second cleanup
+bounds, disposable configuration and synthetic local replies described above.
+Abrupt owner death and interruption of an already-running child remain unverified.
 
 Independent agent/version binding, safe installed-adapter blocking tests and
 verified outside-route control remain open. B5 is partial.
