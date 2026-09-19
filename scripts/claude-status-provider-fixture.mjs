@@ -4,6 +4,10 @@ import path from 'node:path';
 import generator from '../src/main/action-mcp-config.js';
 import { configureStatusScenario } from './claude-status-model-fixture.mjs';
 import { hasPrivateCanary } from './claude-action-mcp-fixture.mjs';
+import {
+  createProviderObservation,
+  observationPassed,
+} from './claude-observation-provider-fixture.mjs';
 const size = (file) => (fs.existsSync(file) ? fs.statSync(file).size : 0);
 const observed = (step) =>
   step?.toolDiscovered === true &&
@@ -153,13 +157,6 @@ export async function verifyStatusRoute(context) {
         })),
       }),
     );
-  const config = generator.buildActionMcpConfig(
-    catalog ? 'catalog' : 'selected',
-    catalog ? [manifest] : [entries[1].policyPath, entries[1].requestPath],
-  );
-  // TEST ONLY: contain provider routing and configuration within owned scratch.
-  config.mcpServers.aegis.env = env;
-  fs.writeFileSync(configPath, JSON.stringify(config));
   const selectedTool = catalog
     ? 'mcp__aegis__aegis_action_second'
     : 'mcp__aegis__aegis_execute_selected';
@@ -175,6 +172,18 @@ export async function verifyStatusRoute(context) {
         }),
       );
     const scenario = { decision, catalog, requests: 0, observations: [] };
+    const endpoint = context.observation
+      ? path.join(owned, 'PRIVATE_OBSERVATION-' + decision + '.json')
+      : undefined;
+    const config = generator.buildActionMcpConfig(
+      catalog ? 'catalog' : 'selected',
+      catalog ? [manifest] : [entries[1].policyPath, entries[1].requestPath],
+      endpoint,
+    );
+    // TEST ONLY: contain provider routing and configuration within owned scratch.
+    config.mcpServers.aegis.env = env;
+    fs.writeFileSync(configPath, JSON.stringify(config));
+    const probe = endpoint ? createProviderObservation(scenario, endpoint) : null;
     configureStatusScenario(scenario, { catalog }, [owned, ...sentinels], () => {
       scenario.observations.push({
         unusedBytes: size(sentinels[0]),
@@ -216,6 +225,7 @@ export async function verifyStatusRoute(context) {
       receipt.cleanupUnconfirmed = true;
     } finally {
       setScenario(null);
+      await probe?.finish();
     }
     if (
       result &&
@@ -236,7 +246,17 @@ export async function verifyStatusRoute(context) {
       unusedBytes: size(sentinels[0]),
       selectedBytes: size(sentinels[1]),
     };
-    item.pass = !!statusScenarioPassed(item);
+    item.pass =
+      !!statusScenarioPassed(item) && (!probe || observationPassed(item.liveObservation, catalog));
+    if (
+      probe &&
+      receipt.scenarios.some(
+        (previous) =>
+          previous.liveObservation?.before?.snapshot?.connectionId ===
+          item.liveObservation.before?.snapshot?.connectionId,
+      )
+    )
+      item.pass = false;
     receipt.scenarios.push(item);
     if (!item.pass) break;
   }
