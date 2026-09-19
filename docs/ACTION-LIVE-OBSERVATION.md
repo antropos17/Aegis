@@ -133,8 +133,37 @@ connections have a 10-second lifetime. Saved user settings are not changed. The
 rejecting proxy is not OS firewall isolation. Receipts are
 `.agent/b5-provider-observation-{selected,catalog}.json`; preserve them and review
 fixed-name diagnostic logs after 14 days or 64 MiB. No automatic retention is
-claimed. No cloud-model behavior, provider review/cancellation or abrupt-kill
-cleanup is established by these normal-exit scenarios.
+claimed. These normal-exit scenarios do not establish cloud-model behavior or
+abrupt-kill cleanup.
+
+The selected-action terminal review route was also verified with installed Claude
+Code 2.1.263 and the same synthetic local API. Its four cases cover confirmed ask,
+declined ask, policy deny and provider disconnect while awaiting confirmation:
+
+```text
+node scripts/verify-claude-action-mcp.mjs --review-observation --claude <absolute claude.exe> --bash <absolute Git bash.exe> --scratch <existing spacious private directory>
+```
+
+Keep stdout visible in the live terminal. Before entering the displayed challenge
+or `no`, wait for `{"mode":"review-observation","pendingObserved":true}`. The
+fixture never supplies an answer. The local verification used terminal input from
+automation for the disposable action; this does not establish human identity or
+human review. The disconnect case terminates only its owned provider tree after
+observing one invocation, zero settlements and no sentinel effect. Policy deny
+does not prompt. The three cases that return a tool result observe settlement
+before the final synthetic reply. Every case requires sticky loss, a fresh
+connection generation and removal of both descriptors before scratch cleanup.
+
+The measured run made seven local API requests, rejected no proxy requests and
+passed all four cases. Only confirmed ask created the sentinel. Pending disconnect
+returned no tool result and created no sentinel; its last observed settlement
+count remained zero. `cancellationRequests` stayed zero: this verifies a transport
+disconnect during review, not an MCP cancellation notification or interruption of
+an already-running child. Catalog review observation remains unverified. Review
+runs retain their 90-second provider deadline and 60-second confirmation timeout;
+observation checkpoints keep the 2.5-second/4-second bounds above. Preserve the
+redacted receipt separately; the verification receipt is
+`.agent/b5-review-observation-passed.json`.
 
 Independent agent/version binding, safe installed-adapter blocking tests and
 verified outside-route control remain open. B5 is partial.
