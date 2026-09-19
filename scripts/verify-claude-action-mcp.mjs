@@ -12,10 +12,11 @@ import { verifyCatalogRoute } from './claude-catalog-provider-fixture.mjs';
 import { replyWithStatusTools } from './claude-status-model-fixture.mjs';
 import { verifyStatusRoute } from './claude-status-provider-fixture.mjs';
 import { prepareObservationReply } from './claude-observation-provider-fixture.mjs';
+import { prepareReviewObservationReply } from './claude-review-observation-fixture.mjs';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const usage =
-  'Windows only: node scripts/verify-claude-action-mcp.mjs [--review | --catalog | --catalog-review | --status | --catalog-status | --observation | --catalog-observation] --claude <absolute claude.exe> --bash <absolute bash.exe> --scratch <existing spacious directory>\nExplicitly configures disposable local MCP servers; uses a dummy credential and synthetic loopback API. Status modes query current-connection counters before and after allow/deny/ask actions. Observation modes additionally require live snapshots, owner-exit loss and descriptor cleanup. Review modes require a live terminal for confirmation and refusal. No OS firewall isolation; managed policy still applies. Stdout contains fixed readiness JSON lines and a final redacted receipt. No saved user settings are changed.';
+  'Windows only: node scripts/verify-claude-action-mcp.mjs [--review | --review-observation | --catalog | --catalog-review | --status | --catalog-status | --observation | --catalog-observation] --claude <absolute claude.exe> --bash <absolute bash.exe> --scratch <existing spacious directory>\nExplicitly configures disposable local MCP servers; uses a dummy credential and synthetic loopback API. Status modes query current-connection counters before and after allow/deny/ask actions. Observation modes additionally require live snapshots, owner-exit loss and descriptor cleanup. Review modes require a live terminal for confirmation and refusal. Review observation also waits for pendingObserved before an answer and records pending disconnect. No OS firewall isolation; managed policy still applies. Stdout contains fixed readiness JSON lines and a final redacted receipt. No saved user settings are changed.';
 
 async function main(args) {
   if (args.length === 1 && args[0] === '--help') {
@@ -23,6 +24,7 @@ async function main(args) {
     return;
   }
   let selected;
+  const reviewObservation = args[0] === '--review-observation';
   const observation = ['--observation', '--catalog-observation'].includes(args[0]);
   const status = observation || ['--status', '--catalog-status'].includes(args[0]);
   const catalog = [
@@ -31,7 +33,7 @@ async function main(args) {
     '--catalog-status',
     '--catalog-observation',
   ].includes(args[0]);
-  const review = ['--review', '--catalog-review'].includes(args[0]);
+  const review = reviewObservation || ['--review', '--catalog-review'].includes(args[0]);
   try {
     selected = options(review || catalog || status ? args.slice(1) : args);
     if (review && (!process.stdin.isTTY || !process.stderr.isTTY)) throw Error('terminal');
@@ -59,7 +61,7 @@ async function main(args) {
     scenarios: [],
     cleanup: false,
     networkBoundary: 'loopback API and rejecting proxy; no OS firewall isolation',
-    liveObservation: observation,
+    liveObservation: observation || reviewObservation,
   };
   let scenario;
   let server;
@@ -102,7 +104,9 @@ async function main(args) {
           return;
         }
         current.requests++;
-        const ready = !observation || (await prepareObservationReply(current));
+        const ready = reviewObservation
+          ? await prepareReviewObservationReply(current)
+          : !observation || (await prepareObservationReply(current));
         if (scenario !== current || res.destroyed) return;
         if (!ready) {
           res.writeHead(503);
@@ -119,7 +123,10 @@ async function main(args) {
       socket.end('HTTP/1.1 403 Forbidden\r\n\r\n');
     });
     server.on('connection', (socket) => {
-      const deadline = setTimeout(() => socket.destroy(), observation ? 10000 : 3000);
+      const deadline = setTimeout(
+        () => socket.destroy(),
+        observation || reviewObservation ? 10000 : 3000,
+      );
       socket.on('close', () => clearTimeout(deadline));
     });
     server.maxConnections = 8;
@@ -226,6 +233,7 @@ async function main(args) {
     }
     if (review) {
       await verifyReviewRoute({
+        reviewObservation,
         owned,
         repo,
         env,

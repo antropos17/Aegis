@@ -512,4 +512,16 @@ also passed selected/catalog observation with synthetic loopback replies for
 allow/deny/ask: counters agreed with status/action/status results, only allow
 created its sentinel, connection generations differed, owner exit caused sticky
 loss, and descriptors/owned scratch were removed. Independent provider identity,
-review/cancellation observation and outside-route control remain open; B5 stays partial.
+catalog review observation, cancellation of a running action and outside-route
+control remain open; B5 stays partial.
+
+B5 selected review observation: the opt-in `--review-observation` verifier now
+checks the production observer while installed Claude awaits terminal confirmation,
+after confirmation/refusal or policy denial, and after disconnect during pending
+review. Four native cases passed with synthetic local replies and an owned marker
+action. Each case checked a fresh connection generation, sticky coverage loss and
+descriptor removal. Terminal answers were supplied externally by automation; the
+fixture does not prove human identity. Pending disconnect left no action effect
+and no tool result, with zero MCP cancellation notifications. Catalog review,
+running-child cancellation, abrupt owner kill, independent provider binding and
+outside-route control are still open. See [live observation](../ACTION-LIVE-OBSERVATION.md).
