@@ -150,7 +150,7 @@
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.4.2",
-    "@types/node": "^25.3.3",
+    "@types/node": "^26.6.1",
     "@typescript-eslint/eslint-plugin": "^8.69.0",
     "@typescript-eslint/parser": "^8.56.1",
     "@vitest/coverage-v8": "^4.1.11",
