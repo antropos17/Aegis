@@ -26,6 +26,15 @@ const ERRORS = new Set([
 function valid(request) {
   if (!request || typeof request !== 'object' || Array.isArray(request)) return false;
   const keys = Object.keys(request);
+  if (['check-route', 'check-catalog'].includes(request.action))
+    return (
+      keys.length === 2 &&
+      keys.every((key) => ['action', 'route'].includes(key)) &&
+      (request.action === 'check-catalog'
+        ? ['mcp-stdio', 'mcp-review']
+        : ['direct', 'terminal', 'mcp-stdio', 'mcp-review']
+      ).includes(request.route)
+    );
   if (request.action === 'run') {
     if (
       !keys.every((key) =>
@@ -105,11 +114,19 @@ async function handle(event, request) {
     event.sender.on?.('did-start-navigation', (details) => {
       if (details.isMainFrame && !details.isSameDocument) {
         session.revision++;
+        session.controller?.abort();
         session.retained = null;
       }
     });
+    event.sender.on?.('destroyed', () => {
+      session.revision++;
+      session.controller?.abort();
+    });
   }
-  if (session.busy) return { success: false, error: 'review-busy' };
+  if (session.busy) {
+    if (session.frame !== event.senderFrame) session.controller?.abort();
+    return { success: false, error: 'review-busy' };
+  }
   if (session.frame !== event.senderFrame) {
     session.frame = event.senderFrame;
     session.revision++;
@@ -118,7 +135,10 @@ async function handle(event, request) {
   const revision = session.revision;
   session.busy = true;
   const assertOwned = () => {
-    if (!owned() || session.revision !== revision) throw new Error('request-denied');
+    if (!owned() || session.revision !== revision) {
+      session.controller?.abort();
+      throw new Error('request-denied');
+    }
   };
   const pick = async (title, folder = false) => {
     assertOwned();
@@ -132,6 +152,35 @@ async function handle(event, request) {
     return result.filePaths[0];
   };
   try {
+    if (request.action === 'check-route' || request.action === 'check-catalog') {
+      const kind = request.action === 'check-route' ? 'single' : 'catalog';
+      const route = request.route;
+      const controller = new AbortController();
+      session.controller = controller;
+      let report;
+      if (kind === 'single') {
+        const policyPath = await pick('Select the schema 2 execution policy');
+        const requestPath = await pick('Select the schema 1 action request');
+        assertOwned();
+        report = await (deps.checkActionRoute || require('./action-route-check').checkActionRoute)(
+          route,
+          policyPath,
+          requestPath,
+          { signal: controller.signal },
+        );
+      } else {
+        const catalogPath = await pick('Select the action catalog manifest');
+        assertOwned();
+        report = await (
+          deps.checkActionCatalogRoute || require('./action-catalog-check').checkActionCatalogRoute
+        )(route, catalogPath, { signal: controller.signal });
+      }
+      assertOwned();
+      return {
+        success: true,
+        check: { id: randomUUID(), kind, route, createdAt: new Date().toISOString(), report },
+      };
+    }
     if (request.action === 'run') {
       const directory = await pick('Select the directory to review', true);
       const toolsFile = request.tools
@@ -228,6 +277,8 @@ async function handle(event, request) {
       error: ERRORS.has(error.message) ? error.message : 'local-review-unavailable',
     };
   } finally {
+    session.controller?.abort();
+    session.controller = null;
     session.busy = false;
   }
 }

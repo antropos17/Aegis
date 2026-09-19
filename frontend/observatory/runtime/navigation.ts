@@ -62,6 +62,13 @@ export const workspaces: Workspace[] = [
     keywords: 'local security scan static inventory package skill hooks mcp snapshot changes cisco',
   },
   {
+    id: 'action-control',
+    label: 'Action control',
+    icon: 'shield',
+    group: 'assess',
+    keywords: 'action control coverage policy preflight check mcp catalog allow ask deny',
+  },
+  {
     id: 'analysis',
     label: 'AI analysis',
     icon: 'shield',

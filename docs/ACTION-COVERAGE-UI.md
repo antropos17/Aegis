@@ -1,0 +1,89 @@
+# Action control checks in Observatory
+
+**Action control** in the Assess group brings the existing nonexecuting route
+and catalog checks into the desktop app. It is the first B5 interface slice.
+It does not report a connected agent or verified blocking.
+
+Choose a single action or a catalog, select the intended route, then choose the
+files in native dialogs. A single action needs a schema 2 execution policy and a
+schema 1 action request. A catalog needs its manifest, which explicitly selects
+the referenced policy/request files. The existing bounded check reads those
+inputs and reports their current configuration and policy decisions.
+
+| Selection | Routes |
+| --- | --- |
+| Single action | Direct execution, terminal confirmation, MCP stdio, MCP terminal review |
+| Catalog | MCP stdio, MCP terminal review |
+
+The displayed result retains its actual selection, route and completion time
+when the form changes or another check is cancelled or fails. Navigating to
+another workspace and back preserves the mounted result. Nothing runs on page
+entry, and the result is not persisted across app restarts.
+
+## Meaning of the result
+
+Configuration validity and an `allow` policy decision do not establish execution
+permission. Every result keeps blocking verification unperformed, connection
+unchecked, authorization absent, outside-route coverage unknown and descendant
+control unsupported. Temporary revision bindings used by catalog checks are
+revoked before returning. No approval or binding is retained by the interface.
+
+Runtime and terminal fields describe the **checking AEGIS main process**. The
+desktop normally lacks an interactive terminal. Its result does not test a
+separate Node process, an installed client, or a terminal broker started elsewhere.
+The timestamp marks when this check completed; no continuous watch follows it.
+
+Catalog results show each captured action's policy outcome and configuration
+reason. Invalid, unavailable, cancelled and timed-out checks remain distinct.
+There is no safe badge, coverage percentage, automatic installation, action
+launch, network connection, export or snapshot acceptance on this page.
+
+## Host boundary
+
+The existing `local-security:review` invoke accepts only an action selector
+(`check-route` or `check-catalog`) and a fixed route enum. Renderer-supplied paths,
+commands, URLs, report bodies and extra options are rejected. Main owns the native
+file selection and returns only the check report with its generated ID, selection,
+route and completion time. Private paths, action arguments, environment values,
+file contents and capabilities do not enter this envelope.
+
+Checks share the local-review operation lock and exact owned top-frame/document
+validation. Navigation and window destruction abort the active check; ownership
+is checked again after each dialog and before delivery. A check neither replaces
+the retained offline local review nor creates an export/acceptance capability.
+
+The preview uses explicitly simulated examples and performs no filesystem access.
+Its examples include allow, ask and deny, with the same unverified-control labels.
+Production builds exclude that fixture module.
+
+## Remaining B5 work
+
+Live connection observations, independently bound agent/version identity,
+installed-adapter verification controls and coverage-loss transitions remain
+separate work. The CLI [preflight contract](ACTION-ROUTE-CHECK.md),
+[MCP status contract](ACTION-MCP-STATUS.md) and installed-provider receipts explain
+which evidence is available today. A preflight result cannot substitute for those
+connection or execution observations.
+
+## Verification
+
+IPC tests cover exact route-only requests, native selection cancellation, existing
+review retention, busy serialization, foreign frames/documents and navigation or
+destruction during a check. A real-core fixture checks policy deny without a
+sentinel effect. Renderer tests cover invalid envelopes, fixed coverage labels,
+captured route/time, pending operations and retained results.
+
+`npm run frontend:test` includes a preview sequence for single and mixed-catalog
+checks, keyboard activation/focus, retained navigation, four themes, 100%/150%
+scales at 1200x800 and 900x600, a 200% case and Portuguese layouts. The source
+template checksum and production fixture-exclusion checks remain in that suite.
+
+`node frontend/observatory/tests/action-coverage-electron.mjs` uses the production
+renderer, real preload, IPC owner and checkers with a disposable Electron profile.
+Native dialogs are stubbed to explicitly generated local fixtures. It checks
+allow/ask/deny, invalid configuration, mixed catalog, desktop terminal absence,
+selection cancellation, draft/result separation, keyboard activation, private
+canaries, path injection rejection and foreign-document denial. It records
+screenshots and a fixed receipt under `.agent/b5-action-coverage-native/` and
+removes its owned profile and input files. It does not run the selected actions
+or test a complete monitoring session or manual interaction with OS file dialogs.

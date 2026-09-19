@@ -1,5 +1,8 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 const require = createRequire(import.meta.url);
 const ipc = require('../../src/main/local-security-ipc');
 let window, event, dialog, backend, retained;
@@ -206,4 +209,236 @@ it('keeps cancellation distinct from successful saving', async () => {
     cancelled: true,
   });
   expect(backend.exportReport).not.toHaveBeenCalled();
+});
+
+const checkRequest = (route = 'direct') => ({ action: 'check-route', route });
+function checkDeps(overrides = {}) {
+  const checkActionRoute = vi.fn(async () => ({
+    schemaVersion: 1,
+    mode: 'action-route-check',
+    configuration: 'valid',
+    policyDecision: 'deny',
+    executionPerformed: false,
+  }));
+  const checkActionCatalogRoute = vi.fn(async () => ({
+    schemaVersion: 1,
+    mode: 'action-catalog-check',
+    configuration: 'unavailable',
+    actions: [],
+    executionPerformed: false,
+  }));
+  ipc.init({
+    getWindow: () => window,
+    dialog,
+    backend,
+    rendererUrl: 'file:///app/index.html',
+    checkActionRoute,
+    checkActionCatalogRoute,
+    ...overrides,
+  });
+  return { checkActionRoute, checkActionCatalogRoute };
+}
+it.each([
+  { action: 'check-route' },
+  { action: 'check-route', route: 'unknown' },
+  { action: 'check-catalog', route: 'direct' },
+  { action: 'check-catalog', route: 'terminal' },
+  { action: 'check-route', route: 'direct', policyPath: '/private' },
+  { action: 'check-catalog', route: 'mcp-stdio', manifest: '/private' },
+  { action: 'check-route', route: ['direct'] },
+])('rejects malformed GUI check requests before dialogs: %j', async (request) => {
+  const checks = checkDeps();
+  expect(await ipc.handle(event, request)).toMatchObject({ error: 'invalid-review-request' });
+  expect(dialog.showOpenDialog).not.toHaveBeenCalled();
+  expect(checks.checkActionRoute).not.toHaveBeenCalled();
+});
+it.each(['direct', 'terminal', 'mcp-stdio', 'mcp-review'])(
+  'returns a check envelope for %s using only native selections',
+  async (route) => {
+    const checks = checkDeps();
+    dialog.showOpenDialog
+      .mockResolvedValueOnce({ filePaths: ['/PRIVATE_POLICY'] })
+      .mockResolvedValueOnce({ filePaths: ['/PRIVATE_REQUEST'] });
+    const response = await ipc.handle(event, checkRequest(route));
+    expect(response).toMatchObject({
+      success: true,
+      check: {
+        kind: 'single',
+        route,
+        report: { policyDecision: 'deny', executionPerformed: false },
+      },
+    });
+    expect(response.check.id).toMatch(/^[a-f0-9-]{36}$/);
+    expect(Number.isNaN(Date.parse(response.check.createdAt))).toBe(false);
+    expect(checks.checkActionRoute).toHaveBeenCalledWith(
+      route,
+      '/PRIVATE_POLICY',
+      '/PRIVATE_REQUEST',
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(JSON.stringify(response)).not.toContain('PRIVATE');
+    expect(response).not.toHaveProperty('review');
+    expect(backend.review).not.toHaveBeenCalled();
+    expect(
+      await ipc.handle(event, { action: 'save-snapshot', id: response.check.id }),
+    ).toMatchObject({ error: 'review-expired' });
+  },
+);
+it('returns unavailable catalog configuration as successful observation, not host failure', async () => {
+  const checks = checkDeps();
+  const response = await ipc.handle(event, { action: 'check-catalog', route: 'mcp-review' });
+  expect(response).toMatchObject({
+    success: true,
+    check: { kind: 'catalog', route: 'mcp-review', report: { configuration: 'unavailable' } },
+  });
+  expect(dialog.showOpenDialog).toHaveBeenCalledOnce();
+  expect(checks.checkActionRoute).not.toHaveBeenCalled();
+  expect(checks.checkActionCatalogRoute).toHaveBeenCalledOnce();
+});
+it.each([0, 1])(
+  'does no core reads when selection stage %i is cancelled and preserves old review',
+  async (stage) => {
+    const checks = checkDeps();
+    const old = await ipc.handle(event, run());
+    if (stage) dialog.showOpenDialog.mockResolvedValueOnce({ filePaths: ['/PRIVATE_POLICY'] });
+    dialog.showOpenDialog.mockResolvedValueOnce({ canceled: true });
+    expect(await ipc.handle(event, checkRequest())).toEqual({ success: false, cancelled: true });
+    expect(checks.checkActionRoute).not.toHaveBeenCalled();
+    expect(await ipc.handle(event, { action: 'export', id: old.review.id })).toMatchObject({
+      saved: true,
+    });
+  },
+);
+it('preserves retained review across successful and failed checks without granting check export', async () => {
+  const checks = checkDeps();
+  const old = await ipc.handle(event, run());
+  const checked = await ipc.handle(event, checkRequest());
+  checks.checkActionRoute.mockRejectedValueOnce(Error('PRIVATE_PATH_AND_ERROR'));
+  expect(await ipc.handle(event, checkRequest())).toEqual({
+    success: false,
+    error: 'local-review-unavailable',
+  });
+  expect(await ipc.handle(event, { action: 'export', id: checked.check.id })).toMatchObject({
+    error: 'review-expired',
+  });
+  expect(await ipc.handle(event, { action: 'export', id: old.review.id })).toMatchObject({
+    saved: true,
+  });
+});
+it('rejects spoofed frames/documents for check requests', async () => {
+  checkDeps();
+  expect(
+    await ipc.handle({ ...event, senderFrame: { url: event.senderFrame.url } }, checkRequest()),
+  ).toMatchObject({ error: 'request-denied' });
+  event.senderFrame.url = 'https://untrusted.example/';
+  expect(await ipc.handle(event, checkRequest())).toMatchObject({ error: 'request-denied' });
+  expect(dialog.showOpenDialog).not.toHaveBeenCalled();
+});
+it.each(['did-start-navigation', 'destroyed'])(
+  'aborts pending core check on %s and suppresses late response',
+  async (name) => {
+    let resolve;
+    let signal;
+    checkDeps({
+      checkActionRoute: (_route, _p, _r, options) => {
+        signal = options.signal;
+        return new Promise((done) => {
+          resolve = done;
+        });
+      },
+    });
+    const pending = ipc.handle(event, checkRequest());
+    for (let i = 0; i < 8; i++) await Promise.resolve();
+    expect(await ipc.handle(event, run())).toMatchObject({ error: 'review-busy' });
+    const listener = window.webContents.on.mock.calls.find(([eventName]) => eventName === name)[1];
+    listener({ isMainFrame: true, isSameDocument: false });
+    expect(signal.aborted).toBe(true);
+    resolve({ configuration: 'valid', policyDecision: 'allow' });
+    expect(await pending).toEqual({ success: false, error: 'local-review-unavailable' });
+  },
+);
+it('rejects a frame replacement between file selections without invoking the core', async () => {
+  const checks = checkDeps();
+  let finish;
+  dialog.showOpenDialog.mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  const pending = ipc.handle(event, checkRequest());
+  window.webContents.mainFrame = { url: 'file:///app/index.html' };
+  finish({ filePaths: ['/PRIVATE_POLICY'] });
+  expect((await pending).success).toBe(false);
+  expect(checks.checkActionRoute).not.toHaveBeenCalled();
+  expect(dialog.showOpenDialog).toHaveBeenCalledOnce();
+});
+it('uses the real core on selected native files and returns a valid deny without launching', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-gui-check-'));
+  try {
+    const policy = path.join(root, 'PRIVATE_POLICY.json');
+    const request = path.join(root, 'PRIVATE_REQUEST.json');
+    const sentinel = path.join(root, 'PRIVATE_SENTINEL');
+    fs.writeFileSync(
+      policy,
+      JSON.stringify({ schemaVersion: 2, defaultDecision: 'deny', rules: [] }),
+    );
+    fs.writeFileSync(
+      request,
+      JSON.stringify({
+        schemaVersion: 1,
+        action: {
+          executable: process.execPath,
+          cwd: root,
+          args: ['-e', `require('fs').writeFileSync(${JSON.stringify(sentinel)},'SECRET_BODY')`],
+          env: { SECRET_ENV: 'SECRET_VALUE' },
+        },
+      }),
+    );
+    dialog.showOpenDialog
+      .mockResolvedValueOnce({ filePaths: [policy] })
+      .mockResolvedValueOnce({ filePaths: [request] });
+    const response = await ipc.handle(event, checkRequest());
+    expect(response).toMatchObject({
+      success: true,
+      check: {
+        report: {
+          configuration: 'valid',
+          policyDecision: 'deny',
+          authorization: 'none',
+          executionPerformed: false,
+        },
+      },
+    });
+    const text = JSON.stringify(response);
+    for (const privateValue of [root, 'SECRET_BODY', 'SECRET_VALUE', 'PRIVATE'])
+      expect(text).not.toContain(privateValue);
+    expect(fs.existsSync(sentinel)).toBe(false);
+  } finally {
+    expect(path.dirname(root)).toBe(path.resolve(os.tmpdir()));
+    expect(fs.lstatSync(root).isSymbolicLink()).toBe(false);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it('aborts an active check when a replacement owned frame makes a new request', async () => {
+  let resolve;
+  let signal;
+  checkDeps({
+    checkActionRoute: (_route, _p, _r, options) => {
+      signal = options.signal;
+      return new Promise((done) => {
+        resolve = done;
+      });
+    },
+  });
+  const pending = ipc.handle(event, checkRequest());
+  for (let i = 0; i < 8; i++) await Promise.resolve();
+  const frame = { url: 'file:///app/index.html' };
+  window.webContents.mainFrame = frame;
+  expect(
+    await ipc.handle({ sender: window.webContents, senderFrame: frame }, checkRequest()),
+  ).toMatchObject({ error: 'review-busy' });
+  expect(signal.aborted).toBe(true);
+  resolve({ configuration: 'valid' });
+  expect((await pending).success).toBe(false);
 });

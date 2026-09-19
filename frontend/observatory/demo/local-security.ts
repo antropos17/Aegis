@@ -1,10 +1,13 @@
 import { record, type RecordData } from '../runtime/host';
+import { previewActionCoverage } from './action-coverage';
 
 /** Explicit preview fixtures. No filesystem, bridge, external scanner or network access.
  * @param request Preview operation @returns Simulated result @since 0.15.1
  */
 export async function previewLocalSecurity(request: unknown): Promise<RecordData> {
   const options = record(request);
+  if (['check-route', 'check-catalog'].includes(String(options.action)))
+    return previewActionCoverage(request);
   if (options.action !== 'run') return { success: false, error: 'preview-action-unavailable' };
   const hash = 'a'.repeat(64);
   const files = [

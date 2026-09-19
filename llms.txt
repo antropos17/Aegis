@@ -25,6 +25,7 @@ Current source also provides opt-in exact-action execution policies and explicit
 - Selected-action MCP catalogs of up to eight fixed argument-free action tools, with revision binding and optional terminal review per call
 - Nonexecuting route/catalog configuration checks and read-only current-MCP-connection counters; neither grants execution permission nor proves outside-route coverage
 - Node-only MCP client configuration generation for selected-action, catalog or relay routes; emits an `mcpServers.aegis` entry for explicit client loading, without reading selected files or installing settings
+- Observatory Action control workspace: main-owned native file selection and nonexecuting route/catalog checks; captured results do not establish a connected agent or verified blocking
 
 Local monitoring has no telemetry. Optional AI analysis sends activity metadata to Anthropic on request; update actions contact GitHub. AEGIS does not automatically enforce OS-level restrictions.
 
