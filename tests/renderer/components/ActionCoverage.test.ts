@@ -8,6 +8,15 @@ const example = (catalog = false) =>
   previewActionCoverage({ action: catalog ? 'check-catalog' : 'check-route', route: 'mcp-stdio' });
 const start = () => fireEvent.click(screen.getByRole('button', { name: 'Choose files and check' }));
 
+it('opens in-app setup guidance without reading files or starting a check', async () => {
+  const navigate = vi.fn();
+  const call = vi.fn();
+  render(ActionCoverage, { host: bridge(call), navigate });
+  await fireEvent.click(screen.getByRole('button', { name: 'Open setup guide' }));
+  expect(navigate).toHaveBeenCalledExactlyOnceWith('guide');
+  expect(call).not.toHaveBeenCalled();
+});
+
 it('explains absent capability without checking on mount and labels keyboard controls', () => {
   render(ActionCoverage, { host: null });
   expect(screen.getByRole('button', { name: 'Choose files and check' })).toBeDisabled();
@@ -27,6 +36,12 @@ it('submits only action and route and preserves captured context through draft c
   const result = await screen.findByRole('region', { name: 'Action check result' });
   expect(within(result).getByText('Single action · MCP stdio')).toBeVisible();
   expect(within(result).getByText(/retained observation, not live route status/)).toBeVisible();
+  expect(
+    within(result).getByText('The policy allows this selected action. Nothing was run.'),
+  ).toBeVisible();
+  const details = within(result).getByText('Technical details').closest('details')!;
+  expect(details.open).toBe(false);
+  expect(within(result).getByText(/Agent connection has not been checked/)).toBeVisible();
   await fireEvent.change(screen.getByLabelText('Selection type'), { target: { value: 'catalog' } });
   await fireEvent.change(screen.getByLabelText('Execution route'), {
     target: { value: 'mcp-review' },
@@ -90,11 +105,51 @@ it('shows all catalog decisions without a protection verdict and excludes non-MC
     expect(
       within(result).getByRole('heading', { name: 'aegis_action_demo_' + decision }),
     ).toBeVisible();
+  await fireEvent.click(within(result).getByText('Technical details'));
   expect(within(result).getByText('Not retained as a binding or authorization')).toBeVisible();
   expect(within(result).getByText('Not performed')).toBeVisible();
   expect(document.body.textContent).not.toMatch(/Blocking verified|100%|safe verdict/i);
   expect(screen.queryByRole('button', { name: /execute|export|install/i })).toBeNull();
 });
+it('explains selected files and routes without changing a retained next step', async () => {
+  const call = vi.fn().mockResolvedValue(await example());
+  render(ActionCoverage, { host: bridge(call) });
+  expect(screen.getByText(/For one action, choose its policy JSON file/)).toBeVisible();
+  expect(screen.getByText(/Already have AEGIS configuration files/)).toBeVisible();
+  await start();
+  const result = await screen.findByRole('region', { name: 'Action check result' });
+  const next = within(result).getByText(
+    'Review the selected command and policy before using the route with your agent.',
+  );
+  await fireEvent.change(screen.getByLabelText('Selection type'), { target: { value: 'catalog' } });
+  await fireEvent.change(screen.getByLabelText('Execution route'), {
+    target: { value: 'mcp-review' },
+  });
+  expect(screen.getByText(/For a catalog, choose the catalog JSON file/)).toBeVisible();
+  expect(screen.getByText(/MCP terminal review connects an agent while you approve/)).toBeVisible();
+  expect(next).toBeVisible();
+});
+it.each(['ask', 'deny'] as const)(
+  'explains %s without claiming an action ran or blocking was proven',
+  async (decision) => {
+    const reply = await example();
+    if (!reply.success || !('check' in reply)) throw Error('fixture unavailable');
+    const check = reply.check as { report: { policyDecision: string; reason: string } };
+    check.report.policyDecision = decision;
+    check.report.reason = 'policy-' + decision;
+    render(ActionCoverage, { host: bridge(vi.fn().mockResolvedValue(reply)) });
+    await start();
+    const result = await screen.findByRole('region', { name: 'Action check result' });
+    expect(
+      within(result).getByText(
+        decision === 'ask'
+          ? 'The policy requires your confirmation. Nothing was run.'
+          : 'The policy denies this selected action. No blocking test was run.',
+      ),
+    ).toBeVisible();
+    expect(within(result).getByText('Next step')).toBeVisible();
+  },
+);
 it('clearly labels preview and requires an explicit example request', async () => {
   const call = vi.fn().mockResolvedValue(await example());
   render(ActionCoverage, { host: bridge(call), preview: true });

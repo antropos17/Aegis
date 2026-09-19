@@ -28,6 +28,54 @@ export type ActionCheck = {
     actions: ActionRow[];
   };
 };
+export const routeHelp: Record<ActionRoute, string> = {
+  direct: 'Direct execution checks a command run through the AEGIS command line.',
+  terminal: 'Terminal confirmation asks you before one command runs in an interactive terminal.',
+  'mcp-stdio':
+    'MCP stdio connects an agent to selected AEGIS tools. The policy decides whether each action may run.',
+  'mcp-review':
+    'MCP terminal review connects an agent while you approve each action in an interactive terminal.',
+};
+
+/** Explain a validated observation without implying execution or protection.
+ * @param check Captured check. @returns Fixed summary and next-step text. @since 0.15.1 */
+export function actionCheckGuidance(check: ActionCheck): { summary: string; next: string } {
+  const { configuration, policyDecision, runtime, terminal } = check.report;
+  if (configuration === 'invalid')
+    return {
+      summary: 'The selected files need attention.',
+      next: 'Review the check details, correct the configuration files, then check again.',
+    };
+  if (configuration !== 'valid')
+    return {
+      summary: 'This check could not assess the configuration.',
+      next:
+        runtime === 'unsupported'
+          ? 'Check again with the AEGIS command-line checker in the runtime you intend to use.'
+          : 'Review the check details and choose the files again. No policy decision is available.',
+    };
+  const summary =
+    check.kind === 'catalog'
+      ? 'The catalog files are valid. Each action has its own policy decision below.'
+      : policyDecision === 'allow'
+        ? 'The policy allows this selected action. Nothing was run.'
+        : policyDecision === 'ask'
+          ? 'The policy requires your confirmation. Nothing was run.'
+          : 'The policy denies this selected action. No blocking test was run.';
+  const next =
+    runtime !== 'supported'
+      ? 'Check again with the AEGIS command-line checker in the runtime you intend to use.'
+      : terminal === 'unavailable' || terminal === 'not-checked'
+        ? 'Check this review route from an interactive terminal before using it.'
+        : check.kind === 'catalog'
+          ? 'Review each action below before connecting the catalog to your agent.'
+          : policyDecision === 'deny'
+            ? 'Keep this policy if the action should remain denied. Edit it only if you intend to change that decision.'
+            : policyDecision === 'ask'
+              ? 'Use a confirmation route when you are ready to review and approve the action.'
+              : 'Review the selected command and policy before using the route with your agent.';
+  return { summary, next };
+}
 const reasons = [
   'check-unavailable',
   'runtime-unsupported',

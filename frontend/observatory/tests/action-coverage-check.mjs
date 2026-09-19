@@ -79,6 +79,28 @@ export async function checkActionCoverage(browser, url, out) {
     await page.screenshot({ path: resolve(out, 'action-coverage-keyboard-focus.png') });
     await page.keyboard.press('Enter');
     await results.waitFor();
+    const technical = results.locator('details.technical');
+    assert.equal(await technical.getAttribute('open'), null, 'technical details start closed');
+    const disclosure = technical.locator('summary');
+    await disclosure.focus();
+    await page.keyboard.press('Enter');
+    assert.notEqual(await technical.getAttribute('open'), null, 'Enter expands technical details');
+    assert(
+      await technical
+        .getByText('Not retained as a binding or authorization', { exact: true })
+        .isVisible(),
+    );
+    await page.keyboard.press('Space');
+    assert.equal(await technical.getAttribute('open'), null, 'Space collapses technical details');
+    assert(await results.getByText('Next step', { exact: true }).isVisible());
+    assert(
+      await results
+        .getByText(
+          'Agent connection has not been checked. Protection outside this route is unknown; control of processes started by the selected command is unsupported.',
+          { exact: true },
+        )
+        .isVisible(),
+    );
     const captured = await results.locator('.captured').innerText();
     const timestamp = await results.locator('time').getAttribute('datetime');
     await page.getByLabel('Selection type', { exact: true }).selectOption('catalog');

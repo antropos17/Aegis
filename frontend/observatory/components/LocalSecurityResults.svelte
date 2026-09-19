@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { t } from '../runtime/i18n';
   import { record } from '../runtime/host';
   import {
@@ -77,6 +77,27 @@
           ? 'Findings need review'
           : 'No patterns found in the checked subset',
   );
+  const nextSection = $derived(
+    review.mode === 'compare' && review.report.status !== 'incompatible'
+      ? 'changes'
+      : (review.mode === 'scan' || review.mode === 'import') && rows.findings.length
+        ? 'findings'
+        : 'coverage',
+  );
+  const nextStep = $derived(
+    nextSection === 'findings'
+      ? 'Check the flagged items before using these files.'
+      : nextSection === 'changes'
+        ? 'Compare the recorded changes and review any coverage gaps.'
+        : review.mode === 'inventory'
+          ? 'Review recorded files and coverage before saving a snapshot.'
+          : 'Review what was not checked before deciding whether to use these files.',
+  );
+  async function inspectNext() {
+    selected = nextSection;
+    await tick();
+    document.getElementById(prefix + '-tab-' + nextSection)?.focus();
+  }
 </script>
 
 <section class="panel review-output" aria-label={$t('Local review results')}>
@@ -94,6 +115,18 @@
     >
   </div>
   <div class="result-intro">
+    <div class="next-step">
+      <p>{$t(nextStep)}</p>
+      <button class="button" onclick={inspectNext}
+        >{$t(
+          nextSection === 'findings'
+            ? 'Review findings'
+            : nextSection === 'changes'
+              ? 'Review changes'
+              : 'Review coverage',
+        )}</button
+      >
+    </div>
     <div class="source"><Icon name="folder" /><span>{review.directory}</span></div>
     <p class="muted">
       {new Date(review.createdAt).toLocaleString()} · {$t(
@@ -242,6 +275,19 @@
 <style>
   .review-output {
     min-width: 0;
+  }
+  .next-step {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+  .next-step p {
+    flex: 1;
+    min-width: min(100%, 240px);
+  }
+  .next-step button {
+    white-space: normal;
   }
   .result-heading {
     display: flex;

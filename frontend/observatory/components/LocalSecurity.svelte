@@ -101,10 +101,10 @@
     <div class="setup-title">
       <Icon name="shield" />
       <div>
-        <h2>{$t('Review agent files before use')}</h2>
+        <h2>{$t('Start with a project folder')}</h2>
         <p class="muted">
           {$t(
-            'Runs locally. No code execution, server connections or uploads. Findings and coverage gaps remain available for your review.',
+            'AEGIS checks recognized agent files for risky patterns. No code execution, server connections or uploads.',
           )}
         </p>
       </div>
@@ -116,55 +116,66 @@
       </p>{:else if !available}<p role="status">
         {$t('Local review is unavailable in this runtime. Open the current AEGIS desktop app.')}
       </p>{/if}
-    <div class="review-fields">
-      <div class="field">
-        <label for={prefix + '-mode'}>{$t('Review type')}</label><select
-          id={prefix + '-mode'}
-          bind:value={mode}
-          onchange={changeMode}
-          disabled={pending}
-          aria-describedby={prefix + '-mode-help'}
-          >{#each reviewModes as item (item.id)}<option value={item.id}>{$t(item.label)}</option
-            >{/each}</select
-        >
-        <small id={prefix + '-mode-help'}
-          >{$t(reviewModes.find((item) => item.id === mode)?.description ?? '')}</small
-        >
-      </div>
-      <div class="field">
-        <label for={prefix + '-adapter'}>{$t('Directory layout')}</label><select
-          id={prefix + '-adapter'}
-          bind:value={adapter}
-          disabled={pending}
-          aria-describedby={prefix + '-adapter-help'}
-          >{#each adapters as item (item.id)}<option value={item.id}>{$t(item.label)}</option
-            >{/each}</select
-        >
-        <small id={prefix + '-adapter-help'}
-          >{$t(reviewAdapters.find((item) => item.id === adapter)?.hint ?? '')}</small
-        >
-      </div>
-    </div>
-    {#if mode === 'import'}<div class="review-fields">
+    <details class="review-options">
+      <summary>{$t('Review options')}</summary>
+      <p class="muted">
+        {$t('Change the review type, choose a profile layout or add an offline report.')}
+      </p>
+      <div class="review-fields">
         <div class="field">
-          <label for={prefix + '-format'}>{$t('Report format')}</label><select
-            id={prefix + '-format'}
-            bind:value={format}
+          <label for={prefix + '-mode'}>{$t('Review type')}</label><select
+            id={prefix + '-mode'}
+            bind:value={mode}
+            onchange={changeMode}
             disabled={pending}
-            >{#each reportFormats as [id, label] (id)}<option value={id}>{label}</option
+            aria-describedby={prefix + '-mode-help'}
+            >{#each reviewModes as item (item.id)}<option value={item.id}>{$t(item.label)}</option
               >{/each}</select
           >
+          <small id={prefix + '-mode-help'}
+            >{$t(reviewModes.find((item) => item.id === mode)?.description ?? '')}</small
+          >
         </div>
-        <label class="check"
-          ><input type="checkbox" bind:checked={baseline} disabled={pending} />{$t(
-            'Compare with a previous AEGIS static report',
+        <div class="field">
+          <label for={prefix + '-adapter'}>{$t('Directory layout')}</label><select
+            id={prefix + '-adapter'}
+            bind:value={adapter}
+            disabled={pending}
+            aria-describedby={prefix + '-adapter-help'}
+            >{#each adapters as item (item.id)}<option value={item.id}>{$t(item.label)}</option
+              >{/each}</select
+          >
+          <small id={prefix + '-adapter-help'}
+            >{$t(reviewAdapters.find((item) => item.id === adapter)?.hint ?? '')}</small
+          >
+        </div>
+      </div>
+      {#if mode === 'import'}<div class="review-fields">
+          <div class="field">
+            <label for={prefix + '-format'}>{$t('Report format')}</label><select
+              id={prefix + '-format'}
+              bind:value={format}
+              disabled={pending}
+              >{#each reportFormats as [id, label] (id)}<option value={id}>{label}</option
+                >{/each}</select
+            >
+          </div>
+          <label class="check"
+            ><input type="checkbox" bind:checked={baseline} disabled={pending} />{$t(
+              'Compare with a previous AEGIS static report',
+            )}</label
+          >
+        </div>{:else}<label class="check"
+          ><input type="checkbox" bind:checked={tools} disabled={pending} />{$t(
+            'Include an offline MCP tools/list file',
           )}</label
-        >
-      </div>{:else}<label class="check"
-        ><input type="checkbox" bind:checked={tools} disabled={pending} />{$t(
-          'Include an offline MCP tools/list file',
-        )}</label
-      >{/if}
+        >{/if}
+    </details>
+    <p class="selection-summary">
+      {$t('Ready to review:')}
+      {$t(reviewModes.find((item) => item.id === mode)?.label ?? '')} ·
+      {$t(reviewAdapters.find((item) => item.id === adapter)?.label ?? '')}
+    </p>
     <div class="run-row">
       <button
         class="button primary"
@@ -209,7 +220,7 @@
       <h2>{$t('No local review yet')}</h2>
       <p>
         {$t(
-          'Choose a review type and directory layout, then select the folder. Findings, file fingerprints, package evidence and coverage appear here.',
+          'Choose a folder to begin. Use Review options for inventory, comparison or external reports.',
         )}
       </p>
       <div class="capabilities">
@@ -249,6 +260,21 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-3);
     margin: var(--space-4) 0;
+  }
+  .review-options {
+    margin-top: var(--space-3);
+    border-top: 1px solid var(--border);
+  }
+  .review-options summary {
+    padding-block: var(--space-3);
+    cursor: pointer;
+    min-height: 40px;
+    font-weight: 600;
+  }
+  .selection-summary {
+    font-size: var(--text-caption);
+    color: var(--muted);
+    overflow-wrap: anywhere;
   }
   label,
   .field {

@@ -7,6 +7,14 @@ was added afterward; fetch and check its publication status before continuing.
 
 ## Objective and next action
 
+The requested usability pass adds **Start here** with task-based navigation and
+search, a simpler Local security first-run flow, and plain-language Action control
+outcomes with technical disclosures. Selected-route setup instructions are linked
+from the guide, explicitly marked as terminal work. These UI changes do not add
+live coverage or complete B5. See
+[guided workflows](../docs/OBSERVATORY-GUIDED-WORKFLOWS.md); the local verification
+receipt is `.agent/guided-workflows-receipt.json` when publication is complete.
+
 B5 now has its first desktop surface: **Action control** under Assess. It calls
 the existing nonexecuting route/catalog checkers through native file selection
 and the existing local-security IPC. Captured selection, route and completion

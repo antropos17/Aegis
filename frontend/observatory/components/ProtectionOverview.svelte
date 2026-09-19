@@ -143,6 +143,15 @@
   </div>
   <details class="help">
     <summary><Icon name="shield" />{$t('New to AEGIS? Start here')}</summary>
+    <div class="help-actions">
+      <button class="button" onclick={() => navigate('local-security')}
+        >{$t('Check files before use')}</button
+      >
+      <button class="button" onclick={() => navigate('action-control')}
+        >{$t('Check an action setup')}</button
+      >
+      <button class="button" onclick={() => navigate('guide')}>{$t('Explore all tasks')}</button>
+    </div>
     <div class="help-grid">
       <p>
         <strong>{$t('1. Check the action')}</strong>{$t(
@@ -260,6 +269,17 @@
     grid-template-columns: repeat(3, 1fr);
     gap: var(--space-4);
     padding-top: var(--space-4);
+  }
+  .help-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+  }
+  .help-actions .button {
+    min-height: var(--control-height);
+    height: auto;
+    white-space: normal;
   }
   .help strong {
     display: block;
