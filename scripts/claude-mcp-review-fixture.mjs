@@ -4,6 +4,11 @@ import path from 'node:path';
 import broker from '../src/main/action-mcp-review.js';
 import { setPrivateCanaries, hasPrivateCanary } from './claude-action-mcp-fixture.mjs';
 import { observeReviewPreview, observeNegativeAnswer } from './claude-review-observer.mjs';
+import observation from '../src/main/action-observation-server.js';
+import {
+  createReviewObservation,
+  reviewObservationPassed,
+} from './claude-review-observation-fixture.mjs';
 
 const names = ['approved-ask', 'declined-ask', 'policy-deny', 'disconnect-during-review'];
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -150,6 +155,10 @@ export async function verifyReviewRoute(context) {
       privacyPass: false,
       previewCount: 0,
     };
+    const observationPath = path.join(owned, 'PRIVATE_REVIEW_OBSERVATION-' + name + '.json');
+    const probe = context.reviewObservation
+      ? createReviewObservation(scenario, observationPath, sentinel)
+      : null;
     setScenario(scenario);
     const runnerAbort = new AbortController();
     const brokerAbort = new AbortController();
@@ -157,23 +166,42 @@ export async function verifyReviewRoute(context) {
     let ownerAbortRequired = false;
     let brokerCode;
     let negativeObserver;
+    let pendingCheckpoint = Promise.resolve();
     const restore = observeReviewPreview(process.stderr, () => {
       scenario.previewCount++;
       if (name === 'declined-ask') negativeObserver = observeNegativeAnswer(process.stdin);
-      if (name === 'disconnect-during-review') runnerAbort.abort();
+      if (probe) {
+        pendingCheckpoint = probe
+          .pending()
+          .then((ready) => {
+            if (ready)
+              process.stdout.write('{"mode":"review-observation","pendingObserved":true}\n');
+            if (!ready || name === 'disconnect-during-review') runnerAbort.abort();
+          })
+          .catch(() => runnerAbort.abort());
+      } else if (name === 'disconnect-during-review') runnerAbort.abort();
     });
     process.stderr.write(
       `\nAEGIS verifier case: ${name}. ` +
         (name === 'approved-ask'
-          ? 'Enter the displayed RUN challenge.\n'
+          ? 'Enter the displayed RUN challenge' +
+            (probe ? ' after pendingObserved is true.\n' : '.\n')
           : name === 'declined-ask'
-            ? 'Enter no to decline.\n'
+            ? 'Enter no to decline' + (probe ? ' after pendingObserved is true.\n' : '.\n')
             : 'No terminal answer is needed.\n'),
     );
-    const serving = broker
-      .handleActionMcpReview(['--action-mcp-review', policyPath, requestPath, endpointPath], {
-        signal: brokerAbort.signal,
-      })
+    const args = ['--action-mcp-review', policyPath, requestPath, endpointPath];
+    const runBroker = (selected, options = {}) =>
+      broker.handleActionMcpReview(selected, { ...options, signal: brokerAbort.signal });
+    const serving = (
+      probe
+        ? observation.runObservedMcp(
+            [...args, '--observe', observationPath],
+            runBroker,
+            'mcp-review',
+          )
+        : runBroker(args)
+    )
       .then((code) => {
         brokerCode = code;
       })
@@ -215,6 +243,8 @@ export async function verifyReviewRoute(context) {
         brokerAbort.abort();
       }
       const cleaned = await settleWithin(serving, 4000);
+      await pendingCheckpoint;
+      await probe?.finish();
       restore();
       scenario.negativeAnswerObserved = negativeObserver?.stop() === true;
       setScenario(null);
@@ -238,7 +268,18 @@ export async function verifyReviewRoute(context) {
       endpointRemoved: !fs.existsSync(endpointPath),
       ownerAbortRequired,
     };
-    item.pass = !!reviewScenarioPassed(item);
+    item.pass =
+      !!reviewScenarioPassed(item) &&
+      (!probe || reviewObservationPassed(item.reviewObservation, name));
+    if (
+      probe &&
+      receipt.scenarios.some(
+        (previous) =>
+          previous.reviewObservation?.before?.snapshot?.connectionId ===
+          item.reviewObservation.before?.snapshot?.connectionId,
+      )
+    )
+      item.pass = false;
     receipt.scenarios.push(item);
     if (!item.pass) break;
   }
