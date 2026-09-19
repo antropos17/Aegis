@@ -82,6 +82,20 @@ gained the status tool. Those provider regressions did not invoke the status too
 Inspect `.agent/b1-session-status-receipt.json` for CI/publication evidence and
 the associated provider regression receipts before claiming a published result.
 
+The later opt-in `--status` and `--catalog-status` provider modes now actually
+invoke status before and after one action. Installed Windows Claude 2.1.263 passed
+allow, deny and ask on both generated-config routes (24 synthetic local requests).
+Both status queries leave the action budget unchanged; one owner invocation and
+settlement is observed even for policy deny/ask. The matching action report and
+per-step sentinel sizes separately establish the expected execution effect.
+Only the selected allow action appends one byte; the other catalog action stays
+unused. Final runs removed owned scratch; see `.agent/b1-provider-status-single.json`
+and `.agent/b1-provider-status-catalog.json`. An initial cleanup failure is retained
+separately, and the conservative fixture cleanup retry now waits up to three
+seconds. Publication evidence belongs in `.agent/b1-provider-status-receipt.json`.
+This closes the idle status provider evidence gap only; pending review/cancellation
+through the installed provider, the coverage interface and broader routing remain.
+
 The current [route checker](../docs/ACTION-ROUTE-CHECK.md),
 `--action-route-check-json <route> <policy> <request>`, supports `direct`,
 `terminal`, `mcp-stdio` and `mcp-review`. It reads actual bounded files and reports

@@ -160,3 +160,8 @@ explicit refusal, policy deny and disconnect during review; see that contract fo
 the reproducible command and evidence limits.
 Broader deliberate agent routing and coverage display remain B1 work.
 MCP gateway inspection and process-tree isolation remain separate roadmap work.
+
+The opt-in verifier also supports `--status` for an installed-provider sequence
+of status, one action and status in the same connection. See
+[status verification](ACTION-MCP-STATUS.md#installed-provider-status-sequence)
+for commands, expected counter transitions and evidence limits.

@@ -145,3 +145,8 @@ report semantics while preserving strict current-call IDs and scanning all raw
 results for canaries. These checks do not authenticate a human, verify a cloud
 model or provide OS firewall isolation. Native agent tools, arbitrary MCP servers,
 descendant isolation and general observed activity coverage remain outside scope.
+
+For idle status before and after an action, the separate `--catalog-status`
+verification mode exercises allow, deny and ask with installed Claude. It also
+checks that the other catalog action remains unused. See
+[status verification](ACTION-MCP-STATUS.md#installed-provider-status-sequence).
