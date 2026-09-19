@@ -1,25 +1,51 @@
 <div align="center">
   <h1>AEGIS</h1>
-  <p><b>Local monitoring for AI coding agents</b></p>
+  <p><b>Local monitoring and action review for AI agents</b></p>
 </div>
 
-AEGIS observes detected agent processes, file activity and TCP endpoints from outside the agents. It records attribution evidence and behavioral changes without requiring an agent plugin.
+AEGIS helps you see what local AI agents are doing, review agent files before use,
+and check policies for selected actions. Monitoring records processes, file
+activity, TCP endpoints and attribution evidence without requiring an agent plugin.
 
 Current source also includes opt-in policy-controlled execution and MCP tools for
 operator-selected actions. These routes require explicit setup; ordinary agent
 monitoring does not automatically intercept or block commands.
 
-**Open-source, monitor-first, no telemetry.** Monitoring data is stored locally. Optional AI analysis sends activity metadata to Anthropic on request; update checks contact GitHub. See [privacy and key handling](SECURITY.md#privacy-architecture).
+**Open-source, monitor-first, no telemetry.** Monitoring data is stored locally. Endpoint naming uses DNS queries. Optional AI analysis sends activity metadata to Anthropic on request; update checks contact GitHub. See [privacy and key handling](SECURITY.md#privacy-architecture).
 
 <p align="center">
-  <a href="https://github.com/antropos17/Aegis/releases/latest"><img src="https://img.shields.io/github/v/release/antropos17/Aegis?include_prereleases&style=flat-square&label=Release" alt="Release"></a>
+  <a href="https://github.com/antropos17/Aegis/releases"><img src="https://img.shields.io/github/v/release/antropos17/Aegis?include_prereleases&style=flat-square&label=Release" alt="Release"></a>
   <img src="https://img.shields.io/github/actions/workflow/status/antropos17/Aegis/ci.yml?style=flat-square&label=CI" alt="CI">
   <a href="#monitor-first"><img src="https://img.shields.io/badge/Mode-monitor--first-8a2be2?style=flat-square" alt="Monitor-first"></a>
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/Platform-Windows%20%C2%B7%20macOS%2FLinux%20experimental-lightgrey?style=flat-square" alt="Platform">
 </p>
 
-[Download](#download) · [Local demo](#try-without-ai-agents) · [Known limits](#known-limits) · [Contributing](CONTRIBUTING.md) · [Report a bug](https://github.com/antropos17/Aegis/issues/new?template=01-bug-report.yml)
+[Download](#download) · [Start with a task](#start-with-a-task) · [Documentation](docs/README.md) · [Local demo](#try-without-ai-agents) · [Known limits](#known-limits) · [Report a bug](https://github.com/antropos17/Aegis/issues/new?template=01-bug-report.yml)
+
+## Start with a task
+
+| What you want to do | Where to start |
+| --- | --- |
+| See running agents and review their activity | **Monitoring**, then an agent's processes, files or connections |
+| Check a project, skill or agent profile before use | [**Local security**](docs/LOCAL-SECURITY-UI.md): static review, inventory, comparison and offline report import |
+| Check how a selected action matches a policy | [**Action control**](docs/ACTION-COVERAGE-UI.md): choose files and review the captured outcome |
+| Connect selected actions to an agent | [MCP setup](docs/ACTION-MCP-CONFIG.md), explicitly configured from a terminal |
+| Explore settings, reports and the other tools | **Start here** in the sidebar, or **Commands** (`Ctrl K`) |
+
+The [guided interface](docs/OBSERVATORY-GUIDED-WORKFLOWS.md) keeps results above
+setup, uses distinct icons for each workspace and reveals technical details on
+request. File and action checks do not execute commands or establish safety.
+This describes current source; the published installer can contain an earlier UI.
+
+<details>
+<summary>Current interface preview</summary>
+
+![AEGIS task guide with distinct workspace icons](docs/images/observatory-guide.png)
+
+Current source preview with simulated data, captured 19 September 2026.
+
+</details>
 
 ## What AEGIS observes
 
@@ -32,13 +58,6 @@ monitoring does not automatically intercept or block commands.
 | Local LLMs | Ollama and LM Studio runtime probes; other supported runtimes detected by process signature |
 
 The Observatory workspace provides a live instance radar, separate agent instances, file and network views, rules, custom agent catalog, AI analysis, reports, audit, statistics and settings. Activity can be filtered and grouped, inspected by stamped instance identity, and exported to JSON, CSV, HTML or ZIP. The [agent database](src/shared/agent-database.json) and [contributor guide](CONTRIBUTING.md#how-to-add-a-new-agent) describe how to extend detection.
-
-**Start here** opens a task guide for monitoring, file review, action setup checks
-and the other workspaces. The same task names are searchable through **Commands**
-(`Ctrl K`). Local review keeps advanced options in a disclosure; action checks show
-a plain-language outcome and next step before technical details. The guide also
-links the optional terminal setup instructions; opening it does not connect an
-agent or enable blocking. See [guided workflows](docs/OBSERVATORY-GUIDED-WORKFLOWS.md).
 
 ## Monitor-first
 
@@ -85,7 +104,12 @@ check separately.
 
 ### Windows installer
 
-Download the `.exe` from [GitHub Releases](https://github.com/antropos17/Aegis/releases). Releases from v0.13.0-alpha include a signed manifest for [offline installer verification](docs/RELEASE-VERIFICATION.md). Current source includes signed Windows update support; published 0.14.1-alpha predates it, so the first release containing the updater must be installed manually.
+The latest published prerelease verified on 19 September 2026 is
+[0.15.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.15.0-alpha).
+Download its Windows `.exe` and follow [offline installer verification](docs/RELEASE-VERIFICATION.md).
+The release includes signed Windows update support; when upgrading from
+0.14.1-alpha or older, install 0.15.0-alpha manually first. See the
+[release list](https://github.com/antropos17/Aegis/releases) for subsequent builds.
 
 ### From source
 
@@ -114,6 +138,7 @@ The preview uses simulated data and an isolated host. It shares the desktop comp
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v0.15.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.15.0-alpha) | 2026-09-12 | Observatory desktop, signed Windows updates, Linux process-generation identity and bounded ETW diagnostics |
 | [v0.14.1-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.14.1-alpha) | 2026-09-07 | Evidence-file watchers moved off the main thread; dependency maintenance |
 | [v0.14.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.14.0-alpha) | 2026-09-07 | Sequence rules, observation-gap records, audit indexing and sensor-health work |
 | [v0.13.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.13.0-alpha) | 2026-08-23 | Signed release manifests for offline installer verification |
@@ -138,7 +163,7 @@ scripts and instruction patterns, compares content snapshots, and imports offlin
 Cisco results. It keeps incomplete coverage and unverified claims visible. See the
 [workspace guide](docs/LOCAL-SECURITY-UI.md) for inputs, evidence and limitations.
 
-- **Instance identity:** Windows PID and OS birth time distinguish process lifetimes when birth time is available. Missing birth times and synthetic discoveries provide weaker identity.
+- **Instance identity:** Windows uses PID and OS birth time; Linux uses boot identity and kernel process start ticks. Missing witnesses and synthetic discoveries provide weaker identity.
 - **Attribution:** Records distinguish confirmed, inferred and unattributed ownership. Identity or attribution can be null when unknown or not applicable.
 - **Audit trail:** Hash-chained JSONL records rotate daily and have 30-day retention. Chain verification detects edits relative to a trusted chain state; it does not guarantee that no events were lost.
 
@@ -147,7 +172,7 @@ See the [architecture](ARCHITECTURE.md), [correctness audit](docs/current-state/
 ## Known limits
 
 - **Incomplete coverage:** Unknown signatures and processes that start and exit between polling ticks can be missed. Default monitoring does not parse MCP traffic or individual tool calls; the explicitly configured MCP routes handle only their published AEGIS tools.
-- **Platform gaps:** macOS/Linux lack OS birth times for identity and remain unsafe under PID reuse. Token-cost tracking is Windows-only.
+- **Platform gaps:** macOS lacks a process-generation witness. Linux generation identity depends on accessible `/proc` data; its fallback has no start-time witness. Missing identity limits process-control guarantees. Measured Claude Code usage requires a process start-time witness and a readable matching session registry/transcript. Windows is the verified primary path; native Linux token collection remains unverified.
 - **Bounded UI history:** Retained event windows can differ from aggregate totals; Statistics shows renderer eviction counters; Audit provides persisted history.
 - **Sensor and audit gaps:** Health status does not prove complete capture. Audit loss markers require a successful flush; process-scan overruns lack a dedicated counter.
 - **Sensitive metadata:** Logs and exports contain paths, agent names and endpoints. Configuration and diagnostic exports omit the configured API key. Local key encryption depends on safeStorage availability. See [SECURITY.md](SECURITY.md).
@@ -198,6 +223,10 @@ The [roadmap](ROADMAP.md) tracks Windows ETW experiments and remaining discovery
 [Feature requests](https://github.com/antropos17/Aegis/issues/new?template=02-feature-request.yml) · [Private vulnerability reports](https://github.com/antropos17/Aegis/security/advisories/new) · [MIT license](LICENSE)
 
 Local monitoring requires no account or subscription. Optional Anthropic analysis uses your own API key and is subject to that service's charges.
+
+Navigation icons use a curated [Tabler Icons](https://github.com/tabler/tabler-icons)
+subset under the [MIT notice](frontend/observatory/vendor/tabler-icons.LICENSE).
+Pinned source URLs and hashes are recorded in the [icon provenance](frontend/observatory/vendor/tabler-icons.provenance.json).
 
 ## Star history
 

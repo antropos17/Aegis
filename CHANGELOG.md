@@ -891,7 +891,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * update context files for P5-B.0 completion, boot perf fix, and TS workflow ([38c2180](https://github.com/antropos17/Aegis/commit/38c2180bd85fc1901e8e6a27672248f8017888bf))
 * update test count to 489, add Skills section to CLAUDE.md ([384bcc0](https://github.com/antropos17/Aegis/commit/384bcc00f39e07749f5e6ab06088ccc101b83b57))
 
-## [0.3.1-alpha](https://github.com/antropos17/Aegis/compare/aegis-v0.3.0-alpha...aegis-v0.3.1-alpha) (2026-03-02)
+## [0.3.1-alpha](https://github.com/antropos17/Aegis/compare/v0.3.0-alpha...aegis-v0.3.1-alpha) (2026-03-02)
 
 
 ### Features

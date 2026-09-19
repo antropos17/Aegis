@@ -28,6 +28,10 @@ body:
         - File Monitoring
         - Network
         - UI/Dashboard
+        - Local Security Review
+        - Action Checks and Execution
+        - MCP Integration
+        - Documentation
         - Risk Scoring
         - Agent Database
         - Other

@@ -13,6 +13,6 @@ How was this tested?
 ## Checklist
 - [ ] Follows code style guidelines (CommonJS main, Svelte 5 renderer)
 - [ ] No console.log in production code
-- [ ] Files under 300 lines
-- [ ] I have tested this locally with `npm start`
+- [ ] New files stay focused and follow the applicable AGENTS.md conventions
+- [ ] I ran the applicable checks and recorded their results above (both renderer builds and frontend:test for visual changes)
 - [ ] This code has been reviewed by a human (not solely AI-generated)

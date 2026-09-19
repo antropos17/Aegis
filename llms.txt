@@ -1,12 +1,14 @@
 # Aegis
 
-> Aegis is an open-source, monitor-first desktop app for local AI-agent processes, file activity, TCP endpoints and behavioral anomalies. It combines polling with event-based file watchers; coverage and attribution have documented limits.
+> Aegis is an open-source desktop app for local AI-agent monitoring, file reviews and selected-action policy checks. Monitoring combines polling with event-based file watchers; coverage and attribution have documented limits.
 
 Current source also provides opt-in exact-action execution policies and explicitly configured MCP action routes. These do not turn default monitoring into automatic command interception or OS isolation. Installed builds contain only the features at their release tag.
 
 ## Documentation
 
 - [README](https://github.com/antropos17/Aegis/blob/master/README.md)
+- [Documentation index](https://github.com/antropos17/Aegis/blob/master/docs/README.md)
+- [Guided desktop workflows](https://github.com/antropos17/Aegis/blob/master/docs/OBSERVATORY-GUIDED-WORKFLOWS.md)
 - [Security Policy](https://github.com/antropos17/Aegis/blob/master/SECURITY.md)
 - [Contributing Guide](https://github.com/antropos17/Aegis/blob/master/CONTRIBUTING.md)
 - [Code of Conduct](https://github.com/antropos17/Aegis/blob/master/CODE_OF_CONDUCT.md)
@@ -26,8 +28,10 @@ Current source also provides opt-in exact-action execution policies and explicit
 - Nonexecuting route/catalog configuration checks and read-only current-MCP-connection counters; neither grants execution permission nor proves outside-route coverage
 - Node-only MCP client configuration generation for selected-action, catalog or relay routes; emits an `mcpServers.aegis` entry for explicit client loading, without reading selected files or installing settings
 - Observatory Action control workspace: main-owned native file selection and nonexecuting route/catalog checks; captured results do not establish a connected agent or verified blocking
+- Local security workspace: selected project/profile static reviews, bounded inventory, saved snapshot comparison and offline report import, with explicit coverage limits
+- Guided Observatory navigation with distinct local SVG icons, task search, result-first review screens and optional technical details; English and Brazilian Portuguese
 
-Local monitoring has no telemetry. Optional AI analysis sends activity metadata to Anthropic on request; update actions contact GitHub. AEGIS does not automatically enforce OS-level restrictions.
+Local monitoring has no telemetry; endpoint naming uses DNS queries. Optional AI analysis sends activity metadata to Anthropic on request; update actions contact GitHub. AEGIS does not automatically enforce OS-level restrictions.
 
 Opt-in execution does not isolate descendants. Allowed programs retain caller privileges. Private action previews can expose secrets in terminal scrollback; a TTY does not authenticate human presence. No client settings are changed automatically.
 
@@ -45,6 +49,8 @@ Generated client configuration intentionally includes local executable and selec
 
 - Repository: https://github.com/antropos17/Aegis
 - Local demo instructions: https://github.com/antropos17/Aegis#try-without-ai-agents
+- Documentation: https://github.com/antropos17/Aegis/blob/master/docs/README.md
+- Download prereleases: https://github.com/antropos17/Aegis/releases
 - Privacy and external requests: https://github.com/antropos17/Aegis/blob/master/SECURITY.md#privacy-architecture
 - Exact execution contract: https://github.com/antropos17/Aegis/blob/master/docs/ACTION-EXECUTION.md
 - MCP catalog and review: https://github.com/antropos17/Aegis/blob/master/docs/ACTION-MCP-CATALOG.md

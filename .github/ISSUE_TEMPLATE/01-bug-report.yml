@@ -2,6 +2,14 @@ name: "🐛 Bug Report"
 description: "Something isn't working"
 labels: ["bug"]
 body:
+  - type: input
+    id: aegis-version
+    attributes:
+      label: AEGIS version or source commit
+      description: Include whether this is an installed build, a source checkout or the simulated preview.
+      placeholder: "e.g. 0.15.0-alpha installer, or source commit SHA"
+    validations:
+      required: true
   - type: dropdown
     id: os
     attributes:
@@ -18,7 +26,8 @@ body:
     id: node-version
     attributes:
       label: Node.js version
-      placeholder: "e.g. 20.11.0"
+      description: Only needed for source checkouts; the project requires Node.js 24.x.
+      placeholder: "e.g. 24.11.1"
 
   - type: textarea
     id: steps
@@ -41,6 +50,7 @@ body:
     id: logs
     attributes:
       label: Error logs
+      description: Remove API keys, tokens, private file contents and sensitive paths before posting.
       render: shell
 
   - type: textarea
