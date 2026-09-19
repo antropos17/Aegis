@@ -70,6 +70,7 @@
     if (mounted) void loadPermissions();
   });
   let selectionHeading = $state<HTMLSpanElement>();
+  let activityLayout = $state<HTMLDivElement>();
   let selectionOrigin: HTMLButtonElement;
   async function selectActivity(item: ProtectionActivity, button: HTMLButtonElement) {
     selected = item;
@@ -79,10 +80,16 @@
     selectionHeading?.focus({ preventScroll: true });
     selectionHeading?.scrollIntoView?.({ block: 'nearest' });
   }
-  function closeDetails() {
+  async function closeDetails() {
+    const origin = selectionOrigin;
     selected = null;
-    if (selectionOrigin?.isConnected && !selectionOrigin.closest('[hidden], [inert]'))
-      selectionOrigin.focus({ preventScroll: true });
+    await tick();
+    const target = origin?.isConnected
+      ? origin
+      : activityLayout?.querySelector<HTMLElement>('.activity-panel');
+    if (!target || target.closest('[hidden], [inert]')) return;
+    target.focus({ preventScroll: true });
+    target.scrollIntoView?.({ block: 'nearest' });
   }
 </script>
 
@@ -112,7 +119,7 @@
       <p>{$t('Saved permissions do not block access.')}</p>
     </div>
   </div>
-  <div class="activity-layout" class:has-selection={!!current}>
+  <div class="activity-layout" class:has-selection={!!current} bind:this={activityLayout}>
     <ProtectionActivityList
       {activity}
       ready={telemetry.ready}

@@ -14,6 +14,12 @@ actions precede saved policy preferences. No telemetry, attribution, permissions
 or review persistence contract changes. The comparison and measured checks are in
 [DASHBOARD-DESIGN-AUDIT.md](../../docs/current-state/DASHBOARD-DESIGN-AUDIT.md).
 
+Closing selected evidence restores keyboard focus after the activity grid has
+reflowed and reveals the originating row below the sticky page heading. If that
+row was removed or filtered out, the activity region receives focus instead.
+This programmatic fallback adds no extra Tab stop; hidden workspaces do not
+receive deferred focus.
+
 ## Desktop icon and tray menu — 19 September 2026
 
 The app and tray icons reuse the neutral installer shield; the tray retains a

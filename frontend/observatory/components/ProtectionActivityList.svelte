@@ -41,7 +41,7 @@
   const labels = { review: 'Review needed', unverified: 'Unverified', observed: 'No risk flag' };
 </script>
 
-<section class="panel activity-panel" aria-label={$t('Agent activity')}>
+<section class="panel activity-panel" aria-label={$t('Agent activity')} tabindex="-1">
   <div class="activity-head">
     <h3>{$t('Who did what, and where?')}</h3>
     <p>{$t('Retained file observations and latest connections.')}</p>
