@@ -96,11 +96,12 @@
   async function inspectNext() {
     selected = nextSection;
     await tick();
-    document.getElementById(prefix + '-tab-' + nextSection)?.focus();
+    const tab = document.getElementById(prefix + '-tab-' + nextSection);
+    if (tab && !tab.closest('[hidden], [inert]')) tab.focus({ preventScroll: true });
   }
 </script>
 
-<section class="panel review-output" aria-label={$t('Local review results')}>
+<section class="panel review-output" tabindex="-1" aria-label={$t('Local review results')}>
   <div class="panel-head result-heading">
     <div>
       <h2><Icon name="shield" />{$t(status)}</h2>

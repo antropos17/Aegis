@@ -78,8 +78,111 @@
 </script>
 
 <div class="action-coverage-workspace">
+  {#if result}
+    <section class="panel result" tabindex="-1" aria-label={$t('Action check result')}>
+      <button
+        class="button setup-link"
+        onclick={() => document.getElementById(prefix + '-kind')?.focus()}
+        >{$t('Change check setup')}</button
+      >
+
+      <h2>{$t('Captured configuration check')}</h2>
+      {#if guidance}<p class="result-summary">{$t(guidance.summary)}</p>{/if}
+      <p class="captured">
+        {$t(result.kind === 'single' ? 'Single action' : 'Action catalog')} · {$t(
+          actionRoutes.find((item) => item.id === result?.route)?.label ?? '',
+        )}
+      </p>
+      <p class="muted">
+        {$t('Captured at')}
+        <time datetime={result.createdAt}>{new Date(result.createdAt).toLocaleString()}</time>
+      </p>
+      <p>{$t('This is a retained observation, not live route status or permission to execute.')}</p>
+      {#if guidance}<div class="next-step">
+          <h3>{$t('Next step')}</h3>
+          <p>{$t(guidance.next)}</p>
+        </div>{/if}
+      <p class="muted">
+        {$t(
+          'Agent connection has not been checked. Protection outside this route is unknown; control of processes started by the selected command is unsupported.',
+        )}
+      </p>
+      {#if result.kind === 'catalog'}
+        <h3>{$t('Selected catalog actions')}</h3>
+        {#if result.report.actions.length}
+          <ul class="actions">
+            {#each result.report.actions as action (action.name)}
+              <li>
+                <h4>{action.name}</h4>
+                <dl>
+                  <div>
+                    <dt>{$t('Configuration')}</dt>
+                    <dd>{$t(coverageLabels[action.configuration])}</dd>
+                  </div>
+                  <div>
+                    <dt>{$t('Policy decision')}</dt>
+                    <dd>{$t(coverageLabels[action.policyDecision])}</dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>{$t('Check detail')}</summary>
+                  <p>{$t(coverageLabels[action.reason])}</p>
+                </details>
+              </li>
+            {/each}
+          </ul>
+        {:else}<p>{$t('No individual action observations are available for this check.')}</p>{/if}
+      {/if}
+      <details class="technical">
+        <summary>{$t('Technical details')}</summary>
+        <dl>
+          <div>
+            <dt>{$t('Configuration')}</dt>
+            <dd>{$t(coverageLabels[result.report.configuration])}</dd>
+          </div>
+          <div>
+            <dt>{$t('Policy decision')}</dt>
+            <dd>{$t(coverageLabels[result.report.policyDecision])}</dd>
+          </div>
+          <div>
+            <dt>{$t('Check detail')}</dt>
+            <dd>{$t(coverageLabels[result.report.reason])}</dd>
+          </div>
+          <div>
+            <dt>{$t('Current AEGIS runtime')}</dt>
+            <dd>{$t(coverageLabels[result.report.runtime])}</dd>
+          </div>
+          <div>
+            <dt>{$t('Terminal in the checking process')}</dt>
+            <dd>{$t(coverageLabels[result.report.terminal])}</dd>
+          </div>
+          <div>
+            <dt>{$t('Configuration observation')}</dt>
+            <dd>{$t('Not retained as a binding or authorization')}</dd>
+          </div>
+          <div>
+            <dt>{$t('Agent connection')}</dt>
+            <dd>{$t('Not checked')}</dd>
+          </div>
+          <div>
+            <dt>{$t('Blocking verification')}</dt>
+            <dd>{$t('Not performed')}</dd>
+          </div>
+          <div>
+            <dt>{$t('Outside-route coverage')}</dt>
+            <dd>{$t('Unknown')}</dd>
+          </div>
+          <div>
+            <dt>{$t('Descendant control')}</dt>
+            <dd>{$t('Unsupported')}</dd>
+          </div>
+        </dl>
+      </details>
+    </section>
+  {/if}
+
   <section class="panel setup" aria-label={$t('Action check setup')}>
-    <h2>{$t('Action control')}</h2>
+    <h2>{$t('Check action configuration')}</h2>
     <p class="notice">{$t('Configuration check only; blocking has not been verified.')}</p>
     <p class="muted">
       {$t(
@@ -131,6 +234,15 @@
       <button type="submit" class="button primary" disabled={pending || !available}
         >{$t(preview ? 'Show example check' : 'Choose files and check')}</button
       >
+      {#if result}<button
+          type="button"
+          class="button"
+          onclick={(event) =>
+            event.currentTarget
+              .closest('.action-coverage-workspace')
+              ?.querySelector<HTMLElement>('.result')
+              ?.focus()}>{$t('View captured result')}</button
+        >{/if}
     </form>
     <p class="muted">
       {$t(
@@ -142,102 +254,7 @@
     </div>
     <div role="alert" aria-atomic="true">{$t(error)}</div>
   </section>
-  {#if result}
-    <section class="panel result" aria-label={$t('Action check result')}>
-      <h2>{$t('Captured configuration check')}</h2>
-      {#if guidance}<p class="result-summary">{$t(guidance.summary)}</p>{/if}
-      <p class="captured">
-        {$t(result.kind === 'single' ? 'Single action' : 'Action catalog')} · {$t(
-          actionRoutes.find((item) => item.id === result?.route)?.label ?? '',
-        )}
-      </p>
-      <p class="muted">
-        {$t('Captured at')}
-        <time datetime={result.createdAt}>{new Date(result.createdAt).toLocaleString()}</time>
-      </p>
-      <p>{$t('This is a retained observation, not live route status or permission to execute.')}</p>
-      {#if guidance}<div class="next-step">
-          <h3>{$t('Next step')}</h3>
-          <p>{$t(guidance.next)}</p>
-        </div>{/if}
-      <p class="muted">
-        {$t(
-          'Agent connection has not been checked. Protection outside this route is unknown; control of processes started by the selected command is unsupported.',
-        )}
-      </p>
-      <details class="technical">
-        <summary>{$t('Technical details')}</summary>
-        <dl>
-          <div>
-            <dt>{$t('Configuration')}</dt>
-            <dd>{$t(coverageLabels[result.report.configuration])}</dd>
-          </div>
-          <div>
-            <dt>{$t('Policy decision')}</dt>
-            <dd>{$t(coverageLabels[result.report.policyDecision])}</dd>
-          </div>
-          <div>
-            <dt>{$t('Check detail')}</dt>
-            <dd>{$t(coverageLabels[result.report.reason])}</dd>
-          </div>
-          <div>
-            <dt>{$t('Current AEGIS runtime')}</dt>
-            <dd>{$t(coverageLabels[result.report.runtime])}</dd>
-          </div>
-          <div>
-            <dt>{$t('Terminal in the checking process')}</dt>
-            <dd>{$t(coverageLabels[result.report.terminal])}</dd>
-          </div>
-          <div>
-            <dt>{$t('Configuration observation')}</dt>
-            <dd>{$t('Not retained as a binding or authorization')}</dd>
-          </div>
-          <div>
-            <dt>{$t('Agent connection')}</dt>
-            <dd>{$t('Not checked')}</dd>
-          </div>
-          <div>
-            <dt>{$t('Blocking verification')}</dt>
-            <dd>{$t('Not performed')}</dd>
-          </div>
-          <div>
-            <dt>{$t('Outside-route coverage')}</dt>
-            <dd>{$t('Unknown')}</dd>
-          </div>
-          <div>
-            <dt>{$t('Descendant control')}</dt>
-            <dd>{$t('Unsupported')}</dd>
-          </div>
-        </dl>
-      </details>
-      {#if result.kind === 'catalog'}
-        <h3>{$t('Selected catalog actions')}</h3>
-        {#if result.report.actions.length}
-          <ul class="actions">
-            {#each result.report.actions as action (action.name)}
-              <li>
-                <h4>{action.name}</h4>
-                <dl>
-                  <div>
-                    <dt>{$t('Configuration')}</dt>
-                    <dd>{$t(coverageLabels[action.configuration])}</dd>
-                  </div>
-                  <div>
-                    <dt>{$t('Policy decision')}</dt>
-                    <dd>{$t(coverageLabels[action.policyDecision])}</dd>
-                  </div>
-                </dl>
-                <details>
-                  <summary>{$t('Check detail')}</summary>
-                  <p>{$t(coverageLabels[action.reason])}</p>
-                </details>
-              </li>
-            {/each}
-          </ul>
-        {:else}<p>{$t('No individual action observations are available for this check.')}</p>{/if}
-      {/if}
-    </section>
-  {:else}
+  {#if !result}
     <section class="panel empty">
       <h2>{$t('No action check yet')}</h2>
       <p>

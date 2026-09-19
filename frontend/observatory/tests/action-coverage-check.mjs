@@ -79,6 +79,23 @@ export async function checkActionCoverage(browser, url, out) {
     await page.screenshot({ path: resolve(out, 'action-coverage-keyboard-focus.png') });
     await page.keyboard.press('Enter');
     await results.waitFor();
+    await page.getByRole('button', { name: 'View captured result', exact: true }).click();
+    assert(await results.evaluate((element) => element === document.activeElement));
+    assert(
+      await results.evaluate((element) =>
+        Boolean(
+          element.compareDocumentPosition(
+            document.querySelector('.action-coverage-workspace .setup'),
+          ) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ),
+      ),
+    );
+    await page.getByRole('button', { name: 'Change check setup', exact: true }).click();
+    assert(
+      await page
+        .getByLabel('Selection type', { exact: true })
+        .evaluate((element) => element === document.activeElement),
+    );
     const technical = results.locator('details.technical');
     assert.equal(await technical.getAttribute('open'), null, 'technical details start closed');
     const disclosure = technical.locator('summary');

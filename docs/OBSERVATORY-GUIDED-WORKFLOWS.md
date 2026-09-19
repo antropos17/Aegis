@@ -1,11 +1,13 @@
 # Guided Observatory workflows
 
-Open **Start here** from the toolbar or sidebar. The default launch screen remains
+Open **Start here** from the sidebar. The default launch screen remains
 the agent radar. Choose **See running agents**, **Check files before use**, or
 **Check an action setup** to open the corresponding workspace. **More you can do**
 links the remaining monitoring, investigation, assessment and settings tasks.
-Task names also work in **Commands** (`Ctrl K`). Navigation preserves mounted
-reviews, drafts and history.
+Task names also work in **Commands** (`Ctrl K`), with one result per destination.
+Distinct workspace icons also identify their task links. Navigation preserves
+mounted reviews, drafts and history, and focuses the destination without resetting
+its saved scroll.
 
 ## Review files
 
@@ -14,7 +16,9 @@ Expand **Review options** for an inventory, snapshot comparison, external report
 profile layout or offline MCP tools list. The selection summary stays visible
 when options are closed. Nothing is executed or uploaded by this review.
 
-A result retains its folder and capture time. Its suggested action opens and
+A result appears above setup and retains its folder and capture time. Use
+**Change review setup** or **View captured result** to move deliberately between
+the two. Its suggested action opens and
 focuses Findings, Changes or Scope & coverage. All original files, packages,
 tool metadata, evidence, export and snapshot operations remain available.
 Snapshot acceptance still requires acknowledgment and a fresh matching capture.
@@ -23,9 +27,11 @@ No findings or unchanged fingerprints do not establish safety.
 ## Check an action setup
 
 Choose a single action or catalog and an execution route. The form explains which
-JSON files the native dialogs request. Results show a plain-language policy outcome,
+JSON files the native dialogs request. Results appear above setup and show a plain-language policy outcome,
 the captured selection/time and the next step. Expand **Technical details** for
-the full configuration, runtime, terminal and coverage metadata.
+the full configuration, runtime, terminal and coverage metadata. Catalog decisions
+come before technical details. **Change check setup** returns to the existing
+draft; receiving a result does not automatically collapse the form or move focus.
 
 Changing the draft does not relabel a previous result. Cancellation and errors
 preserve it. These are nonexecuting configuration checks: no authorization is

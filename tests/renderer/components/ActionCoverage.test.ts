@@ -158,3 +158,18 @@ it('clearly labels preview and requires an explicit example request', async () =
   await fireEvent.click(screen.getByRole('button', { name: 'Show example check' }));
   expect(await screen.findByText('Example check loaded. No files were read.')).toBeVisible();
 });
+
+it('puts captured checks first without stealing focus and provides explicit setup navigation', async () => {
+  render(ActionCoverage, { host: bridge(vi.fn().mockResolvedValue(await example())) });
+  const trigger = screen.getByRole('button', { name: 'Choose files and check' });
+  trigger.focus();
+  await start();
+  const result = await screen.findByRole('region', { name: 'Action check result' });
+  const setup = screen.getByRole('region', { name: 'Action check setup' });
+  expect(result.compareDocumentPosition(setup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(trigger).toHaveFocus();
+  await fireEvent.click(screen.getByRole('button', { name: 'View captured result' }));
+  expect(result).toHaveFocus();
+  await fireEvent.click(screen.getByRole('button', { name: 'Change check setup' }));
+  expect(screen.getByLabelText('Selection type')).toHaveFocus();
+});

@@ -218,7 +218,13 @@
   async function navigate(next: string, remember = true) {
     if (!views.some((row) => row[0] === next)) return;
     if (next === requestedView) {
+      const fromCommands = commands;
+      const ticket = navigationRevision;
       commands = false;
+      if (fromCommands) {
+        await tick();
+        if (ticket === navigationRevision) workspace.focus({ preventScroll: true });
+      }
       return;
     }
     requestedView = next;
@@ -235,6 +241,7 @@
     if (ticket === navigationRevision) {
       workspace.scrollTop = scrolls[next] ?? 0;
       renderedView = next;
+      workspace.focus({ preventScroll: true });
     }
   }
   function back(delta: number) {
@@ -398,23 +405,21 @@
         >
       </div>
       <div class="top-actions">
-        <button class="button guide-trigger" onclick={() => navigate('guide')}
-          >{$t('Start here')}</button
-        >
         <button class="command-trigger" onclick={() => (commands = !commands)}
           ><Icon name="search" />{$t('Commands')}<kbd>{$t('Ctrl K')}</kbd></button
         ><button class="icon-button" aria-label={$t('Toggle theme')} onclick={toggleTheme}
           ><Icon name="sun" /></button
         >
-        <button
-          class="icon-button"
-          aria-label={$t('Open settings')}
-          onclick={() => navigate('settings')}><Icon name="settings" /></button
-        >
       </div>
     </header>
 
-    <main class:analysis-view={view === 'analysis'} id="main" tabindex="-1" bind:this={workspace}>
+    <main
+      class:analysis-view={view === 'analysis'}
+      id="main"
+      aria-labelledby="page-title"
+      tabindex="-1"
+      bind:this={workspace}
+    >
       <div class="page-head" bind:this={pageHead}>
         <div class="page-title">
           <h1 id="page-title">
@@ -430,12 +435,10 @@
                     : telemetry.scanning
                       ? $t('Scanning')
                       : $t('Live')}</span
-            >{:else}<span class="workspace-caption"
-              >{view === 'guide'
-                ? $t('Task guide')
-                : view === 'analysis' || view === 'reports'
-                  ? $t('Review and share recorded activity')
-                  : $t('Configuration and recorded evidence')}</span
+            >{:else if view !== 'guide'}<span class="workspace-caption"
+              >{view === 'analysis' || view === 'reports'
+                ? $t('Review and share recorded activity')
+                : $t('Configuration and recorded evidence')}</span
             >{/if}
         </div>
         {#if isLiveWorkspace}<div class="page-actions">

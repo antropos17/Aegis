@@ -1297,5 +1297,9 @@
   "Change the review type, choose a profile layout or add an offline report.": "Altere o tipo de análise, escolha um layout de perfil ou adicione um relatório offline.",
   "Ready to review:": "Pronto para analisar:",
   "Choose a folder to begin. Use Review options for inventory, comparison or external reports.": "Escolha uma pasta para começar. Use Opções de análise para inventário, comparação ou relatórios externos.",
-  "Open setup guide": "Abrir guia de configuração"
+  "Open setup guide": "Abrir guia de configuração",
+  "Change review setup": "Alterar configuração da análise",
+  "Change check setup": "Alterar configuração da verificação",
+  "View captured result": "Ver resultado registrado",
+  "Check action configuration": "Verificar configuração da ação"
 }

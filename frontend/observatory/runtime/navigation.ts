@@ -15,7 +15,7 @@ export const workspaces: Workspace[] = [
   {
     id: 'guide',
     label: 'Start here',
-    icon: 'file',
+    icon: 'compass',
     group: 'observe',
     keywords: 'help guide getting started connect setup beginner tasks mcp terminal',
   },
@@ -29,21 +29,21 @@ export const workspaces: Workspace[] = [
   {
     id: 'agents',
     label: 'Agents',
-    icon: 'agents',
+    icon: 'robot',
     group: 'observe',
     keywords: 'process pid agent processes',
   },
   {
     id: 'stats',
     label: 'Statistics',
-    icon: 'chart',
+    icon: 'chartBar',
     group: 'observe',
     keywords: 'performance charts cpu ram graphs statistics task manager',
   },
   {
     id: 'events',
     label: 'Events',
-    icon: 'activity',
+    icon: 'fileSearch',
     group: 'investigate',
     keywords: 'files skills observations events',
   },
@@ -64,42 +64,42 @@ export const workspaces: Workspace[] = [
   {
     id: 'local-security',
     label: 'Local security',
-    icon: 'shield',
+    icon: 'folderSearch',
     group: 'assess',
     keywords: 'local security scan static inventory package skill hooks mcp snapshot changes cisco',
   },
   {
     id: 'action-control',
     label: 'Action control',
-    icon: 'shield',
+    icon: 'route',
     group: 'assess',
     keywords: 'action control coverage policy preflight check mcp catalog allow ask deny',
   },
   {
     id: 'analysis',
     label: 'AI analysis',
-    icon: 'shield',
+    icon: 'brain',
     group: 'assess',
     keywords: 'provider ai assessment analysis',
   },
   {
     id: 'reports',
     label: 'Reports',
-    icon: 'report',
+    icon: 'reportAnalytics',
     group: 'assess',
     keywords: 'export session report reports',
   },
   {
     id: 'rules',
     label: 'Rules & permissions',
-    icon: 'shield',
+    icon: 'adjustments',
     group: 'configure',
     keywords: 'policy access rules permissions',
   },
   {
     id: 'database',
     label: 'Agent catalog',
-    icon: 'database',
+    icon: 'databaseSearch',
     group: 'configure',
     keywords: 'custom recognition catalog',
   },
@@ -130,9 +130,17 @@ export function workspaceCommands(): WorkspaceCommand[] {
 /** Matching destinations, accepting aliases and several words. @param commands Entries @param query Search @returns Matches @since 0.14.1 */
 export function findCommands(commands: WorkspaceCommand[], query: string): WorkspaceCommand[] {
   const words = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
-  return commands.filter((entry) =>
-    words.every((word) =>
-      [entry.label, entry.caption, entry.keywords].join(' ').toLocaleLowerCase().includes(word),
-    ),
-  );
+  const seen = new Set<string>();
+  return commands.filter((entry) => {
+    if (
+      !words.every((word) =>
+        [entry.label, entry.caption, entry.keywords].join(' ').toLocaleLowerCase().includes(word),
+      )
+    )
+      return false;
+    const destination = JSON.stringify([entry.target, entry.section ?? '']);
+    if (seen.has(destination)) return false;
+    seen.add(destination);
+    return true;
+  });
 }

@@ -10,13 +10,46 @@ export async function checkTaskGuide(browser, url, out) {
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const open = async () => {
-    await page.locator('.topbar').getByRole('button', { name: 'Start here', exact: true }).click();
+    await page.locator('.sidebar').getByRole('button', { name: 'Start here', exact: true }).click();
     await page.getByRole('heading', { name: 'What would you like to do?', exact: true }).waitFor();
   };
   try {
     await page.goto(url);
     await page.getByRole('heading', { name: 'Agent radar', exact: true }).waitFor();
     await open();
+    assert.equal(
+      await page.getByRole('button', { name: 'Start here', exact: true }).count(),
+      1,
+      'duplicate permanent guide entry',
+    );
+    await page.waitForFunction(() => document.activeElement === document.querySelector('#main'));
+    const main = page.locator('#main');
+    await main.evaluate((node) => {
+      node.scrollTop = 180;
+    });
+    const savedScroll = await main.evaluate((node) => node.scrollTop);
+    const commandButton = page.getByRole('button', { name: 'Commands', exact: false });
+    await commandButton.click();
+    assert.equal(
+      await page.getByRole('option', { name: /^Check files before use/ }).count(),
+      0,
+      'empty search duplicates task destinations',
+    );
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => document.activeElement?.classList.contains('command-trigger'));
+    assert.equal(
+      await main.evaluate((node) => node.scrollTop),
+      savedScroll,
+      'dismiss changed workspace scroll',
+    );
+    await page.locator('.sidebar').getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.waitForFunction(() => document.activeElement === document.querySelector('#main'));
+    assert.equal(
+      await main.evaluate((node) => node.scrollTop),
+      savedScroll,
+      'history focus reset saved scroll',
+    );
     const guide = page.getByRole('region', { name: 'Task guide', exact: true });
     const summary = guide.locator('summary');
     await summary.focus();
@@ -30,6 +63,7 @@ export async function checkTaskGuide(browser, url, out) {
     await summary.press('Space');
     assert.equal(await guide.locator('details').getAttribute('open'), null);
     await guide.getByRole('button', { name: /^Check files before use/ }).click();
+    await page.waitForFunction(() => document.activeElement === document.querySelector('#main'));
     await page.getByRole('button', { name: 'Show example result', exact: true }).click();
     await page.getByRole('heading', { name: 'Findings need review', exact: true }).waitFor();
     await open();
@@ -45,6 +79,7 @@ export async function checkTaskGuide(browser, url, out) {
     await search.fill('Check files before use');
     await search.press('Enter');
     await page.getByRole('heading', { name: 'Local security', level: 1, exact: true }).waitFor();
+    await page.waitForFunction(() => document.activeElement === document.querySelector('#main'));
     await open();
     for (const theme of ['light', 'dark', 'light-hc', 'dark-hc']) {
       for (const scale of [1, 1.5, 2]) {
@@ -84,7 +119,10 @@ export async function checkTaskGuide(browser, url, out) {
     }
     await page.evaluate(() => localStorage.setItem('aegis.language', 'pt'));
     await page.reload();
-    await page.locator('.topbar').getByRole('button', { name: 'Comece aqui', exact: true }).click();
+    await page
+      .locator('.sidebar')
+      .getByRole('button', { name: 'Comece aqui', exact: true })
+      .click();
     await page.getByRole('heading', { name: 'O que você quer fazer?', exact: true }).waitFor();
     await page.screenshot({ path: resolve(out, 'guide-pt.png') });
     assert.deepEqual(errors, []);
