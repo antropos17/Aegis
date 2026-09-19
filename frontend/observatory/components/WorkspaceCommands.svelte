@@ -31,23 +31,34 @@
     ),
   );
   let trigger: HTMLElement | null = null;
+  let selectedDestination = false;
   $effect(() => {
     if (open && !dialog.open) {
       trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      selectedDestination = false;
       query = '';
       active = 0;
       dialog.showModal();
       void tick().then(() => input.focus());
     } else if (!open && dialog.open) {
       dialog.close();
-      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+      if (!selectedDestination && trigger?.isConnected && !trigger.closest('[hidden], [inert]'))
+        trigger.focus({ preventScroll: true });
     }
   });
+  function dismiss() {
+    selectedDestination = false;
+    close();
+  }
+  function select(entry: WorkspaceCommand) {
+    selectedDestination = true;
+    void choose(entry);
+  }
   function move(event: KeyboardEvent) {
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
-      close();
+      dismiss();
     } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       active =
@@ -56,7 +67,7 @@
       document.getElementById('command-result-' + active)?.scrollIntoView({ block: 'nearest' });
     } else if (event.key === 'Enter' && filtered[active]) {
       event.preventDefault();
-      void choose(filtered[active]);
+      select(filtered[active]);
     }
   }
 </script>
@@ -66,13 +77,17 @@
   class="command-panel workspace-command-panel"
   aria-labelledby="command-title"
   onclose={close}
+  oncancel={(event) => {
+    event.preventDefault();
+    dismiss();
+  }}
 >
   <div class="command-head">
     <div>
       <h2 id="command-title">{$t('Go to workspace or section')}</h2>
       <p>{$t('Find related information without leaving a trail of open tabs.')}</p>
     </div>
-    <button class="icon-button" aria-label={$t('Close commands')} onclick={close}
+    <button class="icon-button" aria-label={$t('Close commands')} onclick={dismiss}
       ><Icon name="close" /></button
     >
   </div>
@@ -100,7 +115,7 @@
         id={'command-result-' + index}
         aria-selected={index === active}
         class="command-result"
-        onclick={() => choose(entry)}
+        onclick={() => select(entry)}
       >
         <span><strong>{entry.label}</strong><small>{entry.caption}</small></span><Icon
           name="chevron"

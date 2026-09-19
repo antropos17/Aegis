@@ -100,6 +100,7 @@
       "src/main/**/*",
       "src/shared/**/*",
       "dist/renderer/**/*",
+      "frontend/observatory/vendor/tabler-icons.LICENSE",
       "rules/**/*",
       "assets/icon.png",
       "package.json"

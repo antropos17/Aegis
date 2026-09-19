@@ -1,5 +1,26 @@
 # AEGIS Observatory
 
+## Icon and interaction audit — 19 September 2026
+
+The requested audit replaces ambiguous repeated navigation symbols with fourteen
+distinct, curated Tabler outline shapes. Their path geometry is pinned to upstream
+source with hashes and an MIT notice; no network request or external SVG markup is
+used at runtime. Task links reuse the symbol of their destination. Existing fonts,
+neutral palette, semantic status colors and stationary controls remain unchanged.
+
+Start here and Settings keep their permanent sidebar entries; duplicate toolbar
+buttons are removed. The guide's repeated page caption is omitted. Command search
+matches task aliases but shows each workspace/section destination once, preserving
+specific section priorities. Selecting a destination closes Commands without
+restoring its old trigger; navigation focuses the destination main region without
+changing the restored scroll. Dismissing Commands restores a visible trigger.
+
+Captured file/action results precede setup in DOM and visual order. Explicit
+controls move between captured evidence and setup; receiving a result never
+automatically collapses the form or transfers focus. Catalog decisions precede
+technical metadata. Hidden retained workspaces cannot receive deferred evidence
+focus. Context help stays below observed activity and has one all-tasks link.
+
 ## Guided workflows — 19 September 2026
 
 The requested usability pass adds Start here to the toolbar and navigation without

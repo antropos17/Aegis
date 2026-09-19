@@ -1,0 +1,95 @@
+{
+  "project": "Tabler Icons",
+  "upstream": "https://github.com/tabler/tabler-icons",
+  "revision": "87e7c390fb4ec332ccad0bde25160b233241eb8f",
+  "license": "MIT",
+  "licenseUrl": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/LICENSE",
+  "licenseSha256": "b740a1d46122672da62833e97f7e7c8a13fa85cbc7445b584b297cc00dde93db",
+  "adaptation": "Only original outline path d values retained. SVG wrappers and metadata removed; shared AEGIS icon CSS controls size, stroke and color. No geometry redrawn.",
+  "icons": [
+    {
+      "key": "compass",
+      "name": "compass",
+      "url": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/icons/outline/compass.svg",
+      "sha256": "eafd654df183a65093927782834e3900cdb7c5d4d8b898fe25ef15bb06dee8a8"
+    },
+    {
+      "key": "radar",
+      "name": "radar",
+      "url": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/icons/outline/radar.svg",
+      "sha256": "f64ee9e6ed3539c61037fef35615f99f64c0193a70a0cb253c2bfcce3056d9c9"
+    },
+    {
+      "key": "robot",
+      "name": "robot",
+      "url": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/icons/outline/robot.svg",
+      "sha256": "d1dbd329f869a168699a632f5469a42d4d1dca5b972e2c1fbf9572faefb9a991"
+    },
+    {
+      "key": "chartBar",
+      "name": "chart-bar",
+      "url": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/icons/outline/chart-bar.svg",
+      "sha256": "5fbe60a66fbebaf0a06d4b5bede3af05301d9f580c4f8f7bd65a39077389e4ae"
+    },
+    {
+      "key": "fileSearch",
+      "name": "file-search",
+      "url": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/icons/outline/file-search.svg",
+      "sha256": "77360cb9f4b63343db5428a418eaaf30dd903e3e41f4510a4cf57780e4a0de7e"
+    },
+    {
+      "key": "network",
+      "name": "network",
+      "url": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/icons/outline/network.svg",
+      "sha256": "bc5ca95d7c1fdfb98dfb0cc91c87f3e2faccd9e8263c6d28f19120cd0fde8b3d"
+    },
+    {
+      "key": "history",
+      "name": "history",
+      "url": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/icons/outline/history.svg",
+      "sha256": "0db058f1c196fb1a515998e5814168df3d5300fce746ed90fcf5d7227a0b594d"
+    },
+    {
+      "key": "folderSearch",
+      "name": "folder-search",
+      "url": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/icons/outline/folder-search.svg",
+      "sha256": "15d2e57df139ad02af07aa7bfe002e795a370f594e839f8814ad77701b4b2b85"
+    },
+    {
+      "key": "route",
+      "name": "route",
+      "url": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/icons/outline/route.svg",
+      "sha256": "3f6c02674686366d6c6a4753f4428062da544a046edef644d29061f218201cb4"
+    },
+    {
+      "key": "brain",
+      "name": "brain",
+      "url": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/icons/outline/brain.svg",
+      "sha256": "0517f8f1cd2b0780bc4101252db226f529d86115a598ec79babb3bdf596d3ecd"
+    },
+    {
+      "key": "reportAnalytics",
+      "name": "report-analytics",
+      "url": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/icons/outline/report-analytics.svg",
+      "sha256": "d58847492f890b8beedc7eff543860219e0f382e46d2c2695107d64ae434b9ba"
+    },
+    {
+      "key": "adjustments",
+      "name": "adjustments-horizontal",
+      "url": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/icons/outline/adjustments-horizontal.svg",
+      "sha256": "66b3be63d0ae4f75c6707ac802ef2bad9eb5f9c0af9ab77c7a1f9c7f1694a178"
+    },
+    {
+      "key": "databaseSearch",
+      "name": "database-search",
+      "url": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/icons/outline/database-search.svg",
+      "sha256": "143f23cedafe4966bebf9c1cf997ca05f411ded8489a562554f3b2908069aba0"
+    },
+    {
+      "key": "settings",
+      "name": "settings",
+      "url": "https://raw.githubusercontent.com/tabler/tabler-icons/87e7c390fb4ec332ccad0bde25160b233241eb8f/icons/outline/settings.svg",
+      "sha256": "d71136dfd83ad19efe1777d01768a5d23d7b295de5dde3b1fccc50806809a423"
+    }
+  ]
+}

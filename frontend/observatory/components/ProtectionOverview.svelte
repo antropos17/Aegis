@@ -75,12 +75,14 @@
     selected = item;
     selectionOrigin = button;
     await tick();
+    if (!selectionHeading?.isConnected || selectionHeading.closest('[hidden], [inert]')) return;
     selectionHeading?.focus({ preventScroll: true });
     selectionHeading?.scrollIntoView?.({ block: 'nearest' });
   }
   function closeDetails() {
     selected = null;
-    selectionOrigin?.focus();
+    if (selectionOrigin?.isConnected && !selectionOrigin.closest('[hidden], [inert]'))
+      selectionOrigin.focus({ preventScroll: true });
   }
 </script>
 
@@ -143,15 +145,6 @@
   </div>
   <details class="help">
     <summary><Icon name="shield" />{$t('New to AEGIS? Start here')}</summary>
-    <div class="help-actions">
-      <button class="button" onclick={() => navigate('local-security')}
-        >{$t('Check files before use')}</button
-      >
-      <button class="button" onclick={() => navigate('action-control')}
-        >{$t('Check an action setup')}</button
-      >
-      <button class="button" onclick={() => navigate('guide')}>{$t('Explore all tasks')}</button>
-    </div>
     <div class="help-grid">
       <p>
         <strong>{$t('1. Check the action')}</strong>{$t(
@@ -168,6 +161,9 @@
           'Open the evidence or the agent’s controls. Saving “Block” records a preference; automatic file and network blocking is not implemented.',
         )}
       </p>
+    </div>
+    <div class="help-actions">
+      <button class="button" onclick={() => navigate('guide')}>{$t('Explore all tasks')}</button>
     </div>
   </details>
 </section>

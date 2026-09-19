@@ -1,4 +1,7 @@
-/** Fixed Observatory vector elements. Host strings never become markup. */
+import { tablerPaths } from '../vendor/tabler-icons';
+
+/** Fixed Observatory vector elements. Host strings never become markup.
+ * Curated navigation geometry comes from the licensed Tabler outline subset. */
 export const icons: Record<string, { tag: string; attrs: Record<string, string> }[]> = {
   arrowLeft: [{ tag: 'path', attrs: { d: 'm15 5-7 7 7 7' } }],
   terminal: [{ tag: 'path', attrs: { d: 'm4 6 5 6-5 6m8 0h8' } }],
@@ -20,11 +23,6 @@ export const icons: Record<string, { tag: string; attrs: Record<string, string> 
   ],
   edit: [{ tag: 'path', attrs: { d: 'm16 3 5 5-12 12-6 1 1-6L16 3Zm-2 2 5 5' } }],
   sort: [{ tag: 'path', attrs: { d: 'M8 3v18m-4-4 4 4 4-4M16 21V3m-4 4 4-4 4 4' } }],
-  radar: [
-    { tag: 'path', attrs: { d: 'M12 3a9 9 0 1 0 9 9M12 7a5 5 0 1 0 5 5M12 12l7-7' } },
-    { tag: 'circle', attrs: { cx: '12', cy: '12', r: '1', fill: 'currentColor', stroke: 'none' } },
-    { tag: 'circle', attrs: { cx: '6', cy: '16', r: '1', fill: 'currentColor', stroke: 'none' } },
-  ],
   agents: [
     { tag: 'rect', attrs: { x: '3', y: '3', width: '7', height: '7', rx: '1' } },
     { tag: 'rect', attrs: { x: '14', y: '3', width: '7', height: '7', rx: '1' } },
@@ -32,12 +30,6 @@ export const icons: Record<string, { tag: string; attrs: Record<string, string> 
     { tag: 'rect', attrs: { x: '14', y: '14', width: '7', height: '7', rx: '1' } },
   ],
   activity: [{ tag: 'path', attrs: { d: 'M2 12h4l3-8 6 16 3-8h4' } }],
-  network: [
-    { tag: 'circle', attrs: { cx: '12', cy: '5', r: '3' } },
-    { tag: 'circle', attrs: { cx: '5', cy: '18', r: '3' } },
-    { tag: 'circle', attrs: { cx: '19', cy: '18', r: '3' } },
-    { tag: 'path', attrs: { d: 'm10 8-4 7m8-7 4 7M8 18h8' } },
-  ],
   shield: [
     { tag: 'path', attrs: { d: 'm12 2 9 4v6c0 5-9 10-9 10S3 17 3 12V6Z' } },
     { tag: 'path', attrs: { d: 'm8 12 3 3 5-6' } },
@@ -47,13 +39,7 @@ export const icons: Record<string, { tag: string; attrs: Record<string, string> 
     { tag: 'path', attrs: { d: 'M3 5v14c0 4 18 4 18 0V5M3 12c0 4 18 4 18 0' } },
   ],
   report: [{ tag: 'path', attrs: { d: 'M5 2h10l4 4v16H5ZM9 10h6m-6 4h6m-6 4h4' } }],
-  history: [{ tag: 'path', attrs: { d: 'M3 11a9 9 0 1 1 2 7M3 4v7h7m2-5v6l4 2' } }],
   chart: [{ tag: 'path', attrs: { d: 'M3 3v18h18M7 16v-5m5 5V6m5 10V9' } }],
-  settings: [
-    { tag: 'path', attrs: { d: 'M4 7h16M4 17h16' } },
-    { tag: 'circle', attrs: { cx: '9', cy: '7', r: '3' } },
-    { tag: 'circle', attrs: { cx: '16', cy: '17', r: '3' } },
-  ],
   monitor: [
     { tag: 'rect', attrs: { x: '2', y: '3', width: '20', height: '14', rx: '2' } },
     { tag: 'path', attrs: { d: 'M8 21h8m-4-4v4' } },
@@ -143,4 +129,10 @@ export const icons: Record<string, { tag: string; attrs: Record<string, string> 
   bell: [{ tag: 'path', attrs: { d: 'M5 17V9a7 7 0 0 1 14 0v8l2 2H3Zm5 5h4' } }],
   spark: [{ tag: 'path', attrs: { d: 'm12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z' } }],
   trash: [{ tag: 'path', attrs: { d: 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7' } }],
+  ...Object.fromEntries(
+    Object.entries(tablerPaths).map(([name, paths]) => [
+      name,
+      paths.map((d) => ({ tag: 'path', attrs: { d } })),
+    ]),
+  ),
 };

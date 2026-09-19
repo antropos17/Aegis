@@ -38,6 +38,22 @@ export async function checkLocalSecurity(browser, url, out) {
     assert(await page.getByText('Incomplete coverage', { exact: true }).isVisible());
     assert(await page.getByRole('button', { name: 'Export JSON' }).isDisabled());
     const results = page.getByRole('region', { name: 'Local review results' });
+    await page.getByRole('button', { name: 'View captured result', exact: true }).click();
+    assert(await results.evaluate((element) => element === document.activeElement));
+    assert(
+      await results.evaluate((element) =>
+        Boolean(
+          element.compareDocumentPosition(document.querySelector('.review-setup')) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+        ),
+      ),
+    );
+    await page.getByRole('button', { name: 'Change review setup', exact: true }).click();
+    assert(
+      await page
+        .getByRole('button', { name: 'Show example result' })
+        .evaluate((element) => element === document.activeElement),
+    );
     await page.getByRole('button', { name: 'Review findings', exact: true }).click();
     assert.equal(
       await page.getByRole('tab', { name: /Findings/ }).getAttribute('aria-selected'),

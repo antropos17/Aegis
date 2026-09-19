@@ -11,65 +11,75 @@ export const guidedTasks = [
     title: 'Check files before use',
     description:
       'Review a project or skill, inspect its contents, or compare it with a saved snapshot.',
-    icon: 'file',
+    icon: 'folderSearch',
   },
   {
     target: 'action-control',
     title: 'Check an action setup',
     description: 'See how a selected action matches a policy before connecting it to an agent.',
-    icon: 'shield',
+    icon: 'route',
   },
 ];
 
 export const moreTasks = [
   {
     target: 'agents',
+    icon: 'robot',
     title: 'Inspect an agent',
     description: 'Open its processes, activity and available controls.',
   },
   {
     target: 'events',
+    icon: 'fileSearch',
     title: 'Review file activity',
     description: 'Find observed file access and its recorded source.',
   },
   {
     target: 'network',
+    icon: 'network',
     title: 'Review connections',
     description: 'Inspect observed network endpoints and attribution.',
   },
   {
     target: 'stats',
+    icon: 'chartBar',
     title: 'Understand resource use',
     description: 'Compare CPU, memory, recorded tokens and sensor health.',
   },
   {
     target: 'analysis',
+    icon: 'brain',
     title: 'Ask for an AI assessment',
     description: 'Configure a provider and review the evidence sent for analysis.',
   },
   {
     target: 'rules',
+    icon: 'adjustments',
     title: 'Manage rules and preferences',
     description:
       'Edit detection rules and saved access preferences. Saved preferences do not block access.',
   },
   {
     target: 'database',
+    icon: 'databaseSearch',
     title: 'Recognize another agent',
     description: 'Manage detection signatures in the agent catalog.',
   },
   {
     target: 'reports',
+    icon: 'reportAnalytics',
     title: 'Export a report',
     description: 'Share recorded activity with its scope and limitations.',
   },
   {
     target: 'audit',
+    icon: 'history',
     title: 'Review audit history',
     description: 'Inspect recorded decisions, related events and evidence.',
   },
   {
     target: 'settings',
+    icon: 'settings',
     title: 'Adjust AEGIS',
     description: 'Change language, appearance, monitoring and data settings.',
   },

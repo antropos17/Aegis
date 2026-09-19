@@ -10,6 +10,52 @@ it('finds destinations through English aliases and several search words', () => 
   expect(findCommands(workspaceCommands(), 'never-existing-destination')).toEqual([]);
 });
 
+it('shows one result per destination while retaining aliases and section shortcuts', () => {
+  const entries = [
+    { id: 'settings', target: 'settings', label: 'Settings', caption: '', keywords: 'preferences' },
+    {
+      id: 'appearance',
+      target: 'settings',
+      section: 'appearance',
+      label: 'Appearance',
+      caption: '',
+      keywords: 'theme',
+    },
+    {
+      id: 'task-settings',
+      target: 'settings',
+      label: 'Adjust AEGIS',
+      caption: 'Change appearance',
+      keywords: 'personalize',
+    },
+  ];
+  expect(findCommands(entries, '').map((entry) => entry.id)).toEqual(['settings', 'appearance']);
+  expect(findCommands(entries, 'personalize').map((entry) => entry.id)).toEqual(['task-settings']);
+  expect(findCommands(entries, 'appearance')[0].section).toBe('appearance');
+});
+
+it('does not restore the old trigger when a chosen destination owns focus', async () => {
+  const trigger = document.createElement('button');
+  const destination = document.createElement('button');
+  document.body.append(trigger, destination);
+  trigger.focus();
+  const mounted = render(WorkspaceCommands, {
+    open: true,
+    close: vi.fn(),
+    entries: workspaceCommands(),
+    choose: vi.fn(),
+  });
+  const input = await screen.findByRole('combobox');
+  await waitFor(() => expect(input).toHaveFocus());
+  await fireEvent.input(input, { target: { value: 'statistics' } });
+  await fireEvent.keyDown(input, { key: 'Enter' });
+  destination.focus();
+  await mounted.rerender({ open: false });
+  expect(destination).toHaveFocus();
+  trigger.remove();
+  destination.remove();
+});
+
 it('opens a searched command from the keyboard and restores focus on close', async () => {
   const trigger = document.createElement('button');
   document.body.append(trigger);

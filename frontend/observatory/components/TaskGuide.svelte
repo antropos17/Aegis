@@ -72,6 +72,7 @@
     <div class="task-list">
       {#each moreTasks as task (task.target)}
         <button class="task-row" onclick={() => navigate(task.target)}>
+          <Icon name={task.icon} />
           <span><strong>{$t(task.title)}</strong><small>{$t(task.description)}</small></span>
           <Icon name="chevron" />
         </button>
@@ -216,6 +217,7 @@
   }
   .task-row span {
     min-width: 0;
+    flex: 1;
   }
   .task-row small {
     display: block;

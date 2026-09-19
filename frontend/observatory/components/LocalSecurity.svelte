@@ -97,6 +97,21 @@
 </script>
 
 <div class="local-security-workspace">
+  {#if result}
+    <button
+      class="button setup-link"
+      onclick={() => document.getElementById(prefix + '-run')?.focus()}
+      >{$t('Change review setup')}</button
+    >
+    {#key result.id}<LocalSecurityResults
+        review={result}
+        {pending}
+        {preview}
+        {savedAcceptance}
+        action={run}
+      />{/key}
+  {/if}
+
   <section class="panel review-setup" aria-label={$t('Local review setup')}>
     <div class="setup-title">
       <Icon name="shield" />
@@ -177,7 +192,16 @@
       {$t(reviewAdapters.find((item) => item.id === adapter)?.label ?? '')}
     </p>
     <div class="run-row">
+      {#if result}<button
+          class="button"
+          onclick={(event) =>
+            event.currentTarget
+              .closest('.local-security-workspace')
+              ?.querySelector<HTMLElement>('.review-output')
+              ?.focus()}>{$t('View captured result')}</button
+        >{/if}
       <button
+        id={prefix + '-run'}
         class="button primary"
         disabled={pending || !available}
         aria-busy={pending}
@@ -208,14 +232,7 @@
         </p>{/if}
     </div>
   </section>
-  {#if result}{#key result.id}<LocalSecurityResults
-        review={result}
-        {pending}
-        {preview}
-        {savedAcceptance}
-        action={run}
-      />{/key}
-  {:else}<section class="panel review-empty">
+  {#if !result}<section class="panel review-empty">
       <Icon name="file" />
       <h2>{$t('No local review yet')}</h2>
       <p>
