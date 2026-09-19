@@ -1,10 +1,10 @@
 /**
  * @file tray-icon.js
  * @module main/tray-icon
- * @description System-tray shield icon generation (procedural PNG),
+ * @description System-tray Observatory shield artwork,
  *   colour-coded threat updates, tray context menu, and native notifications.
  * @requires electron
- * @requires zlib
+ * @requires fs
  * @requires path
  * @author AEGIS Contributors
  * @license MIT
@@ -12,7 +12,7 @@
  */
 'use strict';
 const { Tray, Menu, Notification, nativeImage } = require('electron');
-const zlib = require('zlib');
+const fs = require('fs');
 const path = require('path');
 const { UNKNOWN_SOURCE_LABEL } = require('./attribution');
 
@@ -22,7 +22,7 @@ let lastTooltip = null;
 let lastMenu = null;
 
 /**
- * @param {Object} state - shared refs (tray, currentTrayColor, lastNotificationTime, getSensitiveCount, getSettings, isMonitoringPaused, setMonitoringPaused, stopScanIntervals, startScanIntervals, getMainWindow, setIsQuitting, appQuit)
+ * @param {Object} state - shared refs (tray, currentTrayColor, lastNotificationTime, getSensitiveCount, getSettings, isMonitoringPaused, setMonitoringPaused, stopScanIntervals, startScanIntervals, openWindow, setIsQuitting, appQuit)
  * @returns {void} @since v0.1.0
  */
 function init(state) {
@@ -31,74 +31,18 @@ function init(state) {
   lastMenu = null;
 }
 
-function crc32(buf) {
-  let crc = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) {
-    crc ^= buf[i];
-    for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-function pngChunk(type, data) {
-  const typeBytes = Buffer.from(type);
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(data.length);
-  const body = Buffer.concat([typeBytes, data]);
-  const crcBuf = Buffer.alloc(4);
-  crcBuf.writeUInt32BE(crc32(body));
-  return Buffer.concat([len, body, crcBuf]);
-}
-
 /**
- * @param {string} color - 'green' | 'yellow' | 'red'
- * @returns {Electron.NativeImage}
- * @since v0.1.0
+ * Load the Observatory shield with its existing semantic status marker.
+ * @param {string} color Green, yellow or red status.
+ * @returns {Electron.NativeImage} A 32px image for native tray scaling.
+ * @since v0.15.0
  */
 function createTrayIconImage(color) {
-  const [r, g, b] = TRAY_COLORS[color] || TRAY_COLORS.green;
-  const w = 16,
-    h = 16,
-    raw = Buffer.alloc(h * (1 + w * 4));
-  for (let y = 0; y < h; y++) {
-    const rowOff = y * (1 + w * 4);
-    raw[rowOff] = 0;
-    const ny = y / 15;
-    let hw;
-    if (ny < 0.07) hw = 0;
-    else if (ny < 0.3) hw = 3 + ((ny - 0.07) / 0.23) * 3;
-    else if (ny < 0.5) hw = 6;
-    else if (ny < 0.93) {
-      const t = (ny - 0.5) / 0.43;
-      hw = 6 * (1 - t * t);
-    } else hw = 0;
-    for (let x = 0; x < w; x++) {
-      const px = rowOff + 1 + x * 4,
-        dist = Math.abs(x - 7.5) - hw;
-      if (dist < 0.5 && hw > 0) {
-        const alpha = dist < -0.5 ? 255 : Math.round(255 * (0.5 - dist));
-        raw[px] = r;
-        raw[px + 1] = g;
-        raw[px + 2] = b;
-        raw[px + 3] = alpha;
-      }
-    }
-  }
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(w, 0);
-  ihdr.writeUInt32BE(h, 4);
-  ihdr[8] = 8;
-  ihdr[9] = 6;
+  const key = Object.hasOwn(TRAY_COLORS, color) ? color : 'green';
   return nativeImage.createFromBuffer(
-    Buffer.concat([
-      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-      pngChunk('IHDR', ihdr),
-      pngChunk('IDAT', zlib.deflateSync(raw)),
-      pngChunk('IEND', Buffer.alloc(0)),
-    ]),
+    fs.readFileSync(path.join(__dirname, '..', '..', 'assets', `tray-${key}.png`)),
   );
 }
-
 /** @param {number} n @returns {string} @since v0.1.0 */
 function getTrayThreatColor(n) {
   return n >= 6 ? 'red' : n >= 1 ? 'yellow' : 'green';
@@ -162,14 +106,9 @@ function rebuildTrayMenu() {
   _state.tray.setContextMenu(
     Menu.buildFromTemplate([
       {
-        label: 'Show Dashboard',
-        click: () => {
-          const mw = _state.getMainWindow();
-          if (mw) {
-            mw.show();
-            mw.focus();
-          }
-        },
+        id: 'open',
+        label: 'Open AEGIS',
+        click: () => _state.openWindow(),
       },
       {
         label: `${agentCount} active agents`,
@@ -177,6 +116,7 @@ function rebuildTrayMenu() {
       },
       { type: 'separator' },
       {
+        id: 'monitoring',
         label: paused ? 'Resume Monitoring' : 'Pause Monitoring',
         click: () => {
           const p = !_state.isMonitoringPaused();
@@ -187,8 +127,10 @@ function rebuildTrayMenu() {
           updateTrayIcon();
         },
       },
+      { id: 'settings', label: 'Settings', click: () => _state.openWindow('settings') },
       { type: 'separator' },
       {
+        id: 'quit',
         label: 'Quit',
         click: () => {
           _state.setIsQuitting(true);
@@ -209,13 +151,7 @@ function createTray() {
   tray.setToolTip('AEGIS \u2014 Clear | 0 agents | 0 sensitive alerts');
   _state.tray = tray;
   rebuildTrayMenu();
-  tray.on('double-click', () => {
-    const mw = _state.getMainWindow();
-    if (mw) {
-      mw.show();
-      mw.focus();
-    }
-  });
+  tray.on('double-click', () => _state.openWindow());
   return tray;
 }
 

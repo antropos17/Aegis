@@ -60,7 +60,7 @@ Patch SHA256 verified; frontend contents match prepared worktree. Main checkout 
 
 ## Transfer matrix
 
-All 55 preload methods; the original transfer matrix is extended with the Local security review channel. Payloads, destination and evidence are filled as each path is implemented.
+All 56 preload methods; the original transfer matrix is extended with Local security review and desktop navigation. Payloads, destination and evidence are filled as each path is implemented.
 
 | Method | Existing consumers | Observatory destination | Evidence/status |
 | --- | --- | --- | --- |
@@ -88,6 +88,7 @@ All 55 preload methods; the original transfer matrix is extended with the Local 
 | onStatsUpdate | lib/stores/ipc.ts | `host.ts` | Implemented; host/component tests and Electron workspace smoke |
 | onNetworkUpdate | lib/stores/ipc.ts | `host.ts` | Implemented; host/component tests and Electron workspace smoke |
 | onToggleTheme | App.svelte | `App.svelte` | Implemented; host/component tests and Electron workspace smoke |
+| onNavigateView | Native tray menu | `App.svelte` | Settings destination; preload/component tests and native tray smoke |
 | getAgentDatabase | lib/components/AgentDatabaseCrud.svelte | `Catalog.svelte` | Implemented; host/component tests and Electron workspace smoke |
 | killProcess | App.svelte, lib/components/AgentCard.svelte, lib/components/PidList.svelte, lib/stores/ipc.ts | `Details.svelte` | Implemented; host/component tests and Electron workspace smoke |
 | suspendProcess | App.svelte, lib/components/AgentCard.svelte, lib/components/PidList.svelte, lib/stores/ipc.ts | `Details.svelte` | Implemented; host/component tests and Electron workspace smoke |

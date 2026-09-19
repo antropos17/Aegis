@@ -44,7 +44,7 @@ AEGIS is an **Independent AI Oversight Layer** for local agent processes, file a
 │  └───────────────┬──────────────┘     └──────────────┬───────────────┘  │
 │                  │          preload.js                │                  │
 │                  └─────── (IPC bridge) ───────────────┘                  │
-│              contextBridge API (55 channels: 45 invoke + 10 push)        │
+│              contextBridge API (56 channels: 45 invoke + 11 push)        │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -241,7 +241,7 @@ there is no fire-and-forget path from the renderer.
 
 ### Push (Main → Renderer)
 
-The 10 push channels below are subscribed via `ipcRenderer.on` in `preload.js`.
+The 11 push channels below are subscribed via `ipcRenderer.on` in `preload.js`.
 
 | Channel | Purpose |
 |---|---|
@@ -253,7 +253,8 @@ The 10 push channels below are subscribed via `ipcRenderer.on` in `preload.js`.
 | `token-costs` | Per-agent token usage and cost estimates |
 | `scan-status` | Scanner state (scanning/idle) |
 | `rules:reloaded` | Rule hot-reload landed, with the new count |
-| `toggle-theme` | Theme toggle from the tray menu |
+| `toggle-theme` | Theme toggle from the global shortcut |
+| `navigate-view` | Open Settings from the native tray menu |
 | `updates:status` | Safe display state for update status, progress and available actions |
 
 ## Extension Points
