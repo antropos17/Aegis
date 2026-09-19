@@ -270,6 +270,13 @@
     const unsubscribe = host?.onToggleTheme
       ? Reflect.apply(host.onToggleTheme, host, [toggleTheme])
       : undefined;
+    const stopNavigation = host?.onNavigateView
+      ? Reflect.apply(host.onNavigateView, host, [
+          (view: unknown) => {
+            if (typeof view === 'string' && view === 'settings') void navigate(view);
+          },
+        ])
+      : undefined;
     invoke(host, 'getAppVersion')
       .then((value) => {
         if (alive) version = String(value);
@@ -293,6 +300,7 @@
       headObserver?.disconnect();
       stop();
       if (typeof unsubscribe === 'function') unsubscribe();
+      if (typeof stopNavigation === 'function') stopNavigation();
     };
   });
   function keydown(event: KeyboardEvent) {

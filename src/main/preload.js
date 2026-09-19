@@ -56,6 +56,13 @@ contextBridge.exposeInMainWorld('aegis', {
     return () => ipcRenderer.removeListener('toggle-theme', handler);
   },
   getAgentDatabase: () => ipcRenderer.invoke('get-agent-database'),
+  onNavigateView: (cb) => {
+    const handler = (_e, view) => {
+      if (view === 'settings') cb(view);
+    };
+    ipcRenderer.on('navigate-view', handler);
+    return () => ipcRenderer.removeListener('navigate-view', handler);
+  },
   killProcess: (pid) => ipcRenderer.invoke('kill-process', pid),
   suspendProcess: (pid) => ipcRenderer.invoke('suspend-process', pid),
   resumeProcess: (pid) => ipcRenderer.invoke('resume-process', pid),

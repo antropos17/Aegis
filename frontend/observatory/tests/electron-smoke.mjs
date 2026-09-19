@@ -119,8 +119,8 @@ try {
     return { agents: stats.currentAgents, health: stats.appHealth, gap: stats.observationGap };
   });
   const methods = await window.evaluate(() => Object.keys(window.aegis));
-  // Current bridge: 45 invoke methods + 10 subscriptions, including Local security.
-  assert.equal(methods.length, 55);
+  // Current bridge: 45 invoke methods + 11 subscriptions, including Local security.
+  assert.equal(methods.length, 56);
   assert(methods.includes('localSecurityReview'));
   for (const name of [
     'Agents',

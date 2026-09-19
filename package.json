@@ -57,7 +57,7 @@
     "beforeBuild": "scripts/electron-builder-before-build.js",
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.png",
+      "icon": "assets/icon.ico",
       "extraResources": [
         {
           "from": "build/sidecar",
@@ -103,6 +103,8 @@
       "frontend/observatory/vendor/tabler-icons.LICENSE",
       "rules/**/*",
       "assets/icon.png",
+      "assets/icon.ico",
+      "assets/tray-*.png",
       "package.json"
     ],
     "extraMetadata": {

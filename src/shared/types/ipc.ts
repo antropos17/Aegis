@@ -64,6 +64,7 @@ export type IpcEventChannel =
   | 'stats-update'
   | 'network-update'
   | 'toggle-theme'
+  | 'navigate-view'
   | 'scan-batch'
   | 'scan-status'
   /** Per-agent CPU/RAM/GPU records, keyed by `instanceId`. NOT AEGIS's own load. */

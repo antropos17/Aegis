@@ -77,6 +77,7 @@ describe('tray-icon', () => {
         },
       setIsQuitting: vi.fn(),
       appQuit: vi.fn(),
+      openWindow: vi.fn(),
     };
     tray.init(state);
     return state;
@@ -265,6 +266,39 @@ describe('tray-icon', () => {
   });
 
   describe('rebuildTrayMenu', () => {
+    it('opens settings, toggles monitoring both ways and quits through the existing lifecycle', () => {
+      const state = initTray();
+      let paused = false;
+      state.isMonitoringPaused = () => paused;
+      state.setMonitoringPaused.mockImplementation((value) => {
+        paused = value;
+      });
+      tray.createTray();
+      const menu = () => mockBuildFromTemplate.mock.calls.at(-1)[0];
+      const click = (id) =>
+        menu()
+          .find((item) => item.id === id)
+          .click();
+      click('open');
+      click('settings');
+      expect(state.openWindow.mock.calls).toEqual([[], ['settings']]);
+      const doubleClick = mockTrayInstance.on.mock.calls.find(
+        ([name]) => name === 'double-click',
+      )[1];
+      doubleClick();
+      expect(state.openWindow).toHaveBeenLastCalledWith();
+      click('monitoring');
+      expect(paused).toBe(true);
+      expect(state.stopScanIntervals).toHaveBeenCalledTimes(1);
+      expect(menu().find((item) => item.id === 'monitoring').label).toBe('Resume Monitoring');
+      click('monitoring');
+      expect(paused).toBe(false);
+      expect(state.startScanIntervals).toHaveBeenCalledTimes(1);
+      expect(menu().find((item) => item.id === 'monitoring').label).toBe('Pause Monitoring');
+      click('quit');
+      expect(state.setIsQuitting).toHaveBeenCalledWith(true);
+      expect(state.appQuit).toHaveBeenCalledTimes(1);
+    });
     it('does nothing when no tray exists', () => {
       const state = initTray();
       state.tray = null;
@@ -277,7 +311,7 @@ describe('tray-icon', () => {
       tray.rebuildTrayMenu();
       expect(mockBuildFromTemplate).toHaveBeenCalled();
       const template = mockBuildFromTemplate.mock.calls[0][0];
-      expect(template.some((item) => item.label === 'Show Dashboard')).toBe(true);
+      expect(template.some((item) => item.label === 'Open AEGIS')).toBe(true);
       expect(template.some((item) => item.label === 'Pause Monitoring')).toBe(true);
       expect(template.some((item) => item.label === 'Quit')).toBe(true);
     });

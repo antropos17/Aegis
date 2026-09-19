@@ -97,6 +97,11 @@ if (process.platform === 'darwin') {
 // ═══ CRITICAL (needed before ready-to-show) ═══
 const config = require('./config-manager');
 const logger = require('./logger');
+const desktopShell = require('./platform/desktop-shell').createDesktopShell({
+  app,
+  platform: process.platform,
+  appId: require('../../package.json').build.appId,
+});
 const tray = require('./tray-icon');
 const ipc = require('./ipc-handlers');
 let updates;
@@ -459,7 +464,13 @@ function createWindow() {
     minHeight: 600,
     show: false,
     title: 'Aegis',
-    icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
+    icon: path.join(
+      __dirname,
+      '..',
+      '..',
+      'assets',
+      process.platform === 'win32' ? 'icon.ico' : 'icon.png',
+    ),
     backgroundColor: '#050507',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -480,6 +491,7 @@ function createWindow() {
       },
     });
   });
+  desktopShell.attach(mainWindow);
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
   if (devServerUrl) {
     mainWindow.loadURL(devServerUrl);
@@ -517,13 +529,7 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-    }
-  });
+  app.on('second-instance', () => desktopShell.open());
 }
 
 // ═══ LIFECYCLE ═══
@@ -902,12 +908,14 @@ app.whenReady().then(() => {
       }
     },
     getMainWindow: () => mainWindow,
+    openWindow: (view) => desktopShell.open(view),
     setIsQuitting: (v) => {
       isQuitting = v;
     },
     appQuit: () => app.quit(),
     getAgentCount: () => latestAgents.length,
   });
+  desktopShell.configureIdentity();
   createWindow();
   etwFile = require('./platform/etw-file-runtime').createRuntime({
     app,
@@ -953,7 +961,7 @@ app.whenReady().then(() => {
   ipc.register();
   const settings = config.getSettings();
   mainWindow.once('ready-to-show', () => {
-    if (!settings.startMinimized) mainWindow.show();
+    if (!settings.startMinimized || desktopShell.wasRequested()) mainWindow.show();
     tray.createTray();
     // Load heavy modules AFTER window is visible
     setImmediate(() => initDeferredSubsystems(userData));

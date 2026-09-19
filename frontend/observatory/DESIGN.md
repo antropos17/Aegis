@@ -1,5 +1,11 @@
 # AEGIS Observatory
 
+## Desktop icon and tray menu — 19 September 2026
+
+The app and tray icons reuse the neutral installer shield; the tray retains a
+semantic status marker. Its menu opens AEGIS, pauses/resumes monitoring, opens
+Settings or quits through the existing lifecycle. Settings uses retained navigation
+and focus behavior. The menu has no process intervention or provider action.
 ## Live route observation — 19 September 2026
 
 Action control starts with a separate live-observation panel using the existing
