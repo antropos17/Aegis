@@ -39,21 +39,26 @@ const props = () => ({
 
 it('starts with the radar and keeps the protection overview reachable', async () => {
   const mounted = render(App, { host: null });
-  expect(await screen.findByRole('heading', { name: 'Agent radar' })).toBeVisible();
-  expect(mounted.container.querySelector('.radar-panel')).toBeVisible();
-  const radar = screen.getByRole('button', { name: 'Detailed monitoring' });
-  const protection = screen.getByRole('button', { name: 'Protection overview' });
+  const panel = mounted.container.querySelector('.radar-panel');
+  const heading = await within(panel).findByRole('heading', { name: 'Agent radar' });
+  expect(heading).toBeVisible();
+  expect(panel).toBeVisible();
+  const switcher = within(screen.getByRole('group', { name: 'Monitoring' }));
+  const radar = switcher.getByRole('button', { name: 'Detailed monitoring' });
+  const protection = switcher.getByRole('button', { name: 'Protection overview' });
   expect(radar).toHaveAttribute('aria-pressed', 'true');
   expect(protection).toHaveAttribute('aria-pressed', 'false');
   await fireEvent.click(radar);
-  expect(mounted.container.querySelector('.radar-panel')).toBeVisible();
-  await fireEvent.click(screen.getByRole('button', { name: 'Protection overview' }));
+  expect(panel).toBeVisible();
+  await fireEvent.click(protection);
   expect(radar).toHaveAttribute('aria-pressed', 'false');
   expect(protection).toHaveAttribute('aria-pressed', 'true');
   expect(screen.getByRole('region', { name: 'Protection overview' })).toBeVisible();
-  expect(mounted.container.querySelector('.radar-panel')).not.toBeVisible();
-  await fireEvent.click(screen.getByRole('button', { name: 'Detailed monitoring' }));
-  expect(screen.getByRole('heading', { name: 'Agent radar' })).toBeVisible();
+  expect(panel).not.toBeVisible();
+  await fireEvent.click(radar);
+  expect(radar).toHaveAttribute('aria-pressed', 'true');
+  expect(protection).toHaveAttribute('aria-pressed', 'false');
+  expect(heading).toBeVisible();
 });
 
 it('connects evidence to the intended policy and keeps inferred ownership visible', async () => {
