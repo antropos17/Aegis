@@ -33,6 +33,13 @@ monitoring does not automatically intercept or block commands.
 
 The Observatory workspace provides a live instance radar, separate agent instances, file and network views, rules, custom agent catalog, AI analysis, reports, audit, statistics and settings. Activity can be filtered and grouped, inspected by stamped instance identity, and exported to JSON, CSV, HTML or ZIP. The [agent database](src/shared/agent-database.json) and [contributor guide](CONTRIBUTING.md#how-to-add-a-new-agent) describe how to extend detection.
 
+**Start here** opens a task guide for monitoring, file review, action setup checks
+and the other workspaces. The same task names are searchable through **Commands**
+(`Ctrl K`). Local review keeps advanced options in a disclosure; action checks show
+a plain-language outcome and next step before technical details. The guide also
+links the optional terminal setup instructions; opening it does not connect an
+agent or enable blocking. See [guided workflows](docs/OBSERVATORY-GUIDED-WORKFLOWS.md).
+
 ## Monitor-first
 
 Default monitoring observes and logs; it does not automatically block or contain agents. Kill, suspend and resume are manual actions. Monitoring presets and endpoint allowlists do not establish that an agent is safe. The opt-in execution routes below control selected direct child launches; they do not provide a sandbox or descendant isolation.

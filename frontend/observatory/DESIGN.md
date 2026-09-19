@@ -1,5 +1,31 @@
 # AEGIS Observatory
 
+## Guided workflows — 19 September 2026
+
+The requested usability pass adds Start here to the toolbar and navigation without
+changing the default radar. Three primary tasks open monitoring, local file review
+and action setup checks; a compact task list links the remaining workspaces. These
+task names also work in Commands. A native disclosure explains optional terminal
+setup, action versus agent catalogs and connection-scoped MCP status. Its fixed
+online documentation links use the desktop host and show confirmed success or
+failure; preview never opens them. This guide does not configure or connect a route.
+
+Local security starts with one project-review action. Review options reveals the
+other review modes, profile layout and offline inputs while a visible summary
+keeps the current selection clear. Result source and capture time remain visible;
+the next-action button opens and focuses the relevant findings/changes/coverage
+tab. Snapshot acceptance, export and uncertainty keep their existing semantics.
+Action control presents a plain-language outcome and next step before technical
+details in a closed native disclosure. Captured context and coverage limitations
+remain visible when the draft changes. The independent guide, local review and
+action check pages omit process-outage banners; telemetry-dependent pages including
+Analysis and Reports retain them. Global sensor entry points remain available.
+
+The neutral Observatory palette, Segoe UI, spacing/type/control tokens and original
+stylesheet order remain authoritative. New guide styles are scoped, wrap at small
+widths and preserve stationary controls. Keyboard navigation, four themes, enlarged
+scale, English/Portuguese and retained results are part of visual verification.
+
 ## Action control checks — 19 September 2026
 
 Action control under Assess uses the existing neutral panels and native form

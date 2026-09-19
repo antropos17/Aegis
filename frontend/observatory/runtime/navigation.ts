@@ -13,6 +13,13 @@ export const workspaceGroups = [
 ];
 export const workspaces: Workspace[] = [
   {
+    id: 'guide',
+    label: 'Start here',
+    icon: 'file',
+    group: 'observe',
+    keywords: 'help guide getting started connect setup beginner tasks mcp terminal',
+  },
+  {
     id: 'overview',
     label: 'Monitoring',
     icon: 'radar',

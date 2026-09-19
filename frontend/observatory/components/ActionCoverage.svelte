@@ -4,13 +4,23 @@
   import { invoke, record, type Host } from '../runtime/host';
   import {
     actionRoutes,
+    actionCheckGuidance,
+    routeHelp,
     coverageLabels,
     parseActionCheck,
     type ActionCheck,
     type ActionKind,
     type ActionRoute,
   } from '../runtime/action-coverage';
-  let { host, preview = false }: { host: Host | null; preview?: boolean } = $props();
+  let {
+    host,
+    preview = false,
+    navigate,
+  }: {
+    host: Host | null;
+    preview?: boolean;
+    navigate?: (_target: string) => void | Promise<void>;
+  } = $props();
   const prefix = $props.id();
   let kind = $state<ActionKind>('single');
   let route = $state<ActionRoute>('mcp-stdio');
@@ -23,6 +33,7 @@
     alive = false;
   });
   const available = $derived(typeof host?.localSecurityReview === 'function');
+  const guidance = $derived(result ? actionCheckGuidance(result) : null);
   const routes = $derived(
     actionRoutes.filter((item) => kind === 'single' || item.id.startsWith('mcp-')),
   );
@@ -72,7 +83,7 @@
     <p class="notice">{$t('Configuration check only; blocking has not been verified.')}</p>
     <p class="muted">
       {$t(
-        'Inspect selected action policies and route prerequisites without executing actions, connecting to agents or changing settings.',
+        'Check the files that tell AEGIS which commands an agent may run. This does not run commands or change settings.',
       )}
     </p>
     {#if preview}<p class="preview-note">
@@ -88,6 +99,13 @@
       }}
       aria-busy={pending}
     >
+      <p class="file-help">
+        {$t(
+          kind === 'single'
+            ? 'For one action, choose its policy JSON file, then its request JSON file.'
+            : 'For a catalog, choose the catalog JSON file that lists your actions.',
+        )}
+      </p>
       <div class="fields">
         <div class="field">
           <label for={prefix + '-kind'}>{$t('Selection type')}</label>
@@ -109,15 +127,16 @@
           </select>
         </div>
       </div>
-      <p id={prefix + '-route-help'} class="muted">
-        {$t(
-          'Runtime and terminal availability describe this AEGIS process, not a future agent process.',
-        )}
-      </p>
+      <p id={prefix + '-route-help'} class="muted">{$t(routeHelp[route])}</p>
       <button type="submit" class="button primary" disabled={pending || !available}
         >{$t(preview ? 'Show example check' : 'Choose files and check')}</button
       >
     </form>
+    <p class="muted">
+      {$t(
+        'Runtime and terminal availability describe this AEGIS process, not a future agent process.',
+      )}
+    </p>
     <div class="feedback" role="status" aria-live="polite" aria-atomic="true">
       {$t(pending ? 'Choose the requested files and wait for the configuration check…' : feedback)}
     </div>
@@ -126,6 +145,7 @@
   {#if result}
     <section class="panel result" aria-label={$t('Action check result')}>
       <h2>{$t('Captured configuration check')}</h2>
+      {#if guidance}<p class="result-summary">{$t(guidance.summary)}</p>{/if}
       <p class="captured">
         {$t(result.kind === 'single' ? 'Single action' : 'Action catalog')} · {$t(
           actionRoutes.find((item) => item.id === result?.route)?.label ?? '',
@@ -136,48 +156,60 @@
         <time datetime={result.createdAt}>{new Date(result.createdAt).toLocaleString()}</time>
       </p>
       <p>{$t('This is a retained observation, not live route status or permission to execute.')}</p>
-      <dl>
-        <div>
-          <dt>{$t('Configuration')}</dt>
-          <dd>{$t(coverageLabels[result.report.configuration])}</dd>
-        </div>
-        <div>
-          <dt>{$t('Policy decision')}</dt>
-          <dd>{$t(coverageLabels[result.report.policyDecision])}</dd>
-        </div>
-        <div>
-          <dt>{$t('Check detail')}</dt>
-          <dd>{$t(coverageLabels[result.report.reason])}</dd>
-        </div>
-        <div>
-          <dt>{$t('Current AEGIS runtime')}</dt>
-          <dd>{$t(coverageLabels[result.report.runtime])}</dd>
-        </div>
-        <div>
-          <dt>{$t('Terminal in the checking process')}</dt>
-          <dd>{$t(coverageLabels[result.report.terminal])}</dd>
-        </div>
-        <div>
-          <dt>{$t('Configuration observation')}</dt>
-          <dd>{$t('Not retained as a binding or authorization')}</dd>
-        </div>
-        <div>
-          <dt>{$t('Agent connection')}</dt>
-          <dd>{$t('Not checked')}</dd>
-        </div>
-        <div>
-          <dt>{$t('Blocking verification')}</dt>
-          <dd>{$t('Not performed')}</dd>
-        </div>
-        <div>
-          <dt>{$t('Outside-route coverage')}</dt>
-          <dd>{$t('Unknown')}</dd>
-        </div>
-        <div>
-          <dt>{$t('Descendant control')}</dt>
-          <dd>{$t('Unsupported')}</dd>
-        </div>
-      </dl>
+      {#if guidance}<div class="next-step">
+          <h3>{$t('Next step')}</h3>
+          <p>{$t(guidance.next)}</p>
+        </div>{/if}
+      <p class="muted">
+        {$t(
+          'Agent connection has not been checked. Protection outside this route is unknown; control of processes started by the selected command is unsupported.',
+        )}
+      </p>
+      <details class="technical">
+        <summary>{$t('Technical details')}</summary>
+        <dl>
+          <div>
+            <dt>{$t('Configuration')}</dt>
+            <dd>{$t(coverageLabels[result.report.configuration])}</dd>
+          </div>
+          <div>
+            <dt>{$t('Policy decision')}</dt>
+            <dd>{$t(coverageLabels[result.report.policyDecision])}</dd>
+          </div>
+          <div>
+            <dt>{$t('Check detail')}</dt>
+            <dd>{$t(coverageLabels[result.report.reason])}</dd>
+          </div>
+          <div>
+            <dt>{$t('Current AEGIS runtime')}</dt>
+            <dd>{$t(coverageLabels[result.report.runtime])}</dd>
+          </div>
+          <div>
+            <dt>{$t('Terminal in the checking process')}</dt>
+            <dd>{$t(coverageLabels[result.report.terminal])}</dd>
+          </div>
+          <div>
+            <dt>{$t('Configuration observation')}</dt>
+            <dd>{$t('Not retained as a binding or authorization')}</dd>
+          </div>
+          <div>
+            <dt>{$t('Agent connection')}</dt>
+            <dd>{$t('Not checked')}</dd>
+          </div>
+          <div>
+            <dt>{$t('Blocking verification')}</dt>
+            <dd>{$t('Not performed')}</dd>
+          </div>
+          <div>
+            <dt>{$t('Outside-route coverage')}</dt>
+            <dd>{$t('Unknown')}</dd>
+          </div>
+          <div>
+            <dt>{$t('Descendant control')}</dt>
+            <dd>{$t('Unsupported')}</dd>
+          </div>
+        </dl>
+      </details>
       {#if result.kind === 'catalog'}
         <h3>{$t('Selected catalog actions')}</h3>
         {#if result.report.actions.length}
@@ -194,11 +226,11 @@
                     <dt>{$t('Policy decision')}</dt>
                     <dd>{$t(coverageLabels[action.policyDecision])}</dd>
                   </div>
-                  <div>
-                    <dt>{$t('Check detail')}</dt>
-                    <dd>{$t(coverageLabels[action.reason])}</dd>
-                  </div>
                 </dl>
+                <details>
+                  <summary>{$t('Check detail')}</summary>
+                  <p>{$t(coverageLabels[action.reason])}</p>
+                </details>
               </li>
             {/each}
           </ul>
@@ -210,9 +242,12 @@
       <h2>{$t('No action check yet')}</h2>
       <p>
         {$t(
-          'Choose an action or catalog and a route, then select the configuration files in the native dialog.',
+          'Already have AEGIS configuration files? Choose them above. If not, ask the person setting up your agent for a policy and request, or a catalog.',
         )}
       </p>
+      {#if navigate}<button class="button" onclick={() => navigate?.('guide')}
+          >{$t('Open setup guide')}</button
+        >{/if}
     </section>
   {/if}
 </div>
@@ -317,8 +352,23 @@
     padding: var(--space-3);
   }
   .empty {
-    text-align: center;
     color: var(--muted);
+  }
+  .result-summary {
+    font-weight: 600;
+  }
+  .technical {
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-3);
+    margin-top: var(--space-3);
+  }
+  summary {
+    cursor: pointer;
+    min-height: var(--control-height);
+    align-content: center;
+  }
+  .next-step h3 {
+    margin-top: var(--space-2);
   }
   @media (max-width: 600px) {
     .fields,

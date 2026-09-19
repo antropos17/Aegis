@@ -20,6 +20,7 @@ import { checkLocalization } from './localization-check.mjs';
 import { checkUxRecovery } from './ux-recovery-check.mjs';
 import { checkLocalSecurity } from './local-security-check.mjs';
 import { checkActionCoverage } from './action-coverage-check.mjs';
+import { checkTaskGuide } from './task-guide-check.mjs';
 import { checkSequence } from './sequence-check.mjs';
 
 const repo = process.cwd();
@@ -91,6 +92,7 @@ const out = process.env.FRONTEND_QA_DIR || resolve(repo, 'dist/frontend-qa');
 await mkdir(out, { recursive: true });
 const errors = [];
 try {
+  await checkTaskGuide(browser, base + '/preview/', out);
   await checkActionCoverage(browser, base + '/preview/', out);
   await checkLocalSecurity(browser, base + '/preview/', out);
   await checkUxRecovery(browser, base + '/preview/', out);
@@ -446,6 +448,21 @@ try {
   await desktop.goto(base + '/desktop/');
   await desktop.getByText('Desktop bridge unavailable.', { exact: false }).waitFor();
   assert.equal(await desktop.locator('.radar-blip').count(), 0);
+  for (const name of ['AI analysis', 'Reports']) {
+    await desktop.locator('.sidebar').getByRole('button', { name, exact: true }).click();
+    assert(
+      (await desktop.locator('.health-banner:visible').count()) > 0,
+      name + ' lost its outage warning',
+    );
+  }
+  for (const name of ['Local security', 'Action control', 'Start here']) {
+    await desktop.locator('.sidebar').getByRole('button', { name, exact: true }).click();
+    assert.equal(
+      await desktop.locator('.health-banner:visible').count(),
+      0,
+      name + ' shows an unrelated process outage',
+    );
+  }
   await desktop.close();
   assert.deepEqual(errors, [], 'browser runtime errors');
   console.log(

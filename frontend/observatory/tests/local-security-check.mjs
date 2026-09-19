@@ -19,12 +19,30 @@ export async function checkLocalSecurity(browser, url, out) {
       .click();
     await page.getByRole('heading', { name: 'No local review yet' }).waitFor();
     await page.screenshot({ path: resolve(out, 'local-security-empty.png') });
+    const options = page.locator('.review-options');
+    assert.equal(
+      await options.getAttribute('open'),
+      null,
+      'advanced review options should start closed',
+    );
+    await page.getByText('Review options', { exact: true }).focus();
+    await page.keyboard.press('Enter');
+    assert.notEqual(
+      await options.getAttribute('open'),
+      null,
+      'native keyboard disclosure should open options',
+    );
     await page.getByLabel('Include an offline MCP tools/list file').check();
     await page.getByRole('button', { name: 'Show example result' }).click();
     await page.getByRole('heading', { name: 'Findings need review' }).waitFor();
     assert(await page.getByText('Incomplete coverage', { exact: true }).isVisible());
     assert(await page.getByRole('button', { name: 'Export JSON' }).isDisabled());
     const results = page.getByRole('region', { name: 'Local review results' });
+    await page.getByRole('button', { name: 'Review findings', exact: true }).click();
+    assert.equal(
+      await page.getByRole('tab', { name: /Findings/ }).getAttribute('aria-selected'),
+      'true',
+    );
     await results.scrollIntoViewIfNeeded();
     await results.locator('.evidence-rows:visible summary').first().click();
     await page.screenshot({ path: resolve(out, 'local-security-findings-dark.png') });

@@ -115,6 +115,8 @@ try {
     assert.equal(reply.check.report.executionPerformed, false);
     assert.equal(reply.check.report.blockingVerification, 'not-performed');
     assert(await resultRegion.isVisible());
+    assert(await resultRegion.getByText('Next step', { exact: true }).isVisible());
+    assert.equal(await resultRegion.locator('details.technical').getAttribute('open'), null);
   }
   const beforeCancel = await resultRegion.innerText();
   assert.equal((await check([entries[0].policyPath, null])).cancelled, true);
@@ -136,6 +138,12 @@ try {
   const review = await check([manifest]);
   assert.equal(review.check.report.terminal, 'unavailable');
   assert.equal(review.check.report.terminalScope, 'checking-process-only');
+  await resultRegion.locator('details.technical > summary').focus();
+  await page.keyboard.press('Enter');
+  assert.notEqual(await resultRegion.locator('details.technical').getAttribute('open'), null);
+  assert(
+    await resultRegion.getByText('Terminal in the checking process', { exact: true }).isVisible(),
+  );
   await page.setViewportSize({ width: 900, height: 600 });
   await page.evaluate(() => document.documentElement.style.setProperty('--ui-scale', '1.5'));
   await resultRegion.scrollIntoViewIfNeeded();

@@ -34,6 +34,8 @@
   import Analysis from './components/Analysis.svelte';
   import LocalSecurity from './components/LocalSecurity.svelte';
   import ActionCoverage from './components/ActionCoverage.svelte';
+  import TaskGuide from './components/TaskGuide.svelte';
+  import { guidedTasks, moreTasks } from './runtime/task-guide';
   import Reports from './components/Reports.svelte';
   import Settings from './components/Settings.svelte';
   import Statistics from './components/Statistics.svelte';
@@ -49,6 +51,13 @@
   let sectionRevision = 0;
   const commandEntries: WorkspaceCommand[] = [
     ...workspaceCommands(),
+    ...[...guidedTasks, ...moreTasks].map((task) => ({
+      id: 'task-' + task.target,
+      label: task.title,
+      caption: task.description,
+      keywords: task.description,
+      target: task.target,
+    })),
     ...['processes', 'activity', 'tokens', 'sensors'].map((id) => ({
       id: 'stats-' + id,
       label: 'Statistics · ' + id[0].toUpperCase() + id.slice(1),
@@ -143,6 +152,7 @@
   let isLiveWorkspace = $derived(
     ['overview', 'agents', 'events', 'network', 'stats'].includes(view),
   );
+  let needsObservations = $derived(!['guide', 'local-security', 'action-control'].includes(view));
   let requestedView = 'overview';
   let renderedView = 'overview';
   let tabs = $state(['overview']);
@@ -388,6 +398,9 @@
         >
       </div>
       <div class="top-actions">
+        <button class="button guide-trigger" onclick={() => navigate('guide')}
+          >{$t('Start here')}</button
+        >
         <button class="command-trigger" onclick={() => (commands = !commands)}
           ><Icon name="search" />{$t('Commands')}<kbd>{$t('Ctrl K')}</kbd></button
         ><button class="icon-button" aria-label={$t('Toggle theme')} onclick={toggleTheme}
@@ -418,9 +431,11 @@
                       ? $t('Scanning')
                       : $t('Live')}</span
             >{:else}<span class="workspace-caption"
-              >{view === 'analysis' || view === 'reports'
-                ? $t('Review and share recorded activity')
-                : $t('Configuration and recorded evidence')}</span
+              >{view === 'guide'
+                ? $t('Task guide')
+                : view === 'analysis' || view === 'reports'
+                  ? $t('Review and share recorded activity')
+                  : $t('Configuration and recorded evidence')}</span
             >{/if}
         </div>
         {#if isLiveWorkspace}<div class="page-actions">
@@ -458,8 +473,10 @@
           {scope}
           change={changeScope}
         />{/if}
-      {#if telemetry.error}<p role="alert" class="health-banner">{telemetry.error}</p>{/if}
-      {#if telemetry.stale}<p class="health-banner">
+      {#if needsObservations && telemetry.error}<p role="alert" class="health-banner">
+          {telemetry.error}
+        </p>{/if}
+      {#if needsObservations && telemetry.stale}<p class="health-banner">
           {telemetry.ready
             ? $t(
                 'Showing the last reliable population. Process actions are unavailable until observation recovers.',
@@ -471,6 +488,9 @@
       <SensorStatus health={record(telemetry.stats.appHealth)} />
       <div id="workspace-content" role="region" aria-labelledby="page-title">
         <div id="content" class:analysis-view={view === 'analysis'}>
+          {#if tabs.includes('guide')}<div hidden={view !== 'guide'}>
+              <TaskGuide {host} {preview} {navigate} />
+            </div>{/if}
           <div hidden={view !== 'overview' || detailedMonitoring}>
             <ProtectionOverview
               {host}
@@ -552,7 +572,7 @@
               <LocalSecurity {host} {preview} />
             </div>{/if}
           {#if tabs.includes('action-control')}<div hidden={view !== 'action-control'}>
-              <ActionCoverage {host} {preview} />
+              <ActionCoverage {host} {preview} {navigate} />
             </div>{/if}
           {#if tabs.includes('analysis')}<div
               class="analysis-container"

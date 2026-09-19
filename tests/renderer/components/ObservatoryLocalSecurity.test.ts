@@ -10,6 +10,7 @@ const reply = (mode = 'scan', tools = false) =>
 const bridge = (fn: ReturnType<typeof vi.fn>) => ({ localSecurityReview: fn }) as Host;
 const start = () =>
   fireEvent.click(screen.getByRole('button', { name: 'Choose folder and review' }));
+const options = () => fireEvent.click(screen.getByText('Review options', { exact: true }));
 
 it('does not invoke the host on mount and explains the absent capability', () => {
   render(LocalSecurity, { host: null });
@@ -21,6 +22,7 @@ it('submits bounded options and shows findings, source and incomplete coverage',
   const call = vi.fn().mockResolvedValue(await reply('scan', true));
   render(LocalSecurity, { host: bridge(call) });
   expect(call).not.toHaveBeenCalled();
+  await options();
   await fireEvent.click(screen.getByLabelText('Include an offline MCP tools/list file'));
   await start();
   expect(call).toHaveBeenCalledWith({
@@ -93,6 +95,7 @@ it('disables duplicate actions and draft changes while the native operation is p
 it('resets unsupported package scope and exposes inventory packages without a safety verdict', async () => {
   const call = vi.fn().mockResolvedValue(await reply('inventory'));
   render(LocalSecurity, { host: bridge(call) });
+  await options();
   await fireEvent.change(screen.getByLabelText('Directory layout'), {
     target: { value: 'package' },
   });
@@ -154,6 +157,7 @@ it('keeps acceptance pending when content changed after review', async () => {
 it('submits external import options and labels claims as unverified', async () => {
   const call = vi.fn().mockResolvedValue(await reply('import'));
   render(LocalSecurity, { host: bridge(call) });
+  await options();
   await fireEvent.change(screen.getByLabelText('Review type'), { target: { value: 'import' } });
   await fireEvent.change(screen.getByLabelText('Report format'), {
     target: { value: 'cisco-skill-sarif' },
@@ -215,4 +219,66 @@ it('preserves uncertainty in partial changes and paginated MCP catalogs', () => 
   expect(reviewRows({ catalog: { complete: false } }, 'coverage')[0].title).toBe(
     'MCP catalog is incomplete',
   );
+});
+
+it('starts with one default project review and keeps advanced choices collapsed', async () => {
+  const call = vi.fn().mockResolvedValue(await reply());
+  render(LocalSecurity, { host: bridge(call) });
+  const disclosure = screen.getByText('Review options', { exact: true }).parentElement!;
+  expect(disclosure).not.toHaveAttribute('open');
+  expect(screen.getByRole('button', { name: 'Choose folder and review' })).toBeVisible();
+  expect(screen.getByText(/Ready to review:/)).toHaveTextContent('Security scan');
+  await start();
+  expect(call).toHaveBeenCalledWith({
+    action: 'run',
+    mode: 'scan',
+    adapter: 'project',
+    tools: false,
+    baseline: false,
+  });
+});
+
+it('keeps chosen expert options when the disclosure closes and leaves the captured result unchanged', async () => {
+  const call = vi.fn().mockResolvedValue(await reply());
+  render(LocalSecurity, { host: bridge(call) });
+  await start();
+  await screen.findByText('Findings need review');
+  await options();
+  await fireEvent.change(screen.getByLabelText('Review type'), { target: { value: 'inventory' } });
+  await options();
+  expect(screen.getByText(/Ready to review:/)).toHaveTextContent('Component inventory');
+  expect(screen.getByRole('heading', { name: 'Findings need review' })).toBeVisible();
+  await start();
+  expect(call).toHaveBeenLastCalledWith({
+    action: 'run',
+    mode: 'inventory',
+    adapter: 'project',
+    tools: false,
+    baseline: false,
+  });
+});
+
+it('moves focus to the suggested evidence tab while captured source stays visible', async () => {
+  const data = await reply();
+  render(LocalSecurity, { host: bridge(vi.fn().mockResolvedValue(data)) });
+  await start();
+  await screen.findByText('Findings need review');
+  expect(screen.getByText(localReview(data.review)!.directory)).toBeVisible();
+  await fireEvent.click(screen.getByRole('button', { name: 'Review findings' }));
+  await waitFor(() => expect(screen.getByRole('tab', { name: /Findings/ })).toHaveFocus());
+  expect(screen.getByText(localReview(data.review)!.directory)).toBeVisible();
+});
+
+it('directs a no-findings result to coverage without implying safety', async () => {
+  const data = await reply();
+  const reviewed = localReview(data.review)!;
+  reviewed.report.findings = [];
+  render(LocalSecurity, {
+    host: bridge(vi.fn().mockResolvedValue({ success: true, review: reviewed })),
+  });
+  await start();
+  await fireEvent.click(await screen.findByRole('button', { name: 'Review coverage' }));
+  await waitFor(() => expect(screen.getByRole('tab', { name: /Scope & coverage/ })).toHaveFocus());
+  expect(screen.getByText('Safety not determined')).toBeVisible();
+  expect(screen.getByText('Incomplete coverage')).toBeVisible();
 });
