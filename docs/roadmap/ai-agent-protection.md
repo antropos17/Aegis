@@ -507,5 +507,9 @@ B5 observation setup: the configuration generator now accepts an explicit traili
 paths and performs no reads, endpoint creation or client-settings installation.
 Relay observation is rejected because the separately launched review broker owns
 that endpoint. Native generated-config fixtures verify observed-to-lost transitions,
-zero action attempts and descriptor cleanup. Installed-provider validation of this
-optional generated configuration path remains open; B5 stays partial.
+zero action attempts and descriptor cleanup. Installed Windows Claude Code 2.1.263
+also passed selected/catalog observation with synthetic loopback replies for
+allow/deny/ask: counters agreed with status/action/status results, only allow
+created its sentinel, connection generations differed, owner exit caused sticky
+loss, and descriptors/owned scratch were removed. Independent provider identity,
+review/cancellation observation and outside-route control remain open; B5 stays partial.

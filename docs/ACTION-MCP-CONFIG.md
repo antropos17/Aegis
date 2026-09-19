@@ -95,8 +95,11 @@ Configurations with observation enabled are also launched verbatim in native
 Node fixtures: the real read-only observer receives an initialized snapshot,
 action counters remain zero, owner closure produces sticky coverage loss, and
 the owned descriptor is removed. Generation neither exposes its bearer nor
-changes existing client settings. This new optional configuration path has not
-yet been exercised with an installed provider.
+changes existing client settings. Installed Windows Claude Code 2.1.263 also
+passed both observation-enabled configurations using synthetic loopback replies:
+allow/deny/ask, live counters, fresh connection generations, sticky owner-exit
+loss and endpoint cleanup. See [the observation verification](ACTION-LIVE-OBSERVATION.md)
+for commands, receipts and the remaining identity/control limits.
 
 The existing installed-provider verifier now uses this configuration builder for
 selected, catalog and catalog-review relay modes. Installed Windows Claude Code

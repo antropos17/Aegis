@@ -109,6 +109,32 @@ keyboard activation and light/dark geometry. Fixed QA files go under
 `.agent/b5-observation-native/`; review screenshots after 14 days or 64 MiB and
 preserve receipts. No automatic cleanup policy is claimed.
 
-Installed-provider validation of this new observation path, independent
-agent/version binding, safe installed-adapter blocking tests and verified
-outside-route control remain open. B5 is partial.
+Installed Windows Claude Code 2.1.263 also passed selected-action and catalog
+observation through the generated configuration, using a disposable profile,
+dummy credential and synthetic loopback API. Each route exercised allow/deny/ask
+with 12 local API requests and no rejected proxy requests. Only allow wrote the
+selected sentinel once; the unused catalog action never ran. The production
+observer recorded zero attempts before the action, one settled invocation after
+it, stable per-connection metadata, fresh generations between runs, sticky loss
+on owner exit and descriptor removal. Owned scratch was removed in both runs.
+The CLI version and MCP client metadata are distinct observations; neither is an
+independent attestation of the connected provider.
+
+Repeat explicitly on Windows (use `--catalog-observation` for the second route):
+
+```text
+node scripts/verify-claude-action-mcp.mjs --observation --claude <absolute claude.exe> --bash <absolute Git bash.exe> --scratch <existing spacious private directory>
+```
+
+The fixture holds synthetic replies for at most 2.5 seconds at each observation
+checkpoint and waits at most 4 seconds for final loss/cleanup. Provider runs keep
+their existing 30-second deadline and 16 MiB scratch bound; observation-mode HTTP
+connections have a 10-second lifetime. Saved user settings are not changed. The
+rejecting proxy is not OS firewall isolation. Receipts are
+`.agent/b5-provider-observation-{selected,catalog}.json`; preserve them and review
+fixed-name diagnostic logs after 14 days or 64 MiB. No automatic retention is
+claimed. No cloud-model behavior, provider review/cancellation or abrupt-kill
+cleanup is established by these normal-exit scenarios.
+
+Independent agent/version binding, safe installed-adapter blocking tests and
+verified outside-route control remain open. B5 is partial.
