@@ -33,6 +33,7 @@
   import Catalog from './components/Catalog.svelte';
   import Analysis from './components/Analysis.svelte';
   import LocalSecurity from './components/LocalSecurity.svelte';
+  import ActionCoverage from './components/ActionCoverage.svelte';
   import Reports from './components/Reports.svelte';
   import Settings from './components/Settings.svelte';
   import Statistics from './components/Statistics.svelte';
@@ -549,6 +550,9 @@
             </div>{/if}
           {#if tabs.includes('local-security')}<div hidden={view !== 'local-security'}>
               <LocalSecurity {host} {preview} />
+            </div>{/if}
+          {#if tabs.includes('action-control')}<div hidden={view !== 'action-control'}>
+              <ActionCoverage {host} {preview} />
             </div>{/if}
           {#if tabs.includes('analysis')}<div
               class="analysis-container"

@@ -19,6 +19,7 @@ import { checkWatchlist } from './watchlist-check.mjs';
 import { checkLocalization } from './localization-check.mjs';
 import { checkUxRecovery } from './ux-recovery-check.mjs';
 import { checkLocalSecurity } from './local-security-check.mjs';
+import { checkActionCoverage } from './action-coverage-check.mjs';
 import { checkSequence } from './sequence-check.mjs';
 
 const repo = process.cwd();
@@ -90,6 +91,7 @@ const out = process.env.FRONTEND_QA_DIR || resolve(repo, 'dist/frontend-qa');
 await mkdir(out, { recursive: true });
 const errors = [];
 try {
+  await checkActionCoverage(browser, base + '/preview/', out);
   await checkLocalSecurity(browser, base + '/preview/', out);
   await checkUxRecovery(browser, base + '/preview/', out);
   await checkProtection(browser, base + '/preview/', out);
@@ -104,6 +106,7 @@ try {
       'desktop includes local security fixtures',
     );
     assert(!js.includes('PendingIntegration'), 'desktop still includes pending gate');
+    assert(!js.includes('aegis_action_demo_'), 'desktop includes action-control fixtures');
   }
   const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
   page.on('pageerror', (error) => errors.push(error.message));

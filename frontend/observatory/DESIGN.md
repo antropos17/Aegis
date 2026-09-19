@@ -1,5 +1,17 @@
 # AEGIS Observatory
 
+## Action control checks — 19 September 2026
+
+Action control under Assess uses the existing neutral panels and native form
+controls to select a route and files through main-owned dialogs. A retained result
+shows its captured selection, route and time separately from the draft. Policy
+outcomes and configuration validity never receive a safe or verified-blocking
+badge. Current-process runtime/terminal observations and the absence of connection,
+authorization and outside-route evidence stay visible. All catalog rows remain
+reachable, including at 900x600 and 150% scale. Failure/cancellation retain the
+prior result; preview examples remain explicitly simulated. Styles are scoped,
+with shared spacing/type/control tokens and stationary interaction.
+
 ## Sequence evidence hierarchy — 16 September 2026
 
 Audit sequence details begin with the transfer-not-observed assessment, then the

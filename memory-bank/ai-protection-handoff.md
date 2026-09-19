@@ -7,6 +7,17 @@ was added afterward; fetch and check its publication status before continuing.
 
 ## Objective and next action
 
+B5 now has its first desktop surface: **Action control** under Assess. It calls
+the existing nonexecuting route/catalog checkers through native file selection
+and the existing local-security IPC. Captured selection, route and completion
+time are kept separate from the draft. No connection, permission, retained
+binding, execution or verified blocking is implied. Runtime and terminal values
+describe the checking AEGIS main process only. See
+[the interface contract](../docs/ACTION-COVERAGE-UI.md) and inspect
+`.agent/b5-action-coverage-receipt.json` for publication/verification evidence.
+Live connection observations, agent/version binding and coverage-loss transitions
+remain open; the page is a preflight surface, not completion of B5.
+
 Continue [the AI-agent protection roadmap](../docs/roadmap/ai-agent-protection.md).
 The product goal is protection from unsafe AI-agent actions, with explicit limits
 on observation, attribution and prevention. The current stage is **partial B1**:
