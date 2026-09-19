@@ -10,7 +10,6 @@ function fixture(options = {}) {
   const adapter = createDesktopShell({
     app,
     platform: 'win32',
-    appId: 'com.aegis.oversight',
     ...options,
   });
   const webContents = Object.assign(new EventEmitter(), { send: vi.fn() });
@@ -27,10 +26,11 @@ function fixture(options = {}) {
 it('sets the installed identity and keeps development separate', () => {
   const f = fixture();
   f.adapter.configureIdentity();
-  expect(f.app.setAppUserModelId).toHaveBeenCalledWith('com.aegis.oversight');
+  const installerId = JSON.parse(readFileSync('package.json', 'utf8')).build.appId;
+  expect(f.app.setAppUserModelId).toHaveBeenCalledWith(installerId);
   f.app.isPackaged = false;
   f.adapter.configureIdentity();
-  expect(f.app.setAppUserModelId).toHaveBeenLastCalledWith('com.aegis.oversight.development');
+  expect(f.app.setAppUserModelId).toHaveBeenLastCalledWith(`${installerId}.development`);
 });
 it.each(['darwin', 'linux'])('does not call Windows APIs on %s', (platform) => {
   const f = fixture({ platform });

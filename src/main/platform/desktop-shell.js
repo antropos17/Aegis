@@ -1,13 +1,17 @@
 /** Desktop window navigation and Windows application identity. */
 'use strict';
 
+// Runtime identity must survive electron-builder stripping package.json.build.
+// desktop-shell.test.js checks this against the installer configuration.
+const APP_ID = 'com.aegis.oversight';
+
 /**
  * Queue tray navigation until the renderer is ready and restore the same window.
- * @param {object} deps Electron app, platform and packaging appId.
+ * @param {object} deps Electron app and platform.
  * @returns {object} Identity setup, window attachment and navigation methods.
  * @since v0.15.0
  */
-function createDesktopShell({ app, platform, appId }) {
+function createDesktopShell({ app, platform }) {
   let pending = null;
   let requested = false;
   let window = null;
@@ -26,7 +30,7 @@ function createDesktopShell({ app, platform, appId }) {
   return {
     configureIdentity() {
       if (platform === 'win32') {
-        app.setAppUserModelId(app.isPackaged ? appId : `${appId}.development`);
+        app.setAppUserModelId(app.isPackaged ? APP_ID : `${APP_ID}.development`);
       }
     },
     wasRequested: () => requested,
