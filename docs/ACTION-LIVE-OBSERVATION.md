@@ -18,10 +18,13 @@ node src/main/main.js --action-mcp-catalog-review <catalog> <new-review.json> --
 ```
 
 Use a private local directory controlled by the operator for the new descriptor.
-In an MCP client configuration, append the two observation arguments to the
-generated selected/catalog owner's `args`. For terminal review, add them to the
-broker command; leave the agent's relay configuration unchanged. The configuration
-generator does not append these optional arguments itself.
+For an MCP client, generate the selected/catalog owner's configuration with
+`--action-mcp-config-json selected|catalog <paths...> --observe <new-observation.json>`.
+The optional arguments are exported literally; generation does not create the
+endpoint or start a listener. See [configuration generation](ACTION-MCP-CONFIG.md).
+For terminal review, add the observation arguments to the broker command and
+leave the agent's relay configuration unchanged; the generator rejects observation
+on a relay.
 
 While the owner is running, open **Action control → Live route observation →
 Choose observation endpoint** and select its observation JSON. The desktop uses

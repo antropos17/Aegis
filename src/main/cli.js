@@ -14,7 +14,7 @@ const USAGE = `AEGIS — Independent AI Oversight Layer
 Usage:  aegis [options]
 
 Options:
-  --action-mcp-config-json <mode> <paths...>  Export MCP client configuration (contains selected paths)
+  --action-mcp-config-json <mode> <paths...> [--observe <new-endpoint>]  Export MCP configuration; observation for selected/catalog owners
     Modes: selected <policy> <request>, catalog <manifest>, relay <endpoint>; no installation or validation of files
   --action-mcp-catalog-stdio <catalog.json>  Serve up to eight operator-selected actions through MCP
   --action-mcp-catalog-review <catalog.json> <new-endpoint.json>  Confirm catalog MCP actions in this terminal
