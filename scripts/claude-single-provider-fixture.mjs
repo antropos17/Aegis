@@ -1,41 +1,17 @@
 /** TEST ONLY: single selected action against installed Claude and a local synthetic API. */
 import fs from 'node:fs';
-import path from 'node:path';
+import configGenerator from '../src/main/action-mcp-config.js';
 const tool = 'mcp__aegis__aegis_execute_selected';
 
 /** @param {object} context Owned fixture and observation sink.
  * @returns {Promise<void>} Updates redacted receipt. @since v0.15.1 */
 export async function verifySelectedRoute(context) {
-  const {
-    repo,
-    env,
-    run,
-    receipt,
-    action,
-    sentinel,
-    policyPath,
-    requestPath,
-    configPath,
-    setScenario,
-  } = context;
-  fs.writeFileSync(
-    configPath,
-    JSON.stringify({
-      mcpServers: {
-        aegis: {
-          type: 'stdio',
-          command: process.execPath,
-          args: [
-            path.join(repo, 'src/main/main.js'),
-            '--action-mcp-stdio',
-            policyPath,
-            requestPath,
-          ],
-          env,
-        },
-      },
-    }),
-  );
+  const { env, run, receipt, action, sentinel, policyPath, requestPath, configPath, setScenario } =
+    context;
+  const config = configGenerator.buildActionMcpConfig('selected', [policyPath, requestPath]);
+  // TEST ONLY: isolate the generated server from saved provider settings and credentials.
+  config.mcpServers.aegis.env = env;
+  fs.writeFileSync(configPath, JSON.stringify(config));
   for (const decision of ['allow', 'deny', 'ask']) {
     if (fs.existsSync(sentinel)) fs.unlinkSync(sentinel);
     fs.writeFileSync(

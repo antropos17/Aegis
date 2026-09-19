@@ -5,6 +5,10 @@
 
 AEGIS observes detected agent processes, file activity and TCP endpoints from outside the agents. It records attribution evidence and behavioral changes without requiring an agent plugin.
 
+Current source also includes opt-in policy-controlled execution and MCP tools for
+operator-selected actions. These routes require explicit setup; ordinary agent
+monitoring does not automatically intercept or block commands.
+
 **Open-source, monitor-first, no telemetry.** Monitoring data is stored locally. Optional AI analysis sends activity metadata to Anthropic on request; update checks contact GitHub. See [privacy and key handling](SECURITY.md#privacy-architecture).
 
 <p align="center">
@@ -31,9 +35,43 @@ The Observatory workspace provides a live instance radar, separate agent instanc
 
 ## Monitor-first
 
-AEGIS observes and logs; it does not automatically block or contain agents. Kill, suspend and resume are manual actions. Monitoring presets and endpoint allowlists do not establish that an agent is safe. Use sandboxing when you need enforcement.
+Default monitoring observes and logs; it does not automatically block or contain agents. Kill, suspend and resume are manual actions. Monitoring presets and endpoint allowlists do not establish that an agent is safe. The opt-in execution routes below control selected direct child launches; they do not provide a sandbox or descendant isolation.
 
 AEGIS is alpha software. This README describes current source; installed builds contain the features available at their [release tag](https://github.com/antropos17/Aegis/releases).
+
+## Opt-in action control
+
+An operator can select an exact executable, working directory, arguments and
+environment, then route that action through AEGIS:
+
+| Capability | Implemented scope |
+| --- | --- |
+| [Exact execution policy](docs/ACTION-EXECUTION.md) | Explicit CLI launch on `allow`; `ask`, `deny` and preparation failures do not launch |
+| [Terminal confirmation](docs/ACTION-CONFIRMATION.md) | Review the complete effective action and confirm one launch attempt; policy deny cannot be overridden |
+| [Selected-action MCP catalog](docs/ACTION-MCP-CATALOG.md) | Up to eight operator-selected actions with empty tool arguments; optional [terminal review broker](docs/ACTION-MCP-REVIEW.md) requires fresh confirmation per eligible call |
+| [Route and catalog checks](docs/ACTION-ROUTE-CHECK.md) | Inspect selected configuration and current-process prerequisites without executing; a completed check grants no permission |
+| [MCP connection status](docs/ACTION-MCP-STATUS.md) | Read-only counters for the current connection's admitted calls, pending work and cancellation requests |
+
+These routes do not cover other agent tools, arbitrary MCP traffic or activity
+outside the selected actions. Allowed programs retain the caller's account
+privileges. Terminal previews can expose secrets in local scrollback; terminal
+automation does not establish human identity. Client settings are not changed
+automatically. The linked contracts explain configuration, limits and verification.
+
+After creating a catalog, generate a client configuration from the source checkout
+(PowerShell 7 example):
+
+```powershell
+node src/main/main.js --action-mcp-config-json catalog "X:/private/actions/catalog.json" > aegis-mcp.json
+```
+
+The [configuration generator](docs/ACTION-MCP-CONFIG.md) prints an
+`mcpServers.aegis` entry using the current Node executable and absolute source
+entry path. Load the generated file explicitly in a client that accepts this
+configuration format; client setup requirements vary. The output intentionally
+contains local paths, so keep it private. Generation does not read or validate the
+catalog, start a server or install settings; run the appropriate route/catalog
+check separately.
 
 ## Download
 
@@ -100,7 +138,7 @@ See the [architecture](ARCHITECTURE.md), [correctness audit](docs/current-state/
 
 ## Known limits
 
-- **Incomplete coverage:** Unknown signatures and processes that start and exit between polling ticks can be missed. MCP traffic and individual tool calls are not parsed.
+- **Incomplete coverage:** Unknown signatures and processes that start and exit between polling ticks can be missed. Default monitoring does not parse MCP traffic or individual tool calls; the explicitly configured MCP routes handle only their published AEGIS tools.
 - **Platform gaps:** macOS/Linux lack OS birth times for identity and remain unsafe under PID reuse. Token-cost tracking is Windows-only.
 - **Bounded UI history:** Retained event windows can differ from aggregate totals; Statistics shows renderer eviction counters; Audit provides persisted history.
 - **Sensor and audit gaps:** Health status does not prove complete capture. Audit loss markers require a successful flush; process-scan overruns lack a dedicated counter.

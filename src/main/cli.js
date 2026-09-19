@@ -14,6 +14,8 @@ const USAGE = `AEGIS — Independent AI Oversight Layer
 Usage:  aegis [options]
 
 Options:
+  --action-mcp-config-json <mode> <paths...>  Export MCP client configuration (contains selected paths)
+    Modes: selected <policy> <request>, catalog <manifest>, relay <endpoint>; no installation or validation of files
   --action-mcp-catalog-stdio <catalog.json>  Serve up to eight operator-selected actions through MCP
   --action-mcp-catalog-review <catalog.json> <new-endpoint.json>  Confirm catalog MCP actions in this terminal
   --action-route-check-json <route> <policy.json> <request.json>  Check a selected route without execution
@@ -95,6 +97,8 @@ async function handleCLI(argv) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  if (flag === '--action-mcp-config-json')
+    return require('./action-mcp-config').handleActionMcpConfigCLI(args, write);
   if (flag === '--action-catalog-check-json')
     return require('./action-catalog-check').handleActionCatalogCheckCLI(args, write);
   if (flag === '--action-route-check-json')

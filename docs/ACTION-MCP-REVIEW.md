@@ -20,6 +20,10 @@ node src/main/main.js --action-mcp-review /absolute/policy.json /absolute/reques
 
 Configure the intended MCP client to launch the relay:
 
+The [configuration generator](ACTION-MCP-CONFIG.md) can produce a client entry
+with `--action-mcp-config-json relay <endpoint.json>`. It uses the descriptor path
+only; it neither reads the bearer nor starts this terminal broker.
+
 ```sh
 node src/main/main.js --action-mcp-connect /private/newendpoint.json
 ```

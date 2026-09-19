@@ -465,3 +465,11 @@ the message/replay limits. Cancellation remains a request; neither settlement no
 idle status establishes execution success, termination or global protection.
 No private action data or client identity is retained in these observations.
 The Observatory coverage interface and verified outside-route control remain open.
+
+B1 explicit client setup: `--action-mcp-config-json` now produces literal client
+configuration for a selected action, catalog or separate review relay. It uses
+the current Node executable and source entry, validates bounded local path syntax,
+and performs no file read, server start, preflight or settings installation.
+The export intentionally contains selected paths and no bearer, environment or
+action contents. Native generated-config checks and installed Claude fixtures
+cover all three modes. See [the setup contract](../ACTION-MCP-CONFIG.md).

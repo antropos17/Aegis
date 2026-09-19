@@ -22,6 +22,11 @@ remain uncontrolled. No user configuration is modified by this implementation.
 
 ## Explicit setup
 
+The [configuration generator](ACTION-MCP-CONFIG.md) can produce this JSON using
+the current Node executable and checkout: `--action-mcp-config-json selected
+<policy.json> <request.json>`. It prints selected path metadata, reads no input
+files and changes no settings. Load its output explicitly in the intended client.
+
 Prepare the exact request and schema 2 policy described in ACTION-EXECUTION.md.
 Keep them outside an agent-writable project where possible. In an explicitly
 chosen MCP client configuration, use actual absolute paths:

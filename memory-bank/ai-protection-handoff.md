@@ -17,6 +17,16 @@ The [MCP action catalog](../docs/ACTION-MCP-CATALOG.md) additionally exposes up 
 eight operator-selected actions through direct stdio or the terminal-review broker.
 Installed Windows Claude 2.1.263 now exercises two catalog actions through both
 routes with local synthetic model replies; see the catalog evidence below.
+The [client configuration generator](../docs/ACTION-MCP-CONFIG.md),
+`--action-mcp-config-json selected|catalog|relay <paths...>`, now exports a fixed
+MCP client entry using current Node/source paths without reading selected files
+or installing settings. Its output intentionally contains private path metadata,
+so it is configuration rather than a redacted status report. Generated entries
+passed native initialization/status checks and installed Claude selected/catalog/
+review-relay fixtures using synthetic local replies. Inspect
+`.agent/b1-mcp-config-receipt.json` and its three provider receipts for evidence.
+README and llms.txt now describe shipped opt-in control separately from default
+monitoring. GitHub About was analyzed; no repository metadata change was applied.
 Broader deliberate agent routing and observed coverage display remain. A fixed
 selected-action MCP tool now connects to the execution owner (docs/ACTION-MCP.md).
 The explicit direct-execution

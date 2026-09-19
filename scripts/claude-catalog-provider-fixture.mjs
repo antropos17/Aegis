@@ -1,6 +1,7 @@
 /** TEST ONLY: installed provider routing of two operator-selected catalog actions. */
 import fs from 'node:fs';
 import path from 'node:path';
+import configGenerator from '../src/main/action-mcp-config.js';
 import broker from '../src/main/action-mcp-review.js';
 import { configureCatalogScenario } from './claude-catalog-model-fixture.mjs';
 import { setPrivateCanaries, hasPrivateCanary } from './claude-action-mcp-fixture.mjs';
@@ -115,7 +116,7 @@ export function catalogScenarioPassed(item) {
  * @param {object} context Isolated scratch, provider runner and model observation sink.
  * @returns {Promise<void>} Updates only redacted receipt metadata. @since v0.15.1 */
 export async function verifyCatalogRoute(context) {
-  const { owned, repo, env, run, receipt, action, configPath, setScenario, review } = context;
+  const { owned, env, run, receipt, action, configPath, setScenario, review } = context;
   const sentinelPaths = ['PRIVATE_FIRST', 'PRIVATE_SECOND'].map((name) => path.join(owned, name));
   const catalogPath = path.join(owned, 'catalog.json');
   const endpointPath = path.join(owned, 'catalog-endpoint.json');
@@ -147,23 +148,12 @@ export async function verifyCatalogRoute(context) {
       selected.requestPath,
       JSON.stringify({ schemaVersion: 1, action: selected.action }),
     );
-  fs.writeFileSync(
-    configPath,
-    JSON.stringify({
-      mcpServers: {
-        aegis: {
-          type: 'stdio',
-          command: process.execPath,
-          env,
-          args: [
-            path.join(repo, 'src/main/main.js'),
-            review ? '--action-mcp-connect' : '--action-mcp-catalog-stdio',
-            review ? endpointPath : catalogPath,
-          ],
-        },
-      },
-    }),
-  );
+  const config = configGenerator.buildActionMcpConfig(review ? 'relay' : 'catalog', [
+    review ? endpointPath : catalogPath,
+  ]);
+  // TEST ONLY: keep provider routing and configuration inside the disposable fixture.
+  config.mcpServers.aegis.env = env;
+  fs.writeFileSync(configPath, JSON.stringify(config));
   const names = review ? ['catalog-review'] : ['two-allowed', 'denied-second', 'ask-second'];
   for (const name of names) {
     for (const file of sentinelPaths) if (fs.existsSync(file)) fs.unlinkSync(file);

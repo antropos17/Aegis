@@ -33,6 +33,12 @@ metadata and result reports.
 
 ## Starting a route
 
+To generate the client's explicit JSON configuration, use
+`--action-mcp-config-json catalog <catalog.json>` or, for a separately started
+review broker, `--action-mcp-config-json relay <endpoint.json>`.
+The [generator](ACTION-MCP-CONFIG.md) exports selected paths without reading
+contents, starting servers or editing client settings.
+
 ```sh
 node src/main/main.js --action-mcp-catalog-stdio /absolute/catalog.json
 ```
