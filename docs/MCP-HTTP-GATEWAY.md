@@ -1,5 +1,7 @@
 # Explicit loopback HTTP gateway (B2.2)
 
+The same command also accepts the opt-in [pinned HTTPS descriptor v2](MCP-HTTPS-GATEWAY.md). This document describes the loopback HTTP descriptor v1.
+
 Optional [manifest v2 persistent grants](MCP-DURABLE-GRANTS.md) add expiry and cross-run replay protection using an explicitly selected shared local store. The version 1 examples below retain connection-local semantics.
 
 `node src/main/main.js --mcp-gateway-http <endpoint.json> <manifest.json>` connects
@@ -41,7 +43,7 @@ process listening there, secure its configuration, constrain its own network
 egress or prove that it enforces authentication. A local process can replace an
 unprotected listener. The operator must trust the selected server and protect
 its token/configuration. Plain HTTP is confined to loopback in this profile;
-remote TLS identity and OAuth remain separate work.
+the pinned HTTPS profile adds configured TLS identity; OAuth remains separate work.
 
 ## Finite HTTP profile
 
@@ -107,5 +109,5 @@ cancellation ID translation, deadlines, cleanup refusal, environment proxy
 isolation and sensitive runtime diagnostics. Fixtures own their servers and
 temporary directories; cleanup closes sockets and removes those directories.
 No installed provider or third-party HTTP server compatibility is established
-by these fixtures. B2 remains partial: remote HTTP/TLS/OAuth, broader recipients
+by these fixtures. B2 remains partial: OAuth and third-party HTTPS interoperability, broader recipients
 and scopes, protected permission issuance, protected launch and Observatory integration remain.

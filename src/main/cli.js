@@ -14,7 +14,7 @@ const USAGE = `AEGIS — Independent AI Oversight Layer
 Usage:  aegis [options]
 
 Options:
-  --mcp-gateway-http <endpoint.json> <manifest.json> [grant-store]  Gate one explicit loopback HTTP MCP session
+  --mcp-gateway-http <endpoint.json> <manifest.json> [grant-store]  Gate one explicit HTTP/HTTPS MCP session
   --mcp-gateway-stdio <policy.json> <request.json> <manifest.json> [grant-store]  Gate one selected MCP server with exact one-use tool grants
   --action-mcp-config-json <mode> <paths...> [--observe <new-endpoint>]  Export MCP configuration; observation for selected/catalog owners
     Modes: selected <policy> <request>, catalog <manifest>, relay <endpoint>; no installation or validation of files

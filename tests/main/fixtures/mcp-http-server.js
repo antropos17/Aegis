@@ -1,21 +1,25 @@
 import http from 'node:http';
+import https from 'node:https';
 import { once } from 'node:events';
 
 /** Start one test-owned loopback server; every effect stays in its in-memory state.
  * @param {object} tool Synthetic accepted definition.
+ * @param {object|undefined} tlsOptions Explicit disposable TLS key/cert options.
  * @returns {Promise<object>} Server address, bounded-test state and explicit socket cleanup.
  * @since v0.15.1 */
-export async function httpFixture(tool) {
+export async function httpFixture(tool, tlsOptions) {
   const state = {
     mode: 'json',
     token: 'PRIVATE_FIXTURE_TOKEN_'.repeat(3),
     session: 'PRIVATE_SESSION',
     messages: [],
+    connections: 0,
+    connects: [],
     calls: [],
     deletes: 0,
     lists: 0,
   };
-  const server = http.createServer(async (request, response) => {
+  const handler = async (request, response) => {
     response.on('error', () => {});
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
@@ -133,12 +137,23 @@ export async function httpFixture(tool) {
         ],
       });
     } else response.writeHead(400).end();
+  };
+  const server = tlsOptions ? https.createServer(tlsOptions, handler) : http.createServer(handler);
+  server.on('tlsClientError', () => {});
+  server.on('connect', (request, socket) => {
+    state.connects.push(request.url);
+    socket.on('error', () => {});
+    socket.end('HTTP/1.1 502 Fixture Proxy Rejected\r\nContent-Length: 0\r\n\r\n');
+  });
+  server.on('connection', () => {
+    state.connections++;
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   return {
     state,
-    url: `http://127.0.0.1:${server.address().port}/mcp`,
+    server,
+    url: `${tlsOptions ? 'https://mcp.fixture.test' : 'http://127.0.0.1'}:${server.address().port}/mcp`,
     close: async () => {
       const done = once(server, 'close');
       server.close();

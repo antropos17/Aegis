@@ -1,5 +1,7 @@
 # AI-agent protection: continuation context
 
+Current continuation: [explicit pinned HTTPS](../docs/MCP-HTTPS-GATEWAY.md) adds endpoint descriptor v2 with operator-selected IPv4, CA, hostname and leaf SHA256 checks. It retains finite MCP and persistent-grant boundaries. No OAuth, DNS discovery or automatic certificate renewal. Owned fixtures are the evidence; third-party/provider compatibility remains unverified. Receipts: `X:/tmp/aegis-mcp-tls-20260922/receipts`; preserve, review after 14 days or 64 MiB.
+
 Current continuation: [persistent MCP grants](../docs/MCP-DURABLE-GRANTS.md) add opt-in manifest v2, bounded local consumption records and expiry across stdio/HTTP restarts. V1 remains connection-local; task IDs are operator metadata, not verified identity. B2/B3 remain partial. Receipts: `X:/tmp/aegis-mcp-grants-20260922/receipts`; preserve and review after 14 days or 64 MiB. Consumed permission records are authorization state and must not be pruned as diagnostic output.
 
 ## Current continuation — 2026-09-22
@@ -20,7 +22,7 @@ B2.1 now adds an [explicit stdio gateway](../docs/MCP-STDIO-GATEWAY.md): exact
 one-attempt tool grants, bounded input/output schema validation, fresh accepted
 catalog checks and direct-child cleanup. Real disposable upstream/CLI fixtures
 cover allowed calls, replay, mutation, malformed traffic, cancellation and death.
-B2 remains partial: remote HTTP/TLS/OAuth, general recipient/scope enforcement, protected launch
+B2 remains partial: OAuth and third-party HTTPS interoperability, general recipient/scope enforcement, protected launch
 and third-party server/provider compatibility remain unverified. Gateway routes
 are not yet connected to Observatory coverage. Diagnostics for this pass live at
 `X:/tmp/aegis-mcp-gateway-20260922/receipts`; preserve receipts, review after 14 days

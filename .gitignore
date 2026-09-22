@@ -126,3 +126,13 @@ aegis_landing.html
 /Last Version
 /Local State
 /Variations
+
+# Public disposable TLS test fixtures; never deployment credentials.
+!tests/main/fixtures/mcp-tls/ca.pem
+!tests/main/fixtures/mcp-tls/expired.pem
+!tests/main/fixtures/mcp-tls/rotated.pem
+!tests/main/fixtures/mcp-tls/server.key
+!tests/main/fixtures/mcp-tls/server.pem
+!tests/main/fixtures/mcp-tls/untrusted.key
+!tests/main/fixtures/mcp-tls/untrusted.pem
+!tests/main/fixtures/mcp-tls/wrong-name.pem
