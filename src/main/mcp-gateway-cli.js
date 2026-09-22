@@ -2,21 +2,22 @@
 const { serveMcpTransport } = require('./mcp-stdio-transport');
 const { createMcpGateway } = require('./mcp-gateway');
 
-/** Start only an explicitly selected policy-authorized server; stdout contains MCP only.
- * @param {string[]} args Flag, launch policy, launch request, accepted tools/grants.
- * @returns {Promise<number>} Exit 2 on any lost boundary or unconfirmed direct-child cleanup. @since v0.15.1 */
+/** Connect an explicitly selected upstream; stdout contains MCP only.
+ * @param {string[]} args Stdio launch pair or HTTP descriptor, followed by accepted tools/grants.
+ * @returns {Promise<number>} Exit 2 on loss or unconfirmed child/session cleanup. @since v0.15.1 */
 async function handleMcpGatewayCLI(args) {
+  const http = args[0] === '--mcp-gateway-http';
   if (
-    args.length !== 4 ||
-    args[0] !== '--mcp-gateway-stdio' ||
+    args.length !== (http ? 3 : 4) ||
+    (!http && args[0] !== '--mcp-gateway-stdio') ||
     args.slice(1).some((s) => typeof s !== 'string' || !s || s.startsWith('--'))
   )
     return 2;
   const controller = new AbortController();
   const session = createMcpGateway({
-    policyPath: args[1],
-    requestPath: args[2],
-    manifestPath: args[3],
+    ...(http
+      ? { endpointPath: args[1], manifestPath: args[2] }
+      : { policyPath: args[1], requestPath: args[2], manifestPath: args[3] }),
     onFailure: () => controller.abort(),
   });
   const lifetime = setTimeout(() => controller.abort(), 30000);
