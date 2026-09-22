@@ -118,7 +118,7 @@ function matchesSchema(schema, value) {
 function validManifest(value) {
   if (
     !keys(value, ['schemaVersion', 'tools', 'grants']) ||
-    value.schemaVersion !== 1 ||
+    ![1, 2].includes(value.schemaVersion) ||
     !Array.isArray(value.tools) ||
     !value.tools.length ||
     value.tools.length > 8 ||
@@ -145,11 +145,34 @@ function validManifest(value) {
     names.add(tool.name);
   }
   return value.grants.every((grant, index) => {
-    if (!keys(grant, ['tool', 'arguments']) || !names.has(grant.tool)) return false;
+    const durable = value.schemaVersion === 2;
+    const fields = durable
+      ? ['id', 'taskId', 'notBefore', 'expiresAt', 'tool', 'arguments']
+      : ['tool', 'arguments'];
+    if (!keys(grant, fields) || !names.has(grant.tool)) return false;
+    if (
+      durable &&
+      (!['id', 'taskId'].every(
+        (key) =>
+          typeof grant[key] === 'string' &&
+          grant[key].length >= 32 &&
+          grant[key].length <= 64 &&
+          !/[^A-Za-z0-9_-]/.test(grant[key]),
+      ) ||
+        !['notBefore', 'expiresAt'].every(
+          (key) => Number.isSafeInteger(grant[key]) && grant[key] >= 0,
+        ) ||
+        grant.expiresAt <= grant.notBefore ||
+        grant.expiresAt - grant.notBefore > 86400000 ||
+        value.grants.slice(0, index).some((prior) => prior.id === grant.id))
+    )
+      return false;
     const tool = value.tools.find((item) => item.name === grant.tool);
     return (
       matchesSchema(tool.inputSchema, grant.arguments) &&
-      !value.grants.slice(0, index).some((prior) => equal(prior, grant))
+      !value.grants
+        .slice(0, index)
+        .some((prior) => prior.tool === grant.tool && equal(prior.arguments, grant.arguments))
     );
   });
 }

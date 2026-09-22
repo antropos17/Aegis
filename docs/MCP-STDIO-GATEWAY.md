@@ -1,5 +1,7 @@
 # Explicit stdio MCP gateway (B2.1)
 
+Optional [manifest v2 persistent grants](MCP-DURABLE-GRANTS.md) add expiry and cross-run replay protection using an explicitly selected shared local store. The version 1 examples below retain connection-local semantics.
+
 `node src/main/main.js --mcp-gateway-stdio <policy.json> <request.json> <manifest.json>`
 starts one operator-selected server after an MCP initialization request and an
 exact local launch-policy `allow`. `ask` and `deny` never start the server. No
@@ -42,8 +44,8 @@ complete reviewed definition actually returned by the chosen server):
 ```
 
 Each distinct grant permits one attempt per connection, including failed or
-cancelled attempts. Restarting explicitly with the same files creates new grants;
-there is no durable replay ledger. A client cannot supply another manifest or
+cancelled attempts. With manifest v1, restarting explicitly with the same files creates new grants;
+v1 has no durable replay ledger. Manifest v2 uses the selected persistent store. A client cannot supply another manifest or
 launch command. Arguments must satisfy the input schema and equal one unused
 grant, including every recipient or scope field present. This does not interpret
 recipient semantics, resolve aliases or enforce the server's network/filesystem
@@ -121,7 +123,7 @@ third-party server compatibility is claimed by these fixtures.
 The server runs with the current user's OS rights and can act independently at
 startup or outside forwarded calls. Killing the held child is not general
 descendant containment. A separate [finite loopback HTTP profile](MCP-HTTP-GATEWAY.md)
-now exists; remote HTTP/TLS/OAuth, durable grants, protected launch,
+now exists; remote HTTP/TLS/OAuth, protected permission issuance, protected launch,
 independent identity, general recipients/scopes, secret control and Observatory
 gateway coverage are still open. B2 remains partial; this does not close B3, B4,
 B5 or C1–C3. Do not expose the raw manifest, arguments or results in audit exports.

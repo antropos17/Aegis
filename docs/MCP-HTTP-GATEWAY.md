@@ -1,5 +1,7 @@
 # Explicit loopback HTTP gateway (B2.2)
 
+Optional [manifest v2 persistent grants](MCP-DURABLE-GRANTS.md) add expiry and cross-run replay protection using an explicitly selected shared local store. The version 1 examples below retain connection-local semantics.
+
 `node src/main/main.js --mcp-gateway-http <endpoint.json> <manifest.json>` connects
 the existing stdio-facing gateway to an already running, explicitly selected
 local MCP HTTP server. The tool manifest, exact one-attempt grants, input/output
@@ -106,4 +108,4 @@ isolation and sensitive runtime diagnostics. Fixtures own their servers and
 temporary directories; cleanup closes sockets and removes those directories.
 No installed provider or third-party HTTP server compatibility is established
 by these fixtures. B2 remains partial: remote HTTP/TLS/OAuth, broader recipients
-and scopes, durable grants, protected launch and Observatory integration remain.
+and scopes, protected permission issuance, protected launch and Observatory integration remain.

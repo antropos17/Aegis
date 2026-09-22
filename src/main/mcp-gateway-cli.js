@@ -7,8 +7,9 @@ const { createMcpGateway } = require('./mcp-gateway');
  * @returns {Promise<number>} Exit 2 on loss or unconfirmed child/session cleanup. @since v0.15.1 */
 async function handleMcpGatewayCLI(args) {
   const http = args[0] === '--mcp-gateway-http';
+  const required = http ? 3 : 4;
   if (
-    args.length !== (http ? 3 : 4) ||
+    ![required, required + 1].includes(args.length) ||
     (!http && args[0] !== '--mcp-gateway-stdio') ||
     args.slice(1).some((s) => typeof s !== 'string' || !s || s.startsWith('--'))
   )
@@ -18,6 +19,7 @@ async function handleMcpGatewayCLI(args) {
     ...(http
       ? { endpointPath: args[1], manifestPath: args[2] }
       : { policyPath: args[1], requestPath: args[2], manifestPath: args[3] }),
+    grantStorePath: args[required],
     onFailure: () => controller.abort(),
   });
   const lifetime = setTimeout(() => controller.abort(), 30000);
