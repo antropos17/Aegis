@@ -314,3 +314,63 @@ receipts under `X:/tmp/aegis-owner-crash-20260922/receipts`; review fixed diagno
 files after 14 days or 64 MiB. No global retention enforcement is installed.
 Terminal-review cancellation, installed-provider crash behavior, independent
 provider identity and outside-route control remain open; B5 is partial.
+
+## Completed interruption and client-crash verification cycle
+
+The next bounded B5 cycle covers terminal-review cancellation and installed-client
+crashes. `tests/main/action-review-cancellation.test.js` exercises four cases:
+selected action/catalog, each while awaiting confirmation and while running.
+The production relay, broker, terminal challenge parser, approval binding,
+executor and observer run together; only terminal streams and host signals are
+simulated. Wrong-type and unrelated request IDs do nothing. Matching cancellation
+settles once, suppresses the tool result, and preserves live observation. Pending
+review never launches; running cancellation requires the actual held child's exit
+and close events. Duplicate request IDs and a late or reused confirmation cannot
+launch again. Normal closure removes both descriptors. Removing cancellation
+delivery from the production owner makes both selected-action cases fail.
+
+Installed Windows Claude Code 2.1.263 passed the eight-case matrix: selected/catalog,
+direct stdio/terminal review, interrupt/abrupt client death. Each case used one
+synthetic loopback API request, a disposable profile and dummy credential. No
+cloud model or saved settings were used. The new opt-in flags are:
+
+```text
+--review-cancellation        --catalog-review-cancellation
+--crash                     --catalog-crash
+--review-crash              --catalog-review-crash
+```
+
+Use them with `node scripts/verify-claude-action-mcp.mjs` and the existing explicit
+`--claude`, `--bash` and `--scratch` paths. Review modes require a live terminal and
+the displayed exact challenge before the action starts; the fixture never supplies
+the answer. In the measured runs, external automation entered the disposable
+action's challenge. This is not evidence of human identity or human review.
+
+Review interruption produced one delivered cancellation and settlement while
+remaining observed; held-child exit/close and the production result independently
+confirmed termination. Crash modes kill only the held provider process. A separate
+read-only Windows process handle, acquired beforehand, confirms direct-child exit;
+marker growth stops without the fixture's eight-second deadline firing. No MCP
+cancellation notification is invented. Observation becomes sticky coverage loss
+and retains its last counters, which can precede final cleanup.
+
+Direct-stdio client crashes left an unchanged stale descriptor; review brokers
+removed theirs. Stale files are removed only with the fixture's owned scratch,
+not by new product recovery logic. All eight accepted runs cleaned their scratch.
+One earlier cancellation rerun was rejected by the runner's existing output/disk
+guard and is excluded from success evidence; its precise guard cause was not
+recorded. Subsequent runs passed unchanged limits. The runner now reports a fixed
+limit reason and output byte counts without saving provider output. The failed
+run's 9,407-byte scratch was separately removed after checking no matching process
+remained; its failed receipt is preserved.
+
+The [redacted matrix](recon/evidence/provider-interruption-cycle-windows-20260922.json)
+retains accepted receipts and the excluded failure. Direct runs keep a 30-second
+deadline; review runs allow 90 seconds including at most 60 seconds for an answer.
+The 16 MiB scratch and 32 KiB-per-stream bounds remain. Preserve local receipts at
+`X:/tmp/aegis-review-cancel-20260922/receipts`; review diagnostic files after 14 days
+or 64 MiB. No global retention mechanism is installed.
+
+This completes this interruption/crash verification cycle. Independent provider
+identity, verified outside-route blocking, arbitrary descendant containment and
+packaged-runtime crash guarantees remain open; B5 as a whole is still partial.

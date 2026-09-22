@@ -570,3 +570,14 @@ does not establish general C1 containment. A snapshot-loss mutation fails the te
 See [evidence and limits](../ACTION-LIVE-OBSERVATION.md#abrupt-owner-death-in-the-native-protocol-fixture).
 Terminal-review cancellation, installed-provider crash behavior, descendant
 control, independent identity and outside-route control remain open.
+
+B5 interruption/crash verification cycle completed: four production broker/relay
+tests exercise pending/running terminal review cancellation, late approval and
+request-ID reuse. Installed Windows Claude 2.1.263 passed the eight selected/catalog
+× direct/review × interrupt/client-crash cases with synthetic local replies.
+Child termination is independently witnessed; public counters never imply it.
+Direct crash leaves an unchanged stale endpoint; review crash cleans the broker
+endpoint. A cancellation-delivery mutation fails. See the final cycle section of
+[live observation](../ACTION-LIVE-OBSERVATION.md) for evidence, one excluded guard
+failure and runtime boundaries. B5 remains partial for independent identity and
+verified outside-route coverage; C1 descendant containment is separate work.

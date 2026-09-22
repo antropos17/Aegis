@@ -1,10 +1,13 @@
+import { cancellationInteraction } from './claude-cancellation-interaction.mjs';
 /** TEST ONLY: installed Claude interrupt -> production MCP -> held child exit evidence. */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import generator from '../src/main/action-mcp-config.js';
 import client from '../src/main/action-observation-client.js';
-import { frame, cancellationPassed } from './claude-cancellation-evidence.mjs';
+import { frame as baseFrame, cancellationPassed } from './claude-cancellation-evidence.mjs';
+import { reviewCancellationOwner } from './claude-review-cancellation-owner.mjs';
+import { crashPassed } from './claude-crash-evidence.mjs';
 import { emitSyntheticToolReply } from './claude-action-mcp-fixture.mjs';
 const privateState = new WeakMap();
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -31,7 +34,10 @@ export async function replyWithCancellationTool(res, input, scenario) {
           ? client.observeActionRoute(state.endpoint)
           : null;
         const value = state.observer?.snapshot();
-        return value?.state === 'observed' && frame(value, scenario.catalog, 0, 0, 0);
+        return (
+          value?.state === 'observed' &&
+          baseFrame(value, scenario.catalog, 0, 0, 0, scenario.review ? 'mcp-review' : 'mcp-stdio')
+        );
       });
       scenario.before = state.observer.snapshot();
       scenario.toolDiscovered =
@@ -58,8 +64,13 @@ export async function replyWithCancellationTool(res, input, scenario) {
 export async function verifyCancellationRoute(context) {
   const { owned, env, receipt, action, run, configPath, setScenario } = context;
   const catalog = context.catalog === true;
+  const review = context.reviewCancellation === true;
+  const crash = context.crash === true;
+  const frame = (...args) => baseFrame(...args, review ? 'mcp-review' : 'mcp-stdio');
   const endpoint = path.join(owned, 'PRIVATE_CANCEL_ENDPOINT.json');
   const witnessFile = path.join(owned, 'PRIVATE_CANCEL_WITNESS.json');
+  const identity = path.join(owned, 'PRIVATE_CHILD_IDENTITY');
+  const deadline = path.join(owned, 'PRIVATE_CHILD_DEADLINE');
   const markers = ['PRIVATE_CANCEL_UNUSED', 'PRIVATE_CANCEL_PROGRESS'].map((p) =>
     path.join(owned, p),
   );
@@ -68,7 +79,7 @@ export async function verifyCancellationRoute(context) {
       ...action,
       args: [
         '-e',
-        `const fs=require('node:fs');const p=${JSON.stringify(marker)};fs.writeFileSync(p,'x');setInterval(()=>fs.appendFileSync(p,'x'),50);setTimeout(()=>process.exit(0),8000);`,
+        `const fs=require('node:fs');const p=${JSON.stringify(marker)};fs.writeFileSync(p,'x');setInterval(()=>fs.appendFileSync(p,'x'),50);setTimeout(()=>{fs.writeFileSync(${JSON.stringify(deadline)},'done');process.exit(0)},8000);`,
       ],
     };
     const policyPath = path.join(owned, `cancel-${i}-policy.json`);
@@ -77,8 +88,8 @@ export async function verifyCancellationRoute(context) {
       policyPath,
       JSON.stringify({
         schemaVersion: 2,
-        defaultDecision: 'deny',
-        rules: [{ action: selectedAction, decision: 'allow' }],
+        defaultDecision: review ? 'ask' : 'deny',
+        rules: review ? [] : [{ action: selectedAction, decision: 'allow' }],
       }),
     );
     fs.writeFileSync(requestPath, JSON.stringify({ schemaVersion: 1, action: selectedAction }));
@@ -86,21 +97,32 @@ export async function verifyCancellationRoute(context) {
   });
   const manifest = path.join(owned, 'cancel-catalog.json');
   fs.writeFileSync(manifest, JSON.stringify({ schemaVersion: 1, actions: entries }));
-  const config = generator.buildActionMcpConfig(
-    catalog ? 'catalog' : 'selected',
-    catalog ? [manifest] : [entries[1].policyPath, entries[1].requestPath],
-    endpoint,
-  );
+  let reviewOwner;
+  const relayEndpoint = path.join(owned, 'PRIVATE_REVIEW_RELAY.json');
+  const config = review
+    ? generator.buildActionMcpConfig('relay', [relayEndpoint])
+    : generator.buildActionMcpConfig(
+        catalog ? 'catalog' : 'selected',
+        catalog ? [manifest] : [entries[1].policyPath, entries[1].requestPath],
+        endpoint,
+      );
   // Witness forwards the existing spawn seam unchanged and records only fixed result booleans.
-  config.mcpServers.aegis.args.unshift(
-    '--require',
-    fileURLToPath(new URL('./claude-cancellation-witness.cjs', import.meta.url)),
-  );
-  config.mcpServers.aegis.env = { ...env, AEGIS_CANCELLATION_WITNESS: witnessFile };
+  if (!review)
+    config.mcpServers.aegis.args.unshift(
+      '--require',
+      fileURLToPath(new URL('./claude-cancellation-witness.cjs', import.meta.url)),
+    );
+  config.mcpServers.aegis.env = {
+    ...env,
+    AEGIS_CANCELLATION_WITNESS: witnessFile,
+    AEGIS_CHILD_IDENTITY: identity,
+  };
   fs.writeFileSync(configPath, JSON.stringify(config));
   const tool = catalog ? 'mcp__aegis__aegis_action_second' : 'mcp__aegis__aegis_execute_selected';
   const e = {
     catalog,
+    review,
+    crash,
     requests: 0,
     failure: null,
     providerIdentity: 'unverified',
@@ -116,11 +138,22 @@ export async function verifyCancellationRoute(context) {
     endpointRemoved: false,
     stickyLoss: false,
   };
-  const state = { endpoint, tool, observer: null };
+  const state = { endpoint, tool, observer: null, descriptor: null };
   privateState.set(e, state);
   setScenario(e);
   let result;
+  let interactionDone;
   try {
+    if (review)
+      reviewOwner = await reviewCancellationOwner({
+        catalog,
+        entries,
+        manifest,
+        endpoint,
+        relayEndpoint,
+        witnessFile,
+        identity,
+      });
     result = await run(
       [
         '-p',
@@ -146,112 +179,36 @@ export async function verifyCancellationRoute(context) {
         'claude-sonnet-4-6',
       ],
       {
-        timeoutMs: 30000,
-        async interact(child) {
-          let buffer = '',
-            initialized = false,
-            closed = false;
-          child.once('close', () => {
-            closed = true;
-          });
-          const receive = (chunk) => {
-            buffer += chunk.toString();
-            if (Buffer.byteLength(buffer) > 32768) {
-              e.failure = 'stream-limit';
-              child.stdin.end();
-              return;
-            }
-            while (buffer.includes('\n')) {
-              const at = buffer.indexOf('\n');
-              const line = buffer.slice(0, at);
-              buffer = buffer.slice(at + 1);
-              try {
-                const m = JSON.parse(line);
-                if (m.type === 'control_response' && m.response?.subtype === 'success') {
-                  if (m.response.request_id === 'fixture-init') initialized = true;
-                  if (m.response.request_id === 'fixture-interrupt') e.interruptAcknowledged = true;
-                }
-                if (m.type === 'result')
-                  e.providerResult = {
-                    subtype: ['success', 'error_during_execution', 'error_max_turns'].includes(
-                      m.subtype,
-                    )
-                      ? m.subtype
-                      : 'unexpected',
-                    isError: m.is_error === true,
-                  };
-              } catch {
-                e.failure = 'stream-invalid';
-              }
-            }
-          };
-          child.stdout.on('data', receive);
-          const send = (value) => {
-            if (closed || child.stdin.destroyed) throw Error('provider-closed');
-            child.stdin.write(JSON.stringify(value) + '\n');
-          };
-          try {
-            send({
-              type: 'control_request',
-              request_id: 'fixture-init',
-              request: { subtype: 'initialize', hooks: {} },
-            });
-            await until(() => initialized || closed, 10000);
-            if (!initialized || closed) throw Error('initialize');
-            send({
-              type: 'user',
-              message: { role: 'user', content: 'Invoke the selected local fixture action once.' },
-            });
-            await until(() => bytes(markers[1]) > 0 || closed, 15000);
-            if (closed) throw Error('provider-closed');
-            await until(() => frame(state.observer?.snapshot(), catalog, 1, 0, 0));
-            e.pending = state.observer.snapshot();
-            const first = bytes(markers[1]);
-            await pause(125);
-            e.progressObserved = first > 0 && bytes(markers[1]) > first;
-            if (!e.progressObserved) throw Error('not-running');
-            send({
-              type: 'control_request',
-              request_id: 'fixture-interrupt',
-              request: { subtype: 'interrupt' },
-            });
-            e.interruptSent = true;
-            await until(
-              () =>
-                e.interruptAcknowledged &&
-                frame(state.observer?.snapshot(), catalog, 1, 1, 1) &&
-                fs.existsSync(witnessFile),
-            );
-            e.after = state.observer.snapshot();
-            if (bytes(witnessFile) > 1024) throw Error('witness-limit');
-            const w = JSON.parse(fs.readFileSync(witnessFile, 'utf8'));
-            e.witness = {
-              launches: Number.isSafeInteger(w.launches) ? w.launches : null,
-              ...Object.fromEntries(
-                ['exited', 'closed', 'cancelled', 'interrupted', 'terminationConfirmed'].map(
-                  (k) => [k, w[k] === true],
-                ),
-              ),
-            };
-            const last = bytes(markers[1]);
-            await pause(200);
-            e.progressStopped = last > 0 && bytes(markers[1]) === last;
-            await until(() => !!e.providerResult);
-          } catch {
-            e.failure ||= 'interrupt-checkpoint-failed';
-          } finally {
-            child.stdout.removeListener('data', receive);
-            child.stdin.end();
-          }
-        },
+        timeoutMs: review ? 90000 : 30000,
+        interact: (child) =>
+          (interactionDone = cancellationInteraction({
+            identity,
+            e,
+            catalog,
+            state,
+            markers,
+            witnessFile,
+            frame,
+            bytes,
+            until,
+            pause,
+          })(child)),
       },
     );
+    await interactionDone;
   } finally {
+    try {
+      await reviewOwner?.finish();
+    } catch {
+      e.failure ||= 'review-owner-cleanup';
+    }
     setScenario(null);
     try {
       if (state.observer) {
         await until(
-          () => state.observer.snapshot().state === 'coverage-lost' && !fs.existsSync(endpoint),
+          () =>
+            state.observer.snapshot().state === 'coverage-lost' &&
+            (crash || !fs.existsSync(endpoint)),
           4000,
         );
         e.lost = state.observer.snapshot();
@@ -264,6 +221,14 @@ export async function verifyCancellationRoute(context) {
     state.observer?.close();
     privateState.delete(e);
     e.endpointRemoved = !fs.existsSync(endpoint);
+    if (crash) {
+      e.endpointDisposition = e.endpointRemoved
+        ? 'removed'
+        : state.descriptor?.equals(fs.readFileSync(endpoint))
+          ? 'unchanged-stale'
+          : 'changed';
+      e.deadlineAbsent = !fs.existsSync(deadline);
+    }
   }
   Object.assign(e, {
     unusedBytes: bytes(markers[0]),
@@ -271,8 +236,11 @@ export async function verifyCancellationRoute(context) {
     timedOut: result?.timedOut === true,
     cancelled: result?.cancelled === true,
     exceeded: result?.exceeded === true,
+    providerStdoutBytes: Buffer.byteLength(result?.stdout || ''),
+    providerStderrBytes: result?.stderrBytes ?? null,
+    limitReason: result?.limitReason ?? null,
   });
-  e.pass = cancellationPassed(e);
+  e.pass = crash ? crashPassed(e) : cancellationPassed(e);
   receipt.scenarios.push(e);
   receipt.pass = e.pass && receipt.rejectedProxyRequests === 0;
 }

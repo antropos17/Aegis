@@ -71,6 +71,7 @@ export function createRunner({ selected, owned, env, system32, receipt, spawnPro
       let timedOut = false;
       let cancelled = false;
       let exceeded = false;
+      let limitReason = null;
       let stdout = '';
       let stderrBytes = 0;
       let child;
@@ -107,6 +108,7 @@ export function createRunner({ selected, owned, env, system32, receipt, spawnPro
           timedOut,
           cancelled,
           exceeded,
+          limitReason,
           stdout,
           stderrBytes,
           treeCleanupConfirmed,
@@ -189,10 +191,12 @@ export function createRunner({ selected, owned, env, system32, receipt, spawnPro
         try {
           if (treeBytes(owned) > 16 * 1024 ** 2) {
             exceeded = true;
+            limitReason = 'scratch-bytes';
             kill();
           }
         } catch {
           exceeded = true;
+          limitReason = 'scratch-unavailable';
           kill();
         }
       }, 1000);
@@ -212,6 +216,7 @@ export function createRunner({ selected, owned, env, system32, receipt, spawnPro
         const text = b.toString();
         if (Buffer.byteLength(stdout) + Buffer.byteLength(text) > 32768) {
           exceeded = true;
+          limitReason = 'stdout-bytes';
           kill();
         } else stdout += text;
       });
@@ -220,6 +225,7 @@ export function createRunner({ selected, owned, env, system32, receipt, spawnPro
         stderrBytes += b.length;
         if (stderrBytes > 32768) {
           exceeded = true;
+          limitReason = 'stderr-bytes';
           kill();
         }
       });

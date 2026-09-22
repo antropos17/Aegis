@@ -12,6 +12,8 @@ execution._setDepsForTest({
   spawn(...args) {
     launches++;
     const child = spawn(...args);
+    if (process.env.AEGIS_CHILD_IDENTITY)
+      fs.writeFileSync(process.env.AEGIS_CHILD_IDENTITY, String(child.pid));
     child.once('exit', () => {
       exited = true;
     });
