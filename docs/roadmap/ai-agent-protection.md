@@ -560,3 +560,13 @@ is recorded separately and cannot replace these proofs. A native mutation removi
 cancellation delivery failed. See [verification](../ACTION-LIVE-OBSERVATION.md).
 Terminal-review cancellation, descendants, abrupt owner death, independently bound
 provider identity and outside-route control remain open; B5 remains partial.
+
+B5 abrupt owner death: native selected/catalog direct-stdio tests now kill a real
+owner during execution and verify sticky coverage loss with pending counters,
+stale descriptor preservation/reuse rejection, fresh explicit observation and
+normal cleanup of the replacement owner. Windows Node 24.11.1 direct-child exit
+is independently witnessed through a held OS handle. This runtime-specific result
+does not establish general C1 containment. A snapshot-loss mutation fails the test.
+See [evidence and limits](../ACTION-LIVE-OBSERVATION.md#abrupt-owner-death-in-the-native-protocol-fixture).
+Terminal-review cancellation, installed-provider crash behavior, descendant
+control, independent identity and outside-route control remain open.
