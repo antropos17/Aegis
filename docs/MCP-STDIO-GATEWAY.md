@@ -120,7 +120,8 @@ third-party server compatibility is claimed by these fixtures.
 
 The server runs with the current user's OS rights and can act independently at
 startup or outside forwarded calls. Killing the held child is not general
-descendant containment. HTTP/OAuth boundaries, durable grants, protected launch,
+descendant containment. A separate [finite loopback HTTP profile](MCP-HTTP-GATEWAY.md)
+now exists; remote HTTP/TLS/OAuth, durable grants, protected launch,
 independent identity, general recipients/scopes, secret control and Observatory
 gateway coverage are still open. B2 remains partial; this does not close B3, B4,
 B5 or C1–C3. Do not expose the raw manifest, arguments or results in audit exports.

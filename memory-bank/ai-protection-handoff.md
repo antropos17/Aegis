@@ -2,11 +2,23 @@
 
 ## Current continuation — 2026-09-22
 
+B2.2 adds an [explicit loopback HTTP profile](../docs/MCP-HTTP-GATEWAY.md), sharing
+B2.1 grants/schema/catalog checks. It pins a literal local endpoint and bearer,
+uses finite JSON/SSE responses, rejects redirects/session replacement and never
+automatically reinitializes or retries. Cancellation attempts an upstream
+notification and DELETE; HTTP acknowledgement does not prove remote execution
+stopped. Real loopback/Node CLI fixtures cover this boundary; installed-provider
+and third-party HTTP compatibility remain unverified. This adds no public listener,
+OAuth, OS containment or Observatory gateway coverage.
+Receipts: `X:/tmp/aegis-mcp-http-20260922/receipts`; preserve them and review after
+14 days or 64 MiB. Fixtures close their owned servers/sockets and remove their
+temporary directories. No global retention change was made.
+
 B2.1 now adds an [explicit stdio gateway](../docs/MCP-STDIO-GATEWAY.md): exact
 one-attempt tool grants, bounded input/output schema validation, fresh accepted
 catalog checks and direct-child cleanup. Real disposable upstream/CLI fixtures
 cover allowed calls, replay, mutation, malformed traffic, cancellation and death.
-B2 remains partial: HTTP, general recipient/scope enforcement, protected launch
+B2 remains partial: remote HTTP/TLS/OAuth, general recipient/scope enforcement, protected launch
 and third-party server/provider compatibility remain unverified. Gateway routes
 are not yet connected to Observatory coverage. Diagnostics for this pass live at
 `X:/tmp/aegis-mcp-gateway-20260922/receipts`; preserve receipts, review after 14 days

@@ -8,6 +8,7 @@
 
 // ═══ CLI MODE (before Electron imports) ═══
 const _cliFlags = new Set([
+  '--mcp-gateway-http',
   '--mcp-gateway-stdio',
   '--action-mcp-config-json',
   '--action-catalog-check-json',
@@ -40,6 +41,7 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
     .then(async (code) => {
       if (
         [
+          '--mcp-gateway-http',
           '--mcp-gateway-stdio',
           '--action-mcp-stdio',
           '--action-mcp-review',

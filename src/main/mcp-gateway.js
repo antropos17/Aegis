@@ -1,11 +1,9 @@
 'use strict';
 const { createHash } = require('node:crypto');
 const { readActionFile, parseActionJson, equalActionValue: equal } = require('./action-policy');
-const { captureExecutionBinding, revokeExecutionBinding } = require('./execution-binding');
-const { prepareExecution } = require('./execution-policy');
+const { captureGatewayRoute } = require('./mcp-gateway-route');
 const { isExecutionRuntimeSupported } = require('./execution-runtime');
 const { validManifest, matchesSchema, validResult } = require('./mcp-gateway-schema');
-const { createGatewayPeer } = require('./mcp-gateway-peer');
 const VERSION = '2025-11-25';
 const object = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const only = (v, names) => object(v) && Object.keys(v).every((k) => names.includes(k));
@@ -16,13 +14,13 @@ const result = (id, value) => ({ jsonrpc: '2.0', id, result: value });
 const error = (id, code, message) => ({ jsonrpc: '2.0', id, error: { code, message } });
 
 /** Gate an explicitly selected upstream server; grants bind exact tool/arguments for one attempt.
- * @param {object} options Selected policy/request/accepted manifest and route failure hook.
- * @returns {object} Finite receive/close and held-server cleanup. @since v0.15.1 */
-function createMcpGateway({ policyPath, requestPath, manifestPath, onFailure }) {
+ * @param {object} options Exclusive stdio pair or HTTP endpoint, accepted manifest and failure hook.
+ * @returns {object} Finite receive/close and owned child or session cleanup. @since v0.15.1 */
+function createMcpGateway({ policyPath, requestPath, endpointPath, manifestPath, onFailure }) {
   let phase = 'new',
     closed = false,
     busy = false,
-    binding,
+    route,
     peer,
     manifest,
     digest,
@@ -35,7 +33,7 @@ function createMcpGateway({ policyPath, requestPath, manifestPath, onFailure }) 
     closed = true;
     phase = 'closed';
     controller.abort();
-    if (binding) revokeExecutionBinding(binding);
+    route?.close();
     peer?.close();
     if (failed) onFailure();
   };
@@ -74,9 +72,9 @@ function createMcpGateway({ policyPath, requestPath, manifestPath, onFailure }) 
   };
   const recheck = async () => {
     await step(readManifest());
-    const prepared = await step(prepareExecution(policyPath, requestPath, { binding }));
-    if (closed || prepared.decision !== 'allow') throw Error('server-authorization');
-    return prepared.launch;
+    const selected = await step(route.recheck());
+    if (closed) throw Error('server-authorization');
+    return selected;
   };
   const checkCatalog = async () => {
     const listed = await step(peer.request('tools/list', {}));
@@ -129,12 +127,12 @@ function createMcpGateway({ policyPath, requestPath, manifestPath, onFailure }) 
       try {
         if (!isExecutionRuntimeSupported()) throw Error('runtime');
         manifest = await step(readManifest());
-        binding = await step(
-          captureExecutionBinding(policyPath, requestPath, { signal: controller.signal }),
+        route = await step(
+          captureGatewayRoute({ policyPath, requestPath, endpointPath }, controller.signal),
         );
         const launch = await recheck();
         if (closed) throw Error('closed');
-        peer = createGatewayPeer(launch, () => close(true));
+        peer = route.open(launch, () => close(true));
         const initialized = await step(
           peer.request('initialize', {
             protocolVersion: VERSION,
@@ -149,7 +147,7 @@ function createMcpGateway({ policyPath, requestPath, manifestPath, onFailure }) 
           !object(initialized.capabilities?.tools)
         )
           throw Error('upstream-initialize');
-        peer.notify('notifications/initialized');
+        await step(Promise.resolve(peer.notify('notifications/initialized')));
         await checkCatalog();
         phase = 'awaiting-client';
         return result(id, {
