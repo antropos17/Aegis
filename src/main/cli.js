@@ -14,6 +14,7 @@ const USAGE = `AEGIS — Independent AI Oversight Layer
 Usage:  aegis [options]
 
 Options:
+  --mcp-gateway-stdio <policy.json> <request.json> <manifest.json>  Gate one selected MCP server with exact one-use tool grants
   --action-mcp-config-json <mode> <paths...> [--observe <new-endpoint>]  Export MCP configuration; observation for selected/catalog owners
     Modes: selected <policy> <request>, catalog <manifest>, relay <endpoint>; no installation or validation of files
   --action-mcp-catalog-stdio <catalog.json>  Serve up to eight operator-selected actions through MCP
@@ -98,6 +99,7 @@ async function handleCLI(argv) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  if (flag === '--mcp-gateway-stdio') return require('./mcp-gateway-cli').handleMcpGatewayCLI(args);
   if (
     [
       '--action-mcp-stdio',

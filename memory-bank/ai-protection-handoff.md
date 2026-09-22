@@ -2,6 +2,16 @@
 
 ## Current continuation — 2026-09-22
 
+B2.1 now adds an [explicit stdio gateway](../docs/MCP-STDIO-GATEWAY.md): exact
+one-attempt tool grants, bounded input/output schema validation, fresh accepted
+catalog checks and direct-child cleanup. Real disposable upstream/CLI fixtures
+cover allowed calls, replay, mutation, malformed traffic, cancellation and death.
+B2 remains partial: HTTP, general recipient/scope enforcement, protected launch
+and third-party server/provider compatibility remain unverified. Gateway routes
+are not yet connected to Observatory coverage. Diagnostics for this pass live at
+`X:/tmp/aegis-mcp-gateway-20260922/receipts`; preserve receipts, review after 14 days
+or 64 MiB. Owned fixtures are removed after each test and have bounded lifetimes.
+
 The earlier preflight-only description below is historical. Live route observation
 and sticky coverage-loss transitions exist. Selected/catalog direct-stdio
 cancellation now has installed Windows Claude Code 2.1.263 verification: actual
