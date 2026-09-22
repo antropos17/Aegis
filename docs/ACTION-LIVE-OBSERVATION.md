@@ -192,7 +192,7 @@ frames and fixed outcome fields; paths and terminal challenges are excluded.
 Terminal answers were supplied by automation, which does not authenticate a
 human. This uses the same 90-second run, 2.5-second checkpoint and 4-second cleanup
 bounds, disposable configuration and synthetic local replies described above.
-Abrupt owner death and installed-provider cancellation of a running child remain unverified.
+Abrupt owner death remains unverified. Installed-provider cancellation is covered below.
 
 ## Running-child cancellation in the protocol fixture
 
@@ -220,3 +220,51 @@ outside this verification. No provider or cloud model is launched by this fixtur
 
 Independent agent/version binding, safe installed-adapter blocking tests and
 verified outside-route control remain open. B5 is partial.
+
+## Installed-provider running-child cancellation
+
+The opt-in verifier now supports `--cancellation` and `--catalog-cancellation`:
+
+```text
+node scripts/verify-claude-action-mcp.mjs --cancellation --claude <absolute claude.exe> --bash <absolute Git bash.exe> --scratch <existing spacious private directory>
+```
+
+Both modes passed on Windows with installed Claude Code 2.1.263. Each run used
+one synthetic loopback API request, a disposable profile and a dummy credential;
+no cloud model or saved client settings were used. The fixture uses the
+[SDK control protocol](https://github.com/anthropics/claude-agent-sdk-python/blob/main/src/claude_agent_sdk/_internal/query.py)
+to initialize stream-json input and request `interrupt`. The request is sent only
+after the selected real Node child is running, its private progress marker grows,
+and production observation records one invocation with zero settlements.
+The [redacted evidence](recon/evidence/claude-running-cancellation-windows-20260922.json)
+records both runs and canonical LF hashes of the verifier and exercised modules.
+
+Claude acknowledged the interrupt and delivered one MCP cancellation notification.
+The production executor reported `action-cancelled`, `interrupted` and confirmed
+termination. An explicitly loaded test witness forwards the existing spawn seam
+unchanged and retains the held ChildProcess's exit/close events; public settlement
+counters alone are insufficient. Marker growth stopped, the unused catalog action
+never ran, and the connection remained observed with counters 1 invocation,
+1 settlement and 1 cancellation before closing normally. Owner exit then caused
+sticky coverage loss and descriptor removal. Both owned scratch directories were
+removed. The client metadata is still self-reported.
+
+The installed CLI returned exit 1 and an `error_during_execution` result after
+interruption. The verifier accepts that combination only with the acknowledgement,
+all independent cancellation/termination evidence and successful cleanup. A timeout,
+fallback tree kill, missing exit/close or closure-triggered cancellation cannot pass.
+Removing cancellation delivery from the production owner made the native selected
+case fail its checkpoint; scratch cleanup still completed, and source was restored.
+
+The provider has a 30-second deadline and the existing 16 MiB scratch limit. Each
+checkpoint after launch waits at most 2.5 seconds, cleanup waits at most 4 seconds,
+and the ordinary executor retains its 5-second runtime bound. The disposable child
+also exits itself after 8 seconds if its owner disappears. Provider stdout stays
+bounded in memory and is not included in the receipt; witness results are projected
+to six fixed fields. Receipts contain no marker paths, endpoint credentials or raw
+provider output. Preserve verification receipts; review fixed diagnostic files after
+14 days or 64 MiB. No global retention mechanism is installed.
+
+This closes the selected/catalog direct-stdio installed-provider cancellation
+verification gap. Terminal-review cancellation, descendant termination, abrupt
+owner death, independent provider identity and outside-route control remain open.

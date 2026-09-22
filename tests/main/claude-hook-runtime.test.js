@@ -11,8 +11,16 @@ const streams = [];
 function processDouble(pid) {
   const stdout = new PassThrough();
   const stderr = new PassThrough();
-  streams.push(stdout, stderr);
-  return Object.assign(new EventEmitter(), { pid, stdout, stderr, kill: vi.fn(), unref: vi.fn() });
+  const stdin = new PassThrough();
+  streams.push(stdin, stdout, stderr);
+  return Object.assign(new EventEmitter(), {
+    pid,
+    stdin,
+    stdout,
+    stderr,
+    kill: vi.fn(),
+    unref: vi.fn(),
+  });
 }
 function setup({ duringSpawn, spawnError, noPid = false } = {}) {
   vi.useFakeTimers();
@@ -83,6 +91,41 @@ it('does not spawn for an already aborted signal', async () => {
   });
   expect(t.spawnProcess).not.toHaveBeenCalled();
 });
+
+it('supports owned bidirectional input while retaining output limits and normal exit', async () => {
+  const t = setup();
+  const done = t.run([], {
+    interact(child) {
+      child.stdin.write('fixture-input\n');
+    },
+  });
+  expect(t.spawnProcess.mock.calls[0][2].stdio).toEqual(['pipe', 'pipe', 'pipe']);
+  expect(t.child.stdin.read().toString()).toBe('fixture-input\n');
+  t.child.stdout.write('fixture-reply');
+  t.child.emit('close', 0);
+  expect(await done).toMatchObject({ code: 0, stdout: 'fixture-reply', timedOut: false });
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it.each(['throw', 'reject', 'input-error'])(
+  'reaps owned process after interaction %s',
+  async (kind) => {
+    const t = setup();
+    const done = t.run([], {
+      interact() {
+        if (kind === 'throw') throw Error('PRIVATE');
+        if (kind === 'reject') return Promise.reject(Error('PRIVATE'));
+      },
+    });
+    if (kind === 'input-error') t.child.stdin.emit('error', Error('PRIVATE'));
+    await Promise.resolve();
+    expect(t.spawnProcess).toHaveBeenCalledTimes(2);
+    t.killer.emit('close', 0);
+    t.child.emit('close', 1);
+    expect(await done).toMatchObject({ code: 1, treeCleanupConfirmed: true });
+    expect(vi.getTimerCount()).toBe(0);
+  },
+);
 
 it.each([999, 90001, 1500.5, NaN])(
   'rejects invalid timeout %s without spawning',
