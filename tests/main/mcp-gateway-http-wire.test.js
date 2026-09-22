@@ -10,6 +10,7 @@ const descriptor = {
 };
 describe('HTTP gateway boundary parsers', () => {
   it.each([
+    'http://127.0.0.1:12345/mcp\n',
     'http://localhost:12345/mcp',
     'http://127.1:12345/mcp',
     'http://2130706433:12345/mcp',
@@ -38,6 +39,7 @@ describe('HTTP gateway boundary parsers', () => {
     });
     for (const change of [
       { bearerToken: '' },
+      { bearerToken: 'x'.repeat(32) + '\n' },
       { bearerToken: 'x'.repeat(257) },
       { bearerToken: 'x'.repeat(32) + '\r\nHeader: value' },
       { extra: true },

@@ -23,7 +23,7 @@ afterEach(async () => {
     root = undefined;
   }
 });
-it.each(['http', 'net'])(
+it.each(['http', 'net', 'https', 'tls'])(
   'rejects cached Node %s diagnostics before sending private headers',
   async (debug) => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-mcp-http-debug-'));

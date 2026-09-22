@@ -1,11 +1,13 @@
 'use strict';
 const http = require('node:http');
+const https = require('node:https');
+const { createTlsAgent } = require('./mcp-gateway-tls');
 const net = require('node:net');
 const { TextDecoder } = require('node:util');
 const { parseActionJson } = require('./action-policy');
 const LIMITS = Object.freeze({ bodyBytes: 16384, headerBytes: 8192 });
 
-/** Make one finite request to the already validated literal loopback endpoint.
+/** Make one finite request to the already validated fixed HTTP or HTTPS endpoint.
  * @param {object} endpoint Private fixed port/path/token.
  * @param {object} options Method, body, session, deadline, signal and byte-accounting callback.
  * @returns {Promise<object>} Bounded response; caller must clear its private body. @since v0.15.1 */
@@ -22,8 +24,13 @@ function exchange(
       informational = 0;
     const chunks = [];
     // Dedicated agent and literal connection: no DNS, global agent, proxy env or pool reuse.
-    const agent = new http.Agent({ keepAlive: false, proxyEnv: {} });
-    agent.createConnection = () => net.createConnection({ host: '127.0.0.1', port: endpoint.port });
+    const secure = endpoint.protocol === 'https:';
+    const agent = secure
+      ? createTlsAgent(endpoint)
+      : new http.Agent({ keepAlive: false, proxyEnv: {} });
+    if (!secure)
+      agent.createConnection = () =>
+        net.createConnection({ host: '127.0.0.1', port: endpoint.port });
     const finish = (error, value) => {
       if (settled) return;
       settled = true;
@@ -39,15 +46,16 @@ function exchange(
     const abort = () => finish(true);
     try {
       if (Buffer.byteLength(body) > LIMITS.bodyBytes) throw Error('limit');
-      request = http.request(
+      request = (secure ? https : http).request(
         {
-          hostname: '127.0.0.1',
+          hostname: secure ? endpoint.hostname : '127.0.0.1',
           port: endpoint.port,
           path: endpoint.path,
           method,
           agent,
           maxHeaderSize: LIMITS.headerBytes,
           headers: {
+            ...(secure ? { Host: endpoint.hostHeader } : {}),
             Authorization: `Bearer ${endpoint.token}`,
             Origin: endpoint.origin,
             Accept: 'application/json, text/event-stream',

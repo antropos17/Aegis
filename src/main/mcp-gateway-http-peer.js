@@ -1,7 +1,7 @@
 'use strict';
 const { exchange, singleHeader, parseHttpReply } = require('./mcp-gateway-http-wire');
 
-/** Own one explicit loopback HTTP session; cleanup acknowledgement does not prove tool termination.
+/** Own one explicit HTTP or HTTPS session; cleanup acknowledgement does not prove tool termination.
  * @param {object} endpoint Validated private endpoint. @param {Function} onFailure Revoke admission.
  * @returns {object} Finite request/notification and bounded session cleanup. @since v0.15.1 */
 function createHttpGatewayPeer(endpoint, onFailure) {

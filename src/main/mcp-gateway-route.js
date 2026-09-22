@@ -7,11 +7,13 @@ const { captureExecutionBinding, revokeExecutionBinding } = require('./execution
 const { prepareExecution } = require('./execution-policy');
 const { createGatewayPeer } = require('./mcp-gateway-peer');
 const { createHttpGatewayPeer } = require('./mcp-gateway-http-peer');
+const { parseHttpsEndpoint } = require('./mcp-gateway-tls');
 
-/** Validate the narrow local HTTP profile without normalizing an untrusted URL.
+/** Validate the explicit HTTP or pinned HTTPS profile without normalizing an untrusted URL.
  * @param {object} value Operator-selected descriptor. @returns {object} Private connection parameters.
  * @since v0.15.1 */
 function parseHttpEndpoint(value) {
+  if (value?.schemaVersion === 2) return parseHttpsEndpoint(value);
   if (
     !value ||
     typeof value !== 'object' ||
@@ -21,12 +23,20 @@ function parseHttpEndpoint(value) {
     typeof value.url !== 'string' ||
     value.url.length > 512 ||
     typeof value.bearerToken !== 'string' ||
-    !/^[A-Za-z0-9_-]{32,256}$/.test(value.bearerToken)
+    value.bearerToken.length < 32 ||
+    value.bearerToken.length > 256 ||
+    /[^A-Za-z0-9_-]/.test(value.bearerToken)
   )
     throw Error('http-endpoint-invalid');
   const match =
     /^http:\/\/127\.0\.0\.1:([1-9]\d{0,4})(\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*)$/.exec(value.url);
-  if (!match || match[2].length > 256 || Number(match[1]) < 1024 || Number(match[1]) > 65535)
+  if (
+    !match ||
+    match[0] !== value.url ||
+    match[2].length > 256 ||
+    Number(match[1]) < 1024 ||
+    Number(match[1]) > 65535
+  )
     throw Error('http-endpoint-invalid');
   return {
     port: Number(match[1]),
@@ -53,7 +63,7 @@ async function captureGatewayRoute({ policyPath, requestPath, endpointPath }, si
   try {
     if (endpointPath !== undefined) {
       // Node's cached HTTP diagnostics can print Authorization headers before our error handling.
-      if (debuglog('http').enabled || debuglog('net').enabled)
+      if (['http', 'net', 'https', 'tls'].some((name) => debuglog(name).enabled))
         throw Error('http-runtime-unsupported');
       if (
         policyPath !== undefined ||
@@ -71,6 +81,15 @@ async function captureGatewayRoute({ policyPath, requestPath, endpointPath }, si
           const hash = createHash('sha256').update(bytes).digest('hex');
           if (closed || (digest && hash !== digest)) throw Error('gateway-route-changed');
           const endpoint = parseHttpEndpoint(parseActionJson(bytes));
+          // Node removes embedded quotes/escapes while parsing NODE_OPTIONS.
+          // Strip them conservatively so diagnostics cannot hide their flag spelling.
+          if (
+            endpoint.protocol === 'https:' &&
+            /--(?:tls[-_]keylog|trace[-_]tls|experimental[-_](?:default[-_])?config[-_]file)/.test(
+              [...process.execArgv, process.env.NODE_OPTIONS || ''].join(' ').replace(/["\\]/g, ''),
+            )
+          )
+            throw Error('http-runtime-unsupported');
           digest = hash;
           return endpoint;
         } finally {
