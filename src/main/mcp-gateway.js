@@ -1,6 +1,7 @@
 'use strict';
 const { createHash } = require('node:crypto');
 const { readActionFile, parseActionJson, equalActionValue: equal } = require('./action-policy');
+const { consumeGatewayGrant } = require('./mcp-gateway-grants');
 const { captureGatewayRoute } = require('./mcp-gateway-route');
 const { isExecutionRuntimeSupported } = require('./execution-runtime');
 const { validManifest, matchesSchema, validResult } = require('./mcp-gateway-schema');
@@ -16,7 +17,14 @@ const error = (id, code, message) => ({ jsonrpc: '2.0', id, error: { code, messa
 /** Gate an explicitly selected upstream server; grants bind exact tool/arguments for one attempt.
  * @param {object} options Exclusive stdio pair or HTTP endpoint, accepted manifest and failure hook.
  * @returns {object} Finite receive/close and owned child or session cleanup. @since v0.15.1 */
-function createMcpGateway({ policyPath, requestPath, endpointPath, manifestPath, onFailure }) {
+function createMcpGateway({
+  policyPath,
+  requestPath,
+  endpointPath,
+  manifestPath,
+  grantStorePath,
+  onFailure,
+}) {
   let phase = 'new',
     closed = false,
     busy = false,
@@ -127,6 +135,11 @@ function createMcpGateway({ policyPath, requestPath, endpointPath, manifestPath,
       try {
         if (!isExecutionRuntimeSupported()) throw Error('runtime');
         manifest = await step(readManifest());
+        if (
+          (manifest.schemaVersion === 2) !==
+          (typeof grantStorePath === 'string' && !!grantStorePath)
+        )
+          throw Error('grant-store-required');
         route = await step(
           captureGatewayRoute({ policyPath, requestPath, endpointPath }, controller.signal),
         );
@@ -191,10 +204,17 @@ function createMcpGateway({ policyPath, requestPath, endpointPath, manifestPath,
     busy = true;
     activeId = id;
     try {
+      const permission = manifest.grants[grant];
+      if (manifest.schemaVersion === 2) await step(consumeGatewayGrant(grantStorePath, permission));
       await recheck();
       await checkCatalog();
       await recheck();
       if (closed) throw Error('closed');
+      if (
+        manifest.schemaVersion === 2 &&
+        (Date.now() < permission.notBefore || Date.now() >= permission.expiresAt)
+      )
+        throw Error('grant-expired');
       const returned = await step(peer.request('tools/call', params));
       if (closed || !validResult(tool, returned)) throw Error('upstream-result');
       return result(id, returned);

@@ -89,6 +89,7 @@ function create(mode = 'normal') {
     policyPath: paths.policy,
     requestPath: paths.request,
     manifestPath: paths.manifest,
+    grantStorePath: paths.store,
     onFailure: failed,
   });
   return session;
@@ -105,6 +106,25 @@ const effects = () =>
     ? fs.readFileSync(paths.effects, 'utf8').trim().split('\n').map(JSON.parse)
     : [];
 describe('explicit stdio gateway with real owned upstream', () => {
+  it('retains a v2 grant consumption across owned stdio child restarts', async () => {
+    paths.store = path.join(root, 'grants');
+    fs.mkdirSync(paths.store);
+    manifest.schemaVersion = 2;
+    Object.assign(manifest.grants[0], {
+      id: 'g'.repeat(32),
+      taskId: 't'.repeat(32),
+      notBefore: Date.now() - 1000,
+      expiresAt: Date.now() + 60000,
+    });
+    save(paths.manifest, manifest);
+    await ready();
+    expect((await session.receive(call())).result).toBeDefined();
+    session.close();
+    expect(await session.finish()).toBe(true);
+    await ready();
+    expect((await session.receive(call())).error).toBeDefined();
+    expect(effects()).toHaveLength(1);
+  });
   it('forwards one exact grant, validates result and rejects replay', async () => {
     await ready();
     expect((await session.receive(call())).result.structuredContent).toEqual({ accepted: true });

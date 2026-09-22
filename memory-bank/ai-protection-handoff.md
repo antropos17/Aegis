@@ -1,5 +1,7 @@
 # AI-agent protection: continuation context
 
+Current continuation: [persistent MCP grants](../docs/MCP-DURABLE-GRANTS.md) add opt-in manifest v2, bounded local consumption records and expiry across stdio/HTTP restarts. V1 remains connection-local; task IDs are operator metadata, not verified identity. B2/B3 remain partial. Receipts: `X:/tmp/aegis-mcp-grants-20260922/receipts`; preserve and review after 14 days or 64 MiB. Consumed permission records are authorization state and must not be pruned as diagnostic output.
+
 ## Current continuation — 2026-09-22
 
 B2.2 adds an [explicit loopback HTTP profile](../docs/MCP-HTTP-GATEWAY.md), sharing
