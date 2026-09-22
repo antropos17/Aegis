@@ -10,11 +10,18 @@ production cancellation outcome and descriptor cleanup. The model endpoint was
 synthetic and local. A native mutation removing cancellation delivery failed.
 Details: [Action live observation](../docs/ACTION-LIVE-OBSERVATION.md).
 
-Continue with abrupt owner death and cleanup/loss evidence. Terminal-review
-cancellation, descendant control, independent provider identity and outside-route
+Native selected/catalog direct-stdio crash tests now verify sticky loss, retained
+pending counters, unchanged stale descriptor/reuse rejection and explicit fresh
+generation recovery. A held Windows process handle confirms direct-child exit on
+Node 24.11.1; do not generalize this runtime behavior to descendant containment.
+The snapshot-loss mutation fails. Local receipts are under
+`X:/tmp/aegis-owner-crash-20260922/receipts`; preserve them, review diagnostics after
+14 days or 64 MiB. Disposable fixtures have a four-second lifetime and are removed.
+Continue with terminal-review cancellation. Installed-provider crash behavior,
+descendant control, independent provider identity and outside-route
 control remain open; B1/B5 remain partial. Check current refs/CI rather than
 resuming old publication instructions or starting B1 again. Preserve the dirty
-original checkout. Local receipts for this pass are under
+original checkout. Local receipts for the earlier cancellation pass are under
 `X:/tmp/aegis-provider-cancel-20260922/receipts`; preserve them. Disposable provider
 scratch is removed by the bounded verifier; no global retention change was made.
 

@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-22",
+  "baseCommit": "d24491eb7dc169a4f2447c0d9920fd28aeaaed44",
+  "platform": "win32",
+  "osRelease": "10.0.26200",
+  "node": "24.11.1",
+  "libuv": "1.51.0",
+  "client": "synthetic-local-protocol",
+  "productionBehaviorChanged": false,
+  "cases": [
+    "single-action",
+    "catalog"
+  ],
+  "assertions": {
+    "heldOwnerKilled": true,
+    "childHandleAcquiredBeforeKill": true,
+    "childExitObserved": true,
+    "fixtureDeadlineNotReached": true,
+    "effectStopped": true,
+    "unusedActionAbsent": true,
+    "stickyCoverageLost": true,
+    "retainedInvocations": 1,
+    "retainedSettlements": 0,
+    "retainedCancellations": 0,
+    "staleDescriptorUnchanged": true,
+    "staleObservationUnavailable": true,
+    "endpointReuseExitCode": 2,
+    "freshGenerationExplicit": true,
+    "freshOwnerCountersZero": true,
+    "freshEndpointRemovedOnNormalExit": true,
+    "publicPrivateDataAbsent": true
+  },
+  "negativeControl": {
+    "mutation": "clear retained observation snapshot on close",
+    "selectedCaseFailed": true,
+    "failedAssertion": "retained pending counters received null",
+    "sourceRestored": true
+  },
+  "localSuite": {
+    "filesPassed": 311,
+    "testsPassed": 5740,
+    "testsSkipped": 4
+  },
+  "limits": [
+    "Windows Node runtime-specific direct child result",
+    "No installed provider or cloud model",
+    "No general descendant containment",
+    "No packaged Electron crash verification",
+    "No automatic stale-descriptor deletion"
+  ],
+  "canonicalLfSha256": {
+    "tests/main/action-observation-owner-crash.test.js": "cbd934cbc88dc5aa020f0a55fe168dc7751f67409a98947bc37c1caf98eb090e",
+    "tests/fixtures/action-child-exit-witness.ps1": "cf4a25fe0a22d7ea9353381a5618d0b1e2842e75063be4f60e19f653700f2ac5",
+    "src/main/action-execution.js": "113fa0178483263389e9b8a7ebc31ebfdfae8223c69f344e1512d66deef0971c",
+    "src/main/action-mcp-stdio.js": "fa58651dc6d5e65a6128bffdb8e5ac8c2f5b891da029057ab8ea5e8097dceed0",
+    "src/main/action-observation-client.js": "a1c8b05cfdcf45b37d07b0e30cfc1ea695cbbb5501df2d996daa69f6da15e752",
+    "src/main/action-observation-server.js": "bc7c60201f471a2cde8954eb2d13b0b58da2423bd3e8e5edff2fddcea4afbabf",
+    "src/main/action-mcp-endpoint.js": "0b5bf30aeee3b224a147acf7cdd30a5c2bb0db80f83a74f6910c5d8046c7b30e"
+  }
+}

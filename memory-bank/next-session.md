@@ -10,8 +10,12 @@ catalog direct-stdio routes using synthetic local replies. The native negative
 control failed when cancellation delivery was removed. See
 [verification and boundaries](../docs/ACTION-LIVE-OBSERVATION.md).
 
-Next B5 slice: abrupt owner death and explicit cleanup/loss evidence; terminal-review
-cancellation and descendant control are separate gaps. Independent identity,
+Native selected/catalog owner-crash tests now cover sticky loss, retained pending
+counters, stale endpoint rejection and explicit fresh-generation recovery. On
+Windows Node 24.11.1 a held OS handle confirms direct-child exit after owner death;
+this is runtime-specific evidence, not general descendant containment.
+Next B5 slice: terminal-review cancellation; installed-provider crash behavior
+and C1 descendant control remain separate gaps. Independent identity,
 verified blocking coverage and outside-route control remain open. A5, B1 and B5
 are partial; the broader B2–B4/C1–C3/D1 queue is not implemented by this verification.
 

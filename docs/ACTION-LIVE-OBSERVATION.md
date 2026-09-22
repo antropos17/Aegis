@@ -268,3 +268,49 @@ provider output. Preserve verification receipts; review fixed diagnostic files a
 This closes the selected/catalog direct-stdio installed-provider cancellation
 verification gap. Terminal-review cancellation, descendant termination, abrupt
 owner death, independent provider identity and outside-route control remain open.
+
+## Abrupt owner death in the native protocol fixture
+
+`tests/main/action-observation-owner-crash.test.js` kills a separately spawned
+production Node MCP owner while a real selected action is pending. Both selected
+and catalog cases passed locally on Windows 10.0.26200 with Node 24.11.1/libuv
+1.51.0. The [redacted receipt](recon/evidence/action-owner-crash-windows-20260922.json)
+records assertions and canonical source hashes. This is a synthetic protocol
+client, not an installed-provider test.
+
+The observer becomes sticky `Coverage lost` and retains one invocation, zero
+settlements and zero cancellation requests. It does not invent a cancellation or
+termination report. The unchanged descriptor remains after the crash. Explicitly
+selecting that stale endpoint yields `Observation unavailable`; starting another
+owner at the same filename exits 2 without overwriting it. A new owner at a new
+filename starts with a fresh generation and zero counters. Selecting it does not
+revive the old observer. Normal closure removes only the new descriptor.
+
+On this Windows runtime the direct child also terminated. A read-only PowerShell
+witness acquires and retains its OS process handle before the owner is killed,
+then waits for that same process to exit. The progress marker stops and the
+fixture's independent deadline marker remains absent. Exit code alone is not
+sufficient: Windows job termination can report zero. The test kills only the held
+owner, never its process tree or a PID read from a file.
+
+This result is consistent with
+[Node 24.11.1's bundled libuv implementation](https://github.com/nodejs/node/blob/v24.11.1/deps/uv/src/win/process.c):
+non-detached children are assigned to a kill-on-close job, with breakaway flags.
+It is runtime-specific evidence, not an AEGIS-owned containment guarantee for
+arbitrary descendants, other job configurations, Electron packaging or other
+operating systems. Those remain C1 work. The non-Windows test verifies observation
+and endpoint lifecycle; its disposable action exits on its own deadline.
+
+The fixture independently caps child lifetime at four seconds and progress at
+80 bytes. Test cleanup waits beyond that bound before removing its owned scratch.
+Owner output is capped at 32 KiB per stream. No cloud, saved client configuration,
+credentials or user documents are used. Public snapshots are checked for private
+path/token/termination leakage. A mutation clearing the last snapshot on loss
+made the selected test fail; production source was restored afterward.
+
+The abrupt direct-stdio owner-loss evidence gap is now covered. Automatic removal
+of a crashed owner's descriptor is not implemented or claimed. Preserve local
+receipts under `X:/tmp/aegis-owner-crash-20260922/receipts`; review fixed diagnostic
+files after 14 days or 64 MiB. No global retention enforcement is installed.
+Terminal-review cancellation, installed-provider crash behavior, independent
+provider identity and outside-route control remain open; B5 is partial.
