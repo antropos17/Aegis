@@ -14,8 +14,12 @@ Native selected/catalog owner-crash tests now cover sticky loss, retained pendin
 counters, stale endpoint rejection and explicit fresh-generation recovery. On
 Windows Node 24.11.1 a held OS handle confirms direct-child exit after owner death;
 this is runtime-specific evidence, not general descendant containment.
-Next B5 slice: terminal-review cancellation; installed-provider crash behavior
-and C1 descendant control remain separate gaps. Independent identity,
+The nearest B5 interruption/crash cycle is complete: four real broker/relay tests
+cover pending/running review cancellation, and installed Claude passed all eight
+selected/catalog × direct/review × interrupt/crash scenarios. A cancellation-delivery
+mutation fails. See the latest section of the observation document and its receipt.
+Do not restart this completed verification slice. C1 descendant control remains
+separate work. Independent identity,
 verified blocking coverage and outside-route control remain open. A5, B1 and B5
 are partial; the broader B2–B4/C1–C3/D1 queue is not implemented by this verification.
 

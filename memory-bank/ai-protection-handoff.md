@@ -17,8 +17,16 @@ Node 24.11.1; do not generalize this runtime behavior to descendant containment.
 The snapshot-loss mutation fails. Local receipts are under
 `X:/tmp/aegis-owner-crash-20260922/receipts`; preserve them, review diagnostics after
 14 days or 64 MiB. Disposable fixtures have a four-second lifetime and are removed.
-Continue with terminal-review cancellation. Installed-provider crash behavior,
-descendant control, independent provider identity and outside-route
+The nearest B5 interruption/client-crash verification cycle is now complete:
+four real broker/relay/terminal-parser cases and eight installed Claude scenarios
+cover selected/catalog and direct/review cancellation/crash. Review cancellation
+has independent child exit/close evidence; crash evidence holds an independent
+Windows process handle. Direct crash leaves a stale descriptor; review crash
+removes it. A removed-delivery mutation fails both selected review tests.
+Receipts: `X:/tmp/aegis-review-cancel-20260922/receipts`. One rejected guard run is
+retained separately and excluded from success evidence; its disposable scratch
+was removed after a process-state check. Do not restart this completed cycle.
+Descendant control, independent provider identity and outside-route
 control remain open; B1/B5 remain partial. Check current refs/CI rather than
 resuming old publication instructions or starting B1 again. Preserve the dirty
 original checkout. Local receipts for the earlier cancellation pass are under

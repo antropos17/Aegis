@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { cancellationPassed } from '../../scripts/claude-cancellation-evidence.mjs';
+import { crashPassed } from '../../scripts/claude-crash-evidence.mjs';
 
 function evidence(catalog = false) {
   const capture = (sequence, attempts, settled, cancellations) => ({
@@ -63,6 +64,87 @@ it.each([false, true])(
   'accepts independently confirmed interruption despite provider error exit, catalog=%s',
   (catalog) => {
     expect(cancellationPassed(evidence(catalog))).toBe(true);
+  },
+);
+
+it.each([false, true])(
+  'requires the actual review route in every cancellation checkpoint, catalog=%s',
+  (catalog) => {
+    const e = evidence(catalog);
+    e.review = true;
+    expect(cancellationPassed(e)).toBe(false);
+    for (const key of ['before', 'pending', 'after', 'lost']) e[key].snapshot.route = 'mcp-review';
+    expect(cancellationPassed(e)).toBe(true);
+    e.witness.terminationConfirmed = false;
+    expect(cancellationPassed(e)).toBe(false);
+  },
+);
+
+function crashEvidence(catalog, review) {
+  const e = evidence(catalog);
+  Object.assign(e, {
+    crash: true,
+    review,
+    interruptSent: false,
+    interruptAcknowledged: false,
+    after: null,
+    witness: null,
+    providerResult: undefined,
+    exitCode: null,
+    childHandleHeld: true,
+    providerKilled: true,
+    providerExitObserved: true,
+    childExitObserved: true,
+    deadlineAbsent: true,
+    endpointRemoved: false,
+    endpointDisposition: 'unchanged-stale',
+  });
+  e.lost.snapshot.ownerSettled = 0;
+  e.lost.snapshot.cancellationRequests = 0;
+  for (const key of ['before', 'pending', 'lost'])
+    e[key].snapshot.route = review ? 'mcp-review' : 'mcp-stdio';
+  return e;
+}
+
+it.each([
+  [false, false],
+  [true, false],
+  [false, true],
+  [true, true],
+])(
+  'requires independent crash proof and rejects invented cancellation, catalog=%s review=%s',
+  (catalog, review) => {
+    const e = crashEvidence(catalog, review);
+    expect(crashPassed(e)).toBe(true);
+    for (const field of [
+      'childHandleHeld',
+      'providerKilled',
+      'providerExitObserved',
+      'childExitObserved',
+      'progressObserved',
+      'progressStopped',
+      'stickyLoss',
+      'deadlineAbsent',
+    ]) {
+      expect(crashPassed({ ...e, [field]: false })).toBe(false);
+    }
+    for (const field of [
+      'timedOut',
+      'cancelled',
+      'exceeded',
+      'interruptSent',
+      'interruptAcknowledged',
+    ]) {
+      expect(crashPassed({ ...e, [field]: true })).toBe(false);
+    }
+    expect(crashPassed({ ...e, endpointDisposition: 'removed' })).toBe(false);
+    expect(crashPassed({ ...e, failure: 'checkpoint' })).toBe(false);
+    expect(crashPassed({ ...e, unusedBytes: 1 })).toBe(false);
+    e.pending.snapshot.state = 'coverage-lost';
+    expect(crashPassed(e)).toBe(false);
+    e.pending.snapshot.state = 'observed';
+    e.lost.snapshot.cancellationRequests = 1;
+    expect(crashPassed(e)).toBe(false);
   },
 );
 

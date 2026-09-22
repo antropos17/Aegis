@@ -258,7 +258,12 @@ it.each(['stdout', 'stderr'])('caps %s and starts one cleanup only', async (stre
   t.child.emit('close', null);
   t.killer.emit('close', 0);
   const result = await done;
-  expect(result).toMatchObject({ exceeded: true, timedOut: false, treeCleanupConfirmed: true });
+  expect(result).toMatchObject({
+    exceeded: true,
+    limitReason: `${stream}-bytes`,
+    timedOut: false,
+    treeCleanupConfirmed: true,
+  });
   expect(Buffer.byteLength(result.stdout)).toBeLessThanOrEqual(32768);
   expect(t.spawnProcess).toHaveBeenCalledTimes(2);
 });
@@ -272,7 +277,11 @@ it('bounds scratch growth with no private output in the result', async () => {
   await vi.advanceTimersByTimeAsync(1000);
   t.child.emit('close', null);
   t.killer.emit('close', 0);
-  expect(await done).toMatchObject({ exceeded: true, treeCleanupConfirmed: true });
+  expect(await done).toMatchObject({
+    exceeded: true,
+    limitReason: 'scratch-bytes',
+    treeCleanupConfirmed: true,
+  });
 });
 
 it('also bounds decoded stdout when invalid UTF-8 would expand it', async () => {

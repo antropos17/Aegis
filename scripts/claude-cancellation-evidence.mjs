@@ -3,9 +3,10 @@ import schema from '../src/main/action-observation-schema.js';
 /** Validate a checkpoint without inferring termination from its counters.
  * @param {object} value Public observer frame. @param {boolean} catalog Catalog route.
  * @param {number} attempts Expected invocations. @param {number} settled Expected settlements.
- * @param {number} cancelled Expected notifications. @returns {boolean} Complete matching frame.
+ * @param {number} cancelled Expected notifications. @param {string} [route] Expected route.
+ * @returns {boolean} Complete matching frame.
  * @since v0.15.1 */
-export function frame(value, catalog, attempts, settled, cancelled) {
+export function frame(value, catalog, attempts, settled, cancelled, route = 'mcp-stdio') {
   const s = value?.snapshot;
   return (
     !!value &&
@@ -13,7 +14,7 @@ export function frame(value, catalog, attempts, settled, cancelled) {
     typeof value.lastObservedAt === 'string' &&
     Number.isFinite(Date.parse(value.lastObservedAt)) &&
     schema.validObservation(s) &&
-    s.route === 'mcp-stdio' &&
+    s.route === route &&
     s.selection === (catalog ? 'catalog' : 'single-action') &&
     s.selectedActionCount === (catalog ? 2 : 1) &&
     s.actionAttempts === attempts &&
@@ -29,6 +30,7 @@ export function frame(value, catalog, attempts, settled, cancelled) {
  * @param {object} e Redacted fixture evidence. @returns {boolean} Complete cancellation proof.
  * @since v0.15.1 */
 export function cancellationPassed(e) {
+  const match = (...args) => frame(...args, e?.review ? 'mcp-review' : 'mcp-stdio');
   if (
     !e ||
     e.failure !== null ||
@@ -71,10 +73,10 @@ export function cancellationPassed(e) {
   )
     return false;
   if (
-    !frame(e.before, e.catalog, 0, 0, 0) ||
-    !frame(e.pending, e.catalog, 1, 0, 0) ||
-    !frame(e.after, e.catalog, 1, 1, 1) ||
-    !frame(e.lost, e.catalog, 1, 1, 1)
+    !match(e.before, e.catalog, 0, 0, 0) ||
+    !match(e.pending, e.catalog, 1, 0, 0) ||
+    !match(e.after, e.catalog, 1, 1, 1) ||
+    !match(e.lost, e.catalog, 1, 1, 1)
   )
     return false;
   if (
