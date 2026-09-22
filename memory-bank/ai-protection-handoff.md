@@ -1,5 +1,25 @@
 # AI-agent protection: continuation context
 
+## Current continuation — 2026-09-22
+
+The earlier preflight-only description below is historical. Live route observation
+and sticky coverage-loss transitions exist. Selected/catalog direct-stdio
+cancellation now has installed Windows Claude Code 2.1.263 verification: actual
+interrupt acknowledgement, MCP notification, running marker, held-child exit/close,
+production cancellation outcome and descriptor cleanup. The model endpoint was
+synthetic and local. A native mutation removing cancellation delivery failed.
+Details: [Action live observation](../docs/ACTION-LIVE-OBSERVATION.md).
+
+Continue with abrupt owner death and cleanup/loss evidence. Terminal-review
+cancellation, descendant control, independent provider identity and outside-route
+control remain open; B1/B5 remain partial. Check current refs/CI rather than
+resuming old publication instructions or starting B1 again. Preserve the dirty
+original checkout. Local receipts for this pass are under
+`X:/tmp/aegis-provider-cancel-20260922/receipts`; preserve them. Disposable provider
+scratch is removed by the bounded verifier; no global retention change was made.
+
+## Earlier handoff — 2026-09-18
+
 Updated 2026-09-18 at the user's request to continue in a new chat.
 Offline-import baseline: `cb23c581a51228e09aab29e4f5db13b276cfb7b2`, merged
 [PR #488](https://github.com/antropos17/Aegis/pull/488). The B1 receiver slice below

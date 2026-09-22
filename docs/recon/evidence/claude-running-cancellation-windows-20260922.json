@@ -1,0 +1,316 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-22",
+  "platform": "win32",
+  "baseline": "351a97e9040cc662d06a9ab93903e3ded10e44c1",
+  "sourceSha256LF": {
+    "scripts/claude-cancellation-evidence.mjs": "7e918dd784d75b9c28e459a4b9b10c5bff55ec44a68c47074569a68709b61388",
+    "scripts/claude-cancellation-provider-fixture.mjs": "2d751a651dae315d823cba9262706c6dffde6d35db99de3bf5e3e27411f9bd0e",
+    "scripts/claude-cancellation-witness.cjs": "b07924506c6655b772763db6a1c3b9c6098c123b232e0dee1dfc6660747fcb8b",
+    "scripts/claude-hook-runtime.mjs": "6a3821187a5b16bf9290488405e718627edcd38ce9d059ee4592d33286f73382",
+    "scripts/verify-claude-action-mcp.mjs": "6be77ebc8344b124fbdd7b79834b75ebd6b74d913111030bdade3f67cf5ddca6",
+    "src/main/action-execution.js": "113fa0178483263389e9b8a7ebc31ebfdfae8223c69f344e1512d66deef0971c",
+    "src/main/action-mcp.js": "fd891f95ff3bc576f7e1df56ed070d332452344cbe116d7aba0acd29b442d589",
+    "src/main/action-mcp-stdio.js": "fa58651dc6d5e65a6128bffdb8e5ac8c2f5b891da029057ab8ea5e8097dceed0",
+    "src/main/action-observation-server.js": "bc7c60201f471a2cde8954eb2d13b0b58da2423bd3e8e5edff2fddcea4afbabf",
+    "src/main/action-observation-client.js": "a1c8b05cfdcf45b37d07b0e30cfc1ea695cbbb5501df2d996daa69f6da15e752"
+  },
+  "selected": {
+    "checkedAt": "2026-09-22T00:16:36.559Z",
+    "mode": "claude-selected-cancellation-synthetic-api",
+    "localHttpRequests": 1,
+    "rejectedProxyRequests": 0,
+    "scenarios": [
+      {
+        "catalog": false,
+        "requests": 1,
+        "failure": null,
+        "providerIdentity": "unverified",
+        "interruptSent": true,
+        "interruptAcknowledged": true,
+        "progressObserved": true,
+        "progressStopped": true,
+        "before": {
+          "state": "observed",
+          "reason": null,
+          "lastObservedAt": "2026-09-22T00:16:37.523Z",
+          "snapshot": {
+            "schemaVersion": 1,
+            "connectionId": "592a59ae-121f-46a6-989a-5fcfbca6e5fb",
+            "sequence": 1,
+            "route": "mcp-stdio",
+            "state": "observed",
+            "client": {
+              "name": "claude-code",
+              "version": "2.1.263"
+            },
+            "selection": "single-action",
+            "selectedActionCount": 1,
+            "actionAttempts": 0,
+            "selectionRejected": 0,
+            "ownerInvocations": 0,
+            "ownerSettled": 0,
+            "ownerFailures": 0,
+            "cancellationRequests": 0
+          }
+        },
+        "pending": {
+          "state": "observed",
+          "reason": null,
+          "lastObservedAt": "2026-09-22T00:16:38.536Z",
+          "snapshot": {
+            "schemaVersion": 1,
+            "connectionId": "592a59ae-121f-46a6-989a-5fcfbca6e5fb",
+            "sequence": 2,
+            "route": "mcp-stdio",
+            "state": "observed",
+            "client": {
+              "name": "claude-code",
+              "version": "2.1.263"
+            },
+            "selection": "single-action",
+            "selectedActionCount": 1,
+            "actionAttempts": 1,
+            "selectionRejected": 0,
+            "ownerInvocations": 1,
+            "ownerSettled": 0,
+            "ownerFailures": 0,
+            "cancellationRequests": 0
+          }
+        },
+        "after": {
+          "state": "observed",
+          "reason": null,
+          "lastObservedAt": "2026-09-22T00:16:39.548Z",
+          "snapshot": {
+            "schemaVersion": 1,
+            "connectionId": "592a59ae-121f-46a6-989a-5fcfbca6e5fb",
+            "sequence": 3,
+            "route": "mcp-stdio",
+            "state": "observed",
+            "client": {
+              "name": "claude-code",
+              "version": "2.1.263"
+            },
+            "selection": "single-action",
+            "selectedActionCount": 1,
+            "actionAttempts": 1,
+            "selectionRejected": 0,
+            "ownerInvocations": 1,
+            "ownerSettled": 1,
+            "ownerFailures": 0,
+            "cancellationRequests": 1
+          }
+        },
+        "lost": {
+          "state": "coverage-lost",
+          "reason": "connection-closed",
+          "lastObservedAt": "2026-09-22T00:16:39.548Z",
+          "snapshot": {
+            "schemaVersion": 1,
+            "connectionId": "592a59ae-121f-46a6-989a-5fcfbca6e5fb",
+            "sequence": 3,
+            "route": "mcp-stdio",
+            "state": "observed",
+            "client": {
+              "name": "claude-code",
+              "version": "2.1.263"
+            },
+            "selection": "single-action",
+            "selectedActionCount": 1,
+            "actionAttempts": 1,
+            "selectionRejected": 0,
+            "ownerInvocations": 1,
+            "ownerSettled": 1,
+            "ownerFailures": 0,
+            "cancellationRequests": 1
+          }
+        },
+        "witness": {
+          "launches": 1,
+          "exited": true,
+          "closed": true,
+          "cancelled": true,
+          "interrupted": true,
+          "terminationConfirmed": true
+        },
+        "endpointRemoved": true,
+        "stickyLoss": true,
+        "toolDiscovered": true,
+        "providerResult": {
+          "subtype": "error_during_execution",
+          "isError": true
+        },
+        "unusedBytes": 0,
+        "exitCode": 1,
+        "timedOut": false,
+        "cancelled": false,
+        "exceeded": false,
+        "pass": true
+      }
+    ],
+    "cleanup": true,
+    "networkBoundary": "loopback API and rejecting proxy; no OS firewall isolation",
+    "liveObservation": true,
+    "version": "2.1.263",
+    "pass": true,
+    "scratchBytesBeforeCleanup": 8822,
+    "retention": "Owned scratch removed; preserve stdout receipt separately."
+  },
+  "catalog": {
+    "checkedAt": "2026-09-22T00:16:40.159Z",
+    "mode": "claude-catalog-cancellation-synthetic-api",
+    "localHttpRequests": 1,
+    "rejectedProxyRequests": 0,
+    "scenarios": [
+      {
+        "catalog": true,
+        "requests": 1,
+        "failure": null,
+        "providerIdentity": "unverified",
+        "interruptSent": true,
+        "interruptAcknowledged": true,
+        "progressObserved": true,
+        "progressStopped": true,
+        "before": {
+          "state": "observed",
+          "reason": null,
+          "lastObservedAt": "2026-09-22T00:16:41.033Z",
+          "snapshot": {
+            "schemaVersion": 1,
+            "connectionId": "ecb222db-be93-409e-8af9-3c541a480f82",
+            "sequence": 1,
+            "route": "mcp-stdio",
+            "state": "observed",
+            "client": {
+              "name": "claude-code",
+              "version": "2.1.263"
+            },
+            "selection": "catalog",
+            "selectedActionCount": 2,
+            "actionAttempts": 0,
+            "selectionRejected": 0,
+            "ownerInvocations": 0,
+            "ownerSettled": 0,
+            "ownerFailures": 0,
+            "cancellationRequests": 0
+          }
+        },
+        "pending": {
+          "state": "observed",
+          "reason": null,
+          "lastObservedAt": "2026-09-22T00:16:42.037Z",
+          "snapshot": {
+            "schemaVersion": 1,
+            "connectionId": "ecb222db-be93-409e-8af9-3c541a480f82",
+            "sequence": 2,
+            "route": "mcp-stdio",
+            "state": "observed",
+            "client": {
+              "name": "claude-code",
+              "version": "2.1.263"
+            },
+            "selection": "catalog",
+            "selectedActionCount": 2,
+            "actionAttempts": 1,
+            "selectionRejected": 0,
+            "ownerInvocations": 1,
+            "ownerSettled": 0,
+            "ownerFailures": 0,
+            "cancellationRequests": 0
+          }
+        },
+        "after": {
+          "state": "observed",
+          "reason": null,
+          "lastObservedAt": "2026-09-22T00:16:43.051Z",
+          "snapshot": {
+            "schemaVersion": 1,
+            "connectionId": "ecb222db-be93-409e-8af9-3c541a480f82",
+            "sequence": 3,
+            "route": "mcp-stdio",
+            "state": "observed",
+            "client": {
+              "name": "claude-code",
+              "version": "2.1.263"
+            },
+            "selection": "catalog",
+            "selectedActionCount": 2,
+            "actionAttempts": 1,
+            "selectionRejected": 0,
+            "ownerInvocations": 1,
+            "ownerSettled": 1,
+            "ownerFailures": 0,
+            "cancellationRequests": 1
+          }
+        },
+        "lost": {
+          "state": "coverage-lost",
+          "reason": "connection-closed",
+          "lastObservedAt": "2026-09-22T00:16:43.051Z",
+          "snapshot": {
+            "schemaVersion": 1,
+            "connectionId": "ecb222db-be93-409e-8af9-3c541a480f82",
+            "sequence": 3,
+            "route": "mcp-stdio",
+            "state": "observed",
+            "client": {
+              "name": "claude-code",
+              "version": "2.1.263"
+            },
+            "selection": "catalog",
+            "selectedActionCount": 2,
+            "actionAttempts": 1,
+            "selectionRejected": 0,
+            "ownerInvocations": 1,
+            "ownerSettled": 1,
+            "ownerFailures": 0,
+            "cancellationRequests": 1
+          }
+        },
+        "witness": {
+          "launches": 1,
+          "exited": true,
+          "closed": true,
+          "cancelled": true,
+          "interrupted": true,
+          "terminationConfirmed": true
+        },
+        "endpointRemoved": true,
+        "stickyLoss": true,
+        "toolDiscovered": true,
+        "providerResult": {
+          "subtype": "error_during_execution",
+          "isError": true
+        },
+        "unusedBytes": 0,
+        "exitCode": 1,
+        "timedOut": false,
+        "cancelled": false,
+        "exceeded": false,
+        "pass": true
+      }
+    ],
+    "cleanup": true,
+    "networkBoundary": "loopback API and rejecting proxy; no OS firewall isolation",
+    "liveObservation": true,
+    "version": "2.1.263",
+    "pass": true,
+    "scratchBytesBeforeCleanup": 8725,
+    "retention": "Owned scratch removed; preserve stdout receipt separately."
+  },
+  "negativeControl": {
+    "cleanup": true,
+    "exitCode": 1,
+    "mutation": "Remove active.controller.abort() from matching MCP cancellation handling",
+    "failure": "interrupt-checkpoint-failed",
+    "pass": false
+  },
+  "limits": [
+    "Synthetic local API; no cloud model",
+    "Explicit test witness on unchanged spawn seam",
+    "Direct child only; no descendant or OS isolation",
+    "No terminal-review or abrupt-owner-death claim",
+    "Provider identity remains unverified"
+  ]
+}

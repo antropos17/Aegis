@@ -1,16 +1,22 @@
 # AEGIS — starting the next chat
 
-## Current assignment — AI-agent protection, 2026-09-18
+## Current assignment — AI-agent protection, 2026-09-22
 
-Start with [the current handoff](ai-protection-handoff.md). PR #488 is merged at
-`cb23c581a51228e09aab29e4f5db13b276cfb7b2`; all five CI contexts passed, with
-4,728 tests passed and five skipped. The bounded offline Claude subagent lifecycle
-importer is complete. Next: **B1 in docs/roadmap/ai-agent-protection.md**, the shared
-event/policy and adapter boundary, followed by opt-in live lifecycle collection.
-No B1 runtime work has started. A5 remains partial; no new blocking is implemented.
+Start with [the current handoff](ai-protection-handoff.md) and the current source.
+B1 includes live lifecycle intake, policy-controlled selected execution, exact
+approval binding and MCP routes. B5 includes preflight and opt-in live observation.
+Installed Claude Code 2.1.263 passed running-child cancellation for selected and
+catalog direct-stdio routes using synthetic local replies. The native negative
+control failed when cancellation delivery was removed. See
+[verification and boundaries](../docs/ACTION-LIVE-OBSERVATION.md).
 
-Use `X:/tmp/aegis-ai-protection-plan`, preserve the dirty original checkout, and
-read the handoff for source paths, evidence limits, receipts and disk precautions.
+Next B5 slice: abrupt owner death and explicit cleanup/loss evidence; terminal-review
+cancellation and descendant control are separate gaps. Independent identity,
+verified blocking coverage and outside-route control remain open. A5, B1 and B5
+are partial; the broader B2–B4/C1–C3/D1 queue is not implemented by this verification.
+
+Select a clean worktree from current `origin/master`; preserve the dirty original
+checkout. Read the handoff for source paths, evidence limits and disk precautions.
 Earlier ETW/other-roadmap assignments below are historical context and do not
 replace this queue. Check current refs/status before doing new work.
 
