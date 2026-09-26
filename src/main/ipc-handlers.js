@@ -29,6 +29,7 @@ const {
 const { writePrivateReport } = require('./private-report-temp');
 
 let deps = {};
+let analysisConfirmationPending = false;
 
 /**
  * Escape HTML special characters to prevent injection.
@@ -53,11 +54,58 @@ function init(injected) {
     process.env.VITE_DEV_SERVER_URL ||
     pathToFileURL(path.join(__dirname, '..', '..', 'dist', 'renderer', 'index.html')).href;
   deps = { ...injected, rendererUrl };
+  analysisConfirmationPending = false;
   localSecurity.init({
     getWindow: deps.getWindow,
     dialog,
     rendererUrl,
   });
+}
+
+/**
+ * Require an owned renderer and a native, Cancel-default decision before activity
+ * metadata leaves the machine. The dialog contains fixed categories, never paths,
+ * endpoints, prompts or API credentials from the request.
+ * @param {Electron.IpcMainInvokeEvent} event
+ * @returns {Promise<{success:false,error:string}|null>}
+ * @since v0.16.0-alpha
+ */
+async function confirmAnalysisEgress(event) {
+  const window = deps.getWindow?.();
+  const stillOwned = () =>
+    deps.getWindow?.() === window && ownsTopLevelRenderer(event, window, deps.rendererUrl);
+  if (!stillOwned()) return { success: false, error: 'Renderer request denied' };
+  if (!config.getSettings().anthropicApiKey) {
+    return { success: false, error: 'Set your Anthropic API key in Settings' };
+  }
+  if (analysisConfirmationPending) {
+    return { success: false, error: 'Analysis confirmation in progress' };
+  }
+  analysisConfirmationPending = true;
+  try {
+    let answer;
+    try {
+      answer = await dialog.showMessageBox(window, {
+        type: 'question',
+        title: 'AEGIS AI analysis / Análise de IA',
+        message:
+          'Send activity to Anthropic for analysis? / Enviar atividade à Anthropic para análise?',
+        detail:
+          'Destination / Destino: api.anthropic.com\n\nData / Dados: observed file paths, network endpoints and agent activity metadata / caminhos de arquivos observados, destinos de rede e metadados de atividade dos agentes.',
+        buttons: ['Cancel / Cancelar', 'Send for analysis / Enviar para análise'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      });
+    } catch (_) {
+      return { success: false, error: 'Analysis confirmation unavailable' };
+    }
+    if (!stillOwned()) return { success: false, error: 'Renderer request denied' };
+    if (answer?.response !== 1) return { success: false, error: 'Analysis cancelled' };
+    return null;
+  } finally {
+    analysisConfirmationPending = false;
+  }
 }
 
 /** @returns {void} @since v0.1.0 */
@@ -145,10 +193,9 @@ function register() {
     return { success: true };
   });
 
-  ipcMain.handle('analyze-agent', async (_e, name) => {
-    if (!config.getSettings().anthropicApiKey) {
-      return { success: false, error: 'Set your Anthropic API key in Settings' };
-    }
+  ipcMain.handle('analyze-agent', async (event, name) => {
+    const refusal = await confirmAnalysisEgress(event);
+    if (refusal) return refusal;
     try {
       return await analysis.analyzeAgentActivity(name);
     } catch (error) {
@@ -157,10 +204,9 @@ function register() {
     }
   });
 
-  ipcMain.handle('analyze-session', async () => {
-    if (!config.getSettings().anthropicApiKey) {
-      return { success: false, error: 'Set your Anthropic API key in Settings' };
-    }
+  ipcMain.handle('analyze-session', async (event) => {
+    const refusal = await confirmAnalysisEgress(event);
+    if (refusal) return refusal;
     try {
       return await analysis.analyzeSessionActivity();
     } catch (error) {

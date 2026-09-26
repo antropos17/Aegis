@@ -299,7 +299,7 @@
           <Icon name="shield" />
           <p>
             {$t(
-              'Analysis sends recorded activity metadata to Anthropic and may incur API charges.',
+              'Run analysis asks for confirmation before sending recorded activity metadata to Anthropic; API charges may apply.',
             )}
           </p>
         </div>
