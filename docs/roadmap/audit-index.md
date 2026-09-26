@@ -478,9 +478,10 @@ none under `ELECTRON_RUN_AS_NODE=1` on 43.4.1; the in-app main process was not p
   counted in `malformed_lines`, never stored. `indexed_lines` is therefore the next ORDINAL, which
   §4's comment calls "the next expected seq"; the two agree only on a file whose chain is intact.
 - **A corrupt or out-of-version index is reported before it is discarded** (decided at the go):
-  `logger.warn('audit-index', …, { reason, file })` precedes the close and the unlink — a forensic
-  tool must not silently recreate its own store. T7 (`quick_check threw`) and T14 (`user_version 0,
-  expected 1`) each assert exactly one warn; a healthy reopen asserts none.
+  `logger.warn('audit-index', …, { reason })` precedes the close and the unlink. The reason is a
+  fixed code; private paths and exception text are omitted from operational diagnostics. T7
+  (`quick-check-error`) and T14 (`schema-version-mismatch`) each assert exactly one warn; a
+  healthy reopen asserts none.
 - **The rebuild is asynchronous by batch, not by file:** ~2000 lines per transaction (the
   `audit_files` accounting in the same transaction), a `setImmediate` yield between batches, and up
   to three tail rounds that re-stat every file before the index is declared `'ready'` — lines
