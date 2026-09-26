@@ -243,7 +243,7 @@ describe('ipc-handlers', () => {
     mockAnalysis.analyzeSessionActivity
       .mockReset()
       .mockResolvedValue({ success: true, summary: 'ok' });
-    mockRules.getAllRules.mockClear();
+    mockRules.getAllRules.mockReset().mockReturnValue(new Map([['rule-a', { id: 'rule-a' }]]));
     mockRules.reloadRules.mockClear();
     mockBlocklist.add.mockClear();
     mockBlocklist.remove.mockClear();
@@ -568,6 +568,7 @@ describe('ipc-handlers', () => {
       ['import-config', []],
       ['add-false-positive', [{ agentName: 'Claude', pattern: 'safe', timestamp: 1 }]],
       ['rules:reload', []],
+      ['rules:setEnabled', ['rule-a', false]],
       ['blocklist-add', [{ signature: 'claude-code', pid: null }]],
       ['blocklist-remove', [{ signature: 'claude-code', pid: null }]],
     ]) {
@@ -587,6 +588,62 @@ describe('ipc-handlers', () => {
     expect(mockBlocklist.add).not.toHaveBeenCalled();
     expect(mockBlocklist.remove).not.toHaveBeenCalled();
     expect(mockElectron.dialog.showOpenDialog).not.toHaveBeenCalled();
+  });
+
+  it('persists each rule state before changing live file-path matching and rejects invalid requests', () => {
+    const { event } = registerOwnedRenderer();
+    const rule = { id: 'rule-a', enabled: true };
+    mockRules.getAllRules.mockReturnValue(new Map([['rule-a', rule]]));
+    expect(getHandler('rules:setEnabled')(event, 'missing', false)).toEqual({
+      success: false,
+      error: 'Unknown rule or invalid state',
+    });
+    expect(getHandler('rules:setEnabled')(event, 'rule-a', 'false')).toEqual({
+      success: false,
+      error: 'Unknown rule or invalid state',
+    });
+    expect(mockConfig.saveSettings).not.toHaveBeenCalled();
+    expect(getHandler('rules:setEnabled')(event, 'rule-a', false)).toEqual({
+      success: true,
+      id: 'rule-a',
+      enabled: false,
+    });
+    expect(mockConfig.saveSettings).toHaveBeenCalledWith(
+      { ruleEnabledOverrides: { 'rule-a': false } },
+      { patch: true },
+    );
+    expect(rule.enabled).toBe(false);
+    mockConfig.saveSettings.mockImplementationOnce(() => {
+      throw new Error('disk unavailable');
+    });
+    expect(getHandler('rules:setEnabled')(event, 'rule-a', true)).toEqual({
+      success: false,
+      error: 'Rule state could not be saved',
+    });
+    expect(rule.enabled).toBe(false);
+  });
+
+  it('reloads live rules when settings replace saved rule overrides', () => {
+    const { event } = registerOwnedRenderer();
+    mockConfig.getSettings.mockReturnValue({ ruleEnabledOverrides: { 'rule-a': false } });
+    expect(getHandler('save-settings')(event, { darkMode: true })).toEqual({ success: true });
+    expect(mockRules.reloadRules).toHaveBeenCalledOnce();
+  });
+
+  it('reloads live rules when imported settings include rule overrides', async () => {
+    const { event } = registerOwnedRenderer();
+    mockElectron.dialog.showOpenDialog.mockResolvedValueOnce({
+      filePaths: ['/fixture/settings.json'],
+    });
+    const read = vi
+      .spyOn(fs, 'readFileSync')
+      .mockReturnValueOnce('{"ruleEnabledOverrides":{"rule-a":false}}');
+    try {
+      expect(await getHandler('import-config')(event)).toEqual({ success: true });
+      expect(mockRules.reloadRules).toHaveBeenCalledOnce();
+    } finally {
+      read.mockRestore();
+    }
   });
 
   it('preserves successful settings and policy mutation responses for the owned renderer', async () => {

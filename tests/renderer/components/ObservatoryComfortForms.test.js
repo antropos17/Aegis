@@ -122,6 +122,34 @@ it('filters loaded rules by readable name or category and explains empty results
   expect(screen.getByText('No rules match this search.')).toBeInTheDocument();
 });
 
+it('switches detection rules independently and restores a failed change', async () => {
+  const setRuleEnabled = vi.fn(async (id) =>
+    id === 'b' ? { success: false, error: 'Unable to save' } : { success: true },
+  );
+  render(Rules, {
+    host: {
+      getAllPermissions: async () => ({}),
+      getRules: async () => [
+        { id: 'a', name: 'SSH access', category: 'sensitive', enabled: true },
+        { id: 'b', name: 'External connection', category: 'network', enabled: true },
+      ],
+      setRuleEnabled,
+    },
+    telemetry: telemetry(),
+  });
+  await fireEvent.click(screen.getByRole('button', { name: /Detection rules/ }));
+  const ssh = await screen.findByRole('checkbox', { name: 'Enable SSH access' });
+  const network = screen.getByRole('checkbox', { name: 'Enable External connection' });
+  await fireEvent.click(ssh);
+  await waitFor(() => expect(ssh).not.toBeChecked());
+  expect(network).toBeChecked();
+  expect(setRuleEnabled).toHaveBeenCalledWith('a', false);
+  await fireEvent.click(network);
+  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Unable to save'));
+  expect(network).toBeChecked();
+  expect(ssh).not.toBeChecked();
+});
+
 it('focuses the missing catalog field after switching tabs and preserves editor scroll on return', async () => {
   render(Catalog, {
     host: { getAgentDatabase: async () => ({ agents: [] }), getCustomAgents: async () => [] },

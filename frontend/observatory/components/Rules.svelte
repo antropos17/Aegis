@@ -60,6 +60,8 @@
   let loaded = $state(false);
   let mutation = $state<'save' | 'reset' | null>(null);
   let ruleQuery = $state('');
+  let ruleMutation = $state<string | null>(null);
+  let ruleError = $state('');
   let activeKey = '';
   let draftBaseline = $state('');
   const drafts: Record<string, Record<string, string>> = {};
@@ -182,6 +184,24 @@
       draftBaseline = JSON.stringify(savingDraft);
     await load();
   }
+  async function setRuleEnabled(rule: RecordData, enabled: boolean, input: HTMLInputElement) {
+    const id = String(rule.id);
+    if (ruleMutation) {
+      input.checked = rule.enabled !== false;
+      return;
+    }
+    ruleMutation = id;
+    ruleError = '';
+    try {
+      confirmed(await invoke(host, 'setRuleEnabled', id, enabled));
+      if (alive) rules = rules.map((row) => (row.id === id ? { ...row, enabled } : row));
+    } catch (cause) {
+      input.checked = rule.enabled !== false;
+      if (alive) ruleError = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      if (alive) ruleMutation = null;
+    }
+  }
 </script>
 
 <div class="subnav">
@@ -202,18 +222,20 @@
   </div>
   {#if error}<p role="alert">{error}</p>{/if}
   <div class="filterbar target-toolbar">
-    <label
-      >{$t('Agent')}
-      <AgentLogo
-        name={scope === 'agent' ? target : (chosen?.name ?? target.split('::')[0])}
-        size={22}
-      /><select aria-label={$t('Target')} disabled={mutation === 'reset'} bind:value={target}
-        ><option value="">{$t('Select…')}</option>{#each options as option (option.key)}<option
-            value={option.key}>{option.label}</option
-          >{/each}</select
+    <label class="target-field"
+      ><span class="target-label">{$t('Agent')}</span>
+      <span class="target-control"
+        ><AgentLogo
+          name={scope === 'agent' ? target : (chosen?.name ?? target.split('::')[0])}
+          size={22}
+        /><select aria-label={$t('Target')} disabled={mutation === 'reset'} bind:value={target}
+          ><option value="">{$t('Select…')}</option>{#each options as option (option.key)}<option
+              value={option.key}>{option.label}</option
+            >{/each}</select
+        ></span
       ></label
-    ><label
-      ><Icon name="cpu" />{$t('Apply to')}
+    ><label class="target-field"
+      ><span class="target-label"><Icon name="cpu" />{$t('Apply to')}</span>
       <select
         disabled={mutation === 'reset'}
         aria-label={$t('Scope')}
@@ -245,11 +267,9 @@
           ><small>{$t(profiles[name][1])}</small></button
         >{/each}
     </div>
-    <p class="preset-caption">
-      {selectedProfile
-        ? $t(profiles[selectedProfile][1])
-        : $t('Custom permissions · adjust individual categories below')}
-    </p>
+    {#if !selectedProfile}<p class="preset-caption">
+        {$t('Custom permissions · adjust individual categories below')}
+      </p>{/if}
     {#each categories as category (category)}
       <div class="permission-row">
         <div class="permission-identity">
@@ -306,12 +326,17 @@
   <div class="panel-head">
     <h2>{$t('Loaded detection rules')}</h2>
     <Action
+      disabled={ruleMutation !== null}
       action={async () => {
         confirmed(await invoke(host, 'reloadRules'));
         await load();
       }}><Icon name="refresh" />{$t('Reload rules')}</Action
     >
   </div>
+  <p class="rule-scope muted">
+    {$t('Turning off a rule stops its file path match. Other sensors and detections continue.')}
+  </p>
+  {#if ruleError}<p class="rule-error" role="alert">{ruleError}</p>{/if}
   <div class="filterbar rules-filter">
     <label class="search-field"
       ><Icon name="search" /><input
@@ -323,19 +348,30 @@
     ><span class="muted">{filteredRules.length} {$t('of')} {rules.length} {$t('rules')}</span>
   </div>
   <div class="table-scroll">
-    <table>
+    <table class="rules-table">
       <thead
         ><tr
           ><th>{$t('ID')}</th><th>{$t('Name')}</th><th>{$t('Category')}</th><th>{$t('Risk')}</th><th
-            >{$t('State')}</th
+            >{$t('On / off')}</th
           ></tr
         ></thead
       ><tbody
         >{#each filteredRules as rule (String(rule.id))}<tr
-            ><td>{String(rule.id)}</td><td>{String(rule.name ?? rule.reason ?? '')}</td><td
-              >{String(rule.category ?? '')}</td
-            ><td>{String(rule.risk ?? '')}</td><td
-              >{rule.enabled === false ? $t('Disabled') : $t('Enabled')}</td
+            ><td>{String(rule.id)}</td><td
+              >{String(rule.name ?? rule.reason ?? '')}<small class="rule-meta"
+                >{String(rule.category ?? '')} · {String(rule.risk ?? '')}</small
+              ></td
+            ><td>{String(rule.category ?? '')}</td><td>{String(rule.risk ?? '')}</td><td
+              ><label class="rule-toggle"
+                ><input
+                  type="checkbox"
+                  aria-label={$t('Enable {name}', { name: String(rule.name ?? rule.id) })}
+                  checked={rule.enabled !== false}
+                  disabled={ruleMutation !== null}
+                  onchange={(event) =>
+                    void setRuleEnabled(rule, event.currentTarget.checked, event.currentTarget)}
+                /><span>{rule.enabled === false ? $t('Off') : $t('On')}</span></label
+              ></td
             ></tr
           >{:else}<tr
             ><td colspan="5" class="empty-rules"
@@ -375,7 +411,7 @@
     padding: 10px;
   }
   .preset small {
-    display: none;
+    display: block;
   }
   .preset-heading {
     gap: 6px;
@@ -390,8 +426,7 @@
     margin: 0;
   }
   .permission-save {
-    position: sticky;
-    bottom: 0;
+    position: static;
     background: var(--panel);
     border-top: 1px solid var(--border);
     z-index: 1;
@@ -424,15 +459,128 @@
     color: var(--muted);
   }
   .target-toolbar {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    background: var(--bg);
-    padding: 12px 0;
+    display: grid;
+    grid-template-columns: minmax(220px, 1.2fr) minmax(210px, 1fr) auto;
+    gap: var(--space-3);
+    align-items: end;
+    padding: var(--space-3) 0;
+  }
+  .target-toolbar .target-field {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+  .target-label,
+  .target-control {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .target-control {
+    min-width: 0;
+  }
+  .target-toolbar select {
+    min-width: 0;
+    width: 100%;
+    max-width: none;
+  }
+  .permission-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(170px, 220px);
+  }
+  .permission-row select {
+    width: 100%;
+    min-width: 0;
+  }
+  .permission-identity {
+    min-width: 0;
+  }
+  .permission-identity h3,
+  .permission-identity p {
+    margin: 0;
+  }
+  .rule-scope {
+    padding: 0 var(--space-4);
+    font-size: var(--text-caption);
+  }
+  .rule-error {
+    margin: 0 var(--space-4) var(--space-3);
+    color: var(--red);
+  }
+  .rule-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .rule-toggle input {
+    appearance: none;
+    position: relative;
+    width: 38px;
+    height: 22px;
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--raised);
+    cursor: inherit;
+  }
+  .rule-toggle input::before {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: transform 120ms ease;
+  }
+  .rule-toggle input:checked {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+  }
+  .rule-toggle input:checked::before {
+    background: var(--accent);
+    transform: translateX(16px);
+  }
+  .rule-toggle input:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .rule-toggle input:disabled {
+    cursor: wait;
+  }
+  .rule-meta {
+    display: none;
+  }
+  @media (max-width: 1000px) {
+    .rules-table th:nth-child(3),
+    .rules-table td:nth-child(3),
+    .rules-table th:nth-child(4),
+    .rules-table td:nth-child(4) {
+      display: none;
+    }
+    .rules-table th:first-child {
+      width: 100px;
+    }
+    .rules-table th:last-child {
+      width: 100px;
+    }
+    .rule-meta {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+    }
   }
   @media (max-width: 700px) {
     .target-toolbar {
-      position: static;
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .permission-row {
+      grid-template-columns: minmax(0, 1fr);
     }
     .preset-caption {
       margin: 0;
@@ -444,7 +592,7 @@
       padding: 10px;
     }
     .preset small {
-      display: none;
+      display: block;
     }
     .preset-heading {
       gap: 6px;
@@ -457,12 +605,6 @@
       gap: 8px;
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-  }
-  .target-toolbar select {
-    max-width: 300px;
-  }
-  .permission-row select {
-    min-width: 140px;
   }
   .preset strong {
     text-transform: capitalize;

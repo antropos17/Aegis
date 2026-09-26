@@ -68,7 +68,7 @@ AEGIS follows Electron security best practices:
 
 - **Context isolation:** Enabled. The renderer process cannot access Node.js APIs.
 - **Node integration:** Disabled in the renderer.
-- **Preload bridge:** All IPC passes through `contextBridge.exposeInMainWorld` with a defined, enumerated API surface (56 channels: 45 invoke + 11 push). No arbitrary IPC.
+- **Preload bridge:** All IPC passes through `contextBridge.exposeInMainWorld` with a defined, enumerated API surface (57 channels: 46 invoke + 11 push). No arbitrary IPC.
 - **Content Security Policy:** `default-src 'self'` and `script-src 'self'`, with no `unsafe-eval` or external font loading. `style-src` permits `unsafe-inline` for application styles.
 - **Local desktop content:** The desktop loads local application files. Explicit documentation links open in the system browser; remote pages are not loaded inside the desktop renderer. Interface icons are bundled locally.
 - **Output escaping:** Svelte escapes ordinary text interpolations. Generated HTML reports use explicit escaping; raw HTML insertion and new export paths require their own review.

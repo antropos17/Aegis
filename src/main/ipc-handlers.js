@@ -207,8 +207,15 @@ function register() {
       logger.warn('ipc-handlers', 'save-settings rejected: invalid settings');
       return { success: false, error: check.error };
     }
+    const hadRuleOverrides =
+      Object.keys(config.getSettings().ruleEnabledOverrides || {}).length > 0;
     if (options === undefined) config.saveSettings(newSettings);
     else config.saveSettings(newSettings, options);
+    if (
+      Object.hasOwn(newSettings, 'ruleEnabledOverrides') ||
+      (options?.patch !== true && hadRuleOverrides)
+    )
+      reloadRules();
     config.applySettings();
     deps.updates?.preferencesChanged();
     return { success: true };
@@ -524,10 +531,13 @@ ${findingsHtml}${recsHtml}
         logger.warn('ipc-handlers', 'import-config rejected: invalid settings');
         return { success: false, error: 'Invalid imported settings' };
       }
+      const hadRuleOverrides =
+        Object.keys(config.getSettings().ruleEnabledOverrides || {}).length > 0;
       config.saveSettings({
         ...raw,
         anthropicApiKey: raw.anthropicApiKey ?? config.getSettings().anthropicApiKey,
       });
+      if (hadRuleOverrides || Object.hasOwn(raw, 'ruleEnabledOverrides')) reloadRules();
       config.applySettings();
       deps.updates?.preferencesChanged();
       return { success: true };
@@ -717,6 +727,32 @@ ${findingsHtml}${recsHtml}
     reloadRules();
     const rules = getAllRules();
     return { success: true, count: rules.size };
+  });
+
+  ipcMain.handle('rules:setEnabled', (event, id, enabled) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
+    const rule = typeof id === 'string' ? getAllRules().get(id) : null;
+    if (!rule || typeof enabled !== 'boolean')
+      return { success: false, error: 'Unknown rule or invalid state' };
+    try {
+      config.saveSettings(
+        {
+          ruleEnabledOverrides: {
+            ...config.getSettings().ruleEnabledOverrides,
+            [id]: enabled,
+          },
+        },
+        { patch: true },
+      );
+      rule.enabled = enabled;
+      return { success: true, id, enabled };
+    } catch {
+      logger.warn('ipc-handlers', 'Rule state could not be saved', {
+        code: 'rule-state-save-failed',
+      });
+      return { success: false, error: 'Rule state could not be saved' };
+    }
   });
 
   // ── Alert-only agent watchlist (advisory flag only — never affects monitoring) ──

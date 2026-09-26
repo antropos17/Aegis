@@ -943,6 +943,9 @@ app.whenReady().then(() => {
   logger.init({ userDataPath: userData, isDev: !app.isPackaged });
   logger.info('main', 'App starting', { version: app.getVersion(), platform: process.platform });
   config.loadSettings();
+  require('./rule-loader').setRuleOverridesProvider(
+    () => config.getSettings().ruleEnabledOverrides,
+  );
   updates = require('./app-updates').createUpdateManager({
     supported: app.isPackaged && process.platform === 'win32' && process.arch === 'x64',
     getSettings: config.getSettings,

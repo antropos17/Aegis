@@ -28,6 +28,7 @@ const SETTINGS_WHITELIST = new Set([
   'customAgents',
   'falsePositivePatterns',
   'watchlist',
+  'ruleEnabledOverrides',
 ]);
 const PERMISSION_STATES = new Set(['allow', 'monitor', 'block']);
 const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -246,6 +247,20 @@ function validateSettings(obj) {
   if (Object.hasOwn(obj, 'agentPermissions')) {
     const result = validatePermissions(obj.agentPermissions);
     if (!result.valid) return result;
+  }
+  if (Object.hasOwn(obj, 'ruleEnabledOverrides')) {
+    const overrides = obj.ruleEnabledOverrides;
+    if (!plainObject(overrides) || Reflect.ownKeys(overrides).length > 512)
+      return invalid('ruleEnabledOverrides must be a bounded plain object');
+    for (const id of Reflect.ownKeys(overrides)) {
+      if (
+        typeof id !== 'string' ||
+        !/^[A-Za-z0-9_-]{1,64}$/.test(id) ||
+        UNSAFE_KEYS.has(id) ||
+        typeof overrides[id] !== 'boolean'
+      )
+        return invalid('ruleEnabledOverrides contains an invalid rule state');
+    }
   }
   if (Object.hasOwn(obj, 'customSensitivePatterns')) {
     if (!Array.isArray(obj.customSensitivePatterns))

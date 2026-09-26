@@ -147,35 +147,40 @@
   }
 </script>
 
-<div class="filterbar">
-  <label class="search-field"
-    ><Icon name="search" /><input
-      type="search"
-      aria-label={$t('Search catalog')}
-      bind:value={query}
-      placeholder={$t('Name, signature or vendor…')}
-    /></label
-  ><label
-    >{$t('Category')}
-    <select aria-label={$t('Catalog category')} bind:value={category}
-      ><option value="">{$t('All categories')}</option>{#each CATEGORIES as [id, title] (id)}<option
-          value={id}>{$t(title)}</option
-        >{/each}</select
-    ></label
-  ><span class="spacer"></span><button
-    class="button"
-    disabled={mutating || !loaded || loading}
-    onclick={() => {
-      form = createEmptyForm();
-      editing = null;
-      editorSection = 'general';
-      showForm = true;
-    }}><Icon name="plus" />{$t('Add agent')}</button
-  ><Action disabled={mutating || !loaded} action={() => mutate(importAgents)}
-    ><Icon name="upload" />{$t('Import')}</Action
-  ><Action action={async () => confirmed(await invoke(host, 'exportAgentDatabase'))}
-    ><Icon name="download" />{$t('Export')}</Action
-  >
+<div class="catalog-toolbar">
+  <div class="catalog-filters">
+    <label class="search-field"
+      ><Icon name="search" /><input
+        type="search"
+        aria-label={$t('Search catalog')}
+        bind:value={query}
+        placeholder={$t('Name, signature or vendor…')}
+      /></label
+    ><label
+      >{$t('Category')}
+      <select aria-label={$t('Catalog category')} bind:value={category}
+        ><option value="">{$t('All categories')}</option
+        >{#each CATEGORIES as [id, title] (id)}<option value={id}>{$t(title)}</option
+          >{/each}</select
+      ></label
+    >
+  </div>
+  <div class="catalog-actions" role="group" aria-label={$t('Catalog actions')}>
+    <button
+      class="button primary"
+      disabled={mutating || !loaded || loading}
+      onclick={() => {
+        form = createEmptyForm();
+        editing = null;
+        editorSection = 'general';
+        showForm = true;
+      }}><Icon name="plus" />{$t('Add agent')}</button
+    ><Action disabled={mutating || !loaded} action={() => mutate(importAgents)}
+      ><Icon name="upload" />{$t('Import')}</Action
+    ><Action action={async () => confirmed(await invoke(host, 'exportAgentDatabase'))}
+      ><Icon name="download" />{$t('Export')}</Action
+    >
+  </div>
 </div>
 
 <section class="panel">
@@ -422,9 +427,63 @@
     font-size: 11px;
     margin-top: 12px;
   }
+  .catalog-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-3) var(--space-5);
+    margin-bottom: var(--space-4);
+  }
+  .catalog-filters,
+  .catalog-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .catalog-filters {
+    flex: 1 1 400px;
+    min-width: 0;
+  }
+  .catalog-actions {
+    justify-content: flex-end;
+  }
+  .catalog-filters :global(label) {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .catalog-filters :global(.search-field) {
+    min-width: min(100%, 260px);
+  }
+  .catalog-filters :global(.search-field input) {
+    min-width: 0;
+  }
   .catalog-scope {
     font-size: var(--text-caption);
-    margin: 0 0 var(--space-3);
+    line-height: 1.5;
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+  }
+  table {
+    min-width: 760px;
+  }
+  td:nth-child(2) {
+    white-space: nowrap;
+  }
+  @media (max-width: 760px) {
+    .catalog-actions {
+      justify-content: flex-start;
+      width: 100%;
+    }
+    .catalog-filters :global(.search-field) {
+      flex: 1 1 100%;
+    }
+    .catalog-filters :global(.search-field input) {
+      width: 100%;
+    }
   }
   .catalog-field-help {
     font-size: var(--text-caption);
