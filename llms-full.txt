@@ -24,7 +24,7 @@ Building from source requires Node.js 24.x, as declared in package.json and pinn
 ## Features
 
 ### Process Monitoring
-Tracks 110 known AI agents (262 process-name signatures across their `names` arrays) with parent-child tree resolution and IDE host detection. Covers coding assistants (Claude Code, Copilot, Cursor), autonomous agents (OpenClaw, AutoGPT, CrewAI, Devin), desktop AI (Gemini, Apple Intelligence), frameworks (LangChain, AutoGen, MetaGPT), and local LLMs (Ollama, LM Studio, llama.cpp).
+Tracks 112 known AI agents (265 process-name signatures across their `names` arrays) with parent-child tree resolution and IDE host detection. Covers coding assistants (Claude Code, Copilot, Cursor), autonomous agents (OpenClaw, AutoGPT, CrewAI, Devin), desktop AI (Gemini, Apple Intelligence), frameworks (LangChain, AutoGen, MetaGPT), and local LLMs (Ollama, LM Studio, llama.cpp).
 
 ### File System Access
 Watches sensitive directories (.ssh, .aws, .gnupg, .env, cloud configs) and the 35 AI agent config paths registered in AGENT_CONFIG_PATHS for file activity. Database configPaths metadata does not register watch roots automatically.

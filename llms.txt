@@ -15,7 +15,7 @@ Current source also provides opt-in exact-action execution policies and explicit
 
 ## Key Features
 
-- Process monitoring with 110 known AI agents (262 process-name signatures) and parent-child tree resolution
+- Process monitoring with 112 known AI agents (265 process-name signatures) and parent-child tree resolution
 - File system watching for sensitive directories (.ssh, .aws, .gnupg, .env, cloud configs)
 - Network activity logging with per-agent PID tracking and reverse DNS
 - Behavioral analysis with 73 detection rules across 8 categories
