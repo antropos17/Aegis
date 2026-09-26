@@ -91,15 +91,20 @@ unknown. Raw analyzer identifiers and MCP item identities are hashed.
 
 Paths are matched only against files already read by the local scan. Relative
 references can use either path separator; supported SARIF relative URIs are
-decoded once. Absolute paths, traversal, URI bases and unmatched paths remain
-unbound. References cannot select new filesystem reads. A Skill JSON report whose
+decoded once. Absolute paths outside the cfgaudit rule below, traversal, URI
+bases and unmatched paths remain unbound. References cannot select new filesystem
+reads. A Skill JSON report whose
 declared root differs from the selected canonical directory gets no file mapping.
 There is no cross-machine root remapping. Cisco Skill SARIF mappings assume the caller chose
 the reported `%SRCROOT%`; that relationship is not authenticated.
-cfgaudit SARIF has no reported root. Its relative references bind only to files
-observed under the caller-selected root, and the missing root proof stays visible
-as `external-reported-root-not-reported`. A matching relative path cannot prove
-that cfgaudit analyzed the same directory or file bytes.
+cfgaudit SARIF has no reported root. Its relative references and native absolute
+references lexically inside the caller-selected root bind only to files already
+observed under that root. An absolute reference outside it remains unbound;
+traversal remains rejected. The missing root proof stays visible as
+`external-reported-root-not-reported`. A matching path cannot prove that
+cfgaudit analyzed the same directory or file bytes. The verified v1.14.0 Windows
+release emitted absolute paths for a disposable absolute-root scan; that output
+was imported without starting cfgaudit from AEGIS.
 
 Mapped locations retain `currentSha256`, optional `baselineSha256` and a
 `reportedLine`. Line numbers are bounded claims; their correspondence to actual
