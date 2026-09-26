@@ -1,6 +1,38 @@
 'use strict';
 const { serveMcpTransport } = require('./mcp-stdio-transport');
 const { createMcpGateway } = require('./mcp-gateway');
+const { captureGatewayRoute } = require('./mcp-gateway-route');
+const { initializeGatewayCredentialKey } = require('./mcp-gateway-grants');
+
+/** Prepare a store-backed tag for the explicitly selected HTTP(S) bearer.
+ * This reads configuration but neither opens a network route nor runs a tool.
+ * @param {string[]} args Exact CLI flag, endpoint and absolute grant store.
+ * @param {(value: string) => void} write Bounded report writer.
+ * @returns {Promise<number>} Zero only after key persistence and route recheck.
+ * @since v0.17.0 */
+async function handleMcpGatewayCredentialCLI(args, write) {
+  if (
+    args.length !== 3 ||
+    args[0] !== '--mcp-gateway-credential-tag' ||
+    args.slice(1).some((value) => typeof value !== 'string' || !value || value.startsWith('--'))
+  )
+    return 2;
+  const controller = new AbortController();
+  let route, key;
+  try {
+    route = await captureGatewayRoute({ endpointPath: args[1] }, controller.signal);
+    key = await initializeGatewayCredentialKey(args[2]);
+    await route.recheck();
+    write(JSON.stringify({ credentialTag: route.credentialTag(key) }));
+    return 0;
+  } catch {
+    return 2;
+  } finally {
+    key?.fill(0);
+    route?.close();
+    controller.abort();
+  }
+}
 
 /** Connect an explicitly selected upstream; stdout contains MCP only.
  * @param {string[]} args Stdio launch pair or HTTP descriptor, followed by accepted tools/grants.
@@ -57,4 +89,4 @@ async function handleMcpGatewayCLI(args) {
     process.removeListener('SIGTERM', abort);
   }
 }
-module.exports = { handleMcpGatewayCLI };
+module.exports = { handleMcpGatewayCLI, handleMcpGatewayCredentialCLI };

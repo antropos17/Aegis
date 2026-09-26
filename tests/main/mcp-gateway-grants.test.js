@@ -10,7 +10,9 @@ import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const subject = require.resolve('../../src/main/mcp-gateway-grants');
-const { consumeGatewayGrant } = require(subject);
+const { consumeGatewayGrant, initializeGatewayCredentialKey, readGatewayCredentialKey } = require(
+  subject,
+);
 const fixture = fileURLToPath(new URL('./fixtures/mcp-grant-consumer.cjs', import.meta.url));
 let dir;
 const children = new Set();
@@ -54,6 +56,28 @@ afterEach(async () => {
 });
 
 describe('persistent one-shot MCP grants', () => {
+  it('persists one private credential key and fails closed on damage or a held lock', async () => {
+    await fs.writeFile(path.join(dir, '.consume-lock'), '');
+    await expect(initializeGatewayCredentialKey(dir)).rejects.toThrow();
+    expect(await fs.readdir(dir)).toEqual(['.consume-lock']);
+    await fs.unlink(path.join(dir, '.consume-lock'));
+
+    const first = await initializeGatewayCredentialKey(dir);
+    const second = await initializeGatewayCredentialKey(dir);
+    const read = await readGatewayCredentialKey(dir);
+    expect(first).toHaveLength(32);
+    expect(second.equals(first)).toBe(true);
+    expect(read.equals(first)).toBe(true);
+    expect(await fs.readdir(dir)).toEqual(['.credential-key']);
+    first.fill(0);
+    second.fill(0);
+    read.fill(0);
+
+    await fs.writeFile(path.join(dir, '.credential-key'), 'damaged');
+    await expect(readGatewayCredentialKey(dir)).rejects.toThrow();
+    await expect(initializeGatewayCredentialKey(dir)).rejects.toThrow();
+    expect(await fs.readdir(dir)).toEqual(['.credential-key']);
+  });
   it('persists only a hashed receipt and denies replay after module restart or task changes', async () => {
     const value = grant();
     await expect(consumeGatewayGrant(dir, value)).resolves.toBe(true);

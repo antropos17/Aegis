@@ -95,6 +95,31 @@ async function ready(extra = {}) {
   await g.receive(rpc(undefined, 'notifications/initialized'));
   return g;
 }
+async function credentialTag() {
+  const main = fileURLToPath(new URL('../../src/main/main.js', import.meta.url));
+  const child = spawn(
+    process.execPath,
+    [main, '--mcp-gateway-credential-tag', endpointPath, grantStorePath],
+    { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  children.push(child);
+  const done = once(child, 'close');
+  let output = '',
+    errors = '';
+  child.stdout.on('data', (value) => {
+    output += value;
+  });
+  child.stderr.on('data', (value) => {
+    errors += value;
+  });
+  expect((await done)[0]).toBe(0);
+  expect(errors).toBe('');
+  expect(output).not.toContain(fixture.state.token);
+  const parsed = JSON.parse(output);
+  expect(Object.keys(parsed)).toEqual(['credentialTag']);
+  expect(parsed.credentialTag).toMatch(/^[a-f0-9]{64}$/);
+  return parsed.credentialTag;
+}
 it('does not renew a consumed permission on a fresh HTTP gateway', async () => {
   const a = await ready();
   expect((await a.receive(call())).result).toBeDefined();
@@ -136,13 +161,58 @@ it('binds a v3 HTTP grant to its selected URL without spending it on another rou
   expect((await replay.receive(call())).error).toBeDefined();
   expect(fixture.state.calls).toHaveLength(1);
 });
+it('binds a v4 HTTP grant to the selected bearer across gateway restarts', async () => {
+  const tag = await credentialTag();
+  expect(await credentialTag()).toBe(tag);
+  expect(fixture.state.messages).toHaveLength(0);
+  manifest.schemaVersion = 4;
+  manifest.route = { transport: 'http', url: fixture.url };
+  manifest.credentialTag = tag;
+  save(manifestPath, manifest);
+
+  const originalToken = fixture.state.token;
+  const differentToken = originalToken[0] === 'A' ? 'B'.repeat(32) : 'A'.repeat(32);
+  save(endpointPath, { schemaVersion: 1, url: fixture.url, bearerToken: differentToken });
+  const wrong = createMcpGateway({
+    endpointPath,
+    manifestPath,
+    grantStorePath,
+    onFailure() {},
+  });
+  gateways.push(wrong);
+  expect((await wrong.receive(init())).error).toBeDefined();
+  expect(fixture.state.messages).toHaveLength(0);
+  expect(fs.readdirSync(grantStorePath)).toEqual(['.credential-key']);
+
+  save(endpointPath, { schemaVersion: 1, url: fixture.url, bearerToken: originalToken });
+  const selected = await ready();
+  expect((await selected.receive(call())).result?.structuredContent).toEqual({ accepted: true });
+  selected.close();
+  await selected.finish();
+  const replay = await ready();
+  expect((await replay.receive(call())).error).toBeDefined();
+  expect(fixture.state.calls).toHaveLength(1);
+});
+it('refuses a v4 call when the private credential key changes after initialization', async () => {
+  manifest.schemaVersion = 4;
+  manifest.route = { transport: 'http', url: fixture.url };
+  manifest.credentialTag = await credentialTag();
+  save(manifestPath, manifest);
+  const selected = await ready();
+  fs.writeFileSync(path.join(grantStorePath, '.credential-key'), Buffer.alloc(32, 7));
+  expect((await selected.receive(call())).error).toBeDefined();
+  expect(fixture.state.calls).toHaveLength(0);
+  expect(fs.readdirSync(grantStorePath)).toEqual(['.credential-key']);
+});
 it('requires an explicit store for durable manifests and refuses a misleading store with v1', async () => {
-  for (const version of [2, 3, 1]) {
+  for (const version of [2, 3, 4, 1]) {
     if (version === 3) manifest.route = { transport: 'http', url: fixture.url };
+    if (version === 4) manifest.credentialTag = 'a'.repeat(64);
     if (version === 1) {
       manifest.schemaVersion = 1;
       manifest.grants = [{ tool: 'record', arguments: { recipient: 'chosen' } }];
       delete manifest.route;
+      delete manifest.credentialTag;
     }
     manifest.schemaVersion = version;
     save(manifestPath, manifest);

@@ -34,6 +34,44 @@ credential. Loopback HTTP can also have a different listener on the same URL
 after restart. Stdio route binding, protected issuance, task identity and general
 recipient semantics remain open.
 
+Manifest version 4 also binds the selected HTTP(S) bearer bytes across gateway
+restarts. Prepare the tag with an explicit operator command, using the same
+endpoint descriptor and grant store that the gateway will use:
+
+```text
+node src/main/main.js --mcp-gateway-credential-tag endpoint.json <absolute-store-directory>
+```
+
+The command validates the endpoint and creates a 32-byte `.credential-key`
+in the selected store if absent. It does not connect to the server or call a tool.
+It returns one JSON `credentialTag` (64 lowercase hexadecimal characters). Set
+`schemaVersion` to 4 in a version 3 manifest and add that returned value as the
+top-level `credentialTag`; keep the same `route`, `tools`, `grants` and store path.
+The tag is an HMAC over the validated public route and bearer bytes under the
+store key. Do not put the bearer or the store key in the manifest. Use a
+high-entropy bearer and restrict access to the store to the gateway operator.
+On Windows, the requested `0o600` creation mode does not establish a private
+ACL; this CLI does not verify the directory or key ACL. Anyone who obtains both
+the key and manifest tag can test guesses of a weak bearer offline.
+
+The gateway only reads the existing key. Missing, malformed or changed key
+material, a different token, or a different route rejects initialization before
+the upstream connection and before grant consumption. The key is checked again
+before each durable grant is consumed. A second preparation for
+the same route and token returns the same tag. Changing either requires a fresh
+tag and a new grant ID; old consumed IDs remain consumed in the same store.
+The key counts toward the 1024-entry store ceiling and is authorization state:
+do not prune it with diagnostic logs. A crash during creation may retain an
+incomplete key or lock; the gateway fails closed instead of repairing either.
+
+The tag does not independently attest the server or prove which account the
+server associates with the bearer. A service can change that association without
+changing the token. The store key must remain with its permission records;
+copying or replacing the store changes the trust boundary. Same-account tampering,
+protected grant issuance, stdio binding, general recipient semantics and
+outside-route enforcement remain open. Versions 1–3 retain their previous
+contracts, including version 3's lack of credential binding.
+
 ```text
 node src/main/main.js --mcp-gateway-http endpoint.json manifest-v2.json <absolute-store-directory>
 node src/main/main.js --mcp-gateway-stdio policy.json request.json manifest-v2.json <absolute-store-directory>
