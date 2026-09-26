@@ -37,9 +37,9 @@ function statusSnapshot(state) {
     cancellationRequests: state.cancellationRequests,
     limits: { messages: state.messageLimit, actionAttempts: state.executionLimit },
     authorization: 'none',
-    control: 'direct-child-only',
+    control: state.kind === 'delete-file' ? 'selected-file-only' : 'direct-child-only',
     outsideRouteCoverage: 'unknown',
-    descendantControl: 'unsupported',
+    descendantControl: state.kind === 'delete-file' ? 'not-applicable' : 'unsupported',
     blockingVerification: 'not-performed',
     providerIdentity: 'unverified',
   };

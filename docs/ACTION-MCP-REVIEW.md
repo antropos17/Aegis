@@ -9,6 +9,11 @@ For several selected actions on the same connection, use the separate
 [catalog review entry](ACTION-MCP-CATALOG.md). It reuses this terminal owner and
 relay, with one shared active review slot.
 
+For one exact regular-file deletion, use the separate
+[selected-file deletion route](ACTION-DELETE-FILE.md#selected-file-mcp-terminal-route).
+It publishes `aegis_delete_selected_file` and uses the same terminal broker and
+relay lifecycle with a deletion-specific policy, report and `DELETE` challenge.
+
 This opt-in route connects an MCP client to one operator-selected action while
 keeping each execution review on the operator's terminal. Start the broker with
 live terminal input and error output, using a new endpoint file in a trusted,
