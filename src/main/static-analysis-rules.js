@@ -77,13 +77,23 @@ const RULES = Object.freeze({
     'Instruction text asks to conceal an action from the user',
     'Review the concealed action and ensure the user can inspect its purpose and effects.',
   ],
+  STA016: [
+    'medium',
+    'Claude settings declare broad execution preapproval',
+    'Review the selected allow declaration and higher-precedence ask and deny rules. This static check does not establish effective permissions.',
+  ],
+  STA017: [
+    'medium',
+    'Claude skill declares broad execution preapproval',
+    'Review whether this skill needs a tool grant for its invoking turn. Ask and deny rules take precedence; this static check does not establish effective permissions.',
+  ],
 });
 
 /** Return fresh versioned rule metadata. @returns {object} Built-in review rules. @since v0.15.1 */
 function staticRuleSet() {
   return {
     id: 'aegis-static-patterns',
-    version: 7,
+    version: 8,
     rules: Object.entries(RULES).map(([id, [severity, title, recommendation]]) => ({
       id,
       severity,

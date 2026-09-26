@@ -17,6 +17,7 @@ const { PYTHON_LIMITS } = require('./static-python-tree');
 const { PYTHON_VALUE_STEPS } = require('./static-python-values');
 const { createStaticCatalog, bindStaticFlow, FLOW_LIMITS } = require('./static-code-catalog');
 const { analyzeInstructions, INSTRUCTION_LIMITS } = require('./static-instruction-analysis');
+const { analyzeClaudeSkillFrontmatter } = require('./static-claude-permissions');
 const {
   analyzeInstructionCatalog,
   INSTRUCTION_CATALOG_LIMITS,
@@ -27,8 +28,19 @@ const { resolveSnapshotSubject, checkSnapshotSubject } = require('./inventory-sn
 
 const FINDING_LIMIT = 256;
 const ISSUE_LIMIT = 1024;
-function analyzeFile(name, data, entry, catalog) {
+function isClaudeSettingsPath(name, adapter, entry) {
+  if (name === '.claude/settings.json' || name === '.claude/settings.local.json') return true;
+  if (adapter === 'claude-user') return name === 'settings.json' && entry.agent === 'claude-code';
+  return (
+    adapter === 'claude-managed' &&
+    entry.agent === 'claude-code' &&
+    (name === 'managed-settings.json' || /^managed-settings\.d\/[^/.][^/]*\.json$/.test(name))
+  );
+}
+
+function analyzeFile(name, data, entry, catalog, adapter) {
   const base = name.split(/[/\\]/).at(-1);
+  const claudeSettings = isClaudeSettingsPath(name, adapter, entry);
   if (entry.kind === 'policy')
     return {
       mode: 'unsupported',
@@ -38,7 +50,11 @@ function analyzeFile(name, data, entry, catalog) {
     };
   if (base === 'package.json')
     return { mode: 'npm-manifest', ...analyzeConfiguration(data, 'json', true) };
-  if (entry.format) return { mode: 'agent-config', ...analyzeConfiguration(data, entry.format) };
+  if (entry.format || claudeSettings)
+    return {
+      mode: 'agent-config',
+      ...analyzeConfiguration(data, entry.format || 'json', false, claudeSettings),
+    };
   if (['.mcp.json', 'mcp.json', 'hooks.json'].includes(base))
     return {
       mode: 'agent-config',
@@ -73,10 +89,16 @@ function analyzeFile(name, data, entry, catalog) {
   if (entry.kind === 'instruction' || /\.(?:md|mdx|txt)$/i.test(base) || base === '.cursorrules') {
     const commands = commandFile(text, true);
     const instructions = analyzeInstructions(text);
+    const claudeSkill =
+      base === 'SKILL.md' &&
+      (/(?:^|\/)\.claude\/skills\/[^/]+\/SKILL\.md$/.test(name) ||
+        (adapter === 'claude-user' && /^skills\/[^/]+\/SKILL\.md$/.test(name)))
+        ? analyzeClaudeSkillFrontmatter(text)
+        : { findings: [], issues: [] };
     return {
       mode: 'instruction-patterns-and-code',
-      findings: [...commands.findings, ...instructions.findings],
-      issues: [...new Set([...commands.issues, ...instructions.issues])],
+      findings: [...commands.findings, ...instructions.findings, ...claudeSkill.findings],
+      issues: [...new Set([...commands.issues, ...instructions.issues, ...claudeSkill.issues])],
       commands: commands.commands,
     };
   }
@@ -125,7 +147,7 @@ async function scanStaticDirectory(adapter, directory, options = {}) {
   for (const { path: name, file, entry } of snapshots) {
     let analysis;
     try {
-      analysis = analyzeFile(name, file.data, entry, catalog);
+      analysis = analyzeFile(name, file.data, entry, catalog, visit.adapter.id);
     } catch (_) {
       analysis = { mode: 'unsupported', findings: [], issues: ['analysis-failed'], commands: 0 };
     }
@@ -195,6 +217,8 @@ async function scanStaticDirectory(adapter, directory, options = {}) {
     scope: {
       ...visit.scope,
       mcpToolDescriptions: mcpCatalog ? 'explicit-offline-catalog' : 'not-selected',
+      claudePreapproval: 'selected-settings-and-claude-skill-frontmatter-only',
+      otherSkillPreapprovals: 'not-analyzed',
     },
     limits: {
       ...visit.limits,

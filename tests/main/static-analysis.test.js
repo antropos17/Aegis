@@ -127,6 +127,204 @@ describe('bounded static directory review', () => {
     expect(open.mock.calls.some(([name]) => name === secret)).toBe(false);
   });
 
+  it('flags a broad Claude project execution allow declaration without returning rule text', async () => {
+    const source = JSON.stringify({
+      permissions: { allow: ['Bash', 'Bash(python PRIVATE_RULE_CANARY *)'] },
+      description: 'PRIVATE_SETTINGS_CANARY',
+    });
+    put('.claude/settings.json', source);
+    const report = await scanStaticDirectory('project', root);
+    expect(report.findings).toEqual([
+      expect.objectContaining({
+        ruleId: 'STA016',
+        path: '.claude/settings.json',
+        sha256: createHash('sha256').update(source).digest('hex'),
+        line: null,
+        context: 'claude-settings-permission',
+      }),
+    ]);
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_SETTINGS_CANARY');
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_RULE_CANARY');
+  });
+
+  it('reviews interpreter-wide Claude allows while leaving a find wildcard out of this category', async () => {
+    put('.claude/settings.json', {
+      permissions: { allow: ['Bash(python:*)', 'Bash(find *)'] },
+    });
+    expect(
+      (await scanStaticDirectory('project', root)).findings.map((entry) => entry.ruleId),
+    ).toEqual(['STA016']);
+    put('.claude/settings.json', { permissions: { allow: ['Bash(find *)'] } });
+    expect((await scanStaticDirectory('project', root)).findings).toEqual([]);
+  });
+
+  it('does not describe a same-file ask rule as silent execution preapproval', async () => {
+    put('.claude/settings.json', {
+      permissions: { allow: ['Bash(python:*)'], ask: ['Bash(python:*)'] },
+    });
+    expect((await scanStaticDirectory('project', root)).findings).toEqual([]);
+    put('.claude/settings.json', {
+      permissions: { allow: ['Bash(python:*)'], deny: ['Bash(python *)'] },
+    });
+    expect((await scanStaticDirectory('project', root)).findings).toEqual([]);
+    put('.claude/settings.json', {
+      permissions: { allow: ['Bash'], ask: ['Bash(*)'] },
+    });
+    expect((await scanStaticDirectory('project', root)).findings).toEqual([]);
+  });
+
+  it('marks unsupported Claude permission declarations as incomplete', async () => {
+    put('.claude/settings.json', { permissions: { allow: 'PRIVATE_Bash' } });
+    const report = await scanStaticDirectory('project', root);
+    expect(report.complete).toBe(false);
+    expect(report.issues).toContainEqual({
+      path: '.claude/settings.json',
+      reason: 'claude-permissions-unparsed',
+    });
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_Bash');
+  });
+
+  it('finds broad Claude skill preapproval only in leading YAML frontmatter', async () => {
+    const source = [
+      '---',
+      'name: review',
+      'description: PRIVATE_SKILL_CANARY',
+      'allowed-tools:',
+      '  - Bash(python:*)',
+      '  - Bash(find *)',
+      '---',
+      'PRIVATE_BODY_CANARY',
+    ].join('\n');
+    put('.claude/skills/review/SKILL.md', source);
+    const report = await scanStaticDirectory('project', root);
+    expect(report.findings).toEqual([
+      expect.objectContaining({
+        ruleId: 'STA017',
+        path: '.claude/skills/review/SKILL.md',
+        sha256: createHash('sha256').update(source).digest('hex'),
+        line: 4,
+        context: 'claude-skill-preapproval',
+      }),
+    ]);
+    expect(JSON.stringify(report)).not.toMatch(/PRIVATE_SKILL_CANARY|PRIVATE_BODY_CANARY/);
+  });
+
+  it('keeps Codex and generic skill metadata outside Claude permission review', async () => {
+    const source = '---\nallowed-tools: Bash\n---\n';
+    put('.codex/skills/demo/SKILL.md', source);
+    expect((await scanStaticDirectory('project', root)).findings).toEqual([]);
+    put('SKILL.md', source);
+    const report = await scanStaticDirectory('package', root);
+    expect(report.findings.some((entry) => entry.ruleId === 'STA017')).toBe(false);
+    expect(report.scope.otherSkillPreapprovals).toBe('not-analyzed');
+  });
+
+  it('reviews nested monorepo Claude skills within a selected package only', async () => {
+    const source = '---\nallowed-tools: Bash\n---\n';
+    put('apps/web/.claude/skills/review/SKILL.md', source);
+    put('apps/web/.codex/skills/review/SKILL.md', source);
+    put('apps/web/SKILL.md', source);
+    const report = await scanStaticDirectory('package', root);
+    expect(report.findings.map(({ ruleId, path }) => ({ ruleId, path }))).toEqual([
+      { ruleId: 'STA017', path: 'apps/web/.claude/skills/review/SKILL.md' },
+    ]);
+  });
+
+  it('limits settings grants to selected Claude settings files', async () => {
+    put('.claude.json', { permissions: { allow: ['Bash'] } });
+    put('.gemini/settings.json', { permissions: { allow: ['Bash'] } });
+    put('settings.json', { permissions: { allow: ['Bash'] } });
+    expect((await scanStaticDirectory('user-home', root)).findings).toEqual([]);
+    expect((await scanStaticDirectory('project', root)).findings).toEqual([]);
+    expect((await scanStaticDirectory('package', root)).findings).toEqual([]);
+  });
+
+  it('reviews Claude settings at exact paths inside a selected package', async () => {
+    put('.claude/settings.json', { permissions: { allow: ['Bash'] } });
+    put('.claude/settings.local.json', { permissions: { allow: ['PowerShell(*)'] } });
+    const report = await scanStaticDirectory('package', root);
+    expect(report.findings.map(({ ruleId, path }) => ({ ruleId, path }))).toEqual([
+      { ruleId: 'STA016', path: '.claude/settings.json' },
+      { ruleId: 'STA016', path: '.claude/settings.local.json' },
+    ]);
+  });
+
+  it('reviews selected Claude managed settings and visible drop-ins', async () => {
+    put('managed-settings.json', { permissions: { allow: ['Bash'] } });
+    put('managed-settings.d/10-team.json', { permissions: { allow: ['PowerShell'] } });
+    put('managed-mcp.json', { permissions: { allow: ['Bash'] } });
+    put('managed-settings.d/.hidden.json', { permissions: { allow: ['Bash'] } });
+    const report = await scanStaticDirectory('claude-managed', root);
+    expect(report.findings.map(({ ruleId, path }) => ({ ruleId, path }))).toEqual([
+      { ruleId: 'STA016', path: 'managed-settings.d/10-team.json' },
+      { ruleId: 'STA016', path: 'managed-settings.json' },
+    ]);
+    expect(report.files.some(({ path }) => path === 'managed-settings.d/.hidden.json')).toBe(false);
+  });
+
+  it('treats PowerShell as a broad Claude tool and respects matching ask and deny rules', async () => {
+    put('.claude/settings.json', { permissions: { allow: ['PowerShell(*)'] } });
+    expect(
+      (await scanStaticDirectory('project', root)).findings.map((entry) => entry.ruleId),
+    ).toEqual(['STA016']);
+    put('.claude/settings.json', {
+      permissions: { allow: ['PowerShell(*)'], ask: ['powershell(*)'] },
+    });
+    expect((await scanStaticDirectory('project', root)).findings).toEqual([]);
+    put('.claude/settings.json', {
+      permissions: { allow: ['PowerShell'], deny: ['PowerShell'] },
+    });
+    expect((await scanStaticDirectory('project', root)).findings).toEqual([]);
+    put('.claude/skills/review/SKILL.md', '---\nallowed-tools: PowerShell\n---\n');
+    expect(
+      (await scanStaticDirectory('project', root)).findings.map((entry) => entry.ruleId),
+    ).toEqual(['STA017']);
+  });
+
+  it('recognizes string-form Claude skill grants without scanning skill body text', async () => {
+    put(
+      '.claude/skills/review/SKILL.md',
+      '---\nallowed-tools: "Read, Bash(npm run *), Grep"\n---\n',
+    );
+    expect(
+      (await scanStaticDirectory('project', root)).findings.map((entry) => entry.ruleId),
+    ).toEqual(['STA017']);
+    put(
+      '.claude/skills/review/SKILL.md',
+      '---\nallowed-tools: Read\n---\n```yaml\nallowed-tools: Bash\n```\n',
+    );
+    const report = await scanStaticDirectory('project', root);
+    expect(report.findings.some((entry) => entry.ruleId === 'STA017')).toBe(false);
+    put(
+      '.claude/skills/review/SKILL.md',
+      '---\nallowed-tools: "Bash(find *), Bash(npm run build)"\n---\n',
+    );
+    expect((await scanStaticDirectory('project', root)).findings).toEqual([]);
+  });
+
+  it('reads the selected Claude user skill root as Claude-scoped metadata', async () => {
+    put('skills/review/SKILL.md', '---\nallowed-tools: Bash\n---\n');
+    const report = await scanStaticDirectory('claude-user', root);
+    expect(report.findings).toEqual([
+      expect.objectContaining({
+        ruleId: 'STA017',
+        path: 'skills/review/SKILL.md',
+        context: 'claude-skill-preapproval',
+      }),
+    ]);
+  });
+
+  it('marks malformed Claude skill metadata incomplete without exposing its text', async () => {
+    put('.claude/skills/review/SKILL.md', '---\nallowed-tools: [Bash\n---\nPRIVATE_CANARY');
+    const report = await scanStaticDirectory('project', root);
+    expect(report.complete).toBe(false);
+    expect(report.issues).toContainEqual({
+      path: '.claude/skills/review/SKILL.md',
+      reason: 'claude-skill-frontmatter-unparsed',
+    });
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_CANARY');
+  });
+
   it('supports profile adapters and named configuration files', async () => {
     put('config.toml', '[mcp_servers.demo]\ncommand="npx"\nargs=["server@latest"]');
     put('dev.config.toml', '[mcp_servers.demo]\nurl="http://remote.invalid"');
