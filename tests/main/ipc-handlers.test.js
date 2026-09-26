@@ -289,6 +289,13 @@ describe('ipc-handlers', () => {
     return registerOwnedRenderer();
   }
 
+  function selectedConfigFile(content) {
+    threatTempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-config-import-test-'));
+    const selected = path.join(threatTempRoot, 'selected.json');
+    fs.writeFileSync(selected, content);
+    return selected;
+  }
+
   it.each([
     'export-log',
     'export-csv',
@@ -339,7 +346,7 @@ describe('ipc-handlers', () => {
     mockElectron.dialog.showOpenDialog.mockImplementationOnce(
       () => new Promise((resolve) => (finishDialog = resolve)),
     );
-    const read = vi.spyOn(fs, 'readFileSync');
+    const read = vi.spyOn(fs, 'lstatSync');
     try {
       const pending = getHandler('import-agent-database')(event);
       expect(mockElectron.dialog.showOpenDialog).toHaveBeenCalledOnce();
@@ -382,17 +389,28 @@ describe('ipc-handlers', () => {
 
   it('import-agent-database still returns the selected agent records to its owned renderer', async () => {
     const { event } = registerOwnedRenderer();
+    const selected = selectedConfigFile('{"customAgents":[{"name":"Fixture"}]}');
     mockElectron.dialog.showOpenDialog.mockResolvedValueOnce({
-      filePaths: ['selected-agents.json'],
+      filePaths: [selected],
     });
-    const read = vi
-      .spyOn(fs, 'readFileSync')
-      .mockReturnValueOnce('{"customAgents":[{"name":"Fixture"}]}');
+    expect(await getHandler('import-agent-database')(event)).toEqual({
+      success: true,
+      agents: [{ name: 'Fixture' }],
+    });
+  });
+
+  it('rejects an oversized agent database before reading it', async () => {
+    const { event } = registerOwnedRenderer();
+    const selected = selectedConfigFile('x');
+    fs.truncateSync(selected, 16 * 1024 * 1024 + 1);
+    mockElectron.dialog.showOpenDialog.mockResolvedValueOnce({ filePaths: [selected] });
+    const read = vi.spyOn(fs, 'readSync');
     try {
       expect(await getHandler('import-agent-database')(event)).toEqual({
-        success: true,
-        agents: [{ name: 'Fixture' }],
+        success: false,
+        error: 'Agent database import failed',
       });
+      expect(read).not.toHaveBeenCalled();
     } finally {
       read.mockRestore();
     }
@@ -443,19 +461,15 @@ describe('ipc-handlers', () => {
 
   it('import-agent-database hides malformed selected file content from IPC results and logs', async () => {
     const { event } = registerOwnedRenderer();
+    const selected = selectedConfigFile('PRIVATE_IMPORT_CONTENT_CANARY');
     mockElectron.dialog.showOpenDialog.mockResolvedValueOnce({
-      filePaths: ['private-import.json'],
+      filePaths: [selected],
     });
-    const read = vi.spyOn(fs, 'readFileSync').mockReturnValueOnce('PRIVATE_IMPORT_CONTENT_CANARY');
-    try {
-      const result = await getHandler('import-agent-database')(event);
-      expect(result).toEqual({ success: false, error: 'Agent database import failed' });
-      expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(
-        'PRIVATE_IMPORT_CONTENT_CANARY',
-      );
-    } finally {
-      read.mockRestore();
-    }
+    const result = await getHandler('import-agent-database')(event);
+    expect(result).toEqual({ success: false, error: 'Agent database import failed' });
+    expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(
+      'PRIVATE_IMPORT_CONTENT_CANARY',
+    );
   });
 
   function registerObservedProcess(extraDeps = {}) {
@@ -632,18 +646,12 @@ describe('ipc-handlers', () => {
 
   it('reloads live rules when imported settings include rule overrides', async () => {
     const { event } = registerOwnedRenderer();
+    const selected = selectedConfigFile('{"ruleEnabledOverrides":{"rule-a":false}}');
     mockElectron.dialog.showOpenDialog.mockResolvedValueOnce({
-      filePaths: ['/fixture/settings.json'],
+      filePaths: [selected],
     });
-    const read = vi
-      .spyOn(fs, 'readFileSync')
-      .mockReturnValueOnce('{"ruleEnabledOverrides":{"rule-a":false}}');
-    try {
-      expect(await getHandler('import-config')(event)).toEqual({ success: true });
-      expect(mockRules.reloadRules).toHaveBeenCalledOnce();
-    } finally {
-      read.mockRestore();
-    }
+    expect(await getHandler('import-config')(event)).toEqual({ success: true });
+    expect(mockRules.reloadRules).toHaveBeenCalledOnce();
   });
 
   it('preserves successful settings and policy mutation responses for the owned renderer', async () => {
@@ -685,24 +693,17 @@ describe('ipc-handlers', () => {
     expect(getHandler('save-custom-agents')(event, agents)).toEqual({ success: true });
     expect(mockConfig.saveCustomAgents).toHaveBeenCalledExactlyOnceWith(agents);
 
-    mockElectron.dialog.showOpenDialog.mockResolvedValueOnce({
-      filePaths: ['/fixture/settings.json'],
+    const selected = selectedConfigFile('{"darkMode":true}');
+    mockElectron.dialog.showOpenDialog.mockResolvedValueOnce({ filePaths: [selected] });
+    expect(await getHandler('import-config')(event)).toEqual({ success: true });
+    expect(mockElectron.dialog.showOpenDialog).toHaveBeenCalledExactlyOnceWith(
+      window,
+      expect.objectContaining({ title: 'Import Config' }),
+    );
+    expect(mockConfig.saveSettings).toHaveBeenLastCalledWith({
+      darkMode: true,
+      anthropicApiKey: 'key',
     });
-    const read = vi.spyOn(fs, 'readFileSync').mockReturnValueOnce('{"darkMode":true}');
-    try {
-      expect(await getHandler('import-config')(event)).toEqual({ success: true });
-      expect(mockElectron.dialog.showOpenDialog).toHaveBeenCalledExactlyOnceWith(
-        window,
-        expect.objectContaining({ title: 'Import Config' }),
-      );
-      expect(read).toHaveBeenCalledExactlyOnceWith('/fixture/settings.json', 'utf-8');
-      expect(mockConfig.saveSettings).toHaveBeenLastCalledWith({
-        darkMode: true,
-        anthropicApiKey: 'key',
-      });
-    } finally {
-      read.mockRestore();
-    }
 
     const falsePositive = { agentName: 'Claude', pattern: 'safe', timestamp: 1 };
     expect(getHandler('add-false-positive')(event, falsePositive)).toEqual({ success: true });
@@ -767,7 +768,7 @@ describe('ipc-handlers', () => {
           resolveDialog = resolve;
         }),
       );
-      const read = vi.spyOn(fs, 'readFileSync');
+      const read = vi.spyOn(fs, 'lstatSync');
       try {
         const pending = getHandler('import-config')(renderer.event);
         expect(mockElectron.dialog.showOpenDialog).toHaveBeenCalledOnce();
@@ -947,16 +948,12 @@ describe('ipc-handlers', () => {
 
   it('import-config hides malformed selected file content from the renderer', async () => {
     const { event } = registerOwnedRenderer();
+    const selected = selectedConfigFile('PRIVATE_CONFIG_CONTENT_CANARY');
     mockElectron.dialog.showOpenDialog.mockResolvedValueOnce({
-      filePaths: ['private-settings.json'],
+      filePaths: [selected],
     });
-    const read = vi.spyOn(fs, 'readFileSync').mockReturnValueOnce('PRIVATE_CONFIG_CONTENT_CANARY');
-    try {
-      const result = await getHandler('import-config')(event);
-      expect(result).toEqual({ success: false, error: 'Config import failed' });
-    } finally {
-      read.mockRestore();
-    }
+    const result = await getHandler('import-config')(event);
+    expect(result).toEqual({ success: false, error: 'Config import failed' });
   });
 
   it('open-audit-log-dir does not copy an OS path error into the renderer', async () => {
@@ -1395,24 +1392,40 @@ describe('ipc-handlers', () => {
     it('keeps invalid custom regex text out of imported config rejection diagnostics', async () => {
       const { event } = registerOwnedRenderer();
       const canary = '[PRIVATE_REGEX_CANARY';
+      threatTempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-settings-import-test-'));
+      const selected = path.join(threatTempRoot, 'settings.json');
+      fs.writeFileSync(selected, JSON.stringify({ customSensitivePatterns: [canary] }));
       mockElectron.dialog.showOpenDialog.mockResolvedValueOnce({
-        filePaths: ['/fixture/settings.json'],
+        filePaths: [selected],
       });
-      const read = vi
-        .spyOn(fs, 'readFileSync')
-        .mockReturnValueOnce(JSON.stringify({ customSensitivePatterns: [canary] }));
+      const result = await getHandler('import-config')(event);
+      expect(result).toEqual({
+        success: false,
+        error: 'Invalid imported settings',
+      });
+      expect(JSON.stringify(result)).not.toContain(canary);
+      expect(mockLogger.warn).toHaveBeenCalledExactlyOnceWith(
+        'ipc-handlers',
+        'import-config rejected: invalid settings',
+      );
+      expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(canary);
+      expect(mockConfig.saveSettings).not.toHaveBeenCalled();
+    });
+
+    it('rejects an oversized config import without reading it into memory', async () => {
+      const { event } = registerOwnedRenderer();
+      threatTempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-settings-import-test-'));
+      const selected = path.join(threatTempRoot, 'settings.json');
+      fs.writeFileSync(selected, 'x');
+      fs.truncateSync(selected, 16 * 1024 * 1024 + 1);
+      mockElectron.dialog.showOpenDialog.mockResolvedValueOnce({ filePaths: [selected] });
+      const read = vi.spyOn(fs, 'readSync');
       try {
-        const result = await getHandler('import-config')(event);
-        expect(result).toEqual({
+        expect(await getHandler('import-config')(event)).toEqual({
           success: false,
-          error: 'Invalid imported settings',
+          error: 'Config import failed',
         });
-        expect(JSON.stringify(result)).not.toContain(canary);
-        expect(mockLogger.warn).toHaveBeenCalledExactlyOnceWith(
-          'ipc-handlers',
-          'import-config rejected: invalid settings',
-        );
-        expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(canary);
+        expect(read).not.toHaveBeenCalled();
         expect(mockConfig.saveSettings).not.toHaveBeenCalled();
       } finally {
         read.mockRestore();
