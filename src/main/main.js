@@ -567,7 +567,6 @@ function scheduleFileWatchRetry() {
     isQuitting ||
     fileWatchRetryTimer !== null ||
     fileWatchSetupInFlight ||
-    fileWatchRetryAttempts >= FILE_WATCH_RETRY_LIMIT ||
     typeof watcher?.getWatchPlan !== 'function'
   )
     return;
@@ -582,8 +581,13 @@ function scheduleFileWatchRetry() {
       scheduleFileWatchRetry();
       return;
     }
+    if (plan.state === 'HEALTHY' && plan.liveWatcherCount > 0) fileWatchRetryAttempts = 0;
     const failedBeforePlan = fileWatchSetupRejected && plan.groups.length === 0;
-    if (plan.liveWatcherCount === 0 && (plan.state === 'FAILED' || failedBeforePlan)) {
+    if (
+      fileWatchRetryAttempts < FILE_WATCH_RETRY_LIMIT &&
+      plan.liveWatcherCount === 0 &&
+      (plan.state === 'FAILED' || failedBeforePlan)
+    ) {
       fileWatchRetryAttempts++;
       void setupFileWatchers(generation, true);
     } else {

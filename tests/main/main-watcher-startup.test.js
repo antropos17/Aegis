@@ -274,6 +274,27 @@ describe('main — watcher startup ordering', () => {
     expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(4);
   });
 
+  it('restores the retry budget after a confirmed healthy watch plan', async () => {
+    vi.useFakeTimers();
+    watchPlan = { state: 'FAILED', groups: [{}], liveWatcherCount: 0 };
+    watcherMock.setupFileWatchers = vi.fn(async () => {
+      if (watcherMock.setupFileWatchers.mock.calls.length > 1) {
+        watchPlan = { state: 'HEALTHY', groups: [{}], liveWatcherCount: 1 };
+      }
+    });
+
+    await main.startWatchers();
+    for (let cycle = 1; cycle <= 3; cycle++) {
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(cycle + 1);
+      await vi.advanceTimersByTimeAsync(30_000);
+      watchPlan = { state: 'FAILED', groups: [{}], liveWatcherCount: 0 };
+    }
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(5);
+  });
+
   it('keeps retry setup single-flight while its promise is pending', async () => {
     vi.useFakeTimers();
     watchPlan = { state: 'FAILED', groups: [{}], liveWatcherCount: 0 };

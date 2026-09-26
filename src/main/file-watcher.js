@@ -48,6 +48,7 @@ const {
   markUnreachedRootsNotAttempted,
   markRootReady,
   markRootErrored,
+  markRootTerminated,
   noteRootDelivery,
   deriveWatchPlaneState,
   unavailableRootSummary,
@@ -555,9 +556,13 @@ function bindWatcherEvents(watcher, rootId, generation) {
   // root and answers whether anything changed; writing the record is this module's job,
   // and only on a real transition — W is derived over the plan, so re-deriving it for
   // an event that named no planned root would read an empty plan and throw.
-  watcher.on('error', () => {
+  watcher.on('error', (error) => {
     if (generation !== _watchGeneration) return;
-    if (markRootErrored(rootId, 'watch-root-error')) applyWatchPlaneHealth(Date.now());
+    const changed =
+      error?.code === 'AEGIS_WATCH_WORKER_TERMINATED'
+        ? markRootTerminated(rootId, 'watch-worker-terminated')
+        : markRootErrored(rootId, 'watch-root-error');
+    if (changed) applyWatchPlaneHealth(Date.now());
   });
   // ready = successful initialization of this FSWatcher instance — that one root. A
   // `ready` on a root already `errored` moves nothing (§1.4 — terminal), so it writes
