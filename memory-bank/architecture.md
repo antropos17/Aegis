@@ -1,6 +1,6 @@
 # AEGIS Architecture
 
-## Main Process (src/main/) — 172 CommonJS modules (149 top-level + 21 platform/ + 2 token-adapters/)
+## Main Process (src/main/) — 173 CommonJS modules (150 top-level + 21 platform/ + 2 token-adapters/)
 
 Optional development ETW: main → platform/etw-file-runtime → etw-file-supervisor
 → normal `sidecar/etw-file` broker → authenticated elevated file collector.
@@ -39,6 +39,7 @@ Core modules:
 - audit-index-query.js — bounded timestamp-ordered history queries with bound type filters; audit-logger falls back to JSONL when the index is unavailable or fails
 - audit-index-rebuild.js — rebuild/reconcile of the index from the daily files after `cleanOldLogs` on every init, resumed from `indexed_bytes`, ~2000-line transactions between `setImmediate` yields
 - exports.js — JSON/CSV/HTML report export
+- private-report-temp.js — exclusive private HTML report files and bounded retention
 - tray-icon.js — system tray with procedural icon
 
 ## Renderer (frontend/observatory/) — Svelte 5 + Vite 7
