@@ -146,7 +146,7 @@ it('counts captured catalog outcomes and exposes reasons for review and invalid 
       'These counts describe the captured configuration check. No actions were run.',
     ),
   ).toBeVisible();
-  const counts = result.querySelector('.outcome-counts')!;
+  const counts = result.querySelector<HTMLElement>('.outcome-counts')!;
   for (const label of ['Allow', 'Ask', 'Deny', 'Invalid configuration', 'Not assessed'])
     expect(within(counts).getByText(label).parentElement).toHaveTextContent('1');
   expect(
@@ -157,7 +157,7 @@ it('counts captured catalog outcomes and exposes reasons for review and invalid 
     ['aegis_action_demo_deny', 'Policy denies this action'],
     ['aegis_action_demo_invalid', 'The selected policy is invalid'],
   ]) {
-    const row = within(result).getByRole('heading', { name }).closest('li')!;
+    const row = within(result).getByRole('heading', { name }).closest('li') as HTMLElement;
     expect(within(row).getByText(reason)).toBeVisible();
     expect(row.querySelector('details')).toBeNull();
   }
