@@ -118,7 +118,7 @@ can therefore be incomplete and require review. The supported grammar,
 source-line conventions and catalog bounds are documented in
 [Instruction-pattern review](INSTRUCTION-REVIEW.md).
 
-Rule-set ID: `aegis-static-patterns`, version `9`. Each report includes fixed rule
+Rule-set ID: `aegis-static-patterns`, version `10`. Each report includes fixed rule
 metadata. Severity prioritizes review; every finding has `confidence: heuristic`.
 
 | ID | Severity | Review trigger |
@@ -141,6 +141,7 @@ metadata. Severity prioritizes review; every finding has `confidence: heuristic`
 | STA016 | medium | Selected Claude settings declare a broad Bash or PowerShell execution allow without a matching ask/deny in the same file |
 | STA017 | medium | Leading YAML in a Claude-scoped skill declares broad Bash or PowerShell execution preapproval |
 | STA018 | medium | Selected Claude user or managed settings declare `permissions.defaultMode: "bypassPermissions"` without a same-file `disableBypassPermissionsMode: "disable"` |
+| STA019 | medium | Selected Claude project or local settings declare `sandbox.network.strictAllowlist: true`, which Claude Code ignores at those scopes |
 
 STA002 includes common `.env` variants, `.npmrc`, selected SSH private-key names,
 AWS credentials and kubeconfig paths. Template/example `.env` names are excluded.
@@ -186,6 +187,20 @@ may accept it. The scan does not know the installed version or whether a file is
 loaded. Other settings and launch options can change the active mode; a finding
 or issue does not establish the mode of a running session. The report contains
 the selected file's relative path and hash, never the settings value or contents.
+
+STA019 checks only exact boolean `true` at `sandbox.network.strictAllowlist` in
+`.claude/settings.json` and `.claude/settings.local.json` at the selected project
+or package root. Claude Code's
+[sandbox documentation](https://code.claude.com/docs/en/sandboxing) says this
+setting in those project or local files has no effect.
+The setting is supported in user, managed or CLI `--settings` configuration
+starting with Claude Code v2.1.219, and applies to sandboxed commands only.
+Native Windows does not support Claude Code's sandbox; WSL2 is supported. A
+finding identifies an ignored declaration, without establishing the installed
+version, whether sandboxing is enabled, or effective network access. It does
+not imply unrestricted egress: other settings and ordinary host approvals may
+still constrain a command. Only the selected relative path, file hash and fixed
+wording are reported.
 
 ## Result contract and limits
 
@@ -236,5 +251,6 @@ is persisted or sent remotely by the scan command.
 
 ## Additional references checked on 2026-09-26
 
+- [Claude sandboxing](https://code.claude.com/docs/en/sandboxing): `strictAllowlist` scope, version requirement and supported platforms.
 - [Bun `bunx`](https://bun.com/docs/pm/bunx): `bun x` alias, package/executable separation, `--package`/`-p`, exact version examples and `--no-install`.
 - [uv tool guide](https://docs.astral.sh/uv/guides/tools/) and [CLI reference](https://docs.astral.sh/uv/reference/cli/#uv-tool-run): `uvx`/`uv tool run`, `--from`, exact and range selectors, extras, alternate sources and the special Python interpreter form.

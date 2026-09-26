@@ -228,6 +228,64 @@ describe('bounded static directory review', () => {
     },
   );
 
+  it.each([
+    ['project', '.claude/settings.json'],
+    ['project', '.claude/settings.local.json'],
+    ['package', '.claude/settings.json'],
+    ['package', '.claude/settings.local.json'],
+  ])('flags an ignored strict network allowlist in %s %s', async (adapter, name) => {
+    const source = JSON.stringify({
+      sandbox: { network: { strictAllowlist: true }, enabled: false },
+      description: 'PRIVATE_ALLOWLIST_CANARY',
+    });
+    put(name, source);
+    const report = await scanStaticDirectory(adapter, root);
+    expect(report.findings).toEqual([
+      expect.objectContaining({
+        ruleId: 'STA019',
+        severity: 'medium',
+        path: name,
+        sha256: createHash('sha256').update(source).digest('hex'),
+        line: null,
+        context: 'claude-settings-strict-allowlist-scope',
+      }),
+    ]);
+    expect(report.ruleSet.version).toBe(10);
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_ALLOWLIST_CANARY');
+  });
+
+  it.each([
+    ['claude-user', 'settings.json'],
+    ['user-home', '.claude/settings.json'],
+    ['claude-managed', 'managed-settings.json'],
+    ['claude-managed', 'managed-settings.d/10-team.json'],
+  ])('does not flag a strict network allowlist in selected %s settings', async (adapter, name) => {
+    put(name, { sandbox: { network: { strictAllowlist: true } } });
+    const report = await scanStaticDirectory(adapter, root);
+    expect(report.findings.some((entry) => entry.ruleId === 'STA019')).toBe(false);
+  });
+
+  it.each(['.claude/settings.json', '.claude/settings.local.json'])(
+    'requires an exact true sandbox.network.strictAllowlist in %s',
+    async (name) => {
+      for (const value of [false, 'true', 1, null, {}, []]) {
+        put(name, { sandbox: { network: { strictAllowlist: value } } });
+        const report = await scanStaticDirectory('project', root);
+        expect(report.findings.some((entry) => entry.ruleId === 'STA019')).toBe(false);
+      }
+      put(name, { strictAllowlist: true, sandbox: { strictAllowlist: true } });
+      expect((await scanStaticDirectory('project', root)).findings).toEqual([]);
+    },
+  );
+
+  it('keeps malformed Claude sandbox settings redacted and incomplete', async () => {
+    put('.claude/settings.json', '{"sandbox":{"network":{"strictAllowlist":true}},"PRIVATE_PARSE_CANARY":');
+    const report = await scanStaticDirectory('project', root);
+    expect(report.findings).toEqual([]);
+    expect(report.issues).toContainEqual({ path: '.claude/settings.json', reason: 'invalid-json' });
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_PARSE_CANARY');
+  });
+
   it('reviews interpreter-wide Claude allows while leaving a find wildcard out of this category', async () => {
     put('.claude/settings.json', {
       permissions: { allow: ['Bash(python:*)', 'Bash(find *)'] },

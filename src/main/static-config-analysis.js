@@ -155,7 +155,15 @@ function analyzeConfiguration(data, format, packageManifest = false, claudeSetti
     if (Object.hasOwn(value, 'env')) environment(value.env);
   }
   if (claudeSettings) {
-    const permissions = record(parsed.value) ? parsed.value.permissions : undefined;
+    const settings = record(parsed.value) ? parsed.value : null;
+    if (
+      claudeSettings === 'project' &&
+      record(settings?.sandbox) &&
+      record(settings.sandbox.network) &&
+      settings.sandbox.network.strictAllowlist === true
+    )
+      finding('STA019', 'claude-settings-strict-allowlist-scope');
+    const permissions = settings?.permissions;
     if (permissions !== undefined) {
       if (record(permissions) && permissions.defaultMode === 'bypassPermissions') {
         if (permissions.disableBypassPermissionsMode !== 'disable') {
