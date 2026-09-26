@@ -173,7 +173,7 @@ function register() {
       return { success: false, error: 'Renderer request denied' };
     const check = validateSettings(newSettings);
     if (!check.valid) {
-      logger.warn(`IPC save-settings rejected: ${check.error}`);
+      logger.warn('ipc-handlers', 'save-settings rejected: invalid settings');
       return { success: false, error: check.error };
     }
     if (options === undefined) config.saveSettings(newSettings);
@@ -469,7 +469,7 @@ ${findingsHtml}${recsHtml}
       const raw = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'));
       const check = validateSettings(raw);
       if (!check.valid) {
-        logger.warn(`IPC import-config rejected: ${check.error}`);
+        logger.warn('ipc-handlers', 'import-config rejected: invalid settings');
         return { success: false, error: check.error };
       }
       config.saveSettings({
@@ -490,14 +490,14 @@ ${findingsHtml}${recsHtml}
     }
     const normalized = path.resolve(filePath);
     if (normalized !== filePath && filePath.includes('..')) {
-      logger.warn(`reveal-in-explorer: path traversal rejected: ${filePath}`);
+      logger.warn('ipc-handlers', 'reveal-in-explorer rejected: path traversal');
       return { success: false, error: 'Path traversal not allowed' };
     }
     const userData = app.getPath('userData');
     const isInsideUserData = normalized.startsWith(userData + path.sep) || normalized === userData;
     const pathExists = fs.existsSync(normalized);
     if (!isInsideUserData && !pathExists) {
-      logger.warn(`reveal-in-explorer: path outside allowed scope: ${filePath}`);
+      logger.warn('ipc-handlers', 'reveal-in-explorer rejected: path outside allowed scope');
       return { success: false, error: 'Path not allowed' };
     }
     shell.showItemInFolder(normalized);

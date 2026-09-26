@@ -50,6 +50,14 @@ const mockConfig = {
   saveInstancePermissions: vi.fn(),
   getDefaultPermissions: vi.fn(() => ({ fileAccess: 'monitor' })),
   getCustomAgents: vi.fn(() => []),
+  isSafeRegex: vi.fn((pattern) => {
+    try {
+      new RegExp(pattern);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }),
   saveCustomAgents: vi.fn(),
   addFalsePositive: vi.fn(),
 };
@@ -201,6 +209,7 @@ describe('ipc-handlers', () => {
     mockElectron.dialog.showMessageBox.mockReset();
     mockElectron.app.getPath.mockReset().mockReturnValue(os.tmpdir());
     mockLogger.error.mockClear();
+    mockLogger.warn.mockClear();
     mockExporter.generateReport.mockReset().mockResolvedValue({ success: true });
     mockAudit.getStats.mockClear();
     mockAudit.getEntriesBefore.mockClear();
@@ -1017,6 +1026,46 @@ describe('ipc-handlers', () => {
       expect(result).toEqual({ success: true });
     });
 
+    it('keeps unknown settings keys out of persistent rejection diagnostics', () => {
+      const { event } = registerOwnedRenderer();
+      const canary = 'PRIVATE_SETTINGS_KEY_CANARY';
+      const result = getHandler('save-settings')(event, { [canary]: true });
+
+      expect(result).toEqual({ success: false, error: `Unknown settings keys: ${canary}` });
+      expect(mockLogger.warn).toHaveBeenCalledExactlyOnceWith(
+        'ipc-handlers',
+        'save-settings rejected: invalid settings',
+      );
+      expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(canary);
+      expect(mockConfig.saveSettings).not.toHaveBeenCalled();
+    });
+
+    it('keeps invalid custom regex text out of imported config rejection diagnostics', async () => {
+      const { event } = registerOwnedRenderer();
+      const canary = '[PRIVATE_REGEX_CANARY';
+      mockElectron.dialog.showOpenDialog.mockResolvedValueOnce({
+        filePaths: ['/fixture/settings.json'],
+      });
+      const read = vi.spyOn(fs, 'readFileSync').mockReturnValueOnce(
+        JSON.stringify({ customSensitivePatterns: [canary] }),
+      );
+      try {
+        const result = await getHandler('import-config')(event);
+        expect(result).toEqual({
+          success: false,
+          error: `Unsafe or invalid regex pattern: ${canary}`,
+        });
+        expect(mockLogger.warn).toHaveBeenCalledExactlyOnceWith(
+          'ipc-handlers',
+          'import-config rejected: invalid settings',
+        );
+        expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(canary);
+        expect(mockConfig.saveSettings).not.toHaveBeenCalled();
+      } finally {
+        read.mockRestore();
+      }
+    });
+
     it('forwards patch and clear intent without exposing settings in the response', () => {
       const { event } = registerOwnedRenderer();
       const options = { patch: true, clearAnthropicApiKey: true };
@@ -1296,6 +1345,40 @@ describe('ipc-handlers', () => {
       const result = handler(null, existingPath);
       expect(mockElectron.shell.showItemInFolder).toHaveBeenCalled();
       expect(result.success).toBe(true);
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it('keeps a missing watched secret path out of persistent rejection diagnostics', () => {
+      const canary = path.resolve(__dirname, '../../.env-PRIVATE_MISSING_CANARY');
+      const result = getHandler('reveal-in-explorer')(null, canary);
+
+      expect(result).toEqual({ success: false, error: 'Path not allowed' });
+      expect(mockLogger.warn).toHaveBeenCalledExactlyOnceWith(
+        'ipc-handlers',
+        'reveal-in-explorer rejected: path outside allowed scope',
+      );
+      expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(canary);
+      expect(mockElectron.shell.showItemInFolder).not.toHaveBeenCalled();
+    });
+
+    it('keeps a traversal secret path out of persistent rejection diagnostics', () => {
+      const canary =
+        path.resolve(__dirname, '../../.ssh') +
+        path.sep +
+        '..' +
+        path.sep +
+        '.ssh' +
+        path.sep +
+        'id_ed25519_PRIVATE_TRAVERSAL_CANARY';
+      const result = getHandler('reveal-in-explorer')(null, canary);
+
+      expect(result).toEqual({ success: false, error: 'Path traversal not allowed' });
+      expect(mockLogger.warn).toHaveBeenCalledExactlyOnceWith(
+        'ipc-handlers',
+        'reveal-in-explorer rejected: path traversal',
+      );
+      expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(canary);
+      expect(mockElectron.shell.showItemInFolder).not.toHaveBeenCalled();
     });
 
     it('reveal-in-explorer rejects path traversal with ..', () => {
