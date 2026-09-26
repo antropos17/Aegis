@@ -7,6 +7,25 @@ The separate [Live route observation](ACTION-LIVE-OBSERVATION.md) panel observes
 an explicitly selected running MCP owner, with self-reported client metadata and
 sticky coverage loss. Neither panel establishes verified blocking.
 
+When a captured check or route observation is available, the **Route evidence**
+summary presents three independent questions. **Selected inputs checked?**
+describes the retained, nonexecuting configuration check for
+the files chosen in the native dialog. **Live MCP owner observed?** needs a fresh
+initialized owner snapshot from one explicitly chosen observation endpoint.
+**Selected tool call reached owner?** needs that connection to report at least one
+owner invocation. An invocation may answer `ask` or `deny`; it does not prove a
+command ran or a file was deleted. A lost or stopped connection retains the last
+snapshot as **past connection evidence**, without implying that the route remains
+live. There is no automatic search for other clients or tools.
+
+Matching selection and route labels across the check and observation do not bind
+the checked files to the running owner. Mismatched labels are shown explicitly.
+The separate selected-file deletion route has no matching configuration preflight
+mode here; its returned operation report supplies its own outcome. All three rows
+remain bounded by self-reported client identity, unknown outside-route activity
+and unsupported descendant control. See [the observation contract](ACTION-LIVE-OBSERVATION.md)
+for connection lifetime and counter meanings.
+
 Choose a single action or a catalog, select the intended route, then choose the
 files in native dialogs. A single action needs a schema 2 or 3 execution policy and a
 schema 1 action request. A catalog needs its manifest, which explicitly selects
@@ -65,8 +84,9 @@ Production builds exclude that fixture module.
 ## Remaining B5 work
 
 Live selected-route observation and coverage-loss transitions now have a separate
-panel. Independent agent/version identity and installed-adapter verification
-controls remain open. The CLI [preflight contract](ACTION-ROUTE-CHECK.md),
+panel and the evidence summary above. Independent agent/version identity and
+installed-adapter verification controls remain open. The CLI
+[preflight contract](ACTION-ROUTE-CHECK.md),
 [MCP status contract](ACTION-MCP-STATUS.md) and installed-provider receipts explain
 which evidence is available today. A preflight result cannot substitute for those
 connection or execution observations.

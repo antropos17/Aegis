@@ -14,7 +14,7 @@
   }: {
     host: Host | null;
     preview?: boolean;
-    onObservation?: (value: RouteObservation | null) => void;
+    onObservation?: (_value: RouteObservation | null) => void;
   } = $props();
   let observation = $state.raw<RouteObservation | null>(null);
   let busy = $state(false);

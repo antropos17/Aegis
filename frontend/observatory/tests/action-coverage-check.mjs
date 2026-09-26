@@ -12,6 +12,22 @@ export async function checkActionCoverage(browser, url, out) {
   page.on('pageerror', (error) => errors.push(error.message));
   const root = page.locator('.action-coverage-workspace');
   const results = page.getByRole('region', { name: 'Action check result', exact: true });
+  const evidence = root.getByRole('region', { name: 'Route evidence', exact: true });
+  const captureEvidence = async (name, target = evidence) => {
+    await target.evaluate((element) => {
+      const main = element.closest('main');
+      if (!main) throw new Error('route evidence has no scroll container');
+      main.scrollTop += element.getBoundingClientRect().top - main.getBoundingClientRect().top - 74;
+    });
+    await page.screenshot({ path: resolve(out, `${name}-top.png`) });
+    await target.evaluate((element) => {
+      const main = element.closest('main');
+      if (!main) throw new Error('route evidence has no scroll container');
+      main.scrollTop +=
+        element.getBoundingClientRect().bottom - main.getBoundingClientRect().bottom + 8;
+    });
+    await page.screenshot({ path: resolve(out, `${name}-bottom.png`) });
+  };
   const geometry = async () => {
     const measured = await root.evaluate((element) => ({
       width: element.clientWidth,
@@ -99,6 +115,21 @@ export async function checkActionCoverage(browser, url, out) {
     await page.screenshot({ path: resolve(out, 'action-coverage-keyboard-focus.png') });
     await page.keyboard.press('Enter');
     await results.waitFor();
+    await evidence.waitFor();
+    assert.equal(await evidence.locator('.evidence-row').count(), 3);
+    for (const question of [
+      'Selected inputs checked?',
+      'Live MCP owner observed?',
+      'Selected tool call reached owner?',
+    ])
+      assert(await evidence.getByText(question, { exact: true }).isVisible());
+    for (const answer of ['Captured check', 'Not observed', 'No call evidence'])
+      assert(await evidence.getByText(answer, { exact: true }).isVisible());
+    assert(
+      await evidence
+        .getByText('The check is retained; it does not authorize a call.', { exact: true })
+        .isVisible(),
+    );
     await page.getByRole('button', { name: 'View captured result', exact: true }).click();
     assert(await results.evaluate((element) => element === document.activeElement));
     assert(
@@ -207,6 +238,8 @@ export async function checkActionCoverage(browser, url, out) {
           await geometry();
           await rowsReachable();
           await results.scrollIntoViewIfNeeded();
+          if (viewport.width === 900 && scale === 1.5 && theme === 'dark')
+            await captureEvidence('route-evidence-900-1.5-dark');
           await page.screenshot({
             path: resolve(out, `action-coverage-${viewport.width}-${scale}-${theme}.png`),
           });
@@ -228,6 +261,10 @@ export async function checkActionCoverage(browser, url, out) {
       'Execution route',
       'Show example check',
       'Action check result',
+      'Route evidence',
+      'Selected inputs checked?',
+      'Live MCP owner observed?',
+      'Selected tool call reached owner?',
     ])
       assert(
         typeof pt[key] === 'string' && pt[key] !== key,
@@ -252,6 +289,11 @@ export async function checkActionCoverage(browser, url, out) {
       await geometry();
       await rowsReachable();
       await translated.scrollIntoViewIfNeeded();
+      if (theme === 'light')
+        await captureEvidence(
+          'route-evidence-pt-900-1.5-light',
+          root.getByRole('region', { name: pt['Route evidence'], exact: true }),
+        );
       await page.screenshot({ path: resolve(out, `action-coverage-pt-900-1.5-${theme}.png`) });
     }
     assert.deepEqual(errors, []);
