@@ -78,7 +78,7 @@ depth bound remain. Operators and redirect targets consume token budget, and
 each parsed command text permits at most 64 redirections. Input and output paths
 never trigger additional file reads or writes. No command or source is executed.
 
-Reports use schema version 1 and `aegis-static-patterns` version 9. The scope field
+Reports use schema version 1 and `aegis-static-patterns` version 10. The scope field
 `shellRedirections: bounded-posix-stdio-associations` and the
 `commandRedirections: 64` limit require fresh comparison when importing an external
 report against a baseline that predates this coverage. Older observations are not

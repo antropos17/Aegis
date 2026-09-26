@@ -83,7 +83,7 @@ Unsupported branches, module effects and calls retain explicit coverage issues.
 
 ## Evidence and compatibility
 
-Reports retain schema version 1 and use `aegis-static-patterns` version 9.
+Reports retain schema version 1 and use `aegis-static-patterns` version 10.
 Flow findings use `javascript-command-flow` or `python-command-flow`:
 
 - `path`, `sha256`, `line`: the entry caller and its original bytes.

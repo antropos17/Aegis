@@ -92,13 +92,18 @@ const RULES = Object.freeze({
     'Claude settings declare permission bypass at session start',
     'Review the selected user or managed setting. Other settings and launch options can change the active mode; this static check does not establish it.',
   ],
+  STA019: [
+    'medium',
+    'Claude project settings declare an ignored strict network allowlist',
+    'Move the setting to user or managed settings, or CLI --settings. Verify Claude Code v2.1.219 or later and supported sandboxing; this static check does not establish effective network access.',
+  ],
 });
 
 /** Return fresh versioned rule metadata. @returns {object} Built-in review rules. @since v0.15.1 */
 function staticRuleSet() {
   return {
     id: 'aegis-static-patterns',
-    version: 9,
+    version: 10,
     rules: Object.entries(RULES).map(([id, [severity, title, recommendation]]) => ({
       id,
       severity,
