@@ -114,8 +114,7 @@
       aria-label={$t('Additional exclusions')}
       rows="3"
       maxlength="10000"
-      bind:value={ignored}
-    ></textarea><small
+      bind:value={ignored}></textarea><small
       >{$t('One directory path per line. Empty means no additional exclusions.')}</small
     ></label
   >
@@ -125,8 +124,7 @@
       aria-label={$t('Sensitive paths')}
       rows="3"
       maxlength="10000"
-      bind:value={patterns}
-    ></textarea><small
+      bind:value={patterns}></textarea><small
       >{$t(
         'One regular expression per line. Adds sensitive-path matches; built-in rules remain active.',
       )}</small
