@@ -60,8 +60,10 @@ function loadBaselines() {
       const raw = JSON.parse(fs.readFileSync(baselinesPath(), 'utf-8'));
       if (raw && raw.agents) baselines = raw;
     }
-  } catch (err) {
-    logger.warn('baselines', 'Failed to load baselines — starting fresh', { error: err.message });
+  } catch {
+    logger.warn('baselines', 'Failed to load baselines — starting fresh', {
+      code: 'baseline-load-failed',
+    });
     baselines = { agents: {} };
   }
 }
@@ -70,10 +72,9 @@ function loadBaselines() {
 function saveBaselines() {
   try {
     fs.writeFileSync(baselinesPath(), JSON.stringify(baselines, null, 2));
-  } catch (err) {
+  } catch {
     logger.error('baselines', 'Failed to save baselines', {
-      path: baselinesPath(),
-      error: err.message,
+      code: 'baseline-save-failed',
     });
   }
 }
