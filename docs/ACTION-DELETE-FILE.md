@@ -97,3 +97,31 @@ junctions, invalid schema/path and cancellation. The MCP route tests also cover
 argument rejection, request-ID replay, terminal timeout, and a separate process
 deleting an outside-route sentinel. These fixtures do not establish control of
 third-party agent routes or resistance to same-account races.
+
+## Installed Claude Code compatibility fixture
+
+On Windows, an operator can run the opt-in installed-provider check with a live
+terminal and a spacious existing scratch directory:
+
+```sh
+node scripts/verify-claude-action-mcp.mjs --delete-review --claude <absolute-claude.exe> --bash <absolute-Git-bash.exe> --scratch <existing-private-directory>
+```
+
+The fixture creates its own isolated `CLAUDE_CONFIG_DIR`, dummy API key, loopback
+synthetic `/v1/messages` endpoint, selected policy/request files, and MCP relay.
+It asks for the displayed `DELETE <challenge>` in the approved case, `no` in the
+refused case, and no input for policy denial. Each case uses an owned scratch
+target; a neighboring scratch file must remain intact. The oracle requires
+Claude to discover `aegis_delete_selected_file`, receive a matching `tool_result`
+with an `action-delete-file` JSON report, and observe the matching filesystem
+state. A final stdout receipt contains only redacted fixed fields. The private
+terminal preview can contain the selected path, so do not save a terminal
+transcript as the receipt.
+
+On 2026-09-26, this check passed with installed Claude Code 2.1.263: all three
+cases passed, six synthetic loopback API requests were observed, no proxy
+requests were rejected, and the broker endpoints and owned scratch were removed.
+The two prompted cases showed distinct fresh challenges. This evidence covers
+the installed provider route exercised here; the fixture does not prove
+cloud-model behavior, provider identity, all-network isolation, human presence,
+or deletion attempts through other tools.
