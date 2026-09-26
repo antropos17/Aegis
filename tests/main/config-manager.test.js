@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { createRequire } from 'module';
 import configManager from '../../src/main/config-manager.js';
+
+const require_ = createRequire(import.meta.url);
+const logger = require_('../../src/main/logger.js');
 
 describe('config-manager', () => {
   let tmpDir;
@@ -16,6 +20,7 @@ describe('config-manager', () => {
 
   afterEach(() => {
     // Reset the cached path so it re-resolves next time
+    vi.restoreAllMocks();
     configManager._setSettingsPathForTest(null);
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -80,6 +85,23 @@ describe('config-manager', () => {
     const raw = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
     expect(raw.scanIntervalSec).toBe(20);
     expect(raw.darkMode).toBe(true);
+  });
+
+  it('does not log private exception text when settings temp cleanup fails', () => {
+    configManager.loadSettings();
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const unlink = vi.spyOn(fs, 'unlinkSync').mockImplementationOnce(() => {
+      throw new Error('PRIVATE_TEMP_PATH_CANARY');
+    });
+
+    configManager.saveSettings({ scanIntervalSec: 20 });
+
+    expect(unlink).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fs.readFileSync(settingsPath, 'utf8')).scanIntervalSec).toBe(20);
+    expect(warn).toHaveBeenCalledWith('config-manager', 'Could not remove settings temporary file', {
+      code: 'settings-temp-cleanup-failed',
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('PRIVATE_TEMP_PATH_CANARY');
   });
 
   it('buildCustomRules() compiles valid regex, skips invalid', () => {
@@ -173,6 +195,35 @@ describe('config-manager', () => {
     configManager.trackSeenAgent('Claude');
     settings = configManager.getSettings();
     expect(settings.seenAgents.filter((a) => a === 'Claude')).toHaveLength(1);
+  });
+
+  it('retries a seen agent after a failed write without retaining it in memory or logging private data', () => {
+    configManager.loadSettings();
+    configManager.saveSettings({ ...configManager.getSettings(), scanIntervalSec: 15 });
+    const before = structuredClone(configManager.getSettings());
+    const diskBefore = fs.readFileSync(settingsPath, 'utf8');
+    const agentName = 'PRIVATE_AGENT_CANARY';
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const rename = vi.spyOn(fs, 'renameSync').mockImplementationOnce(() => {
+      throw new Error('PRIVATE_DISK_CANARY');
+    });
+
+    configManager.trackSeenAgent(agentName);
+    expect(configManager.getSettings()).toEqual(before);
+    expect(fs.readFileSync(settingsPath, 'utf8')).toBe(diskBefore);
+    expect(fs.readdirSync(tmpDir)).toEqual(['settings.json']);
+    expect(warn).toHaveBeenCalledWith('config-manager', 'Failed to persist seen agent', {
+      code: 'settings-write-failed',
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/PRIVATE_AGENT_CANARY|PRIVATE_DISK_CANARY/);
+
+    configManager.trackSeenAgent(agentName);
+    expect(configManager.getSettings().seenAgents).toEqual([agentName]);
+    expect(configManager.getSettings().agentPermissions[agentName]).toBeDefined();
+    const disk = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    expect(disk.seenAgents).toEqual([agentName]);
+    expect(disk.agentPermissions[agentName]).toBeDefined();
+    expect(rename).toHaveBeenCalledTimes(2);
   });
 
   it('getCustomAgents() / saveCustomAgents() round-trip', () => {

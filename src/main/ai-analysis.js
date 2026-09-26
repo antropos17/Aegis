@@ -17,6 +17,32 @@ const { UNKNOWN_SOURCE_LABEL } = require('./attribution');
 
 /** Max allowed lengths for untrusted fields */
 const FIELD_LIMITS = { agentName: 256, path: 1024, reason: 512 };
+const MAX_API_RESPONSE_BYTES = 1024 * 1024;
+// https://platform.claude.com/docs/en/api/errors — never relay the untrusted message or type.
+const API_ERROR_MESSAGES = Object.freeze({
+  invalid_request_error: 'Invalid Anthropic API request',
+  authentication_error: 'Anthropic API key is invalid or expired',
+  billing_error: 'Anthropic billing issue',
+  permission_error: 'Anthropic API permission denied',
+  not_found_error: 'Anthropic API resource not found',
+  conflict_error: 'Anthropic API request conflict',
+  request_too_large: 'Anthropic API request too large',
+  rate_limit_error: 'Anthropic API rate limit reached',
+  api_error: 'Anthropic API error',
+  timeout_error: 'Anthropic API timed out',
+  overloaded_error: 'Anthropic API overloaded',
+});
+
+/**
+ * @param {unknown} error - Untrusted Anthropic error object
+ * @returns {string} Fixed user-facing error
+ */
+function apiErrorMessage(error) {
+  const type = error && typeof error === 'object' ? error.type : undefined;
+  return typeof type === 'string' && Object.hasOwn(API_ERROR_MESSAGES, type)
+    ? API_ERROR_MESSAGES[type]
+    : 'Anthropic API error';
+}
 
 /**
  * Strip ASCII control characters (0x00-0x1F) except \n and \t,
@@ -177,13 +203,25 @@ function analyzeAgentActivity(agentName) {
         },
       },
       (res) => {
-        let data = '';
+        const chunks = [];
+        let responseBytes = 0;
+        let responseTooLarge = false;
         res.on('data', (chunk) => {
-          data += chunk;
+          if (responseTooLarge) return;
+          const chunkBytes = Buffer.isBuffer(chunk) ? chunk.length : Buffer.byteLength(chunk);
+          if (responseBytes + chunkBytes > MAX_API_RESPONSE_BYTES) {
+            responseTooLarge = true;
+            resolve({ success: false, error: 'Anthropic API response too large' });
+            req.destroy();
+            return;
+          }
+          responseBytes += chunkBytes;
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
         });
         res.on('end', () => {
+          if (responseTooLarge) return;
           try {
-            const parsed = JSON.parse(data);
+            const parsed = JSON.parse(Buffer.concat(chunks, responseBytes).toString('utf8'));
             if (parsed.content && parsed.content[0] && parsed.content[0].text) {
               const text = parsed.content[0].text.trim();
               const result = extractJSON(text);
@@ -193,7 +231,7 @@ function analyzeAgentActivity(agentName) {
                   : { success: true, analysis: text, counts },
               );
             } else if (parsed.error) {
-              resolve({ success: false, error: parsed.error.message || 'API error' });
+              resolve({ success: false, error: apiErrorMessage(parsed.error) });
             } else {
               resolve({ success: false, error: 'Unexpected API response' });
             }
@@ -203,8 +241,8 @@ function analyzeAgentActivity(agentName) {
         });
       },
     );
-    req.on('error', (err) => {
-      resolve({ success: false, error: err.message || 'Network error' });
+    req.on('error', () => {
+      resolve({ success: false, error: 'Network request failed' });
     });
     req.setTimeout(30000, () => {
       req.destroy();
@@ -349,13 +387,25 @@ function analyzeSessionActivity() {
         },
       },
       (res) => {
-        let data = '';
+        const chunks = [];
+        let responseBytes = 0;
+        let responseTooLarge = false;
         res.on('data', (chunk) => {
-          data += chunk;
+          if (responseTooLarge) return;
+          const chunkBytes = Buffer.isBuffer(chunk) ? chunk.length : Buffer.byteLength(chunk);
+          if (responseBytes + chunkBytes > MAX_API_RESPONSE_BYTES) {
+            responseTooLarge = true;
+            resolve({ success: false, error: 'Anthropic API response too large' });
+            req.destroy();
+            return;
+          }
+          responseBytes += chunkBytes;
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
         });
         res.on('end', () => {
+          if (responseTooLarge) return;
           try {
-            const parsed = JSON.parse(data);
+            const parsed = JSON.parse(Buffer.concat(chunks, responseBytes).toString('utf8'));
             if (parsed.content && parsed.content[0] && parsed.content[0].text) {
               const text = parsed.content[0].text.trim();
               const result = extractJSON(text);
@@ -380,7 +430,7 @@ function analyzeSessionActivity() {
                 });
               }
             } else if (parsed.error) {
-              resolve({ success: false, error: parsed.error.message || 'API error' });
+              resolve({ success: false, error: apiErrorMessage(parsed.error) });
             } else {
               resolve({ success: false, error: 'Unexpected API response' });
             }
@@ -390,8 +440,8 @@ function analyzeSessionActivity() {
         });
       },
     );
-    req.on('error', (err) => {
-      resolve({ success: false, error: err.message || 'Network error' });
+    req.on('error', () => {
+      resolve({ success: false, error: 'Network request failed' });
     });
     req.setTimeout(60000, () => {
       req.destroy();

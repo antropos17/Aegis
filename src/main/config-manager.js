@@ -238,7 +238,7 @@ function _writeSettings(allowLegacyReplacement = false) {
     } catch (error) {
       if (error.code !== 'ENOENT')
         logger.warn('config-manager', 'Could not remove settings temporary file', {
-          error: error.message,
+          code: 'settings-temp-cleanup-failed',
         });
     }
   }
@@ -470,16 +470,17 @@ function saveInstancePermissions(agentName, parentEditor, perms, cwd) {
  */
 function trackSeenAgent(agentName) {
   if (!settings.seenAgents.includes(agentName)) {
-    settings.seenAgents.push(agentName);
-    if (!settings.agentPermissions[agentName]) {
-      settings.agentPermissions[agentName] = getDefaultPermissions(agentName);
-    }
+    const agentPermissions = { ...settings.agentPermissions };
+    if (!agentPermissions[agentName])
+      agentPermissions[agentName] = getDefaultPermissions(agentName);
     try {
-      _writeSettings();
-    } catch (err) {
+      saveSettings(
+        { seenAgents: [...settings.seenAgents, agentName], agentPermissions },
+        { patch: true },
+      );
+    } catch {
       logger.warn('config-manager', 'Failed to persist seen agent', {
-        agentName,
-        error: err.message,
+        code: 'settings-write-failed',
       });
     }
   }

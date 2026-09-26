@@ -215,9 +215,9 @@ function register() {
     if (refusal) return refusal;
     try {
       return await analysis.analyzeAgentActivity(name);
-    } catch (error) {
-      logger.error(`IPC analyze-agent failed: ${error.message}`);
-      return { success: false, error: error.message };
+    } catch (_) {
+      logger.error('IPC analyze-agent failed');
+      return { success: false, error: 'Analysis failed' };
     }
   });
 
@@ -226,9 +226,9 @@ function register() {
     if (refusal) return refusal;
     try {
       return await analysis.analyzeSessionActivity();
-    } catch (error) {
-      logger.error(`IPC analyze-session failed: ${error.message}`);
-      return { success: false, error: error.message };
+    } catch (_) {
+      logger.error('IPC analyze-session failed');
+      return { success: false, error: 'Analysis failed' };
     }
   });
 
