@@ -238,7 +238,7 @@ function _writeSettings(allowLegacyReplacement = false) {
     } catch (error) {
       if (error.code !== 'ENOENT')
         logger.warn('config-manager', 'Could not remove settings temporary file', {
-          error: error.message,
+          code: 'settings-temp-cleanup-failed',
         });
     }
   }
