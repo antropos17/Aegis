@@ -98,6 +98,77 @@ describe('literal command review', () => {
     ).toEqual([]);
   });
 
+  it('flags a bunx package launch without an exact version', () => {
+    expect(analyzeCommand('bunx my-cli').rules).toContain('STA006');
+  });
+
+  it.each([
+    'bun x my-cli@latest',
+    'bunx --bun my-cli',
+    'bunx -p @angular/cli ng',
+    'bunx --package=@angular/cli@latest ng',
+    'bunx my-cli --no-install',
+    'uvx ruff',
+    'uv tool run ruff@latest',
+    'uvx --from httpie http',
+    "uvx --from 'ruff>0.2.0,<0.3.0' ruff",
+    "uvx --from 'ruff==1.2.*' ruff",
+    'uvx --with mkdocs-material mkdocs@1.6.0',
+  ])('flags a supported non-exact package selector in %s', (command) => {
+    expect(analyzeCommand(command)).toEqual({ rules: ['STA006'], issues: [] });
+  });
+
+  it.each([
+    'bunx my-cli@1.2.3',
+    'bunx --bun @scope/server@1.2.3',
+    'bunx --package @angular/cli@17.0.0 ng',
+    'bunx --no-install my-cli',
+    'uvx ruff@0.3.0',
+    "uv tool run --from 'ruff==0.3.0' ruff",
+    "uvx --from 'mypy[faster-cache,reports]==1.13.0' mypy",
+    "uvx --with 'mkdocs-material==9.5.0' mkdocs@1.6.0",
+    'uvx --python 3.10 ruff@0.3.0',
+  ])('recognizes a supported exact or local-only launch in %s', (command) => {
+    expect(analyzeCommand(command)).toEqual({ rules: [], issues: [] });
+  });
+
+  it.each([
+    'bunx --unknown my-cli@1.2.3',
+    'bunx --package my-cli@1.2.3',
+    'bunx --package my-cli@1.2.3 other@latest',
+    'bunx --no-install --package=git+https://example.invalid/repo my-cli',
+    'uvx --unknown ruff@0.3.0',
+    "uvx --from 'git+https://example.invalid/repo' ruff",
+    "uvx --from 'ruff==0.3.0; python_version > 3.10' ruff",
+    "uvx --from 'ruff===anything' ruff",
+    'uvx ruff@^1.0',
+    'uvx --from ruff==0.3.0 ruff@latest',
+    'uvx python',
+    'uv tool run python@3.12',
+    'uv --offline tool run ruff',
+    'uv --no-config tool run ruff',
+    'bun --cwd . x my-cli',
+  ])('reports an unresolved package launch or selector in %s', (command) => {
+    const result = analyzeCommand(command);
+    expect(result.rules).toEqual([]);
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^package-(?:launch-syntax|selector)-not-resolved$/),
+      ]),
+    );
+  });
+
+  it('keeps package arguments after the executable out of launcher selectors', () => {
+    expect(analyzeInvocation('bunx', ['my-cli@1.2.3', 'other@latest'])).toEqual({
+      rules: [],
+      issues: [],
+    });
+    expect(analyzeInvocation('uvx', ['--from', 'ruff==0.3.0', 'ruff', '--from', 'other'])).toEqual({
+      rules: [],
+      issues: [],
+    });
+  });
+
   it.each([
     'bash -c "unfinished',
     'echo "$(curl https://example.invalid)"',

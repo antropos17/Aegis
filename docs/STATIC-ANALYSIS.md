@@ -128,7 +128,7 @@ metadata. Severity prioritizes review; every finding has `confidence: heuristic`
 | STA003 | high | Recursive deletion of a recognized root/home target |
 | STA004 | medium | Recognized encoded PowerShell invocation |
 | STA005 | medium | Claude invocation requesting permission bypass |
-| STA006 | medium | Supported npx selector lacks an exact semver version; recognized offline/no-install launch options are excluded |
+| STA006 | medium | Supported `npx`, `bunx`/`bun x` or `uvx`/`uv tool run` package selector lacks an exact version; recognized `npx` offline/no-install and `bunx` no-install forms are excluded |
 | STA007 | medium | Non-loopback MCP URL uses HTTP |
 | STA008 | medium | MCP URL contains user information or a recognized credential query field |
 | STA009 | medium | Nonempty `ANTHROPIC_BASE_URL` override |
@@ -145,6 +145,16 @@ This is a small path/name heuristic, not secret detection. Arbitrary filenames,
 application-specific secrets, hidden transformations and cross-file flows can be
 missed. A hostname, exact package version or absence of a match is not an allowlist
 decision. Legitimacy, reachability and successful execution are not established.
+
+For STA006, `bunx --package`/`-p` and `uvx --from` identify the package when its
+executable has a different name. The executable and its following arguments are
+not treated as additional package selectors. The uv subset recognizes a direct
+`tool@version`, `tool@latest`, and simple `--from`/`--with` package requirements,
+including `name==version`, extras and version ranges. Unsupported package sources,
+selectors and pre-executable options produce coverage issues. An exact direct
+version does not establish fixed transitive dependencies, executable bytes or
+publisher authenticity. uv's special `python`/`python@version` interpreter launch
+is outside package-selector review and produces a coverage issue.
 
 ## Result contract and limits
 
@@ -192,3 +202,8 @@ is persisted or sent remotely by the scan command.
 - [curl manual](https://curl.se/docs/manpage.html): data/file/stdin options, including the literal `--data-raw` behavior.
 - [Check Point disclosure](https://research.checkpoint.com/2026/rce-and-api-token-exfiltration-through-claude-code-project-files-cve-2025-59536/): project hooks/MCP and provider-endpoint abuse. The reported pre-consent vulnerabilities were fixed; a finding here does not claim the installed client remains vulnerable.
 - [Cisco Skill Scanner](https://github.com/cisco-ai-defense/skill-scanner) and [Cisco MCP Scanner](https://github.com/cisco-ai-defense/mcp-scanner): deeper analysis and offline inputs inform A4.2. No Cisco code, scanner installation or API call is included in A4.1; third-party detection effectiveness was not reproduced.
+
+## Additional references checked on 2026-09-26
+
+- [Bun `bunx`](https://bun.com/docs/pm/bunx): `bun x` alias, package/executable separation, `--package`/`-p`, exact version examples and `--no-install`.
+- [uv tool guide](https://docs.astral.sh/uv/guides/tools/) and [CLI reference](https://docs.astral.sh/uv/reference/cli/#uv-tool-run): `uvx`/`uv tool run`, `--from`, exact and range selectors, extras, alternate sources and the special Python interpreter form.
