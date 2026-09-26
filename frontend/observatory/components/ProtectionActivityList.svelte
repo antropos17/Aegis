@@ -7,12 +7,16 @@
   import ResourceIcon from './ResourceIcon.svelte';
   let {
     activity,
+    reviewedKeys,
+    reviewCount,
     ready,
     filter = $bindable('all'),
     selectedKey,
     select,
   }: {
     activity: ProtectionActivity[];
+    reviewedKeys: ReadonlySet<string>;
+    reviewCount: number;
     ready: boolean;
     filter?: string;
     selectedKey?: string;
@@ -29,7 +33,10 @@
   const filtered = $derived(
     activity.filter(
       (item) =>
-        (filter === 'all' || item.level === filter) &&
+        (filter === 'all' ||
+          (filter === 'review'
+            ? item.level === 'review' && !reviewedKeys.has(item.key)
+            : item.level === filter)) &&
         `${item.actor} ${item.target} ${$t(item.action)}`
           .toLowerCase()
           .includes(query.trim().toLowerCase()),
@@ -58,7 +65,9 @@
             >{ready
               ? id === 'all'
                 ? activity.length
-                : activity.filter((item) => item.level === id).length
+                : id === 'review'
+                  ? reviewCount
+                  : activity.filter((item) => item.level === id).length
               : '—'}</span
           ></button
         >
@@ -76,15 +85,17 @@
   </div>
   <div class="activity-list">
     {#each filtered.slice(0, limit) as item (item.key)}
+      {@const reviewed = reviewedKeys.has(item.key)}
+      {@const verdict = reviewed ? 'Reviewed this session' : labels[item.level]}
       <button
         class="activity-row"
-        class:review={item.level === 'review'}
+        class:review={item.level === 'review' && !reviewed}
         aria-label={$t('{value0}. {value1}. {value2}: {value3}. {value4}. {value5} records.', {
           value0: item.actor,
           value1: $t(item.attribution),
           value2: $t(item.action),
           value3: item.target,
-          value4: $t(labels[item.level]),
+          value4: $t(verdict),
           value5: item.rows.length,
         })}
         aria-pressed={selectedKey === item.key}
@@ -101,7 +112,7 @@
           ><small class="path">{item.target}</small></span
         >
         <span class="verdict"
-          ><span class="activity-verdict">{$t(labels[item.level])}</span><small
+          ><span class="activity-verdict">{$t(verdict)}</span><small
             >{item.rows.length > 1
               ? $t('{value0} records', { value0: item.rows.length })
               : $t(item.kind)}</small

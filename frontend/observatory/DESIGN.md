@@ -9,6 +9,16 @@ with unavailable rows counted separately as not assessed. Ask, deny and invalid
 rows expose their check reason directly. Counts and reasons remain tied to the
 captured check, separate from live route observation and the editable setup.
 
+## Session-only file review — 26 September 2026
+
+Flagged retained file groups can be marked reviewed in the selected evidence panel.
+All activity keeps those groups with a visible session-review label, while the
+Needs review count and filter exclude them. A new file row in the same group
+restores the review flag even when its timestamp and group size are unchanged.
+Review state exists only while this overview is mounted and retains row identity
+weakly; absent groups are pruned. Network groups have no review control because
+their observation identity is not stable. This changes no saved policy or sensor.
+
 ## Dashboard reference audit — 19 September 2026
 
 The supplied “AEGIS — идеальный дашборд” boards inform a focused protection-overview
