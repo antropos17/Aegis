@@ -1,7 +1,7 @@
 export const actionRoutes = [
   { id: 'direct', label: 'Direct execution' },
   { id: 'terminal', label: 'Terminal confirmation' },
-  { id: 'mcp-stdio', label: 'MCP stdio' },
+  { id: 'mcp-stdio', label: 'Selected-action MCP stdio' },
   { id: 'mcp-review', label: 'MCP terminal review' },
 ] as const;
 export type ActionRoute = (typeof actionRoutes)[number]['id'];
@@ -32,7 +32,7 @@ export const routeHelp: Record<ActionRoute, string> = {
   direct: 'Direct execution checks a command run through the AEGIS command line.',
   terminal: 'Terminal confirmation asks you before one command runs in an interactive terminal.',
   'mcp-stdio':
-    'MCP stdio connects an agent to selected AEGIS tools. The policy decides whether each action may run.',
+    'Checks configuration for the selected-action MCP stdio owner (--action-mcp-stdio). A separate gateway handles third-party MCP servers.',
   'mcp-review':
     'MCP terminal review connects an agent while you approve each action in an interactive terminal.',
 };

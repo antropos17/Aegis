@@ -34,6 +34,8 @@
   let guidePending = $state(false);
   let guideFeedback = $state('');
   let guideFailed = $state(false);
+  type GuideFile = 'ACTION-DELETE-FILE.md' | 'MCP-STDIO-GATEWAY.md';
+  let guideTarget = $state<GuideFile | null>(null);
   let result = $state.raw<ActionCheck | null>(null);
   let routeObservation = $state.raw<RouteObservation | null>(null);
   let alive = true;
@@ -61,10 +63,11 @@
   function changeKind() {
     if (kind === 'catalog' && !route.startsWith('mcp-')) route = 'mcp-stdio';
   }
-  async function openSelectedFileGuide() {
-    const url = setupGuideUrl('ACTION-DELETE-FILE.md');
+  async function openGuide(file: GuideFile) {
+    const url = setupGuideUrl(file);
     if (guidePending || preview || !host?.openExternalUrl || !url) return;
     guidePending = true;
+    guideTarget = file;
     guideFeedback = '';
     guideFailed = false;
     try {
@@ -276,17 +279,22 @@
         type="button"
         class="button"
         disabled={guidePending || preview || !host?.openExternalUrl}
-        onclick={openSelectedFileGuide}>{$t('Open selected-file deletion guide')}</button
+        onclick={() => openGuide('ACTION-DELETE-FILE.md')}
+        >{$t('Open selected-file deletion guide')}</button
       >
-      {#if preview}<p class="muted">
-          {$t('External guides are disabled in this simulated preview.')}
-        </p>{:else if !host?.openExternalUrl}<p class="muted">
-          {$t('Opening guides requires the AEGIS desktop connection.')}
+      {#if guideTarget === 'ACTION-DELETE-FILE.md'}<p
+          class="guide-feedback"
+          role={guideFailed ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          {$t(guideFeedback)}
         </p>{/if}
-      <p class="guide-feedback" role={guideFailed ? 'alert' : 'status'} aria-live="polite">
-        {$t(guideFeedback)}
-      </p>
     </section>
+    {#if preview}<p class="muted">
+        {$t('External guides are disabled in this simulated preview.')}
+      </p>{:else if !host?.openExternalUrl}<p class="muted">
+        {$t('Opening guides requires the AEGIS desktop connection.')}
+      </p>{/if}
     {#if preview}<p class="preview-note">
         {$t('Preview · example checks only. No files are selected or read.')}
       </p>{/if}
@@ -342,6 +350,27 @@
               ?.focus()}>{$t('View captured result')}</button
         >{/if}
     </form>
+    <section class="gateway-guide" aria-label={$t('Stdio gateway setup')}>
+      <h3>{$t('Third-party MCP server gateway')}</h3>
+      <p>
+        {$t(
+          'The separate stdio gateway (--mcp-gateway-stdio) has its own setup and limits. Action control does not check gateway setup, a running gateway, or live coverage.',
+        )}
+      </p>
+      <button
+        type="button"
+        class="button"
+        disabled={guidePending || preview || !host?.openExternalUrl}
+        onclick={() => openGuide('MCP-STDIO-GATEWAY.md')}>{$t('Open stdio gateway guide')}</button
+      >
+      {#if guideTarget === 'MCP-STDIO-GATEWAY.md'}<p
+          class="guide-feedback"
+          role={guideFailed ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          {$t(guideFeedback)}
+        </p>{/if}
+    </section>
     <p class="muted">
       {$t(
         'Runtime and terminal availability describe this AEGIS process, not a future agent process.',
@@ -406,18 +435,22 @@
   .notice {
     font-weight: 600;
   }
-  .selected-file-guide {
+  .selected-file-guide,
+  .gateway-guide {
     border-top: 1px solid var(--border);
     margin-top: var(--space-4);
     padding-top: var(--space-3);
   }
-  .selected-file-guide h3 {
+  .selected-file-guide h3,
+  .gateway-guide h3 {
     margin-top: 0;
   }
-  .selected-file-guide .button {
+  .selected-file-guide .button,
+  .gateway-guide .button {
     margin-top: var(--space-2);
   }
-  .selected-file-guide .guide-feedback {
+  .selected-file-guide .guide-feedback,
+  .gateway-guide .guide-feedback {
     margin-bottom: 0;
   }
   .fields {

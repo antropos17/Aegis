@@ -6,6 +6,7 @@ const SETUP_GUIDES = new Set(
     'ACTION-MCP-CONFIG.md',
     'ACTION-MCP-REVIEW.md',
     'ACTION-DELETE-FILE.md',
+    'MCP-STDIO-GATEWAY.md',
     'ACTION-MCP-STATUS.md',
   ].map((file) => `https://github.com/antropos17/Aegis/blob/master/docs/${file}`),
 );
@@ -47,7 +48,7 @@ function parseExternalUrl(value) {
   }
 }
 
-/** Identify the four fixed setup guides that AEGIS opens without a second prompt.
+/** Identify the five fixed setup guides that AEGIS opens without a second prompt.
  * @param {string} href Canonical URL returned by parseExternalUrl.
  * @returns {boolean} Whether it exactly matches a fixed guide.
  * @since v0.16.0-alpha

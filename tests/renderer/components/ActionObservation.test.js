@@ -38,6 +38,7 @@ it('labels self-reported identity, preserves last counters on loss, and never cl
   expect(screen.getByText('Client label · self-reported')).toBeInTheDocument();
   expect(screen.getByText('claude-code · 2.1.263')).toBeInTheDocument();
   expect(screen.getByText('Single action')).toBeVisible();
+  expect(screen.getByText('Selected-action MCP stdio')).toBeVisible();
   expect(screen.getByText('Action attempts')).toBeVisible();
   current = { ...observed, state: 'coverage-lost', reason: 'connection-closed' };
   await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Coverage lost'), {

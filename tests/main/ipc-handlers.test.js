@@ -565,6 +565,7 @@ describe('ipc-handlers', () => {
       'ACTION-MCP-CONFIG.md',
       'ACTION-MCP-REVIEW.md',
       'ACTION-DELETE-FILE.md',
+      'MCP-STDIO-GATEWAY.md',
       'ACTION-MCP-STATUS.md',
     ]) {
       const url = `https://github.com/antropos17/Aegis/blob/master/docs/${file}`;

@@ -63,3 +63,22 @@ it('only opens the listed selected-file guide through the fixed documentation UR
   );
   expect(setupGuideUrl('../unlisted.md')).toBeNull();
 });
+
+it('lists the separate stdio gateway limits and opens only its fixed documentation URL', async () => {
+  const openExternalUrl = vi.fn().mockResolvedValue({ success: true });
+  render(TaskGuide, { host: { openExternalUrl } as unknown as Host, navigate: vi.fn() });
+  await fireEvent.click(screen.getByText('Connect an agent to selected actions'));
+  expect(
+    screen.getByText(/Action control does not check gateway setup or live coverage/),
+  ).toBeVisible();
+  await fireEvent.click(
+    screen.getByRole('button', { name: 'Open guide: Route a third-party MCP server' }),
+  );
+  expect(openExternalUrl).toHaveBeenCalledExactlyOnceWith(
+    'https://github.com/antropos17/Aegis/blob/master/docs/MCP-STDIO-GATEWAY.md',
+  );
+  expect(setupGuideUrl('MCP-STDIO-GATEWAY.md')).toBe(
+    'https://github.com/antropos17/Aegis/blob/master/docs/MCP-STDIO-GATEWAY.md',
+  );
+  expect(setupGuideUrl('../MCP-STDIO-GATEWAY.md')).toBeNull();
+});
