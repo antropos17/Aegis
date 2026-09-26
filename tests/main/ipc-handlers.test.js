@@ -1442,6 +1442,24 @@ describe('ipc-handlers', () => {
       },
     );
 
+    it.each(['analyze-agent', 'analyze-session'])(
+      '%s returns a fixed error and logs no details when analysis throws',
+      async (channel) => {
+        const { event } = registerOwnedRenderer();
+        mockElectron.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
+        const failed = new Error('PRIVATE_ANALYSIS_FAILURE_CANARY');
+        if (channel === 'analyze-agent')
+          mockAnalysis.analyzeAgentActivity.mockRejectedValueOnce(failed);
+        else mockAnalysis.analyzeSessionActivity.mockRejectedValueOnce(failed);
+
+        const result = await getHandler(channel)(event, 'Claude');
+        expect(result).toEqual({ success: false, error: 'Analysis failed' });
+        expect(JSON.stringify([result, mockLogger.error.mock.calls])).not.toContain(
+          'PRIVATE_ANALYSIS_FAILURE_CANARY',
+        );
+      },
+    );
+
     it('denies analysis if the renderer frame changes while native consent is open', async () => {
       const { event, contents, frame } = registerOwnedRenderer();
       let answer;
