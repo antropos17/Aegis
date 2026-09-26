@@ -30,6 +30,7 @@ Options:
   --action-mcp-stdio <policy.json> <request.json>  Serve one selected action through finite MCP stdio
     MCP stdio/review routes accept: --observe <new-private-endpoint.json> (read-only desktop observation)
   --action-exec-confirm <policy.json> <request.json>  Review exact action in a terminal and confirm one launch
+  --action-delete-file-confirm <policy.json> <request.json>  Confirm one exact regular-file deletion
   --action-exec-json <policy.json> <request.json>  Run one explicit executable request under local policy
   --action-policy-hook <policy.json>  Experimental Claude PreToolUse Bash decision hook
   --handoff-listen-json claude-code <port> <seconds>  Observe live hooks on loopback (opt-in)
@@ -138,6 +139,8 @@ async function handleCLI(argv) {
     return require('./action-mcp-stdio').handleActionMcpStdio(args);
   if (flag === '--action-exec-json' || flag === '--action-exec-confirm')
     return require('./action-execution-cli').handleActionExecutionCLI(args, write);
+  if (flag === '--action-delete-file-confirm')
+    return require('./action-delete-file').handleDeleteFileCLI(args, write);
   if (flag === '--action-policy-hook')
     return require('./action-policy-hook').handleActionPolicyHook(args, write);
   if (flag === '--handoff-listen-json' || flag === '--handoff-send')

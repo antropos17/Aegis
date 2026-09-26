@@ -50,6 +50,21 @@ afterEach(() => {
 });
 
 describe('terminal-owned explicit action confirmation', () => {
+  it('requires the deletion-specific challenge for an exact file operation', async () => {
+    const t = setup();
+    const operation = { kind: 'delete-file', path: 'X:/PRIVATE/file.txt' };
+    const denied = t.run(operation, { kind: 'delete-file' });
+    await tick();
+    expect(t.preview()).toContain('ONE file deletion');
+    expect(t.preview()).toContain(operation.path);
+    t.input.emit('data', Buffer.from('RUN a1b2c3d4\n'));
+    expect(await denied).toBe(false);
+    const accepted = t.run(operation, { kind: 'delete-file' });
+    await tick();
+    t.input.emit('data', Buffer.from('DELETE a1b2c3d4\n'));
+    expect(await accepted).toBe(true);
+  });
+
   it('observes real stream EOF after accepted confirmation paused the terminal input', async () => {
     const input = Object.assign(new PassThrough(), { isTTY: true });
     const output = Object.assign(new PassThrough(), { isTTY: true });

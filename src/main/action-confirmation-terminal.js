@@ -77,17 +77,19 @@ function monitorTerminalInput(abort) {
  * Display an exact private launch only on a terminal, then require a fresh literal
  * challenge response. A terminal is not proof of human identity. Never log preview.
  * @param {object} launch Private effective executable/cwd/args/env descriptor.
- * @param {{signal?: AbortSignal}} [options] Owning operation cancellation.
+ * @param {{signal?: AbortSignal, kind?: 'launch'|'delete-file'}} [options] Owning cancellation and operation kind.
  * @returns {Promise<boolean>} True only for the exact response before expiry.
  * @since v0.15.1
  */
-async function confirmInTerminal(launch, { signal } = {}) {
+async function confirmInTerminal(launch, { signal, kind = 'launch' } = {}) {
   if (!isTerminalAvailable() || signal?.aborted) return false;
   const { input, output } = streams();
   const host = testDeps?.process || process;
   const started = performance.now();
   let challenge;
   let preview;
+  const deletion = kind === 'delete-file';
+  const verb = deletion ? 'DELETE' : 'RUN';
   try {
     challenge = (testDeps?.randomBytes || randomBytes)(4).toString('hex');
     if (!/^[a-f0-9]{8}$/.test(challenge)) return false;
@@ -96,15 +98,23 @@ async function confirmInTerminal(launch, { signal } = {}) {
       /[\u007f-\uffff]/g,
       (char) => '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0'),
     );
-    preview =
-      'AEGIS terminal confirmation - ONE launch\n' +
-      'Private arguments and environment are displayed below. Terminal history may retain them.\n' +
-      'The program keeps your account privileges; descendants are not isolated.\n' +
-      'Exact effective action (JSON escapes are literal; no shell reconstruction):\n' +
-      rendered +
-      '\nType RUN ' +
-      challenge +
-      ' to launch once within 60 seconds. Any other answer denies.\n> ';
+    if (!deletion && kind !== 'launch') return false;
+    preview = deletion
+      ? 'AEGIS terminal confirmation - ONE file deletion\n' +
+        'The exact file path is displayed below. Terminal history may retain it.\n' +
+        'Exact operation (JSON escapes are literal):\n' +
+        rendered +
+        '\nType DELETE ' +
+        challenge +
+        ' to remove this file once within 60 seconds. Any other answer denies.\n> '
+      : 'AEGIS terminal confirmation - ONE launch\n' +
+        'Private arguments and environment are displayed below. Terminal history may retain them.\n' +
+        'The program keeps your account privileges; descendants are not isolated.\n' +
+        'Exact effective action (JSON escapes are literal; no shell reconstruction):\n' +
+        rendered +
+        '\nType RUN ' +
+        challenge +
+        ' to launch once within 60 seconds. Any other answer denies.\n> ';
     if (Buffer.byteLength(preview) > LIMITS.previewBytes) return false;
   } catch {
     return false;
@@ -153,9 +163,9 @@ async function confirmInTerminal(launch, { signal } = {}) {
       if (/[\r\n]/.test(answer)) {
         // Reject trailing commands, multiple lines and pasted batches.
         finish(
-          answer === 'RUN ' + challenge + '\n' ||
-            answer === 'RUN ' + challenge + '\r\n' ||
-            answer === 'RUN ' + challenge + '\r',
+          answer === verb + ' ' + challenge + '\n' ||
+            answer === verb + ' ' + challenge + '\r\n' ||
+            answer === verb + ' ' + challenge + '\r',
         );
       }
     };
