@@ -22,6 +22,8 @@
  *   partially-loaded file would silently detect something nobody wrote. Every reason emits one
  *   `logger.warn('sequence-loader', message, { rule, step, reason })` line and increments
  *   `loadErrors`; the reason CODE is the stable half and the message is the operator half.
+ *   I/O, YAML parser and RegExp failure messages are fixed text: their exception strings and
+ *   source excerpts can contain private file paths or rule content.
  *
  *   A WARNING IS NOT A REJECTION. Two warnings describe rules that load and run, and say what
  *   they will and will not see — the dedup window in front of the file carrier, and the events
@@ -255,6 +257,22 @@ function _reject(sink, reason, detail, where) {
   });
 }
 
+/** Record a failure without including the source file name or supplied value in its log message.
+ * @param {Sink} sink
+ * @param {string} reason
+ * @param {string} message
+ * @param {{rule?: string|null, step?: string|null}} [where]
+ * @returns {void}
+ */
+function _rejectOpaque(sink, reason, message, where) {
+  sink.errors.push({
+    rule: (where && where.rule) || null,
+    step: (where && where.step) || null,
+    reason,
+    message,
+  });
+}
+
 /**
  * `where` is REQUIRED here and optional on {@link _reject}, and the difference is real rather
  * than an oversight: a warning is only ever raised about a rule that loaded, so its id always
@@ -484,12 +502,11 @@ function _checkSelection(sink, selection, category, name) {
       for (const v of values) {
         try {
           new RegExp(String(v), modifier === 're|i' ? 'i' : '');
-        } catch (/** @type {*} */ err) {
-          _reject(
+        } catch {
+          _rejectOpaque(
             sink,
             'invalid-regex',
-            `field "${key}" holds an invalid regular expression ("${v}") — ` +
-              `${/** @type {Error} */ (err).message}`,
+            'sequence rule contains invalid regular expression',
             where,
           );
         }
@@ -832,8 +849,8 @@ function loadFromString(text, fileName) {
   let documents;
   try {
     documents = /** @type {unknown[]} */ (yaml.loadAll(text));
-  } catch (/** @type {*} */ err) {
-    _reject(sink, 'yaml-parse', `YAML parse failed — ${/** @type {Error} */ (err).message}`);
+  } catch {
+    _rejectOpaque(sink, 'yaml-parse', 'sequence YAML parse failed');
     return _emit(sink, rules);
   }
 
@@ -1004,16 +1021,12 @@ function loadDir(dir = DEFAULT_SEQUENCES_DIR) {
       .readdirSync(dir)
       .filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'))
       .sort();
-  } catch (/** @type {*} */ err) {
-    logger.warn(
-      LOG_MODULE,
-      `${dir}: directory unreadable — ${/** @type {Error} */ (err).message}`,
-      {
-        rule: null,
-        step: null,
-        reason: 'file-read',
-      },
-    );
+  } catch {
+    logger.warn(LOG_MODULE, 'sequence rules directory unreadable', {
+      rule: null,
+      step: null,
+      reason: 'file-read',
+    });
     return { rules: [], warnings: [], loadErrors: 1 };
   }
 
@@ -1022,8 +1035,8 @@ function loadDir(dir = DEFAULT_SEQUENCES_DIR) {
     let text;
     try {
       text = fs.readFileSync(path.join(dir, file), 'utf8');
-    } catch (/** @type {*} */ err) {
-      logger.warn(LOG_MODULE, `${file}: unreadable — ${/** @type {Error} */ (err).message}`, {
+    } catch {
+      logger.warn(LOG_MODULE, 'sequence rule file unreadable', {
         rule: null,
         step: null,
         reason: 'file-read',

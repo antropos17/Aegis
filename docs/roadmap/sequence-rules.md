@@ -149,6 +149,11 @@ or the bounds; a base document nothing references; a duplicate `name` or `id`; a
 selection (a field the `logsource.category` never produces — e.g. `destination.ip` under `file`); a
 step that provably observes only events without an entity id (§4).
 
+Directory/file I/O, YAML parse and regex compilation failures use fixed log text so their raw
+exception, source excerpt and path are not copied into operational diagnostics. Other validation
+messages can still name supplied rule fields and values; keep secrets out of rule files and review
+operational log exports before sharing them.
+
 **A warning, not an error**: two adjacent steps that resolve to the same file document.
 `dedupFileEvent` (`src/main/scan-loop.js:69–93`) suppresses repeats of `instanceId|file` for 30 s,
 so such a rule fires only on two DIFFERENT paths inside the window — the loader tells the author so
