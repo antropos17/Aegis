@@ -8,7 +8,7 @@ search. AI analysis remains a separate provider-backed activity assessment.
 
 | Review type | Inputs selected in native dialogs | Result |
 | --- | --- | --- |
-| Security scan | Directory and optional offline MCP tools/list JSON | STA001–STA020 findings, original file hashes/available lines, selected-source flow evidence, MCP description-relative lines and coverage gaps |
+| Security scan | Directory and optional offline MCP tools/list JSON | STA001–STA021 findings, original file hashes/available lines, selected-source flow evidence, MCP description-relative lines and coverage gaps |
 | Component inventory | Explicit project/profile directory and optional MCP export | Recognized components, package/lock/Git evidence, tool fingerprints and an unreviewed snapshot |
 | Snapshot comparison | Directory, optional MCP export and saved inventory snapshot | Added, changed and removed observations; incomplete observations and incompatible scope remain distinct |
 | External report | Directory, selected Cisco JSON/SARIF format and file; optional prior AEGIS static JSON | Fresh built-in review, unverified external claims, source matching and baseline status |
