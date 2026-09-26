@@ -51,7 +51,7 @@ describe('file-watcher health (B2)', () => {
 
     it('full getFileHandles failure is FAILED with empty compatibility array', async () => {
       fileWatcher._setDepsForTest({
-        getFileHandles: vi.fn().mockRejectedValue(new Error('spawn failed')),
+        getFileHandles: vi.fn().mockRejectedValue(new Error('PRIVATE_HANDLE_HEALTH_CANARY')),
         isReadDetectionAvailable: true,
       });
       const events = await fileWatcher.scanAllFileHandles([
@@ -60,7 +60,8 @@ describe('file-watcher health (B2)', () => {
       expect(events).toEqual([]);
       const h = fileWatcher.getFileSensorHealth()['fs-handle'];
       expect(h.state).toBe(SENSOR_HEALTH_STATE.FAILED);
-      expect(h.lastError).toMatch(/spawn failed/);
+      expect(h.lastError).toBe('handle-scan-failed');
+      expect(JSON.stringify(h)).not.toContain('PRIVATE_HANDLE_HEALTH_CANARY');
     });
 
     it('FAILED recovers to HEALTHY on next valid scan', async () => {
@@ -140,7 +141,7 @@ describe('file-watcher health (B2)', () => {
 
     it('RM fetch failure is FAILED with empty array', async () => {
       fileWatcher._setDepsForTest({
-        getSensitiveHolders: vi.fn().mockRejectedValue(new Error('rm powershell failed')),
+        getSensitiveHolders: vi.fn().mockRejectedValue(new Error('PRIVATE_RM_HEALTH_CANARY')),
       });
       const events = await fileWatcher.scanAllFileHandles([
         { pid: 1, agent: 'Claude Code', category: 'ai', instanceId: '1:u' },
@@ -152,7 +153,8 @@ describe('file-watcher health (B2)', () => {
         return;
       }
       expect(h.state).toBe(SENSOR_HEALTH_STATE.FAILED);
-      expect(h.lastError).toMatch(/rm powershell failed/);
+      expect(h.lastError).toBe('rm-fetch-failed');
+      expect(JSON.stringify(h)).not.toContain('PRIVATE_RM_HEALTH_CANARY');
     });
 
     it('B-S09: single-flight skip does not mark FAILED or advance lastSuccessAt', async () => {

@@ -113,28 +113,25 @@ describe('app-health umbrella (B8)', () => {
     // read-mechanism ownership (ai-mistakes #42) retires the idle leaf instead —
     // `fs-handle` is UNSUPPORTED / `rm-owns-observation` on the RM path — and this
     // case is the composer-level proof of that contract.
-    it(
-      'S1b. Restart Manager path: the same convergence — the idle handle leaf is retired, not STARTING',
-      async () => {
-        h = createHarness(shims);
-        const getSensitiveHolders = vi.fn(async () => []);
-        h.watcher._setDepsForTest({ getSensitiveHolders });
-        expect(h.health().sensors.byId['fs-rm'].state).toBe(S.STARTING);
+    it('S1b. Restart Manager path: the same convergence — the idle handle leaf is retired, not STARTING', async () => {
+      h = createHarness(shims);
+      const getSensitiveHolders = vi.fn(async () => []);
+      h.watcher._setDepsForTest({ getSensitiveHolders });
+      expect(h.health().sensors.byId['fs-rm'].state).toBe(S.STARTING);
 
-        const health = await h.bringUp();
+      const health = await h.bringUp();
 
-        // The RM path ran and observed: this half holds on master.
-        expect(getSensitiveHolders).toHaveBeenCalled();
-        expect(h.getFileHandles).not.toHaveBeenCalled();
-        expect(health.sensors.byId['fs-rm'].state).toBe(S.HEALTHY);
-        // The contract: a machine whose every mechanism observed is HEALTHY. The
-        // handle leaf is retired for the RM owner, not sampled and not STARTING.
-        expect(health.sensors.byId['fs-handle'].state).toBe(S.UNSUPPORTED);
-        expect(health.sensors.byId['fs-handle'].detail).toBe('rm-owns-observation');
-        expect(health.state).toBe(A.HEALTHY);
-        expect(health.reasons).toEqual([]);
-      },
-    );
+      // The RM path ran and observed: this half holds on master.
+      expect(getSensitiveHolders).toHaveBeenCalled();
+      expect(h.getFileHandles).not.toHaveBeenCalled();
+      expect(health.sensors.byId['fs-rm'].state).toBe(S.HEALTHY);
+      // The contract: a machine whose every mechanism observed is HEALTHY. The
+      // handle leaf is retired for the RM owner, not sampled and not STARTING.
+      expect(health.sensors.byId['fs-handle'].state).toBe(S.UNSUPPORTED);
+      expect(health.sensors.byId['fs-handle'].detail).toBe('rm-owns-observation');
+      expect(health.state).toBe(A.HEALTHY);
+      expect(health.reasons).toEqual([]);
+    });
   });
 
   describe('S2 — startup is SENSORS_STARTING, never FAILED', () => {
@@ -305,9 +302,11 @@ describe('app-health umbrella (B8)', () => {
       expect(base.state).toBe(A.HEALTHY);
       expect(h.sessionTracker.activeCount()).toBe(2);
 
-      h.getRawTcpConnections.mockRejectedValue(new Error('spawn ETIMEDOUT PRIVATE_APP_HEALTH_CANARY'));
+      h.getRawTcpConnections.mockRejectedValue(
+        new Error('spawn ETIMEDOUT PRIVATE_APP_HEALTH_CANARY'),
+      );
       h.getFileHandles.mockImplementation(async (pid) => {
-        if (pid === CLAUDE_2.pid) throw new Error('handle spawn failed');
+        if (pid === CLAUDE_2.pid) throw new Error('PRIVATE_HANDLE_APP_HEALTH_CANARY');
         return [];
       });
       await h.runStartup();
@@ -325,6 +324,7 @@ describe('app-health umbrella (B8)', () => {
       expect(ids.network.lastError).toBe('network-provider-failed');
       expect(ids.network.consecutiveFailures).toBe(1);
       expect(ids['fs-handle'].detail).toBe('failed-1-of-2');
+      expect(ids['fs-handle'].lastError).toBe('partial-handle-scan');
       expect(ids['fs-handle'].consecutiveFailures).toBe(0);
       // The partial scan kept the observation it did make.
       expect(h.getFileHandles).toHaveBeenCalledWith(CLAUDE.pid);
@@ -333,7 +333,10 @@ describe('app-health umbrella (B8)', () => {
         error: 'network-scan-failed',
       });
       expect(JSON.stringify(health)).not.toContain('PRIVATE_APP_HEALTH_CANARY');
-      expect(JSON.stringify(h.deps.logger.error.mock.calls)).not.toContain('PRIVATE_APP_HEALTH_CANARY');
+      expect(JSON.stringify(health)).not.toContain('PRIVATE_HANDLE_APP_HEALTH_CANARY');
+      expect(JSON.stringify(h.deps.logger.error.mock.calls)).not.toContain(
+        'PRIVATE_APP_HEALTH_CANARY',
+      );
     });
   });
 

@@ -247,10 +247,11 @@ describe('file-watcher production subscription wiring (F-S01)', () => {
     for (const w of fakeWatchers) w.emit('ready');
     expect(fileWatcher.getFileSensorHealth()['fs-chokidar'].state).toBe('HEALTHY');
 
-    fakeWatchers[0].emit('error', new Error('watch failed'));
+    fakeWatchers[0].emit('error', new Error('PRIVATE_WATCH_HEALTH_CANARY'));
     const h = fileWatcher.getFileSensorHealth()['fs-chokidar'];
     expect(h.state).toBe('DEGRADED');
-    expect(h.lastError).toMatch(/watch failed/);
+    expect(h.lastError).toMatch(/watch-root-error/);
+    expect(JSON.stringify(h)).not.toContain('PRIVATE_WATCH_HEALTH_CANARY');
     expect(h.lossCount).toBe(0); // no quantitative loss signal from chokidar
   });
 });

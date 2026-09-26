@@ -246,7 +246,8 @@ describe('chokidar watch-root registry (step B)', () => {
       expect(root(plan, 'credential-dirs').state).toBe(
         fileWatcher.WATCH_ROOT_STATE.REGISTRATION_FAILED,
       );
-      expect(root(plan, 'credential-dirs').lastError).toMatch(/watch refused #1/);
+      expect(root(plan, 'credential-dirs').lastError).toBe('watch-root-registration-failed');
+      expect(JSON.stringify(plan)).not.toContain('watch refused #1');
       for (const id of ['agent-config-dirs', 'project-dir', 'env-files']) {
         expect(root(plan, id).state).toBe(fileWatcher.WATCH_ROOT_STATE.NOT_ATTEMPTED);
         expect(root(plan, id).hasLiveWatcher).toBe(false);
@@ -271,7 +272,7 @@ describe('chokidar watch-root registry (step B)', () => {
       const h = chokidarHealth();
       expect(h.state).toBe('FAILED');
       expect(h.detail).toBe('no-live-watcher');
-      expect(h.lastError).toMatch(/credential-dirs:watch refused #1/);
+      expect(h.lastError).toMatch(/credential-dirs:watch-root-registration-failed/);
       expect(h.lastError).toMatch(/env-files:not-attempted/);
     });
 
@@ -350,17 +351,18 @@ describe('chokidar watch-root registry (step B)', () => {
       await fileWatcher.setupFileWatchers();
       readyAll();
 
-      fakeWatchers[1].emit('error', new Error('watch failed'));
+      fakeWatchers[1].emit('error', new Error('PRIVATE_WATCH_ROOT_CANARY'));
 
       const plan = fileWatcher.getWatchPlan();
       expect(plan.unavailableGroups).toEqual([
-        { id: 'agent-config-dirs', state: 'errored', reason: 'watch failed' },
+        { id: 'agent-config-dirs', state: 'errored', reason: 'watch-root-error' },
       ]);
       expect(plan.state).toBe('DEGRADED');
       expect(root(plan, 'project-dir').state).toBe(fileWatcher.WATCH_ROOT_STATE.READY);
       const h = chokidarHealth();
       expect(h.state).toBe('DEGRADED');
-      expect(h.lastError).toMatch(/watch failed/);
+      expect(h.lastError).toMatch(/watch-root-error/);
+      expect(JSON.stringify({ plan, h })).not.toContain('PRIVATE_WATCH_ROOT_CANARY');
     });
   });
 
