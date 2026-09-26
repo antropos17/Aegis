@@ -67,8 +67,13 @@ function validAction(action) {
 
 function validPolicy(policy) {
   if (
-    !keys(policy, ['schemaVersion', 'defaultDecision', 'rules']) ||
-    policy.schemaVersion !== 2 ||
+    ![2, 3].includes(policy?.schemaVersion) ||
+    !keys(
+      policy,
+      policy.schemaVersion === 3
+        ? ['schemaVersion', 'defaultDecision', 'rules', 'reviewRequired']
+        : ['schemaVersion', 'defaultDecision', 'rules'],
+    ) ||
     !['deny', 'ask'].includes(policy.defaultDecision) ||
     !Array.isArray(policy.rules) ||
     policy.rules.length > LIMITS.rules
@@ -83,6 +88,25 @@ function validPolicy(policy) {
       policy.rules.slice(0, i).some((prior) => equalActionValue(prior.action, rule.action))
     )
       return false;
+  }
+  if (policy.schemaVersion === 3) {
+    if (
+      !Array.isArray(policy.reviewRequired) ||
+      !policy.reviewRequired.length ||
+      policy.reviewRequired.length > LIMITS.rules
+    )
+      return false;
+    for (let i = 0; i < policy.reviewRequired.length; i++) {
+      const action = policy.reviewRequired[i];
+      if (
+        !validAction(action) ||
+        policy.reviewRequired.slice(0, i).some((prior) => equalActionValue(prior, action)) ||
+        !policy.rules.some(
+          (rule) => rule.decision === 'allow' && equalActionValue(rule.action, action),
+        )
+      )
+        return false;
+    }
   }
   return true;
 }
@@ -143,15 +167,19 @@ async function prepareExecution(policyPath, requestPath, options = {}) {
     return { decision: 'deny', reason: 'input-unavailable' };
   }
   const rule = policy.rules.find((candidate) => equalActionValue(candidate.action, request.action));
-  const decision = rule ? rule.decision : policy.defaultDecision;
-  if (decision !== 'allow' && !(review && decision === 'ask'))
-    return { decision, reason: `policy-${decision}` };
+  const selected = rule ? rule.decision : policy.defaultDecision;
+  const reviewRequired =
+    policy.schemaVersion === 3 &&
+    policy.reviewRequired.some((action) => equalActionValue(action, request.action));
+  const decision = reviewRequired && selected === 'allow' ? 'ask' : selected;
+  const reason = reviewRequired && selected === 'allow' ? 'review-required' : `policy-${decision}`;
+  if (decision !== 'allow' && !(review && decision === 'ask')) return { decision, reason };
   // Node/libuv otherwise silently copy these names from the parent's environment.
   const env = Object.create(null);
   for (const name of process.platform === 'win32' ? WINDOWS_DEFAULTS : []) env[name] = '';
   env.NODE_V8_COVERAGE = '';
   for (const [name, value] of Object.entries(request.action.env)) env[name] = value;
-  return { decision, reason: `policy-${decision}`, launch: { ...request.action, env } };
+  return { decision, reason, launch: { ...request.action, env } };
 }
 
 module.exports = { prepareExecution, LIMITS };

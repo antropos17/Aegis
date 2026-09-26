@@ -47,7 +47,7 @@ function baseReport(route, runtime, terminal) {
  * Inspect one selected route's current configuration without execution or approval.
  * The result is a transient observation, never a capability or future launch guarantee.
  * @param {string} route One of ROUTES.
- * @param {string} policyPath Explicit selected schema 2 policy.
+ * @param {string} policyPath Explicit selected schema 2 or 3 policy.
  * @param {string} requestPath Explicit selected schema 1 action request.
  * @param {{signal?: AbortSignal}} [options] Trusted owner cancellation.
  * @returns {Promise<object>} Fixed metadata only; no private launch descriptor.
@@ -105,7 +105,8 @@ async function checkActionRoute(route, policyPath, requestPath, { signal } = {})
   // Never spread or stringify the evaluator's private result, including launch.
   if (
     ['allow', 'ask', 'deny'].includes(prepared.decision) &&
-    prepared.reason === `policy-${prepared.decision}`
+    (prepared.reason === `policy-${prepared.decision}` ||
+      (prepared.decision === 'ask' && prepared.reason === 'review-required'))
   )
     return {
       ...report,
