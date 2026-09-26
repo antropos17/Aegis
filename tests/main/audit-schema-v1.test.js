@@ -155,6 +155,43 @@ describe('event schema v1 — record shape', () => {
     expect(lines[1].schemaVersion).toBeUndefined();
   });
 
+  it('persists and reads the fixed-code process-population gap pair in a valid hash chain', () => {
+    auditLogger.init({ userDataPath: tmpDir });
+    for (const [action, state] of [
+      ['process-population-unavailable', 'unavailable'],
+      ['process-population-restored', 'restored'],
+    ]) {
+      auditLogger.log('observation-gap', {
+        agent: '',
+        pid: null,
+        instanceId: null,
+        action,
+        path: '',
+        severity: 'normal',
+        attribution: null,
+        extra: { cause: 'process-enumeration', state },
+      });
+    }
+    auditLogger.flush();
+
+    const name = fs.readdirSync(auditDir()).find((f) => f.endsWith('.json'));
+    expect(hashchain.verifyChain(path.join(auditDir(), name))).toEqual({
+      valid: true,
+      brokenAtSeq: null,
+      reason: 'ok',
+    });
+    const raw = auditLogger.exportAll();
+    expect(raw.map((entry) => entry.action)).toEqual([
+      'process-population-unavailable',
+      'process-population-restored',
+    ]);
+    expect(raw.map((entry) => entry.details)).toEqual([
+      { cause: 'process-enumeration', state: 'unavailable' },
+      { cause: 'process-enumeration', state: 'restored' },
+    ]);
+    expect(auditLogger.getEntriesBefore('9999-01-01T00:00:00.000Z', 10)).toEqual(raw);
+  });
+
   it('normalizes v0 records on the paginated read path but not on export', () => {
     auditLogger.init({ userDataPath: tmpDir });
     auditLogger.log('file-access', { agent: 'claude' });

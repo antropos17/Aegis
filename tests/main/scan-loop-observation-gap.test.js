@@ -352,7 +352,8 @@ describe('scan-loop observation gap (B5)', () => {
 
     expect(scanner.getProcessCapabilities().populationState).toBe(SENSOR_HEALTH_STATE.FAILED);
     expect(gap.snapshot().state).toBe(gap.OBSERVATION_GAP_STATE.RESUMED);
-    expect(auditTypes(deps)).toEqual(['observation-gap']);
+    expect(auditTypes(deps)).toEqual(['observation-gap', 'observation-gap']);
+    expect(deps.audit.log.mock.calls[1][1].action).toBe('process-population-unavailable');
     // Tagged as a post-gap tick, but not as the one that cleared it.
     expect(processLogs(deps)).toEqual([
       expect.objectContaining({
@@ -363,6 +364,64 @@ describe('scan-loop observation gap (B5)', () => {
     await runOneProcessScan();
     expect(gap.snapshot().state).toBe(gap.OBSERVATION_GAP_STATE.NONE);
     expect(sessionTracker.activeCount()).toBe(1);
+    expect(auditTypes(deps)).toEqual([
+      'observation-gap',
+      'observation-gap',
+      'observation-gap',
+      'agent-enter',
+    ]);
+    expect(deps.audit.log.mock.calls[2][1].action).toBe('process-population-restored');
+  });
+
+  it('records one bounded process-population gap across repeated permission denials, then restores before exit evidence', async () => {
+    const deps = makeDeps({ audit: { log: vi.fn(), flush: vi.fn() } });
+    scanLoop.init(deps);
+
+    await runOneProcessScan();
+    expect(sessionTracker.activeCount()).toBe(1);
+    expect(auditTypes(deps)).toEqual(['agent-enter']);
+
+    const denied = Object.assign(new Error('private path and credentials'), { code: 'EPERM' });
+    listProcesses.mockRejectedValue(denied);
+    await runOneProcessScan();
+    await runOneProcessScan();
+    expect(sessionTracker.activeCount()).toBe(1);
+    expect(auditTypes(deps)).toEqual(['agent-enter', 'observation-gap']);
+    expect(deps.audit.flush).toHaveBeenCalledTimes(1);
+    expect(deps.audit.log.mock.calls[1][1]).toEqual({
+      agent: '',
+      pid: null,
+      instanceId: null,
+      action: 'process-population-unavailable',
+      path: '',
+      severity: 'normal',
+      attribution: null,
+      extra: { cause: 'process-enumeration', state: 'unavailable' },
+    });
+
+    listProcesses.mockResolvedValue([{ name: 'explorer.exe', pid: 1 }]);
+    await runOneProcessScan(); // miss 1: restoration is logged, session remains open
+    expect(sessionTracker.activeCount()).toBe(1);
+    await runOneProcessScan(); // miss 2: exit after grace
+    expect(sessionTracker.activeCount()).toBe(0);
+    expect(auditTypes(deps)).toEqual([
+      'agent-enter',
+      'observation-gap',
+      'observation-gap',
+      'agent-exit',
+    ]);
+    expect(deps.audit.flush).toHaveBeenCalledTimes(2);
+    expect(deps.audit.log.mock.calls[2][1]).toEqual({
+      agent: '',
+      pid: null,
+      instanceId: null,
+      action: 'process-population-restored',
+      path: '',
+      severity: 'normal',
+      attribution: null,
+      extra: { cause: 'process-enumeration', state: 'restored' },
+    });
+    expect(JSON.stringify(deps.audit.log.mock.calls)).not.toContain('private path and credentials');
   });
 
   it('5. an identity-degraded tick after resume leaves the flag armed', async () => {
@@ -376,6 +435,7 @@ describe('scan-loop observation gap (B5)', () => {
     expect(sessionTracker.activeCount()).toBe(0);
     expect(freezeLogs(deps)).toEqual([{ reason: 'identity-degraded', agents: 1 }]);
     expect(gap.snapshot().state).toBe(gap.OBSERVATION_GAP_STATE.RESUMED);
+    expect(auditTypes(deps)).toEqual(['observation-gap']);
   });
 
   it('6. an agent gone across the sleep exits after grace, behind the observation-gap record', async () => {

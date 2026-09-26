@@ -49,6 +49,37 @@ let _lastTriggeredNetScan = 0;
 // C-02: reentrancy guard — block overlapping doProcessScan runs so a slow scan
 // can't be clobbered by the next interval tick (last-writer-wins on the snapshot).
 let processScanRunning = false;
+// One audit pair per continuous loss of the process population. Reset by init(),
+// not by each scan or timer restart; a paused loop has not observed a recovery.
+let processPopulationUnavailable = false;
+
+/**
+ * Record only a provider-observed population transition, before session reconcile.
+ * A fixed cause/state pair describes the evidence gap without copying the provider
+ * error, process list or any agent identity into the audit journal. The audit logger
+ * buffers writes; flush is an immediate best-effort attempt, not a durability promise
+ * if storage remains unavailable.
+ * @param {boolean} reliable
+ * @param {{log: Function, flush?: Function}} audit
+ * @returns {void}
+ * @since v0.16.0-alpha
+ */
+function auditProcessPopulationTransition(reliable, audit) {
+  const unavailable = !reliable;
+  if (unavailable === processPopulationUnavailable) return;
+  audit.log('observation-gap', {
+    agent: '',
+    pid: null,
+    instanceId: null,
+    action: unavailable ? 'process-population-unavailable' : 'process-population-restored',
+    path: '',
+    severity: 'normal',
+    attribution: null,
+    extra: { cause: 'process-enumeration', state: unavailable ? 'unavailable' : 'restored' },
+  });
+  processPopulationUnavailable = unavailable;
+  audit.flush?.();
+}
 
 /** @param {boolean} entering — true when scan starts, false when ends @since v0.4.0 */
 function updateScanStatus(entering) {
@@ -431,12 +462,12 @@ async function doProcessScan() {
   updateScanStatus(true);
   const t0 = performance.now();
   try {
-    // Provider-observation ownership boundary (Stage-1 step A). This inner try encloses
-    // ONLY the enumeration call: the `process` leaf names population enumeration, so a
-    // throw raised at or after `setAgents` below — enrichment, session reconcile, an audit
-    // write, anomaly processing, a renderer send — must not be able to write it. Without
-    // this split, `process = FAILED` proved nothing about whether the machine was
-    // enumerated. The provider throw is rethrown so the outer catch keeps the single log.
+    // Stage-1 step A: this inner try encloses scanProcesses, whose provider call is
+    // followed by catalog matching and tracking callbacks. Existing health handling
+    // marks any rejection of that call; only errors tagged inside the scanner's
+    // provider boundary may produce a process-population outage audit record. A throw
+    // at or after setAgents below cannot enter this catch. The original rejection is
+    // rethrown so the outer catch keeps the single error log.
     // B5 straddle witness: a SNAPSHOT of the observation gap taken before the provider
     // await, compared with a second one after the identity stamp below. `suspendCount`
     // moving between the two means the OS slept while this tick's evidence was being
@@ -450,14 +481,22 @@ async function doProcessScan() {
     try {
       result = await scanner.scanProcesses({ sharedObservation: true });
     } catch (err) {
-      // B-S02: hard failure — a non-EPERM rethrow from scanProcesses (the EPERM path
-      // marks FAILED inside the scanner and returns normally, so it never lands here).
-      // Compatibility still leaves latestAgents unchanged: setAgents has not run.
+      // B-S02: scanProcesses rejected. EPERM inside the provider normally returns
+      // reliable:false instead. Compatibility leaves latestAgents unchanged here;
+      // setAgents has not run. The provenance predicate excludes post-provider
+      // catalog/track callback failures from the new audit marker.
       if (scanner && typeof scanner.noteProcessScanHardFailure === 'function') {
         scanner.noteProcessScanHardFailure(err);
       }
+      if (scanner?.isPopulationProviderFailure?.(err) === true) {
+        auditProcessPopulationTransition(false, audit);
+      }
       throw err;
     }
+    // The population provider has answered (possibly with `reliable:false`). Mark its
+    // transition here so downstream enrichment or renderer failures cannot be mistaken
+    // for provider outages, and restoration precedes any inferred session exit.
+    auditProcessPopulationTransition(result.reliable !== false, audit);
     setAgents(result.agents);
     const agents = result.agents;
     // Process IDENTITY first. This attaches the OS birth time and the derived
@@ -954,6 +993,7 @@ function init(injected) {
   resourceScanGeneration++;
   resourceSampler.invalidate();
   deps = injected;
+  processPopulationUnavailable = false;
   deps.baselines?.init?.({
     isInstanceActive: (instanceId) =>
       sessionTracker.hasInstance(instanceId) ||

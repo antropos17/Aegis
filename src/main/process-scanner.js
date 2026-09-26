@@ -33,11 +33,48 @@ let _getSnapshotHealth = null;
 const PROCESS_SENSOR_ID = 'process';
 
 /**
- * Persistent health for process list enumeration. Survives poll ticks; reset only
- * at module reinit / test reset — never recreated per scan.
+ * Persistent health for scanProcesses. Survives poll ticks; reset only at module
+ * reinit / test reset. The existing scan-loop hard-failure path also marks a
+ * catalog/tracking callback rejection FAILED; only direct provider errors carry
+ * provenance for the new process-population outage audit record.
  * @type {import('./sensor-health').SensorHealth}
  */
 let _processHealth = sensorHealth.createSensorHealth(PROCESS_SENSOR_ID);
+// Only the direct provider-call wrapper may add an error here. A rejection from
+// catalog matching, response parsing or a caller callback can escape scanProcesses
+// too, but it does not prove enumeration failed. Weak references retain no errors.
+let _populationProviderErrors = new WeakSet();
+
+/**
+ * Call one platform process-table provider and tag only its own rejection.
+ * @template T
+ * @param {() => Promise<T> | T} provider
+ * @returns {Promise<T>}
+ * @since v0.16.0-alpha
+ */
+async function callPopulationProvider(provider) {
+  try {
+    return await provider();
+  } catch (err) {
+    if (err !== null && (typeof err === 'object' || typeof err === 'function')) {
+      _populationProviderErrors.add(err);
+    }
+    throw err;
+  }
+}
+
+/**
+ * Whether this exact error object escaped the process-population provider boundary.
+ * Primitive rejections have no stable identity and are left unclassified.
+ * @param {unknown} err
+ * @returns {boolean}
+ * @since v0.16.0-alpha
+ */
+function isPopulationProviderFailure(err) {
+  return err !== null && (typeof err === 'object' || typeof err === 'function')
+    ? _populationProviderErrors.has(err)
+    : false;
+}
 
 /**
  * @param {unknown} err
@@ -210,6 +247,7 @@ function _resetForTest() {
   _getSnapshotHealth = null;
   _getParentProcessMap = _platform.getParentProcessMap;
   _getCustomAgents = () => config.getCustomAgents();
+  _populationProviderErrors = new WeakSet();
 }
 
 let _agentDb = null;
@@ -299,7 +337,7 @@ async function scanProcesses(opts = {}) {
   const now = Date.now();
   try {
     if (_providesStartTime && opts.sharedObservation === true) {
-      processMap = await _getParentProcessMap();
+      processMap = await callPopulationProvider(_getParentProcessMap);
       const rows = [...processMap].map(([pid, info]) => ({ pid, name: info.name }));
       // An empty or nameless map cannot establish the population. Keep tasklist
       // as the reserve population source, but carry even the empty observation to
@@ -307,8 +345,8 @@ async function scanProcesses(opts = {}) {
       processes =
         rows.length > 0 && rows.every((row) => typeof row.name === 'string' && row.name.length > 0)
           ? rows
-          : await _listProcesses();
-    } else processes = await _listProcesses();
+          : await callPopulationProvider(_listProcesses);
+    } else processes = await callPopulationProvider(_listProcesses);
     permissionDeniedScans = 0;
   } catch (err) {
     const code = err.code || '';
@@ -326,11 +364,9 @@ async function scanProcesses(opts = {}) {
       // Still run the empty path below for pid-set / peakAgents bookkeeping so
       // callers keep a stable return shape. Do not markHealthy on this path.
     } else {
-      // Hard provider failure: leave the health write to noteProcessScanHardFailure,
-      // called from the catch that in scan-loop's doProcessScan encloses ONLY this call,
-      // so we do not double-increment consecutiveFailures. That catch is the boundary —
-      // a throw from anything downstream of this return value reaches a different handler
-      // and writes no process health at all.
+      // Leave the health write to noteProcessScanHardFailure in scan-loop. The
+      // provider-call wrapper tagged only actual platform-call rejections, so the
+      // caller can distinguish them from response parsing or later callbacks.
       throw err;
     }
   }
@@ -422,6 +458,7 @@ module.exports = {
   getProcessSensorHealth,
   isProcessPopulationReliable,
   getProcessCapabilities,
+  isPopulationProviderFailure,
   // Published as its own function rather than as a fifth ProcessCapabilities field:
   // that struct is the POPULATION contract every agent-scoped sensor gates on, and
   // this answers a different question for exactly one consumer.

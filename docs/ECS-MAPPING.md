@@ -105,16 +105,15 @@ Five of those rows are decisions rather than transcriptions:
   the audit log stating that *other* records were lost, which is no categorization of the marker
   itself — in particular it is not ECS `pipeline_error`, which describes a failure to ingest *this*
   document. Both keep `event.action` equal to their type and claim nothing more.
-- **`observation-gap` is `host` / `info`, and an `event`, not an `alert`.** It is the record
-  `src/main/main.js` writes on Electron `powerMonitor` resume (Block B5,
-  `src/main/observation-gap.js`): the HOST was asleep, and nothing was observed in between. That is
-  a fact about the machine's observation continuity, not about any process, file or socket, so no
-  `process.*` or `file.*` branch is lifted from it — `pid`, `instanceId` and `attribution` are all
-  `null` on the record, and the ownership question does not apply. It is not `pipeline_error`
-  either: nothing failed to ingest, the machine was off. `details` carries the gap itself
-  (`suspendedAt`, `resumedAt`, `gapMs`, `suspendCount`, `monitoringPaused`, `activeSessions`),
-  under the aegis-specific branch this block does not map. It explains a hole in the log; it
-  never fills one.
+- **`observation-gap` is `host` / `info`, and an `event`, not an `alert`.** `src/main/main.js`
+  writes one on Electron `powerMonitor` resume (Block B5, `src/main/observation-gap.js`),
+  when the host was asleep. `src/main/scan-loop.js` writes a bounded start/recovery pair when
+  the process-population provider becomes unavailable and later returns reliable evidence.
+  Both concern observation continuity rather than an agent, file or socket, so no `process.*`
+  or `file.*` branch is lifted from them: `pid`, `instanceId` and `attribution` are `null`.
+  A provider failure is not an ECS `pipeline_error`, which concerns ingesting this document.
+  The OS record carries suspend/resume times; the process pair carries only fixed cause/state
+  codes. These records describe missing observation and cannot reconstruct missing events.
 
 ---
 

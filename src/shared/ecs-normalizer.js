@@ -100,10 +100,11 @@ const AUDIT_ROUTES = new Map([
       action: 'sequence-detection',
     },
   ],
-  // The OS suspend/resume gap main.js records on powerMonitor resume (Block B5). A fact
-  // about the HOST's observation continuity, not about any process, file or socket —
-  // so `host`/`info`, and not `pipeline_error`: nothing failed to ingest, the machine
-  // was asleep. Never an alert: a laptop closing its lid is not a detection.
+  // Host observation continuity: OS suspend/resume from main.js and bounded
+  // process-population outage/recovery from scan-loop.js. Both describe a gap in
+  // what AEGIS could observe; neither claims an agent, file, socket or detection.
+  // `host`/`info` keeps both as evidence rather than treating an ordinary laptop
+  // sleep or transient provider failure as an intrusion alert.
   [
     'observation-gap',
     { kind: 'event', categories: ['host'], type: 'info', action: 'observation-gap' },
