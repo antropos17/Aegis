@@ -1427,5 +1427,15 @@
   "Check and connection labels match. This is not a configuration binding.": "Os nomes da verificação e da conexão coincidem. Isso não vincula a configuração.",
   "Check and connection labels differ. The captured check does not describe this route selection.": "Os nomes da verificação e da conexão diferem. A verificação registrada não descreve esta seleção de rota.",
   "Selected file deletion has no matching preflight mode in this workspace. Inspect its operation report separately.": "A exclusão de arquivo selecionado não tem uma verificação prévia correspondente nesta área de trabalho. Inspecione o relatório da operação separadamente.",
-  "Client identity is self-reported. This evidence does not verify blocking or activity through other tools or descendant processes.": "A identidade do cliente é autodeclarada. Estas evidências não comprovam bloqueio nem atividade por outras ferramentas ou processos descendentes."
+  "Client identity is self-reported. This evidence does not verify blocking or activity through other tools or descendant processes.": "A identidade do cliente é autodeclarada. Estas evidências não comprovam bloqueio nem atividade por outras ferramentas ou processos descendentes.",
+  "Unavailable file watch groups": "Grupos de observação de arquivos indisponíveis",
+  "File activity may be missed in these groups.": "A atividade de arquivos pode não ser observada nesses grupos.",
+  "Credential directories": "Diretórios de credenciais",
+  "Agent configuration directories": "Diretórios de configuração dos agentes",
+  "Application directory": "Diretório do aplicativo",
+  "Home environment files": "Arquivos de ambiente na pasta pessoal",
+  "Other file watch group": "Outro grupo de observação de arquivos",
+  "Registration failed": "Falha ao registrar",
+  "Not attempted": "Registro não tentado",
+  "Watcher error": "Erro no observador"
 }

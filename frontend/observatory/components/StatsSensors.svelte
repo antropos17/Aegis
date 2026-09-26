@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from '../runtime/i18n';
 
-  import { record, type Telemetry, type RecordData } from '../runtime/host';
+  import { record, records, type Telemetry, type RecordData } from '../runtime/host';
   import { statisticsValue } from '../runtime/statistics-metrics';
   import { fieldLabel } from '../runtime/detail-fields';
   let { telemetry }: { telemetry: Telemetry } = $props();
@@ -14,6 +14,33 @@
       }),
     ),
   );
+  let unavailableGroups = $derived(records(record(health.watchPlan).unavailableGroups));
+  function watchGroupLabel(id: unknown): string {
+    switch (id) {
+      case 'credential-dirs':
+        return 'Credential directories';
+      case 'agent-config-dirs':
+        return 'Agent configuration directories';
+      case 'project-dir':
+        return 'Application directory';
+      case 'env-files':
+        return 'Home environment files';
+      default:
+        return 'Other file watch group';
+    }
+  }
+  function watchStateLabel(state: unknown): string {
+    switch (state) {
+      case 'registration-failed':
+        return 'Registration failed';
+      case 'not-attempted':
+        return 'Not attempted';
+      case 'errored':
+        return 'Watcher error';
+      default:
+        return 'Unavailable';
+    }
+  }
   function time(value: unknown): string {
     return typeof value === 'number' && Number.isFinite(value)
       ? new Date(value).toLocaleTimeString()
@@ -29,6 +56,20 @@
     </div>
     <span class="badge">{String(health.state || 'Starting').toLowerCase()}</span>
   </header>
+  {#if unavailableGroups.length > 0}
+    <section class="watch-coverage" aria-labelledby="unavailable-watch-groups" aria-live="polite">
+      <h4 id="unavailable-watch-groups">{$t('Unavailable file watch groups')}</h4>
+      <p>{$t('File activity may be missed in these groups.')}</p>
+      <ul>
+        {#each unavailableGroups as group, index (index)}
+          <li>
+            <span>{$t(watchGroupLabel(group.id))}</span>
+            <span class="watch-state">{$t(watchStateLabel(group.state))}</span>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
   <div class="sensor-grid">
     {#each sensors as sensor (sensor.id)}
       <article>
@@ -92,6 +133,39 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 12px;
+  }
+  .watch-coverage {
+    border: 1px solid var(--amber);
+    border-radius: 8px;
+    background: var(--amber-bg);
+    padding: 13px;
+    margin-bottom: 12px;
+  }
+  .watch-coverage h4 {
+    color: var(--amber);
+  }
+  .watch-coverage p {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+    margin: 6px 0 10px;
+  }
+  .watch-coverage ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .watch-coverage li {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 4px 12px;
+    padding: 7px 0;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+  }
+  .watch-state {
+    color: var(--amber);
   }
   article {
     border: 1px solid var(--border);
