@@ -197,12 +197,14 @@ describe('platform/process-snapshot', () => {
     });
 
     it('does not obey an unknown rollout value', async () => {
-      process.env.AEGIS_PROC_SNAPSHOT = 'turbo';
+      const canary = 'PRIVATE_SNAPSHOT_MODE_CANARY';
+      process.env.AEGIS_PROC_SNAPSHOT = canary;
       await loadModule();
       expect(snapshot.getMode()).toBe('auto');
       expect(
         logLines.some((l) => l.level === 'warn' && /Unknown AEGIS_PROC_SNAPSHOT/.test(l.message)),
       ).toBe(true);
+      expect(JSON.stringify(logLines)).not.toContain(canary);
     });
   });
 
