@@ -171,6 +171,45 @@ it('retains existing provider configuration when a failed replacement finishes b
   expect(screen.getByLabelText('New API key')).toHaveValue('fixture-replacement');
 });
 
+it('explains an inactive legacy key and permits explicit removal without displaying its value', async () => {
+  const host = {
+    getSettings: vi.fn(async () => ({
+      anthropicApiKeyConfigured: false,
+      anthropicApiKeyMigrationPending: true,
+    })),
+    saveSettings: vi.fn(async () => ({ success: true })),
+  };
+  render(Analysis, { host, telemetry: emptyTelemetry() });
+  expect(await screen.findByText('Legacy key inactive · migration required')).toBeVisible();
+  await fireEvent.click(screen.getByRole('button', { name: 'Connect AI analysis' }));
+  expect(screen.getByText(/A legacy API key remains in saved settings/)).toBeVisible();
+  await fireEvent.click(screen.getByRole('button', { name: 'Remove saved key' }));
+  await waitFor(() =>
+    expect(host.saveSettings).toHaveBeenCalledWith(
+      { anthropicApiKey: '' },
+      { patch: true, clearAnthropicApiKey: true },
+    ),
+  );
+  expect(screen.queryByText('Legacy key inactive · migration required')).toBeNull();
+});
+
+it('refreshes provider state when the retained Analysis view becomes visible again', async () => {
+  let pending = true;
+  const host = {
+    getSettings: vi.fn(async () => ({
+      anthropicApiKeyConfigured: !pending,
+      anthropicApiKeyMigrationPending: pending,
+    })),
+  };
+  const mounted = render(Analysis, { host, telemetry: emptyTelemetry(), visible: true });
+  expect(await screen.findByText('Legacy key inactive · migration required')).toBeVisible();
+  pending = false;
+  await mounted.rerender({ visible: false });
+  await mounted.rerender({ visible: true });
+  expect(await screen.findByText('API key saved · verified on first analysis')).toBeVisible();
+  expect(host.getSettings).toHaveBeenCalledTimes(2);
+});
+
 it('does not overwrite another window theme and motion when saving an old interval draft', async () => {
   localStorage.setItem('aegis-theme', 'dark');
   localStorage.setItem('aegis-motion', 'full');

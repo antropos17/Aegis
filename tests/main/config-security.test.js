@@ -73,6 +73,144 @@ describe('configuration persistence boundaries', () => {
     expect(fs.readdirSync(directory)).toEqual(['settings.json']);
   });
 
+  it('leaves an old plaintext key inactive and preserves its file when secure storage is unavailable', () => {
+    const original = JSON.stringify({ darkMode: true, anthropicApiKey: 'legacy-key-canary' });
+    fs.writeFileSync(file, original);
+    vi.spyOn(safeStore, 'isAvailable').mockReturnValue(false);
+    config.loadSettings();
+    expect(config.getSettings().darkMode).toBe(true);
+    expect(config.getSettings().anthropicApiKey).toBe('');
+    expect(config.hasPendingLegacyApiKey()).toBe(true);
+    expect(() => config.saveSettings({ darkMode: false }, { patch: true })).toThrow(
+      'Legacy API key migration is pending',
+    );
+    config.trackSeenAgent('Claude Code');
+    expect(fs.readFileSync(file, 'utf8')).toBe(original);
+  });
+
+  it('does not activate a legacy key when encrypted migration cannot replace the file', () => {
+    const original = JSON.stringify({ anthropicApiKey: 'legacy-key-canary' });
+    fs.writeFileSync(file, original);
+    vi.spyOn(safeStore, 'isAvailable').mockReturnValue(true);
+    vi.spyOn(safeStore, 'encrypt').mockReturnValue('encrypted-canary');
+    vi.spyOn(fs, 'renameSync').mockImplementationOnce(() => {
+      throw new Error('fixture rename failure');
+    });
+    config.loadSettings();
+    expect(config.getSettings().anthropicApiKey).toBe('');
+    expect(config.hasPendingLegacyApiKey()).toBe(true);
+    expect(fs.readFileSync(file, 'utf8')).toBe(original);
+    expect(fs.readdirSync(directory)).toEqual(['settings.json']);
+  });
+
+  it('retries encrypted migration before persisting unrelated settings after storage recovers', () => {
+    fs.writeFileSync(file, JSON.stringify({ anthropicApiKey: 'legacy-key-canary' }));
+    const available = vi.spyOn(safeStore, 'isAvailable').mockReturnValue(false);
+    config.loadSettings();
+    available.mockReturnValue(true);
+    vi.spyOn(safeStore, 'encrypt').mockReturnValue('encrypted-canary');
+    config.saveSettings({ agentPermissions: { Claude: { filesystem: 'block' } } }, { patch: true });
+    expect(config.hasPendingLegacyApiKey()).toBe(false);
+    expect(config.getSettings().anthropicApiKey).toBe('legacy-key-canary');
+    expect(disk()).toMatchObject({
+      _encryptedApiKey: 'encrypted-canary',
+      agentPermissions: { Claude: { filesystem: 'block' } },
+    });
+    expect(disk()).not.toHaveProperty('anthropicApiKey');
+  });
+
+  it('keeps the legacy key inactive when the retry write fails', () => {
+    const original = JSON.stringify({ anthropicApiKey: 'legacy-key-canary' });
+    fs.writeFileSync(file, original);
+    const available = vi.spyOn(safeStore, 'isAvailable').mockReturnValue(false);
+    config.loadSettings();
+    available.mockReturnValue(true);
+    vi.spyOn(safeStore, 'encrypt').mockReturnValue('encrypted-canary');
+    vi.spyOn(fs, 'renameSync').mockImplementationOnce(() => {
+      throw new Error('fixture retry failure');
+    });
+    expect(() => config.saveSettings({ darkMode: true }, { patch: true })).toThrow(
+      'fixture retry failure',
+    );
+    expect(config.getSettings().anthropicApiKey).toBe('');
+    expect(config.getSettings().darkMode).toBe(false);
+    expect(config.hasPendingLegacyApiKey()).toBe(true);
+    expect(fs.readFileSync(file, 'utf8')).toBe(original);
+    expect(fs.readdirSync(directory)).toEqual(['settings.json']);
+  });
+
+  it('rejects a changed legacy settings file before retry can activate a different key', () => {
+    fs.writeFileSync(file, JSON.stringify({ anthropicApiKey: 'legacy-key-canary' }));
+    const available = vi.spyOn(safeStore, 'isAvailable').mockReturnValue(false);
+    config.loadSettings();
+    const changed = JSON.stringify({ anthropicApiKey: 'swapped-key-canary' });
+    fs.writeFileSync(file, changed);
+    available.mockReturnValue(true);
+    vi.spyOn(safeStore, 'encrypt').mockReturnValue('encrypted-canary');
+    expect(() => config.saveSettings({ darkMode: true }, { patch: true })).toThrow(
+      'Legacy API key migration is pending',
+    );
+    expect(config.getSettings().anthropicApiKey).toBe('');
+    expect(config.hasPendingLegacyApiKey()).toBe(true);
+    expect(fs.readFileSync(file, 'utf8')).toBe(changed);
+  });
+
+  it('activates a legacy key only after encrypted replacement and permits explicit removal', () => {
+    fs.writeFileSync(file, JSON.stringify({ anthropicApiKey: 'legacy-key-canary' }));
+    const available = vi.spyOn(safeStore, 'isAvailable').mockReturnValue(false);
+    config.loadSettings();
+    expect(config.hasPendingLegacyApiKey()).toBe(true);
+    config.saveSettings({}, { patch: true, clearAnthropicApiKey: true });
+    expect(config.hasPendingLegacyApiKey()).toBe(false);
+    expect(disk()).not.toHaveProperty('anthropicApiKey');
+
+    fs.writeFileSync(file, JSON.stringify({ anthropicApiKey: 'legacy-key-canary' }));
+    available.mockReturnValue(true);
+    vi.spyOn(safeStore, 'encrypt').mockReturnValue('encrypted-canary');
+    config.loadSettings();
+    expect(config.getSettings().anthropicApiKey).toBe('legacy-key-canary');
+    expect(config.hasPendingLegacyApiKey()).toBe(false);
+    expect(disk()).toMatchObject({ _encryptedApiKey: 'encrypted-canary' });
+    expect(fs.readFileSync(file, 'utf8')).not.toContain('legacy-key-canary');
+  });
+
+  it('replaces a pending legacy key only after an explicit encrypted save succeeds', () => {
+    const original = JSON.stringify({ anthropicApiKey: 'legacy-key-canary' });
+    fs.writeFileSync(file, original);
+    const available = vi.spyOn(safeStore, 'isAvailable').mockReturnValue(false);
+    config.loadSettings();
+    const encrypt = vi.spyOn(safeStore, 'encrypt').mockReturnValue(null);
+    expect(() =>
+      config.saveSettings({ anthropicApiKey: 'replacement-canary' }, { patch: true }),
+    ).toThrow('Secure key storage');
+    expect(config.hasPendingLegacyApiKey()).toBe(true);
+    expect(config.getSettings().anthropicApiKey).toBe('');
+    expect(fs.readFileSync(file, 'utf8')).toBe(original);
+
+    available.mockReturnValue(true);
+    encrypt.mockReturnValue('encrypted-replacement');
+    config.saveSettings({ anthropicApiKey: 'replacement-canary' }, { patch: true });
+    expect(config.hasPendingLegacyApiKey()).toBe(false);
+    expect(config.getSettings().anthropicApiKey).toBe('replacement-canary');
+    expect(disk()).toMatchObject({ _encryptedApiKey: 'encrypted-replacement' });
+    expect(fs.readFileSync(file, 'utf8')).not.toContain('legacy-key-canary');
+    expect(fs.readFileSync(file, 'utf8')).not.toContain('replacement-canary');
+  });
+
+  it('scrubs a plaintext legacy field even when an encrypted blob is also present', () => {
+    fs.writeFileSync(
+      file,
+      JSON.stringify({ anthropicApiKey: 'legacy-key-canary', _encryptedApiKey: 'old-blob' }),
+    );
+    vi.spyOn(safeStore, 'isAvailable').mockReturnValue(true);
+    vi.spyOn(safeStore, 'decrypt').mockReturnValue('decrypted-canary');
+    config.loadSettings();
+    expect(config.getSettings().anthropicApiKey).toBe('decrypted-canary');
+    expect(config.hasPendingLegacyApiKey()).toBe(false);
+    expect(disk()).toMatchObject({ _encryptedApiKey: 'old-blob' });
+    expect(disk()).not.toHaveProperty('anthropicApiKey');
+  });
+
   it('keeps a locked encrypted key through unrelated saves, reload and failed replacement', () => {
     vi.spyOn(safeStore, 'decrypt').mockReturnValue('');
     vi.spyOn(safeStore, 'encrypt').mockReturnValue(null);
