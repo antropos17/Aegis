@@ -116,7 +116,7 @@ function _witnessOfRecord(proc) {
  * Turn a sidecar snapshot into the parent-process map shape.
  * @param {Array<Object>} procs
  * @returns {Map<number, {name: string, ppid: number, startTime: number|null,
- *   witness: string|null, witnessSource: string|null}>}
+ *   createTime100ns: string|null, witness: string|null, witnessSource: string|null}>}
  */
 function _mapFromSnapshot(procs) {
   const map = new Map();
@@ -127,6 +127,9 @@ function _mapFromSnapshot(procs) {
       name: typeof proc.name === 'string' ? proc.name : '',
       ppid: Number.isInteger(proc.ppid) ? proc.ppid : 0,
       startTime: ticksToEpochMs(proc.ct),
+      // Keep the raw FILETIME even when the stronger sequence witness wins.
+      // Process control compares these exact ticks on the action handle.
+      createTime100ns: typeof proc.ct === 'string' && /^\d+$/.test(proc.ct) ? proc.ct : null,
       witness: witness ? witness.witness : null,
       witnessSource: witness ? witness.witnessSource : null,
     });

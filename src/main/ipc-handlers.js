@@ -603,7 +603,9 @@ ${findingsHtml}${recsHtml}
       });
       if (target.error) return { success: false, error: target.error };
       if (!stillOwned()) return { success: false, error: 'Renderer request denied' };
-      return await action(target.pid);
+      return target.createTime100ns
+        ? await action(target.pid, target.createTime100ns)
+        : await action(target.pid);
     } finally {
       processControlInFlight = false;
     }
