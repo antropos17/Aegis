@@ -1352,7 +1352,6 @@ function setupRulesWatcher(sendFn, { sequenceCount }) {
     reloadRules();
     sendFn('rules:reloaded', {
       count: getAllRules().size,
-      file: basename,
       sequenceCount: sequenceCount(),
     });
   });
@@ -1364,8 +1363,8 @@ function setupRulesWatcher(sendFn, { sequenceCount }) {
  * watcher of docs/roadmap/sequence-rules.md §5 "Hot-reload", same options as
  * {@link setupRulesWatcher}. Only this one calls `deps.reload`, which main.js supplies as:
  * load the directory again, reset the engine, re-init it with the new rules. The flat rules
- * are NOT reloaded from here, and the push is the same `rules:reloaded` channel with the same
- * three fields — `count` from the flat set as it stands, `sequenceCount` as `reload` returned it.
+ * are NOT reloaded from here. The `rules:reloaded` push carries only the two
+ * counts; the renderer does not need the changed rule file name.
  * @param {(channel: string, data: object) => void} sendFn - Function to push events to renderer
  * @param {{reload: () => number}} deps - `reload` re-reads the sequence rules into the engine
  *   and returns how many are loaded now.
@@ -1380,7 +1379,7 @@ function setupSequenceRulesWatcher(sendFn, { reload }) {
     const basename = path.basename(filePath);
     if (!_isRuleFile(basename)) return;
     const sequenceCount = reload();
-    sendFn('rules:reloaded', { count: getAllRules().size, file: basename, sequenceCount });
+    sendFn('rules:reloaded', { count: getAllRules().size, sequenceCount });
   });
   return rw;
 }
