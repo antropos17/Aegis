@@ -332,16 +332,24 @@ ${findingsHtml}${recsHtml}
   // existed the method was undefined, so the call threw synchronously inside $effect —
   // before .catch() was attached — and the panel never left its loading state outside
   // demo mode.
-  ipcMain.handle('get-audit-stats', () => audit.getStats());
-  ipcMain.handle('get-audit-entries-before', (_e, beforeTs, limit, types, boundaryOffset) =>
-    audit.getEntriesBefore(
+  ipcMain.handle('get-audit-stats', (event) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
+    return audit.getStats();
+  });
+  ipcMain.handle('get-audit-entries-before', (event, beforeTs, limit, types, boundaryOffset) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
+    return audit.getEntriesBefore(
       beforeTs,
       limit,
       types,
       ...(boundaryOffset === undefined ? [] : [boundaryOffset]),
-    ),
-  );
-  ipcMain.handle('open-audit-log-dir', async () => {
+    );
+  });
+  ipcMain.handle('open-audit-log-dir', async (event) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
     try {
       const error = await shell.openPath(audit.getLogDir());
       return error ? { success: false, error } : { success: true };
@@ -350,7 +358,9 @@ ${findingsHtml}${recsHtml}
     }
   });
 
-  ipcMain.handle('export-full-audit', async () => {
+  ipcMain.handle('export-full-audit', async (event) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
     try {
       const defaultName = `aegis-full-audit-${new Date().toISOString().slice(0, 10)}.json`;
       const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
@@ -358,6 +368,8 @@ ${findingsHtml}${recsHtml}
         defaultPath: path.join(app.getPath('downloads'), defaultName),
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
+      if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+        return { success: false, error: 'Renderer request denied' };
       if (!filePath) return { success: false };
       return await writeAuditExport({ filePath, files: audit.prepareExport() });
     } catch (error) {
@@ -437,7 +449,9 @@ ${findingsHtml}${recsHtml}
   ipcMain.handle('get-app-version', () => app.getVersion());
 
   // ── Zip export ──
-  ipcMain.handle('export-zip', async () => {
+  ipcMain.handle('export-zip', async (event) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
     try {
       const defaultName = `aegis-export-${new Date().toISOString().slice(0, 10)}.zip`;
       const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
@@ -445,6 +459,8 @@ ${findingsHtml}${recsHtml}
         defaultPath: path.join(app.getPath('downloads'), defaultName),
         filters: [{ name: 'ZIP', extensions: ['zip'] }],
       });
+      if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+        return { success: false, error: 'Renderer request denied' };
       if (!filePath) return { success: false };
       const settingsCopy = { ...config.getSettings() };
       delete settingsCopy.anthropicApiKey;
