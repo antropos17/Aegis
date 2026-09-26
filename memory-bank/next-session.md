@@ -1,10 +1,10 @@
 # AEGIS — starting the next chat
 
-## Current handoff — 2026-09-26, code baseline `23b3362`
+## Current handoff — 2026-09-26, code baseline `c137b8d`
 
 Refresh `origin/master`, the PR list and the release tag before continuing.
 The latest code merge verified for this handoff is
-[#618](https://github.com/antropos17/Aegis/pull/618); all five required CI
+[#619](https://github.com/antropos17/Aegis/pull/619); all five required CI
 contexts passed before it merged. The docs handoff merge can advance master
 again without changing that code baseline.
 The original `X:/Future/ESCAPE/AEGIS` checkout remains old and contains
