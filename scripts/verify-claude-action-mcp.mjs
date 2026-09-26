@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { options, treeBytes, removeOwned, createRunner } from './claude-hook-runtime.mjs';
 import { replyWithSelectedTool } from './claude-action-mcp-fixture.mjs';
 import { verifyReviewRoute } from './claude-mcp-review-fixture.mjs';
+import { replyWithDeleteTool, verifyDeleteRoute } from './claude-delete-provider-fixture.mjs';
 import { verifySelectedRoute } from './claude-single-provider-fixture.mjs';
 import { replyWithCatalogTools } from './claude-catalog-model-fixture.mjs';
 import { verifyCatalogRoute } from './claude-catalog-provider-fixture.mjs';
@@ -37,10 +38,16 @@ async function main(args) {
     status,
     catalog,
     review,
+    deleteReview,
   } = fixtureModes(args);
   try {
-    selected = options(review || catalog || status || cancellation ? args.slice(1) : args);
-    if ((review || reviewCancellation) && (!process.stdin.isTTY || !process.stderr.isTTY))
+    selected = options(
+      review || deleteReview || catalog || status || cancellation ? args.slice(1) : args,
+    );
+    if (
+      (review || reviewCancellation || deleteReview) &&
+      (!process.stdin.isTTY || !process.stderr.isTTY)
+    )
       throw Error('terminal');
   } catch {
     console.log(JSON.stringify({ error: 'invalid-options-or-insufficient-space', usage }));
@@ -50,17 +57,19 @@ async function main(args) {
   const owned = fs.realpathSync(fs.mkdtempSync(path.join(selected.scratch, 'aegis-mcp-owned-')));
   const receipt = {
     checkedAt: new Date().toISOString(),
-    mode: status
-      ? catalog
-        ? 'claude-catalog-status-synthetic-api'
-        : 'claude-selected-status-synthetic-api'
-      : catalog
-        ? review
-          ? 'claude-catalog-review-synthetic-api'
-          : 'claude-catalog-stdio-synthetic-api'
-        : review
-          ? 'claude-mcp-terminal-review-synthetic-api'
-          : 'claude-selected-action-mcp-synthetic-api',
+    mode: deleteReview
+      ? 'claude-selected-file-delete-review-synthetic-api'
+      : status
+        ? catalog
+          ? 'claude-catalog-status-synthetic-api'
+          : 'claude-selected-status-synthetic-api'
+        : catalog
+          ? review
+            ? 'claude-catalog-review-synthetic-api'
+            : 'claude-catalog-stdio-synthetic-api'
+          : review
+            ? 'claude-mcp-terminal-review-synthetic-api'
+            : 'claude-selected-action-mcp-synthetic-api',
     localHttpRequests: 0,
     rejectedProxyRequests: 0,
     scenarios: [],
@@ -126,7 +135,8 @@ async function main(args) {
           res.end();
           return;
         }
-        if (status) replyWithStatusTools(res, input, current);
+        if (deleteReview) replyWithDeleteTool(res, input, current);
+        else if (status) replyWithStatusTools(res, input, current);
         else if (catalog) replyWithCatalogTools(res, input, current);
         else replyWithSelectedTool(res, input, current);
       });
@@ -194,6 +204,22 @@ async function main(args) {
     const policyPath = path.join(owned, 'policy.json');
     const requestPath = path.join(owned, 'request.json');
     const configPath = path.join(owned, 'mcp.json');
+    if (deleteReview) {
+      await verifyDeleteRoute({
+        owned,
+        repo,
+        env,
+        run,
+        receipt,
+        policyPath,
+        requestPath,
+        configPath,
+        setScenario: (current) => {
+          scenario = current;
+        },
+      });
+      return;
+    }
     const action = {
       executable: process.execPath,
       cwd: path.join(owned, 'work'),
