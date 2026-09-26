@@ -35,6 +35,7 @@
     }
   });
   let configured = $state(false);
+  let legacyKeyMigrationPending = $state(false);
   let report = $state<RecordData | null>(null);
   let history = $state<RecordData[]>([]);
   let error = $state('');
@@ -45,16 +46,25 @@
   let providerSection = $state('connection');
   let reportTitle = $state('Activity assessment');
   let names = $derived([...new Set(telemetry.agents.map((a) => a.agent))]);
-  onMount(() => {
+  $effect(() => {
+    if (!visible) return;
     const ticket = keyRevision;
+    let current = true;
     invoke(host, 'getSettings')
       .then((value) => {
-        if (alive && ticket === keyRevision)
+        if (alive && current && ticket === keyRevision) {
           configured = record(value).anthropicApiKeyConfigured === true;
+          legacyKeyMigrationPending = record(value).anthropicApiKeyMigrationPending === true;
+        }
       })
       .catch((e) => {
-        if (alive && ticket === keyRevision) error = String(e);
+        if (alive && current && ticket === keyRevision) error = String(e);
       });
+    return () => {
+      current = false;
+    };
+  });
+  onMount(() => {
     return () => {
       alive = false;
       generation++;
@@ -80,6 +90,7 @@
       if (alive) {
         keyRevision++;
         configured = !remove;
+        legacyKeyMigrationPending = false;
         if (providerVisit === visit && key === submittedDraft) key = '';
       }
     } finally {
@@ -159,7 +170,9 @@
             ? $t('Preview · provider calls disabled')
             : configured
               ? $t('API key saved · verified on first analysis')
-              : $t('Not connected')}</span
+              : legacyKeyMigrationPending
+                ? $t('Legacy key inactive · migration required')
+                : $t('Not connected')}</span
         >
       </div>
     </div>
@@ -212,6 +225,11 @@
                 'Connection is verified when analysis runs. Saved keys are never displayed in this form.',
               )}
             </p>
+            {#if !preview && legacyKeyMigrationPending}<p class="dialog-copy" role="status">
+                {$t(
+                  'A legacy API key remains in saved settings but is inactive. Restore secure storage and settings access, then restart AEGIS to migrate it, or remove or replace the saved key here.',
+                )}
+              </p>{/if}
             {#if !preview && !configured}<p class="dialog-copy">
                 {$t(
                   'A saved key may remain when the OS keychain is locked. Remove saved key clears it.',

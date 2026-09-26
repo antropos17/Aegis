@@ -16,6 +16,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { createHash } = require('crypto');
 const { app } = require('electron');
 const { PERMISSION_CATEGORIES } = require('../shared/constants');
 const { buildInstanceKey } = require('../shared/instance-key');
@@ -138,6 +139,8 @@ function freshDefaults() {
 let settings = freshDefaults();
 let encryptedApiKey = null;
 let storedPlainApiKey = '';
+let legacyKeyMigrationPending = false;
+let legacySettingsDigest = null;
 let customSensitiveRules = [];
 let _knownAgentNames = [];
 let _applyCallback = null;
@@ -175,13 +178,36 @@ function buildCustomRules() {
 /**
  * Write the in-memory settings to disk.
  * Strips plaintext anthropicApiKey and persists the encrypted blob instead.
+ * @param {boolean} [allowLegacyReplacement] Explicitly replace or remove a pending legacy key.
  * @returns {void}
  * @since v0.8.3
  */
-function _writeSettings() {
+function _writeSettings(allowLegacyReplacement = false) {
+  let migrationKey = '';
+  if (legacyKeyMigrationPending && !allowLegacyReplacement) {
+    const blocked = () =>
+      new Error(
+        'Legacy API key migration is pending; restore secure storage or replace or remove the key in AI analysis settings first.',
+      );
+    if (!safeStore.isAvailable()) throw blocked();
+    try {
+      const source = fs.readFileSync(settingsPath(), 'utf8');
+      if (
+        !legacySettingsDigest ||
+        createHash('sha256').update(source).digest('hex') !== legacySettingsDigest
+      )
+        throw blocked();
+      const legacy = JSON.parse(source);
+      if (typeof legacy.anthropicApiKey !== 'string' || !legacy.anthropicApiKey) throw blocked();
+      migrationKey =
+        (encryptedApiKey && safeStore.decrypt(encryptedApiKey)) || legacy.anthropicApiKey;
+    } catch {
+      throw blocked();
+    }
+  }
   const disk = { ...settings };
   // Never persist the plaintext key — store encrypted blob only
-  const plainKey = disk.anthropicApiKey || '';
+  const plainKey = migrationKey || disk.anthropicApiKey || '';
   delete disk.anthropicApiKey;
   if (plainKey) {
     const blob =
@@ -203,6 +229,9 @@ function _writeSettings() {
     fs.renameSync(temporary, target);
     encryptedApiKey = disk._encryptedApiKey || null;
     storedPlainApiKey = plainKey;
+    if (migrationKey) settings.anthropicApiKey = migrationKey;
+    legacyKeyMigrationPending = false;
+    legacySettingsDigest = null;
   } finally {
     try {
       fs.unlinkSync(temporary);
@@ -225,13 +254,18 @@ function loadSettings() {
   settings = freshDefaults();
   encryptedApiKey = null;
   storedPlainApiKey = '';
+  legacyKeyMigrationPending = false;
+  legacySettingsDigest = null;
   try {
     if (fs.existsSync(settingsPath())) {
-      const raw = JSON.parse(fs.readFileSync(settingsPath(), 'utf-8'));
+      const source = fs.readFileSync(settingsPath(), 'utf8');
+      const raw = JSON.parse(source);
       if (!raw || typeof raw !== 'object' || Array.isArray(raw))
         throw new Error('Invalid settings object');
       const { validateSettings } = require('./settings-validation');
       for (const key of Object.keys(DEFAULT_SETTINGS)) {
+        // A legacy plaintext key is inert until an encrypted replacement is durable.
+        if (key === 'anthropicApiKey') continue;
         if (!Object.hasOwn(raw, key)) continue;
         const value =
           key === 'customSensitivePatterns' && Array.isArray(raw[key])
@@ -245,21 +279,33 @@ function loadSettings() {
         settings.anthropicApiKey = safeStore.decrypt(encryptedApiKey);
         storedPlainApiKey = settings.anthropicApiKey;
       }
-      // Migrate plaintext key → encrypted on first load
-      if (raw.anthropicApiKey && !raw._encryptedApiKey && safeStore.isAvailable()) {
-        logger.info('config-manager', 'Migrating API key to encrypted storage');
-        try {
-          _writeSettings();
-        } catch {
-          logger.warn(
-            'config-manager',
-            'API key migration deferred until secure storage is available',
-          );
+      // Also scrub plaintext from mixed legacy/encrypted files. Migration is
+      // synchronous, so the candidate key cannot be used before the disk commit.
+      if (typeof raw.anthropicApiKey === 'string' && raw.anthropicApiKey) {
+        if (safeStore.isAvailable()) {
+          settings.anthropicApiKey ||= raw.anthropicApiKey;
+          logger.info('config-manager', 'Migrating API key to encrypted storage');
+          try {
+            _writeSettings();
+          } catch {
+            settings.anthropicApiKey = '';
+            storedPlainApiKey = '';
+            legacyKeyMigrationPending = true;
+            legacySettingsDigest = createHash('sha256').update(source).digest('hex');
+            logger.warn('config-manager', 'Legacy API key inactive; secure migration failed');
+          }
+        } else {
+          settings.anthropicApiKey = '';
+          legacyKeyMigrationPending = true;
+          legacySettingsDigest = createHash('sha256').update(source).digest('hex');
+          logger.warn('config-manager', 'Legacy API key inactive; secure storage unavailable');
         }
       }
     }
   } catch (_) {
     settings = freshDefaults();
+    legacyKeyMigrationPending = false;
+    legacySettingsDigest = null;
   }
   buildCustomRules();
 }
@@ -288,6 +334,8 @@ function saveSettings(newSettings, options = {}) {
   if (!check.valid) throw new Error(check.error);
   const previous = settings;
   const previousBlob = encryptedApiKey;
+  const previousMigration = legacyKeyMigrationPending;
+  const previousLegacyDigest = legacySettingsDigest;
   // Merge at the synchronous persistence boundary, never against a renderer snapshot.
   // Clone nested fields so later mutations of a caller's draft cannot change live settings.
   const candidate = structuredClone({
@@ -309,10 +357,15 @@ function saveSettings(newSettings, options = {}) {
     encryptedApiKey = null;
   }
   try {
-    _writeSettings();
+    _writeSettings(
+      options.clearAnthropicApiKey === true ||
+        (Object.hasOwn(newSettings, 'anthropicApiKey') && Boolean(newSettings.anthropicApiKey)),
+    );
   } catch (error) {
     settings = previous;
     encryptedApiKey = previousBlob;
+    legacyKeyMigrationPending = previousMigration;
+    legacySettingsDigest = previousLegacyDigest;
     throw error;
   }
   buildCustomRules();
@@ -441,6 +494,14 @@ function getSettings() {
   return settings;
 }
 
+/** Whether a legacy plaintext API key remains on disk and cannot be used yet.
+ * @returns {boolean} Pending migration state, without key material.
+ * @since v0.16.0-alpha
+ */
+function hasPendingLegacyApiKey() {
+  return legacyKeyMigrationPending;
+}
+
 /**
  * Return the compiled custom sensitive rules.
  * @returns {Array} Custom sensitive rules with pattern and reason
@@ -503,6 +564,7 @@ const _exports = {
   saveInstancePermissions,
   trackSeenAgent,
   getSettings,
+  hasPendingLegacyApiKey,
   getCustomSensitiveRules,
   getCustomAgents,
   saveCustomAgents,

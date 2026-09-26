@@ -114,9 +114,10 @@ function register() {
   ipcMain.handle('get-settings', () => {
     const rendererSettings = { ...config.getSettings() };
     const anthropicApiKeyConfigured = Boolean(rendererSettings.anthropicApiKey);
+    const anthropicApiKeyMigrationPending = config.hasPendingLegacyApiKey();
     delete rendererSettings.anthropicApiKey;
     delete rendererSettings._encryptedApiKey;
-    return { ...rendererSettings, anthropicApiKeyConfigured };
+    return { ...rendererSettings, anthropicApiKeyConfigured, anthropicApiKeyMigrationPending };
   });
 
   ipcMain.handle('save-settings', (event, newSettings, options) => {

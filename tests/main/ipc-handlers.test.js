@@ -42,6 +42,7 @@ const mockConfig = {
     agentPermissions: { 'Claude::vscode': 'allow', Copilot: 'monitor' },
     seenAgents: ['Claude', 'Copilot'],
   })),
+  hasPendingLegacyApiKey: vi.fn(() => false),
   saveSettings: vi.fn(),
   applySettings: vi.fn(),
   getAgentPermissions: vi.fn(() => ({ fileAccess: 'allow' })),
@@ -937,13 +938,22 @@ describe('ipc-handlers', () => {
       };
       mockConfig.getSettings.mockReturnValueOnce(source);
       const result = handler();
-      expect(result).toEqual({ darkMode: true, anthropicApiKeyConfigured: true });
+      expect(result).toEqual({
+        darkMode: true,
+        anthropicApiKeyConfigured: true,
+        anthropicApiKeyMigrationPending: false,
+      });
       expect(JSON.stringify(result)).not.toContain('plaintext-provider-key-canary');
       expect(JSON.stringify(result)).not.toContain('encrypted-provider-blob-canary');
       expect(source.anthropicApiKey).toBe('plaintext-provider-key-canary');
 
       mockConfig.getSettings.mockReturnValueOnce({ darkMode: false, anthropicApiKey: '' });
-      expect(handler()).toEqual({ darkMode: false, anthropicApiKeyConfigured: false });
+      mockConfig.hasPendingLegacyApiKey.mockReturnValueOnce(true);
+      expect(handler()).toEqual({
+        darkMode: false,
+        anthropicApiKeyConfigured: false,
+        anthropicApiKeyMigrationPending: true,
+      });
     });
 
     it('save-settings calls config.saveSettings and applySettings', () => {
