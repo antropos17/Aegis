@@ -125,7 +125,8 @@ export async function httpFixture(tool, tlsOptions) {
     } else if (message.method === 'tools/call') {
       state.calls.push(message);
       if (state.mode === 'hang-call') return;
-      const structuredContent = { accepted: true };
+      state.onCall?.();
+      const structuredContent = state.structuredContent ?? { accepted: true };
       reply({
         structuredContent,
         content: [

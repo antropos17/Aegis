@@ -1,5 +1,7 @@
 # Explicit stdio MCP gateway (B2.1)
 
+An optional [known-secret policy](MCP-KNOWN-SECRETS.md) checks tool metadata, arguments and results for explicitly supplied values and a finite set of encodings. It is not general DLP.
+
 Optional [manifest v2 persistent grants](MCP-DURABLE-GRANTS.md) add expiry and cross-run replay protection using an explicitly selected shared local store. The version 1 examples below retain connection-local semantics.
 
 `node src/main/main.js --mcp-gateway-stdio <policy.json> <request.json> <manifest.json>`

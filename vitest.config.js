@@ -66,6 +66,7 @@ export default defineConfig({
         'src/main/mcp-stdio-transport.js',
         'src/main/mcp-gateway.js',
         'src/main/mcp-gateway-grants.js',
+        'src/main/mcp-gateway-secrets.js',
         'src/main/mcp-gateway-route.js',
         'src/main/mcp-gateway-tls.js',
         'src/main/mcp-gateway-http-peer.js',

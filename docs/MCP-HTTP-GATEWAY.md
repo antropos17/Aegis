@@ -1,5 +1,7 @@
 # Explicit loopback HTTP gateway (B2.2)
 
+An optional [known-secret policy](MCP-KNOWN-SECRETS.md) checks tool metadata, arguments and results for explicitly supplied values and a finite set of encodings. It is not general DLP.
+
 The same command also accepts the opt-in [pinned HTTPS descriptor v2](MCP-HTTPS-GATEWAY.md). This document describes the loopback HTTP descriptor v1.
 
 Optional [manifest v2 persistent grants](MCP-DURABLE-GRANTS.md) add expiry and cross-run replay protection using an explicitly selected shared local store. The version 1 examples below retain connection-local semantics.

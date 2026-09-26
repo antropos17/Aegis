@@ -1,5 +1,7 @@
 # Explicit pinned HTTPS MCP profile
 
+An optional [known-secret policy](MCP-KNOWN-SECRETS.md) checks tool metadata, arguments and results for explicitly supplied values and a finite set of encodings. It is not general DLP.
+
 The existing --mcp-gateway-http command accepts an endpoint descriptor v2 for
 HTTPS. It shares the finite JSON/SSE transport, accepted catalog, exact tool and
 argument checks, cancellation/session cleanup and optional persistent grants.

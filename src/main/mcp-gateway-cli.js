@@ -6,6 +6,19 @@ const { createMcpGateway } = require('./mcp-gateway');
  * @param {string[]} args Stdio launch pair or HTTP descriptor, followed by accepted tools/grants.
  * @returns {Promise<number>} Exit 2 on loss or unconfirmed child/session cleanup. @since v0.15.1 */
 async function handleMcpGatewayCLI(args) {
+  let secretPolicyPath;
+  const policyIndex = args.indexOf('--secret-policy');
+  if (policyIndex !== -1) {
+    if (
+      policyIndex !== args.length - 2 ||
+      typeof args[policyIndex + 1] !== 'string' ||
+      !args[policyIndex + 1] ||
+      args[policyIndex + 1].startsWith('--')
+    )
+      return 2;
+    secretPolicyPath = args[policyIndex + 1];
+    args = args.slice(0, policyIndex);
+  }
   const http = args[0] === '--mcp-gateway-http';
   const required = http ? 3 : 4;
   if (
@@ -20,6 +33,7 @@ async function handleMcpGatewayCLI(args) {
       ? { endpointPath: args[1], manifestPath: args[2] }
       : { policyPath: args[1], requestPath: args[2], manifestPath: args[3] }),
     grantStorePath: args[required],
+    secretPolicyPath,
     onFailure: () => controller.abort(),
   });
   const lifetime = setTimeout(() => controller.abort(), 30000);

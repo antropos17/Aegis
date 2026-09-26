@@ -2,6 +2,7 @@
 const { createHash } = require('node:crypto');
 const { readActionFile, parseActionJson, equalActionValue: equal } = require('./action-policy');
 const { consumeGatewayGrant } = require('./mcp-gateway-grants');
+const { captureSecretPolicy } = require('./mcp-gateway-secrets');
 const { captureGatewayRoute } = require('./mcp-gateway-route');
 const { isExecutionRuntimeSupported } = require('./execution-runtime');
 const { validManifest, matchesSchema, validResult } = require('./mcp-gateway-schema');
@@ -23,6 +24,7 @@ function createMcpGateway({
   endpointPath,
   manifestPath,
   grantStorePath,
+  secretPolicyPath,
   onFailure,
 }) {
   let phase = 'new',
@@ -30,6 +32,7 @@ function createMcpGateway({
     busy = false,
     route,
     peer,
+    secretGuard,
     manifest,
     digest,
     activeId;
@@ -42,6 +45,7 @@ function createMcpGateway({
     phase = 'closed';
     controller.abort();
     route?.close();
+    secretGuard?.close();
     peer?.close();
     if (failed) onFailure();
   };
@@ -79,6 +83,7 @@ function createMcpGateway({
     }
   };
   const recheck = async () => {
+    await step(secretGuard.recheck());
     await step(readManifest());
     const selected = await step(route.recheck());
     if (closed) throw Error('server-authorization');
@@ -134,7 +139,9 @@ function createMcpGateway({
       phase = 'initializing';
       try {
         if (!isExecutionRuntimeSupported()) throw Error('runtime');
+        secretGuard = await step(captureSecretPolicy(secretPolicyPath, controller.signal));
         manifest = await step(readManifest());
+        secretGuard.assertSafe(manifest.tools);
         if (
           (manifest.schemaVersion === 2) !==
           (typeof grantStorePath === 'string' && !!grantStorePath)
@@ -187,8 +194,22 @@ function createMcpGateway({
       message.method === 'tools/list' &&
       (message.params === undefined ||
         (object(message.params) && !Object.keys(message.params).length))
-    )
-      return result(id, { tools: manifest.tools });
+    ) {
+      busy = true;
+      activeId = id;
+      try {
+        await step(secretGuard.recheck());
+        secretGuard.assertSafe(manifest.tools);
+        if (closed) throw Error('closed');
+        return result(id, { tools: manifest.tools });
+      } catch {
+        close(true);
+        return error(id, -32000, 'gateway-unavailable');
+      } finally {
+        busy = false;
+        activeId = undefined;
+      }
+    }
     if (message.method !== 'tools/call') return error(id, -32601, 'gateway-method-unsupported');
     const params = message.params;
     if (!only(params, ['name', 'arguments'])) return error(id, -32602, 'gateway-arguments-invalid');
@@ -215,8 +236,12 @@ function createMcpGateway({
         (Date.now() < permission.notBefore || Date.now() >= permission.expiresAt)
       )
         throw Error('grant-expired');
+      secretGuard.assertSafe(params);
       const returned = await step(peer.request('tools/call', params));
       if (closed || !validResult(tool, returned)) throw Error('upstream-result');
+      await step(secretGuard.recheck());
+      secretGuard.assertSafe(returned);
+      if (closed) throw Error('closed');
       return result(id, returned);
     } catch {
       close(true);

@@ -1,5 +1,7 @@
 # Persistent one-attempt MCP grants
 
+An optional [known-secret policy](MCP-KNOWN-SECRETS.md) checks tool metadata, arguments and results for explicitly supplied values and a finite set of encodings. It is not general DLP.
+
 Manifest version 2 extends the explicit stdio and loopback HTTP gateway profiles.
 An operator selects an existing absolute grant-store directory as the final CLI
 argument. All processes using those permissions must use the same store.
