@@ -33,7 +33,6 @@
   import Rules from './components/Rules.svelte';
   import Catalog from './components/Catalog.svelte';
   import Analysis from './components/Analysis.svelte';
-  import LocalSecurity from './components/LocalSecurity.svelte';
   import ActionCoverage from './components/ActionCoverage.svelte';
   import TaskGuide from './components/TaskGuide.svelte';
   import { guidedTasks, moreTasks } from './runtime/task-guide';
@@ -158,6 +157,12 @@
   let requestedView = 'overview';
   let renderedView = 'overview';
   let tabs = $state(['overview']);
+  let localSecurityModule = $state.raw<Promise<
+    typeof import('./components/LocalSecurity.svelte')
+  > | null>(null);
+  function loadLocalSecurity() {
+    localSecurityModule ??= import('./components/LocalSecurity.svelte');
+  }
   let history = $state(['overview']);
   let historyIndex = $state(0);
   let scrolls: Record<string, number> = {};
@@ -231,6 +236,7 @@
     }
     requestedView = next;
     if (workspace) scrolls[renderedView] = workspace.scrollTop;
+    if (next === 'local-security') loadLocalSecurity();
     if (!tabs.includes(next)) tabs = [...tabs, next];
     if (remember) {
       history = [...history.slice(0, historyIndex + 1), next];
@@ -590,7 +596,31 @@
               <Catalog {host} {inspect} />
             </div>{/if}
           {#if tabs.includes('local-security')}<div hidden={view !== 'local-security'}>
-              <LocalSecurity {host} {preview} />
+              {#if localSecurityModule}
+                {#await localSecurityModule}
+                  <section
+                    class="panel lazy-workspace-state"
+                    role="status"
+                    aria-label={$t('Loading local security')}
+                  >
+                    <p>{$t('Loading local security…')}</p>
+                  </section>
+                {:then module}
+                  <module.default {host} {preview} />
+                {:catch}
+                  <section
+                    class="panel lazy-workspace-state"
+                    role="alert"
+                    aria-label={$t('Local security could not be loaded')}
+                  >
+                    <h2>{$t('Local security could not be loaded')}</h2>
+                    <p>{$t('Reload the app to try again.')}</p>
+                    <button class="button" onclick={() => location.reload()}
+                      >{$t('Reload app')}</button
+                    >
+                  </section>
+                {/await}
+              {/if}
             </div>{/if}
           {#if tabs.includes('action-control')}<div hidden={view !== 'action-control'}>
               <ActionCoverage {host} {preview} {navigate} />
@@ -679,3 +709,17 @@
   openAgent={inspect}
   close={() => (detail = null)}
 />
+
+<style>
+  .lazy-workspace-state {
+    padding: var(--panel-inset);
+  }
+  .lazy-workspace-state h2 {
+    font-size: var(--text-section);
+    margin: 0 0 var(--space-2);
+  }
+  .lazy-workspace-state p {
+    color: var(--muted);
+    margin: 0 0 var(--space-3);
+  }
+</style>
