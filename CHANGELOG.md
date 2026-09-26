@@ -20,6 +20,92 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.16.0-alpha (2026-09-26)
+
+## What's Changed
+* feat(installer): add Observatory Windows setup wizard by @antropos17 in https://github.com/antropos17/Aegis/pull/449
+* feat(etw): measure bounded burst flow and broker forwarding by @antropos17 in https://github.com/antropos17/Aegis/pull/451
+* perf(etw): forward validated frames without re-encoding by @antropos17 in https://github.com/antropos17/Aegis/pull/452
+* perf(scanner): index process names once per scan by @antropos17 in https://github.com/antropos17/Aegis/pull/453
+* perf(anomaly): score only newly emitted warnings by @antropos17 in https://github.com/antropos17/Aegis/pull/454
+* perf(tray): avoid history scans and redundant native updates by @antropos17 in https://github.com/antropos17/Aegis/pull/455
+* perf(network): classify shared remote addresses once per scan by @antropos17 in https://github.com/antropos17/Aegis/pull/456
+* perf(anomaly): reuse profile lookups within deviation checks by @antropos17 in https://github.com/antropos17/Aegis/pull/457
+* feat(bench): profile the live monitoring cycle by @antropos17 in https://github.com/antropos17/Aegis/pull/463
+* perf(resources): query Windows counters without PowerShell startup by @antropos17 in https://github.com/antropos17/Aegis/pull/464
+* perf(network): query the Windows TCP table directly by @antropos17 in https://github.com/antropos17/Aegis/pull/465
+* perf(windows): remove recurring PowerShell observer startup by @antropos17 in https://github.com/antropos17/Aegis/pull/466
+* feat(security): add scoped AI component inventory and protection plan by @antropos17 in https://github.com/antropos17/Aegis/pull/467
+* fix(ui): recover failed workflows and improve compact layouts by @antropos17 in https://github.com/antropos17/Aegis/pull/468
+* feat(inventory): parse configs and inspect explicit agent profiles by @antropos17 in https://github.com/antropos17/Aegis/pull/469
+* feat(inventory): verify local package metadata and Git manifests by @antropos17 in https://github.com/antropos17/Aegis/pull/470
+* feat(inventory): add reviewed snapshots and change detection by @antropos17 in https://github.com/antropos17/Aegis/pull/471
+* feat(security): add bounded static review for agent packages by @antropos17 in https://github.com/antropos17/Aegis/pull/472
+* feat(security): import offline Cisco analysis reports by @antropos17 in https://github.com/antropos17/Aegis/pull/473
+* docs: translate Russian project text into English by @antropos17 in https://github.com/antropos17/Aegis/pull/474
+* feat(security): inspect literal JavaScript process calls by @antropos17 in https://github.com/antropos17/Aegis/pull/475
+* feat(security): inspect literal Python process calls by @antropos17 in https://github.com/antropos17/Aegis/pull/477
+* feat(security): trace commands across selected source files by @antropos17 in https://github.com/antropos17/Aegis/pull/478
+* feat(security): trace primitive function return values by @antropos17 in https://github.com/antropos17/Aegis/pull/479
+* feat(static-analysis): track ordered shell redirections by @antropos17 in https://github.com/antropos17/Aegis/pull/480
+* feat(static-analysis): review bounded instruction patterns by @antropos17 in https://github.com/antropos17/Aegis/pull/481
+* feat(observatory): add local security review workspace by @antropos17 in https://github.com/antropos17/Aegis/pull/482
+* fix(sequences): calibrate credential and TCP evidence by @antropos17 in https://github.com/antropos17/Aegis/pull/483
+* feat(sequences): correlate direct process relatives by @antropos17 in https://github.com/antropos17/Aegis/pull/484
+* feat(sequences): correlate bounded ancestor paths by @antropos17 in https://github.com/antropos17/Aegis/pull/485
+* fix(ui): prioritize sequence conclusions and events by @antropos17 in https://github.com/antropos17/Aegis/pull/486
+* docs(security): define handoff evidence boundaries and next slice by @antropos17 in https://github.com/antropos17/Aegis/pull/487
+* feat(security): import bounded offline subagent lifecycle evidence by @antropos17 in https://github.com/antropos17/Aegis/pull/488
+* docs(context): save AI protection handoff for next chat by @antropos17 in https://github.com/antropos17/Aegis/pull/489
+* feat(events): add bounded lifecycle receiver boundary (B1) by @antropos17 in https://github.com/antropos17/Aegis/pull/490
+* feat(events): add opt-in live lifecycle transport (B1) by @antropos17 in https://github.com/antropos17/Aegis/pull/491
+* chore(dev): add source maps and scoped security tooling by @antropos17 in https://github.com/antropos17/Aegis/pull/492
+* feat(policy): add experimental exact-input Bash hook by @antropos17 in https://github.com/antropos17/Aegis/pull/494
+* feat(policy): correlate decisions with bounded after reports by @antropos17 in https://github.com/antropos17/Aegis/pull/495
+* feat(policy): own explicitly approved direct process launches by @antropos17 in https://github.com/antropos17/Aegis/pull/496
+* feat(policy): expose selected actions through bounded MCP stdio by @antropos17 in https://github.com/antropos17/Aegis/pull/497
+* feat(policy): pin MCP action revisions for each connection by @antropos17 in https://github.com/antropos17/Aegis/pull/498
+* feat(policy): confirm exact actions through a bounded terminal review by @antropos17 in https://github.com/antropos17/Aegis/pull/499
+* feat(policy): bridge MCP calls to a separate operator review terminal by @antropos17 in https://github.com/antropos17/Aegis/pull/500
+* test(policy): verify terminal review through installed Claude MCP by @antropos17 in https://github.com/antropos17/Aegis/pull/501
+* feat(policy): check selected action routes without execution by @antropos17 in https://github.com/antropos17/Aegis/pull/502
+* feat(policy): route an operator-selected MCP action catalog by @antropos17 in https://github.com/antropos17/Aegis/pull/503
+* test: verify MCP catalog routing through installed Claude by @antropos17 in https://github.com/antropos17/Aegis/pull/504
+* feat: add nonexecuting MCP catalog preflight by @antropos17 in https://github.com/antropos17/Aegis/pull/505
+* feat: expose read-only MCP connection status by @antropos17 in https://github.com/antropos17/Aegis/pull/506
+* feat: generate explicit MCP client configurations by @antropos17 in https://github.com/antropos17/Aegis/pull/507
+* test: verify MCP status through installed Claude by @antropos17 in https://github.com/antropos17/Aegis/pull/508
+* feat: show action configuration checks in Observatory by @antropos17 in https://github.com/antropos17/Aegis/pull/509
+* feat(ui): guide users through monitoring and review tasks by @antropos17 in https://github.com/antropos17/Aegis/pull/510
+* feat(ui): distinguish workspaces and fix navigation jumps by @antropos17 in https://github.com/antropos17/Aegis/pull/511
+* docs: refresh GitHub project guides and verified links by @antropos17 in https://github.com/antropos17/Aegis/pull/512
+* feat(coverage): observe live MCP routes and connection loss by @antropos17 in https://github.com/antropos17/Aegis/pull/513
+* feat(desktop): refresh icons and add tray settings navigation by @antropos17 in https://github.com/antropos17/Aegis/pull/514
+* feat(mcp): export opt-in observation configuration by @antropos17 in https://github.com/antropos17/Aegis/pull/515
+* fix(desktop): restore packaged Windows startup by @antropos17 in https://github.com/antropos17/Aegis/pull/516
+* test(observation): verify installed Claude connection lifecycle by @antropos17 in https://github.com/antropos17/Aegis/pull/517
+* test(observatory): remove expensive global queries from view switching test by @antropos17 in https://github.com/antropos17/Aegis/pull/518
+* test(actions): verify live observation during review and pending disconnect by @antropos17 in https://github.com/antropos17/Aegis/pull/519
+* fix(observatory): prioritize dashboard evidence and compact review layout by @antropos17 in https://github.com/antropos17/Aegis/pull/520
+* fix(observatory): keep returned activity focus visible after detail reflow by @antropos17 in https://github.com/antropos17/Aegis/pull/521
+* test(observation): verify catalog terminal review lifecycle by @antropos17 in https://github.com/antropos17/Aegis/pull/522
+* test(observation): verify running child cancellation by @antropos17 in https://github.com/antropos17/Aegis/pull/523
+* test(observation): verify installed provider cancellation by @antropos17 in https://github.com/antropos17/Aegis/pull/525
+* test(observation): verify abrupt MCP owner death by @antropos17 in https://github.com/antropos17/Aegis/pull/526
+* test(observation): complete scoped B5 interruption cycle by @antropos17 in https://github.com/antropos17/Aegis/pull/527
+* feat(mcp): gate selected stdio servers with exact tool grants by @antropos17 in https://github.com/antropos17/Aegis/pull/528
+* feat(mcp): add finite loopback HTTP gateway by @antropos17 in https://github.com/antropos17/Aegis/pull/529
+* feat(mcp): persist expiring one-attempt gateway grants by @antropos17 in https://github.com/antropos17/Aegis/pull/530
+* feat(mcp): add explicit certificate-pinned HTTPS gateway by @antropos17 in https://github.com/antropos17/Aegis/pull/531
+* feat(mcp): guard tool payloads with pinned known-secret policy by @antropos17 in https://github.com/antropos17/Aegis/pull/532
+* chore(deps): bump the npm-minor-patch group across 1 directory with 8 updates by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/524
+* chore(deps-dev): bump @testing-library/jest-dom from 6.9.1 to 7.0.1 by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/462
+* chore(deps-dev): bump @types/node from 25.3.5 to 26.6.2 by @dependabot[bot] in https://github.com/antropos17/Aegis/pull/460
+* chore(deps): update Svelte Prettier plugin and formatting by @antropos17 in https://github.com/antropos17/Aegis/pull/533
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.15.0-alpha...aegis-v0.16.0-alpha
+
 ## 0.15.0-alpha (2026-09-12)
 
 ## What's Changed
