@@ -24,6 +24,11 @@ function helperPath(runtime = process) {
  * @returns {object} Child-like stdio and verified cleanup state. @since v0.16.0 */
 function spawnInWindowsJob(launch, helper = helperPath()) {
   if (!existsSync(helper)) throw Error('gateway-protected-launch-unavailable');
+  // The .NET Framework reads profiler controls before the helper's Main runs.
+  // Never pass the parent process environment to this privileged launch boundary.
+  const roots = Object.entries(process.env).filter(([name]) => name.toLowerCase() === 'systemroot');
+  if (roots.length !== 1 || !path.win32.isAbsolute(roots[0][1]))
+    throw Error('gateway-protected-launch-unavailable');
   const frame = JSON.stringify({
     executable: launch.executable,
     cwd: launch.cwd,
@@ -35,6 +40,8 @@ function spawnInWindowsJob(launch, helper = helperPath()) {
   const helperProcess = spawn(helper, [], {
     shell: false,
     windowsHide: true,
+    cwd: path.dirname(helper),
+    env: { SystemRoot: roots[0][1] },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   const peer = new EventEmitter();
