@@ -25,7 +25,7 @@ per-instance anomaly scores in `scan-loop.js`, and `getStats()` carries the §3 
 (`setupSequenceRulesWatcher` in `src/main/file-watcher.js`, fed by `reloadSequenceRules` in
 `main.js`) re-reads the directory, `reset('reload')`s the engine and re-inits it with the new
 rules — a flat-rule edit never reaches that reset — and both watchers push `rules:reloaded` as
-`{ count, file, sequenceCount }`; `tests/main/sequence-integration.test.js` drives loader → tap →
+`{ count, sequenceCount }`; `tests/main/sequence-integration.test.js` drives loader → tap →
 engine → emission → reload end to end. One cost, stated rather than hidden: the engine's `init` is
 a fresh engine, so the §3 counters restart at zero after a reload and the durable trace of the
 discard is the `discarded … reason: 'reload'` log line. And now GATED:
@@ -293,9 +293,10 @@ Hot-reload: `setupRulesWatcher` (`src/main/file-watcher.js:1057`) stays as it is
 `:1064`); a SECOND chokidar watcher on `rules/sequences` is added (function-form `ignored` with the
 same `_`-prefix convention, `depth: 0`) — only that one reloads the sequence loader and calls
 `sequenceEngine.reset('reload')`, so an edit to a flat rule file does not drop open sequences (the
-hole this closes). The push stays `rules:reloaded`, with one additive field:
-`{ count, file, sequenceCount }` from both watchers — otherwise a sequence reload would hand the
-renderer `count: 73` with no sequence figure.
+hole this closes). The push stays `rules:reloaded`, with both counts:
+`{ count, sequenceCount }` from each watcher. The changed basename is omitted because the
+renderer refreshes on the event and does not consume it; a sequence reload still supplies its
+count alongside the flat count.
 
 counts:check: `scripts/counts.js` gains the derived `sequences.total` / `sequences.files` (tracked
 under `rules/sequences`) and `seqGate.mutants` (a locate + parse scanner on the `verify-gate-mutants`

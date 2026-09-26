@@ -132,10 +132,20 @@ the AEGIS sender/collector accepted. No user configuration was modified. This te
 the actual provider executable and adapters with synthetic model responses;
 an OS firewall isolation boundary was not installed.
 
+The same isolated fixture also exercised an AEGIS `PreToolUse` hook that starts
+without its required policy argument and exits 2 with a fixed denial. Claude
+Code 2.1.263 left the identical Bash sentinel absent and emitted no
+`PostToolUse`; the unstartable-hook control still ran that command. The
+redacted receipt records two local API requests for this case. This checks the
+installed client's handling of that failure decision, not the user's settings
+or a live cloud session. The [Claude hook reference](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event)
+describes the `PreToolUse` exit-2 block and the different behavior when a hook
+cannot start.
+
 The opt-in `scripts/verify-claude-hooks.mjs` records version, fixed outcomes and
 counts without raw prompts/output. See its `--help` for explicit executable and
 scratch paths. It is not part of ordinary CI and does not use an external model.
-Interactive ask/approval binding, other provider-hook failure modes, macOS and a
+Interactive ask/approval binding, hook timeout and termination, macOS and a
 real cloud model session are not verified by that fixture. Linux CI verifies AEGIS
 unit/CLI behavior independently of an installed Claude executable.
 
