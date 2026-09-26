@@ -2,11 +2,25 @@
 
 ## Current state — 2026-09-26
 
+The next narrow B4 slice adds selected-file deletion from
+`codex/b4-structured-destructive` in `X:/tmp/aegis-b4-structured-20260926`.
+Check current refs, PR and CI before starting another B4 slice. The route
+requires an exact policy and fresh terminal challenge, and AEGIS performs one
+regular-file unlink; it does not protect other agent routes, arbitrary allowed
+children or same-account filesystem races. See
+[selected file deletion](../docs/ACTION-DELETE-FILE.md).
+
 The AI-agent protection roadmap remains in progress. The latest completed B3 slice is opt-in MCP manifest v4: an operator prepares a store-backed HMAC tag for the selected HTTP(S) bearer; the gateway checks the tag and v3 route before opening upstream, and checks the store key again before consuming each durable grant. V1–V3 retain their previous contracts. [PR #536](https://github.com/antropos17/Aegis/pull/536) merged with all five required CI contexts. The store key needs operator-restricted access: Node's `0o600` does not establish a private Windows ACL. Server/account identity, protected issuance, stdio route binding, same-account tampering and outside-route activity remain outside this guarantee. See [durable grants](../docs/MCP-DURABLE-GRANTS.md).
 
 B4 is partial. Schema 3 execution policies can list exact `reviewRequired` actions; those actions become `ask` even when their rule says `allow`. Direct JSON/MCP execution does not launch them; terminal review requires a fresh affirmative answer. [PR #537](https://github.com/antropos17/Aegis/pull/537) implemented this, [#538](https://github.com/antropos17/Aegis/pull/538) verified the native CLI boundary, and [#539](https://github.com/antropos17/Aegis/pull/539) taught Observatory to accept and display the exact `ask`/`review-required` result. All five CI contexts passed before each merge. The mechanism classifies only actions explicitly listed by the operator; arbitrary child activity, writes/deletion outside the route, publication and process-tree isolation are not controlled. See [execution](../docs/ACTION-EXECUTION.md), [route check](../docs/ACTION-ROUTE-CHECK.md) and [coverage UI](../docs/ACTION-COVERAGE-UI.md).
 
-Next substantive step: choose one enforceable B4 control point for a structured destructive operation and verify its negative cases before expanding claims. Do not treat command-string heuristics or MCP annotations as enforcement. If the operation can still escape through an arbitrary allowed child, define the C1 protected-launch boundary first and keep B4 partial. The [roadmap](../docs/roadmap/ai-agent-protection.md) is the scope and completion source; the older dated notes below are history, not current instructions.
+After this selected-file slice, the next B4 expansion needs another enforceable
+structured control point and negative cases. Do not treat command-string
+heuristics or MCP annotations as enforcement. If an operation can escape through
+an arbitrary allowed child, define the C1 protected-launch boundary first and
+keep B4 partial. The [roadmap](../docs/roadmap/ai-agent-protection.md) is the
+scope and completion source; the older dated notes below are history, not
+current instructions.
 
 Workspace: `X:/Future/ESCAPE/AEGIS` is an old dirty `master` checkout with unrelated UI/config edits; preserve it. Use a clean worktree branched from current `origin/master` for changes. The reusable worktree at `C:/Users/murtu/.codex/worktrees/mcp-grant-recipient/AEGIS` has no uncommitted edits, but its local topic branch remains after remote merges because `master` is checked out in the original worktree. Check refs again before starting. The latest feature merge before this handoff is `852ac1e` (#539). The user prefers economical credit use: run targeted local tests and rely on the five required CI contexts for full verification; use parallel agents only for clearly independent work when requested.
 

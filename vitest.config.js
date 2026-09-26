@@ -53,6 +53,7 @@ export default defineConfig({
         'src/main/execution-approval.js',
         'src/main/action-confirmation.js',
         'src/main/action-confirmation-terminal.js',
+        'src/main/action-delete-file.js',
         'src/main/action-execution.js',
         'src/main/action-execution-cli.js',
         'src/main/action-mcp.js',
