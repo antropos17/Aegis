@@ -96,8 +96,18 @@ async function captureGatewayRoute({ policyPath, requestPath, endpointPath }, si
           bytes.fill(0);
         }
       };
-      await recheck();
-      return { close, recheck, open: createHttpGatewayPeer };
+      const endpoint = await recheck();
+      const identity = Object.freeze(
+        endpoint.protocol === 'https:'
+          ? {
+              transport: 'https',
+              url: endpoint.origin + endpoint.path,
+              connectAddress: endpoint.address,
+              certificateSha256: endpoint.certificateSha256,
+            }
+          : { transport: 'http', url: endpoint.origin + endpoint.path },
+      );
+      return { close, recheck, open: createHttpGatewayPeer, identity };
     }
     binding = await captureExecutionBinding(policyPath, requestPath, { signal });
     if (closed) {

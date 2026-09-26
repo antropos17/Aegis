@@ -7,6 +7,33 @@ An operator selects an existing absolute grant-store directory as the final CLI
 argument. All processes using those permissions must use the same store.
 Version 1 remains connection-local and accepts no store argument.
 
+Manifest version 3 adds an exact configured HTTP(S) route binding to the same
+persistent one-attempt grants. It is supported by the HTTP/HTTPS gateway; stdio
+continues to use version 2. A version 3 manifest adds one top-level `route` object
+while retaining the version 2 `tools` and `grants` shapes and store argument.
+For a loopback endpoint, set `schemaVersion` to 3 and add this root field:
+
+```json
+{"route":{"transport":"http","url":"http://127.0.0.1:4567/mcp"}}
+```
+
+For pinned HTTPS, `route` has exactly `transport: "https"`, the exact selected
+`url`, `connectAddress` and lowercase `certificateSha256` from the endpoint
+descriptor. HTTP has exactly `transport: "http"` and `url`. A mismatch with the
+validated selected endpoint rejects initialization before starting a tool or
+consuming a grant. The route object contains no bearer token or CA text.
+The connection still pins all endpoint descriptor bytes, including the token and
+CA, and rechecks them before dispatch. Changing the selected route requires a
+new manifest and a new grant ID; a consumed ID cannot be reused through another
+route in the same store. Version 2 stays available with its earlier unbound-route
+contract, so operators who need this binding must select version 3 explicitly.
+The configured URL and certificate pin do not independently prove the server's
+identity or what it does with arguments. A different bearer token at the same
+URL can select another account or tenant on a later run; v3 does not bind that
+credential. Loopback HTTP can also have a different listener on the same URL
+after restart. Stdio route binding, protected issuance, task identity and general
+recipient semantics remain open.
+
 ```text
 node src/main/main.js --mcp-gateway-http endpoint.json manifest-v2.json <absolute-store-directory>
 node src/main/main.js --mcp-gateway-stdio policy.json request.json manifest-v2.json <absolute-store-directory>

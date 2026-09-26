@@ -143,13 +143,15 @@ function createMcpGateway({
         manifest = await step(readManifest());
         secretGuard.assertSafe(manifest.tools);
         if (
-          (manifest.schemaVersion === 2) !==
+          manifest.schemaVersion >= 2 !==
           (typeof grantStorePath === 'string' && !!grantStorePath)
         )
           throw Error('grant-store-required');
         route = await step(
           captureGatewayRoute({ policyPath, requestPath, endpointPath }, controller.signal),
         );
+        if (manifest.schemaVersion === 3 && !equal(route.identity, manifest.route))
+          throw Error('gateway-route-mismatch');
         const launch = await recheck();
         if (closed) throw Error('closed');
         peer = route.open(launch, () => close(true));
@@ -226,13 +228,13 @@ function createMcpGateway({
     activeId = id;
     try {
       const permission = manifest.grants[grant];
-      if (manifest.schemaVersion === 2) await step(consumeGatewayGrant(grantStorePath, permission));
+      if (manifest.schemaVersion >= 2) await step(consumeGatewayGrant(grantStorePath, permission));
       await recheck();
       await checkCatalog();
       await recheck();
       if (closed) throw Error('closed');
       if (
-        manifest.schemaVersion === 2 &&
+        manifest.schemaVersion >= 2 &&
         (Date.now() < permission.notBefore || Date.now() >= permission.expiresAt)
       )
         throw Error('grant-expired');

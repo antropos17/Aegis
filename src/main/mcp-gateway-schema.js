@@ -1,4 +1,5 @@
 'use strict';
+const { isIPv4 } = require('node:net');
 const { equalActionValue: equal } = require('./action-policy');
 const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const keys = (value, allowed) =>
@@ -8,6 +9,21 @@ const name = (value) =>
   /^[A-Za-z_][A-Za-z0-9_.-]{0,63}$/.test(value) &&
   !['__proto__', 'constructor', 'prototype'].includes(value);
 const count = (value, limit) => Number.isSafeInteger(value) && value >= 0 && value <= limit;
+const route = (value) => {
+  if (!object(value) || typeof value.url !== 'string' || !value.url || value.url.length > 512)
+    return false;
+  if (value.transport === 'http')
+    return Object.keys(value).length === 2 && keys(value, ['transport', 'url']);
+  return (
+    value.transport === 'https' &&
+    Object.keys(value).length === 4 &&
+    keys(value, ['transport', 'url', 'connectAddress', 'certificateSha256']) &&
+    typeof value.connectAddress === 'string' &&
+    isIPv4(value.connectAddress) &&
+    typeof value.certificateSha256 === 'string' &&
+    /^[a-f0-9]{64}$/.test(value.certificateSha256)
+  );
+};
 
 /** Validate a closed, bounded JSON Schema subset; unsupported keywords never disappear.
  * @param {object} schema Selected schema. @returns {boolean} Supported schema. @since v0.15.1 */
@@ -117,8 +133,15 @@ function matchesSchema(schema, value) {
  * @param {object} value Private manifest. @returns {boolean} Supported manifest. @since v0.15.1 */
 function validManifest(value) {
   if (
-    !keys(value, ['schemaVersion', 'tools', 'grants']) ||
-    ![1, 2].includes(value.schemaVersion) ||
+    !object(value) ||
+    ![1, 2, 3].includes(value.schemaVersion) ||
+    !keys(
+      value,
+      value.schemaVersion === 3
+        ? ['schemaVersion', 'route', 'tools', 'grants']
+        : ['schemaVersion', 'tools', 'grants'],
+    ) ||
+    (value.schemaVersion === 3 && (!Object.hasOwn(value, 'route') || !route(value.route))) ||
     !Array.isArray(value.tools) ||
     !value.tools.length ||
     value.tools.length > 8 ||
@@ -145,7 +168,7 @@ function validManifest(value) {
     names.add(tool.name);
   }
   return value.grants.every((grant, index) => {
-    const durable = value.schemaVersion === 2;
+    const durable = value.schemaVersion >= 2;
     const fields = durable
       ? ['id', 'taskId', 'notBefore', 'expiresAt', 'tool', 'arguments']
       : ['tool', 'arguments'];

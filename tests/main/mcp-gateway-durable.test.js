@@ -34,7 +34,7 @@ const init = () =>
   });
 const call = () => rpc(2, 'tools/call', { name: 'record', arguments: { recipient: 'chosen' } });
 const save = (p, v) => fs.writeFileSync(p, JSON.stringify(v));
-let root, endpointPath, manifestPath, grantStorePath, fixture, manifest;
+let root, endpointPath, manifestPath, grantStorePath, fixture, alternate, manifest;
 let gateways = [],
   children = [];
 beforeEach(async () => {
@@ -76,6 +76,8 @@ afterEach(async () => {
     }
   children = [];
   await fixture.close();
+  if (alternate) await alternate.close();
+  alternate = undefined;
   expect(path.dirname(root)).toBe(path.resolve(os.tmpdir()));
   expect(fs.lstatSync(root).isSymbolicLink()).toBe(false);
   fs.rmSync(root, { recursive: true, force: true });
@@ -102,17 +104,52 @@ it('does not renew a consumed permission on a fresh HTTP gateway', async () => {
   expect((await b.receive(call())).error).toBeDefined();
   expect(fixture.state.calls).toHaveLength(1);
 });
-it('requires an explicit store for v2 and refuses a misleading store with v1', async () => {
-  for (const version of [2, 1]) {
+it('binds a v3 HTTP grant to its selected URL without spending it on another route', async () => {
+  alternate = await httpFixture(tool);
+  manifest.schemaVersion = 3;
+  manifest.route = { transport: 'http', url: fixture.url };
+  save(manifestPath, manifest);
+  save(endpointPath, {
+    schemaVersion: 1,
+    url: alternate.url,
+    bearerToken: alternate.state.token,
+  });
+  const wrong = createMcpGateway({
+    endpointPath,
+    manifestPath,
+    grantStorePath,
+    onFailure() {},
+  });
+  gateways.push(wrong);
+  expect((await wrong.receive(init())).error).toBeDefined();
+  expect(alternate.state.calls).toHaveLength(0);
+  expect(fixture.state.calls).toHaveLength(0);
+  expect(fs.readdirSync(grantStorePath)).toEqual([]);
+
+  save(endpointPath, { schemaVersion: 1, url: fixture.url, bearerToken: fixture.state.token });
+  const selected = await ready();
+  expect((await selected.receive(call())).result?.structuredContent).toEqual({ accepted: true });
+  expect(fixture.state.calls).toHaveLength(1);
+  selected.close();
+  await selected.finish();
+  const replay = await ready();
+  expect((await replay.receive(call())).error).toBeDefined();
+  expect(fixture.state.calls).toHaveLength(1);
+});
+it('requires an explicit store for durable manifests and refuses a misleading store with v1', async () => {
+  for (const version of [2, 3, 1]) {
+    if (version === 3) manifest.route = { transport: 'http', url: fixture.url };
     if (version === 1) {
       manifest.schemaVersion = 1;
       manifest.grants = [{ tool: 'record', arguments: { recipient: 'chosen' } }];
-      save(manifestPath, manifest);
+      delete manifest.route;
     }
+    manifest.schemaVersion = version;
+    save(manifestPath, manifest);
     const g = createMcpGateway({
       endpointPath,
       manifestPath,
-      grantStorePath: version === 2 ? undefined : grantStorePath,
+      grantStorePath: version >= 2 ? undefined : grantStorePath,
       onFailure() {},
     });
     gateways.push(g);
