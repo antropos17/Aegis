@@ -140,10 +140,14 @@
       >
     </button>
     <div class="protection-limit">
-      <span>{$t('Automatic access blocking')}</span><strong
+      <span>{$t('Automatic file and network access blocking')}</span><strong
         ><Icon name="shield" />{$t('Not active')}</strong
       >
-      <p>{$t('Saved permissions do not block access.')}</p>
+      <p>
+        {$t(
+          'Saved permissions do not block access. Selected Action control routes apply only to calls sent through them.',
+        )}
+      </p>
     </div>
   </div>
   <div class="activity-layout" class:has-selection={!!current} bind:this={activityLayout}>
