@@ -78,4 +78,14 @@ describe('audit index diagnostics', () => {
     expect(JSON.stringify(error.mock.calls)).not.toContain('PRIVATE_INDEX_STAT_CANARY');
     expect(index.status().state).toBe('failed');
   });
+
+  it('does not echo invalid audit read input in diagnostics', () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(auditLogger.getEntriesBefore('LEAK42')).toEqual([]);
+    expect(warning).toHaveBeenCalledWith(
+      '[audit-logger] getEntriesBefore: invalid beforeTs — returning []',
+    );
+    expect(JSON.stringify(warning.mock.calls)).not.toContain('LEAK42');
+  });
 });

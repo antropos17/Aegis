@@ -481,8 +481,9 @@ none under `ELECTRON_RUN_AS_NODE=1` on 43.4.1; the in-app main process was not p
   `logger.warn('audit-index', …, { reason })` precedes the close and the unlink. The reason is a
   fixed code; private paths and exception text are omitted from operational diagnostics. T7
   (`quick-check-error`) and T14 (`schema-version-mismatch`) each assert exactly one warn; a
-  healthy reopen asserts none. Projection failure status and the audit logger's exception
-  console messages likewise use fixed text; the JSONL fallback still serves reads.
+  healthy reopen asserts none. Projection failure status, audit-logger exception consoles and
+  the main-process audit-flush failure log likewise use fixed text; the JSONL fallback still
+  serves reads.
 - **The rebuild is asynchronous by batch, not by file:** ~2000 lines per transaction (the
   `audit_files` accounting in the same transaction), a `setImmediate` yield between batches, and up
   to three tail rounds that re-stat every file before the index is declared `'ready'` — lines

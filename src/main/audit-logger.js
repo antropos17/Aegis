@@ -756,11 +756,7 @@ function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT, types, boundaryO
   }
   let remainingAtBoundary = boundaryOffset ?? 0;
   if (typeof beforeTs !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(beforeTs)) {
-    const got =
-      typeof beforeTs === 'string'
-        ? `malformed string ${JSON.stringify(beforeTs.slice(0, 40))}`
-        : typeof beforeTs;
-    console.warn(`[audit-logger] getEntriesBefore: invalid beforeTs (${got}) — returning []`);
+    console.warn('[audit-logger] getEntriesBefore: invalid beforeTs — returning []');
     return [];
   }
   limit =
