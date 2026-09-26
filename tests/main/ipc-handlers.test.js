@@ -212,7 +212,7 @@ describe('ipc-handlers', () => {
     mockElectron.Notification.mockClear();
     mockElectron.Notification.isSupported.mockClear().mockReturnValue(true);
 
-    mockConfig.getSettings.mockClear().mockReturnValue({
+    mockConfig.getSettings.mockReset().mockReturnValue({
       anthropicApiKey: 'key',
       agentPermissions: { 'Claude::vscode': 'allow', Copilot: 'monitor' },
       seenAgents: ['Claude', 'Copilot'],
@@ -224,6 +224,8 @@ describe('ipc-handlers', () => {
     mockConfig.getCustomAgents.mockClear();
     mockConfig.saveCustomAgents.mockClear();
     mockConfig.addFalsePositive.mockClear();
+    mockAnalysis.analyzeAgentActivity.mockReset().mockResolvedValue({ success: true, analysis: 'ok' });
+    mockAnalysis.analyzeSessionActivity.mockReset().mockResolvedValue({ success: true, summary: 'ok' });
     mockRules.getAllRules.mockClear();
     mockRules.reloadRules.mockClear();
     mockBlocklist.add.mockClear();
@@ -1011,10 +1013,116 @@ describe('ipc-handlers', () => {
     });
 
     it('analyze-agent returns error when no API key', async () => {
+      const { event } = registerOwnedRenderer();
       mockConfig.getSettings.mockReturnValueOnce({ anthropicApiKey: '' });
       const handler = getHandler('analyze-agent');
-      const result = handler(null, 'Claude');
+      const result = handler(event, 'Claude');
       await expect(result).resolves.toMatchObject({ success: false });
+      expect(mockElectron.dialog.showMessageBox).not.toHaveBeenCalled();
+    });
+
+    it.each(['analyze-agent', 'analyze-session'])(
+      '%s rejects a foreign renderer before showing consent or sending activity',
+      async (channel) => {
+        const { event } = registerOwnedRenderer();
+        const result = await getHandler(channel)({ ...event, sender: {} }, 'Claude');
+        expect(result).toEqual({ success: false, error: 'Renderer request denied' });
+        expect(mockElectron.dialog.showMessageBox).not.toHaveBeenCalled();
+        expect(mockAnalysis.analyzeAgentActivity).not.toHaveBeenCalled();
+        expect(mockAnalysis.analyzeSessionActivity).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(['analyze-agent', 'analyze-session'])(
+      '%s requires a parented Cancel-default disclosure before sending activity',
+      async (channel) => {
+        const { event, window } = registerOwnedRenderer();
+        mockElectron.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+        const result = await getHandler(channel)(event, 'PRIVATE_ANALYSIS_CANARY');
+        expect(result).toEqual({ success: false, error: 'Analysis cancelled' });
+        expect(mockElectron.dialog.showMessageBox).toHaveBeenCalledExactlyOnceWith(
+          window,
+          expect.objectContaining({
+            defaultId: 0,
+            cancelId: 0,
+            buttons: expect.arrayContaining(['Cancel / Cancelar']),
+            detail: expect.stringContaining('api.anthropic.com'),
+          }),
+        );
+        const disclosure = JSON.stringify(mockElectron.dialog.showMessageBox.mock.calls);
+        expect(disclosure).toContain('file paths');
+        expect(disclosure).toContain('network endpoints');
+        expect(disclosure).not.toContain('PRIVATE_ANALYSIS_CANARY');
+        expect(mockAnalysis.analyzeAgentActivity).not.toHaveBeenCalled();
+        expect(mockAnalysis.analyzeSessionActivity).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(['analyze-agent', 'analyze-session'])(
+      '%s sends activity only after an owned renderer confirms',
+      async (channel) => {
+        const { event } = registerOwnedRenderer();
+        mockElectron.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
+        const result = await getHandler(channel)(event, 'Claude');
+        expect(result.success).toBe(true);
+        if (channel === 'analyze-agent') {
+          expect(mockAnalysis.analyzeAgentActivity).toHaveBeenCalledExactlyOnceWith('Claude');
+          expect(mockAnalysis.analyzeSessionActivity).not.toHaveBeenCalled();
+        } else {
+          expect(mockAnalysis.analyzeSessionActivity).toHaveBeenCalledExactlyOnceWith();
+          expect(mockAnalysis.analyzeAgentActivity).not.toHaveBeenCalled();
+        }
+      },
+    );
+
+    it('denies analysis if the renderer frame changes while native consent is open', async () => {
+      const { event, contents, frame } = registerOwnedRenderer();
+      let answer;
+      mockElectron.dialog.showMessageBox.mockReturnValueOnce(
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+      );
+      const pending = getHandler('analyze-session')(event);
+      contents.mainFrame = { ...frame };
+      answer({ response: 1 });
+      expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
+      expect(mockAnalysis.analyzeSessionActivity).not.toHaveBeenCalled();
+    });
+
+    it('rejects concurrent analysis requests while the native consent dialog is pending', async () => {
+      const { event } = registerOwnedRenderer();
+      let answer;
+      mockElectron.dialog.showMessageBox.mockReturnValueOnce(
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+      );
+      const first = getHandler('analyze-agent')(event, 'Claude');
+      expect(await getHandler('analyze-session')(event)).toEqual({
+        success: false,
+        error: 'Analysis confirmation in progress',
+      });
+      expect(mockElectron.dialog.showMessageBox).toHaveBeenCalledTimes(1);
+      answer({ response: 0 });
+      expect(await first).toEqual({ success: false, error: 'Analysis cancelled' });
+      expect(mockAnalysis.analyzeAgentActivity).not.toHaveBeenCalled();
+      expect(mockAnalysis.analyzeSessionActivity).not.toHaveBeenCalled();
+    });
+
+    it('fails closed without exposing a native consent error', async () => {
+      const { event } = registerOwnedRenderer();
+      mockElectron.dialog.showMessageBox.mockRejectedValueOnce(
+        new Error('PRIVATE_CONFIRMATION_FAILURE_CANARY'),
+      );
+      expect(await getHandler('analyze-session')(event)).toEqual({
+        success: false,
+        error: 'Analysis confirmation unavailable',
+      });
+      expect(mockAnalysis.analyzeSessionActivity).not.toHaveBeenCalled();
+      expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(
+        'PRIVATE_CONFIRMATION_FAILURE_CANARY',
+      );
     });
 
     it('test-notification creates and shows notification', () => {

@@ -96,7 +96,7 @@
   "An open file handle does not prove that the contents were read.": "Um identificador de arquivo aberto não comprova que seu conteúdo foi lido.",
   "An open handle does not prove that file contents were read.": "Um identificador aberto não comprova que o conteúdo do arquivo foi lido.",
   "Analysis scope": "Escopo da análise",
-  "Analysis sends recorded activity metadata to Anthropic and may incur API charges.": "A análise envia metadados de atividades registradas à Anthropic e pode gerar cobranças de API.",
+  "Run analysis asks for confirmation before sending recorded activity metadata to Anthropic; API charges may apply.": "Executar análise pede confirmação antes de enviar metadados de atividades registradas à Anthropic; podem ocorrer cobranças de API.",
   "Animations": "Animações",
   "Anthropic": "Anthropic",
   "Anthropic API key": "Chave de API da Anthropic",
