@@ -1,5 +1,5 @@
 /**
- * Regression test for the watcher-startup race (main.js).
+ * Regression tests for watcher startup, bounded retry and teardown (main.js).
  *
  * `initDeferredSubsystems` runs off `ready-to-show` → `setImmediate`. For a local
  * `loadFile` the renderer's `did-finish-load` has ALREADY fired by then, so the
@@ -8,7 +8,7 @@
  * existed. Both orderings are asserted here — the already-loaded one is the case
  * that regressed.
  */
-import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import Module from 'module';
 import os from 'os';
 import { createRequire } from 'module';
@@ -16,6 +16,7 @@ import { createRequire } from 'module';
 // ── electron stub ─────────────────────────────────────────────────────────────
 // `app.whenReady()` never resolves, so requiring main.js wires the module scope
 // (and the exports below) without running the startup sequence.
+const appListeners = {};
 const fakeElectron = {
   app: {
     name: 'Aegis',
@@ -25,7 +26,9 @@ const fakeElectron = {
     disableHardwareAcceleration: () => {},
     requestSingleInstanceLock: () => true,
     whenReady: () => new Promise(() => {}),
-    on: () => {},
+    on: (event, cb) => {
+      (appListeners[event] ||= []).push(cb);
+    },
     quit: () => {},
   },
   BrowserWindow: class {},
@@ -97,16 +100,25 @@ function makeWebContents(loading) {
 
 describe('main — watcher startup ordering', () => {
   let watcherMock;
+  let watchPlan;
 
   beforeEach(() => {
     main._resetWatchersForTest();
+    watchPlan = { state: 'HEALTHY', groups: [{}], liveWatcherCount: 1 };
     watcherMock = {
       setupFileWatchers: vi.fn(async () => {}),
       setupRulesWatcher: vi.fn(),
       setupSequenceRulesWatcher: vi.fn(),
+      getWatchPlan: vi.fn(() => watchPlan),
+      closeFileWatchers: vi.fn(async () => {}),
     };
     main._setWatcherForTest(watcherMock);
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    main._resetWatchersForTest();
+    vi.useRealTimers();
   });
 
   it('exports the startup entry points', () => {
@@ -189,5 +201,115 @@ describe('main — watcher startup ordering', () => {
     expect(failed).toHaveLength(1);
     expect(failed[0][2]).toEqual({ error: 'file-watcher-setup-failed' });
     expect(JSON.stringify(error.mock.calls)).not.toContain('PRIVATE_WATCH_ROOT_LOG_CANARY');
+  });
+
+  it('retries a pre-plan failure and installs each rule watcher once', async () => {
+    vi.useFakeTimers();
+    watchPlan = { state: 'STARTING', groups: [], liveWatcherCount: 0 };
+    watcherMock.setupFileWatchers = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('initial preflight failed'))
+      .mockImplementationOnce(async () => {
+        watchPlan = { state: 'HEALTHY', groups: [{}], liveWatcherCount: 1 };
+      });
+
+    await main.startWatchers();
+    expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(1);
+    expect(watcherMock.setupRulesWatcher).toHaveBeenCalledTimes(1);
+    expect(watcherMock.setupSequenceRulesWatcher).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(90_000);
+    expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(2);
+    expect(watcherMock.setupRulesWatcher).toHaveBeenCalledTimes(1);
+    expect(watcherMock.setupSequenceRulesWatcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a settled FAILED plan with zero live watchers', async () => {
+    vi.useFakeTimers();
+    watchPlan = { state: 'FAILED', groups: [{}], liveWatcherCount: 0 };
+
+    await main.startWatchers();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(2);
+  });
+
+  it('detects a full watcher loss after startup was healthy', async () => {
+    vi.useFakeTimers();
+    await main.startWatchers();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(1);
+
+    watchPlan = { state: 'FAILED', groups: [{}], liveWatcherCount: 0 };
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not tear down a DEGRADED plan with a live watcher', async () => {
+    vi.useFakeTimers();
+    watchPlan = { state: 'DEGRADED', groups: [{}, {}], liveWatcherCount: 1 };
+
+    await main.startWatchers();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops after three failed retry attempts with bounded error logs', async () => {
+    vi.useFakeTimers();
+    watchPlan = { state: 'STARTING', groups: [], liveWatcherCount: 0 };
+    watcherMock.setupFileWatchers = vi.fn(async () => {
+      throw new Error('PRIVATE_WATCH_ROOT_LOG_CANARY');
+    });
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
+
+    await main.startWatchers();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(4);
+    expect(error.mock.calls.map((call) => call[1])).toEqual([
+      'File watcher setup failed',
+      'File watcher retry exhausted',
+    ]);
+    expect(JSON.stringify(error.mock.calls)).not.toContain('PRIVATE_WATCH_ROOT_LOG_CANARY');
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(4);
+  });
+
+  it('keeps retry setup single-flight while its promise is pending', async () => {
+    vi.useFakeTimers();
+    watchPlan = { state: 'FAILED', groups: [{}], liveWatcherCount: 0 };
+    let resolveRetry;
+    watcherMock.setupFileWatchers = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRetry = resolve;
+          }),
+      );
+
+    await main.startWatchers();
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(90_000);
+    expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(2);
+    resolveRetry();
+    await Promise.resolve();
+  });
+
+  it('cancels a scheduled retry on test reset and before-quit', async () => {
+    vi.useFakeTimers();
+    watchPlan = { state: 'FAILED', groups: [{}], liveWatcherCount: 0 };
+    await main.startWatchers();
+    main._resetWatchersForTest();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(1);
+
+    await main.startWatchers();
+    const shutdown = vi.spyOn(logger, 'shutdown').mockImplementation(() => {});
+    for (const cb of appListeners['before-quit'] || []) cb();
+    expect(shutdown).toHaveBeenCalledTimes(1);
+    await main.startWatchers();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(2);
   });
 });
