@@ -87,6 +87,23 @@ describe('config-manager', () => {
     expect(raw.darkMode).toBe(true);
   });
 
+  it('does not log private exception text when settings temp cleanup fails', () => {
+    configManager.loadSettings();
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const unlink = vi.spyOn(fs, 'unlinkSync').mockImplementationOnce(() => {
+      throw new Error('PRIVATE_TEMP_PATH_CANARY');
+    });
+
+    configManager.saveSettings({ scanIntervalSec: 20 });
+
+    expect(unlink).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fs.readFileSync(settingsPath, 'utf8')).scanIntervalSec).toBe(20);
+    expect(warn).toHaveBeenCalledWith('config-manager', 'Could not remove settings temporary file', {
+      code: 'settings-temp-cleanup-failed',
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('PRIVATE_TEMP_PATH_CANARY');
+  });
+
   it('buildCustomRules() compiles valid regex, skips invalid', () => {
     fs.writeFileSync(
       settingsPath,
