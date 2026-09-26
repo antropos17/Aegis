@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { createRequire } from 'module';
 import baselines from '../../src/main/baselines.js';
+
+const require_ = createRequire(import.meta.url);
+const logger = require_('../../src/main/logger.js');
 
 // Two space-1 instance keys (`${pid}:${startTime}`) of ONE agent name — the C2 case.
 const CLAUDE_A = '1000:1700000000000';
@@ -28,6 +32,39 @@ describe('baselines', () => {
   afterEach(() => {
     baselines._setBaselinesPathForTest(null);
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('does not log persisted profile contents when a baseline file is malformed', () => {
+    fs.writeFileSync(path.join(tmpDir, 'baselines.json'), '{"agents":LEAK42}');
+    const warning = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    try {
+      baselines.loadBaselines();
+      expect(baselines.getBaselines()).toEqual({ agents: {} });
+      expect(warning).toHaveBeenCalledWith(
+        'baselines',
+        'Failed to load baselines — starting fresh',
+        { code: 'baseline-load-failed' },
+      );
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('LEAK42');
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  it('does not log the private baseline path when persistence fails', () => {
+    baselines._setBaselinesPathForTest(tmpDir);
+    const failure = vi.spyOn(logger, 'error').mockImplementation(() => {});
+    try {
+      baselines.recordFileAccess(CLAUDE_A, 'Claude', '/private/example', true);
+      baselines.finalizeSession();
+      expect(failure).toHaveBeenCalledWith('baselines', 'Failed to save baselines', {
+        code: 'baseline-save-failed',
+      });
+      expect(failure.mock.calls[0][2]).not.toHaveProperty('path');
+      expect(JSON.stringify(failure.mock.calls)).not.toContain('/private/example');
+    } finally {
+      failure.mockRestore();
+    }
   });
 
   it('ensureSessionData() creates correct initial structure', () => {
