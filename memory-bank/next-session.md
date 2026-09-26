@@ -33,8 +33,11 @@ and Amp CLI process names bring the checked catalog to 112 agents and 265
 process-name signatures. Process enumeration now has bounded subprocess
 timeouts, though a hard wall-clock bound is not proven on every platform.
 File-watch plan DEGRADED/FAILED transitions write fixed-code audit start and
-recovery pairs. A full-loss plan gets up to three 30-second retries
-([#613](https://github.com/antropos17/Aegis/pull/613)); a
+recovery pairs. Confirmed worker exit removes that root from the live count;
+after total loss, the plan gets up to three 30-second retries per confirmed
+outage. The retry budget resets after a HEALTHY plan is observed
+([#613](https://github.com/antropos17/Aegis/pull/613),
+[#618](https://github.com/antropos17/Aegis/pull/618)); a
 DEGRADED plan with live roots is left intact. Failed alert-only watchlist
 writes now leave the prior in-memory state intact, and the IPC response hides
 native write details ([#612](https://github.com/antropos17/Aegis/pull/612)).
