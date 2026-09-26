@@ -333,12 +333,16 @@ function _resetForTest() {
     identityQuality: 'unknown',
   });
   _resetFsHealth();
+  _watchCoverageReduced = false;
 }
 
 const watcherDebounce = new Map();
 let _state = null;
 let _watchGeneration = 0;
 let _ownedWatchers = [];
+// One audit pair per continuous confirmed reduction, including watcher re-creation.
+// STARTING during preflight is not evidence that the prior gap has recovered.
+let _watchCoverageReduced = false;
 
 /** Stop delivery immediately, then release this lifetime's workers. @returns {Promise<void>} @since v0.14.0 */
 async function closeFileWatchers() {
@@ -357,7 +361,7 @@ async function closeFileWatchers() {
 }
 
 /**
- * @param {Object} state - shared state refs (getCustomRules, getLatestAgents, getLatestAiAgents, isMonitoringPaused, activityLog, knownHandles, watchers, recordFileAccess, onFileEvent, isOtherPanelExpanded)
+ * @param {Object} state - shared state refs (getCustomRules, getLatestAgents, getLatestAiAgents, isMonitoringPaused, activityLog, knownHandles, watchers, recordFileAccess, onFileEvent, isOtherPanelExpanded, audit)
  * @returns {void} @since v0.1.0
  */
 function init(state) {
@@ -460,6 +464,37 @@ function getIgnoredDirFilter(config) {
 }
 
 /**
+ * Bound the audit trail to one pair per confirmed watch-coverage gap. A new plan
+ * starts in STARTING, which cannot prove recovery; only every planned root READY
+ * can close the gap. No root, path or provider error enters the journal.
+ * @param {string} state - derived state of the complete watch plan
+ * @returns {void}
+ * @since v0.16.0-alpha
+ */
+function auditWatchCoverageTransition(state) {
+  if (state === sensorHealth.SENSOR_HEALTH_STATE.STARTING) return;
+  const reduced =
+    state === sensorHealth.SENSOR_HEALTH_STATE.DEGRADED ||
+    state === sensorHealth.SENSOR_HEALTH_STATE.FAILED;
+  if (!reduced && state !== sensorHealth.SENSOR_HEALTH_STATE.HEALTHY) return;
+  if (reduced === _watchCoverageReduced) return;
+  const audit = _state?.audit;
+  if (typeof audit?.log !== 'function') return;
+  audit.log('observation-gap', {
+    agent: '',
+    pid: null,
+    instanceId: null,
+    action: reduced ? 'file-watch-coverage-reduced' : 'file-watch-coverage-restored',
+    path: '',
+    severity: 'normal',
+    attribution: null,
+    extra: { cause: 'file-watch', state: reduced ? 'reduced' : 'restored' },
+  });
+  _watchCoverageReduced = reduced;
+  audit.flush?.();
+}
+
+/**
  * Write the derived W into the existing `fs-chokidar` record. The record is the
  * mechanism's health; the plan is where its state now comes from.
  *
@@ -488,6 +523,7 @@ function applyWatchPlaneHealth(now) {
   } else if (state === sensorHealth.SENSOR_HEALTH_STATE.HEALTHY) {
     _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.markHealthy(rec, now);
   }
+  auditWatchCoverageTransition(state);
 }
 
 /**

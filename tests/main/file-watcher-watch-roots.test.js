@@ -424,6 +424,111 @@ describe('chokidar watch-root registry (step B)', () => {
     });
   });
 
+  it('audits one fixed-code coverage gap for an errored root until a new full plan is ready', async () => {
+    const audit = { log: vi.fn(), flush: vi.fn() };
+    fileWatcher.init(makeState({ audit }));
+    await fileWatcher.setupFileWatchers();
+    readyAll();
+    expect(audit.log).not.toHaveBeenCalled();
+
+    fakeWatchers[0].emit('error', new Error('PRIVATE_WATCH_AUDIT_CANARY'));
+    expect(audit.log).toHaveBeenCalledWith('observation-gap', {
+      agent: '',
+      pid: null,
+      instanceId: null,
+      action: 'file-watch-coverage-reduced',
+      path: '',
+      severity: 'normal',
+      attribution: null,
+      extra: { cause: 'file-watch', state: 'reduced' },
+    });
+    expect(audit.flush).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(audit.log.mock.calls)).not.toContain('PRIVATE_WATCH_AUDIT_CANARY');
+
+    fakeWatchers[0].emit('error', new Error('another error'));
+    fakeWatchers[1].emit('loss', 3);
+    fakeWatchers[0].emit('ready');
+    fakeWatchers[0].emit('change', samplePath('late-watch-event.js'));
+    expect(audit.log).toHaveBeenCalledTimes(1);
+
+    await fileWatcher.setupFileWatchers();
+    expect(audit.log).toHaveBeenCalledTimes(1);
+    fakeWatchers.at(-ALL_GROUPS.length).emit('error', new Error('second generation failed'));
+    readyAll();
+    expect(fileWatcher.getWatchPlan().state).toBe('DEGRADED');
+    expect(audit.log).toHaveBeenCalledTimes(1);
+
+    await fileWatcher.setupFileWatchers();
+    expect(audit.log).toHaveBeenCalledTimes(1);
+    const recoveringWatchers = fakeWatchers.slice(-ALL_GROUPS.length);
+    for (const w of recoveringWatchers.slice(0, -1)) w.emit('ready');
+    expect(fileWatcher.getWatchPlan().state).toBe('STARTING');
+    expect(audit.log).toHaveBeenCalledTimes(1);
+    recoveringWatchers.at(-1).emit('ready');
+    expect(fileWatcher.getWatchPlan().state).toBe('HEALTHY');
+    expect(audit.log).toHaveBeenLastCalledWith('observation-gap', {
+      agent: '',
+      pid: null,
+      instanceId: null,
+      action: 'file-watch-coverage-restored',
+      path: '',
+      severity: 'normal',
+      attribution: null,
+      extra: { cause: 'file-watch', state: 'restored' },
+    });
+    expect(audit.log).toHaveBeenCalledTimes(2);
+    expect(audit.flush).toHaveBeenCalledTimes(2);
+  });
+
+  it('audits worker loss before readiness without treating late callbacks as recovery', async () => {
+    const audit = { log: vi.fn(), flush: vi.fn() };
+    fileWatcher.init(makeState({ audit }));
+    await fileWatcher.setupFileWatchers();
+    expect(audit.log).not.toHaveBeenCalled();
+
+    fakeWatchers[0].emit('loss', 4);
+    expect(fileWatcher.getWatchPlan().state).toBe('DEGRADED');
+    expect(audit.log.mock.calls.map(([type, event]) => [type, event.action])).toEqual([
+      ['observation-gap', 'file-watch-coverage-reduced'],
+    ]);
+    fakeWatchers[0].emit('loss', 2);
+    readyAll();
+    fakeWatchers[0].emit('add', samplePath('late-after-loss.js'));
+    expect(audit.log).toHaveBeenCalledTimes(1);
+    expect(audit.log.mock.calls[0][1].extra).toEqual({ cause: 'file-watch', state: 'reduced' });
+  });
+
+  it('audits a registration abort before any watcher exists with no thrown detail', async () => {
+    restoreChokidar();
+    installChokidarMock({ failOnCall: 1 });
+    fileWatcher = loadFileWatcher();
+    const audit = { log: vi.fn(), flush: vi.fn() };
+    fileWatcher.init(makeState({ audit }));
+    fileWatcher._resetForTest();
+    stubPreflight(true);
+
+    await expect(fileWatcher.setupFileWatchers()).rejects.toThrow(/watch refused #1/);
+    expect(fakeWatchers).toHaveLength(0);
+    expect(fileWatcher.getWatchPlan().state).toBe('FAILED');
+    expect(audit.log.mock.calls).toEqual([
+      [
+        'observation-gap',
+        {
+          agent: '',
+          pid: null,
+          instanceId: null,
+          action: 'file-watch-coverage-reduced',
+          path: '',
+          severity: 'normal',
+          attribution: null,
+          extra: { cause: 'file-watch', state: 'reduced' },
+        },
+      ],
+    ]);
+    expect(JSON.stringify(audit.log.mock.calls)).not.toContain('watch refused #1');
+    expect(audit.flush).toHaveBeenCalledTimes(1);
+  });
+
   it('reports no plan at all before setup has run, without throwing', () => {
     const plan = fileWatcher.getWatchPlan();
     expect(plan).toEqual({
