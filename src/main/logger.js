@@ -46,8 +46,8 @@ function init(opts) {
   _minLevel = LEVELS[opts.minLevel] || 0;
   try {
     if (!fs.existsSync(_logDir)) fs.mkdirSync(_logDir, { recursive: true });
-  } catch (err) {
-    console.error('[logger] mkdirSync failed:', err.message);
+  } catch {
+    console.error('[logger] mkdirSync failed');
   }
   _seedTodayCount();
   _flushTimer = setInterval(flush, FLUSH_INTERVAL);
@@ -69,8 +69,8 @@ function _seedTodayCount() {
       const content = fs.readFileSync(todayPath, 'utf-8');
       _todayEntries = content.split('\n').filter((l) => l.trim().length > 0).length;
     }
-  } catch (err) {
-    console.error('[logger] seed today count failed:', err.message);
+  } catch {
+    console.error('[logger] seed today count failed');
   }
 }
 
@@ -138,8 +138,8 @@ function flush() {
   try {
     const lines = entries.map((e) => JSON.stringify(e)).join('\n') + '\n';
     fs.appendFileSync(fp, lines, 'utf-8');
-  } catch (err) {
-    console.error('[logger] flush write failed:', err.message);
+  } catch {
+    console.error('[logger] flush write failed');
   }
 }
 
@@ -161,14 +161,14 @@ function cleanOldLogs() {
         if (fileDate < cutoff) {
           try {
             fs.unlinkSync(path.join(_logDir, f));
-          } catch (err) {
-            console.error('[logger] unlink old log failed:', err.message);
+          } catch {
+            console.error('[logger] unlink old log failed');
           }
         }
       }
     }
-  } catch (err) {
-    console.error('[logger] cleanOldLogs failed:', err.message);
+  } catch {
+    console.error('[logger] cleanOldLogs failed');
   }
 }
 
@@ -202,8 +202,8 @@ function getStats() {
       const firstMatch = files[0].match(/aegis-(\d{4}-\d{2}-\d{2})\.log/);
       if (firstMatch) recordingSince = firstMatch[1];
     }
-  } catch (err) {
-    console.error('[logger] getStats failed:', err.message);
+  } catch {
+    console.error('[logger] getStats failed');
   }
   return { logDir: _logDir, todayEntries: _todayEntries, totalFiles, recordingSince };
 }
@@ -233,8 +233,8 @@ function exportAll() {
         }
       }
     }
-  } catch (err) {
-    console.error('[logger] exportAll failed:', err.message);
+  } catch {
+    console.error('[logger] exportAll failed');
   }
   return all;
 }

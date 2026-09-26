@@ -73,6 +73,24 @@ describe('logger', () => {
     expect(files).toHaveLength(0);
   });
 
+  it('does not copy a private write error into operational diagnostics', () => {
+    logger.init({ userDataPath: tmpDir });
+    logger.info('fixture', 'queued entry');
+    const append = vi.spyOn(fs, 'appendFileSync').mockImplementation(() => {
+      throw new Error('PRIVATE_LOG_PATH_CANARY');
+    });
+    const output = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      logger.flush();
+      expect(output).toHaveBeenCalledWith('[logger] flush write failed');
+      expect(JSON.stringify(output.mock.calls)).not.toContain('PRIVATE_LOG_PATH_CANARY');
+    } finally {
+      append.mockRestore();
+      output.mockRestore();
+    }
+  });
+
   it('auto-flush at FLUSH_THRESHOLD (50)', () => {
     logger.init({ userDataPath: tmpDir });
     for (let i = 0; i < 50; i++) {
