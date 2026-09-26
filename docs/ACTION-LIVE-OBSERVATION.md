@@ -8,13 +8,14 @@ OS process, or cover other agent tools and descendants.
 
 ## Connect
 
-Append `--observe <new-observation.json>` to one of the four owner commands:
+Append `--observe <new-observation.json>` to one of these owner commands:
 
 ```text
 node src/main/main.js --action-mcp-stdio <policy> <request> --observe <new-observation.json>
 node src/main/main.js --action-mcp-catalog-stdio <catalog> --observe <new-observation.json>
 node src/main/main.js --action-mcp-review <policy> <request> <new-review.json> --observe <new-observation.json>
 node src/main/main.js --action-mcp-catalog-review <catalog> <new-review.json> --observe <new-observation.json>
+node src/main/main.js --action-mcp-delete-review <policy> <request> <new-review.json> --observe <new-observation.json>
 ```
 
 Use a private local directory controlled by the operator for the new descriptor.
@@ -65,6 +66,10 @@ Action attempts, owner invocations, settlements, failures and cancellation
 requests keep their [MCP status meanings](ACTION-MCP-STATUS.md). An owner call can
 settle with deny/ask without a launch; cancellation is not verified termination.
 Configuration preflight remains a separate captured result.
+The selected-file deletion route is labeled separately from executable actions.
+Its attempt count is for calls to that one selected MCP deletion tool. A settled
+call alone does not prove that unlink happened; inspect the returned deletion
+report for the operation state. No outside-route blocking is established.
 
 ## Boundary and retention
 

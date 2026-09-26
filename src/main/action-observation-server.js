@@ -11,6 +11,12 @@ const LIMITS = Object.freeze({ heartbeatMs: 1000, authMs: 3000, attempts: 8, lif
  * @param {string} file New descriptor. @param {string} route Selected route.
  * @param {string} selection Fixed selection kind. @returns {Promise<object>} Observer hook and cleanup. @since v0.15.1 */
 async function startActionObservation(file, route, selection) {
+  if (
+    !['mcp-stdio', 'mcp-review'].includes(route) ||
+    !['single-action', 'catalog', 'selected-file-delete'].includes(selection) ||
+    (selection === 'selected-file-delete' && route !== 'mcp-review')
+  )
+    throw new Error('observation-unavailable');
   const token = randomBytes(32);
   const connectionId = randomUUID();
   const peers = new Set();
@@ -147,9 +153,11 @@ async function startActionObservation(file, route, selection) {
 async function runObservedMcp(args, run, route) {
   const index = args.indexOf('--observe');
   const catalog = args[0].includes('-catalog-');
+  const deletion = args[0] === '--action-mcp-delete-review';
   const expected = (catalog ? 2 : 3) + (route === 'mcp-review' ? 1 : 0);
   if (
     index !== expected ||
+    (deletion && route !== 'mcp-review') ||
     args.length !== expected + 2 ||
     !args[index + 1] ||
     args.slice(1, index).some((arg) => !arg || arg.startsWith('--')) ||
@@ -161,7 +169,7 @@ async function runObservedMcp(args, run, route) {
     observer = await startActionObservation(
       args[index + 1],
       route,
-      catalog ? 'catalog' : 'single-action',
+      catalog ? 'catalog' : deletion ? 'selected-file-delete' : 'single-action',
     );
     return await run(args.slice(0, index), { observe: observer.observe });
   } catch {

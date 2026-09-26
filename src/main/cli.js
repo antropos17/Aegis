@@ -30,8 +30,8 @@ Options:
   --action-mcp-delete-review <policy.json> <request.json> <new-endpoint.json>  Review one selected-file deletion per MCP call
   --action-mcp-connect <endpoint.json>  Connect an MCP client to an operator review terminal
   --action-mcp-stdio <policy.json> <request.json>  Serve one selected action through finite MCP stdio
-    Execution MCP stdio/review routes accept: --observe <new-private-endpoint.json> (read-only desktop observation)
-    Selected-file deletion review exposes connection-local MCP status; --observe is unsupported
+    MCP stdio/review routes, including selected-file deletion review, accept: --observe <new-private-endpoint.json>
+    Observation is read-only and covers only the selected MCP connection
   --action-exec-confirm <policy.json> <request.json>  Review exact action in a terminal and confirm one launch
   --action-delete-file-confirm <policy.json> <request.json>  Confirm one exact regular-file deletion
   --action-exec-json <policy.json> <request.json>  Run one explicit executable request under local policy
@@ -116,6 +116,7 @@ async function handleCLI(argv) {
       '--action-mcp-stdio',
       '--action-mcp-catalog-stdio',
       '--action-mcp-review',
+      '--action-mcp-delete-review',
       '--action-mcp-catalog-review',
     ].includes(flag) &&
     args.includes('--observe')

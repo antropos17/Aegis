@@ -102,6 +102,14 @@ it('removes its descriptor on normal cleanup and leaves existing files unchanged
   await expect(readFile(next)).rejects.toMatchObject({ code: 'ENOENT' });
 });
 
+it('rejects a deletion selection on the stdio route before publishing a descriptor', async () => {
+  const file = await fixture();
+  await expect(startActionObservation(file, 'mcp-stdio', 'selected-file-delete')).rejects.toThrow(
+    'observation-unavailable',
+  );
+  await expect(readFile(file)).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
 it('keeps executor lifetime independent from observer stop', async () => {
   const file = await fixture();
   const server = await startActionObservation(file, 'mcp-review', 'catalog');
@@ -228,4 +236,12 @@ it('bounds self-reported metadata and rejects contradictory counts', () => {
   expect(schema.validObservation(frame({ ownerSettled: 1 }))).toBe(false);
   expect(schema.validObservation(frame({ state: 'observed', client: null }))).toBe(false);
   expect(schema.validObservation(frame({ selectedActionCount: 9 }))).toBe(false);
+  const deletion = frame({ route: 'mcp-review', selection: 'selected-file-delete' });
+  expect(schema.validObservation(deletion)).toBe(true);
+  expect(schema.validObservation({ ...deletion, route: 'mcp-stdio' })).toBe(false);
+  expect(schema.validObservation({ ...deletion, selectedActionCount: 2 })).toBe(false);
+  expect(schema.validObservation({ ...deletion, selection: 'selected-file' })).toBe(false);
+  expect(schema.follows(deletion, { ...deletion, sequence: 2, selection: 'single-action' })).toBe(
+    false,
+  );
 });

@@ -122,6 +122,7 @@
     </p>{/if}
   {#if observation?.snapshot}
     {@const snapshot = observation.snapshot}
+    {@const fileDeletion = snapshot.selection === 'selected-file-delete'}
     <dl>
       <div>
         <dt>{$t('Execution route')}</dt>
@@ -129,7 +130,15 @@
       </div>
       <div>
         <dt>{$t('Selection type')}</dt>
-        <dd>{$t(snapshot.selection === 'catalog' ? 'Action catalog' : 'Single action')}</dd>
+        <dd>
+          {$t(
+            snapshot.selection === 'catalog'
+              ? 'Action catalog'
+              : fileDeletion
+                ? 'Selected file deletion'
+                : 'Single action',
+          )}
+        </dd>
       </div>
       <div>
         <dt>{$t('Client label · self-reported')}</dt>
@@ -139,15 +148,17 @@
         </dd>
       </div>
       <div>
-        <dt>{$t('Selected actions')}</dt>
+        <dt>{$t(fileDeletion ? 'Selected file operations' : 'Selected actions')}</dt>
         <dd>{snapshot.selectedActionCount}</dd>
       </div>
       <div>
-        <dt>{$t('Action attempts')}</dt>
+        <dt>{$t(fileDeletion ? 'File deletion attempts' : 'Action attempts')}</dt>
         <dd>{snapshot.actionAttempts}</dd>
       </div>
       <div>
-        <dt>{$t('Owner calls settled / started')}</dt>
+        <dt>
+          {$t(fileDeletion ? 'Deletion calls settled / started' : 'Owner calls settled / started')}
+        </dt>
         <dd>{snapshot.ownerSettled} / {snapshot.ownerInvocations}</dd>
       </div>
     </dl>
@@ -159,7 +170,9 @@
       </p>
       <p>
         {$t(
-          'Counts describe this MCP connection only. A settled call does not prove a command ran or a process stopped.',
+          fileDeletion
+            ? 'Counts describe this MCP connection only. A settled deletion call does not prove a file was unlinked.'
+            : 'Counts describe this MCP connection only. A settled call does not prove a command ran or a process stopped.',
         )}
       </p>
     </details>

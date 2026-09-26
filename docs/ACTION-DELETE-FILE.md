@@ -40,10 +40,13 @@ The selection is checked on calls and after review; there is no continuous
 filesystem watcher.
 
 The connection-local `aegis_route_status` result uses `selected-file-only` for
-this route and reports attempts and owner outcomes. The desktop `--observe`
-endpoint is not available for deletion: its current single-action presentation
-describes process execution. These counters do not prove blocking outside this
-selected route.
+this route and reports attempts and owner outcomes. Add
+`--observe <new-observation.json>` after the broker endpoint to publish a separate,
+read-only desktop observation endpoint. **Action control → Live route observation**
+labels its selection as file deletion and shows operation attempts and owner
+settlements. Its snapshots contain no selected path, contents or bearer. A settled
+call does not by itself prove unlink; inspect the returned deletion report for its
+operation state. These counters do not prove blocking outside this selected route.
 
 The request and policy are bounded JSON files selected by the operator:
 
