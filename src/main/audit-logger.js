@@ -146,8 +146,8 @@ function init(opts) {
   _logDir = path.join(opts.userDataPath, 'audit-logs');
   try {
     if (!fs.existsSync(_logDir)) fs.mkdirSync(_logDir, { recursive: true });
-  } catch (err) {
-    console.error('[audit-logger] mkdirSync failed:', err.message);
+  } catch {
+    console.error('[audit-logger] mkdirSync failed');
   }
   _seedCounters();
   _flushTimer = setInterval(flush, FLUSH_INTERVAL);
@@ -172,8 +172,8 @@ function _openIndex() {
   try {
     const state = auditIndex.open({ userDataPath: _userDataPath, loadSqlite: _loadSqlite });
     if (state === 'building') _indexTask = indexRebuild.schedule(_logDir);
-  } catch (err) {
-    console.error('[audit-logger] index open failed:', err.message);
+  } catch {
+    console.error('[audit-logger] index open failed');
   }
 }
 
@@ -200,9 +200,9 @@ function _indexAppend(fp, bytes, lines) {
     if (!applied && auditIndex.status().state === 'building') {
       _indexTask = indexRebuild.schedule(_logDir);
     }
-  } catch (err) {
-    auditIndex.setState('failed', new Error('audit-index: flush projection failed'));
-    console.error('[audit-logger] index append failed:', err.message);
+  } catch {
+    auditIndex.setState('failed');
+    console.error('[audit-logger] index append failed');
   }
 }
 
@@ -248,8 +248,8 @@ function _seedCounters() {
         }
       }
     }
-  } catch (err) {
-    console.error('[audit-logger] seed counters failed:', err.message);
+  } catch {
+    console.error('[audit-logger] seed counters failed');
   }
 }
 
@@ -470,14 +470,14 @@ function cleanOldLogs() {
         if (fileDate < cutoff) {
           try {
             fs.unlinkSync(path.join(_logDir, f));
-          } catch (err) {
-            console.error('[audit-logger] unlink old log failed:', err.message);
+          } catch {
+            console.error('[audit-logger] unlink old log failed');
           }
         }
       }
     }
-  } catch (err) {
-    console.error('[audit-logger] cleanOldLogs failed:', err.message);
+  } catch {
+    console.error('[audit-logger] cleanOldLogs failed');
   }
 }
 
@@ -537,8 +537,8 @@ function getStats() {
       totalSize += stat.size;
       if (fp === todayPath) currentSize = stat.size;
     }
-  } catch (err) {
-    console.error('[audit-logger] getStats failed:', err.message);
+  } catch {
+    console.error('[audit-logger] getStats failed');
   }
   return {
     totalEntries: _totalEntries,
@@ -756,11 +756,7 @@ function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT, types, boundaryO
   }
   let remainingAtBoundary = boundaryOffset ?? 0;
   if (typeof beforeTs !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(beforeTs)) {
-    const got =
-      typeof beforeTs === 'string'
-        ? `malformed string ${JSON.stringify(beforeTs.slice(0, 40))}`
-        : typeof beforeTs;
-    console.warn(`[audit-logger] getEntriesBefore: invalid beforeTs (${got}) — returning []`);
+    console.warn('[audit-logger] getEntriesBefore: invalid beforeTs — returning []');
     return [];
   }
   limit =
@@ -821,8 +817,8 @@ function getEntriesBefore(beforeTs, limit = DEFAULT_READ_LIMIT, types, boundaryO
       });
       if (results.length >= limit) break;
     }
-  } catch (err) {
-    console.error('[audit-logger] getEntriesBefore failed:', err.message);
+  } catch {
+    console.error('[audit-logger] getEntriesBefore failed');
   }
   // Return oldest-first
   results.reverse();

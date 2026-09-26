@@ -310,7 +310,7 @@ describe('audit-index', () => {
 
   // --- T7: a corrupted database is reported, discarded and rebuilt ---------------------------
 
-  it('T7: a corrupt index file is warned about with the reason and path, then removed and rebuilt', async () => {
+  it('T7: a corrupt index file is warned about with a fixed reason, then removed and rebuilt', async () => {
     const day = daysAgo(1);
     writeDay(day, [chained(hashchain.GENESIS, 0, { timestamp: `${day}T09:00:00.000Z` }).line]);
     await bringUp();
@@ -326,8 +326,7 @@ describe('audit-index', () => {
 
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0][0]).toBe('audit-index');
-    expect(warn.mock.calls[0][2]).toMatchObject({ file: indexFile() });
-    expect(warn.mock.calls[0][2].reason).toMatch(/quick_check/);
+    expect(warn.mock.calls[0][2]).toEqual({ reason: 'quick-check-error' });
     expect(index.status().state).toBe('ready');
     expect(rowCount()).toBe(1);
     expect(fs.existsSync(indexFile())).toBe(true);
@@ -516,8 +515,7 @@ describe('audit-index', () => {
     await restart();
     await bringUp();
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0][2]).toMatchObject({ file: indexFile() });
-    expect(warn.mock.calls[0][2].reason).toMatch(/user_version 0/);
+    expect(warn.mock.calls[0][2]).toEqual({ reason: 'schema-version-mismatch' });
     expect(db().prepare('PRAGMA user_version').get().user_version).toBe(
       index.AUDIT_INDEX_SCHEMA_VERSION,
     );

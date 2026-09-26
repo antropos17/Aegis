@@ -194,7 +194,7 @@ async function reconcile(logDir) {
 /**
  * Run {@link reconcile} on the next `setImmediate`, once: a request while one is in flight
  * joins it. The index is `'building'` from this call until the reconcile marks it ready; a
- * throw marks it `'failed'` with the error — unless the database was closed underneath it
+ * throw marks it `'failed'` with a fixed code — unless the database was closed underneath it
  * (shutdown), which is not a failure.
  * @param {string} logDir - the `audit-logs` directory
  * @returns {Promise<void>} settles when the reconcile has finished either way
@@ -205,10 +205,10 @@ function schedule(logDir) {
   index.setState('building');
   _pending = yieldTick()
     .then(() => reconcile(logDir))
-    .catch((err) => {
+    .catch(() => {
       if (index.status().state === 'closed') return;
-      logger.error('audit-index', 'rebuild failed', { error: err.message, logDir });
-      index.setState('failed', err);
+      logger.error('audit-index', 'rebuild failed', { code: 'index-rebuild-failed' });
+      index.setState('failed');
     })
     .finally(() => {
       _pending = null;
