@@ -333,6 +333,84 @@ describe('risk store — two instances of one agent (C1)', () => {
   });
 });
 
+describe('risk store — saved file exceptions', () => {
+  it('excludes only the matched file from scoring, preserving other evidence and a namesake process', () => {
+    inputs.agents.set([
+      { agent: 'Claude Code', pid: 100, instanceId: CLAUDE_ID, cwd: null, category: 'ai' },
+      { agent: 'Claude Code', pid: 200, instanceId: SECOND_CLAUDE_ID, cwd: null, category: 'ai' },
+    ]);
+    inputs.events.set([
+      [
+        fileEvent({ file: 'C:/project-a/.env', sensitive: true, reason: 'Environment variables' }),
+        fileEvent({ file: 'C:/project-a/.ssh/id_rsa', sensitive: true, reason: 'SSH keys/config' }),
+        fileEvent({
+          pid: 200,
+          instanceId: SECOND_CLAUDE_ID,
+          file: 'C:/project-b/.env',
+          sensitive: true,
+          reason: 'Environment variables',
+        }),
+      ],
+    ]);
+    inputs.network.set([
+      conn({ ...FLAGGED, domain: 'unlisted.example' }),
+      conn({
+        ...FLAGGED,
+        pid: 200,
+        instanceId: SECOND_CLAUDE_ID,
+        domain: 'other.example',
+      }),
+    ]);
+
+    const [beforeA, beforeB] = get(enrichedAgents);
+    inputs.falsePositives.set([
+      { agentName: 'Claude Code', pattern: '^C:/project-a/\\.env$', timestamp: NOW },
+    ]);
+    const [afterA, afterB] = get(enrichedAgents);
+
+    expect(afterA.fileCount).toBe(beforeA.fileCount);
+    expect(afterA.sensitiveFiles).toBe(beforeA.sensitiveFiles);
+    expect(afterA.networkCount).toBe(beforeA.networkCount);
+    expect(afterA.riskScore).toBeGreaterThan(0);
+    expect(afterA.riskScore).toBeLessThan(beforeA.riskScore);
+    expect(afterA.riskEvidence?.adjustment).toBe(afterA.riskScore - beforeA.riskScore);
+    expect(
+      afterA.riskEvidence?.factors.find((f) => f.id === 'credentials')?.points,
+    ).toBeGreaterThan(0);
+    expect(afterA.riskEvidence?.factors.find((f) => f.id === 'endpoints')?.points).toBe(8);
+    expect(afterB.riskScore).toBe(beforeB.riskScore);
+    expect(afterB.riskEvidence?.adjustment).toBe(0);
+  });
+
+  it('matches the agent label stamped on an event after its live catalog name changes', () => {
+    inputs.agents.set([
+      { agent: 'Renamed Custom', pid: 100, instanceId: CLAUDE_ID, cwd: null, category: 'ai' },
+    ]);
+    inputs.events.set([
+      [
+        fileEvent({
+          agent: 'Old Custom',
+          file: '/project/.env',
+          sensitive: true,
+          reason: 'Environment variables',
+        }),
+      ],
+    ]);
+    const before = get(enrichedAgents)[0];
+    expect(before.riskScore).toBeGreaterThan(0);
+
+    const entry = { pattern: '^/project/\\.env$', timestamp: NOW };
+    inputs.falsePositives.set([{ agentName: 'Renamed Custom', ...entry }]);
+    expect(get(enrichedAgents)[0].riskScore).toBe(before.riskScore);
+
+    inputs.falsePositives.set([{ agentName: 'Old Custom', ...entry }]);
+    const after = get(enrichedAgents)[0];
+    expect(after.riskScore).toBeLessThan(before.riskScore);
+    expect(after.fileCount).toBe(before.fileCount);
+    expect(after.riskEvidence?.adjustment).toBe(after.riskScore - before.riskScore);
+  });
+});
+
 describe('risk store — a recycled pid (C6)', () => {
   // C6's RISK-STORE half. The suite at the bottom of this file pins `eventsByInstance`,
   // the index; this pins the same claim one level up, on the enriched object AgentCard
