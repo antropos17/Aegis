@@ -9,7 +9,8 @@ Version 1 remains connection-local and accepts no store argument.
 
 Manifest version 3 adds an exact configured HTTP(S) route binding to the same
 persistent one-attempt grants. It is supported by the HTTP/HTTPS gateway; stdio
-continues to use version 2. A version 3 manifest adds one top-level `route` object
+uses version 2 or the version 5 profile below. A version 3 manifest adds one
+top-level `route` object
 while retaining the version 2 `tools` and `grants` shapes and store argument.
 For a loopback endpoint, set `schemaVersion` to 3 and add this root field:
 
@@ -68,9 +69,48 @@ The tag does not independently attest the server or prove which account the
 server associates with the bearer. A service can change that association without
 changing the token. The store key must remain with its permission records;
 copying or replacing the store changes the trust boundary. Same-account tampering,
-protected grant issuance, stdio binding, general recipient semantics and
+protected grant issuance, general recipient semantics and
 outside-route enforcement remain open. Versions 1–3 retain their previous
 contracts, including version 3's lack of credential binding.
+
+Manifest version 5 binds an explicit stdio grant to the effective direct launch
+descriptor across gateway restarts. Prepare the tag with the same policy, request
+and grant store that the gateway will use:
+
+```text
+node src/main/main.js --mcp-gateway-stdio-route-tag policy.json request.json <absolute-store-directory>
+```
+
+The command requires a current exact policy `allow`, creates the same private
+32-byte `.credential-key` used by version 4 if absent, and returns one JSON
+`stdioRouteTag` (64 lowercase hexadecimal characters). It does not start the
+server or call a tool. Set `schemaVersion` to 5, add that top-level tag, and keep
+the version 2 `tools` and `grants` shapes. Version 5 is accepted only by the
+stdio gateway; it has no `route` or `credentialTag` field. Use the existing
+`--mcp-gateway-stdio` command with the policy, request, version 5 manifest and
+same store path.
+
+The tag is a domain-separated HMAC under the store key over the effective
+`executable`, `cwd`, ordered `args` and completed `env` passed to `spawn`. Paths
+are lexically resolved, environment names are sorted, and the platform is part
+of the tagged descriptor. This includes Windows defaults and the explicit
+`NODE_V8_COVERAGE` setting added by direct execution. No command, argument or
+environment value is printed in the tag command's report. The gateway checks
+the existing key and tag before opening upstream. Before each durable grant
+consumption, it rereads the selected policy and request and checks the tag
+again. Missing, malformed or changed key material, changed launch fields, or
+changed source bytes during a connection close the route. A denied attempt does
+not create a receipt when this pre-consumption check fails.
+
+The tag binds launch strings, not executable bytes, resolved symlink targets,
+files in the working directory, dependencies, child processes or actions outside
+this gateway. A changed policy or request on a later run can use the same tag
+if it authorizes the same effective launch. Changing the launch requires a new
+tag and a new grant ID; consumed IDs remain spent in the same store. Restrict
+access to the key and configuration, and apply the Windows ACL caveat above.
+Possession of both key and tag permits offline guessing of weak launch values.
+Versions 1–4 keep their previous contracts. Protected grant issuance, verified
+task identity, same-account tampering and outside-route enforcement remain open.
 
 ```text
 node src/main/main.js --mcp-gateway-http endpoint.json manifest-v2.json <absolute-store-directory>
@@ -100,7 +140,9 @@ verified task or caller identity. Recipient restrictions remain exact argument
 matching and depend on what the tool actually does.
 
 The gateway consumes permission persistently before catalog/route rechecks and
-before sending tools/call. Store errors, expiration, malformed output, catalog
+before sending tools/call. Version 5 additionally rechecks source configuration,
+the key and the effective stdio route before consumption. Store errors,
+expiration, malformed output, catalog
 changes, cancellation and process death never refund that permission. The clock
 is checked at consumption and immediately before dispatch. Expiry does not stop
 an already dispatched operation, and this profile does not provide a trusted

@@ -38,7 +38,7 @@ async function verifyStore(store) {
     throw Error('grant-store-changed');
 }
 
-/** Read the private store key used to bind a grant to selected bearer bytes.
+/** Read the private store key used for HTTP bearer or stdio route tags.
  * A missing, replaced or malformed key never falls back to an unbound grant.
  * @param {string} storePath Explicit absolute grant-store directory.
  * @param {AbortSignal} [signal] Owning connection cancellation.
@@ -93,7 +93,7 @@ async function readGatewayCredentialKey(storePath, signal) {
   return key;
 }
 
-/** Explicitly create the store's private credential key once, serialized with grants.
+/** Explicitly create the store's private tag key once, serialized with grants.
  * An incomplete key is retained and causes subsequent reads to fail closed.
  * @param {string} storePath Explicit absolute grant-store directory.
  * @returns {Promise<Buffer>} Existing or new 32-byte key; caller must zero it.

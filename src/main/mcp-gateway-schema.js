@@ -134,18 +134,23 @@ function matchesSchema(schema, value) {
 function validManifest(value) {
   if (
     !object(value) ||
-    ![1, 2, 3, 4].includes(value.schemaVersion) ||
+    ![1, 2, 3, 4, 5].includes(value.schemaVersion) ||
     !keys(
       value,
-      value.schemaVersion === 4
-        ? ['schemaVersion', 'route', 'credentialTag', 'tools', 'grants']
-        : value.schemaVersion === 3
-          ? ['schemaVersion', 'route', 'tools', 'grants']
-          : ['schemaVersion', 'tools', 'grants'],
+      value.schemaVersion === 5
+        ? ['schemaVersion', 'stdioRouteTag', 'tools', 'grants']
+        : value.schemaVersion === 4
+          ? ['schemaVersion', 'route', 'credentialTag', 'tools', 'grants']
+          : value.schemaVersion === 3
+            ? ['schemaVersion', 'route', 'tools', 'grants']
+            : ['schemaVersion', 'tools', 'grants'],
     ) ||
-    (value.schemaVersion >= 3 && (!Object.hasOwn(value, 'route') || !route(value.route))) ||
+    ([3, 4].includes(value.schemaVersion) &&
+      (!Object.hasOwn(value, 'route') || !route(value.route))) ||
     (value.schemaVersion === 4 &&
       (typeof value.credentialTag !== 'string' || !/^[a-f0-9]{64}$/.test(value.credentialTag))) ||
+    (value.schemaVersion === 5 &&
+      (typeof value.stdioRouteTag !== 'string' || !/^[a-f0-9]{64}$/.test(value.stdioRouteTag))) ||
     !Array.isArray(value.tools) ||
     !value.tools.length ||
     value.tools.length > 8 ||

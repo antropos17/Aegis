@@ -11,6 +11,7 @@ const _cliFlags = new Set([
   '--mcp-gateway-http',
   '--mcp-gateway-stdio',
   '--mcp-gateway-credential-tag',
+  '--mcp-gateway-stdio-route-tag',
   '--action-mcp-config-json',
   '--action-catalog-check-json',
   '--action-route-check-json',
@@ -65,6 +66,7 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
           '--action-catalog-check-json',
           '--action-mcp-config-json',
           '--mcp-gateway-credential-tag',
+          '--mcp-gateway-stdio-route-tag',
         ].includes(process.argv[2])
       ) {
         // These commands emit small bounded reports; drain before ending even
