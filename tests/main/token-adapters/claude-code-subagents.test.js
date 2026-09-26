@@ -278,6 +278,31 @@ describe('readSubagentUsage — helper (DI, caller-owned state)', () => {
     expect(readSubagentUsage(dir, st, _extractUsage, onlyMeta, log)).toEqual([]);
   });
 
+  it('does not log a malformed subagent transcript excerpt', () => {
+    const SECRET = 'S3CR3T43';
+    const fs = makeFs({
+      [subagentFile(CWD, SID, 'agent-1.jsonl')]: jsonl(SECRET + ' invalid json'),
+    });
+
+    expect(readSubagentUsage(dir, freshState(), _extractUsage, fs, log)).toEqual([]);
+    expect(logWarn).toHaveBeenCalledOnce();
+    expect(JSON.stringify(logWarn.mock.calls)).not.toContain(SECRET);
+  });
+
+  it('does not log private details from a subagent read failure', () => {
+    const SECRET = 'PRIVATE_SUBAGENT_READ_SENTINEL';
+    const fs = makeFs({
+      [subagentFile(CWD, SID, 'agent-1.jsonl')]: jsonl(assistantLine({ id: 's1' })),
+    });
+    fs.readRange = () => {
+      throw new Error(SECRET);
+    };
+
+    expect(readSubagentUsage(dir, freshState(), _extractUsage, fs, log)).toEqual([]);
+    expect(logWarn).toHaveBeenCalledOnce();
+    expect(JSON.stringify(logWarn.mock.calls)).not.toContain(SECRET);
+  });
+
   it('(h) offset is pinned at the readRange call site: first read starts at 0 and advances to EOF; a no-append re-read never re-reads from 0 (seenIds-independent regression guard)', () => {
     const file = subagentFile(CWD, SID, 'agent-1.jsonl');
     // A multibyte char in the line content makes file BYTES > char count, so the

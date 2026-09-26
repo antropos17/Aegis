@@ -10,8 +10,8 @@
  *   reuse → `projects/<enc-cwd>/<sessionId>.jsonl` → tail NEW bytes; parse
  *   `type==="assistant"` → dedup by `message.id` (a message spans N usage-repeating
  *   lines; per-line would N×-count) → delta. PRIVACY (gating): allowlist usage
- *   numbers + model + id only — never content, in objects or logs (errors log
- *   `{ error }`); scope is monitored PIDs, no history sweep.
+ *   numbers + model + id only — never content, in objects or logs (errors use
+ *   fixed codes); scope is monitored PIDs, no history sweep.
  *
  *   SUBAGENTS: delegated (Task) turns log to nested
  *   `projects/<enc>/<sessionId>/subagents/agent-*.jsonl` and ARE summed (see
@@ -194,9 +194,9 @@ function _tailMain(tPath, st, pid) {
     let parsed;
     try {
       parsed = JSON.parse(line);
-    } catch (err) {
+    } catch {
       _log.warn('token-feed:claude-code', 'skipped unparseable transcript line', {
-        error: err.message,
+        error: 'transcript-parse-failed',
       });
       continue;
     }
@@ -254,9 +254,9 @@ async function readUsage(procs) {
     let deltas;
     try {
       deltas = _readOneProc(proc);
-    } catch (err) {
+    } catch {
       _log.warn('token-feed:claude-code', 'adapter read failed for a pid', {
-        error: err.message,
+        error: 'adapter-read-failed',
       });
       continue;
     }

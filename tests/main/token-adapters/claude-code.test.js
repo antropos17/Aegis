@@ -327,15 +327,15 @@ describe('readUsage — privacy invariant (regression anchor)', () => {
     expect(JSON.stringify(out)).not.toContain(SECRET);
   });
 
-  it('logs only { error } on a malformed line — never the raw line content', async () => {
+  it('does not log a malformed transcript excerpt', async () => {
     const cwd = 'X:\\proj';
     const sid = 'sid-bad';
-    const SECRET = 'GARBAGE_WITH_SECRET';
+    const SECRET = 'S3CR3T42';
     _setFsForTest(
       makeFs({
         [sessionsPath(8)]: registry({ pid: 8, sessionId: sid, cwd }),
         [transcriptPath(cwd, sid)]:
-          `not json ${SECRET}\n` + jsonl(assistantLine({ id: 'm', input: 1, output: 1 })),
+          `${SECRET} invalid json\n` + jsonl(assistantLine({ id: 'm', input: 1, output: 1 })),
       }),
     );
 
@@ -348,6 +348,24 @@ describe('readUsage — privacy invariant (regression anchor)', () => {
       expect(Object.keys(meta)).toEqual(['error']);
       expect(JSON.stringify(call)).not.toContain(SECRET);
     }
+  });
+
+  it('does not log private details from a transcript read failure', async () => {
+    const cwd = 'X:\\proj';
+    const sid = 'sid-read-error';
+    const SECRET = 'PRIVATE_READ_ERROR_SENTINEL';
+    const fixture = makeFs({
+      [sessionsPath(8)]: registry({ pid: 8, sessionId: sid, cwd }),
+      [transcriptPath(cwd, sid)]: jsonl(assistantLine({ id: 'm', input: 1 })),
+    });
+    fixture.readRange = () => {
+      throw new Error(SECRET);
+    };
+    _setFsForTest(fixture);
+
+    expect(await readUsage([{ pid: 8, startTime: STARTED }])).toEqual([]);
+    expect(logWarn).toHaveBeenCalledOnce();
+    expect(JSON.stringify(logWarn.mock.calls)).not.toContain(SECRET);
   });
 });
 
