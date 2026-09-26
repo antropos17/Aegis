@@ -50,6 +50,7 @@ const mockConfig = {
   getDefaultPermissions: vi.fn(() => ({ fileAccess: 'monitor' })),
   getCustomAgents: vi.fn(() => []),
   saveCustomAgents: vi.fn(),
+  addFalsePositive: vi.fn(),
 };
 
 const mockScanner = {
@@ -94,6 +95,15 @@ const mockAudit = {
   getEntriesBefore: vi.fn(() => []),
 };
 const mockStreamExport = { writeAuditExport: vi.fn(async () => ({ success: true })) };
+const mockRules = {
+  getAllRules: vi.fn(() => new Map([['rule-a', { id: 'rule-a' }]])),
+  reloadRules: vi.fn(),
+};
+const mockBlocklist = {
+  add: vi.fn((entry) => entry),
+  remove: vi.fn(() => true),
+  list: vi.fn(() => []),
+};
 
 const mockLogger = {
   getStats: vi.fn(() => ({
@@ -125,6 +135,8 @@ const exporterPath = path.resolve(__dirname, '../../src/main/exports.js');
 const auditPath = path.resolve(__dirname, '../../src/main/audit-logger.js');
 const streamExportPath = path.resolve(__dirname, '../../src/main/audit-export-stream.js');
 const loggerPath = path.resolve(__dirname, '../../src/main/logger.js');
+const rulesPath = path.resolve(__dirname, '../../src/main/rule-loader.js');
+const blocklistPath = path.resolve(__dirname, '../../src/main/blocklist.js');
 const platformPath = path.resolve(__dirname, '../../src/main/platform/index.js');
 const ipcPath = path.resolve(__dirname, '../../src/main/ipc-handlers.js');
 
@@ -151,6 +163,8 @@ Module._load = function (request, parent, _isMain) {
     if (resolved + '.js' === streamExportPath) return mockStreamExport;
     if (resolved === loggerPath.replace(/\.js$/, '') || resolved + '.js' === loggerPath)
       return mockLogger;
+    if (resolved + '.js' === rulesPath) return mockRules;
+    if (resolved + '.js' === blocklistPath) return mockBlocklist;
     if (
       resolved === platformPath.replace(/\.js$/, '') ||
       resolved.replace(/[/\\]index$/, '') + path.sep + 'index.js' === platformPath ||
@@ -181,6 +195,7 @@ describe('ipc-handlers', () => {
     mockElectron.shell.openExternal.mockClear();
     mockElectron.shell.openPath.mockReset();
     mockElectron.dialog.showSaveDialog.mockReset();
+    mockElectron.dialog.showOpenDialog.mockReset();
     mockElectron.dialog.showMessageBox.mockReset();
     mockElectron.app.getPath.mockReset().mockReturnValue(os.tmpdir());
     mockLogger.error.mockClear();
@@ -203,7 +218,15 @@ describe('ipc-handlers', () => {
     });
     mockConfig.saveSettings.mockClear();
     mockConfig.applySettings.mockClear();
+    mockConfig.saveInstancePermissions.mockClear();
+    mockConfig.getDefaultPermissions.mockClear();
+    mockConfig.getCustomAgents.mockClear();
     mockConfig.saveCustomAgents.mockClear();
+    mockConfig.addFalsePositive.mockClear();
+    mockRules.getAllRules.mockClear();
+    mockRules.reloadRules.mockClear();
+    mockBlocklist.add.mockClear();
+    mockBlocklist.remove.mockClear();
     mockBaselines.getBaselines.mockClear().mockReturnValue({ agents: {} });
     mockBaselines.getSessionData.mockClear().mockReturnValue({});
 
@@ -224,7 +247,7 @@ describe('ipc-handlers', () => {
     return handlers[channel];
   }
 
-  function registerOwnedRenderer() {
+  function registerOwnedRenderer(extraDeps = {}) {
     const rendererUrl =
       process.env.VITE_DEV_SERVER_URL ||
       pathToFileURL(path.join(__dirname, '../../dist/renderer/index.html')).href;
@@ -235,7 +258,7 @@ describe('ipc-handlers', () => {
       isDestroyed: vi.fn(() => false),
     };
     const window = { webContents: contents, isDestroyed: vi.fn(() => false) };
-    ipcHandlers.init({ getWindow: () => window });
+    ipcHandlers.init({ getWindow: () => window, ...extraDeps });
     ipcHandlers.register();
     return { window, contents, frame, event: { sender: contents, senderFrame: frame } };
   }
@@ -245,6 +268,180 @@ describe('ipc-handlers', () => {
     mockElectron.app.getPath.mockReturnValue(threatTempRoot);
     return registerOwnedRenderer();
   }
+
+  it.each([
+    ['foreign sender', ({ event }) => ({ ...event, sender: {} })],
+    [
+      'child frame',
+      ({ event }) => ({
+        ...event,
+        senderFrame: { url: event.senderFrame.url, isDestroyed: () => false },
+      }),
+    ],
+    [
+      'stale frame',
+      ({ event, contents }) => {
+        contents.mainFrame = { ...event.senderFrame };
+        return event;
+      },
+    ],
+    [
+      'foreign frame document',
+      ({ event, frame }) => {
+        frame.url = 'https://other.invalid/';
+        return event;
+      },
+    ],
+    [
+      'foreign webContents document',
+      ({ event, contents }) => {
+        contents.getURL.mockReturnValue('https://other.invalid/');
+        return event;
+      },
+    ],
+  ])('denies settings and policy mutations from a %s before side effects', async (_name, alter) => {
+    const updates = { preferencesChanged: vi.fn() };
+    const renderer = registerOwnedRenderer({ updates });
+    const event = alter(renderer);
+    const denied = { success: false, error: 'Renderer request denied' };
+    for (const [channel, args] of [
+      ['save-settings', [{ darkMode: true }]],
+      ['save-agent-permissions', [{ Claude: { fileAccess: 'allow' } }]],
+      ['save-instance-permissions', [null]],
+      ['save-custom-agents', [[{ id: 'custom' }]]],
+      ['reset-permissions-to-defaults', []],
+      ['import-config', []],
+      ['add-false-positive', [{ agentName: 'Claude', pattern: 'safe', timestamp: 1 }]],
+      ['rules:reload', []],
+      ['blocklist-add', [{ signature: 'claude-code', pid: null }]],
+      ['blocklist-remove', [{ signature: 'claude-code', pid: null }]],
+    ]) {
+      expect(await getHandler(channel)(event, ...args), channel).toEqual(denied);
+    }
+    expect(mockConfig.getSettings).not.toHaveBeenCalled();
+    expect(mockConfig.saveSettings).not.toHaveBeenCalled();
+    expect(mockConfig.applySettings).not.toHaveBeenCalled();
+    expect(mockConfig.saveInstancePermissions).not.toHaveBeenCalled();
+    expect(mockConfig.getDefaultPermissions).not.toHaveBeenCalled();
+    expect(mockConfig.getCustomAgents).not.toHaveBeenCalled();
+    expect(mockConfig.saveCustomAgents).not.toHaveBeenCalled();
+    expect(mockConfig.addFalsePositive).not.toHaveBeenCalled();
+    expect(updates.preferencesChanged).not.toHaveBeenCalled();
+    expect(mockRules.reloadRules).not.toHaveBeenCalled();
+    expect(mockRules.getAllRules).not.toHaveBeenCalled();
+    expect(mockBlocklist.add).not.toHaveBeenCalled();
+    expect(mockBlocklist.remove).not.toHaveBeenCalled();
+    expect(mockElectron.dialog.showOpenDialog).not.toHaveBeenCalled();
+  });
+
+  it('preserves successful settings and policy mutation responses for the owned renderer', async () => {
+    const updates = { preferencesChanged: vi.fn() };
+    const { event, window } = registerOwnedRenderer({ updates });
+    expect(getHandler('save-settings')(event, { darkMode: true })).toEqual({ success: true });
+    expect(mockConfig.saveSettings).toHaveBeenCalledWith({ darkMode: true });
+    expect(mockConfig.applySettings).toHaveBeenCalledOnce();
+    expect(updates.preferencesChanged).toHaveBeenCalledOnce();
+
+    const agentPermissions = { Claude: { fileAccess: 'block' } };
+    expect(getHandler('save-agent-permissions')(event, agentPermissions)).toEqual({
+      success: true,
+    });
+    expect(mockConfig.saveSettings).toHaveBeenLastCalledWith(
+      expect.objectContaining({ agentPermissions }),
+    );
+    const instance = {
+      agentName: 'Claude',
+      parentEditor: 'vscode',
+      permissions: { fileAccess: 'allow' },
+      cwd: '/fixture/work',
+    };
+    expect(getHandler('save-instance-permissions')(event, instance)).toEqual({ success: true });
+    expect(mockConfig.saveInstancePermissions).toHaveBeenCalledExactlyOnceWith(
+      'Claude',
+      'vscode',
+      instance.permissions,
+      '/fixture/work',
+    );
+    expect(getHandler('reset-permissions-to-defaults')(event)).toEqual({
+      permissions: {
+        Claude: { fileAccess: 'monitor' },
+        Copilot: { fileAccess: 'monitor' },
+      },
+      seenAgents: ['Claude', 'Copilot'],
+    });
+    const agents = [{ id: 'custom' }];
+    expect(getHandler('save-custom-agents')(event, agents)).toEqual({ success: true });
+    expect(mockConfig.saveCustomAgents).toHaveBeenCalledExactlyOnceWith(agents);
+
+    mockElectron.dialog.showOpenDialog.mockResolvedValueOnce({
+      filePaths: ['/fixture/settings.json'],
+    });
+    const read = vi.spyOn(fs, 'readFileSync').mockReturnValueOnce('{"darkMode":true}');
+    try {
+      expect(await getHandler('import-config')(event)).toEqual({ success: true });
+      expect(mockElectron.dialog.showOpenDialog).toHaveBeenCalledExactlyOnceWith(
+        window,
+        expect.objectContaining({ title: 'Import Config' }),
+      );
+      expect(read).toHaveBeenCalledExactlyOnceWith('/fixture/settings.json', 'utf-8');
+      expect(mockConfig.saveSettings).toHaveBeenLastCalledWith({
+        darkMode: true,
+        anthropicApiKey: 'key',
+      });
+    } finally {
+      read.mockRestore();
+    }
+
+    const falsePositive = { agentName: 'Claude', pattern: 'safe', timestamp: 1 };
+    expect(getHandler('add-false-positive')(event, falsePositive)).toEqual({ success: true });
+    expect(mockConfig.addFalsePositive).toHaveBeenCalledExactlyOnceWith(falsePositive);
+    expect(getHandler('rules:reload')(event)).toEqual({ success: true, count: 1 });
+    expect(mockRules.reloadRules).toHaveBeenCalledOnce();
+    const entry = { signature: 'claude-code', pid: null };
+    expect(getHandler('blocklist-add')(event, entry)).toEqual({ success: true, entry });
+    expect(getHandler('blocklist-remove')(event, entry)).toEqual({ success: true, removed: true });
+    expect(mockBlocklist.add).toHaveBeenCalledExactlyOnceWith(entry);
+    expect(mockBlocklist.remove).toHaveBeenCalledExactlyOnceWith(entry);
+  });
+
+  it.each([
+    [
+      'stale frame',
+      ({ contents, frame }) => {
+        contents.mainFrame = { ...frame };
+      },
+    ],
+    [
+      'foreign document',
+      ({ contents }) => {
+        contents.getURL.mockReturnValue('https://other.invalid/');
+      },
+    ],
+  ])(
+    'import-config denies a %s after the native dialog before reading a file',
+    async (_name, alter) => {
+      const renderer = registerOwnedRenderer();
+      let resolveDialog;
+      mockElectron.dialog.showOpenDialog.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveDialog = resolve;
+        }),
+      );
+      const read = vi.spyOn(fs, 'readFileSync');
+      try {
+        const pending = getHandler('import-config')(renderer.event);
+        expect(mockElectron.dialog.showOpenDialog).toHaveBeenCalledOnce();
+        alter(renderer);
+        resolveDialog({ filePaths: ['/fixture/settings.json'] });
+        expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
+        expect(read).not.toHaveBeenCalled();
+        expect(mockConfig.saveSettings).not.toHaveBeenCalled();
+        expect(mockConfig.applySettings).not.toHaveBeenCalled();
+      } finally {
+        read.mockRestore();
+      }
+    },
+  );
 
   it.each([
     ['foreign sender', ({ event }) => ({ ...event, sender: {} })],
@@ -749,17 +946,19 @@ describe('ipc-handlers', () => {
     });
 
     it('save-settings calls config.saveSettings and applySettings', () => {
+      const { event } = registerOwnedRenderer();
       const handler = getHandler('save-settings');
       const newSettings = { scanIntervalSec: 5 };
-      const result = handler(null, newSettings);
+      const result = handler(event, newSettings);
       expect(mockConfig.saveSettings).toHaveBeenCalledWith(newSettings);
       expect(mockConfig.applySettings).toHaveBeenCalled();
       expect(result).toEqual({ success: true });
     });
 
     it('forwards patch and clear intent without exposing settings in the response', () => {
+      const { event } = registerOwnedRenderer();
       const options = { patch: true, clearAnthropicApiKey: true };
-      expect(getHandler('save-settings')(null, { anthropicApiKey: '' }, options)).toEqual({
+      expect(getHandler('save-settings')(event, { anthropicApiKey: '' }, options)).toEqual({
         success: true,
       });
       expect(mockConfig.saveSettings).toHaveBeenCalledExactlyOnceWith(
@@ -769,11 +968,12 @@ describe('ipc-handlers', () => {
     });
 
     it('does not strip invalid options or apply settings after a rejected save', () => {
+      const { event } = registerOwnedRenderer();
       const options = { patch: 'true', unknown: true };
       mockConfig.saveSettings.mockImplementationOnce(() => {
         throw new Error('Invalid settings save options');
       });
-      expect(() => getHandler('save-settings')(null, { darkMode: true }, options)).toThrow(
+      expect(() => getHandler('save-settings')(event, { darkMode: true }, options)).toThrow(
         'Invalid settings save options',
       );
       expect(mockConfig.saveSettings).toHaveBeenCalledExactlyOnceWith({ darkMode: true }, options);
@@ -1083,16 +1283,18 @@ describe('ipc-handlers', () => {
     });
 
     it('save-custom-agents delegates to config', () => {
+      const { event } = registerOwnedRenderer();
       const handler = getHandler('save-custom-agents');
       const agents = [{ name: 'custom', process: 'custom.exe' }];
-      const result = handler(null, agents);
+      const result = handler(event, agents);
       expect(mockConfig.saveCustomAgents).toHaveBeenCalledWith(agents);
       expect(result.success).toBe(true);
     });
 
     it('reset-permissions-to-defaults resets all agent permissions', () => {
+      const { event } = registerOwnedRenderer();
       const handler = getHandler('reset-permissions-to-defaults');
-      const result = handler();
+      const result = handler(event);
       expect(result.permissions).toBeDefined();
       expect(result.seenAgents).toBeDefined();
     });
