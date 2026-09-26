@@ -32,6 +32,7 @@ The project command never expands its scope to the user's home directory.
 | Locations | Inventory |
 | --- | --- |
 | `.mcp.json`, `.cursor/mcp.json` | SHA-256 of raw bytes, strict JSON shape and number of keys in `mcpServers` |
+| `.gemini/settings.json` | SHA-256, comments allowed but trailing commas rejected, declared `mcpServers` count and redacted counts for documented Gemini MCP filters |
 | `.claude/settings.json`, `.claude/settings.local.json`, `.codex/hooks.json` | SHA-256, strict JSON shape and number of event groups in `hooks` |
 | `.vscode/mcp.json` | SHA-256, JSONC parsing (comments/trailing commas), number of keys in `servers` |
 | `.codex/config.toml` | SHA-256, TOML parsing, separate counts for `mcp_servers` and `hooks` |
@@ -42,9 +43,14 @@ The project command never expands its scope to the user's home directory.
 
 `declaredEntries` counts declarations/event groups; it is not a count of valid,
 enabled, installed or running tools. Empty/missing sections are zero. Recognized
-sections must be objects; individual entries are not schema-validated yet.
+sections must be objects; individual entries are not generally schema-validated.
+Gemini MCP trust and filter declaration types are checked before their counts
+are reported.
 `declaredSections` names every counted section. `declaredEntries` remains the
 first section's count (MCP for Codex TOML); it is never a sum of servers and hooks.
+The `project` and `user-home` adapter versions are 2 because they now include
+Gemini settings. Existing accepted snapshots for those adapters require a fresh
+review; the changed scope does not compare as the same contract.
 
 The report lists its scope and limits. It does not follow configuration references,
 scan unrelated project files, resolve remote dependencies or discover all agents.
@@ -106,10 +112,13 @@ capture or a security boundary against an attacker racing directory changes.
 
 ## Parsing contract
 
-JSON/JSONC use the visitor from Microsoft's `jsonc-parser` 3.3.1 (MIT) with
+JSON/JSONC/`json-comments` use the visitor from Microsoft's `jsonc-parser` 3.3.1 (MIT) with
 depth checking, null-prototype objects and duplicate-key rejection. JSON is
 strict; JSONC permits comments and trailing commas but rejects any syntax error
-instead of using a recovered partial parse. Duplicate JSON keys are treated as
+instead of using a recovered partial parse. Gemini's `json-comments` permits
+comments and rejects trailing commas, following those two behaviors of its
+[settings loader](https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/settings.ts),
+which strips comments before `JSON.parse`. Duplicate JSON keys are treated as
 ambiguous even when a client might accept the last value.
 
 TOML uses `smol-toml` 1.8.0 (BSD-3-Clause), including quoted/dotted keys, tables,
@@ -118,10 +127,10 @@ an iterative check also bounds objects created by dotted keys/table headers.
 Large integers stay internal as BigInt; only ordinary numeric counts leave the
 parser. This is structural inventory, not full validation of the client's schema,
 TOML-version compatibility or date semantics. The upstream parser documents date
-validation limitations. Strict UTF-8 decoding rejects invalid bytes for all three
+validation limitations. Strict UTF-8 decoding rejects invalid bytes for all four
 formats. UTF-8 BOMs are accepted.
 
-Failures use `invalid-json`, `invalid-jsonc`, `invalid-toml`, `invalid-encoding`,
+Failures use `invalid-json`, `invalid-jsonc`, `invalid-json-comments`, `invalid-toml`, `invalid-encoding`,
 `invalid-shape`, `duplicate-key`, or `parse-depth-limit`. A TOML parser nesting
 failure is reported as `invalid-toml`; no upstream exception text is exposed.
 

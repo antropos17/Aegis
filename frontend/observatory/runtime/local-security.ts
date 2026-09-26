@@ -52,6 +52,21 @@ export const reviewAdapters = [
   { id: 'claude-user', label: 'Claude user profile', hint: 'Select the .claude folder or a copy.' },
   { id: 'cursor-user', label: 'Cursor user profile', hint: 'Select the .cursor folder or a copy.' },
   {
+    id: 'gemini-user',
+    label: 'Gemini CLI user settings',
+    hint: 'Select the .gemini folder or a copy.',
+  },
+  {
+    id: 'gemini-project',
+    label: 'Gemini CLI project settings',
+    hint: 'Select the project’s .gemini folder or a copy.',
+  },
+  {
+    id: 'gemini-system-windows',
+    label: 'Gemini CLI Windows system settings',
+    hint: 'Select the Windows ProgramData gemini-cli folder or a copy.',
+  },
+  {
     id: 'vscode-user',
     label: 'VS Code user profile',
     hint: 'Select the profile directory containing mcp.json.',

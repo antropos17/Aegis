@@ -219,6 +219,18 @@ it('uses only paths chosen in native dialogs', async () => {
   );
   expect(result.review).not.toHaveProperty('selection');
 });
+it.each(['gemini-user', 'gemini-project', 'gemini-system-windows'])(
+  'accepts the built-in %s layout while keeping the directory native-selected',
+  async (adapter) => {
+    dialog.showOpenDialog.mockResolvedValueOnce({ filePaths: ['/chosen/gemini'] });
+    const result = await ipc.handle(event, run({ mode: 'inventory', adapter }));
+    expect(result.success).toBe(true);
+    expect(backend.review).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'inventory', adapter, directory: '/chosen/gemini' }),
+    );
+    expect(result.review).not.toHaveProperty('selection');
+  },
+);
 it('cancels without starting a scan when any required selection is cancelled', async () => {
   dialog.showOpenDialog
     .mockResolvedValueOnce({ filePaths: ['/chosen/root'] })

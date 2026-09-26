@@ -53,7 +53,7 @@ prove which configuration takes precedence or that the component runs.
 ## Supported inspection
 
 Known agent JSON/JSONC/TOML settings use the existing strict parser. Inspection
-covers MCP `command`/`args`, URLs, hook command objects, Claude project-local MCP
+covers MCP `command`/`args`, `url` and `httpUrl` declarations, hook command objects, Claude project-local MCP
 entries, named profiles and the `ANTHROPIC_BASE_URL` environment override. Other
 provider endpoint mechanisms are outside this slice. MCP argument strings retain
 their argv boundaries: an `echo` argument containing a pipeline is not a pipeline.

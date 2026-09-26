@@ -99,7 +99,12 @@ function analyzeConfiguration(data, format, packageManifest = false) {
       if (Object.hasOwn(server, 'command'))
         command(server.command, Object.hasOwn(server, 'args') ? server.args : [], 'mcp-command');
       if (Object.hasOwn(server, 'url')) endpoint(server.url);
-      if (!Object.hasOwn(server, 'command') && !Object.hasOwn(server, 'url'))
+      if (Object.hasOwn(server, 'httpUrl')) endpoint(server.httpUrl);
+      if (
+        !Object.hasOwn(server, 'command') &&
+        !Object.hasOwn(server, 'url') &&
+        !Object.hasOwn(server, 'httpUrl')
+      )
         issues.add('unsupported-mcp-transport');
       if (Object.hasOwn(server, 'env')) environment(server.env);
     }

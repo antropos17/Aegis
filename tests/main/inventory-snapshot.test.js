@@ -115,11 +115,12 @@ describe('content-bound inventory acceptance', () => {
     expect(diff.changes.components.newlyObserved).toHaveLength(2);
   });
 
-  it.each(['root', 'adapter', 'limits', 'scope', 'schema'])(
+  it.each(['root', 'adapter', 'adapter-version', 'limits', 'scope', 'schema'])(
     'does not transfer acceptance after %s changes',
     (change) => {
       const value = inventory();
       if (change === 'adapter') value.adapter.id = 'codex-user';
+      if (change === 'adapter-version') value.adapter.version++;
       if (change === 'limits') value.limits.entries = 512;
       if (change === 'scope') value.scope.skills = [];
       if (change === 'schema') value.schemaVersion++;
