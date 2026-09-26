@@ -96,6 +96,92 @@ function npxSelectors(args) {
   return localOnly ? [] : selectors;
 }
 
+const npmSelectorShape = (selector) => /^(?:@[\w.-]+\/)?[\w.-]+(?:@[^\s]+)?$/.test(selector);
+
+function bunxSelectors(args) {
+  const selectors = [];
+  let explicit = false;
+  let localOnly = false;
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === '--no-install') localOnly = true;
+    else if (arg === '-p' || arg === '--package') {
+      if (explicit || !args[index + 1] || args[index + 1].startsWith('-')) return null;
+      selectors.push(args[++index]);
+      explicit = true;
+    } else if (arg.startsWith('--package=')) {
+      if (explicit || !arg.slice(10)) return null;
+      selectors.push(arg.slice(10));
+      explicit = true;
+    } else if (['--bun', '--verbose', '--silent'].includes(arg)) continue;
+    else if (arg.startsWith('-')) return null;
+    else {
+      if (explicit && !/^[\w.-]+$/.test(arg)) return null;
+      if (!explicit) selectors.push(arg);
+      return localOnly && selectors.every(npmSelectorShape) ? [] : selectors;
+    }
+  }
+  return explicit ? null : [];
+}
+
+function uvxSelectors(args) {
+  const selectors = [];
+  let from = null;
+  let executable = null;
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === '--from' || arg.startsWith('--from=')) {
+      if (from !== null) return null;
+      from = arg === '--from' ? args[++index] : arg.slice(7);
+      if (!from || from.startsWith('-')) return null;
+    } else if (arg === '--with' || arg.startsWith('--with=')) {
+      const value = arg === '--with' ? args[++index] : arg.slice(7);
+      if (!value || value.startsWith('-')) return null;
+      selectors.push({ value, explicit: true });
+    } else if (arg === '--python' || arg.startsWith('--python=')) {
+      const value = arg === '--python' ? args[++index] : arg.slice(9);
+      if (!value || value.startsWith('-')) return null;
+    } else if (arg === '--lfs') continue;
+    else if (arg.startsWith('-')) return null;
+    else {
+      executable = arg;
+      break;
+    }
+  }
+  if (!executable) return from === null && !selectors.length ? [] : null;
+  if (from !== null && !/^[\w.-]+$/.test(executable)) return null;
+  selectors.unshift({ value: from ?? executable, explicit: from !== null });
+  return selectors;
+}
+
+const EXACT_PYTHON_VERSION =
+  /^(?:\d+!)?\d+(?:\.\d+)*(?:(?:a|b|rc)\d+)?(?:\.post\d+)?(?:\.dev\d+)?(?:\+[a-z0-9]+(?:[._-][a-z0-9]+)*)?$/i;
+
+function uvSelectorStatus(selector, explicit) {
+  if (!explicit) {
+    const match = /^([a-z0-9](?:[a-z0-9._-]*[a-z0-9])?)(?:@([^\s]+))?$/i.exec(selector);
+    if (!match) return null;
+    if (!match[2] || match[2] === 'latest') return 'non-exact';
+    return EXACT_PYTHON_VERSION.test(match[2]) ? 'exact' : null;
+  }
+  const match =
+    /^([a-z0-9](?:[a-z0-9._-]*[a-z0-9])?)(?:\[[a-z0-9._-]+(?:\s*,\s*[a-z0-9._-]+)*\])?\s*(.*)$/i.exec(
+      selector,
+    );
+  if (!match) return null;
+  const specifier = match[2].trim();
+  if (!specifier) return 'non-exact';
+  if (specifier.startsWith('==')) {
+    const version = specifier.slice(2).trim();
+    if (EXACT_PYTHON_VERSION.test(version)) return 'exact';
+    return /^\d+(?:\.\d+)*\.\*$/.test(version) ? 'non-exact' : null;
+  }
+  const constraints = specifier.split(',').map((part) => part.trim());
+  return constraints.every((part) => /^(?:!=|>=|<=|~=|>|<)\s*\d+(?:\.\d+)*(?:\.\*)?$/.test(part))
+    ? 'non-exact'
+    : null;
+}
+
 function curlOutputFile(args) {
   return args.some((arg, index) => {
     if (/^-[fFsSLvVk46]*O/.test(arg) || arg === '--remote-name') return true;
@@ -169,11 +255,19 @@ function inspect(argv, depth, expanded = argv.map(() => false)) {
       ))
   )
     rules.add('STA005');
-  if (command === 'npx') {
-    const selectors = npxSelectors(args);
+  const npmSelectors =
+    command === 'npx'
+      ? npxSelectors(args)
+      : command === 'bunx'
+        ? bunxSelectors(args)
+        : command === 'bun' && args[0] === 'x'
+          ? bunxSelectors(args.slice(1))
+          : undefined;
+  if (npmSelectors !== undefined) {
+    const selectors = npmSelectors;
     if (selectors === null) issues.add('package-launch-syntax-not-resolved');
     for (const selector of selectors || []) {
-      if (!/^(?:@[\w.-]+\/)?[\w.-]+(?:@[^\s]+)?$/.test(selector)) {
+      if (!npmSelectorShape(selector)) {
         issues.add('package-selector-not-resolved');
         continue;
       }
@@ -181,6 +275,32 @@ function inspect(argv, depth, expanded = argv.map(() => false)) {
       if (at <= 0 || !semver.valid(selector.slice(at + 1))) rules.add('STA006');
     }
   }
+  const uvSelectors =
+    command === 'uvx'
+      ? uvxSelectors(args)
+      : command === 'uv' && args[0] === 'tool' && args[1] === 'run'
+        ? uvxSelectors(args.slice(2))
+        : undefined;
+  if (uvSelectors !== undefined) {
+    if (uvSelectors === null) issues.add('package-launch-syntax-not-resolved');
+    for (const selector of uvSelectors || []) {
+      // uvx reserves this direct form for a Python interpreter, not a PyPI package.
+      if (!selector.explicit && /^python(?:@|$)/i.test(selector.value)) {
+        issues.add('package-launch-syntax-not-resolved');
+        continue;
+      }
+      const status = uvSelectorStatus(selector.value, selector.explicit);
+      if (status === null) issues.add('package-selector-not-resolved');
+      else if (status === 'non-exact') rules.add('STA006');
+    }
+  } else if (
+    command === 'uv' &&
+    args[0]?.startsWith('-') &&
+    args.some((arg, index) => arg === 'tool' && args[index + 1] === 'run')
+  )
+    issues.add('package-launch-syntax-not-resolved');
+  if (command === 'bun' && args[0]?.startsWith('-') && args.includes('x'))
+    issues.add('package-launch-syntax-not-resolved');
   if (SHELLS.has(command) || isPowerShell || command === 'cmd') {
     const flag = lower.findIndex((arg) => ['-c', '-command', '/c'].includes(arg));
     if (flag !== -1 && args[flag + 1] !== '-') {
