@@ -31,7 +31,7 @@ function handleActionMcpStdio(args, options = {}) {
 /**
  * Serve bounded MCP over owner-selected streams, including a shared duplex.
  * The optional executor is trusted local configuration, never client input.
- * @param {{input: NodeJS.ReadableStream, output: NodeJS.WritableStream, policyPath?: string, requestPath?: string, catalogPath?: string, execute?: Function, signal?: AbortSignal, observe?: Function}} options Owner transport and exclusive selected pair or catalog.
+ * @param {{input: NodeJS.ReadableStream, output: NodeJS.WritableStream, policyPath?: string, requestPath?: string, catalogPath?: string, kind?: 'execute'|'delete-file', execute?: Function, signal?: AbortSignal, observe?: Function}} options Owner transport and exclusive selected pair or catalog.
  * @returns {Promise<number>} Clean EOF status or failure after active cleanup.
  * @since v0.15.1
  */
@@ -41,6 +41,7 @@ function serveActionMcp({
   policyPath,
   requestPath,
   catalogPath,
+  kind = 'execute',
   execute,
   signal,
   observe,
@@ -59,9 +60,11 @@ function serveActionMcp({
           policyPath === undefined &&
           requestPath === undefined
         : [policyPath, requestPath].every((arg) => typeof arg === 'string' && !!arg);
-      if (!valid) throw Error('invalid-selection');
+      if (!valid || !['execute', 'delete-file'].includes(kind) || (catalog && kind !== 'execute'))
+        throw Error('invalid-selection');
       return factory({
         ...(catalog ? { catalogPath } : { policyPath, requestPath }),
+        ...(kind === 'delete-file' ? { kind } : {}),
         ...(execute === undefined ? {} : { execute }),
       });
     },

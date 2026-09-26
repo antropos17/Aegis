@@ -5,6 +5,7 @@ const path = require('node:path');
 const { readActionFile, parseActionJson } = require('./action-policy');
 const {
   captureExecutionBinding,
+  isExecutionBindingActive,
   matchesExecutionBinding,
   revokeExecutionBinding,
 } = require('./execution-binding');
@@ -77,13 +78,17 @@ function validPolicy(value) {
 }
 
 async function selected(filename, binding, policyPath, requestPath, kind) {
-  const bytes = await readActionFile(filename);
+  let bytes;
   try {
+    bytes = await readActionFile(filename);
     if (!matchesExecutionBinding(binding, policyPath, requestPath, kind, bytes))
       throw new Error('configuration-changed');
     return parseActionJson(bytes);
+  } catch {
+    revokeExecutionBinding(binding);
+    throw new Error('configuration-unavailable');
   } finally {
-    bytes.fill(0);
+    bytes?.fill(0);
   }
 }
 
@@ -154,12 +159,16 @@ async function inspectTarget(filename) {
  * outside the guarantee.
  * @param {string} policyPath Explicit bounded policy file.
  * @param {string} requestPath Explicit bounded request file.
- * @param {{signal?: AbortSignal}} [options] Owner cancellation.
+ * @param {{signal?: AbortSignal, binding?: object}} [options] Owner cancellation and optional borrowed connection binding.
  * @returns {Promise<object>} Redacted decision and deletion outcome.
  * @since v0.16.0
  */
-async function deleteSelectedFile(policyPath, requestPath, { signal } = {}) {
+async function deleteSelectedFile(policyPath, requestPath, options = {}) {
+  const { signal, binding: borrowedBinding } = options;
+  const borrowed = Object.hasOwn(options, 'binding');
   if (signal?.aborted) return result('deny', 'action-cancelled');
+  if (borrowed && !isExecutionBindingActive(borrowedBinding, policyPath, requestPath))
+    return result('deny', 'configuration-changed');
   if (!isExecutionRuntimeSupported()) return result('deny', 'runtime-unsupported');
   if (!terminal.isTerminalAvailable()) return result('deny', 'terminal-required');
   const controller = new AbortController();
@@ -169,7 +178,9 @@ async function deleteSelectedFile(policyPath, requestPath, { signal } = {}) {
   let binding;
   let stopReading = () => {};
   try {
-    binding = await captureExecutionBinding(policyPath, requestPath, { signal: controller.signal });
+    binding = borrowed
+      ? borrowedBinding
+      : await captureExecutionBinding(policyPath, requestPath, { signal: controller.signal });
     const first = await bounded(() => prepare(policyPath, requestPath, binding), controller.signal);
     if (!first || controller.signal.aborted) return result('deny', 'preparation-unavailable');
     if (!first.operation) return result('deny', first.reason);
@@ -203,7 +214,7 @@ async function deleteSelectedFile(policyPath, requestPath, { signal } = {}) {
     stopReading();
     stopWatching();
     signal?.removeEventListener('abort', abort);
-    revokeExecutionBinding(binding);
+    if (!borrowed) revokeExecutionBinding(binding);
   }
 }
 

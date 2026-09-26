@@ -27,9 +27,11 @@ Options:
   --action-catalog-check-json <route> <catalog.json>  Check all selected catalog actions without execution
     Routes: mcp-stdio, mcp-review (this check grants no permission)
   --action-mcp-review <policy.json> <request.json> <new-endpoint.json>  Confirm MCP actions in this terminal
+  --action-mcp-delete-review <policy.json> <request.json> <new-endpoint.json>  Review one selected-file deletion per MCP call
   --action-mcp-connect <endpoint.json>  Connect an MCP client to an operator review terminal
   --action-mcp-stdio <policy.json> <request.json>  Serve one selected action through finite MCP stdio
-    MCP stdio/review routes accept: --observe <new-private-endpoint.json> (read-only desktop observation)
+    Execution MCP stdio/review routes accept: --observe <new-private-endpoint.json> (read-only desktop observation)
+    Selected-file deletion review exposes connection-local MCP status; --observe is unsupported
   --action-exec-confirm <policy.json> <request.json>  Review exact action in a terminal and confirm one launch
   --action-delete-file-confirm <policy.json> <request.json>  Confirm one exact regular-file deletion
   --action-exec-json <policy.json> <request.json>  Run one explicit executable request under local policy
@@ -134,7 +136,11 @@ async function handleCLI(argv) {
     return require('./action-catalog-check').handleActionCatalogCheckCLI(args, write);
   if (flag === '--action-route-check-json')
     return require('./action-route-check').handleActionRouteCheckCLI(args, write);
-  if (flag === '--action-mcp-review' || flag === '--action-mcp-catalog-review')
+  if (
+    ['--action-mcp-review', '--action-mcp-delete-review', '--action-mcp-catalog-review'].includes(
+      flag,
+    )
+  )
     return require('./action-mcp-review').handleActionMcpReview(args);
   if (flag === '--action-mcp-connect')
     return require('./action-mcp-connect').handleActionMcpConnect(args);

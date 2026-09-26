@@ -5,6 +5,7 @@ const status = require('./action-mcp-status');
 const VERSIONS = Object.freeze(['2025-11-25', '2025-06-18', '2025-03-26']);
 const LIMITS = Object.freeze({ messages: 128, executions: 16 });
 const NAME = 'aegis_execute_selected';
+const DELETE_NAME = 'aegis_delete_selected_file';
 const object = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const idValid = (id) =>
   (Number.isSafeInteger(id) && id >= 0) ||
@@ -17,13 +18,29 @@ let testDeps = null;
 /**
  * Own one MCP stdio connection for an operator-selected exact action. The client
  * can invoke the fixed action but cannot supply paths, argv or environment.
- * @param {{policyPath?:string,requestPath?:string,catalogPath?:string,execute?: Function}} options Selected files or catalog and trusted owner execution callback.
+ * @param {{policyPath?:string,requestPath?:string,catalogPath?:string,kind?:'execute'|'delete-file',execute?: Function}} options Selected files or catalog and trusted owner execution callback.
  * @returns {object} Async receive and immediate admission-revoking close.
  * @since v0.15.1
  */
-function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerExecute }) {
+function createActionMcp({
+  policyPath,
+  requestPath,
+  catalogPath,
+  kind = 'execute',
+  execute: ownerExecute,
+}) {
   const deps = testDeps;
   const catalogMode = catalogPath !== undefined;
+  if (!['execute', 'delete-file'].includes(kind) || (catalogMode && kind !== 'execute'))
+    throw new Error('action-kind-invalid');
+  if (
+    kind === 'delete-file' &&
+    (typeof policyPath !== 'string' ||
+      !policyPath ||
+      typeof requestPath !== 'string' ||
+      !requestPath)
+  )
+    throw new Error('delete-owner-invalid');
   if (
     catalogMode &&
     (typeof catalogPath !== 'string' ||
@@ -34,7 +51,10 @@ function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerE
     throw new Error('catalog-owner-invalid');
   if (ownerExecute !== undefined && typeof ownerExecute !== 'function')
     throw new Error('execution-owner-invalid');
-  const execute = ownerExecute || deps?.execute || executeAction;
+  const execute =
+    ownerExecute ||
+    deps?.execute ||
+    (kind === 'delete-file' ? require('./action-delete-file').deleteSelectedFile : executeAction);
   const listCatalog =
     deps?.listCatalog || ((cap) => require('./action-mcp-catalog').listActionCatalog(cap));
   const selectCatalog =
@@ -178,9 +198,11 @@ function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerE
       return response(id, {
         tools: [
           {
-            name: NAME,
+            name: kind === 'delete-file' ? DELETE_NAME : NAME,
             description:
-              'Run the operator-selected action only if its current exact AEGIS policy allows. Child output is discarded. This tool does not isolate descendants.',
+              kind === 'delete-file'
+                ? 'Request one exact operator-selected regular-file deletion under its pinned policy and fresh terminal review. Other agent routes and shell commands remain outside this control.'
+                : 'Run the operator-selected action only if its current exact AEGIS policy allows. Child output is discarded. This tool does not isolate descendants.',
             inputSchema: { type: 'object', properties: {}, additionalProperties: false },
             annotations: {
               readOnlyHint: false,
@@ -197,7 +219,9 @@ function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerE
     if (
       !only(params, ['name', 'arguments', '_meta']) ||
       (params.name !== status.NAME &&
-        (catalogMode ? !catalogNames.has(params.name) : params.name !== NAME)) ||
+        (catalogMode
+          ? !catalogNames.has(params.name)
+          : params.name !== (kind === 'delete-file' ? DELETE_NAME : NAME))) ||
       (params.arguments !== undefined &&
         (!object(params.arguments) || Object.keys(params.arguments).length))
     )
@@ -206,6 +230,7 @@ function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerE
       const snapshot = status.statusSnapshot({
         ...counters,
         catalogMode,
+        kind,
         selectedActionCount,
         messages,
         executions,
@@ -248,11 +273,20 @@ function createActionMcp({ policyPath, requestPath, catalogPath, execute: ownerE
         counters.ownerSettled++;
       }
       if (phase === 'closed' || current.cancelled) return null;
+      if (
+        kind === 'delete-file' &&
+        (!object(report) || !object(report.operation) || report.mode !== 'action-delete-file')
+      )
+        throw new Error('deletion-report-invalid');
       const succeeded =
-        report.decision === 'allow' &&
-        report.execution.state === 'exited' &&
-        report.execution.exitCode === 0 &&
-        report.execution.outputComplete === true;
+        kind === 'delete-file'
+          ? report?.mode === 'action-delete-file' &&
+            report.decision === 'allow' &&
+            report.operation?.state === 'deleted'
+          : report?.decision === 'allow' &&
+            report.execution?.state === 'exited' &&
+            report.execution.exitCode === 0 &&
+            report.execution.outputComplete === true;
       return response(id, {
         content: [{ type: 'text', text: JSON.stringify(report) }],
         ...(protocolVersion === '2025-03-26' ? {} : { structuredContent: report }),
@@ -295,4 +329,12 @@ function _setDepsForTest(deps) {
 function _resetForTest() {
   testDeps = null;
 }
-module.exports = { createActionMcp, LIMITS, VERSIONS, NAME, _setDepsForTest, _resetForTest };
+module.exports = {
+  createActionMcp,
+  LIMITS,
+  VERSIONS,
+  NAME,
+  DELETE_NAME,
+  _setDepsForTest,
+  _resetForTest,
+};

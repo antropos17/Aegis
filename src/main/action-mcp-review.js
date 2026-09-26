@@ -16,7 +16,7 @@ let testDeps = null;
 /**
  * Start one operator-terminal broker for one bearer-authenticated MCP connection.
  * No action data or token is printed; the endpoint is a caller-selected new file.
- * @param {string[]} args Single-action flag/pair/endpoint, or catalog flag/manifest/endpoint.
+ * @param {string[]} args Single-action or selected-deletion flag/pair/endpoint, or catalog flag/manifest/endpoint.
  * @param {{signal?: AbortSignal, observe?: Function}} [options] Trusted cancellation and read-only observation.
  * @returns {Promise<number>} 0 for completed session, 2 for unavailable/closed review.
  * @since v0.15.1
@@ -26,9 +26,10 @@ async function handleActionMcpReview(args, options = {}) {
   if (signal?.aborted) return 2;
   const deps = testDeps || {};
   const catalog = args[0] === '--action-mcp-catalog-review';
+  const deletion = args[0] === '--action-mcp-delete-review';
   if (
     args.length !== (catalog ? 3 : 4) ||
-    (!catalog && args[0] !== '--action-mcp-review') ||
+    (!catalog && !deletion && args[0] !== '--action-mcp-review') ||
     args.slice(1).some((a) => typeof a !== 'string' || !a || a.startsWith('--'))
   )
     return 2;
@@ -138,12 +139,15 @@ async function handleActionMcpReview(args, options = {}) {
             input: peer,
             output: peer,
             ...selection,
+            ...(deletion ? { kind: 'delete-file' } : {}),
             execute: async (...parameters) => {
               stopIdleInput();
               stopIdleInput = () => {};
               try {
                 return await (
-                  deps.execute || require('./action-confirmation').confirmSelectedAction
+                  deletion
+                    ? deps.deleteFile || require('./action-delete-file').deleteSelectedFile
+                    : deps.execute || require('./action-confirmation').confirmSelectedAction
                 )(...parameters);
               } finally {
                 if (!closed)
