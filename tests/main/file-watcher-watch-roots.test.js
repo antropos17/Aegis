@@ -322,6 +322,45 @@ describe('chokidar watch-root registry (step B)', () => {
       expect(h.consecutiveFailures).toBe(0);
       expect(h.lossCount).toBe(0); // no quantitative lost-event counter exists
     });
+
+    it('counts one confirmed worker death as lost while preserving the other live roots', async () => {
+      await fileWatcher.setupFileWatchers();
+      readyAll();
+
+      fakeWatchers[0].emit(
+        'error',
+        Object.assign(new Error('PRIVATE_WORKER_DEATH_CANARY'), {
+          code: 'AEGIS_WATCH_WORKER_TERMINATED',
+        }),
+      );
+
+      const plan = fileWatcher.getWatchPlan();
+      expect(plan.state).toBe('DEGRADED');
+      expect(plan.liveWatcherCount).toBe(plan.groups.length - 1);
+      expect(root(plan, 'credential-dirs').hasLiveWatcher).toBe(false);
+      expect(chokidarHealth().state).toBe('DEGRADED');
+      expect(JSON.stringify(plan)).not.toContain('PRIVATE_WORKER_DEATH_CANARY');
+    });
+
+    it('marks total worker death FAILED so main can retry the plan', async () => {
+      await fileWatcher.setupFileWatchers();
+      readyAll();
+
+      for (const watcher of fakeWatchers) {
+        watcher.emit(
+          'error',
+          Object.assign(new Error('PRIVATE_WORKER_DEATH_CANARY'), {
+            code: 'AEGIS_WATCH_WORKER_TERMINATED',
+          }),
+        );
+      }
+
+      const plan = fileWatcher.getWatchPlan();
+      expect(plan.state).toBe('FAILED');
+      expect(plan.liveWatcherCount).toBe(0);
+      expect(chokidarHealth().state).toBe('FAILED');
+      expect(JSON.stringify(plan)).not.toContain('PRIVATE_WORKER_DEATH_CANARY');
+    });
   });
 
   describe('readiness is total over the plan (§1.6)', () => {

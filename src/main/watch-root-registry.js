@@ -182,9 +182,10 @@ function markRootReady(id) {
   // §1.4 — `errored` is TERMINAL for this watcher object's lifetime. Whether chokidar
   // closes itself on a fatal error or hangs silent is unresolved (roadmap U3), so
   // nothing the same object says afterwards can be read as recovery. Only a NEW object
-  // clears it, and no code creates one today (gap P). Without this guard a root that
+  // clears it. Without this guard a root that
   // errored during its initial walk and then emitted `ready` would count as clean
-  // coverage, and W would reach HEALTHY over a root nobody can vouch for.
+  // coverage, and W would reach HEALTHY over a root nobody can vouch for. A
+  // later full-loss retry can create a new watcher generation.
   if (root.state === WATCH_ROOT_STATE.ERRORED) return false;
   root.state = WATCH_ROOT_STATE.READY;
   return true;
@@ -203,6 +204,22 @@ function markRootErrored(id, message) {
   const root = _watchPlan.get(id);
   if (!root) return false;
   root.state = WATCH_ROOT_STATE.ERRORED;
+  root.lastError = message;
+  return true;
+}
+
+/**
+ * A dedicated worker has exited, so its proxy can no longer deliver events.
+ * Unlike a recoverable chokidar error, this is a confirmed loss of that root.
+ * @param {string} id
+ * @param {string} message - Fixed diagnostic code from the caller.
+ * @returns {boolean} True when a live root became terminal.
+ */
+function markRootTerminated(id, message) {
+  const root = _watchPlan.get(id);
+  if (!root || root.watcher === null) return false;
+  root.state = WATCH_ROOT_STATE.ERRORED;
+  root.watcher = null;
   root.lastError = message;
   return true;
 }
@@ -235,8 +252,8 @@ function deriveWatchPlaneState() {
     throw new Error('file-watcher: watch plan is empty');
   }
   // 1. Zero live watcher objects — PROVEN zero coverage: there is nothing to observe
-  //    with. This is the only source of FAILED. N `errored` roots are N unknowns, not
-  //    a proven death (§1.5), so error events never reach this line.
+  //    with. This is the only source of FAILED. A recoverable watcher error
+  //    retains the proxy (§1.5); a confirmed worker exit removes it.
   if (!roots.some((r) => r.watcher !== null)) {
     return sensorHealth.SENSOR_HEALTH_STATE.FAILED;
   }
@@ -313,6 +330,7 @@ module.exports = {
   markUnreachedRootsNotAttempted,
   markRootReady,
   markRootErrored,
+  markRootTerminated,
   noteRootDelivery,
   deriveWatchPlaneState,
   unavailableRootSummary,

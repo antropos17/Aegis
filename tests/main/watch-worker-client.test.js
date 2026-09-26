@@ -52,13 +52,27 @@ describe('worker watcher lifetime', () => {
     (event) => {
       const { proxy, worker } = create();
       const errors = [];
-      proxy.on('error', (e) => errors.push(e.message));
+      proxy.on('error', (e) => errors.push(e));
       worker.emit(event, new Error('synthetic-private-path-or-content'));
       worker.emit('exit', 1);
       expect(errors).toHaveLength(1);
-      expect(errors[0]).toMatch(/^watch-worker-(crashed|exited)$/);
+      expect(errors[0].message).toMatch(/^watch-worker-(crashed|exited)$/);
+      expect(errors[0].code).toBe('AEGIS_WATCH_WORKER_TERMINATED');
+      expect(JSON.stringify(errors)).not.toContain('synthetic-private-path-or-content');
     },
   );
+
+  it('reports terminal exit after an earlier watcher error', () => {
+    const { proxy, worker } = create();
+    const errors = [];
+    proxy.on('error', (error) => errors.push(error));
+    worker.emit('message', { seq: 1, dropped: 0, error: 'watch-root-error', events: [] });
+    worker.emit('exit', 1);
+
+    expect(errors).toHaveLength(2);
+    expect(errors[0].code).toBeUndefined();
+    expect(errors[1].code).toBe('AEGIS_WATCH_WORKER_TERMINATED');
+  });
 
   it('invalidates late messages and errors before termination, including close-before-ready', async () => {
     const { proxy, worker } = create();
