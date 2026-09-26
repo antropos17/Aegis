@@ -153,7 +153,7 @@ function normalizeExternalReport(format, value, context) {
     importSkillJson(value, collector);
   } else if (format === 'cisco-skill-sarif') importSkillSarif(value, collector);
   else if (format === 'cisco-mcp-json') importMcpJson(value, collector);
-  else importCfgauditSarif(value, collector);
+  else importCfgauditSarif(value, collector, context.root);
   return {
     findings,
     issues: [...issues].sort(),

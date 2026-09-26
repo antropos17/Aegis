@@ -80,6 +80,9 @@ describe('cfgaudit SARIF offline projection', () => {
   it.each([
     ['../outside.json', null],
     ['%2e%2e/outside.json', null],
+    ['/selected/.claude/settings.json', '.claude/settings.json'],
+    ['/selected-other/.claude/settings.json', null],
+    ['/selected/../outside.json', null],
     ['C:/outside.json', null],
     ['file:///outside.json', null],
     ['https://PRIVATE.invalid/secret', null],
@@ -92,6 +95,20 @@ describe('cfgaudit SARIF offline projection', () => {
     expect(result.findings[0].locations[0].path).toBe(expected);
     if (!expected) expect(result.issues).toContain('external-location-unbound');
     expect(JSON.stringify(result)).not.toContain('PRIVATE');
+  });
+
+  it('binds a native Windows absolute URI only under the caller-selected root', () => {
+    const value = report();
+    const artifact = value.runs[0].results[0].locations[0].physicalLocation.artifactLocation;
+    const selected = context();
+    selected.root = 'C:\\Selected';
+    artifact.uri = 'c:\\selected\\.claude\\settings.json';
+    const mapped = normalizeExternalReport('cfgaudit-sarif', value, selected);
+    expect(mapped.findings[0].locations[0].path).toBe('.claude/settings.json');
+    artifact.uri = 'C:\\Selected-Other\\.claude\\settings.json';
+    const outside = normalizeExternalReport('cfgaudit-sarif', value, selected);
+    expect(outside.findings[0].locations[0].path).toBeNull();
+    expect(JSON.stringify(outside)).not.toContain('Selected-Other');
   });
 
   it.each(['uri-base', 'artifact-index', 'run-base'])('does not resolve %s indirection', (kind) => {
@@ -185,7 +202,13 @@ describe('cfgaudit SARIF selected-file import', () => {
   it('pairs a fresh local review and optional hash baseline with an unverified report', async () => {
     const reportFile = path.join(fixture, 'cfgaudit.sarif');
     const baselineFile = path.join(fixture, 'before.json');
-    fs.writeFileSync(reportFile, JSON.stringify(report()));
+    const external = report();
+    external.runs[0].results[0].locations[0].physicalLocation.artifactLocation.uri = path.join(
+      root,
+      '.claude',
+      'settings.json',
+    );
+    fs.writeFileSync(reportFile, JSON.stringify(external));
     fs.writeFileSync(baselineFile, JSON.stringify(await scanStaticDirectory('project', root)));
     let output;
     const code = await handleStaticImportCLI(
