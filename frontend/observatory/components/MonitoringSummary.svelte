@@ -11,7 +11,7 @@
     navigate,
   }: {
     telemetry: Telemetry;
-    recentCount: number;
+    recentCount: number | null;
     inspect: (_title: string, _row: RecordData) => void;
     navigate?: (_view: string) => void | Promise<void>;
   } = $props();
@@ -49,8 +49,14 @@
     </p>
   </button>
   <div class="summary-stat">
-    <span>{$t('Events / min')}</span><strong>{telemetry.ready ? recentCount : '—'}</strong>
-    <p>{telemetry.events.length} {$t('retained events')}</p>
+    <span>{$t('Events / min')}</span><strong
+      >{telemetry.ready && !telemetry.stale && recentCount !== null ? recentCount : '—'}</strong
+    >
+    <p>
+      {#if telemetry.stale}{$t('Rate unavailable · retained events: {count}', {
+          count: telemetry.events.length,
+        })}{:else}{telemetry.events.length} {$t('retained events')}{/if}
+    </p>
   </div>
   <button
     class="summary-stat attention"

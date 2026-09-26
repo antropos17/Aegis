@@ -54,7 +54,12 @@
 </script>
 
 <div hidden={mode !== 'overview'}>
-  <MonitoringSummary {telemetry} recentCount={recent.length} {inspect} {navigate} />
+  <MonitoringSummary
+    {telemetry}
+    recentCount={telemetry.stale ? null : recent.length}
+    {inspect}
+    {navigate}
+  />
   <Radar {telemetry} {liveTelemetry} bind:selected {inspect} {openStatistics} {openAgent} />
   <div class="monitoring-activity">
     <ActivityChart
