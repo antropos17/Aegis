@@ -1,7 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'events';
+import { createRequire } from 'module';
 import client from '../../../src/main/platform/proc-snapshot-client.js';
 import protocol from '../../../src/main/platform/proc-snapshot-protocol.js';
+
+const require_ = createRequire(import.meta.url);
+const logger = require_('../../../src/main/logger.js');
 
 const { encodeFrame, PROTOCOL_VERSION } = protocol;
 
@@ -49,6 +53,11 @@ describe('platform/proc-snapshot-client', () => {
   let children;
   let spawnCalls;
   let clock;
+  let debugLog;
+  let warnLog;
+  let infoLog;
+
+  const logged = () => JSON.stringify([debugLog.mock.calls, warnLog.mock.calls, infoLog.mock.calls]);
 
   /**
    * Drive one full request: send it, hand over the hello, let the request frame be
@@ -69,6 +78,9 @@ describe('platform/proc-snapshot-client', () => {
     spawnCalls = [];
     clock = 1000;
     client._resetForTest();
+    debugLog = vi.spyOn(logger, 'debug').mockImplementation(() => {});
+    warnLog = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    infoLog = vi.spyOn(logger, 'info').mockImplementation(() => {});
     client._setInternalsForTest({
       spawn: (exePath, args, opts) => {
         spawnCalls.push({ exePath, args, opts });
@@ -83,6 +95,7 @@ describe('platform/proc-snapshot-client', () => {
 
   afterEach(() => {
     client._resetForTest();
+    vi.restoreAllMocks();
   });
 
   it('spawns the resolved binary with piped stdio and no shell', async () => {
@@ -229,7 +242,7 @@ describe('platform/proc-snapshot-client', () => {
         'data',
         encodeFrame({ t: 'err', id: 1, code: 'nt-status', ntstatus: '0xC0000004' }),
       );
-      await expect(promise).rejects.toThrow(/sidecar error nt-status/);
+      await expect(promise).rejects.toThrow('proc-snapshot: sidecar error');
       // The child answered, so it is healthy: no kill, no failure counted, and the
       // next pass reuses it rather than paying a respawn.
       expect(child.killed).toBe(false);
@@ -249,11 +262,105 @@ describe('platform/proc-snapshot-client', () => {
     expect(client.getState().connected).toBe(false);
   });
 
-  it('forwards sidecar stderr to the debug log without failing the pass', async () => {
+  it('records sidecar stderr without copying its contents or failing the pass', async () => {
     const { promise, child } = await startRequest();
-    expect(() => child.stderr.emit('data', Buffer.from('probe: class5\n'))).not.toThrow();
+    expect(() => child.stderr.emit('data', Buffer.from('PRIVATE_STDERR_CANARY\n'))).not.toThrow();
+    child.stderr.emit('data', Buffer.from('PRIVATE_SECOND_STDERR_CANARY\n'));
     child.stdout.emit('data', encodeFrame({ t: 'snap', id: 1, source: 'class5', procs: [] }));
     await expect(promise).resolves.toBeTruthy();
+    expect(debugLog.mock.calls.filter((call) => call[1] === 'Sidecar stderr observed')).toHaveLength(1);
+    expect(logged()).not.toContain('PRIVATE_STDERR_CANARY');
+    expect(logged()).not.toContain('PRIVATE_SECOND_STDERR_CANARY');
+  });
+
+  it('redacts spawn and child exception text from logs and caller errors', async () => {
+    client._setInternalsForTest({
+      spawn: () => {
+        throw new Error('PRIVATE_SPAWN_CANARY');
+      },
+    });
+    const spawnError = await client.requestSnapshot({ timeoutMs: 60 }).catch((err) => err);
+    expect(spawnError.message).toBe('proc-snapshot: spawn failed');
+    expect(client.getState().failures).toBe(1);
+    expect(logged()).not.toContain('PRIVATE_SPAWN_CANARY');
+
+    client._resetForTest();
+    client._setInternalsForTest({
+      spawn: () => {
+        const child = makeFakeChild();
+        children.push(child);
+        return child;
+      },
+      resolveExePath: () => 'C:\\fake\\aegis-procsnap.exe',
+      now: () => clock,
+    });
+    const { promise, child } = await startRequest();
+    child.emit('error', new Error('PRIVATE_CHILD_CANARY'));
+    const childError = await promise.catch((err) => err);
+    expect(childError.message).toBe('proc-snapshot: child error');
+    expect(logged()).not.toContain('PRIVATE_CHILD_CANARY');
+  });
+
+  it('redacts stdin and protocol fields while keeping the request boundary', async () => {
+    const first = client.requestSnapshot({ timeoutMs: 60 });
+    const child = children[0];
+    child.stdin.write = () => {
+      throw new Error('PRIVATE_STDIN_CANARY');
+    };
+    child.stdout.emit('data', encodeFrame(HELLO));
+    const writeError = await first.catch((err) => err);
+    expect(writeError.message).toBe('proc-snapshot: stdin write failed');
+    expect(logged()).not.toContain('PRIVATE_STDIN_CANARY');
+
+    clock += 1001;
+    const second = client.requestSnapshot({ timeoutMs: 60 });
+    const nextChild = children[1];
+    nextChild.stdout.emit('data', encodeFrame({ ...HELLO, pid: 'PRIVATE_HELLO_PID_CANARY' }));
+    await flush();
+    nextChild.stdout.emit('data', encodeFrame({ t: 'PRIVATE_TYPE_CANARY', id: 1 }));
+    nextChild.stdout.emit('data', encodeFrame({ t: 'snap', id: 'PRIVATE_ID_CANARY' }));
+    nextChild.stdout.emit('data', encodeFrame({ t: 'err', id: 2, code: 'PRIVATE_CODE_CANARY' }));
+    const sidecarError = await second.catch((err) => err);
+    expect(sidecarError.message).toBe('proc-snapshot: sidecar error');
+    for (const canary of [
+      'PRIVATE_HELLO_PID_CANARY',
+      'PRIVATE_TYPE_CANARY',
+      'PRIVATE_ID_CANARY',
+      'PRIVATE_CODE_CANARY',
+    ]) {
+      expect(logged()).not.toContain(canary);
+    }
+  });
+
+  it('keeps malformed frames and mismatched protocol values out of diagnostics', async () => {
+    const first = client.requestSnapshot({ timeoutMs: 60 });
+    children[0].stdout.emit('data', encodeFrame({ ...HELLO, proto: 'PRIVATE_PROTO_CANARY' }));
+    await expect(first).rejects.toThrow(/protocol version mismatch/);
+    expect(client.getState().sticky).not.toContain('PRIVATE_PROTO_CANARY');
+    expect(logged()).not.toContain('PRIVATE_PROTO_CANARY');
+
+    client._resetForTest();
+    client._setInternalsForTest({
+      spawn: () => {
+        const child = makeFakeChild();
+        children.push(child);
+        return child;
+      },
+      resolveExePath: () => 'C:\\fake\\aegis-procsnap.exe',
+      now: () => clock,
+    });
+    const { promise, child } = await startRequest();
+    const payload = Buffer.from('{"t":"PRIVATE_FRAME_CANARY"');
+    const frame = Buffer.alloc(4 + payload.length);
+    frame.writeUInt32LE(payload.length, 0);
+    payload.copy(frame, 4);
+    child.stdout.emit('data', frame);
+    child.stdout.emit('data', encodeFrame({ t: 'snap', id: 1, source: 'basic', procs: [] }));
+    await expect(promise).resolves.toBeTruthy();
+    expect(warnLog).toHaveBeenCalledWith('proc-snapshot', 'Frame error', {
+      code: 'frame-parse-error',
+    });
+    expect(logged()).not.toContain('PRIVATE_FRAME_CANARY');
   });
 
   it('rejects a caller that arrives DURING the handshake, before any request slot exists', async () => {

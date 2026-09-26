@@ -102,7 +102,7 @@ function createFrameDecoder() {
       while (buffered.length >= FRAME_HEADER_BYTES) {
         const len = buffered.readUInt32LE(0);
         if (len === 0 || len > MAX_FRAME_BYTES) {
-          errors.push(`frame-length-invalid: ${len}`);
+          errors.push('frame-length-invalid');
           fatal = true;
           buffered = Buffer.alloc(0);
           break;
@@ -114,8 +114,8 @@ function createFrameDecoder() {
         let parsed;
         try {
           parsed = JSON.parse(payload.toString('utf8'));
-        } catch (err) {
-          errors.push(`frame-parse-error: ${err.message}`);
+        } catch {
+          errors.push('frame-parse-error');
           continue;
         }
         // A bare number, string, array or null is well-formed JSON and still not a
