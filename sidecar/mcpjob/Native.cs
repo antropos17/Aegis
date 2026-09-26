@@ -17,6 +17,7 @@ internal static class Native
     private const int JobObjectExtendedLimitInformation = 9;
     private const int JobObjectBasicAccountingInformation = 1;
     private static readonly IntPtr PROC_THREAD_ATTRIBUTE_HANDLE_LIST = new IntPtr(0x00020002);
+    private static readonly IntPtr PROC_THREAD_ATTRIBUTE_JOB_LIST = new IntPtr(0x0002000D);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct SECURITY_ATTRIBUTES { public int nLength; public IntPtr lpSecurityDescriptor; public int bInheritHandle; }
@@ -66,7 +67,6 @@ internal static class Native
     [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr CreateJobObject(IntPtr attributes, string name);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref JOBOBJECT_EXTENDED_LIMIT_INFORMATION info, int length);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool QueryInformationJobObject(IntPtr job, int infoClass, out JOBOBJECT_BASIC_ACCOUNTING_INFORMATION info, int length, IntPtr returned);
-    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool TerminateJobObject(IntPtr job, uint exitCode);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool TerminateProcess(IntPtr process, uint exitCode);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern uint ResumeThread(IntPtr thread);
@@ -140,10 +140,10 @@ internal static class Native
         IntPtr inputRead = IntPtr.Zero, inputWrite = IntPtr.Zero;
         IntPtr outputRead = IntPtr.Zero, outputWrite = IntPtr.Zero;
         IntPtr errorRead = IntPtr.Zero, errorWrite = IntPtr.Zero;
-        IntPtr list = IntPtr.Zero, handles = IntPtr.Zero, env = IntPtr.Zero;
+        IntPtr list = IntPtr.Zero, handles = IntPtr.Zero, jobList = IntPtr.Zero, env = IntPtr.Zero;
         IntPtr job = IntPtr.Zero;
         PROCESS_INFORMATION process = new PROCESS_INFORMATION();
-        bool listReady = false, assigned = false, resumed = false;
+        bool listReady = false, resumed = false;
         try
         {
             SECURITY_ATTRIBUTES security = new SECURITY_ATTRIBUTES();
@@ -164,10 +164,10 @@ internal static class Native
                 Marshal.SizeOf(typeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))));
 
             IntPtr size = IntPtr.Zero;
-            InitializeProcThreadAttributeList(IntPtr.Zero, 1, 0, ref size);
+            InitializeProcThreadAttributeList(IntPtr.Zero, 2, 0, ref size);
             Check(size != IntPtr.Zero);
             list = Marshal.AllocHGlobal(size);
-            Check(InitializeProcThreadAttributeList(list, 1, 0, ref size));
+            Check(InitializeProcThreadAttributeList(list, 2, 0, ref size));
             listReady = true;
             handles = Marshal.AllocHGlobal(IntPtr.Size * 3);
             Marshal.WriteIntPtr(handles, 0, inputRead);
@@ -175,6 +175,12 @@ internal static class Native
             Marshal.WriteIntPtr(handles, IntPtr.Size * 2, errorWrite);
             Check(UpdateProcThreadAttribute(list, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, handles,
                 new IntPtr(IntPtr.Size * 3), IntPtr.Zero, IntPtr.Zero));
+            // The child enters this private kill-on-close Job during CreateProcess.
+            // Keep the backing buffer alive until DeleteProcThreadAttributeList.
+            jobList = Marshal.AllocHGlobal(IntPtr.Size);
+            Marshal.WriteIntPtr(jobList, job);
+            Check(UpdateProcThreadAttribute(list, 0, PROC_THREAD_ATTRIBUTE_JOB_LIST, jobList,
+                new IntPtr(IntPtr.Size), IntPtr.Zero, IntPtr.Zero));
             STARTUPINFOEX startup = new STARTUPINFOEX();
             startup.StartupInfo.cb = Marshal.SizeOf(typeof(STARTUPINFOEX));
             startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
@@ -187,8 +193,13 @@ internal static class Native
                 IntPtr.Zero, IntPtr.Zero, true,
                 CREATE_SUSPENDED | CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT,
                 env, cwd, ref startup, out process));
-            Check(AssignProcessToJobObject(job, process.hProcess));
-            assigned = true;
+#if MCP_JOB_CRASH_TEST
+            // Test-only stop at the former orphan window, before ResumeThread.
+            string marker = Environment.GetEnvironmentVariable("AEGIS_MCPJOB_CRASH_MARKER");
+            if (string.IsNullOrEmpty(marker)) throw new InvalidOperationException("missing-test-marker");
+            File.WriteAllText(marker, process.dwProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            Thread.Sleep(Timeout.Infinite);
+#endif
             Check(ResumeThread(process.hThread) != uint.MaxValue);
             resumed = true;
             Close(ref process.hThread);
@@ -214,8 +225,7 @@ internal static class Native
         {
             if (!resumed && process.hProcess != IntPtr.Zero)
             {
-                if (assigned) TerminateJobObject(job, 1);
-                else TerminateProcess(process.hProcess, 1);
+                if (!TerminateJobObject(job, 1)) TerminateProcess(process.hProcess, 1);
                 WaitForSingleObject(process.hProcess, 750);
             }
             Close(ref process.hThread); Close(ref process.hProcess);
@@ -224,6 +234,7 @@ internal static class Native
             if (listReady) DeleteProcThreadAttributeList(list);
             if (list != IntPtr.Zero) Marshal.FreeHGlobal(list);
             if (handles != IntPtr.Zero) Marshal.FreeHGlobal(handles);
+            if (jobList != IntPtr.Zero) Marshal.FreeHGlobal(jobList);
             if (env != IntPtr.Zero) Marshal.FreeHGlobal(env);
         }
     }

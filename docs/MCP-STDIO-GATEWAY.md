@@ -119,9 +119,11 @@ On Windows, this **explicit stdio route only** requires the bundled
 `build/sidecar` in the Windows installer. If the helper is missing or protected
 launch fails, the route closes without starting the selected server. The helper
 receives the exact selected executable, arguments, cwd and environment over its
-private stdin. It creates the selected process suspended, assigns it to a private
+private stdin. It creates a private
 [Windows Job Object](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)
-with `KILL_ON_JOB_CLOSE`, and resumes it only after assignment succeeds. Its
+with `KILL_ON_JOB_CLOSE`, assigns that Job atomically during suspended process
+creation with `PROC_THREAD_ATTRIBUTE_JOB_LIST`, and resumes the process only
+after creation succeeds. Its
 ready signal precedes any relayed server stdout; the gateway strips and checks
 that signal. The selected process's stderr is counted and discarded. Helper
 status and failure paths do not print launch fields or server stderr.
@@ -133,7 +135,8 @@ and a zero helper exit. Unexpected helper death or a failed cleanup check is
 unconfirmed even though closing the last Job handle requests termination.
 Native Windows tests exercise a direct child and detached grandchild, exact
 argv/cwd/env, missing helper, launch failure, helper crash, timeout and stderr
-redaction. On Linux, the existing direct-child launch remains in use.
+redaction, including helper death immediately after process creation. On Linux,
+the existing direct-child launch remains in use.
 
 Tests in `tests/main/mcp-gateway*.test.js` use real disposable Node upstream
 processes and the real Node CLI. They verify exact grants and replay rejection,
@@ -148,10 +151,11 @@ The server runs with the current user's OS rights and can act independently at
 startup or outside forwarded calls. The Windows Job covers ordinary child
 processes created through `CreateProcess`; it does not cover work started by
 another process or service, including `Win32_Process.Create`. Existing parent
-Job restrictions or incompatible nested Jobs can reject assignment, which
-closes the route. A helper killed between suspended process creation and Job
-assignment can leave a suspended process; it was never resumed and cleanup is
-unconfirmed. The Job does not isolate files, registry, network or credentials.
+Job restrictions or incompatible nested Jobs can reject creation, which closes
+the route. A helper killed after process creation closes its last Job handle;
+Windows then terminates the selected process and ordinary descendants. The
+gateway still records this as unconfirmed cleanup because it cannot receive the
+helper's acknowledgment. The Job does not isolate files, registry, network or credentials.
 The separate [finite loopback HTTP profile](MCP-HTTP-GATEWAY.md) has no protected
 launch from this change. OAuth and third-party HTTPS interoperability,
 protected permission issuance, independent identity, general recipients/scopes,
