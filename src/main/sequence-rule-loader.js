@@ -47,12 +47,20 @@ const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
 const logger = require('./logger');
+const { readBoundedConfigFile, readBoundedArchiveFile } = require('./bounded-config-file');
 
 /** Logger module tag — every line this file emits carries it. @type {string} */
 const LOG_MODULE = 'sequence-loader';
 
 /** @type {string} */
 const DEFAULT_SEQUENCES_DIR = path.join(__dirname, '..', '..', 'rules', 'sequences');
+
+/** @param {string} filename @returns {string} */
+function readRuleFile(filename) {
+  return /[/\\]app\.asar[/\\]/.test(__dirname) && path.dirname(filename) === DEFAULT_SEQUENCES_DIR
+    ? readBoundedArchiveFile(filename)
+    : readBoundedConfigFile(filename);
+}
 
 /** The reference key a correlation names. @type {RegExp} */
 const NAME_PATTERN = /^[a-z0-9_]+$/;
@@ -1034,7 +1042,7 @@ function loadDir(dir = DEFAULT_SEQUENCES_DIR) {
     /** @type {string} */
     let text;
     try {
-      text = fs.readFileSync(path.join(dir, file), 'utf8');
+      text = readRuleFile(path.join(dir, file));
     } catch {
       logger.warn(LOG_MODULE, 'sequence rule file unreadable', {
         rule: null,

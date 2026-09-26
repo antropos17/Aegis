@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import configFile from '../../src/main/bounded-config-file.js';
 
-const { readBoundedConfigFile, MAX_CONFIG_BYTES } = configFile;
+const { readBoundedConfigFile, readBoundedArchiveFile, MAX_CONFIG_BYTES } = configFile;
 let directory;
 let filename;
 
@@ -43,5 +43,17 @@ describe('bounded configuration file reads', () => {
       return count;
     });
     expect(() => readBoundedConfigFile(filename)).toThrow('config-file-unavailable');
+  });
+
+  it('uses the archive-compatible read path and enforces its size', () => {
+    fs.writeFileSync(filename, 'trusted rule');
+    const read = vi.spyOn(fs, 'readFileSync');
+    expect(readBoundedArchiveFile(filename)).toBe('trusted rule');
+    expect(read).toHaveBeenCalledWith(filename);
+
+    fs.truncateSync(filename, MAX_CONFIG_BYTES + 1);
+    read.mockClear();
+    expect(() => readBoundedArchiveFile(filename)).toThrow('config-file-unavailable');
+    expect(read).not.toHaveBeenCalled();
   });
 });
