@@ -93,6 +93,29 @@ describe('streamed audit exports', () => {
     noTemporaryFiles();
   });
 
+  it.each([
+    ['JSON', false],
+    ['ZIP', true],
+  ])(
+    'does not replace the destination when ownership is revoked during %s export',
+    async (_, zip) => {
+      write('{"private":"PRIVATE_AUDIT_CONTENT_CANARY"}\n');
+      let wroteBytes = false;
+      const canComplete = () => {
+        const temporary = fs.readdirSync(root).find((name) => name.endsWith('.tmp'));
+        if (!temporary) return true;
+        wroteBytes ||= fs.statSync(path.join(root, temporary)).size > 0;
+        return !wroteBytes;
+      };
+      await expect(
+        writeAuditExport({ filePath: destination, files: files(), zip, canComplete }),
+      ).rejects.toThrow('Audit export incomplete');
+      expect(wroteBytes).toBe(true);
+      expect(fs.readFileSync(destination, 'utf8')).toBe('previous export');
+      noTemporaryFiles();
+    },
+  );
+
   it('creates a ZIP with valid central directory, sizes, CRCs and all three entries', async () => {
     write('{"type":"first"}\n');
     await writeAuditExport({
