@@ -110,6 +110,10 @@ async function confirmAnalysisEgress(event) {
 
 /** @returns {void} @since v0.1.0 */
 function register() {
+  const ownedRead = (event, read) =>
+    event && ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl)
+      ? read()
+      : { success: false, error: 'Renderer request denied' };
   ipcMain.handle('local-security:review', (event, request) => localSecurity.handle(event, request));
   // Only the owned top-level renderer may request an update operation. No URLs,
   // file paths, versions, command arguments or updater options cross this boundary.
@@ -128,8 +132,8 @@ function register() {
   ipcMain.handle('updates:check', (event) => updateAction(event, 'check'));
   ipcMain.handle('updates:download', (event) => updateAction(event, 'download'));
   ipcMain.handle('updates:install', (event) => updateAction(event, 'install'));
-  ipcMain.handle('get-stats', () => deps.getStats());
-  ipcMain.handle('get-resource-usage', () => deps.getResourceUsage());
+  ipcMain.handle('get-stats', (event) => ownedRead(event, () => deps.getStats()));
+  ipcMain.handle('get-resource-usage', (event) => ownedRead(event, () => deps.getResourceUsage()));
   ipcMain.handle('export-log', async () => {
     try {
       const data = await exporter.exportLog();
@@ -159,14 +163,16 @@ function register() {
       return { success: false, error: 'Session report could not be opened' };
     }
   });
-  ipcMain.handle('get-settings', () => {
-    const rendererSettings = { ...config.getSettings() };
-    const anthropicApiKeyConfigured = Boolean(rendererSettings.anthropicApiKey);
-    const anthropicApiKeyMigrationPending = config.hasPendingLegacyApiKey();
-    delete rendererSettings.anthropicApiKey;
-    delete rendererSettings._encryptedApiKey;
-    return { ...rendererSettings, anthropicApiKeyConfigured, anthropicApiKeyMigrationPending };
-  });
+  ipcMain.handle('get-settings', (event) =>
+    ownedRead(event, () => {
+      const rendererSettings = { ...config.getSettings() };
+      const anthropicApiKeyConfigured = Boolean(rendererSettings.anthropicApiKey);
+      const anthropicApiKeyMigrationPending = config.hasPendingLegacyApiKey();
+      delete rendererSettings.anthropicApiKey;
+      delete rendererSettings._encryptedApiKey;
+      return { ...rendererSettings, anthropicApiKeyConfigured, anthropicApiKeyMigrationPending };
+    }),
+  );
 
   ipcMain.handle('save-settings', (event, newSettings, options) => {
     if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
@@ -298,23 +304,25 @@ ${findingsHtml}${recsHtml}
     }
   });
 
-  ipcMain.handle('get-all-permissions', () => {
-    const settings = config.getSettings();
-    const agentPerms = {};
-    const instancePerms = {};
-    for (const [key, val] of Object.entries(settings.agentPermissions)) {
-      if (key.includes('::')) {
-        instancePerms[key] = val;
-      } else {
-        agentPerms[key] = val;
+  ipcMain.handle('get-all-permissions', (event) =>
+    ownedRead(event, () => {
+      const settings = config.getSettings();
+      const agentPerms = {};
+      const instancePerms = {};
+      for (const [key, val] of Object.entries(settings.agentPermissions)) {
+        if (key.includes('::')) {
+          instancePerms[key] = val;
+        } else {
+          agentPerms[key] = val;
+        }
       }
-    }
-    return {
-      permissions: agentPerms,
-      instancePermissions: instancePerms,
-      seenAgents: settings.seenAgents,
-    };
-  });
+      return {
+        permissions: agentPerms,
+        instancePermissions: instancePerms,
+        seenAgents: settings.seenAgents,
+      };
+    }),
+  );
 
   ipcMain.handle('save-agent-permissions', (event, permMap) => {
     if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
@@ -341,8 +349,8 @@ ${findingsHtml}${recsHtml}
     return { permissions: newPerms, seenAgents: settings.seenAgents };
   });
 
-  ipcMain.handle('get-agent-database', () => scanner.agentDb);
-  ipcMain.handle('get-custom-agents', () => config.getCustomAgents());
+  ipcMain.handle('get-agent-database', (event) => ownedRead(event, () => scanner.agentDb));
+  ipcMain.handle('get-custom-agents', (event) => ownedRead(event, () => config.getCustomAgents()));
   ipcMain.handle('save-custom-agents', (event, agents) => {
     if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
       return { success: false, error: 'Renderer request denied' };
@@ -587,7 +595,9 @@ ${findingsHtml}${recsHtml}
   );
 
   // ── False positives ──
-  ipcMain.handle('get-false-positives', () => config.getFalsePositives());
+  ipcMain.handle('get-false-positives', (event) =>
+    ownedRead(event, () => config.getFalsePositives()),
+  );
   ipcMain.handle('add-false-positive', (event, entry) => {
     if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
       return { success: false, error: 'Renderer request denied' };
@@ -636,17 +646,19 @@ ${findingsHtml}${recsHtml}
   });
 
   // ── Rules (YAML rulesets) ──
-  ipcMain.handle('rules:getAll', () => {
-    const rules = getAllRules();
-    return Array.from(rules.values()).map((r) => ({
-      id: r.id,
-      name: r.name,
-      category: r.category,
-      risk: r.risk,
-      reason: r.reason,
-      enabled: r.enabled,
-    }));
-  });
+  ipcMain.handle('rules:getAll', (event) =>
+    ownedRead(event, () => {
+      const rules = getAllRules();
+      return Array.from(rules.values()).map((r) => ({
+        id: r.id,
+        name: r.name,
+        category: r.category,
+        risk: r.risk,
+        reason: r.reason,
+        enabled: r.enabled,
+      }));
+    }),
+  );
 
   ipcMain.handle('rules:reload', (event) => {
     if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
@@ -677,7 +689,7 @@ ${findingsHtml}${recsHtml}
       return { success: false, error: error.message };
     }
   });
-  ipcMain.handle('blocklist-list', () => blocklist.list());
+  ipcMain.handle('blocklist-list', (event) => ownedRead(event, () => blocklist.list()));
 }
 
 module.exports = { init, register };
