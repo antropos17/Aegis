@@ -2,7 +2,7 @@
 
 `--action-route-check-json <route> <policy.json> <request.json>` checks selected
 configuration and current-process prerequisites before starting an execution route.
-It reads the schema 2 policy and schema 1 request described in
+It reads the schema 2 or 3 policy and schema 1 request described in
 [ACTION-EXECUTION.md](ACTION-EXECUTION.md).
 
 ```sh
@@ -18,6 +18,9 @@ node src/main/main.js --action-route-check-json direct /absolute/policy.json /ab
 
 The `terminal` and `mcp-review` routes also require fresh confirmation for an
 `allow` policy decision. A policy deny cannot be overridden.
+For a schema 3 action listed in `reviewRequired`, the check reports the effective
+`ask` decision with reason `review-required`, including on direct routes. This is
+a configuration observation; it does not issue an approval or launch the action.
 
 The checker never spawns the action, prompts, opens a listener, issues a grant or
 writes configuration/settings. It uses the same runtime guard as execution and
