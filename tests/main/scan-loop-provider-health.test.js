@@ -265,6 +265,7 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
 
       expect(deps.scanner.scanProcesses).toHaveBeenCalledTimes(1);
       expect(note).not.toHaveBeenCalled();
+      expect(deps.audit.log).not.toHaveBeenCalledWith('observation-gap', expect.anything());
     });
 
     it('a provider throw from _listProcesses still marks the record FAILED', async () => {
@@ -296,6 +297,25 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
 
       expect(note).toHaveBeenCalledTimes(1);
       expect(note.mock.calls[0][0].message).toMatch(/ENOENT/);
+      expect(deps.audit.log).toHaveBeenCalledTimes(1);
+      expect(deps.audit.log).toHaveBeenCalledWith('observation-gap', {
+        agent: '',
+        pid: null,
+        instanceId: null,
+        action: 'process-population-unavailable',
+        path: '',
+        severity: 'normal',
+        attribution: null,
+        extra: { cause: 'process-enumeration', state: 'unavailable' },
+      });
+
+      deps.scanner.scanProcesses.mockResolvedValue({ agents: [], changed: false, reliable: true });
+      await runOneProcessScan();
+      expect(note).toHaveBeenCalledTimes(1);
+      expect(deps.audit.log.mock.calls.filter(([type]) => type === 'observation-gap')).toEqual([
+        ['observation-gap', expect.objectContaining({ action: 'process-population-unavailable' })],
+        ['observation-gap', expect.objectContaining({ action: 'process-population-restored' })],
+      ]);
     });
 
     it('both paths keep the existing "Process scan failed" log', async () => {

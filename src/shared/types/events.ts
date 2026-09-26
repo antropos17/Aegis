@@ -212,12 +212,15 @@ export interface NetworkConnection {
  * evidence-policy calibration and observation limits. Additive — no exhaustive narrowing over this
  * union exists in the code, so a consumer that switches on it keeps its default branch.
  *
- * `observation-gap` is an OS suspend/resume pair (`observation-gap.js`, written by
- * `main.js` on powerMonitor resume, Block B5): one record per resume, `action` is
- * `os-resume`, no agent, `pid`/`instanceId`/`attribution` all `null` — the ownership
- * question does not apply — and `details` carries `{ cause, suspendedAt, resumedAt,
- * gapMs, suspendCount, monitoringPaused, activeSessions }`, ISO strings or `null`
- * where the suspend was never seen. It explains a hole in the log; it never fills one.
+ * `observation-gap` records either an OS suspend/resume (`observation-gap.js`,
+ * `main.js`, Block B5) or a process-population provider outage/recovery
+ * (`scan-loop.js`). The OS record has action `os-resume` and details
+ * `{ cause, suspendedAt, resumedAt, gapMs, suspendCount, monitoringPaused,
+ * activeSessions }`. The process pair has actions `process-population-unavailable`
+ * and `process-population-restored`, with only fixed-code details
+ * `{ cause: 'process-enumeration', state: 'unavailable' | 'restored' }`.
+ * Neither has an agent or a path; `pid`/`instanceId`/`attribution` are `null`.
+ * These records explain gaps in observation; they cannot reconstruct missing events.
  */
 export type AuditEventType =
   | 'file-access'

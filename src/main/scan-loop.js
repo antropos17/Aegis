@@ -49,6 +49,37 @@ let _lastTriggeredNetScan = 0;
 // C-02: reentrancy guard — block overlapping doProcessScan runs so a slow scan
 // can't be clobbered by the next interval tick (last-writer-wins on the snapshot).
 let processScanRunning = false;
+// One audit pair per continuous loss of the process population. Reset by init(),
+// not by each scan or timer restart; a paused loop has not observed a recovery.
+let processPopulationUnavailable = false;
+
+/**
+ * Record only a provider-observed population transition, before session reconcile.
+ * A fixed cause/state pair describes the evidence gap without copying the provider
+ * error, process list or any agent identity into the audit journal. The audit logger
+ * buffers writes; flush is an immediate best-effort attempt, not a durability promise
+ * if storage remains unavailable.
+ * @param {boolean} reliable
+ * @param {{log: Function, flush?: Function}} audit
+ * @returns {void}
+ * @since v0.16.0-alpha
+ */
+function auditProcessPopulationTransition(reliable, audit) {
+  const unavailable = !reliable;
+  if (unavailable === processPopulationUnavailable) return;
+  audit.log('observation-gap', {
+    agent: '',
+    pid: null,
+    instanceId: null,
+    action: unavailable ? 'process-population-unavailable' : 'process-population-restored',
+    path: '',
+    severity: 'normal',
+    attribution: null,
+    extra: { cause: 'process-enumeration', state: unavailable ? 'unavailable' : 'restored' },
+  });
+  processPopulationUnavailable = unavailable;
+  audit.flush?.();
+}
 
 /** @param {boolean} entering — true when scan starts, false when ends @since v0.4.0 */
 function updateScanStatus(entering) {
@@ -456,8 +487,13 @@ async function doProcessScan() {
       if (scanner && typeof scanner.noteProcessScanHardFailure === 'function') {
         scanner.noteProcessScanHardFailure(err);
       }
+      auditProcessPopulationTransition(false, audit);
       throw err;
     }
+    // The population provider has answered (possibly with `reliable:false`). Mark its
+    // transition here so downstream enrichment or renderer failures cannot be mistaken
+    // for provider outages, and restoration precedes any inferred session exit.
+    auditProcessPopulationTransition(result.reliable !== false, audit);
     setAgents(result.agents);
     const agents = result.agents;
     // Process IDENTITY first. This attaches the OS birth time and the derived
@@ -954,6 +990,7 @@ function init(injected) {
   resourceScanGeneration++;
   resourceSampler.invalidate();
   deps = injected;
+  processPopulationUnavailable = false;
   deps.baselines?.init?.({
     isInstanceActive: (instanceId) =>
       sessionTracker.hasInstance(instanceId) ||
