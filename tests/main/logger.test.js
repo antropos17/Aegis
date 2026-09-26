@@ -137,6 +137,8 @@ describe('logger', () => {
     const oldStr = `${oldDate.getFullYear()}-${String(oldDate.getMonth() + 1).padStart(2, '0')}-${String(oldDate.getDate()).padStart(2, '0')}`;
     const oldFile = path.join(logDir, `aegis-${oldStr}.log`);
     fs.writeFileSync(oldFile, '{"test":"old"}\n');
+    const backupFile = path.join(logDir, `aegis-${oldStr}.log.backup.log`);
+    fs.writeFileSync(backupFile, '{"test":"backup"}\n');
 
     const recentDate = new Date(Date.now() - 86400000);
     const recentStr = `${recentDate.getFullYear()}-${String(recentDate.getMonth() + 1).padStart(2, '0')}-${String(recentDate.getDate()).padStart(2, '0')}`;
@@ -152,6 +154,9 @@ describe('logger', () => {
 
     expect(fs.existsSync(oldFile)).toBe(false);
     expect(fs.existsSync(recentFile)).toBe(true);
+    expect(fs.existsSync(backupFile)).toBe(true);
+    expect(logger.getStats()).toMatchObject({ totalFiles: 1, recordingSince: recentStr });
+    expect(logger.exportAll()).toEqual([{ test: 'recent' }]);
   });
 
   it('shutdown() clears timer and flushes', () => {

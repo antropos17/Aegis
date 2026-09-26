@@ -24,6 +24,7 @@ let _flushTimer = null;
 const FLUSH_INTERVAL = 5000;
 const FLUSH_THRESHOLD = 50;
 const RETENTION_DAYS = 30;
+const LOG_FILE_PATTERN = /^aegis-(\d{4}-\d{2}-\d{2})\.log$/;
 
 /** In-memory counter — avoids re-reading today's log file on every getStats() call */
 let _todayEntries = 0;
@@ -150,17 +151,17 @@ function flush() {
 function cleanOldLogs() {
   if (!_logDir) return;
   try {
-    const files = fs
-      .readdirSync(_logDir)
-      .filter((f) => f.startsWith('aegis-') && f.endsWith('.log'));
+    const files = fs.readdirSync(_logDir).filter((f) => LOG_FILE_PATTERN.test(f));
     const cutoff = Date.now() - RETENTION_DAYS * 86400000;
     for (const f of files) {
-      const match = f.match(/aegis-(\d{4}-\d{2}-\d{2})\.log/);
+      const match = f.match(LOG_FILE_PATTERN);
       if (match) {
         const fileDate = new Date(match[1]).getTime();
         if (fileDate < cutoff) {
           try {
-            fs.unlinkSync(path.join(_logDir, f));
+            const filePath = path.join(_logDir, f);
+            const stat = fs.lstatSync(filePath);
+            if (stat.isFile() && !stat.isSymbolicLink()) fs.unlinkSync(filePath);
           } catch {
             console.error('[logger] unlink old log failed');
           }
@@ -195,11 +196,11 @@ function getStats() {
   try {
     const files = fs
       .readdirSync(_logDir)
-      .filter((f) => f.startsWith('aegis-') && f.endsWith('.log'))
+      .filter((f) => LOG_FILE_PATTERN.test(f))
       .sort();
     totalFiles = files.length;
     if (files.length > 0) {
-      const firstMatch = files[0].match(/aegis-(\d{4}-\d{2}-\d{2})\.log/);
+      const firstMatch = files[0].match(LOG_FILE_PATTERN);
       if (firstMatch) recordingSince = firstMatch[1];
     }
   } catch {
@@ -219,7 +220,7 @@ function exportAll() {
   try {
     const files = fs
       .readdirSync(_logDir)
-      .filter((f) => f.startsWith('aegis-') && f.endsWith('.log'))
+      .filter((f) => LOG_FILE_PATTERN.test(f))
       .sort();
     for (const f of files) {
       const content = fs.readFileSync(path.join(_logDir, f), 'utf-8');
