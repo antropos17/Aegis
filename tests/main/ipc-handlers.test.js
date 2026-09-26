@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import Module from 'module';
 import path from 'path';
 import fs from 'fs';
@@ -167,6 +167,7 @@ afterAll(() => {
 
 describe('ipc-handlers', () => {
   let ipcHandlers;
+  let threatTempRoot;
 
   beforeEach(async () => {
     // Clear handler registrations
@@ -179,6 +180,9 @@ describe('ipc-handlers', () => {
     mockElectron.shell.showItemInFolder.mockClear();
     mockElectron.shell.openExternal.mockClear();
     mockElectron.dialog.showMessageBox.mockReset();
+    mockElectron.app.getPath.mockReset().mockReturnValue(os.tmpdir());
+    mockLogger.error.mockClear();
+    mockExporter.generateReport.mockReset().mockResolvedValue({ success: true });
     mockPlatform.killProcess.mockClear();
     mockPlatform.suspendProcess.mockClear();
     mockPlatform.resumeProcess.mockClear();
@@ -201,6 +205,14 @@ describe('ipc-handlers', () => {
     ipcHandlers = mod.default;
   });
 
+  afterEach(() => {
+    if (threatTempRoot) {
+      expect(path.dirname(threatTempRoot)).toBe(path.resolve(os.tmpdir()));
+      fs.rmSync(threatTempRoot, { recursive: true, force: true });
+      threatTempRoot = undefined;
+    }
+  });
+
   function getHandler(channel) {
     return handlers[channel];
   }
@@ -219,6 +231,12 @@ describe('ipc-handlers', () => {
     ipcHandlers.init({ getWindow: () => window });
     ipcHandlers.register();
     return { window, contents, frame, event: { sender: contents, senderFrame: frame } };
+  }
+
+  function registerThreatRenderer() {
+    threatTempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-threat-report-test-'));
+    mockElectron.app.getPath.mockReturnValue(threatTempRoot);
+    return registerOwnedRenderer();
   }
 
   it('opens each exact AEGIS setup guide directly for the owned top-level renderer', async () => {
@@ -571,6 +589,28 @@ describe('ipc-handlers', () => {
       expect(handler()).toEqual({ memMB: 50 });
     });
 
+    it('denies generate-report from a foreign sender before generating a file', async () => {
+      const { event } = registerOwnedRenderer();
+      const handler = getHandler('generate-report');
+      expect(await handler({ ...event, sender: {} })).toEqual({
+        success: false,
+        error: 'Renderer request denied',
+      });
+      expect(mockExporter.generateReport).not.toHaveBeenCalled();
+      expect(await handler(event)).toEqual({ success: true });
+      expect(mockExporter.generateReport).toHaveBeenCalledOnce();
+    });
+
+    it('redacts a failed generate-report exception in logs and IPC', async () => {
+      const { event } = registerOwnedRenderer();
+      const privatePath = path.join(os.tmpdir(), 'private-report-canary.html');
+      mockExporter.generateReport.mockRejectedValueOnce(new Error(`Cannot open ${privatePath}`));
+      const result = await getHandler('generate-report')(event);
+      expect(result).toEqual({ success: false, error: 'Session report could not be opened' });
+      expect(JSON.stringify(result)).not.toContain(privatePath);
+      expect(mockLogger.error).toHaveBeenCalledExactlyOnceWith('IPC generate-report failed');
+    });
+
     it('get-settings returns nonsecret settings and only the provider key state', () => {
       const handler = getHandler('get-settings');
       const source = {
@@ -660,6 +700,7 @@ describe('ipc-handlers', () => {
     });
 
     it('open-threat-report generates HTML from structured data', async () => {
+      const { event } = registerThreatRenderer();
       const handler = getHandler('open-threat-report');
       const data = {
         riskRating: 'HIGH',
@@ -668,19 +709,22 @@ describe('ipc-handlers', () => {
         recommendations: ['Rec 1'],
         counts: { totalFiles: 10, totalSensitive: 2, totalAgents: 3, totalNet: 1 },
       };
-      const result = await handler(null, data);
+      const result = await handler(event, data);
       expect(result.success).toBe(true);
       expect(result.path).toContain('aegis-threat-report-');
+      expect(path.dirname(result.path)).toBe(path.join(threatTempRoot, 'aegis-private-reports-v1'));
+      expect(mockElectron.shell.openExternal).toHaveBeenCalledWith(pathToFileURL(result.path).href);
       if (fs.existsSync(result.path)) {
         const content = fs.readFileSync(result.path, 'utf-8');
         expect(content).toContain('Test summary');
         expect(content).toContain('Finding 1');
         expect(content).toContain('AEGIS Threat Analysis Report');
-        fs.unlinkSync(result.path);
+        expect(content).toContain("default-src 'none'; style-src 'unsafe-inline'");
       }
     });
 
     it('open-threat-report escapes HTML in data fields', async () => {
+      const { event } = registerThreatRenderer();
       const handler = getHandler('open-threat-report');
       const data = {
         riskRating: '<script>alert(1)</script>',
@@ -689,7 +733,7 @@ describe('ipc-handlers', () => {
         recommendations: [],
         counts: { totalFiles: 0, totalSensitive: 0, totalAgents: 0, totalNet: 0 },
       };
-      const result = await handler(null, data);
+      const result = await handler(event, data);
       expect(result.success).toBe(true);
       if (fs.existsSync(result.path)) {
         const content = fs.readFileSync(result.path, 'utf-8');
@@ -697,32 +741,64 @@ describe('ipc-handlers', () => {
         expect(content).not.toContain('<img');
         expect(content).not.toContain('<b>xss</b>');
         expect(content).toContain('&lt;script&gt;');
-        fs.unlinkSync(result.path);
       }
     });
 
     it('keeps a provider riskLevel and captured counts when opening the HTML report', async () => {
-      const result = await getHandler('open-threat-report')(null, {
+      const { event } = registerThreatRenderer();
+      const result = await getHandler('open-threat-report')(event, {
         riskLevel: 'HIGH',
         summary: 'Scoped fixture',
         counts: { totalFiles: 7, totalSensitive: 2, totalAgents: 1, totalNet: 3 },
       });
       expect(result.success).toBe(true);
-      try {
-        const content = fs.readFileSync(result.path, 'utf8');
-        expect(content).toContain('>HIGH<');
-        expect(content).not.toContain('UNKNOWN');
-        expect(content).toContain('>7<');
-      } finally {
-        fs.unlinkSync(result.path);
-      }
+      const content = fs.readFileSync(result.path, 'utf8');
+      expect(content).toContain('>HIGH<');
+      expect(content).not.toContain('UNKNOWN');
+      expect(content).toContain('>7<');
     });
 
     it('open-threat-report rejects non-object data', async () => {
+      const { event } = registerThreatRenderer();
       const handler = getHandler('open-threat-report');
-      const result = await handler(null, '<html>raw</html>');
+      const result = await handler(event, '<html>raw</html>');
       expect(result.success).toBe(false);
       expect(result.error).toBe('Invalid report data');
+    });
+
+    it('does not write a threat report for a foreign renderer or oversized fields', async () => {
+      const { event } = registerThreatRenderer();
+      const handler = getHandler('open-threat-report');
+      expect(await handler({ ...event, senderFrame: {} }, { summary: 'private' })).toEqual({
+        success: false,
+        error: 'Renderer request denied',
+      });
+      expect(await handler(event, { summary: 'PRIVATE'.repeat(6000) })).toEqual({
+        success: false,
+        error: 'Invalid report data',
+      });
+      expect(fs.existsSync(path.join(threatTempRoot, 'aegis-private-reports-v1'))).toBe(false);
+      expect(mockElectron.shell.openExternal).not.toHaveBeenCalled();
+      expect(mockLogger.error).not.toHaveBeenCalledWith(expect.stringContaining('PRIVATE'));
+    });
+
+    it('keeps a failed threat report path and contents out of logs and IPC', async () => {
+      const { event } = registerThreatRenderer();
+      const outside = path.join(threatTempRoot, 'outside');
+      fs.mkdirSync(outside);
+      fs.symlinkSync(
+        outside,
+        path.join(threatTempRoot, 'aegis-private-reports-v1'),
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+      const result = await getHandler('open-threat-report')(event, {
+        summary: 'PRIVATE_THREAT_CONTENT',
+      });
+      expect(result).toEqual({ success: false, error: 'Threat report could not be opened' });
+      expect(mockLogger.error).toHaveBeenCalledExactlyOnceWith('IPC open-threat-report failed');
+      expect(JSON.stringify(result)).not.toContain('PRIVATE_THREAT_CONTENT');
+      expect(fs.readdirSync(outside)).toEqual([]);
+      expect(mockElectron.shell.openExternal).not.toHaveBeenCalled();
     });
 
     it('reveal-in-explorer calls shell.showItemInFolder for existing paths', () => {

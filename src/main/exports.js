@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const { dialog, shell, app } = require('electron');
 const { UNKNOWN_SOURCE_LABEL } = require('./attribution');
+const { writePrivateReport, startPrivateReportRetention } = require('./private-report-temp');
 const {
   describeObservation,
   groupObservations,
@@ -62,6 +63,10 @@ function displayAgent(ev) {
  */
 function init(state) {
   _state = state;
+  startPrivateReportRetention(
+    () => app.getPath('temp'),
+    () => require('./logger').warn('exports', 'Private report retention unavailable'),
+  );
 }
 
 /**
@@ -332,10 +337,20 @@ async function generateReport() {
     '</section><footer>AEGIS v' +
     escHtml(version) +
     ' · resource context identifies a directory or skill; actor attribution is recorded separately. File contents and API keys are not included.</footer></main></body></html>';
-  const reportPath = path.join(app.getPath('temp'), 'aegis-report-' + Date.now() + '.html');
-  fs.writeFileSync(reportPath, html);
-  const error = await shell.openPath(reportPath);
-  return error ? { success: false, error, path: reportPath } : { success: true, path: reportPath };
+  let reportPath;
+  try {
+    reportPath = writePrivateReport(app.getPath('temp'), 'report', html);
+  } catch (_) {
+    return { success: false, error: 'Session report could not be written' };
+  }
+  try {
+    const error = await shell.openPath(reportPath);
+    return error
+      ? { success: false, error: 'Session report could not be opened' }
+      : { success: true, path: reportPath };
+  } catch (_) {
+    return { success: false, error: 'Session report could not be opened' };
+  }
 }
 
 module.exports = { init, exportLog, exportCsv, generateReport };

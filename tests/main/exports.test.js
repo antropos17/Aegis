@@ -408,12 +408,24 @@ describe('exports', () => {
       expect(event.instanceId).toBeNull();
     });
 
-    it('reports failure when the native viewer cannot open the generated report', async () => {
+    it('redacts a native viewer error containing the generated report path', async () => {
       initExporter();
-      mockOpenPath.mockResolvedValueOnce('No viewer available');
+      mockOpenPath.mockImplementationOnce(async (reportPath) => `Cannot open ${reportPath}`);
       const result = await exporter.generateReport();
-      expect(result).toMatchObject({ success: false, error: 'No viewer available' });
-      expect(fs.existsSync(result.path)).toBe(true);
+      expect(result).toEqual({ success: false, error: 'Session report could not be opened' });
+      expect(JSON.stringify(result)).not.toContain(tmpDir);
+      expect(mockOpenPath).toHaveBeenCalledOnce();
+    });
+
+    it('redacts a rejected native viewer error containing the generated report path', async () => {
+      initExporter();
+      mockOpenPath.mockImplementationOnce(async (reportPath) => {
+        throw new Error(`Cannot open ${reportPath}`);
+      });
+      const result = await exporter.generateReport();
+      expect(result).toEqual({ success: false, error: 'Session report could not be opened' });
+      expect(JSON.stringify(result)).not.toContain(tmpDir);
+      expect(mockOpenPath).toHaveBeenCalledOnce();
     });
     it('generates HTML report and returns path', async () => {
       initExporter({
