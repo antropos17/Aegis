@@ -15,6 +15,7 @@ const {
 const { importSkillJson } = require('./static-import-skill');
 const { importSkillSarif } = require('./static-import-sarif');
 const { importMcpJson } = require('./static-import-mcp');
+const { importCfgauditSarif } = require('./static-import-cfgaudit');
 
 /**
  * Normalize untrusted report fields against an already-read file map. No disk or network access.
@@ -151,7 +152,8 @@ function normalizeExternalReport(format, value, context) {
     if (typeof value.skill_path === 'string') collector.root(value.skill_path);
     importSkillJson(value, collector);
   } else if (format === 'cisco-skill-sarif') importSkillSarif(value, collector);
-  else importMcpJson(value, collector);
+  else if (format === 'cisco-mcp-json') importMcpJson(value, collector);
+  else importCfgauditSarif(value, collector);
   return {
     findings,
     issues: [...issues].sort(),

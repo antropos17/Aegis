@@ -17,6 +17,11 @@ const FORMATS = Object.freeze({
     encoding: 'raw-envelope-json',
     compatibilityRevision: '16e684d8bd8faa0f0bb15e04ba2d2089dff42196',
   },
+  'cfgaudit-sarif': {
+    provider: 'cfgaudit',
+    encoding: 'sarif-2.1.0',
+    compatibilityRevision: 'a8cd15945b09c0fa91e4c5c5eca36e63072110e8',
+  },
 });
 const LIMITS = Object.freeze({
   entries: 1024,

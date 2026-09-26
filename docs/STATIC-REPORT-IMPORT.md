@@ -1,7 +1,7 @@
 # External static reports (A4.2, integration slice)
 
-AEGIS can import an explicitly selected Cisco result alongside a fresh local
-[static review](STATIC-ANALYSIS.md). The importer reads JSON without executing
+AEGIS can import an explicitly selected Cisco or cfgaudit result alongside a
+fresh local [static review](STATIC-ANALYSIS.md). The importer reads JSON without executing
 package code, starting MCP servers, installing analyzers or making network calls.
 It does not run a JavaScript/Python analysis engine or verify external detection
 effectiveness. Those parts of A4.2 remain pending.
@@ -16,6 +16,7 @@ node src/main/main.js --static-scan-json package "X:/reviews/skill" > "X:/review
 node src/main/main.js --static-import-json package "X:/reviews/skill" cisco-skill-json "X:/reviews/cisco.json" --baseline "X:/reviews/before.json"
 node src/main/main.js --static-import-json package "X:/reviews/skill" cisco-skill-sarif "X:/reviews/cisco.sarif"
 node src/main/main.js --static-import-json project "X:/work/project" cisco-mcp-json "X:/reviews/mcp-raw.json"
+node src/main/main.js --static-import-json project "X:/work/project" cfgaudit-sarif "X:/reviews/cfgaudit.sarif"
 ```
 
 The adapter selects the local read scope, exactly as in `--static-scan-json`.
@@ -26,7 +27,7 @@ report, not an A3 inventory snapshot. Existing input files are never modified.
 External tools must be run separately with explicitly chosen inputs, versions,
 analyzers and data-sharing options. Importing an existing report says nothing
 about whether its producer used local analysis, cloud APIs or a live MCP server.
-No Cisco installation, copied analyzer code or dependency change is included.
+No external scanner installation, copied analyzer code or dependency change is included.
 
 ## Compatibility contracts
 
@@ -35,6 +36,7 @@ No Cisco installation, copied analyzer code or dependency change is included.
 | `cisco-skill-json` | One result with `skill_path`, `findings`, `findings_count`, `analyzers_used` | Aggregate `scan-all`/`results` documents are unsupported; failed analyzers are coverage issues |
 | `cisco-skill-sarif` | SARIF `2.1.0`, inline runs from driver `skill-scanner`, inline results/rule metadata/locations | No external properties, URI-base resolution, indexed artifacts, code-flow or related-location reconstruction |
 | `cisco-mcp-json` | `--format raw` envelope with `server_url`, `scan_results`, `requested_analyzers` | Bare `--raw` arrays, HTTP API variants and other presentation formats are unsupported; analyzer entries remain aggregates |
+| `cfgaudit-sarif` | SARIF `2.1.0`, one inline run from driver `cfgaudit`, inline CFG rule catalog, results and relative file URIs | No external properties, URI bases, indexed artifacts or flow reconstruction; producer execution and scan scope are not reported |
 
 The inspected [Skill JSON model](https://github.com/cisco-ai-defense/skill-scanner/blob/431cb58a5ac333bc0bb9aaa23f7c30ac628f59f8/skill_scanner/core/models.py)
 can set `is_safe: true` while lower-severity findings exist. AEGIS keeps those
@@ -53,6 +55,16 @@ AEGIS retains each nonempty aggregate's reported count, fixed threat categories
 and hashed item identity. Missing requested-analyzer results, incomplete items,
 contradictory counts and meta filtering remain explicit issues. A summary count
 does not become a set of reconstructed individual findings.
+
+The inspected [cfgaudit SARIF exporter](https://github.com/cfgaudit/cfgaudit/blob/a8cd15945b09c0fa91e4c5c5eca36e63072110e8/cmd/cfgaudit/sarif.go)
+emits one run, `CFG` rule IDs and `error`/`warning`/`note` levels. AEGIS projects
+those levels to high/medium/low and groups registered CFG rules under the fixed
+`policy_violation` category. The `static` analyzer label describes the import
+contract, not observed analyzer coverage. The exporter includes neither an
+invocation success record nor a source-root declaration. AEGIS records both gaps
+even for an empty report. The report is selected and parsed offline; AEGIS does
+not start cfgaudit. cfgaudit's own CLI may invoke other programs depending on
+its options and environment, so users run it separately at their discretion.
 
 ## Result and evidence
 
@@ -82,8 +94,12 @@ references can use either path separator; supported SARIF relative URIs are
 decoded once. Absolute paths, traversal, URI bases and unmatched paths remain
 unbound. References cannot select new filesystem reads. A Skill JSON report whose
 declared root differs from the selected canonical directory gets no file mapping.
-There is no cross-machine root remapping. SARIF mappings assume the caller chose
+There is no cross-machine root remapping. Cisco Skill SARIF mappings assume the caller chose
 the reported `%SRCROOT%`; that relationship is not authenticated.
+cfgaudit SARIF has no reported root. Its relative references bind only to files
+observed under the caller-selected root, and the missing root proof stays visible
+as `external-reported-root-not-reported`. A matching relative path cannot prove
+that cfgaudit analyzed the same directory or file bytes.
 
 Mapped locations retain `currentSha256`, optional `baselineSha256` and a
 `reportedLine`. Line numbers are bounded claims; their correspondence to actual
@@ -134,7 +150,9 @@ references and `$schema` URLs are never fetched or executed. SARIF support is an
 explicit subset of [OASIS SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/sarif-v2.1.0-os.html),
 not a general SARIF validator.
 
-Compatibility sources were checked on 2026-09-15. Tests use authored synthetic
+Cisco compatibility sources were checked on 2026-09-15; cfgaudit's exporter and
+[SARIF tests](https://github.com/cfgaudit/cfgaudit/blob/a8cd15945b09c0fa91e4c5c5eca36e63072110e8/cmd/cfgaudit/sarif_test.go)
+were checked on 2026-09-26. Tests use authored synthetic
 reports derived from those field contracts, including malformed and adversarial
-variants. Cisco binaries were not installed or run, and their detection accuracy
-was not evaluated.
+variants. External scanner binaries were not installed or run, and their detection
+accuracy was not evaluated.

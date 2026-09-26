@@ -29,7 +29,8 @@ export const reviewModes = [
   {
     id: 'import',
     label: 'External report',
-    description: 'Import a Cisco result and compare its claims with a fresh local scan.',
+    description:
+      'Import a selected external result and compare its claims with a fresh local scan.',
   },
 ];
 export const reviewAdapters = [
@@ -86,6 +87,7 @@ export const reportFormats = [
   ['cisco-skill-json', 'Cisco Skill Scanner · JSON'],
   ['cisco-skill-sarif', 'Cisco Skill Scanner · SARIF 2.1.0'],
   ['cisco-mcp-json', 'Cisco MCP Scanner · JSON'],
+  ['cfgaudit-sarif', 'cfgaudit · SARIF 2.1.0'],
 ];
 const errors: Record<string, string> = {
   'review-busy': 'A local review is already running. Wait for it to finish.',
@@ -298,12 +300,24 @@ export function reviewRows(report: RecordData, section: string): ReviewRow[] {
         ...entry,
         origin: 'External claim · unverified',
       })),
-    ].map((entry: RecordData) => ({
-      title: String(entry.title ?? (words(entry.category) || 'External finding')),
-      subtitle: `${entry.origin} · ${entry.path ?? (typeof entry.toolIndex === 'number' ? 'Tool #' + (entry.toolIndex + 1) : 'Unbound location')}${entry.line ? ' · ' + (entry.context === 'mcp-tool-description' ? 'Description line ' : 'Line ') + entry.line : ''}`,
-      severity: String(entry.severity ?? 'unknown'),
-      evidence: entry,
-    }));
+    ].map((entry: RecordData) => {
+      const mapped = records(entry.locations).find(
+        (location) => typeof location.path === 'string' && location.path.length > 0,
+      );
+      const path =
+        (typeof entry.path === 'string' && entry.path) ||
+        mapped?.path ||
+        (typeof entry.toolIndex === 'number'
+          ? 'Tool #' + (entry.toolIndex + 1)
+          : 'Unbound location');
+      const line = entry.line ?? mapped?.reportedLine;
+      return {
+        title: String(entry.title ?? (words(entry.category) || 'External finding')),
+        subtitle: `${entry.origin} · ${path}${line ? ' · ' + (entry.context === 'mcp-tool-description' ? 'Description line ' : 'Line ') + line : ''}`,
+        severity: String(entry.severity ?? 'unknown'),
+        evidence: entry,
+      };
+    });
   if (section === 'files')
     return records(inventory.components ?? local.files).map((entry) => ({
       title: String(entry.path ?? 'Unobserved file'),
