@@ -9,6 +9,7 @@ const LIMITS = Object.freeze({
   runtimeMs: 5000,
   outputBytes: 65536,
   cleanupMs: 1000,
+  protectedCleanupMs: 2000,
 });
 let testDeps = null;
 
@@ -30,6 +31,96 @@ function report(decision, reason, execution = {}) {
     control: 'direct-child-only',
     descendantControl: 'unsupported',
   };
+}
+
+function protectedReport(decision, reason, execution = {}, descendantControl = 'not-started') {
+  return {
+    ...report(decision, reason, execution),
+    control: 'windows-job',
+    descendantControl,
+  };
+}
+
+function runProtectedAction(launch, signal, authorization, spawnProtected) {
+  let child;
+  try {
+    child = spawnProtected(launch);
+  } catch {
+    return Promise.resolve({
+      ...protectedReport('deny', 'protected-launch-unavailable', { state: 'not-started' }),
+      ...(authorization || {}),
+    });
+  }
+  return new Promise((resolve) => {
+    let settled = false;
+    let interrupted = false;
+    let interruptionReason = '';
+    let cleanupTimer;
+    const runtimeTimer = setTimeout(() => interrupt('runtime-timeout'), LIMITS.runtimeMs);
+    const finish = (decision, reason, state, confirmed, outcome) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(runtimeTimer);
+      clearTimeout(cleanupTimer);
+      signal?.removeEventListener('abort', onAbort);
+      child.stdin?.destroy();
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+      if (!confirmed) child.unref?.();
+      resolve({
+        ...protectedReport(
+          decision,
+          reason,
+          {
+            state,
+            exitCode: state === 'exited' ? outcome.exitCode : null,
+            termination: !confirmed
+              ? 'unconfirmed'
+              : interrupted || state === 'interrupted'
+                ? 'confirmed'
+                : 'not-requested',
+            stdoutBytes: outcome?.stdoutBytes || 0,
+            stderrBytes: outcome?.stderrBytes || 0,
+            outputComplete: state === 'exited' && outcome.outputComplete,
+          },
+          confirmed ? 'confirmed' : 'unconfirmed',
+        ),
+        ...(authorization || {}),
+      });
+    };
+    const interrupt = (why) => {
+      if (settled || interrupted) return;
+      interrupted = true;
+      interruptionReason = why;
+      clearTimeout(runtimeTimer);
+      try {
+        child.stop();
+      } catch {
+        /* The close/status protocol confirms whether cleanup completed. */
+      }
+      cleanupTimer = setTimeout(() => {
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          /* A missing cleanup receipt remains unconfirmed. */
+        }
+        finish('unknown', 'cleanup-unconfirmed', 'unknown', false);
+      }, LIMITS.protectedCleanupMs);
+    };
+    const onAbort = () => interrupt('action-cancelled');
+    child.on('error', () => interrupt('protected-launch-unavailable'));
+    child.once('close', () => {
+      const outcome = child.actionOutcome;
+      if (!child.cleanupConfirmed || !outcome)
+        return finish('unknown', 'cleanup-unconfirmed', 'unknown', false, outcome);
+      if (interrupted) return finish('allow', interruptionReason, 'interrupted', true, outcome);
+      if (outcome.outputLimit) return finish('allow', 'output-limit', 'interrupted', true, outcome);
+      if (outcome.exited) return finish('allow', 'child-exited', 'exited', true, outcome);
+      return finish('unknown', 'protected-interrupted', 'interrupted', true, outcome);
+    });
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) onAbort();
+  });
 }
 
 function ownLaunch(launch) {
@@ -62,28 +153,37 @@ function ownLaunch(launch) {
 }
 
 /**
- * Evaluate one selected request then directly launch only that allowed child.
- * No shell or inherited environment is used. Child output is counted, never
- * returned or persisted. Descendants and operating-system isolation are unsupported.
+ * Evaluate one selected request then launch only that allowed child. The trusted
+ * Windows Job opt-in holds ordinary Job-member descendants until verified cleanup. No shell or
+ * inherited environment is used. Child output is counted, never returned.
  * @param {string} policyPath Explicit selected policy file.
  * @param {string} requestPath Explicit selected request file.
- * @param {{signal?: AbortSignal, binding?: object, approval?: object}} [options] Owned cancellation, revision and one-use approval.
+ * @param {{signal?: AbortSignal, binding?: object, approval?: object, protectedDescendants?: boolean}} [options] Owned cancellation, revision, one-use approval and Windows Job opt-in.
  * @returns {Promise<object>} Fixed decision and direct-child outcome metadata.
  * @since v0.15.1
  */
 async function executeAction(policyPath, requestPath, options = {}) {
   const { signal, binding, approval } = options;
+  const protectedJob = options.protectedDescendants === true;
+  const localReport = protectedJob ? protectedReport : report;
   const pinned = Object.hasOwn(options, 'binding');
   const approved = Object.hasOwn(options, 'approval');
-  if (signal?.aborted) return report('deny', 'action-cancelled');
+  if (
+    Object.hasOwn(options, 'protectedDescendants') &&
+    typeof options.protectedDescendants !== 'boolean'
+  )
+    return protectedReport('deny', 'protected-option-invalid');
+  if (protectedJob && process.platform !== 'win32')
+    return protectedReport('deny', 'protected-runtime-unsupported');
+  if (signal?.aborted) return localReport('deny', 'action-cancelled');
   if (
     approved &&
     (!pinned ||
       !isExecutionApprovalActive(approval, binding) ||
       !require('./execution-binding').isExecutionBindingActive(binding, policyPath, requestPath))
   )
-    return report('deny', 'approval-unavailable');
-  if (!isExecutionRuntimeSupported()) return report('deny', 'runtime-unsupported');
+    return localReport('deny', 'approval-unavailable');
+  if (!isExecutionRuntimeSupported()) return localReport('deny', 'runtime-unsupported');
   const deps = testDeps || {};
   const prepare =
     deps.prepare ||
@@ -111,18 +211,18 @@ async function executeAction(policyPath, requestPath, options = {}) {
       }),
     ]);
   } catch (_) {
-    return report('deny', 'preparation-failed');
+    return localReport('deny', 'preparation-failed');
   } finally {
     clearTimeout(prepareTimer);
     signal?.removeEventListener('abort', onPrepareAbort);
   }
-  if (signal?.aborted) return report('deny', 'action-cancelled');
+  if (signal?.aborted) return localReport('deny', 'action-cancelled');
   if (now() - started >= LIMITS.prepareMs || !prepared)
-    return report('deny', 'preparation-unavailable');
+    return localReport('deny', 'preparation-unavailable');
   if (!['allow', 'ask', 'deny'].includes(prepared.decision))
-    return report('deny', 'decision-invalid');
+    return localReport('deny', 'decision-invalid');
   if (prepared.decision !== 'allow' && !(approved && prepared.decision === 'ask'))
-    return report(
+    return localReport(
       prepared.decision,
       ['configuration-changed', 'configuration-unavailable', 'review-required'].includes(
         prepared.reason,
@@ -134,18 +234,26 @@ async function executeAction(policyPath, requestPath, options = {}) {
   try {
     launch = ownLaunch(prepared.launch);
   } catch (_) {
-    return report('deny', 'launch-invalid');
+    return localReport('deny', 'launch-invalid');
   }
-  if (!launch) return report('deny', 'launch-invalid');
+  if (!launch) return localReport('deny', 'launch-invalid');
   if (
     pinned &&
     !require('./execution-binding').isExecutionBindingActive(binding, policyPath, requestPath)
   )
-    return report('deny', 'configuration-changed');
-  if (signal?.aborted) return report('deny', 'action-cancelled');
-  if (now() - started >= LIMITS.prepareMs) return report('deny', 'preparation-unavailable');
+    return localReport('deny', 'configuration-changed');
+  if (signal?.aborted) return localReport('deny', 'action-cancelled');
+  if (now() - started >= LIMITS.prepareMs) return localReport('deny', 'preparation-unavailable');
   if (approved && !consumeExecutionApproval(approval, binding))
-    return report('deny', 'approval-unavailable');
+    return localReport('deny', 'approval-unavailable');
+
+  if (protectedJob)
+    return runProtectedAction(
+      launch,
+      signal,
+      approved ? { authorization: 'operator-confirmed', policyDecision: prepared.decision } : null,
+      deps.spawnProtected || require('./mcp-gateway-windows-job').spawnActionInWindowsJob,
+    );
 
   return new Promise((resolve) => {
     let child;

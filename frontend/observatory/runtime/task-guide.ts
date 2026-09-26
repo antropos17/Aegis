@@ -105,6 +105,12 @@ export const setupGuides = [
     file: 'ACTION-DELETE-FILE.md',
   },
   {
+    title: 'Control an allowed Windows action tree',
+    description:
+      'Use the separate Windows Job CLI route for ordinary descendant cleanup after an exact allow.',
+    file: 'ACTION-EXECUTION.md',
+  },
+  {
     title: 'Route a third-party MCP server',
     description:
       'Read the separate stdio gateway setup and limits. Action control does not check gateway setup or live coverage.',

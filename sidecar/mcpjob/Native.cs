@@ -69,6 +69,7 @@ internal static class Native
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool QueryInformationJobObject(IntPtr job, int infoClass, out JOBOBJECT_BASIC_ACCOUNTING_INFORMATION info, int length, IntPtr returned);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool TerminateJobObject(IntPtr job, uint exitCode);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool TerminateProcess(IntPtr process, uint exitCode);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetExitCodeProcess(IntPtr process, out uint exitCode);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern uint ResumeThread(IntPtr thread);
     [DllImport("kernel32.dll", SetLastError = true)] internal static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool CloseHandle(IntPtr handle);
@@ -110,6 +111,13 @@ internal static class Native
     {
         internal IntPtr Job, Process;
         internal FileStream Input, Output, Error;
+
+        internal int ExitCode()
+        {
+            uint code = 0;
+            Check(Process != IntPtr.Zero && GetExitCodeProcess(Process, out code));
+            return unchecked((int)code);
+        }
 
         internal bool TerminateAndVerify()
         {
