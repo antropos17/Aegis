@@ -57,7 +57,7 @@ describe('explicit inventory profiles', () => {
       schemaVersion: 3,
       mode: 'profile-inventory',
       complete: true,
-      adapter: { id: 'user-home', version: 1 },
+      adapter: { id: 'user-home', version: 2 },
       assessment: 'not-performed',
     });
     expect(report.components.map((entry) => entry.path)).toEqual([
@@ -109,6 +109,9 @@ describe('explicit inventory profiles', () => {
     ['claude-user', 'settings.json', '{"hooks":{"PreToolUse":[]}}', 'claude-code'],
     ['cursor-user', 'mcp.json', '{"mcpServers":{"one":{}}}', 'cursor'],
     ['vscode-user', 'mcp.json', '/* comment */ {"servers":{"one":{},},}', 'vscode'],
+    ['gemini-user', 'settings.json', '{"mcpServers":{"one":{}}}', 'gemini-cli'],
+    ['gemini-project', 'settings.json', '{"mcpServers":{"one":{}}}', 'gemini-cli'],
+    ['gemini-system-windows', 'settings.json', '{"mcpServers":{"one":{}}}', 'gemini-cli'],
     [
       'codex-managed',
       'requirements.toml',
@@ -153,6 +156,122 @@ describe('explicit inventory profiles', () => {
     ]);
     expect(open).toHaveBeenCalledTimes(3);
     expect(JSON.stringify(report)).not.toContain('PRIVATE');
+  });
+
+  it('reads only selected Gemini settings in project and user-home layouts', async () => {
+    const script = path.join(fixture, 'must-not-run.js');
+    const sentinel = path.join(fixture, 'launched');
+    fs.writeFileSync(
+      script,
+      `require('node:fs').writeFileSync(${JSON.stringify(sentinel)}, 'ran')`,
+    );
+    const contents = JSON.stringify({
+      mcp: { allowed: ['PRIVATE_SERVER'], excluded: [] },
+      mcpServers: {
+        PRIVATE_SERVER: {
+          command: process.execPath,
+          args: [script],
+          env: { TOKEN: 'PRIVATE_SECRET' },
+          trust: true,
+          includeTools: ['PRIVATE_TOOL'],
+        },
+      },
+    });
+    put('.gemini/settings.json', `// PRIVATE_COMMENT\n${contents}\n/* another comment */`);
+    put('.gemini/oauth_creds.json', 'PRIVATE_OAUTH');
+    put('.gemini/history/secret.json', 'PRIVATE_HISTORY');
+    const open = vi.spyOn(fs.promises, 'open');
+    for (const [id, directory, expectedPath, scope] of [
+      ['project', root, '.gemini/settings.json', 'project'],
+      ['user-home', root, '.gemini/settings.json', 'user'],
+      ['gemini-project', path.join(root, '.gemini'), 'settings.json', 'project'],
+      ['gemini-user', path.join(root, '.gemini'), 'settings.json', 'user'],
+    ]) {
+      const report =
+        id === 'project'
+          ? await inventoryProject(directory)
+          : await inventoryProfile(id, directory);
+      expect(report.complete).toBe(true);
+      expect(report.components).toHaveLength(1);
+      expect(report.components[0]).toMatchObject({
+        path: expectedPath,
+        format: 'json-comments',
+        parseStatus: 'parsed',
+        declaredEntries: 1,
+        geminiMcpDeclarations: {
+          allowed: { present: true, entries: 1 },
+          excluded: { present: true, entries: 0 },
+          trustTrueServers: 1,
+          includeToolsServers: 1,
+        },
+        provenance: { agent: 'gemini-cli', scope },
+      });
+      expect(JSON.stringify(report)).not.toMatch(/PRIVATE|must-not-run|launched/);
+      expect(report.scope.configurationPrecedence).toBe('not-resolved');
+    }
+    expect(fs.existsSync(sentinel)).toBe(false);
+    expect(open.mock.calls.map(([name]) => String(name))).not.toEqual(
+      expect.arrayContaining([expect.stringMatching(/oauth_creds|history|must-not-run/)]),
+    );
+  });
+
+  it('keeps Windows Gemini system defaults and overrides distinct without merging them', async () => {
+    put('system-defaults.json', '{"mcpServers":{"default":{"trust":true}}}');
+    put('settings.json', '{"mcp":{"excluded":["default"]},"mcpServers":{}}');
+    put('credentials.json', 'PRIVATE_CREDENTIALS');
+    const report = await inventoryProfile('gemini-system-windows', root);
+    expect(report.complete).toBe(true);
+    expect(report.components.map(({ path: name, provenance }) => [name, provenance.scope])).toEqual(
+      [
+        ['settings.json', 'system-override'],
+        ['system-defaults.json', 'system-defaults'],
+      ],
+    );
+    expect(report.components[0].geminiMcpDeclarations.excluded).toEqual({
+      present: true,
+      entries: 1,
+    });
+    expect(report.components[1].geminiMcpDeclarations.trustTrueServers).toBe(1);
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_CREDENTIALS');
+    expect(report.scope.configurationPrecedence).toBe('not-resolved');
+  });
+
+  it('reports malformed Gemini filters without returning their values', async () => {
+    put('settings.json', '{"mcp":{"allowed":["PRIVATE",42]}}');
+    const report = await inventoryProfile('gemini-user', root);
+    expect(report.complete).toBe(false);
+    expect(report.issues).toEqual([{ path: 'settings.json', reason: 'invalid-shape' }]);
+    expect(JSON.stringify(report)).not.toContain('PRIVATE');
+  });
+
+  it('marks malformed Gemini JSON incomplete without parser or content detail', async () => {
+    put('settings.json', '{"mcpServers":{"PRIVATE_SERVER":');
+    const report = await inventoryProfile('gemini-user', root);
+    expect(report.complete).toBe(false);
+    expect(report.issues).toEqual([{ path: 'settings.json', reason: 'invalid-json-comments' }]);
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_SERVER');
+  });
+
+  it('rejects trailing commas in Gemini settings even when comments are present', async () => {
+    put('settings.json', '// PRIVATE_COMMENT\n{"mcpServers":{"one":{},}}');
+    const report = await inventoryProfile('gemini-user', root);
+    expect(report.complete).toBe(false);
+    expect(report.issues).toEqual([{ path: 'settings.json', reason: 'invalid-json-comments' }]);
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_COMMENT');
+  });
+
+  it('does not follow linked Gemini config directories outside the selected project', async () => {
+    const outside = path.join(fixture, 'outside-gemini');
+    fs.mkdirSync(outside);
+    fs.writeFileSync(path.join(outside, 'settings.json'), '{"token":"PRIVATE_OAUTH"}');
+    const link = path.join(root, '.gemini');
+    fs.symlinkSync(outside, link, process.platform === 'win32' ? 'junction' : 'dir');
+    links.push(link);
+    const open = vi.spyOn(fs.promises, 'open');
+    const report = await inventoryProject(root);
+    expect(report.issues).toContainEqual({ path: '.gemini/settings.json', reason: 'link-skipped' });
+    expect(open).not.toHaveBeenCalled();
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_OAUTH');
   });
 
   it('bounds directory enumeration even when no names match', async () => {
@@ -234,6 +353,35 @@ describe('profile inventory CLI', () => {
     expect(result.stderr).toBe('');
     expect(JSON.parse(result.stdout)).toMatchObject({ mode: 'profile-inventory', complete: true });
     expect(JSON.parse(result.stdout).components[0].declaredEntries).toBe(1);
+  });
+
+  it('emits a redacted Gemini settings inventory without launching its declared server', () => {
+    const marker = path.join(fixture, 'server-launched');
+    const script = path.join(fixture, 'server.js');
+    fs.writeFileSync(script, `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran')`);
+    put(
+      'settings.json',
+      JSON.stringify({
+        mcpServers: {
+          PRIVATE_SERVER: {
+            command: process.execPath,
+            args: [script],
+            env: { API_KEY: 'PRIVATE_SECRET' },
+            trust: true,
+          },
+        },
+      }),
+    );
+    const result = run('gemini-user', root);
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe('');
+    expect(JSON.parse(result.stdout).components[0]).toMatchObject({
+      path: 'settings.json',
+      declaredEntries: 1,
+      geminiMcpDeclarations: { trustTrueServers: 1 },
+    });
+    expect(result.stdout).not.toMatch(/PRIVATE|server\.js|server-launched/);
+    expect(fs.existsSync(marker)).toBe(false);
   });
 
   it('distinguishes CLI errors, unsupported profiles, unavailable roots and incomplete data', () => {

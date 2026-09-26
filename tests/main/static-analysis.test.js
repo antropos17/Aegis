@@ -135,6 +135,39 @@ describe('bounded static directory review', () => {
     expect(report.adapter.id).toBe('codex-user');
   });
 
+  it('reviews a selected Gemini settings file with a streamable HTTP declaration', async () => {
+    put(
+      'settings.json',
+      '// PRIVATE_COMMENT\n{"mcpServers":{"PRIVATE_SERVER":{"httpUrl":"http://remote.invalid/mcp"}}}',
+    );
+    put('oauth_creds.json', 'PRIVATE_SECRET');
+    const open = vi.spyOn(fs.promises, 'open');
+    const report = await scanStaticDirectory('gemini-user', root);
+    expect(report.adapter.id).toBe('gemini-user');
+    expect(report.files.map((file) => file.path)).toEqual(['settings.json']);
+    expect(report.issues).toEqual([]);
+    expect(report.findings.map((finding) => finding.ruleId)).toEqual(['STA007']);
+    expect(open.mock.calls.map(([name]) => String(name))).not.toContain(
+      path.join(root, 'oauth_creds.json'),
+    );
+    expect(JSON.stringify(report)).not.toMatch(/PRIVATE|remote\.invalid/);
+  });
+
+  it('does not analyze a Gemini settings file with trailing commas', async () => {
+    put(
+      'settings.json',
+      '// PRIVATE_COMMENT\n{"mcpServers":{"one":{"httpUrl":"http://remote.invalid"},}}',
+    );
+    const report = await scanStaticDirectory('gemini-user', root);
+    expect(report.complete).toBe(false);
+    expect(report.findings).toEqual([]);
+    expect(report.issues).toContainEqual({
+      path: 'settings.json',
+      reason: 'invalid-json-comments',
+    });
+    expect(JSON.stringify(report)).not.toMatch(/PRIVATE|remote\.invalid/);
+  });
+
   it('reports no findings without turning the result into a safety or trust decision', async () => {
     put(
       'run.sh',

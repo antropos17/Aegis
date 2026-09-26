@@ -17,6 +17,10 @@ Project and explicit user/managed layouts use the existing profile contracts.
 Security scan and external import also support a selected skill/package tree.
 Choosing a profile never automatically reads the current user's home directory.
 No command, scanner, model or MCP server is started. No network request is made.
+Gemini CLI has explicit user, project and Windows system settings layouts. A
+project-root selection and a user-home selection also recognize their respective
+`.gemini/settings.json` files. Results count declarations in the selected files;
+they do not resolve active settings or prove a server connection.
 
 ## Review and persistence
 

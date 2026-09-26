@@ -37,6 +37,30 @@ it('submits bounded options and shows findings, source and incomplete coverage',
   expect(screen.getByText(/Offline MCP description · Tool #1 · Description line 2/)).toBeVisible();
   expect(screen.getByText('Safety not determined')).toBeVisible();
 });
+it('offers explicit Gemini project, user and Windows system layouts through the existing review action', async () => {
+  const call = vi.fn().mockResolvedValue(await reply('inventory'));
+  render(LocalSecurity, { host: bridge(call) });
+  await options();
+  await fireEvent.change(screen.getByLabelText('Review type'), { target: { value: 'inventory' } });
+  const layout = screen.getByLabelText('Directory layout');
+  expect(within(layout).getByRole('option', { name: 'Gemini CLI project settings' })).toBeVisible();
+  expect(within(layout).getByRole('option', { name: 'Gemini CLI user settings' })).toBeVisible();
+  expect(
+    within(layout).getByRole('option', { name: 'Gemini CLI Windows system settings' }),
+  ).toBeVisible();
+  await fireEvent.change(layout, { target: { value: 'gemini-system-windows' } });
+  expect(
+    screen.getByText('Select the Windows ProgramData gemini-cli folder or a copy.'),
+  ).toBeVisible();
+  await start();
+  expect(call).toHaveBeenCalledWith({
+    action: 'run',
+    mode: 'inventory',
+    adapter: 'gemini-system-windows',
+    tools: false,
+    baseline: false,
+  });
+});
 it('keeps no-findings and unexamined semantics explicit', async () => {
   const data = await reply();
   const reviewed = localReview(data.review)!;

@@ -15,6 +15,10 @@ const codexConfig = (path, scope) =>
   config(path, 'codex', scope, 'agent-config', 'toml', ['mcp_servers', 'hooks']);
 const hooks = (path, agent, scope) => config(path, agent, scope, 'hooks', 'json', ['hooks']);
 const mcp = (path, agent, scope) => config(path, agent, scope, 'mcp', 'json', ['mcpServers']);
+const geminiSettings = (path, scope) =>
+  config(path, 'gemini-cli', scope, 'agent-config', 'json-comments', ['mcpServers'], {
+    geminiMcp: true,
+  });
 const skills = (scope) => [
   location('.agents/skills', 'shared', scope),
   location('.claude/skills', 'claude-code', scope),
@@ -29,9 +33,12 @@ const namedCodex = (directory, scope) => ({
 
 const PROFILES = {
   project: {
+    adapterVersion: 2,
+    referenceDate: '2026-09-26',
     configs: [
       mcp('.mcp.json', 'shared', 'project'),
       mcp('.cursor/mcp.json', 'cursor', 'project'),
+      geminiSettings('.gemini/settings.json', 'project'),
       config('.vscode/mcp.json', 'vscode', 'project', 'mcp', 'jsonc', ['servers']),
       hooks('.claude/settings.json', 'claude-code', 'project'),
       hooks('.claude/settings.local.json', 'claude-code', 'project-local'),
@@ -47,10 +54,13 @@ const PROFILES = {
     skillRoots: skills('project'),
   },
   'user-home': {
+    adapterVersion: 2,
+    referenceDate: '2026-09-26',
     configs: [
       { ...mcp('.claude.json', 'claude-code', 'user-and-project-local'), localProjects: true },
       hooks('.claude/settings.json', 'claude-code', 'user'),
       mcp('.cursor/mcp.json', 'cursor', 'user'),
+      geminiSettings('.gemini/settings.json', 'user'),
       hooks('.codex/hooks.json', 'codex', 'user'),
       codexConfig('.codex/config.toml', 'user'),
       codexConfig('.codex/managed_config.toml', 'legacy-managed'),
@@ -87,6 +97,21 @@ const PROFILES = {
   },
   'vscode-user': {
     configs: [config('mcp.json', 'vscode', 'user-profile', 'mcp', 'jsonc', ['servers'])],
+  },
+  'gemini-user': {
+    referenceDate: '2026-09-26',
+    configs: [geminiSettings('settings.json', 'user')],
+  },
+  'gemini-project': {
+    referenceDate: '2026-09-26',
+    configs: [geminiSettings('settings.json', 'project')],
+  },
+  'gemini-system-windows': {
+    referenceDate: '2026-09-26',
+    configs: [
+      geminiSettings('system-defaults.json', 'system-defaults'),
+      geminiSettings('settings.json', 'system-override'),
+    ],
   },
   'claude-managed': {
     configs: [

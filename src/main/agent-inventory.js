@@ -32,7 +32,13 @@ async function inventoryLayout(directory, profile, options) {
     });
   }
   function recordConfig(name, file, entry) {
-    const metadata = summarizeConfig(file.data, entry.format, entry.sections, entry.localProjects);
+    const metadata = summarizeConfig(
+      file.data,
+      entry.format,
+      entry.sections,
+      entry.localProjects,
+      entry.geminiMcp,
+    );
     record(name, file, entry, { format: entry.format, ...metadata });
     if (metadata.parseStatus !== 'parsed') {
       reader.issues.push({ path: name, reason: metadata.parseStatus });

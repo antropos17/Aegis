@@ -3,8 +3,13 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const { summarizeConfig, PARSE_DEPTH } = require('../../src/main/inventory-config');
-const summarize = (text, format = 'json', sections = ['servers'], projects = false) =>
-  summarizeConfig(Buffer.from(text), format, sections, projects);
+const summarize = (
+  text,
+  format = 'json',
+  sections = ['servers'],
+  projects = false,
+  gemini = false,
+) => summarizeConfig(Buffer.from(text), format, sections, projects, gemini);
 
 describe('inventory configuration summaries', () => {
   it('parses JSONC comments and trailing commas without corrupting quoted URLs or escapes', () => {
@@ -20,6 +25,24 @@ describe('inventory configuration summaries', () => {
       parseStatus: 'parsed',
       declaredEntries: 2,
       declaredSections: { servers: 2 },
+    });
+  });
+
+  it('parses Gemini comments while rejecting trailing commas left by comment stripping', () => {
+    const commented = String.raw`// PRIVATE_COMMENT
+      { "mcpServers": { /* allowed */ "one": { "url": "https://example.invalid/a//b" } } }`;
+    expect(summarize(commented, 'json-comments', ['mcpServers'], false, true)).toMatchObject({
+      parseStatus: 'parsed',
+      declaredEntries: 1,
+    });
+    expect(summarize(commented, 'json', ['mcpServers'])).toEqual({ parseStatus: 'invalid-json' });
+    const trailing = '{ "mcpServers": { "one": {}, }, }';
+    expect(summarize(trailing, 'json-comments', ['mcpServers'], false, true)).toEqual({
+      parseStatus: 'invalid-json-comments',
+    });
+    expect(summarize(trailing, 'jsonc', ['mcpServers'])).toMatchObject({
+      parseStatus: 'parsed',
+      declaredEntries: 1,
     });
   });
 
@@ -175,5 +198,78 @@ PreToolUse = [{ command = "DO_NOT_EXECUTE" }]
 
   it('reports unsupported formats explicitly', () => {
     expect(summarize('anything', 'yaml')).toEqual({ parseStatus: 'unsupported-format' });
+  });
+
+  it('counts Gemini MCP declarations and filters without exposing their values', () => {
+    const result = summarize(
+      JSON.stringify({
+        mcp: { allowed: ['PRIVATE_SERVER', 'other'], excluded: ['PRIVATE_BLOCKED'] },
+        mcpServers: {
+          PRIVATE_SERVER: {
+            command: 'DO_NOT_EXECUTE',
+            env: { TOKEN: 'PRIVATE_SECRET' },
+            trust: true,
+            includeTools: ['PRIVATE_TOOL'],
+            excludeTools: ['PRIVATE_TOOL', 'other'],
+          },
+          other: { httpUrl: 'https://PRIVATE_HOST/mcp', trust: false },
+          third: { command: 'DO_NOT_EXECUTE' },
+        },
+      }),
+      'json',
+      ['mcpServers'],
+      false,
+      true,
+    );
+    expect(result).toEqual({
+      parseStatus: 'parsed',
+      declaredEntries: 3,
+      declaredSections: { mcpServers: 3 },
+      geminiMcpDeclarations: {
+        allowed: { present: true, entries: 2 },
+        excluded: { present: true, entries: 1 },
+        trustTrueServers: 1,
+        trustFalseServers: 1,
+        includeToolsServers: 1,
+        includeToolsEntries: 1,
+        excludeToolsServers: 1,
+        excludeToolsEntries: 2,
+      },
+    });
+    expect(JSON.stringify(result)).not.toMatch(/PRIVATE|DO_NOT_EXECUTE/);
+  });
+
+  it('distinguishes absent Gemini filters from declared empty filters', () => {
+    expect(summarize('{}', 'json', ['mcpServers'], false, true)).toMatchObject({
+      geminiMcpDeclarations: {
+        allowed: { present: false, entries: 0 },
+        excluded: { present: false, entries: 0 },
+        trustTrueServers: 0,
+        trustFalseServers: 0,
+      },
+    });
+    expect(
+      summarize('{"mcp":{"allowed":[],"excluded":[]}}', 'json', ['mcpServers'], false, true),
+    ).toMatchObject({
+      geminiMcpDeclarations: {
+        allowed: { present: true, entries: 0 },
+        excluded: { present: true, entries: 0 },
+      },
+    });
+  });
+
+  it.each([
+    { mcp: [] },
+    { mcp: { allowed: 'PRIVATE_SERVER' } },
+    { mcp: { excluded: [1] } },
+    { mcpServers: [] },
+    { mcpServers: { server: null } },
+    { mcpServers: { server: { trust: 'true' } } },
+    { mcpServers: { server: { includeTools: 'PRIVATE_TOOL' } } },
+    { mcpServers: { server: { excludeTools: [null] } } },
+  ])('reports malformed Gemini MCP declaration shape without values: %j', (value) => {
+    expect(summarize(JSON.stringify(value), 'json', ['mcpServers'], false, true)).toEqual({
+      parseStatus: 'invalid-shape',
+    });
   });
 });

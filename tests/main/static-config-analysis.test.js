@@ -46,6 +46,20 @@ describe('structured configuration review', () => {
     expect(JSON.stringify(result)).not.toContain('remote.invalid');
   });
 
+  it('recognizes Gemini streamable HTTP declarations and keeps endpoint values private', () => {
+    const result = scan({
+      mcpServers: {
+        PRIVATE_NAME: {
+          httpUrl: 'http://remote.invalid/mcp?api_key=PRIVATE_TOKEN',
+          headers: { Authorization: 'Bearer PRIVATE_TOKEN' },
+        },
+      },
+    });
+    expect(ids(result)).toEqual(['STA007', 'STA008']);
+    expect(result.issues).toEqual([]);
+    expect(JSON.stringify(result)).not.toMatch(/PRIVATE|remote\.invalid/);
+  });
+
   it.each([
     'http://localhost:3000/mcp',
     'http://127.0.0.1/mcp',

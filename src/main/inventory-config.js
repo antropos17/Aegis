@@ -16,7 +16,7 @@ function isRecord(value) {
   return proto === null || proto === Object.prototype;
 }
 
-function parseJson(text, comments) {
+function parseJson(text, comments, trailingCommas) {
   const stack = [];
   let result;
   function value(item) {
@@ -53,7 +53,7 @@ function parseJson(text, comments) {
         throw INVALID;
       },
     },
-    { disallowComments: !comments, allowTrailingComma: comments, allowEmptyContent: false },
+    { disallowComments: !comments, allowTrailingComma: trailingCommas, allowEmptyContent: false },
   );
   return result;
 }
@@ -62,6 +62,46 @@ function countSection(config, key) {
   if (!Object.hasOwn(config, key)) return 0;
   if (!isRecord(config[key])) throw INVALID;
   return Object.keys(config[key]).length;
+}
+
+function countStringList(config, key) {
+  if (!Object.hasOwn(config, key)) return { present: false, entries: 0 };
+  const value = config[key];
+  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) throw INVALID;
+  return { present: true, entries: value.length };
+}
+
+function summarizeGeminiMcp(config) {
+  const global = Object.hasOwn(config, 'mcp') ? config.mcp : Object.create(null);
+  const servers = Object.hasOwn(config, 'mcpServers') ? config.mcpServers : Object.create(null);
+  if (!isRecord(global) || !isRecord(servers)) throw INVALID;
+  const summary = {
+    allowed: countStringList(global, 'allowed'),
+    excluded: countStringList(global, 'excluded'),
+    trustTrueServers: 0,
+    trustFalseServers: 0,
+    includeToolsServers: 0,
+    includeToolsEntries: 0,
+    excludeToolsServers: 0,
+    excludeToolsEntries: 0,
+  };
+  for (const server of Object.values(servers)) {
+    if (!isRecord(server)) throw INVALID;
+    if (Object.hasOwn(server, 'trust')) {
+      if (typeof server.trust !== 'boolean') throw INVALID;
+      if (server.trust) summary.trustTrueServers++;
+      else summary.trustFalseServers++;
+    }
+    for (const [key, serverCount, entryCount] of [
+      ['includeTools', 'includeToolsServers', 'includeToolsEntries'],
+      ['excludeTools', 'excludeToolsServers', 'excludeToolsEntries'],
+    ]) {
+      const list = countStringList(server, key);
+      if (list.present) summary[serverCount]++;
+      summary[entryCount] += list.entries;
+    }
+  }
+  return summary;
 }
 
 function checkTomlDepth(config) {
@@ -82,12 +122,13 @@ function checkTomlDepth(config) {
  * Parse bounded configuration for internal inventory consumers only.
  * The returned value is untrusted and may contain secrets: never log/export it.
  * @param {Buffer} data Original bytes already bounded by inventory-reader.
- * @param {string} format json, jsonc or toml.
+ * @param {string} format json, jsonc, json-comments or toml.
  * @returns {object} Fixed parse status and an INTERNAL parsed object on success.
  * @since v0.15.1
  */
 function parseInventoryConfig(data, format) {
-  if (!['json', 'jsonc', 'toml'].includes(format)) return { parseStatus: 'unsupported-format' };
+  if (!['json', 'jsonc', 'json-comments', 'toml'].includes(format))
+    return { parseStatus: 'unsupported-format' };
   let text;
   try {
     text = new TextDecoder('utf-8', { fatal: true }).decode(data);
@@ -99,7 +140,7 @@ function parseInventoryConfig(data, format) {
     config =
       format === 'toml'
         ? toml.parse(text, { maxDepth: PARSE_DEPTH, integersAsBigInt: true })
-        : parseJson(text, format === 'jsonc');
+        : parseJson(text, format !== 'json', format === 'jsonc');
     if (format === 'toml') checkTomlDepth(config);
   } catch (error) {
     const reason =
@@ -117,13 +158,14 @@ function parseInventoryConfig(data, format) {
 /**
  * Count fixed sections without returning configuration values or parser errors.
  * @param {Buffer} data Original bytes bounded by inventory-reader.
- * @param {string} format json, jsonc or toml.
+ * @param {string} format json, jsonc, json-comments or toml.
  * @param {string[]} sections Fixed section names from a built-in adapter.
  * @param {boolean} [localProjects] Count Claude's project-local MCP declarations.
+ * @param {boolean} [geminiMcp] Count selected-file Gemini MCP filter declarations.
  * @returns {object} JSON-safe parse status and structural counts.
  * @since v0.15.1
  */
-function summarizeConfig(data, format, sections, localProjects = false) {
+function summarizeConfig(data, format, sections, localProjects = false, geminiMcp = false) {
   const parsed = parseInventoryConfig(data, format);
   if (parsed.parseStatus !== 'parsed') return parsed;
   const config = parsed.value;
@@ -143,6 +185,7 @@ function summarizeConfig(data, format, sections, localProjects = false) {
         }
       }
     }
+    if (geminiMcp) summary.geminiMcpDeclarations = summarizeGeminiMcp(config);
     return summary;
   } catch (_) {
     return { parseStatus: 'invalid-shape' };
