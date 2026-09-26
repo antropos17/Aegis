@@ -36,6 +36,7 @@ Options:
   --action-delete-file-confirm <policy.json> <request.json>  Confirm one exact regular-file deletion
   --action-exec-json <policy.json> <request.json>  Run one explicit executable request under local policy
   --action-policy-hook <policy.json>  Experimental Claude PreToolUse Bash decision hook
+  --gemini-beforetool-hook <policy.json>  Opt-in Gemini BeforeTool exact shell deny hook
   --handoff-listen-json claude-code <port> <seconds>  Observe live hooks on loopback (opt-in)
   --handoff-send  Forward one hook from stdin using AEGIS_HANDOFF_PORT/TOKEN
   --handoff-import-json claude-code <events.jsonl>  Import unverified subagent lifecycle metadata
@@ -105,6 +106,9 @@ async function handleCLI(argv) {
   const args = argv || process.argv.slice(2);
   if (args.length === 0) return null;
   const flag = args[0];
+  // A misplaced hook flag is still a hook invocation: emit only its fixed JSON deny.
+  if (args.includes('--gemini-beforetool-hook'))
+    return require('./gemini-beforetool-hook').handleGeminiBeforeToolHook(args, write);
   if (['--mcp-gateway-stdio', '--mcp-gateway-http'].includes(flag))
     return require('./mcp-gateway-cli').handleMcpGatewayCLI(args);
   if (flag === '--mcp-gateway-credential-tag')

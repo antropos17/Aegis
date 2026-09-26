@@ -19,6 +19,7 @@ const _cliFlags = new Set([
   '--action-mcp-catalog-review',
   '--handoff-import-json',
   '--action-policy-hook',
+  '--gemini-beforetool-hook',
   '--action-exec-json',
   '--action-exec-confirm',
   '--action-delete-file-confirm',
@@ -44,6 +45,7 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
     .handleCLI()
     .then(async (code) => {
       if (
+        !process.argv.slice(2).includes('--gemini-beforetool-hook') &&
         [
           '--mcp-gateway-http',
           '--mcp-gateway-stdio',
@@ -59,6 +61,7 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
         process.exit(code ?? 2);
       }
       if (
+        process.argv.slice(2).includes('--gemini-beforetool-hook') ||
         [
           '--action-policy-hook',
           '--action-exec-json',
