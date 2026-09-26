@@ -57,8 +57,8 @@ function decrypt(base64Blob) {
   try {
     const buf = Buffer.from(base64Blob, 'base64');
     return safeStorage.decryptString(buf);
-  } catch (err) {
-    logger.error('safe-storage', 'Decryption failed', { error: err.message });
+  } catch {
+    logger.error('safe-storage', 'Decryption failed', { code: 'decryption-failed' });
     return '';
   }
 }
