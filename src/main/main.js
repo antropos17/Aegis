@@ -574,8 +574,8 @@ async function startWatchers() {
     // discriminator for a silently dead file feed: absent means startup never
     // reached here, zero means nothing at all is being observed.
     logger.info('main', 'File watchers created', { watchRoots: fileWatchers.length });
-  } catch (err) {
-    logger.error('main', 'File watcher setup failed', { error: err.message });
+  } catch {
+    logger.error('main', 'File watcher setup failed', { error: 'file-watcher-setup-failed' });
   }
 }
 
