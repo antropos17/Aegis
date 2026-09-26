@@ -8,9 +8,10 @@ failure path for this explicit CLI route. The [selected-action MCP adapter](ACTI
 agent tool to this owner. Agents launched normally, provider hooks and commands
 outside these routes receive no such protection.
 
-This is not a sandbox. An allowed executable runs with the caller's account and
-can read files, use the network, spawn descendants or change the system. AEGIS
-does not interpret argument semantics. Use only a deliberately reviewed command.
+This is not a filesystem or network sandbox. An allowed executable runs with the
+caller's account and can read files, use the network, spawn descendants or change
+the system. AEGIS does not interpret argument semantics. Use only a deliberately
+reviewed command.
 No provider configuration or installed application is changed automatically.
 
 ## Files and invocation
@@ -144,8 +145,8 @@ Once launched, the direct child has a five-second runtime limit and a combined
 the report exposes only capped byte counts and completeness. A bound violation
 requests force termination of that child and permits one second for confirmation.
 An exit event confirms the direct child's exit; a successful kill request alone
-does not. An unconfirmed termination is explicitly reported. Descendants may
-continue running and holding files or pipes; no process-tree control is claimed.
+does not. An unconfirmed termination is explicitly reported. On the ordinary
+direct route, descendants may continue running and holding files or pipes.
 Event-loop stalls and synchronous native spawn cannot be preempted by JS timers.
 
 The single schema 1 report pairs decision and direct-child state in the same
@@ -165,8 +166,40 @@ even when the policy says allow. Approved reports retain the original
 `policyDecision` and label authorization `operator-confirmed`. The direct
 result is distinct from provider-reported after events in the session API.
 Neither mechanism proves that all agent activity flowed through AEGIS. B1 still
-needs broader deliberate agent routing and an agent-facing approval bridge; protected process trees,
+needs broader deliberate agent routing and an agent-facing approval bridge;
 filesystem/network isolation and tamper resistance remain later roadmap work.
+
+## Opt-in Windows Job lifetime route
+
+`--action-exec-windows-job-json <policy.json> <request.json>` uses the same exact
+selected action and policy format as the direct route. It is available on Windows
+when the shipped `aegis-mcpjob.exe` helper is present. Source checkouts require
+`npm run build:sidecar`. The route launches the approved executable suspended,
+assigns it to a private Windows Job before it runs, and uses the Job to terminate
+ordinary member descendants on completion, cancellation or timeout. It accepts
+only a policy `allow`; `ask` and `reviewRequired` do not receive a terminal prompt
+through this command and do not launch. The original direct and confirmation
+commands keep their existing behavior.
+
+The JSON report marks `control: "windows-job"` and records
+`descendantControl` as `not-started`, `confirmed` or `unconfirmed`. Exit 0 requires
+an allowed selected child with exit code 0, complete output accounting and a
+confirmed Job cleanup receipt. Child stdout and stderr are counted and discarded
+inside the helper; neither stream is forwarded to the terminal or report. A
+missing helper, unsupported OS, malformed status, or unconfirmed cleanup fails
+closed and never produces a success exit code. A helper loss after launch can
+leave the action state unknown; an error report does not prove no action occurred.
+
+This is a lifetime boundary for processes associated with this Job, not a
+restriction on file access, network access, same-account tampering or actions
+outside the selected CLI route. Windows normally adds children created with
+`CreateProcess` to the parent's Job, but processes created through external
+brokers such as `Win32_Process.Create` are outside that inheritance. The route
+does not verify that an installed agent uses it. The separate Observatory
+configuration check still describes its original direct/terminal/MCP routes; it
+does not assess this protected launch or verify a blocking outcome. See
+[Microsoft Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)
+for inheritance and breakaway behavior.
 
 
 ## Verification

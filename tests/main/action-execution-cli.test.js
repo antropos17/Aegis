@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -50,8 +50,8 @@ function prepare(decision = 'allow', options = {}) {
   return action;
 }
 
-function launch(args = ['--action-exec-json', policyPath, requestPath]) {
-  const result = spawnSync(process.execPath, ['src/main/main.js', ...args], {
+function launch(args = ['--action-exec-json', policyPath, requestPath], nodeArgs = []) {
+  const result = spawnSync(process.execPath, [...nodeArgs, 'src/main/main.js', ...args], {
     encoding: 'utf8',
     timeout: 8000,
     maxBuffer: 65536,
@@ -66,7 +66,188 @@ function launch(args = ['--action-exec-json', policyPath, requestPath]) {
   return { code: result.status, report: JSON.parse(lines[0]) };
 }
 
+function protectedPreload(helper) {
+  const preload = path.join(root, 'protected-helper.cjs');
+  const modulePath = require.resolve('../../src/main/mcp-gateway-windows-job');
+  fs.writeFileSync(
+    preload,
+    `const job = require(${JSON.stringify(modulePath)});
+     const original = job.spawnActionInWindowsJob;
+     job.spawnActionInWindowsJob = (launch) => original(launch, ${JSON.stringify(helper)});`,
+  );
+  return ['--require', preload];
+}
+
 describe('explicit action execution Node entry', () => {
+  it('passes an explicit protected request only to the Windows Job owner', async () => {
+    const api = require('../../src/main/action-execution');
+    const execute = vi.spyOn(api, 'executeAction').mockResolvedValue({
+      decision: 'deny',
+      execution: { state: 'not-started', exitCode: null, outputComplete: true },
+    });
+    try {
+      const code = await require('../../src/main/action-execution-cli').handleActionExecutionCLI(
+        ['--action-exec-windows-job-json', policyPath, requestPath],
+        () => {},
+      );
+      expect(code).toBe(2);
+      expect(execute).toHaveBeenCalledOnce();
+      expect(execute).toHaveBeenCalledWith(policyPath, requestPath, {
+        protectedDescendants: true,
+      });
+    } finally {
+      execute.mockRestore();
+    }
+  });
+
+  it('does not mark an unconfirmed protected result successful', async () => {
+    const api = require('../../src/main/action-execution');
+    const execute = vi.spyOn(api, 'executeAction').mockResolvedValue({
+      decision: 'allow',
+      execution: { state: 'exited', exitCode: 0, outputComplete: true },
+      control: 'windows-job',
+      descendantControl: 'unconfirmed',
+    });
+    try {
+      expect(
+        await require('../../src/main/action-execution-cli').handleActionExecutionCLI(
+          ['--action-exec-windows-job-json', policyPath, requestPath],
+          () => {},
+        ),
+      ).toBe(2);
+    } finally {
+      execute.mockRestore();
+    }
+  });
+
+  it('keeps protected coverage unconfirmed after an executor exception', async () => {
+    const api = require('../../src/main/action-execution');
+    const execute = vi.spyOn(api, 'executeAction').mockRejectedValue(Error('PRIVATE_FAILURE'));
+    const output = [];
+    try {
+      const code = await require('../../src/main/action-execution-cli').handleActionExecutionCLI(
+        ['--action-exec-windows-job-json', policyPath, requestPath],
+        (value) => output.push(value),
+      );
+      expect(code).toBe(2);
+      expect(output).toHaveLength(1);
+      expect(output[0]).not.toContain('PRIVATE');
+      expect(JSON.parse(output[0])).toMatchObject({
+        decision: 'unknown',
+        reason: 'execution-unavailable',
+        control: 'windows-job',
+        descendantControl: 'unconfirmed',
+        execution: { state: 'unknown', termination: 'unconfirmed' },
+      });
+    } finally {
+      execute.mockRestore();
+    }
+  });
+
+  it.skipIf(process.platform === 'win32')('denies a protected request on unsupported hosts', () => {
+    prepare();
+    const result = launch(['--action-exec-windows-job-json', policyPath, requestPath]);
+    expect(result.code).toBe(2);
+    expect(result.report).toMatchObject({
+      decision: 'deny',
+      reason: 'protected-runtime-unsupported',
+      control: 'windows-job',
+      descendantControl: 'not-started',
+      execution: { state: 'not-started' },
+    });
+    expect(fs.existsSync(sentinel)).toBe(false);
+  });
+
+  it.skipIf(process.platform !== 'win32')(
+    'runs one protected allowed action before Electron starts',
+    () => {
+      prepare();
+      const helper = path.join(root, 'aegis-mcpjob.exe');
+      const framework = path.join(
+        process.env.WINDIR || 'C:\\Windows',
+        'Microsoft.NET',
+        'Framework64',
+        'v4.0.30319',
+        'csc.exe',
+      );
+      const project = path.resolve(import.meta.dirname, '../..');
+      execFileSync(
+        framework,
+        [
+          '/nologo',
+          '/target:exe',
+          '/platform:x64',
+          '/optimize+',
+          '/warnaserror+',
+          '/reference:System.Web.Extensions.dll',
+          `/out:${helper}`,
+          path.join(project, 'sidecar', 'mcpjob', 'Program.cs'),
+          path.join(project, 'sidecar', 'mcpjob', 'Native.cs'),
+        ],
+        { cwd: project, stdio: 'pipe', timeout: 30000 },
+      );
+      const result = launch(
+        ['--action-exec-windows-job-json', policyPath, requestPath],
+        protectedPreload(helper),
+      );
+      expect(result.code).toBe(0);
+      expect(result.report).toMatchObject({
+        decision: 'allow',
+        reason: 'child-exited',
+        control: 'windows-job',
+        descendantControl: 'confirmed',
+        execution: { state: 'exited', exitCode: 0, outputComplete: true },
+      });
+      expect(fs.readFileSync(sentinel, 'utf8')).toBe('PRIVATE_BODY');
+    },
+  );
+
+  it.skipIf(process.platform !== 'win32')(
+    'denies a protected request when its helper is absent',
+    () => {
+      prepare();
+      const result = launch(
+        ['--action-exec-windows-job-json', policyPath, requestPath],
+        protectedPreload(path.join(root, 'missing-mcpjob.exe')),
+      );
+      expect(result.code).toBe(2);
+      expect(result.report).toMatchObject({
+        decision: 'deny',
+        reason: 'protected-launch-unavailable',
+        control: 'windows-job',
+        descendantControl: 'not-started',
+        execution: { state: 'not-started' },
+      });
+      expect(fs.existsSync(sentinel)).toBe(false);
+    },
+  );
+
+  it.skipIf(process.platform !== 'win32')(
+    'does not bypass a review-required policy in the protected JSON route',
+    () => {
+      const action = prepare('allow');
+      fs.writeFileSync(
+        policyPath,
+        JSON.stringify({
+          schemaVersion: 3,
+          defaultDecision: 'deny',
+          rules: [{ action, decision: 'allow' }],
+          reviewRequired: [action],
+        }),
+      );
+      const result = launch(['--action-exec-windows-job-json', policyPath, requestPath]);
+      expect(result.code).toBe(2);
+      expect(result.report).toMatchObject({
+        decision: 'ask',
+        reason: 'review-required',
+        control: 'windows-job',
+        descendantControl: 'not-started',
+        execution: { state: 'not-started' },
+      });
+      expect(fs.existsSync(sentinel)).toBe(false);
+    },
+  );
+
   it('rejects startup child-process debug logging before preparing or spawning an action', () => {
     prepare();
     const preparationMarker = path.join(root, 'PRIVATE_PREPARATION');
@@ -251,6 +432,17 @@ describe('explicit action execution Node entry', () => {
     })),
   )('rejects malformed arguments $args without paths or exception output', ({ args }) => {
     const result = launch(['--action-exec-json', ...args]);
+    expect(result.code).toBe(1);
+    expect(result.report).toEqual({ error: 'expected-action-exec-arguments' });
+    expect(fs.existsSync(sentinel)).toBe(false);
+  });
+
+  it.each(
+    [[], ['PRIVATE'], ['PRIVATE', 'PRIVATE', 'PRIVATE'], ['--PRIVATE', 'PRIVATE']].map((args) => ({
+      args,
+    })),
+  )('rejects malformed protected arguments $args', ({ args }) => {
+    const result = launch(['--action-exec-windows-job-json', ...args]);
     expect(result.code).toBe(1);
     expect(result.report).toEqual({ error: 'expected-action-exec-arguments' });
     expect(fs.existsSync(sentinel)).toBe(false);

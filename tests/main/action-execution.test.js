@@ -72,6 +72,41 @@ afterEach(() => {
 });
 
 describe('direct execution decision boundary', () => {
+  it('rejects an invalid protected option before preparation', async () => {
+    const prepare = vi.fn();
+    const spawnProtected = vi.fn();
+    runner._setDepsForTest({ prepare, spawnProtected });
+    const result = await runner.executeAction('PRIVATE_POLICY', 'PRIVATE_REQUEST', {
+      protectedDescendants: 'true',
+    });
+    expect(result).toMatchObject({
+      decision: 'deny',
+      reason: 'protected-option-invalid',
+      control: 'windows-job',
+      descendantControl: 'not-started',
+    });
+    expect(prepare).not.toHaveBeenCalled();
+    expect(spawnProtected).not.toHaveBeenCalled();
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'rejects a protected route on unsupported hosts',
+    async () => {
+      const prepare = vi.fn();
+      runner._setDepsForTest({ prepare });
+      const result = await runner.executeAction('PRIVATE_POLICY', 'PRIVATE_REQUEST', {
+        protectedDescendants: true,
+      });
+      expect(result).toMatchObject({
+        decision: 'deny',
+        reason: 'protected-runtime-unsupported',
+        control: 'windows-job',
+        descendantControl: 'not-started',
+      });
+      expect(prepare).not.toHaveBeenCalled();
+    },
+  );
+
   it.each(['deny', 'ask'])('never spawns for %s', async (decision) => {
     const t = setup({
       prepare: async () => ({ decision, reason: 'PRIVATE_REASON', launch: launch() }),

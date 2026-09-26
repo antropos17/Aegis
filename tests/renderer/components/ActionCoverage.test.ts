@@ -37,6 +37,19 @@ it('opens the separate exact-file setup guide without running an executable or c
   expect(localSecurityReview).not.toHaveBeenCalled();
 });
 
+it('opens the opt-in Windows Job guide without presenting it as a checked action route', async () => {
+  const localSecurityReview = vi.fn();
+  const openExternalUrl = vi.fn().mockResolvedValue({ success: true });
+  render(ActionCoverage, { host: { localSecurityReview, openExternalUrl } as unknown as Host });
+  const guide = within(screen.getByRole('region', { name: 'Protected Windows action setup' }));
+  expect(guide.getByText(/does not assess this CLI route/)).toBeVisible();
+  await fireEvent.click(guide.getByRole('button', { name: 'Open protected Windows action guide' }));
+  expect(openExternalUrl).toHaveBeenCalledExactlyOnceWith(
+    'https://github.com/antropos17/Aegis/blob/master/docs/ACTION-EXECUTION.md',
+  );
+  expect(localSecurityReview).not.toHaveBeenCalled();
+});
+
 it('distinguishes the selected-action owner from the third-party gateway and opens its fixed guide', async () => {
   const localSecurityReview = vi.fn();
   const openExternalUrl = vi.fn().mockResolvedValue({ success: true });

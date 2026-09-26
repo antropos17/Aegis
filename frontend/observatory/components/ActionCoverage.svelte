@@ -34,7 +34,7 @@
   let guidePending = $state(false);
   let guideFeedback = $state('');
   let guideFailed = $state(false);
-  type GuideFile = 'ACTION-DELETE-FILE.md' | 'MCP-STDIO-GATEWAY.md';
+  type GuideFile = 'ACTION-DELETE-FILE.md' | 'ACTION-EXECUTION.md' | 'MCP-STDIO-GATEWAY.md';
   let guideTarget = $state<GuideFile | null>(null);
   let result = $state.raw<ActionCheck | null>(null);
   let routeObservation = $state.raw<RouteObservation | null>(null);
@@ -290,6 +290,28 @@
           {$t(guideFeedback)}
         </p>{/if}
     </section>
+    <section class="protected-action-guide" aria-label={$t('Protected Windows action setup')}>
+      <h3>{$t('Control an allowed Windows action tree')}</h3>
+      <p>
+        {$t(
+          'The separate Windows Job CLI route controls ordinary descendants after an exact allow. The configuration check below does not assess this CLI route or verify blocking.',
+        )}
+      </p>
+      <button
+        type="button"
+        class="button"
+        disabled={guidePending || preview || !host?.openExternalUrl}
+        onclick={() => openGuide('ACTION-EXECUTION.md')}
+        >{$t('Open protected Windows action guide')}</button
+      >
+      {#if guideTarget === 'ACTION-EXECUTION.md'}<p
+          class="guide-feedback"
+          role={guideFailed ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          {$t(guideFeedback)}
+        </p>{/if}
+    </section>
     {#if preview}<p class="muted">
         {$t('External guides are disabled in this simulated preview.')}
       </p>{:else if !host?.openExternalUrl}<p class="muted">
@@ -436,20 +458,24 @@
     font-weight: 600;
   }
   .selected-file-guide,
+  .protected-action-guide,
   .gateway-guide {
     border-top: 1px solid var(--border);
     margin-top: var(--space-4);
     padding-top: var(--space-3);
   }
   .selected-file-guide h3,
+  .protected-action-guide h3,
   .gateway-guide h3 {
     margin-top: 0;
   }
   .selected-file-guide .button,
+  .protected-action-guide .button,
   .gateway-guide .button {
     margin-top: var(--space-2);
   }
   .selected-file-guide .guide-feedback,
+  .protected-action-guide .guide-feedback,
   .gateway-guide .guide-feedback {
     margin-bottom: 0;
   }
