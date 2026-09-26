@@ -84,9 +84,11 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
   return; // CJS module-scope return — stops rest of file from executing
 }
 
-const { app, BrowserWindow, globalShortcut, shell } = require('electron');
+const { app, BrowserWindow, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('node:url');
+const { guardRendererNavigation } = require('./external-url-boundary');
 
 // ═══ HW ACCELERATION (must run before app.whenReady) ═══
 try {
@@ -504,27 +506,14 @@ function createWindow() {
   });
   desktopShell.attach(mainWindow);
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+  const rendererFile = path.join(__dirname, '..', '..', 'dist', 'renderer', 'index.html');
+  guardRendererNavigation(mainWindow.webContents, devServerUrl || pathToFileURL(rendererFile).href);
   if (devServerUrl) {
     mainWindow.loadURL(devServerUrl);
   } else {
-    mainWindow.loadFile(path.join(__dirname, '..', '..', 'dist', 'renderer', 'index.html'));
+    mainWindow.loadFile(rendererFile);
   }
   mainWindow.setMenuBarVisibility(false);
-
-  // ═══ NAVIGATION LOCK — prevent renderer from leaving the app ═══
-  const appOrigin = devServerUrl ? new URL(devServerUrl).origin : 'file://';
-  mainWindow.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith(appOrigin)) {
-      e.preventDefault();
-      logger.warn('main', 'Blocked navigation attempt', { url });
-    }
-  });
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://') || url.startsWith('http://')) {
-      shell.openExternal(url);
-    }
-    return { action: 'deny' };
-  });
 
   mainWindow.on('close', (e) => {
     if (!isQuitting) {
