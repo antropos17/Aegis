@@ -81,7 +81,7 @@ function _normalizePid(pid) {
 }
 
 /**
- * Read the current watchlist array from settings (defensive — never shared ref).
+ * Read the current watchlist array from settings. Callers must not mutate it.
  * @returns {WatchEntry[]}
  * @since v0.1.0
  */
@@ -120,7 +120,7 @@ function add(input) {
   const reason = typeof input.reason === 'string' ? input.reason : '';
   const addedAt = Date.now();
 
-  const list = _readList();
+  const list = _readList().map((entry) => ({ ...entry }));
   const existing = list.find((e) => e.signature === signature && e.pid === pid);
   if (existing) {
     existing.reason = reason;
