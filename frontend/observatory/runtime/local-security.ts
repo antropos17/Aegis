@@ -153,6 +153,125 @@ export function localReview(value: unknown): LocalReview | null {
 export function localEvidence(report: RecordData): RecordData {
   return Object.keys(record(report.local)).length ? record(report.local) : report;
 }
+export interface McpDeclaration {
+  path: string;
+  provider: string;
+  scope: string;
+  parsed: boolean;
+  servers: number | null;
+  projectScopedServers: number | null;
+  gemini: {
+    trustTrue: number;
+    trustFalse: number;
+    allowed: number | null;
+    excluded: number | null;
+    includeLists: number;
+    includeEntries: number;
+    excludeLists: number;
+    excludeEntries: number;
+  } | null;
+}
+const mcpProviders: Record<string, string> = {
+  shared: 'Shared',
+  'claude-code': 'Claude Code',
+  cursor: 'Cursor',
+  vscode: 'VS Code',
+  codex: 'Codex',
+  'gemini-cli': 'Gemini CLI',
+};
+const mcpScopes: Record<string, string> = {
+  project: 'Project',
+  'project-local': 'Project local',
+  user: 'User',
+  'user-profile': 'User profile',
+  'user-and-project-local': 'User and project local',
+  system: 'System',
+  'system-defaults': 'System defaults',
+  'system-override': 'System override',
+  managed: 'Managed',
+  'legacy-managed': 'Legacy managed',
+};
+const count = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+function filterCount(value: unknown): number | null {
+  const filter = record(value);
+  return filter.present === true ? count(filter.entries) : null;
+}
+function geminiCounts(value: unknown): McpDeclaration['gemini'] {
+  const source = record(value);
+  const keys = [
+    'trustTrueServers',
+    'trustFalseServers',
+    'includeToolsServers',
+    'includeToolsEntries',
+    'excludeToolsServers',
+    'excludeToolsEntries',
+  ];
+  if (keys.some((key) => count(source[key]) === null)) return null;
+  const allowed = record(source.allowed);
+  const excluded = record(source.excluded);
+  if (
+    (allowed.present !== true && allowed.present !== false) ||
+    (excluded.present !== true && excluded.present !== false) ||
+    (allowed.present === true && count(allowed.entries) === null) ||
+    (excluded.present === true && count(excluded.entries) === null)
+  )
+    return null;
+  return {
+    trustTrue: count(source.trustTrueServers)!,
+    trustFalse: count(source.trustFalseServers)!,
+    allowed: filterCount(allowed),
+    excluded: filterCount(excluded),
+    includeLists: count(source.includeToolsServers)!,
+    includeEntries: count(source.includeToolsEntries)!,
+    excludeLists: count(source.excludeToolsServers)!,
+    excludeEntries: count(source.excludeToolsEntries)!,
+  };
+}
+/** Select fixed, redacted MCP counts from config components in the captured inventory.
+ * @param report Main-owned report @returns Per-file declarations only; no config values @since 0.16.0
+ */
+export function mcpDeclarations(report: RecordData): McpDeclaration[] {
+  const local = localEvidence(report);
+  const inventory = Object.keys(record(report.inventory)).length ? record(report.inventory) : local;
+  return records(inventory.components).flatMap((entry, index) => {
+    const agent = record(entry.provenance).agent;
+    if (
+      entry.kind !== 'mcp' &&
+      !(entry.kind === 'agent-config' && ['codex', 'gemini-cli'].includes(String(agent))) &&
+      !(entry.kind === 'policy' && agent === 'codex')
+    )
+      return [];
+    const section =
+      agent === 'codex' ? 'mcp_servers' : agent === 'vscode' ? 'servers' : 'mcpServers';
+    const declaredSections = record(entry.declaredSections);
+    const servers =
+      entry.parseStatus === 'parsed' && Object.hasOwn(declaredSections, section)
+        ? count(declaredSections[section])
+        : null;
+    const path =
+      typeof entry.path === 'string' &&
+      entry.path.length > 0 &&
+      !/^(?:[A-Za-z]:[\\/]|[\\/])/.test(entry.path)
+        ? entry.path
+        : `Config #${index + 1}`;
+    return [
+      {
+        path,
+        provider: mcpProviders[String(agent)] ?? 'Other provider',
+        scope: mcpScopes[String(record(entry.provenance).scope)] ?? 'Other scope',
+        parsed: entry.parseStatus === 'parsed',
+        servers,
+        projectScopedServers:
+          entry.parseStatus === 'parsed' ? count(entry.projectScopedEntries) : null,
+        gemini:
+          agent === 'gemini-cli' && entry.parseStatus === 'parsed'
+            ? geminiCounts(entry.geminiMcpDeclarations)
+            : null,
+      },
+    ];
+  });
+}
 export interface ReviewRow {
   title: string;
   subtitle: string;

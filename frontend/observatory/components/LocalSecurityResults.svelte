@@ -4,6 +4,7 @@
   import { record } from '../runtime/host';
   import {
     localEvidence,
+    mcpDeclarations,
     reviewRows,
     reviewAdapters,
     reviewModes,
@@ -42,6 +43,7 @@
     coverage: reviewRows(review.report, 'coverage'),
   });
   const local = $derived(localEvidence(review.report));
+  const declarations = $derived(mcpDeclarations(review.report));
   const inventory = $derived(
     Object.keys(record(review.report.inventory)).length ? record(review.report.inventory) : local,
   );
@@ -58,6 +60,16 @@
       : []),
     ...(rows.tools.length
       ? [{ id: 'tools', label: 'MCP tools', icon: 'network', count: rows.tools.length }]
+      : []),
+    ...(declarations.length
+      ? [
+          {
+            id: 'declarations',
+            label: 'MCP declarations',
+            icon: 'network',
+            count: declarations.length,
+          },
+        ]
       : []),
     ...(review.mode === 'compare'
       ? [{ id: 'changes', label: 'Changes', icon: 'history', count: rows.changes.length }]
@@ -169,6 +181,70 @@
         )}
       </p>{/if}
   </div>
+  {#snippet mcpDeclarationContent()}
+    <section class="mcp-declarations" aria-label={$t('MCP configuration declarations')}>
+      <h3>{$t('MCP configuration declarations')}</h3>
+      <p class="muted">
+        {$t(
+          'These are static counts from selected config files. Effective settings and live MCP connections were not checked.',
+        )}
+      </p>
+      <ul>
+        {#each declarations as declaration, index (declaration.path + ':' + index)}
+          <li>
+            <strong class="config-path">{declaration.path}</strong>
+            <span class="muted">{$t(declaration.provider)} · {$t(declaration.scope)}</span>
+            {#if declaration.servers === null}
+              <p class="muted">
+                {$t(
+                  declaration.parsed
+                    ? 'MCP declaration count unavailable in this result.'
+                    : 'Config parse unavailable; MCP declaration count unavailable.',
+                )}
+              </p>
+            {:else}
+              <p>{$t('Declared MCP servers')}: <strong>{declaration.servers}</strong></p>
+            {/if}
+            {#if declaration.projectScopedServers !== null}
+              <p>
+                {$t('Project-local MCP servers')}:
+                <strong>{declaration.projectScopedServers}</strong>
+              </p>
+            {/if}
+            {#if declaration.provider === 'Gemini CLI'}
+              {#if declaration.gemini}
+                <p>
+                  {$t('Gemini trust flags: {yes} true, {no} false.', {
+                    yes: declaration.gemini.trustTrue,
+                    no: declaration.gemini.trustFalse,
+                  })}
+                </p>
+                <p>
+                  {$t('Global MCP filters: allowed {allowed}, excluded {excluded}.', {
+                    allowed: declaration.gemini.allowed ?? $t('not declared'),
+                    excluded: declaration.gemini.excluded ?? $t('not declared'),
+                  })}
+                </p>
+                <p>
+                  {$t(
+                    'Tool filters: include {includeLists} lists / {includeEntries} entries; exclude {excludeLists} lists / {excludeEntries} entries.',
+                    {
+                      includeLists: declaration.gemini.includeLists,
+                      includeEntries: declaration.gemini.includeEntries,
+                      excludeLists: declaration.gemini.excludeLists,
+                      excludeEntries: declaration.gemini.excludeEntries,
+                    },
+                  )}
+                </p>
+              {:else if declaration.parsed}<p class="muted">
+                  {$t('Gemini trust and filter counts unavailable in this result.')}
+                </p>{/if}
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/snippet}
   <SectionTabs
     {tabs}
     {selected}
@@ -187,18 +263,22 @@
       aria-labelledby={prefix + '-tab-' + tab.id}
       tabindex="0"
     >
-      <LocalSecurityRows
-        rows={rows[tab.id as keyof typeof rows]}
-        empty={tab.id === 'findings'
-          ? 'No findings in the checked subset. Review Scope & coverage for limits.'
-          : tab.id === 'changes'
-            ? review.report.status === 'incompatible'
-              ? 'No comparable change list is available.'
-              : 'No recorded changes in the comparable observations.'
-            : tab.id === 'coverage'
-              ? 'No collection issues were reported for the declared scope. This is not a safety assessment.'
-              : 'No matching files were observed in this scope.'}
-      />
+      {#if tab.id === 'declarations'}
+        {@render mcpDeclarationContent()}
+      {:else}
+        <LocalSecurityRows
+          rows={rows[tab.id as keyof typeof rows]}
+          empty={tab.id === 'findings'
+            ? 'No findings in the checked subset. Review Scope & coverage for limits.'
+            : tab.id === 'changes'
+              ? review.report.status === 'incompatible'
+                ? 'No comparable change list is available.'
+                : 'No recorded changes in the comparable observations.'
+              : tab.id === 'coverage'
+                ? 'No collection issues were reported for the declared scope. This is not a safety assessment.'
+                : 'No matching files were observed in this scope.'}
+        />
+      {/if}
       {#if tab.id === 'coverage'}
         <details class="scope-details">
           <summary>{$t('Checked scope and limits')}</summary>
@@ -310,6 +390,30 @@
   .result-section,
   .snapshot-actions {
     padding: var(--panel-inset);
+  }
+  .mcp-declarations h3 {
+    margin: 0;
+  }
+  .mcp-declarations > p {
+    margin: var(--space-2) 0 var(--space-3);
+  }
+  .mcp-declarations ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .mcp-declarations li {
+    display: grid;
+    gap: var(--space-1);
+    border-top: 1px solid var(--border);
+    padding: var(--space-3) 0;
+    min-width: 0;
+  }
+  .mcp-declarations li p {
+    margin: 0;
+  }
+  .config-path {
+    overflow-wrap: anywhere;
   }
   .source,
   .scope-note,
