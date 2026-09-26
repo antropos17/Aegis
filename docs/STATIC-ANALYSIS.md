@@ -118,7 +118,7 @@ can therefore be incomplete and require review. The supported grammar,
 source-line conventions and catalog bounds are documented in
 [Instruction-pattern review](INSTRUCTION-REVIEW.md).
 
-Rule-set ID: `aegis-static-patterns`, version `7`. Each report includes fixed rule
+Rule-set ID: `aegis-static-patterns`, version `8`. Each report includes fixed rule
 metadata. Severity prioritizes review; every finding has `confidence: heuristic`.
 
 | ID | Severity | Review trigger |
@@ -138,6 +138,8 @@ metadata. Severity prioritizes review; every finding has `confidence: heuristic`
 | STA013 | high | Instruction directive associates sensitive material with a transfer destination |
 | STA014 | medium | Instruction directive asks to bypass approval or consent |
 | STA015 | medium | Instruction directive asks to conceal an action from the user |
+| STA016 | medium | Selected Claude settings declare a broad Bash or PowerShell execution allow without a matching ask/deny in the same file |
+| STA017 | medium | Leading YAML in a Claude-scoped skill declares broad Bash or PowerShell execution preapproval |
 
 STA002 includes common `.env` variants, `.npmrc`, selected SSH private-key names,
 AWS credentials and kubeconfig paths. Template/example `.env` names are excluded.
@@ -155,6 +157,20 @@ selectors and pre-executable options produce coverage issues. An exact direct
 version does not establish fixed transitive dependencies, executable bytes or
 publisher authenticity. uv's special `python`/`python@version` interpreter launch
 is outside package-selector review and produces a coverage issue.
+
+STA016 checks `.claude/settings.json` and `.claude/settings.local.json` at the
+selected project or package root, selected Claude user `settings.json`, and
+selected Claude managed `managed-settings.json` plus visible direct
+`managed-settings.d/*.json` files. STA017 checks only leading `allowed-tools`
+YAML in `.claude/skills/<name>/SKILL.md`, nested Claude skill directories in a
+selected package, and `skills/<name>/SKILL.md` in a selected Claude user profile.
+Other agents' skill metadata is not interpreted as Claude permission syntax.
+The matcher recognizes only a finite set of broad execution grants. A matching
+ask or deny in the same settings file suppresses STA016, but cross-file
+precedence, the active permission mode and the invoking-turn behavior of skills
+are not established. Malformed selected declarations report fixed coverage
+issues. Findings contain a path and file hash, not grant text; settings findings
+have no source line because the structural parser does not retain one.
 
 ## Result contract and limits
 
