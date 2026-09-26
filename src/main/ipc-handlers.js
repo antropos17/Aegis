@@ -119,7 +119,9 @@ function register() {
     return { ...rendererSettings, anthropicApiKeyConfigured };
   });
 
-  ipcMain.handle('save-settings', (_e, newSettings, options) => {
+  ipcMain.handle('save-settings', (event, newSettings, options) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
     const check = validateSettings(newSettings);
     if (!check.valid) {
       logger.warn(`IPC save-settings rejected: ${check.error}`);
@@ -267,20 +269,24 @@ ${findingsHtml}${recsHtml}
     };
   });
 
-  ipcMain.handle('save-agent-permissions', (_e, permMap) => {
+  ipcMain.handle('save-agent-permissions', (event, permMap) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
     config.saveSettings({ ...config.getSettings(), agentPermissions: permMap });
     return { success: true };
   });
 
-  ipcMain.handle(
-    'save-instance-permissions',
-    (_e, { agentName, parentEditor, permissions, cwd }) => {
-      config.saveInstancePermissions(agentName, parentEditor, permissions, cwd);
-      return { success: true };
-    },
-  );
+  ipcMain.handle('save-instance-permissions', (event, request) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
+    const { agentName, parentEditor, permissions, cwd } = request;
+    config.saveInstancePermissions(agentName, parentEditor, permissions, cwd);
+    return { success: true };
+  });
 
-  ipcMain.handle('reset-permissions-to-defaults', () => {
+  ipcMain.handle('reset-permissions-to-defaults', (event) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
     const settings = config.getSettings();
     const newPerms = {};
     for (const agent of settings.seenAgents) newPerms[agent] = config.getDefaultPermissions(agent);
@@ -290,7 +296,9 @@ ${findingsHtml}${recsHtml}
 
   ipcMain.handle('get-agent-database', () => scanner.agentDb);
   ipcMain.handle('get-custom-agents', () => config.getCustomAgents());
-  ipcMain.handle('save-custom-agents', (_e, agents) => {
+  ipcMain.handle('save-custom-agents', (event, agents) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
     config.saveCustomAgents(agents);
     return { success: true };
   });
@@ -399,12 +407,16 @@ ${findingsHtml}${recsHtml}
     }
   });
 
-  ipcMain.handle('import-config', async () => {
+  ipcMain.handle('import-config', async (event) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
     const { filePaths } = await dialog.showOpenDialog(deps.getWindow(), {
       title: 'Import Config',
       filters: [{ name: 'JSON', extensions: ['json'] }],
       properties: ['openFile'],
     });
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
     if (!filePaths || filePaths.length === 0) return { success: false };
     try {
       const raw = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'));
@@ -540,7 +552,9 @@ ${findingsHtml}${recsHtml}
 
   // ── False positives ──
   ipcMain.handle('get-false-positives', () => config.getFalsePositives());
-  ipcMain.handle('add-false-positive', (_e, entry) => {
+  ipcMain.handle('add-false-positive', (event, entry) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
     const check = validateFalsePositive(entry);
     if (!check.valid) {
       logger.warn(`IPC add-false-positive rejected: ${check.error}`);
@@ -598,14 +612,18 @@ ${findingsHtml}${recsHtml}
     }));
   });
 
-  ipcMain.handle('rules:reload', () => {
+  ipcMain.handle('rules:reload', (event) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
     reloadRules();
     const rules = getAllRules();
     return { success: true, count: rules.size };
   });
 
   // ── Alert-only agent watchlist (advisory flag only — never affects monitoring) ──
-  ipcMain.handle('blocklist-add', (_e, entry) => {
+  ipcMain.handle('blocklist-add', (event, entry) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
     try {
       return { success: true, entry: blocklist.add(entry) };
     } catch (error) {
@@ -613,7 +631,9 @@ ${findingsHtml}${recsHtml}
       return { success: false, error: error.message };
     }
   });
-  ipcMain.handle('blocklist-remove', (_e, entry) => {
+  ipcMain.handle('blocklist-remove', (event, entry) => {
+    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
+      return { success: false, error: 'Renderer request denied' };
     try {
       return { success: true, removed: blocklist.remove(entry) };
     } catch (error) {
