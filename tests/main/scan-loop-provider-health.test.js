@@ -559,7 +559,7 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
         deps.setLatestNetConnections.mock.invocationCallOrder[0],
       );
       expect(deps.logger.error).toHaveBeenCalledWith('main', 'Network scan failed', {
-        error: 'renderer-send-failed:network-update',
+        error: 'network-scan-failed',
       });
     });
 
@@ -600,7 +600,7 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
       // One increment: scanNetworkConnections marked FAILED before rethrowing, so the
       // scan-loop fallback must have short-circuited rather than written a second time.
       expect(h.consecutiveFailures).toBe(1);
-      expect(h.lastError).toMatch(/ETIMEDOUT/i);
+      expect(h.lastError).toBe('network-provider-failed');
       expect(h.lastSuccessAt).toBeNull();
       expect(deps.sendToRenderer).not.toHaveBeenCalledWith('network-update', expect.anything());
     });
@@ -679,7 +679,7 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
       ]);
     });
 
-    it('both paths keep the existing "Network scan failed" log', async () => {
+    it('both paths keep the fixed "Network scan failed" log without raw errors', async () => {
       const downstream = makeDeps({
         getLatestAgents: vi.fn().mockReturnValue(NET_AGENTS),
         sendToRenderer: throwingSendOn('network-update'),
@@ -687,12 +687,15 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
       scanLoop.init(downstream);
       await runOneNetworkScan();
       expect(downstream.logger.error).toHaveBeenCalledWith('main', 'Network scan failed', {
-        error: 'renderer-send-failed:network-update',
+        error: 'network-scan-failed',
       });
+      expect(JSON.stringify(downstream.logger.error.mock.calls)).not.toContain(
+        'renderer-send-failed:network-update',
+      );
 
       network._resetForTest();
       network._setDepsForTest({
-        getRawTcpConnections: vi.fn().mockRejectedValue(new Error('spawn ETIMEDOUT')),
+        getRawTcpConnections: vi.fn().mockRejectedValue(new Error('PRIVATE_NETWORK_LOG_CANARY')),
         dnsReverse: vi.fn().mockRejectedValue(new Error('ENOTFOUND')),
         dnsResolve: vi.fn().mockResolvedValue([]),
       });
@@ -700,8 +703,9 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
       scanLoop.init(provider);
       await runOneNetworkScan();
       expect(provider.logger.error).toHaveBeenCalledWith('main', 'Network scan failed', {
-        error: 'spawn ETIMEDOUT',
+        error: 'network-scan-failed',
       });
+      expect(JSON.stringify(provider.logger.error.mock.calls)).not.toContain('PRIVATE_NETWORK_LOG_CANARY');
     });
 
     it('a downstream throw does not wedge the loop — the next scan still queries', async () => {

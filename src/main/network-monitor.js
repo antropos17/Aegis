@@ -35,16 +35,7 @@ const NETWORK_SENSOR_ID = 'network';
  */
 let _networkHealth = sensorHealth.createSensorHealth(NETWORK_SENSOR_ID);
 
-/**
- * @param {unknown} err
- * @returns {string}
- */
-function healthErrorMessage(err) {
-  if (err == null) return 'unknown-error';
-  if (typeof err === 'string') return err.slice(0, 200);
-  const msg = err && err.message != null ? String(err.message) : String(err);
-  return msg.slice(0, 200);
-}
+const NETWORK_PROVIDER_ERROR = 'network-provider-failed';
 
 /**
  * Plain serializable snapshot for future B6 — callers must not mutate.
@@ -82,7 +73,7 @@ function noteNetworkSkip(reason) {
     error:
       reason === 'process-observation-unavailable'
         ? 'process-observation-unavailable'
-        : healthErrorMessage(reason),
+        : 'network-skip-unavailable',
     detail:
       reason === 'process-observation-unavailable'
         ? 'process-observation-unavailable'
@@ -93,14 +84,13 @@ function noteNetworkSkip(reason) {
 /**
  * Hard provider failure when the throw path is outside scanNetworkConnections.
  * Prefer the internal catch in scanNetworkConnections (avoids double-count).
- * @param {unknown} err
  * @returns {void}
  * @since 0.11.0
  */
-function noteNetworkScanHardFailure(err) {
+function noteNetworkScanHardFailure() {
   const now = Date.now();
   _networkHealth = sensorHealth.markFailed(_networkHealth, now, {
-    error: healthErrorMessage(err),
+    error: NETWORK_PROVIDER_ERROR,
     detail: 'provider-failure',
   });
 }
@@ -602,7 +592,7 @@ async function scanNetworkConnections(agents) {
   } catch (err) {
     // B-S05: full observation failure — never look like calm empty HEALTHY.
     _networkHealth = sensorHealth.markFailed(_networkHealth, now, {
-      error: healthErrorMessage(err),
+      error: NETWORK_PROVIDER_ERROR,
       detail: 'provider-failure',
     });
     throw err;
