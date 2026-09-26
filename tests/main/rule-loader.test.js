@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import ruleLoader from '../../src/main/rule-loader.js';
 
@@ -75,13 +77,120 @@ describe('rule-loader', () => {
   });
 
   describe('invalid YAML', () => {
+    it('does not persist source text or private names from a malformed YAML file', () => {
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-rule-privacy-'));
+      const sourceCanary = 'WATCHED_SECRET_BODY_CANARY';
+      const pathCanary = 'WATCHED_SECRET_PATH_CANARY';
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+      try {
+        fs.copyFileSync(
+          path.join(FIXTURES_DIR, '_schema.json'),
+          path.join(directory, '_schema.json'),
+        );
+        fs.writeFileSync(
+          path.join(directory, `${pathCanary}.yaml`),
+          `rules:\n  - pattern: ${sourceCanary}\n    broken: [\n`,
+          'utf8',
+        );
+
+        expect(ruleLoader.reloadRules(directory).size).toBe(0);
+        const warning = warnSpy.mock.calls.find((call) => call[1] === 'Failed to parse');
+        expect(warning).toEqual(['rule-loader', 'Failed to parse', { code: 'rule-parse-failed' }]);
+        expect(JSON.stringify(warning)).not.toContain(sourceCanary);
+        expect(JSON.stringify(warning)).not.toContain(pathCanary);
+      } finally {
+        warnSpy.mockRestore();
+        ruleLoader.reloadRules(FIXTURES_DIR);
+        fs.rmSync(directory, { recursive: true, force: true });
+      }
+    });
+
+    it('uses fixed schema warnings without private directory or source text', () => {
+      const pathCanary = 'WATCHED_SECRET_SCHEMA_PATH_CANARY';
+      const sourceCanary = 'WATCHED_SECRET_SCHEMA_BODY_CANARY';
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), `aegis-${pathCanary}-`));
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+      try {
+        expect(ruleLoader.reloadRules(directory).size).toBe(0);
+        expect(warnSpy).toHaveBeenLastCalledWith('rule-loader', 'Schema not found', {
+          code: 'rule-schema-missing',
+        });
+
+        fs.writeFileSync(
+          path.join(directory, '_schema.json'),
+          `{"description":"${sourceCanary}",`,
+          'utf8',
+        );
+        expect(ruleLoader.reloadRules(directory).size).toBe(0);
+        expect(warnSpy).toHaveBeenLastCalledWith('rule-loader', 'Failed to load schema', {
+          code: 'rule-schema-load-failed',
+        });
+        expect(JSON.stringify(warnSpy.mock.calls)).not.toContain(pathCanary);
+        expect(JSON.stringify(warnSpy.mock.calls)).not.toContain(sourceCanary);
+      } finally {
+        warnSpy.mockRestore();
+        ruleLoader.reloadRules(FIXTURES_DIR);
+        fs.rmSync(directory, { recursive: true, force: true });
+      }
+    });
+
+    it('uses fixed warnings for native directory and file read failures', () => {
+      const pathCanary = 'WATCHED_SECRET_NATIVE_PATH_CANARY';
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), `aegis-${pathCanary}-`));
+      const filePath = path.join(directory, 'control.yaml');
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+      const originalReaddir = fs.readdirSync.bind(fs);
+      const originalReadFile = fs.readFileSync.bind(fs);
+      try {
+        fs.copyFileSync(
+          path.join(FIXTURES_DIR, '_schema.json'),
+          path.join(directory, '_schema.json'),
+        );
+        fs.copyFileSync(path.join(FIXTURES_DIR, 'valid-test.yaml'), filePath);
+
+        const readdirSpy = vi.spyOn(fs, 'readdirSync').mockImplementation((target, ...args) => {
+          if (target === directory) throw new Error(`EACCES: ${directory}`);
+          return originalReaddir(target, ...args);
+        });
+        try {
+          expect(ruleLoader.reloadRules(directory).size).toBe(0);
+          expect(warnSpy).toHaveBeenLastCalledWith('rule-loader', 'Failed to read directory', {
+            code: 'rule-directory-read-failed',
+          });
+        } finally {
+          readdirSpy.mockRestore();
+        }
+
+        const readSpy = vi.spyOn(fs, 'readFileSync').mockImplementation((target, ...args) => {
+          if (target === filePath) throw new Error(`EACCES: ${filePath}`);
+          return originalReadFile(target, ...args);
+        });
+        try {
+          expect(ruleLoader.reloadRules(directory).size).toBe(0);
+          expect(warnSpy).toHaveBeenLastCalledWith('rule-loader', 'Failed to read ruleset', {
+            code: 'rule-file-read-failed',
+          });
+        } finally {
+          readSpy.mockRestore();
+        }
+
+        expect(JSON.stringify(warnSpy.mock.calls)).not.toContain(pathCanary);
+      } finally {
+        warnSpy.mockRestore();
+        ruleLoader.reloadRules(FIXTURES_DIR);
+        fs.rmSync(directory, { recursive: true, force: true });
+      }
+    });
+
     it('skips files with validation errors and warns', () => {
       const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
       ruleLoader.reloadRules(FIXTURES_DIR);
 
       const warnings = warnSpy.mock.calls.filter((c) => c[1] === 'Invalid ruleset');
       expect(warnings.length).toBeGreaterThan(0);
-      expect(warnings[0][2].file).toBe('invalid-test.yaml');
+      expect(warnings[0][2].code).toBe('rule-validation-failed');
+      expect(warnings[0][2].issues).toBeGreaterThan(0);
+      expect(warnings[0][2]).not.toHaveProperty('file');
 
       warnSpy.mockRestore();
     });
