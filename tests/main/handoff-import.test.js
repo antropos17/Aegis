@@ -107,7 +107,9 @@ describe('unverified lifecycle import', () => {
     const report = await importHandoffEvents('claude-code', file);
     expect(open).toHaveBeenCalledTimes(1);
     expect(open.mock.calls[0][0]).toBe(fs.realpathSync(file));
-    expect(JSON.stringify(report)).not.toMatch(/PRIVATE|666|critical/);
+    // A generated source UUID may contain the digits 666; check the rejected
+    // input field itself rather than an unrelated substring in an opaque ID.
+    expect(JSON.stringify(report)).not.toMatch(/PRIVATE|"pid":666|critical/);
     expect(report).toMatchObject({
       schemaVersion: 2,
       processBinding: 'unbound',
