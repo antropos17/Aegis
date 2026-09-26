@@ -95,18 +95,13 @@ async function collectTokenCosts(agents) {
   let deltas;
   try {
     deltas = await tokenFeed.readUsageByPid(procs);
-  } catch (err) {
+  } catch {
     // A corrupt/locked transcript must never drop the tick or block the caller's
     // C-02 finally. Warn once, then carry on with nothing this cycle.
     if (!_warnedReadError) {
       _warnedReadError = true;
       logger.warn('token', 'token-feed read failed; skipping token costs this tick', {
-        error:
-          err instanceof Error
-            ? err.message
-            : typeof err === 'string'
-              ? err
-              : 'Unknown token-feed failure',
+        error: 'token-feed-read-failed',
       });
     }
     return [];
