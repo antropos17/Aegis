@@ -20,6 +20,99 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Exclude the provider key from configuration exports; preserve the local key when importing a configuration without one.
 - Retire the old visual components, styles and fonts; include Observatory in lint, type checks, coverage and browser checks.
 
+## 0.17.0-alpha (2026-09-26)
+
+## What's Changed
+* feat(mcp): bind durable HTTP grants to selected route by @antropos17 in https://github.com/antropos17/Aegis/pull/534
+* feat(mcp): bind durable grants to selected bearer by @antropos17 in https://github.com/antropos17/Aegis/pull/536
+* feat(action): require review for selected allow actions by @antropos17 in https://github.com/antropos17/Aegis/pull/537
+* test(action): verify review-required CLI boundary by @antropos17 in https://github.com/antropos17/Aegis/pull/538
+* fix(action): show required review in coverage checks by @antropos17 in https://github.com/antropos17/Aegis/pull/539
+* docs: refresh AI protection handoff by @antropos17 in https://github.com/antropos17/Aegis/pull/540
+* feat(action): confirm exact selected file deletion by @antropos17 in https://github.com/antropos17/Aegis/pull/541
+* feat(mcp): bind durable stdio grants to selected route by @antropos17 in https://github.com/antropos17/Aegis/pull/542
+* test: avoid random UUID collision in handoff canary check by @antropos17 in https://github.com/antropos17/Aegis/pull/543
+* fix(ui): clarify catalog risk and action check results by @antropos17 in https://github.com/antropos17/Aegis/pull/544
+* feat(observatory): review file activity for current session by @antropos17 in https://github.com/antropos17/Aegis/pull/545
+* feat(mcp): review selected file deletion through dedicated tool by @antropos17 in https://github.com/antropos17/Aegis/pull/546
+* docs: refresh protection handoff after merged slices by @antropos17 in https://github.com/antropos17/Aegis/pull/547
+* feat: observe selected file deletion route by @antropos17 in https://github.com/antropos17/Aegis/pull/548
+* test: verify selected deletion with installed Claude by @antropos17 in https://github.com/antropos17/Aegis/pull/549
+* feat(ui): guide selected-file deletion setup by @antropos17 in https://github.com/antropos17/Aegis/pull/550
+* fix(security): keep provider key out of renderer settings by @antropos17 in https://github.com/antropos17/Aegis/pull/551
+* feat(ui): show independent route evidence by @antropos17 in https://github.com/antropos17/Aegis/pull/552
+* fix: guard external links and renderer navigation by @antropos17 in https://github.com/antropos17/Aegis/pull/553
+* fix(security): bound private HTML report storage by @antropos17 in https://github.com/antropos17/Aegis/pull/554
+* feat(inventory): review selected Gemini CLI MCP settings by @antropos17 in https://github.com/antropos17/Aegis/pull/555
+* feat(ui): show catalog signature ownership by @antropos17 in https://github.com/antropos17/Aegis/pull/556
+* fix(security): gate audit IPC by renderer ownership by @antropos17 in https://github.com/antropos17/Aegis/pull/557
+* feat(inventory): observe default Gemini instructions by @antropos17 in https://github.com/antropos17/Aegis/pull/558
+* fix: guard settings and policy IPC mutations by renderer owner by @antropos17 in https://github.com/antropos17/Aegis/pull/559
+* feat: add opt-in Gemini BeforeTool exact deny hook by @antropos17 in https://github.com/antropos17/Aegis/pull/560
+* feat: protect Windows stdio MCP launch with Job Object by @antropos17 in https://github.com/antropos17/Aegis/pull/561
+* fix: scope false-positive risk to matching file events by @antropos17 in https://github.com/antropos17/Aegis/pull/562
+* feat: show MCP config declarations in local security by @antropos17 in https://github.com/antropos17/Aegis/pull/563
+* feat: import cfgaudit SARIF as offline claims by @antropos17 in https://github.com/antropos17/Aegis/pull/564
+* fix: assign Windows MCP child to Job at creation by @antropos17 in https://github.com/antropos17/Aegis/pull/565
+* fix: bind cfgaudit absolute paths within selected root by @antropos17 in https://github.com/antropos17/Aegis/pull/566
+* fix: distinguish selected actions from MCP gateway in Observatory by @antropos17 in https://github.com/antropos17/Aegis/pull/567
+* fix: isolate Windows MCP Job helper environment by @antropos17 in https://github.com/antropos17/Aegis/pull/568
+* feat: flag unpinned Bun and uv tool launches by @antropos17 in https://github.com/antropos17/Aegis/pull/569
+* fix: prioritize severe local review findings by @antropos17 in https://github.com/antropos17/Aegis/pull/570
+* feat: review broad Claude execution preapprovals by @antropos17 in https://github.com/antropos17/Aegis/pull/571
+* fix: keep legacy provider key inactive until secure migration by @antropos17 in https://github.com/antropos17/Aegis/pull/572
+* feat(ui): show unavailable file watch groups by @antropos17 in https://github.com/antropos17/Aegis/pull/573
+* fix(security): redact token transcript parser errors by @antropos17 in https://github.com/antropos17/Aegis/pull/574
+* feat(action): control selected Windows action descendants by @antropos17 in https://github.com/antropos17/Aegis/pull/575
+* feat(security): flag Claude startup permission bypass by @antropos17 in https://github.com/antropos17/Aegis/pull/576
+* fix(ui): label unavailable network snapshots by @antropos17 in https://github.com/antropos17/Aegis/pull/577
+* feat(audit): record process population observation gaps by @antropos17 in https://github.com/antropos17/Aegis/pull/578
+* feat(security): flag ignored Claude project strict allowlist by @antropos17 in https://github.com/antropos17/Aegis/pull/579
+* perf(renderer): load local security workspace on demand by @antropos17 in https://github.com/antropos17/Aegis/pull/580
+* fix(security): confirm AI analysis egress in main process by @antropos17 in https://github.com/antropos17/Aegis/pull/581
+* fix(security): gate process control on fresh stamped identity by @antropos17 in https://github.com/antropos17/Aegis/pull/582
+* fix(security): redact IPC rejection diagnostics by @antropos17 in https://github.com/antropos17/Aegis/pull/583
+* fix(security): restrict local IPC reads to owned renderer by @antropos17 in https://github.com/antropos17/Aegis/pull/584
+* fix(ui): mark stale event rate unavailable by @antropos17 in https://github.com/antropos17/Aegis/pull/585
+* fix(security): bind file dialog IPC to owned renderer by @antropos17 in https://github.com/antropos17/Aegis/pull/586
+* fix: bind Windows process controls to verified handle by @antropos17 in https://github.com/antropos17/Aegis/pull/587
+* fix(security): bind audit exports to renderer lifetime by @antropos17 in https://github.com/antropos17/Aegis/pull/588
+* feat(security): flag Claude MCP server-wide auto-approval by @antropos17 in https://github.com/antropos17/Aegis/pull/589
+* feat(security): flag Claude raw API body logging settings by @antropos17 in https://github.com/antropos17/Aegis/pull/590
+* fix(ui): clarify automatic blocking scope by @antropos17 in https://github.com/antropos17/Aegis/pull/591
+* fix: audit network provider observation gaps by @antropos17 in https://github.com/antropos17/Aegis/pull/592
+* fix(security): redact network provider errors from health and logs by @antropos17 in https://github.com/antropos17/Aegis/pull/593
+* docs: refresh AEGIS handoff and protection roadmap by @antropos17 in https://github.com/antropos17/Aegis/pull/594
+* fix(main): redact scan failure log metadata by @antropos17 in https://github.com/antropos17/Aegis/pull/595
+* fix(main): redact process sensor health errors by @antropos17 in https://github.com/antropos17/Aegis/pull/596
+* fix(main): redact file watcher health errors by @antropos17 in https://github.com/antropos17/Aegis/pull/597
+* fix: redact process snapshot sidecar diagnostics by @antropos17 in https://github.com/antropos17/Aegis/pull/598
+* fix: redact baseline persistence diagnostics by @antropos17 in https://github.com/antropos17/Aegis/pull/599
+* feat(ui): jump to action configuration check by @antropos17 in https://github.com/antropos17/Aegis/pull/600
+* feat(audit): record file-watch coverage transitions by @antropos17 in https://github.com/antropos17/Aegis/pull/601
+* fix: redact audit index diagnostics by @antropos17 in https://github.com/antropos17/Aegis/pull/602
+* fix: redact operational logger exception output by @antropos17 in https://github.com/antropos17/Aegis/pull/603
+* feat(agents): recognize Kimi Code and Amp CLI names by @antropos17 in https://github.com/antropos17/Aegis/pull/604
+* fix: bound process enumeration commands by @antropos17 in https://github.com/antropos17/Aegis/pull/605
+* fix: redact sequence ingest diagnostics by @antropos17 in https://github.com/antropos17/Aegis/pull/606
+* fix: bound sequence loader failure diagnostics by @antropos17 in https://github.com/antropos17/Aegis/pull/607
+* fix: redact safe storage decryption diagnostics by @antropos17 in https://github.com/antropos17/Aegis/pull/608
+* fix: retry seen agent persistence after write failure by @antropos17 in https://github.com/antropos17/Aegis/pull/609
+* fix: bound Anthropic analysis response diagnostics by @antropos17 in https://github.com/antropos17/Aegis/pull/610
+* fix: redact settings temp cleanup diagnostics by @antropos17 in https://github.com/antropos17/Aegis/pull/611
+* fix: roll back failed watchlist writes and redact IPC errors by @antropos17 in https://github.com/antropos17/Aegis/pull/612
+* fix: retry fully lost file watch plan with bounded attempts by @antropos17 in https://github.com/antropos17/Aegis/pull/613
+* fix: redact flat rule diagnostics by @antropos17 in https://github.com/antropos17/Aegis/pull/614
+* test: verify installed Claude hook adapter failure by @antropos17 in https://github.com/antropos17/Aegis/pull/615
+* fix: omit rule filenames from reload IPC by @antropos17 in https://github.com/antropos17/Aegis/pull/616
+* fix: retry after confirmed file watch worker death by @antropos17 in https://github.com/antropos17/Aegis/pull/618
+* fix: redact token feed failure diagnostics by @antropos17 in https://github.com/antropos17/Aegis/pull/619
+* docs: align release and protection handoff with source by @antropos17 in https://github.com/antropos17/Aegis/pull/617
+* feat(observatory): align controls and add persistent rule switches by @antropos17 in https://github.com/antropos17/Aegis/pull/620
+
+
+**Full Changelog**: https://github.com/antropos17/Aegis/compare/aegis-v0.16.0-alpha...aegis-v0.17.0-alpha
+
 ## 0.16.0-alpha (2026-09-26)
 
 ## What's Changed
