@@ -834,7 +834,8 @@ function initDeferredSubsystems(userData) {
   });
   audit.init({
     userDataPath: userData,
-    onFlushError: (err) => logger.error('audit-logger', 'Flush failed', { error: err.message }),
+    onFlushError: () =>
+      logger.error('audit-logger', 'Flush failed', { code: 'audit-flush-failed' }),
   });
   baselines.loadBaselines();
   startWatchersWhenLoaded(mainWindow.webContents);

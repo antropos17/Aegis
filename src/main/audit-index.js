@@ -14,8 +14,8 @@
  *   system Node and for the day the Release Candidate API changes.
  *
  *   A corrupt or out-of-version database is REPORTED before it is discarded: `logger.warn` with
- *   the reason and the path precedes the close and the unlink, because a forensic tool must not
- *   silently recreate its own store.
+ *   a fixed reason code precedes the close and the unlink, because a forensic tool must not
+ *   silently recreate its own store or copy private paths into diagnostics.
  * @requires fs
  * @requires path
  * @author AEGIS Contributors
@@ -160,15 +160,15 @@ function open(opts) {
     _db = _openChecked(sqlite);
     _prepare();
     _state = 'building';
-  } catch (err) {
-    _fail(err);
+  } catch {
+    _fail('index-open-failed');
   }
   return _state;
 }
 
 /**
  * Open the file; when it already existed, inspect it and discard it on any doubt. The warn
- * goes out BEFORE the close and the unlink, with the reason and the path.
+ * goes out BEFORE the close and the unlink, with a fixed reason code.
  * @param {typeof import('node:sqlite')} sqlite
  * @returns {import('node:sqlite').DatabaseSync}
  */
@@ -180,7 +180,6 @@ function _openChecked(sqlite) {
     if (reason !== null) {
       logger.warn('audit-index', 'index discarded, rebuilding from the audit JSONL', {
         reason,
-        file: _file,
       });
       try {
         db.close();
@@ -209,13 +208,13 @@ function _inspect(db) {
   let check;
   try {
     check = db.prepare('PRAGMA quick_check').get().quick_check;
-  } catch (err) {
-    return `quick_check threw: ${err.message}`;
+  } catch {
+    return 'quick-check-error';
   }
-  if (check !== 'ok') return `quick_check: ${check}`;
+  if (check !== 'ok') return 'quick-check-failed';
   const version = db.prepare('PRAGMA user_version').get().user_version;
   if (version !== AUDIT_INDEX_SCHEMA_VERSION) {
-    return `user_version ${version}, expected ${AUDIT_INDEX_SCHEMA_VERSION}`;
+    return 'schema-version-mismatch';
   }
   return null;
 }
@@ -249,11 +248,11 @@ function _prepare() {
 
 /**
  * Record a failure: the database is closed, nothing is unlinked (a failure is not corruption
- * evidence), and `status()` carries the message.
- * @param {Error} err
+ * evidence), and `status()` carries only a fixed code.
+ * @param {string} code
  */
-function _fail(err) {
-  _lastError = err && err.message ? err.message : String(err);
+function _fail(code) {
+  _lastError = code;
   try {
     if (_db) _db.close();
   } catch (_) {
@@ -422,8 +421,8 @@ function append(b) {
       mtimeMs: Date.now(),
     });
     return true;
-  } catch (err) {
-    _fail(err);
+  } catch {
+    _fail('index-append-failed');
     return false;
   }
 }
@@ -463,7 +462,7 @@ function queryBefore(beforeTs, limit, types, boundaryOffset) {
   } catch (_) {
     // JSON.parse errors can quote raw audit data. Do not publish them in status/logs.
     const error = new Error('audit-index: history query failed; using JSONL');
-    _fail(error);
+    _fail('index-query-failed');
     throw error;
   }
 }
@@ -481,15 +480,14 @@ function files() {
 
 /**
  * State transitions owned by the rebuild: it marks the index `'building'` when it starts and
- * `'ready'` when the directory and the tables agree. `'failed'` carries the error.
+ * `'ready'` when the directory and the tables agree. `'failed'` carries a fixed code.
  * @param {'building'|'ready'|'failed'} state
- * @param {Error} [err]
  * @since v0.14.0
  */
-function setState(state, err) {
+function setState(state) {
   if (!_db) return;
   if (state === 'failed') {
-    _fail(err || new Error('rebuild failed'));
+    _fail('index-rebuild-failed');
     return;
   }
   _state = state;
@@ -511,8 +509,8 @@ function status() {
       filesCount = f.n;
       malformedLines = f.m;
       rows = _stmts.countRows.get().n;
-    } catch (err) {
-      _fail(err);
+    } catch {
+      _fail('index-status-failed');
     }
   }
   return { state: _state, files: filesCount, rows, malformedLines, lastError: _lastError };
