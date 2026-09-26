@@ -13,6 +13,12 @@ export async function checkActionCoverage(browser, url, out) {
   const root = page.locator('.action-coverage-workspace');
   const results = page.getByRole('region', { name: 'Action check result', exact: true });
   const evidence = root.getByRole('region', { name: 'Route evidence', exact: true });
+  const inMainViewport = (target) =>
+    target.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      const main = element.closest('main')?.getBoundingClientRect();
+      return Boolean(main && bounds.top >= main.top && bounds.bottom <= main.bottom);
+    });
   const captureEvidence = async (name, target = evidence) => {
     await target.evaluate((element) => {
       const main = element.closest('main');
@@ -80,11 +86,27 @@ export async function checkActionCoverage(browser, url, out) {
       await root.getByRole('button', { name: 'Open selected-file deletion guide' }).isDisabled(),
       'simulated preview must not open an external setup guide',
     );
+    const jump = root.getByRole('button', { name: 'Go to configuration check', exact: true });
+    const selection = page.getByLabel('Selection type', { exact: true });
+    assert(await inMainViewport(jump), 'configuration jump is hidden on first arrival');
+    await jump.focus();
+    await page.keyboard.press('Enter');
+    assert(await selection.evaluate((element) => element === document.activeElement));
+    assert(await inMainViewport(selection), 'configuration jump did not reveal the selection');
+    assert.equal(await results.count(), 0, 'jump must not start a check');
     await page.screenshot({ path: resolve(out, 'action-coverage-empty.png') });
     await page.setViewportSize({ width: 900, height: 600 });
     await page.evaluate(() => {
       document.documentElement.style.setProperty('--ui-scale', '1.5');
+      document.querySelector('#main').scrollTop = 0;
     });
+    assert(await inMainViewport(jump), 'configuration jump is hidden at 900×600');
+    await jump.focus();
+    await page.keyboard.press('Enter');
+    assert(await selection.evaluate((element) => element === document.activeElement));
+    assert(await inMainViewport(selection), 'configuration selection is hidden at 900×600');
+    assert.equal(await results.count(), 0, 'jump must not start a check');
+    await page.screenshot({ path: resolve(out, 'action-coverage-jump-900-1.5.png') });
     await root
       .getByRole('button', { name: 'Open selected-file deletion guide' })
       .scrollIntoViewIfNeeded();
@@ -271,6 +293,7 @@ export async function checkActionCoverage(browser, url, out) {
     for (const key of [
       'Action control',
       'Selection type',
+      'Go to configuration check',
       'Execution route',
       'Show example check',
       'Action check result',
@@ -289,6 +312,13 @@ export async function checkActionCoverage(browser, url, out) {
       .locator('.sidebar')
       .getByRole('button', { name: pt['Action control'], exact: true })
       .click();
+    await page.getByRole('button', { name: pt['Go to configuration check'] }).click();
+    assert(
+      await page
+        .getByLabel(pt['Selection type'], { exact: true })
+        .evaluate((element) => element === document.activeElement),
+      'Portuguese configuration jump did not focus the selection',
+    );
     await page.getByLabel(pt['Selection type'], { exact: true }).selectOption('catalog');
     await page.getByLabel(pt['Execution route'], { exact: true }).selectOption('mcp-stdio');
     await page.getByRole('button', { name: pt['Show example check'], exact: true }).click();

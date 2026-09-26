@@ -63,6 +63,9 @@
   function changeKind() {
     if (kind === 'catalog' && !route.startsWith('mcp-')) route = 'mcp-stdio';
   }
+  function focusCheckSetup() {
+    document.getElementById(prefix + '-kind')?.focus();
+  }
   async function openGuide(file: GuideFile) {
     const url = setupGuideUrl(file);
     if (guidePending || preview || !host?.openExternalUrl || !url) return;
@@ -121,16 +124,16 @@
 </script>
 
 <div class="action-coverage-workspace">
+  <button type="button" class="button setup-jump" disabled={pending} onclick={focusCheckSetup}
+    >{$t('Go to configuration check')}</button
+  >
   <ActionObservation {host} {preview} onObservation={(value) => (routeObservation = value)} />
   {#if result || routeObservation}
     <RouteEvidence check={result} observation={routeObservation} />
   {/if}
   {#if result}
     <section class="panel result" tabindex="-1" aria-label={$t('Action check result')}>
-      <button
-        class="button setup-link"
-        onclick={() => document.getElementById(prefix + '-kind')?.focus()}
-        >{$t('Change check setup')}</button
+      <button class="button setup-link" onclick={focusCheckSetup}>{$t('Change check setup')}</button
       >
 
       <h2>{$t('Captured configuration check')}</h2>
@@ -498,6 +501,11 @@
     margin-top: var(--space-3);
     min-height: var(--control-height);
     white-space: normal;
+  }
+  .setup-jump {
+    justify-self: start;
+    max-width: 100%;
+    margin-top: 0;
   }
   .primary {
     border-color: var(--strong-border);

@@ -806,6 +806,7 @@ function initDeferredSubsystems(userData) {
     onActivityEvict,
     onFileEvent,
     isOtherPanelExpanded: () => otherPanelExpanded,
+    audit,
   });
   exporter.init({
     activityLog: scanner.activityLog,
