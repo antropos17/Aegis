@@ -50,14 +50,11 @@ function read(dir, file) {
   return fs.readFileSync(path.join(dir, file), 'utf8').replace(/\r\n/g, '\n');
 }
 
-/** js-yaml appends a source excerpt to a parse error; the first line is the whole assertion. */
-const firstLine = (/** @type {string} */ text) => text.split('\n')[0];
-
 /** @returns {string[]} the reason code of every line the loader logged, in order. */
 const reasonsLogged = () => warnSpy.mock.calls.map((c) => c[2].reason);
 
-/** @returns {string[]} the first line of every message the loader logged, in order. */
-const messagesLogged = () => warnSpy.mock.calls.map((c) => firstLine(c[1]));
+/** @returns {string[]} every message the loader logged, in order. */
+const messagesLogged = () => warnSpy.mock.calls.map((c) => c[1]);
 
 /**
  * Compiles one selection by wrapping it in the smallest file the loader accepts, so a matcher
@@ -175,7 +172,8 @@ describe('sequence-rule-loader — accepted format', () => {
     expect(out.rules).toEqual([]);
     expect(out.loadErrors).toBe(1);
     expect(reasonsLogged()).toEqual(['file-read']);
-    expect(messagesLogged()[0]).toContain(`${notADir}: directory unreadable — `);
+    expect(messagesLogged()).toEqual(['sequence rules directory unreadable']);
+    expect(JSON.stringify(warnSpy.mock.calls)).not.toContain(notADir);
   });
 
   it('one unreadable entry is counted and the rest of the directory still loads', () => {
@@ -193,7 +191,8 @@ describe('sequence-rule-loader — accepted format', () => {
       expect(out.warnings.map((w) => w.reason)).toEqual(['nullable-entity-id-steps']);
       expect(out.loadErrors).toBe(1);
       expect(reasonsLogged()).toEqual(['file-read', 'nullable-entity-id-steps']);
-      expect(messagesLogged()[0]).toContain('unreadable.yaml: unreadable — ');
+      expect(messagesLogged()[0]).toBe('sequence rule file unreadable');
+      expect(JSON.stringify(warnSpy.mock.calls)).not.toContain(tmp);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
@@ -202,8 +201,7 @@ describe('sequence-rule-loader — accepted format', () => {
 
 describe('sequence-rule-loader — rejection matrix', () => {
   /**
-   * One row per rejection reason. The message is the FIRST LINE of what the loader logged —
-   * every message is one line except `yaml-parse`, where js-yaml appends its own excerpt.
+   * One row per rejection reason. Each logged message is one line, including YAML parse failures.
    * @type {Array<[string, string, string]>}
    */
   const ROWS = [
@@ -257,11 +255,7 @@ describe('sequence-rule-loader — rejection matrix', () => {
       'unsupported-modifier',
       'unsupported-modifier.yaml: modifier "|all" on "file.path" is not supported — accepted: contains, startswith, endswith, re, re|i',
     ],
-    [
-      'invalid-regex.yaml',
-      'invalid-regex',
-      'invalid-regex.yaml: field "process.working_directory|re" holds an invalid regular expression ("[") — Invalid regular expression: /[/: Unterminated character class',
-    ],
+    ['invalid-regex.yaml', 'invalid-regex', 'sequence rule contains invalid regular expression'],
     [
       'unmodified-wildcard.yaml',
       'unmodified-wildcard',
@@ -313,11 +307,7 @@ describe('sequence-rule-loader — rejection matrix', () => {
       'invalid-document',
       'invalid-document.yaml: base document "Cred File Read" needs a name matching ^[a-z0-9_]+$',
     ],
-    [
-      'yaml-parse.yaml',
-      'yaml-parse',
-      'yaml-parse.yaml: YAML parse failed — bad indentation of a mapping entry (5:12)',
-    ],
+    ['yaml-parse.yaml', 'yaml-parse', 'sequence YAML parse failed'],
   ];
 
   for (const [file, reason, message] of ROWS) {
@@ -332,6 +322,25 @@ describe('sequence-rule-loader — rejection matrix', () => {
       expect(warnSpy.mock.calls[0][0]).toBe('sequence-loader');
     });
   }
+
+  it('does not echo parser or regex input in failure diagnostics', () => {
+    const malformed = read(REJECTED_DIR, 'yaml-parse.yaml').replace(
+      'category: file',
+      'category: PRIVATE_YAML_CANARY',
+    );
+    loader.loadFromString(malformed, 'PRIVATE_FILE_CANARY.yaml');
+    expect(reasonsLogged()).toEqual(['yaml-parse']);
+    expect(JSON.stringify(warnSpy.mock.calls)).not.toContain('PRIVATE_');
+
+    warnSpy.mockClear();
+    const invalidRegex = read(REJECTED_DIR, 'invalid-regex.yaml').replace(
+      "process.working_directory|re: '['",
+      "process.working_directory|re: '[PRIVATE_REGEX_CANARY'",
+    );
+    loader.loadFromString(invalidRegex, 'PRIVATE_FILE_CANARY.yaml');
+    expect(reasonsLogged()).toEqual(['invalid-regex']);
+    expect(JSON.stringify(warnSpy.mock.calls)).not.toContain('PRIVATE_');
+  });
 
   it('every rejection fixture on disk owns a row in the table', () => {
     const onDisk = fs.readdirSync(REJECTED_DIR).sort();
