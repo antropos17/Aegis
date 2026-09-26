@@ -122,6 +122,7 @@ const DEFAULT_SETTINGS = {
   hardwareAcceleration: true,
   falsePositivePatterns: [],
   watchlist: [],
+  ruleEnabledOverrides: {},
 };
 
 /**

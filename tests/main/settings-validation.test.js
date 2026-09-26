@@ -31,6 +31,18 @@ afterAll(() => {
 const { validateSettings } = require(settingsValidationPath);
 
 describe('settings-validation — validateSettings reject branches', () => {
+  it('accepts bounded boolean rule overrides and rejects unsafe states', () => {
+    expect(validateSettings({ ruleEnabledOverrides: { AI001: false } }).valid).toBe(true);
+    expect(validateSettings({ ruleEnabledOverrides: { AI001: 'off' } }).valid).toBe(false);
+    expect(validateSettings({ ruleEnabledOverrides: { 'bad id': true } }).valid).toBe(false);
+    expect(
+      validateSettings({
+        ruleEnabledOverrides: Object.fromEntries(
+          Array.from({ length: 513 }, (_, i) => [`R${i}`, true]),
+        ),
+      }).valid,
+    ).toBe(false);
+  });
   it('accepts explicit boolean update consent and rejects truthy strings', () => {
     expect(validateSettings({ automaticUpdatesEnabled: true }).valid).toBe(true);
     expect(validateSettings({ automaticUpdatesEnabled: false }).valid).toBe(true);

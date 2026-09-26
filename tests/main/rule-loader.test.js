@@ -17,6 +17,17 @@ describe('rule-loader', () => {
     ruleLoader.reloadRules(FIXTURES_DIR);
   });
 
+  it('applies persisted rule overrides on startup and after a ruleset reload', () => {
+    ruleLoader.setRuleOverridesProvider(() => ({ AI001: false }));
+    try {
+      expect(ruleLoader.reloadRules().get('AI001')?.enabled).toBe(false);
+      expect(ruleLoader.reloadRules().get('AI001')?.enabled).toBe(false);
+    } finally {
+      ruleLoader.setRuleOverridesProvider(null);
+    }
+    expect(ruleLoader.reloadRules().get('AI001')?.enabled).toBe(true);
+  });
+
   describe('loadRules() — valid YAML', () => {
     it('loads valid rules into a Map', () => {
       const rules = ruleLoader.getAllRules(FIXTURES_DIR);

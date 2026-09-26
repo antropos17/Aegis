@@ -1,5 +1,18 @@
 # AEGIS Observatory
 
+## Rules, permissions and sensor clarity — 27 September 2026
+
+Permission targets use aligned fields and the save row follows the category rows
+without covering them. Each file-path detection rule has an accessible individual
+on/off control. A confirmed change persists in settings and updates the live rule;
+failed saves restore the control. Rule states survive YAML reloads. The interface
+explains that other sensors and detections continue.
+
+Observation sensor cards pair each sensor with a relevant existing icon, a distinct
+name and a short purpose line. Status and measured counters remain separate; known
+diagnostic codes receive readable labels. Agent catalog search/filter controls and
+catalog actions form two wrapping groups, with creation visually primary.
+
 ## Catalog process-signature ownership — 26 September 2026
 
 The Agent catalog shows which earlier entry owns a case-insensitive process

@@ -56,6 +56,7 @@ export function createPreviewHost(): Host {
     ignoredDirectories: [],
   };
   let permissions: RecordData = {};
+  let previewRuleEnabled = true;
   let custom: RecordData[] = [];
   let timer: ReturnType<typeof setInterval> | undefined;
   const stats = () => ({
@@ -157,10 +158,16 @@ export function createPreviewHost(): Host {
         name: 'Simulated credential observation',
         category: 'sensitive',
         risk: 'high',
-        enabled: true,
+        enabled: previewRuleEnabled,
       },
     ],
     reloadRules: async () => ({ success: true }),
+    setRuleEnabled: async (_id: unknown, enabled: unknown) => {
+      if (_id !== 'preview-rule' || typeof enabled !== 'boolean')
+        return { success: false, error: 'Unknown preview rule or state' };
+      previewRuleEnabled = enabled;
+      return { success: true, id: _id, enabled };
+    },
     getAuditStats: async () => ({
       totalEntries: 0,
       persistedEntries: 0,

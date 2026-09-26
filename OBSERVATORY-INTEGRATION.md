@@ -60,7 +60,7 @@ Patch SHA256 verified; frontend contents match prepared worktree. Main checkout 
 
 ## Transfer matrix
 
-All 56 preload methods; the original transfer matrix is extended with Local security review and desktop navigation. Payloads, destination and evidence are filled as each path is implemented.
+All 57 preload methods; the original transfer matrix is extended with Local security review and desktop navigation. Payloads, destination and evidence are filled as each path is implemented.
 
 | Method | Existing consumers | Observatory destination | Evidence/status |
 | --- | --- | --- | --- |
@@ -112,6 +112,7 @@ All 56 preload methods; the original transfer matrix is extended with Local secu
 | openExternalUrl | lib/components/AgentDatabaseCrud.svelte | `Catalog.svelte` | Implemented; host/component tests and Electron workspace smoke |
 | getRules | preload only | `Rules.svelte` | Implemented; host/component tests and Electron workspace smoke |
 | reloadRules | preload only | `Rules.svelte` | Implemented; host/component tests and Electron workspace smoke |
+| setRuleEnabled | preload only | `Rules.svelte` | Persists an individual file-path rule override; main and component tests |
 | onRulesReloaded | preload only | `Rules.svelte` | Implemented; host/component tests and Electron workspace smoke |
 | onScanBatch | lib/stores/ipc.ts | `host.ts` | Implemented; host/component tests and Electron workspace smoke |
 | onScanStatus | lib/stores/ipc.ts | `host.ts` | Implemented; host/component tests and Electron workspace smoke |

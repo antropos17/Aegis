@@ -44,6 +44,18 @@ let categoryIndex = new Map();
 /** @type {import('ajv').ValidateFunction | null} */
 let validateFn = null;
 
+/** @type {(() => Record<string, boolean>) | null} */
+let ruleOverridesProvider = null;
+
+/** Read persisted enable states through the main-process settings owner.
+ * @param {(() => Record<string, boolean>) | null} provider
+ * @returns {void} @since v0.16.0-alpha
+ */
+function setRuleOverridesProvider(provider) {
+  ruleOverridesProvider = provider;
+  if (ruleCache.size) reloadRules();
+}
+
 /**
  * Initializes the Ajv validator from _schema.json.
  * @param {string} schemaPath - Path to the JSON Schema file
@@ -76,6 +88,7 @@ function compilePattern(patternStr) {
 function loadRules(rulesDir = DEFAULT_RULES_DIR) {
   /** @type {Map<string, LoadedRule>} */
   const rules = new Map();
+  const overrides = rulesDir === DEFAULT_RULES_DIR ? ruleOverridesProvider?.() : null;
 
   if (!fs.existsSync(rulesDir)) {
     return rules;
@@ -145,7 +158,12 @@ function loadRules(rulesDir = DEFAULT_RULES_DIR) {
             category: rawRule.category,
             risk: rawRule.risk || 'medium',
             tags: rawRule.tags || [],
-            enabled: rawRule.enabled !== undefined ? rawRule.enabled : true,
+            enabled:
+              overrides && Object.hasOwn(overrides, rawRule.id)
+                ? overrides[rawRule.id]
+                : rawRule.enabled !== undefined
+                  ? rawRule.enabled
+                  : true,
             platform: rawRule.platform || 'all',
           };
           rules.set(loaded.id, loaded);
@@ -239,6 +257,7 @@ module.exports = {
   getRulesByCategory,
   getRuleById,
   reloadRules,
+  setRuleOverridesProvider,
   // Exposed for testing only
   _loadRules: loadRules,
 };

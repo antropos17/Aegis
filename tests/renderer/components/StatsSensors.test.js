@@ -11,6 +11,31 @@ function telemetry(health) {
   return { ...emptyTelemetry(), stats: { appHealth: health } };
 }
 
+it('separates sensor identity, purpose, status and diagnostic details', async () => {
+  const mounted = render(StatsSensors, {
+    telemetry: telemetry({
+      state: 'HEALTHY',
+      sensors: {
+        byId: {
+          'fs-chokidar': { state: 'HEALTHY', lastSuccessAt: 1000, lossCount: 0 },
+          'fs-handle': { state: 'UNSUPPORTED', detail: 'rm-owns-observation' },
+        },
+      },
+    }),
+  });
+  const cards = mounted.container.querySelectorAll('.sensor-grid article');
+  expect(cards).toHaveLength(2);
+  expect(within(cards[0]).getByRole('heading', { name: 'File changes' })).toBeVisible();
+  expect(cards[0]).toHaveTextContent('Watches configured folders for file activity.');
+  expect(cards[0].querySelector('.sensor-icon svg')).toBeInTheDocument();
+  expect(within(cards[1]).getByRole('heading', { name: 'Open files' })).toBeVisible();
+  expect(cards[1]).toHaveTextContent('Covered elsewhere');
+  expect(cards[1]).toHaveTextContent('Resource Manager is handling this observation.');
+  language.set('pt');
+  await tick();
+  expect(within(cards[0]).getByRole('heading', { name: 'Alterações de arquivos' })).toBeVisible();
+});
+
 it('identifies a failed credential watch group while other watch roots remain live', () => {
   const secret = 'C:/Users/example/.ssh/id_private: access denied';
   render(StatsSensors, {

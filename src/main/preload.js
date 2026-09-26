@@ -86,6 +86,7 @@ contextBridge.exposeInMainWorld('aegis', {
   openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),
   getRules: () => ipcRenderer.invoke('rules:getAll'),
   reloadRules: () => ipcRenderer.invoke('rules:reload'),
+  setRuleEnabled: (id, enabled) => ipcRenderer.invoke('rules:setEnabled', id, enabled),
   onRulesReloaded: (cb) => {
     const handler = (_e, data) => cb(data);
     ipcRenderer.on('rules:reloaded', handler);

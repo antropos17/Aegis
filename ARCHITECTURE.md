@@ -44,7 +44,7 @@ AEGIS is an **Independent AI Oversight Layer** for local agent processes, file a
 │  └───────────────┬──────────────┘     └──────────────┬───────────────┘  │
 │                  │          preload.js                │                  │
 │                  └─────── (IPC bridge) ───────────────┘                  │
-│              contextBridge API (56 channels: 45 invoke + 11 push)        │
+│              contextBridge API (57 channels: 46 invoke + 11 push)        │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -181,7 +181,7 @@ There are no standalone `scan-results`, `baseline-warnings` or `anomaly-scores` 
 
 ### Invoke (Renderer → Main → Response)
 
-The 45 invoke channels below are exposed through `src/main/preload.js`. Handlers are registered in `src/main/ipc-handlers.js`; update operations delegate to `src/main/app-updates.js`. The bridge exposes named operations rather than arbitrary IPC access.
+The 46 invoke channels below are exposed through `src/main/preload.js`. Handlers are registered in `src/main/ipc-handlers.js`; update operations delegate to `src/main/app-updates.js`. The bridge exposes named operations rather than arbitrary IPC access.
 
 | Channel | Module | Purpose |
 |---|---|---|
@@ -217,6 +217,7 @@ The 45 invoke channels below are exposed through `src/main/preload.js`. Handlers
 | `resume-process` | platform | Resume a monitored PID (own-PID guarded) |
 | `rules:getAll` | rule-loader | All loaded rules, serialized |
 | `rules:reload` | rule-loader | Force a reload, returns the new count |
+| `rules:setEnabled` | rule-loader, config-manager | Persist and apply an individual file-path rule state |
 | `blocklist-add` | blocklist | Add a watchlist entry (alert-only) |
 | `blocklist-remove` | blocklist | Remove a watchlist entry |
 | `blocklist-list` | blocklist | Current watchlist |
