@@ -1,14 +1,12 @@
 # AI-agent protection: continuation context
 
-Current continuation: [credential-bound MCP grants](../docs/MCP-DURABLE-GRANTS.md) introduce opt-in v4 for HTTP/HTTPS. The operator explicitly prepares a private grant-store key and a route/bearer HMAC tag. At initialization, the gateway compares that tag and the v3 public route before opening the upstream or consuming a grant. The bearer and key remain out of the manifest. This binds selected bearer bytes; server-to-account mapping, task identity, same-account store tampering, stdio binding and outside-route coverage are not proven. V1–V3 retain their contracts. Inspect the implementation PR and CI before treating it as merged.
-
-Current continuation: [route-bound MCP grants](../docs/MCP-DURABLE-GRANTS.md) introduce an opt-in v3 HTTP/HTTPS manifest. The selected URL and, for HTTPS, connect address and leaf fingerprint must match before a route opens; the existing durable store and replay rule apply. Bearer tokens and CA text are excluded from the route field. Token/account changes at the same URL can use an unspent grant on a later run. This binds public destination fields, not server identity, task identity or outside-route actions. V1/V2 remain available, and stdio route binding remains open. Verify the implementation PR and five CI contexts before treating it as merged.
-
-Current continuation: [known-secret MCP checks](../docs/MCP-KNOWN-SECRETS.md) add an optional pinned local policy across stdio/HTTP/HTTPS. Guarded payloads are tool metadata, exact call parameters and results; transport/launch credentials and general DLP remain outside the contract. Receipts: `X:/tmp/aegis-mcp-secrets-20260926/receipts`; preserve, review after 14 days or 64 MiB. Only synthetic secrets are used in verification.
-
-Current continuation: [explicit pinned HTTPS](../docs/MCP-HTTPS-GATEWAY.md) adds endpoint descriptor v2 with operator-selected IPv4, CA, hostname and leaf SHA256 checks. It retains finite MCP and persistent-grant boundaries. No OAuth, DNS discovery or automatic certificate renewal. Owned fixtures are the evidence; third-party/provider compatibility remains unverified. Receipts: `X:/tmp/aegis-mcp-tls-20260922/receipts`; preserve, review after 14 days or 64 MiB.
-
-Current continuation: [persistent MCP grants](../docs/MCP-DURABLE-GRANTS.md) add opt-in manifest v2, bounded local consumption records and expiry across stdio/HTTP restarts. V1 remains connection-local; task IDs are operator metadata, not verified identity. B2/B3 remain partial. Receipts: `X:/tmp/aegis-mcp-grants-20260922/receipts`; preserve and review after 14 days or 64 MiB. Consumed permission records are authorization state and must not be pruned as diagnostic output.
+The authoritative current state, next step, verified PRs, workspace boundary and
+diagnostic-log retention are in [next-session.md](next-session.md). As of
+2026-09-26, MCP v4 credential binding (#536) and the first B4 review-required
+action cycle (#537–#539) are merged with all five CI contexts green. B2/B3/B4
+and B5 remain partial; C1–C3 remain planned in the AI-agent protection roadmap.
+The dated material below preserves earlier evidence and limitations. It must
+not be read as a newer instruction to restart completed slices.
 
 ## Current continuation — 2026-09-22
 
