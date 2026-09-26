@@ -83,6 +83,7 @@ const reasons = [
   'check-timeout',
   'policy-allow',
   'policy-ask',
+  'review-required',
   'policy-deny',
   'request-invalid',
   'policy-invalid',
@@ -117,7 +118,11 @@ function outcome(value: Record<string, unknown>): boolean {
   )
     return false;
   if (value.configuration === 'valid')
-    return value.policyDecision !== 'unknown' && value.reason === 'policy-' + value.policyDecision;
+    return (
+      value.policyDecision !== 'unknown' &&
+      (value.reason === 'policy-' + value.policyDecision ||
+        (value.policyDecision === 'ask' && value.reason === 'review-required'))
+    );
   if (value.policyDecision !== 'unknown') return false;
   if (value.configuration === 'invalid')
     return ['request-invalid', 'policy-invalid'].includes(value.reason);
@@ -273,6 +278,7 @@ export const coverageLabels: Record<string, string> = {
   'not-required': 'Not required',
   'policy-allow': 'Policy allows this action',
   'policy-ask': 'Policy requires confirmation',
+  'review-required': 'Review required for this selected action',
   'policy-deny': 'Policy denies this action',
   'request-invalid': 'The selected action request is invalid',
   'policy-invalid': 'The selected policy is invalid',

@@ -8,10 +8,12 @@ an explicitly selected running MCP owner, with self-reported client metadata and
 sticky coverage loss. Neither panel establishes verified blocking.
 
 Choose a single action or a catalog, select the intended route, then choose the
-files in native dialogs. A single action needs a schema 2 execution policy and a
+files in native dialogs. A single action needs a schema 2 or 3 execution policy and a
 schema 1 action request. A catalog needs its manifest, which explicitly selects
 the referenced policy/request files. The existing bounded check reads those
-inputs and reports their current configuration and policy decisions.
+inputs and reports their current configuration and policy decisions. A schema 3
+`reviewRequired` action appears as `ask` with the `review-required` detail; the
+check still does not approve or run it.
 
 | Selection | Routes |
 | --- | --- |

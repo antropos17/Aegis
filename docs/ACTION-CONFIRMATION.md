@@ -1,7 +1,7 @@
 # One-attempt terminal confirmation (B1)
 
 `--action-exec-confirm <policy.json> <request.json>` lets an operator review one
-exact action before AEGIS-owned direct execution. It uses the schema 2 policy and
+exact action before AEGIS-owned direct execution. It uses the schema 2 or 3 policy and
 schema 1 request from [ACTION-EXECUTION.md](ACTION-EXECUTION.md). Both `ask` and
 `allow` require an affirmative terminal response on this route. Policy `deny`
 cannot be overridden.

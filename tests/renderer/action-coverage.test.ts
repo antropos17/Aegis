@@ -24,6 +24,27 @@ it('parses both fixed check contracts into detached typed observations', async (
     expect(parsed?.report).not.toHaveProperty('gaps');
   }
 });
+it('accepts only an ask decision with a review-required reason in single and catalog checks', async () => {
+  const single = await example();
+  Object.assign(record(single.report), { policyDecision: 'ask', reason: 'review-required' });
+  expect(parseActionCheck(single)?.report).toMatchObject({
+    configuration: 'valid',
+    policyDecision: 'ask',
+    reason: 'review-required',
+  });
+  record(single.report).policyDecision = 'allow';
+  expect(parseActionCheck(single)).toBeNull();
+
+  const catalog = await example(true);
+  const row = (record(catalog.report).actions as Record<string, unknown>[])[0];
+  Object.assign(row, { policyDecision: 'ask', reason: 'review-required' });
+  expect(parseActionCheck(catalog)?.report.actions[0]).toMatchObject({
+    policyDecision: 'ask',
+    reason: 'review-required',
+  });
+  row.policyDecision = 'deny';
+  expect(parseActionCheck(catalog)).toBeNull();
+});
 it.each([
   'authorization',
   'blockingVerification',
