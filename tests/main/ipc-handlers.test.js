@@ -179,10 +179,17 @@ describe('ipc-handlers', () => {
     mockElectron.ipcMain.on.mockClear();
     mockElectron.shell.showItemInFolder.mockClear();
     mockElectron.shell.openExternal.mockClear();
+    mockElectron.shell.openPath.mockReset();
+    mockElectron.dialog.showSaveDialog.mockReset();
     mockElectron.dialog.showMessageBox.mockReset();
     mockElectron.app.getPath.mockReset().mockReturnValue(os.tmpdir());
     mockLogger.error.mockClear();
     mockExporter.generateReport.mockReset().mockResolvedValue({ success: true });
+    mockAudit.getStats.mockClear();
+    mockAudit.getEntriesBefore.mockClear();
+    mockAudit.getLogDir.mockClear();
+    mockAudit.prepareExport.mockClear();
+    mockStreamExport.writeAuditExport.mockClear();
     mockPlatform.killProcess.mockClear();
     mockPlatform.suspendProcess.mockClear();
     mockPlatform.resumeProcess.mockClear();
@@ -238,6 +245,122 @@ describe('ipc-handlers', () => {
     mockElectron.app.getPath.mockReturnValue(threatTempRoot);
     return registerOwnedRenderer();
   }
+
+  it.each([
+    ['foreign sender', ({ event }) => ({ ...event, sender: {} })],
+    [
+      'child frame',
+      ({ event }) => ({
+        ...event,
+        senderFrame: { url: event.senderFrame.url, isDestroyed: () => false },
+      }),
+    ],
+    [
+      'stale frame',
+      ({ event, contents }) => {
+        contents.mainFrame = { url: event.senderFrame.url, isDestroyed: () => false };
+        return event;
+      },
+    ],
+    [
+      'foreign frame document',
+      ({ event, frame }) => {
+        frame.url = 'https://other.invalid/';
+        return event;
+      },
+    ],
+    [
+      'foreign webContents document',
+      ({ event, contents }) => {
+        contents.getURL.mockReturnValue('https://other.invalid/');
+        return event;
+      },
+    ],
+  ])('denies every audit IPC call from a %s before reading or exporting', async (_name, alter) => {
+    const renderer = registerOwnedRenderer();
+    const event = alter(renderer);
+    const denied = { success: false, error: 'Renderer request denied' };
+    expect(await getHandler('get-audit-stats')(event)).toEqual(denied);
+    expect(await getHandler('get-audit-entries-before')(event, '2026-09-01', 25, [])).toEqual(
+      denied,
+    );
+    expect(await getHandler('open-audit-log-dir')(event)).toEqual(denied);
+    expect(await getHandler('export-full-audit')(event)).toEqual(denied);
+    expect(await getHandler('export-zip')(event)).toEqual(denied);
+    expect(mockAudit.getStats).not.toHaveBeenCalled();
+    expect(mockAudit.getEntriesBefore).not.toHaveBeenCalled();
+    expect(mockAudit.getLogDir).not.toHaveBeenCalled();
+    expect(mockAudit.prepareExport).not.toHaveBeenCalled();
+    expect(mockElectron.shell.openPath).not.toHaveBeenCalled();
+    expect(mockElectron.dialog.showSaveDialog).not.toHaveBeenCalled();
+    expect(mockStreamExport.writeAuditExport).not.toHaveBeenCalled();
+  });
+
+  it('keeps audit read and export results for the owned renderer', async () => {
+    const { event, window } = registerOwnedRenderer();
+    const stats = {
+      totalEntries: 100,
+      totalSize: 5120,
+      currentSize: 2048,
+      firstEntry: null,
+      lastEntry: null,
+    };
+    expect(getHandler('get-audit-stats')(event)).toEqual(stats);
+    expect(mockAudit.getStats).toHaveBeenCalledOnce();
+    expect(getHandler('get-audit-entries-before')(event, 'cursor', 25, ['file-access'], 3)).toEqual(
+      [],
+    );
+    expect(mockAudit.getEntriesBefore).toHaveBeenCalledExactlyOnceWith(
+      'cursor',
+      25,
+      ['file-access'],
+      3,
+    );
+    mockElectron.shell.openPath.mockResolvedValueOnce('');
+    expect(await getHandler('open-audit-log-dir')(event)).toEqual({ success: true });
+    expect(mockElectron.shell.openPath).toHaveBeenCalledExactlyOnceWith('/logs');
+    mockElectron.dialog.showSaveDialog
+      .mockResolvedValueOnce({ filePath: '/fixture/audit.json' })
+      .mockResolvedValueOnce({ filePath: '/fixture/audit.zip' });
+    expect(await getHandler('export-full-audit')(event)).toEqual({ success: true });
+    expect(await getHandler('export-zip')(event)).toEqual({ success: true });
+    expect(mockElectron.dialog.showSaveDialog).toHaveBeenCalledTimes(2);
+    expect(mockElectron.dialog.showSaveDialog.mock.calls.map((call) => call[0])).toEqual([
+      window,
+      window,
+    ]);
+    expect(mockAudit.prepareExport).toHaveBeenCalledTimes(2);
+    expect(mockStreamExport.writeAuditExport).toHaveBeenCalledTimes(2);
+    expect(mockStreamExport.writeAuditExport.mock.calls[0][0]).toMatchObject({
+      filePath: '/fixture/audit.json',
+      files: [],
+    });
+    expect(mockStreamExport.writeAuditExport.mock.calls[1][0]).toMatchObject({
+      filePath: '/fixture/audit.zip',
+      files: [],
+      zip: true,
+    });
+  });
+
+  it.each(['export-full-audit', 'export-zip'])(
+    '%s denies a stale frame after the save dialog without reading the journal',
+    async (channel) => {
+      const { event, contents, frame } = registerOwnedRenderer();
+      let resolveDialog;
+      mockElectron.dialog.showSaveDialog.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveDialog = resolve;
+        }),
+      );
+      const pending = getHandler(channel)(event);
+      expect(mockElectron.dialog.showSaveDialog).toHaveBeenCalledOnce();
+      contents.mainFrame = { ...frame };
+      resolveDialog({ filePath: '/fixture/audit.zip' });
+      expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
+      expect(mockAudit.prepareExport).not.toHaveBeenCalled();
+      expect(mockStreamExport.writeAuditExport).not.toHaveBeenCalled();
+    },
+  );
 
   it('opens each exact AEGIS setup guide directly for the owned top-level renderer', async () => {
     const { event } = registerOwnedRenderer();
@@ -359,8 +482,7 @@ describe('ipc-handlers', () => {
   it.each(['export-full-audit', 'export-zip'])(
     '%s reports incomplete history without writing a partial file',
     async (channel) => {
-      ipcHandlers.init({ getWindow: () => null });
-      ipcHandlers.register();
+      const { event } = registerOwnedRenderer();
       mockElectron.dialog.showSaveDialog.mockClear();
       mockElectron.dialog.showSaveDialog.mockResolvedValue({ filePath: '/fixture/export.json' });
       const write = vi.spyOn(fs, 'writeFileSync');
@@ -370,7 +492,7 @@ describe('ipc-handlers', () => {
         throw new Error(message);
       });
       try {
-        expect(await getHandler(channel)()).toEqual({ success: false, error: message });
+        expect(await getHandler(channel)(event)).toEqual({ success: false, error: message });
         expect(mockElectron.dialog.showSaveDialog).toHaveBeenCalledOnce();
         expect(write).not.toHaveBeenCalled();
       } finally {
@@ -382,11 +504,10 @@ describe('ipc-handlers', () => {
   it.each(['export-full-audit', 'export-zip'])(
     '%s does no journal work after cancellation',
     async (channel) => {
-      ipcHandlers.init({ getWindow: () => null });
-      ipcHandlers.register();
+      const { event } = registerOwnedRenderer();
       mockElectron.dialog.showSaveDialog.mockResolvedValue({});
       mockAudit.prepareExport.mockClear();
-      expect(await getHandler(channel)()).toEqual({ success: false });
+      expect(await getHandler(channel)(event)).toEqual({ success: false });
       expect(mockAudit.prepareExport).not.toHaveBeenCalled();
     },
   );
@@ -407,20 +528,19 @@ describe('ipc-handlers', () => {
     }
   });
   it('reports native audit-folder failures instead of an unconditional success', async () => {
-    ipcHandlers.init({ getWindow: () => null });
-    ipcHandlers.register();
+    const { event } = registerOwnedRenderer();
     mockElectron.shell.openPath.mockResolvedValueOnce('Folder unavailable');
-    expect(await handlers['open-audit-log-dir']()).toEqual({
+    expect(await handlers['open-audit-log-dir'](event)).toEqual({
       success: false,
       error: 'Folder unavailable',
     });
     mockElectron.shell.openPath.mockRejectedValueOnce(new Error('Shell offline'));
-    expect(await handlers['open-audit-log-dir']()).toEqual({
+    expect(await handlers['open-audit-log-dir'](event)).toEqual({
       success: false,
       error: 'Shell offline',
     });
     mockElectron.shell.openPath.mockResolvedValueOnce('');
-    expect(await handlers['open-audit-log-dir']()).toEqual({ success: true });
+    expect(await handlers['open-audit-log-dir'](event)).toEqual({ success: true });
   });
   it('update operations only accept the owned main frame and never forward caller parameters', () => {
     const frame = {};
@@ -447,8 +567,7 @@ describe('ipc-handlers', () => {
   });
 
   it('streams the ZIP with bounded activity and sanitized settings', async () => {
-    ipcHandlers.init({ getWindow: () => null });
-    ipcHandlers.register();
+    const { event } = registerOwnedRenderer();
     mockElectron.dialog.showSaveDialog.mockResolvedValue({ filePath: '/fixture/export.zip' });
     mockConfig.getSettings.mockReturnValue({
       anthropicApiKey: 'fixture',
@@ -459,7 +578,7 @@ describe('ipc-handlers', () => {
     mockScanner.activityLog = Array.from({ length: 5100 }, (_, i) => ({ i }));
     mockStreamExport.writeAuditExport.mockClear();
     try {
-      expect(await getHandler('export-zip')()).toEqual({ success: true });
+      expect(await getHandler('export-zip')(event)).toEqual({ success: true });
       const options = mockStreamExport.writeAuditExport.mock.calls[0][0];
       expect(options.extraEntries[0].data).toHaveLength(5000);
       expect(options.extraEntries[0].data[0]).toEqual({ i: 100 });
@@ -663,8 +782,9 @@ describe('ipc-handlers', () => {
 
     it('get-audit-entries-before passes cursor, limit and types through untouched', () => {
       // Validation of all three lives in getEntriesBefore, so the handler forwards them raw.
+      const { event } = registerOwnedRenderer();
       const handler = getHandler('get-audit-entries-before');
-      handler(null, '2026-08-25T00:00:00.000Z', 25, ['file-access', 'network-connection']);
+      handler(event, '2026-08-25T00:00:00.000Z', 25, ['file-access', 'network-connection']);
       expect(mockAudit.getEntriesBefore).toHaveBeenCalledWith('2026-08-25T00:00:00.000Z', 25, [
         'file-access',
         'network-connection',
