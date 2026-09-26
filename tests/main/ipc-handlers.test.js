@@ -331,6 +331,24 @@ describe('ipc-handlers', () => {
   }
 
   it.each([
+    'get-stats',
+    'get-resource-usage',
+    'get-settings',
+    'get-all-permissions',
+    'get-agent-database',
+    'get-custom-agents',
+    'get-false-positives',
+    'rules:getAll',
+    'blocklist-list',
+  ])('%s denies a foreign renderer before returning local records', (channel) => {
+    const { event } = registerOwnedRenderer();
+    expect(getHandler(channel)({ ...event, sender: {} })).toEqual({
+      success: false,
+      error: 'Renderer request denied',
+    });
+  });
+
+  it.each([
     ['foreign sender', ({ event }) => ({ ...event, sender: {} })],
     [
       'child frame',
@@ -957,14 +975,16 @@ describe('ipc-handlers', () => {
     });
 
     it('get-stats returns stats from deps', async () => {
+      const { event } = registerOwnedRenderer({ getStats: () => ({ totalFiles: 5 }) });
       const handler = getHandler('get-stats');
-      const result = handler();
+      const result = handler(event);
       expect(result.totalFiles).toBe(5);
     });
 
     it('get-resource-usage returns resource data', () => {
+      const { event } = registerOwnedRenderer({ getResourceUsage: () => ({ memMB: 50 }) });
       const handler = getHandler('get-resource-usage');
-      expect(handler()).toEqual({ memMB: 50 });
+      expect(handler(event)).toEqual({ memMB: 50 });
     });
 
     it('denies generate-report from a foreign sender before generating a file', async () => {
@@ -990,6 +1010,7 @@ describe('ipc-handlers', () => {
     });
 
     it('get-settings returns nonsecret settings and only the provider key state', () => {
+      const { event } = registerOwnedRenderer();
       const handler = getHandler('get-settings');
       const source = {
         darkMode: true,
@@ -997,7 +1018,7 @@ describe('ipc-handlers', () => {
         _encryptedApiKey: 'encrypted-provider-blob-canary',
       };
       mockConfig.getSettings.mockReturnValueOnce(source);
-      const result = handler();
+      const result = handler(event);
       expect(result).toEqual({
         darkMode: true,
         anthropicApiKeyConfigured: true,
@@ -1009,7 +1030,7 @@ describe('ipc-handlers', () => {
 
       mockConfig.getSettings.mockReturnValueOnce({ darkMode: false, anthropicApiKey: '' });
       mockConfig.hasPendingLegacyApiKey.mockReturnValueOnce(true);
-      expect(handler()).toEqual({
+      expect(handler(event)).toEqual({
         darkMode: false,
         anthropicApiKeyConfigured: false,
         anthropicApiKeyMigrationPending: true,
@@ -1103,8 +1124,9 @@ describe('ipc-handlers', () => {
     });
 
     it('get-all-permissions splits agent vs instance permissions', () => {
+      const { event } = registerOwnedRenderer();
       const handler = getHandler('get-all-permissions');
-      const result = handler();
+      const result = handler(event);
       expect(result.permissions).toEqual({ Copilot: 'monitor' });
       expect(result.instancePermissions).toEqual({ 'Claude::vscode': 'allow' });
       expect(result.seenAgents).toEqual(['Claude', 'Copilot']);
