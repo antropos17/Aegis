@@ -28,19 +28,24 @@ const { resolveSnapshotSubject, checkSnapshotSubject } = require('./inventory-sn
 
 const FINDING_LIMIT = 256;
 const ISSUE_LIMIT = 1024;
-function isClaudeSettingsPath(name, adapter, entry) {
-  if (name === '.claude/settings.json' || name === '.claude/settings.local.json') return true;
-  if (adapter === 'claude-user') return name === 'settings.json' && entry.agent === 'claude-code';
-  return (
+function claudeSettingsSource(name, adapter, entry) {
+  if (name === '.claude/settings.json' && adapter === 'user-home' && entry.agent === 'claude-code')
+    return 'user';
+  if (name === '.claude/settings.json' || name === '.claude/settings.local.json') return 'project';
+  if (adapter === 'claude-user' && name === 'settings.json' && entry.agent === 'claude-code')
+    return 'user';
+  if (
     adapter === 'claude-managed' &&
     entry.agent === 'claude-code' &&
     (name === 'managed-settings.json' || /^managed-settings\.d\/[^/.][^/]*\.json$/.test(name))
-  );
+  )
+    return 'managed';
+  return null;
 }
 
 function analyzeFile(name, data, entry, catalog, adapter) {
   const base = name.split(/[/\\]/).at(-1);
-  const claudeSettings = isClaudeSettingsPath(name, adapter, entry);
+  const claudeSettings = claudeSettingsSource(name, adapter, entry);
   if (entry.kind === 'policy')
     return {
       mode: 'unsupported',

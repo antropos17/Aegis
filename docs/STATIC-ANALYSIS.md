@@ -118,7 +118,7 @@ can therefore be incomplete and require review. The supported grammar,
 source-line conventions and catalog bounds are documented in
 [Instruction-pattern review](INSTRUCTION-REVIEW.md).
 
-Rule-set ID: `aegis-static-patterns`, version `8`. Each report includes fixed rule
+Rule-set ID: `aegis-static-patterns`, version `9`. Each report includes fixed rule
 metadata. Severity prioritizes review; every finding has `confidence: heuristic`.
 
 | ID | Severity | Review trigger |
@@ -140,6 +140,7 @@ metadata. Severity prioritizes review; every finding has `confidence: heuristic`
 | STA015 | medium | Instruction directive asks to conceal an action from the user |
 | STA016 | medium | Selected Claude settings declare a broad Bash or PowerShell execution allow without a matching ask/deny in the same file |
 | STA017 | medium | Leading YAML in a Claude-scoped skill declares broad Bash or PowerShell execution preapproval |
+| STA018 | medium | Selected Claude user or managed settings declare `permissions.defaultMode: "bypassPermissions"` without a same-file `disableBypassPermissionsMode: "disable"` |
 
 STA002 includes common `.env` variants, `.npmrc`, selected SSH private-key names,
 AWS credentials and kubeconfig paths. Template/example `.env` names are excluded.
@@ -159,7 +160,8 @@ publisher authenticity. uv's special `python`/`python@version` interpreter launc
 is outside package-selector review and produces a coverage issue.
 
 STA016 checks `.claude/settings.json` and `.claude/settings.local.json` at the
-selected project or package root, selected Claude user `settings.json`, and
+selected project or package root, selected Claude user `settings.json` (or
+`.claude/settings.json` under `user-home`), and
 selected Claude managed `managed-settings.json` plus visible direct
 `managed-settings.d/*.json` files. STA017 checks only leading `allowed-tools`
 YAML in `.claude/skills/<name>/SKILL.md`, nested Claude skill directories in a
@@ -171,6 +173,19 @@ precedence, the active permission mode and the invoking-turn behavior of skills
 are not established. Malformed selected declarations report fixed coverage
 issues. Findings contain a path and file hash, not grant text; settings findings
 have no source line because the structural parser does not retain one.
+
+STA018 checks only selected Claude user and managed settings. Claude Code's
+[permission documentation](https://code.claude.com/docs/en/permissions) describes
+`bypassPermissions` as a mode that skips permission prompts, and the same-file
+`permissions.disableBypassPermissionsMode: "disable"` suppresses this declaration
+signal. For selected project and local settings, AEGIS instead emits the fixed
+`claude-bypass-mode-version-unknown` coverage issue: the
+[settings documentation](https://code.claude.com/docs/en/settings) says these
+files' bypass default is ignored from Claude Code v2.1.257, while older versions
+may accept it. The scan does not know the installed version or whether a file is
+loaded. Other settings and launch options can change the active mode; a finding
+or issue does not establish the mode of a running session. The report contains
+the selected file's relative path and hash, never the settings value or contents.
 
 ## Result contract and limits
 

@@ -24,7 +24,7 @@ export async function previewLocalSecurity(request: unknown): Promise<RecordData
     complete: false,
     safety: 'not-determined',
     reviewRequired: true,
-    ruleSet: { id: 'aegis-local-static', version: 8 },
+    ruleSet: { id: 'aegis-local-static', version: 9 },
     findings: [
       {
         ruleId: 'STA014',

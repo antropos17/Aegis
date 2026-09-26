@@ -147,6 +147,87 @@ describe('bounded static directory review', () => {
     expect(JSON.stringify(report)).not.toContain('PRIVATE_RULE_CANARY');
   });
 
+  it.each([
+    ['claude-user', 'settings.json'],
+    ['user-home', '.claude/settings.json'],
+    ['claude-managed', 'managed-settings.json'],
+    ['claude-managed', 'managed-settings.d/10-team.json'],
+  ])('flags a persisted bypass startup mode in selected %s settings', async (adapter, name) => {
+    const source = JSON.stringify({
+      permissions: { defaultMode: 'bypassPermissions' },
+      description: 'PRIVATE_MODE_CANARY',
+    });
+    put(name, source);
+    const report = await scanStaticDirectory(adapter, root);
+    expect(report.findings).toEqual([
+      expect.objectContaining({
+        ruleId: 'STA018',
+        path: name,
+        sha256: createHash('sha256').update(source).digest('hex'),
+        line: null,
+        context: 'claude-settings-default-mode',
+      }),
+    ]);
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_MODE_CANARY');
+  });
+
+  it('does not flag ordinary startup modes or a same-file bypass disable', async () => {
+    for (const permissions of [
+      { defaultMode: 'default' },
+      { defaultMode: 'acceptEdits' },
+      { defaultMode: 'bypassPermissions', disableBypassPermissionsMode: 'disable' },
+    ]) {
+      put('settings.json', { permissions });
+      const report = await scanStaticDirectory('claude-user', root);
+      expect(report.findings.some((entry) => entry.ruleId === 'STA018')).toBe(false);
+      expect(report.complete).toBe(true);
+    }
+    put('settings.json', { defaultMode: 'bypassPermissions' });
+    expect((await scanStaticDirectory('claude-user', root)).findings).toEqual([]);
+    put('settings.json', {
+      permissions: {
+        defaultMode: 'bypassPermissions',
+        disableBypassPermissionsMode: true,
+      },
+    });
+    expect(
+      (await scanStaticDirectory('claude-user', root)).findings.map((entry) => entry.ruleId),
+    ).toEqual(['STA018']);
+    put('settings.json', {
+      permissions: {
+        defaultMode: 'bypassPermissions',
+        disableBypassPermissionsMode: 'disable',
+        allow: ['Bash'],
+      },
+    });
+    expect(
+      (await scanStaticDirectory('claude-user', root)).findings.map((entry) => entry.ruleId),
+    ).toEqual(['STA016']);
+  });
+
+  it.each(['.claude/settings.json', '.claude/settings.local.json'])(
+    'marks project bypass declaration %s version-dependent when version is unknown',
+    async (name) => {
+      put(name, { permissions: { defaultMode: 'bypassPermissions' } });
+      const report = await scanStaticDirectory('project', root);
+      expect(report.findings).toEqual([]);
+      expect(report.complete).toBe(false);
+      expect(report.issues).toContainEqual({
+        path: name,
+        reason: 'claude-bypass-mode-version-unknown',
+      });
+      put(name, {
+        permissions: {
+          defaultMode: 'bypassPermissions',
+          disableBypassPermissionsMode: 'disable',
+        },
+      });
+      const disabled = await scanStaticDirectory('project', root);
+      expect(disabled.issues).toEqual([]);
+      expect(disabled.findings).toEqual([]);
+    },
+  );
+
   it('reviews interpreter-wide Claude allows while leaving a find wildcard out of this category', async () => {
     put('.claude/settings.json', {
       permissions: { allow: ['Bash(python:*)', 'Bash(find *)'] },

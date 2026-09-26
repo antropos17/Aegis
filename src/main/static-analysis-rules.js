@@ -87,13 +87,18 @@ const RULES = Object.freeze({
     'Claude skill declares broad execution preapproval',
     'Review whether this skill needs a tool grant for its invoking turn. Ask and deny rules take precedence; this static check does not establish effective permissions.',
   ],
+  STA018: [
+    'medium',
+    'Claude settings declare permission bypass at session start',
+    'Review the selected user or managed setting. Other settings and launch options can change the active mode; this static check does not establish it.',
+  ],
 });
 
 /** Return fresh versioned rule metadata. @returns {object} Built-in review rules. @since v0.15.1 */
 function staticRuleSet() {
   return {
     id: 'aegis-static-patterns',
-    version: 8,
+    version: 9,
     rules: Object.entries(RULES).map(([id, [severity, title, recommendation]]) => ({
       id,
       severity,
