@@ -96,21 +96,26 @@
       {:else}
         <p class="notice">
           {$t(
-            'No contributing file or network activity in the available observations. Coverage determines what AEGIS can assess.',
+            'No file or network activity contributes to this score in the available observations. Coverage determines what AEGIS can assess.',
           )}
         </p>
       {/if}
-      {#if context.adjustment < 0}
+      {#if context.adjustment < 0 && context.baseScore !== null}
         <div class="adjustment">
-          <strong>{$t('Saved exception')}</strong><span>{points(context.adjustment)}</span>
+          <strong>{$t('Score with all observed files')}</strong><span
+            >{points(context.baseScore)} / 100</span
+          >
         </div>
         <p class="entity-note">
-          {$t("An existing false-positive exception lowers this agent's score.")}
+          {$t(
+            'Matching saved file exceptions account for the {points}-point difference from the displayed score.',
+            { points: points(-context.adjustment) },
+          )}
         </p>
       {/if}
       <p class="entity-note">
         {$t(
-          'The total is rounded and capped at 100 before saved adjustments. Older file activity carries less weight. Behaviour anomaly is assessed separately.',
+          'Shown factors exclude matching saved file exceptions. The score from remaining activity is rounded and capped at 100. Older file activity carries less weight. Behaviour anomaly is assessed separately.',
         )}
       </p>
     {:else}
