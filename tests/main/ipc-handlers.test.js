@@ -3,7 +3,7 @@ import Module from 'module';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,7 +24,7 @@ const mockElectron = {
     _onHandlers: onHandlers,
   },
   app: { getPath: vi.fn(() => os.tmpdir()) },
-  dialog: { showSaveDialog: vi.fn(), showOpenDialog: vi.fn() },
+  dialog: { showSaveDialog: vi.fn(), showOpenDialog: vi.fn(), showMessageBox: vi.fn() },
   shell: { openExternal: vi.fn(), openPath: vi.fn(), showItemInFolder: vi.fn() },
   Notification: Object.assign(
     vi.fn(function () {
@@ -178,6 +178,7 @@ describe('ipc-handlers', () => {
     mockElectron.ipcMain.on.mockClear();
     mockElectron.shell.showItemInFolder.mockClear();
     mockElectron.shell.openExternal.mockClear();
+    mockElectron.dialog.showMessageBox.mockReset();
     mockPlatform.killProcess.mockClear();
     mockPlatform.suspendProcess.mockClear();
     mockPlatform.resumeProcess.mockClear();
@@ -203,6 +204,139 @@ describe('ipc-handlers', () => {
   function getHandler(channel) {
     return handlers[channel];
   }
+
+  function registerOwnedRenderer() {
+    const rendererUrl =
+      process.env.VITE_DEV_SERVER_URL ||
+      pathToFileURL(path.join(__dirname, '../../dist/renderer/index.html')).href;
+    const frame = { url: rendererUrl, isDestroyed: vi.fn(() => false) };
+    const contents = {
+      mainFrame: frame,
+      getURL: vi.fn(() => rendererUrl),
+      isDestroyed: vi.fn(() => false),
+    };
+    const window = { webContents: contents, isDestroyed: vi.fn(() => false) };
+    ipcHandlers.init({ getWindow: () => window });
+    ipcHandlers.register();
+    return { window, contents, frame, event: { sender: contents, senderFrame: frame } };
+  }
+
+  it('opens each exact AEGIS setup guide directly for the owned top-level renderer', async () => {
+    const { event } = registerOwnedRenderer();
+    for (const file of [
+      'ACTION-MCP-CONFIG.md',
+      'ACTION-MCP-REVIEW.md',
+      'ACTION-DELETE-FILE.md',
+      'ACTION-MCP-STATUS.md',
+    ]) {
+      const url = `https://github.com/antropos17/Aegis/blob/master/docs/${file}`;
+      expect(await handlers['open-external-url'](event, url)).toEqual({ success: true });
+      expect(mockElectron.shell.openExternal).toHaveBeenLastCalledWith(url);
+    }
+    expect(mockElectron.dialog.showMessageBox).not.toHaveBeenCalled();
+  });
+
+  it('requires a parented Cancel-default confirmation for catalog and modified guide URLs', async () => {
+    const { event, window } = registerOwnedRenderer();
+    const vendor = 'HTTPS://Example.COM:443/Website?source=catalog';
+    mockElectron.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+    expect(await handlers['open-external-url'](event, vendor)).toEqual({
+      success: false,
+      error: 'External URL cancelled',
+    });
+    expect(mockElectron.shell.openExternal).not.toHaveBeenCalled();
+    expect(mockElectron.dialog.showMessageBox).toHaveBeenCalledWith(
+      window,
+      expect.objectContaining({
+        defaultId: 0,
+        cancelId: 0,
+        buttons: ['Cancel / Cancelar', 'Open website / Abrir site'],
+        detail:
+          'Origin / Origem: https://example.com\n\nFull URL / URL completa:\nhttps://example.com/Website?source=catalog',
+      }),
+    );
+    mockElectron.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
+    expect(await handlers['open-external-url'](event, vendor)).toEqual({ success: true });
+    expect(mockElectron.shell.openExternal).toHaveBeenCalledExactlyOnceWith(
+      'https://example.com/Website?source=catalog',
+    );
+    const guideWithQuery =
+      'https://github.com/antropos17/Aegis/blob/master/docs/ACTION-MCP-CONFIG.md?next=elsewhere';
+    mockElectron.dialog.showMessageBox.mockResolvedValueOnce({ response: 0 });
+    expect(await handlers['open-external-url'](event, guideWithQuery)).toMatchObject({
+      success: false,
+    });
+    expect(mockElectron.dialog.showMessageBox).toHaveBeenCalledTimes(3);
+  });
+
+  it('rejects malformed inputs and foreign sender frames before a dialog or shell call', async () => {
+    const { event, contents } = registerOwnedRenderer();
+    const website = 'https://example.com';
+    for (const value of [
+      null,
+      {},
+      'https://github.com@evil.test/',
+      'https://example.com/' + 'x'.repeat(2048),
+    ]) {
+      expect(await handlers['open-external-url'](event, value)).toMatchObject({ success: false });
+    }
+    expect(await handlers['open-external-url']({ ...event, sender: {} }, website)).toEqual({
+      success: false,
+      error: 'Renderer request denied',
+    });
+    expect(
+      await handlers['open-external-url'](
+        { ...event, senderFrame: { url: event.senderFrame.url } },
+        website,
+      ),
+    ).toMatchObject({ success: false });
+    contents.getURL.mockReturnValue('https://evil.test/');
+    expect(await handlers['open-external-url'](event, website)).toMatchObject({ success: false });
+    expect(mockElectron.dialog.showMessageBox).not.toHaveBeenCalled();
+    expect(mockElectron.shell.openExternal).not.toHaveBeenCalled();
+  });
+
+  it('fails closed if the frame or app document changes while the native dialog is open', async () => {
+    const { event, contents, frame } = registerOwnedRenderer();
+    let answer;
+    mockElectron.dialog.showMessageBox.mockReturnValueOnce(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const pending = handlers['open-external-url'](event, 'https://example.com/vendor');
+    contents.mainFrame = { ...frame };
+    answer({ response: 1 });
+    expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
+    expect(mockElectron.shell.openExternal).not.toHaveBeenCalled();
+
+    contents.mainFrame = frame;
+    mockElectron.dialog.showMessageBox.mockReturnValueOnce(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const second = handlers['open-external-url'](event, 'https://example.com/vendor');
+    contents.getURL.mockReturnValue('file:///elsewhere/index.html');
+    answer({ response: 1 });
+    expect(await second).toMatchObject({ success: false });
+    expect(mockElectron.shell.openExternal).not.toHaveBeenCalled();
+  });
+
+  it('returns generic errors when confirmation or shell opening fails', async () => {
+    const { event } = registerOwnedRenderer();
+    mockElectron.dialog.showMessageBox.mockRejectedValueOnce(new Error('sensitive-query=123'));
+    expect(await handlers['open-external-url'](event, 'https://example.com')).toEqual({
+      success: false,
+      error: 'External URL confirmation unavailable',
+    });
+    mockElectron.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
+    mockElectron.shell.openExternal.mockRejectedValueOnce(new Error('sensitive-query=123'));
+    expect(await handlers['open-external-url'](event, 'https://example.com')).toEqual({
+      success: false,
+      error: 'External URL could not be opened',
+    });
+  });
 
   it.each(['export-full-audit', 'export-zip'])(
     '%s reports incomplete history without writing a partial file',

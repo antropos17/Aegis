@@ -21,6 +21,11 @@ const logger = require('./logger');
 const { validateSettings, validateFalsePositive } = require('./settings-validation');
 const { resolveProcessRequest } = require('../shared/process-request');
 const localSecurity = require('./local-security-ipc');
+const {
+  parseExternalUrl,
+  isTrustedSetupGuide,
+  ownsTopLevelRenderer,
+} = require('./external-url-boundary');
 
 let deps = {};
 
@@ -43,13 +48,14 @@ function escapeHtml(str) {
  * @since v0.1.0
  */
 function init(injected) {
-  deps = injected;
+  const rendererUrl =
+    process.env.VITE_DEV_SERVER_URL ||
+    pathToFileURL(path.join(__dirname, '..', '..', 'dist', 'renderer', 'index.html')).href;
+  deps = { ...injected, rendererUrl };
   localSecurity.init({
     getWindow: deps.getWindow,
     dialog,
-    rendererUrl:
-      process.env.VITE_DEV_SERVER_URL ||
-      pathToFileURL(path.join(__dirname, '..', '..', 'dist', 'renderer', 'index.html')).href,
+    rendererUrl,
   });
 }
 
@@ -508,16 +514,37 @@ ${findingsHtml}${recsHtml}
   });
 
   // ── Open external URL ──
-  ipcMain.handle('open-external-url', async (_e, url) => {
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-        await shell.openExternal(url);
-        return { success: true };
+  ipcMain.handle('open-external-url', async (event, url) => {
+    const window = deps.getWindow?.();
+    const stillOwned = () =>
+      deps.getWindow?.() === window && ownsTopLevelRenderer(event, window, deps.rendererUrl);
+    if (!stillOwned()) return { success: false, error: 'Renderer request denied' };
+    const target = parseExternalUrl(url);
+    if (!target) return { success: false, error: 'Invalid external URL' };
+    if (!isTrustedSetupGuide(target.href)) {
+      let answer;
+      try {
+        answer = await dialog.showMessageBox(window, {
+          type: 'question',
+          title: 'AEGIS external link / Link externo',
+          message: 'Open this website in your browser? / Abrir este site no navegador?',
+          detail: `Origin / Origem: ${target.origin}\n\nFull URL / URL completa:\n${target.href}`,
+          buttons: ['Cancel / Cancelar', 'Open website / Abrir site'],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true,
+        });
+      } catch (_) {
+        return { success: false, error: 'External URL confirmation unavailable' };
       }
-      return { success: false, error: 'Invalid URL scheme' };
-    } catch (_error) {
-      return { success: false, error: 'Invalid URL length or format' };
+      if (!stillOwned()) return { success: false, error: 'Renderer request denied' };
+      if (answer?.response !== 1) return { success: false, error: 'External URL cancelled' };
+    }
+    try {
+      await shell.openExternal(target.href);
+      return { success: true };
+    } catch (_) {
+      return { success: false, error: 'External URL could not be opened' };
     }
   });
 
