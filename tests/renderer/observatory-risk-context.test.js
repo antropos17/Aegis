@@ -15,6 +15,7 @@ const state = () => ({
   events: [
     {
       instanceId: 'two',
+      agent: 'Codex',
       file: 'C:/settings',
       sensitive: true,
       reason: 'Sensitive configuration',
@@ -72,19 +73,26 @@ it('explains the highest exact process instead of summing different workers', ()
   expect(leadingRiskReason(instances(telemetry)[0])).toBe('Destination checks');
 });
 
-it('captures actual saved adjustments and excludes unlinked namesakes', () => {
+it('explains a matching file exception without discounting another process or unlinked namesakes', () => {
   const telemetry = state();
-  telemetry.falsePositives = [{ agentName: 'Codex' }];
+  telemetry.falsePositives = [
+    { agentName: 'Codex', pattern: '^C:/settings$', timestamp: Date.now() },
+    { agentName: 'Codex' },
+  ];
   telemetry.events.push({
     instanceId: null,
     agent: 'Codex',
     sensitive: true,
     timestamp: Date.now(),
   });
-  const context = riskContext({ agentGroupKey: 'Codex' }, telemetry);
-  expect(context.score).toBe(0);
-  expect(context.adjustment).toBe(-17);
-  expect(context.contributions.map((f) => f.id)).not.toContain('sensitive');
+  const excepted = riskContext({ instanceId: 'two' }, telemetry);
+  expect(excepted.score).toBe(0);
+  expect(excepted.adjustment).toBe(-5);
+  expect(excepted.contributions.map((f) => f.id)).not.toContain('sensitive');
+  const other = riskContext({ agentGroupKey: 'Codex' }, telemetry);
+  expect(other.score).toBe(17);
+  expect(other.adjustment).toBe(0);
+  expect(other.contributions.map((f) => f.id)).not.toContain('sensitive');
 });
 
 it('retains the explanation of a captured process when new telemetry changes its score', () => {
