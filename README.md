@@ -112,7 +112,8 @@ Its Windows `.exe`, `manifest.json` and `manifest.json.sig` are published togeth
 follow [offline installer verification](docs/RELEASE-VERIFICATION.md) after download.
 The release includes signed Windows update support; when upgrading from
 0.14.1-alpha or older, install 0.15.0-alpha or newer manually first. Source
-changes merged after the 0.16.0-alpha tag are not in that installer.
+changes merged after the 0.16.0-alpha tag, including the Windows Job lifetime
+route, are not in that installer.
 
 ### From source
 
@@ -141,7 +142,7 @@ The preview uses simulated data and an isolated host. It shares the desktop comp
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| [v0.16.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.16.0-alpha) | 2026-09-26 | Windows setup wizard, monitoring performance work, scoped local security inventory and selected-action routes through the release tag |
+| [v0.16.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.16.0-alpha) | 2026-09-26 | Windows setup wizard, monitoring performance work, scoped local security inventory, direct selected-action and MCP routes |
 | [v0.15.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.15.0-alpha) | 2026-09-12 | Observatory desktop, signed Windows updates, Linux process-generation identity and bounded ETW diagnostics |
 | [v0.14.1-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.14.1-alpha) | 2026-09-07 | Evidence-file watchers moved off the main thread; dependency maintenance |
 | [v0.14.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.14.0-alpha) | 2026-09-07 | Sequence rules, observation-gap records, audit indexing and sensor-health work |
