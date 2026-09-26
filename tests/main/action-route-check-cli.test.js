@@ -111,6 +111,29 @@ it.each(['allow', 'ask', 'deny'])(
   },
 );
 
+it('reports the effective review-required decision from a real v3 policy', () => {
+  const action = prepare('allow');
+  fs.writeFileSync(
+    policy,
+    JSON.stringify({
+      schemaVersion: 3,
+      defaultDecision: 'deny',
+      rules: [{ action, decision: 'allow' }],
+      reviewRequired: [action],
+    }),
+  );
+  const result = run();
+  expect(result.code).toBe(0);
+  expect(result.report).toMatchObject({
+    configuration: 'valid',
+    policyDecision: 'ask',
+    reason: 'review-required',
+    askBehavior: 'not-started',
+    executionPerformed: false,
+  });
+  expect(fs.existsSync(sentinel)).toBe(false);
+});
+
 it.each(['policy', 'request'])(
   'reports unavailable selected %s with no private path',
   (missing) => {

@@ -178,6 +178,27 @@ describe('explicit action execution Node entry', () => {
     expect(fs.existsSync(sentinel)).toBe(false);
   });
 
+  it('does not spawn a review-required allow action through the direct CLI', () => {
+    const action = prepare('allow');
+    fs.writeFileSync(
+      policyPath,
+      JSON.stringify({
+        schemaVersion: 3,
+        defaultDecision: 'deny',
+        rules: [{ action, decision: 'allow' }],
+        reviewRequired: [action],
+      }),
+    );
+    const result = launch();
+    expect(result.code).toBe(2);
+    expect(result.report).toMatchObject({
+      decision: 'ask',
+      reason: 'review-required',
+      execution: { state: 'not-started', exitCode: null },
+    });
+    expect(fs.existsSync(sentinel)).toBe(false);
+  });
+
   it('does not spawn when the explicitly selected policy is missing', () => {
     prepare();
     fs.unlinkSync(policyPath);
