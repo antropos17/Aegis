@@ -54,6 +54,12 @@ const BACKOFF_MS = [1000, 5000, 30000];
 
 /** @type {readonly string[]} Capability classes a hello may announce. */
 const KNOWN_CLASSES = ['basic', 'class5'];
+const FRAME_ERROR_CODES = new Set([
+  'decoder-desynchronised',
+  'frame-length-invalid',
+  'frame-parse-error',
+  'frame-not-an-object',
+]);
 
 let _spawn = childProcess.spawn;
 let _now = () => Date.now();
@@ -169,7 +175,7 @@ function _recordFailure(reason) {
   logger.debug('proc-snapshot', `Sidecar failure (${reason})`, { failures: _failures.length });
   _teardown(reason);
   if (_failures.length >= MAX_FAILURES_IN_WINDOW) {
-    _disable(`restart budget exhausted (${reason})`);
+    _disable('restart budget exhausted');
     return;
   }
   _nextAttemptAt = now + BACKOFF_MS[Math.min(_failures.length - 1, BACKOFF_MS.length - 1)];
@@ -204,7 +210,7 @@ function _onMessage(msg) {
       return;
     }
     if (msg.proto !== PROTOCOL_VERSION) {
-      _disable(`protocol version mismatch: sidecar ${msg.proto}, client ${PROTOCOL_VERSION}`);
+      _disable('protocol version mismatch');
       return;
     }
     const caps = _normalizeCaps(msg.caps);
@@ -216,17 +222,17 @@ function _onMessage(msg) {
     const waiter = _helloWaiter;
     _helloWaiter = null;
     clearTimeout(waiter.timer);
-    logger.info('proc-snapshot', 'Snapshot sidecar ready', { caps, pid: msg.pid });
+    logger.info('proc-snapshot', 'Snapshot sidecar ready', { caps });
     waiter.resolve();
     return;
   }
 
   if (msg.t !== 'snap' && msg.t !== 'err') {
-    logger.debug('proc-snapshot', `Ignored unknown frame type "${msg.t}"`);
+    logger.debug('proc-snapshot', 'Ignored unknown frame type');
     return;
   }
   if (!_pending || _pending.id !== msg.id) {
-    logger.debug('proc-snapshot', 'Ignored a response with no matching request', { id: msg.id });
+    logger.debug('proc-snapshot', 'Ignored a response with no matching request');
     return;
   }
   const pending = _pending;
@@ -236,7 +242,7 @@ function _onMessage(msg) {
   if (msg.t === 'err') {
     // The child is alive and said no. That is a provider failure for this pass,
     // not a supervision failure, so the restart budget is not touched.
-    pending.reject(new Error(`proc-snapshot: sidecar error ${msg.code || 'unknown'}`));
+    pending.reject(new Error('proc-snapshot: sidecar error'));
     return;
   }
   if (!Array.isArray(msg.procs) || !KNOWN_CLASSES.includes(msg.source)) {
@@ -273,18 +279,23 @@ function _startChild(timeoutMs) {
   let child;
   try {
     child = _spawn(exePath, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
-  } catch (err) {
-    _recordFailure(`spawn threw: ${err.message}`);
-    return Promise.reject(new Error(`proc-snapshot: spawn failed — ${err.message}`));
+  } catch {
+    _recordFailure('spawn-failed');
+    return Promise.reject(new Error('proc-snapshot: spawn failed'));
   }
   _child = child;
   const decoder = createFrameDecoder();
+  let stderrObserved = false;
   _installExitHook();
 
   child.stdout.on('data', (chunk) => {
     if (_child !== child) return;
     const { frames, errors, fatal } = decoder.push(chunk);
-    for (const e of errors) logger.warn('proc-snapshot', `Frame error: ${e}`);
+    for (const error of errors) {
+      logger.warn('proc-snapshot', 'Frame error', {
+        code: FRAME_ERROR_CODES.has(error) ? error : 'frame-invalid',
+      });
+    }
     if (fatal) {
       _recordFailure('stream desynchronised');
       return;
@@ -292,23 +303,22 @@ function _startChild(timeoutMs) {
     for (const frame of frames) _onMessage(frame);
   });
   child.stderr.on('data', (chunk) => {
-    const text = String(chunk).trim();
-    if (text) logger.debug('proc-snapshot', `sidecar stderr: ${text}`);
+    if (!stderrObserved && chunk.length > 0) {
+      stderrObserved = true;
+      logger.debug('proc-snapshot', 'Sidecar stderr observed');
+    }
   });
-  child.on('error', (err) => {
+  child.on('error', () => {
     if (_child !== child) return;
-    _recordFailure(`child error: ${err.message}`);
+    _recordFailure('child error');
   });
-  child.on('exit', (code, signal) => {
+  child.on('exit', () => {
     if (_child !== child) return;
-    _recordFailure(`child exited (code=${code}, signal=${signal})`);
+    _recordFailure('child exited');
   });
 
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () => _recordFailure(`handshake timed out after ${timeoutMs} ms`),
-      timeoutMs,
-    );
+    const timer = setTimeout(() => _recordFailure('handshake timed out'), timeoutMs);
     if (timer.unref) timer.unref();
     _helloWaiter = { resolve: () => resolve(child), reject, timer };
   });
@@ -358,16 +368,13 @@ function requestSnapshot(opts = {}) {
       (child) =>
         new Promise((resolve, reject) => {
           const id = _nextId++;
-          const timer = setTimeout(
-            () => _recordFailure(`snapshot timed out after ${timeoutMs} ms`),
-            timeoutMs,
-          );
+          const timer = setTimeout(() => _recordFailure('snapshot timed out'), timeoutMs);
           if (timer.unref) timer.unref();
           _pending = { id, resolve, reject, timer };
           try {
             child.stdin.write(encodeFrame({ t: 'snap', id }));
-          } catch (err) {
-            _recordFailure(`stdin write failed: ${err.message}`);
+          } catch {
+            _recordFailure('stdin write failed');
           }
         }),
     )

@@ -76,7 +76,7 @@ describe('platform/proc-snapshot-protocol', () => {
       const decoder = createFrameDecoder();
       const chunk = Buffer.concat([rawFrame(7, 'not-json'.slice(0, 7)), encodeFrame({ t: 'b' })]);
       const result = decoder.push(chunk);
-      expect(result.errors[0]).toMatch(/frame-parse-error/);
+      expect(result.errors).toEqual(['frame-parse-error']);
       expect(result.fatal).toBe(false);
       expect(result.frames).toEqual([{ t: 'b' }]);
     });
@@ -95,7 +95,7 @@ describe('platform/proc-snapshot-protocol', () => {
       const result = decoder.push(rawFrame(MAX_FRAME_BYTES + 1, 'x'));
       expect(result.fatal).toBe(true);
       expect(result.frames).toEqual([]);
-      expect(result.errors[0]).toMatch(/frame-length-invalid/);
+      expect(result.errors).toEqual(['frame-length-invalid']);
     });
 
     it('treats a zero length prefix as desynchronisation', () => {
