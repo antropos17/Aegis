@@ -111,6 +111,59 @@ it('shows all catalog decisions without a protection verdict and excludes non-MC
   expect(document.body.textContent).not.toMatch(/Blocking verified|100%|safe verdict/i);
   expect(screen.queryByRole('button', { name: /execute|export|install/i })).toBeNull();
 });
+it('counts captured catalog outcomes and exposes reasons for review and invalid rows', async () => {
+  const reply = await example(true);
+  if (!reply.success || !('check' in reply)) throw Error('fixture unavailable');
+  const check = reply.check as {
+    report: {
+      configuration: string;
+      reason: string;
+      actions: { name: string; configuration: string; policyDecision: string; reason: string }[];
+    };
+  };
+  check.report.configuration = 'invalid';
+  check.report.reason = 'catalog-invalid';
+  check.report.actions.push(
+    {
+      name: 'aegis_action_demo_invalid',
+      configuration: 'invalid',
+      policyDecision: 'unknown',
+      reason: 'policy-invalid',
+    },
+    {
+      name: 'aegis_action_demo_unavailable',
+      configuration: 'unavailable',
+      policyDecision: 'unknown',
+      reason: 'input-unavailable',
+    },
+  );
+  render(ActionCoverage, { host: bridge(vi.fn().mockResolvedValue(reply)) });
+  await fireEvent.change(screen.getByLabelText('Selection type'), { target: { value: 'catalog' } });
+  await start();
+  const result = await screen.findByRole('region', { name: 'Action check result' });
+  expect(
+    within(result).getByText(
+      'These counts describe the captured configuration check. No actions were run.',
+    ),
+  ).toBeVisible();
+  const counts = result.querySelector('.outcome-counts')!;
+  for (const label of ['Allow', 'Ask', 'Deny', 'Invalid configuration', 'Not assessed'])
+    expect(within(counts).getByText(label).parentElement).toHaveTextContent('1');
+  expect(
+    [...counts.querySelectorAll('dd')].reduce((total, item) => total + Number(item.textContent), 0),
+  ).toBe(check.report.actions.length);
+  for (const [name, reason] of [
+    ['aegis_action_demo_ask', 'Policy requires confirmation'],
+    ['aegis_action_demo_deny', 'Policy denies this action'],
+    ['aegis_action_demo_invalid', 'The selected policy is invalid'],
+  ]) {
+    const row = within(result).getByRole('heading', { name }).closest('li')!;
+    expect(within(row).getByText(reason)).toBeVisible();
+    expect(row.querySelector('details')).toBeNull();
+  }
+  await fireEvent.change(screen.getByLabelText('Selection type'), { target: { value: 'single' } });
+  expect(within(counts).getByText('Invalid configuration').parentElement).toHaveTextContent('1');
+});
 it('explains selected files and routes without changing a retained next step', async () => {
   const call = vi.fn().mockResolvedValue(await example());
   render(ActionCoverage, { host: bridge(call) });

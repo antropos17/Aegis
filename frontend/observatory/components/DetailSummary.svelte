@@ -38,6 +38,10 @@
   let activity = $derived(detailActivity(row, telemetry));
   let times = $derived(activity.map((entry) => observationTime(entry.timestamp)).filter(Boolean));
   const score = (value: unknown) => (measured(value) === null ? '—' : String(value) + ' / 100');
+  function catalogMetadata(value: RecordData): RecordData {
+    const { riskProfile, ...rest } = value;
+    return riskProfile === undefined ? rest : { ...rest, 'Catalog risk profile': riskProfile };
+  }
   function metric(value: unknown, unit: string) {
     return telemetry.stale || measured(value) === null ? '—' : Number(value).toFixed(1) + unit;
   }
@@ -83,7 +87,12 @@
         lastSeen: times.length ? Math.max(...times) : null,
       };
     if (kind === 'catalog')
-      return selectFields(row, ['vendor', 'category', 'riskProfile', 'defaultTrust']);
+      return selectFields(catalogMetadata(row), [
+        'vendor',
+        'category',
+        'Catalog risk profile',
+        'defaultTrust',
+      ]);
     if (kind === 'resource')
       return {
         timestamp: observationTime(row.timestamp) || null,
@@ -133,10 +142,15 @@
         ])
       : kind === 'resource'
         ? evidenceFields(row)
-        : row,
+        : kind === 'catalog'
+          ? catalogMetadata(row)
+          : row,
   );
 </script>
 
+{#if kind === 'catalog' && section !== 'signatures'}<p class="entity-note">
+    {$t('Catalog risk profile is saved metadata. It does not describe current behavior or safety.')}
+  </p>{/if}
 {#if section === 'attributes'}
   <section class="detail-section">
     <h3>{kind === 'resource' ? $t('Recorded evidence') : $t('Attributes')}</h3>

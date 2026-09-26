@@ -35,6 +35,19 @@
   });
   const available = $derived(typeof host?.localSecurityReview === 'function');
   const guidance = $derived(result ? actionCheckGuidance(result) : null);
+  const actionCounts = $derived.by(() => {
+    const counts = { allow: 0, ask: 0, deny: 0, invalid: 0, unassessed: 0 };
+    if (result?.kind !== 'catalog') return counts;
+    for (const action of result.report.actions) {
+      if (action.configuration === 'invalid') counts.invalid++;
+      else if (action.configuration !== 'valid') counts.unassessed++;
+      else if (action.policyDecision === 'allow') counts.allow++;
+      else if (action.policyDecision === 'ask') counts.ask++;
+      else if (action.policyDecision === 'deny') counts.deny++;
+      else counts.unassessed++;
+    }
+    return counts;
+  });
   const routes = $derived(
     actionRoutes.filter((item) => kind === 'single' || item.id.startsWith('mcp-')),
   );
@@ -112,6 +125,31 @@
       {#if result.kind === 'catalog'}
         <h3>{$t('Selected catalog actions')}</h3>
         {#if result.report.actions.length}
+          <p class="muted">
+            {$t('These counts describe the captured configuration check. No actions were run.')}
+          </p>
+          <dl class="outcome-counts">
+            <div>
+              <dt>{$t('Allow')}</dt>
+              <dd>{actionCounts.allow}</dd>
+            </div>
+            <div>
+              <dt>{$t('Ask')}</dt>
+              <dd>{actionCounts.ask}</dd>
+            </div>
+            <div>
+              <dt>{$t('Deny')}</dt>
+              <dd>{actionCounts.deny}</dd>
+            </div>
+            <div>
+              <dt>{$t('Invalid configuration')}</dt>
+              <dd>{actionCounts.invalid}</dd>
+            </div>
+            {#if actionCounts.unassessed}<div>
+                <dt>{$t('Not assessed')}</dt>
+                <dd>{actionCounts.unassessed}</dd>
+              </div>{/if}
+          </dl>
           <ul class="actions">
             {#each result.report.actions as action (action.name)}
               <li>
@@ -126,10 +164,17 @@
                     <dd>{$t(coverageLabels[action.policyDecision])}</dd>
                   </div>
                 </dl>
-                <details>
-                  <summary>{$t('Check detail')}</summary>
-                  <p>{$t(coverageLabels[action.reason])}</p>
-                </details>
+                {#if action.configuration === 'invalid' || action.policyDecision === 'ask' || action.policyDecision === 'deny'}
+                  <p class="action-reason">
+                    <strong>{$t('Check detail')}:</strong>
+                    {$t(coverageLabels[action.reason] ?? 'Reason unavailable')}
+                  </p>
+                {:else}
+                  <details>
+                    <summary>{$t('Check detail')}</summary>
+                    <p>{$t(coverageLabels[action.reason] ?? 'Reason unavailable')}</p>
+                  </details>
+                {/if}
               </li>
             {/each}
           </ul>
@@ -364,6 +409,32 @@
     margin: 0;
     display: grid;
     gap: var(--space-3);
+  }
+  .outcome-counts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+    gap: var(--space-2);
+    margin: var(--space-3) 0 var(--space-4);
+  }
+  .outcome-counts > div {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--control-radius);
+    min-width: 0;
+  }
+  .outcome-counts dt {
+    overflow-wrap: anywhere;
+  }
+  .outcome-counts dd {
+    font-size: var(--text-section);
+    font-variant-numeric: tabular-nums;
+  }
+  .action-reason {
+    margin-bottom: 0;
+    overflow-wrap: anywhere;
   }
   .actions li {
     border: 1px solid var(--border);
