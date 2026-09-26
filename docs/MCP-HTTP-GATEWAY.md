@@ -6,6 +6,7 @@ The same command also accepts the opt-in [pinned HTTPS descriptor v2](MCP-HTTPS-
 
 Optional [manifest v2 persistent grants](MCP-DURABLE-GRANTS.md) add expiry and cross-run replay protection using an explicitly selected shared local store. The version 1 examples below retain connection-local semantics.
 Manifest v3 can additionally bind those grants to this exact loopback URL; see the same grant contract.
+Manifest v4 can also bind the selected bearer bytes through a private grant-store key.
 
 `node src/main/main.js --mcp-gateway-http <endpoint.json> <manifest.json>` connects
 the existing stdio-facing gateway to an already running, explicitly selected

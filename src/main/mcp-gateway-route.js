@@ -1,7 +1,7 @@
 'use strict';
 const path = require('node:path');
 const { debuglog } = require('node:util');
-const { createHash } = require('node:crypto');
+const { createHash, createHmac } = require('node:crypto');
 const { readActionFile, parseActionJson } = require('./action-policy');
 const { captureExecutionBinding, revokeExecutionBinding } = require('./execution-binding');
 const { prepareExecution } = require('./execution-policy');
@@ -107,7 +107,17 @@ async function captureGatewayRoute({ policyPath, requestPath, endpointPath }, si
             }
           : { transport: 'http', url: endpoint.origin + endpoint.path },
       );
-      return { close, recheck, open: createHttpGatewayPeer, identity };
+      const credentialTag = (key) => {
+        if (closed || !Buffer.isBuffer(key) || key.length !== 32)
+          throw Error('gateway-credential-unavailable');
+        return createHmac('sha256', key)
+          .update('AEGIS-MCP-CREDENTIAL-v1\0')
+          .update(JSON.stringify(identity))
+          .update('\0')
+          .update(endpoint.token)
+          .digest('hex');
+      };
+      return { close, recheck, open: createHttpGatewayPeer, identity, credentialTag };
     }
     binding = await captureExecutionBinding(policyPath, requestPath, { signal });
     if (closed) {

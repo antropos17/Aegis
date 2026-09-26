@@ -280,6 +280,68 @@ describe('explicit pinned HTTPS gateway', () => {
       expect(fixture.state.calls).toHaveLength(1);
     },
   );
+  it('binds a v4 HTTPS grant to the selected bearer without exposing it', async () => {
+    const grantStorePath = path.join(directory, 'grants');
+    fs.mkdirSync(grantStorePath);
+    child = spawn(
+      process.execPath,
+      [
+        fileURLToPath(new URL('../../src/main/main.js', import.meta.url)),
+        '--mcp-gateway-credential-tag',
+        endpointPath,
+        grantStorePath,
+      ],
+      { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    let output = '',
+      errors = '';
+    child.stdout.on('data', (value) => {
+      output += value;
+    });
+    child.stderr.on('data', (value) => {
+      errors += value;
+    });
+    expect((await once(child, 'close'))[0]).toBe(0);
+    expect(errors).toBe('');
+    expect(output).not.toContain(descriptor.bearerToken);
+    const manifest = {
+      schemaVersion: 4,
+      route: {
+        transport: 'https',
+        url: descriptor.url,
+        connectAddress: descriptor.connectAddress,
+        certificateSha256: descriptor.certificateSha256,
+      },
+      credentialTag: JSON.parse(output).credentialTag,
+      tools: [tool],
+      grants: [
+        {
+          id: 'g'.repeat(32),
+          taskId: 't'.repeat(32),
+          notBefore: Date.now() - 1000,
+          expiresAt: Date.now() + 60000,
+          tool: 'record',
+          arguments: { recipient: 'chosen' },
+        },
+      ],
+    };
+    save(manifestPath, manifest);
+    const originalToken = descriptor.bearerToken;
+    descriptor.bearerToken = originalToken[0] === 'A' ? 'B'.repeat(32) : 'A'.repeat(32);
+    save(endpointPath, descriptor);
+    create({ grantStorePath });
+    expect((await gateway.receive(init())).error).toBeDefined();
+    expect(fixture.state.messages).toHaveLength(0);
+    expect(fs.readdirSync(grantStorePath)).toEqual(['.credential-key']);
+    gateway.close();
+    await gateway.finish();
+
+    descriptor.bearerToken = originalToken;
+    save(endpointPath, descriptor);
+    await ready({ grantStorePath });
+    expect((await gateway.receive(call())).result?.structuredContent).toEqual({ accepted: true });
+    expect(fixture.state.calls).toHaveLength(1);
+  });
   it.each(['untrusted.pem', 'wrong-name.pem', 'pin'])(
     'native CLI ignores insecure TLS environment for %s without credential disclosure',
     async (name) => {

@@ -8,6 +8,7 @@ argument checks, cancellation/session cleanup and optional persistent grants.
 Endpoint descriptor version and grant manifest version are independent.
 Optional [manifest v3 route binding](MCP-DURABLE-GRANTS.md) compares the selected URL,
 IPv4 address and leaf fingerprint before a durable grant can be used.
+Manifest v4 additionally binds the selected bearer bytes through a private store key.
 
 ```json
 {

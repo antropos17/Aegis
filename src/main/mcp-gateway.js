@@ -1,7 +1,7 @@
 'use strict';
-const { createHash } = require('node:crypto');
+const { createHash, timingSafeEqual } = require('node:crypto');
 const { readActionFile, parseActionJson, equalActionValue: equal } = require('./action-policy');
-const { consumeGatewayGrant } = require('./mcp-gateway-grants');
+const { consumeGatewayGrant, readGatewayCredentialKey } = require('./mcp-gateway-grants');
 const { captureSecretPolicy } = require('./mcp-gateway-secrets');
 const { captureGatewayRoute } = require('./mcp-gateway-route');
 const { isExecutionRuntimeSupported } = require('./execution-runtime');
@@ -82,6 +82,17 @@ function createMcpGateway({
       bytes.fill(0);
     }
   };
+  const verifyCredential = async () => {
+    if (manifest.schemaVersion !== 4) return;
+    const key = await step(readGatewayCredentialKey(grantStorePath, controller.signal));
+    try {
+      const actual = Buffer.from(route.credentialTag(key), 'hex');
+      const expected = Buffer.from(manifest.credentialTag, 'hex');
+      if (!timingSafeEqual(actual, expected)) throw Error('gateway-credential-mismatch');
+    } finally {
+      key.fill(0);
+    }
+  };
   const recheck = async () => {
     await step(secretGuard.recheck());
     await step(readManifest());
@@ -150,8 +161,9 @@ function createMcpGateway({
         route = await step(
           captureGatewayRoute({ policyPath, requestPath, endpointPath }, controller.signal),
         );
-        if (manifest.schemaVersion === 3 && !equal(route.identity, manifest.route))
+        if (manifest.schemaVersion >= 3 && !equal(route.identity, manifest.route))
           throw Error('gateway-route-mismatch');
+        await verifyCredential();
         const launch = await recheck();
         if (closed) throw Error('closed');
         peer = route.open(launch, () => close(true));
@@ -228,6 +240,7 @@ function createMcpGateway({
     activeId = id;
     try {
       const permission = manifest.grants[grant];
+      await verifyCredential();
       if (manifest.schemaVersion >= 2) await step(consumeGatewayGrant(grantStorePath, permission));
       await recheck();
       await checkCatalog();
