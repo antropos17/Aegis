@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -165,6 +165,56 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
     expect(running.cleanupConfirmed).toBe(false);
     await vi.waitFor(() => expect(pids.some(alive)).toBe(false), { timeout: 1500 });
   });
+
+  it('closes the Job if the helper dies immediately after CreateProcess', async () => {
+    const helper = path.join(root, 'crash-window-mcpjob.exe');
+    const marker = path.join(root, 'suspended-child-pid');
+    const framework = path.join(
+      process.env.WINDIR || 'C:\\Windows',
+      'Microsoft.NET',
+      'Framework64',
+      'v4.0.30319',
+      'csc.exe',
+    );
+    execFileSync(
+      framework,
+      [
+        '/nologo',
+        '/target:exe',
+        '/platform:x64',
+        '/optimize+',
+        '/warnaserror+',
+        '/define:MCP_JOB_CRASH_TEST',
+        '/reference:System.Web.Extensions.dll',
+        `/out:${helper}`,
+        path.join(project, 'sidecar', 'mcpjob', 'Program.cs'),
+        path.join(project, 'sidecar', 'mcpjob', 'Native.cs'),
+      ],
+      { cwd: project, stdio: 'pipe', timeout: 30000 },
+    );
+    running = spawn(helper, [], {
+      shell: false,
+      windowsHide: true,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, AEGIS_MCPJOB_CRASH_MARKER: marker },
+    });
+    const closed = once(running, 'close');
+    running.stdin.write(JSON.stringify(launch('setInterval(() => {}, 1000)')) + '\n');
+    await vi.waitFor(
+      () => {
+        const value = fs.existsSync(marker) ? Number(fs.readFileSync(marker, 'utf8')) : 0;
+        expect(Number.isSafeInteger(value) && value > 0).toBe(true);
+      },
+      { timeout: 3000 },
+    );
+    const pid = Number(fs.readFileSync(marker, 'utf8'));
+    expect(Number.isSafeInteger(pid) && pid > 0).toBe(true);
+    ownedPids.push(pid);
+    expect(alive(pid)).toBe(true);
+    running.kill('SIGKILL');
+    await closed;
+    await vi.waitFor(() => expect(alive(pid)).toBe(false), { timeout: 1500 });
+  }, 10000);
 
   it('times out a silent upstream and verifies ordinary descendants ended', async () => {
     const marker = path.join(root, 'tree.json');
