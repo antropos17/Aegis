@@ -114,6 +114,10 @@ function register() {
     event && ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl)
       ? read()
       : { success: false, error: 'Renderer request denied' };
+  const isOwned = (event, window = deps.getWindow?.()) =>
+    Boolean(event) && ownsTopLevelRenderer(event, window, deps.rendererUrl);
+  const denied = () => ({ success: false, error: 'Renderer request denied' });
+  const stillOwned = (event, window) => deps.getWindow?.() === window && isOwned(event, window);
   ipcMain.handle('local-security:review', (event, request) => localSecurity.handle(event, request));
   // Only the owned top-level renderer may request an update operation. No URLs,
   // file paths, versions, command arguments or updater options cross this boundary.
@@ -134,22 +138,28 @@ function register() {
   ipcMain.handle('updates:install', (event) => updateAction(event, 'install'));
   ipcMain.handle('get-stats', (event) => ownedRead(event, () => deps.getStats()));
   ipcMain.handle('get-resource-usage', (event) => ownedRead(event, () => deps.getResourceUsage()));
-  ipcMain.handle('export-log', async () => {
+  ipcMain.handle('export-log', async (event) => {
+    const window = deps.getWindow?.();
+    if (!stillOwned(event, window)) return denied();
     try {
-      const data = await exporter.exportLog();
+      const data = await exporter.exportLog(() => stillOwned(event, window));
+      if (!stillOwned(event, window)) return denied();
       return data;
-    } catch (error) {
-      logger.error(`IPC export-log failed: ${error.message}`);
-      return { success: false, error: error.message };
+    } catch (_) {
+      logger.error('IPC export-log failed');
+      return { success: false, error: 'Activity log export failed' };
     }
   });
-  ipcMain.handle('export-csv', async () => {
+  ipcMain.handle('export-csv', async (event) => {
+    const window = deps.getWindow?.();
+    if (!stillOwned(event, window)) return denied();
     try {
-      const data = await exporter.exportCsv();
+      const data = await exporter.exportCsv(() => stillOwned(event, window));
+      if (!stillOwned(event, window)) return denied();
       return data;
-    } catch (error) {
-      logger.error(`IPC export-csv failed: ${error.message}`);
-      return { success: false, error: error.message };
+    } catch (_) {
+      logger.error('IPC export-csv failed');
+      return { success: false, error: 'CSV export failed' };
     }
   });
   ipcMain.handle('generate-report', async (event) => {
@@ -189,7 +199,8 @@ function register() {
     return { success: true };
   });
 
-  ipcMain.handle('test-notification', () => {
+  ipcMain.handle('test-notification', (event) => {
+    if (!isOwned(event)) return denied();
     if (!Notification.isSupported())
       return { success: false, error: 'Notifications not supported on this system' };
     new Notification({
@@ -358,35 +369,42 @@ ${findingsHtml}${recsHtml}
     return { success: true };
   });
 
-  ipcMain.handle('export-agent-database', async () => {
+  ipcMain.handle('export-agent-database', async (event) => {
+    const window = deps.getWindow?.();
+    if (!stillOwned(event, window)) return denied();
     try {
       const merged = { ...scanner.agentDb, customAgents: config.getCustomAgents() };
-      const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
+      const { filePath } = await dialog.showSaveDialog(window, {
         title: 'Export Agent Database',
         defaultPath: path.join(app.getPath('downloads'), 'aegis-agents.json'),
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
+      if (!stillOwned(event, window)) return denied();
       if (!filePath) return { success: false };
       fs.writeFileSync(filePath, JSON.stringify(merged, null, 2));
       return { success: true, path: filePath };
-    } catch (error) {
-      logger.error(`IPC export-agent-database failed: ${error.message}`);
-      return { success: false, error: error.message };
+    } catch (_) {
+      logger.error('IPC export-agent-database failed');
+      return { success: false, error: 'Agent database export failed' };
     }
   });
 
-  ipcMain.handle('import-agent-database', async () => {
-    const { filePaths } = await dialog.showOpenDialog(deps.getWindow(), {
-      title: 'Import Agent Database',
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-      properties: ['openFile'],
-    });
-    if (!filePaths || filePaths.length === 0) return { success: false };
+  ipcMain.handle('import-agent-database', async (event) => {
+    const window = deps.getWindow?.();
+    if (!stillOwned(event, window)) return denied();
     try {
+      const { filePaths } = await dialog.showOpenDialog(window, {
+        title: 'Import Agent Database',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+        properties: ['openFile'],
+      });
+      if (!stillOwned(event, window)) return denied();
+      if (!filePaths || filePaths.length === 0) return { success: false };
       const raw = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'));
       return { success: true, agents: raw.customAgents || raw.agents || [] };
-    } catch (e) {
-      return { success: false, error: e.message };
+    } catch (_) {
+      logger.error('IPC import-agent-database failed');
+      return { success: false, error: 'Agent database import failed' };
     }
   });
 
@@ -442,13 +460,16 @@ ${findingsHtml}${recsHtml}
   });
 
   // ── Config export/import ──
-  ipcMain.handle('export-config', async () => {
+  ipcMain.handle('export-config', async (event) => {
+    const window = deps.getWindow?.();
+    if (!stillOwned(event, window)) return denied();
     try {
-      const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
+      const { filePath } = await dialog.showSaveDialog(window, {
         title: 'Export Config',
         defaultPath: path.join(app.getPath('downloads'), 'aegis-config.json'),
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
+      if (!stillOwned(event, window)) return denied();
       if (!filePath) return { success: false };
       const exported = { ...config.getSettings() };
       delete exported.anthropicApiKey;
@@ -456,9 +477,9 @@ ${findingsHtml}${recsHtml}
       delete exported.apiKey;
       fs.writeFileSync(filePath, JSON.stringify(exported, null, 2));
       return { success: true, path: filePath };
-    } catch (error) {
-      logger.error(`IPC export-config failed: ${error.message}`);
-      return { success: false, error: error.message };
+    } catch (_) {
+      logger.error('IPC export-config failed');
+      return { success: false, error: 'Config export failed' };
     }
   });
 
@@ -492,7 +513,8 @@ ${findingsHtml}${recsHtml}
     }
   });
 
-  ipcMain.handle('reveal-in-explorer', (_e, filePath) => {
+  ipcMain.handle('reveal-in-explorer', (event, filePath) => {
+    if (!isOwned(event)) return denied();
     if (typeof filePath !== 'string' || !filePath) {
       return { success: false, error: 'Invalid path' };
     }

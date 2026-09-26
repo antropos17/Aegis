@@ -118,10 +118,11 @@ function formatUptimeReport(ms) {
 
 /**
  * Export the activity log as a JSON file via save dialog.
+ * @param {() => boolean} [canComplete] - recheck the requesting renderer after the dialog
  * @returns {Promise<{success:boolean, path?:string, eventCount?:number}>}
  * @since v0.1.0
  */
-async function exportLog() {
+async function exportLog(canComplete = () => true) {
   const mw = _state.getMainWindow();
   const result = await dialog.showSaveDialog(mw, {
     title: 'Export AEGIS Activity Log',
@@ -131,6 +132,7 @@ async function exportLog() {
     ),
     filters: [{ name: 'JSON Files', extensions: ['json'] }],
   });
+  if (!canComplete()) return { success: false };
   if (result.canceled || !result.filePath) return { success: false };
   const stats = _state.getStats();
   const payload = {
@@ -163,10 +165,11 @@ async function exportLog() {
 
 /**
  * Export activity log + network connections as CSV via save dialog.
+ * @param {() => boolean} [canComplete] - recheck the requesting renderer after the dialog
  * @returns {Promise<{success:boolean, path?:string, eventCount?:number}>}
  * @since v0.1.0
  */
-async function exportCsv() {
+async function exportCsv(canComplete = () => true) {
   const mw = _state.getMainWindow();
   const result = await dialog.showSaveDialog(mw, {
     title: 'Export AEGIS Activity Log (CSV)',
@@ -176,6 +179,7 @@ async function exportCsv() {
     ),
     filters: [{ name: 'CSV Files', extensions: ['csv'] }],
   });
+  if (!canComplete()) return { success: false };
   if (result.canceled || !result.filePath) return { success: false };
   const header = 'Timestamp,Agent Name,Action Type,Target,Sensitive\n';
   const rows = _state.activityLog
