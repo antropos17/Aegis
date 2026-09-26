@@ -82,7 +82,7 @@ function _listAgentFiles(sessionDir, fs) {
  * @param {SessionState} state - caller-owned tail + dedup state.
  * @param {(parsed:*) => ({id:string,model:string,inputTokens:number,outputTokens:number}|null)} extractUsage
  * @param {{ statSync: Function, readRange: Function }} fs - injected fs surface.
- * @param {{ warn: Function }} log - injected logger (allowlist `{ error }` only).
+ * @param {{ warn: Function }} log - injected logger (fixed error codes only).
  * @returns {Array<{ model: string, inputTokens: number, outputTokens: number, estimated: false }>}
  */
 function _tailAgentFile(file, state, extractUsage, fs, log) {
@@ -114,9 +114,9 @@ function _tailAgentFile(file, state, extractUsage, fs, log) {
     let parsed;
     try {
       parsed = JSON.parse(line);
-    } catch (err) {
+    } catch {
       log.warn('token-feed:claude-code', 'skipped unparseable subagent line', {
-        error: err.message,
+        error: 'subagent-transcript-parse-failed',
       });
       continue;
     }
@@ -154,8 +154,10 @@ function readSubagentUsage(sessionDir, state, extractUsage, fs, log) {
     let deltas;
     try {
       deltas = _tailAgentFile(file, state, extractUsage, fs, log);
-    } catch (err) {
-      log.warn('token-feed:claude-code', 'subagent read failed for a file', { error: err.message });
+    } catch {
+      log.warn('token-feed:claude-code', 'subagent read failed for a file', {
+        error: 'subagent-read-failed',
+      });
       continue;
     }
     for (const d of deltas) out.push(d);
