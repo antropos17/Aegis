@@ -56,11 +56,18 @@ describe('rule-loader — YAML failure boundaries (#73)', () => {
     const loaded = ruleLoader.reloadRules(directory);
     expect([...loaded.keys()]).toEqual(['TS900']);
     expect(ruleLoader.getRulesByCategory('secrets', directory).map((r) => r.id)).toEqual(['TS900']);
+    const code =
+      message === 'Failed to parse'
+        ? 'rule-parse-failed'
+        : message === 'Invalid ruleset'
+          ? 'rule-validation-failed'
+          : expect.any(String);
     expect(warnings).toHaveBeenCalledWith(
       'rule-loader',
       message,
-      expect.objectContaining({ file: 'bad.yaml' }),
+      expect.objectContaining({ code }),
     );
+    expect(JSON.stringify(warnings.mock.calls)).not.toContain('bad.yaml');
   }
 
   it.each([
@@ -119,7 +126,7 @@ describe('rule-loader — YAML failure boundaries (#73)', () => {
     expect(ruleLoader.getRulesByCategory('ssh', directory).map((r) => r.id)).toEqual(['TS001']);
     expect(ruleLoader.getRulesByCategory('cloud', directory)).toEqual([]);
     expect(warnings.mock.calls.filter((c) => c[1] === 'Duplicate rule ID — skipping')).toEqual([
-      ['rule-loader', 'Duplicate rule ID — skipping', { ruleId: 'TS001', file: 'duplicates.yaml' }],
+      ['rule-loader', 'Duplicate rule ID — skipping', { code: 'rule-duplicate-id' }],
     ]);
   });
 
@@ -129,7 +136,14 @@ describe('rule-loader — YAML failure boundaries (#73)', () => {
   });
 
   it('skips an invalid regex but preserves valid rules on both sides in the same document', () => {
-    write('bad.yaml', document([rule('TS001'), rule('TS002', { pattern: '[' }), rule('TS003')]));
+    write(
+      'bad.yaml',
+      document([
+        rule('TS001'),
+        rule('TS002', { pattern: 'WATCHED_SECRET_PATTERN_CANARY[' }),
+        rule('TS003'),
+      ]),
+    );
     const loaded = ruleLoader.reloadRules(directory);
     expect([...loaded.keys()].sort()).toEqual(['TS001', 'TS003', 'TS900']);
     expect(loaded.get('TS001').pattern.test('TS001')).toBe(true);
@@ -140,10 +154,9 @@ describe('rule-loader — YAML failure boundaries (#73)', () => {
         .map((r) => r.id)
         .sort(),
     ).toEqual(['TS001', 'TS003', 'TS900']);
-    expect(warnings).toHaveBeenCalledWith(
-      'rule-loader',
-      'Invalid pattern in rule',
-      expect.objectContaining({ ruleId: 'TS002', file: 'bad.yaml' }),
-    );
+    expect(warnings).toHaveBeenCalledWith('rule-loader', 'Invalid pattern in rule', {
+      code: 'rule-pattern-invalid',
+    });
+    expect(JSON.stringify(warnings.mock.calls)).not.toContain('WATCHED_SECRET_PATTERN_CANARY');
   });
 });
