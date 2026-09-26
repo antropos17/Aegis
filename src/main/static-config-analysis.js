@@ -2,6 +2,7 @@
 
 const { parseInventoryConfig } = require('./inventory-config');
 const { analyzeCommand, analyzeInvocation } = require('./static-command-analysis');
+const { hasBroadClaudeAllow } = require('./static-claude-permissions');
 const CONFIG_ITEMS = 2048;
 const COMMANDS_PER_FILE = 256;
 const record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -20,10 +21,11 @@ const LIFECYCLE = new Set([
  * @param {Buffer} data Bounded original bytes.
  * @param {string} format Strict json/jsonc/toml parser selection.
  * @param {boolean} [packageManifest] Select npm manifest semantics.
+ * @param {boolean} [claudeSettings] Inspect Claude permission declarations.
  * @returns {object} Fixed findings, coverage issues and command count.
  * @since v0.15.1
  */
-function analyzeConfiguration(data, format, packageManifest = false) {
+function analyzeConfiguration(data, format, packageManifest = false, claudeSettings = false) {
   const parsed = parseInventoryConfig(data, format);
   if (parsed.parseStatus !== 'parsed')
     return { findings: [], issues: [parsed.parseStatus], commands: 0 };
@@ -151,6 +153,22 @@ function analyzeConfiguration(data, format, packageManifest = false) {
       else hooks(value.hooks);
     }
     if (Object.hasOwn(value, 'env')) environment(value.env);
+  }
+  if (claudeSettings) {
+    const permissions = record(parsed.value) ? parsed.value.permissions : undefined;
+    if (permissions !== undefined) {
+      const supported =
+        record(permissions) &&
+        ['allow', 'ask', 'deny'].every(
+          (key) =>
+            !Object.hasOwn(permissions, key) ||
+            (Array.isArray(permissions[key]) &&
+              permissions[key].length <= CONFIG_ITEMS &&
+              permissions[key].every((rule) => typeof rule === 'string')),
+        );
+      if (!supported) issues.add('claude-permissions-unparsed');
+      else if (hasBroadClaudeAllow(permissions)) finding('STA016', 'claude-settings-permission');
+    }
   }
   function manifest(value) {
     if (Object.hasOwn(value, 'scripts')) {
