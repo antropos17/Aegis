@@ -4,7 +4,7 @@
   import { onMount, tick } from 'svelte';
   import { SvelteMap } from 'svelte/reactivity';
   import { confirmed, invoke, record, records, type Host, type RecordData } from '../runtime/host';
-  import { validateCatalog } from '../runtime/catalog';
+  import { catalogRecognition, validateCatalog, type CatalogRecognition } from '../runtime/catalog';
   import {
     createEmptyForm,
     formFromAgent,
@@ -20,8 +20,10 @@
   let category = $state('');
   let nameInput = $state<HTMLInputElement>();
   let processInput = $state<HTMLInputElement>();
-  let { host, inspect }: { host: Host | null; inspect: (title: string, row: RecordData) => void } =
-    $props();
+  let {
+    host,
+    inspect,
+  }: { host: Host | null; inspect: (_title: string, _row: RecordData) => void } = $props();
   let base = $state<RecordData[]>([]);
   let custom = $state<RecordData[]>([]);
   let form = $state(createEmptyForm());
@@ -34,16 +36,39 @@
   let loaded = $state(false);
   let loading = $state(false);
   let mutating = $state(false);
+  type CatalogRow = RecordData & { custom: boolean; recognition: CatalogRecognition };
+  let recognition = $derived(catalogRecognition(base, custom));
   let rows = $derived(
     [
-      ...base.map((row) => ({ ...row, custom: false })),
-      ...custom.map((row) => ({ ...row, custom: true })),
+      ...base.map((row, index) => ({ ...row, custom: false, recognition: recognition[index] })),
+      ...custom.map((row, index) => ({
+        ...row,
+        custom: true,
+        recognition: recognition[base.length + index],
+      })),
     ].filter(
       (row) =>
         (!category || record(row).category === category) &&
         JSON.stringify(row).toLowerCase().includes(query.toLowerCase()),
-    ) as RecordData[],
+    ) as CatalogRow[],
   );
+  let draftRecognition = $derived.by(() => {
+    const editIndex = custom.findIndex((row) => row.id === editing);
+    const draftCustom =
+      editIndex < 0
+        ? [
+            ...custom,
+            {
+              id: '\0catalog-draft',
+              displayName: form.displayName,
+              names: form.processName.trim() ? [form.processName.trim()] : [],
+            },
+          ]
+        : custom.map((row, index) => (index === editIndex ? applyFormToAgent(row, form) : row));
+    return catalogRecognition(base, draftCustom)[
+      base.length + (editIndex < 0 ? custom.length : editIndex)
+    ];
+  });
   async function load() {
     loading = true;
     try {
@@ -162,6 +187,7 @@
     </div>{/if}
   <p class="catalog-scope muted" id={prefix + '-catalog-scope'}>
     {$t('Catalog risk profile is saved metadata. It does not describe current behavior or safety.')}
+    {$t('Process signatures use the first catalog match, ignoring case.')}
   </p>
   <div class="table-wrap">
     <table aria-describedby={prefix + '-catalog-scope'}>
@@ -191,14 +217,34 @@
                 {#each signatures.slice(0, 3) as name (name)}<button
                     class="text-link"
                     onclick={() =>
-                      inspect('Process signature', { signature: name, agent: row.displayName })}
+                      inspect(String(row.displayName), { ...row, detailSection: 'signatures' })}
                     >{String(name)}</button
                   >{/each}{#if signatures.length > 3}<button
                     class="text-link"
                     onclick={() => inspect(String(row.displayName), row)}
                     >+{signatures.length - 3} {$t('more')}</button
                   >{/if}
-              </div></td
+              </div>
+              {#if !row.recognition.skippedById && row.recognition.shadowed.length}
+                <div class="catalog-conflicts">
+                  {#each row.recognition.shadowed.slice(0, 2) as conflict (conflict.signature.toLowerCase())}
+                    <small
+                      >{$t('{signature} is first owned by {owner}', {
+                        signature: conflict.signature,
+                        owner: conflict.firstOwner,
+                      })}</small
+                    >
+                  {/each}
+                  {#if row.recognition.shadowed.length > 2}<button
+                      class="text-link"
+                      onclick={() =>
+                        inspect(String(row.displayName), { ...row, detailSection: 'signatures' })}
+                      >{$t('{count} more signature conflicts', {
+                        count: row.recognition.shadowed.length - 2,
+                      })}</button
+                    >{/if}
+                </div>
+              {/if}</td
             ><td><span class="badge">{$t(String(row.riskProfile || 'Not specified'))}</span></td><td
               ><div class="toolbar">
                 <button class="button" onclick={() => inspect(String(row.displayName), row)}
@@ -310,9 +356,33 @@
               /></label
             >
           </div>
-          <p class="dialog-copy">
-            {$t('The process signature identifies this agent in observed processes.')}
-          </p>
+          {#if draftRecognition?.skippedById}<p class="catalog-editor-conflicts">
+              {$t(
+                'This custom ID is already used by an earlier catalog entry, so its signatures are not used for detection.',
+              )}
+            </p>{:else if !draftRecognition?.shadowed.length}<p class="dialog-copy">
+              {$t('The process signature identifies this agent in observed processes.')}
+            </p>{/if}
+          {#if draftRecognition?.shadowed.length}
+            <div class="catalog-editor-conflicts">
+              <p>{$t('These signatures are already owned by earlier catalog entries:')}</p>
+              <ul>
+                {#each draftRecognition.shadowed as conflict (conflict.signature.toLowerCase())}
+                  <li>
+                    {$t('{signature} is first owned by {owner}', {
+                      signature: conflict.signature,
+                      owner: conflict.firstOwner,
+                    })}
+                  </li>
+                {/each}
+              </ul>
+              <p class="muted">
+                {draftRecognition.eligible.length
+                  ? $t('Saving is allowed. Other unique signatures can still identify this agent.')
+                  : $t('Saving is allowed. No signature is usable now.')}
+              </p>
+            </div>
+          {/if}
         {/if}
       </fieldset>
     {/snippet}
@@ -378,5 +448,27 @@
     flex-wrap: wrap;
     gap: 3px 10px;
     font-size: 11px;
+  }
+  .catalog-conflicts {
+    display: grid;
+    gap: 2px;
+    margin-top: var(--space-2);
+    font-size: var(--text-caption);
+    color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+  .catalog-conflicts small {
+    font-size: inherit;
+  }
+  .catalog-editor-conflicts {
+    margin-top: var(--space-3);
+    overflow-wrap: anywhere;
+  }
+  .catalog-editor-conflicts p {
+    margin: var(--space-2) 0;
+  }
+  .catalog-editor-conflicts ul {
+    margin: var(--space-2) 0;
+    padding-inline-start: var(--space-5);
   }
 </style>

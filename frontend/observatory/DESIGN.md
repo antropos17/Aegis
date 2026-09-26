@@ -1,5 +1,18 @@
 # AEGIS Observatory
 
+## Catalog process-signature ownership — 26 September 2026
+
+The Agent catalog shows which earlier entry owns a case-insensitive process
+signature. Bundled agents come first; saved custom agents follow in catalog order.
+The static comparison mirrors the scanner's first-owner rule and keeps existing
+duplicate-ID visibility. A row names its first conflicting signatures and owners;
+agent details list every conflict. The add/edit recognition pane previews conflicts,
+including imported signatures retained behind the editable first name. Saving
+remains available; any unique signatures can still identify the entry.
+These messages describe catalog precedence, not a live process observation or
+change to detection, policy, or IPC. The existing neutral table and detail
+composition remain in place, with scoped wrapping for long signatures.
+
 ## Route evidence summary — 26 September 2026
 
 When a check or route observation is available, Action control shows three
