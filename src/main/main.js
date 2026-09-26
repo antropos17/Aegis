@@ -539,44 +539,117 @@ if (!gotLock) {
 
 // ═══ LIFECYCLE ═══
 
-/**
- * One-shot guard for {@link startWatchers}. The watcher set is created exactly
- * once per app run: whichever branch of {@link startWatchersWhenLoaded} wins the
- * load race, the other one is a no-op.
- * @type {boolean}
- */
+/** One-shot guard for the startup path and its two rule watchers. @type {boolean} */
 let watchersStarted = false;
+const FILE_WATCH_RETRY_DELAY_MS = 30_000;
+const FILE_WATCH_RETRY_LIMIT = 3;
+let fileWatchRetryTimer = null;
+let fileWatchRetryAttempts = 0;
+let fileWatchSetupInFlight = false;
+let fileWatchSetupRejected = false;
+let fileWatchRetryGeneration = 0;
+
+/** Cancel the one pending file-watch retry check, if any. @returns {void} */
+function cancelFileWatchRetry() {
+  if (fileWatchRetryTimer !== null) clearTimeout(fileWatchRetryTimer);
+  fileWatchRetryTimer = null;
+  fileWatchRetryGeneration++;
+}
 
 /**
- * Create the watcher set exactly once: the chokidar file watchers (credential
- * dirs, agent-config dirs, the app directory, `~/.env*`) plus the rules
- * hot-reload watcher.
+ * Recheck the plan throughout the app lifetime: a previously ready root can fail
+ * long after startup. Only confirmed zero coverage permits recreating all roots;
+ * setupFileWatchers closes its previous generation, including healthy roots.
+ * @returns {void}
+ */
+function scheduleFileWatchRetry() {
+  if (
+    isQuitting ||
+    fileWatchRetryTimer !== null ||
+    fileWatchSetupInFlight ||
+    fileWatchRetryAttempts >= FILE_WATCH_RETRY_LIMIT ||
+    typeof watcher?.getWatchPlan !== 'function'
+  )
+    return;
+  const generation = fileWatchRetryGeneration;
+  fileWatchRetryTimer = setTimeout(() => {
+    fileWatchRetryTimer = null;
+    if (isQuitting || generation !== fileWatchRetryGeneration) return;
+    let plan;
+    try {
+      plan = watcher.getWatchPlan();
+    } catch {
+      scheduleFileWatchRetry();
+      return;
+    }
+    const failedBeforePlan = fileWatchSetupRejected && plan.groups.length === 0;
+    if (plan.liveWatcherCount === 0 && (plan.state === 'FAILED' || failedBeforePlan)) {
+      fileWatchRetryAttempts++;
+      void setupFileWatchers(generation, true);
+    } else {
+      scheduleFileWatchRetry();
+    }
+  }, FILE_WATCH_RETRY_DELAY_MS);
+  fileWatchRetryTimer.unref?.();
+}
+
+/**
+ * Register file roots with one in-flight setup and bounded retries. Rule watchers
+ * are outside this path because recreating file roots must not duplicate them.
+ * @param {number} generation - Startup/teardown generation.
+ * @param {boolean} retry - Whether this is an automatic retry.
+ * @returns {Promise<void>}
+ */
+async function setupFileWatchers(generation, retry) {
+  if (isQuitting || generation !== fileWatchRetryGeneration || fileWatchSetupInFlight) return;
+  fileWatchSetupInFlight = true;
+  try {
+    await watcher.setupFileWatchers();
+    if (isQuitting || generation !== fileWatchRetryGeneration) return;
+    fileWatchSetupRejected = false;
+    if (!retry) logger.info('main', 'File watchers created', { watchRoots: fileWatchers.length });
+  } catch {
+    if (isQuitting || generation !== fileWatchRetryGeneration) return;
+    fileWatchSetupRejected = true;
+    if (!retry) {
+      logger.error('main', 'File watcher setup failed', { error: 'file-watcher-setup-failed' });
+    } else if (fileWatchRetryAttempts === FILE_WATCH_RETRY_LIMIT) {
+      logger.error('main', 'File watcher retry exhausted', { attempts: fileWatchRetryAttempts });
+    }
+  } finally {
+    if (generation === fileWatchRetryGeneration) {
+      fileWatchSetupInFlight = false;
+      scheduleFileWatchRetry();
+    }
+  }
+}
+
+/**
+ * Create the startup watcher set exactly once: the chokidar file watchers
+ * (credential dirs, agent-config dirs, the app directory, `~/.env*`) plus both
+ * rule hot-reload watchers. File-root retries are separately bounded.
  *
- * `setupFileWatchers` is async — it stats every candidate directory before
- * deciding what to watch — so the registered count is only meaningful after it
- * resolves, and a rejection is invisible unless it is awaited. The guard flips
- * BEFORE the await so a second call landing mid-setup cannot create a duplicate
- * set.
+ * The guard flips before file setup awaits preflight, so a second call landing
+ * mid-setup cannot duplicate either rule watcher or file setup.
  * @returns {Promise<void>}
  * @since v0.11.0-alpha
  */
 async function startWatchers() {
-  if (watchersStarted) return;
+  if (watchersStarted || isQuitting) return;
   watchersStarted = true;
   try {
-    await watcher.setupFileWatchers();
-    // Two rule watchers, one per directory (roadmap §5 "Hot-reload"): the flat one never
-    // resets the sequence engine, the sequence one never reloads the flat rules.
     watcher.setupRulesWatcher(sendToRenderer, { sequenceCount: getSequenceRuleCount });
-    watcher.setupSequenceRulesWatcher(sendToRenderer, { reload: reloadSequenceRules });
-    // One entry per watch-root GROUP (credential dirs / agent-config dirs / app
-    // dir / ~/.env*), so a group may cover several directories. This line is the
-    // discriminator for a silently dead file feed: absent means startup never
-    // reached here, zero means nothing at all is being observed.
-    logger.info('main', 'File watchers created', { watchRoots: fileWatchers.length });
   } catch {
-    logger.error('main', 'File watcher setup failed', { error: 'file-watcher-setup-failed' });
+    logger.error('main', 'Rule watcher setup failed', { error: 'rule-watcher-setup-failed' });
   }
+  try {
+    watcher.setupSequenceRulesWatcher(sendToRenderer, { reload: reloadSequenceRules });
+  } catch {
+    logger.error('main', 'Sequence rule watcher setup failed', {
+      error: 'sequence-rule-watcher-setup-failed',
+    });
+  }
+  await setupFileWatchers(fileWatchRetryGeneration, false);
 }
 
 /**
@@ -588,7 +661,7 @@ async function startWatchers() {
  * local `loadFile` the load completes first, so the listener was attached to an
  * event that had already fired and never ran — file monitoring was silently dead
  * from that point on. Reading `isLoading()` turns the race into an explicit
- * branch; {@link watchersStarted} keeps both branches to a single watcher set.
+ * branch; {@link watchersStarted} keeps both branches to one startup call.
  * @param {Electron.WebContents} webContents - The main window's web contents.
  * @returns {void}
  * @since v0.11.0-alpha
@@ -982,6 +1055,8 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
+  isQuitting = true;
+  cancelFileWatchRetry();
   etwFile?.dispose();
   updates?.dispose();
   if (oomIntervalId) {
@@ -996,7 +1071,6 @@ app.on('before-quit', () => {
   if (audit) audit.shutdown();
   if (baselines) baselines.finalizeSession();
   logger.shutdown();
-  isQuitting = true;
   if (tray._state && tray._state.tray) {
     tray._state.tray.destroy();
     tray._state.tray = null;
@@ -1066,9 +1140,14 @@ function _setAuditForTest(mod) {
   audit = mod;
 }
 
-/** @internal Clear the one-shot guard and the registered watcher list (for tests). */
+/** @internal Clear startup and retry state and the registered watcher list (for tests). */
 function _resetWatchersForTest() {
+  cancelFileWatchRetry();
   watchersStarted = false;
+  fileWatchRetryAttempts = 0;
+  fileWatchSetupInFlight = false;
+  fileWatchSetupRejected = false;
+  isQuitting = false;
   fileWatchers.length = 0;
 }
 
