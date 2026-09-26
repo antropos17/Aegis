@@ -4,10 +4,11 @@ import { createPreviewHost } from '../../../frontend/observatory/demo/host';
 import { it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
 import Catalog from '../../../frontend/observatory/components/Catalog.svelte';
+import DetailSummary from '../../../frontend/observatory/components/DetailSummary.svelte';
 import Rules from '../../../frontend/observatory/components/Rules.svelte';
 import Analysis from '../../../frontend/observatory/components/Analysis.svelte';
 import { emptyTelemetry } from '../../../frontend/observatory/runtime/host';
-import { validateCatalog } from '../../../frontend/observatory/runtime/catalog';
+import { catalogRecognition, validateCatalog } from '../../../frontend/observatory/runtime/catalog';
 const process = (pid, cwd = 'X:/project') => ({
   agent: 'Codex',
   process: 'codex.exe',
@@ -50,6 +51,89 @@ it('shows duplicate legacy signatures once and retains a custom definition that 
     'four.exe',
   ]);
   expect(custom.names).toHaveLength(5);
+});
+
+it('follows scanner catalog order for case-insensitive signatures and earlier custom owners', () => {
+  const bundled = [{ id: 'claude-code', displayName: 'Claude Code', names: ['claude'] }];
+  const custom = [
+    { id: 'custom-one', displayName: 'First custom', names: ['Claude', 'unique.exe'] },
+    { id: 'custom-two', displayName: 'Later custom', names: ['UNIQUE.EXE', 'later.exe'] },
+    { id: 'claude-code', displayName: 'Legacy ID', names: ['legacy.exe'] },
+  ];
+  const status = catalogRecognition(bundled, custom);
+  expect(status[1]).toEqual({
+    eligible: ['unique.exe'],
+    shadowed: [{ signature: 'Claude', firstOwner: 'Claude Code', firstOwnerId: 'claude-code' }],
+    skippedById: false,
+  });
+  expect(status[2]).toEqual({
+    eligible: ['later.exe'],
+    shadowed: [{ signature: 'UNIQUE.EXE', firstOwner: 'First custom', firstOwnerId: 'custom-one' }],
+    skippedById: false,
+  });
+  expect(status[3]).toEqual({ eligible: [], shadowed: [], skippedById: true });
+});
+
+it('shows saved signature ownership in the catalog row, details, and recognition editor while saving stays available', async () => {
+  const bundled = { id: 'claude-code', displayName: 'Claude Code', names: ['claude'] };
+  let custom = [{ id: 'custom-one', displayName: 'Custom tool', names: ['CLAUDE', 'unique.exe'] }];
+  const inspect = vi.fn();
+  const host = {
+    getAgentDatabase: async () => ({ agents: [bundled] }),
+    getCustomAgents: async () => custom,
+    saveCustomAgents: vi.fn(async (next) => {
+      custom = next;
+      return { success: true };
+    }),
+  };
+  render(Catalog, { host, inspect });
+  const row = (await screen.findByText('Custom tool')).closest('tr');
+  expect(within(row).getByText('CLAUDE is first owned by Claude Code')).toBeInTheDocument();
+  await fireEvent.click(within(row).getByRole('button', { name: 'Details' }));
+  const detail = render(DetailSummary, {
+    row: inspect.mock.calls.at(-1)[1],
+    telemetry: emptyTelemetry(),
+    section: 'signatures',
+  });
+  expect(within(detail.container).getByText('Signature ownership')).toBeInTheDocument();
+  expect(
+    within(detail.container).getByText('CLAUDE is first owned by Claude Code'),
+  ).toBeInTheDocument();
+  await fireEvent.click(within(row).getByRole('button', { name: 'Edit' }));
+  await fireEvent.click(screen.getByRole('tab', { name: 'Recognition' }));
+  expect(
+    screen.getByText('These signatures are already owned by earlier catalog entries:'),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText('Saving is allowed. Other unique signatures can still identify this agent.'),
+  ).toBeInTheDocument();
+  await fireEvent.click(screen.getByRole('button', { name: 'Save agent' }));
+  await waitFor(() => expect(host.saveCustomAgents).toHaveBeenCalledTimes(1));
+  expect(custom[0].names).toEqual(['CLAUDE', 'unique.exe']);
+});
+
+it('previews case-insensitive ownership while adding an agent and clears it for a unique signature', async () => {
+  render(Catalog, {
+    host: {
+      getAgentDatabase: async () => ({
+        agents: [{ id: 'claude-code', displayName: 'Claude Code', names: ['claude'] }],
+      }),
+      getCustomAgents: async () => [],
+    },
+    inspect: vi.fn(),
+  });
+  await screen.findByText('Claude Code');
+  await fireEvent.click(screen.getByRole('button', { name: 'Add agent' }));
+  await fireEvent.click(screen.getByRole('tab', { name: 'Recognition' }));
+  await fireEvent.input(screen.getByLabelText('Process name'), { target: { value: 'cLaUdE' } });
+  expect(screen.getByText('cLaUdE is first owned by Claude Code')).toBeInTheDocument();
+  expect(screen.getByText('Saving is allowed. No signature is usable now.')).toBeInTheDocument();
+  await fireEvent.input(screen.getByLabelText('Process name'), {
+    target: { value: 'my-agent.exe' },
+  });
+  expect(
+    screen.queryByText('These signatures are already owned by earlier catalog entries:'),
+  ).not.toBeInTheDocument();
 });
 
 it('edits one policy per durable project and keeps inactive overrides available with exact keys', async () => {

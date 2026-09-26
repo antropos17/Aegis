@@ -4,7 +4,8 @@
   import { resourceVisual } from '../runtime/resource-visual';
   import { t } from '../runtime/i18n';
 
-  import { instances, measured, type RecordData, type Telemetry } from '../runtime/host';
+  import { instances, measured, record, type RecordData, type Telemetry } from '../runtime/host';
+  import type { SignatureConflict } from '../runtime/catalog';
   import { radarGroups, groupResource, displayMeasure } from '../runtime/radar';
   import { detailActivity, detailKind } from '../runtime/detail-model';
   import { evidenceFields, fieldValue, selectFields } from '../runtime/detail-fields';
@@ -28,6 +29,10 @@
     changeSection?: (_section: string) => void;
   } = $props();
   let kind = $derived(detailKind(row));
+  let recognition = $derived(record(row.recognition));
+  let signatureConflicts = $derived(
+    Array.isArray(recognition.shadowed) ? (recognition.shadowed as SignatureConflict[]) : [],
+  );
   let info = $derived(describeObservation(row, instances(telemetry) as unknown as RecordData[]));
   let group = $derived(radarGroups(instances(telemetry)).find((g) => g.key === row.agentGroupKey));
   let usage = $derived(
@@ -151,6 +156,29 @@
 {#if kind === 'catalog' && section !== 'signatures'}<p class="entity-note">
     {$t('Catalog risk profile is saved metadata. It does not describe current behavior or safety.')}
   </p>{/if}
+{#if kind === 'catalog' && recognition.skippedById}<p class="entity-note">
+    {$t(
+      'This custom ID is already used by an earlier catalog entry, so its signatures are not used for detection.',
+    )}
+  </p>{/if}
+{#if kind === 'catalog' && signatureConflicts.length}
+  <section class="detail-section catalog-recognition">
+    <h3>{$t('Signature ownership')}</h3>
+    <ul>
+      {#each signatureConflicts as conflict (conflict.signature.toLowerCase())}
+        <li>
+          {$t('{signature} is first owned by {owner}', {
+            signature: conflict.signature,
+            owner: conflict.firstOwner,
+          })}
+        </li>
+      {/each}
+    </ul>
+    <p class="entity-note">
+      {$t('This is catalog order only; it does not verify a running process.')}
+    </p>
+  </section>
+{/if}
 {#if section === 'attributes'}
   <section class="detail-section">
     <h3>{kind === 'resource' ? $t('Recorded evidence') : $t('Attributes')}</h3>
@@ -215,6 +243,11 @@
 {/if}
 
 <style>
+  .catalog-recognition ul {
+    margin: var(--space-2) 0;
+    padding-inline-start: var(--space-5);
+    overflow-wrap: anywhere;
+  }
   .resource-heading {
     display: flex;
     align-items: center;

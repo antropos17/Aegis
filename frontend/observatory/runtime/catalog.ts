@@ -32,3 +32,56 @@ export function validateCatalog(value: unknown): RecordData[] {
     return { ...agent, names: [...new Set(agent.names)] };
   });
 }
+
+export interface SignatureConflict {
+  signature: string;
+  firstOwner: string;
+  firstOwnerId: string;
+}
+
+export interface CatalogRecognition {
+  eligible: string[];
+  shadowed: SignatureConflict[];
+  skippedById: boolean;
+}
+
+/** Describe static process-name ownership in scanner order for every catalog row.
+ * @param bundled Bundled definitions @param custom Saved custom definitions
+ * @returns Recognition status in bundled-then-custom order @since 0.16.0
+ */
+export function catalogRecognition(
+  bundled: RecordData[],
+  custom: RecordData[],
+): CatalogRecognition[] {
+  const firstOwner = new Map<string, { name: string; id: string }>();
+  const seenIds = new Set(bundled.map((agent) => String(agent.id)));
+  return [...bundled, ...custom].map((agent, index) => {
+    const result: CatalogRecognition = { eligible: [], shadowed: [], skippedById: false };
+    const isCustom = index >= bundled.length;
+    const id = String(agent.id);
+    if (isCustom && seenIds.has(id)) {
+      result.skippedById = true;
+      return result;
+    }
+    if (isCustom) seenIds.add(id);
+    const rowNames = new Set<string>();
+    for (const value of Array.isArray(agent.names) ? agent.names : []) {
+      if (typeof value !== 'string' || !value.trim()) continue;
+      const normalized = value.toLowerCase();
+      if (rowNames.has(normalized)) continue;
+      rowNames.add(normalized);
+      const owner = firstOwner.get(normalized);
+      if (owner) {
+        result.shadowed.push({
+          signature: value,
+          firstOwner: owner.name,
+          firstOwnerId: owner.id,
+        });
+      } else {
+        result.eligible.push(value);
+        firstOwner.set(normalized, { name: String(agent.displayName), id });
+      }
+    }
+    return result;
+  });
+}
