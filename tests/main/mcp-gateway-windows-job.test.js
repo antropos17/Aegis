@@ -91,6 +91,49 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
     expect(helperPath({})).toBe(path.join(project, 'build', 'sidecar', 'aegis-mcpjob.exe'));
   });
 
+  it('does not inherit the parent environment into the Job helper', async () => {
+    const source = path.join(root, 'EnvProbe.cs');
+    const helper = path.join(root, 'env-probe.exe');
+    fs.writeFileSync(
+      source,
+      [
+        'using System;',
+        'class EnvProbe {',
+        '  static void Main() {',
+        '    Console.ReadLine();',
+        '    Console.Out.Write("R" + (Environment.GetEnvironmentVariable("AEGIS_MCPJOB_PARENT_SENTINEL") == null ? "0" : "1") + "\\n");',
+        '    Console.Out.Flush();',
+        '    Console.Error.Write("C");',
+        '  }',
+        '}',
+      ].join('\n'),
+    );
+    const framework = path.join(
+      process.env.WINDIR || 'C:\\Windows',
+      'Microsoft.NET',
+      'Framework64',
+      'v4.0.30319',
+      'csc.exe',
+    );
+    execFileSync(framework, ['/nologo', '/target:exe', `/out:${helper}`, source], {
+      cwd: root,
+      stdio: 'pipe',
+      timeout: 30000,
+    });
+    const prior = process.env.AEGIS_MCPJOB_PARENT_SENTINEL;
+    process.env.AEGIS_MCPJOB_PARENT_SENTINEL = '1';
+    try {
+      running = spawnInWindowsJob(launch(''), helper);
+      const closed = once(running, 'close');
+      expect(await line(running.stdout)).toBe('0');
+      await closed;
+      expect(running.cleanupConfirmed).toBe(true);
+    } finally {
+      if (prior === undefined) delete process.env.AEGIS_MCPJOB_PARENT_SENTINEL;
+      else process.env.AEGIS_MCPJOB_PARENT_SENTINEL = prior;
+    }
+  }, 10000);
+
   it('preserves argv, cwd, and selected env without inheriting an unrelated key', async () => {
     const argv = ['space value', 'quote"value', 'slash\\', 'ümlaut', ''];
     const secret = 'PRIVATE_LAUNCH_VALUE';

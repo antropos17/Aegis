@@ -119,7 +119,15 @@ On Windows, this **explicit stdio route only** requires the bundled
 `build/sidecar` in the Windows installer. If the helper is missing or protected
 launch fails, the route closes without starting the selected server. The helper
 receives the exact selected executable, arguments, cwd and environment over its
-private stdin. It creates a private
+private stdin.
+
+The helper starts with only `SystemRoot` in its own environment, so inherited
+.NET profiler settings and parent process secrets do not reach it. The selected
+server receives its separate, policy-authorized environment from the private
+launch frame. AEGIS checks that `SystemRoot` is an absolute path; this does not
+attest the OS installation directory.
+
+The helper creates a private
 [Windows Job Object](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)
 with `KILL_ON_JOB_CLOSE`, assigns that Job atomically during suspended process
 creation with `PROC_THREAD_ATTRIBUTE_JOB_LIST`, and resumes the process only
