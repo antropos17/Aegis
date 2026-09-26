@@ -76,7 +76,7 @@ it('shows limited coverage and stale data instead of treating zero as a safety g
   const panel = await screen.findByRole('tabpanel');
   expect(within(panel).getByText('Last reliable snapshot')).toBeVisible();
   expect(panel).toHaveTextContent('limited coverage');
-  expect(panel).toHaveTextContent('No contributing file or network activity');
+  expect(panel).toHaveTextContent('No file or network activity contributes to this score');
 });
 
 it('ignores an invalid requested detail tab', async () => {

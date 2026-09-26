@@ -141,8 +141,25 @@ export function enrichAgents(
     arr.push(conn);
   }
 
-  // Pre-build false-positive name set
-  const fpNames = new Set<string>($fp.map((fp) => fp.agentName));
+  // Entries are validated before persistence; guard invalid syntax in older or
+  // simulated snapshots. Match the agent label stamped on each candidate event.
+  const fpPatternsByName = new Map<string, RegExp[]>();
+  for (const fp of $fp) {
+    if (
+      typeof fp?.agentName !== 'string' ||
+      typeof fp.pattern !== 'string' ||
+      !fp.pattern ||
+      fp.pattern.length > 256
+    )
+      continue;
+    try {
+      const patterns = fpPatternsByName.get(fp.agentName) ?? [];
+      patterns.push(new RegExp(fp.pattern));
+      fpPatternsByName.set(fp.agentName, patterns);
+    } catch {
+      // Invalid legacy or simulated entry: retain the observation and its score.
+    }
+  }
 
   return $agents.map((raw): EnrichedAgent => {
     const name = raw.agent;
@@ -163,8 +180,12 @@ export function enrichAgents(
     let configFiles = 0;
     let sshAwsFiles = 0;
     let fileCount = 0;
+    let scoredSensitiveFiles = 0;
+    let scoredConfigFiles = 0;
+    let scoredSshAwsFiles = 0;
+    let scoredFileCount = 0;
+    let exceptedFile = false;
     const seen = new Map<string, number>();
-
     for (const ev of candidateEvents) {
       if (ev.selfAccess) continue;
       if (ev.file) {
@@ -177,6 +198,15 @@ export function enrichAgents(
       if (ev.sensitive) sensitiveFiles += w;
       if (ev.reason?.startsWith('AI agent config')) configFiles += w;
       if (/SSH|AWS/i.test(ev.reason)) sshAwsFiles += w;
+      const fpPatterns = fpPatternsByName.get(ev.agent) ?? [];
+      if (ev.file && fpPatterns.some((pattern) => pattern.test(ev.file))) {
+        exceptedFile = true;
+        continue;
+      }
+      scoredFileCount += w;
+      if (ev.sensitive) scoredSensitiveFiles += w;
+      if (ev.reason?.startsWith('AI agent config')) scoredConfigFiles += w;
+      if (/SSH|AWS/i.test(ev.reason)) scoredSshAwsFiles += w;
     }
 
     // Same direct lookup for network connections.
@@ -208,18 +238,19 @@ export function enrichAgents(
         ? $anomaliesByInstance[instanceId]
         : 0;
     const riskInput: RiskScoreInput = {
-      sensitiveFiles,
-      configFiles,
-      sshAwsFiles,
+      sensitiveFiles: scoredSensitiveFiles,
+      configFiles: scoredConfigFiles,
+      sshAwsFiles: scoredSshAwsFiles,
       networkCount,
       flaggedDomains,
       unknownDomains,
-      fileCount,
+      fileCount: scoredFileCount,
       httpUnencryptedCount,
     };
-    const baseScore = calculateRiskScore(riskInput);
-    let riskScore = baseScore;
-    if (fpNames.has(name)) riskScore = Math.max(0, riskScore - 20);
+    const riskScore = calculateRiskScore(riskInput);
+    const baseScore = exceptedFile
+      ? calculateRiskScore({ ...riskInput, sensitiveFiles, configFiles, sshAwsFiles, fileCount })
+      : riskScore;
     const trustGrade = getTrustGrade(riskScore) as TrustGrade;
 
     return {

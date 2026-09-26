@@ -6,9 +6,15 @@ This pass implements the requested clarity work after PR #414. It covers identif
 
 Monitoring's previous average-risk card now opens the highest-risk agent's explanation. The radar inspector and agent table expose the leading scoring factor and a direct explanation link. Group and process detail windows have a Risk explanation tab, with a route from the group to its highest-scoring process; Back restores the explanation.
 
-The factor list is produced by the same function used for the existing exposure score. File/network joins, weights, ceilings, rounding, saved false-positive adjustment and anomaly separation are unchanged. Each enriched process carries its factor breakdown and actual applied adjustment; a captured process explanation survives later telemetry changes. Group explanations use the current available population, including a preserved snapshot during outage. Missing process identity produces an explicit coverage limitation, and no name/PID fallback is introduced.
+The factor list is produced by the same function used for the existing exposure score. This pass preserved the file/network joins, weights, ceilings, rounding, then-existing saved false-positive adjustment and anomaly separation. Each enriched process carries its factor breakdown and actual applied adjustment; a captured process explanation survives later telemetry changes. Group explanations use the current available population, including a preserved snapshot during outage. Missing process identity produces an explicit coverage limitation, and no name/PID fallback is introduced.
 
 At the 900x600 minimum viewport with 150% scale, the leading factor is placed beside the score so it is visible without scrolling. Full factor details remain below. The twelve approved reference stylesheets and import order are preserved.
+
+## Saved file exception correction — 2026-09-26
+
+The later risk-scoring correction removes the name-wide 20-point discount. A saved entry's agent name matches the label stamped on each candidate file event, and its regular-expression pattern matches that event's path within the stamped process. Only the matching file event is excluded from score factors; other sensitive files and network observations retain their contribution. Observed file counts and activity remain visible. The explanation compares the displayed score with the score from all observed files.
+
+Marking an event as a false positive now saves an anchored, escaped pattern for that exact path. Existing saved regex patterns retain their authored match scope. Entries carry no process identity, so the same agent name and matching path in two processes can affect both; this is a limit of the persisted entry format. This change affects renderer scoring, not file or network collection, attribution, or execution policy.
 
 ## Verification
 

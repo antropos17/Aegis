@@ -248,7 +248,7 @@
           confirmed(
             await invoke(host, 'addFalsePositive', {
               agentName: current.row.agent,
-              pattern: String(current.row.file).replace(/[.*+?^\x24{}()|[\]\\]/g, '\\$&'),
+              pattern: `^${String(current.row.file).replace(/[.*+?^\x24{}()|[\]\\]/g, '\\$&')}$`,
               timestamp: Date.now(),
             }),
           );
