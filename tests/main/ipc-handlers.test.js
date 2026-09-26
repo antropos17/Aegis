@@ -660,6 +660,34 @@ describe('ipc-handlers', () => {
   });
 
   it.each([
+    ['blocklist-add', 'add'],
+    ['blocklist-remove', 'remove'],
+  ])('hides a failed %s persistence detail from IPC and logs', (channel, method) => {
+    const { event } = registerOwnedRenderer();
+    mockBlocklist[method].mockImplementationOnce(() => {
+      throw new Error('PRIVATE_WATCHLIST_PATH_CANARY');
+    });
+
+    const result = getHandler(channel)(event, { signature: 'claude-code' });
+    expect(result).toEqual({ success: false, error: 'Unable to update watchlist' });
+    expect(JSON.stringify([result, mockLogger.warn.mock.calls])).not.toContain(
+      'PRIVATE_WATCHLIST_PATH_CANARY',
+    );
+  });
+
+  it('keeps a fixed watchlist input error actionable', () => {
+    const { event } = registerOwnedRenderer();
+    mockBlocklist.add.mockImplementationOnce(() => {
+      throw new TypeError('signature must be a non-empty string');
+    });
+
+    expect(getHandler('blocklist-add')(event, { signature: '' })).toEqual({
+      success: false,
+      error: 'signature must be a non-empty string',
+    });
+  });
+
+  it.each([
     [
       'stale frame',
       ({ contents, frame }) => {
