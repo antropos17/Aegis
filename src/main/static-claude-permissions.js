@@ -86,6 +86,64 @@ function hasBroadClaudeAllow(value) {
   });
 }
 
+// Claude's CLI server names use letters, digits, hyphens and underscores.
+// A double underscore in an exact rule is normally a tool separator. Only
+// terminal __* forms are marked ambiguous: they could name a whole server
+// containing __ or a wildcard over one server's tools.
+const MCP_SERVER_ALLOW = /^mcp__([A-Za-z0-9_-]+)(?:__\*)?$/;
+
+/** Identify only whole-server MCP allow declarations and unresolved restriction globs.
+ * Tool-scoped ask/deny rules leave other tools on the server potentially allowed.
+ * Cross-file precedence and runtime permission mode remain unresolved.
+ * @param {unknown} value Claude permissions object.
+ * @returns {{broad: boolean, unresolved: boolean, ambiguous: boolean}} Fixed signal and limitation flags.
+ * @since v0.16.0-alpha
+ */
+function reviewBroadClaudeMcpAllow(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !Array.isArray(value.allow))
+    return { broad: false, unresolved: false, ambiguous: false };
+  const restrictions = [
+    ...(Array.isArray(value.ask) ? value.ask : []),
+    ...(Array.isArray(value.deny) ? value.deny : []),
+  ];
+  let broad = false;
+  let unresolved = false;
+  let ambiguous = false;
+  for (const rule of value.allow) {
+    if (typeof rule !== 'string') continue;
+    const match = MCP_SERVER_ALLOW.exec(rule);
+    if (!match) continue;
+    if (match[1].includes('__')) {
+      if (rule.endsWith('__*')) ambiguous = true;
+      continue;
+    }
+    const server = `mcp__${match[1]}`;
+    if (
+      restrictions.some(
+        (restriction) =>
+          restriction === '*' ||
+          restriction === 'mcp__*' ||
+          restriction === server ||
+          restriction === `${server}__*`,
+      )
+    )
+      continue;
+    broad = true;
+    // Other globs may cover a whole server, but their effective tool set is not
+    // proven here. Keep the finding and mark the same-file limitation.
+    const toolPrefix = `${server}__`;
+    if (
+      restrictions.some((restriction) => {
+        if (typeof restriction !== 'string') return false;
+        const firstGlob = restriction.search(/[*?\[]/);
+        return firstGlob >= 0 && toolPrefix.startsWith(restriction.slice(0, firstGlob));
+      })
+    )
+      unresolved = true;
+  }
+  return { broad, unresolved, ambiguous };
+}
+
 function splitAllowedTools(value) {
   if (Array.isArray(value))
     return value.length <= ALLOWED_TOOLS && value.every((item) => typeof item === 'string')
@@ -152,5 +210,6 @@ function analyzeClaudeSkillFrontmatter(text) {
 module.exports = {
   isBroadClaudeExecutionGrant,
   hasBroadClaudeAllow,
+  reviewBroadClaudeMcpAllow,
   analyzeClaudeSkillFrontmatter,
 };

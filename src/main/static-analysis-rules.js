@@ -97,13 +97,18 @@ const RULES = Object.freeze({
     'Claude project settings declare an ignored strict network allowlist',
     'Move the setting to user or managed settings, or CLI --settings. Verify Claude Code v2.1.219 or later and supported sandboxing; this static check does not establish effective network access.',
   ],
+  STA020: [
+    'medium',
+    'Claude settings declare whole-server MCP tool preapproval',
+    'Review the selected server-wide allow and higher-precedence ask and deny rules. This static check does not establish effective permissions or block tool calls.',
+  ],
 });
 
 /** Return fresh versioned rule metadata. @returns {object} Built-in review rules. @since v0.15.1 */
 function staticRuleSet() {
   return {
     id: 'aegis-static-patterns',
-    version: 10,
+    version: 11,
     rules: Object.entries(RULES).map(([id, [severity, title, recommendation]]) => ({
       id,
       severity,

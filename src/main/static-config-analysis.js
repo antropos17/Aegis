@@ -2,7 +2,7 @@
 
 const { parseInventoryConfig } = require('./inventory-config');
 const { analyzeCommand, analyzeInvocation } = require('./static-command-analysis');
-const { hasBroadClaudeAllow } = require('./static-claude-permissions');
+const { hasBroadClaudeAllow, reviewBroadClaudeMcpAllow } = require('./static-claude-permissions');
 const CONFIG_ITEMS = 2048;
 const COMMANDS_PER_FILE = 256;
 const record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -181,7 +181,13 @@ function analyzeConfiguration(data, format, packageManifest = false, claudeSetti
               permissions[key].every((rule) => typeof rule === 'string')),
         );
       if (!supported) issues.add('claude-permissions-unparsed');
-      else if (hasBroadClaudeAllow(permissions)) finding('STA016', 'claude-settings-permission');
+      else {
+        if (hasBroadClaudeAllow(permissions)) finding('STA016', 'claude-settings-permission');
+        const mcp = reviewBroadClaudeMcpAllow(permissions);
+        if (mcp.broad) finding('STA020', 'claude-settings-mcp-server-allow');
+        if (mcp.unresolved) issues.add('claude-mcp-restriction-unresolved');
+        if (mcp.ambiguous) issues.add('claude-mcp-server-name-ambiguous');
+      }
     }
   }
   function manifest(value) {
