@@ -35,6 +35,7 @@ const claudeCode = require('./token-adapters/claude-code');
 
 /** Default adapter registry. Append a module here to support a new agent. */
 const DEFAULT_ADAPTERS = [claudeCode];
+const KNOWN_ADAPTER_IDS = new Set(DEFAULT_ADAPTERS.map((adapter) => adapter.id));
 
 /** @type {Array<{ id: string, agentNames?: readonly string[], readUsage: Function, _resetForTest?: Function }>} */
 let adapters = DEFAULT_ADAPTERS.slice();
@@ -58,16 +59,11 @@ async function readUsageByPid(procs) {
         : procs;
       if (eligible.length === 0) continue;
       deltas = await adapter.readUsage(eligible);
-    } catch (err) {
+    } catch {
       // One adapter failing never crashes the feed or starves the others.
       logger.debug('token-feed', 'adapter failed', {
-        adapter: adapter.id,
-        error:
-          err instanceof Error
-            ? err.message
-            : typeof err === 'string'
-              ? err
-              : 'Unknown adapter failure',
+        adapter: KNOWN_ADAPTER_IDS.has(adapter.id) ? adapter.id : 'unknown-adapter',
+        error: 'token-adapter-failed',
       });
       continue;
     }

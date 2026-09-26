@@ -22,6 +22,7 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const tokenFeed = require('../../src/main/token-feed.js');
 const tokenTracker = require('../../src/main/token-tracker.js');
+const logger = require('../../src/main/logger.js');
 const { collectTokenCosts } = require('../../src/main/token-cost-collector.js');
 
 /** A scanned-agent stub. Carries a stamped instanceId (production always does).
@@ -124,6 +125,25 @@ it('skips malformed adapter rows without aborting the collector before a valid d
   await expect(collectTokenCosts([agent(1, 1000)])).resolves.toEqual([delta(1, 10)]);
   expect(tokenTracker.getAllCosts()[0].inputTokens).toBe(10);
 });
+it('keeps unexpected feed errors out of durable diagnostics', async () => {
+  const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+  const feed = vi
+    .spyOn(tokenFeed, 'readUsageByPid')
+    .mockRejectedValueOnce(new Error('PRIVATE_TRANSCRIPT_PATH_CANARY'));
+  try {
+    await expect(collectTokenCosts([agent(1, 1000)])).resolves.toEqual([]);
+    expect(warn).toHaveBeenCalledWith(
+      'token',
+      'token-feed read failed; skipping token costs this tick',
+      { error: 'token-feed-read-failed' },
+    );
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('PRIVATE_TRANSCRIPT_PATH_CANARY');
+  } finally {
+    feed.mockRestore();
+    warn.mockRestore();
+  }
+});
+
 it('keeps its never-throws contract if the feed rejects with null', async () => {
   const feed = vi.spyOn(tokenFeed, 'readUsageByPid').mockRejectedValueOnce(null);
   try {
