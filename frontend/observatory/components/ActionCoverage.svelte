@@ -1,5 +1,6 @@
 <script lang="ts">
   import ActionObservation from './ActionObservation.svelte';
+  import RouteEvidence from './RouteEvidence.svelte';
   import { onDestroy } from 'svelte';
   import { t } from '../runtime/i18n';
   import { confirmed, invoke, record, type Host } from '../runtime/host';
@@ -14,6 +15,7 @@
     type ActionKind,
     type ActionRoute,
   } from '../runtime/action-coverage';
+  import type { RouteObservation } from '../runtime/action-observation';
   let {
     host,
     preview = false,
@@ -33,6 +35,7 @@
   let guideFeedback = $state('');
   let guideFailed = $state(false);
   let result = $state.raw<ActionCheck | null>(null);
+  let routeObservation = $state.raw<RouteObservation | null>(null);
   let alive = true;
   onDestroy(() => {
     alive = false;
@@ -115,7 +118,10 @@
 </script>
 
 <div class="action-coverage-workspace">
-  <ActionObservation {host} {preview} />
+  <ActionObservation {host} {preview} onObservation={(value) => (routeObservation = value)} />
+  {#if result || routeObservation}
+    <RouteEvidence check={result} observation={routeObservation} />
+  {/if}
   {#if result}
     <section class="panel result" tabindex="-1" aria-label={$t('Action check result')}>
       <button
