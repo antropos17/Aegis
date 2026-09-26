@@ -102,7 +102,7 @@ function restoreChokidar() {
  */
 function stubPreflight(present) {
   vi.spyOn(fsMod.promises, 'access').mockImplementation(async () => {
-    if (!present) throw new Error('ENOENT');
+    if (!present) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
   });
 }
 
@@ -496,6 +496,79 @@ describe('chokidar watch-root registry (step B)', () => {
     fakeWatchers[0].emit('add', samplePath('late-after-loss.js'));
     expect(audit.log).toHaveBeenCalledTimes(1);
     expect(audit.log.mock.calls[0][1].extra).toEqual({ cause: 'file-watch', state: 'reduced' });
+  });
+
+  it('does not restore a reduced watch plan when a previously watched directory becomes inaccessible', async () => {
+    const audit = { log: vi.fn(), flush: vi.fn() };
+    fileWatcher.init(makeState({ audit }));
+    await fileWatcher.setupFileWatchers();
+    readyAll();
+    fakeWatchers[0].emit('error', new Error('first generation failed'));
+    expect(audit.log.mock.calls.map(([, event]) => event.action)).toEqual([
+      'file-watch-coverage-reduced',
+    ]);
+
+    vi.restoreAllMocks();
+    const deniedPath = path.join(os.homedir(), '.ssh');
+    vi.spyOn(fsMod.promises, 'access').mockImplementation(async (candidate) => {
+      if (candidate !== deniedPath) return;
+      const error = new Error('PRIVATE_PREFLIGHT_AUDIT_CANARY');
+      error.code = 'EACCES';
+      throw error;
+    });
+    await fileWatcher.setupFileWatchers();
+    readyAll();
+
+    const plan = fileWatcher.getWatchPlan();
+    expect(plan.state).toBe('DEGRADED');
+    expect(root(plan, 'credential-dirs').state).toBe(fileWatcher.WATCH_ROOT_STATE.ERRORED);
+    expect(plan.absentGroups).not.toContain('credential-dirs');
+    expect(audit.log.mock.calls.map(([, event]) => event.action)).toEqual([
+      'file-watch-coverage-reduced',
+    ]);
+    expect(JSON.stringify({ plan, calls: audit.log.mock.calls })).not.toContain(
+      'PRIVATE_PREFLIGHT_AUDIT_CANARY',
+    );
+
+    vi.restoreAllMocks();
+    stubPreflight(true);
+    await fileWatcher.setupFileWatchers();
+    readyAll();
+    expect(fileWatcher.getWatchPlan().state).toBe('HEALTHY');
+    expect(audit.log.mock.calls.map(([, event]) => event.action)).toEqual([
+      'file-watch-coverage-reduced',
+      'file-watch-coverage-restored',
+    ]);
+  });
+
+  it('retains an entirely inaccessible credential group without registering an empty watcher', async () => {
+    vi.restoreAllMocks();
+    vi.spyOn(fsMod.promises, 'access').mockImplementation(async (candidate) => {
+      const denied = candidate === path.join(os.homedir(), '.ssh');
+      throw Object.assign(new Error('PRIVATE_PREFLIGHT_CANARY'), {
+        code: denied ? 'EPERM' : 'ENOENT',
+      });
+    });
+    const audit = { log: vi.fn(), flush: vi.fn() };
+    fileWatcher.init(makeState({ audit }));
+
+    await fileWatcher.setupFileWatchers();
+    const plan = fileWatcher.getWatchPlan();
+    expect(ids(plan)).toEqual(['credential-dirs', 'project-dir', 'env-files']);
+    expect(root(plan, 'credential-dirs').state).toBe(
+      fileWatcher.WATCH_ROOT_STATE.REGISTRATION_FAILED,
+    );
+    expect(root(plan, 'credential-dirs').lastError).toBe('watch-root-preflight-unavailable');
+    expect(fakeWatchers).toHaveLength(2);
+    expect(fakeWatchers.every((w) => !Array.isArray(w._paths) || w._paths.length > 0)).toBe(true);
+    readyAll();
+    expect(fileWatcher.getWatchPlan().state).toBe('DEGRADED');
+    expect(audit.log.mock.calls.map(([, event]) => event.action)).toEqual([
+      'file-watch-coverage-reduced',
+    ]);
+    expect(JSON.stringify({ plan, calls: audit.log.mock.calls })).not.toContain(
+      'PRIVATE_PREFLIGHT_CANARY',
+    );
   });
 
   it('audits a registration abort before any watcher exists with no thrown detail', async () => {

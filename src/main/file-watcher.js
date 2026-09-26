@@ -710,21 +710,29 @@ async function setupFileWatchers() {
   // order the second probe ran after the first `chokidar.watch`, so an abort in
   // between produced a plan that had never heard of the agent-config group, and one
   // ready root was enough to call the whole mechanism HEALTHY.
-  const sensitiveDirs = await filterExistingDirs(
+  const sensitiveProbe = await probeWatchDirs(
     SENSITIVE_AGENT_DIRS.map((d) => path.join(homeDir, d)),
   );
+  const sensitiveDirs = sensitiveProbe.paths;
   // AI agent config directories (Hudson Rock threat vector — critical)
   const sensitiveDirNames = new Set(SENSITIVE_AGENT_DIRS);
-  const agentConfigDirs = await filterExistingDirs(
+  const agentConfigProbe = await probeWatchDirs(
     AGENT_CONFIG_PATHS.filter((d) => !sensitiveDirNames.has(d)).map((d) => path.join(homeDir, d)),
   );
+  const agentConfigDirs = agentConfigProbe.paths;
   if (generation !== _watchGeneration) return;
   // Reinit chokidar health lifetime when production recreates the watcher set — and
   // the plan with it, since the plan is what writes into that record.
   _fsHealth[FS_SENSOR.CHOKIDAR] = sensorHealth.createSensorHealth(FS_SENSOR.CHOKIDAR);
   buildWatchPlan([
-    { id: WATCH_GROUP.CREDENTIAL_DIRS, applicable: sensitiveDirs.length > 0 },
-    { id: WATCH_GROUP.AGENT_CONFIG_DIRS, applicable: agentConfigDirs.length > 0 },
+    {
+      id: WATCH_GROUP.CREDENTIAL_DIRS,
+      applicable: sensitiveDirs.length > 0 || sensitiveProbe.unknown,
+    },
+    {
+      id: WATCH_GROUP.AGENT_CONFIG_DIRS,
+      applicable: agentConfigDirs.length > 0 || agentConfigProbe.unknown,
+    },
     // ASAR contents are a virtual, read-only tree. fs.watch cannot observe them;
     // registering them makes chokidar reject while its root may still report ready.
     { id: WATCH_GROUP.PROJECT_DIR, applicable: path.extname(projectDir) !== '.asar' },
@@ -752,6 +760,7 @@ async function setupFileWatchers() {
             followSymlinks: false,
             depth: 1,
           }),
+        sensitiveProbe,
       ],
       [
         WATCH_GROUP.AGENT_CONFIG_DIRS,
@@ -763,6 +772,7 @@ async function setupFileWatchers() {
             followSymlinks: false,
             depth: 2,
           }),
+        agentConfigProbe,
       ],
       [
         WATCH_GROUP.PROJECT_DIR,
@@ -789,14 +799,22 @@ async function setupFileWatchers() {
           }),
       ],
     ];
-    for (const [id, register] of registrations) {
+    for (const [id, register, probe] of registrations) {
       if (!hasPlannedRoot(id)) continue; // not-applicable — proven absent by preflight
+      // An inaccessible path is not an absent path. Keep the group in the plan,
+      // observe any reachable siblings, and withhold HEALTHY until a new preflight
+      // and watcher lifetime vouch for the whole group.
+      if (probe?.unknown && probe.paths.length === 0) {
+        markRootRegistrationFailed(id, 'watch-root-preflight-unavailable');
+        continue;
+      }
       attempted = id;
       const w = register();
       markRootRegistered(id, w);
       bindWatcherEvents(w, id, generation);
       _ownedWatchers.push(w);
       _state.watchers.push(w);
+      if (probe?.unknown) markRootErrored(id, 'watch-root-preflight-unavailable');
     }
   } catch (err) {
     // §1.3: the group that threw is `registration-failed`; every planned group the
@@ -811,19 +829,29 @@ async function setupFileWatchers() {
 }
 
 /**
- * Check which directories exist using async fs, in parallel.
- * @param {string[]} dirs @returns {Promise<string[]>} @since v0.5.0
+ * Probe optional watch directories without equating an access failure with absence.
+ * Only ENOENT/ENOTDIR prove the path is not a directory to watch. All other
+ * failures leave group coverage unknown; their text and paths stay out of health.
+ * @param {string[]} dirs
+ * @returns {Promise<{paths: string[], unknown: boolean}>}
+ * @since v0.5.0
  */
-async function filterExistingDirs(dirs) {
+async function probeWatchDirs(dirs) {
   const results = await Promise.all(
     dirs.map((d) =>
       fs.promises
         .access(d)
-        .then(() => d)
-        .catch(() => null),
+        .then(() => ({ path: d, unknown: false }))
+        .catch((err) => ({
+          path: null,
+          unknown: err?.code !== 'ENOENT' && err?.code !== 'ENOTDIR',
+        })),
     ),
   );
-  return results.filter(Boolean);
+  return {
+    paths: results.map((result) => result.path).filter(Boolean),
+    unknown: results.some((result) => result.unknown),
+  };
 }
 
 /**
