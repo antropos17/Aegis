@@ -420,6 +420,7 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
       expect(h.consecutiveFailures).toBe(0);
       expect(h.lastError).toBeNull();
       expect(h.lastSuccessAt).toBeTypeOf('number');
+      expect(deps.audit.log).not.toHaveBeenCalledWith('observation-gap', expect.anything());
     });
 
     it('an audit-write throw after a successful provider run leaves the record HEALTHY', async () => {
@@ -438,6 +439,128 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
       const h = network.getNetworkSensorHealth();
       expect(h.state).toBe(SENSOR_HEALTH_STATE.HEALTHY);
       expect(h.consecutiveFailures).toBe(0);
+      expect(deps.audit.log).not.toHaveBeenCalledWith('observation-gap', expect.anything());
+    });
+
+    it('a baseline throw after provider fulfillment never starts a provider gap', async () => {
+      const deps = makeDeps({
+        getLatestAgents: vi.fn().mockReturnValue(NET_AGENTS),
+        baselines: {
+          recordNetworkEndpoint: vi.fn(() => {
+            throw new Error('baseline-write-failed');
+          }),
+        },
+      });
+      scanLoop.init(deps);
+      await runOneNetworkScan();
+
+      expect(getRawTcpConnections).toHaveBeenCalledTimes(1);
+      expect(deps.baselines.recordNetworkEndpoint).toHaveBeenCalledOnce();
+      expect(network.getNetworkSensorHealth().state).toBe(SENSOR_HEALTH_STATE.HEALTHY);
+      expect(deps.audit.log).not.toHaveBeenCalledWith('observation-gap', expect.anything());
+    });
+
+    it('audits one fixed-code network gap across failure, skips and recovery', async () => {
+      let running = false;
+      let reliable = true;
+      let agents = NET_AGENTS;
+      const provider = vi
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockRejectedValueOnce(new Error('private-network-error 203.0.113.77'))
+        .mockRejectedValueOnce(new Error('private-network-error 203.0.113.77'))
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      const deps = makeDeps({
+        scanner: { getProcessCapabilities: () => ({ populationReliable: reliable }) },
+        network: {
+          isNetworkScanRunning: () => running,
+          setNetworkScanRunning: (value) => {
+            running = value;
+          },
+          scanNetworkConnections: provider,
+          noteNetworkSkip: vi.fn(),
+        },
+        audit: { log: vi.fn(), flush: vi.fn() },
+        getLatestAgents: () => agents,
+      });
+      const gapRecords = () =>
+        deps.audit.log.mock.calls
+          .filter(([type]) => type === 'observation-gap')
+          .map(([, record]) => record);
+      scanLoop.init(deps);
+
+      await runOneNetworkScan();
+      expect(gapRecords()).toEqual([]);
+      await runOneNetworkScan();
+      await runOneNetworkScan();
+      expect(gapRecords()).toEqual([
+        {
+          agent: '',
+          pid: null,
+          instanceId: null,
+          action: 'network-provider-unavailable',
+          path: '',
+          severity: 'normal',
+          attribution: null,
+          extra: { cause: 'network-provider', state: 'unavailable' },
+        },
+      ]);
+      expect(JSON.stringify(gapRecords())).not.toMatch(/private-network-error|203\.0\.113\.77|Claude Code/);
+
+      reliable = false;
+      await runOneNetworkScan();
+      reliable = true;
+      agents = [];
+      await runOneNetworkScan();
+      agents = NET_AGENTS;
+      running = true;
+      await runOneNetworkScan();
+      running = false;
+      scanLoop.stopScanIntervals();
+      expect(provider).toHaveBeenCalledTimes(3);
+      expect(gapRecords()).toHaveLength(1);
+
+      await runOneNetworkScan();
+      await runOneNetworkScan();
+      expect(gapRecords().map((record) => [record.action, record.extra])).toEqual([
+        ['network-provider-unavailable', { cause: 'network-provider', state: 'unavailable' }],
+        ['network-provider-restored', { cause: 'network-provider', state: 'restored' }],
+      ]);
+      expect(provider).toHaveBeenCalledTimes(5);
+      expect(deps.audit.flush).toHaveBeenCalledTimes(2);
+    });
+
+    it('records recovery before downstream processing even when delivery fails', async () => {
+      const provider = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('provider-failed'))
+        .mockResolvedValueOnce([]);
+      const deps = makeDeps({
+        getLatestAgents: vi.fn().mockReturnValue(NET_AGENTS),
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: provider,
+        },
+        sendToRenderer: throwingSendOn('network-update'),
+      });
+      scanLoop.init(deps);
+      await runOneNetworkScan();
+      await runOneNetworkScan();
+
+      const gaps = deps.audit.log.mock.calls.filter(([type]) => type === 'observation-gap');
+      expect(gaps.map(([, record]) => record.action)).toEqual([
+        'network-provider-unavailable',
+        'network-provider-restored',
+      ]);
+      expect(gaps[1][1].extra).toEqual({ cause: 'network-provider', state: 'restored' });
+      expect(deps.audit.log.mock.invocationCallOrder[1]).toBeLessThan(
+        deps.setLatestNetConnections.mock.invocationCallOrder[0],
+      );
+      expect(deps.logger.error).toHaveBeenCalledWith('main', 'Network scan failed', {
+        error: 'renderer-send-failed:network-update',
+      });
     });
 
     it('a downstream throw never calls noteNetworkScanHardFailure', async () => {
@@ -500,6 +623,60 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
       expect(note).toHaveBeenCalledTimes(1);
       expect(note.mock.calls[0][0].message).toMatch(/ETIMEDOUT/);
       expect(deps.network.setNetworkScanRunning).toHaveBeenLastCalledWith(false);
+    });
+
+    it('audits the direct provider rejection even if fallback health handling throws', async () => {
+      const deps = makeDeps({
+        getLatestAgents: vi.fn().mockReturnValue(NET_AGENTS),
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: vi.fn().mockRejectedValue(new Error('provider-failed')),
+          getNetworkSensorHealth: vi.fn().mockReturnValue({ state: 'STARTING' }),
+          noteNetworkScanHardFailure: vi.fn(() => {
+            throw new Error('health-fallback-failed');
+          }),
+        },
+      });
+      scanLoop.init(deps);
+      await runOneNetworkScan();
+
+      expect(deps.network.noteNetworkScanHardFailure).toHaveBeenCalledOnce();
+      expect(deps.audit.log).toHaveBeenCalledWith(
+        'observation-gap',
+        expect.objectContaining({
+          action: 'network-provider-unavailable',
+          extra: { cause: 'network-provider', state: 'unavailable' },
+        }),
+      );
+      expect(deps.network.setNetworkScanRunning).toHaveBeenLastCalledWith(false);
+    });
+
+    it('keeps the gap latch across interval shutdown and resets it only on init', async () => {
+      const deps = makeDeps({
+        getLatestAgents: vi.fn().mockReturnValue(NET_AGENTS),
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: vi.fn().mockRejectedValue(new Error('provider-failed')),
+        },
+      });
+      const gapActions = () =>
+        deps.audit.log.mock.calls
+          .filter(([type]) => type === 'observation-gap')
+          .map(([, record]) => record.action);
+      scanLoop.init(deps);
+      await runOneNetworkScan();
+      scanLoop.stopScanIntervals();
+      await runOneNetworkScan();
+      expect(gapActions()).toEqual(['network-provider-unavailable']);
+
+      scanLoop.init(deps);
+      await runOneNetworkScan();
+      expect(gapActions()).toEqual([
+        'network-provider-unavailable',
+        'network-provider-unavailable',
+      ]);
     });
 
     it('both paths keep the existing "Network scan failed" log', async () => {

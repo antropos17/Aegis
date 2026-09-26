@@ -192,6 +192,48 @@ describe('event schema v1 — record shape', () => {
     expect(auditLogger.getEntriesBefore('9999-01-01T00:00:00.000Z', 10)).toEqual(raw);
   });
 
+  it('persists the fixed-code network-provider gap pair without connection data', () => {
+    auditLogger.init({ userDataPath: tmpDir });
+    for (const [action, state] of [
+      ['network-provider-unavailable', 'unavailable'],
+      ['network-provider-restored', 'restored'],
+    ]) {
+      auditLogger.log('observation-gap', {
+        agent: '',
+        pid: null,
+        instanceId: null,
+        action,
+        path: '',
+        severity: 'normal',
+        attribution: null,
+        extra: { cause: 'network-provider', state },
+      });
+    }
+    auditLogger.flush();
+
+    const name = fs.readdirSync(auditDir()).find((f) => f.endsWith('.json'));
+    expect(hashchain.verifyChain(path.join(auditDir(), name))).toEqual({
+      valid: true,
+      brokenAtSeq: null,
+      reason: 'ok',
+    });
+    const raw = auditLogger.exportAll();
+    expect(raw.map((entry) => [entry.type, entry.action, entry.details])).toEqual([
+      [
+        'observation-gap',
+        'network-provider-unavailable',
+        { cause: 'network-provider', state: 'unavailable' },
+      ],
+      [
+        'observation-gap',
+        'network-provider-restored',
+        { cause: 'network-provider', state: 'restored' },
+      ],
+    ]);
+    expect(raw.every((entry) => entry.agent === '' && entry.pid === null && entry.path === '')).toBe(true);
+    expect(auditLogger.getEntriesBefore('9999-01-01T00:00:00.000Z', 10)).toEqual(raw);
+  });
+
   it('normalizes v0 records on the paginated read path but not on export', () => {
     auditLogger.init({ userDataPath: tmpDir });
     auditLogger.log('file-access', { agent: 'claude' });

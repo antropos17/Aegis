@@ -213,12 +213,15 @@ export interface NetworkConnection {
  * union exists in the code, so a consumer that switches on it keeps its default branch.
  *
  * `observation-gap` records either an OS suspend/resume (`observation-gap.js`,
- * `main.js`, Block B5) or a process-population provider outage/recovery
- * (`scan-loop.js`). The OS record has action `os-resume` and details
+ * `main.js`, Block B5), a process-population provider outage/recovery, or a
+ * network-provider outage/recovery (`scan-loop.js`). The OS record has action `os-resume` and details
  * `{ cause, suspendedAt, resumedAt, gapMs, suspendCount, monitoringPaused,
  * activeSessions }`. The process pair has actions `process-population-unavailable`
  * and `process-population-restored`, with only fixed-code details
  * `{ cause: 'process-enumeration', state: 'unavailable' | 'restored' }`.
+ * The network pair has actions `network-provider-unavailable` and
+ * `network-provider-restored`, with only fixed-code details
+ * `{ cause: 'network-provider', state: 'unavailable' | 'restored' }`.
  * Neither has an agent or a path; `pid`/`instanceId`/`attribution` are `null`.
  * These records explain gaps in observation; they cannot reconstruct missing events.
  */
