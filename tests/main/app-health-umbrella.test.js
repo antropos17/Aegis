@@ -236,7 +236,25 @@ describe('app-health umbrella (B8)', () => {
       expect(ev.agent).toBe('');
       // No session was closed on the strength of an empty, unreliable list.
       expect(h.sessionTracker.activeCount()).toBe(1);
-      expect(nonNetworkAudit(h)).toEqual(['agent-enter']);
+      expect(nonNetworkAudit(h)).toEqual(['agent-enter', 'observation-gap']);
+      expect(
+        h.deps.audit.log.mock.calls.find(
+          ([, record]) => record?.action === 'process-population-unavailable',
+        ),
+      ).toEqual([
+        'observation-gap',
+        {
+          agent: '',
+          pid: null,
+          instanceId: null,
+          action: 'process-population-unavailable',
+          path: '',
+          severity: 'normal',
+          attribution: null,
+          extra: { cause: 'process-enumeration', state: 'unavailable' },
+        },
+      ]);
+      expect(nonNetworkAudit(h)).not.toContain('agent-exit');
       expect(h.expectSiblings().observationGap.state).toBe('NONE');
     });
 
@@ -261,6 +279,12 @@ describe('app-health umbrella (B8)', () => {
       expect(mid.state).toBe(A.DEGRADED);
       expect(mid.reasons).toEqual([R.SENSOR_DEGRADED]);
       expect(mid.sensors.effective.degradedSensorIds).toEqual(['fs-handle']);
+      expect(nonNetworkAudit(h)).toEqual(['agent-enter', 'observation-gap', 'observation-gap']);
+      expect(
+        h.deps.audit.log.mock.calls
+          .filter(([type]) => type === 'observation-gap')
+          .map(([, record]) => record.action),
+      ).toEqual(['process-population-unavailable', 'process-population-restored']);
 
       // 8 s into the same startup run: the file tick observes and the app is whole.
       await h.advance(5000);

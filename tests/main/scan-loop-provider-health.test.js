@@ -2,11 +2,11 @@
  * Stage-1 step A — provider-observation ownership boundaries for the `process`
  * and `network` leaves.
  *
- * The rule under test: a leaf health record is written only by the code that
- * performed or refused the provider observation that leaf names. A failure
- * downstream of the provider's return value — enrichment, session reconcile, an
- * audit write, a renderer send — must leave the record exactly as the provider
- * left it.
+ * The rule under test: a failure downstream of scanProcesses — enrichment,
+ * session reconcile, an audit write, a renderer send — leaves the leaf record as
+ * scanProcesses left it. A catalog or tracking callback inside scanProcesses can
+ * still trigger existing hard-failure health handling, but cannot prove the OS
+ * enumeration failed and must not produce a process-population outage audit record.
  *
  * Both leaves are driven through their REAL modules, so every assertion reads the
  * health record itself rather than a spy on the note function. The spy assertions
@@ -269,7 +269,8 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
     });
 
     it('a provider throw from _listProcesses still marks the record FAILED', async () => {
-      listProcesses.mockRejectedValue(new Error('spawn ENOENT'));
+      const providerError = new Error('spawn ENOENT private path');
+      listProcesses.mockRejectedValue(providerError);
       const deps = makeDeps();
       scanLoop.init(deps);
       await runOneProcessScan();
@@ -280,11 +281,30 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
       expect(h.lastError).toMatch(/ENOENT/);
       expect(h.detail).toBe('hard-scan-failure');
       expect(scanner.isProcessPopulationReliable()).toBe(false);
+      expect(scanner.isPopulationProviderFailure(providerError)).toBe(true);
+      expect(deps.audit.log).toHaveBeenCalledWith(
+        'observation-gap',
+        expect.objectContaining({
+          agent: '',
+          pid: null,
+          path: '',
+          action: 'process-population-unavailable',
+          extra: { cause: 'process-enumeration', state: 'unavailable' },
+        }),
+      );
+      expect(JSON.stringify(deps.audit.log.mock.calls)).not.toContain('private path');
       // The observation never returned, so the population was never replaced.
       expect(deps.setAgents).not.toHaveBeenCalled();
+
+      listProcesses.mockResolvedValue([{ name: 'chrome', pid: 1 }]);
+      await runOneProcessScan();
+      expect(deps.audit.log.mock.calls.map(([type, record]) => [type, record.action])).toEqual([
+        ['observation-gap', 'process-population-unavailable'],
+        ['observation-gap', 'process-population-restored'],
+      ]);
     });
 
-    it('a provider throw calls noteProcessScanHardFailure exactly once', async () => {
+    it('an unproven scanProcesses rejection keeps health handling but adds no provider gap', async () => {
       const note = vi.fn();
       const deps = makeDeps({
         scanner: {
@@ -297,25 +317,50 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
 
       expect(note).toHaveBeenCalledTimes(1);
       expect(note.mock.calls[0][0].message).toMatch(/ENOENT/);
-      expect(deps.audit.log).toHaveBeenCalledTimes(1);
-      expect(deps.audit.log).toHaveBeenCalledWith('observation-gap', {
-        agent: '',
-        pid: null,
-        instanceId: null,
-        action: 'process-population-unavailable',
-        path: '',
-        severity: 'normal',
-        attribution: null,
-        extra: { cause: 'process-enumeration', state: 'unavailable' },
-      });
+      expect(deps.audit.log).not.toHaveBeenCalledWith('observation-gap', expect.anything());
 
       deps.scanner.scanProcesses.mockResolvedValue({ agents: [], changed: false, reliable: true });
       await runOneProcessScan();
       expect(note).toHaveBeenCalledTimes(1);
-      expect(deps.audit.log.mock.calls.filter(([type]) => type === 'observation-gap')).toEqual([
-        ['observation-gap', expect.objectContaining({ action: 'process-population-unavailable' })],
-        ['observation-gap', expect.objectContaining({ action: 'process-population-restored' })],
-      ]);
+      expect(deps.audit.log).not.toHaveBeenCalledWith('observation-gap', expect.anything());
+    });
+
+    it('a catalog callback rejection after enumeration adds no provider gap', async () => {
+      scanner.init({
+        trackSeenAgent: vi.fn(),
+        getCustomAgents: () => {
+          throw new Error('catalog callback failed');
+        },
+      });
+      const deps = makeDeps();
+      scanLoop.init(deps);
+      await runOneProcessScan();
+
+      expect(listProcesses).toHaveBeenCalledTimes(1);
+      expect(scanner.getProcessSensorHealth().state).toBe(SENSOR_HEALTH_STATE.FAILED);
+      expect(deps.logger.error).toHaveBeenCalledWith('main', 'Process scan failed', {
+        error: 'catalog callback failed',
+      });
+      expect(deps.audit.log).not.toHaveBeenCalledWith('observation-gap', expect.anything());
+    });
+
+    it('a trackSeenAgent rejection after enumeration adds no provider gap', async () => {
+      listProcesses.mockResolvedValue([{ name: 'claude', pid: 42 }]);
+      scanner.init({
+        trackSeenAgent: () => {
+          throw new Error('tracking callback failed');
+        },
+      });
+      const deps = makeDeps();
+      scanLoop.init(deps);
+      await runOneProcessScan();
+
+      expect(listProcesses).toHaveBeenCalledTimes(1);
+      expect(scanner.getProcessSensorHealth().state).toBe(SENSOR_HEALTH_STATE.FAILED);
+      expect(deps.logger.error).toHaveBeenCalledWith('main', 'Process scan failed', {
+        error: 'tracking callback failed',
+      });
+      expect(deps.audit.log).not.toHaveBeenCalledWith('observation-gap', expect.anything());
     });
 
     it('both paths keep the existing "Process scan failed" log', async () => {

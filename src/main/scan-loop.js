@@ -462,12 +462,12 @@ async function doProcessScan() {
   updateScanStatus(true);
   const t0 = performance.now();
   try {
-    // Provider-observation ownership boundary (Stage-1 step A). This inner try encloses
-    // ONLY the enumeration call: the `process` leaf names population enumeration, so a
-    // throw raised at or after `setAgents` below — enrichment, session reconcile, an audit
-    // write, anomaly processing, a renderer send — must not be able to write it. Without
-    // this split, `process = FAILED` proved nothing about whether the machine was
-    // enumerated. The provider throw is rethrown so the outer catch keeps the single log.
+    // Stage-1 step A: this inner try encloses scanProcesses, whose provider call is
+    // followed by catalog matching and tracking callbacks. Existing health handling
+    // marks any rejection of that call; only errors tagged inside the scanner's
+    // provider boundary may produce a process-population outage audit record. A throw
+    // at or after setAgents below cannot enter this catch. The original rejection is
+    // rethrown so the outer catch keeps the single error log.
     // B5 straddle witness: a SNAPSHOT of the observation gap taken before the provider
     // await, compared with a second one after the identity stamp below. `suspendCount`
     // moving between the two means the OS slept while this tick's evidence was being
@@ -481,13 +481,16 @@ async function doProcessScan() {
     try {
       result = await scanner.scanProcesses({ sharedObservation: true });
     } catch (err) {
-      // B-S02: hard failure — a non-EPERM rethrow from scanProcesses (the EPERM path
-      // marks FAILED inside the scanner and returns normally, so it never lands here).
-      // Compatibility still leaves latestAgents unchanged: setAgents has not run.
+      // B-S02: scanProcesses rejected. EPERM inside the provider normally returns
+      // reliable:false instead. Compatibility leaves latestAgents unchanged here;
+      // setAgents has not run. The provenance predicate excludes post-provider
+      // catalog/track callback failures from the new audit marker.
       if (scanner && typeof scanner.noteProcessScanHardFailure === 'function') {
         scanner.noteProcessScanHardFailure(err);
       }
-      auditProcessPopulationTransition(false, audit);
+      if (scanner?.isPopulationProviderFailure?.(err) === true) {
+        auditProcessPopulationTransition(false, audit);
+      }
       throw err;
     }
     // The population provider has answered (possibly with `reliable:false`). Mark its
