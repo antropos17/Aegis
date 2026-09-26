@@ -206,17 +206,6 @@ function _resetFsHealth() {
 }
 
 /**
- * @param {unknown} err
- * @returns {string}
- */
-function healthErrorMessage(err) {
-  if (err == null) return 'unknown-error';
-  if (typeof err === 'string') return err.slice(0, 200);
-  const msg = err && err.message != null ? String(err.message) : String(err);
-  return msg.slice(0, 200);
-}
-
-/**
  * @returns {boolean}
  */
 function handleCapabilityOk() {
@@ -293,7 +282,7 @@ function noteFileScanSkip(reason) {
   }
   const scoped = reason === SCOPE_UNAVAILABLE_REASON;
   _fsHealth[id] = sensorHealth.markDegraded(rec, now, {
-    error: scoped ? SCOPE_UNAVAILABLE_REASON : healthErrorMessage(reason),
+    error: scoped ? SCOPE_UNAVAILABLE_REASON : 'file-scan-skip',
     detail: scoped ? SCOPE_UNAVAILABLE_REASON : 'file-scan-skip',
   });
 }
@@ -530,9 +519,9 @@ function bindWatcherEvents(watcher, rootId, generation) {
   // root and answers whether anything changed; writing the record is this module's job,
   // and only on a real transition — W is derived over the plan, so re-deriving it for
   // an event that named no planned root would read an empty plan and throw.
-  watcher.on('error', (err) => {
+  watcher.on('error', () => {
     if (generation !== _watchGeneration) return;
-    if (markRootErrored(rootId, healthErrorMessage(err))) applyWatchPlaneHealth(Date.now());
+    if (markRootErrored(rootId, 'watch-root-error')) applyWatchPlaneHealth(Date.now());
   });
   // ready = successful initialization of this FSWatcher instance — that one root. A
   // `ready` on a root already `errored` moves nothing (§1.4 — terminal), so it writes
@@ -777,7 +766,7 @@ async function setupFileWatchers() {
     // §1.3: the group that threw is `registration-failed`; every planned group the
     // loop never reached is `not-attempted`, read off plan position. Both are recorded
     // before the rejection leaves this function.
-    if (attempted) markRootRegistrationFailed(attempted, healthErrorMessage(err));
+    if (attempted) markRootRegistrationFailed(attempted, 'watch-root-registration-failed');
     markUnreachedRootsNotAttempted();
     applyWatchPlaneHealth(Date.now());
     throw err;
@@ -825,9 +814,9 @@ async function scanFileHandles(agent) {
   let files;
   try {
     files = await _getFileHandles(pid);
-  } catch (err) {
+  } catch {
     // B-S03: empty events are compatibility only — ok:false means not a clean empty.
-    return { ok: false, events: [], error: healthErrorMessage(err) };
+    return { ok: false, events: [], error: 'handle-scan-failed' };
   }
   if (!Array.isArray(files) || files.length === 0) {
     return { ok: true, events: [] };
@@ -1000,9 +989,9 @@ async function scanViaRestartManager(agents, fetchHolders = _getSensitiveHolders
     const events = await _scanRmHolders(agents, fetchHolders);
     _fsHealth[FS_SENSOR.RM] = sensorHealth.markHealthy(_fsHealth[FS_SENSOR.RM], now);
     return events;
-  } catch (err) {
+  } catch {
     _fsHealth[FS_SENSOR.RM] = sensorHealth.markFailed(_fsHealth[FS_SENSOR.RM], now, {
-      error: healthErrorMessage(err),
+      error: 'rm-fetch-failed',
       detail: 'rm-fetch-failed',
     });
     // Compatibility empty array — health carries FAILED (B-S05 / B-S03 class).
@@ -1195,9 +1184,9 @@ async function scanAllFileHandles(agents) {
       const i = next++;
       try {
         results[i] = await scanFileHandles(toScan[i]);
-      } catch (err) {
+      } catch {
         // Unexpected throw outside scanFileHandles control — count as agent failure.
-        results[i] = { ok: false, events: [], error: healthErrorMessage(err) };
+        results[i] = { ok: false, events: [], error: 'handle-scan-failed' };
       }
     }
   }
@@ -1205,25 +1194,23 @@ async function scanAllFileHandles(agents) {
   await Promise.all(Array.from({ length: poolSize }, worker));
   const allNew = [];
   let failCount = 0;
-  let lastErr = null;
   for (const r of results) {
     if (!r) continue;
     if (!r.ok) {
       failCount += 1;
-      lastErr = r.error || lastErr;
     }
     allNew.push(...(r.events || []));
   }
   const t = Date.now();
   if (failCount === toScan.length) {
     _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markFailed(_fsHealth[FS_SENSOR.HANDLE], t, {
-      error: lastErr || 'handle-scan-failed',
+      error: 'handle-scan-failed',
       detail: 'all-agents-failed',
     });
   } else if (failCount > 0) {
     // Partial: keep successful events; health is DEGRADED (B2).
     _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.HANDLE], t, {
-      error: lastErr || 'partial-handle-scan',
+      error: 'partial-handle-scan',
       detail: `failed-${failCount}-of-${toScan.length}`,
     });
   } else {
