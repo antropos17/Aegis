@@ -243,6 +243,45 @@ it('clearly labels preview and requires an explicit example request', async () =
   expect(await screen.findByText('Example check loaded. No files were read.')).toBeVisible();
 });
 
+it('shows live owner evidence separately from the retained configuration check', async () => {
+  const observation = {
+    state: 'observed',
+    reason: null,
+    lastObservedAt: '2026-09-26T07:00:00.000Z',
+    snapshot: {
+      schemaVersion: 1,
+      connectionId: '12345678-1234-1234-1234-123456789012',
+      sequence: 1,
+      route: 'mcp-stdio',
+      state: 'observed',
+      selection: 'single-action',
+      client: { name: 'claude-code', version: '2.1.263' },
+      selectedActionCount: 1,
+      actionAttempts: 1,
+      selectionRejected: 0,
+      ownerInvocations: 1,
+      ownerSettled: 1,
+      ownerFailures: 0,
+      cancellationRequests: 0,
+    },
+  };
+  const checkReply = await example();
+  const call = vi.fn(async ({ action }) =>
+    action === 'check-route' ? checkReply : { success: true, observation },
+  );
+  render(ActionCoverage, { host: bridge(call) });
+  await fireEvent.click(screen.getByRole('button', { name: 'Choose observation endpoint' }));
+  const evidence = await screen.findByRole('region', { name: 'Route evidence' });
+  expect(within(evidence).getByText('Not checked')).toBeVisible();
+  expect(within(evidence).getByText('Reached AEGIS owner')).toBeVisible();
+  await start();
+  expect(await within(evidence).findByText('Captured check')).toBeVisible();
+  expect(within(evidence).getByText(/labels match.*not a configuration binding/i)).toBeVisible();
+  expect(within(evidence).queryByText(/blocking verified/i)).toBeNull();
+  expect(call).toHaveBeenCalledWith({ action: 'observe-route' });
+  expect(call).toHaveBeenCalledWith({ action: 'check-route', route: 'mcp-stdio' });
+});
+
 it('puts captured checks first without stealing focus and provides explicit setup navigation', async () => {
   render(ActionCoverage, { host: bridge(vi.fn().mockResolvedValue(await example())) });
   const trigger = screen.getByRole('button', { name: 'Choose files and check' });

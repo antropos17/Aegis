@@ -6,6 +6,14 @@ selection, bounded counters, client-declared label/version and last receipt time
 It does not verify blocking, independently identify an installed agent, bind an
 OS process, or cover other agent tools and descendants.
 
+The Action control [Route evidence summary](ACTION-COVERAGE-UI.md) places this
+observation next to a separate captured configuration check. It distinguishes
+checked inputs, a freshly observed initialized owner, and a selected tool call
+reported as reaching that owner. Matching route and selection labels do not prove
+the checked files belong to the observed connection. Owner invocation counts do
+not prove execution, deletion or blocking. On coverage loss or stop, the last
+snapshot remains labeled as past connection evidence rather than live status.
+
 ## Connect
 
 Append `--observe <new-observation.json>` to one of these owner commands:

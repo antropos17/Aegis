@@ -7,7 +7,15 @@
     parseRouteObservation,
     type RouteObservation,
   } from '../runtime/action-observation';
-  let { host, preview = false }: { host: Host | null; preview?: boolean } = $props();
+  let {
+    host,
+    preview = false,
+    onObservation,
+  }: {
+    host: Host | null;
+    preview?: boolean;
+    onObservation?: (_value: RouteObservation | null) => void;
+  } = $props();
   let observation = $state.raw<RouteObservation | null>(null);
   let busy = $state(false);
   let error = $state('');
@@ -29,6 +37,7 @@
       lastObservedAt: observation?.lastObservedAt ?? null,
       snapshot: observation?.snapshot ?? null,
     };
+    onObservation?.(observation);
   }
   async function request(action: string, epoch: number) {
     let expired = false;
@@ -65,6 +74,7 @@
         return;
       }
       observation = next;
+      onObservation?.(next);
     } catch {
       if (alive && epoch === generation) unavailable();
     } finally {
@@ -92,6 +102,7 @@
     generation++;
     clearTimeout(timer);
     clearTimeout(expiry);
+    onObservation?.(null);
     if (observation)
       void invoke(host, 'localSecurityReview', { action: 'stop-observing-route' }).catch(() => {});
   });

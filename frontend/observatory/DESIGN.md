@@ -1,5 +1,20 @@
 # AEGIS Observatory
 
+## Route evidence summary — 26 September 2026
+
+When a check or route observation is available, Action control shows three
+separate evidence rows: selected inputs checked, a live MCP owner observed, and
+a selected tool call reaching that owner. Each row uses the captured check or
+the current observation generation that actually supplies it. Matching route and
+selection labels do not bind checked files to a running owner. A lost or stopped
+connection retains its last snapshot as past evidence, without a live label.
+Selected-file deletion has no matching configuration preflight in this workspace;
+its operation report must be inspected separately. A reached owner can answer ask
+or deny, so the summary makes no execution, deletion or blocking claim. Client
+identity remains self-reported, and other tools and descendants are outside this
+evidence. The neutral panel, responsive rows and existing translation system are
+used without changing the approved reference cascade.
+
 ## Selected-file deletion setup — 26 September 2026
 
 Start here lists a dedicated online guide for the terminal-owned exact-file MCP
