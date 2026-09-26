@@ -55,7 +55,7 @@ styles.ts loads twelve approved template stylesheets in their original order, fo
 - constants.js — ignore patterns, editor lists, AGENT_CONFIG_PATHS
 - rules/*.yaml (repo root, NOT src/shared) — 73 active detection rules across 8 categories, the real source of truth
 - src/main/rule-loader.js exports: getAllRules(), getRulesByCategory(category), getRuleById(id), reloadRules(), and loadRules aliased as _loadRules (test seam — not a public API)
-- agent-database.json — 110 agents / 262 name signatures
+- agent-database.json — 112 agents / 265 name signatures
 
 ## Key Patterns
 - Main process: CommonJS (require/module.exports) with init() dependency injection

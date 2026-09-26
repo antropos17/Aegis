@@ -1,6 +1,6 @@
 {
   "version": "2.1.0",
-  "lastUpdated": "2026-06-03",
+  "lastUpdated": "2026-09-26",
   "agents": [
     {
       "id": "claude-code",
@@ -719,6 +719,40 @@
       "knownDomains": ["opencode.ai"],
       "knownPorts": [443],
       "configPaths": ["~/.opencode/", ".opencode/"],
+      "parentEditors": [],
+      "riskProfile": "medium"
+    },
+    {
+      "id": "kimi-code",
+      "names": ["kimi", "kimi.exe"],
+      "displayName": "Kimi Code CLI",
+      "vendor": "Moonshot AI",
+      "category": "cli-tool",
+      "icon": "\u2328\ufe0f",
+      "color": "#7C3AED",
+      "defaultTrust": 50,
+      "website": "https://code.kimi.com",
+      "description": "Terminal coding agent from Moonshot AI",
+      "knownDomains": [],
+      "knownPorts": [],
+      "configPaths": [],
+      "parentEditors": [],
+      "riskProfile": "medium"
+    },
+    {
+      "id": "amp-cli",
+      "names": ["amp"],
+      "displayName": "Amp CLI",
+      "vendor": "Amp",
+      "category": "cli-tool",
+      "icon": "\u2328\ufe0f",
+      "color": "#64748B",
+      "defaultTrust": 50,
+      "website": "https://ampcode.com",
+      "description": "Terminal coding agent from Amp",
+      "knownDomains": [],
+      "knownPorts": [],
+      "configPaths": [],
       "parentEditors": [],
       "riskProfile": "medium"
     },

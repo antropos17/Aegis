@@ -62,7 +62,7 @@ AEGIS is an **Independent AI Oversight Layer** for local agent processes, file a
 ### What's Covered Now
 
 #### 1. Process Intelligence — `process-scanner.js`
-- **What it sees:** Processes matching 110 agents (262 process-name signatures), plus supported IDE, WSL and local-runtime probes.
+- **What it sees:** Processes matching 112 agents (265 process-name signatures), plus supported IDE, WSL and local-runtime probes.
 - **How:** The Windows path uses a shared process snapshot from the native sidecar, with a CIM fallback. If the process population cannot be established from the snapshot, the scanner can fall back to `tasklist`. POSIX implementations use `ps`.
 - **Identity:** OS-observed birth times distinguish Windows process lifetimes when available. Missing birth times and synthetic observations have weaker identity; snapshot outages retain existing sessions.
 - **Coverage:** Undetected signatures and processes that start and exit between polls are blind spots. See [known limits](README.md#known-limits).
