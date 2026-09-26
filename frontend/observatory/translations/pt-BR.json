@@ -496,6 +496,7 @@
   "Radar layer": "Camada do radar",
   "Radar motion and visual feedback. Reduced motion keeps the data available.": "Movimento do radar e retorno visual. O movimento reduzido mantém os dados disponíveis.",
   "Range": "Faixa",
+  "Rate unavailable · retained events: {count}": "Taxa indisponível · eventos retidos: {count}",
   "Raw sensor state and coverage. Display retention is tracked separately.": "Estado bruto dos sensores e cobertura. A retenção na exibição é acompanhada separadamente.",
   "Readings paused": "Leituras pausadas",
   "Ready for a new assessment.": "Pronto para uma nova avaliação.",

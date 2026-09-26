@@ -42,6 +42,31 @@ it('Monitoring counts only current measured token sources and preserves partial 
   expect(summary).toHaveTextContent('0 / 2 current processes measured');
 });
 
+it('Monitoring stops presenting a frozen event rate as live during an observation gap', async () => {
+  const current = { ...state(), events: [{ file: 'X:/retained', timestamp: Date.now() - 1000 }] };
+  const { container, rerender } = render(Monitoring, {
+    telemetry: current,
+    selected: null,
+    inspect: vi.fn(),
+  });
+  const rate = [...container.querySelectorAll('.summary-stat')].find(
+    (el) => el.querySelector('span')?.textContent === 'Events / min',
+  );
+  expect(rate.querySelector('strong')).toHaveTextContent('1');
+
+  await rerender({ telemetry: { ...current, stale: true } });
+  expect(rate.querySelector('strong')).toHaveTextContent('—');
+  expect(rate.querySelector('p')).toHaveTextContent('Rate unavailable · retained events: 1');
+
+  await rerender({ telemetry: { ...current, stale: true, events: [] } });
+  expect(rate.querySelector('strong')).toHaveTextContent('—');
+  expect(rate.querySelector('p')).toHaveTextContent('Rate unavailable · retained events: 0');
+
+  await rerender({ telemetry: { ...current, events: [] } });
+  expect(rate.querySelector('strong')).toHaveTextContent('0');
+  expect(rate.querySelector('p')).toHaveTextContent('0 retained events');
+});
+
 it('the sensitive summary and its opened records use the same retained scope', async () => {
   const rows = [
     { file: 'X:/a', timestamp: 1000, sensitive: true, category: 'ai' },
