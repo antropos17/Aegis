@@ -16,7 +16,11 @@ function sharedHost() {
     anthropicApiKey: '',
   };
   return {
-    getSettings: vi.fn(async () => structuredClone(saved)),
+    getSettings: vi.fn(async () => {
+      const { anthropicApiKey, ...settings } = structuredClone(saved);
+      return { ...settings, anthropicApiKeyConfigured: Boolean(anthropicApiKey) };
+    }),
+    getMainSettings: () => structuredClone(saved),
     getUpdateStatus: async () => ({}),
     saveSettings: vi.fn(async (value, options) => {
       saved = options?.patch ? { ...saved, ...value } : value;
@@ -77,8 +81,9 @@ it('saves settings and provider changes from mounted old drafts without crossing
   ]);
   expect(await host.getSettings()).toMatchObject({
     scanIntervalSec: 60,
-    anthropicApiKey: 'fixture-secret',
+    anthropicApiKeyConfigured: true,
   });
+  expect(host.getMainSettings().anthropicApiKey).toBe('fixture-secret');
   expect(onSettingsSaved.mock.calls[0][0]).toMatchObject({ scanIntervalSec: 60 });
   expect(onSettingsSaved.mock.calls[0][0]).not.toHaveProperty('anthropicApiKey');
 });
@@ -161,7 +166,7 @@ it('retains existing provider configuration when a failed replacement finishes b
   });
   await fireEvent.click(screen.getByRole('button', { name: 'Save key' }));
   await screen.findByText('Keychain locked');
-  resolveSeed({ anthropicApiKey: 'fixture-existing' });
+  resolveSeed({ anthropicApiKeyConfigured: true });
   await screen.findByText('API key saved · verified on first analysis');
   expect(screen.getByLabelText('New API key')).toHaveValue('fixture-replacement');
 });

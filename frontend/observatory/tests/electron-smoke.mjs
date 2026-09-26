@@ -192,11 +192,20 @@ try {
   // Only the disposable profile receives this sentinel. No provider request is made.
   const sentinel = 'observatory-test-key-never-export';
   const saved = await window.evaluate(
-    async (key) =>
-      window.aegis.saveSettings({ ...(await window.aegis.getSettings()), anthropicApiKey: key }),
+    async (key) => window.aegis.saveSettings({ anthropicApiKey: key }, { patch: true }),
     sentinel,
   );
   assert.equal(saved.success, true);
+  const assertSafeSettings = (settings, configured) => {
+    assert.equal(settings.anthropicApiKeyConfigured, configured);
+    assert(!Object.hasOwn(settings, 'anthropicApiKey'), 'settings IPC returned the plaintext key');
+    assert(
+      !Object.hasOwn(settings, '_encryptedApiKey'),
+      'settings IPC returned the encrypted blob',
+    );
+    assert(!JSON.stringify(settings).includes(sentinel), 'settings IPC returned the key canary');
+  };
+  assertSafeSettings(await window.evaluate(async () => window.aegis.getSettings()), true);
   await app.evaluate(({ shell, app }, out) => {
     shell.openPath = async () => '';
     app.setPath('temp', out);
@@ -230,10 +239,7 @@ try {
   );
   const imported = await window.evaluate(async () => window.aegis.importConfig());
   assert.equal(imported.success, true);
-  assert.equal(
-    await window.evaluate(async () => (await window.aegis.getSettings()).anthropicApiKey),
-    sentinel,
-  );
+  assertSafeSettings(await window.evaluate(async () => window.aegis.getSettings()), true);
   await window.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
   await window.getByRole('heading', { name: 'Monitoring', level: 1, exact: true }).waitFor();
   await window.waitForFunction(() => !document.documentElement.dataset.transitionSurface);
@@ -286,9 +292,13 @@ try {
     20,
   );
   assert.equal(await restarted.evaluate(() => document.documentElement.dataset.theme), savedTheme);
-  console.log(
-    'Settings survived Electron restart. Six exports and key-free configuration round trip passed.',
+  assertSafeSettings(await restarted.evaluate(async () => window.aegis.getSettings()), true);
+  const cleared = await restarted.evaluate(async () =>
+    window.aegis.saveSettings({ anthropicApiKey: '' }, { patch: true, clearAnthropicApiKey: true }),
   );
+  assert.equal(cleared.success, true);
+  assertSafeSettings(await restarted.evaluate(async () => window.aegis.getSettings()), false);
+  console.log('Settings survived Electron restart. Key-free settings IPC and six exports passed.');
 } finally {
   await app.close();
 }

@@ -102,7 +102,13 @@ function register() {
       return { success: false, error: error.message };
     }
   });
-  ipcMain.handle('get-settings', () => ({ ...config.getSettings() }));
+  ipcMain.handle('get-settings', () => {
+    const rendererSettings = { ...config.getSettings() };
+    const anthropicApiKeyConfigured = Boolean(rendererSettings.anthropicApiKey);
+    delete rendererSettings.anthropicApiKey;
+    delete rendererSettings._encryptedApiKey;
+    return { ...rendererSettings, anthropicApiKeyConfigured };
+  });
 
   ipcMain.handle('save-settings', (_e, newSettings, options) => {
     const check = validateSettings(newSettings);
