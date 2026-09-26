@@ -78,7 +78,7 @@ environment, then route that action through AEGIS:
 | [Selected-action MCP catalog](docs/ACTION-MCP-CATALOG.md) | Up to eight operator-selected actions with empty tool arguments; optional [terminal review broker](docs/ACTION-MCP-REVIEW.md) requires fresh confirmation per eligible call |
 | [Route and catalog checks](docs/ACTION-ROUTE-CHECK.md) | Inspect selected configuration and current-process prerequisites without executing; a completed check grants no permission |
 | [MCP connection status](docs/ACTION-MCP-STATUS.md) | Read-only counters for the current connection's admitted calls, pending work and cancellation requests |
-| [Action control workspace](docs/ACTION-COVERAGE-UI.md) | Native file selection and nonexecuting route/catalog checks in Observatory; shows captured policy outcomes and explicit unverified coverage |
+| [Action control workspace](docs/ACTION-COVERAGE-UI.md) | Native file selection and nonexecuting route/catalog checks in Observatory; shows captured policy outcomes, explicit unverified coverage and a configuration-check link when setup is missing |
 | [Live route observation](docs/ACTION-LIVE-OBSERVATION.md) | Opt-in desktop observation of one running MCP owner; self-reported client metadata, bounded counters and coverage loss; blocking and provider identity remain unverified |
 
 These routes do not cover other agent tools, arbitrary MCP traffic or activity
@@ -179,7 +179,7 @@ See the [architecture](ARCHITECTURE.md), [correctness audit](docs/current-state/
 - **Incomplete coverage:** Unknown signatures and processes that start and exit between polling ticks can be missed. Default monitoring does not parse MCP traffic or individual tool calls; the explicitly configured MCP routes handle only their published AEGIS tools.
 - **Platform gaps:** macOS lacks a process-generation witness. Linux generation identity depends on accessible `/proc` data; its fallback has no start-time witness. Missing identity limits process-control guarantees. Measured Claude Code usage requires a process start-time witness and a readable matching session registry/transcript. Windows is the verified primary path; native Linux token collection remains unverified.
 - **Bounded UI history:** Retained event windows can differ from aggregate totals; Statistics shows renderer eviction counters; Audit provides persisted history.
-- **Sensor and audit gaps:** Health status does not prove complete capture. Audit loss markers require a successful flush; process-scan overruns lack a dedicated counter.
+- **Sensor and audit gaps:** Health status does not prove complete capture. A fully lost file-watch plan gets up to three retry attempts; partially degraded roots need separate repair. Audit loss markers require a successful flush; process-scan overruns lack a dedicated counter.
 - **Sensitive metadata:** Logs and exports contain paths, agent names and endpoints. Configuration and diagnostic exports omit the configured API key. Local key encryption depends on safeStorage availability. See [SECURITY.md](SECURITY.md).
 - **Unmeasured claims:** No general detection rate, false-positive rate, startup-time guarantee or whole-app overhead figure has been established.
 

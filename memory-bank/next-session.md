@@ -1,6 +1,57 @@
 # AEGIS — starting the next chat
 
-## Handoff snapshot — 2026-09-26, code baseline `d470dee`
+## Current handoff — 2026-09-26, three-hour extension
+
+Refresh `origin/master`, the PR list and the release tag before continuing.
+The original `X:/Future/ESCAPE/AEGIS` checkout remains old and contains
+unfinished changes; preserve it and use a clean managed worktree based on
+`origin/master`. The latest published Windows installer checked during this
+session is [0.16.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.16.0-alpha),
+with an `.exe`, `manifest.json` and `manifest.json.sig`. Source changes after
+that tag, including the Windows Job lifetime route, are not in that installer.
+The [README](../README.md) now separates release contents from current source.
+
+The ten-hour pass and its three-hour extension continued the partial
+[protection roadmap](../docs/roadmap/ai-agent-protection.md). Selected direct
+actions and MCP routes are explicit opt-in control points. The Windows Job
+route bounds participating descendant lifetimes; it does not restrict their
+file or network access. Installed-provider interception and outside-route
+egress remain unverified. The UI now links missing Action control setup to a
+configuration check; unavailable sensors, stale rates and unknown coverage
+remain visible rather than being called safe.
+
+This extension added fixed or allowlisted diagnostic text across process
+snapshots, baselines, audit index/logger, sequence ingest/rules, secure-storage
+decryption, settings cleanup and Anthropic analysis. Analysis error responses
+follow the documented API types and its HTTP body read is bounded to 1 MiB.
+First-seen agent persistence retries after a failed write. Exact Kimi Code CLI
+and Amp CLI process names bring the checked catalog to 112 agents and 265
+process-name signatures. Process enumeration now has bounded subprocess
+timeouts, though a hard wall-clock bound is not proven on every platform.
+File-watch plan DEGRADED/FAILED transitions write fixed-code audit start and
+recovery pairs; they cannot reconstruct missing events.
+
+The remaining protection priorities are installed-provider control-point
+tests, negative file/network/descendant scenarios, protected policy and audit
+storage, and evidence of completeness. A full-loss watcher retry is separate
+from partial-root recovery; do not tear down healthy roots to repair a
+DEGRADED plan. The [roadmap](../docs/roadmap/ai-agent-protection.md) compares
+existing tools and licenses, including Anthropic Sandbox Runtime,
+`mcp-firewall`, PermitRail and agent-observability. Its Reddit items are
+anecdotal UX input. Any integration needs a compatible contract, loss handling
+and installed tests; a self-report or proxy view covers only its route.
+
+Disk hygiene remains operationally important. Set test TEMP/TMP to
+`X:/tmp/aegis-test-temp`, check C:/X: free space before heavy work, and check
+the `AEGIS-RdClientTrace-Retention` scheduled task and trace growth. Its
+15-minute run targets roughly 512 MiB of eligible closed ETLs after a
+30-minute grace period; verify each actual run rather than assuming a cap.
+The earlier 22.64 MiB disposable UI QA folder under
+`X:/tmp/aegis-protection-scope-qa-20260926` was preserved after automatic
+review rejected an exact-path deletion. Do not clear unrelated caches or user
+data. This session's three-hour heartbeat ends at 18:31:32 UTC on 2026-09-26.
+
+## Earlier handoff — 2026-09-26, code baseline `d470dee` (superseded)
 
 The [AI-agent protection roadmap](../docs/roadmap/ai-agent-protection.md) remains
 partial. The latest code merge verified for this handoff is [#593](https://github.com/antropos17/Aegis/pull/593).
