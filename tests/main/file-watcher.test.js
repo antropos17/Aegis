@@ -548,14 +548,15 @@ describe('file-watcher scanFileHandles', () => {
     });
 
     it('returns empty on getFileHandles error but marks fs-handle FAILED (B-S03)', async () => {
-      mockGetFileHandles.mockRejectedValue(new Error('permission denied'));
+      mockGetFileHandles.mockRejectedValue(new Error('permission denied PRIVATE_HANDLE_CANARY'));
       const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
       const events = await fileWatcher.scanAllFileHandles(agents);
       // Compatibility empty array — health must not look like successful empty.
       expect(events).toEqual([]);
       const h = fileWatcher.getFileSensorHealth()['fs-handle'];
       expect(h.state).toBe('FAILED');
-      expect(h.lastError).toMatch(/permission denied/);
+      expect(h.lastError).toBe('handle-scan-failed');
+      expect(JSON.stringify(h)).not.toContain('PRIVATE_HANDLE_CANARY');
       expect(h.consecutiveFailures).toBeGreaterThanOrEqual(1);
     });
 
