@@ -429,33 +429,42 @@ ${findingsHtml}${recsHtml}
     );
   });
   ipcMain.handle('open-audit-log-dir', async (event) => {
-    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
-      return { success: false, error: 'Renderer request denied' };
+    const window = deps.getWindow?.();
+    if (!stillOwned(event, window)) return denied();
     try {
       const error = await shell.openPath(audit.getLogDir());
-      return error ? { success: false, error } : { success: true };
-    } catch (error) {
-      return { success: false, error: error.message };
+      if (!stillOwned(event, window)) return denied();
+      return error
+        ? { success: false, error: 'Audit log folder could not be opened' }
+        : { success: true };
+    } catch (_) {
+      return { success: false, error: 'Audit log folder could not be opened' };
     }
   });
 
   ipcMain.handle('export-full-audit', async (event) => {
-    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
-      return { success: false, error: 'Renderer request denied' };
+    const window = deps.getWindow?.();
+    if (!stillOwned(event, window)) return denied();
     try {
       const defaultName = `aegis-full-audit-${new Date().toISOString().slice(0, 10)}.json`;
-      const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
+      const { filePath } = await dialog.showSaveDialog(window, {
         title: 'Export Full Audit Log',
         defaultPath: path.join(app.getPath('downloads'), defaultName),
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
-      if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
-        return { success: false, error: 'Renderer request denied' };
+      if (!stillOwned(event, window)) return denied();
       if (!filePath) return { success: false };
-      return await writeAuditExport({ filePath, files: audit.prepareExport() });
-    } catch (error) {
-      logger.error(`IPC export-full-audit failed: ${error.message}`);
-      return { success: false, error: error.message };
+      const result = await writeAuditExport({
+        filePath,
+        files: audit.prepareExport(),
+        canComplete: () => stillOwned(event, window),
+      });
+      if (!stillOwned(event, window)) return denied();
+      return result;
+    } catch (_) {
+      if (!stillOwned(event, window)) return denied();
+      logger.error('IPC export-full-audit failed');
+      return { success: false, error: 'Audit export incomplete' };
     }
   });
 
@@ -484,22 +493,21 @@ ${findingsHtml}${recsHtml}
   });
 
   ipcMain.handle('import-config', async (event) => {
-    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
-      return { success: false, error: 'Renderer request denied' };
-    const { filePaths } = await dialog.showOpenDialog(deps.getWindow(), {
-      title: 'Import Config',
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-      properties: ['openFile'],
-    });
-    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
-      return { success: false, error: 'Renderer request denied' };
-    if (!filePaths || filePaths.length === 0) return { success: false };
+    const window = deps.getWindow?.();
+    if (!stillOwned(event, window)) return denied();
     try {
+      const { filePaths } = await dialog.showOpenDialog(window, {
+        title: 'Import Config',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+        properties: ['openFile'],
+      });
+      if (!stillOwned(event, window)) return denied();
+      if (!filePaths || filePaths.length === 0) return { success: false };
       const raw = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'));
       const check = validateSettings(raw);
       if (!check.valid) {
         logger.warn('ipc-handlers', 'import-config rejected: invalid settings');
-        return { success: false, error: check.error };
+        return { success: false, error: 'Invalid imported settings' };
       }
       config.saveSettings({
         ...raw,
@@ -508,8 +516,9 @@ ${findingsHtml}${recsHtml}
       config.applySettings();
       deps.updates?.preferencesChanged();
       return { success: true };
-    } catch (e) {
-      return { success: false, error: e.message };
+    } catch (_) {
+      if (!stillOwned(event, window)) return denied();
+      return { success: false, error: 'Config import failed' };
     }
   });
 
@@ -539,17 +548,16 @@ ${findingsHtml}${recsHtml}
 
   // ── Zip export ──
   ipcMain.handle('export-zip', async (event) => {
-    if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
-      return { success: false, error: 'Renderer request denied' };
+    const window = deps.getWindow?.();
+    if (!stillOwned(event, window)) return denied();
     try {
       const defaultName = `aegis-export-${new Date().toISOString().slice(0, 10)}.zip`;
-      const { filePath } = await dialog.showSaveDialog(deps.getWindow(), {
+      const { filePath } = await dialog.showSaveDialog(window, {
         title: 'Export All Data (ZIP)',
         defaultPath: path.join(app.getPath('downloads'), defaultName),
         filters: [{ name: 'ZIP', extensions: ['zip'] }],
       });
-      if (!ownsTopLevelRenderer(event, deps.getWindow?.(), deps.rendererUrl))
-        return { success: false, error: 'Renderer request denied' };
+      if (!stillOwned(event, window)) return denied();
       if (!filePath) return { success: false };
       const settingsCopy = { ...config.getSettings() };
       delete settingsCopy.anthropicApiKey;
@@ -562,15 +570,19 @@ ${findingsHtml}${recsHtml}
         },
         { name: 'config.json', data: settingsCopy },
       ];
-      return await writeAuditExport({
+      const result = await writeAuditExport({
         filePath,
         files: audit.prepareExport(),
         zip: true,
         extraEntries,
+        canComplete: () => stillOwned(event, window),
       });
-    } catch (error) {
-      logger.error(`IPC export-zip failed: ${error.message}`);
-      return { success: false, error: error.message };
+      if (!stillOwned(event, window)) return denied();
+      return result;
+    } catch (_) {
+      if (!stillOwned(event, window)) return denied();
+      logger.error('IPC export-zip failed');
+      return { success: false, error: 'Audit export incomplete' };
     }
   });
 

@@ -10,7 +10,7 @@ const CHUNK_BYTES = 64 * 1024;
 const MAX_LINE_BYTES = 1024 * 1024;
 let busy = false;
 
-async function* jsonChunks(files, stats) {
+async function* jsonChunks(files, stats, checkCanComplete) {
   yield Buffer.from('[');
   let output = '';
   const append = (line) => {
@@ -19,6 +19,7 @@ async function* jsonChunks(files, stats) {
     output += (stats.count++ ? ',\n' : '\n') + JSON.stringify(JSON.parse(line));
   };
   for (const file of files) {
+    checkCanComplete();
     const handle = await fs.promises.open(file.path, 'r');
     try {
       const stat = await handle.stat();
@@ -34,6 +35,7 @@ async function* jsonChunks(files, stats) {
       let pending = '';
       let bytes = 0;
       for await (const chunk of input) {
+        checkCanComplete();
         bytes += Buffer.byteLength(chunk);
         pending += chunk;
         const lines = pending.split('\n');
@@ -66,11 +68,18 @@ async function* jsonChunks(files, stats) {
  * Export the captured byte ranges, never an unbounded live journal tail.
  * The destination is replaced only after every read, parse, write and close succeeds.
  * @param {{filePath: string, files: Array<{path: string, size: number, ino: number, dev: number}>,
- *   zip?: boolean, extraEntries?: Array<{name: string, data: object}>}} options
+ *   zip?: boolean, extraEntries?: Array<{name: string, data: object}>,
+ *   canComplete?: () => boolean}} options
  * @returns {Promise<{success: true, path: string, count: number}>}
  * @since 0.15.0
  */
-async function writeAuditExport({ filePath, files, zip = false, extraEntries = [] }) {
+async function writeAuditExport({
+  filePath,
+  files,
+  zip = false,
+  extraEntries = [],
+  canComplete = () => true,
+}) {
   if (busy) throw new Error('An audit export is already running.');
   const resolved = path.resolve(filePath);
   const key = (p) =>
@@ -82,9 +91,14 @@ async function writeAuditExport({ filePath, files, zip = false, extraEntries = [
   let handle;
   try {
     handle = await fs.promises.open(temporary, 'wx', 0o600);
+    const checkCanComplete = () => {
+      if (!canComplete()) throw new Error('export-owner-lost');
+    };
+    checkCanComplete();
     const stats = { count: 0 };
-    const chunks = jsonChunks(files, stats);
+    const chunks = jsonChunks(files, stats, checkCanComplete);
     const write = async (chunk) => {
+      checkCanComplete();
       await handle.writeFile(chunk);
     };
     if (zip) {
@@ -101,6 +115,7 @@ async function writeAuditExport({ filePath, files, zip = false, extraEntries = [
     await handle.sync();
     await handle.close();
     handle = null;
+    checkCanComplete();
     await fs.promises.rename(temporary, resolved);
     return { success: true, path: resolved, count: stats.count };
   } catch {

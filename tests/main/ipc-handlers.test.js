@@ -814,6 +814,74 @@ describe('ipc-handlers', () => {
     },
   );
 
+  it.each(['export-full-audit', 'export-zip'])(
+    '%s rechecks renderer ownership during the stream and before returning success',
+    async (channel) => {
+      const { event, contents, frame } = registerOwnedRenderer();
+      mockElectron.dialog.showSaveDialog.mockResolvedValueOnce({
+        filePath: '/fixture/export.json',
+      });
+      mockStreamExport.writeAuditExport.mockImplementationOnce(async ({ canComplete }) => {
+        expect(canComplete()).toBe(true);
+        contents.mainFrame = { ...frame };
+        expect(canComplete()).toBe(false);
+        return { success: true };
+      });
+      expect(await getHandler(channel)(event)).toEqual({
+        success: false,
+        error: 'Renderer request denied',
+      });
+    },
+  );
+
+  it.each(['export-full-audit', 'export-zip'])(
+    '%s keeps native dialog failures out of logs and IPC results',
+    async (channel) => {
+      const { event } = registerOwnedRenderer();
+      mockElectron.dialog.showSaveDialog.mockRejectedValueOnce(
+        new Error('PRIVATE_AUDIT_PATH_CANARY'),
+      );
+      const result = await getHandler(channel)(event);
+      expect(result.success).toBe(false);
+      expect(JSON.stringify(result)).not.toContain('PRIVATE_AUDIT_PATH_CANARY');
+      expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(
+        'PRIVATE_AUDIT_PATH_CANARY',
+      );
+    },
+  );
+
+  it('import-config hides a native dialog failure from the renderer', async () => {
+    const { event } = registerOwnedRenderer();
+    mockElectron.dialog.showOpenDialog.mockRejectedValueOnce(
+      new Error('PRIVATE_CONFIG_PATH_CANARY'),
+    );
+    const result = await getHandler('import-config')(event);
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_CONFIG_PATH_CANARY');
+  });
+
+  it('import-config hides malformed selected file content from the renderer', async () => {
+    const { event } = registerOwnedRenderer();
+    mockElectron.dialog.showOpenDialog.mockResolvedValueOnce({
+      filePaths: ['private-settings.json'],
+    });
+    const read = vi.spyOn(fs, 'readFileSync').mockReturnValueOnce('PRIVATE_CONFIG_CONTENT_CANARY');
+    try {
+      const result = await getHandler('import-config')(event);
+      expect(result).toEqual({ success: false, error: 'Config import failed' });
+    } finally {
+      read.mockRestore();
+    }
+  });
+
+  it('open-audit-log-dir does not copy an OS path error into the renderer', async () => {
+    const { event } = registerOwnedRenderer();
+    mockElectron.shell.openPath.mockResolvedValueOnce('PRIVATE_AUDIT_DIR_CANARY');
+    const result = await getHandler('open-audit-log-dir')(event);
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_AUDIT_DIR_CANARY');
+  });
+
   it('opens each exact AEGIS setup guide directly for the owned top-level renderer', async () => {
     const { event } = registerOwnedRenderer();
     for (const file of [
@@ -945,7 +1013,10 @@ describe('ipc-handlers', () => {
         throw new Error(message);
       });
       try {
-        expect(await getHandler(channel)(event)).toEqual({ success: false, error: message });
+        expect(await getHandler(channel)(event)).toEqual({
+          success: false,
+          error: 'Audit export incomplete',
+        });
         expect(mockElectron.dialog.showSaveDialog).toHaveBeenCalledOnce();
         expect(write).not.toHaveBeenCalled();
       } finally {
@@ -984,12 +1055,12 @@ describe('ipc-handlers', () => {
     mockElectron.shell.openPath.mockResolvedValueOnce('Folder unavailable');
     expect(await handlers['open-audit-log-dir'](event)).toEqual({
       success: false,
-      error: 'Folder unavailable',
+      error: 'Audit log folder could not be opened',
     });
     mockElectron.shell.openPath.mockRejectedValueOnce(new Error('Shell offline'));
     expect(await handlers['open-audit-log-dir'](event)).toEqual({
       success: false,
-      error: 'Shell offline',
+      error: 'Audit log folder could not be opened',
     });
     mockElectron.shell.openPath.mockResolvedValueOnce('');
     expect(await handlers['open-audit-log-dir'](event)).toEqual({ success: true });
@@ -1249,8 +1320,9 @@ describe('ipc-handlers', () => {
         const result = await getHandler('import-config')(event);
         expect(result).toEqual({
           success: false,
-          error: `Unsafe or invalid regex pattern: ${canary}`,
+          error: 'Invalid imported settings',
         });
+        expect(JSON.stringify(result)).not.toContain(canary);
         expect(mockLogger.warn).toHaveBeenCalledExactlyOnceWith(
           'ipc-handlers',
           'import-config rejected: invalid settings',
