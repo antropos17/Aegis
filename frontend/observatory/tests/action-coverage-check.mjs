@@ -57,7 +57,27 @@ export async function checkActionCoverage(browser, url, out) {
         .getByText('Configuration check only; blocking has not been verified.', { exact: true })
         .isVisible(),
     );
+    assert(
+      await root.getByText(/The executable\/catalog check below does not assess it/).isVisible(),
+    );
+    assert(
+      await root.getByRole('button', { name: 'Open selected-file deletion guide' }).isDisabled(),
+      'simulated preview must not open an external setup guide',
+    );
     await page.screenshot({ path: resolve(out, 'action-coverage-empty.png') });
+    await page.setViewportSize({ width: 900, height: 600 });
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty('--ui-scale', '1.5');
+    });
+    await root
+      .getByRole('button', { name: 'Open selected-file deletion guide' })
+      .scrollIntoViewIfNeeded();
+    await geometry();
+    await page.screenshot({ path: resolve(out, 'action-coverage-delete-guide-900-1.5.png') });
+    await page.setViewportSize({ width: 1200, height: 800 });
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty('--ui-scale', '1');
+    });
     const route = page.getByLabel('Execution route', { exact: true });
     await route.selectOption('direct');
     await route.focus();

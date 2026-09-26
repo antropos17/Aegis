@@ -1,5 +1,15 @@
 # AEGIS Observatory
 
+## Selected-file deletion setup — 26 September 2026
+
+Start here lists a dedicated online guide for the terminal-owned exact-file MCP
+deletion route. Action control points to the same fixed documentation URL next to
+its executable/catalog configuration check and states that the check does not
+assess deletion or establish automatic blocking or general coverage. The desktop
+host reports whether opening the guide succeeded; simulated preview disables the
+external action. The signpost uses a native button, scoped neutral styles and the
+existing guide feedback language.
+
 ## Catalog and action-check clarity — 26 September 2026
 
 Catalog risk profile is labeled as saved metadata in the table, editor and detail.
