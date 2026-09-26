@@ -6,8 +6,11 @@
  *   from any disk I/O.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { createRequire } from 'node:module';
 import feed from '../../src/main/token-feed.js';
 
+const require_ = createRequire(import.meta.url);
+const logger = require_('../../src/main/logger.js');
 const { readUsageByPid, _setAdaptersForTest, _resetForTest } = feed;
 
 const delta = (pid, inputTokens) => ({
@@ -61,6 +64,26 @@ describe('token-feed core — fan-out & concatenation', () => {
 });
 
 describe('token-feed core — adapter failure isolation', () => {
+  it('keeps adapter exceptions and unknown ids out of durable diagnostics', async () => {
+    const debug = vi.spyOn(logger, 'debug').mockImplementation(() => {});
+    try {
+      _setAdaptersForTest([
+        fakeAdapter('PRIVATE_ADAPTER_ID_CANARY', async () => {
+          throw new Error('PRIVATE_TRANSCRIPT_PATH_CANARY');
+        }),
+        fakeAdapter('ok', async () => [delta(3, 30)]),
+      ]);
+      expect(await readUsageByPid([{ pid: 3, startTime: 0 }])).toEqual([delta(3, 30)]);
+      expect(debug).toHaveBeenCalledWith('token-feed', 'adapter failed', {
+        adapter: 'unknown-adapter',
+        error: 'token-adapter-failed',
+      });
+      expect(JSON.stringify(debug.mock.calls)).not.toContain('PRIVATE_');
+    } finally {
+      debug.mockRestore();
+    }
+  });
+
   it('isolates a throwing adapter so others still contribute', async () => {
     _setAdaptersForTest([
       fakeAdapter('boom', async () => {
