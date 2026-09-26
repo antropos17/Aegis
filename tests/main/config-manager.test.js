@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { createRequire } from 'module';
 import configManager from '../../src/main/config-manager.js';
+
+const require_ = createRequire(import.meta.url);
+const logger = require_('../../src/main/logger.js');
 
 describe('config-manager', () => {
   let tmpDir;
@@ -16,6 +20,7 @@ describe('config-manager', () => {
 
   afterEach(() => {
     // Reset the cached path so it re-resolves next time
+    vi.restoreAllMocks();
     configManager._setSettingsPathForTest(null);
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -173,6 +178,35 @@ describe('config-manager', () => {
     configManager.trackSeenAgent('Claude');
     settings = configManager.getSettings();
     expect(settings.seenAgents.filter((a) => a === 'Claude')).toHaveLength(1);
+  });
+
+  it('retries a seen agent after a failed write without retaining it in memory or logging private data', () => {
+    configManager.loadSettings();
+    configManager.saveSettings({ ...configManager.getSettings(), scanIntervalSec: 15 });
+    const before = structuredClone(configManager.getSettings());
+    const diskBefore = fs.readFileSync(settingsPath, 'utf8');
+    const agentName = 'PRIVATE_AGENT_CANARY';
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const rename = vi.spyOn(fs, 'renameSync').mockImplementationOnce(() => {
+      throw new Error('PRIVATE_DISK_CANARY');
+    });
+
+    configManager.trackSeenAgent(agentName);
+    expect(configManager.getSettings()).toEqual(before);
+    expect(fs.readFileSync(settingsPath, 'utf8')).toBe(diskBefore);
+    expect(fs.readdirSync(tmpDir)).toEqual(['settings.json']);
+    expect(warn).toHaveBeenCalledWith('config-manager', 'Failed to persist seen agent', {
+      code: 'settings-write-failed',
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/PRIVATE_AGENT_CANARY|PRIVATE_DISK_CANARY/);
+
+    configManager.trackSeenAgent(agentName);
+    expect(configManager.getSettings().seenAgents).toEqual([agentName]);
+    expect(configManager.getSettings().agentPermissions[agentName]).toBeDefined();
+    const disk = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    expect(disk.seenAgents).toEqual([agentName]);
+    expect(disk.agentPermissions[agentName]).toBeDefined();
+    expect(rename).toHaveBeenCalledTimes(2);
   });
 
   it('getCustomAgents() / saveCustomAgents() round-trip', () => {
