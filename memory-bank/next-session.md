@@ -1,32 +1,74 @@
 # AEGIS — starting the next chat
 
-## Current state — 2026-09-26
+## Current state — 2026-09-26, `origin/master` at `9923428`
 
-The next narrow B4 slice adds selected-file deletion from
-`codex/b4-structured-destructive` in `X:/tmp/aegis-b4-structured-20260926`.
-Check current refs, PR and CI before starting another B4 slice. The route
-requires an exact policy and fresh terminal challenge, and AEGIS performs one
-regular-file unlink; it does not protect other agent routes, arbitrary allowed
-children or same-account filesystem races. See
-[selected file deletion](../docs/ACTION-DELETE-FILE.md).
+The AI-agent protection [roadmap](../docs/roadmap/ai-agent-protection.md) remains
+partial. Check current refs and PRs first: this commit is the last verified merge
+for this handoff. All five required CI contexts passed before each merge below.
 
-The AI-agent protection roadmap remains in progress. The latest completed B3 slice is opt-in MCP manifest v4: an operator prepares a store-backed HMAC tag for the selected HTTP(S) bearer; the gateway checks the tag and v3 route before opening upstream, and checks the store key again before consuming each durable grant. V1–V3 retain their previous contracts. [PR #536](https://github.com/antropos17/Aegis/pull/536) merged with all five required CI contexts. The store key needs operator-restricted access: Node's `0o600` does not establish a private Windows ACL. Server/account identity, protected issuance, stdio route binding, same-account tampering and outside-route activity remain outside this guarantee. See [durable grants](../docs/MCP-DURABLE-GRANTS.md).
+B3 now includes opt-in manifest v5. An operator prepares a store-backed HMAC tag
+for the effective stdio executable, working directory, ordered arguments,
+environment and platform; the gateway checks it before upstream launch and
+again before consuming a durable grant. [PR #542](https://github.com/antropos17/Aegis/pull/542)
+followed the HTTP bearer tag from #536. V1–V4 retain their older contracts.
+Executable bytes, protected issuance, server/account identity, Windows ACLs on
+the store key, same-account tampering and activity outside this route remain
+open. See [durable grants](../docs/MCP-DURABLE-GRANTS.md).
 
-B4 is partial. Schema 3 execution policies can list exact `reviewRequired` actions; those actions become `ask` even when their rule says `allow`. Direct JSON/MCP execution does not launch them; terminal review requires a fresh affirmative answer. [PR #537](https://github.com/antropos17/Aegis/pull/537) implemented this, [#538](https://github.com/antropos17/Aegis/pull/538) verified the native CLI boundary, and [#539](https://github.com/antropos17/Aegis/pull/539) taught Observatory to accept and display the exact `ask`/`review-required` result. All five CI contexts passed before each merge. The mechanism classifies only actions explicitly listed by the operator; arbitrary child activity, writes/deletion outside the route, publication and process-tree isolation are not controlled. See [execution](../docs/ACTION-EXECUTION.md), [route check](../docs/ACTION-ROUTE-CHECK.md) and [coverage UI](../docs/ACTION-COVERAGE-UI.md).
+B4 now includes one AEGIS-owned exact-file unlink behind policy and a fresh
+terminal `DELETE` challenge ([#541](https://github.com/antropos17/Aegis/pull/541)).
+A separate opt-in terminal MCP broker exposes that operation as
+`aegis_delete_selected_file` with empty arguments; the operator fixes the policy
+and target before connection, and each accepted call gets a fresh review
+([#546](https://github.com/antropos17/Aegis/pull/546)). A native Windows PTY
+smoke passed with a synthetic Node client and observed one unlink. Installed
+third-party provider compatibility is unverified. Shell/other tools can still
+delete outside this route; a same-account path swap between final target check
+and `unlink` remains possible. The prior `reviewRequired` selected-execution
+work from #537–#539 also remains limited to its exact routes. See
+[selected deletion](../docs/ACTION-DELETE-FILE.md) and
+[execution](../docs/ACTION-EXECUTION.md).
 
-After this selected-file slice, the next B4 expansion needs another enforceable
-structured control point and negative cases. Do not treat command-string
-heuristics or MCP annotations as enforcement. If an operation can escape through
-an arbitrary allowed child, define the C1 protected-launch boundary first and
-keep B4 partial. The [roadmap](../docs/roadmap/ai-agent-protection.md) is the
-scope and completion source; the older dated notes below are history, not
-current instructions.
+B5 remains partial. [#544](https://github.com/antropos17/Aegis/pull/544)
+separated static catalog risk from action preflight results;
+[#545](https://github.com/antropos17/Aegis/pull/545) lets the operator mark
+retained file activity reviewed for the current Observatory mount, reopening a
+group when a new file row arrives. That review changes no saved policy or
+blocking. Live desktop observation still describes selected process execution,
+so `--observe` is not available for the new deletion route. A typed deletion
+observation is the next bounded UI integration; check the
+`codex/delete-observation-ui` branch in the managed night-sprint worktree before
+duplicating it. See [coverage UI](../docs/ACTION-COVERAGE-UI.md) and
+[live observation](../docs/ACTION-LIVE-OBSERVATION.md).
 
-Workspace: `X:/Future/ESCAPE/AEGIS` is an old dirty `master` checkout with unrelated UI/config edits; preserve it. Use a clean worktree branched from current `origin/master` for changes. The reusable worktree at `C:/Users/murtu/.codex/worktrees/mcp-grant-recipient/AEGIS` has no uncommitted edits, but its local topic branch remains after remote merges because `master` is checked out in the original worktree. Check refs again before starting. The latest feature merge before this handoff is `852ac1e` (#539). The user prefers economical credit use: run targeted local tests and rely on the five required CI contexts for full verification; use parallel agents only for clearly independent work when requested.
+Next protection priorities need a tested control point. Do not treat command
+heuristics or MCP annotations as enforcement. C1 protected Windows launch is
+still planned; Anthropic Sandbox Runtime is a Windows-alpha candidate requiring
+separate installation and negative file/network/descendant checks. Pipelock is a
+candidate only for traffic routed through it; Windows nested-process cleanup,
+binary licensing/provenance and native interop remain unverified. An optional
+Sysmon adapter could improve observation, but no Sysmon service/channel was
+present on this host at handoff. None of these is a current blocking guarantee.
 
-Disk hygiene: WSLg `msrdc.exe` creates rapidly growing `RdClientAutoTrace` ETLs on `C:`. A local, ignored retention script at `X:/Future/ESCAPE/AEGIS/.agent/rdclient-retention.ps1` removes only matching closed non-reparse files older than 30 minutes until the candidate total approaches 512 MiB, and files older than one day. Scheduled task `AEGIS-RdClientTrace-Retention` runs every 15 minutes for the signed-in user; its automatic runs returned 0 while `WslService` and `msrdc` remained active. The task's prior-absent record and applied XML are under `.agent/`. This is a retention policy with a grace window, not a hard 512 MiB cap; check task health, free space and folder growth before heavy local work.
+Workspace: `X:/Future/ESCAPE/AEGIS` is an old dirty `master` checkout with
+unrelated changes; preserve it. Use a clean worktree from current `origin/master`.
+The managed C: worktree and `X:/tmp/aegis-coverage-clarity-20260926` are attached
+to this development window; inspect status and ongoing work before reuse. The
+scheduled local heartbeat continues this ten-hour window until 15:31 UTC on
+2026-09-26. Run targeted local tests and the required CI contexts without
+repeating successful heavy checks merely for reassurance.
 
-## Current assignment — AI-agent protection, 2026-09-22
+Disk hygiene: WSLg `msrdc.exe` creates `RdClientAutoTrace` ETLs on `C:`. The
+ignored script at `X:/Future/ESCAPE/AEGIS/.agent/rdclient-retention.ps1` and
+scheduled task `AEGIS-RdClientTrace-Retention` retain a 30-minute grace window,
+target about 512 MiB of eligible closed files, and run every 15 minutes. Recent
+automatic runs exited 0. This is not a hard cap; check actual trace growth, task
+health and C:/X: free space before and after heavy local work.
+
+## Earlier assignment — AI-agent protection, 2026-09-22
+
+The dated notes below record completed work and earlier open questions; use the
+current state above and the roadmap for the next decision.
 
 B2.2 adds an [explicit loopback HTTP profile](../docs/MCP-HTTP-GATEWAY.md), sharing
 B2.1 grants/schema/catalog checks. It pins a literal local endpoint and bearer,
