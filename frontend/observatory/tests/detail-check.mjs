@@ -92,6 +92,8 @@ export async function checkDetails(browser, url, out) {
         process: 'codex.exe',
         instanceId: 'detail:' + i,
         instanceIdSource: 'os',
+        generationWitness: 'fixture-generation-' + i,
+        generationWitnessSource: 'createTime100ns',
         cwd: 'X:/Fixture/project-' + i,
       }));
       window.detailFixture.onScanBatch({

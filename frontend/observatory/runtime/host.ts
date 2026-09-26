@@ -138,8 +138,13 @@ export function instances(state: Telemetry) {
   }
   return cached.rows;
 }
+type ActionableAgent = DetectedAgent & {
+  instanceId: string;
+  generationWitness: string;
+  generationWitnessSource: NonNullable<DetectedAgent['generationWitnessSource']>;
+};
 /** Re-resolve a process immediately before dispatch, including after confirmation. @param state Latest telemetry @param id Stamped identity @returns Live process @since 0.14.1 */
-export function actionTarget(state: Telemetry, id: string) {
+export function actionTarget(state: Telemetry, id: string): ActionableAgent {
   const agent = state.agents.find((a) => a.instanceId === id);
   if (
     state.stale ||
@@ -147,11 +152,15 @@ export function actionTarget(state: Telemetry, id: string) {
     !Number.isInteger(agent.pid) ||
     agent.pid <= 0 ||
     agent.instanceIdSource !== 'os' ||
-    agent.discoveryObservation?.stale
+    agent.discoveryObservation?.stale ||
+    typeof agent.generationWitness !== 'string' ||
+    !agent.generationWitness ||
+    typeof agent.generationWitnessSource !== 'string' ||
+    !['sequence', 'createTime100ns', 'linuxStartTicks'].includes(agent.generationWitnessSource)
   ) {
     throw new Error('This process instance is no longer reliably observed. Wait for a fresh scan.');
   }
-  return agent;
+  return agent as ActionableAgent;
 }
 /** Subscribe once; protect newer pushes from seed replies and dispose every listener.
  * @param host Preload bridge @param publish State consumer @returns Teardown @since 0.14.1

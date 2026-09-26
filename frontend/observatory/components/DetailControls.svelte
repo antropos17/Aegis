@@ -14,7 +14,12 @@
   import Watchlist from './Watchlist.svelte';
   let { row, host, telemetry }: { row: RecordData; host: Host | null; telemetry: Telemetry } =
     $props();
-  let stopId = $state<string | null>(null);
+  type StopTarget = {
+    id: string;
+    generationWitness: string;
+    generationWitnessSource: string;
+  };
+  let stopTarget = $state<StopTarget | null>(null);
   let canControl = $derived.by(() => {
     if (!row.process || typeof row.instanceId !== 'string') return false;
     try {
@@ -24,10 +29,38 @@
       return false;
     }
   });
-  async function processAction(method: string, id: string) {
+  function prepareStop(id: string) {
+    try {
+      const live = actionTarget(telemetry, id);
+      stopTarget = {
+        id,
+        generationWitness: live.generationWitness,
+        generationWitnessSource: live.generationWitnessSource,
+      };
+    } catch {
+      stopTarget = null;
+    }
+  }
+  async function processAction(method: string, id: string, selected?: StopTarget) {
     const live = actionTarget(telemetry, id);
-    confirmed(await invoke(host, method, { pid: live.pid, instanceId: live.instanceId }));
-    stopId = null;
+    if (
+      selected &&
+      (live.generationWitness !== selected.generationWitness ||
+        live.generationWitnessSource !== selected.generationWitnessSource)
+    ) {
+      throw new Error(
+        'This process instance is no longer reliably observed. Wait for a fresh scan.',
+      );
+    }
+    confirmed(
+      await invoke(host, method, {
+        pid: live.pid,
+        instanceId: live.instanceId,
+        generationWitness: live.generationWitness,
+        generationWitnessSource: live.generationWitnessSource,
+      }),
+    );
+    stopTarget = null;
   }
 </script>
 
@@ -55,19 +88,19 @@
     <button
       class="button danger"
       disabled={!canControl}
-      onclick={() => (stopId = String(row.instanceId))}><Icon name="stop" />{$t('Stop…')}</button
+      onclick={() => prepareStop(String(row.instanceId))}><Icon name="stop" />{$t('Stop…')}</button
     >
   </div>
-  {#if stopId}<div class="confirm-stop" role="alert">
+  {#if stopTarget}<div class="confirm-stop" role="alert">
       <h3>{$t('Stop this process?')}</h3>
       <p>
         {$t('Unsaved work may be lost. The process identity is checked again before stopping.')}
       </p>
       <div class="toolbar">
-        <Action action={() => processAction('killProcess', stopId!)}
+        <Action action={() => processAction('killProcess', stopTarget!.id, stopTarget!)}
           ><Icon name="stop" />{$t('Confirm stop')}</Action
         >
-        <button class="button" onclick={() => (stopId = null)}>{$t('Cancel')}</button>
+        <button class="button" onclick={() => (stopTarget = null)}>{$t('Cancel')}</button>
       </div>
     </div>{/if}
 </section>

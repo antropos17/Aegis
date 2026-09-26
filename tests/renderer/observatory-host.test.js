@@ -20,6 +20,8 @@ const agent = (id, pid = 123) => ({
   pid,
   instanceId: id,
   instanceIdSource: 'os',
+  generationWitness: `${id}-generation`,
+  generationWitnessSource: 'createTime100ns',
   status: 'running',
   category: 'cli-tool',
 });

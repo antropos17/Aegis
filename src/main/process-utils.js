@@ -420,10 +420,12 @@ async function _stampFromCachedChains(agents, forceRefresh) {
  * one `instanceId`, and with it one session, one dedup set and one token ledger.
  *
  * `generationWitness` / `generationWitnessSource` are stamped here too. They gate
- * cache reuse and NOTHING else: the `instanceId` format stays `pid:startTime(ms)`,
- * so two instances that share a pid and a birth millisecond still collide on the
- * identity even when a stronger witness can tell them apart. That bound is
- * documented, not eliminated (process-identity.js TIME RESOLUTION).
+ * cache reuse. Stronger-than-millisecond witnesses also bind renderer process-control
+ * requests to the observed generation; `startTimeMs` cannot distinguish two births
+ * inside the same millisecond and process control refuses that fallback.
+ * The `instanceId` format remains `pid:startTime(ms)`, so two instances that share
+ * a pid and a birth millisecond still collide in instance-keyed stores even when
+ * a stronger witness can tell them apart (process-identity.js TIME RESOLUTION).
  *
  * `instanceId` / `instanceIdSource` are derived from that startTime by
  * process-identity.js. This is the ONLY place they are stamped, so it must run

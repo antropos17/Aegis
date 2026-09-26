@@ -13,7 +13,7 @@ const scanner = require('./process-scanner');
 const analysis = require('./ai-analysis');
 const exporter = require('./exports');
 const audit = require('./audit-logger');
-const { killProcess, suspendProcess, resumeProcess } = require('./platform');
+const { killProcess, suspendProcess, resumeProcess, getParentProcessMap } = require('./platform');
 const { writeAuditExport } = require('./audit-export-stream');
 const { getAllRules, reloadRules } = require('./rule-loader');
 const blocklist = require('./blocklist');
@@ -545,57 +545,46 @@ ${findingsHtml}${recsHtml}
   });
 
   // ── Process control ──
-  ipcMain.handle('kill-process', (_e, pid) => {
-    const target = resolveProcessRequest(pid, deps);
-    if (target.error) return { success: false, error: target.error };
-    pid = target.pid;
-    if (!Number.isInteger(pid) || pid <= 0) return { success: false, error: 'Invalid PID' };
-    if (pid === process.pid) {
-      // C-01 own-PID self-guard — never terminate AEGIS itself.
-      logger.warn(`kill-process: refused — PID ${pid} is AEGIS itself`);
+  let processControlInFlight = false;
+  const controlProcess = async (event, request, action) => {
+    const window = deps.getWindow?.();
+    const stillOwned = () =>
+      deps.getWindow?.() === window && ownsTopLevelRenderer(event, window, deps.rendererUrl);
+    if (!stillOwned()) return { success: false, error: 'Renderer request denied' };
+    if (request && typeof request === 'object' && request.pid === process.pid) {
+      logger.warn('Process control refused: AEGIS own PID');
       return { success: false, error: 'Refusing to act on AEGIS itself' };
     }
-    const agents = deps.getLatestAgents ? deps.getLatestAgents() : [];
-    if (!agents.some((a) => a.pid === pid)) {
-      logger.warn(`kill-process: PID ${pid} not monitored by Aegis`);
-      return { success: false, error: 'Process not monitored by Aegis' };
+    // A concurrent snapshot falls back to a full CIM query. Reject overlap across
+    // all three actions immediately, including while the native action settles.
+    if (processControlInFlight)
+      return { success: false, error: 'Process control is already in progress' };
+    processControlInFlight = true;
+    try {
+      const scanIntervalSec = Number(config.getSettings()?.scanIntervalSec);
+      const maxObservationAgeMs =
+        Number.isFinite(scanIntervalSec) && scanIntervalSec > 0
+          ? Math.min(300000, Math.max(30000, scanIntervalSec * 2000 + 10000))
+          : 30000;
+      const target = await resolveProcessRequest(request, {
+        ...deps,
+        getParentProcessMap,
+        maxObservationAgeMs,
+      });
+      if (target.error) return { success: false, error: target.error };
+      if (!stillOwned()) return { success: false, error: 'Renderer request denied' };
+      return await action(target.pid);
+    } finally {
+      processControlInFlight = false;
     }
-    return killProcess(pid);
-  });
-  ipcMain.handle('suspend-process', (_e, pid) => {
-    const target = resolveProcessRequest(pid, deps);
-    if (target.error) return { success: false, error: target.error };
-    pid = target.pid;
-    if (!Number.isInteger(pid) || pid <= 0) return { success: false, error: 'Invalid PID' };
-    if (pid === process.pid) {
-      // C-01 own-PID self-guard — suspending AEGIS's own PID would freeze it.
-      logger.warn(`suspend-process: refused — PID ${pid} is AEGIS itself`);
-      return { success: false, error: 'Refusing to act on AEGIS itself' };
-    }
-    const agents = deps.getLatestAgents ? deps.getLatestAgents() : [];
-    if (!agents.some((a) => a.pid === pid)) {
-      logger.warn(`suspend-process: PID ${pid} not monitored by Aegis`);
-      return { success: false, error: 'Process not monitored by Aegis' };
-    }
-    return suspendProcess(pid);
-  });
-  ipcMain.handle('resume-process', (_e, pid) => {
-    const target = resolveProcessRequest(pid, deps);
-    if (target.error) return { success: false, error: target.error };
-    pid = target.pid;
-    if (!Number.isInteger(pid) || pid <= 0) return { success: false, error: 'Invalid PID' };
-    if (pid === process.pid) {
-      // C-01 own-PID self-guard — keep process-control symmetric across all three.
-      logger.warn(`resume-process: refused — PID ${pid} is AEGIS itself`);
-      return { success: false, error: 'Refusing to act on AEGIS itself' };
-    }
-    const agents = deps.getLatestAgents ? deps.getLatestAgents() : [];
-    if (!agents.some((a) => a.pid === pid)) {
-      logger.warn(`resume-process: PID ${pid} not monitored by Aegis`);
-      return { success: false, error: 'Process not monitored by Aegis' };
-    }
-    return resumeProcess(pid);
-  });
+  };
+  ipcMain.handle('kill-process', (event, request) => controlProcess(event, request, killProcess));
+  ipcMain.handle('suspend-process', (event, request) =>
+    controlProcess(event, request, suspendProcess),
+  );
+  ipcMain.handle('resume-process', (event, request) =>
+    controlProcess(event, request, resumeProcess),
+  );
 
   // ── False positives ──
   ipcMain.handle('get-false-positives', () => config.getFalsePositives());

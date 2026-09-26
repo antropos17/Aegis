@@ -114,9 +114,12 @@ export interface DetectedAgent {
   /**
    * Generation witness from THIS record's own enrichment pass — the proof that a
    * cached parent chain or working directory still belongs to the process living
-   * under this pid. Gates cache reuse and nothing else: it is deliberately NOT part
-   * of {@link DetectedAgent.instanceId}, so two instances sharing a pid and a birth
-   * millisecond still collide on the identity even when the witness separates them.
+   * under this pid. It gates cache reuse; stronger-than-millisecond witnesses also
+   * bind renderer process-control requests to that observation. The `startTimeMs`
+   * fallback cannot separate two births inside one millisecond and process control
+   * refuses it. The witness is deliberately absent from
+   * {@link DetectedAgent.instanceId}, so two instances sharing a pid and birth
+   * millisecond still collide in instance-keyed stores.
    *
    * `null` = enrichment ran and the observation produced no witness (nothing is
    * proven); absent = this record never passed through enrichment, so no generation

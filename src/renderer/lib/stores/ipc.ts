@@ -32,6 +32,14 @@ interface MonitorResourceUsage {
   readonly cpuSystem: number;
 }
 
+/** Process control is bound to the exact generation observed by the renderer. */
+type ProcessControlRequest = {
+  pid: number;
+  instanceId: string;
+  generationWitness: string;
+  generationWitnessSource: string;
+};
+
 /** Payload shape for the scan-batch IPC push channel */
 interface ScanBatchData {
   readonly agents?: DetectedAgent[];
@@ -163,9 +171,9 @@ interface AegisIpcBridge {
   ): Promise<Record<string, unknown>[]>;
   getResourceUsage(): Promise<MonitorResourceUsage>;
   getFalsePositives(): Promise<FalsePositiveEntry[]>;
-  killProcess(pid: number | { pid: number; instanceId: string }): Promise<ProcessActionResult>;
-  suspendProcess(pid: number | { pid: number; instanceId: string }): Promise<ProcessActionResult>;
-  resumeProcess(pid: number | { pid: number; instanceId: string }): Promise<ProcessActionResult>;
+  killProcess(target: ProcessControlRequest): Promise<ProcessActionResult>;
+  suspendProcess(target: ProcessControlRequest): Promise<ProcessActionResult>;
+  resumeProcess(target: ProcessControlRequest): Promise<ProcessActionResult>;
   blocklistAdd(entry: {
     signature: string;
     pid?: number | null;
