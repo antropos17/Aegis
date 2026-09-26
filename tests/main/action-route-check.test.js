@@ -97,6 +97,18 @@ it.each(['allow', 'ask', 'deny'])('preserves %s without granting permission', as
   });
 });
 
+it('reports a review-required action as a valid ask without exposing its launch', async () => {
+  setup({ prepare: async () => ({ ...selected, decision: 'ask', reason: 'review-required' }) });
+  const report = await check('mcp-review');
+  expect(report).toMatchObject({
+    configuration: 'valid',
+    policyDecision: 'ask',
+    reason: 'review-required',
+    authorization: 'none',
+  });
+  expect(JSON.stringify(report)).not.toContain('PRIVATE');
+});
+
 it.each([
   [{ decision: 'deny', reason: 'request-invalid' }, 'invalid', 'request-invalid'],
   [{ decision: 'deny', reason: 'policy-invalid' }, 'invalid', 'policy-invalid'],

@@ -19,7 +19,8 @@ function project(name, prepared) {
   if (
     prepared &&
     ['allow', 'ask', 'deny'].includes(prepared.decision) &&
-    prepared.reason === `policy-${prepared.decision}`
+    (prepared.reason === `policy-${prepared.decision}` ||
+      (prepared.decision === 'ask' && prepared.reason === 'review-required'))
   )
     return {
       name,

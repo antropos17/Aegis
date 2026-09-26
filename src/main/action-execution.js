@@ -124,7 +124,9 @@ async function executeAction(policyPath, requestPath, options = {}) {
   if (prepared.decision !== 'allow' && !(approved && prepared.decision === 'ask'))
     return report(
       prepared.decision,
-      ['configuration-changed', 'configuration-unavailable'].includes(prepared.reason)
+      ['configuration-changed', 'configuration-unavailable', 'review-required'].includes(
+        prepared.reason,
+      )
         ? prepared.reason
         : `policy-${prepared.decision}`,
     );

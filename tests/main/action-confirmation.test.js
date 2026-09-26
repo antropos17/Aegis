@@ -300,6 +300,43 @@ describe('terminal confirmation owner', () => {
     },
   );
 
+  it('requires terminal confirmation for a v3 review-required allow action', async () => {
+    const f = fixture('allow');
+    fs.writeFileSync(
+      f.policy,
+      JSON.stringify({
+        schemaVersion: 3,
+        defaultDecision: 'deny',
+        rules: [{ action: f.action, decision: 'allow' }],
+        reviewRequired: [f.action],
+      }),
+    );
+    const direct = await require('../../src/main/action-execution').executeAction(
+      f.policy,
+      f.request,
+    );
+    expect(direct).toMatchObject({
+      decision: 'ask',
+      reason: 'review-required',
+      execution: { state: 'not-started' },
+    });
+    expect(fs.existsSync(f.sentinel)).toBe(false);
+
+    const confirm = vi.fn(async () => false);
+    setup(confirm);
+    notStarted(await api.confirmSelectedAction(f.policy, f.request), f);
+    expect(confirm).toHaveBeenCalledOnce();
+    setup(async () => true);
+    const approved = await api.confirmSelectedAction(f.policy, f.request);
+    expect(approved).toMatchObject({
+      decision: 'allow',
+      policyDecision: 'ask',
+      authorization: 'operator-confirmed',
+      execution: { state: 'exited', exitCode: 0 },
+    });
+    expect(fs.readFileSync(f.sentinel, 'utf8')).toBe('once');
+  });
+
   it.each([false, undefined, 'true', 1])('rejects nonliteral affirmation %j', async (answer) => {
     const f = fixture();
     setup(async () => answer);

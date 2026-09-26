@@ -88,6 +88,28 @@ describe('exact direct execution preparation', () => {
       reason: 'policy-ask',
     });
   });
+  it('requires review for an exactly selected v3 action even when its rule allows it', async () => {
+    const protectedPolicy = { ...policy(), schemaVersion: 3, reviewRequired: [action] };
+    expect(await prepare(protectedPolicy)).toEqual({ decision: 'ask', reason: 'review-required' });
+    fs.writeFileSync(policyPath, bytes(protectedPolicy));
+    const reviewed = await prepareExecution(policyPath, requestPath, { review: true });
+    expect(reviewed.decision).toBe('ask');
+    expect(reviewed.launch.args).toEqual(action.args);
+
+    const other = { ...action, args: [...action.args, 'different'] };
+    expect(
+      (await prepare({ ...protectedPolicy, rules: [{ action: other, decision: 'allow' }] }))
+        .decision,
+    ).toBe('deny');
+  });
+  it('rejects malformed or duplicate v3 review requirements', async () => {
+    for (const reviewRequired of [[], [action, action], [{ ...action, args: ['bad\0arg'] }]])
+      expect((await prepare({ ...policy(), schemaVersion: 3, reviewRequired })).decision).toBe(
+        'deny',
+      );
+    expect((await prepare({ ...policy(), schemaVersion: 3 })).decision).toBe('deny');
+    expect((await prepare({ ...policy(), reviewRequired: [action] })).decision).toBe('deny');
+  });
   it.each([
     { executable: 'relative.exe' },
     { cwd: 'relative' },

@@ -47,6 +47,43 @@ Object key order is ignored; argument order, types and additional fields matter.
 Equivalent duplicate rules invalidate the policy. Existing schema 1 Bash hook
 policies are incompatible with this distinct execution surface.
 
+For an operator-selected action that must receive terminal review even when its
+rule says `allow`, use execution policy schema 3. It retains the schema 2 fields
+and adds a nonempty `reviewRequired` array of complete action objects. Every
+entry must exactly match one distinct `allow` rule; a stale, duplicate or invalid
+entry invalidates the entire policy. For the action above, the shape is:
+
+```json
+{
+  "schemaVersion": 3,
+  "defaultDecision": "deny",
+  "rules": [{
+    "action": {
+      "executable": "C:\\Program Files\\nodejs\\node.exe",
+      "cwd": "C:\\work\\selected-project",
+      "args": ["-e", "process.exit(0)"],
+      "env": {"SYSTEMROOT": "C:\\Windows", "WINDIR": "C:\\Windows"}
+    },
+    "decision": "allow"
+  }],
+  "reviewRequired": [{
+    "executable": "C:\\Program Files\\nodejs\\node.exe",
+    "cwd": "C:\\work\\selected-project",
+    "args": ["-e", "process.exit(0)"],
+    "env": {"SYSTEMROOT": "C:\\Windows", "WINDIR": "C:\\Windows"}
+  }]
+}
+```
+
+The effective decision for that exact action becomes `ask`. Direct JSON and
+direct MCP execution return `review-required` without launching; the terminal
+confirmation routes may launch after showing the exact effective action and
+receiving a fresh affirmative answer. Deny remains final, and timeout or terminal
+loss never permits a launch. Schema 2 policies retain their existing behavior.
+This is an explicit operator classification, not automatic recognition of
+deletion, publication or dangerous APIs. A program that does not use this
+selected AEGIS route remains outside this control.
+
 ```sh
 node src/main/main.js --action-exec-json /absolute/policy.json /absolute/request.json
 ```

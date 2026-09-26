@@ -60,6 +60,21 @@ it('checks mixed decisions with pinned selections, sanitized reports and final a
   bindings.forEach((binding, i) => expect(deps.prepare.mock.calls[i][2]).toEqual({ binding }));
 });
 
+it('retains a sanitized review-required decision for a selected catalog member', async () => {
+  setup({
+    prepare: async () => ({
+      decision: 'ask',
+      reason: 'review-required',
+      launch: { secret: 'PRIVATE_LAUNCH' },
+    }),
+  });
+  const result = await api.checkActionCatalogRoute('mcp-review', 'PRIVATE_MANIFEST');
+  expect(result.configuration).toBe('valid');
+  expect(result.actions).toHaveLength(3);
+  expect(result.actions.every((item) => item.reason === 'review-required')).toBe(true);
+  expect(JSON.stringify(result)).not.toContain('PRIVATE');
+});
+
 it('retains sanitized structural failures with invalid precedence over unavailable', async () => {
   let n = 0;
   const f = setup({
