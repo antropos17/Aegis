@@ -1089,7 +1089,7 @@ describe('sequence-engine — refusals, reset and stats', () => {
     expect(engine.getStats()).toMatchObject({ ingestErrors: 1, opened: 0 });
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy.mock.calls[0][0]).toBe('sequence-engine');
-    expect(warnSpy.mock.calls[0][1]).toContain('unrecognised event shape');
+    expect(warnSpy.mock.calls[0][1]).toBe('ingest refused an event');
     expect(warnSpy.mock.calls[0][2]).toMatchObject({ reason: 'ingest-error' });
   });
 
@@ -1101,7 +1101,7 @@ describe('sequence-engine — refusals, reset and stats', () => {
     expect(() => engine.ingest('not an event')).not.toThrow();
 
     expect(engine.getStats()).toMatchObject({ ingestErrors: 2, skippedNullInstanceId: 0 });
-    expect(warnSpy.mock.calls[0][1]).toContain('expected an event object');
+    expect(warnSpy.mock.calls[0][1]).toBe('ingest refused an event');
   });
 
   it('the ingest warn is rate limited on the injected clock while the counter stays exact', () => {
@@ -1122,7 +1122,7 @@ describe('sequence-engine — refusals, reset and stats', () => {
 
   it("a matcher that throws is that RULE's ingest error — the other rules still see the event", () => {
     const broken = step('broken', 'file', () => {
-      throw new Error('matcher blew up');
+      throw new Error('PRIVATE_MATCHER_CANARY');
     });
     start([rule('SEQ001', [broken, stepB()]), rule('SEQ003', [stepA(), stepC()])]);
 
@@ -1133,7 +1133,8 @@ describe('sequence-engine — refusals, reset and stats', () => {
     expect(engine.getStats().rules.SEQ001).toMatchObject({ ingestErrors: 1, opened: 0 });
     expect(engine.getStats().rules.SEQ003).toMatchObject({ ingestErrors: 0, opened: 1 });
     expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy.mock.calls[0][1]).toContain('matcher blew up');
+    expect(warnSpy.mock.calls[0][1]).toBe('ingest refused an event');
+    expect(JSON.stringify(warnSpy.mock.calls)).not.toContain('PRIVATE_MATCHER_CANARY');
     expect(warnSpy.mock.calls[0][2]).toMatchObject({ reason: 'ingest-error', rule: 'SEQ001' });
   });
 
