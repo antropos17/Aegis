@@ -84,15 +84,14 @@ function loadRules(rulesDir = DEFAULT_RULES_DIR) {
   const schemaPath = path.join(rulesDir, '_schema.json');
   if (!validateFn) {
     if (!fs.existsSync(schemaPath)) {
-      logger.warn('rule-loader', 'Schema not found', { schemaPath });
+      logger.warn('rule-loader', 'Schema not found', { code: 'rule-schema-missing' });
       return rules;
     }
     try {
       validateFn = initValidator(schemaPath);
-    } catch (/** @type {*} */ err) {
+    } catch {
       logger.warn('rule-loader', 'Failed to load schema', {
-        schemaPath,
-        error: /** @type {Error} */ (err).message,
+        code: 'rule-schema-load-failed',
       });
       return rules;
     }
@@ -102,30 +101,37 @@ function loadRules(rulesDir = DEFAULT_RULES_DIR) {
   let files;
   try {
     files = fs.readdirSync(rulesDir).filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'));
-  } catch (/** @type {*} */ err) {
+  } catch {
     logger.warn('rule-loader', 'Failed to read directory', {
-      rulesDir,
-      error: /** @type {Error} */ (err).message,
+      code: 'rule-directory-read-failed',
     });
     return rules;
   }
 
   for (const file of files) {
     const filePath = path.join(rulesDir, file);
+    let content;
     try {
-      const content = fs.readFileSync(filePath, 'utf8');
+      content = fs.readFileSync(filePath, 'utf8');
+    } catch {
+      logger.warn('rule-loader', 'Failed to read ruleset', { code: 'rule-file-read-failed' });
+      continue;
+    }
+    try {
       /** @type {{ rules: Array<{ id: string; name: string; pattern: string; reason: string; category: string; risk?: string; tags?: string[]; enabled?: boolean; platform?: string }> }} */
       const doc = /** @type {*} */ (yaml.load(content));
 
       if (!validateFn(doc)) {
-        const errors = validateFn.errors?.map((e) => `${e.dataPath} ${e.message}`).join('; ');
-        logger.warn('rule-loader', 'Invalid ruleset', { file, errors });
+        logger.warn('rule-loader', 'Invalid ruleset', {
+          code: 'rule-validation-failed',
+          issues: validateFn.errors?.length || 0,
+        });
         continue;
       }
 
       for (const rawRule of doc.rules) {
         if (rules.has(rawRule.id)) {
-          logger.warn('rule-loader', 'Duplicate rule ID — skipping', { ruleId: rawRule.id, file });
+          logger.warn('rule-loader', 'Duplicate rule ID — skipping', { code: 'rule-duplicate-id' });
           continue;
         }
 
@@ -143,18 +149,15 @@ function loadRules(rulesDir = DEFAULT_RULES_DIR) {
             platform: rawRule.platform || 'all',
           };
           rules.set(loaded.id, loaded);
-        } catch (/** @type {*} */ err) {
+        } catch {
           logger.warn('rule-loader', 'Invalid pattern in rule', {
-            ruleId: rawRule.id,
-            file,
-            error: /** @type {Error} */ (err).message,
+            code: 'rule-pattern-invalid',
           });
         }
       }
-    } catch (/** @type {*} */ err) {
+    } catch {
       logger.warn('rule-loader', 'Failed to parse', {
-        file,
-        error: /** @type {Error} */ (err).message,
+        code: 'rule-parse-failed',
       });
     }
   }
