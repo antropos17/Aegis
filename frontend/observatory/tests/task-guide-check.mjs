@@ -60,6 +60,11 @@ export async function checkTaskGuide(browser, url, out) {
         .getByRole('button', { name: 'Open guide: Connect selected actions', exact: true })
         .isDisabled(),
     );
+    assert(
+      await guide
+        .getByRole('button', { name: 'Open guide: Delete one selected file', exact: true })
+        .isDisabled(),
+    );
     await summary.press('Space');
     assert.equal(await guide.locator('details').getAttribute('open'), null);
     await guide.getByRole('button', { name: /^Check files before use/ }).click();
@@ -110,6 +115,12 @@ export async function checkTaskGuide(browser, url, out) {
           ),
           `Guide overflow ${theme}/${scale}`,
         );
+        if (theme === 'dark' && scale === 1.5) {
+          await guide
+            .getByRole('button', { name: 'Open guide: Delete one selected file', exact: true })
+            .scrollIntoViewIfNeeded();
+          await page.screenshot({ path: resolve(out, 'guide-delete-file-dark-1.5.png') });
+        }
         await guide.locator('summary').click();
         await page.locator('#main').evaluate((node) => {
           node.scrollTop = 0;
@@ -124,6 +135,19 @@ export async function checkTaskGuide(browser, url, out) {
       .getByRole('button', { name: 'Comece aqui', exact: true })
       .click();
     await page.getByRole('heading', { name: 'O que você quer fazer?', exact: true }).waitFor();
+    const translatedGuide = page.getByRole('region', { name: 'Guia de tarefas', exact: true });
+    await translatedGuide.locator('summary').click();
+    const translatedDelete = translatedGuide.getByRole('button', {
+      name: 'Abrir guia: Excluir um arquivo selecionado',
+      exact: true,
+    });
+    assert(await translatedDelete.isDisabled());
+    await translatedDelete.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: resolve(out, 'guide-delete-file-pt.png') });
+    await translatedGuide.locator('summary').click();
+    await page.locator('#main').evaluate((node) => {
+      node.scrollTop = 0;
+    });
     await page.screenshot({ path: resolve(out, 'guide-pt.png') });
     assert.deepEqual(errors, []);
     console.log(

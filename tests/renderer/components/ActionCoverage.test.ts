@@ -17,6 +17,37 @@ it('opens in-app setup guidance without reading files or starting a check', asyn
   expect(call).not.toHaveBeenCalled();
 });
 
+it('opens the separate exact-file setup guide without running an executable or catalog check', async () => {
+  const localSecurityReview = vi.fn();
+  const openExternalUrl = vi
+    .fn()
+    .mockResolvedValueOnce({ success: false })
+    .mockResolvedValueOnce({ success: true });
+  render(ActionCoverage, { host: { localSecurityReview, openExternalUrl } as unknown as Host });
+  expect(screen.getByText(/executable\/catalog check below does not assess it/)).toBeVisible();
+  const guide = within(screen.getByRole('region', { name: 'Selected-file deletion setup' }));
+  const button = guide.getByRole('button', { name: 'Open selected-file deletion guide' });
+  await fireEvent.click(button);
+  expect(await guide.findByRole('alert')).toHaveTextContent('Could not open the guide');
+  await fireEvent.click(button);
+  expect(await guide.findByRole('status')).toHaveTextContent('Guide opened in your browser.');
+  expect(openExternalUrl).toHaveBeenLastCalledWith(
+    'https://github.com/antropos17/Aegis/blob/master/docs/ACTION-DELETE-FILE.md',
+  );
+  expect(localSecurityReview).not.toHaveBeenCalled();
+});
+
+it('keeps the selected-file guide disabled in preview', () => {
+  const openExternalUrl = vi.fn();
+  render(ActionCoverage, {
+    host: { openExternalUrl } as unknown as Host,
+    preview: true,
+  });
+  expect(screen.getByRole('button', { name: 'Open selected-file deletion guide' })).toBeDisabled();
+  expect(screen.getByText('External guides are disabled in this simulated preview.')).toBeVisible();
+  expect(openExternalUrl).not.toHaveBeenCalled();
+});
+
 it('explains absent capability without checking on mount and labels keyboard controls', () => {
   render(ActionCoverage, { host: null });
   expect(screen.getByRole('button', { name: 'Choose files and check' })).toBeDisabled();

@@ -2,7 +2,8 @@
   import ActionObservation from './ActionObservation.svelte';
   import { onDestroy } from 'svelte';
   import { t } from '../runtime/i18n';
-  import { invoke, record, type Host } from '../runtime/host';
+  import { confirmed, invoke, record, type Host } from '../runtime/host';
+  import { setupGuideUrl } from '../runtime/task-guide';
   import {
     actionRoutes,
     actionCheckGuidance,
@@ -28,6 +29,9 @@
   let pending = $state(false);
   let feedback = $state('');
   let error = $state('');
+  let guidePending = $state(false);
+  let guideFeedback = $state('');
+  let guideFailed = $state(false);
   let result = $state.raw<ActionCheck | null>(null);
   let alive = true;
   onDestroy(() => {
@@ -53,6 +57,25 @@
   );
   function changeKind() {
     if (kind === 'catalog' && !route.startsWith('mcp-')) route = 'mcp-stdio';
+  }
+  async function openSelectedFileGuide() {
+    const url = setupGuideUrl('ACTION-DELETE-FILE.md');
+    if (guidePending || preview || !host?.openExternalUrl || !url) return;
+    guidePending = true;
+    guideFeedback = '';
+    guideFailed = false;
+    try {
+      confirmed(await invoke(host, 'openExternalUrl', url));
+      if (alive) guideFeedback = 'Guide opened in your browser.';
+    } catch {
+      if (alive) {
+        guideFailed = true;
+        guideFeedback =
+          'Could not open the guide. Try again when the desktop connection is available.';
+      }
+    } finally {
+      if (alive) guidePending = false;
+    }
   }
   async function check() {
     if (pending || !available) return;
@@ -236,6 +259,28 @@
         'Check the files that tell AEGIS which commands an agent may run. This does not run commands or change settings.',
       )}
     </p>
+    <section class="selected-file-guide" aria-label={$t('Selected-file deletion setup')}>
+      <h3>{$t('Delete one selected file')}</h3>
+      <p>
+        {$t(
+          'Use the separate terminal-owned exact-file MCP route. The executable/catalog check below does not assess it or establish automatic blocking or general coverage.',
+        )}
+      </p>
+      <button
+        type="button"
+        class="button"
+        disabled={guidePending || preview || !host?.openExternalUrl}
+        onclick={openSelectedFileGuide}>{$t('Open selected-file deletion guide')}</button
+      >
+      {#if preview}<p class="muted">
+          {$t('External guides are disabled in this simulated preview.')}
+        </p>{:else if !host?.openExternalUrl}<p class="muted">
+          {$t('Opening guides requires the AEGIS desktop connection.')}
+        </p>{/if}
+      <p class="guide-feedback" role={guideFailed ? 'alert' : 'status'} aria-live="polite">
+        {$t(guideFeedback)}
+      </p>
+    </section>
     {#if preview}<p class="preview-note">
         {$t('Preview · example checks only. No files are selected or read.')}
       </p>{/if}
@@ -354,6 +399,20 @@
   }
   .notice {
     font-weight: 600;
+  }
+  .selected-file-guide {
+    border-top: 1px solid var(--border);
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+  }
+  .selected-file-guide h3 {
+    margin-top: 0;
+  }
+  .selected-file-guide .button {
+    margin-top: var(--space-2);
+  }
+  .selected-file-guide .guide-feedback {
+    margin-bottom: 0;
   }
   .fields {
     display: grid;

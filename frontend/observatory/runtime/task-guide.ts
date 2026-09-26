@@ -99,9 +99,26 @@ export const setupGuides = [
     file: 'ACTION-MCP-REVIEW.md',
   },
   {
+    title: 'Delete one selected file',
+    description:
+      'Set up the separate terminal-owned exact-file MCP route. Each accepted call needs a fresh terminal challenge.',
+    file: 'ACTION-DELETE-FILE.md',
+  },
+  {
     title: 'Check a connected route',
     description:
       'Ask your MCP client for aegis_route_status to inspect that connection. It does not describe other agents.',
     file: 'ACTION-MCP-STATUS.md',
   },
 ];
+
+/** Return a fixed documentation URL only for a listed setup guide.
+ * @param file Guide filename.
+ * @returns Trusted URL, or null for an unlisted filename.
+ * @since 0.16.0
+ */
+export function setupGuideUrl(file: string): string | null {
+  return setupGuides.some((guide) => guide.file === file)
+    ? 'https://github.com/antropos17/Aegis/blob/master/docs/' + file
+    : null;
+}

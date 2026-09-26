@@ -2,7 +2,7 @@
   import { onDestroy } from 'svelte';
   import { t } from '../runtime/i18n';
   import { confirmed, invoke, type Host } from '../runtime/host';
-  import { guidedTasks, moreTasks, setupGuides } from '../runtime/task-guide';
+  import { guidedTasks, moreTasks, setupGuides, setupGuideUrl } from '../runtime/task-guide';
   import Icon from './Icon.svelte';
 
   let {
@@ -22,18 +22,13 @@
     alive = false;
   });
   async function openGuide(file: string) {
-    if (pending || preview || !setupGuides.some((guide) => guide.file === file)) return;
+    const url = setupGuideUrl(file);
+    if (pending || preview || !url) return;
     pending = true;
     feedback = '';
     failed = false;
     try {
-      confirmed(
-        await invoke(
-          host,
-          'openExternalUrl',
-          'https://github.com/antropos17/Aegis/blob/master/docs/' + file,
-        ),
-      );
+      confirmed(await invoke(host, 'openExternalUrl', url));
       if (alive) feedback = 'Guide opened in your browser.';
     } catch {
       if (alive) {
