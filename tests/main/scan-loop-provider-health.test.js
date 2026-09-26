@@ -339,7 +339,7 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
       expect(listProcesses).toHaveBeenCalledTimes(1);
       expect(scanner.getProcessSensorHealth().state).toBe(SENSOR_HEALTH_STATE.FAILED);
       expect(deps.logger.error).toHaveBeenCalledWith('main', 'Process scan failed', {
-        error: 'catalog callback failed',
+        error: 'process-scan-failed',
       });
       expect(deps.audit.log).not.toHaveBeenCalledWith('observation-gap', expect.anything());
     });
@@ -358,17 +358,17 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
       expect(listProcesses).toHaveBeenCalledTimes(1);
       expect(scanner.getProcessSensorHealth().state).toBe(SENSOR_HEALTH_STATE.FAILED);
       expect(deps.logger.error).toHaveBeenCalledWith('main', 'Process scan failed', {
-        error: 'tracking callback failed',
+        error: 'process-scan-failed',
       });
       expect(deps.audit.log).not.toHaveBeenCalledWith('observation-gap', expect.anything());
     });
 
-    it('both paths keep the existing "Process scan failed" log', async () => {
+    it('both paths log a fixed process failure code without provider or callback text', async () => {
       const downstream = makeDeps({ sendToRenderer: throwingSendOn('scan-batch') });
       scanLoop.init(downstream);
       await runOneProcessScan();
       expect(downstream.logger.error).toHaveBeenCalledWith('main', 'Process scan failed', {
-        error: 'renderer-send-failed:scan-batch',
+        error: 'process-scan-failed',
       });
 
       scanLoop.stopScanIntervals();
@@ -377,8 +377,9 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
       scanLoop.init(provider);
       await runOneProcessScan();
       expect(provider.logger.error).toHaveBeenCalledWith('main', 'Process scan failed', {
-        error: 'spawn ENOENT',
+        error: 'process-scan-failed',
       });
+      expect(JSON.stringify(provider.logger.error.mock.calls)).not.toContain('spawn ENOENT');
     });
 
     it('a downstream throw does not wedge the loop — the next tick still enumerates', async () => {
@@ -506,7 +507,9 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
           extra: { cause: 'network-provider', state: 'unavailable' },
         },
       ]);
-      expect(JSON.stringify(gapRecords())).not.toMatch(/private-network-error|203\.0\.113\.77|Claude Code/);
+      expect(JSON.stringify(gapRecords())).not.toMatch(
+        /private-network-error|203\.0\.113\.77|Claude Code/,
+      );
 
       reliable = false;
       await runOneNetworkScan();
@@ -705,7 +708,9 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
       expect(provider.logger.error).toHaveBeenCalledWith('main', 'Network scan failed', {
         error: 'network-scan-failed',
       });
-      expect(JSON.stringify(provider.logger.error.mock.calls)).not.toContain('PRIVATE_NETWORK_LOG_CANARY');
+      expect(JSON.stringify(provider.logger.error.mock.calls)).not.toContain(
+        'PRIVATE_NETWORK_LOG_CANARY',
+      );
     });
 
     it('a downstream throw does not wedge the loop — the next scan still queries', async () => {
@@ -719,6 +724,59 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
 
       expect(getRawTcpConnections).toHaveBeenCalledTimes(2);
       expect(network.getNetworkSensorHealth().state).toBe(SENSOR_HEALTH_STATE.HEALTHY);
+    });
+  });
+
+  describe('operational scan logs', () => {
+    it('omits a resource delivery error from the persistent log', async () => {
+      const deps = makeDeps({ sendToRenderer: throwingSendOn('agent-resource-usage') });
+      scanLoop.init(deps);
+      await runOneProcessScan();
+
+      expect(deps.logger.error).toHaveBeenCalledWith('main', 'Resource usage scan failed', {
+        error: 'resource-scan-failed',
+      });
+      expect(JSON.stringify(deps.logger.error.mock.calls)).not.toContain(
+        'renderer-send-failed:agent-resource-usage',
+      );
+    });
+
+    it('omits a file handle provider error from the persistent log', async () => {
+      const watcher = {
+        pruneKnownHandles: vi.fn(),
+        scanAllFileHandles: vi.fn().mockRejectedValue(new Error('PRIVATE_FILE_LOG_CANARY')),
+      };
+      const deps = makeDeps({ watcher, getLatestAgents: vi.fn().mockReturnValue(NET_AGENTS) });
+      scanLoop.init(deps);
+      scanLoop.staggeredStartup(5000, true);
+      await vi.advanceTimersByTimeAsync(8000);
+      await flush();
+
+      expect(watcher.scanAllFileHandles).toHaveBeenCalledOnce();
+      expect(deps.logger.error).toHaveBeenCalledWith('main', 'File handle scan failed', {
+        error: 'file-handle-scan-failed',
+      });
+      expect(JSON.stringify(deps.logger.error.mock.calls)).not.toContain('PRIVATE_FILE_LOG_CANARY');
+    });
+
+    it('omits a hot read provider error from the persistent log', async () => {
+      await scanner.scanProcesses();
+      const watcher = {
+        pruneKnownHandles: vi.fn(),
+        isHotReadScanActive: () => true,
+        scanHotFileHolders: vi.fn().mockRejectedValue(new Error('PRIVATE_HOT_LOG_CANARY')),
+      };
+      const deps = makeDeps({ watcher, getLatestAgents: vi.fn().mockReturnValue(NET_AGENTS) });
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(20000);
+      await vi.advanceTimersByTimeAsync(10000);
+      await flush();
+
+      expect(watcher.scanHotFileHolders).toHaveBeenCalledOnce();
+      expect(deps.logger.error).toHaveBeenCalledWith('main', 'Hot read scan failed', {
+        error: 'hot-read-scan-failed',
+      });
+      expect(JSON.stringify(deps.logger.error.mock.calls)).not.toContain('PRIVATE_HOT_LOG_CANARY');
     });
   });
 });

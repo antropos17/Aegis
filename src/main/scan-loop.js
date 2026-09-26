@@ -769,7 +769,9 @@ async function doProcessScan() {
             sendToRenderer('agent-resource-usage', records);
           }
         })
-        .catch((err) => logger.error('main', 'Resource usage scan failed', { error: err.message }));
+        .catch(() =>
+          logger.error('main', 'Resource usage scan failed', { error: 'resource-scan-failed' }),
+        );
     }
 
     if (result.changed && Date.now() - _lastTriggeredNetScan > 15000) {
@@ -799,13 +801,13 @@ async function doProcessScan() {
       agents: agents.length,
       ...(postGap ? { postGap } : {}),
     });
-  } catch (err) {
+  } catch {
     // Reached by BOTH a provider throw (rethrown above, health already owned by the inner
     // catch) and a downstream pipeline throw (health deliberately untouched — the
     // observation succeeded). Log only: no leaf here names delivery or persistence, and
     // inventing one would answer a question this record was never asked.
     deps.sequenceEngine?.observePopulation?.([], false);
-    logger.error('main', 'Process scan failed', { error: err.message });
+    logger.error('main', 'Process scan failed', { error: 'process-scan-failed' });
   } finally {
     updateScanStatus(false);
     processScanRunning = false;
@@ -920,8 +922,8 @@ async function doFileScan() {
     // discarded by the next push inside the same 1000 ms window.
     deps.statsUpdateBatcher.pushLazy(getStats);
     tray.updateTrayIcon();
-  } catch (err) {
-    logger.error('main', 'File handle scan failed', { error: err.message });
+  } catch {
+    logger.error('main', 'File handle scan failed', { error: 'file-handle-scan-failed' });
   } finally {
     updateScanStatus(false);
     logger.debug('scan', 'file', { ms: Math.round(performance.now() - t0) });
@@ -970,8 +972,8 @@ async function doHotReadScan() {
       deps.statsUpdateBatcher.pushLazy(getStats);
       tray.updateTrayIcon();
     }
-  } catch (err) {
-    logger.error('main', 'Hot read scan failed', { error: err.message });
+  } catch {
+    logger.error('main', 'Hot read scan failed', { error: 'hot-read-scan-failed' });
   } finally {
     logger.debug('scan', 'hot-read', { ms: Math.round(performance.now() - t0) });
   }

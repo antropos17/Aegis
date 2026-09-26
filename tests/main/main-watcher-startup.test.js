@@ -180,13 +180,14 @@ describe('main — watcher startup ordering', () => {
   it('logs an error instead of dying silently when setup rejects', async () => {
     const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
     watcherMock.setupFileWatchers = vi.fn(async () => {
-      throw new Error('EACCES');
+      throw new Error('PRIVATE_WATCH_ROOT_LOG_CANARY');
     });
 
     await main.startWatchers();
 
     const failed = error.mock.calls.filter((c) => c[1] === 'File watcher setup failed');
     expect(failed).toHaveLength(1);
-    expect(failed[0][2]).toEqual({ error: 'EACCES' });
+    expect(failed[0][2]).toEqual({ error: 'file-watcher-setup-failed' });
+    expect(JSON.stringify(error.mock.calls)).not.toContain('PRIVATE_WATCH_ROOT_LOG_CANARY');
   });
 });
