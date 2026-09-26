@@ -42,26 +42,31 @@ const IGNORE_FILE_PATTERNS = [
  */
 function listProcesses() {
   return new Promise((resolve, reject) => {
-    _execFile('ps', ['-axo', 'comm=,pid='], { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      const results = parsePsOutput(stdout);
-      // macOS .app bundles: /Applications/Foo.app/Contents/MacOS/Foo → Foo
-      // parsePsOutput extracts basename; override with .app bundle name when present
-      for (const line of stdout.trim().split('\n')) {
-        const appMatch = line.match(/\/([^/]+)\.app\//);
-        if (!appMatch) continue;
-        const lastSpace = line.trimEnd().lastIndexOf(' ');
-        if (lastSpace === -1) continue;
-        const pid = parseInt(line.slice(lastSpace + 1), 10);
-        if (isNaN(pid)) continue;
-        const proc = results.find((r) => r.pid === pid);
-        if (proc) proc.name = appMatch[1];
-      }
-      resolve(results);
-    });
+    _execFile(
+      'ps',
+      ['-axo', 'comm=,pid='],
+      { timeout: 5000, maxBuffer: 4 * 1024 * 1024 },
+      (err, stdout) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        const results = parsePsOutput(stdout);
+        // macOS .app bundles: /Applications/Foo.app/Contents/MacOS/Foo → Foo
+        // parsePsOutput extracts basename; override with .app bundle name when present
+        for (const line of stdout.trim().split('\n')) {
+          const appMatch = line.match(/\/([^/]+)\.app\//);
+          if (!appMatch) continue;
+          const lastSpace = line.trimEnd().lastIndexOf(' ');
+          if (lastSpace === -1) continue;
+          const pid = parseInt(line.slice(lastSpace + 1), 10);
+          if (isNaN(pid)) continue;
+          const proc = results.find((r) => r.pid === pid);
+          if (proc) proc.name = appMatch[1];
+        }
+        resolve(results);
+      },
+    );
   });
 }
 
@@ -71,13 +76,18 @@ function listProcesses() {
  */
 function getParentProcessMap() {
   return new Promise((resolve) => {
-    _execFile('ps', ['-axo', 'pid=,ppid=,comm='], { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
-      if (err) {
-        resolve(new Map());
-        return;
-      }
-      resolve(parseParentProcessMapFromPs(stdout));
-    });
+    _execFile(
+      'ps',
+      ['-axo', 'pid=,ppid=,comm='],
+      { timeout: 5000, maxBuffer: 4 * 1024 * 1024 },
+      (err, stdout) => {
+        if (err) {
+          resolve(new Map());
+          return;
+        }
+        resolve(parseParentProcessMapFromPs(stdout));
+      },
+    );
   });
 }
 

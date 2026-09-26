@@ -32,6 +32,16 @@ describe('linux exec-based functions', () => {
   });
 
   describe('listProcesses()', () => {
+    it('bounds ps and rejects when the command times out', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        expect(cmd).toBe('ps');
+        expect(opts).toEqual({ timeout: 5000, maxBuffer: 4 * 1024 * 1024 });
+        cb(new Error('ps timed out'));
+      });
+
+      await expect(linux.listProcesses()).rejects.toThrow('ps timed out');
+    });
+
     it('parses ps output into process objects', async () => {
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
         cb(null, 'node  1234\nbash  5678\n/usr/bin/python  9999\n');

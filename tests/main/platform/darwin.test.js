@@ -76,6 +76,16 @@ describe('platform/darwin', () => {
   });
 
   describe('listProcesses', () => {
+    it('bounds ps and rejects when the command times out', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        expect(cmd).toBe('ps');
+        expect(opts).toEqual({ timeout: 5000, maxBuffer: 4 * 1024 * 1024 });
+        cb(new Error('ps timed out'));
+      });
+
+      await expect(darwin.listProcesses()).rejects.toThrow('ps timed out');
+    });
+
     it('parses ps output into name/pid pairs', async () => {
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
         cb(null, '/usr/bin/node 1234\n/Applications/Code.app/Contents/MacOS/Electron 5678\n');
@@ -145,6 +155,16 @@ describe('platform/darwin', () => {
   });
 
   describe('getParentProcessMap', () => {
+    it('bounds ps and returns an empty map when the command times out', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        expect(cmd).toBe('ps');
+        expect(opts).toEqual({ timeout: 5000, maxBuffer: 4 * 1024 * 1024 });
+        cb(new Error('ps timed out'));
+      });
+
+      expect(await darwin.getParentProcessMap()).toEqual(new Map());
+    });
+
     it('resolves to empty Map on error', async () => {
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
         cb(new Error('fail'));
