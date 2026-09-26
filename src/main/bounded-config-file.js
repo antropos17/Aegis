@@ -57,4 +57,26 @@ function readBoundedConfigFile(filename) {
   }
 }
 
-module.exports = { readBoundedConfigFile, MAX_CONFIG_BYTES };
+/**
+ * Read a bundled, read-only ASAR member without opening a temporary extracted file.
+ * Electron's ASAR stat has only reliable file type and size; handle identity cannot
+ * be compared to it. Call only for paths rooted in this application's app.asar.
+ * @param {string} filename Bundled archive member path.
+ * @returns {string} Complete UTF-8 file text.
+ * @since v0.17.0
+ */
+function readBoundedArchiveFile(filename) {
+  const stat = fs.statSync(filename);
+  if (!stat.isFile() || !Number.isSafeInteger(stat.size) || stat.size > MAX_CONFIG_BYTES)
+    throw new Error('config-file-unavailable');
+  const bytes = fs.readFileSync(filename);
+  try {
+    if (bytes.length !== stat.size || bytes.length > MAX_CONFIG_BYTES)
+      throw new Error('config-file-unavailable');
+    return bytes.toString('utf8');
+  } finally {
+    bytes.fill(0);
+  }
+}
+
+module.exports = { readBoundedConfigFile, readBoundedArchiveFile, MAX_CONFIG_BYTES };

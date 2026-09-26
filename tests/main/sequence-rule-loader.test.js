@@ -17,6 +17,7 @@ import os from 'os';
 import path from 'path';
 import { createRequire } from 'module';
 import loader from '../../src/main/sequence-rule-loader.js';
+import boundedConfig from '../../src/main/bounded-config-file.js';
 import { normalizeToEcs } from '../../src/shared/ecs-normalizer.js';
 
 const require_ = createRequire(import.meta.url);
@@ -193,6 +194,25 @@ describe('sequence-rule-loader — accepted format', () => {
       expect(reasonsLogged()).toEqual(['file-read', 'nullable-entity-id-steps']);
       expect(messagesLogged()[0]).toBe('sequence rule file unreadable');
       expect(JSON.stringify(warnSpy.mock.calls)).not.toContain(tmp);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('counts an oversized YAML as unreadable and still loads a valid neighbor', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-seq-limit-'));
+    try {
+      const oversizedPath = path.join(tmp, 'oversized.yaml');
+      fs.closeSync(fs.openSync(oversizedPath, 'w'));
+      fs.truncateSync(oversizedPath, boundedConfig.MAX_CONFIG_BYTES + 1);
+      fs.copyFileSync(path.join(ACCEPTED_DIR, 'canonical.yaml'), path.join(tmp, 'zz-good.yaml'));
+
+      const out = loader.loadDir(tmp);
+
+      expect(out.rules.map((r) => r.id)).toEqual(['SEQ001']);
+      expect(out.loadErrors).toBe(1);
+      expect(reasonsLogged()[0]).toBe('file-read');
+      expect(messagesLogged()[0]).toBe('sequence rule file unreadable');
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }

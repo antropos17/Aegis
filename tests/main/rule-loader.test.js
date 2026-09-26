@@ -3,6 +3,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import ruleLoader from '../../src/main/rule-loader.js';
+import boundedConfig from '../../src/main/bounded-config-file.js';
 
 // rule-loader holds the CommonJS module.exports object; the ESM default import
 // is a distinct interop wrapper, so spying on it would not intercept the calls.
@@ -88,6 +89,56 @@ describe('rule-loader', () => {
   });
 
   describe('invalid YAML', () => {
+    it('rejects an oversized schema before parsing it', () => {
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-rule-limit-'));
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+      let openSpy;
+      try {
+        const schemaPath = path.join(directory, '_schema.json');
+        fs.closeSync(fs.openSync(schemaPath, 'w'));
+        fs.truncateSync(schemaPath, boundedConfig.MAX_CONFIG_BYTES + 1);
+        openSpy = vi.spyOn(fs, 'openSync');
+
+        expect(ruleLoader.reloadRules(directory).size).toBe(0);
+        expect(openSpy.mock.calls.some(([target]) => target === schemaPath)).toBe(false);
+        expect(warnSpy).toHaveBeenLastCalledWith('rule-loader', 'Failed to load schema', {
+          code: 'rule-schema-load-failed',
+        });
+      } finally {
+        openSpy?.mockRestore();
+        warnSpy.mockRestore();
+        ruleLoader.reloadRules(FIXTURES_DIR);
+        fs.rmSync(directory, { recursive: true, force: true });
+      }
+    });
+
+    it('skips an oversized ruleset while loading a valid neighbor', () => {
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-rule-limit-'));
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+      try {
+        fs.copyFileSync(
+          path.join(FIXTURES_DIR, '_schema.json'),
+          path.join(directory, '_schema.json'),
+        );
+        fs.copyFileSync(
+          path.join(FIXTURES_DIR, 'valid-test.yaml'),
+          path.join(directory, 'good.yaml'),
+        );
+        const oversizedPath = path.join(directory, 'oversized.yaml');
+        fs.closeSync(fs.openSync(oversizedPath, 'w'));
+        fs.truncateSync(oversizedPath, boundedConfig.MAX_CONFIG_BYTES + 1);
+
+        expect(ruleLoader.reloadRules(directory).size).toBe(5);
+        expect(warnSpy).toHaveBeenCalledWith('rule-loader', 'Failed to read ruleset', {
+          code: 'rule-file-read-failed',
+        });
+      } finally {
+        warnSpy.mockRestore();
+        ruleLoader.reloadRules(FIXTURES_DIR);
+        fs.rmSync(directory, { recursive: true, force: true });
+      }
+    });
+
     it('does not persist source text or private names from a malformed YAML file', () => {
       const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-rule-privacy-'));
       const sourceCanary = 'WATCHED_SECRET_BODY_CANARY';
@@ -151,7 +202,7 @@ describe('rule-loader', () => {
       const filePath = path.join(directory, 'control.yaml');
       const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
       const originalReaddir = fs.readdirSync.bind(fs);
-      const originalReadFile = fs.readFileSync.bind(fs);
+      const originalOpen = fs.openSync.bind(fs);
       try {
         fs.copyFileSync(
           path.join(FIXTURES_DIR, '_schema.json'),
@@ -172,9 +223,9 @@ describe('rule-loader', () => {
           readdirSpy.mockRestore();
         }
 
-        const readSpy = vi.spyOn(fs, 'readFileSync').mockImplementation((target, ...args) => {
+        const readSpy = vi.spyOn(fs, 'openSync').mockImplementation((target, ...args) => {
           if (target === filePath) throw new Error(`EACCES: ${filePath}`);
-          return originalReadFile(target, ...args);
+          return originalOpen(target, ...args);
         });
         try {
           expect(ruleLoader.reloadRules(directory).size).toBe(0);

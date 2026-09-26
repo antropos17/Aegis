@@ -14,6 +14,7 @@ const path = require('path');
 const yaml = require('js-yaml');
 const Ajv = require('ajv');
 const logger = require('./logger');
+const { readBoundedConfigFile, readBoundedArchiveFile } = require('./bounded-config-file');
 
 /**
  * @typedef {import('../shared/types/config').SensitiveRule} SensitiveRule
@@ -34,6 +35,13 @@ const logger = require('./logger');
 
 /** @type {string} */
 const DEFAULT_RULES_DIR = path.join(__dirname, '..', '..', 'rules');
+
+/** @param {string} filename @returns {string} */
+function readRuleFile(filename) {
+  return /[/\\]app\.asar[/\\]/.test(__dirname) && path.dirname(filename) === DEFAULT_RULES_DIR
+    ? readBoundedArchiveFile(filename)
+    : readBoundedConfigFile(filename);
+}
 
 /** @type {Map<string, LoadedRule>} */
 let ruleCache = new Map();
@@ -62,7 +70,7 @@ function setRuleOverridesProvider(provider) {
  * @returns {import('ajv').ValidateFunction}
  */
 function initValidator(schemaPath) {
-  const schemaText = fs.readFileSync(schemaPath, 'utf8');
+  const schemaText = readRuleFile(schemaPath);
   const schema = JSON.parse(schemaText);
   const ajv = new Ajv({ useDefaults: true });
   return ajv.compile(schema);
@@ -125,7 +133,7 @@ function loadRules(rulesDir = DEFAULT_RULES_DIR) {
     const filePath = path.join(rulesDir, file);
     let content;
     try {
-      content = fs.readFileSync(filePath, 'utf8');
+      content = readRuleFile(filePath);
     } catch {
       logger.warn('rule-loader', 'Failed to read ruleset', { code: 'rule-file-read-failed' });
       continue;
