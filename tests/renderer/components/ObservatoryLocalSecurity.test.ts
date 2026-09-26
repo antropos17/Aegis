@@ -183,6 +183,7 @@ it('submits external import options and labels claims as unverified', async () =
   render(LocalSecurity, { host: bridge(call) });
   await options();
   await fireEvent.change(screen.getByLabelText('Review type'), { target: { value: 'import' } });
+  expect(screen.getByRole('option', { name: 'cfgaudit · SARIF 2.1.0' })).toBeInTheDocument();
   await fireEvent.change(screen.getByLabelText('Report format'), {
     target: { value: 'cisco-skill-sarif' },
   });
@@ -243,6 +244,24 @@ it('preserves uncertainty in partial changes and paginated MCP catalogs', () => 
   expect(reviewRows({ catalog: { complete: false } }, 'coverage')[0].title).toBe(
     'MCP catalog is incomplete',
   );
+  expect(
+    reviewRows(
+      {
+        external: {
+          findings: [
+            {
+              title: 'External analyzer reported a finding requiring review',
+              locations: [
+                { path: null, reportedLine: 1 },
+                { path: '.claude/settings.json', reportedLine: 7 },
+              ],
+            },
+          ],
+        },
+      },
+      'findings',
+    )[0].subtitle,
+  ).toBe('External claim · unverified · .claude/settings.json · Line 7');
 });
 
 it('starts with one default project review and keeps advanced choices collapsed', async () => {
