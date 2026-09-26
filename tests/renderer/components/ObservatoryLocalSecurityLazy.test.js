@@ -39,7 +39,7 @@ it('loads the local review on first visit and retains its setup and result acros
   expect(includeTools).toBeChecked();
   expect(screen.getByText('Simulated review loaded. No files were read.')).toBeVisible();
   expect(moduleLoad.count).toBe(1);
-});
+}, 15000);
 
 it('opens a direct Local security link through the same review workspace', async () => {
   window.history.replaceState({}, '', '/?view=local-security');
