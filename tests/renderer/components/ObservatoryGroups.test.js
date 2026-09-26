@@ -17,6 +17,8 @@ const agent = (pid, name = 'Claude Code') => ({
   process: 'claude.exe',
   instanceId: `${pid}:live`,
   instanceIdSource: 'os',
+  generationWitness: `generation-${pid}`,
+  generationWitnessSource: 'createTime100ns',
   cwd: `X:/project-${pid}`,
 });
 const state = () => ({
@@ -98,7 +100,12 @@ it('opens the group without process controls and resolves a chosen member to its
   await fireEvent.click(await screen.findByRole('tab', { name: 'Controls', exact: true }));
   await fireEvent.click(await screen.findByRole('button', { name: 'Suspend', exact: true }));
   await waitFor(() =>
-    expect(host.suspendProcess).toHaveBeenCalledWith({ pid: 20, instanceId: '20:live' }),
+    expect(host.suspendProcess).toHaveBeenCalledWith({
+      pid: 20,
+      instanceId: '20:live',
+      generationWitness: 'generation-20',
+      generationWitnessSource: 'createTime100ns',
+    }),
   );
 });
 

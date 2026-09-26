@@ -15,6 +15,9 @@ export function createPreviewHost(): Host {
     pid: 10000 + index,
     instanceId: `demo:observatory:${index}`,
     instanceIdSource: 'os',
+    // Preview values only: actions below return unavailable and never reach native IPC.
+    generationWitness: `preview-generation-${index}`,
+    generationWitnessSource: 'createTime100ns',
     status: 'running',
     category: 'cli-tool',
     cwd: `X:/Preview/project-${index + 1}`,

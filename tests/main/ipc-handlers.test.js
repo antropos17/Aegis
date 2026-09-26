@@ -124,6 +124,7 @@ const mockPlatform = {
   killProcess: vi.fn(() => Promise.resolve({ success: true })),
   suspendProcess: vi.fn(() => Promise.resolve({ success: true })),
   resumeProcess: vi.fn(() => Promise.resolve({ success: true })),
+  getParentProcessMap: vi.fn(async () => new Map()),
 };
 
 // Resolve absolute paths for internal modules
@@ -209,6 +210,7 @@ describe('ipc-handlers', () => {
     mockPlatform.killProcess.mockClear();
     mockPlatform.suspendProcess.mockClear();
     mockPlatform.resumeProcess.mockClear();
+    mockPlatform.getParentProcessMap.mockReset().mockResolvedValue(new Map());
     mockElectron.Notification.mockClear();
     mockElectron.Notification.isSupported.mockClear().mockReturnValue(true);
 
@@ -270,6 +272,53 @@ describe('ipc-handlers', () => {
     threatTempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-threat-report-test-'));
     mockElectron.app.getPath.mockReturnValue(threatTempRoot);
     return registerOwnedRenderer();
+  }
+
+  function registerObservedProcess(extraDeps = {}) {
+    const agent = {
+      agent: 'Claude',
+      pid: 1234,
+      startTime: 1700000000000,
+      instanceId: '1234:1700000000000',
+      instanceIdSource: 'os',
+      generationWitness: '17000000000000000',
+      generationWitnessSource: 'createTime100ns',
+    };
+    mockPlatform.getParentProcessMap.mockResolvedValue(
+      new Map([
+        [
+          agent.pid,
+          {
+            startTime: agent.startTime,
+            witness: agent.generationWitness,
+            witnessSource: agent.generationWitnessSource,
+          },
+        ],
+      ]),
+    );
+    const owned = registerOwnedRenderer({
+      getStats: () => ({
+        appHealth: {
+          populationReliable: true,
+          populationAsOf: Date.now(),
+          identityDegraded: false,
+        },
+        monitoringPaused: false,
+        observationGap: { state: 'NONE' },
+      }),
+      getLatestAgents: () => [agent],
+      ...extraDeps,
+    });
+    return {
+      ...owned,
+      agent,
+      request: {
+        pid: agent.pid,
+        instanceId: agent.instanceId,
+        generationWitness: agent.generationWitness,
+        generationWitnessSource: agent.generationWitnessSource,
+      },
+    };
   }
 
   it.each([
@@ -1264,139 +1313,406 @@ describe('ipc-handlers', () => {
       expect(handler(null, 123).success).toBe(false);
     });
 
-    it('kill-process rejects invalid PID at IPC boundary', async () => {
+    it.each([
+      ['kill-process', 'killProcess'],
+      ['suspend-process', 'suspendProcess'],
+      ['resume-process', 'resumeProcess'],
+    ])('%s acts only on an owned, freshly observed stamped instance', async (channel, method) => {
+      const { event, request } = registerObservedProcess();
+      expect(await getHandler(channel)(event, request)).toEqual({ success: true });
+      expect(mockPlatform.getParentProcessMap).toHaveBeenCalledOnce();
+      expect(mockPlatform[method]).toHaveBeenCalledWith(request.pid);
+    });
+
+    it('rejects overlapping process-control channels without another process-map read or queue', async () => {
+      const { event, agent, request } = registerObservedProcess();
+      const map = new Map([
+        [
+          agent.pid,
+          {
+            startTime: agent.startTime,
+            witness: agent.generationWitness,
+            witnessSource: agent.generationWitnessSource,
+          },
+        ],
+      ]);
+      let releaseMap;
+      mockPlatform.getParentProcessMap.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseMap = resolve;
+          }),
+      );
+      const first = getHandler('kill-process')(event, request);
+      const second = await getHandler('suspend-process')(event, request);
+      const third = await getHandler('resume-process')(event, request);
+      releaseMap(map);
+      expect(await first).toEqual({ success: true });
+      expect(second).toEqual({ success: false, error: 'Process control is already in progress' });
+      expect(third).toEqual({ success: false, error: 'Process control is already in progress' });
+      expect(mockPlatform.getParentProcessMap).toHaveBeenCalledOnce();
+      expect(mockPlatform.killProcess).toHaveBeenCalledOnce();
+      expect(mockPlatform.suspendProcess).not.toHaveBeenCalled();
+      expect(mockPlatform.resumeProcess).not.toHaveBeenCalled();
+      expect(await getHandler('resume-process')(event, request)).toEqual({ success: true });
+    });
+
+    it('holds the process-control gate until the platform action settles', async () => {
+      const { event, request } = registerObservedProcess();
+      let finishAction;
+      mockPlatform.killProcess.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishAction = resolve;
+          }),
+      );
+      const first = getHandler('kill-process')(event, request);
+      await vi.waitFor(() => expect(mockPlatform.killProcess).toHaveBeenCalledOnce());
+      const second = await getHandler('suspend-process')(event, request);
+      finishAction({ success: true });
+      expect(await first).toEqual({ success: true });
+      expect(second).toEqual({ success: false, error: 'Process control is already in progress' });
+      expect(mockPlatform.getParentProcessMap).toHaveBeenCalledOnce();
+      expect(mockPlatform.suspendProcess).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['kill-process', 'killProcess'],
+      ['suspend-process', 'suspendProcess'],
+      ['resume-process', 'resumeProcess'],
+    ])('%s rejects a foreign sender and an unstamped PID', async (channel, method) => {
+      const { event, request } = registerObservedProcess();
+      expect(await getHandler(channel)({ ...event, sender: {} }, request)).toEqual({
+        success: false,
+        error: 'Renderer request denied',
+      });
+      expect(await getHandler(channel)(event, request.pid)).toEqual({
+        success: false,
+        error: 'Invalid process instance',
+      });
+      expect(mockPlatform.getParentProcessMap).not.toHaveBeenCalled();
+      expect(mockPlatform[method]).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['kill-process', 'killProcess'],
+      ['suspend-process', 'suspendProcess'],
+      ['resume-process', 'resumeProcess'],
+    ])('%s refuses paused, failed, reused and unproved instances', async (channel, method) => {
+      let stats = {
+        appHealth: {
+          populationReliable: true,
+          populationAsOf: Date.now(),
+          identityDegraded: false,
+        },
+        monitoringPaused: true,
+        observationGap: { state: 'NONE' },
+      };
+      const { event, agent, request } = registerObservedProcess({ getStats: () => stats });
+      const handler = getHandler(channel);
+      expect((await handler(event, request)).success).toBe(false);
+      stats = { ...stats, monitoringPaused: false, appHealth: { populationReliable: false } };
+      expect((await handler(event, request)).success).toBe(false);
+      stats = {
+        ...stats,
+        appHealth: { populationReliable: true, populationAsOf: Date.now() - 60000 },
+      };
+      expect((await handler(event, request)).success).toBe(false);
+      stats = {
+        ...stats,
+        appHealth: { populationReliable: true, populationAsOf: Date.now() },
+      };
+      mockPlatform.getParentProcessMap.mockResolvedValue(
+        new Map([[agent.pid, { startTime: agent.startTime + 1 }]]),
+      );
+      expect((await handler(event, request)).success).toBe(false);
+      mockPlatform.getParentProcessMap.mockResolvedValue(
+        new Map([
+          [
+            agent.pid,
+            {
+              startTime: agent.startTime,
+              witness: 'different',
+              witnessSource: agent.generationWitnessSource,
+            },
+          ],
+        ]),
+      );
+      expect((await handler(event, request)).success).toBe(false);
+      mockPlatform.getParentProcessMap.mockResolvedValue(new Map());
+      expect((await handler(event, request)).success).toBe(false);
+      expect(mockPlatform[method]).not.toHaveBeenCalled();
+    });
+
+    it('kill-process rechecks renderer ownership and health after the fresh observation', async () => {
+      let resolveMap;
+      let paused = false;
+      const { event, frame, request } = registerObservedProcess({
+        getStats: () => ({
+          appHealth: { populationReliable: true, populationAsOf: Date.now() },
+          monitoringPaused: paused,
+        }),
+      });
+      mockPlatform.getParentProcessMap.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveMap = resolve;
+          }),
+      );
+      const pending = getHandler('kill-process')(event, request);
+      paused = true;
+      resolveMap(
+        new Map([
+          [
+            1234,
+            {
+              startTime: 1700000000000,
+              witness: '17000000000000000',
+              witnessSource: 'createTime100ns',
+            },
+          ],
+        ]),
+      );
+      expect((await pending).success).toBe(false);
+      expect(mockPlatform.killProcess).not.toHaveBeenCalled();
+
+      paused = false;
+      const pendingAfterNavigation = getHandler('kill-process')(event, request);
+      frame.url = 'https://other.invalid/';
+      resolveMap(
+        new Map([
+          [
+            1234,
+            {
+              startTime: 1700000000000,
+              witness: '17000000000000000',
+              witnessSource: 'createTime100ns',
+            },
+          ],
+        ]),
+      );
+      expect(await pendingAfterNavigation).toEqual({
+        success: false,
+        error: 'Renderer request denied',
+      });
+      expect(mockPlatform.killProcess).not.toHaveBeenCalled();
+    });
+
+    it('kill-process fails closed and releases the gate when the process-map provider fails', async () => {
+      const { event, request } = registerObservedProcess();
+      mockPlatform.getParentProcessMap.mockRejectedValueOnce(new Error('private provider details'));
+      expect(await getHandler('kill-process')(event, request)).toEqual({
+        success: false,
+        error: 'Process observation is unavailable or stale',
+      });
+      expect(mockPlatform.killProcess).not.toHaveBeenCalled();
+      expect(await getHandler('kill-process')(event, request)).toEqual({ success: true });
+    });
+
+    it('releases the process-control gate after a platform action rejects', async () => {
+      const { event, request } = registerObservedProcess();
+      mockPlatform.killProcess.mockRejectedValueOnce(new Error('mock action failure'));
+      await expect(getHandler('kill-process')(event, request)).rejects.toThrow(
+        'mock action failure',
+      );
+      expect(await getHandler('suspend-process')(event, request)).toEqual({ success: true });
+      expect(mockPlatform.getParentProcessMap).toHaveBeenCalledTimes(2);
+    });
+
+    it('kill-process does not borrow a newer witness from a mutated latest-agent record', async () => {
+      const { event, agent, request } = registerObservedProcess();
+      let resolveMap;
+      mockPlatform.getParentProcessMap.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveMap = resolve;
+          }),
+      );
+      const pending = getHandler('kill-process')(event, request);
+      agent.generationWitness = 'different-generation';
+      resolveMap(
+        new Map([
+          [
+            agent.pid,
+            {
+              startTime: agent.startTime,
+              witness: agent.generationWitness,
+              witnessSource: agent.generationWitnessSource,
+            },
+          ],
+        ]),
+      );
+      expect((await pending).success).toBe(false);
+      expect(mockPlatform.killProcess).not.toHaveBeenCalled();
+    });
+
+    it('rejects an old request after same-millisecond PID reuse reaches latestAgents', async () => {
+      const { event, agent, request } = registerObservedProcess();
+      agent.generationWitness = 'new-generation-in-same-millisecond';
+      mockPlatform.getParentProcessMap.mockResolvedValue(
+        new Map([
+          [
+            agent.pid,
+            {
+              startTime: agent.startTime,
+              witness: agent.generationWitness,
+              witnessSource: agent.generationWitnessSource,
+            },
+          ],
+        ]),
+      );
+      expect(await getHandler('kill-process')(event, request)).toEqual({
+        success: false,
+        error: 'Process instance changed or is no longer observed',
+      });
+      expect(mockPlatform.killProcess).not.toHaveBeenCalled();
+    });
+
+    it('refuses CIM birth-time-only fallback for process control', async () => {
+      const { event, agent, request } = registerObservedProcess();
+      agent.generationWitness = String(agent.startTime);
+      agent.generationWitnessSource = 'startTimeMs';
+      mockPlatform.getParentProcessMap.mockResolvedValue(
+        new Map([[agent.pid, { startTime: agent.startTime }]]),
+      );
+      expect(
+        await getHandler('kill-process')(event, {
+          ...request,
+          generationWitness: agent.generationWitness,
+          generationWitnessSource: agent.generationWitnessSource,
+        }),
+      ).toEqual({ success: false, error: 'Invalid process instance' });
+      expect(mockPlatform.getParentProcessMap).not.toHaveBeenCalled();
+      expect(mockPlatform.killProcess).not.toHaveBeenCalled();
+    });
+
+    it('kill-process rejects invalid or unstamped requests at IPC boundary', async () => {
+      const { event } = registerObservedProcess();
       const handler = getHandler('kill-process');
-      for (const bad of [0, -1, 1.5, 'abc', null, undefined]) {
-        const result = await handler(null, bad);
-        expect(result).toEqual({ success: false, error: 'Invalid PID' });
+      for (const bad of [
+        0,
+        -1,
+        1.5,
+        'abc',
+        null,
+        undefined,
+        { pid: 0, instanceId: '0:1' },
+        { pid: 1234, instanceId: '1234:1700000000000' },
+      ]) {
+        const result = await handler(event, bad);
+        expect(result).toEqual({ success: false, error: 'Invalid process instance' });
       }
       expect(mockPlatform.killProcess).not.toHaveBeenCalled();
     });
 
-    it('suspend-process rejects invalid PID at IPC boundary', async () => {
+    it('suspend-process rejects invalid or unstamped requests at IPC boundary', async () => {
+      const { event } = registerObservedProcess();
       const handler = getHandler('suspend-process');
-      for (const bad of [0, -1, 1.5, 'abc', null, undefined]) {
-        const result = await handler(null, bad);
-        expect(result).toEqual({ success: false, error: 'Invalid PID' });
+      for (const bad of [0, -1, 1.5, 'abc', null, undefined, { pid: 0, instanceId: '0:1' }]) {
+        const result = await handler(event, bad);
+        expect(result).toEqual({ success: false, error: 'Invalid process instance' });
       }
       expect(mockPlatform.suspendProcess).not.toHaveBeenCalled();
     });
 
-    it('resume-process rejects invalid PID at IPC boundary', async () => {
+    it('resume-process rejects invalid or unstamped requests at IPC boundary', async () => {
+      const { event } = registerObservedProcess();
       const handler = getHandler('resume-process');
-      for (const bad of [0, -1, 1.5, 'abc', null, undefined]) {
-        const result = await handler(null, bad);
-        expect(result).toEqual({ success: false, error: 'Invalid PID' });
+      for (const bad of [0, -1, 1.5, 'abc', null, undefined, { pid: 0, instanceId: '0:1' }]) {
+        const result = await handler(event, bad);
+        expect(result).toEqual({ success: false, error: 'Invalid process instance' });
       }
       expect(mockPlatform.resumeProcess).not.toHaveBeenCalled();
     });
 
     it.each(['kill-process', 'suspend-process', 'resume-process'])(
-      '%s rejects a reused PID or observation outage for stamped requests',
+      '%s rejects a stale stamped request even when the PID remains monitored',
       async (channel) => {
-        let reliable = true;
-        let currentId = '1234:new';
-        ipcHandlers.init({
-          getStats: () => ({
-            appHealth: { populationReliable: reliable },
-            observationGap: { state: 'NONE' },
-          }),
-          getLatestAgents: () => [
-            { agent: 'Claude', pid: 1234, instanceId: currentId, instanceIdSource: 'os' },
-          ],
-        });
+        const { event, request } = registerObservedProcess();
         const handler = getHandler(channel);
-        expect(await handler(null, { pid: 1234, instanceId: '1234:old' })).toEqual({
+        expect(await handler(event, { ...request, instanceId: '1234:old' })).toEqual({
           success: false,
           error: 'Process instance changed or is no longer observed',
         });
-        reliable = false;
-        expect((await handler(null, { pid: 1234, instanceId: currentId })).success).toBe(false);
         expect(mockPlatform.killProcess).not.toHaveBeenCalled();
         expect(mockPlatform.suspendProcess).not.toHaveBeenCalled();
         expect(mockPlatform.resumeProcess).not.toHaveBeenCalled();
-        reliable = true;
-        expect((await handler(null, { pid: 1234, instanceId: currentId })).success).toBe(true);
       },
     );
 
-    it('kill-process accepts monitored PID', async () => {
+    it('kill-process accepts a verified monitored instance', async () => {
+      const { event, request } = registerObservedProcess();
       const handler = getHandler('kill-process');
-      const result = await handler(null, 1234);
+      const result = await handler(event, request);
       expect(result).toEqual({ success: true });
       expect(mockPlatform.killProcess).toHaveBeenCalledWith(1234);
     });
 
     it('kill-process rejects unmonitored PID', async () => {
+      const { event, request } = registerObservedProcess();
       const handler = getHandler('kill-process');
-      const result = await handler(null, 9999);
-      expect(result).toEqual({ success: false, error: 'Process not monitored by Aegis' });
+      const result = await handler(event, {
+        ...request,
+        pid: 9999,
+        instanceId: '9999:1700000000000',
+      });
+      expect(result).toEqual({
+        success: false,
+        error: 'Process instance changed or is no longer observed',
+      });
       expect(mockPlatform.killProcess).not.toHaveBeenCalled();
     });
 
     it('suspend-process rejects unmonitored PID', async () => {
+      const { event, request } = registerObservedProcess();
       const handler = getHandler('suspend-process');
-      const result = await handler(null, 9999);
-      expect(result).toEqual({ success: false, error: 'Process not monitored by Aegis' });
+      const result = await handler(event, {
+        ...request,
+        pid: 9999,
+        instanceId: '9999:1700000000000',
+      });
+      expect(result).toEqual({
+        success: false,
+        error: 'Process instance changed or is no longer observed',
+      });
       expect(mockPlatform.suspendProcess).not.toHaveBeenCalled();
     });
 
     it('resume-process rejects unmonitored PID', async () => {
+      const { event, request } = registerObservedProcess();
       const handler = getHandler('resume-process');
-      const result = await handler(null, 9999);
-      expect(result).toEqual({ success: false, error: 'Process not monitored by Aegis' });
+      const result = await handler(event, {
+        ...request,
+        pid: 9999,
+        instanceId: '9999:1700000000000',
+      });
+      expect(result).toEqual({
+        success: false,
+        error: 'Process instance changed or is no longer observed',
+      });
       expect(mockPlatform.resumeProcess).not.toHaveBeenCalled();
     });
 
-    it('kill-process refuses AEGIS own PID even when it is monitored', async () => {
-      // Inject AEGIS's own PID as a monitored agent so the monitored-agent
-      // check would otherwise pass — only the own-PID self-guard must block it.
-      ipcHandlers.init({
-        getWindow: () => null,
-        getStats: () => ({}),
-        getResourceUsage: () => ({}),
-        getLatestAgents: () => [{ agent: 'Self', pid: process.pid, category: 'ai' }],
-        setOtherPanelExpanded: vi.fn(),
-      });
-      ipcHandlers.register();
-      mockPlatform.killProcess.mockClear();
+    it('kill-process refuses AEGIS own PID', async () => {
+      const { event, request } = registerObservedProcess();
       const handler = getHandler('kill-process');
-      const result = await handler(null, process.pid);
+      const result = await handler(event, { ...request, pid: process.pid });
       expect(result).toEqual({ success: false, error: 'Refusing to act on AEGIS itself' });
       expect(mockPlatform.killProcess).not.toHaveBeenCalled();
     });
 
-    it('suspend-process refuses AEGIS own PID even when it is monitored', async () => {
-      ipcHandlers.init({
-        getWindow: () => null,
-        getStats: () => ({}),
-        getResourceUsage: () => ({}),
-        getLatestAgents: () => [{ agent: 'Self', pid: process.pid, category: 'ai' }],
-        setOtherPanelExpanded: vi.fn(),
-      });
-      ipcHandlers.register();
-      mockPlatform.suspendProcess.mockClear();
+    it('suspend-process refuses AEGIS own PID', async () => {
+      const { event, request } = registerObservedProcess();
       const handler = getHandler('suspend-process');
-      const result = await handler(null, process.pid);
+      const result = await handler(event, { ...request, pid: process.pid });
       expect(result).toEqual({ success: false, error: 'Refusing to act on AEGIS itself' });
       expect(mockPlatform.suspendProcess).not.toHaveBeenCalled();
     });
 
-    it('resume-process refuses AEGIS own PID even when it is monitored', async () => {
-      // Mirror of the kill/suspend own-PID tests: inject AEGIS's own PID as a
-      // monitored agent so the monitored-agent check passes — only the own-PID
-      // self-guard must block resume-process.
-      ipcHandlers.init({
-        getWindow: () => null,
-        getStats: () => ({}),
-        getResourceUsage: () => ({}),
-        getLatestAgents: () => [{ agent: 'Self', pid: process.pid, category: 'ai' }],
-        setOtherPanelExpanded: vi.fn(),
-      });
-      ipcHandlers.register();
-      mockPlatform.resumeProcess.mockClear();
+    it('resume-process refuses AEGIS own PID', async () => {
+      const { event, request } = registerObservedProcess();
       const handler = getHandler('resume-process');
-      const result = await handler(null, process.pid);
+      const result = await handler(event, { ...request, pid: process.pid });
       expect(result).toEqual({ success: false, error: 'Refusing to act on AEGIS itself' });
       expect(mockPlatform.resumeProcess).not.toHaveBeenCalled();
     });

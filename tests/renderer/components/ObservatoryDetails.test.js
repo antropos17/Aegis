@@ -10,6 +10,8 @@ const agent = (pid) => ({
   pid,
   instanceId: pid + ':live',
   instanceIdSource: 'os',
+  generationWitness: `generation-${pid}`,
+  generationWitnessSource: 'createTime100ns',
   cwd: 'X:/project-' + pid,
 });
 const state = (agents) => ({ ...emptyTelemetry(), ready: true, stale: false, agents });

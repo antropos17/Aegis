@@ -10,6 +10,8 @@ const agent = {
   pid: 42,
   instanceId: '42:polish',
   instanceIdSource: 'os',
+  generationWitness: 'observed-generation',
+  generationWitnessSource: 'createTime100ns',
 };
 const props = (host = {}) => ({
   host: { blocklistList: vi.fn(async () => []), ...host },
