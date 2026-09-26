@@ -1,6 +1,123 @@
 # AEGIS — starting the next chat
 
-## Current state — 2026-09-26, `origin/master` at `9923428`
+## Handoff snapshot — 2026-09-26, code baseline `d470dee`
+
+The [AI-agent protection roadmap](../docs/roadmap/ai-agent-protection.md) remains
+partial. The latest code merge verified for this handoff is [#593](https://github.com/antropos17/Aegis/pull/593).
+Refresh the remote ref, PR list and current source before starting new work.
+The original `X:/Future/ESCAPE/AEGIS` checkout is old and dirty; preserve its
+unfinished changes. Use a clean managed worktree based on `origin/master`.
+
+The September 26 work advanced independent observation and explicit control
+points in separate PRs. [#548–#550](https://github.com/antropos17/Aegis/pull/548)
+added selected-file deletion observation, an installed Claude smoke test and
+setup guidance. [#555–#558](https://github.com/antropos17/Aegis/pull/555)
+added selected Gemini settings/instructions inventory, catalog ownership in
+the UI and audit IPC ownership. [#560](https://github.com/antropos17/Aegis/pull/560)
+added an opt-in Gemini BeforeTool deny hook. These routes do not control other
+agents, shell paths or direct network access.
+
+Windows now assigns explicit stdio MCP and selected-action child processes to
+private kill-on-close Jobs before execution ([#561](https://github.com/antropos17/Aegis/pull/561),
+[#565](https://github.com/antropos17/Aegis/pull/565),
+[#575](https://github.com/antropos17/Aegis/pull/575)). This bounds the lifetime
+of participating descendants. It is not file/network isolation or a verified
+installed-provider policy route. The opt-in selected action and MCP route are
+distinguished in Observatory ([#567](https://github.com/antropos17/Aegis/pull/567)).
+
+Local review now shows MCP config declarations and imports explicitly selected
+offline cfgaudit SARIF claims ([#563](https://github.com/antropos17/Aegis/pull/563)–[#564](https://github.com/antropos17/Aegis/pull/564)).
+The static scanner flags unpinned Bun/uv launches, broad Claude execution
+preapproval, permission-bypass startup flags and ignored Claude project
+strict-allowlist declarations ([#569](https://github.com/antropos17/Aegis/pull/569),
+[#571](https://github.com/antropos17/Aegis/pull/571),
+[#576](https://github.com/antropos17/Aegis/pull/576),
+[#579](https://github.com/antropos17/Aegis/pull/579),
+[#589](https://github.com/antropos17/Aegis/pull/589),
+[#590](https://github.com/antropos17/Aegis/pull/590)). These are fixed-code
+review signals, not proof of effective runtime permissions or blocking.
+
+Observatory prioritizes severe Local security findings, labels unavailable
+file-watch and network snapshots, loads the security workspace on demand, and
+shows a stale event rate as unavailable instead of zero
+([#570](https://github.com/antropos17/Aegis/pull/570),
+[#573](https://github.com/antropos17/Aegis/pull/573),
+[#577](https://github.com/antropos17/Aegis/pull/577),
+[#580](https://github.com/antropos17/Aegis/pull/580),
+[#585](https://github.com/antropos17/Aegis/pull/585)). The Monitoring card now
+labels automatic file/network blocking as inactive while pointing to separately
+scoped selected Action control routes
+([#591](https://github.com/antropos17/Aegis/pull/591)). These changes improve
+coverage clarity; they do not fill missing sensor observations.
+
+Security boundaries now include a main-process Cancel-default confirmation
+before optional Anthropic analysis metadata egress
+([#581](https://github.com/antropos17/Aegis/pull/581)); owned top-level
+renderer checks on settings/policy mutations, audit and passive IPC reads,
+dialogs and exports ([#551](https://github.com/antropos17/Aegis/pull/551),
+[#557](https://github.com/antropos17/Aegis/pull/557),
+[#559](https://github.com/antropos17/Aegis/pull/559),
+[#584](https://github.com/antropos17/Aegis/pull/584),
+[#586](https://github.com/antropos17/Aegis/pull/586)); and fixed diagnostic
+texts for selected secret-bearing error paths ([#574](https://github.com/antropos17/Aegis/pull/574),
+[#583](https://github.com/antropos17/Aegis/pull/583)). Provider key migration
+fails closed when secure storage is unavailable
+([#572](https://github.com/antropos17/Aegis/pull/572)).
+Network-provider failures and unknown skip reasons now use fixed health codes;
+the operational network-scan failure log also omits raw error text
+([#593](https://github.com/antropos17/Aegis/pull/593)). Other process,
+resource and file scan diagnostics still need a separate redaction review.
+
+Process-control requests require an owned renderer, a fresh stamped observed
+instance and matching native generation witness
+([#582](https://github.com/antropos17/Aegis/pull/582)). On Windows,
+[#587](https://github.com/antropos17/Aegis/pull/587) compares the raw creation
+FILETIME on one opened process HANDLE and acts through that same HANDLE. A
+disposable child smoke refused wrong-time kill/suspend/resume and accepted the
+exact-time sequence. This addresses the PID-reuse window on that route; it
+does not protect AEGIS from elevated termination or bypasses outside the route.
+Process-population outages have a fixed-code audit start/recovery pair
+([#578](https://github.com/antropos17/Aegis/pull/578)); direct network-provider
+rejections have another pair, which remains open across skipped scans
+([#592](https://github.com/antropos17/Aegis/pull/592)). These bound known gaps
+but cannot reconstruct missing events. Audit persistence remains best effort
+when storage fails.
+
+Audit JSON/ZIP export checks the owning renderer during streaming and before
+the final rename, and uses fixed error responses
+([#588](https://github.com/antropos17/Aegis/pull/588)). STA020 now flags a
+selected whole-server Claude MCP preapproval, with a documented ambiguity for
+server names containing double underscores
+([#589](https://github.com/antropos17/Aegis/pull/589)). STA021 marks selected
+Claude user/managed settings that declare raw API body logging, without
+asserting that logging or export occurred
+([#590](https://github.com/antropos17/Aegis/pull/590)).
+
+The next protection priorities are installed-provider control-point tests,
+negative file/network/descendant scenarios, and verified prevention beyond
+explicit routes. An in-flight final rename can still finish after renderer
+revocation; audit temporary export cleanup after crash, publisher and
+server identity, protected policy storage, outside-route egress and signed
+completeness evidence remain open. Treat unknown coverage and unavailable
+sensors as gaps, never as a safety verdict. Reuse existing SRT, MCP gateway,
+scanner and OS primitives where suitable; the roadmap records their limits.
+
+The scheduled local ten-hour heartbeat runs through 15:31 UTC on 2026-09-26.
+Its `AEGIS-RdClientTrace-Retention` companion runs every 15 minutes with a
+30-minute grace period and a target around 512 MiB of eligible closed ETLs.
+It exited 0 again at 15:03 UTC; the trace was 497 MiB shortly afterward and
+grows between runs. C: free space fluctuated between 6.88 and 10.14 GiB
+during this pass; it measured 7.55 GiB after the 15:03 run.
+`C:/Users/murtu/AppData/Local/Temp` measured 4.9 GiB, much of it old
+Visual Studio installer staging; these files and Codex databases were left
+untouched. Check free space, trace growth and task health before heavy local
+work. Use X: for test TEMP/TMP; do not clear unrelated caches or user data.
+The UI QA run left 22.64 MiB in
+`X:/tmp/aegis-protection-scope-qa-20260926`. Automatic approval review blocked
+an exact-path deletion command, so the folder was left intact. It is the
+specific disposable QA output to revisit if cleanup is authorized later.
+
+## Earlier handoff — 2026-09-26, `origin/master` at `9923428` (superseded)
 
 The AI-agent protection [roadmap](../docs/roadmap/ai-agent-protection.md) remains
 partial. Check current refs and PRs first: this commit is the last verified merge
