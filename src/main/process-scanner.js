@@ -77,17 +77,6 @@ function isPopulationProviderFailure(err) {
 }
 
 /**
- * @param {unknown} err
- * @returns {string}
- */
-function healthErrorMessage(err) {
-  if (err == null) return 'unknown-error';
-  if (typeof err === 'string') return err.slice(0, 200);
-  const msg = err && err.message != null ? String(err.message) : String(err);
-  return msg.slice(0, 200);
-}
-
-/**
  * Plain serializable snapshot for future B6 — callers must not mutate.
  * @returns {object}
  * @since 0.11.0
@@ -217,14 +206,14 @@ function getProcessCapabilities() {
 /**
  * Record a hard process-scan failure that escaped scanProcesses (e.g. non-EPERM
  * throw caught by scan-loop). Does not fabricate agents.
- * @param {unknown} err
+ * @param {unknown} _err
  * @returns {void}
  * @since 0.11.0
  */
-function noteProcessScanHardFailure(err) {
+function noteProcessScanHardFailure(_err) {
   const now = Date.now();
   _processHealth = sensorHealth.markFailed(_processHealth, now, {
-    error: healthErrorMessage(err),
+    error: 'hard-scan-failure',
     detail: 'hard-scan-failure',
   });
 }
@@ -358,7 +347,7 @@ async function scanProcesses(opts = {}) {
       processes = [];
       reliable = false;
       _processHealth = sensorHealth.markFailed(_processHealth, now, {
-        error: healthErrorMessage(err),
+        error: 'permission-denied',
         detail: 'permission-denied',
       });
       // Still run the empty path below for pid-set / peakAgents bookkeeping so
