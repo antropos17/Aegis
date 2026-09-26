@@ -146,6 +146,82 @@ it('returns focus to the activity region when the selected row is filtered away'
   expect(screen.getByRole('region', { name: 'Agent activity' })).toHaveFocus();
 });
 
+it('reviews only retained file rows for this mount and reopens an unchanged-looking new delivery', async () => {
+  const input = props();
+  const first = input.telemetry.events[0];
+  const mounted = render(ProtectionOverview, input);
+  const summary = screen.getByRole('button', { name: /Needs your review/ });
+  const fileRow = () => screen.getByRole('button', { name: /Codex.*Held a file open/ });
+  expect(summary).toHaveTextContent('1 activity groups');
+  await fireEvent.click(fileRow());
+  const details = screen.getByRole('complementary', { name: 'Selected activity' });
+  const mark = within(details).getByRole('button', { name: 'Mark reviewed' });
+  expect(mark).toHaveAttribute('aria-pressed', 'false');
+  mark.focus();
+  await fireEvent.click(mark);
+  expect(mark).toHaveFocus();
+  expect(mark).toHaveAttribute('aria-pressed', 'true');
+  expect(summary).toHaveTextContent('0 activity groups');
+  expect(fileRow()).toHaveAccessibleName(/Reviewed this session/);
+  expect(within(details).getByText('Reviewed this session')).toBeVisible();
+
+  await mounted.rerender({ ...input, telemetry: { ...input.telemetry, events: [first] } });
+  expect(mark).toHaveAttribute('aria-pressed', 'true');
+  expect(summary).toHaveTextContent('0 activity groups');
+  await fireEvent.click(screen.getByRole('button', { name: 'Needs review' }));
+  expect(screen.queryByRole('button', { name: /Codex.*Held a file open/ })).toBeNull();
+  await fireEvent.click(screen.getByRole('button', { name: 'Close details' }));
+  expect(screen.getByRole('region', { name: 'Agent activity' })).toHaveFocus();
+  await fireEvent.click(screen.getByRole('button', { name: 'All activity' }));
+  expect(fileRow()).toHaveAccessibleName(/Reviewed this session/);
+  await fireEvent.click(fileRow());
+
+  const newDelivery = { ...first };
+  await mounted.rerender({ ...input, telemetry: { ...input.telemetry, events: [newDelivery] } });
+  expect(summary).toHaveTextContent('1 activity groups');
+  expect(fileRow()).toHaveAccessibleName(/Review needed/);
+  expect(
+    within(screen.getByRole('complementary', { name: 'Selected activity' })).getByRole('button', {
+      name: 'Mark reviewed',
+    }),
+  ).toHaveAttribute('aria-pressed', 'false');
+
+  await fireEvent.click(screen.getByRole('button', { name: 'Mark reviewed' }));
+  await mounted.rerender({ ...input, telemetry: { ...input.telemetry, events: [] } });
+  await mounted.rerender({ ...input, telemetry: { ...input.telemetry, events: [newDelivery] } });
+  expect(summary).toHaveTextContent('1 activity groups');
+  mounted.unmount();
+  render(ProtectionOverview, input);
+  expect(screen.getByRole('button', { name: /Needs your review/ })).toHaveTextContent(
+    '1 activity groups',
+  );
+  expect(fileRow()).toHaveAccessibleName(/Review needed/);
+});
+
+it('keeps flagged network groups in review without offering a review control', async () => {
+  const input = props();
+  input.telemetry.events = [];
+  input.telemetry.network = [
+    {
+      agent: 'Codex',
+      instanceId: '7:first',
+      pid: 7,
+      destination: 'api.example.invalid',
+      verdict: 'flagged',
+      timestamp: 10,
+      attribution: { status: 'inferred', evidence: ['cwd-containment'] },
+    },
+  ];
+  render(ProtectionOverview, input);
+  expect(screen.getByRole('button', { name: /Needs your review/ })).toHaveTextContent(
+    '1 activity groups',
+  );
+  await fireEvent.click(screen.getByRole('button', { name: /Codex.*Connection observed/ }));
+  const details = screen.getByRole('complementary', { name: 'Selected activity' });
+  expect(within(details).queryByRole('button', { name: 'Mark reviewed' })).toBeNull();
+  expect(within(details).getByText(/Network groups cannot be marked reviewed/)).toBeVisible();
+});
+
 it('opens the requested project policy without a write, and invalidates the overview only after a successful save', async () => {
   const transport = {
     ...host(),

@@ -8,12 +8,18 @@
   import { protectionPolicy, type ProtectionActivity } from '../runtime/protection';
   let {
     activity,
+    reviewed,
+    reviewable,
+    toggleReview,
     telemetry,
     permissions,
     inspect,
     openPolicy,
   }: {
     activity: ProtectionActivity;
+    reviewed: boolean;
+    reviewable: boolean;
+    toggleReview: () => void;
     telemetry: Telemetry;
     permissions: RecordData | null;
     inspect: (_title: string, _row: RecordData) => void;
@@ -82,6 +88,25 @@
       ><Icon name="cpu" />{$t('Agent & controls')}</button
     >
   </div>
+  {#if reviewable}
+    <div class="review-control">
+      <button class="button" aria-pressed={reviewed} onclick={toggleReview}
+        >{$t('Mark reviewed')}</button
+      >
+      {#if reviewed}<span>{$t('Reviewed this session')}</span>{/if}
+    </div>
+    <p class="muted">
+      {$t(
+        'Review covers the currently retained file observations. A new observation reopens this group.',
+      )}
+    </p>
+  {:else if activity.kind === 'Network' && activity.level === 'review'}
+    <p class="muted">
+      {$t(
+        'Network groups cannot be marked reviewed because their observations lack a stable identity.',
+      )}
+    </p>
+  {/if}
   {#if !policy.agent || telemetry.stale}<p class="muted">
       {$t('Process controls need an exact, currently observed agent.')}
     </p>{/if}
@@ -169,6 +194,17 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
+  }
+  .review-control {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+  }
+  .review-control span {
+    color: var(--muted);
+    font-weight: 600;
   }
   button {
     white-space: normal;

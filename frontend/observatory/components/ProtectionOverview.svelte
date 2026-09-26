@@ -2,6 +2,7 @@
   import { t } from '../runtime/i18n';
 
   import { onMount, tick } from 'svelte';
+  import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import { invoke, record, type Host, type Telemetry, type RecordData } from '../runtime/host';
   import { createProtectionActivityReader, type ProtectionActivity } from '../runtime/protection';
   import ProtectionDetails from './ProtectionDetails.svelte';
@@ -31,7 +32,27 @@
       telemetry.network as unknown as RecordData[],
     ),
   );
-  const reviewCount = $derived(activity.filter((item) => item.level === 'review').length);
+  const reviewedRows = new SvelteMap<string, WeakSet<RecordData>>();
+  const reviewedKeys = $derived.by(() => {
+    const keys = new SvelteSet<string>();
+    for (const item of activity) {
+      const rows = reviewedRows.get(item.key);
+      if (
+        item.kind === 'File' &&
+        item.level === 'review' &&
+        rows &&
+        item.rows.every((row) => rows.has(row))
+      )
+        keys.add(item.key);
+    }
+    return keys;
+  });
+  $effect(() => {
+    for (const key of reviewedRows.keys()) if (!reviewedKeys.has(key)) reviewedRows.delete(key);
+  });
+  const reviewCount = $derived(
+    activity.filter((item) => item.level === 'review' && !reviewedKeys.has(item.key)).length,
+  );
   const agentCount = $derived(new Set(telemetry.agents.map((agent) => agent.agent)).size);
   let filter = $state('all');
   let selected = $state.raw<ProtectionActivity | null>(null);
@@ -44,6 +65,12 @@
   let mounted = $state(false);
   let revision = 0;
   let alive = true;
+  function toggleReview(key: string) {
+    const item = activity.find((entry) => entry.key === key);
+    if (!item || item.kind !== 'File' || item.level !== 'review') return;
+    if (reviewedKeys.has(key)) reviewedRows.delete(key);
+    else reviewedRows.set(key, new WeakSet(item.rows));
+  }
   async function loadPermissions() {
     const ticket = ++revision;
     permissions = null;
@@ -122,6 +149,8 @@
   <div class="activity-layout" class:has-selection={!!current} bind:this={activityLayout}>
     <ProtectionActivityList
       {activity}
+      {reviewedKeys}
+      {reviewCount}
       ready={telemetry.ready}
       bind:filter
       selectedKey={selected?.key}
@@ -143,6 +172,9 @@
           </p>{/if}
         <ProtectionDetails
           activity={current}
+          reviewed={reviewedKeys.has(current.key)}
+          reviewable={retained && current.kind === 'File' && current.level === 'review'}
+          toggleReview={() => current && toggleReview(current.key)}
           telemetry={liveTelemetry ?? telemetry}
           {permissions}
           {inspect}
