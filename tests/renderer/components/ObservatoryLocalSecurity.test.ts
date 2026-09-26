@@ -223,6 +223,26 @@ it('retains every result through pagination, filtering and keyboard tabs', async
   await fireEvent.keyDown(screen.getByRole('tab', { name: /Findings/ }), { key: 'End' });
   await waitFor(() => expect(screen.getByRole('tab', { name: /Scope & coverage/ })).toHaveFocus());
 });
+it('shows high severity built-in findings before the first page fills with low severity', async () => {
+  const data = await reply();
+  const reviewed = localReview(data.review)!;
+  reviewed.report.findings = [
+    ...Array.from({ length: 20 }, (_, index) => ({
+      title: 'Low finding ' + index,
+      path: 'a-' + index + '.sh',
+      severity: 'low',
+    })),
+    { title: 'High finding', path: 'z-danger.sh', severity: 'high' },
+  ];
+  render(LocalSecurity, {
+    host: bridge(vi.fn().mockResolvedValue({ success: true, review: reviewed })),
+  });
+  await start();
+  const panel = await screen.findByRole('tabpanel', { name: /Findings/ });
+  expect(within(panel).getByText('High finding', { selector: 'strong' })).toBeVisible();
+  expect(within(panel).queryByText('Low finding 19', { selector: 'strong' })).toBeNull();
+  expect(within(panel).getByText(/Built-in analysis · z-danger.sh/)).toBeVisible();
+});
 it('keeps preview data explicit and disables persistent actions', async () => {
   const call = vi.fn().mockResolvedValue(await reply('inventory'));
   render(LocalSecurity, { host: bridge(call), preview: true });
