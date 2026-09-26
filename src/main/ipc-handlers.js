@@ -32,6 +32,21 @@ let deps = {};
 let analysisConfirmationPending = false;
 
 /**
+ * Keep known input validation actionable without exposing native write failures.
+ * @param {unknown} error
+ * @returns {string}
+ */
+function watchlistErrorMessage(error) {
+  const message = error instanceof TypeError ? error.message : '';
+  if (
+    message === 'signature must be a non-empty string' ||
+    message === 'pid must be a positive integer or null'
+  )
+    return message;
+  return 'Unable to update watchlist';
+}
+
+/**
  * Escape HTML special characters to prevent injection.
  * @param {string} str
  * @returns {string}
@@ -711,8 +726,8 @@ ${findingsHtml}${recsHtml}
     try {
       return { success: true, entry: blocklist.add(entry) };
     } catch (error) {
-      logger.warn(`IPC blocklist-add rejected: ${error.message}`);
-      return { success: false, error: error.message };
+      logger.warn('IPC blocklist-add failed');
+      return { success: false, error: watchlistErrorMessage(error) };
     }
   });
   ipcMain.handle('blocklist-remove', (event, entry) => {
@@ -721,8 +736,8 @@ ${findingsHtml}${recsHtml}
     try {
       return { success: true, removed: blocklist.remove(entry) };
     } catch (error) {
-      logger.warn(`IPC blocklist-remove rejected: ${error.message}`);
-      return { success: false, error: error.message };
+      logger.warn('IPC blocklist-remove failed');
+      return { success: false, error: watchlistErrorMessage(error) };
     }
   });
   ipcMain.handle('blocklist-list', (event) => ownedRead(event, () => blocklist.list()));

@@ -41,6 +41,7 @@ describe('blocklist (alert-only watchlist)', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     configManager._setSettingsPathForTest(null);
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -92,6 +93,43 @@ describe('blocklist (alert-only watchlist)', () => {
     const list = blocklist.list();
     expect(list).toHaveLength(1);
     expect(list[0].reason).toBe('updated');
+  });
+
+  it('does not keep a newly added watchlist entry in memory after a failed write', () => {
+    const settingsPath = path.join(tmpDir, 'settings.json');
+    const diskBefore = fs.readFileSync(settingsPath, 'utf8');
+    const rename = vi.spyOn(fs, 'renameSync').mockImplementationOnce(() => {
+      throw new Error('PRIVATE_DISK_CANARY');
+    });
+
+    expect(() => blocklist.add({ signature: 'Claude Code' })).toThrow('PRIVATE_DISK_CANARY');
+    expect(blocklist.list()).toEqual([]);
+    expect(fs.readFileSync(settingsPath, 'utf8')).toBe(diskBefore);
+
+    rename.mockRestore();
+    blocklist.add({ signature: 'Claude Code' });
+    expect(blocklist.list()).toHaveLength(1);
+    expect(JSON.parse(fs.readFileSync(settingsPath, 'utf8')).watchlist).toHaveLength(1);
+  });
+
+  it('does not keep a changed watchlist reason in memory after a failed write', () => {
+    blocklist.add({ signature: 'Claude Code', reason: 'first' });
+    const settingsPath = path.join(tmpDir, 'settings.json');
+    const diskBefore = fs.readFileSync(settingsPath, 'utf8');
+    const rename = vi.spyOn(fs, 'renameSync').mockImplementationOnce(() => {
+      throw new Error('PRIVATE_DISK_CANARY');
+    });
+
+    expect(() => blocklist.add({ signature: 'Claude Code', reason: 'updated' })).toThrow(
+      'PRIVATE_DISK_CANARY',
+    );
+    expect(blocklist.list()[0].reason).toBe('first');
+    expect(fs.readFileSync(settingsPath, 'utf8')).toBe(diskBefore);
+
+    rename.mockRestore();
+    blocklist.add({ signature: 'Claude Code', reason: 'updated' });
+    expect(blocklist.list()[0].reason).toBe('updated');
+    expect(JSON.parse(fs.readFileSync(settingsPath, 'utf8')).watchlist[0].reason).toBe('updated');
   });
 
   it('add() throws on an empty/invalid signature or pid', () => {
