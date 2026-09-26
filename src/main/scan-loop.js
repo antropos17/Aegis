@@ -52,6 +52,9 @@ let processScanRunning = false;
 // One audit pair per continuous loss of the process population. Reset by init(),
 // not by each scan or timer restart; a paused loop has not observed a recovery.
 let processPopulationUnavailable = false;
+// One audit pair per continuous failure of the network provider. Skipped scans
+// cannot prove recovery; only init() resets this latch.
+let networkProviderUnavailable = false;
 
 /**
  * Record only a provider-observed population transition, before session reconcile.
@@ -78,6 +81,30 @@ function auditProcessPopulationTransition(reliable, audit) {
     extra: { cause: 'process-enumeration', state: unavailable ? 'unavailable' : 'restored' },
   });
   processPopulationUnavailable = unavailable;
+  audit.flush?.();
+}
+
+/**
+ * Record only a direct network-provider rejection or fulfillment, with fixed
+ * codes and no connection, agent, endpoint or provider-error data.
+ * @param {boolean} unavailable
+ * @param {{log: Function, flush?: Function}} audit
+ * @returns {void}
+ * @since v0.16.0-alpha
+ */
+function auditNetworkProviderTransition(unavailable, audit) {
+  if (unavailable === networkProviderUnavailable) return;
+  audit.log('observation-gap', {
+    agent: '',
+    pid: null,
+    instanceId: null,
+    action: unavailable ? 'network-provider-unavailable' : 'network-provider-restored',
+    path: '',
+    severity: 'normal',
+    attribution: null,
+    extra: { cause: 'network-provider', state: unavailable ? 'unavailable' : 'restored' },
+  });
+  networkProviderUnavailable = unavailable;
   audit.flush?.();
 }
 
@@ -319,6 +346,9 @@ function doNetworkScan() {
     .scanNetworkConnections(agents)
     .then(
       (connections) => {
+        // This fulfillment proves the provider recovered even if a later
+        // baseline, audit write or renderer delivery fails.
+        auditNetworkProviderTransition(false, audit);
         deps.setLatestNetConnections(connections);
         for (const conn of connections) {
           if (conn.httpUnencrypted) {
@@ -384,12 +414,18 @@ function doNetworkScan() {
         //
         // B-S05: provider failure health is owned by network-monitor.scanNetworkConnections
         // (markFailed before rethrow). Fallback note only if the inject path omitted it.
-        if (
-          typeof network.noteNetworkScanHardFailure === 'function' &&
-          typeof network.getNetworkSensorHealth === 'function' &&
-          network.getNetworkSensorHealth().state !== 'FAILED'
-        ) {
-          network.noteNetworkScanHardFailure(err);
+        try {
+          if (
+            typeof network.noteNetworkScanHardFailure === 'function' &&
+            typeof network.getNetworkSensorHealth === 'function' &&
+            network.getNetworkSensorHealth().state !== 'FAILED'
+          ) {
+            network.noteNetworkScanHardFailure(err);
+          }
+        } finally {
+          // Health gets its existing chance even if audit storage fails; a
+          // throwing health fallback cannot erase the provider-gap attempt.
+          auditNetworkProviderTransition(true, audit);
         }
         throw err;
       },
@@ -994,6 +1030,7 @@ function init(injected) {
   resourceSampler.invalidate();
   deps = injected;
   processPopulationUnavailable = false;
+  networkProviderUnavailable = false;
   deps.baselines?.init?.({
     isInstanceActive: (instanceId) =>
       sessionTracker.hasInstance(instanceId) ||
