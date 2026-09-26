@@ -49,14 +49,15 @@ describe('network-monitor health (B4)', () => {
   });
 
   it('B-S05: provider throw → FAILED, lastSuccess not advanced, failures increment', async () => {
-    mockGetRaw.mockRejectedValue(new Error('spawn ETIMEDOUT'));
+    mockGetRaw.mockRejectedValue(new Error('spawn ETIMEDOUT PRIVATE_NETWORK_CANARY'));
     const agents = [{ agent: 'Claude', pid: 42, instanceId: '42:t' }];
     await expect(network.scanNetworkConnections(agents)).rejects.toThrow('ETIMEDOUT');
     const h = network.getNetworkSensorHealth();
     expect(h.state).toBe(SENSOR_HEALTH_STATE.FAILED);
     expect(h.lastSuccessAt).toBeNull();
     expect(h.consecutiveFailures).toBe(1);
-    expect(h.lastError).toMatch(/ETIMEDOUT/i);
+    expect(h.lastError).toBe('network-provider-failed');
+    expect(JSON.stringify(h)).not.toContain('PRIVATE_NETWORK_CANARY');
 
     mockGetRaw.mockRejectedValue(new Error('spawn ETIMEDOUT'));
     await expect(network.scanNetworkConnections(agents)).rejects.toThrow();
@@ -93,6 +94,25 @@ describe('network-monitor health (B4)', () => {
     expect(h.state).not.toBe(SENSOR_HEALTH_STATE.HEALTHY);
     expect(h.detail).toBe('process-observation-unavailable');
     expect(h.lastSuccessAt).toBeNull();
+  });
+
+  it('fallback hard failure keeps provider error text out of health', () => {
+    network.noteNetworkScanHardFailure(new Error('PRIVATE_NETWORK_FALLBACK_CANARY'));
+    const h = network.getNetworkSensorHealth();
+    expect(h.state).toBe(SENSOR_HEALTH_STATE.FAILED);
+    expect(h.consecutiveFailures).toBe(1);
+    expect(h.detail).toBe('provider-failure');
+    expect(h.lastError).toBe('network-provider-failed');
+    expect(JSON.stringify(h)).not.toContain('PRIVATE_NETWORK_FALLBACK_CANARY');
+  });
+
+  it('B-S08: unknown skip reason is fixed before entering sensor health', () => {
+    network.noteNetworkSkip('PRIVATE_NETWORK_SKIP_CANARY');
+    const h = network.getNetworkSensorHealth();
+    expect(h.state).toBe(SENSOR_HEALTH_STATE.DEGRADED);
+    expect(h.detail).toBe('network-skip');
+    expect(h.lastError).toBe('network-skip-unavailable');
+    expect(JSON.stringify(h)).not.toContain('PRIVATE_NETWORK_SKIP_CANARY');
   });
 
   it('B-S08: prior HEALTHY + process-unavailable skip leaves HEALTHY (stale)', async () => {

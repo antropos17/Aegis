@@ -305,7 +305,7 @@ describe('app-health umbrella (B8)', () => {
       expect(base.state).toBe(A.HEALTHY);
       expect(h.sessionTracker.activeCount()).toBe(2);
 
-      h.getRawTcpConnections.mockRejectedValue(new Error('spawn ETIMEDOUT'));
+      h.getRawTcpConnections.mockRejectedValue(new Error('spawn ETIMEDOUT PRIVATE_APP_HEALTH_CANARY'));
       h.getFileHandles.mockImplementation(async (pid) => {
         if (pid === CLAUDE_2.pid) throw new Error('handle spawn failed');
         return [];
@@ -322,6 +322,7 @@ describe('app-health umbrella (B8)', () => {
       expect(health.populationState).toBe(S.HEALTHY);
       const ids = health.sensors.byId;
       expect(ids.network.detail).toBe('provider-failure');
+      expect(ids.network.lastError).toBe('network-provider-failed');
       expect(ids.network.consecutiveFailures).toBe(1);
       expect(ids['fs-handle'].detail).toBe('failed-1-of-2');
       expect(ids['fs-handle'].consecutiveFailures).toBe(0);
@@ -329,8 +330,10 @@ describe('app-health umbrella (B8)', () => {
       expect(h.getFileHandles).toHaveBeenCalledWith(CLAUDE.pid);
       expect(h.getFileHandles).toHaveBeenCalledWith(CLAUDE_2.pid);
       expect(h.deps.logger.error).toHaveBeenCalledWith('main', 'Network scan failed', {
-        error: 'spawn ETIMEDOUT',
+        error: 'network-scan-failed',
       });
+      expect(JSON.stringify(health)).not.toContain('PRIVATE_APP_HEALTH_CANARY');
+      expect(JSON.stringify(h.deps.logger.error.mock.calls)).not.toContain('PRIVATE_APP_HEALTH_CANARY');
     });
   });
 

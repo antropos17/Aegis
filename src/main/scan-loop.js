@@ -430,12 +430,12 @@ function doNetworkScan() {
         throw err;
       },
     )
-    .catch((err) => {
+    .catch(() => {
       // Reached by BOTH a provider rejection (rethrown above, health already owned) and a
       // downstream continuation throw (health deliberately untouched). Log only: the
       // `network` leaf names the TCP observation, and delivery/persistence failures belong
       // to the pipeline axis, which no leaf here represents.
-      logger.error('main', 'Network scan failed', { error: err.message });
+      logger.error('main', 'Network scan failed', { error: 'network-scan-failed' });
     })
     .finally(() => {
       network.setNetworkScanRunning(false);
