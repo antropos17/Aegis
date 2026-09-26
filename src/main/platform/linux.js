@@ -44,13 +44,18 @@ const IGNORE_FILE_PATTERNS = [
  */
 function listProcesses() {
   return new Promise((resolve, reject) => {
-    _execFile('ps', ['-axo', 'comm=,pid='], { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      resolve(parsePsOutput(stdout));
-    });
+    _execFile(
+      'ps',
+      ['-axo', 'comm=,pid='],
+      { timeout: 5000, maxBuffer: 4 * 1024 * 1024 },
+      (err, stdout) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(parsePsOutput(stdout));
+      },
+    );
   });
 }
 
