@@ -3,7 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import config from '../../src/main/config-manager.js';
+import configFile from '../../src/main/bounded-config-file.js';
 const safeStore = require('../../src/main/safe-storage.js');
+const { MAX_CONFIG_BYTES } = configFile;
 
 describe('configuration persistence boundaries', () => {
   let directory;
@@ -59,6 +61,42 @@ describe('configuration persistence boundaries', () => {
       notificationsEnabled: true,
     });
     expect(() => config.getAgentPermissions('Claude')).not.toThrow();
+  });
+
+  it('keeps an oversized settings file intact and starts from defaults', () => {
+    fs.writeFileSync(file, 'x');
+    fs.truncateSync(file, MAX_CONFIG_BYTES + 1);
+    config.loadSettings();
+    expect(config.getSettings().scanIntervalSec).toBe(10);
+    expect(config.getSettings().anthropicApiKey).toBe('');
+    config.trackSeenAgent('Claude Code');
+    expect(() => config.saveSettings({ darkMode: true })).toThrow('Settings file unavailable');
+    expect(fs.statSync(file).size).toBe(MAX_CONFIG_BYTES + 1);
+    fs.unlinkSync(file);
+    config.loadSettings();
+    config.saveSettings({ darkMode: true });
+    expect(disk().darkMode).toBe(true);
+  });
+
+  it('rejects a settings write too large to load and rolls back memory', () => {
+    config.saveSettings({ scanIntervalSec: 20 });
+    const before = structuredClone(config.getSettings());
+    const diskBefore = fs.readFileSync(file, 'utf8');
+    expect(() =>
+      config.saveSettings({
+        customAgents: [
+          {
+            id: 'fixture',
+            displayName: 'Fixture',
+            names: ['fixture'],
+            description: 'x'.repeat(MAX_CONFIG_BYTES),
+          },
+        ],
+      }),
+    ).toThrow('Settings exceed size limit');
+    expect(config.getSettings()).toEqual(before);
+    expect(fs.readFileSync(file, 'utf8')).toBe(diskBefore);
+    expect(fs.readdirSync(directory)).toEqual(['settings.json']);
   });
 
   it('refuses plaintext key persistence and rolls back failed replacement', () => {

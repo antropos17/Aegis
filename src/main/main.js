@@ -91,18 +91,16 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
 
 const { app, BrowserWindow, globalShortcut } = require('electron');
 const path = require('path');
-const fs = require('fs');
 const { pathToFileURL } = require('node:url');
 const { guardRendererNavigation } = require('./external-url-boundary');
+const { readBoundedConfigFile } = require('./bounded-config-file');
 
 // ═══ HW ACCELERATION (must run before app.whenReady) ═══
 try {
   const settingsFile = path.join(app.getPath('userData'), 'settings.json');
-  if (fs.existsSync(settingsFile)) {
-    const raw = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
-    if (raw.hardwareAcceleration === false) {
-      app.disableHardwareAcceleration();
-    }
+  const raw = JSON.parse(readBoundedConfigFile(settingsFile));
+  if (raw.hardwareAcceleration === false) {
+    app.disableHardwareAcceleration();
   }
 } catch (_) {
   // Settings unreadable — keep HW accel enabled (default)

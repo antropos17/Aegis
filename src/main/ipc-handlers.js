@@ -9,6 +9,7 @@ const path = require('path');
 const { pathToFileURL } = require('node:url');
 const fs = require('fs');
 const config = require('./config-manager');
+const { readBoundedConfigFile } = require('./bounded-config-file');
 const scanner = require('./process-scanner');
 const analysis = require('./ai-analysis');
 const exporter = require('./exports');
@@ -422,7 +423,7 @@ ${findingsHtml}${recsHtml}
       });
       if (!stillOwned(event, window)) return denied();
       if (!filePaths || filePaths.length === 0) return { success: false };
-      const raw = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'));
+      const raw = JSON.parse(readBoundedConfigFile(filePaths[0]));
       return { success: true, agents: raw.customAgents || raw.agents || [] };
     } catch (_) {
       logger.error('IPC import-agent-database failed');
@@ -525,7 +526,7 @@ ${findingsHtml}${recsHtml}
       });
       if (!stillOwned(event, window)) return denied();
       if (!filePaths || filePaths.length === 0) return { success: false };
-      const raw = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'));
+      const raw = JSON.parse(readBoundedConfigFile(filePaths[0]));
       const check = validateSettings(raw);
       if (!check.valid) {
         logger.warn('ipc-handlers', 'import-config rejected: invalid settings');

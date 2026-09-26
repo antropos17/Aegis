@@ -22,6 +22,7 @@ const { PERMISSION_CATEGORIES } = require('../shared/constants');
 const { buildInstanceKey } = require('../shared/instance-key');
 const logger = require('./logger');
 const safeStore = require('./safe-storage');
+const { readBoundedConfigFile, MAX_CONFIG_BYTES } = require('./bounded-config-file');
 
 /**
  * Accept a conservative regex subset for synchronous path matching.
@@ -142,6 +143,7 @@ let encryptedApiKey = null;
 let storedPlainApiKey = '';
 let legacyKeyMigrationPending = false;
 let legacySettingsDigest = null;
+let settingsLoadFailed = false;
 let customSensitiveRules = [];
 let _knownAgentNames = [];
 let _applyCallback = null;
@@ -184,6 +186,8 @@ function buildCustomRules() {
  * @since v0.8.3
  */
 function _writeSettings(allowLegacyReplacement = false) {
+  if (settingsLoadFailed)
+    throw new Error('Settings file unavailable; restore or remove it and restart AEGIS.');
   let migrationKey = '';
   if (legacyKeyMigrationPending && !allowLegacyReplacement) {
     const blocked = () =>
@@ -192,7 +196,7 @@ function _writeSettings(allowLegacyReplacement = false) {
       );
     if (!safeStore.isAvailable()) throw blocked();
     try {
-      const source = fs.readFileSync(settingsPath(), 'utf8');
+      const source = readBoundedConfigFile(settingsPath());
       if (
         !legacySettingsDigest ||
         createHash('sha256').update(source).digest('hex') !== legacySettingsDigest
@@ -226,7 +230,10 @@ function _writeSettings(allowLegacyReplacement = false) {
   const target = settingsPath();
   const temporary = `${target}.${process.pid}.tmp`;
   try {
-    fs.writeFileSync(temporary, JSON.stringify(disk, null, 2), { mode: 0o600 });
+    const serialized = JSON.stringify(disk, null, 2);
+    if (Buffer.byteLength(serialized, 'utf8') > MAX_CONFIG_BYTES)
+      throw new Error('Settings exceed size limit');
+    fs.writeFileSync(temporary, serialized, { mode: 0o600 });
     fs.renameSync(temporary, target);
     encryptedApiKey = disk._encryptedApiKey || null;
     storedPlainApiKey = plainKey;
@@ -257,9 +264,10 @@ function loadSettings() {
   storedPlainApiKey = '';
   legacyKeyMigrationPending = false;
   legacySettingsDigest = null;
+  settingsLoadFailed = false;
   try {
     if (fs.existsSync(settingsPath())) {
-      const source = fs.readFileSync(settingsPath(), 'utf8');
+      const source = readBoundedConfigFile(settingsPath());
       const raw = JSON.parse(source);
       if (!raw || typeof raw !== 'object' || Array.isArray(raw))
         throw new Error('Invalid settings object');
@@ -307,6 +315,8 @@ function loadSettings() {
     settings = freshDefaults();
     legacyKeyMigrationPending = false;
     legacySettingsDigest = null;
+    settingsLoadFailed = true;
+    logger.warn('config-manager', 'Failed to load settings', { code: 'settings-load-failed' });
   }
   buildCustomRules();
 }
