@@ -1,25 +1,30 @@
 'use strict';
 const { spawn } = require('node:child_process');
 const { parseActionJson } = require('./action-policy');
+const { spawnInWindowsJob } = require('./mcp-gateway-windows-job');
 const LIMITS = Object.freeze({
   frameBytes: 16384,
   totalBytes: 1048576,
   stderrBytes: 32768,
   requestMs: 3000,
   cleanupMs: 1000,
+  windowsCleanupMs: 2000,
 });
 
 /** Own one explicitly selected server process; unsolicited upstream traffic closes admission.
  * @param {object} launch Prepared, policy-authorized launch. @param {Function} onFailure Revoke route.
  * @returns {object} Bounded RPC and held-child cleanup. @since v0.15.1 */
 function createGatewayPeer(launch, onFailure) {
-  const child = spawn(launch.executable, launch.args, {
-    cwd: launch.cwd,
-    env: launch.env,
-    shell: false,
-    windowsHide: true,
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
+  const child =
+    process.platform === 'win32'
+      ? spawnInWindowsJob(launch)
+      : spawn(launch.executable, launch.args, {
+          cwd: launch.cwd,
+          env: launch.env,
+          shell: false,
+          windowsHide: true,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
   let closed = false,
     exited = false,
     settled = false,
@@ -55,12 +60,19 @@ function createGatewayPeer(launch, onFailure) {
     }
     if (!exited) {
       try {
-        child.kill('SIGKILL');
+        if (child.stop) child.stop();
+        else child.kill('SIGKILL');
       } catch {
         /* Held exit event is required. */
       }
     }
-    cleanupTimer = setTimeout(() => settle(false), LIMITS.cleanupMs);
+    cleanupTimer = setTimeout(
+      () => {
+        if (child.stop) child.kill('SIGKILL');
+        settle(false);
+      },
+      child.stop ? LIMITS.windowsCleanupMs : LIMITS.cleanupMs,
+    );
   };
   const fail = () => {
     if (closed) return;
@@ -139,7 +151,7 @@ function createGatewayPeer(launch, onFailure) {
     exited = true;
     if (!closed) fail();
   });
-  child.once('close', () => settle(exited));
+  child.once('close', () => settle(exited && (!child.stop || child.cleanupConfirmed)));
   return {
     done,
     close,

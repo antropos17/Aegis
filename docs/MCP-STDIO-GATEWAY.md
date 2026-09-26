@@ -1,4 +1,4 @@
-# Explicit stdio MCP gateway (B2.1)
+# Explicit stdio MCP gateway (B2.1; bounded Windows C1 launch)
 
 An optional [known-secret policy](MCP-KNOWN-SECRETS.md) checks tool metadata, arguments and results for explicitly supplied values and a finite set of encodings. It is not general DLP.
 
@@ -110,8 +110,30 @@ frames and 1 MiB total input, with 16 KiB frames and a 64 KiB output queue; at m
 frame and 1 MiB total; stderr is discarded and capped at 32 KiB. Reads/RPCs have
 three-second deadlines (launch binding capture is stricter at 1.5 seconds).
 The CLI connection lasts at most 30 seconds. Direct-child cleanup waits at most
-one second; unconfirmed cleanup returns exit 2. Clean EOF after confirmed cleanup
-returns 0. Transport loss may close without a final JSON-RPC error response.
+one second; Windows protected cleanup waits at most two seconds;
+unconfirmed cleanup returns exit 2. Clean EOF after confirmed cleanup returns 0.
+Transport loss may close without a final JSON-RPC error response.
+
+On Windows, this **explicit stdio route only** requires the bundled
+`aegis-mcpjob.exe`, built by `npm run build:sidecar` and included from
+`build/sidecar` in the Windows installer. If the helper is missing or protected
+launch fails, the route closes without starting the selected server. The helper
+receives the exact selected executable, arguments, cwd and environment over its
+private stdin. It creates the selected process suspended, assigns it to a private
+[Windows Job Object](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)
+with `KILL_ON_JOB_CLOSE`, and resumes it only after assignment succeeds. Its
+ready signal precedes any relayed server stdout; the gateway strips and checks
+that signal. The selected process's stderr is counted and discarded. Helper
+status and failure paths do not print launch fields or server stderr.
+
+On ordinary EOF, cancellation, upstream failure and RPC timeout, the helper
+terminates its Job and queries active process accounting before it acknowledges
+cleanup. The gateway reports confirmed cleanup only after that acknowledgment
+and a zero helper exit. Unexpected helper death or a failed cleanup check is
+unconfirmed even though closing the last Job handle requests termination.
+Native Windows tests exercise a direct child and detached grandchild, exact
+argv/cwd/env, missing helper, launch failure, helper crash, timeout and stderr
+redaction. On Linux, the existing direct-child launch remains in use.
 
 Tests in `tests/main/mcp-gateway*.test.js` use real disposable Node upstream
 processes and the real Node CLI. They verify exact grants and replay rejection,
@@ -123,9 +145,16 @@ and test cleanup removes their owned directories. No production provider or
 third-party server compatibility is claimed by these fixtures.
 
 The server runs with the current user's OS rights and can act independently at
-startup or outside forwarded calls. Killing the held child is not general
-descendant containment. A separate [finite loopback HTTP profile](MCP-HTTP-GATEWAY.md)
-now exists; OAuth and third-party HTTPS interoperability, protected permission issuance, protected launch,
-independent identity, general recipients/scopes, secret control and Observatory
-gateway coverage are still open. B2 remains partial; this does not close B3, B4,
-B5 or C1–C3. Do not expose the raw manifest, arguments or results in audit exports.
+startup or outside forwarded calls. The Windows Job covers ordinary child
+processes created through `CreateProcess`; it does not cover work started by
+another process or service, including `Win32_Process.Create`. Existing parent
+Job restrictions or incompatible nested Jobs can reject assignment, which
+closes the route. A helper killed between suspended process creation and Job
+assignment can leave a suspended process; it was never resumed and cleanup is
+unconfirmed. The Job does not isolate files, registry, network or credentials.
+The separate [finite loopback HTTP profile](MCP-HTTP-GATEWAY.md) has no protected
+launch from this change. OAuth and third-party HTTPS interoperability,
+protected permission issuance, independent identity, general recipients/scopes,
+secret control and Observatory gateway coverage remain open. B2 remains partial;
+this bounded Windows path does not close the remaining C1 work or C2–C3. Do not
+expose the raw manifest, arguments or results in audit exports.
