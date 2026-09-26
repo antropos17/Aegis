@@ -21,11 +21,11 @@ const LIFECYCLE = new Set([
  * @param {Buffer} data Bounded original bytes.
  * @param {string} format Strict json/jsonc/toml parser selection.
  * @param {boolean} [packageManifest] Select npm manifest semantics.
- * @param {boolean} [claudeSettings] Inspect Claude permission declarations.
+ * @param {'project'|'user'|'managed'|null} [claudeSettings] Selected Claude settings source.
  * @returns {object} Fixed findings, coverage issues and command count.
  * @since v0.15.1
  */
-function analyzeConfiguration(data, format, packageManifest = false, claudeSettings = false) {
+function analyzeConfiguration(data, format, packageManifest = false, claudeSettings = null) {
   const parsed = parseInventoryConfig(data, format);
   if (parsed.parseStatus !== 'parsed')
     return { findings: [], issues: [parsed.parseStatus], commands: 0 };
@@ -157,6 +157,12 @@ function analyzeConfiguration(data, format, packageManifest = false, claudeSetti
   if (claudeSettings) {
     const permissions = record(parsed.value) ? parsed.value.permissions : undefined;
     if (permissions !== undefined) {
+      if (record(permissions) && permissions.defaultMode === 'bypassPermissions') {
+        if (permissions.disableBypassPermissionsMode !== 'disable') {
+          if (claudeSettings === 'project') issues.add('claude-bypass-mode-version-unknown');
+          else finding('STA018', 'claude-settings-default-mode');
+        }
+      }
       const supported =
         record(permissions) &&
         ['allow', 'ask', 'deny'].every(

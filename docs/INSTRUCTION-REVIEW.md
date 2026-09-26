@@ -102,7 +102,7 @@ clauses are skipped intact with a fixed gap; truncated prefixes do not become
 findings. Existing JSON depth and reader limits remain. No new dependencies or
 lockfile changes are needed.
 
-Reports retain schema version 1 and use `aegis-static-patterns` version 8.
+Reports retain schema version 1 and use `aegis-static-patterns` version 9.
 Scope declares `instructionPatterns: bounded-english-directives`, keeps
 `instructionSemantics: not-analyzed`, and distinguishes explicitly selected MCP
 descriptions from `not-selected`. Older baselines require fresh comparison.
