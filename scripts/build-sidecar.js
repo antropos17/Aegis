@@ -1,7 +1,7 @@
 /**
  * @file scripts/build-sidecar.js
- * @description Compile the process-snapshot and resource-counter helpers with the C# compiler that ships
- *   inside Windows.
+ * @description Compile the Windows process-snapshot, resource-counter, observer,
+ *   and MCP Job helpers with the inbox C# compiler.
  *
  *   `csc.exe` under `%WINDIR%\Microsoft.NET\Framework64\v4.0.30319` is present on
  *   every Windows 10 1903+ and Windows 11 machine, and .NET Framework 4.8 is inbox
@@ -36,7 +36,7 @@ const SOURCES = ['Program.cs', 'NtSnapshot.cs', 'Json.cs'];
 function findCsc() {
   if (process.platform !== 'win32') {
     throw new Error(
-      'The snapshot sidecar is a Windows binary and builds on Windows only. ' +
+      'The sidecars are Windows binaries and build on Windows only. ' +
         'This is not an error on Linux CI — nothing there needs it.',
     );
   }
@@ -124,6 +124,25 @@ function main() {
     fs.unlinkSync(rmSource);
   }
   console.log(`built  ${observerExe}`);
+
+  // The stdio MCP gateway fails closed when this exact helper is absent.
+  const mcpJobExe = path.join(OUT_DIR, 'aegis-mcpjob.exe');
+  execFileSync(
+    csc,
+    [
+      '/nologo',
+      '/target:exe',
+      '/platform:x64',
+      '/optimize+',
+      '/warnaserror+',
+      '/reference:System.Web.Extensions.dll',
+      `/out:${mcpJobExe}`,
+      path.join(ROOT, 'sidecar', 'mcpjob', 'Program.cs'),
+      path.join(ROOT, 'sidecar', 'mcpjob', 'Native.cs'),
+    ],
+    { stdio: 'inherit' },
+  );
+  console.log(`built  ${mcpJobExe}`);
 
   const bytes = fs.readFileSync(OUT_EXE);
   const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
