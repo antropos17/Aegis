@@ -108,10 +108,13 @@ try {
     .getByRole('button', { name: 'Action control', exact: true })
     .click();
   const panel = page.getByRole('region', { name: 'Live route observation', exact: true });
+  const evidence = page.getByRole('region', { name: 'Route evidence', exact: true });
   const choose = panel.getByRole('button', { name: 'Choose observation endpoint' });
   await choose.focus();
   await page.keyboard.press('Enter');
   await panel.getByRole('status').filter({ hasText: 'Waiting for MCP initialization' }).waitFor();
+  await evidence.getByText('Waiting for MCP initialization', { exact: true }).waitFor();
+  assert(await evidence.getByText('No call evidence', { exact: true }).isVisible());
   send({
     id: 1,
     method: 'initialize',
@@ -128,6 +131,8 @@ try {
     .filter({ hasText: /^Observed$/ })
     .waitFor();
   assert(await panel.getByText('claude-code · 2.1.263', { exact: true }).isVisible());
+  await evidence.getByText('Live observation', { exact: true }).waitFor();
+  assert(await evidence.getByText('No selected tool call observed', { exact: true }).isVisible());
   assert(
     (await page.evaluate(() => window.aegis.localSecurityReview({ action: 'route-observation' })))
       .observation.snapshot.actionAttempts === 0,
@@ -135,6 +140,10 @@ try {
   send({ id: 2, method: 'tools/call', params: { name: 'aegis_execute_selected', arguments: {} } });
   await wait(() => stdout.includes('"id":2'));
   await panel.getByText('1 / 1', { exact: true }).waitFor();
+  await evidence.getByText('Reached AEGIS owner', { exact: true }).waitFor();
+  assert(!/Blocking verified|file was deleted/i.test(await evidence.innerText()));
+  await evidence.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: resolve(out, 'route-evidence-live.png') });
   await assert.rejects(access(join(owned, 'PRIVATE_SENTINEL')));
   const live = await page.evaluate(() =>
     window.aegis.localSecurityReview({ action: 'route-observation' }),
@@ -162,6 +171,8 @@ try {
   const [exit] = await exited;
   assert.equal(exit, 0);
   await panel.getByRole('status').filter({ hasText: 'Coverage lost' }).waitFor();
+  await evidence.getByText('Past connection evidence', { exact: true }).waitFor();
+  assert(await evidence.getByText('Previously reached AEGIS owner', { exact: true }).isVisible());
   assert(await panel.getByText('1 / 1', { exact: true }).isVisible());
   assert(!/PRIVATE|Blocking verified/.test(await panel.innerText()));
   assert.equal(await choose.isEnabled(), true);
@@ -174,6 +185,8 @@ try {
     .click();
   const translated = page.locator('.observation-panel');
   await translated.getByRole('status').filter({ hasText: 'Cobertura perdida' }).waitFor();
+  const translatedEvidence = page.getByRole('region', { name: 'Evidências da rota' });
+  assert(await translatedEvidence.getByText('Evidência de conexão anterior').isVisible());
   await translated
     .getByRole('button', { name: 'Escolher ponto de observação' })
     .scrollIntoViewIfNeeded();
