@@ -113,7 +113,7 @@ it('keeps captured request counts and scope while newer telemetry and selection 
     resolve = r;
   });
   const host = {
-    getSettings: async () => ({ anthropicApiKey: 'fixture' }),
+    getSettings: async () => ({ anthropicApiKeyConfigured: true }),
     analyzeAgent: vi.fn(() => pending),
     openThreatReport: vi.fn(async () => ({ success: true })),
   };

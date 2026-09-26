@@ -437,10 +437,22 @@ describe('ipc-handlers', () => {
       expect(handler()).toEqual({ memMB: 50 });
     });
 
-    it('get-settings returns settings copy', () => {
+    it('get-settings returns nonsecret settings and only the provider key state', () => {
       const handler = getHandler('get-settings');
+      const source = {
+        darkMode: true,
+        anthropicApiKey: 'plaintext-provider-key-canary',
+        _encryptedApiKey: 'encrypted-provider-blob-canary',
+      };
+      mockConfig.getSettings.mockReturnValueOnce(source);
       const result = handler();
-      expect(result.anthropicApiKey).toBe('key');
+      expect(result).toEqual({ darkMode: true, anthropicApiKeyConfigured: true });
+      expect(JSON.stringify(result)).not.toContain('plaintext-provider-key-canary');
+      expect(JSON.stringify(result)).not.toContain('encrypted-provider-blob-canary');
+      expect(source.anthropicApiKey).toBe('plaintext-provider-key-canary');
+
+      mockConfig.getSettings.mockReturnValueOnce({ darkMode: false, anthropicApiKey: '' });
+      expect(handler()).toEqual({ darkMode: false, anthropicApiKeyConfigured: false });
     });
 
     it('save-settings calls config.saveSettings and applySettings', () => {

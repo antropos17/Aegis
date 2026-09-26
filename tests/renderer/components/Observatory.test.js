@@ -171,7 +171,7 @@ describe('Observatory production components', () => {
 
   it('does not call the analysis provider until requested and clears unsaved keys on navigation', async () => {
     const host = {
-      getSettings: async () => ({ anthropicApiKey: 'stored-secret' }),
+      getSettings: async () => ({ anthropicApiKeyConfigured: true }),
       analyzeSession: vi.fn(async () => ({
         success: true,
         structured: { summary: '<img src=x>' },

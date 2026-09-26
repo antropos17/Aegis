@@ -145,7 +145,7 @@ it('focuses the missing catalog field after switching tabs and preserves editor 
 
 it('keeps analysis action beside scope and resets the provider dialog to connection without retaining keys', async () => {
   const host = {
-    getSettings: async () => ({ anthropicApiKey: 'saved-private-key' }),
+    getSettings: async () => ({ anthropicApiKeyConfigured: true }),
     analyzeSession: vi.fn(),
   };
   const { container } = render(Analysis, { host, telemetry: telemetry() });
@@ -166,7 +166,6 @@ it('keeps analysis action beside scope and resets the provider dialog to connect
   );
   expect(screen.getByLabelText('New API key')).toHaveValue('');
   expect(host.analyzeSession).not.toHaveBeenCalled();
-  expect(container.textContent).not.toContain('saved-private-key');
 });
 
 it('reveals and focuses sensitive paths when the host rejects a pattern from another section', async () => {

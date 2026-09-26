@@ -171,7 +171,7 @@ it('publishes settings only after confirmed writes and rereads successful import
 it('uses explicit key removal intent and preserves text entered during that pending removal', async () => {
   const pending = deferred();
   const host = {
-    getSettings: async () => ({ anthropicApiKey: 'fixture-saved' }),
+    getSettings: async () => ({ anthropicApiKeyConfigured: true }),
     saveSettings: vi.fn(async () => {
       await pending.promise;
       return { success: true };
@@ -219,7 +219,7 @@ it('does not let an old provider settings seed overwrite a confirmed new configu
 
 it('allows explicit removal of an unreadable saved key without enabling it in preview', async () => {
   const host = {
-    getSettings: async () => ({ anthropicApiKey: '' }),
+    getSettings: async () => ({ anthropicApiKeyConfigured: false }),
     saveSettings: vi.fn(async () => ({ success: true })),
   };
   const mounted = render(Analysis, { host, telemetry: telemetry() });

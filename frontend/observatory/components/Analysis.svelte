@@ -49,7 +49,8 @@
     const ticket = keyRevision;
     invoke(host, 'getSettings')
       .then((value) => {
-        if (alive && ticket === keyRevision) configured = Boolean(record(value).anthropicApiKey);
+        if (alive && ticket === keyRevision)
+          configured = record(value).anthropicApiKeyConfigured === true;
       })
       .catch((e) => {
         if (alive && ticket === keyRevision) error = String(e);
