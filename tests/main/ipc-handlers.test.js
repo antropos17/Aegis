@@ -210,6 +210,8 @@ describe('ipc-handlers', () => {
     mockElectron.app.getPath.mockReset().mockReturnValue(os.tmpdir());
     mockLogger.error.mockClear();
     mockLogger.warn.mockClear();
+    mockExporter.exportLog.mockReset().mockResolvedValue({ success: true });
+    mockExporter.exportCsv.mockReset().mockResolvedValue({ success: true });
     mockExporter.generateReport.mockReset().mockResolvedValue({ success: true });
     mockAudit.getStats.mockClear();
     mockAudit.getEntriesBefore.mockClear();
@@ -235,8 +237,12 @@ describe('ipc-handlers', () => {
     mockConfig.getCustomAgents.mockClear();
     mockConfig.saveCustomAgents.mockClear();
     mockConfig.addFalsePositive.mockClear();
-    mockAnalysis.analyzeAgentActivity.mockReset().mockResolvedValue({ success: true, analysis: 'ok' });
-    mockAnalysis.analyzeSessionActivity.mockReset().mockResolvedValue({ success: true, summary: 'ok' });
+    mockAnalysis.analyzeAgentActivity
+      .mockReset()
+      .mockResolvedValue({ success: true, analysis: 'ok' });
+    mockAnalysis.analyzeSessionActivity
+      .mockReset()
+      .mockResolvedValue({ success: true, summary: 'ok' });
     mockRules.getAllRules.mockClear();
     mockRules.reloadRules.mockClear();
     mockBlocklist.add.mockClear();
@@ -282,6 +288,175 @@ describe('ipc-handlers', () => {
     mockElectron.app.getPath.mockReturnValue(threatTempRoot);
     return registerOwnedRenderer();
   }
+
+  it.each([
+    'export-log',
+    'export-csv',
+    'export-agent-database',
+    'import-agent-database',
+    'export-config',
+    'reveal-in-explorer',
+    'test-notification',
+  ])('%s denies a foreign renderer before opening a dialog or acting', async (channel) => {
+    const { event } = registerOwnedRenderer();
+    expect(await getHandler(channel)({ ...event, sender: {} }, '/private/fixture')).toEqual({
+      success: false,
+      error: 'Renderer request denied',
+    });
+    expect(mockExporter.exportLog).not.toHaveBeenCalled();
+    expect(mockExporter.exportCsv).not.toHaveBeenCalled();
+    expect(mockElectron.dialog.showSaveDialog).not.toHaveBeenCalled();
+    expect(mockElectron.dialog.showOpenDialog).not.toHaveBeenCalled();
+    expect(mockElectron.shell.showItemInFolder).not.toHaveBeenCalled();
+    expect(mockElectron.Notification).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['export-agent-database', 'Agent Database'],
+    ['export-config', 'Config'],
+  ])('%s refuses to write when its renderer changes during the save dialog', async (channel) => {
+    const { contents, event } = registerOwnedRenderer();
+    let finishDialog;
+    mockElectron.dialog.showSaveDialog.mockImplementationOnce(
+      () => new Promise((resolve) => (finishDialog = resolve)),
+    );
+    const write = vi.spyOn(fs, 'writeFileSync').mockImplementation(() => {});
+    try {
+      const pending = getHandler(channel)(event);
+      expect(mockElectron.dialog.showSaveDialog).toHaveBeenCalledOnce();
+      contents.mainFrame = { url: 'file:///foreign.html' };
+      finishDialog({ filePath: path.join(os.tmpdir(), 'denied-export.json') });
+      expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
+      expect(write).not.toHaveBeenCalled();
+    } finally {
+      write.mockRestore();
+    }
+  });
+
+  it('import-agent-database refuses to read after its renderer changes during the open dialog', async () => {
+    const { contents, event } = registerOwnedRenderer();
+    let finishDialog;
+    mockElectron.dialog.showOpenDialog.mockImplementationOnce(
+      () => new Promise((resolve) => (finishDialog = resolve)),
+    );
+    const read = vi.spyOn(fs, 'readFileSync');
+    try {
+      const pending = getHandler('import-agent-database')(event);
+      expect(mockElectron.dialog.showOpenDialog).toHaveBeenCalledOnce();
+      contents.mainFrame = { url: 'file:///foreign.html' };
+      finishDialog({ filePaths: [path.join(os.tmpdir(), 'denied-import.json')] });
+      expect(await pending).toEqual({ success: false, error: 'Renderer request denied' });
+      expect(read).not.toHaveBeenCalled();
+    } finally {
+      read.mockRestore();
+    }
+  });
+
+  it.each([
+    ['export-log', 'exportLog'],
+    ['export-csv', 'exportCsv'],
+  ])('%s passes a live ownership check to the exporter', async (channel, method) => {
+    const { contents, event } = registerOwnedRenderer();
+    mockExporter[method].mockImplementationOnce(async (canComplete) => {
+      expect(canComplete()).toBe(true);
+      contents.mainFrame = { url: 'file:///foreign.html' };
+      expect(canComplete()).toBe(false);
+      return { success: false };
+    });
+    expect(await getHandler(channel)(event)).toEqual({
+      success: false,
+      error: 'Renderer request denied',
+    });
+    expect(mockExporter[method]).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['export-log', 'exportLog'],
+    ['export-csv', 'exportCsv'],
+  ])('%s still completes for its owned renderer', async (channel, method) => {
+    const { event } = registerOwnedRenderer();
+    expect(await getHandler(channel)(event)).toEqual({ success: true });
+    expect(mockExporter[method]).toHaveBeenCalledOnce();
+    expect(mockExporter[method].mock.calls[0][0]()).toBe(true);
+  });
+
+  it('import-agent-database still returns the selected agent records to its owned renderer', async () => {
+    const { event } = registerOwnedRenderer();
+    mockElectron.dialog.showOpenDialog.mockResolvedValueOnce({
+      filePaths: ['selected-agents.json'],
+    });
+    const read = vi
+      .spyOn(fs, 'readFileSync')
+      .mockReturnValueOnce('{"customAgents":[{"name":"Fixture"}]}');
+    try {
+      expect(await getHandler('import-agent-database')(event)).toEqual({
+        success: true,
+        agents: [{ name: 'Fixture' }],
+      });
+    } finally {
+      read.mockRestore();
+    }
+  });
+
+  it.each([
+    ['export-log', 'exportLog'],
+    ['export-csv', 'exportCsv'],
+  ])(
+    '%s keeps an exporter failure out of persistent logs and IPC results',
+    async (channel, method) => {
+      const { event } = registerOwnedRenderer();
+      mockExporter[method].mockRejectedValueOnce(new Error('PRIVATE_EXPORT_PATH_CANARY'));
+      const result = await getHandler(channel)(event);
+      expect(result.success).toBe(false);
+      expect(JSON.stringify(result)).not.toContain('PRIVATE_EXPORT_PATH_CANARY');
+      expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(
+        'PRIVATE_EXPORT_PATH_CANARY',
+      );
+    },
+  );
+
+  it.each(['export-agent-database', 'export-config'])(
+    '%s keeps a native dialog failure out of persistent logs and IPC results',
+    async (channel) => {
+      const { event } = registerOwnedRenderer();
+      mockElectron.dialog.showSaveDialog.mockRejectedValueOnce(
+        new Error('PRIVATE_DIALOG_PATH_CANARY'),
+      );
+      const result = await getHandler(channel)(event);
+      expect(result.success).toBe(false);
+      expect(JSON.stringify(result)).not.toContain('PRIVATE_DIALOG_PATH_CANARY');
+      expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(
+        'PRIVATE_DIALOG_PATH_CANARY',
+      );
+    },
+  );
+
+  it('import-agent-database hides a native dialog failure from IPC results', async () => {
+    const { event } = registerOwnedRenderer();
+    mockElectron.dialog.showOpenDialog.mockRejectedValueOnce(
+      new Error('PRIVATE_IMPORT_PATH_CANARY'),
+    );
+    const result = await getHandler('import-agent-database')(event);
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_IMPORT_PATH_CANARY');
+  });
+
+  it('import-agent-database hides malformed selected file content from IPC results and logs', async () => {
+    const { event } = registerOwnedRenderer();
+    mockElectron.dialog.showOpenDialog.mockResolvedValueOnce({
+      filePaths: ['private-import.json'],
+    });
+    const read = vi.spyOn(fs, 'readFileSync').mockReturnValueOnce('PRIVATE_IMPORT_CONTENT_CANARY');
+    try {
+      const result = await getHandler('import-agent-database')(event);
+      expect(result).toEqual({ success: false, error: 'Agent database import failed' });
+      expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(
+        'PRIVATE_IMPORT_CONTENT_CANARY',
+      );
+    } finally {
+      read.mockRestore();
+    }
+  });
 
   function registerObservedProcess(extraDeps = {}) {
     const agent = {
@@ -790,12 +965,11 @@ describe('ipc-handlers', () => {
   );
 
   it('excludes provider credentials from configuration exports', async () => {
-    ipcHandlers.init({ getWindow: () => null });
-    ipcHandlers.register();
+    const { event } = registerOwnedRenderer();
     mockElectron.dialog.showSaveDialog.mockResolvedValueOnce({ filePath: '/fixture/config.json' });
     const write = vi.spyOn(fs, 'writeFileSync').mockImplementationOnce(() => {});
     try {
-      expect(await handlers['export-config']()).toMatchObject({ success: true });
+      expect(await handlers['export-config'](event)).toMatchObject({ success: true });
       const exported = JSON.parse(write.mock.calls[0][1]);
       expect(exported).not.toHaveProperty('anthropicApiKey');
       expect(exported.seenAgents).toEqual(['Claude', 'Copilot']);
@@ -1067,9 +1241,9 @@ describe('ipc-handlers', () => {
       mockElectron.dialog.showOpenDialog.mockResolvedValueOnce({
         filePaths: ['/fixture/settings.json'],
       });
-      const read = vi.spyOn(fs, 'readFileSync').mockReturnValueOnce(
-        JSON.stringify({ customSensitivePatterns: [canary] }),
-      );
+      const read = vi
+        .spyOn(fs, 'readFileSync')
+        .mockReturnValueOnce(JSON.stringify({ customSensitivePatterns: [canary] }));
       try {
         const result = await getHandler('import-config')(event);
         expect(result).toEqual({
@@ -1247,14 +1421,16 @@ describe('ipc-handlers', () => {
 
     it('test-notification creates and shows notification', () => {
       const handler = getHandler('test-notification');
-      const result = handler();
+      const { event } = registerOwnedRenderer();
+      const result = handler(event);
       expect(result.success).toBe(true);
     });
 
     it('test-notification returns error when not supported', () => {
       mockElectron.Notification.isSupported.mockReturnValueOnce(false);
       const handler = getHandler('test-notification');
-      const result = handler();
+      const { event } = registerOwnedRenderer();
+      const result = handler(event);
       expect(result.success).toBe(false);
     });
 
@@ -1362,17 +1538,19 @@ describe('ipc-handlers', () => {
 
     it('reveal-in-explorer calls shell.showItemInFolder for existing paths', () => {
       const handler = getHandler('reveal-in-explorer');
+      const { event } = registerOwnedRenderer();
       // Use a path that exists (the test file itself)
       const existingPath = path.resolve(__dirname, '../../package.json');
-      const result = handler(null, existingPath);
+      const result = handler(event, existingPath);
       expect(mockElectron.shell.showItemInFolder).toHaveBeenCalled();
       expect(result.success).toBe(true);
       expect(mockLogger.warn).not.toHaveBeenCalled();
     });
 
     it('keeps a missing watched secret path out of persistent rejection diagnostics', () => {
+      const { event } = registerOwnedRenderer();
       const canary = path.resolve(__dirname, '../../.env-PRIVATE_MISSING_CANARY');
-      const result = getHandler('reveal-in-explorer')(null, canary);
+      const result = getHandler('reveal-in-explorer')(event, canary);
 
       expect(result).toEqual({ success: false, error: 'Path not allowed' });
       expect(mockLogger.warn).toHaveBeenCalledExactlyOnceWith(
@@ -1384,6 +1562,7 @@ describe('ipc-handlers', () => {
     });
 
     it('keeps a traversal secret path out of persistent rejection diagnostics', () => {
+      const { event } = registerOwnedRenderer();
       const canary =
         path.resolve(__dirname, '../../.ssh') +
         path.sep +
@@ -1392,7 +1571,7 @@ describe('ipc-handlers', () => {
         '.ssh' +
         path.sep +
         'id_ed25519_PRIVATE_TRAVERSAL_CANARY';
-      const result = getHandler('reveal-in-explorer')(null, canary);
+      const result = getHandler('reveal-in-explorer')(event, canary);
 
       expect(result).toEqual({ success: false, error: 'Path traversal not allowed' });
       expect(mockLogger.warn).toHaveBeenCalledExactlyOnceWith(
@@ -1405,7 +1584,8 @@ describe('ipc-handlers', () => {
 
     it('reveal-in-explorer rejects path traversal with ..', () => {
       const handler = getHandler('reveal-in-explorer');
-      const result = handler(null, '/some/path/../../etc/passwd');
+      const { event } = registerOwnedRenderer();
+      const result = handler(event, '/some/path/../../etc/passwd');
       expect(result.success).toBe(false);
       expect(result.error).toBe('Path traversal not allowed');
       expect(mockElectron.shell.showItemInFolder).not.toHaveBeenCalled();
@@ -1413,9 +1593,10 @@ describe('ipc-handlers', () => {
 
     it('reveal-in-explorer rejects invalid path types', () => {
       const handler = getHandler('reveal-in-explorer');
-      expect(handler(null, null).success).toBe(false);
-      expect(handler(null, '').success).toBe(false);
-      expect(handler(null, 123).success).toBe(false);
+      const { event } = registerOwnedRenderer();
+      expect(handler(event, null).success).toBe(false);
+      expect(handler(event, '').success).toBe(false);
+      expect(handler(event, 123).success).toBe(false);
     });
 
     it.each([

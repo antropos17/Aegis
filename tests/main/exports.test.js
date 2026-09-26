@@ -68,6 +68,20 @@ describe('exports', () => {
     return state;
   }
 
+  it.each([
+    ['exportLog', 'json'],
+    ['exportCsv', 'csv'],
+  ])(
+    '%s skips the file write when the caller loses ownership during the dialog',
+    async (method, ext) => {
+      const filePath = path.join(tmpDir, `denied.${ext}`);
+      initExporter();
+      mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath });
+      expect(await exporter[method](() => false)).toEqual({ success: false });
+      expect(fs.existsSync(filePath)).toBe(false);
+    },
+  );
+
   describe('csvEscape', () => {
     it.each(['=1+1', '+SUM(1,2)', '-1+2', '@SUM(1)', '  =1+1', '\t=1+1', '\r=1+1'])(
       'exports formula-like text as a literal cell: %j',
