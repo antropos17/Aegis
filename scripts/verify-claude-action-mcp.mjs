@@ -1,3 +1,4 @@
+import { usage, fixtureModes } from './claude-action-mcp-options.mjs';
 /** Opt-in Windows verification: real Claude MCP routing, local synthetic model replies. */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,10 +15,12 @@ import { verifyStatusRoute } from './claude-status-provider-fixture.mjs';
 import { prepareObservationReply } from './claude-observation-provider-fixture.mjs';
 import { prepareReviewObservationReply } from './claude-review-observation-fixture.mjs';
 import { prepareCatalogReviewObservationReply } from './claude-catalog-review-observation.mjs';
+import {
+  verifyCancellationRoute,
+  replyWithCancellationTool,
+} from './claude-cancellation-provider-fixture.mjs';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
-const usage =
-  'Windows only: node scripts/verify-claude-action-mcp.mjs [--review | --review-observation | --catalog-review-observation | --catalog | --catalog-review | --status | --catalog-status | --observation | --catalog-observation] --claude <absolute claude.exe> --bash <absolute bash.exe> --scratch <existing spacious directory>\nExplicitly configures disposable local MCP servers; uses a dummy credential and synthetic loopback API. Status modes query current-connection counters before and after allow/deny/ask actions. Observation modes additionally require live snapshots, owner-exit loss and descriptor cleanup. Review modes require a live terminal for confirmation and refusal. Review observation also waits for pendingObserved before an answer and records pending disconnect. No OS firewall isolation; managed policy still applies. Stdout contains fixed readiness JSON lines and a final redacted receipt. No saved user settings are changed.';
 
 async function main(args) {
   if (args.length === 1 && args[0] === '--help') {
@@ -25,22 +28,20 @@ async function main(args) {
     return;
   }
   let selected;
-  const reviewObservation = ['--review-observation', '--catalog-review-observation'].includes(
-    args[0],
-  );
-  const observation = ['--observation', '--catalog-observation'].includes(args[0]);
-  const status = observation || ['--status', '--catalog-status'].includes(args[0]);
-  const catalog = [
-    '--catalog',
-    '--catalog-review',
-    '--catalog-status',
-    '--catalog-observation',
-    '--catalog-review-observation',
-  ].includes(args[0]);
-  const review = reviewObservation || ['--review', '--catalog-review'].includes(args[0]);
+  const {
+    crash,
+    reviewCancellation,
+    cancellation,
+    reviewObservation,
+    observation,
+    status,
+    catalog,
+    review,
+  } = fixtureModes(args);
   try {
-    selected = options(review || catalog || status ? args.slice(1) : args);
-    if (review && (!process.stdin.isTTY || !process.stderr.isTTY)) throw Error('terminal');
+    selected = options(review || catalog || status || cancellation ? args.slice(1) : args);
+    if ((review || reviewCancellation) && (!process.stdin.isTTY || !process.stderr.isTTY))
+      throw Error('terminal');
   } catch {
     console.log(JSON.stringify({ error: 'invalid-options-or-insufficient-space', usage }));
     process.exitCode = 1;
@@ -65,8 +66,10 @@ async function main(args) {
     scenarios: [],
     cleanup: false,
     networkBoundary: 'loopback API and rejecting proxy; no OS firewall isolation',
-    liveObservation: observation || reviewObservation,
+    liveObservation: observation || reviewObservation || cancellation,
   };
+  if (cancellation)
+    receipt.mode = `claude-${catalog ? 'catalog' : 'selected'}-${reviewCancellation ? 'review-' : ''}${crash ? 'crash' : 'cancellation'}-synthetic-api`;
   let scenario;
   let server;
   try {
@@ -108,6 +111,10 @@ async function main(args) {
           return;
         }
         current.requests++;
+        if (cancellation) {
+          await replyWithCancellationTool(res, input, current);
+          return;
+        }
         const ready = reviewObservation
           ? catalog
             ? await prepareCatalogReviewObservationReply(current)
@@ -131,7 +138,7 @@ async function main(args) {
     server.on('connection', (socket) => {
       const deadline = setTimeout(
         () => socket.destroy(),
-        observation || reviewObservation ? 10000 : 3000,
+        observation || reviewObservation || cancellation ? 10000 : 3000,
       );
       socket.on('close', () => clearTimeout(deadline));
     });
@@ -202,6 +209,23 @@ async function main(args) {
       },
     };
     fs.writeFileSync(requestPath, JSON.stringify({ schemaVersion: 1, action }));
+    if (cancellation) {
+      await verifyCancellationRoute({
+        reviewCancellation,
+        crash,
+        owned,
+        env,
+        receipt,
+        action,
+        run,
+        configPath,
+        catalog,
+        setScenario: (current) => {
+          scenario = current;
+        },
+      });
+      return;
+    }
     if (status) {
       await verifyStatusRoute({
         owned,

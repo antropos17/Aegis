@@ -66,11 +66,12 @@ export function removeOwned(dir, owned) {
 
 /** @param {object} context Isolated process context. @returns {Function} Bounded CLI runner. @since v0.15.1 */
 export function createRunner({ selected, owned, env, system32, receipt, spawnProcess = spawn }) {
-  return (argv, { signal, timeoutMs = 20000 } = {}) =>
+  return (argv, { signal, timeoutMs = 20000, interact } = {}) =>
     new Promise((resolve) => {
       let timedOut = false;
       let cancelled = false;
       let exceeded = false;
+      let limitReason = null;
       let stdout = '';
       let stderrBytes = 0;
       let child;
@@ -107,6 +108,7 @@ export function createRunner({ selected, owned, env, system32, receipt, spawnPro
           timedOut,
           cancelled,
           exceeded,
+          limitReason,
           stdout,
           stderrBytes,
           treeCleanupConfirmed,
@@ -189,10 +191,12 @@ export function createRunner({ selected, owned, env, system32, receipt, spawnPro
         try {
           if (treeBytes(owned) > 16 * 1024 ** 2) {
             exceeded = true;
+            limitReason = 'scratch-bytes';
             kill();
           }
         } catch {
           exceeded = true;
+          limitReason = 'scratch-unavailable';
           kill();
         }
       }, 1000);
@@ -201,7 +205,7 @@ export function createRunner({ selected, owned, env, system32, receipt, spawnPro
           cwd: path.join(owned, 'work'),
           env,
           windowsHide: true,
-          stdio: ['ignore', 'pipe', 'pipe'],
+          stdio: [interact ? 'pipe' : 'ignore', 'pipe', 'pipe'],
         });
       } catch {
         finish(1, true, 'spawn-failed');
@@ -212,6 +216,7 @@ export function createRunner({ selected, owned, env, system32, receipt, spawnPro
         const text = b.toString();
         if (Buffer.byteLength(stdout) + Buffer.byteLength(text) > 32768) {
           exceeded = true;
+          limitReason = 'stdout-bytes';
           kill();
         } else stdout += text;
       });
@@ -220,11 +225,13 @@ export function createRunner({ selected, owned, env, system32, receipt, spawnPro
         stderrBytes += b.length;
         if (stderrBytes > 32768) {
           exceeded = true;
+          limitReason = 'stderr-bytes';
           kill();
         }
       });
       child.stdout.on('error', kill);
       child.stderr.on('error', kill);
+      child.stdin?.on('error', kill);
       child.on('spawn', () => {
         if (killing) reap();
       });
@@ -239,5 +246,12 @@ export function createRunner({ selected, owned, env, system32, receipt, spawnPro
       });
       if (killing) reap();
       else if (signal?.aborted) abort();
+      else if (interact) {
+        try {
+          Promise.resolve(interact(child)).catch(kill);
+        } catch {
+          kill();
+        }
+      }
     });
 }

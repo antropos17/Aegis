@@ -1,5 +1,68 @@
 # AI-agent protection: continuation context
 
+Current continuation: [known-secret MCP checks](../docs/MCP-KNOWN-SECRETS.md) add an optional pinned local policy across stdio/HTTP/HTTPS. Guarded payloads are tool metadata, exact call parameters and results; transport/launch credentials and general DLP remain outside the contract. Receipts: `X:/tmp/aegis-mcp-secrets-20260926/receipts`; preserve, review after 14 days or 64 MiB. Only synthetic secrets are used in verification.
+
+Current continuation: [explicit pinned HTTPS](../docs/MCP-HTTPS-GATEWAY.md) adds endpoint descriptor v2 with operator-selected IPv4, CA, hostname and leaf SHA256 checks. It retains finite MCP and persistent-grant boundaries. No OAuth, DNS discovery or automatic certificate renewal. Owned fixtures are the evidence; third-party/provider compatibility remains unverified. Receipts: `X:/tmp/aegis-mcp-tls-20260922/receipts`; preserve, review after 14 days or 64 MiB.
+
+Current continuation: [persistent MCP grants](../docs/MCP-DURABLE-GRANTS.md) add opt-in manifest v2, bounded local consumption records and expiry across stdio/HTTP restarts. V1 remains connection-local; task IDs are operator metadata, not verified identity. B2/B3 remain partial. Receipts: `X:/tmp/aegis-mcp-grants-20260922/receipts`; preserve and review after 14 days or 64 MiB. Consumed permission records are authorization state and must not be pruned as diagnostic output.
+
+## Current continuation — 2026-09-22
+
+B2.2 adds an [explicit loopback HTTP profile](../docs/MCP-HTTP-GATEWAY.md), sharing
+B2.1 grants/schema/catalog checks. It pins a literal local endpoint and bearer,
+uses finite JSON/SSE responses, rejects redirects/session replacement and never
+automatically reinitializes or retries. Cancellation attempts an upstream
+notification and DELETE; HTTP acknowledgement does not prove remote execution
+stopped. Real loopback/Node CLI fixtures cover this boundary; installed-provider
+and third-party HTTP compatibility remain unverified. This adds no public listener,
+OAuth, OS containment or Observatory gateway coverage.
+Receipts: `X:/tmp/aegis-mcp-http-20260922/receipts`; preserve them and review after
+14 days or 64 MiB. Fixtures close their owned servers/sockets and remove their
+temporary directories. No global retention change was made.
+
+B2.1 now adds an [explicit stdio gateway](../docs/MCP-STDIO-GATEWAY.md): exact
+one-attempt tool grants, bounded input/output schema validation, fresh accepted
+catalog checks and direct-child cleanup. Real disposable upstream/CLI fixtures
+cover allowed calls, replay, mutation, malformed traffic, cancellation and death.
+B2 remains partial: OAuth and third-party HTTPS interoperability, general recipient/scope enforcement, protected launch
+and third-party server/provider compatibility remain unverified. Gateway routes
+are not yet connected to Observatory coverage. Diagnostics for this pass live at
+`X:/tmp/aegis-mcp-gateway-20260922/receipts`; preserve receipts, review after 14 days
+or 64 MiB. Owned fixtures are removed after each test and have bounded lifetimes.
+
+The earlier preflight-only description below is historical. Live route observation
+and sticky coverage-loss transitions exist. Selected/catalog direct-stdio
+cancellation now has installed Windows Claude Code 2.1.263 verification: actual
+interrupt acknowledgement, MCP notification, running marker, held-child exit/close,
+production cancellation outcome and descriptor cleanup. The model endpoint was
+synthetic and local. A native mutation removing cancellation delivery failed.
+Details: [Action live observation](../docs/ACTION-LIVE-OBSERVATION.md).
+
+Native selected/catalog direct-stdio crash tests now verify sticky loss, retained
+pending counters, unchanged stale descriptor/reuse rejection and explicit fresh
+generation recovery. A held Windows process handle confirms direct-child exit on
+Node 24.11.1; do not generalize this runtime behavior to descendant containment.
+The snapshot-loss mutation fails. Local receipts are under
+`X:/tmp/aegis-owner-crash-20260922/receipts`; preserve them, review diagnostics after
+14 days or 64 MiB. Disposable fixtures have a four-second lifetime and are removed.
+The nearest B5 interruption/client-crash verification cycle is now complete:
+four real broker/relay/terminal-parser cases and eight installed Claude scenarios
+cover selected/catalog and direct/review cancellation/crash. Review cancellation
+has independent child exit/close evidence; crash evidence holds an independent
+Windows process handle. Direct crash leaves a stale descriptor; review crash
+removes it. A removed-delivery mutation fails both selected review tests.
+Receipts: `X:/tmp/aegis-review-cancel-20260922/receipts`. One rejected guard run is
+retained separately and excluded from success evidence; its disposable scratch
+was removed after a process-state check. Do not restart this completed cycle.
+Descendant control, independent provider identity and outside-route
+control remain open; B1/B5 remain partial. Check current refs/CI rather than
+resuming old publication instructions or starting B1 again. Preserve the dirty
+original checkout. Local receipts for the earlier cancellation pass are under
+`X:/tmp/aegis-provider-cancel-20260922/receipts`; preserve them. Disposable provider
+scratch is removed by the bounded verifier; no global retention change was made.
+
+## Earlier handoff — 2026-09-18
+
 Updated 2026-09-18 at the user's request to continue in a new chat.
 Offline-import baseline: `cb23c581a51228e09aab29e4f5db13b276cfb7b2`, merged
 [PR #488](https://github.com/antropos17/Aegis/pull/488). The B1 receiver slice below

@@ -192,7 +192,7 @@ frames and fixed outcome fields; paths and terminal challenges are excluded.
 Terminal answers were supplied by automation, which does not authenticate a
 human. This uses the same 90-second run, 2.5-second checkpoint and 4-second cleanup
 bounds, disposable configuration and synthetic local replies described above.
-Abrupt owner death and installed-provider cancellation of a running child remain unverified.
+Abrupt owner death remains unverified. Installed-provider cancellation is covered below.
 
 ## Running-child cancellation in the protocol fixture
 
@@ -220,3 +220,157 @@ outside this verification. No provider or cloud model is launched by this fixtur
 
 Independent agent/version binding, safe installed-adapter blocking tests and
 verified outside-route control remain open. B5 is partial.
+
+## Installed-provider running-child cancellation
+
+The opt-in verifier now supports `--cancellation` and `--catalog-cancellation`:
+
+```text
+node scripts/verify-claude-action-mcp.mjs --cancellation --claude <absolute claude.exe> --bash <absolute Git bash.exe> --scratch <existing spacious private directory>
+```
+
+Both modes passed on Windows with installed Claude Code 2.1.263. Each run used
+one synthetic loopback API request, a disposable profile and a dummy credential;
+no cloud model or saved client settings were used. The fixture uses the
+[SDK control protocol](https://github.com/anthropics/claude-agent-sdk-python/blob/main/src/claude_agent_sdk/_internal/query.py)
+to initialize stream-json input and request `interrupt`. The request is sent only
+after the selected real Node child is running, its private progress marker grows,
+and production observation records one invocation with zero settlements.
+The [redacted evidence](recon/evidence/claude-running-cancellation-windows-20260922.json)
+records both runs and canonical LF hashes of the verifier and exercised modules.
+
+Claude acknowledged the interrupt and delivered one MCP cancellation notification.
+The production executor reported `action-cancelled`, `interrupted` and confirmed
+termination. An explicitly loaded test witness forwards the existing spawn seam
+unchanged and retains the held ChildProcess's exit/close events; public settlement
+counters alone are insufficient. Marker growth stopped, the unused catalog action
+never ran, and the connection remained observed with counters 1 invocation,
+1 settlement and 1 cancellation before closing normally. Owner exit then caused
+sticky coverage loss and descriptor removal. Both owned scratch directories were
+removed. The client metadata is still self-reported.
+
+The installed CLI returned exit 1 and an `error_during_execution` result after
+interruption. The verifier accepts that combination only with the acknowledgement,
+all independent cancellation/termination evidence and successful cleanup. A timeout,
+fallback tree kill, missing exit/close or closure-triggered cancellation cannot pass.
+Removing cancellation delivery from the production owner made the native selected
+case fail its checkpoint; scratch cleanup still completed, and source was restored.
+
+The provider has a 30-second deadline and the existing 16 MiB scratch limit. Each
+checkpoint after launch waits at most 2.5 seconds, cleanup waits at most 4 seconds,
+and the ordinary executor retains its 5-second runtime bound. The disposable child
+also exits itself after 8 seconds if its owner disappears. Provider stdout stays
+bounded in memory and is not included in the receipt; witness results are projected
+to six fixed fields. Receipts contain no marker paths, endpoint credentials or raw
+provider output. Preserve verification receipts; review fixed diagnostic files after
+14 days or 64 MiB. No global retention mechanism is installed.
+
+This closes the selected/catalog direct-stdio installed-provider cancellation
+verification gap. Terminal-review cancellation, descendant termination, abrupt
+owner death, independent provider identity and outside-route control remain open.
+
+## Abrupt owner death in the native protocol fixture
+
+`tests/main/action-observation-owner-crash.test.js` kills a separately spawned
+production Node MCP owner while a real selected action is pending. Both selected
+and catalog cases passed locally on Windows 10.0.26200 with Node 24.11.1/libuv
+1.51.0. The [redacted receipt](recon/evidence/action-owner-crash-windows-20260922.json)
+records assertions and canonical source hashes. This is a synthetic protocol
+client, not an installed-provider test.
+
+The observer becomes sticky `Coverage lost` and retains one invocation, zero
+settlements and zero cancellation requests. It does not invent a cancellation or
+termination report. The unchanged descriptor remains after the crash. Explicitly
+selecting that stale endpoint yields `Observation unavailable`; starting another
+owner at the same filename exits 2 without overwriting it. A new owner at a new
+filename starts with a fresh generation and zero counters. Selecting it does not
+revive the old observer. Normal closure removes only the new descriptor.
+
+On this Windows runtime the direct child also terminated. A read-only PowerShell
+witness acquires and retains its OS process handle before the owner is killed,
+then waits for that same process to exit. The progress marker stops and the
+fixture's independent deadline marker remains absent. Exit code alone is not
+sufficient: Windows job termination can report zero. The test kills only the held
+owner, never its process tree or a PID read from a file.
+
+This result is consistent with
+[Node 24.11.1's bundled libuv implementation](https://github.com/nodejs/node/blob/v24.11.1/deps/uv/src/win/process.c):
+non-detached children are assigned to a kill-on-close job, with breakaway flags.
+It is runtime-specific evidence, not an AEGIS-owned containment guarantee for
+arbitrary descendants, other job configurations, Electron packaging or other
+operating systems. Those remain C1 work. The non-Windows test verifies observation
+and endpoint lifecycle; its disposable action exits on its own deadline.
+
+The fixture independently caps child lifetime at four seconds and progress at
+80 bytes. Test cleanup waits beyond that bound before removing its owned scratch.
+Owner output is capped at 32 KiB per stream. No cloud, saved client configuration,
+credentials or user documents are used. Public snapshots are checked for private
+path/token/termination leakage. A mutation clearing the last snapshot on loss
+made the selected test fail; production source was restored afterward.
+
+The abrupt direct-stdio owner-loss evidence gap is now covered. Automatic removal
+of a crashed owner's descriptor is not implemented or claimed. Preserve local
+receipts under `X:/tmp/aegis-owner-crash-20260922/receipts`; review fixed diagnostic
+files after 14 days or 64 MiB. No global retention enforcement is installed.
+Terminal-review cancellation, installed-provider crash behavior, independent
+provider identity and outside-route control remain open; B5 is partial.
+
+## Completed interruption and client-crash verification cycle
+
+The next bounded B5 cycle covers terminal-review cancellation and installed-client
+crashes. `tests/main/action-review-cancellation.test.js` exercises four cases:
+selected action/catalog, each while awaiting confirmation and while running.
+The production relay, broker, terminal challenge parser, approval binding,
+executor and observer run together; only terminal streams and host signals are
+simulated. Wrong-type and unrelated request IDs do nothing. Matching cancellation
+settles once, suppresses the tool result, and preserves live observation. Pending
+review never launches; running cancellation requires the actual held child's exit
+and close events. Duplicate request IDs and a late or reused confirmation cannot
+launch again. Normal closure removes both descriptors. Removing cancellation
+delivery from the production owner makes both selected-action cases fail.
+
+Installed Windows Claude Code 2.1.263 passed the eight-case matrix: selected/catalog,
+direct stdio/terminal review, interrupt/abrupt client death. Each case used one
+synthetic loopback API request, a disposable profile and dummy credential. No
+cloud model or saved settings were used. The new opt-in flags are:
+
+```text
+--review-cancellation        --catalog-review-cancellation
+--crash                     --catalog-crash
+--review-crash              --catalog-review-crash
+```
+
+Use them with `node scripts/verify-claude-action-mcp.mjs` and the existing explicit
+`--claude`, `--bash` and `--scratch` paths. Review modes require a live terminal and
+the displayed exact challenge before the action starts; the fixture never supplies
+the answer. In the measured runs, external automation entered the disposable
+action's challenge. This is not evidence of human identity or human review.
+
+Review interruption produced one delivered cancellation and settlement while
+remaining observed; held-child exit/close and the production result independently
+confirmed termination. Crash modes kill only the held provider process. A separate
+read-only Windows process handle, acquired beforehand, confirms direct-child exit;
+marker growth stops without the fixture's eight-second deadline firing. No MCP
+cancellation notification is invented. Observation becomes sticky coverage loss
+and retains its last counters, which can precede final cleanup.
+
+Direct-stdio client crashes left an unchanged stale descriptor; review brokers
+removed theirs. Stale files are removed only with the fixture's owned scratch,
+not by new product recovery logic. All eight accepted runs cleaned their scratch.
+One earlier cancellation rerun was rejected by the runner's existing output/disk
+guard and is excluded from success evidence; its precise guard cause was not
+recorded. Subsequent runs passed unchanged limits. The runner now reports a fixed
+limit reason and output byte counts without saving provider output. The failed
+run's 9,407-byte scratch was separately removed after checking no matching process
+remained; its failed receipt is preserved.
+
+The [redacted matrix](recon/evidence/provider-interruption-cycle-windows-20260922.json)
+retains accepted receipts and the excluded failure. Direct runs keep a 30-second
+deadline; review runs allow 90 seconds including at most 60 seconds for an answer.
+The 16 MiB scratch and 32 KiB-per-stream bounds remain. Preserve local receipts at
+`X:/tmp/aegis-review-cancel-20260922/receipts`; review diagnostic files after 14 days
+or 64 MiB. No global retention mechanism is installed.
+
+This completes this interruption/crash verification cycle. Independent provider
+identity, verified outside-route blocking, arbitrary descendant containment and
+packaged-runtime crash guarantees remain open; B5 as a whole is still partial.

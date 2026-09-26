@@ -1,16 +1,58 @@
 # AEGIS — starting the next chat
 
-## Current assignment — AI-agent protection, 2026-09-18
+Current continuation: [known-secret MCP checks](../docs/MCP-KNOWN-SECRETS.md) add an optional pinned local policy across stdio/HTTP/HTTPS. Guarded payloads are tool metadata, exact call parameters and results; transport/launch credentials and general DLP remain outside the contract. Receipts: `X:/tmp/aegis-mcp-secrets-20260926/receipts`; preserve, review after 14 days or 64 MiB. Only synthetic secrets are used in verification.
 
-Start with [the current handoff](ai-protection-handoff.md). PR #488 is merged at
-`cb23c581a51228e09aab29e4f5db13b276cfb7b2`; all five CI contexts passed, with
-4,728 tests passed and five skipped. The bounded offline Claude subagent lifecycle
-importer is complete. Next: **B1 in docs/roadmap/ai-agent-protection.md**, the shared
-event/policy and adapter boundary, followed by opt-in live lifecycle collection.
-No B1 runtime work has started. A5 remains partial; no new blocking is implemented.
+Current continuation: [explicit pinned HTTPS](../docs/MCP-HTTPS-GATEWAY.md) adds endpoint descriptor v2 with operator-selected IPv4, CA, hostname and leaf SHA256 checks. It retains finite MCP and persistent-grant boundaries. No OAuth, DNS discovery or automatic certificate renewal. Owned fixtures are the evidence; third-party/provider compatibility remains unverified. Receipts: `X:/tmp/aegis-mcp-tls-20260922/receipts`; preserve, review after 14 days or 64 MiB.
 
-Use `X:/tmp/aegis-ai-protection-plan`, preserve the dirty original checkout, and
-read the handoff for source paths, evidence limits, receipts and disk precautions.
+Current continuation: [persistent MCP grants](../docs/MCP-DURABLE-GRANTS.md) add opt-in manifest v2, bounded local consumption records and expiry across stdio/HTTP restarts. V1 remains connection-local; task IDs are operator metadata, not verified identity. B2/B3 remain partial. Receipts: `X:/tmp/aegis-mcp-grants-20260922/receipts`; preserve and review after 14 days or 64 MiB. Consumed permission records are authorization state and must not be pruned as diagnostic output.
+
+## Current assignment — AI-agent protection, 2026-09-22
+
+B2.2 adds an [explicit loopback HTTP profile](../docs/MCP-HTTP-GATEWAY.md), sharing
+B2.1 grants/schema/catalog checks. It pins a literal local endpoint and bearer,
+uses finite JSON/SSE responses, rejects redirects/session replacement and never
+automatically reinitializes or retries. Cancellation attempts an upstream
+notification and DELETE; HTTP acknowledgement does not prove remote execution
+stopped. Real loopback/Node CLI fixtures cover this boundary; installed-provider
+and third-party HTTP compatibility remain unverified. This adds no public listener,
+OAuth, OS containment or Observatory gateway coverage.
+Receipts: `X:/tmp/aegis-mcp-http-20260922/receipts`; preserve them and review after
+14 days or 64 MiB. Fixtures close their owned servers/sockets and remove their
+temporary directories. No global retention change was made.
+
+B2.1 now adds an [explicit stdio gateway](../docs/MCP-STDIO-GATEWAY.md): exact
+one-attempt tool grants, bounded input/output schema validation, fresh accepted
+catalog checks and direct-child cleanup. Real disposable upstream/CLI fixtures
+cover allowed calls, replay, mutation, malformed traffic, cancellation and death.
+B2 remains partial: OAuth and third-party HTTPS interoperability, general recipient/scope enforcement, protected launch
+and third-party server/provider compatibility remain unverified. Gateway routes
+are not yet connected to Observatory coverage. Diagnostics for this pass live at
+`X:/tmp/aegis-mcp-gateway-20260922/receipts`; preserve receipts, review after 14 days
+or 64 MiB. Owned fixtures are removed after each test and have bounded lifetimes.
+
+Start with [the current handoff](ai-protection-handoff.md) and the current source.
+B1 includes live lifecycle intake, policy-controlled selected execution, exact
+approval binding and MCP routes. B5 includes preflight and opt-in live observation.
+Installed Claude Code 2.1.263 passed running-child cancellation for selected and
+catalog direct-stdio routes using synthetic local replies. The native negative
+control failed when cancellation delivery was removed. See
+[verification and boundaries](../docs/ACTION-LIVE-OBSERVATION.md).
+
+Native selected/catalog owner-crash tests now cover sticky loss, retained pending
+counters, stale endpoint rejection and explicit fresh-generation recovery. On
+Windows Node 24.11.1 a held OS handle confirms direct-child exit after owner death;
+this is runtime-specific evidence, not general descendant containment.
+The nearest B5 interruption/crash cycle is complete: four real broker/relay tests
+cover pending/running review cancellation, and installed Claude passed all eight
+selected/catalog × direct/review × interrupt/crash scenarios. A cancellation-delivery
+mutation fails. See the latest section of the observation document and its receipt.
+Do not restart this completed verification slice. C1 descendant control remains
+separate work. Independent identity,
+verified blocking coverage and outside-route control remain open. A5, B1 and B5
+are partial; the broader B2–B4/C1–C3/D1 queue is not implemented by this verification.
+
+Select a clean worktree from current `origin/master`; preserve the dirty original
+checkout. Read the handoff for source paths, evidence limits and disk precautions.
 Earlier ETW/other-roadmap assignments below are historical context and do not
 replace this queue. Check current refs/status before doing new work.
 
