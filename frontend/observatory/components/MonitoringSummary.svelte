@@ -3,6 +3,7 @@
   import { instances, type Telemetry, type RecordData } from '../runtime/host';
   import { radarGroups, groupRecord } from '../runtime/radar';
   import { measuredStatisticsTotal } from '../runtime/statistics-metrics';
+  import { networkSnapshotStatus } from '../runtime/network-coverage';
   let {
     telemetry,
     recentCount,
@@ -21,6 +22,7 @@
   let highestRisk = $derived([...groups].sort((a, b) => b.risk - a.risk)[0]);
   let tokenTotal = $derived(measuredStatisticsTotal(telemetry, telemetry.tokens, 'totalTokens'));
   let sensitiveEvents = $derived(telemetry.events.filter((event) => event.sensitive === true));
+  let networkStatus = $derived(networkSnapshotStatus(telemetry));
 </script>
 
 <div id={summaryId} class="summary monitoring-summary" class:expanded>
@@ -60,11 +62,15 @@
   >
   <button class="summary-stat" onclick={() => navigate?.('network')}>
     <span>{$t('Connections')}</span><strong
-      >{telemetry.ready ? telemetry.network.length : '—'}</strong
+      >{networkStatus === 'unavailable' ? '—' : telemetry.network.length}</strong
     >
     <p>
-      {telemetry.network.filter((n) => n.verdict === 'unknown').length}
-      {$t('unverified endpoints')}
+      {#if networkStatus === 'unavailable'}{$t(
+          'Network observation unavailable',
+        )}{:else if networkStatus === 'retained'}{$t(
+          'Retained network snapshot',
+        )}{:else}{telemetry.network.filter((n) => n.verdict === 'unknown').length}
+        {$t('unverified endpoints')}{/if}
     </p>
   </button>
   <div class="summary-stat">
