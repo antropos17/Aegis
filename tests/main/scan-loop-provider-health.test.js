@@ -278,7 +278,8 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
       const h = scanner.getProcessSensorHealth();
       expect(h.state).toBe(SENSOR_HEALTH_STATE.FAILED);
       expect(h.consecutiveFailures).toBe(1);
-      expect(h.lastError).toMatch(/ENOENT/);
+      expect(h.lastError).toBe('hard-scan-failure');
+      expect(JSON.stringify(h)).not.toContain('private path');
       expect(h.detail).toBe('hard-scan-failure');
       expect(scanner.isProcessPopulationReliable()).toBe(false);
       expect(scanner.isPopulationProviderFailure(providerError)).toBe(true);

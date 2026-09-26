@@ -178,8 +178,8 @@ async function getParentProcessMap(opts = {}) {
       const res = await _client.requestSnapshot({ timeoutMs: opts.timeoutMs });
       map = _mapFromSnapshot(res.procs);
       source = res.source;
-    } catch (err) {
-      sidecarError = err.message;
+    } catch {
+      sidecarError = 'proc-snapshot-unavailable';
       map = null;
     }
   }

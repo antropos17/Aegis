@@ -146,7 +146,7 @@ describe('platform/process-snapshot', () => {
 
   describe('fallback chain', () => {
     it('serves the CIM observation when the sidecar cannot, and marks itself DEGRADED', async () => {
-      snapshot._setClientForTest(clientFailing('binary not found'));
+      snapshot._setClientForTest(clientFailing('PRIVATE_SNAPSHOT_HEALTH_CANARY'));
       const cimMap = new Map([[100, { name: 'claude.exe', ppid: 4, startTime: 1717000000000 }]]);
       const cimFallback = vi.fn().mockResolvedValue(cimMap);
 
@@ -157,7 +157,8 @@ describe('platform/process-snapshot', () => {
       expect(map.get(100)).toEqual({ name: 'claude.exe', ppid: 4, startTime: 1717000000000 });
       const health = snapshot.getSnapshotHealth();
       expect(health.state).toBe('DEGRADED');
-      expect(health.lastError).toMatch(/binary not found/);
+      expect(health.lastError).toBe('proc-snapshot-unavailable');
+      expect(JSON.stringify(health)).not.toContain('PRIVATE_SNAPSHOT_HEALTH_CANARY');
     });
 
     it('never spawns the sidecar under the cim kill switch', async () => {

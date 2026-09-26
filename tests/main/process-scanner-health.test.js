@@ -46,7 +46,7 @@ describe('process-scanner health (B3)', () => {
   });
 
   it('B-S01: EPERM → reliable false, agents [], health FAILED, lastSuccess not advanced', async () => {
-    const err = new Error('Access is denied');
+    const err = new Error('Access is denied: PRIVATE_PROCESS_HEALTH_CANARY');
     err.code = 'EPERM';
     mockListProcesses.mockRejectedValue(err);
     const result = await scanner.scanProcesses();
@@ -55,7 +55,8 @@ describe('process-scanner health (B3)', () => {
     const h = scanner.getProcessSensorHealth();
     expect(h.state).toBe(SENSOR_HEALTH_STATE.FAILED);
     expect(h.lastSuccessAt).toBeNull();
-    expect(h.lastError).toMatch(/Access is denied|denied/i);
+    expect(h.lastError).toBe('permission-denied');
+    expect(JSON.stringify(h)).not.toContain('PRIVATE_PROCESS_HEALTH_CANARY');
     expect(h.consecutiveFailures).toBe(1);
     expect(scanner.isProcessPopulationReliable()).toBe(false);
   });
@@ -143,11 +144,13 @@ describe('process-scanner health (B3)', () => {
   });
 
   it('B-S02: noteProcessScanHardFailure marks FAILED and increments failures', () => {
-    scanner.noteProcessScanHardFailure(new Error('spawn ENOENT'));
+    scanner.noteProcessScanHardFailure(new Error('PRIVATE_HARD_PROCESS_HEALTH_CANARY'));
     let h = scanner.getProcessSensorHealth();
     expect(h.state).toBe(SENSOR_HEALTH_STATE.FAILED);
     expect(h.consecutiveFailures).toBe(1);
-    scanner.noteProcessScanHardFailure(new Error('spawn ENOENT'));
+    expect(h.lastError).toBe('hard-scan-failure');
+    expect(JSON.stringify(h)).not.toContain('PRIVATE_HARD_PROCESS_HEALTH_CANARY');
+    scanner.noteProcessScanHardFailure(new Error('PRIVATE_HARD_PROCESS_HEALTH_CANARY'));
     h = scanner.getProcessSensorHealth();
     expect(h.consecutiveFailures).toBe(2);
   });
