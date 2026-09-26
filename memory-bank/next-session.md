@@ -1,9 +1,9 @@
 # AEGIS — starting the next chat
 
-## Current state — 2026-09-26, `origin/master` at `d470dee`
+## Handoff snapshot — 2026-09-26, code baseline `d470dee`
 
 The [AI-agent protection roadmap](../docs/roadmap/ai-agent-protection.md) remains
-partial. The last verified merge for this handoff is [#593](https://github.com/antropos17/Aegis/pull/593).
+partial. The latest code merge verified for this handoff is [#593](https://github.com/antropos17/Aegis/pull/593).
 Refresh the remote ref, PR list and current source before starting new work.
 The original `X:/Future/ESCAPE/AEGIS` checkout is old and dirty; preserve its
 unfinished changes. Use a clean managed worktree based on `origin/master`.
