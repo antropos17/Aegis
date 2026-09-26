@@ -90,6 +90,19 @@ export async function checkActionCoverage(browser, url, out) {
       .scrollIntoViewIfNeeded();
     await geometry();
     await page.screenshot({ path: resolve(out, 'action-coverage-delete-guide-900-1.5.png') });
+    const gateway = root.getByRole('region', { name: 'Stdio gateway setup', exact: true });
+    assert(
+      await gateway
+        .getByText(
+          /Action control does not check gateway setup, a running gateway, or live coverage/,
+        )
+        .isVisible(),
+    );
+    const gatewayButton = gateway.getByRole('button', { name: 'Open stdio gateway guide' });
+    assert(await gatewayButton.isDisabled(), 'preview must not open the gateway guide');
+    await gatewayButton.scrollIntoViewIfNeeded();
+    await geometry();
+    await page.screenshot({ path: resolve(out, 'action-coverage-gateway-guide-900-1.5.png') });
     await page.setViewportSize({ width: 1200, height: 800 });
     await page.evaluate(() => {
       document.documentElement.style.setProperty('--ui-scale', '1');
@@ -294,6 +307,28 @@ export async function checkActionCoverage(browser, url, out) {
           'route-evidence-pt-900-1.5-light',
           root.getByRole('region', { name: pt['Route evidence'], exact: true }),
         );
+      if (theme === 'light') {
+        const translatedGateway = root.getByRole('region', {
+          name: pt['Stdio gateway setup'],
+          exact: true,
+        });
+        assert(
+          await translatedGateway
+            .getByText(
+              pt[
+                'The separate stdio gateway (--mcp-gateway-stdio) has its own setup and limits. Action control does not check gateway setup, a running gateway, or live coverage.'
+              ],
+            )
+            .isVisible(),
+        );
+        await translatedGateway
+          .getByRole('button', { name: pt['Open stdio gateway guide'] })
+          .scrollIntoViewIfNeeded();
+        await geometry();
+        await page.screenshot({
+          path: resolve(out, 'action-coverage-gateway-guide-pt-900-1.5-light.png'),
+        });
+      }
       await page.screenshot({ path: resolve(out, `action-coverage-pt-900-1.5-${theme}.png`) });
     }
     assert.deepEqual(errors, []);

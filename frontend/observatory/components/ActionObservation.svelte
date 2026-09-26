@@ -137,7 +137,11 @@
     <dl>
       <div>
         <dt>{$t('Execution route')}</dt>
-        <dd>{$t(snapshot.route === 'mcp-review' ? 'MCP terminal review' : 'MCP stdio')}</dd>
+        <dd>
+          {$t(
+            snapshot.route === 'mcp-review' ? 'MCP terminal review' : 'Selected-action MCP stdio',
+          )}
+        </dd>
       </div>
       <div>
         <dt>{$t('Selection type')}</dt>

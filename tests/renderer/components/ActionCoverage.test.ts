@@ -37,6 +37,34 @@ it('opens the separate exact-file setup guide without running an executable or c
   expect(localSecurityReview).not.toHaveBeenCalled();
 });
 
+it('distinguishes the selected-action owner from the third-party gateway and opens its fixed guide', async () => {
+  const localSecurityReview = vi.fn();
+  const openExternalUrl = vi.fn().mockResolvedValue({ success: true });
+  render(ActionCoverage, { host: { localSecurityReview, openExternalUrl } as unknown as Host });
+  const route = screen.getByRole('combobox', { name: 'Execution route' });
+  expect(route).toHaveValue('mcp-stdio');
+  expect(
+    (within(route).getByRole('option', { name: 'Selected-action MCP stdio' }) as HTMLOptionElement)
+      .selected,
+  ).toBe(true);
+  expect(screen.getByText(/selected-action MCP stdio owner \(--action-mcp-stdio\)/)).toBeVisible();
+  const gatewayRegion = screen.getByRole('region', { name: 'Stdio gateway setup' });
+  const form = screen.getByRole('button', { name: 'Choose files and check' }).closest('form')!;
+  expect(
+    form.compareDocumentPosition(gatewayRegion) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  const gateway = within(gatewayRegion);
+  expect(gateway.getByText(/separate stdio gateway \(--mcp-gateway-stdio\)/)).toHaveTextContent(
+    'Action control does not check gateway setup, a running gateway, or live coverage.',
+  );
+  await fireEvent.click(gateway.getByRole('button', { name: 'Open stdio gateway guide' }));
+  expect(openExternalUrl).toHaveBeenCalledExactlyOnceWith(
+    'https://github.com/antropos17/Aegis/blob/master/docs/MCP-STDIO-GATEWAY.md',
+  );
+  expect(await gateway.findByRole('status')).toHaveTextContent('Guide opened in your browser.');
+  expect(localSecurityReview).not.toHaveBeenCalled();
+});
+
 it('keeps the selected-file guide disabled in preview', () => {
   const openExternalUrl = vi.fn();
   render(ActionCoverage, {
@@ -44,6 +72,7 @@ it('keeps the selected-file guide disabled in preview', () => {
     preview: true,
   });
   expect(screen.getByRole('button', { name: 'Open selected-file deletion guide' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Open stdio gateway guide' })).toBeDisabled();
   expect(screen.getByText('External guides are disabled in this simulated preview.')).toBeVisible();
   expect(openExternalUrl).not.toHaveBeenCalled();
 });
@@ -65,7 +94,7 @@ it('submits only action and route and preserves captured context through draft c
   await start();
   expect(call).toHaveBeenCalledExactlyOnceWith({ action: 'check-route', route: 'mcp-stdio' });
   const result = await screen.findByRole('region', { name: 'Action check result' });
-  expect(within(result).getByText('Single action · MCP stdio')).toBeVisible();
+  expect(within(result).getByText('Single action · Selected-action MCP stdio')).toBeVisible();
   expect(within(result).getByText(/retained observation, not live route status/)).toBeVisible();
   expect(
     within(result).getByText('The policy allows this selected action. Nothing was run.'),
@@ -77,7 +106,7 @@ it('submits only action and route and preserves captured context through draft c
   await fireEvent.change(screen.getByLabelText('Execution route'), {
     target: { value: 'mcp-review' },
   });
-  expect(within(result).getByText('Single action · MCP stdio')).toBeVisible();
+  expect(within(result).getByText('Single action · Selected-action MCP stdio')).toBeVisible();
   expect(call).toHaveBeenCalledTimes(1);
   expect(screen.queryByRole('option', { name: 'Direct execution' })).toBeNull();
 });

@@ -15,6 +15,7 @@ const guideFiles = [
   'ACTION-MCP-CONFIG.md',
   'ACTION-MCP-REVIEW.md',
   'ACTION-DELETE-FILE.md',
+  'MCP-STDIO-GATEWAY.md',
   'ACTION-MCP-STATUS.md',
 ];
 
@@ -47,7 +48,7 @@ describe('external URL boundary', () => {
     expect(parseExternalUrl(`https://example.com/${'ü'.repeat(500)}`)).toBeNull();
   });
 
-  it('recognizes only the four exact canonical AEGIS setup guides', () => {
+  it('recognizes only the five exact canonical AEGIS setup guides', () => {
     for (const file of guideFiles) {
       const href = `https://github.com/antropos17/Aegis/blob/master/docs/${file}`;
       expect(isTrustedSetupGuide(parseExternalUrl(href).href)).toBe(true);

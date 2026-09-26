@@ -105,6 +105,12 @@ export const setupGuides = [
     file: 'ACTION-DELETE-FILE.md',
   },
   {
+    title: 'Route a third-party MCP server',
+    description:
+      'Read the separate stdio gateway setup and limits. Action control does not check gateway setup or live coverage.',
+    file: 'MCP-STDIO-GATEWAY.md',
+  },
+  {
     title: 'Check a connected route',
     description:
       'Ask your MCP client for aegis_route_status to inspect that connection. It does not describe other agents.',
