@@ -168,7 +168,9 @@ function buildCustomRules() {
   customSensitiveRules = [];
   for (const patternStr of settings.customSensitivePatterns) {
     if (!isSafeRegex(patternStr)) {
-      logger.warn('config-manager', `Skipped unsafe/invalid regex: ${patternStr}`);
+      logger.warn('config-manager', 'Skipped unsafe/invalid regex', {
+        code: 'custom-rule-invalid',
+      });
       continue;
     }
     customSensitiveRules.push({

@@ -456,8 +456,8 @@ function sendToRenderer(channel, data) {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(channel, data);
     }
-  } catch (err) {
-    logger.warn('main', 'sendToRenderer failed', { channel, error: err.message });
+  } catch {
+    logger.warn('main', 'sendToRenderer failed', { channel, code: 'renderer-send-failed' });
   }
 }
 

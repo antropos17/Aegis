@@ -68,10 +68,9 @@ function _readMode() {
     .trim()
     .toLowerCase();
   if (MODES.includes(raw)) return raw;
-  logger.warn(
-    'proc-snapshot',
-    `Unknown AEGIS_PROC_SNAPSHOT value "${raw}" — using "auto" (${MODES.join('|')})`,
-  );
+  logger.warn('proc-snapshot', 'Unknown AEGIS_PROC_SNAPSHOT value — using auto', {
+    code: 'snapshot-mode-invalid',
+  });
   return 'auto';
 }
 
