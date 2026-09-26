@@ -171,7 +171,7 @@ describe('bounded static directory review', () => {
         context: 'claude-settings-mcp-server-allow',
       }),
     ]);
-    expect(report.ruleSet.version).toBe(11);
+    expect(report.ruleSet.version).toBe(12);
     expect(JSON.stringify(report)).not.toMatch(/PRIVATE_MCP_CANARY|PRIVATE_server/);
   });
 
@@ -261,6 +261,62 @@ describe('bounded static directory review', () => {
     });
     expect(report.complete).toBe(false);
     expect(JSON.stringify(report)).not.toContain('mcp__git');
+  });
+
+  it.each([
+    ['claude-user', 'settings.json'],
+    ['user-home', '.claude/settings.json'],
+    ['claude-managed', 'managed-settings.json'],
+    ['claude-managed', 'managed-settings.d/10-team.json'],
+  ])('flags declared Claude raw API body logging in selected %s %s', async (adapter, name) => {
+    for (const [value, context] of [
+      ['1', 'claude-settings-raw-api-bodies-inline'],
+      ['file:PRIVATE_BODY_DIRECTORY', 'claude-settings-raw-api-bodies-file'],
+    ]) {
+      const source = JSON.stringify({
+        env: { OTEL_LOG_RAW_API_BODIES: value },
+        description: 'PRIVATE_OTEL_CANARY',
+      });
+      put(name, source);
+      const report = await scanStaticDirectory(adapter, root);
+      expect(report.findings).toEqual([
+        expect.objectContaining({
+          ruleId: 'STA021',
+          severity: 'medium',
+          path: name,
+          sha256: createHash('sha256').update(source).digest('hex'),
+          line: null,
+          context,
+        }),
+      ]);
+      expect(report.ruleSet.version).toBe(12);
+      expect(JSON.stringify(report)).not.toMatch(/PRIVATE_OTEL_CANARY|PRIVATE_BODY_DIRECTORY/);
+    }
+  });
+
+  it('requires exact supported values for Claude raw body logging', async () => {
+    for (const value of ['0', 'true', '', 'file:', 'file:   ', 'FILE:PRIVATE_DIR', 1, true, null]) {
+      put('settings.json', { env: { OTEL_LOG_RAW_API_BODIES: value } });
+      const report = await scanStaticDirectory('claude-user', root);
+      expect(report.findings.some((finding) => finding.ruleId === 'STA021')).toBe(false);
+      expect(report.complete).toBe(true);
+    }
+  });
+
+  it('excludes project, local and nested MCP env from the Claude raw body signal', async () => {
+    for (const name of ['.claude/settings.json', '.claude/settings.local.json']) {
+      put(name, { env: { OTEL_LOG_RAW_API_BODIES: '1' } });
+      const report = await scanStaticDirectory('project', root);
+      expect(report.findings.some((finding) => finding.ruleId === 'STA021')).toBe(false);
+    }
+    put('settings.json', {
+      mcpServers: {
+        sample: { command: 'node', args: [], env: { OTEL_LOG_RAW_API_BODIES: '1' } },
+      },
+      projects: { sample: { env: { OTEL_LOG_RAW_API_BODIES: '1' } } },
+    });
+    const report = await scanStaticDirectory('claude-user', root);
+    expect(report.findings.some((finding) => finding.ruleId === 'STA021')).toBe(false);
   });
 
   it.each([
@@ -366,7 +422,7 @@ describe('bounded static directory review', () => {
         context: 'claude-settings-strict-allowlist-scope',
       }),
     ]);
-    expect(report.ruleSet.version).toBe(11);
+    expect(report.ruleSet.version).toBe(12);
     expect(JSON.stringify(report)).not.toContain('PRIVATE_ALLOWLIST_CANARY');
   });
 

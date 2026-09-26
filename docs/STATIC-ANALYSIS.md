@@ -118,7 +118,7 @@ can therefore be incomplete and require review. The supported grammar,
 source-line conventions and catalog bounds are documented in
 [Instruction-pattern review](INSTRUCTION-REVIEW.md).
 
-Rule-set ID: `aegis-static-patterns`, version `11`. Each report includes fixed rule
+Rule-set ID: `aegis-static-patterns`, version `12`. Each report includes fixed rule
 metadata. Severity prioritizes review; every finding has `confidence: heuristic`.
 
 | ID | Severity | Review trigger |
@@ -143,6 +143,7 @@ metadata. Severity prioritizes review; every finding has `confidence: heuristic`
 | STA018 | medium | Selected Claude user or managed settings declare `permissions.defaultMode: "bypassPermissions"` without a same-file `disableBypassPermissionsMode: "disable"` |
 | STA019 | medium | Selected Claude project or local settings declare `sandbox.network.strictAllowlist: true`, which Claude Code ignores at those scopes |
 | STA020 | medium | Selected Claude settings declare a whole-server MCP allow without a complete same-file ask/deny rule |
+| STA021 | medium | Selected Claude user or managed settings declare raw Anthropic API request and response body logging |
 
 STA002 includes common `.env` variants, `.npmrc`, selected SSH private-key names,
 AWS credentials and kubeconfig paths. Template/example `.env` names are excluded.
@@ -230,6 +231,19 @@ server inventory and whether the settings file is loaded remain unresolved.
 STA020 is a static review signal, not runtime interception or permission
 enforcement. The report omits server names and raw rules; it contains the
 selected relative path, file hash and fixed wording.
+
+STA021 checks only the top-level `env.OTEL_LOG_RAW_API_BODIES` entry in selected
+Claude user `settings.json` (or `.claude/settings.json` under `user-home`) and
+managed `managed-settings.json` or visible direct `managed-settings.d/*.json`
+files. It recognizes exact string `1` for inline logging and `file:<dir>` with
+a nonblank directory for file logging. Claude Code's
+[monitoring documentation](https://code.claude.com/docs/en/monitoring-usage#common-configuration-variables)
+and [environment variable reference](https://code.claude.com/docs/en/env-vars)
+say these modes can include conversation history and that project/local settings
+do not enable the flag. Nested MCP server environments are outside this signal.
+Findings use fixed inline/file contexts and omit the value and directory path.
+The scan does not establish the active process environment, logging state,
+collector configuration, exported records or written files.
 
 ## Result contract and limits
 

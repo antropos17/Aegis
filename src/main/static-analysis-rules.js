@@ -102,13 +102,18 @@ const RULES = Object.freeze({
     'Claude settings declare whole-server MCP tool preapproval',
     'Review the selected server-wide allow and higher-precedence ask and deny rules. This static check does not establish effective permissions or block tool calls.',
   ],
+  STA021: [
+    'medium',
+    'Claude settings declare raw API body logging',
+    'Review the selected telemetry setting and data retention. This static check does not establish whether logging is active or exported.',
+  ],
 });
 
 /** Return fresh versioned rule metadata. @returns {object} Built-in review rules. @since v0.15.1 */
 function staticRuleSet() {
   return {
     id: 'aegis-static-patterns',
-    version: 11,
+    version: 12,
     rules: Object.entries(RULES).map(([id, [severity, title, recommendation]]) => ({
       id,
       severity,

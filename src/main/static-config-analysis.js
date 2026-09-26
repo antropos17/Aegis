@@ -157,6 +157,20 @@ function analyzeConfiguration(data, format, packageManifest = false, claudeSetti
   if (claudeSettings) {
     const settings = record(parsed.value) ? parsed.value : null;
     if (
+      (claudeSettings === 'user' || claudeSettings === 'managed') &&
+      record(settings?.env) &&
+      Object.hasOwn(settings.env, 'OTEL_LOG_RAW_API_BODIES')
+    ) {
+      const rawBodies = settings.env.OTEL_LOG_RAW_API_BODIES;
+      if (rawBodies === '1') finding('STA021', 'claude-settings-raw-api-bodies-inline');
+      else if (
+        typeof rawBodies === 'string' &&
+        rawBodies.startsWith('file:') &&
+        rawBodies.slice(5).trim()
+      )
+        finding('STA021', 'claude-settings-raw-api-bodies-file');
+    }
+    if (
       claudeSettings === 'project' &&
       record(settings?.sandbox) &&
       record(settings.sandbox.network) &&
