@@ -1,8 +1,12 @@
 # AEGIS — starting the next chat
 
-## Current handoff — 2026-09-26, three-hour extension
+## Current handoff — 2026-09-26, code baseline `fb9da67`
 
 Refresh `origin/master`, the PR list and the release tag before continuing.
+The latest code merge verified for this handoff is
+[#616](https://github.com/antropos17/Aegis/pull/616); all five required CI
+contexts passed before it merged. The docs handoff merge can advance master
+again without changing that code baseline.
 The original `X:/Future/ESCAPE/AEGIS` checkout remains old and contains
 unfinished changes; preserve it and use a clean managed worktree based on
 `origin/master`. The latest published Windows installer checked during this
@@ -15,21 +19,41 @@ The ten-hour pass and its three-hour extension continued the partial
 [protection roadmap](../docs/roadmap/ai-agent-protection.md). Selected direct
 actions and MCP routes are explicit opt-in control points. The Windows Job
 route bounds participating descendant lifetimes; it does not restrict their
-file or network access. Installed-provider interception and outside-route
+file or network access. General installed-provider interception and outside-route
 egress remain unverified. The UI now links missing Action control setup to a
 configuration check; unavailable sensors, stale rates and unknown coverage
 remain visible rather than being called safe.
 
 This extension added fixed or allowlisted diagnostic text across process
-snapshots, baselines, audit index/logger, sequence ingest/rules, secure-storage
-decryption, settings cleanup and Anthropic analysis. Analysis error responses
+snapshots, baselines, audit index/logger, sequence and flat-rule loading,
+secure-storage decryption, settings cleanup and Anthropic analysis. Analysis error responses
 follow the documented API types and its HTTP body read is bounded to 1 MiB.
 First-seen agent persistence retries after a failed write. Exact Kimi Code CLI
 and Amp CLI process names bring the checked catalog to 112 agents and 265
 process-name signatures. Process enumeration now has bounded subprocess
 timeouts, though a hard wall-clock bound is not proven on every platform.
 File-watch plan DEGRADED/FAILED transitions write fixed-code audit start and
-recovery pairs; they cannot reconstruct missing events.
+recovery pairs. A full-loss plan gets up to three 30-second retries
+([#613](https://github.com/antropos17/Aegis/pull/613)); a
+DEGRADED plan with live roots is left intact. Failed alert-only watchlist
+writes now leave the prior in-memory state intact, and the IPC response hides
+native write details ([#612](https://github.com/antropos17/Aegis/pull/612)).
+These changes cannot reconstruct missed events.
+Rule reload IPC now sends counts without the changed rule filename; the
+renderer uses the event to refresh and does not consume that name
+([#616](https://github.com/antropos17/Aegis/pull/616)).
+
+The opt-in installed Claude Code 2.1.263 smoke passed with isolated
+settings and loopback synthetic replies after adding an AEGIS hook failure
+case. The hook returned exit 2, the disposable Bash sentinel stayed absent,
+and no `PostToolUse` appeared; the missing-hook control still executed the
+same action. The redacted local receipt is at
+`X:/tmp/aegis-claude-hook-fail-closed-20260926.json`. This verifies that one
+installed provider build and fixture, not the user's live configuration or
+outside-route control. Hook timeout and process termination remain untested.
+The smoke addition is [#615](https://github.com/antropos17/Aegis/pull/615);
+the flat-rule diagnostic fix is
+[#614](https://github.com/antropos17/Aegis/pull/614).
 
 The remaining protection priorities are installed-provider control-point
 tests, negative file/network/descendant scenarios, protected policy and audit
