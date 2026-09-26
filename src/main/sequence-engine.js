@@ -824,18 +824,16 @@ function _closeOnExit(key, observedAt) {
  * One warn per {@link WARN_INTERVAL_MS} on the injected clock. The counter is exact; the log is
  * not, because a broken carrier arrives once per event and would otherwise fill the log with one
  * line per scan tick.
- * @param {unknown} err
  * @param {number} observedAt
  * @param {string|null} ruleId - the rule whose matcher threw, or null for a projection failure.
  * @returns {void}
  */
-function _warnIngestError(err, observedAt, ruleId) {
+function _warnIngestError(observedAt, ruleId) {
   if (observedAt - _lastIngestWarnAt < WARN_INTERVAL_MS) return;
   _lastIngestWarnAt = observedAt;
-  // `String(err)` rather than a `instanceof Error` ternary: the refusals this catches are always
-  // Errors, so the other arm would be a branch nothing can reach, and the `TypeError: ` prefix it
-  // keeps is the half of the line an operator reads first.
-  logger.warn(LOG_MODULE, `ingest refused an event: ${String(err)}`, {
+  // Matchers and normalizers can throw text derived from a file path or event payload.
+  // Keep the refusal visible without copying their exception into operational logs.
+  logger.warn(LOG_MODULE, 'ingest refused an event', {
     reason: 'ingest-error',
     rule: ruleId,
     ingestErrors: _global.ingestErrors,
@@ -905,11 +903,7 @@ function ingest(carrier) {
     // The same refusal `normalizeToEcs` makes, taken one step earlier so the `instanceId` read
     // below is safe on any argument.
     _global.ingestErrors++;
-    _warnIngestError(
-      new TypeError(`expected an event object, received ${typeof carrier}`),
-      observedAt,
-      null,
-    );
+    _warnIngestError(observedAt, null);
     return;
   }
   const key = carrier.instanceId;
@@ -921,9 +915,9 @@ function ingest(carrier) {
   let doc;
   try {
     doc = normalizeToEcs(carrier);
-  } catch (err) {
+  } catch {
     _global.ingestErrors++;
-    _warnIngestError(err, observedAt, null);
+    _warnIngestError(observedAt, null);
     return;
   }
   const categories = _categoriesOf(doc);
@@ -933,20 +927,20 @@ function ingest(carrier) {
     try {
       if (rule.relationship) continue;
       _applyRule(rule, key, doc, categories, observedAt);
-    } catch (err) {
+    } catch {
       // A matcher is consulted before any state is touched on every branch, so a throw leaves
       // this rule's state exactly as it was.
       _count(rule.id, 'ingestErrors');
-      _warnIngestError(err, observedAt, rule.id);
+      _warnIngestError(observedAt, rule.id);
     }
   }
   try {
     if (observedAt > (_recentlyExited.get(key) ?? -Infinity)) {
       _related?.ingest(key, doc, categories, observedAt);
     }
-  } catch (err) {
+  } catch {
     _global.ingestErrors++;
-    _warnIngestError(err, observedAt, null);
+    _warnIngestError(observedAt, null);
   }
   if (_isExit(doc, categories)) _closeOnExit(key, observedAt);
 }
