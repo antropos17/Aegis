@@ -24,19 +24,24 @@ function watch(paths, options, { WorkerClass = Worker } = {}) {
   });
   let closed = false;
   let failed = false;
+  let terminalNotified = false;
   let ready = false;
   let dropped = 0;
   let sequence = 0;
   let closing;
-  const fail = (reason) => {
-    if (closed || failed) return;
+  const fail = (reason, terminated = false) => {
+    if (closed || terminalNotified || (failed && !terminated)) return;
     failed = true;
-    emitter.emit('error', new Error(reason));
+    if (terminated) terminalNotified = true;
+    emitter.emit(
+      'error',
+      Object.assign(new Error(reason), terminated ? { code: 'AEGIS_WATCH_WORKER_TERMINATED' } : {}),
+    );
   };
-  worker.on('error', () => fail('watch-worker-crashed'));
-  worker.on('exit', () => fail('watch-worker-exited'));
+  worker.on('error', () => fail('watch-worker-crashed', true));
+  worker.on('exit', () => fail('watch-worker-exited', true));
   worker.on('message', (batch) => {
-    if (closed || batch.seq <= sequence) return;
+    if (closed || terminalNotified || batch.seq <= sequence) return;
     sequence = batch.seq;
     try {
       if (batch.dropped > dropped) {

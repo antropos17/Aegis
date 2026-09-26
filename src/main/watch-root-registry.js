@@ -208,6 +208,22 @@ function markRootErrored(id, message) {
 }
 
 /**
+ * A dedicated worker has exited, so its proxy can no longer deliver events.
+ * Unlike a recoverable chokidar error, this is a confirmed loss of that root.
+ * @param {string} id
+ * @param {string} message - Fixed diagnostic code from the caller.
+ * @returns {boolean} True when a live root became terminal.
+ */
+function markRootTerminated(id, message) {
+  const root = _watchPlan.get(id);
+  if (!root || root.watcher === null) return false;
+  root.state = WATCH_ROOT_STATE.ERRORED;
+  root.watcher = null;
+  root.lastError = message;
+  return true;
+}
+
+/**
  * Record that this root delivered one callback. Reality only, and deliberately no
  * state: a delivered `add`/`change`/`unlink` proves ONE callback arrived, never that
  * a watcher recovered — §1.4 retracts that claim outright. So it does not clear
@@ -313,6 +329,7 @@ module.exports = {
   markUnreachedRootsNotAttempted,
   markRootReady,
   markRootErrored,
+  markRootTerminated,
   noteRootDelivery,
   deriveWatchPlaneState,
   unavailableRootSummary,
