@@ -51,7 +51,7 @@ Current source preview with simulated data, captured 19 September 2026.
 
 | Layer | Coverage |
 | --- | --- |
-| Processes | 110 agents (262 process-name signatures), parent-chain and IDE-host detection, with limited WSL and IDE-extension discovery |
+| Processes | 112 agents (265 process-name signatures), parent-chain and IDE-host detection, with limited WSL and IDE-extension discovery |
 | Files | Changes in configured sensitive directories and agent config paths; Windows open-handle and Restart Manager observations |
 | Network | TCP endpoints for detected agent PIDs, forward-confirmed reverse DNS, and `allowlisted` / `unknown` / `flagged` verdicts |
 | Behavior | 73 sensitive-path detection rules across 8 categories, rolling 10-session baselines, anomaly scoring and sequence correlations |
