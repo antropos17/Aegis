@@ -203,6 +203,7 @@ async function main(args) {
       'agent',
       'linked-allow',
       'linked-deny',
+      'adapter-failure',
     ]) {
       fs.writeFileSync(marker, '');
       scenario = { kind, requests: 0, sentinel: path.join(owned, 'sentinel') };
@@ -214,7 +215,7 @@ async function main(args) {
           schemaVersion: 1,
           cwd: fs.realpathSync(path.join(owned, 'work')),
           defaultDecision: 'deny',
-          rules: ['agent', 'baseline', 'missing-hook'].includes(kind)
+          rules: ['agent', 'baseline', 'missing-hook', 'adapter-failure'].includes(kind)
             ? []
             : [{ tool: 'Bash', input: toolInput(scenario), decision: kind.replace('linked-', '') }],
         }),
@@ -243,6 +244,13 @@ async function main(args) {
                 timeout: 4,
               },
             ],
+          },
+        ];
+      if (kind === 'adapter-failure')
+        hooks.PreToolUse = [
+          {
+            // No policy argument: the real AEGIS hook emits fixed deny and exits 2.
+            hooks: [{ type: 'command', command: `${prefix} --action-policy-hook`, timeout: 4 }],
           },
         ];
       for (const event of ['SubagentStart', 'SubagentStop'])
@@ -303,6 +311,10 @@ async function main(args) {
       receipt.scenarios[3].sentinel &&
       receipt.scenarios[5].sentinel &&
       !receipt.scenarios[6].sentinel &&
+      receipt.scenarios[7].kind === 'adapter-failure' &&
+      receipt.scenarios[7].requests >= 2 &&
+      !receipt.scenarios[7].sentinel &&
+      !receipt.scenarios[7].hooks.includes('PostToolUse') &&
       receipt.scenarios[5].linkage.before.length === 1 &&
       receipt.scenarios[5].linkage.before[0].decision === 'allow' &&
       receipt.scenarios[5].linkage.after.length === 1 &&
