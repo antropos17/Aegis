@@ -57,7 +57,7 @@ describe('explicit inventory profiles', () => {
       schemaVersion: 3,
       mode: 'profile-inventory',
       complete: true,
-      adapter: { id: 'user-home', version: 2 },
+      adapter: { id: 'user-home', version: 3 },
       assessment: 'not-performed',
     });
     expect(report.components.map((entry) => entry.path)).toEqual([
@@ -212,6 +212,56 @@ describe('explicit inventory profiles', () => {
     expect(fs.existsSync(sentinel)).toBe(false);
     expect(open.mock.calls.map(([name]) => String(name))).not.toEqual(
       expect.arrayContaining([expect.stringMatching(/oauth_creds|history|must-not-run/)]),
+    );
+  });
+
+  it('fingerprints only the declared default Gemini instructions for each selected layout', async () => {
+    const projectText = 'PRIVATE_PROJECT_INSTRUCTIONS\n';
+    const userText = 'PRIVATE_USER_INSTRUCTIONS\n';
+    put('GEMINI.md', projectText);
+    put('.gemini/GEMINI.md', userText);
+    put('.gemini/settings.json', '{"context":{"fileName":"custom.md"}}');
+    put('.gemini/custom.md', 'PRIVATE_CONFIGURED_INSTRUCTIONS');
+    put('.gemini/oauth_creds.json', 'PRIVATE_OAUTH');
+    put('.gemini/history/session.json', 'PRIVATE_HISTORY');
+    const open = vi.spyOn(fs.promises, 'open');
+    for (const [id, directory, version, instructionPath, scope, content] of [
+      ['project', root, 3, 'GEMINI.md', 'project', projectText],
+      ['user-home', root, 3, '.gemini/GEMINI.md', 'user', userText],
+      ['gemini-user', path.join(root, '.gemini'), 2, 'GEMINI.md', 'user', userText],
+    ]) {
+      const report =
+        id === 'project'
+          ? await inventoryProject(directory)
+          : await inventoryProfile(id, directory);
+      expect(report).toMatchObject({
+        complete: true,
+        adapter: { id, version },
+        scope: { configurationPrecedence: 'not-resolved' },
+      });
+      expect(report.scope.instructions).toContain(instructionPath);
+      expect(report.components.map((entry) => entry.path)).toEqual(
+        [instructionPath, id === 'gemini-user' ? 'settings.json' : '.gemini/settings.json'].sort(),
+      );
+      expect(report.components.find((entry) => entry.path === instructionPath)).toMatchObject({
+        kind: 'instruction',
+        size: Buffer.byteLength(content),
+        sha256: createHash('sha256').update(content).digest('hex'),
+        provenance: {
+          agent: 'gemini-cli',
+          scope,
+          basis: 'selected-layout',
+          agentVersion: null,
+          packageIdentity: 'not-resolved',
+        },
+      });
+      expect(JSON.stringify(report)).not.toMatch(/PRIVATE|custom\.md/);
+    }
+    const projectConfig = await inventoryProfile('gemini-project', path.join(root, '.gemini'));
+    expect(projectConfig.components.map((entry) => entry.path)).toEqual(['settings.json']);
+    expect(projectConfig.scope.instructions).toEqual([]);
+    expect(open.mock.calls.map(([name]) => String(name))).not.toEqual(
+      expect.arrayContaining([expect.stringMatching(/custom\.md|oauth_creds|history/)]),
     );
   });
 

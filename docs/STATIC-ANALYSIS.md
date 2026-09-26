@@ -40,6 +40,15 @@ content through references in the artifact.
 | `project` | Declared project agent configurations, instructions, skill trees and the root `package.json` |
 | Any [profile adapter](PROFILE-INVENTORY.md) | Its declared configurations, named fragments, instructions and skill trees |
 
+For Gemini CLI, these declared instructions include root `GEMINI.md` under
+`project`, `.gemini/GEMINI.md` under `user-home`, and `GEMINI.md` under
+`gemini-user`. The selected `gemini-project` root is a `.gemini` settings
+directory; its sibling project-root instruction file requires a `project`
+selection. The scanner reports observed file hashes, bounded instruction
+findings and `instruction-semantics-not-analyzed` for nonempty text. It does not
+resolve effective context, recursively discover context files, follow `@`
+imports, inspect extension context or infer configured `context.fileName` values.
+
 Links below the selected root are skipped. The selected root is canonicalized
 and its identity checked across the scan. All reads remain best effort; this is
 not an atomic filesystem snapshot or a sandbox against races.
