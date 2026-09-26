@@ -313,61 +313,107 @@ function isReadDetectionAvailable() {
   return _handleBinaryAvailable || restartManager.isRestartManagerAvailable();
 }
 
+// The PowerShell worker opens a single process HANDLE, reads its creation
+// FILETIME, acts through that HANDLE, and closes it in a finally block. The
+// action rights are narrower than PROCESS_ALL_ACCESS.
+const BOUND_CONTROL_TYPE = [
+  'using System;using System.Runtime.InteropServices;',
+  'public static class AegisBoundProcessControl {',
+  '[DllImport("kernel32.dll",SetLastError=true)] public static extern IntPtr OpenProcess(uint access,bool inherit,uint pid);',
+  '[DllImport("kernel32.dll",SetLastError=true)] [return:MarshalAs(UnmanagedType.Bool)] public static extern bool GetProcessTimes(IntPtr handle,out long creation,out long exitTime,out long kernel,out long user);',
+  '[DllImport("kernel32.dll",SetLastError=true)] [return:MarshalAs(UnmanagedType.Bool)] public static extern bool TerminateProcess(IntPtr handle,uint exitCode);',
+  '[DllImport("kernel32.dll",SetLastError=true)] [return:MarshalAs(UnmanagedType.Bool)] public static extern bool CloseHandle(IntPtr handle);',
+  '[DllImport("ntdll.dll")] public static extern int NtSuspendProcess(IntPtr handle);',
+  '[DllImport("ntdll.dll")] public static extern int NtResumeProcess(IntPtr handle);',
+  '}',
+].join('');
+
 /**
+ * Act only if the process opened by PID has the expected raw creation FILETIME.
  * @param {number} pid
+ * @param {string} createTime100ns
+ * @param {'kill'|'suspend'|'resume'} operation
  * @returns {Promise<{success: boolean, error?: string}>}
+ * @since v0.16.0
  */
-function killProcess(pid) {
+function controlProcessOnHandle(pid, createTime100ns, operation) {
   pid = Number(pid);
-  if (!Number.isInteger(pid) || pid <= 0)
+  if (!Number.isInteger(pid) || pid <= 0 || pid > 0xffffffff)
     return Promise.resolve({ success: false, error: 'Invalid PID' });
+  if (typeof createTime100ns !== 'string' || !/^[1-9]\d{0,18}$/.test(createTime100ns))
+    return Promise.resolve({ success: false, error: 'Invalid process instance' });
+
+  const action = {
+    kill: '$ok=[AegisBoundProcessControl]::TerminateProcess($handle,1);if(-not $ok){throw "action"}',
+    suspend:
+      '$status=[AegisBoundProcessControl]::NtSuspendProcess($handle);if($status -ne 0){throw "action"}',
+    resume:
+      '$status=[AegisBoundProcessControl]::NtResumeProcess($handle);if($status -ne 0){throw "action"}',
+  }[operation];
+  const access = operation === 'kill' ? 0x1001 : 0x1800;
+  const script = [
+    "$ErrorActionPreference='Stop'",
+    `Add-Type -TypeDefinition '${BOUND_CONTROL_TYPE}' -ErrorAction Stop | Out-Null`,
+    `$handle=[AegisBoundProcessControl]::OpenProcess(${access},$false,${pid})`,
+    'if($handle -eq [IntPtr]::Zero){throw "open"}',
+    'try{',
+    '[long]$created=0;[long]$exited=0;[long]$kernel=0;[long]$user=0',
+    'if(-not [AegisBoundProcessControl]::GetProcessTimes($handle,[ref]$created,[ref]$exited,[ref]$kernel,[ref]$user)){throw "times"}',
+    `if($created.ToString([Globalization.CultureInfo]::InvariantCulture) -ne '${createTime100ns}'){'STALE'}else{${action};'OK'}`,
+    '}finally{[void][AegisBoundProcessControl]::CloseHandle($handle)}',
+  ].join(';');
   return new Promise((resolve) => {
-    execFile('taskkill', ['/PID', String(pid), '/F'], (err) => {
-      resolve(err ? { success: false, error: err.message } : { success: true });
-    });
+    try {
+      execFile(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', script],
+        { timeout: 10000, maxBuffer: 64 * 1024 },
+        (err, stdout) => {
+          if (err) return resolve({ success: false, error: 'Process control failed' });
+          const answer = typeof stdout === 'string' ? stdout.trim() : '';
+          if (answer === 'OK') return resolve({ success: true });
+          if (answer === 'STALE')
+            return resolve({
+              success: false,
+              error: 'Process instance changed or is no longer observed',
+            });
+          return resolve({ success: false, error: 'Process control failed' });
+        },
+      );
+    } catch (_) {
+      resolve({ success: false, error: 'Process control failed' });
+    }
   });
 }
 
 /**
  * @param {number} pid
+ * @param {string} createTime100ns
  * @returns {Promise<{success: boolean, error?: string}>}
+ * @since v0.16.0
  */
-function suspendProcess(pid) {
-  pid = Number(pid);
-  if (!Number.isInteger(pid) || pid <= 0)
-    return Promise.resolve({ success: false, error: 'Invalid PID' });
-  const script = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class Ntdll{[DllImport("ntdll.dll")]public static extern int NtSuspendProcess(IntPtr h);}' -PassThru | Out-Null;$h=(Get-Process -Id ${Number(pid)}).Handle;[Ntdll]::NtSuspendProcess($h)`;
-  return new Promise((resolve) => {
-    execFile(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', script],
-      { timeout: 5000 },
-      (err) => {
-        resolve(err ? { success: false, error: err.message } : { success: true });
-      },
-    );
-  });
+function killProcess(pid, createTime100ns) {
+  return controlProcessOnHandle(pid, createTime100ns, 'kill');
 }
 
 /**
  * @param {number} pid
+ * @param {string} createTime100ns
  * @returns {Promise<{success: boolean, error?: string}>}
+ * @since v0.16.0
  */
-function resumeProcess(pid) {
-  pid = Number(pid);
-  if (!Number.isInteger(pid) || pid <= 0)
-    return Promise.resolve({ success: false, error: 'Invalid PID' });
-  const script = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class Ntdll2{[DllImport("ntdll.dll")]public static extern int NtResumeProcess(IntPtr h);}' -PassThru | Out-Null;$h=(Get-Process -Id ${Number(pid)}).Handle;[Ntdll2]::NtResumeProcess($h)`;
-  return new Promise((resolve) => {
-    execFile(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', script],
-      { timeout: 5000 },
-      (err) => {
-        resolve(err ? { success: false, error: err.message } : { success: true });
-      },
-    );
-  });
+function suspendProcess(pid, createTime100ns) {
+  return controlProcessOnHandle(pid, createTime100ns, 'suspend');
+}
+
+/**
+ * @param {number} pid
+ * @param {string} createTime100ns
+ * @returns {Promise<{success: boolean, error?: string}>}
+ * @since v0.16.0
+ */
+function resumeProcess(pid, createTime100ns) {
+  return controlProcessOnHandle(pid, createTime100ns, 'resume');
 }
 
 /**

@@ -103,6 +103,7 @@ describe('platform/process-snapshot', () => {
         name: 'claude.exe',
         ppid: 4,
         startTime: 1717000000000,
+        createTime100ns: TICKS,
         witness: '918273',
         witnessSource: 'sequence',
       });
@@ -116,6 +117,7 @@ describe('platform/process-snapshot', () => {
       const map = await snapshot.getParentProcessMap();
       expect(map.get(100).witness).toBe(TICKS);
       expect(map.get(100).witnessSource).toBe('createTime100ns');
+      expect(map.get(100).createTime100ns).toBe(TICKS);
     });
 
     it('keeps a readable witness even when the birth time is unusable', async () => {
@@ -124,6 +126,7 @@ describe('platform/process-snapshot', () => {
       );
       const map = await snapshot.getParentProcessMap();
       expect(map.get(100).startTime).toBeNull();
+      expect(map.get(100).createTime100ns).toBeNull();
       expect(map.get(100).witness).toBe('7');
     });
 

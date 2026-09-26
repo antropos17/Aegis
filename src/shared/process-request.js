@@ -9,7 +9,7 @@ const CONTROL_WITNESS_SOURCES = new Set(['sequence', 'createTime100ns', 'linuxSt
  * @param {{pid:number,instanceId:string,generationWitness:string,
  *   generationWitnessSource:string}} request Process target
  * @param {Object} deps Latest state getters and fresh process-map provider
- * @returns {Promise<{pid?:number,error?:string}>} Validated target
+ * @returns {Promise<{pid?:number,createTime100ns?:string,error?:string}>} Validated target
  * @since v0.14.1
  */
 async function resolveProcessRequest(request, deps) {
@@ -114,7 +114,20 @@ async function resolveProcessRequest(request, deps) {
   ) {
     return { error: 'Process instance changed or is no longer observed' };
   }
-  return { pid };
+  // Windows sidecar witnesses require an independent raw FILETIME for the
+  // action HANDLE. A sequence number by itself cannot be read from that handle.
+  const windowsWitness =
+    initialWitnessSource === 'sequence' || initialWitnessSource === 'createTime100ns';
+  if (
+    windowsWitness &&
+    (typeof fresh.createTime100ns !== 'string' ||
+      !/^\d+$/.test(fresh.createTime100ns) ||
+      fresh.createTime100ns === '0' ||
+      (initialWitnessSource === 'createTime100ns' && fresh.createTime100ns !== initialWitness))
+  ) {
+    return { error: 'Process instance changed or is no longer observed' };
+  }
+  return windowsWitness ? { pid, createTime100ns: fresh.createTime100ns } : { pid };
 }
 
 module.exports = { resolveProcessRequest };

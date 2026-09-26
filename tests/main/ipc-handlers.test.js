@@ -474,6 +474,7 @@ describe('ipc-handlers', () => {
           agent.pid,
           {
             startTime: agent.startTime,
+            createTime100ns: agent.generationWitness,
             witness: agent.generationWitness,
             witnessSource: agent.generationWitnessSource,
           },
@@ -1607,7 +1608,103 @@ describe('ipc-handlers', () => {
       const { event, request } = registerObservedProcess();
       expect(await getHandler(channel)(event, request)).toEqual({ success: true });
       expect(mockPlatform.getParentProcessMap).toHaveBeenCalledOnce();
-      expect(mockPlatform[method]).toHaveBeenCalledWith(request.pid);
+      expect(mockPlatform[method]).toHaveBeenCalledWith(request.pid, request.generationWitness);
+    });
+
+    it('passes the raw creation FILETIME when sequence is the generation witness', async () => {
+      const { event, agent, request } = registerObservedProcess();
+      agent.generationWitness = '918273';
+      agent.generationWitnessSource = 'sequence';
+      mockPlatform.getParentProcessMap.mockResolvedValue(
+        new Map([
+          [
+            agent.pid,
+            {
+              startTime: agent.startTime,
+              createTime100ns: '17000000000000000',
+              witness: '918273',
+              witnessSource: 'sequence',
+            },
+          ],
+        ]),
+      );
+      expect(
+        await getHandler('kill-process')(event, {
+          ...request,
+          generationWitness: '918273',
+          generationWitnessSource: 'sequence',
+        }),
+      ).toEqual({ success: true });
+      expect(mockPlatform.killProcess).toHaveBeenCalledWith(agent.pid, '17000000000000000');
+    });
+
+    it('refuses a matching witness when the fresh map lacks raw creation FILETIME', async () => {
+      const { event, agent, request } = registerObservedProcess();
+      mockPlatform.getParentProcessMap.mockResolvedValue(
+        new Map([
+          [
+            agent.pid,
+            {
+              startTime: agent.startTime,
+              witness: agent.generationWitness,
+              witnessSource: agent.generationWitnessSource,
+            },
+          ],
+        ]),
+      );
+      expect(await getHandler('kill-process')(event, request)).toEqual({
+        success: false,
+        error: 'Process instance changed or is no longer observed',
+      });
+      expect(mockPlatform.killProcess).not.toHaveBeenCalled();
+    });
+
+    it('refuses an inconsistent raw FILETIME even when the witness matches', async () => {
+      const { event, agent, request } = registerObservedProcess();
+      mockPlatform.getParentProcessMap.mockResolvedValue(
+        new Map([
+          [
+            agent.pid,
+            {
+              startTime: agent.startTime,
+              createTime100ns: '17000000000000001',
+              witness: agent.generationWitness,
+              witnessSource: agent.generationWitnessSource,
+            },
+          ],
+        ]),
+      );
+      expect(await getHandler('kill-process')(event, request)).toEqual({
+        success: false,
+        error: 'Process instance changed or is no longer observed',
+      });
+      expect(mockPlatform.killProcess).not.toHaveBeenCalled();
+    });
+
+    it('retains the Linux process action contract without Windows FILETIME', async () => {
+      const { event, agent, request } = registerObservedProcess();
+      agent.generationWitness = '492781';
+      agent.generationWitnessSource = 'linuxStartTicks';
+      mockPlatform.getParentProcessMap.mockResolvedValue(
+        new Map([
+          [
+            agent.pid,
+            {
+              startTime: agent.startTime,
+              witness: agent.generationWitness,
+              witnessSource: agent.generationWitnessSource,
+            },
+          ],
+        ]),
+      );
+      expect(
+        await getHandler('kill-process')(event, {
+          ...request,
+          generationWitness: agent.generationWitness,
+          generationWitnessSource: agent.generationWitnessSource,
+        }),
+      ).toEqual({ success: true });
+      expect(mockPlatform.killProcess).toHaveBeenCalledWith(agent.pid);
     });
 
     it('rejects overlapping process-control channels without another process-map read or queue', async () => {
@@ -1617,6 +1714,7 @@ describe('ipc-handlers', () => {
           agent.pid,
           {
             startTime: agent.startTime,
+            createTime100ns: agent.generationWitness,
             witness: agent.generationWitness,
             witnessSource: agent.generationWitnessSource,
           },
@@ -1753,6 +1851,7 @@ describe('ipc-handlers', () => {
             1234,
             {
               startTime: 1700000000000,
+              createTime100ns: '17000000000000000',
               witness: '17000000000000000',
               witnessSource: 'createTime100ns',
             },
@@ -1771,6 +1870,7 @@ describe('ipc-handlers', () => {
             1234,
             {
               startTime: 1700000000000,
+              createTime100ns: '17000000000000000',
               witness: '17000000000000000',
               witnessSource: 'createTime100ns',
             },
@@ -1931,7 +2031,7 @@ describe('ipc-handlers', () => {
       const handler = getHandler('kill-process');
       const result = await handler(event, request);
       expect(result).toEqual({ success: true });
-      expect(mockPlatform.killProcess).toHaveBeenCalledWith(1234);
+      expect(mockPlatform.killProcess).toHaveBeenCalledWith(1234, '17000000000000000');
     });
 
     it('kill-process rejects unmonitored PID', async () => {

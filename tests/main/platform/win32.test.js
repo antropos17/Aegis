@@ -402,36 +402,68 @@ describe('platform/win32', () => {
   });
 
   describe('killProcess', () => {
-    it('calls taskkill with correct PID', async () => {
-      mockExecFile.mockImplementation((cmd, args, cb) => {
-        expect(cmd).toBe('taskkill');
-        expect(args).toContain('/PID');
-        expect(args).toContain('100');
-        cb(null);
+    it('uses one handle for creation-time verification and termination', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        expect(cmd).toBe('powershell.exe');
+        const script = args.at(-1);
+        expect(script).toContain('OpenProcess');
+        expect(script).toContain('GetProcessTimes');
+        expect(script).toContain('TerminateProcess($handle');
+        expect(script).toContain('CloseHandle($handle');
+        expect(script).toContain('133614736000000000');
+        cb(null, 'OK\n');
       });
 
-      const result = await win32.killProcess(100);
+      const result = await win32.killProcess(100, '133614736000000000');
       expect(result.success).toBe(true);
     });
 
-    it('returns error on failure', async () => {
-      mockExecFile.mockImplementation((cmd, args, cb) => {
-        cb(new Error('Access denied'));
+    it('rejects a mismatched creation time with a fixed error', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        cb(null, 'STALE\n');
       });
 
-      const result = await win32.killProcess(100);
+      const result = await win32.killProcess(100, '133614736000000000');
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Access denied');
+      expect(result.error).toBe('Process instance changed or is no longer observed');
+    });
+
+    it('fails closed before spawning when raw creation time is absent', async () => {
+      expect(await win32.killProcess(100)).toEqual({
+        success: false,
+        error: 'Invalid process instance',
+      });
+      expect(mockExecFile).not.toHaveBeenCalled();
+    });
+
+    it('does not expose PowerShell diagnostics on action failure', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        cb(new Error('C:\\Private\\DiagnosticPath'));
+      });
+
+      const result = await win32.killProcess(100, '133614736000000000');
+      expect(result).toEqual({ success: false, error: 'Process control failed' });
+    });
+
+    it('does not expose a synchronous spawn failure', async () => {
+      mockExecFile.mockImplementation(() => {
+        throw new Error('C:\\Private\\DiagnosticPath');
+      });
+      expect(await win32.killProcess(100, '133614736000000000')).toEqual({
+        success: false,
+        error: 'Process control failed',
+      });
     });
   });
 
   describe('suspendProcess', () => {
     it('returns success on PowerShell success', async () => {
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
-        cb(null);
+        expect(args.at(-1)).toContain('NtSuspendProcess($handle');
+        cb(null, 'OK\n');
       });
 
-      const result = await win32.suspendProcess(100);
+      const result = await win32.suspendProcess(100, '133614736000000000');
       expect(result.success).toBe(true);
     });
 
@@ -440,7 +472,7 @@ describe('platform/win32', () => {
         cb(new Error('Cannot suspend'));
       });
 
-      const result = await win32.suspendProcess(100);
+      const result = await win32.suspendProcess(100, '133614736000000000');
       expect(result.success).toBe(false);
     });
   });
@@ -448,10 +480,11 @@ describe('platform/win32', () => {
   describe('resumeProcess', () => {
     it('returns success on PowerShell success', async () => {
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
-        cb(null);
+        expect(args.at(-1)).toContain('NtResumeProcess($handle');
+        cb(null, 'OK\n');
       });
 
-      const result = await win32.resumeProcess(100);
+      const result = await win32.resumeProcess(100, '133614736000000000');
       expect(result.success).toBe(true);
     });
 
@@ -460,7 +493,7 @@ describe('platform/win32', () => {
         cb(new Error('Cannot resume'));
       });
 
-      const result = await win32.resumeProcess(100);
+      const result = await win32.resumeProcess(100, '133614736000000000');
       expect(result.success).toBe(false);
     });
   });
