@@ -112,6 +112,27 @@ describe('ai-analysis', () => {
     return req;
   }
 
+  function mockHttpChunks(chunks) {
+    const res = new EventEmitter();
+    const req = new EventEmitter();
+    req.write = vi.fn();
+    req.end = vi.fn();
+    req.setTimeout = vi.fn();
+    req.destroy = vi.fn();
+
+    mockRequest.mockImplementation((opts, cb) => {
+      process.nextTick(() => {
+        cb(res);
+        process.nextTick(() => {
+          for (const chunk of chunks) res.emit('data', chunk);
+          res.emit('end');
+        });
+      });
+      return req;
+    });
+    return req;
+  }
+
   describe('sanitizeField', () => {
     it('strips control characters except newline and tab', () => {
       const dirty = 'hello\x00\x01\x08world\nnew\tline\x0B\x0C\x0E\x1F end';
@@ -280,11 +301,24 @@ describe('ai-analysis', () => {
 
     it('handles API error response', async () => {
       setupState();
-      mockHttpSuccess({ error: { message: 'Invalid API key' } });
+      mockHttpSuccess({
+        error: { type: 'authentication_error', message: 'PRIVATE_API_RESPONSE_CANARY' },
+      });
 
       const result = await analysis.analyzeAgentActivity('TestAgent');
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Invalid API key');
+      expect(result.error).toBe('Anthropic API key is invalid or expired');
+      expect(JSON.stringify(result)).not.toContain('PRIVATE_API_RESPONSE_CANARY');
+    });
+
+    it('uses a generic error for unknown API error types', async () => {
+      setupState();
+      mockHttpSuccess({
+        error: { type: 'PRIVATE_ERROR_TYPE_CANARY', message: 'PRIVATE_API_RESPONSE_CANARY' },
+      });
+
+      const result = await analysis.analyzeAgentActivity('TestAgent');
+      expect(result).toEqual({ success: false, error: 'Anthropic API error' });
     });
 
     it('handles unexpected API response format', async () => {
@@ -298,11 +332,29 @@ describe('ai-analysis', () => {
 
     it('handles network error', async () => {
       setupState();
-      mockHttpError('ECONNREFUSED');
+      mockHttpError('PRIVATE_NETWORK_ERROR_CANARY');
 
       const result = await analysis.analyzeAgentActivity('TestAgent');
       expect(result.success).toBe(false);
-      expect(result.error).toBe('ECONNREFUSED');
+      expect(result.error).toBe('Network request failed');
+      expect(JSON.stringify(result)).not.toContain('PRIVATE_NETWORK_ERROR_CANARY');
+    });
+
+    it('aborts an oversized multi-chunk API response before parsing it', async () => {
+      setupState();
+      const req = mockHttpChunks([
+        Buffer.alloc(600 * 1024, 'a'),
+        Buffer.alloc(500 * 1024, 'b'),
+        '{"content":[{"text":"late"}]}',
+      ]);
+      req.destroy.mockImplementation(() =>
+        req.emit('error', new Error('PRIVATE_ABORT_ERROR_CANARY')),
+      );
+
+      const result = await analysis.analyzeAgentActivity('TestAgent');
+      expect(result).toEqual({ success: false, error: 'Anthropic API response too large' });
+      expect(JSON.stringify(result)).not.toContain('PRIVATE_ABORT_ERROR_CANARY');
+      expect(req.destroy).toHaveBeenCalledTimes(1);
     });
 
     it('handles request timeout', async () => {
@@ -500,11 +552,22 @@ describe('ai-analysis', () => {
 
     it('handles API error in session analysis', async () => {
       setupState();
-      mockHttpSuccess({ error: { message: 'Rate limited' } });
+      mockHttpSuccess({
+        error: { type: 'rate_limit_error', message: 'PRIVATE_API_RESPONSE_CANARY' },
+      });
 
       const result = await analysis.analyzeSessionActivity();
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Rate limited');
+      expect(result.error).toBe('Anthropic API rate limit reached');
+      expect(JSON.stringify(result)).not.toContain('PRIVATE_API_RESPONSE_CANARY');
+    });
+
+    it('uses a generic error for unknown session API error types', async () => {
+      setupState();
+      mockHttpSuccess({ error: { type: 'PRIVATE_ERROR_TYPE_CANARY', message: 'secret' } });
+
+      const result = await analysis.analyzeSessionActivity();
+      expect(result).toEqual({ success: false, error: 'Anthropic API error' });
     });
 
     it('handles missing getAnomalyScores gracefully', async () => {
@@ -569,11 +632,29 @@ describe('ai-analysis', () => {
 
     it('handles network error in session analysis', async () => {
       setupState();
-      mockHttpError('ECONNRESET');
+      mockHttpError('PRIVATE_NETWORK_ERROR_CANARY');
 
       const result = await analysis.analyzeSessionActivity();
       expect(result.success).toBe(false);
-      expect(result.error).toBe('ECONNRESET');
+      expect(result.error).toBe('Network request failed');
+      expect(JSON.stringify(result)).not.toContain('PRIVATE_NETWORK_ERROR_CANARY');
+    });
+
+    it('aborts an oversized multi-chunk session response before parsing it', async () => {
+      setupState();
+      const req = mockHttpChunks([
+        Buffer.alloc(600 * 1024, 'a'),
+        Buffer.alloc(500 * 1024, 'b'),
+        '{"content":[{"text":"late"}]}',
+      ]);
+      req.destroy.mockImplementation(() =>
+        req.emit('error', new Error('PRIVATE_ABORT_ERROR_CANARY')),
+      );
+
+      const result = await analysis.analyzeSessionActivity();
+      expect(result).toEqual({ success: false, error: 'Anthropic API response too large' });
+      expect(JSON.stringify(result)).not.toContain('PRIVATE_ABORT_ERROR_CANARY');
+      expect(req.destroy).toHaveBeenCalledTimes(1);
     });
   });
   it.each(['agent', 'session'])(
