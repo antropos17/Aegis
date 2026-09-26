@@ -11,7 +11,7 @@ Current source also includes opt-in policy-controlled execution and MCP tools fo
 operator-selected actions. These routes require explicit setup; ordinary agent
 monitoring does not automatically intercept or block commands.
 
-**Open-source, monitor-first, no telemetry.** Monitoring data is stored locally. Endpoint naming uses DNS queries. Optional AI analysis sends activity metadata to Anthropic on request; update checks contact GitHub. See [privacy and key handling](SECURITY.md#privacy-architecture).
+**Open-source, monitor-first, no usage telemetry or cloud sync.** Monitoring data is stored locally. Endpoint naming uses DNS queries. Optional AI analysis sends activity metadata to Anthropic on request; update checks contact GitHub. See [privacy and key handling](SECURITY.md#privacy-architecture).
 
 <p align="center">
   <a href="https://github.com/antropos17/Aegis/releases"><img src="https://img.shields.io/github/v/release/antropos17/Aegis?include_prereleases&style=flat-square&label=Release" alt="Release"></a>
@@ -61,7 +61,7 @@ The Observatory workspace provides a live instance radar, separate agent instanc
 
 ## Monitor-first
 
-Default monitoring observes and logs; it does not automatically block or contain agents. Kill, suspend and resume are manual actions. Monitoring presets and endpoint allowlists do not establish that an agent is safe. The opt-in execution routes below control selected direct child launches; they do not provide a sandbox or descendant isolation.
+Default monitoring observes and logs; it does not automatically block or contain agents. Kill, suspend and resume are manual actions. Monitoring presets and endpoint allowlists do not establish that an agent is safe. The opt-in routes below control only selected launches. The Windows Job route bounds the lifetime of its participating descendants; none of these routes restricts file or network access.
 
 AEGIS is alpha software. This README describes current source; installed builds contain the features available at their [release tag](https://github.com/antropos17/Aegis/releases).
 
@@ -73,6 +73,7 @@ environment, then route that action through AEGIS:
 | Capability | Implemented scope |
 | --- | --- |
 | [Exact execution policy](docs/ACTION-EXECUTION.md) | Explicit CLI launch on `allow`; `ask`, `deny` and preparation failures do not launch |
+| [Windows Job lifetime route](docs/ACTION-EXECUTION.md#opt-in-windows-job-lifetime-route) | An approved selected Windows action starts inside a private Job; confirmed cleanup ends ordinary Job-member descendants. External brokers and actions outside this route remain outside its control |
 | [Terminal confirmation](docs/ACTION-CONFIRMATION.md) | Review the complete effective action and confirm one launch attempt; policy deny cannot be overridden |
 | [Selected-action MCP catalog](docs/ACTION-MCP-CATALOG.md) | Up to eight operator-selected actions with empty tool arguments; optional [terminal review broker](docs/ACTION-MCP-REVIEW.md) requires fresh confirmation per eligible call |
 | [Route and catalog checks](docs/ACTION-ROUTE-CHECK.md) | Inspect selected configuration and current-process prerequisites without executing; a completed check grants no permission |
@@ -105,12 +106,13 @@ check separately.
 
 ### Windows installer
 
-The latest published prerelease verified on 19 September 2026 is
-[0.15.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.15.0-alpha).
-Download its Windows `.exe` and follow [offline installer verification](docs/RELEASE-VERIFICATION.md).
+The latest published prerelease checked on 26 September 2026 is
+[0.16.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.16.0-alpha).
+Its Windows `.exe`, `manifest.json` and `manifest.json.sig` are published together;
+follow [offline installer verification](docs/RELEASE-VERIFICATION.md) after download.
 The release includes signed Windows update support; when upgrading from
-0.14.1-alpha or older, install 0.15.0-alpha manually first. See the
-[release list](https://github.com/antropos17/Aegis/releases) for subsequent builds.
+0.14.1-alpha or older, install 0.15.0-alpha or newer manually first. Source
+changes merged after the 0.16.0-alpha tag are not in that installer.
 
 ### From source
 
@@ -139,6 +141,7 @@ The preview uses simulated data and an isolated host. It shares the desktop comp
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v0.16.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.16.0-alpha) | 2026-09-26 | Windows setup wizard, monitoring performance work, scoped local security inventory and selected-action routes through the release tag |
 | [v0.15.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.15.0-alpha) | 2026-09-12 | Observatory desktop, signed Windows updates, Linux process-generation identity and bounded ETW diagnostics |
 | [v0.14.1-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.14.1-alpha) | 2026-09-07 | Evidence-file watchers moved off the main thread; dependency maintenance |
 | [v0.14.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.14.0-alpha) | 2026-09-07 | Sequence rules, observation-gap records, audit indexing and sensor-health work |

@@ -78,7 +78,7 @@ AEGIS follows Electron security best practices:
 
 ### Privacy Architecture
 
-- **Local storage by default.** Settings, baselines and audit logs are stored locally. There is no telemetry, cloud sync, analytics or usage tracking. Network requests are described below.
+- **Local storage by default.** Settings, baselines and audit logs are stored locally. There is no usage telemetry, cloud sync or analytics. Network requests are described below.
 - **Endpoint naming uses DNS.** Network monitoring automatically queries the configured DNS resolver for reverse names of observed IP addresses and forward confirmation of those names. These queries expose the IP addresses and queried hostnames to the resolver, not monitored file contents.
 - **Documentation links are user-opened.** Opening a guide sends the browser to its public GitHub page. Monitoring does not require opening these links.
 - **AI analysis is opt-in.** An owned top-level renderer request requires a Cancel-default native confirmation before activity metadata is sent to Anthropic using the configured API key. Depending on the analysis, this includes agent/process names, PIDs, parent chains, sensitive file paths, event counts and network endpoints. Monitoring does not require this service; analysis is not sent in the background. The dialog states fixed data categories and destination, not the actual values.
