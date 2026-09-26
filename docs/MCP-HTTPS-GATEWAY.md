@@ -6,6 +6,8 @@ The existing --mcp-gateway-http command accepts an endpoint descriptor v2 for
 HTTPS. It shares the finite JSON/SSE transport, accepted catalog, exact tool and
 argument checks, cancellation/session cleanup and optional persistent grants.
 Endpoint descriptor version and grant manifest version are independent.
+Optional [manifest v3 route binding](MCP-DURABLE-GRANTS.md) compares the selected URL,
+IPv4 address and leaf fingerprint before a durable grant can be used.
 
 ```json
 {

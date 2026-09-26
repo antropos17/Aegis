@@ -1,5 +1,7 @@
 # AEGIS — starting the next chat
 
+Current continuation: [route-bound MCP grants](../docs/MCP-DURABLE-GRANTS.md) add opt-in manifest v3 for HTTP/HTTPS. It requires exact configured URL, and HTTPS additionally requires the selected IPv4 address and leaf fingerprint, before the upstream route opens or a durable grant is consumed. Bearer-token/account changes at the same URL remain possible across runs. V1/V2 retain their contracts; stdio route binding, verified server/task identity and outside-route enforcement remain open. Check the implementation PR and CI before claiming publication.
+
 Current continuation: [known-secret MCP checks](../docs/MCP-KNOWN-SECRETS.md) add an optional pinned local policy across stdio/HTTP/HTTPS. Guarded payloads are tool metadata, exact call parameters and results; transport/launch credentials and general DLP remain outside the contract. Receipts: `X:/tmp/aegis-mcp-secrets-20260926/receipts`; preserve, review after 14 days or 64 MiB. Only synthetic secrets are used in verification.
 
 Current continuation: [explicit pinned HTTPS](../docs/MCP-HTTPS-GATEWAY.md) adds endpoint descriptor v2 with operator-selected IPv4, CA, hostname and leaf SHA256 checks. It retains finite MCP and persistent-grant boundaries. No OAuth, DNS discovery or automatic certificate renewal. Owned fixtures are the evidence; third-party/provider compatibility remains unverified. Receipts: `X:/tmp/aegis-mcp-tls-20260922/receipts`; preserve, review after 14 days or 64 MiB.

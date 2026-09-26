@@ -230,6 +230,56 @@ describe('explicit pinned HTTPS gateway', () => {
     expect((await gateway.receive(call())).error).toBeDefined();
     expect(fixture.state.calls).toHaveLength(1);
   });
+  it.each(['url', 'connectAddress', 'certificateSha256'])(
+    'binds a v3 HTTPS grant to its selected %s without spending it on a different route',
+    async (field) => {
+      const grantStorePath = path.join(directory, 'grants');
+      fs.mkdirSync(grantStorePath);
+      const route = {
+        transport: 'https',
+        url: descriptor.url,
+        connectAddress: descriptor.connectAddress,
+        certificateSha256: descriptor.certificateSha256,
+      };
+      if (field === 'url') extra = await httpFixture(tool, { cert, key });
+      const other =
+        field === 'url' ? extra.url : field === 'connectAddress' ? '127.0.0.2' : '0'.repeat(64);
+      const manifest = {
+        schemaVersion: 3,
+        route: { ...route, [field]: other },
+        tools: [tool],
+        grants: [
+          {
+            id: 'g'.repeat(32),
+            taskId: 't'.repeat(32),
+            notBefore: Date.now() - 1000,
+            expiresAt: Date.now() + 60000,
+            tool: 'record',
+            arguments: { recipient: 'chosen' },
+          },
+        ],
+      };
+      save(manifestPath, manifest);
+      create({ grantStorePath });
+      expect((await gateway.receive(init())).error).toBeDefined();
+      expect(fixture.state.calls).toHaveLength(0);
+      expect(extra?.state.calls ?? []).toHaveLength(0);
+      expect(fs.readdirSync(grantStorePath)).toEqual([]);
+      gateway.close();
+      await gateway.finish();
+
+      manifest.route = route;
+      save(manifestPath, manifest);
+      await ready({ grantStorePath });
+      expect((await gateway.receive(call())).result?.structuredContent).toEqual({ accepted: true });
+      expect(fixture.state.calls).toHaveLength(1);
+      gateway.close();
+      await gateway.finish();
+      await ready({ grantStorePath });
+      expect((await gateway.receive(call())).error).toBeDefined();
+      expect(fixture.state.calls).toHaveLength(1);
+    },
+  );
   it.each(['untrusted.pem', 'wrong-name.pem', 'pin'])(
     'native CLI ignores insecure TLS environment for %s without credential disclosure',
     async (name) => {
