@@ -52,6 +52,53 @@ it('uses the current Node executable and repository main entry without a test se
   expect(config.mcpServers.aegis.args[0]).toBe(require.resolve('../../src/main/main.js'));
 });
 
+it.each([
+  ['selected', ['X:/private/policy.json', 'X:/private/request.json']],
+  ['catalog', ['X:/private/catalog.json']],
+])('exports an explicit observation endpoint for the %s owner', (mode, paths) => {
+  runtime();
+  const endpoint = 'X:/private/наблюдение & literal.json';
+  const result = cli(mode, [...paths, '--observe', endpoint]);
+  expect(result.code).toBe(0);
+  expect(result.value.mcpServers.aegis.args.slice(2)).toEqual([...paths, '--observe', endpoint]);
+  expect(api.buildActionMcpConfig(mode, paths, endpoint)).toEqual(result.value);
+});
+
+it.each([
+  ['catalog', ['X:/catalog', '--observe']],
+  ['catalog', ['X:/catalog', '--wrong', 'X:/observation']],
+  ['catalog', ['X:/catalog', '--observe', 'relative_PRIVATE']],
+  ['catalog', ['X:/catalog', '--observe', 'X:/PRIVATE:stream']],
+  ['catalog', ['X:/catalog', '--observe', '//server/PRIVATE']],
+  ['catalog', ['X:/catalog', '--observe', 'X:/bad\nPRIVATE']],
+  ['catalog', ['X:/catalog', '--observe', 'X:/' + 'é'.repeat(2048)]],
+  ['catalog', ['X:/catalog', '--observe', 'X:/one', '--observe', 'X:/two']],
+  ['relay', ['X:/review', '--observe', 'X:/observation']],
+])('rejects malformed observation options without echoing private paths %#', (mode, paths) => {
+  runtime();
+  expect(cli(mode, paths)).toEqual({
+    code: 1,
+    value: { error: 'expected-action-mcp-config-arguments' },
+  });
+});
+
+it('rejects non-path observation options through the direct API and accepts POSIX paths', () => {
+  runtime('linux');
+  for (const value of [null, '', false, {}, [], '/bad\0path', '//remote/path']) {
+    expect(() => api.buildActionMcpConfig('catalog', ['/catalog'], value)).toThrow(
+      'expected-action-mcp-config-arguments',
+    );
+  }
+  expect(
+    api
+      .buildActionMcpConfig('catalog', ['/catalog'], '/private/observe file.json')
+      .mcpServers.aegis.args.slice(-2),
+  ).toEqual(['--observe', '/private/observe file.json']);
+  expect(() => api.buildActionMcpConfig('relay', ['/review'], '/observation')).toThrow(
+    'expected-action-mcp-config-arguments',
+  );
+});
+
 it.each(['X:/space name/тест/../link/catalog.json', 'X:\\literal\\a&b;$(command)`".json'])(
   'preserves literal spaces, Unicode, parent traversal and metacharacters %#',
   (selected) => {
@@ -165,4 +212,8 @@ it('does not read files, perform preflight, copy environment, write files, conne
   expect(fail).not.toHaveBeenCalled();
   expect(Object.keys(result.value.mcpServers.aegis)).toEqual(['type', 'command', 'args']);
   expect(JSON.stringify(result.value)).not.toMatch(/token|env|approval|authorization/);
+  const observed = cli('catalog', ['X:/catalog.json', '--observe', 'X:/new-observation.json']);
+  expect(observed.code).toBe(0);
+  expect(fail).not.toHaveBeenCalled();
+  expect(Object.keys(observed.value.mcpServers.aegis)).toEqual(['type', 'command', 'args']);
 });

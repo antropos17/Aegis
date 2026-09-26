@@ -3,6 +3,9 @@ import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const { observeActionRoute } = require('../../src/main/action-observation-client');
 let directory;
 beforeEach(() => {
   directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-config-cli-'));
@@ -33,7 +36,7 @@ function generate(args, preload) {
   expect(child.stdout.trim().split('\n')).toHaveLength(1);
   return { code: child.status, value: JSON.parse(child.stdout), text: child.stdout };
 }
-async function statusFrom(config) {
+async function statusFrom(config, onReady = async () => {}) {
   const server = config.mcpServers.aegis;
   const child = spawn(server.command, server.args, {
     windowsHide: true,
@@ -92,6 +95,7 @@ async function statusFrom(config) {
       })(),
       timeout,
     ]);
+    await Promise.race([onReady(result), timeout]);
     child.stdin.end();
     expect(await Promise.race([closed, timeout])).toBe(0);
     expect(stderr).toBe('');
@@ -159,6 +163,49 @@ it.each(['selected', 'catalog'])(
   },
 );
 
+it.each(['selected', 'catalog'])(
+  'generated %s observation connects without consuming actions and loses coverage on owner exit',
+  async (mode) => {
+    const f = selectedFiles();
+    const catalog = path.join(directory, 'каталог actions.json');
+    fs.writeFileSync(
+      catalog,
+      JSON.stringify({
+        schemaVersion: 1,
+        actions: [{ id: 'first', policyPath: f.policy, requestPath: f.request }],
+      }),
+    );
+    const endpoint = path.join(directory, 'наблюдение private.json');
+    const supplied = mode === 'selected' ? [f.policy, f.request] : [catalog];
+    const generated = generate([mode, ...supplied, '--observe', endpoint]);
+    expect(generated.code).toBe(0);
+    expect(fs.existsSync(endpoint)).toBe(false);
+    let observer;
+    try {
+      await statusFrom(generated.value, async (status) => {
+        expect(status.actionAttempts).toBe(0);
+        observer = observeActionRoute(endpoint);
+        await expect.poll(() => observer.snapshot().state).toBe('observed');
+        expect(observer.snapshot().snapshot).toMatchObject({
+          selection: mode === 'selected' ? 'single-action' : 'catalog',
+          selectedActionCount: 1,
+          actionAttempts: 0,
+          ownerInvocations: 0,
+        });
+        const descriptor = JSON.parse(fs.readFileSync(endpoint, 'utf8'));
+        expect(generated.text).not.toContain(descriptor.token);
+        expect(JSON.stringify(observer.snapshot())).not.toContain(endpoint);
+      });
+      await expect.poll(() => observer.snapshot().state).toBe('coverage-lost');
+      expect(fs.existsSync(endpoint)).toBe(false);
+      expect(fs.existsSync(f.marker)).toBe(false);
+    } finally {
+      observer?.close();
+    }
+  },
+  10000,
+);
+
 it('exports relay path without reading bearer contents or requiring endpoint existence', () => {
   const endpoint = path.join(directory, 'endpoint private.json');
   const token = 'ab'.repeat(32);
@@ -187,21 +234,26 @@ it.each(
   expect(result.value).toEqual({ error: 'expected-action-mcp-config-arguments' });
 });
 
-it('generation performs no selected-file read, file writes, process spawn or server listen', () => {
-  const preload = path.join(directory, 'instrument.cjs');
-  const target = path.join(directory, 'nonexistent catalog.json');
-  const marker = path.join(directory, 'side-effect');
-  fs.writeFileSync(
-    preload,
-    `const fs=require('node:fs');const write=fs.writeFileSync.bind(fs);const fail=()=>{write(${JSON.stringify(marker)},'called');throw Error('SIDE_EFFECT')};
+it.each([false, true])(
+  'generation with observation=%s performs no selected-file read, write, spawn or listener',
+  (observe) => {
+    const preload = path.join(directory, 'instrument.cjs');
+    const target = path.join(directory, 'nonexistent catalog.json');
+    const marker = path.join(directory, 'side-effect');
+    fs.writeFileSync(
+      preload,
+      `const fs=require('node:fs');const write=fs.writeFileSync.bind(fs);const fail=()=>{write(${JSON.stringify(marker)},'called');throw Error('SIDE_EFFECT')};
 const target=${JSON.stringify(target)};for(const name of ['readFileSync','readFile','openSync','open']){const orig=fs[name];fs[name]=function(file,...args){if(file===target)return fail();return orig.call(this,file,...args)}}
 for(const name of ['readFile','open']){const orig=fs.promises[name];fs.promises[name]=function(file,...args){if(file===target)return fail();return orig.call(this,file,...args)}}
 for(const name of ['writeFileSync','writeFile','appendFileSync','appendFile','mkdirSync','mkdir'])fs[name]=fail;
 for(const name of ['writeFile','appendFile','mkdir'])fs.promises[name]=fail;
 const cp=require('node:child_process');for(const name of ['spawn','spawnSync','exec','execFile','fork'])cp[name]=fail;
 require('node:net').Server.prototype.listen=fail;`,
-  );
-  expect(generate(['catalog', target], preload).code).toBe(0);
-  expect(fs.existsSync(marker)).toBe(false);
-  expect(fs.existsSync(target)).toBe(false);
-});
+    );
+    expect(
+      generate(['catalog', target, ...(observe ? ['--observe', target] : [])], preload).code,
+    ).toBe(0);
+    expect(fs.existsSync(marker)).toBe(false);
+    expect(fs.existsSync(target)).toBe(false);
+  },
+);

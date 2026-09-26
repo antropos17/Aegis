@@ -9,6 +9,8 @@ selected filesystem paths; it is not a redacted verification report.
 node src/main/main.js --action-mcp-config-json selected "X:/private/policy.json" "X:/private/request.json"
 node src/main/main.js --action-mcp-config-json catalog "X:/private/catalog.json"
 node src/main/main.js --action-mcp-config-json relay "X:/private/newendpoint.json"
+node src/main/main.js --action-mcp-config-json selected "X:/private/policy.json" "X:/private/request.json" --observe "X:/private/new-observation.json"
+node src/main/main.js --action-mcp-config-json catalog "X:/private/catalog.json" --observe "X:/private/new-observation.json"
 ```
 
 | Mode | Selected inputs | Configured server entry |
@@ -23,6 +25,19 @@ array beginning with this checkout's absolute `src/main/main.js` path. Selected
 paths follow the fixed route flag. No shell command is composed, so spaces and
 Unicode remain literal arguments. No arbitrary server names, environment values,
 provider keys, bearer tokens or action contents are copied.
+
+For `selected` and `catalog`, the optional trailing `--observe <new-endpoint>`
+adds the read-only [live-observation endpoint](ACTION-LIVE-OBSERVATION.md) to the
+owner's argument array. Use a new file in a private local directory controlled
+by the operator. Generation does not create or read this file; the owner creates
+it when the client launches the server and refuses to overwrite an existing file.
+Open Action control and explicitly select that descriptor while the owner runs.
+The option has the same local-path and byte limits as the selected input paths.
+
+`relay --observe` is rejected: the relay does not own observation. For terminal
+review, append `--observe <new-endpoint>` to the separately launched selected or
+catalog review broker; generate the relay configuration as before. Repeated,
+misplaced, missing or unknown options produce the same fixed argument error.
 
 ## Use the generated file explicitly
 
@@ -76,6 +91,15 @@ selected-action/catalog server from that exact JSON and query MCP status without
 executing an action. Relay export is checked with a private-token fixture and a
 missing endpoint. Probes verify that generation does not read selected files,
 write settings, spawn a process or open a listener.
+Configurations with observation enabled are also launched verbatim in native
+Node fixtures: the real read-only observer receives an initialized snapshot,
+action counters remain zero, owner closure produces sticky coverage loss, and
+the owned descriptor is removed. Generation neither exposes its bearer nor
+changes existing client settings. Installed Windows Claude Code 2.1.263 also
+passed both observation-enabled configurations using synthetic loopback replies:
+allow/deny/ask, live counters, fresh connection generations, sticky owner-exit
+loss and endpoint cleanup. See [the observation verification](ACTION-LIVE-OBSERVATION.md)
+for commands, receipts and the remaining identity/control limits.
 
 The existing installed-provider verifier now uses this configuration builder for
 selected, catalog and catalog-review relay modes. Installed Windows Claude Code

@@ -19,6 +19,7 @@
     select: (_item: ProtectionActivity, _button: HTMLButtonElement) => void;
   } = $props();
   let query = $state('');
+  const filterId = $props.id();
   let limit = $state(8);
   $effect(() => {
     filter;
@@ -40,19 +41,27 @@
   const labels = { review: 'Review needed', unverified: 'Unverified', observed: 'No risk flag' };
 </script>
 
-<section class="panel activity-panel" aria-label={$t('Agent activity')}>
+<section class="panel activity-panel" aria-label={$t('Agent activity')} tabindex="-1">
   <div class="activity-head">
     <h3>{$t('Who did what, and where?')}</h3>
-    <p>
-      {$t(
-        'Retained file activity and the latest network snapshot. Select an activity for its explanation.',
-      )}
-    </p>
+    <p>{$t('Retained file observations and latest connections.')}</p>
   </div>
   <div class="filters">
-    <div class="filter-buttons" aria-label={$t('Activity filters')}>
+    <div class="filter-buttons" role="group" aria-label={$t('Activity filters')}>
       {#each [['all', 'All activity'], ['review', 'Needs review'], ['unverified', 'Unverified']] as [id, label] (id)}
-        <button aria-pressed={filter === id} onclick={() => chooseFilter(id)}>{$t(label)}</button>
+        <button
+          aria-label={$t(label)}
+          aria-describedby={`${filterId}-${id}`}
+          aria-pressed={filter === id}
+          onclick={() => chooseFilter(id)}
+          >{$t(label)}<span class="filter-count" id={`${filterId}-${id}`}
+            >{ready
+              ? id === 'all'
+                ? activity.length
+                : activity.filter((item) => item.level === id).length
+              : '—'}</span
+          ></button
+        >
       {/each}
     </div>
     <label class="search"
@@ -127,6 +136,7 @@
   }
   p {
     color: var(--muted);
+    font-size: var(--text-caption);
     line-height: 1.6;
     margin: 0;
   }
@@ -134,12 +144,12 @@
     cursor: pointer;
   }
   .activity-head {
-    padding: var(--space-4);
+    padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--border);
   }
   h3 {
     font-size: var(--text-section);
-    margin: 0 0 var(--space-2);
+    margin: 0 0 var(--space-1);
   }
   .filters {
     display: flex;
@@ -155,6 +165,9 @@
     gap: var(--space-1);
   }
   .filter-buttons button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
     background: transparent;
     color: var(--muted);
     border: 1px solid transparent;
@@ -162,6 +175,10 @@
     padding: var(--space-2);
     min-height: var(--control-height);
     font: inherit;
+  }
+  .filter-count {
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
   }
   .filter-buttons button[aria-pressed='true'] {
     background: var(--bg);

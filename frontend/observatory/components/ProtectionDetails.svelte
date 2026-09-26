@@ -26,6 +26,13 @@
   <h3>{$t('Understand this activity')}</h3>
   <p class="actor">{activity.actor}</p>
   <p>{$t(activity.action)}</p>
+  <p>
+    {activity.rows.length}
+    {$t('retained record(s)')}{activity.time
+      ? $t(' · latest {value0}', { value0: new Date(activity.time).toLocaleString() })
+      : $t(' · observation time unavailable')}
+  </p>
+
   <div class="destination">
     <span class="destination-label">{$t('Where')}</span>
     <div class="destination-resource">
@@ -45,36 +52,13 @@
     </p>{/if}
   <h4>{activity.level === 'review' ? $t('Why review this?') : $t('What is known?')}</h4>
   <p>{$t(activity.reason)}</p>
+  {#if activity.latest.action === 'holding' || activity.latest.action === 'accessed'}
+    <p>{$t('An open handle does not prove that file contents were read.')}</p>
+  {/if}
   {#if activity.latest.reason}<p class="muted">
       {$t('Recorded reason:')}
       {String(activity.latest.reason)}
     </p>{/if}
-  <details>
-    <summary>{$t(activity.attribution)} {$t('· how do we know?')}</summary>
-    <p>{activity.explanation}</p>
-    <p>{$t('Source:')} {activity.source}</p>
-    {#if activity.latest.action === 'holding' || activity.latest.action === 'accessed'}
-      <p>{$t('An open handle does not prove that file contents were read.')}</p>
-    {/if}
-    <p>
-      {activity.rows.length}
-      {$t('retained record(s)')}{activity.time
-        ? $t(' · latest {value0}', { value0: new Date(activity.time).toLocaleString() })
-        : $t(' · observation time unavailable')}
-    </p>
-  </details>
-  <div class="preference">
-    <h4>{$t('Current saved preference')}</h4>
-    <strong>{$t(policy.label)}</strong>
-    <p>
-      {$t(
-        'AEGIS does not automatically block file or network access. A saved rule does not prove an action was allowed or denied.',
-      )}
-    </p>
-    {#if policy.agent}<button class="button" onclick={() => openPolicy(policy.agent!.instanceKey)}
-        ><Icon name="edit" />{$t('Edit this agent’s policy')}</button
-      >{/if}
-  </div>
   <h4>{$t('What you can do')}</h4>
   <p>
     {$t(
@@ -101,6 +85,23 @@
   {#if !policy.agent || telemetry.stale}<p class="muted">
       {$t('Process controls need an exact, currently observed agent.')}
     </p>{/if}
+  <details>
+    <summary>{$t(activity.attribution)} {$t('· how do we know?')}</summary>
+    <p>{activity.explanation}</p>
+    <p>{$t('Source:')} {activity.source}</p>
+  </details>
+  <div class="preference">
+    <h4>{$t('Current saved preference')}</h4>
+    <strong>{$t(policy.label)}</strong>
+    <p>
+      {$t(
+        'AEGIS does not automatically block file or network access. A saved rule does not prove an action was allowed or denied.',
+      )}
+    </p>
+    {#if policy.agent}<button class="button" onclick={() => openPolicy(policy.agent!.instanceKey)}
+        ><Icon name="edit" />{$t('Edit this agent’s policy')}</button
+      >{/if}
+  </div>
 </aside>
 
 <style>

@@ -33,10 +33,10 @@ coverage gaps. Do not label these states "safe".
 | A4 | Local static analysis of skills/hooks/MCP | Whole-package analysis of downloads, scripts, dependencies and data transfer; positive and negative fixtures; Cisco integrations through a versioned JSON/SARIF contract; external analyzers only when explicitly selected | Partial: A4.1, external-result import, bounded JavaScript/Python command and selected-source flow review, and instruction-pattern review are implemented; deeper analysis remains in A4.2 |
 | A4.1 | Local command and configuration checks | CLI for projects, profiles and package trees; review reasons bound to hash/path; bounded shell/MCP/hooks/npm parsing; visible incompleteness; no execution or data transmission | Implemented; [contract](../STATIC-ANALYSIS.md) |
 | A4.2 | Deeper analysis and Cisco integrations | Versioned JSON/SARIF contract, explicit offline inputs and result provenance; JS/Python and interfile flow analysis; complex shell and instruction semantics; unsupported cases receive no safety verdict | Partial: [Cisco JSON/SARIF import](../STATIC-REPORT-IMPORT.md), [JavaScript](../JAVASCRIPT-STATIC-ANALYSIS.md), [Python](../PYTHON-STATIC-ANALYSIS.md), [selected-source literal/wrapper/primitive-return flow](../STATIC-COMMAND-FLOW.md), [ordered shell redirections](../SHELL-REDIRECTIONS.md) and [bounded instruction-pattern review](../INSTRUCTION-REVIEW.md) are implemented; broader flow, shell control/substitution, general instruction semantics and additional MCP content channels remain |
-| A5 | Refine SEQ001 and add behavioral chains | Ordinary work is not treated as proven exfiltration; missed-detection/noise tests; parent/child and cross-agent relationships retain attribution strength | Partial: SEQ001 calibration, SEQ002 direct relations, SEQ003 monitored ancestor paths and [offline lifecycle import](../HANDOFF-EVIDENCE.md) implemented; live collection, independent handoffs and general causal chains remain |
+| A5 | Refine SEQ001 and add behavioral chains | Ordinary work is not treated as proven exfiltration; missed-detection/noise tests; parent/child and cross-agent relationships retain attribution strength | Partial: SEQ001 calibration, SEQ002 direct relations, SEQ003 monitored ancestor paths, [offline lifecycle import](../HANDOFF-EVIDENCE.md) and [opt-in live intake](../LIVE-LIFECYCLE.md) implemented; independent process binding, handoffs and general causal chains remain |
 | B1 | Shared policy and adapter contract | Versioned events before/after actions; `allow/ask/deny`; supported and unsupported surfaces listed; ACS alignment assessed | Partial: [receiver envelope and policy contract](../AGENT-EVENT-CONTRACT.md), offline/live consumers, ACS assessment, provider fixture, decision/after session and direct execution; MCP revision binding and [one-attempt terminal confirmation](../ACTION-CONFIRMATION.md) and [opt-in MCP terminal review](../ACTION-MCP-REVIEW.md) added; broader routing and coverage remain |
-| B2 | MCP gateway and operation control | Validate schemas, arguments, responses, recipients, access scopes and tool changes; stdio and HTTP have separate trust boundaries | Planned |
-| B3 | Secret protection and limited permissions | Secrets cannot enter context or outbound requests outside policy; permission is bound to operation, recipient and task; expiry/single-use limits; replay protection | Planned |
+| B2 | MCP gateway and operation control | Validate schemas, arguments, responses, recipients, access scopes and tool changes; stdio and HTTP have separate trust boundaries | Partial: [explicit stdio gateway](../MCP-STDIO-GATEWAY.md) validates a bounded schema subset, exact one-attempt grants, structured responses and fresh accepted catalogs; the [finite loopback HTTP profile](../MCP-HTTP-GATEWAY.md) adds pinned endpoint/session handling; [v2 grants](../MCP-DURABLE-GRANTS.md) persist consumption across restarts; [pinned HTTPS](../MCP-HTTPS-GATEWAY.md) adds explicit IP/CA/name/leaf checks; OAuth, general recipient/scope enforcement and isolation remain |
+| B3 | Secret protection and limited permissions | Secrets cannot enter context or outbound requests outside policy; permission is bound to operation, recipient and task; expiry/single-use limits; replay protection | Partial: opt-in [MCP v2 grants](../MCP-DURABLE-GRANTS.md) bind exact tool/arguments to persistent IDs and expiry in a selected shared local store. An optional [known-secret policy](../MCP-KNOWN-SECRETS.md) blocks explicitly supplied values and listed representations in tool metadata/parameters/results. Task identity, protected issuance, general DLP and outside-route enforcement remain open |
 | B4 | Protection against destructive actions | Control deletion, writes outside the project, publication and dangerous API operations before execution; confirm exact arguments; a timeout never becomes permission | Planned |
 | B5 | Coverage interface in Observatory | "Observed", "Blocking verified", "Coverage lost"; agent/version/surface/last check; safe testing of an installed adapter | Partial: [preflight workspace](../ACTION-COVERAGE-UI.md) and [opt-in live MCP observation](../ACTION-LIVE-OBSERVATION.md) with sticky loss and self-reported client metadata; independent agent binding and verified blocking remain |
 | C1 | Protected Windows launch | Separate restricted context, file permissions and WFP; policy covers descendants; a separate broker supplies credentials; ordinary launch remains explicitly labeled observation mode | Planned |
@@ -501,3 +501,83 @@ updates and receiver-time expiry cause sticky coverage loss; last evidence stays
 visible. Observation never invokes an executor or consumes MCP budgets. Independent
 agent/version binding and installed-adapter blocking verification remain open.
 See [the observation contract](../ACTION-LIVE-OBSERVATION.md).
+
+B5 observation setup: the configuration generator now accepts an explicit trailing
+`--observe <new-endpoint>` for selected/catalog owners. It preserves literal local
+paths and performs no reads, endpoint creation or client-settings installation.
+Relay observation is rejected because the separately launched review broker owns
+that endpoint. Native generated-config fixtures verify observed-to-lost transitions,
+zero action attempts and descriptor cleanup. Installed Windows Claude Code 2.1.263
+also passed selected/catalog observation with synthetic loopback replies for
+allow/deny/ask: counters agreed with status/action/status results, only allow
+created its sentinel, connection generations differed, owner exit caused sticky
+loss, and descriptors/owned scratch were removed. Independent provider identity,
+installed-provider cancellation of a running action and outside-route
+control remain open; B5 stays partial.
+
+B5 selected review observation: the opt-in `--review-observation` verifier now
+checks the production observer while installed Claude awaits terminal confirmation,
+after confirmation/refusal or policy denial, and after disconnect during pending
+review. Four native cases passed with synthetic local replies and an owned marker
+action. Each case checked a fresh connection generation, sticky coverage loss and
+descriptor removal. Terminal answers were supplied externally by automation; the
+fixture does not prove human identity. Pending disconnect left no action effect
+and no tool result, with zero MCP cancellation notifications.
+Installed-provider running-child cancellation, abrupt owner kill, independent provider binding and
+outside-route control are still open. See [live observation](../ACTION-LIVE-OBSERVATION.md).
+
+B5 catalog review observation: `--catalog-review-observation` passed with installed
+Windows Claude Code 2.1.263 and synthetic local replies. One connection retained
+two selected actions through first-action confirmation, second-action refusal and
+disconnect during the third pending review. Live checkpoints showed counters
+1/0, 2/1 and 3/2 while awaiting answers; only the first action produced one owned
+marker byte. Sticky loss, unchanged self-reported metadata, no third tool result,
+provider-tree cleanup and both descriptor removals were verified. Automation
+supplied terminal answers; independent human identity is not established.
+Installed-provider running-child cancellation, abrupt owner death and
+outside-route control remain open. B5 stays partial.
+
+B5 protocol cancellation verification: two native Windows integration cases now
+combine production MCP streams, policy/binding, execution and the observation
+socket with real disposable Node children. Wrong-type and unrelated IDs leave
+the child running; duplicate matching notifications count once. Held ChildProcess
+exit/close events and the private executor result establish direct-child termination
+with reason action-cancelled, separately from public settlement counters. Cancelled
+results are suppressed, reused IDs cannot relaunch, the other catalog action stays
+unused, and normal owner close produces sticky loss and descriptor cleanup. A
+mutation removing cancellation delivery fails both cases. This fixture does not
+launch a provider or exercise terminal approval. Installed-provider cancellation,
+descendant control, abrupt owner death and independent identity remain open.
+
+B5 installed-provider cancellation: Windows Claude Code 2.1.263 passed selected
+and catalog direct-stdio runs with a synthetic loopback API. Stream-json interrupt
+was acknowledged only after the real selected child was running. Production
+observation recorded one cancellation and settlement while retaining its live
+connection; the executor and held ChildProcess exit/close established termination.
+Marker growth stopped, the unused action stayed untouched, and normal owner close
+produced sticky loss and descriptor removal. The CLI's error exit after interruption
+is recorded separately and cannot replace these proofs. A native mutation removing
+cancellation delivery failed. See [verification](../ACTION-LIVE-OBSERVATION.md).
+Terminal-review cancellation, descendants, abrupt owner death, independently bound
+provider identity and outside-route control remain open; B5 remains partial.
+
+B5 abrupt owner death: native selected/catalog direct-stdio tests now kill a real
+owner during execution and verify sticky coverage loss with pending counters,
+stale descriptor preservation/reuse rejection, fresh explicit observation and
+normal cleanup of the replacement owner. Windows Node 24.11.1 direct-child exit
+is independently witnessed through a held OS handle. This runtime-specific result
+does not establish general C1 containment. A snapshot-loss mutation fails the test.
+See [evidence and limits](../ACTION-LIVE-OBSERVATION.md#abrupt-owner-death-in-the-native-protocol-fixture).
+Terminal-review cancellation, installed-provider crash behavior, descendant
+control, independent identity and outside-route control remain open.
+
+B5 interruption/crash verification cycle completed: four production broker/relay
+tests exercise pending/running terminal review cancellation, late approval and
+request-ID reuse. Installed Windows Claude 2.1.263 passed the eight selected/catalog
+× direct/review × interrupt/client-crash cases with synthetic local replies.
+Child termination is independently witnessed; public counters never imply it.
+Direct crash leaves an unchanged stale endpoint; review crash cleans the broker
+endpoint. A cancellation-delivery mutation fails. See the final cycle section of
+[live observation](../ACTION-LIVE-OBSERVATION.md) for evidence, one excluded guard
+failure and runtime boundaries. B5 remains partial for independent identity and
+verified outside-route coverage; C1 descendant containment is separate work.

@@ -39,21 +39,26 @@ const props = () => ({
 
 it('starts with the radar and keeps the protection overview reachable', async () => {
   const mounted = render(App, { host: null });
-  expect(await screen.findByRole('heading', { name: 'Agent radar' })).toBeVisible();
-  expect(mounted.container.querySelector('.radar-panel')).toBeVisible();
-  const radar = screen.getByRole('button', { name: 'Detailed monitoring' });
-  const protection = screen.getByRole('button', { name: 'Protection overview' });
+  const panel = mounted.container.querySelector('.radar-panel');
+  const heading = await within(panel).findByRole('heading', { name: 'Agent radar' });
+  expect(heading).toBeVisible();
+  expect(panel).toBeVisible();
+  const switcher = within(screen.getByRole('group', { name: 'Monitoring' }));
+  const radar = switcher.getByRole('button', { name: 'Detailed monitoring' });
+  const protection = switcher.getByRole('button', { name: 'Protection overview' });
   expect(radar).toHaveAttribute('aria-pressed', 'true');
   expect(protection).toHaveAttribute('aria-pressed', 'false');
   await fireEvent.click(radar);
-  expect(mounted.container.querySelector('.radar-panel')).toBeVisible();
-  await fireEvent.click(screen.getByRole('button', { name: 'Protection overview' }));
+  expect(panel).toBeVisible();
+  await fireEvent.click(protection);
   expect(radar).toHaveAttribute('aria-pressed', 'false');
   expect(protection).toHaveAttribute('aria-pressed', 'true');
   expect(screen.getByRole('region', { name: 'Protection overview' })).toBeVisible();
-  expect(mounted.container.querySelector('.radar-panel')).not.toBeVisible();
-  await fireEvent.click(screen.getByRole('button', { name: 'Detailed monitoring' }));
-  expect(screen.getByRole('heading', { name: 'Agent radar' })).toBeVisible();
+  expect(panel).not.toBeVisible();
+  await fireEvent.click(radar);
+  expect(radar).toHaveAttribute('aria-pressed', 'true');
+  expect(protection).toHaveAttribute('aria-pressed', 'false');
+  expect(heading).toBeVisible();
 });
 
 it('connects evidence to the intended policy and keeps inferred ownership visible', async () => {
@@ -65,6 +70,10 @@ it('connects evidence to the intended policy and keeps inferred ownership visibl
   const details = screen.getByRole('complementary', { name: 'Selected activity' });
   expect(await within(details).findByText('Block requested · not enforced')).toBeVisible();
   expect(within(details).getByText('C:/work/.env')).toBeVisible();
+  expect(
+    within(details).getByText('An open handle does not prove that file contents were read.'),
+  ).toBeVisible();
+  expect(within(details).getByText(/retained record\(s\).*latest/)).toBeVisible();
   await fireEvent.click(within(details).getByRole('button', { name: 'Edit this agent’s policy' }));
   expect(input.openPolicy).toHaveBeenCalledExactlyOnceWith('Codex::C:/work');
   await fireEvent.click(within(details).getByRole('button', { name: 'Agent & controls' }));
@@ -124,6 +133,17 @@ it('uses current process availability while the displayed activity is paused', a
     screen.getByRole('button', { name: /Codex.*Indirect match.*Held a file open/ }),
   );
   expect(screen.getByRole('button', { name: 'Agent & controls' })).toBeDisabled();
+});
+
+it('returns focus to the activity region when the selected row is filtered away', async () => {
+  render(ProtectionOverview, props());
+  await fireEvent.click(screen.getByRole('button', { name: /Codex.*Held a file open/ }));
+  await fireEvent.input(screen.getByRole('searchbox', { name: 'Search agent activity' }), {
+    target: { value: 'no matching observation' },
+  });
+  expect(screen.queryByRole('button', { name: /Codex.*Held a file open/ })).toBeNull();
+  await fireEvent.click(screen.getByRole('button', { name: 'Close details' }));
+  expect(screen.getByRole('region', { name: 'Agent activity' })).toHaveFocus();
 });
 
 it('opens the requested project policy without a write, and invalidates the overview only after a successful save', async () => {

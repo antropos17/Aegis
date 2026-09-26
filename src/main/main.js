@@ -8,6 +8,8 @@
 
 // ═══ CLI MODE (before Electron imports) ═══
 const _cliFlags = new Set([
+  '--mcp-gateway-http',
+  '--mcp-gateway-stdio',
   '--action-mcp-config-json',
   '--action-catalog-check-json',
   '--action-route-check-json',
@@ -39,6 +41,8 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
     .then(async (code) => {
       if (
         [
+          '--mcp-gateway-http',
+          '--mcp-gateway-stdio',
           '--action-mcp-stdio',
           '--action-mcp-review',
           '--action-mcp-connect',
@@ -100,7 +104,6 @@ const logger = require('./logger');
 const desktopShell = require('./platform/desktop-shell').createDesktopShell({
   app,
   platform: process.platform,
-  appId: require('../../package.json').build.appId,
 });
 const tray = require('./tray-icon');
 const ipc = require('./ipc-handlers');

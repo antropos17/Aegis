@@ -43,6 +43,12 @@ const fakeElectron = {
 const originalLoad = Module._load;
 Module._load = function (request, _parent, _isMain) {
   if (request === 'electron') return fakeElectron;
+  // electron-builder strips build metadata from the installed package.json.
+  if (request === '../../package.json' && _parent?.filename.endsWith('main.js')) {
+    const packaged = { ...originalLoad.apply(this, arguments) };
+    delete packaged.build;
+    return packaged;
+  }
   return originalLoad.apply(this, arguments);
 };
 
