@@ -28,6 +28,9 @@ This extension added fixed or allowlisted diagnostic text across process
 snapshots, baselines, audit index/logger, sequence and flat-rule loading,
 secure-storage decryption, settings cleanup and Anthropic analysis. Analysis error responses
 follow the documented API types and its HTTP body read is bounded to 1 MiB.
+Token adapter and unexpected feed failures now use fixed diagnostic codes;
+adapter IDs in those logs come only from the built-in allowlist
+([#619](https://github.com/antropos17/Aegis/pull/619)).
 First-seen agent persistence retries after a failed write. Exact Kimi Code CLI
 and Amp CLI process names bring the checked catalog to 112 agents and 265
 process-name signatures. Process enumeration now has bounded subprocess
