@@ -8,6 +8,19 @@ const example = (catalog = false) =>
   previewActionCoverage({ action: catalog ? 'check-catalog' : 'check-route', route: 'mcp-stdio' });
 const start = () => fireEvent.click(screen.getByRole('button', { name: 'Choose files and check' }));
 
+it('jumps to the configuration fields without invoking a review or opening a guide', async () => {
+  const localSecurityReview = vi.fn();
+  const openExternalUrl = vi.fn();
+  render(ActionCoverage, { host: { localSecurityReview, openExternalUrl } as unknown as Host });
+  const jump = screen.getByRole('button', { name: 'Go to configuration check' });
+  jump.focus();
+  await fireEvent.click(jump);
+  expect(screen.getByRole('combobox', { name: 'Selection type' })).toHaveFocus();
+  expect(localSecurityReview).not.toHaveBeenCalled();
+  expect(openExternalUrl).not.toHaveBeenCalled();
+  expect(screen.queryByRole('region', { name: 'Action check result' })).toBeNull();
+});
+
 it('opens in-app setup guidance without reading files or starting a check', async () => {
   const navigate = vi.fn();
   const call = vi.fn();
@@ -136,6 +149,7 @@ it('serializes pending requests and ignores a destroyed component response', asy
   expect(screen.getByLabelText('Selection type')).toBeDisabled();
   expect(screen.getByLabelText('Execution route')).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Choose files and check' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Go to configuration check' })).toBeDisabled();
   await fireEvent.submit(view.container.querySelector('form')!);
   expect(call).toHaveBeenCalledTimes(1);
   view.unmount();
