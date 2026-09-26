@@ -284,6 +284,16 @@ const words = (value: unknown): string =>
   String(value ?? '')
     .replaceAll('-', ' ')
     .replaceAll('_', ' ');
+const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+const prioritizedFindings = (findings: RecordData[]): RecordData[] =>
+  findings
+    .map((entry, index) => ({ entry, index }))
+    .sort(
+      (a, b) =>
+        (severityOrder[String(a.entry.severity ?? '').toLowerCase()] ?? 4) -
+          (severityOrder[String(b.entry.severity ?? '').toLowerCase()] ?? 4) || a.index - b.index,
+    )
+    .map(({ entry }) => entry);
 /** Project bounded evidence into readable, individually inspectable rows.
  * @param report Main-owned report @param section Result section @returns All rows (the view paginates) @since 0.15.1
  */
@@ -294,9 +304,15 @@ export function reviewRows(report: RecordData, section: string): ReviewRow[] {
   const external = record(report.external);
   if (section === 'findings')
     return [
-      ...records(local.findings).map((entry) => ({ ...entry, origin: 'Built-in analysis' })),
-      ...records(mcp.findings).map((entry) => ({ ...entry, origin: 'Offline MCP description' })),
-      ...records(external.findings).map((entry) => ({
+      ...prioritizedFindings(records(local.findings)).map((entry) => ({
+        ...entry,
+        origin: 'Built-in analysis',
+      })),
+      ...prioritizedFindings(records(mcp.findings)).map((entry) => ({
+        ...entry,
+        origin: 'Offline MCP description',
+      })),
+      ...prioritizedFindings(records(external.findings)).map((entry) => ({
         ...entry,
         origin: 'External claim · unverified',
       })),
