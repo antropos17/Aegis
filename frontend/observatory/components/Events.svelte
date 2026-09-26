@@ -4,6 +4,7 @@
   import { instances, type Telemetry, type RecordData } from '../runtime/host';
   import { describeObservation } from '../../../src/shared/observation-display.js';
   import { scopeEvidence, type AgentScope } from '../runtime/agent-scope';
+  import { networkSnapshotStatus } from '../runtime/network-coverage';
   import Icon from './Icon.svelte';
   import ObservationTable from './ObservationTable.svelte';
   let {
@@ -35,6 +36,7 @@
     (paused ? held : network ? telemetry.network : telemetry.events) as unknown as RecordData[],
   );
   let rows = $derived(scope ? scopeEvidence(rawRows, telemetry, scope) : rawRows);
+  let networkStatus = $derived(networkSnapshotStatus(telemetry, rows.length));
   let localAgentFilter = $derived(scope ? '' : agent);
   let attributionFilter = $derived(scope && !scope.agent ? attribution : 'all');
   let effectiveKind = $derived(scope && kind === 'unattributed' ? 'all' : kind);
@@ -180,32 +182,42 @@
 {#if paused}<p class="notice">{$t('View paused · backend monitoring continues.')}</p>{/if}
 <div class="evidence-status" role="status">
   <span
-    >{filtered.length}
-    {$t('of')}
-    {rows.length}
-    {network ? $t('connections') : $t('events')} · {showingPaused
-      ? $t('Paused snapshot')
-      : $t('Live view')}</span
+    >{#if network && networkStatus === 'unavailable'}{$t(
+        'Network observation unavailable',
+      )}{:else}{filtered.length}
+      {$t('of')}
+      {rows.length}
+      {network ? $t('connections') : $t('events')} · {network && networkStatus === 'retained'
+        ? $t('Retained network snapshot')
+        : showingPaused
+          ? $t('Paused snapshot')
+          : network
+            ? $t('Latest connection snapshot')
+            : $t('Live view')}{/if}</span
   >{#if query || effectiveKind !== 'all' || localAgentFilter || attributionFilter !== 'all' || severity !== 'all'}<span
       class="badge">{$t('Filters active')}</span
     >{/if}
 </div>
-<ObservationTable
-  rows={filtered}
-  {telemetry}
-  {inspect}
-  {grouping}
-  resetKey={JSON.stringify([
-    query,
-    effectiveKind,
-    localAgentFilter,
-    attributionFilter,
-    severity,
-    network,
-    scope?.agent,
-    scope?.instanceId,
-  ])}
-/>
+{#if network && networkStatus === 'unavailable'}
+  <p class="notice">{$t('No current network snapshot. Check sensor health in Statistics.')}</p>
+{:else}
+  <ObservationTable
+    rows={filtered}
+    {telemetry}
+    {inspect}
+    {grouping}
+    resetKey={JSON.stringify([
+      query,
+      effectiveKind,
+      localAgentFilter,
+      attributionFilter,
+      severity,
+      network,
+      scope?.agent,
+      scope?.instanceId,
+    ])}
+  />
+{/if}
 
 <style>
   .evidence-filters {

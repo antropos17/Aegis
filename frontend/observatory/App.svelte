@@ -24,6 +24,7 @@
     type WorkspaceCommand,
   } from './runtime/navigation';
   import { cpuPercent } from './runtime/resources';
+  import { networkSnapshotStatus } from './runtime/network-coverage';
   import Icon from './components/Icon.svelte';
   import Notifications from './components/Notifications.svelte';
   import Monitoring from './components/Monitoring.svelte';
@@ -115,6 +116,7 @@
   let paused = $state(false);
   let held = $state.raw(emptyTelemetry());
   let displayTelemetry = $derived(paused ? held : telemetry);
+  let networkStatus = $derived(networkSnapshotStatus(telemetry));
   const agentCount = $derived(new Set(displayTelemetry.agents.map((agent) => agent.agent)).size);
   const healthCaption = $derived(
     record(telemetry.stats.appHealth).state === 'HEALTHY'
@@ -440,9 +442,17 @@
                   ? $t('Demo stream')
                   : telemetry.stale
                     ? $t('Observation unavailable / stale')
-                    : telemetry.scanning
-                      ? $t('Scanning')
-                      : $t('Live')}</span
+                    : view === 'network'
+                      ? $t(
+                          networkStatus === 'latest'
+                            ? 'Latest connection snapshot'
+                            : networkStatus === 'retained'
+                              ? 'Retained network snapshot'
+                              : 'Network observation unavailable',
+                        )
+                      : telemetry.scanning
+                        ? $t('Scanning')
+                        : $t('Live')}</span
             >{:else if view !== 'guide'}<span class="workspace-caption"
               >{view === 'analysis' || view === 'reports'
                 ? $t('Review and share recorded activity')
