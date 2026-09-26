@@ -61,21 +61,26 @@ function logSpawnTax(spawn, t0) {
 function listProcesses() {
   return new Promise((resolve, reject) => {
     const t0 = performance.now();
-    execFile('tasklist', ['/FO', 'CSV', '/NH'], (err, stdout) => {
-      logSpawnTax('tasklist', t0);
-      if (err) {
-        reject(err);
-        return;
-      }
-      const results = [];
-      const lines = stdout.trim().split('\n');
-      for (const line of lines) {
-        const match = line.match(/"([^"]+)","(\d+)"/);
-        if (!match) continue;
-        results.push({ name: match[1], pid: parseInt(match[2], 10) });
-      }
-      resolve(results);
-    });
+    execFile(
+      'tasklist',
+      ['/FO', 'CSV', '/NH'],
+      { timeout: 10000, maxBuffer: 4 * 1024 * 1024 },
+      (err, stdout) => {
+        logSpawnTax('tasklist', t0);
+        if (err) {
+          reject(err);
+          return;
+        }
+        const results = [];
+        const lines = stdout.trim().split('\n');
+        for (const line of lines) {
+          const match = line.match(/"([^"]+)","(\d+)"/);
+          if (!match) continue;
+          results.push({ name: match[1], pid: parseInt(match[2], 10) });
+        }
+        resolve(results);
+      },
+    );
   });
 }
 

@@ -82,8 +82,18 @@ describe('platform/win32', () => {
   });
 
   describe('listProcesses', () => {
+    it('bounds tasklist and rejects when the command times out', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        expect(cmd).toBe('tasklist');
+        expect(opts).toEqual({ timeout: 10000, maxBuffer: 4 * 1024 * 1024 });
+        cb(new Error('tasklist timed out'));
+      });
+
+      await expect(win32.listProcesses()).rejects.toThrow('tasklist timed out');
+    });
+
     it('parses tasklist CSV output', async () => {
-      mockExecFile.mockImplementation((cmd, args, cb) => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
         cb(
           null,
           '"claude.exe","1234","Console","1","50,000 K"\n"code.exe","5678","Console","1","100,000 K"\n',
@@ -98,7 +108,7 @@ describe('platform/win32', () => {
     });
 
     it('skips malformed lines', async () => {
-      mockExecFile.mockImplementation((cmd, args, cb) => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
         cb(null, 'this is not csv\n"node.exe","100","Console","1","50K"\n');
       });
 
@@ -108,7 +118,7 @@ describe('platform/win32', () => {
     });
 
     it('rejects on error', async () => {
-      mockExecFile.mockImplementation((cmd, args, cb) => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
         cb(new Error('tasklist failed'));
       });
 
