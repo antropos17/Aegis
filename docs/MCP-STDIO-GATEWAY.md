@@ -2,7 +2,7 @@
 
 An optional [known-secret policy](MCP-KNOWN-SECRETS.md) checks tool metadata, arguments and results for explicitly supplied values and a finite set of encodings. It is not general DLP.
 
-Optional [manifest v2 persistent grants](MCP-DURABLE-GRANTS.md) add expiry and cross-run replay protection using an explicitly selected shared local store. The version 1 examples below retain connection-local semantics.
+Optional [manifest v2 persistent grants](MCP-DURABLE-GRANTS.md) add expiry and cross-run replay protection using an explicitly selected shared local store. Version 5 also binds the effective stdio launch descriptor to a store-backed tag across restarts. The version 1 examples below retain connection-local semantics.
 
 `node src/main/main.js --mcp-gateway-stdio <policy.json> <request.json> <manifest.json>`
 starts one operator-selected server after an MCP initialization request and an

@@ -93,6 +93,18 @@ function createMcpGateway({
       key.fill(0);
     }
   };
+  const verifyStdioRoute = async (launch) => {
+    if (manifest.schemaVersion !== 5) return;
+    if (typeof route.stdioRouteTag !== 'function') throw Error('gateway-stdio-route-unavailable');
+    const key = await step(readGatewayCredentialKey(grantStorePath, controller.signal));
+    try {
+      const actual = Buffer.from(route.stdioRouteTag(key, launch), 'hex');
+      const expected = Buffer.from(manifest.stdioRouteTag, 'hex');
+      if (!timingSafeEqual(actual, expected)) throw Error('gateway-stdio-route-mismatch');
+    } finally {
+      key.fill(0);
+    }
+  };
   const recheck = async () => {
     await step(secretGuard.recheck());
     await step(readManifest());
@@ -161,10 +173,11 @@ function createMcpGateway({
         route = await step(
           captureGatewayRoute({ policyPath, requestPath, endpointPath }, controller.signal),
         );
-        if (manifest.schemaVersion >= 3 && !equal(route.identity, manifest.route))
+        if ([3, 4].includes(manifest.schemaVersion) && !equal(route.identity, manifest.route))
           throw Error('gateway-route-mismatch');
         await verifyCredential();
         const launch = await recheck();
+        await verifyStdioRoute(launch);
         if (closed) throw Error('closed');
         peer = route.open(launch, () => close(true));
         const initialized = await step(
@@ -241,6 +254,7 @@ function createMcpGateway({
     try {
       const permission = manifest.grants[grant];
       await verifyCredential();
+      if (manifest.schemaVersion === 5) await verifyStdioRoute(await recheck());
       if (manifest.schemaVersion >= 2) await step(consumeGatewayGrant(grantStorePath, permission));
       await recheck();
       await checkCatalog();

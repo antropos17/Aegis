@@ -124,9 +124,27 @@ async function captureGatewayRoute({ policyPath, requestPath, endpointPath }, si
       revokeExecutionBinding(binding);
       throw Error('gateway-route-closed');
     }
+    const stdioRouteTag = (key, launch) => {
+      if (closed || !Buffer.isBuffer(key) || key.length !== 32 || !launch)
+        throw Error('gateway-stdio-route-unavailable');
+      // Bind the descriptor actually passed to spawn, including the completed
+      // environment. Sort names so JSON object insertion order cannot change the tag.
+      const effective = {
+        platform: process.platform,
+        executable: path.resolve(launch.executable),
+        cwd: path.resolve(launch.cwd),
+        args: launch.args,
+        env: Object.entries(launch.env).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+      };
+      return createHmac('sha256', key)
+        .update('AEGIS-MCP-STDIO-ROUTE-v1\0')
+        .update(JSON.stringify(effective))
+        .digest('hex');
+    };
     return {
       close,
       open: createGatewayPeer,
+      stdioRouteTag,
       recheck: async () => {
         const prepared = await prepareExecution(policyPath, requestPath, { binding });
         if (closed || prepared.decision !== 'allow') throw Error('server-authorization');
