@@ -33,7 +33,7 @@ const namedCodex = (directory, scope) => ({
 
 const PROFILES = {
   project: {
-    adapterVersion: 2,
+    adapterVersion: 3,
     referenceDate: '2026-09-26',
     configs: [
       mcp('.mcp.json', 'shared', 'project'),
@@ -49,12 +49,13 @@ const PROFILES = {
       location('AGENTS.md', 'shared', 'project'),
       location('AGENTS.override.md', 'codex', 'project'),
       location('CLAUDE.md', 'claude-code', 'project'),
+      location('GEMINI.md', 'gemini-cli', 'project'),
       location('.cursorrules', 'cursor', 'project'),
     ],
     skillRoots: skills('project'),
   },
   'user-home': {
-    adapterVersion: 2,
+    adapterVersion: 3,
     referenceDate: '2026-09-26',
     configs: [
       { ...mcp('.claude.json', 'claude-code', 'user-and-project-local'), localProjects: true },
@@ -67,6 +68,7 @@ const PROFILES = {
     ],
     instructions: [
       location('.claude/CLAUDE.md', 'claude-code', 'user'),
+      location('.gemini/GEMINI.md', 'gemini-cli', 'user'),
       location('.codex/AGENTS.md', 'codex', 'user'),
       location('.codex/AGENTS.override.md', 'codex', 'user'),
     ],
@@ -99,8 +101,10 @@ const PROFILES = {
     configs: [config('mcp.json', 'vscode', 'user-profile', 'mcp', 'jsonc', ['servers'])],
   },
   'gemini-user': {
+    adapterVersion: 2,
     referenceDate: '2026-09-26',
     configs: [geminiSettings('settings.json', 'user')],
+    instructions: [location('GEMINI.md', 'gemini-cli', 'user')],
   },
   'gemini-project': {
     referenceDate: '2026-09-26',

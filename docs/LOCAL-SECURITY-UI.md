@@ -21,6 +21,11 @@ Gemini CLI has explicit user, project and Windows system settings layouts. A
 project-root selection and a user-home selection also recognize their respective
 `.gemini/settings.json` files. Results count declarations in the selected files;
 they do not resolve active settings or prove a server connection.
+Project-root, user-home and `gemini-user` selections also observe their declared
+default `GEMINI.md` instruction candidates. Inventory records byte hashes and
+static review checks bounded instruction patterns with semantic coverage gaps.
+The workspace does not determine Gemini CLI's effective context, follow imports,
+walk context hierarchy or extensions, or infer a custom `context.fileName`.
 
 ## Review and persistence
 

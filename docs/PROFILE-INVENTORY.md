@@ -22,13 +22,13 @@ Found files get their raw SHA-256, parse status/counts and declared provenance.
 
 | Adapter | Select this directory | Recognized locations |
 | --- | --- | --- |
-| `user-home` | A user home or its offline copy | `.claude.json`; `.claude/settings.json`; `.cursor/mcp.json`; `.gemini/settings.json`; `.codex/config.toml`, `hooks.json`, `managed_config.toml`, direct `NAME.config.toml`; `.claude/CLAUDE.md`; `.codex/AGENTS.md`, `AGENTS.override.md`; `.agents/skills`, `.claude/skills`, `.codex/skills`, `.cursor/skills` |
+| `user-home` | A user home or its offline copy | `.claude.json`; `.claude/settings.json`; `.cursor/mcp.json`; `.gemini/settings.json`, `.gemini/GEMINI.md`; `.codex/config.toml`, `hooks.json`, `managed_config.toml`, direct `NAME.config.toml`; `.claude/CLAUDE.md`; `.codex/AGENTS.md`, `AGENTS.override.md`; `.agents/skills`, `.claude/skills`, `.codex/skills`, `.cursor/skills` |
 | `codex-user` | The Codex state directory, normally `~/.codex`, or a custom `CODEX_HOME` | `config.toml`, `hooks.json`, `managed_config.toml`, direct `NAME.config.toml`, `AGENTS.md`, `AGENTS.override.md`, `skills/` |
 | `claude-user` | Normally `~/.claude`, or the settings directory chosen with `CLAUDE_CONFIG_DIR` | `settings.json`, `CLAUDE.md`, `skills/`; the sibling `~/.claude.json` requires `user-home` |
 | `cursor-user` | Normally `~/.cursor` | `mcp.json`, `skills/` |
 | `vscode-user` | One VS Code user/profile directory containing `mcp.json` | `mcp.json` as JSONC; named profiles require their own explicit directory selection |
-| `gemini-user` | One `.gemini` user directory or offline copy | `settings.json` with comments allowed, trailing commas rejected |
-| `gemini-project` | One project's `.gemini` directory or offline copy | `settings.json` with comments allowed, trailing commas rejected; selecting the project root with `project` also recognizes `.gemini/settings.json` |
+| `gemini-user` | One `.gemini` user directory or offline copy | `settings.json` with comments allowed, trailing commas rejected; default `GEMINI.md` |
+| `gemini-project` | One project's `.gemini` directory or offline copy | `settings.json` with comments allowed, trailing commas rejected; selecting the project root with `project` also recognizes `.gemini/settings.json` and root `GEMINI.md` |
 | `gemini-system-windows` | One Windows `C:/ProgramData/gemini-cli` directory or offline copy | `system-defaults.json` and `settings.json` as separate observations with comments allowed, trailing commas rejected |
 | `claude-managed` | A Claude Code system configuration directory | `managed-mcp.json`, `managed-settings.json`, direct non-hidden `managed-settings.d/*.json` |
 | `codex-managed` | A Codex system configuration directory | `config.toml`, `requirements.toml`, `managed_config.toml`; supported locations differ by OS, below |
@@ -58,12 +58,27 @@ effective policy after configuration layers, extensions, environment variables
 and launch arguments are combined. The Windows system adapter does not merge
 defaults and overrides or inspect either override environment variable.
 
+Default Gemini instructions are observed only at `GEMINI.md` in a selected
+`project` root, `.gemini/GEMINI.md` in a selected `user-home` root, and `GEMINI.md`
+in a selected `gemini-user` root. These files receive byte hashes and declared
+provenance; their text is not returned. The `gemini-project` adapter selects a
+project's `.gemini` settings directory, so it does not include the sibling
+project-root `GEMINI.md`. These candidate observations do not establish the
+effective context sent to a model. AEGIS does not resolve ancestor, workspace,
+descendant or just-in-time context files, `@` imports, extension-provided context,
+or custom `context.fileName` values from settings. Static review applies its existing
+bounded instruction patterns to these selected files and reports semantic gaps.
+
 ## OS and version matrix
 
 Existing layout references were checked on **2026-09-15**; Gemini settings
 locations and fields were checked on **2026-09-26** against the upstream
 [configuration reference](https://github.com/google-gemini/gemini-cli/blob/main/docs/reference/configuration.md)
 and [MCP server reference](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md).
+The [context-file guide](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/gemini-md.md)
+documents the default `GEMINI.md` name, global location, hierarchy, imports and
+configurable filenames; the [memory tool source](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/tools/memoryTool.ts)
+defines the default filename and global path.
 The upstream [settings loader](https://github.com/google-gemini/gemini-cli/blob/main/packages/cli/src/config/settings.ts)
 strips comments before `JSON.parse`, so the `json-comments` inventory format
 accepts comments and rejects trailing commas.

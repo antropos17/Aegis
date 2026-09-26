@@ -36,7 +36,7 @@ The project command never expands its scope to the user's home directory.
 | `.claude/settings.json`, `.claude/settings.local.json`, `.codex/hooks.json` | SHA-256, strict JSON shape and number of event groups in `hooks` |
 | `.vscode/mcp.json` | SHA-256, JSONC parsing (comments/trailing commas), number of keys in `servers` |
 | `.codex/config.toml` | SHA-256, TOML parsing, separate counts for `mcp_servers` and `hooks` |
-| Root `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, `.cursorrules` | Fingerprint only |
+| Root `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`, `GEMINI.md`, `.cursorrules` | Fingerprint only |
 | Root `package.json`, `npm-shrinkwrap.json`, `package-lock.json` | Fingerprint and local package evidence |
 | `.agents/skills`, `.claude/skills`, `.codex/skills`, `.cursor/skills` | Bounded recursive fingerprints, including scripts and package metadata; `.git` entries excluded case-insensitively |
 | Enclosing `.git` directories inside the selected scope | Only HEAD, required refs and loose objects for package-manifest evidence; no Git command or config execution |
@@ -48,9 +48,13 @@ Gemini MCP trust and filter declaration types are checked before their counts
 are reported.
 `declaredSections` names every counted section. `declaredEntries` remains the
 first section's count (MCP for Codex TOML); it is never a sum of servers and hooks.
-The `project` and `user-home` adapter versions are 2 because they now include
-Gemini settings. Existing accepted snapshots for those adapters require a fresh
-review; the changed scope does not compare as the same contract.
+The `project` and `user-home` adapter versions are 3, and `gemini-user` is 2,
+because they now include default Gemini instruction candidates. Existing accepted
+snapshots for those adapters require a fresh review; the changed scope does not
+compare as the same contract. The project adapter observes root `GEMINI.md`; the
+user-home adapter observes `.gemini/GEMINI.md`. These hashes do not establish
+which context Gemini CLI loaded. See [profile coverage boundaries](PROFILE-INVENTORY.md)
+for omitted hierarchy, imports, extensions and configured filenames.
 
 The report lists its scope and limits. It does not follow configuration references,
 scan unrelated project files, resolve remote dependencies or discover all agents.
