@@ -1170,7 +1170,6 @@ describe('file-watcher rules hot-reload watchers', () => {
     expect(sendFn).toHaveBeenCalledTimes(1);
     expect(sendFn).toHaveBeenCalledWith('rules:reloaded', {
       count: 3,
-      file: 'sequences.yaml',
       sequenceCount: 2,
     });
   });
@@ -1178,7 +1177,7 @@ describe('file-watcher rules hot-reload watchers', () => {
   it('a change to a flat rule file reloads the flat rules and never calls the sequence reload', () => {
     const { sendFn, reload, flat } = installBoth({ sequenceCount: () => 1 });
 
-    flat.emit('change', path.join(RULES_DIR, 'file-access.yaml'));
+    flat.emit('change', path.join(RULES_DIR, 'PRIVATE_RULE_NAME_CANARY.yaml'));
 
     expect(reloadRules).toHaveBeenCalledTimes(1);
     expect(reload).not.toHaveBeenCalled();
@@ -1186,9 +1185,9 @@ describe('file-watcher rules hot-reload watchers', () => {
     // `count` is the size AFTER the reload (4, not the 3 the map held before it).
     expect(sendFn).toHaveBeenCalledWith('rules:reloaded', {
       count: 4,
-      file: 'file-access.yaml',
       sequenceCount: 1,
     });
+    expect(JSON.stringify(sendFn.mock.calls)).not.toContain('PRIVATE_RULE_NAME_CANARY');
   });
 
   it('the flat push reads the sequence figure at the time of the change, not at setup', () => {
@@ -1200,7 +1199,6 @@ describe('file-watcher rules hot-reload watchers', () => {
 
     expect(sendFn).toHaveBeenCalledWith('rules:reloaded', {
       count: 4,
-      file: 'file-access.yml',
       sequenceCount: 3,
     });
   });
@@ -1213,7 +1211,6 @@ describe('file-watcher rules hot-reload watchers', () => {
     expect(reload).toHaveBeenCalledTimes(1);
     expect(sendFn).toHaveBeenCalledWith('rules:reloaded', {
       count: 3,
-      file: 'more.yml',
       sequenceCount: 1,
     });
   });
