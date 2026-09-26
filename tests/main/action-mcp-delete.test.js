@@ -12,8 +12,10 @@ const require = createRequire(import.meta.url);
 const broker = require('../../src/main/action-mcp-review');
 const terminal = require('../../src/main/action-confirmation-terminal');
 const { DELETE_NAME } = require('../../src/main/action-mcp');
+const { observeActionRoute } = require('../../src/main/action-observation-client');
 const owners = [];
 const peers = [];
+const observers = [];
 let directory, policyPath, requestPath, target, operation;
 
 function writeSelection(decision = 'allow', selected = operation) {
@@ -28,8 +30,9 @@ function writeSelection(decision = 'allow', selected = operation) {
   );
 }
 
-async function start() {
+async function start({ observe = false } = {}) {
   const endpointPath = path.join(directory, 'new-endpoint.json');
+  const observationPath = path.join(directory, 'new-observation.json');
   const host = new EventEmitter();
   let ready;
   const waiting = new Promise((resolve) => {
@@ -47,12 +50,10 @@ async function start() {
       },
     },
   });
-  const done = broker.handleActionMcpReview([
-    '--action-mcp-delete-review',
-    policyPath,
-    requestPath,
-    endpointPath,
-  ]);
+  const args = ['--action-mcp-delete-review', policyPath, requestPath, endpointPath];
+  const done = observe
+    ? require('../../src/main/cli').handleCLI([...args, '--observe', observationPath])
+    : broker.handleActionMcpReview(args);
   owners.push({ host, done });
   await waiting;
   const endpoint = JSON.parse(fs.readFileSync(endpointPath, 'utf8'));
@@ -71,7 +72,7 @@ async function start() {
     clientInfo: { name: 'fixture', version: '1' },
   });
   client.notify('notifications/initialized');
-  return { client, peer, host, done, endpointPath };
+  return { client, peer, host, done, endpointPath, observationPath };
 }
 
 function createClient(peer) {
@@ -123,6 +124,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  for (const observer of observers.splice(0)) observer.close();
   for (const peer of peers.splice(0)) peer.destroy();
   for (const owner of owners.splice(0)) {
     owner.host.emit('SIGTERM');
@@ -358,12 +360,82 @@ it('recognizes the dedicated CLI mode and refuses a broker without a terminal', 
   expect(fs.readFileSync(target, 'utf8')).toBe('selected sentinel');
 });
 
-it('rejects the execution-only desktop observation option for deletion review', async () => {
+it('authenticates read-only selected-file observation, counts pending and settled calls, and retains loss', async () => {
+  let answer;
+  terminal.confirmInTerminal.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+  );
+  const { client, host, done, observationPath } = await start({ observe: true });
+  const descriptor = JSON.parse(fs.readFileSync(observationPath, 'utf8'));
+  const wrong = net.createConnection({ host: '127.0.0.1', port: descriptor.port });
+  peers.push(wrong);
+  wrong.on('error', () => {});
+  let leaked = '';
+  wrong.on('data', (chunk) => {
+    leaked += chunk;
+  });
+  await new Promise((resolve) => wrong.once('connect', resolve));
+  wrong.write((descriptor.token === '0'.repeat(64) ? '1' : '0').repeat(64) + '\n');
+  await new Promise((resolve) => wrong.once('close', resolve));
+  expect(leaked).toBe('');
+
+  const observer = observeActionRoute(observationPath);
+  observers.push(observer);
+  await vi.waitFor(() => expect(observer.snapshot().state).toBe('observed'), { timeout: 2500 });
+  expect(observer.snapshot().snapshot).toMatchObject({
+    route: 'mcp-review',
+    selection: 'selected-file-delete',
+    selectedActionCount: 1,
+    actionAttempts: 0,
+    ownerInvocations: 0,
+    ownerSettled: 0,
+  });
+  const pending = deleteCall(client, 20);
+  await vi.waitFor(
+    () =>
+      expect(observer.snapshot().snapshot).toMatchObject({
+        actionAttempts: 1,
+        ownerInvocations: 1,
+        ownerSettled: 0,
+      }),
+    { timeout: 2500 },
+  );
+  expect(fs.existsSync(target)).toBe(true);
+  answer(true);
+  expect((await pending).result.isError).toBe(false);
+  await vi.waitFor(
+    () =>
+      expect(observer.snapshot().snapshot).toMatchObject({
+        actionAttempts: 1,
+        ownerInvocations: 1,
+        ownerSettled: 1,
+        ownerFailures: 0,
+      }),
+    { timeout: 2500 },
+  );
+  expect(fs.existsSync(target)).toBe(false);
+  const publicSnapshot = JSON.stringify(observer.snapshot());
+  expect(publicSnapshot).not.toContain(directory);
+  expect(publicSnapshot).not.toContain(descriptor.token);
+  expect(publicSnapshot).not.toContain('selected.txt');
+  host.emit('SIGTERM');
+  await done;
+  await vi.waitFor(() => expect(observer.snapshot().state).toBe('coverage-lost'), {
+    timeout: 2500,
+  });
+  const lost = observer.snapshot();
+  expect(lost.snapshot.selection).toBe('selected-file-delete');
+  expect(lost.snapshot.ownerSettled).toBe(1);
+  expect(observer.snapshot()).toEqual(lost);
+  expect(fs.existsSync(observationPath)).toBe(false);
+});
+
+it('rejects malformed observed deletion arguments before creating either endpoint', async () => {
   const endpoint = path.join(directory, 'never-published.json');
   const observation = path.join(directory, 'never-observed.json');
-  const observed = vi
-    .spyOn(require('../../src/main/action-observation-server'), 'runObservedMcp')
-    .mockResolvedValue(0);
   const code = await require('../../src/main/cli').handleCLI([
     '--action-mcp-delete-review',
     policyPath,
@@ -371,9 +443,10 @@ it('rejects the execution-only desktop observation option for deletion review', 
     endpoint,
     '--observe',
     observation,
+    '--observe',
+    observation,
   ]);
   expect(code).toBe(2);
-  expect(observed).not.toHaveBeenCalled();
   expect(fs.existsSync(endpoint)).toBe(false);
   expect(fs.existsSync(observation)).toBe(false);
   expect(fs.readFileSync(target, 'utf8')).toBe('selected sentinel');

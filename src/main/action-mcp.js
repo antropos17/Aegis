@@ -313,7 +313,11 @@ function createActionMcp({
           ? 'coverage-lost'
           : 'awaiting-client',
     client: clientInfo,
-    selection: catalogMode ? 'catalog' : 'single-action',
+    selection: catalogMode
+      ? 'catalog'
+      : kind === 'delete-file'
+        ? 'selected-file-delete'
+        : 'single-action',
     selectedActionCount,
     actionAttempts: executions,
     ...counters,

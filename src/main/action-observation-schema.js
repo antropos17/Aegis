@@ -55,7 +55,8 @@ function validObservation(value) {
   if (
     !['mcp-stdio', 'mcp-review'].includes(value.route) ||
     !['awaiting-client', 'observed', 'coverage-lost'].includes(value.state) ||
-    !['single-action', 'catalog'].includes(value.selection)
+    !['single-action', 'catalog', 'selected-file-delete'].includes(value.selection) ||
+    (value.selection === 'selected-file-delete' && value.route !== 'mcp-review')
   )
     return false;
   if (
