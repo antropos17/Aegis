@@ -25,6 +25,25 @@ describe('process-scanner', () => {
     expect(agents.some((a) => a.agent === 'Claude Code')).toBe(true);
   });
 
+  it('recognizes the Kimi and Amp CLI basenames without treating wrappers or suffixes as agents', async () => {
+    mockListProcesses.mockResolvedValue([
+      { name: 'KIMI.EXE', pid: 301 },
+      { name: 'kimi', pid: 302 },
+      { name: 'amp', pid: 303 },
+      { name: 'amp.exe', pid: 304 },
+      { name: 'amp-helper', pid: 305 },
+      { name: 'node.exe', pid: 306 },
+      { name: 'kimiko.exe', pid: 307 },
+    ]);
+
+    const { agents } = await scanner.scanProcesses();
+    expect(agents).toEqual([
+      expect.objectContaining({ agent: 'Kimi Code CLI', process: 'KIMI.EXE', pid: 301 }),
+      expect.objectContaining({ agent: 'Kimi Code CLI', process: 'kimi', pid: 302 }),
+      expect.objectContaining({ agent: 'Amp CLI', process: 'amp', pid: 303 }),
+    ]);
+  });
+
   it('ignores editor hosts', async () => {
     mockListProcesses.mockResolvedValue([{ name: 'code', pid: 100 }]);
     const { agents } = await scanner.scanProcesses();

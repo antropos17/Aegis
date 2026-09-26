@@ -99,7 +99,7 @@ Add an entry to the `agents` array:
 **Required fields:**
 - `id` — Unique stable identifier (1–128 ASCII letters, digits, underscores, dots or hyphens; reserved object keys are rejected)
 - `displayName` — Nonempty human-readable name, up to 200 characters
-- `names` — Nonempty array of nonempty strings (up to 256 characters each). Substrings matched against running process names (case-insensitive). The field is `names`, not `processPatterns`; nothing in the codebase reads a `processPatterns` key
+- `names` — Nonempty array of nonempty strings (up to 256 characters each). Exact process-name matches are case-insensitive; a name does not establish executable origin, and a generic runtime such as `node.exe` is not attributed to the CLI it launched. The field is `names`, not `processPatterns`; nothing in the codebase reads a `processPatterns` key
 
 **Important fields:**
 - `knownDomains` — Vendor endpoint allowlist metadata. An allowlisted endpoint is not a guarantee of safe behavior; unresolved endpoints are `unknown` and resolved names outside the applicable allowlists are `flagged`
