@@ -148,6 +148,122 @@ describe('bounded static directory review', () => {
   });
 
   it.each([
+    ['project', '.claude/settings.json'],
+    ['project', '.claude/settings.local.json'],
+    ['claude-user', 'settings.json'],
+    ['user-home', '.claude/settings.json'],
+    ['claude-managed', 'managed-settings.json'],
+    ['claude-managed', 'managed-settings.d/10-team.json'],
+  ])('flags whole-server Claude MCP approval in selected %s %s', async (adapter, name) => {
+    const source = JSON.stringify({
+      permissions: { allow: ['mcp__PRIVATE_server__*'] },
+      description: 'PRIVATE_MCP_CANARY',
+    });
+    put(name, source);
+    const report = await scanStaticDirectory(adapter, root);
+    expect(report.findings).toEqual([
+      expect.objectContaining({
+        ruleId: 'STA020',
+        severity: 'medium',
+        path: name,
+        sha256: createHash('sha256').update(source).digest('hex'),
+        line: null,
+        context: 'claude-settings-mcp-server-allow',
+      }),
+    ]);
+    expect(report.ruleSet.version).toBe(11);
+    expect(JSON.stringify(report)).not.toMatch(/PRIVATE_MCP_CANARY|PRIVATE_server/);
+  });
+
+  it('recognizes whole-server MCP allows but excludes tool-scoped and invalid globs', async () => {
+    for (const rule of ['mcp__github', 'mcp__github__*', 'mcp___private', 'mcp__-private__*']) {
+      put('.claude/settings.json', { permissions: { allow: [rule] } });
+      const report = await scanStaticDirectory('project', root);
+      expect(report.findings.map((finding) => finding.ruleId)).toEqual(['STA020']);
+    }
+    for (const rule of [
+      'mcp__github__get_issue',
+      'mcp__github__get_*',
+      'mcp__*',
+      '*',
+      'mcp__github__',
+      'mcp__github__tool__*',
+      'mcp__github__*extra',
+      'mcp__github.com',
+      ' mcp__github',
+    ]) {
+      put('.claude/settings.json', { permissions: { allow: [rule] } });
+      const report = await scanStaticDirectory('project', root);
+      expect(report.findings.some((finding) => finding.ruleId === 'STA020')).toBe(false);
+    }
+  });
+
+  it('leaves exact MCP tool allows clean and reports only terminal wildcard ambiguity', async () => {
+    for (const rule of ['mcp__github__get_issue', 'mcp__PRIVATE__server']) {
+      put('.claude/settings.json', { permissions: { allow: [rule] } });
+      const report = await scanStaticDirectory('project', root);
+      expect(report.findings).toEqual([]);
+      expect(report.issues).toEqual([]);
+      expect(report.complete).toBe(true);
+      expect(report.status).toBe('no-findings');
+      expect(JSON.stringify(report)).not.toContain('PRIVATE');
+    }
+    put('.claude/settings.json', { permissions: { allow: ['mcp__PRIVATE__server__*'] } });
+    const report = await scanStaticDirectory('project', root);
+    expect(report.findings.some((finding) => finding.ruleId === 'STA020')).toBe(false);
+    expect(report.issues).toContainEqual({
+      path: '.claude/settings.json',
+      reason: 'claude-mcp-server-name-ambiguous',
+    });
+    expect(report.complete).toBe(false);
+    expect(JSON.stringify(report)).not.toContain('PRIVATE');
+  });
+
+  it('respects complete same-file MCP ask and deny rules while retaining partial exposure', async () => {
+    for (const restriction of [
+      { ask: ['mcp__github'] },
+      { deny: ['mcp__github__*'] },
+      { ask: ['mcp__*'] },
+      { deny: ['*'] },
+    ]) {
+      put('.claude/settings.json', {
+        permissions: { allow: ['mcp__github'], ...restriction },
+      });
+      const masked = await scanStaticDirectory('project', root);
+      expect(masked.findings.some((finding) => finding.ruleId === 'STA020')).toBe(false);
+      put('.claude/settings.json', {
+        permissions: { allow: ['mcp__github', 'mcp__other'], ...restriction },
+      });
+      const report = await scanStaticDirectory('project', root);
+      expect(report.findings.map((finding) => finding.ruleId)).toEqual(
+        restriction.ask?.[0] === 'mcp__github' || restriction.deny?.[0] === 'mcp__github__*'
+          ? ['STA020']
+          : [],
+      );
+    }
+    put('.claude/settings.json', {
+      permissions: { allow: ['mcp__github'], ask: ['mcp__github__get_*'] },
+    });
+    expect(
+      (await scanStaticDirectory('project', root)).findings.map((finding) => finding.ruleId),
+    ).toEqual(['STA020']);
+  });
+
+  it('reports uncertain same-file MCP glob restrictions without hiding a broad allow', async () => {
+    put('.claude/settings.json', {
+      permissions: { allow: ['mcp__github'], ask: ['mcp__git*'] },
+    });
+    const report = await scanStaticDirectory('project', root);
+    expect(report.findings.map((finding) => finding.ruleId)).toEqual(['STA020']);
+    expect(report.issues).toContainEqual({
+      path: '.claude/settings.json',
+      reason: 'claude-mcp-restriction-unresolved',
+    });
+    expect(report.complete).toBe(false);
+    expect(JSON.stringify(report)).not.toContain('mcp__git');
+  });
+
+  it.each([
     ['claude-user', 'settings.json'],
     ['user-home', '.claude/settings.json'],
     ['claude-managed', 'managed-settings.json'],
@@ -250,7 +366,7 @@ describe('bounded static directory review', () => {
         context: 'claude-settings-strict-allowlist-scope',
       }),
     ]);
-    expect(report.ruleSet.version).toBe(10);
+    expect(report.ruleSet.version).toBe(11);
     expect(JSON.stringify(report)).not.toContain('PRIVATE_ALLOWLIST_CANARY');
   });
 
@@ -279,7 +395,10 @@ describe('bounded static directory review', () => {
   );
 
   it('keeps malformed Claude sandbox settings redacted and incomplete', async () => {
-    put('.claude/settings.json', '{"sandbox":{"network":{"strictAllowlist":true}},"PRIVATE_PARSE_CANARY":');
+    put(
+      '.claude/settings.json',
+      '{"sandbox":{"network":{"strictAllowlist":true}},"PRIVATE_PARSE_CANARY":',
+    );
     const report = await scanStaticDirectory('project', root);
     expect(report.findings).toEqual([]);
     expect(report.issues).toContainEqual({ path: '.claude/settings.json', reason: 'invalid-json' });

@@ -118,7 +118,7 @@ can therefore be incomplete and require review. The supported grammar,
 source-line conventions and catalog bounds are documented in
 [Instruction-pattern review](INSTRUCTION-REVIEW.md).
 
-Rule-set ID: `aegis-static-patterns`, version `10`. Each report includes fixed rule
+Rule-set ID: `aegis-static-patterns`, version `11`. Each report includes fixed rule
 metadata. Severity prioritizes review; every finding has `confidence: heuristic`.
 
 | ID | Severity | Review trigger |
@@ -142,6 +142,7 @@ metadata. Severity prioritizes review; every finding has `confidence: heuristic`
 | STA017 | medium | Leading YAML in a Claude-scoped skill declares broad Bash or PowerShell execution preapproval |
 | STA018 | medium | Selected Claude user or managed settings declare `permissions.defaultMode: "bypassPermissions"` without a same-file `disableBypassPermissionsMode: "disable"` |
 | STA019 | medium | Selected Claude project or local settings declare `sandbox.network.strictAllowlist: true`, which Claude Code ignores at those scopes |
+| STA020 | medium | Selected Claude settings declare a whole-server MCP allow without a complete same-file ask/deny rule |
 
 STA002 includes common `.env` variants, `.npmrc`, selected SSH private-key names,
 AWS credentials and kubeconfig paths. Template/example `.env` names are excluded.
@@ -201,6 +202,34 @@ version, whether sandboxing is enabled, or effective network access. It does
 not imply unrestricted egress: other settings and ordinary host approvals may
 still constrain a command. Only the selected relative path, file hash and fixed
 wording are reported.
+
+STA020 checks the same selected project, user and managed Claude settings paths
+as STA016. It recognizes whole-server `permissions.allow` forms
+`mcp__server` and `mcp__server__*`, following Claude Code's
+[MCP permission syntax](https://code.claude.com/docs/en/permissions#mcp) and
+[tool-name wildcard rules](https://code.claude.com/docs/en/permissions#tool-name-wildcards).
+The recognized server segment uses the letters, numbers, hyphens and
+underscores listed by [Claude Code's MCP server naming](https://code.claude.com/docs/en/mcp).
+The matcher accepts a leading hyphen or underscore. An allow ending in `__*`
+whose candidate server name contains another `__` could name a whole server
+or a tool wildcard. It produces the fixed
+`claude-mcp-server-name-ambiguous` coverage issue without an STA020 finding.
+An exact allow with an interior `__` is treated as a specific tool and does
+not make the scan incomplete. This leaves bare whole-server names containing
+`__` outside the STA020 signal.
+Tool-specific forms such as `mcp__server__get_issue` or
+`mcp__server__get_*` do not trigger it; unanchored allow globs such as
+`mcp__*` are skipped by Claude Code and do not trigger it. A same-file ask or
+deny of `mcp__server`, `mcp__server__*`, `mcp__*` or `*` suppresses the
+finding for that server. Tool-specific restrictions leave other server tools
+potentially preapproved. If another same-file restriction glob might cover
+the whole server but this analyzer cannot prove its effect, the finding stays
+and the fixed `claude-mcp-restriction-unresolved` coverage issue appears.
+Cross-file rules, connector policies, hooks, active permission mode, runtime
+server inventory and whether the settings file is loaded remain unresolved.
+STA020 is a static review signal, not runtime interception or permission
+enforcement. The report omits server names and raw rules; it contains the
+selected relative path, file hash and fixed wording.
 
 ## Result contract and limits
 
