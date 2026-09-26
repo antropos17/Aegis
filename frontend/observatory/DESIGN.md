@@ -1,5 +1,14 @@
 # AEGIS Observatory
 
+## Catalog and action-check clarity — 26 September 2026
+
+Catalog risk profile is labeled as saved metadata in the table, editor and detail.
+Its table badge is neutral; the profile does not state current behavior or safety.
+Captured catalog checks show allow, ask, deny and invalid-configuration counts,
+with unavailable rows counted separately as not assessed. Ask, deny and invalid
+rows expose their check reason directly. Counts and reasons remain tied to the
+captured check, separate from live route observation and the editable setup.
+
 ## Dashboard reference audit — 19 September 2026
 
 The supplied “AEGIS — идеальный дашборд” boards inform a focused protection-overview

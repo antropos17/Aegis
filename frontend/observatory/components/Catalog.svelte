@@ -16,6 +16,7 @@
   import AgentLogo from './AgentLogo.svelte';
   import Icon from './Icon.svelte';
   import EditorDialog from './EditorDialog.svelte';
+  const prefix = $props.id();
   let category = $state('');
   let nameInput = $state<HTMLInputElement>();
   let processInput = $state<HTMLInputElement>();
@@ -159,12 +160,15 @@
         ><Icon name="refresh" />{$t('Retry loading')}</Action
       >
     </div>{/if}
+  <p class="catalog-scope muted" id={prefix + '-catalog-scope'}>
+    {$t('Catalog risk profile is saved metadata. It does not describe current behavior or safety.')}
+  </p>
   <div class="table-wrap">
-    <table>
+    <table aria-describedby={prefix + '-catalog-scope'}>
       <thead
         ><tr
           ><th>{$t('Agent')}</th><th>{$t('Category')}</th><th>{$t('Process signatures')}</th><th
-            >{$t('Risk')}</th
+            >{$t('Catalog risk profile')}</th
           ><th>{$t('Actions')}</th></tr
         ></thead
       ><tbody
@@ -195,15 +199,7 @@
                     >+{signatures.length - 3} {$t('more')}</button
                   >{/if}
               </div></td
-            ><td
-              ><span
-                class="badge"
-                class:low={row.riskProfile === 'low'}
-                class:high={row.riskProfile === 'high'}
-                class:medium={row.riskProfile === 'medium'}
-                >{String(row.riskProfile || 'Not specified')}</span
-              ></td
-            ><td
+            ><td><span class="badge">{$t(String(row.riskProfile || 'Not specified'))}</span></td><td
               ><div class="toolbar">
                 <button class="button" onclick={() => inspect(String(row.displayName), row)}
                   >{$t('Details')}</button
@@ -285,13 +281,19 @@
                   >{/each}</select
               ></label
             >
-            <label
-              >{$t('Risk profile')}<select bind:value={form.riskProfile}
+            <div class="catalog-profile-field">
+              <label for={prefix + '-risk-profile'}>{$t('Catalog risk profile')}</label>
+              <select id={prefix + '-risk-profile'} bind:value={form.riskProfile}
                 ><option value="low">{$t('low')}</option><option value="medium"
                   >{$t('medium')}</option
                 ><option value="high">{$t('high')}</option></select
-              ></label
-            >
+              >
+            </div>
+            <p class="catalog-field-help muted full">
+              {$t(
+                'Catalog risk profile is saved metadata. It does not describe current behavior or safety.',
+              )}
+            </p>
             <label class="full"
               >{$t('Description')}<textarea bind:value={form.description}></textarea></label
             >
@@ -349,6 +351,20 @@
   .catalog-count {
     font-size: 11px;
     margin-top: 12px;
+  }
+  .catalog-scope {
+    font-size: var(--text-caption);
+    margin: 0 0 var(--space-3);
+  }
+  .catalog-field-help {
+    font-size: var(--text-caption);
+    margin: calc(-1 * var(--space-2)) 0 0;
+  }
+  .catalog-profile-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
   }
   .catalog-identity {
     text-align: left;

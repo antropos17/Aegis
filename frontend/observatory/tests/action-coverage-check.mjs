@@ -137,6 +137,28 @@ export async function checkActionCoverage(browser, url, out) {
           .getByRole('heading', { name: 'aegis_action_demo_' + decision, exact: true })
           .isVisible(),
       );
+    const counts = results.locator('.outcome-counts');
+    for (const [label, count] of [
+      ['Allow', '1'],
+      ['Ask', '1'],
+      ['Deny', '1'],
+      ['Invalid configuration', '0'],
+    ])
+      assert.equal(
+        await counts.getByText(label, { exact: true }).locator('..').locator('dd').innerText(),
+        count,
+      );
+    for (const [decision, reason] of [
+      ['ask', 'Policy requires confirmation'],
+      ['deny', 'Policy denies this action'],
+    ]) {
+      const explanation = root
+        .getByRole('heading', { name: 'aegis_action_demo_' + decision, exact: true })
+        .locator('..')
+        .locator('.action-reason');
+      assert(await explanation.isVisible());
+      assert((await explanation.innerText()).includes(reason));
+    }
     const catalogCaptured = await results.locator('.captured').innerText();
     await page.locator('.sidebar').getByRole('button', { name: 'Monitoring', exact: true }).click();
     await page
