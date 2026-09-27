@@ -34,7 +34,7 @@ afterEach(() => {
 it.each(api.ROUTES)(
   'reports only current configuration and declared boundaries for %s',
   async (route) => {
-    const deps = setup();
+    const deps = setup(route === 'appcontainer' ? { platform: 'win32', helper: () => true } : {});
     const report = await check(route);
     expect(report).toMatchObject({
       schemaVersion: 1,
