@@ -20,6 +20,16 @@ function makeState(overrides = {}) {
   };
 }
 
+const RM_TEST_BIRTH = '133000000000000000';
+function withRmBirth(rows) {
+  return rows.map((row) => ({ createTime100ns: RM_TEST_BIRTH, ...row }));
+}
+function scanRm(state, agents) {
+  const current = withRmBirth(agents);
+  state.getLatestAgents = () => current;
+  return fileWatcher.scanAllFileHandles(current);
+}
+
 describe('file-watcher', () => {
   describe('classifySensitive()', () => {
     it('.env → "Environment variables"', () => {
@@ -490,6 +500,19 @@ describe('file-watcher event handling', () => {
       );
       expect([...state.knownHandles.keys()].sort()).toEqual(['100:111', '100:u']);
     });
+
+    it('keeps exact holder history through a millisecond-only fallback for the same instance', () => {
+      const exactKey = '100:1717000000000|133000000000000000';
+      state.knownHandles.set(exactKey, new Set(['holding|/home/user/.ssh']));
+      state.knownHandles.set('200:1717000000000|133000000000000002', new Set(['/old']));
+      fileWatcher.pruneKnownHandles([{ pid: 100, instanceId: '100:1717000000000' }]);
+      expect([...state.knownHandles.keys()]).toEqual([exactKey]);
+
+      fileWatcher.pruneKnownHandles([
+        { pid: 100, instanceId: '100:1717000000000', createTime100ns: '133000000000000001' },
+      ]);
+      expect(state.knownHandles.size).toBe(0);
+    });
   });
 });
 
@@ -533,6 +556,20 @@ describe('file-watcher scanFileHandles', () => {
 
       await fileWatcher.scanAllFileHandles(agents);
       expect(state.activityLog.length).toBe(firstLen);
+    });
+
+    it('keeps a handle-pool seen-set through raw-birth precision loss', async () => {
+      mockGetFileHandles.mockResolvedValue(['/home/user/.ssh/id_rsa']);
+      const agent = { pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:111' };
+
+      const first = await fileWatcher.scanAllFileHandles([
+        { ...agent, createTime100ns: '133000000000000000' },
+      ]);
+      const fallback = await fileWatcher.scanAllFileHandles([agent]);
+
+      expect(first).toHaveLength(1);
+      expect(fallback).toHaveLength(0);
+      expect(state.knownHandles.size).toBe(1);
     });
 
     // PID reuse: a NEW process on a recycled pid must NOT inherit the dead
@@ -704,7 +741,9 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
     state = makeState();
     fileWatcher.init(state);
     fileWatcher._resetForTest();
-    fileWatcher._setDepsForTest({ getSensitiveHolders: mockGetSensitiveHolders });
+    fileWatcher._setDepsForTest({
+      getSensitiveHolders: async () => withRmBirth(await mockGetSensitiveHolders()),
+    });
   });
 
   // #1 (core proof, RED before the RM branch exists): a holder PID resolves to the
@@ -717,7 +756,7 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
       { pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:u' },
       { pid: 105, agent: 'Agent5', category: 'ai', instanceId: '105:u' },
     ];
-    const events = await fileWatcher.scanAllFileHandles(agents);
+    const events = await scanRm(state, agents);
     expect(events).toHaveLength(1);
     expect(events[0].agent).toBe('Agent5'); // resolved from holder PID 105, not aiAgents[0]
     expect(events[0].pid).toBe(105);
@@ -734,7 +773,7 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
       { pid: 100, group: '/home/user/.claude', reason: 'AI agent config — Claude Code' },
     ]);
     const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:u' }];
-    const events = await fileWatcher.scanAllFileHandles(agents);
+    const events = await scanRm(state, agents);
     expect(events).toHaveLength(1);
     expect(events[0].selfAccess).toBe(true);
     expect(events[0].sensitive).toBe(false);
@@ -749,7 +788,7 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
     const agents = [
       { pid: process.pid, agent: 'Self', category: 'ai', instanceId: `${process.pid}:u` },
     ];
-    const events = await fileWatcher.scanAllFileHandles(agents);
+    const events = await scanRm(state, agents);
     expect(events).toEqual([]);
   });
 
@@ -758,7 +797,7 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
       { pid: 9999, group: '/home/user/.aws', reason: 'AWS credentials' },
     ]);
     const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:u' }];
-    const events = await fileWatcher.scanAllFileHandles(agents);
+    const events = await scanRm(state, agents);
     expect(events).toEqual([]);
   });
 
@@ -770,8 +809,8 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
       { pid: 105, group: '/home/user/.ssh', reason: 'SSH keys/config' },
     ]);
     const agents = [{ pid: 105, agent: 'Agent5', category: 'ai', instanceId: '105:u' }];
-    const first = await fileWatcher.scanAllFileHandles(agents);
-    const second = await fileWatcher.scanAllFileHandles(agents); // still holding
+    const first = await scanRm(state, agents);
+    const second = await scanRm(state, agents); // still holding
     expect(first).toHaveLength(1);
     expect(second).toHaveLength(0); // sustained hold → one event, not one-per-scan
   });
@@ -780,19 +819,168 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
   // instance — its hold must fire again, not be swallowed by the dead process's
   // holding-dedup key.
   it('a reused pid does not inherit the dead instance holding-dedup', async () => {
-    mockGetSensitiveHolders.mockResolvedValue([
-      { pid: 105, group: '/home/user/.ssh', reason: 'SSH keys/config' },
-    ]);
+    mockGetSensitiveHolders
+      .mockResolvedValueOnce([{ pid: 105, group: '/home/user/.ssh', reason: 'SSH keys/config' }])
+      .mockResolvedValueOnce([
+        {
+          pid: 105,
+          createTime100ns: '133000000000000001',
+          group: '/home/user/.ssh',
+          reason: 'SSH keys/config',
+        },
+      ]);
     const gen1 = [
       { pid: 105, agent: 'Agent5', category: 'ai', startTime: 111, instanceId: '105:111' },
     ];
     const gen2 = [
-      { pid: 105, agent: 'Agent5', category: 'ai', startTime: 222, instanceId: '105:222' },
+      {
+        pid: 105,
+        agent: 'Agent5',
+        category: 'ai',
+        startTime: 222,
+        instanceId: '105:222',
+        createTime100ns: '133000000000000001',
+      },
     ];
-    const first = await fileWatcher.scanAllFileHandles(gen1);
-    const second = await fileWatcher.scanAllFileHandles(gen2);
+    const first = await scanRm(state, gen1);
+    const second = await scanRm(state, gen2);
     expect(first).toHaveLength(1);
     expect(second).toHaveLength(1); // new instance on the recycled pid → real event
+  });
+
+  it('does not dedup two verified births that share a PID and birth millisecond', async () => {
+    const firstBirth = RM_TEST_BIRTH;
+    const secondBirth = '133000000000000001';
+    const group = '/home/user/.ssh';
+    mockGetSensitiveHolders
+      .mockResolvedValueOnce([{ pid: 105, createTime100ns: firstBirth, group, reason: 'SSH' }])
+      .mockResolvedValueOnce([{ pid: 105, createTime100ns: secondBirth, group, reason: 'SSH' }]);
+    const firstAgent = {
+      pid: 105,
+      agent: 'First Agent',
+      category: 'ai',
+      instanceId: '105:1717000000000',
+      createTime100ns: firstBirth,
+    };
+    const secondAgent = { ...firstAgent, agent: 'Second Agent', createTime100ns: secondBirth };
+
+    const first = await scanRm(state, [firstAgent]);
+    const second = await scanRm(state, [secondAgent]);
+    expect(first).toHaveLength(1);
+    expect(second).toHaveLength(1);
+    expect(second[0].agent).toBe('Second Agent');
+    expect(state.knownHandles.size).toBe(2);
+    fileWatcher.pruneKnownHandles([secondAgent]);
+    expect([...state.knownHandles.keys()]).toEqual([`${secondAgent.instanceId}|${secondBirth}`]);
+  });
+
+  it('does not attribute a delayed RM holder to a new generation in the same birth millisecond', async () => {
+    const oldBirth = '133000000000000000';
+    const newBirth = '133000000000000001';
+    const oldAgent = {
+      pid: 105,
+      agent: 'Old Agent',
+      category: 'ai',
+      instanceId: '105:1717000000000',
+      createTime100ns: oldBirth,
+    };
+    const newAgent = { ...oldAgent, agent: 'New Agent', createTime100ns: newBirth };
+    let current = [oldAgent];
+    state.getLatestAgents = () => current;
+    let finishFetch;
+    mockGetSensitiveHolders
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishFetch = resolve;
+          }),
+      )
+      .mockResolvedValueOnce([
+        { pid: 105, createTime100ns: newBirth, group: '/home/user/.ssh', reason: 'SSH' },
+      ]);
+
+    const delayed = fileWatcher.scanAllFileHandles([oldAgent]);
+    expect(finishFetch).toBeTypeOf('function');
+    current = [newAgent];
+    finishFetch([{ pid: 105, createTime100ns: oldBirth, group: '/home/user/.ssh', reason: 'SSH' }]);
+    expect(await delayed).toEqual([]);
+    expect(state.knownHandles.size).toBe(0);
+    expect(state.activityLog).toEqual([]);
+    expect(fileWatcher.getFileSensorHealth()['fs-rm'].state).toBe('DEGRADED');
+
+    const fresh = await fileWatcher.scanAllFileHandles([newAgent]);
+    expect(fresh).toHaveLength(1);
+    expect(fresh[0].agent).toBe('New Agent');
+    expect(state.activityLog).toEqual(fresh);
+  });
+
+  it('does not turn a population outage during RM collection into a confirmed hold or healthy scan', async () => {
+    const birth = '133000000000000001';
+    const agent = {
+      pid: 105,
+      agent: 'Agent5',
+      category: 'ai',
+      instanceId: '105:1717000000000',
+      createTime100ns: birth,
+    };
+    state.getLatestAgents = () => [agent];
+    let reliable = true;
+    fileWatcher._setDepsForTest({
+      getProcessCapabilities: () => ({ populationReliable: reliable }),
+    });
+    let finishFetch;
+    mockGetSensitiveHolders.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishFetch = resolve;
+        }),
+    );
+
+    const pending = fileWatcher.scanAllFileHandles([agent]);
+    reliable = false;
+    finishFetch([{ pid: 105, createTime100ns: birth, group: '/home/user/.ssh', reason: 'SSH' }]);
+    expect(await pending).toEqual([]);
+    expect(state.activityLog).toEqual([]);
+    expect(state.knownHandles.size).toBe(0);
+    expect(fileWatcher.getFileSensorHealth()['fs-rm'].detail).toBe(
+      'process-observation-unavailable',
+    );
+  });
+
+  it('marks a holder unverifiable while the process snapshot has only a millisecond birth', async () => {
+    mockGetSensitiveHolders.mockResolvedValue([
+      { pid: 105, group: '/home/user/.ssh', reason: 'SSH' },
+    ]);
+    const withoutExactBirth = {
+      pid: 105,
+      agent: 'Agent5',
+      category: 'ai',
+      instanceId: '105:1717000000000',
+    };
+    state.getLatestAgents = () => [withoutExactBirth];
+    expect(await fileWatcher.scanAllFileHandles([withoutExactBirth])).toEqual([]);
+    expect(state.knownHandles.size).toBe(0);
+    expect(fileWatcher.getFileSensorHealth()['fs-rm'].detail).toBe('rm-holder-identity-unverified');
+
+    const recovered = withRmBirth([withoutExactBirth]);
+    state.getLatestAgents = () => recovered;
+    const events = await fileWatcher.scanAllFileHandles(recovered);
+    expect(events).toHaveLength(1);
+    expect(fileWatcher.getFileSensorHealth()['fs-rm'].state).toBe('HEALTHY');
+  });
+
+  it('marks a failed RM transport as failed rather than a healthy empty scan', async () => {
+    mockGetSensitiveHolders.mockRejectedValue(new Error('private path failure canary'));
+    const agents = withRmBirth([
+      { pid: 105, agent: 'Agent5', category: 'ai', instanceId: '105:1717000000000' },
+    ]);
+    state.getLatestAgents = () => agents;
+
+    expect(await fileWatcher.scanAllFileHandles(agents)).toEqual([]);
+    const health = fileWatcher.getFileSensorHealth()['fs-rm'];
+    expect(health.state).toBe('FAILED');
+    expect(health.lastError).toBe('rm-fetch-failed');
+    expect(JSON.stringify(health)).not.toContain('private path failure canary');
   });
 });
 
@@ -805,13 +993,14 @@ describe('file-watcher hot read-detect cycle (cross-cycle dedup)', () => {
   let state;
   let mockFull;
   let mockHot;
-  const HOLDER = [{ pid: 105, group: '/home/user/.ssh', reason: 'SSH keys/config' }];
-  const AGENTS = [{ pid: 105, agent: 'Agent5', category: 'ai', instanceId: '105:u' }];
+  const HOLDER = withRmBirth([{ pid: 105, group: '/home/user/.ssh', reason: 'SSH keys/config' }]);
+  const AGENTS = withRmBirth([{ pid: 105, agent: 'Agent5', category: 'ai', instanceId: '105:u' }]);
 
   beforeEach(() => {
     mockFull = vi.fn().mockResolvedValue(HOLDER);
     mockHot = vi.fn().mockResolvedValue(HOLDER);
     state = makeState();
+    state.getLatestAgents = () => AGENTS;
     fileWatcher.init(state);
     fileWatcher._resetForTest();
     fileWatcher._setDepsForTest({
@@ -1013,7 +1202,9 @@ describe('file-watcher instanceId on FileEvent', () => {
       state = makeState();
       fileWatcher.init(state);
       fileWatcher._resetForTest();
-      fileWatcher._setDepsForTest({ getSensitiveHolders: mockGetSensitiveHolders });
+      fileWatcher._setDepsForTest({
+        getSensitiveHolders: async () => withRmBirth(await mockGetSensitiveHolders()),
+      });
     });
 
     it('stamps the holder agent key, not the first agent key (C-01)', async () => {
@@ -1024,7 +1215,7 @@ describe('file-watcher instanceId on FileEvent', () => {
         { pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:1700000000111' },
         { pid: 105, agent: 'Agent5', category: 'ai', instanceId: '105:1700000000555' },
       ];
-      const events = await fileWatcher.scanAllFileHandles(agents);
+      const events = await scanRm(state, agents);
       expect(events).toHaveLength(1);
       expect(events[0].agent).toBe('Agent5');
       expect(events[0].instanceId).toBe('105:1700000000555');
@@ -1055,7 +1246,7 @@ describe('file-watcher instanceId on FileEvent', () => {
           instanceId: '200:1700000000222',
         },
       ];
-      const events = await fileWatcher.scanAllFileHandles(agents);
+      const events = await scanRm(state, agents);
       expect(events).toHaveLength(2);
       expect(events.map((e) => e.agent)).toEqual(['Claude Code', 'Claude Code']);
       expect(events[0].instanceId).toBe('100:1700000000111');

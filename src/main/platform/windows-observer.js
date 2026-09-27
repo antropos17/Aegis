@@ -80,6 +80,19 @@ function validateCwds(rows, pids) {
   return rows;
 }
 
+/** Check a canonical decimal FILETIME without converting it through an imprecise JS number.
+ * @param {unknown} value
+ * @returns {boolean}
+ * @since 0.17.0
+ */
+function validCreateTime100ns(value) {
+  return (
+    typeof value === 'string' &&
+    /^[1-9]\d{0,19}$/.test(value) &&
+    BigInt(value) <= 18446744073709551615n
+  );
+}
+
 /** Bind native holder indices to the original groups; helper output carries no paths.
  * @param {Array} rows
  * @param {Array} groups
@@ -97,18 +110,29 @@ function parseNativeHolders(rows, groups) {
       row.index < 0 ||
       row.index >= groups.length ||
       seen.has(row.index) ||
-      !Array.isArray(row.pids)
+      !Array.isArray(row.holders)
     )
       throw new Error('Invalid holder group');
     seen.add(row.index);
-    for (const pid of row.pids) {
-      if (!Number.isInteger(pid) || pid <= 0 || pid > 0xffffffff)
-        throw new Error('Invalid holder PID');
+    for (const holder of row.holders) {
+      if (
+        !holder ||
+        !Number.isInteger(holder.pid) ||
+        holder.pid <= 0 ||
+        holder.pid > 0xffffffff ||
+        !validCreateTime100ns(holder.createTime100ns)
+      )
+        throw new Error('Invalid holder identity');
       const { group, reason } = groups[row.index];
-      holders.push({ pid, group, reason });
+      holders.push({ pid: holder.pid, createTime100ns: holder.createTime100ns, group, reason });
     }
   }
   return holders;
 }
 
-module.exports = { createWindowsObserver, validateCwds, parseNativeHolders };
+module.exports = {
+  createWindowsObserver,
+  validateCwds,
+  parseNativeHolders,
+  validCreateTime100ns,
+};

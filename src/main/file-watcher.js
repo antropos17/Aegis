@@ -860,8 +860,7 @@ async function probeWatchDirs(dirs) {
 }
 
 /**
- * Dedup key for _state.knownHandles: the agent's stamped process INSTANCE, never
- * its bare pid and never a second local derivation. Windows recycles PIDs, so a
+ * Dedup key for _state.knownHandles: the agent's stamped process instance. Windows recycles PIDs, so a
  * pid-keyed store lets a new process inherit a dead one's seen-set. Reconstructing
  * via buildInstanceId from partial fields can disagree with the scan-batch stamp
  * (ai-mistakes.md #19) — so unstamped agents get no handle-dedup entry this tick.
@@ -870,6 +869,20 @@ async function probeWatchDirs(dirs) {
  */
 function handleKey(agent) {
   return readInstanceId(agent);
+}
+
+/**
+ * RM uses 100 ns birth precision so two Windows processes born in the same
+ * millisecond cannot share a holding seen-set. The legacy handle pool keeps its
+ * existing instanceId key through sidecar-to-CIM precision changes.
+ * @param {{instanceId?: string, createTime100ns?: string|null}} agent
+ * @returns {string|null}
+ */
+function rmHolderKey(agent) {
+  const instanceId = handleKey(agent);
+  return instanceId && typeof agent.createTime100ns === 'string'
+    ? `${instanceId}|${agent.createTime100ns}`
+    : null;
 }
 
 /**
@@ -1024,8 +1037,8 @@ function resolveReadMechanism(now) {
 /**
  * Restart Manager scan path (win32 primary): ONE powershell spawn returns every
  * process holding a handle to a registered sensitive directory group. Each holder
- * PID is mapped to its OWNING agent (C-01 — resolved from the PID, never
- * cross-wired); AEGIS's own PID and non-agent holders are dropped. Emits an
+ * PID and creation FILETIME are matched to its current agent (C-01); AEGIS's own
+ * PID and non-agent holders are dropped. Emits an
  * `action:'holding'` event — a point-in-time handle HOLD at the scan tick, NOT a
  * read/access. Dedups per-instance by group via knownHandles so a sustained hold
  * fires once, not once-per-scan.
@@ -1041,8 +1054,8 @@ function resolveReadMechanism(now) {
  * @since v0.10.0
  */
 async function scanViaRestartManager(agents, fetchHolders = _getSensitiveHolders) {
-  // G′ invariant, not a scheduling decision: _scanRmHolders maps a live holder pid
-  // onto an agent record and stamps RM_HOLDER_PID — `confirmed` — into the audit log.
+  // G′ invariant, not a scheduling decision: _scanRmHolders matches the holder's
+  // PID and exact birth to an agent before stamping RM_HOLDER_PID as confirmed.
   // That stamp must be impossible against a population the process sensor cannot
   // vouch for, whoever called us. scan-loop refuses earlier and logs the skip; this
   // guard is what makes the invariant hold rather than the schedule.
@@ -1053,13 +1066,18 @@ async function scanViaRestartManager(agents, fetchHolders = _getSensitiveHolders
   // B-S09: legitimate single-flight skip — not FAILED, not a success tick.
   if (_rmScanInFlight) return [];
   _rmScanInFlight = true;
-  const now = Date.now();
   try {
-    const events = await _scanRmHolders(agents, fetchHolders);
-    _fsHealth[FS_SENSOR.RM] = sensorHealth.markHealthy(_fsHealth[FS_SENSOR.RM], now);
+    const { events, degradedReason } = await _scanRmHolders(agents, fetchHolders);
+    const completedAt = Date.now();
+    _fsHealth[FS_SENSOR.RM] = degradedReason
+      ? sensorHealth.markDegraded(_fsHealth[FS_SENSOR.RM], completedAt, {
+          error: degradedReason,
+          detail: degradedReason,
+        })
+      : sensorHealth.markHealthy(_fsHealth[FS_SENSOR.RM], completedAt);
     return events;
   } catch {
-    _fsHealth[FS_SENSOR.RM] = sensorHealth.markFailed(_fsHealth[FS_SENSOR.RM], now, {
+    _fsHealth[FS_SENSOR.RM] = sensorHealth.markFailed(_fsHealth[FS_SENSOR.RM], Date.now(), {
       error: 'rm-fetch-failed',
       detail: 'rm-fetch-failed',
     });
@@ -1071,29 +1089,53 @@ async function scanViaRestartManager(agents, fetchHolders = _getSensitiveHolders
 }
 
 /**
- * Core RM holder→agent mapping + holding-event emission (C-01: agent resolved from
- * the holder PID, never cross-wired). Split out so scanViaRestartManager can wrap
+ * Core RM holder→agent mapping + holding-event emission (C-01: current PID and exact
+ * process creation time must both match). Split out so scanViaRestartManager can wrap
  * it with the single-flight guard.
  * @param {Array} agents
  * @param {Function} fetchHolders - Holder source (full or hot).
- * @returns {Promise<Array>}
+ * @returns {Promise<{events: Array, degradedReason: string|null}>}
  */
 async function _scanRmHolders(agents, fetchHolders) {
   // Let fetch failures propagate so scanViaRestartManager can mark FAILED.
   const holders = await fetchHolders();
-  if (!Array.isArray(holders) || holders.length === 0) return [];
+  // The process population may have failed or changed while RM was collecting.
+  // Recheck after the await and resolve owners against the current list.
+  if (!populationReliable()) return { events: [], degradedReason: SCOPE_UNAVAILABLE_REASON };
+  if (!Array.isArray(holders)) throw new Error('Invalid RM holder observation');
+  const currentAgents = _state.getLatestAgents();
+  if (!Array.isArray(currentAgents))
+    return { events: [], degradedReason: SCOPE_UNAVAILABLE_REASON };
+  if (holders.length === 0) return { events: [], degradedReason: null };
   const toScan =
-    _state && _state.isOtherPanelExpanded() ? agents : agents.filter((a) => a.category === 'ai');
+    _state && _state.isOtherPanelExpanded()
+      ? currentAgents
+      : currentAgents.filter((a) => a.category === 'ai');
   const pidToAgent = new Map();
   for (const a of toScan) pidToAgent.set(a.pid, a);
+  const initiallyTrackedPids = new Set(agents.map((a) => a.pid));
   const kh = _state.knownHandles;
   const newAccess = [];
+  let identityUnverified = false;
   for (const h of holders) {
     if (h.pid === process.pid) continue; // own-PID guard — never blame AEGIS itself
     const agent = pidToAgent.get(h.pid);
-    if (!agent) continue; // holder is not a tracked (in-scope) agent — drop
+    if (!agent) {
+      if (initiallyTrackedPids.has(h.pid)) identityUnverified = true;
+      continue; // holder is not a tracked (in-scope) agent — drop
+    }
+    // PID and millisecond instanceId alone cannot prove the RM holder belongs to
+    // this generation. The two fresh FILETIME strings must agree exactly.
+    if (
+      typeof h.createTime100ns !== 'string' ||
+      typeof agent.createTime100ns !== 'string' ||
+      h.createTime100ns !== agent.createTime100ns
+    ) {
+      identityUnverified = true;
+      continue;
+    }
     const group = h.group;
-    const key = handleKey(agent);
+    const key = rmHolderKey(agent);
     const dedupKey = 'holding|' + group;
     if (key) {
       if (!kh.has(key)) kh.set(key, new Set());
@@ -1114,16 +1156,15 @@ async function _scanRmHolders(agents, fetchHolders) {
     const reason = h.reason || classifySensitive(groupSep) || classifySensitive(group) || '';
     const selfAccess =
       reason !== '' && (isSelfAccess(agent.agent, groupSep) || isSelfAccess(agent.agent, group));
-    // Confirmed: the agent was resolved from the holder PID (never cross-wired).
+    // Confirmed: the agent and holder share PID and exact process creation time.
     const evidence = [EVIDENCE.RM_HOLDER_PID];
     if (selfAccess) evidence.push(EVIDENCE.SELF_CONFIG_PATH);
     const event = {
       agent: agent.agent,
       pid: h.pid,
-      // From the agent `pidToAgent` matched for THIS holder, built from the agents
-      // passed into this very call. Two instances sharing a name but not a pid
-      // therefore stamp two different keys — which is the whole point.
+      // From the current agent that matched this holder's PID and exact birth.
       instanceId: readInstanceId(agent),
+      createTime100ns: h.createTime100ns,
       parentEditor: agent.parentEditor || null,
       cwd: agent.cwd || null,
       file: group,
@@ -1144,7 +1185,10 @@ async function _scanRmHolders(agents, fetchHolders) {
     }
     _state.recordFileAccess(event.instanceId, agent.agent, group, event.sensitive, event.reason);
   }
-  return newAccess;
+  return {
+    events: newAccess,
+    degradedReason: identityUnverified ? 'rm-holder-identity-unverified' : null,
+  };
 }
 
 /**
@@ -1299,12 +1343,22 @@ async function scanAllFileHandles(agents) {
  */
 function pruneKnownHandles(activeAgents, options = {}) {
   const activeKeys = new Set();
+  const birthPrecisionUnavailable = new Set();
   for (const a of activeAgents) {
     const k = handleKey(a);
-    if (k) activeKeys.add(k);
+    if (!k) continue;
+    activeKeys.add(k);
+    const rmKey = rmHolderKey(a);
+    if (rmKey) activeKeys.add(rmKey);
+    else birthPrecisionUnavailable.add(k);
   }
   for (const key of _state.knownHandles.keys()) {
     if (activeKeys.has(key)) continue;
+    // A CIM fallback can still prove the millisecond instance while losing raw
+    // FILETIME. Keep its exact-key history until a later pass can compare births.
+    const precisionSeparator = key.indexOf('|');
+    if (precisionSeparator > 0 && birthPrecisionUnavailable.has(key.slice(0, precisionSeparator)))
+      continue;
     // An unknown generation cannot prove the old instance of this PID stopped
     // holding a file. Preserve only that PID; prune unrelated stale generations.
     const separator = key.indexOf(':');

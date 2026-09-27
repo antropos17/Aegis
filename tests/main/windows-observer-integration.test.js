@@ -144,23 +144,71 @@ it('falls back after malformed CWD output and retains the legacy empty-on-error 
 it('maps real collector group indices and retains the PowerShell RM fallback', async () => {
   await withProviders(
     [
-      native([{ index: 0, pids: [42] }]),
+      native([{ index: 0, holders: [{ pid: 42, createTime100ns: '133000000000000001' }] }]),
       native([]),
-      '[{"group":"/fallback","reason":"fixture","pids":[43]}]',
+      (file, args, opts, cb) => {
+        const [group] = JSON.parse(opts.env.AEGIS_RM_GROUPS);
+        cb(
+          null,
+          JSON.stringify([
+            {
+              group: group.group,
+              reason: group.reason,
+              holders: [{ pid: 43, createTime100ns: '133000000000000002' }],
+            },
+          ]),
+        );
+      },
     ],
     async (win, rm, exec) => {
       const groups = rm.buildSensitiveGroups(['fixture'], false);
       expect(await rm.getSensitiveHolders(['fixture'], false)).toEqual([
-        { pid: 42, group: groups[0].group, reason: 'fixture' },
+        {
+          pid: 42,
+          createTime100ns: '133000000000000001',
+          group: groups[0].group,
+          reason: 'fixture',
+        },
       ]);
       expect(await rm.getSensitiveHolders(['fixture'], false)).toEqual([
-        { pid: 43, group: '/fallback', reason: 'fixture' },
+        {
+          pid: 43,
+          createTime100ns: '133000000000000002',
+          group: groups[0].group,
+          reason: 'fixture',
+        },
       ]);
       expect(exec.mock.calls.map((c) => c[0])).toEqual([
         '/observer',
         '/observer',
         'powershell.exe',
       ]);
+    },
+  );
+});
+
+it('rejects a malformed fallback holder instead of reporting a clean empty scan', async () => {
+  await withProviders(
+    [
+      native([]),
+      (file, args, opts, cb) => {
+        const [group] = JSON.parse(opts.env.AEGIS_RM_GROUPS);
+        cb(
+          null,
+          JSON.stringify([
+            {
+              group: group.group,
+              reason: group.reason,
+              holders: [{ pid: 43, createTime100ns: '0' }],
+            },
+          ]),
+        );
+      },
+    ],
+    async (win, rm) => {
+      await expect(rm.getSensitiveHolders(['fixture'], false)).rejects.toThrow(
+        'Invalid Restart Manager fallback response',
+      );
     },
   );
 });

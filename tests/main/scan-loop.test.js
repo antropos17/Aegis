@@ -304,6 +304,22 @@ describe('scan-loop', () => {
       expect(scanLoop.dedupFileEvent(newLife)).not.toBeNull();
     });
 
+    it('keeps two RM holders born in the same millisecond independent', () => {
+      const base = {
+        agent: 'Cursor',
+        pid: 42,
+        instanceId: '42:1717000000000',
+        file: '/home/user/.ssh',
+        action: 'holding',
+      };
+      expect(
+        scanLoop.dedupFileEvent({ ...base, createTime100ns: '133000000000000000' }),
+      ).not.toBeNull();
+      expect(
+        scanLoop.dedupFileEvent({ ...base, createTime100ns: '133000000000000001' }),
+      ).not.toBeNull();
+    });
+
     it('D: unattributed events for the same path do not collapse into a null bucket', () => {
       // Historical bug: key was `''|path` for all unattributed → one observation
       // suppressed all later independent unattributed hits within 30s.

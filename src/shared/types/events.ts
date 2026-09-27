@@ -81,6 +81,8 @@ export interface FileEvent {
    * @since v0.12.0
    */
   readonly instanceId: string | null;
+  /** Exact Windows RM process birth, when this holding event was verified against it. */
+  readonly createTime100ns?: string;
   readonly parentEditor: string | null;
   readonly cwd: string | null;
   readonly file: string;
