@@ -24,6 +24,19 @@ it('parses both fixed check contracts into detached typed observations', async (
     expect(parsed?.report).not.toHaveProperty('gaps');
   }
 });
+it('accepts only fixed AppContainer preflight metadata', async () => {
+  const wire = record(
+    (await previewActionCoverage({ action: 'check-route', route: 'appcontainer' })).check,
+  );
+  const parsed = parseActionCheck(wire);
+  expect(parsed?.report).toMatchObject({ helper: 'present', terminal: 'unavailable' });
+  const report = record(wire.report);
+  report.helper = 'PRIVATE_PATH';
+  expect(parseActionCheck(wire)).toBeNull();
+  report.helper = 'present';
+  report.launch = { executable: 'PRIVATE' };
+  expect(parseActionCheck(wire)).toBeNull();
+});
 it('accepts only an ask decision with a review-required reason in single and catalog checks', async () => {
   const single = await example();
   Object.assign(record(single.report), { policyDecision: 'ask', reason: 'review-required' });

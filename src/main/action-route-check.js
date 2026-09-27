@@ -3,7 +3,9 @@
 const { prepareExecution } = require('./execution-policy');
 const { isExecutionRuntimeSupported } = require('./execution-runtime');
 const { isTerminalAvailable } = require('./action-confirmation-terminal');
-const ROUTES = Object.freeze(['direct', 'terminal', 'mcp-stdio', 'mcp-review']);
+const { statSync } = require('node:fs');
+const { helperPath } = require('./mcp-gateway-windows-job');
+const ROUTES = Object.freeze(['direct', 'terminal', 'mcp-stdio', 'mcp-review', 'appcontainer']);
 const LIMITS = Object.freeze({ checkMs: 1500 });
 let testDeps = null;
 
@@ -21,11 +23,12 @@ function baseReport(route, runtime, terminal) {
     runtime,
     terminal,
     terminalScope: 'checking-process-only',
-    askBehavior: ['terminal', 'mcp-review'].includes(route)
+    askBehavior: ['terminal', 'mcp-review', 'appcontainer'].includes(route)
       ? 'terminal-confirmation'
       : 'not-started',
-    control: 'direct-child-only',
-    descendantControl: 'unsupported',
+    control: route === 'appcontainer' ? 'not-started' : 'direct-child-only',
+    descendantControl: route === 'appcontainer' ? 'not-started' : 'unsupported',
+    ...(route === 'appcontainer' ? { helper: 'not-checked' } : {}),
     outsideRouteCoverage: 'unknown',
     connection: 'not-checked',
     blockingVerification: 'not-performed',
@@ -56,13 +59,30 @@ function baseReport(route, runtime, terminal) {
 async function checkActionRoute(route, policyPath, requestPath, { signal } = {}) {
   if (!ROUTES.includes(route)) throw new Error('route-unsupported');
   const deps = testDeps || {};
-  const needsTerminal = ['terminal', 'mcp-review'].includes(route);
+  const needsTerminal = ['terminal', 'mcp-review', 'appcontainer'].includes(route);
   const report = baseReport(route, 'not-checked', needsTerminal ? 'not-checked' : 'not-required');
   if (signal?.aborted) return { ...report, reason: 'check-cancelled' };
   try {
-    report.runtime = (deps.runtime || isExecutionRuntimeSupported)() ? 'supported' : 'unsupported';
+    report.runtime =
+      (route !== 'appcontainer' || (deps.platform || process.platform) === 'win32') &&
+      (deps.runtime || isExecutionRuntimeSupported)()
+        ? 'supported'
+        : 'unsupported';
     if (needsTerminal)
       report.terminal = (deps.terminal || isTerminalAvailable)() ? 'available' : 'unavailable';
+    if (route === 'appcontainer' && report.runtime === 'supported')
+      report.helper = (
+        deps.helper ||
+        (() => {
+          try {
+            return statSync(helperPath()).isFile();
+          } catch {
+            return false;
+          }
+        })
+      )()
+        ? 'present'
+        : 'missing';
   } catch {
     return report;
   }
@@ -155,7 +175,7 @@ async function handleActionRouteCheckCLI(args, write) {
     result = baseReport(
       args[1],
       'not-checked',
-      ['terminal', 'mcp-review'].includes(args[1]) ? 'not-checked' : 'not-required',
+      ['terminal', 'mcp-review', 'appcontainer'].includes(args[1]) ? 'not-checked' : 'not-required',
     );
   } finally {
     process.removeListener('SIGINT', abort);
@@ -164,7 +184,8 @@ async function handleActionRouteCheckCLI(args, write) {
   write(JSON.stringify(result));
   return result.configuration === 'valid' &&
     result.runtime === 'supported' &&
-    ['available', 'not-required'].includes(result.terminal)
+    ['available', 'not-required'].includes(result.terminal) &&
+    (result.route !== 'appcontainer' || result.helper === 'present')
     ? 0
     : 2;
 }

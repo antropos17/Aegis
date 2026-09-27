@@ -48,7 +48,7 @@ it.each(api.ROUTES)(
       connection: 'not-checked',
       blockingVerification: 'not-performed',
       outsideRouteCoverage: 'unknown',
-      descendantControl: 'unsupported',
+      descendantControl: route === 'appcontainer' ? 'not-started' : 'unsupported',
       terminalScope: 'checking-process-only',
       configurationObservation: 'single-pass-not-retained',
     });
@@ -70,6 +70,36 @@ it.each(['direct', 'mcp-stdio'])('does not query a terminal for %s', async (rout
     askBehavior: 'not-started',
   });
   expect(deps.prepare).toHaveBeenCalledOnce();
+});
+
+it('checks AppContainer prerequisites without launching or exposing private inputs', async () => {
+  const deps = setup({ platform: 'win32', helper: vi.fn(() => false) });
+  const report = await check('appcontainer');
+  expect(report).toMatchObject({
+    configuration: 'valid',
+    policyDecision: 'allow',
+    runtime: 'supported',
+    terminal: 'available',
+    helper: 'missing',
+    askBehavior: 'terminal-confirmation',
+    control: 'not-started',
+    descendantControl: 'not-started',
+    executionPerformed: false,
+  });
+  expect(deps.helper).toHaveBeenCalledOnce();
+  expect(JSON.stringify(report)).not.toMatch(/PRIVATE|launch/);
+});
+
+it('refuses AppContainer preflight off Windows before reading selected files or helper', async () => {
+  const deps = setup({ platform: 'linux', helper: vi.fn(() => true) });
+  expect(await check('appcontainer')).toMatchObject({
+    configuration: 'not-checked',
+    runtime: 'unsupported',
+    helper: 'not-checked',
+    reason: 'runtime-unsupported',
+  });
+  expect(deps.prepare).not.toHaveBeenCalled();
+  expect(deps.helper).not.toHaveBeenCalled();
 });
 
 it.each(['terminal', 'mcp-review'])(

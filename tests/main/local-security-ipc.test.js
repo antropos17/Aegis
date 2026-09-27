@@ -357,7 +357,7 @@ it.each([
   expect(dialog.showOpenDialog).not.toHaveBeenCalled();
   expect(checks.checkActionRoute).not.toHaveBeenCalled();
 });
-it.each(['direct', 'terminal', 'mcp-stdio', 'mcp-review'])(
+it.each(['direct', 'terminal', 'mcp-stdio', 'mcp-review', 'appcontainer'])(
   'returns a check envelope for %s using only native selections',
   async (route) => {
     const checks = checkDeps();

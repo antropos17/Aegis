@@ -23,7 +23,7 @@ Options:
   --action-mcp-catalog-stdio <catalog.json>  Serve up to eight operator-selected actions through MCP
   --action-mcp-catalog-review <catalog.json> <new-endpoint.json>  Confirm catalog MCP actions in this terminal
   --action-route-check-json <route> <policy.json> <request.json>  Check a selected route without execution
-    Routes: direct, terminal, mcp-stdio, mcp-review (this check grants no permission)
+    Routes: direct, terminal, mcp-stdio, mcp-review, appcontainer (this check grants no permission)
   --action-catalog-check-json <route> <catalog.json>  Check all selected catalog actions without execution
     Routes: mcp-stdio, mcp-review (this check grants no permission)
   --action-mcp-review <policy.json> <request.json> <new-endpoint.json>  Confirm MCP actions in this terminal
