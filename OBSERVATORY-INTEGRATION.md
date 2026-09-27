@@ -60,12 +60,14 @@ Patch SHA256 verified; frontend contents match prepared worktree. Main checkout 
 
 ## Transfer matrix
 
-All 57 preload methods; the original transfer matrix is extended with Local security review and desktop navigation. Payloads, destination and evidence are filled as each path is implemented.
+All 59 preload methods; the original transfer matrix is extended with Local security review, desktop navigation and sensitive alert review. Payloads, destination and evidence are filled as each path is implemented.
 
 | Method | Existing consumers | Observatory destination | Evidence/status |
 | --- | --- | --- | --- |
 | localSecurityReview | Added with Local security | `LocalSecurity.svelte` | Component/browser tests and isolated Electron scan, export, fresh acceptance, reload and foreign-document checks |
 | getStats | lib/stores/ipc.ts | `host.ts` | Implemented; host/component tests and Electron workspace smoke |
+| listSensitiveAlerts | Added with sensitive alert journal | `Notifications.svelte` | Owned renderer read; bounded saved summaries and status |
+| setSensitiveAlertReviewed | Added with sensitive alert journal | `Notifications.svelte` | Owned renderer write; UUID and boolean only, confirmed after a synced temporary file and atomic replacement |
 | getResourceUsage | lib/stores/ipc.ts | `host.ts` | Implemented; host/component tests and Electron workspace smoke |
 | exportLog | App.svelte, lib/components/Reports.svelte | `Reports.svelte` | Implemented; host/component tests and Electron workspace smoke |
 | exportCsv | App.svelte, lib/components/Reports.svelte | `Reports.svelte` | Implemented; host/component tests and Electron workspace smoke |

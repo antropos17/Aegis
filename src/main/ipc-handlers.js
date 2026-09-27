@@ -157,6 +157,17 @@ function register() {
   ipcMain.handle('updates:download', (event) => updateAction(event, 'download'));
   ipcMain.handle('updates:install', (event) => updateAction(event, 'install'));
   ipcMain.handle('get-stats', (event) => ownedRead(event, () => deps.getStats()));
+  ipcMain.handle('sensitive-alerts:list', (event) =>
+    ownedRead(event, () => deps.sensitiveAlertJournal.list()),
+  );
+  ipcMain.handle('sensitive-alerts:set-reviewed', async (event, eventId, reviewed) => {
+    const window = deps.getWindow?.();
+    if (!stillOwned(event, window)) return denied();
+    const result = await deps.sensitiveAlertJournal.setReviewed(eventId, reviewed, () =>
+      stillOwned(event, window),
+    );
+    return stillOwned(event, window) ? result : denied();
+  });
   ipcMain.handle('get-resource-usage', (event) => ownedRead(event, () => deps.getResourceUsage()));
   ipcMain.handle('export-log', async (event) => {
     const window = deps.getWindow?.();

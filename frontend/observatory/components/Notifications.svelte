@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick, onDestroy } from 'svelte';
+  import { tick, onDestroy, onMount } from 'svelte';
   import { t } from '../runtime/i18n';
   import {
     addToast,
@@ -12,16 +12,19 @@
     alertBasename,
     alertControlTarget,
     createSensitiveAlertTracker,
+    parseJournalAlerts,
     type SensitiveAlert,
   } from '../runtime/sensitive-alerts';
-  import type { RecordData, Telemetry } from '../runtime/host';
+  import { confirmed, invoke, type Host, type RecordData, type Telemetry } from '../runtime/host';
   import SensitiveAlertCenter from './SensitiveAlertCenter.svelte';
 
   let {
     telemetry,
+    host = null,
     onInspect,
   }: {
     telemetry: Telemetry;
+    host?: Host | null;
     onInspect?: (_title: string, _row: RecordData) => void;
   } = $props();
   const anomalyTracker = createAnomalyToastTracker();
@@ -30,6 +33,9 @@
   let evicted = $state(0);
   let recent = $state.raw<SensitiveAlert[]>([]);
   let centerOpen = $state(false);
+  let journalStatus = $state('ready');
+  let reviewRevision = 0;
+  let reviewPending = $state(false);
   let centerTrigger: HTMLButtonElement;
   const needsReview = $derived(alerts.filter((item) => !item.reviewed).length);
 
@@ -58,6 +64,46 @@
     return () => clearTimeout(timer);
   });
   onDestroy(clearAllToasts);
+  onMount(() => {
+    if (!host?.listSensitiveAlerts) return;
+    let alive = true;
+    const seedReviewRevision = reviewRevision;
+    invoke(host, 'listSensitiveAlerts')
+      .then((value) => {
+        if (!alive) return;
+        const reply = confirmed(value);
+        if (reviewRevision === seedReviewRevision)
+          journalStatus = typeof reply.status === 'string' ? reply.status : 'ready';
+        alerts = sensitiveTracker.mergeJournal(parseJournalAlerts(reply.items));
+      })
+      .catch(() => {
+        if (alive) journalStatus = 'write-error';
+      });
+    return () => {
+      alive = false;
+    };
+  });
+
+  async function reviewAlert(id: string, reviewed: boolean): Promise<boolean> {
+    if (reviewPending) return false;
+    reviewPending = true;
+    reviewRevision++;
+    try {
+      if (!host || id.startsWith('session-')) {
+        alerts = sensitiveTracker.setReviewed(id, reviewed, false);
+        return true;
+      }
+      const reply = confirmed(await invoke(host, 'setSensitiveAlertReviewed', id, reviewed));
+      journalStatus = typeof reply.status === 'string' ? reply.status : 'ready';
+      alerts = sensitiveTracker.setReviewed(id, reviewed, true);
+      return true;
+    } catch {
+      journalStatus = 'write-error';
+      return false;
+    } finally {
+      reviewPending = false;
+    }
+  }
 
   async function openCenter() {
     centerOpen = true;
@@ -95,9 +141,12 @@
   <SensitiveAlertCenter
     items={alerts}
     {evicted}
-    onReview={(id, reviewed) => (alerts = sensitiveTracker.setReviewed(id, reviewed))}
+    {journalStatus}
+    {reviewPending}
+    onReview={reviewAlert}
     onInspect={onInspect ? openEvidence : undefined}
-    canOpenProcess={(item) => Boolean(onInspect && alertControlTarget(item.event, telemetry))}
+    canOpenProcess={(item) =>
+      Boolean(item.live && onInspect && alertControlTarget(item.event, telemetry))}
     onOpenProcess={openProcessControls}
     onClose={closeCenter}
   />

@@ -8,6 +8,8 @@
   let {
     items,
     evicted,
+    journalStatus = 'ready',
+    reviewPending = false,
     onReview,
     onInspect,
     canOpenProcess,
@@ -16,7 +18,9 @@
   }: {
     items: SensitiveAlert[];
     evicted: number;
-    onReview: (_id: number, _reviewed: boolean) => void;
+    journalStatus?: string;
+    reviewPending?: boolean;
+    onReview: (_id: string, _reviewed: boolean) => Promise<boolean>;
     onInspect?: (_item: SensitiveAlert) => void;
     canOpenProcess?: (_item: SensitiveAlert) => boolean;
     onOpenProcess?: (_item: SensitiveAlert) => void;
@@ -42,8 +46,7 @@
   async function review(item: SensitiveAlert): Promise<void> {
     const removedFromView = filter === 'open' && !item.reviewed;
     const index = visible.findIndex((row) => row.id === item.id);
-    onReview(item.id, !item.reviewed);
-    if (!removedFromView) return;
+    if (!(await onReview(item.id, !item.reviewed)) || !removedFromView) return;
     await tick();
     const buttons = list.querySelectorAll<HTMLButtonElement>('button[data-review-action]');
     (buttons[Math.min(index, buttons.length - 1)] ?? openFilterButton)?.focus();
@@ -67,7 +70,7 @@
       </h2>
       <p>
         {$t(
-          'Observations received in this window. Reviewing a row does not isolate a file or block access.',
+          'Recent sensitive observations. Reviewing a row does not isolate a file or block access.',
         )}
       </p>
     </div>
@@ -77,6 +80,13 @@
     <strong>{$t('{value0} need review', { value0: openCount })}</strong>
     <span>{$t('{value0} retained alerts', { value0: items.length })}</span>
   </div>
+  {#if journalStatus === 'corrupt'}
+    <p class="retention">
+      {$t('Saved alert history was unreadable; review states started fresh.')}
+    </p>
+  {:else if journalStatus === 'write-error'}
+    <p class="retention">{$t('Alert review could not be saved. Try again.')}</p>
+  {/if}
   {#if evicted > 0}
     <p class="retention">
       {$t('{value0} older alerts left this window’s review list.', { value0: evicted })}
@@ -98,13 +108,20 @@
         <div class="record-head">
           <strong>{alertBasename(item.event.file)}</strong>
           <span class="status"
-            >{item.reviewed ? $t('Reviewed this session') : $t('Needs review')}</span
+            >{item.reviewed
+              ? item.savedReview
+                ? $t('Reviewed')
+                : $t('Reviewed this session')
+              : $t('Needs review')}</span
           >
         </div>
         <p class="source">
           {sourceLabel(item)}{item.event._demo === true ? ` · ${$t('Simulated data')}` : ''}
         </p>
-        <p class="path">{item.event.file}</p>
+        {#if item.live}<p class="path">{item.event.file}</p>{/if}
+        {#if !item.live}<p class="details">
+            {$t('Saved summary; full evidence is unavailable in this window.')}
+          </p>{/if}
         <p class="details">
           {$t(
             item.event.action === 'holding'
@@ -118,7 +135,7 @@
             · {item.event.reason}{/if}
         </p>
         <div class="actions">
-          {#if onInspect}
+          {#if onInspect && item.live}
             <button class="review" onclick={() => onInspect(item)}>{$t('Open evidence')}</button>
           {/if}
           {#if onOpenProcess && canOpenProcess?.(item)}
@@ -126,7 +143,11 @@
               >{$t('Open process controls')}</button
             >
           {/if}
-          <button class="review" data-review-action onclick={() => review(item)}
+          <button
+            class="review"
+            data-review-action
+            disabled={reviewPending}
+            onclick={() => review(item)}
             >{item.reviewed ? $t('Return to review') : $t('Mark reviewed')}</button
           >
         </div>

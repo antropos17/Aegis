@@ -2,13 +2,16 @@
 
 ## Sensitive activity review — 27 September 2026
 
-A fixed Alerts entry opens a bounded, session-local review list of sensitive
-file observations delivered to this renderer window. New deliveries show a
-brief bottom toast with a basename and qualified source attribution; initial
-retained events enter the list quietly. The review panel uses the Observatory's
+A fixed Alerts entry opens a bounded review list of recent sensitive file
+observations. Main stores up to 100 private summaries and review decisions under
+userData, keyed by a random event UUID. A new observation of the same path starts
+unreviewed. Restored summaries remain reviewable; full evidence and process controls
+require a live event in this window. New deliveries show a brief bottom toast with
+a basename and qualified source attribution; initial retained events enter quietly.
+The review panel uses the Observatory's
 neutral surface, semantic alert border, stationary controls and native focus
-order. Escape closes it and returns focus to Alerts. Captured evidence remains
-inspectable after a row is marked reviewed, while no review decision is shown as
+order. Escape closes it and returns focus to Alerts. Captured live evidence remains
+inspectable after a row is marked reviewed. A failed save leaves it open; no review decision is shown as
 file isolation, access blocking or selected-action approval. Settings identifies
 its Notifications toggle as desktop-popup only.
 

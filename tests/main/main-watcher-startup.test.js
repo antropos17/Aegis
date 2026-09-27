@@ -104,6 +104,7 @@ describe('main — watcher startup ordering', () => {
 
   beforeEach(() => {
     main._resetWatchersForTest();
+    main._setSensitiveAlertJournalForTest(undefined);
     watchPlan = { state: 'HEALTHY', groups: [{}], liveWatcherCount: 1 };
     watcherMock = {
       setupFileWatchers: vi.fn(async () => {}),
@@ -118,6 +119,7 @@ describe('main — watcher startup ordering', () => {
 
   afterEach(() => {
     main._resetWatchersForTest();
+    main._setSensitiveAlertJournalForTest(undefined);
     vi.useRealTimers();
   });
 
@@ -332,5 +334,40 @@ describe('main — watcher startup ordering', () => {
     await main.startWatchers();
     await vi.advanceTimersByTimeAsync(30_000);
     expect(watcherMock.setupFileWatchers).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps repeated quit requests behind the pending alert-journal drain', async () => {
+    let releaseWatchers;
+    watcherMock.closeFileWatchers = vi.fn(
+      () => new Promise((resolve) => (releaseWatchers = resolve)),
+    );
+    const journal = {
+      hasPending: vi
+        .fn()
+        .mockReturnValueOnce(true)
+        .mockReturnValueOnce(true)
+        .mockReturnValue(false),
+      flush: vi.fn(async () => true),
+    };
+    main._setSensitiveAlertJournalForTest(journal);
+    const quit = vi.spyOn(fakeElectron.app, 'quit').mockImplementation(() => {});
+    const shutdown = vi.spyOn(logger, 'shutdown').mockImplementation(() => {});
+    const beforeQuit = appListeners['before-quit'][0];
+    const first = { preventDefault: vi.fn() };
+    const second = { preventDefault: vi.fn() };
+
+    beforeQuit(first);
+    beforeQuit(second);
+    expect(first.preventDefault).toHaveBeenCalledOnce();
+    expect(second.preventDefault).toHaveBeenCalledOnce();
+    expect(shutdown).not.toHaveBeenCalled();
+    expect(quit).not.toHaveBeenCalled();
+
+    releaseWatchers();
+    await flush();
+    expect(journal.flush).toHaveBeenCalledOnce();
+    expect(quit).toHaveBeenCalledOnce();
+    beforeQuit({ preventDefault: vi.fn() });
+    expect(shutdown).toHaveBeenCalledOnce();
   });
 });

@@ -2724,7 +2724,11 @@ describe('scan-loop', () => {
     it('tap 2: doFileScan ingests each event that passed dedup and none that dedup dropped', async () => {
       const sequenceEngine = makeEngine();
       const raw = twoEventsOnePath();
+      const recordAcceptedFileEvent = vi.fn((ev) => {
+        ev.eventId = 'accepted-before-display';
+      });
       const deps = makeDeps({
+        recordAcceptedFileEvent,
         getLatestAgents: vi.fn().mockReturnValue([{ agent: 'Claude Code' }]),
         watcher: {
           pruneKnownHandles: vi.fn(),
@@ -2738,6 +2742,8 @@ describe('scan-loop', () => {
       await vi.advanceTimersByTimeAsync(8000);
 
       expect(sequenceEngine.ingest).toHaveBeenCalledTimes(1);
+      expect(recordAcceptedFileEvent).toHaveBeenCalledExactlyOnceWith(raw[0]);
+      expect(deps.fileAccessBatcher.push.mock.calls[0][0].eventId).toBe('accepted-before-display');
       // The SAME record the audit call received — dedup stamps `repeatCount` on it.
       expect(sequenceEngine.ingest).toHaveBeenCalledWith(raw[0]);
       expect(sequenceEngine.ingest).not.toHaveBeenCalledWith(raw[1]);
@@ -2783,7 +2789,11 @@ describe('scan-loop', () => {
     it('tap 2: doHotReadScan ingests the deduped hot-read events through the same tap', async () => {
       const sequenceEngine = makeEngine();
       const raw = twoEventsOnePath();
+      const recordAcceptedFileEvent = vi.fn((ev) => {
+        ev.eventId = 'accepted-before-display';
+      });
       const deps = makeDeps({
+        recordAcceptedFileEvent,
         getLatestAgents: vi.fn().mockReturnValue([{ agent: 'Claude Code' }]),
         watcher: {
           pruneKnownHandles: vi.fn(),
@@ -2802,6 +2812,8 @@ describe('scan-loop', () => {
 
       expect(deps.watcher.scanHotFileHolders).toHaveBeenCalledTimes(1);
       expect(sequenceEngine.ingest).toHaveBeenCalledTimes(1);
+      expect(recordAcceptedFileEvent).toHaveBeenCalledExactlyOnceWith(raw[0]);
+      expect(deps.fileAccessBatcher.push.mock.calls[0][0].eventId).toBe('accepted-before-display');
       expect(sequenceEngine.ingest).toHaveBeenCalledWith(raw[0]);
       expect(sequenceEngine.ingest).not.toHaveBeenCalledWith(raw[1]);
     });

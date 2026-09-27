@@ -741,7 +741,7 @@
   entries={commandEntries}
   choose={runCommand}
 />
-<Notifications {telemetry} onInspect={inspect} />
+<Notifications {telemetry} {host} onInspect={inspect} />
 <Details
   {host}
   {telemetry}
