@@ -107,6 +107,20 @@ describe('AppContainer receipt boundary', () => {
     });
   });
 
+  it('keeps import state unknown when helper cleanup or final receipt is missing', async () => {
+    const child = peer({ cleanupConfirmed: false, actionOutcome: null });
+    const pending = runProtectedAction({}, undefined, null, () => child, runner.LIMITS, {
+      ...protection,
+      importInput: true,
+    });
+    child.emit('close');
+    expect(await pending).toMatchObject({
+      decision: 'unknown',
+      input: 'unknown',
+      execution: { state: 'unknown' },
+    });
+  });
+
   it('bounds cancellation when the native owner provides no final receipt', async () => {
     vi.useFakeTimers();
     const controller = new AbortController();
@@ -164,6 +178,27 @@ describe('AppContainer receipt boundary', () => {
 });
 
 describe('AppContainer CLI result', () => {
+  it('requires confirmed import for the import route', async () => {
+    const confirm = vi.spyOn(confirmation, 'confirmSelectedAction').mockResolvedValue({
+      decision: 'allow',
+      execution: { state: 'exited', exitCode: 0, outputComplete: true },
+      control: 'windows-appcontainer-job',
+      descendantControl: 'confirmed',
+      isolation,
+      input: 'unknown',
+    });
+    expect(
+      await handleActionExecutionCLI(
+        ['--action-exec-appcontainer-import-confirm', 'policy', 'request', 'C:\\source.bin'],
+        () => {},
+      ),
+    ).toBe(2);
+    expect(confirm).toHaveBeenCalledWith('policy', 'request', {
+      signal: expect.any(AbortSignal),
+      appContainer: true,
+      inputFile: 'C:\\source.bin',
+    });
+  });
   it.each([
     ['verified', 'retained', 'confirmed', 0],
     ['unknown', 'retained', 'confirmed', 2],

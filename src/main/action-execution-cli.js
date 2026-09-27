@@ -10,20 +10,22 @@ const { actionReport } = require('./action-protected-execution');
  */
 async function handleActionExecutionCLI(args, write) {
   if (
-    args.length !== 3 ||
+    args.length !== (args[0] === '--action-exec-appcontainer-import-confirm' ? 4 : 3) ||
     ![
       '--action-exec-json',
       '--action-exec-confirm',
       '--action-exec-windows-job-json',
       '--action-exec-windows-job-confirm',
       '--action-exec-appcontainer-confirm',
+      '--action-exec-appcontainer-import-confirm',
     ].includes(args[0]) ||
     args.slice(1).some((arg) => typeof arg !== 'string' || !arg || arg.startsWith('--'))
   ) {
     write(JSON.stringify({ error: 'expected-action-exec-arguments' }));
     return 1;
   }
-  const appContainer = args[0] === '--action-exec-appcontainer-confirm';
+  const importInput = args[0] === '--action-exec-appcontainer-import-confirm';
+  const appContainer = importInput || args[0] === '--action-exec-appcontainer-confirm';
   const interactive =
     appContainer ||
     args[0] === '--action-exec-confirm' ||
@@ -44,7 +46,7 @@ async function handleActionExecutionCLI(args, write) {
       ? await require('./action-confirmation').confirmSelectedAction(args[1], args[2], {
           signal: controller.signal,
           ...(appContainer
-            ? { appContainer: true }
+            ? { appContainer: true, ...(importInput ? { inputFile: args[3] } : {}) }
             : protectedJob
               ? { protectedDescendants: true }
               : {}),
@@ -62,7 +64,7 @@ async function handleActionExecutionCLI(args, write) {
         state: 'unknown',
         termination: 'unconfirmed',
       },
-      { appContainer, protectedDescendants: protectedJob },
+      { appContainer, protectedDescendants: protectedJob, importInput },
     );
   }
   if (interactive) {
@@ -80,7 +82,8 @@ async function handleActionExecutionCLI(args, write) {
     (!appContainer ||
       (report.isolation?.state === 'verified' &&
         report.isolation?.workspace === 'retained' &&
-        report.isolation?.profileCleanup === 'confirmed'))
+        report.isolation?.profileCleanup === 'confirmed')) &&
+    (!importInput || report.input === 'imported')
     ? 0
     : 2;
 }

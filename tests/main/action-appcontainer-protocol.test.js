@@ -46,12 +46,48 @@ function start() {
   child.on('error', () => {});
   return child;
 }
+function startImport() {
+  const child = adapter.spawnActionInAppContainer(
+    {
+      executable: 'C:\\Windows\\System32\\cmd.exe',
+      cwd: 'C:\\new-workspace',
+      args: ['/d', '/c', 'exit 0'],
+      env: { SystemRoot: 'C:\\Windows' },
+      input: Object.freeze({ path: 'C:\\private\\source.bin', size: 3, sha256: 'a'.repeat(64) }),
+    },
+    process.execPath,
+  );
+  child.on('error', () => {});
+  return child;
+}
 function close(status, code = 0) {
   helper.stderr.write(status);
   helper.emit('exit', code);
   helper.emit('close', code);
 }
 describe('distinct AppContainer native protocol', () => {
+  it('requires a distinct import ready byte and final status before reporting copied input', () => {
+    const child = startImport();
+    const request = JSON.parse(frame);
+    expect(request.purpose).toBe('appcontainer-action-import');
+    expect(request.input).toEqual({
+      path: 'C:\\private\\source.bin',
+      size: 3,
+      sha256: 'a'.repeat(64),
+    });
+    helper.stdout.write('I');
+    close('I,C,1,0,0,0,1,0,1,1,1\n');
+    expect(child.cleanupConfirmed).toBe(true);
+    expect(child.actionOutcome.isolationVerified).toBe(true);
+  });
+
+  it('rejects an ordinary isolated helper receipt for import', () => {
+    const child = startImport();
+    helper.stdout.write('S');
+    close('S,C,1,0,0,0,1,0,1,1,1\n');
+    expect(child.cleanupConfirmed).toBe(false);
+    expect(helper.kill).toHaveBeenCalledWith('SIGKILL');
+  });
   it('requests the isolated purpose with a clean helper environment and consumes fragmented receipts', () => {
     const child = start();
     expect(JSON.parse(frame).purpose).toBe('appcontainer-action');

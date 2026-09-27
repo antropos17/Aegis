@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 
 const require = createRequire(import.meta.url);
 const confirmation = require('../../src/main/action-confirmation');
@@ -124,6 +125,20 @@ function alive(pid) {
   } catch {
     return false;
   }
+}
+async function nativeImportAttempt(input, directory = cwd) {
+  const chosen = selected(probe, ['child', privateFile], directory);
+  const launch = JSON.parse(fs.readFileSync(chosen.request, 'utf8')).action;
+  const peer = spawnActionInAppContainer({ ...launch, input }, helper);
+  peer.on('error', () => {});
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('native import timeout')), 12000);
+    peer.once('close', () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+  });
+  return peer;
 }
 async function listener() {
   let connections = 0;
@@ -251,6 +266,233 @@ describe.skipIf(process.platform !== 'win32')('Windows AppContainer selected act
     });
 
     expect(fs.existsSync(cwd)).toBe(true);
+  }, 15000);
+
+  it('imports only the approved bytes before launch while the original and loopback stay restricted', async () => {
+    const peer = await listener();
+    try {
+      confirmation._setDepsForTest({
+        available: () => true,
+        confirm: async (preview, review) => {
+          expect(review.kind).toBe('appcontainer-import');
+          expect(preview.input).toEqual({
+            path: privateFile,
+            size: fs.statSync(privateFile).size,
+            operation: 'copy-to-input.bin',
+          });
+          expect(JSON.stringify(preview)).not.toContain(
+            createHash('sha256').update(fs.readFileSync(privateFile)).digest('hex'),
+          );
+          return true;
+        },
+        watchTerminal: () => () => {},
+        monitorInput: () => () => {},
+      });
+      const chosen = selected(probe, ['evidence', privateFile, String(peer.port)]);
+      const output = [];
+      const code = await handleActionExecutionCLI(
+        ['--action-exec-appcontainer-import-confirm', chosen.policy, chosen.request, privateFile],
+        (line) => output.push(line),
+      );
+      expect(code).toBe(0);
+      expect(JSON.parse(output[0])).toMatchObject({
+        decision: 'allow',
+        input: 'imported',
+        execution: { state: 'exited', exitCode: 0 },
+        isolation: { state: 'verified', workspace: 'retained' },
+      });
+      expect(fs.readFileSync(path.join(cwd, 'input.bin'))).toEqual(fs.readFileSync(privateFile));
+      const parent = readEvidence('parent.txt');
+      const child = readEvidence('child.txt');
+      expect(parent.read).toBe('UnauthorizedAccessException');
+      expect(parent.import).toBe('secret-leaked');
+      expect(child.import).toBe('secret-leaked');
+      expect(['timeout', 'socket-10013']).toContain(parent.network);
+      expect(peer.connections()).toBe(0);
+      expect(output[0]).not.toContain(privateFile);
+      expect(output[0]).not.toContain('AEGIS_PRIVATE_SENTINEL');
+    } finally {
+      await new Promise((resolve) => peer.server.close(resolve));
+    }
+  }, 15000);
+
+  it('rejects a source mutation after private review before the child starts', async () => {
+    const chosen = selected(probe, ['child', privateFile]);
+    confirmation._setDepsForTest({
+      available: () => true,
+      confirm: async () => {
+        fs.writeFileSync(privateFile, 'CHANGED');
+        return true;
+      },
+      watchTerminal: () => () => {},
+      monitorInput: () => () => {},
+    });
+    const report = await confirmation.confirmSelectedAction(chosen.policy, chosen.request, {
+      appContainer: true,
+      inputFile: privateFile,
+    });
+    expect(report.input).toBe('unknown');
+    expect(report.execution.state).not.toBe('exited');
+    expect(fs.existsSync(path.join(cwd, 'child.txt'))).toBe(false);
+    expect(JSON.stringify(report)).not.toContain(privateFile);
+  }, 15000);
+
+  it('native owner refuses unsafe or changed source descriptors before child launch', async () => {
+    const bytes = fs.readFileSync(privateFile);
+    const good = {
+      path: privateFile,
+      size: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+    };
+    const invalid = [
+      { ...good, path: '\\\\server\\share\\source.bin' },
+      { ...good, path: privateFile + ':stream' },
+      { ...good, size: good.size + 1 },
+      { ...good, sha256: '0'.repeat(64) },
+    ];
+    const large = path.join(root, 'large.bin');
+    fs.writeFileSync(large, Buffer.alloc(65537, 0x61));
+    invalid.push({ path: large, size: 65537, sha256: '0'.repeat(64) });
+    const link = path.join(root, 'linked-private');
+    fs.symlinkSync(path.dirname(privateFile), link, 'junction');
+    invalid.push({ ...good, path: path.join(link, path.basename(privateFile)) });
+    for (const [index, input] of invalid.entries()) {
+      const directory = path.join(root, `refused-${index}`);
+      const peer = await nativeImportAttempt(input, directory);
+      expect(peer.cleanupConfirmed).toBe(false);
+      expect(peer.actionOutcome).toBeNull();
+      expect(fs.existsSync(path.join(directory, 'child.txt'))).toBe(false);
+    }
+  }, 30000);
+
+  it('rejects unsafe import selections before showing the terminal challenge', async () => {
+    const chosen = selected(probe, ['child', privateFile]);
+    const confirm = vi.fn(async () => true);
+    const spawn = vi.fn();
+    confirmation._setDepsForTest({
+      available: () => true,
+      confirm,
+      watchTerminal: () => () => {},
+      monitorInput: () => () => {},
+    });
+    runner._setDepsForTest({ spawnIsolated: spawn });
+    const large = path.join(root, 'too-large.bin');
+    fs.writeFileSync(large, Buffer.alloc(65537));
+    const link = path.join(root, 'source-link');
+    fs.symlinkSync(path.dirname(privateFile), link, 'junction');
+    for (const inputFile of [
+      '\\\\server\\share\\source.bin',
+      privateFile + ':stream',
+      large,
+      path.join(link, path.basename(privateFile)),
+    ]) {
+      const report = await confirmation.confirmSelectedAction(chosen.policy, chosen.request, {
+        appContainer: true,
+        inputFile,
+      });
+      expect(report).toMatchObject({ decision: 'deny', input: 'not-imported' });
+      expect(report.execution.state).toBe('not-started');
+    }
+    expect(confirm).not.toHaveBeenCalled();
+    expect(spawn).not.toHaveBeenCalled();
+    expect(fs.existsSync(cwd)).toBe(false);
+  });
+
+  it('native owner refuses a source that already has a write-capable open handle', async () => {
+    const bytes = fs.readFileSync(privateFile);
+    const input = {
+      path: privateFile,
+      size: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+    };
+    const writer = fs.openSync(privateFile, 'r+');
+    try {
+      const peer = await nativeImportAttempt(input);
+      expect(peer.cleanupConfirmed).toBe(false);
+      expect(fs.existsSync(path.join(cwd, 'child.txt'))).toBe(false);
+    } finally {
+      fs.closeSync(writer);
+    }
+  }, 15000);
+
+  it('removes only its partial input.bin after an injected copy failure', async () => {
+    const source = path.join(root, 'copy-fail-source.bin');
+    const bytes = Buffer.from('approved snapshot');
+    fs.writeFileSync(source, bytes);
+    const peer = await nativeImportAttempt({
+      path: source,
+      size: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+    });
+    expect(peer.cleanupConfirmed).toBe(false);
+    expect(fs.existsSync(path.join(cwd, 'input.bin'))).toBe(false);
+    expect(fs.existsSync(path.join(cwd, 'child.txt'))).toBe(false);
+  }, 15000);
+
+  it('native fixed-drive gate refuses a mapped-drive classification', async () => {
+    const source = path.join(root, 'mapped-source.bin');
+    const bytes = Buffer.from('approved snapshot');
+    fs.writeFileSync(source, bytes);
+    const peer = await nativeImportAttempt({
+      path: source,
+      size: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+    });
+    expect(peer.cleanupConfirmed).toBe(false);
+    expect(fs.existsSync(path.join(cwd, 'input.bin'))).toBe(false);
+    expect(fs.existsSync(path.join(cwd, 'child.txt'))).toBe(false);
+  }, 15000);
+
+  it.each(['deny', 'decline'])(
+    '%s prevents even workspace creation for an import',
+    async (mode) => {
+      const chosen = selected(probe, ['child', privateFile]);
+      if (mode === 'deny') {
+        const policy = JSON.parse(fs.readFileSync(chosen.policy, 'utf8'));
+        policy.rules[0].decision = 'deny';
+        fs.writeFileSync(chosen.policy, JSON.stringify(policy));
+      } else {
+        confirmation._setDepsForTest({
+          available: () => true,
+          confirm: async () => false,
+          watchTerminal: () => () => {},
+          monitorInput: () => () => {},
+        });
+      }
+      const output = [];
+      const code = await handleActionExecutionCLI(
+        ['--action-exec-appcontainer-import-confirm', chosen.policy, chosen.request, privateFile],
+        (line) => output.push(line),
+      );
+      expect(code).toBe(2);
+      expect(JSON.parse(output[0])).toMatchObject({
+        decision: 'deny',
+        input: 'not-imported',
+        execution: { state: 'not-started' },
+      });
+      expect(fs.existsSync(cwd)).toBe(false);
+      expect(output[0]).not.toContain(privateFile);
+    },
+  );
+
+  it('cancellation after copy closes native control before a child can resume', async () => {
+    const source = path.join(root, 'pause-source.bin');
+    fs.writeFileSync(source, 'approved');
+    const chosen = selected(probe, ['child', privateFile]);
+    const controller = new AbortController();
+    const pending = confirmation.confirmSelectedAction(chosen.policy, chosen.request, {
+      appContainer: true,
+      inputFile: source,
+      signal: controller.signal,
+    });
+    await vi.waitFor(() => expect(fs.existsSync(path.join(cwd, 'import-pause.txt'))).toBe(true), {
+      timeout: 5000,
+    });
+    controller.abort();
+    const result = await pending;
+    expect(result.execution.state).not.toBe('exited');
+    expect(fs.existsSync(path.join(cwd, 'child.txt'))).toBe(false);
+    expect(fs.existsSync(path.join(cwd, 'input.bin'))).toBe(false);
   }, 15000);
 
   it('runs installed Node in the new workspace without changing a private sentinel', async () => {

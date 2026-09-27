@@ -89,6 +89,20 @@ describe('private one-use execution approval', () => {
     expect(grants.consumeExecutionApproval(approval, binding)).toBe(false);
   });
 
+  it('binds an imported snapshot to the same one-use action approval', () => {
+    const binding = {};
+    const input = Object.freeze({
+      path: 'C:\\private\\source.bin',
+      size: 3,
+      sha256: 'a'.repeat(64),
+    });
+    const approval = grants.createExecutionApproval(binding, input);
+    expect(grants.consumeExecutionApproval(approval, binding)).toBe(false);
+    expect(grants.consumeExecutionApproval(approval, binding, { ...input })).toBe(false);
+    expect(grants.consumeExecutionApproval(approval, binding, input)).toBe(true);
+    expect(grants.consumeExecutionApproval(approval, binding, input)).toBe(false);
+  });
+
   it.each([null, undefined, 1, 'PRIVATE', []])('rejects nonobject binding %#', (binding) => {
     expect(() => grants.createExecutionApproval(binding)).toThrow('approval-unavailable');
   });

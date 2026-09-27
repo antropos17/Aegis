@@ -20,9 +20,11 @@ function helperPath(runtime = process) {
     : path.resolve(__dirname, '..', '..', 'build', 'sidecar', HELPER);
 }
 
-function actionStatus(bytes, isolated) {
+function actionStatus(bytes, isolated, imported) {
   const format = isolated
-    ? /^S,(C|U),([01]),(-|-?(?:0|[1-9]\d{0,9})),(\d{1,5}),(\d{1,5}),([01]),([01]),([01]),([01]),([01])\n$/
+    ? new RegExp(
+        `^${imported ? 'I' : 'S'},(C|U),([01]),(-|-?(?:0|[1-9]\\d{0,9})),(\\d{1,5}),(\\d{1,5}),([01]),([01]),([01]),([01]),([01])\\n$`,
+      )
     : /^A,(C|U),([01]),(-|-?(?:0|[1-9]\d{0,9})),(\d{1,5}),(\d{1,5}),([01]),([01])\n$/;
   const match = format.exec(bytes.toString('utf8'));
   if (!match) return null;
@@ -58,7 +60,8 @@ function actionStatus(bytes, isolated) {
 }
 
 function spawnProtected(launch, helper, purpose) {
-  const isolated = purpose === 'appcontainer-action';
+  const imported = purpose === 'appcontainer-action-import';
+  const isolated = purpose === 'appcontainer-action' || imported;
   const action = purpose === 'action' || isolated;
   if (!existsSync(helper)) throw Error('gateway-protected-launch-unavailable');
   // The .NET Framework reads profiler controls before the helper's Main runs.
@@ -72,6 +75,7 @@ function spawnProtected(launch, helper, purpose) {
     args: launch.args,
     env: launch.env,
     ...(action ? { purpose } : {}),
+    ...(imported ? { input: launch.input } : {}),
   });
   if (Buffer.byteLength(frame) + 1 > MAX_LAUNCH_BYTES)
     throw Error('gateway-protected-launch-unavailable');
@@ -111,7 +115,7 @@ function spawnProtected(launch, helper, purpose) {
   );
   helperProcess.stdout.on('data', (chunk) => {
     if (!ready) {
-      if (chunk[0] !== (isolated ? 0x53 : 0x52)) {
+      if (chunk[0] !== (imported ? 0x49 : isolated ? 0x53 : 0x52)) {
         clearTimeout(startup);
         fail();
         helperProcess.kill('SIGKILL');
@@ -159,7 +163,7 @@ function spawnProtected(launch, helper, purpose) {
   helperProcess.on('close', (code, signal) => {
     clearTimeout(startup);
     if (action) {
-      peer.actionOutcome = actionStatus(actionStatusBytes, isolated);
+      peer.actionOutcome = actionStatus(actionStatusBytes, isolated, imported);
       statusSeen = !!peer.actionOutcome;
       peer.cleanupConfirmed = !!peer.actionOutcome?.cleanupConfirmed;
       actionStatusBytes.fill(0);
@@ -195,7 +199,11 @@ function spawnActionInWindowsJob(launch, helper = helperPath()) {
  * @param {string} [helper] Explicit native test helper.
  * @returns {object} Child-like control and verified isolation receipt. @since v0.16.0 */
 function spawnActionInAppContainer(launch, helper = helperPath()) {
-  return spawnProtected(launch, helper, 'appcontainer-action');
+  return spawnProtected(
+    launch,
+    helper,
+    launch.input ? 'appcontainer-action-import' : 'appcontainer-action',
+  );
 }
 
 /** @param {object} deps Trusted native transport seam. @returns {void} @since v0.16.0 */
