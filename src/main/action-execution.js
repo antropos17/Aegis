@@ -65,7 +65,6 @@ async function executeAction(policyPath, requestPath, options = {}) {
     actionReport(decision, reason, execution, protection);
   const pinned = Object.hasOwn(options, 'binding');
   const approved = Object.hasOwn(options, 'approval');
-  if (appContainer && !approved) return localReport('deny', 'approval-unavailable');
   if (
     ['protectedDescendants', 'appContainer'].some(
       (key) => Object.hasOwn(options, key) && typeof options[key] !== 'boolean',
@@ -79,6 +78,7 @@ async function executeAction(policyPath, requestPath, options = {}) {
     );
   if (protectedJob && process.platform !== 'win32')
     return localReport('deny', 'protected-runtime-unsupported');
+  if (appContainer && !approved) return localReport('deny', 'approval-unavailable');
   if (input && (!appContainer || !approved || !Object.isFrozen(input)))
     return localReport('deny', 'input-unavailable');
   if (suppliedExecutable && (!appContainer || !approved || !Object.isFrozen(suppliedExecutable)))
