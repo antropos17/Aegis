@@ -297,7 +297,7 @@
       <div class="inline-stats">
         <div>
           <strong>{String(telemetry.stats.totalFiles ?? '—')}</strong><span
-            >{$t('file observations')}</span
+            >{$t('retained file observations')}</span
           >
         </div>
         <div>
