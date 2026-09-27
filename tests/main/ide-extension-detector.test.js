@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import detector from '../../src/main/ide-extension-detector.js';
 
 const HOME = '/home/dev';
@@ -32,6 +32,36 @@ afterEach(() => {
 
 describe('ide-extension-detector', () => {
   describe('detectExtensionAgents()', () => {
+    it('uses a fresh named process map without launching a second process list', async () => {
+      const listProcesses = vi.fn().mockRejectedValue(new Error('unexpected process list'));
+      detector._setDepsForTest({
+        homedir: () => HOME,
+        listProcesses,
+        readdir: makeReaddir({ vscode: ['kilocode.kilo-code-4.0.0'] }),
+      });
+      const processMap = new Map([[100, { name: 'Code.exe' }]]);
+
+      const result = await detector.detectExtensionAgents(processMap);
+
+      expect(result.map((agent) => agent.agent)).toEqual(['Kilo Code']);
+      expect(listProcesses).not.toHaveBeenCalled();
+      expect(detector.getIdeExtensionSensorHealth().state).toBe('HEALTHY');
+    });
+
+    it('falls back to its own process list when a supplied map has missing names', async () => {
+      const listProcesses = vi.fn().mockResolvedValue([{ name: 'Cursor.exe', pid: 200 }]);
+      detector._setDepsForTest({
+        homedir: () => HOME,
+        listProcesses,
+        readdir: makeReaddir({ cursor: ['saoudrizwan.claude-dev-3.1.0'] }),
+      });
+
+      const result = await detector.detectExtensionAgents(new Map([[100, { name: '' }]]));
+
+      expect(result.map((agent) => agent.agent)).toEqual(['Cline']);
+      expect(listProcesses).toHaveBeenCalledOnce();
+    });
+
     it('detects Kilo Code when VS Code runs and the extension is installed', async () => {
       detector._setDepsForTest({
         homedir: () => HOME,
@@ -174,6 +204,23 @@ describe('ide-extension-detector', () => {
   });
 
   describe('getCachedExtensionAgents()', () => {
+    it('refreshes from a supplied snapshot without calling the process-list provider', async () => {
+      const listProcesses = vi.fn().mockRejectedValue(new Error('unexpected process list'));
+      detector._setDepsForTest({
+        homedir: () => HOME,
+        listProcesses,
+        readdir: makeReaddir({ vscode: ['kilocode.kilo-code-4.0.0'] }),
+      });
+
+      expect(detector.getCachedExtensionAgents(new Map([[100, { name: 'Code.exe' }]]))).toEqual([]);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      expect(detector.getCachedExtensionAgents().map((agent) => agent.agent)).toEqual([
+        'Kilo Code',
+      ]);
+      expect(listProcesses).not.toHaveBeenCalled();
+    });
+
     it('returns [] immediately, then caches after the background refresh', async () => {
       detector._setDepsForTest({
         homedir: () => HOME,
