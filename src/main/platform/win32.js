@@ -193,7 +193,7 @@ async function getRawTcpConnections(pids) {
 }
 
 /**
- * Get file handles for a process via handle64.exe or Get-Process fallback.
+ * Get file handles for a process via handle64.exe or handle.exe.
  * @param {number} pid
  * @returns {Promise<string[]>}
  */
@@ -205,18 +205,17 @@ function getFileHandles(pid) {
   // (Restart Manager is the primary path; this legacy handle.exe path only runs
   // when the binary is genuinely present.)
   if (!_handleBinaryAvailable) return Promise.resolve([]);
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const psScript = [
       '$ErrorActionPreference="SilentlyContinue"',
       '$files=[System.Collections.ArrayList]@()',
       '$h=Get-Command handle64.exe -EA SilentlyContinue',
       'if(!$h){$h=Get-Command handle.exe -EA SilentlyContinue}',
-      'if($h){',
-      `  $out=& $h.Source -p ${pid} -nobanner -accepteula 2>$null`,
-      '  foreach($l in $out){',
-      '    if($l -match "File\\s+.*?\\s+([A-Z]:\\\\.+)$"){',
-      '      [void]$files.Add($Matches[1].Trim())',
-      '    }',
+      'if(!$h){exit 2}',
+      `$out=& $h.Source -p ${pid} -nobanner -accepteula 2>$null`,
+      'foreach($l in $out){',
+      '  if($l -match "File\\s+.*?\\s+([A-Z]:\\\\.+)$"){',
+      '    [void]$files.Add($Matches[1].Trim())',
       '  }',
       '}',
       'if($files.Count -gt 0){$files|ConvertTo-Json -Compress}else{"[]"}',
@@ -227,24 +226,26 @@ function getFileHandles(pid) {
       { timeout: 15000 },
       (err, stdout) => {
         if (err) {
-          resolve([]);
+          // A failed query is not evidence that this process holds no files.
+          // The watcher counts this rejection as a failed sensor observation.
+          reject(new Error('handle-scan-failed'));
           return;
         }
         try {
           const raw = stdout.trim();
-          if (!raw || raw === '[]') {
+          if (raw === '[]') {
             resolve([]);
             return;
           }
+          if (!raw) throw new Error('handle-scan-failed');
           let files = JSON.parse(raw);
           if (typeof files === 'string') files = [files];
-          if (!Array.isArray(files)) {
-            resolve([]);
-            return;
+          if (!Array.isArray(files) || files.some((file) => typeof file !== 'string')) {
+            throw new Error('handle-scan-failed');
           }
           resolve(files);
         } catch (_) {
-          resolve([]);
+          reject(new Error('handle-scan-failed'));
         }
       },
     );

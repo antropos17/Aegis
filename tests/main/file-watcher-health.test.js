@@ -64,6 +64,33 @@ describe('file-watcher health (B2)', () => {
       expect(JSON.stringify(h)).not.toContain('PRIVATE_HANDLE_HEALTH_CANARY');
     });
 
+    it('a failed handle query preserves the last successful observation time', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        const start = 1700000000000;
+        vi.setSystemTime(start);
+        fileWatcher._setDepsForTest({
+          getFileHandles: vi
+            .fn()
+            .mockResolvedValueOnce([])
+            .mockRejectedValueOnce(new Error('down')),
+          isReadDetectionAvailable: true,
+        });
+        const agents = [{ pid: 1, agent: 'Claude Code', category: 'ai', instanceId: '1:u' }];
+        await fileWatcher.scanAllFileHandles(agents);
+        expect(fileWatcher.getFileSensorHealth()['fs-handle'].lastSuccessAt).toBe(start);
+
+        vi.setSystemTime(start + 5000);
+        await fileWatcher.scanAllFileHandles(agents);
+        const health = fileWatcher.getFileSensorHealth()['fs-handle'];
+        expect(health.state).toBe(SENSOR_HEALTH_STATE.FAILED);
+        expect(health.lastAttemptAt).toBe(start + 5000);
+        expect(health.lastSuccessAt).toBe(start);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('FAILED recovers to HEALTHY on next valid scan', async () => {
       const getHandles = vi.fn().mockRejectedValueOnce(new Error('down')).mockResolvedValueOnce([]);
       fileWatcher._setDepsForTest({
