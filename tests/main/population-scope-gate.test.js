@@ -333,7 +333,13 @@ describe('stale-population scope gate — orchestration (step G′)', () => {
       scanLoop.init(deps);
       await runFileScan();
 
-      expect(deps.watcher.scanAllFileHandles).toHaveBeenCalledWith(STALE_AGENTS);
+      expect(deps.watcher.scanAllFileHandles).toHaveBeenCalledWith(
+        STALE_AGENTS,
+        expect.objectContaining({
+          isAgentScopeCurrent: expect.any(Function),
+          isScopeCurrent: expect.any(Function),
+        }),
+      );
       expect(deps.watcher.noteFileScanSkip).not.toHaveBeenCalled();
     });
 

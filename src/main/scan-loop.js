@@ -289,22 +289,25 @@ const SCOPE_UNAVAILABLE = 'process-observation-unavailable';
  */
 const CONFIRMED_ZERO = 'confirmed-zero-agents';
 
-/** The primitive fields used by the network owner stamp, captured before TCP awaits. */
+/** Primitive owner fields frozen before an asynchronous sensor query. */
+function ownerScopeRow(a) {
+  return [
+    a.pid,
+    a.instanceId ?? null,
+    a.instanceIdSource ?? null,
+    a.generationWitness ?? null,
+    a.generationWitnessSource ?? null,
+    a.agent ?? null,
+    a.parentEditor ?? null,
+    a.cwd ?? null,
+    a.category ?? null,
+    a.process ?? null,
+  ];
+}
+
+/** The network owner population, captured before TCP awaits. */
 function networkOwnerScope(agents) {
-  return agents
-    .filter((a) => Number.isInteger(a.pid) && a.pid > 0)
-    .map((a) => [
-      a.pid,
-      a.instanceId ?? null,
-      a.instanceIdSource ?? null,
-      a.generationWitness ?? null,
-      a.generationWitnessSource ?? null,
-      a.agent ?? null,
-      a.parentEditor ?? null,
-      a.cwd ?? null,
-      a.category ?? null,
-      a.process ?? null,
-    ]);
+  return agents.filter((a) => Number.isInteger(a.pid) && a.pid > 0).map(ownerScopeRow);
 }
 
 /** A precise generation witness can survive a new publication of the same process. */
@@ -1047,7 +1050,7 @@ async function doFileScan() {
   // population the process sensor cannot vouch for, that is a confirmed claim about
   // a possibly-dead agent, written into the audit log. Do not scan, do not attribute;
   // the ACTIVE read mechanism records the refusal (§2.4).
-  if (!isPopulationReliable(scanner)) {
+  if (!isPopulationReliable(scanner) || (networkScopePending && agents.length === 0)) {
     logger.debug('scan', 'file-skip', { reason: SCOPE_UNAVAILABLE, agents: agents.length });
     if (typeof watcher.noteFileScanSkip === 'function') {
       watcher.noteFileScanSkip(SCOPE_UNAVAILABLE);
@@ -1064,10 +1067,57 @@ async function doFileScan() {
     }
     return;
   }
+  const capturedRevision = networkScopeRevision;
+  const capturedLifetime = networkScopeLifetime;
+  const capturedRows = new Map(agents.map((agent) => [agent, ownerScopeRow(agent)]));
+  const isAgentScopeCurrent = (agent) => {
+    try {
+      if (
+        networkScopeLifetime !== capturedLifetime ||
+        networkScopePending ||
+        !isPopulationReliable(scanner)
+      )
+        return false;
+      const captured = capturedRows.get(agent);
+      if (!captured) return false;
+      const currentAgents = getLatestAgents();
+      if (!Array.isArray(currentAgents)) return false;
+      // Without a precise generation witness, a new population pass could reuse
+      // the same PID and millisecond instanceId. Keep only witnessed peers live.
+      if (
+        !hasStrongNetworkWitness(captured) &&
+        (networkScopeRevision !== capturedRevision || currentAgents !== agents)
+      )
+        return false;
+      const owners = currentAgents.filter((current) => current.pid === captured[0]);
+      return (
+        owners.length === 1 &&
+        ownerScopeRow(owners[0]).every((value, index) => value === captured[index])
+      );
+    } catch {
+      return false;
+    }
+  };
+  const isScopeCurrent = () => {
+    try {
+      return (
+        networkScopeLifetime === capturedLifetime &&
+        networkScopeRevision === capturedRevision &&
+        !networkScopePending &&
+        isPopulationReliable(scanner) &&
+        getLatestAgents() === agents
+      );
+    } catch {
+      return false;
+    }
+  };
   const t0 = performance.now();
   updateScanStatus(true);
   try {
-    const rawEvents = await watcher.scanAllFileHandles(agents);
+    const rawEvents = await watcher.scanAllFileHandles(agents, {
+      isAgentScopeCurrent,
+      isScopeCurrent,
+    });
     const events = rawEvents.map(dedupFileEvent).filter(Boolean);
     if (events.length > 0) {
       for (const ev of events) deps.fileAccessBatcher.push(ev);
@@ -1102,7 +1152,7 @@ async function doHotReadScan() {
   const { watcher, tray, logger, getStats, getLatestAgents, scanner } = deps;
   const agents = getLatestAgents();
   // G′: same holder→agent stamp as the 30s scan, ~3× more often. Same refusal.
-  if (!isPopulationReliable(scanner)) {
+  if (!isPopulationReliable(scanner) || (networkScopePending && agents.length === 0)) {
     logger.debug('scan', 'hot-read-skip', { reason: SCOPE_UNAVAILABLE, agents: agents.length });
     if (typeof watcher.noteFileScanSkip === 'function') {
       watcher.noteFileScanSkip(SCOPE_UNAVAILABLE);

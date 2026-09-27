@@ -99,6 +99,30 @@ describe('file-watcher health (B2)', () => {
       );
     });
 
+    it('a stale empty provider result does not advance fs-handle success', async () => {
+      let finish;
+      let current = true;
+      const getFileHandles = vi.fn(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      fileWatcher._setDepsForTest({ getFileHandles, isReadDetectionAvailable: true });
+      const agents = [{ pid: 1, agent: 'Claude Code', category: 'ai', instanceId: '1:u' }];
+      const scan = fileWatcher.scanAllFileHandles(agents, {
+        isAgentScopeCurrent: () => current,
+      });
+      expect(getFileHandles).toHaveBeenCalledOnce();
+      current = false;
+      finish([]);
+      expect(await scan).toEqual([]);
+      const health = fileWatcher.getFileSensorHealth()['fs-handle'];
+      expect(health.state).toBe(SENSOR_HEALTH_STATE.DEGRADED);
+      expect(health.lastError).toBe('population-changed-during-scan');
+      expect(health.lastSuccessAt).toBeNull();
+    });
+
     it('full getFileHandles failure is FAILED with empty compatibility array', async () => {
       fileWatcher._setDepsForTest({
         getFileHandles: vi.fn().mockRejectedValue(new Error('PRIVATE_HANDLE_HEALTH_CANARY')),

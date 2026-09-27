@@ -66,6 +66,7 @@ const FS_SENSOR = Object.freeze({
 
 /** Reason recorded by every surface that refuses to observe an untrusted population. */
 const SCOPE_UNAVAILABLE_REASON = 'process-observation-unavailable';
+const SCOPE_CHANGED_REASON = 'population-changed-during-scan';
 
 /**
  * Reason recorded when a trusted population leaves the read scope empty: a successful
@@ -255,7 +256,7 @@ function getFileSensorHealth() {
  * observation, the handle pool otherwise — after `resolveReadMechanism` has settled
  * which one that is, so an empty fleet that never reaches a scan still retires the
  * idle leaf instead of leaving both STARTING (#328).
- * @param {'confirmed-zero-agents'|'process-observation-unavailable'|string} reason
+ * @param {'confirmed-zero-agents'|'process-observation-unavailable'|'population-changed-during-scan'|string} reason
  * @returns {void}
  * @since 0.12.0
  */
@@ -281,10 +282,10 @@ function noteFileScanSkip(reason) {
     _fsHealth[id] = sensorHealth.markHealthy(rec, now, { detail: CONFIRMED_ZERO_REASON });
     return;
   }
-  const scoped = reason === SCOPE_UNAVAILABLE_REASON;
+  const scoped = reason === SCOPE_UNAVAILABLE_REASON || reason === SCOPE_CHANGED_REASON;
   _fsHealth[id] = sensorHealth.markDegraded(rec, now, {
-    error: scoped ? SCOPE_UNAVAILABLE_REASON : 'file-scan-skip',
-    detail: scoped ? SCOPE_UNAVAILABLE_REASON : 'file-scan-skip',
+    error: scoped ? reason : 'file-scan-skip',
+    detail: scoped ? reason : 'file-scan-skip',
   });
 }
 
@@ -888,10 +889,20 @@ function rmHolderKey(agent) {
 /**
  * Per-agent handle observation.
  * @param {Object} agent
+ * @param {Function} [isAgentScopeCurrent] Validates the captured PID owner after the provider await.
  * @returns {Promise<{ok: boolean, events: Array, error?: string}>}
  * @since v0.1.0
  */
-async function scanFileHandles(agent) {
+async function scanFileHandles(agent, isAgentScopeCurrent) {
+  const scopeCurrent = () => {
+    if (typeof isAgentScopeCurrent !== 'function') return true;
+    try {
+      return isAgentScopeCurrent(agent) === true;
+    } catch {
+      return false;
+    }
+  };
+  if (!scopeCurrent()) return { ok: false, events: [], error: SCOPE_CHANGED_REASON };
   const pid = agent.pid;
   let files;
   try {
@@ -900,6 +911,8 @@ async function scanFileHandles(agent) {
     // B-S03: empty events are compatibility only — ok:false means not a clean empty.
     return { ok: false, events: [], error: 'handle-scan-failed' };
   }
+  // Never mutate knownHandles or emit an owner claim from an obsolete PID scope.
+  if (!scopeCurrent()) return { ok: false, events: [], error: SCOPE_CHANGED_REASON };
   if (!Array.isArray(files) || files.length === 0) {
     return { ok: true, events: [] };
   }
@@ -1247,10 +1260,11 @@ function markPoolBlind(now) {
 
 /**
  * @param {Array} agents
+ * @param {{isAgentScopeCurrent?: Function, isScopeCurrent?: Function}} [options]
  * @returns {Promise<Array>}
  * @since v0.1.0
  */
-async function scanAllFileHandles(agents) {
+async function scanAllFileHandles(agents, options = {}) {
   const now = Date.now();
   // Ownership first, so the leaf a refusal below marks and the leaf left idle agree.
   resolveReadMechanism(now);
@@ -1279,6 +1293,18 @@ async function scanAllFileHandles(agents) {
   const toScan =
     _state && _state.isOtherPanelExpanded() ? agents : agents.filter((a) => a.category === 'ai');
   if (toScan.length === 0) {
+    if (typeof options.isScopeCurrent === 'function') {
+      let current = false;
+      try {
+        current = options.isScopeCurrent() === true;
+      } catch {
+        // A failed population check cannot validate an observed zero.
+      }
+      if (!current) {
+        noteFileScanSkip(SCOPE_CHANGED_REASON);
+        return [];
+      }
+    }
     // Nothing in the pool's scope to probe: the population gate above vouched for the
     // list, so this is an observed zero, not a skipped tick (scan-loop's own empty-fleet
     // return records the same verdict one level up).
@@ -1296,7 +1322,7 @@ async function scanAllFileHandles(agents) {
     while (next < toScan.length) {
       const i = next++;
       try {
-        results[i] = await scanFileHandles(toScan[i]);
+        results[i] = await scanFileHandles(toScan[i], options.isAgentScopeCurrent);
       } catch {
         // Unexpected throw outside scanFileHandles control — count as agent failure.
         results[i] = { ok: false, events: [], error: 'handle-scan-failed' };
@@ -1307,15 +1333,22 @@ async function scanAllFileHandles(agents) {
   await Promise.all(Array.from({ length: poolSize }, worker));
   const allNew = [];
   let failCount = 0;
+  let scopeChanged = false;
   for (const r of results) {
     if (!r) continue;
     if (!r.ok) {
       failCount += 1;
+      if (r.error === SCOPE_CHANGED_REASON) scopeChanged = true;
     }
     allNew.push(...(r.events || []));
   }
   const t = Date.now();
-  if (failCount === toScan.length) {
+  if (scopeChanged) {
+    _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.HANDLE], t, {
+      error: SCOPE_CHANGED_REASON,
+      detail: SCOPE_CHANGED_REASON,
+    });
+  } else if (failCount === toScan.length) {
     _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markFailed(_fsHealth[FS_SENSOR.HANDLE], t, {
       error: 'handle-scan-failed',
       detail: 'all-agents-failed',

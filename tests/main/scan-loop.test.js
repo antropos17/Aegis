@@ -1958,6 +1958,214 @@ describe('scan-loop', () => {
     });
   });
 
+  describe('file-handle owner scope', () => {
+    function setupWatcher(getFileHandles, getCurrentAgents) {
+      const watcher = require_('../../src/main/file-watcher.js');
+      const state = {
+        getCustomRules: () => [],
+        getLatestAgents: getCurrentAgents,
+        getLatestAiAgents: () => getCurrentAgents().filter((a) => a.category === 'ai'),
+        isMonitoringPaused: () => false,
+        isOtherPanelExpanded: () => false,
+        activityLog: [],
+        knownHandles: new Map(),
+        watchers: [],
+        recordFileAccess: vi.fn(),
+        onActivityPush: vi.fn(),
+        onActivityEvict: vi.fn(),
+        onFileEvent: vi.fn(),
+      };
+      watcher.init(state);
+      watcher._resetForTest();
+      watcher._setDepsForTest({
+        getFileHandles,
+        isReadDetectionAvailable: true,
+        getProcessCapabilities: () => ({ populationReliable: true }),
+      });
+      return { watcher, state };
+    }
+
+    it('does not attribute a late handle result to a replaced PID while retaining a witnessed peer', async () => {
+      vi.setSystemTime(1700000000000);
+      const old = {
+        pid: 100,
+        agent: 'Old Agent',
+        category: 'ai',
+        instanceId: '100:1700000000000',
+        generationWitness: '133000000000000001',
+        generationWitnessSource: 'createTime100ns',
+      };
+      const replacement = {
+        ...old,
+        agent: 'New Agent',
+        generationWitness: '133000000000000002',
+      };
+      const peer = {
+        pid: 200,
+        agent: 'Stable Agent',
+        category: 'ai',
+        instanceId: '200:1700000000000',
+        generationWitness: '42',
+        generationWitnessSource: 'sequence',
+      };
+      let current = [old, peer];
+      const pending = new Map();
+      let deferHandles = false;
+      const getFileHandles = vi.fn((pid) =>
+        deferHandles ? new Promise((resolve) => pending.set(pid, resolve)) : Promise.resolve([]),
+      );
+      const { watcher, state } = setupWatcher(getFileHandles, () => current);
+      try {
+        const deps = makeDeps({
+          watcher,
+          getLatestAgents: () => current,
+          setAgents: (agents) => {
+            current = agents;
+          },
+          scanner: {
+            scanProcesses: vi
+              .fn()
+              .mockResolvedValueOnce({ agents: [old, peer], reliable: true, changed: false })
+              .mockResolvedValueOnce({
+                agents: [replacement, { ...peer }],
+                reliable: true,
+                changed: false,
+              }),
+            getProcessCapabilities: () => ({ populationReliable: true }),
+          },
+        });
+        scanLoop.init(deps);
+        scanLoop.staggeredStartup(5000, true);
+        await vi.advanceTimersByTimeAsync(3000);
+        await watcher.scanAllFileHandles(current);
+        const lastSuccessAt = watcher.getFileSensorHealth()['fs-handle'].lastSuccessAt;
+
+        deferHandles = true;
+        await vi.advanceTimersByTimeAsync(5000);
+        expect([...pending.keys()].sort()).toEqual([100, 200]);
+        scanLoop.startScanIntervals(5000);
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(current[0].agent).toBe('New Agent');
+
+        pending.get(100)(['/home/user/.aws/credentials']);
+        pending.get(200)(['/home/user/project/stable.txt']);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(state.activityLog.map((event) => event.agent)).toEqual(['Stable Agent']);
+        expect(state.knownHandles.has(old.instanceId)).toBe(false);
+        expect(state.recordFileAccess).toHaveBeenCalledTimes(1);
+        expect(state.recordFileAccess.mock.calls[0][1]).toBe('Stable Agent');
+        expect(deps.fileAccessBatcher.push).toHaveBeenCalledTimes(1);
+        expect(deps.audit.log.mock.calls.filter(([type]) => type === 'file-access')).toEqual([
+          ['file-access', expect.objectContaining({ agent: 'Stable Agent' })],
+        ]);
+        const health = watcher.getFileSensorHealth()['fs-handle'];
+        expect(health.state).toBe('DEGRADED');
+        expect(health.lastError).toBe('population-changed-during-scan');
+        expect(health.lastSuccessAt).toBe(lastSuccessAt);
+      } finally {
+        watcher._resetForTest();
+        watcher._setDepsForTest({
+          getFileHandles: require_('../../src/main/platform').getFileHandles,
+        });
+      }
+    });
+
+    it('rejects an identical weak PID stamp after a new population pass', async () => {
+      const old = { pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:u' };
+      const replacement = { ...old };
+      let current = [old];
+      let finishHandles;
+      let deferHandles = false;
+      const getFileHandles = vi.fn(() =>
+        deferHandles
+          ? new Promise((resolve) => {
+              finishHandles = resolve;
+            })
+          : Promise.resolve([]),
+      );
+      const { watcher, state } = setupWatcher(getFileHandles, () => current);
+      try {
+        const deps = makeDeps({
+          watcher,
+          getLatestAgents: () => current,
+          setAgents: (agents) => {
+            current = agents;
+          },
+          scanner: {
+            scanProcesses: vi
+              .fn()
+              .mockResolvedValueOnce({ agents: [old], reliable: true, changed: false })
+              .mockResolvedValueOnce({ agents: [replacement], reliable: true, changed: false }),
+            getProcessCapabilities: () => ({ populationReliable: true }),
+          },
+        });
+        scanLoop.init(deps);
+        scanLoop.staggeredStartup(5000, true);
+        await vi.advanceTimersByTimeAsync(3000);
+        deferHandles = true;
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(finishHandles).toBeTypeOf('function');
+        scanLoop.startScanIntervals(5000);
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(current[0]).toBe(replacement);
+        finishHandles(['/home/user/.aws/credentials']);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(state.activityLog).toEqual([]);
+        expect(state.recordFileAccess).not.toHaveBeenCalled();
+        expect(state.knownHandles.size).toBe(0);
+        expect(deps.fileAccessBatcher.push).not.toHaveBeenCalled();
+        expect(watcher.getFileSensorHealth()['fs-handle'].lastError).toBe(
+          'population-changed-during-scan',
+        );
+      } finally {
+        watcher._resetForTest();
+        watcher._setDepsForTest({
+          getFileHandles: require_('../../src/main/platform').getFileHandles,
+        });
+      }
+    });
+
+    it('does not claim confirmed-zero file coverage from an old empty list while a process scan waits', async () => {
+      let current = [];
+      let finishProcess;
+      const getFileHandles = vi.fn().mockResolvedValue([]);
+      const { watcher } = setupWatcher(getFileHandles, () => current);
+      try {
+        const deps = makeDeps({
+          watcher,
+          getLatestAgents: () => current,
+          setAgents: (agents) => {
+            current = agents;
+          },
+          scanner: {
+            scanProcesses: vi.fn(
+              () =>
+                new Promise((resolve) => {
+                  finishProcess = resolve;
+                }),
+            ),
+            getProcessCapabilities: () => ({ populationReliable: true }),
+          },
+        });
+        scanLoop.init(deps);
+        scanLoop.staggeredStartup(5000, true);
+        await vi.advanceTimersByTimeAsync(8000);
+        expect(getFileHandles).not.toHaveBeenCalled();
+        const health = watcher.getFileSensorHealth()['fs-handle'];
+        expect(health.state).toBe('DEGRADED');
+        expect(health.lastError).toBe('process-observation-unavailable');
+        expect(health.lastSuccessAt).toBeNull();
+        finishProcess({ agents: [], reliable: true, changed: false });
+        await vi.advanceTimersByTimeAsync(0);
+      } finally {
+        watcher._resetForTest();
+        watcher._setDepsForTest({
+          getFileHandles: require_('../../src/main/platform').getFileHandles,
+        });
+      }
+    });
+  });
+
   // ── C2: anomaly scores leave the main process per instance ──
 
   describe('anomaly scores in the scan batch', () => {
