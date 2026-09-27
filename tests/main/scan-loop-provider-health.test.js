@@ -521,7 +521,6 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
       running = true;
       await runOneNetworkScan();
       running = false;
-      scanLoop.stopScanIntervals();
       expect(provider).toHaveBeenCalledTimes(3);
       expect(gapRecords()).toHaveLength(1);
 
@@ -533,6 +532,9 @@ describe('scan-loop provider-health ownership (Stage-1 step A)', () => {
       ]);
       expect(provider).toHaveBeenCalledTimes(5);
       expect(deps.audit.flush).toHaveBeenCalledTimes(2);
+      scanLoop.stopScanIntervals();
+      await runOneNetworkScan();
+      expect(provider).toHaveBeenCalledTimes(5);
     });
 
     it('records recovery before downstream processing even when delivery fails', async () => {

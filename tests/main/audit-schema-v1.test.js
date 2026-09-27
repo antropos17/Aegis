@@ -230,7 +230,9 @@ describe('event schema v1 — record shape', () => {
         { cause: 'network-provider', state: 'restored' },
       ],
     ]);
-    expect(raw.every((entry) => entry.agent === '' && entry.pid === null && entry.path === '')).toBe(true);
+    expect(
+      raw.every((entry) => entry.agent === '' && entry.pid === null && entry.path === ''),
+    ).toBe(true);
     expect(auditLogger.getEntriesBefore('9999-01-01T00:00:00.000Z', 10)).toEqual(raw);
   });
 
@@ -285,6 +287,7 @@ describe('event schema v1 — instanceId on the scan-loop call sites', () => {
 
   /** @returns {Object} minimal deps for doNetworkScan */
   function netDeps(connections) {
+    const agents = [{ agent: 'Claude Code', pid: 100 }];
     return {
       audit: { log: auditLog },
       baselines: { recordNetworkEndpoint: vi.fn() },
@@ -294,7 +297,7 @@ describe('event schema v1 — instanceId on the scan-loop call sites', () => {
         setNetworkScanRunning: vi.fn(),
         scanNetworkConnections: vi.fn().mockResolvedValue(connections),
       },
-      getLatestAgents: () => [{ agent: 'Claude Code', pid: 100 }],
+      getLatestAgents: () => agents,
       setLatestNetConnections: vi.fn(),
       sendToRenderer: vi.fn(),
     };

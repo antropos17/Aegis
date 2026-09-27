@@ -190,6 +190,14 @@ describe('network-monitor DI tests', () => {
    */
   const forwardMap = (map) => (hostname) => Promise.resolve(map[hostname] || []);
 
+  const deferred = () => {
+    let resolve;
+    const promise = new Promise((done) => {
+      resolve = done;
+    });
+    return { promise, resolve };
+  };
+
   beforeEach(() => {
     mockGetRawTcp = vi.fn();
     mockDnsReverse = vi.fn();
@@ -526,6 +534,107 @@ describe('network-monitor DI tests', () => {
       expect(results[0].agent).toBe('');
       // The pid itself is still reported — it is an observation, not a guess.
       expect(results[0].pid).toBe(999);
+    });
+  });
+
+  describe('scanNetworkConnections() — current population', () => {
+    const agents = [{ pid: 100, agent: 'Claude Code', instanceId: '100:1700000000111' }];
+
+    it('discards a stale empty TCP response without advancing a prior success', async () => {
+      mockGetRawTcp.mockResolvedValueOnce([]);
+      await networkMonitor.scanNetworkConnections(agents);
+      const lastSuccessAt = networkMonitor.getNetworkSensorHealth().lastSuccessAt;
+      const raw = deferred();
+      mockGetRawTcp.mockReturnValueOnce(raw.promise);
+      let current = true;
+      const isScopeCurrent = vi.fn(() => current);
+
+      const scan = networkMonitor.scanNetworkConnections(agents, { isScopeCurrent });
+      current = false;
+      raw.resolve([]);
+
+      expect(await scan).toBeNull();
+      expect(isScopeCurrent).toHaveBeenCalledTimes(1);
+      expect(networkMonitor.getNetworkSensorHealth()).toMatchObject({
+        state: 'DEGRADED',
+        lastSuccessAt,
+        lastError: 'population-changed-during-scan',
+        detail: 'population-changed-during-scan',
+        consecutiveFailures: 0,
+      });
+    });
+
+    it('discards a response when the population changes during DNS resolution', async () => {
+      const dns = deferred();
+      mockGetRawTcp.mockResolvedValue([{ pid: 100, ip: '8.8.4.4', port: 443, state: 'ESTAB' }]);
+      mockDnsReverse.mockReturnValue(dns.promise);
+      mockDnsResolve.mockResolvedValue(['8.8.4.4']);
+      let current = true;
+      const isScopeCurrent = vi.fn(() => current);
+
+      const scan = networkMonitor.scanNetworkConnections(agents, { isScopeCurrent });
+      await vi.waitFor(() => expect(mockDnsReverse).toHaveBeenCalledTimes(1));
+      expect(isScopeCurrent).toHaveBeenCalledTimes(1);
+      current = false;
+      dns.resolve(['dns.google']);
+
+      expect(await scan).toBeNull();
+      expect(isScopeCurrent).toHaveBeenCalledTimes(2);
+      expect(networkMonitor.getNetworkSensorHealth()).toMatchObject({
+        state: 'DEGRADED',
+        lastSuccessAt: null,
+        lastError: 'population-changed-during-scan',
+      });
+    });
+
+    it('treats a throwing scope callback as lost coverage, not a provider failure', async () => {
+      mockGetRawTcp.mockResolvedValue([]);
+
+      await expect(
+        networkMonitor.scanNetworkConnections(agents, {
+          isScopeCurrent: () => {
+            throw new Error('scope-read-failed');
+          },
+        }),
+      ).resolves.toBeNull();
+      expect(networkMonitor.getNetworkSensorHealth()).toMatchObject({
+        state: 'DEGRADED',
+        lastSuccessAt: null,
+        lastError: 'population-changed-during-scan',
+        consecutiveFailures: 0,
+      });
+    });
+
+    it('keeps a TCP provider rejection FAILED even when the scope is stale', async () => {
+      mockGetRawTcp.mockRejectedValue(new Error('tcp-unavailable'));
+      const isScopeCurrent = vi.fn(() => false);
+
+      await expect(
+        networkMonitor.scanNetworkConnections(agents, { isScopeCurrent }),
+      ).rejects.toThrow('tcp-unavailable');
+      expect(isScopeCurrent).not.toHaveBeenCalled();
+      expect(networkMonitor.getNetworkSensorHealth()).toMatchObject({
+        state: 'FAILED',
+        lastSuccessAt: null,
+        lastError: 'network-provider-failed',
+        consecutiveFailures: 1,
+      });
+    });
+
+    it('keeps the explicit scope-loss reason when a completed scan is rejected late', async () => {
+      mockGetRawTcp.mockResolvedValue([]);
+      await networkMonitor.scanNetworkConnections(agents);
+      const lastSuccessAt = networkMonitor.getNetworkSensorHealth().lastSuccessAt;
+
+      networkMonitor.noteNetworkSkip('population-changed-during-scan');
+
+      expect(networkMonitor.getNetworkSensorHealth()).toMatchObject({
+        state: 'DEGRADED',
+        lastSuccessAt,
+        lastError: 'population-changed-during-scan',
+        detail: 'population-changed-during-scan',
+        consecutiveFailures: 0,
+      });
     });
   });
 

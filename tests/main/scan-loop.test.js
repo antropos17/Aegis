@@ -1362,6 +1362,466 @@ describe('scan-loop', () => {
       expect(call[2].ms).toBeGreaterThanOrEqual(0);
     });
 
+    it('discards a completed network batch after the same PID gains a different generation witness', async () => {
+      const oldAgent = {
+        agent: 'Claude Code',
+        pid: 100,
+        instanceId: '100:1700000000000',
+        generationWitness: '133000000000000001',
+        generationWitnessSource: 'createTime100ns',
+      };
+      const newAgent = { ...oldAgent, generationWitness: '133000000000000002' };
+      let current = [oldAgent];
+      let finishNetwork;
+      const deps = makeDeps({
+        getLatestAgents: () => current,
+        setAgents: (agents) => {
+          current = agents;
+        },
+        scanner: {
+          scanProcesses: vi
+            .fn()
+            .mockResolvedValue({ agents: [newAgent], reliable: true, changed: false }),
+        },
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: vi.fn(
+            () =>
+              new Promise((resolve) => {
+                finishNetwork = resolve;
+              }),
+          ),
+          noteNetworkSkip: vi.fn(),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      expect(deps.network.scanNetworkConnections.mock.calls[0][1].isScopeCurrent()).toBe(true);
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(deps.network.scanNetworkConnections.mock.calls[0][1].isScopeCurrent()).toBe(false);
+      finishNetwork([
+        {
+          agent: oldAgent.agent,
+          pid: oldAgent.pid,
+          instanceId: oldAgent.instanceId,
+          remoteIp: '8.8.8.8',
+          remotePort: 443,
+          state: 'ESTAB',
+        },
+      ]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(deps.setLatestNetConnections).not.toHaveBeenCalled();
+      expect(deps.baselines.recordNetworkEndpoint).not.toHaveBeenCalled();
+      expect(deps.audit.log.mock.calls.some(([type]) => type === 'network-connection')).toBe(false);
+      expect(deps.sendToRenderer.mock.calls.some(([channel]) => channel === 'network-update')).toBe(
+        false,
+      );
+      expect(deps.network.noteNetworkSkip).toHaveBeenCalledWith('population-changed-during-scan');
+    });
+
+    it('rejects an empty TCP result when a new PID joined the queried scope', async () => {
+      const oldAgent = { agent: 'A', pid: 100, instanceId: '100:1' };
+      let current = [oldAgent];
+      let finishNetwork;
+      const deps = makeDeps({
+        getLatestAgents: () => current,
+        setAgents: (agents) => {
+          current = agents;
+        },
+        scanner: {
+          scanProcesses: vi.fn().mockResolvedValue({
+            agents: [oldAgent, { agent: 'B', pid: 200, instanceId: '200:2' }],
+            reliable: true,
+            changed: false,
+          }),
+        },
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: vi.fn(
+            () =>
+              new Promise((resolve) => {
+                finishNetwork = resolve;
+              }),
+          ),
+          noteNetworkSkip: vi.fn(),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      finishNetwork([]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(deps.setLatestNetConnections).not.toHaveBeenCalled();
+      expect(deps.sendToRenderer.mock.calls.some(([channel]) => channel === 'network-update')).toBe(
+        false,
+      );
+    });
+
+    it('retries once with the new PID scope after a busy stale poll settles', async () => {
+      const oldAgent = { agent: 'A', pid: 100, instanceId: '100:1' };
+      const newAgents = [oldAgent, { agent: 'B', pid: 200, instanceId: '200:2' }];
+      let current = [oldAgent];
+      let running = false;
+      let finishFirst;
+      const scanNetworkConnections = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishFirst = resolve;
+            }),
+        )
+        .mockResolvedValue([]);
+      const deps = makeDeps({
+        getLatestAgents: () => current,
+        setAgents: (agents) => {
+          current = agents;
+        },
+        scanner: {
+          scanProcesses: vi.fn().mockResolvedValue({
+            agents: newAgents,
+            reliable: true,
+            changed: true,
+          }),
+        },
+        network: {
+          isNetworkScanRunning: () => running,
+          setNetworkScanRunning: (value) => {
+            running = value;
+          },
+          scanNetworkConnections,
+          noteNetworkSkip: vi.fn(),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(scanNetworkConnections).toHaveBeenCalledTimes(1);
+      finishFirst(null);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(scanNetworkConnections).toHaveBeenCalledTimes(2);
+      expect(scanNetworkConnections.mock.calls[1][0]).toBe(newAgents);
+      expect(deps.setLatestNetConnections).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits for identity stamping before retrying a stale in-flight poll', async () => {
+      const oldAgent = { agent: 'A', pid: 100, instanceId: '100:1' };
+      const newAgents = [oldAgent, { agent: 'B', pid: 200, instanceId: '200:2' }];
+      let current = [oldAgent];
+      let running = false;
+      let finishFirst;
+      let finishStamp;
+      let finishWorkingDirs;
+      const scanNetworkConnections = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishFirst = resolve;
+            }),
+        )
+        .mockResolvedValue([]);
+      const deps = makeDeps({
+        getLatestAgents: () => current,
+        setAgents: (agents) => {
+          current = agents;
+        },
+        scanner: {
+          scanProcesses: vi.fn().mockResolvedValue({
+            agents: newAgents,
+            reliable: true,
+            changed: true,
+          }),
+        },
+        procUtil: {
+          enrichWithParentChains: vi.fn(
+            () =>
+              new Promise((resolve) => {
+                finishStamp = resolve;
+              }),
+          ),
+          annotateHostApps: vi.fn(),
+          annotateWorkingDirs: vi.fn(
+            () =>
+              new Promise((resolve) => {
+                finishWorkingDirs = () => {
+                  newAgents[0].cwd = '/new/project';
+                  resolve();
+                };
+              }),
+          ),
+        },
+        network: {
+          isNetworkScanRunning: () => running,
+          setNetworkScanRunning: (value) => {
+            running = value;
+          },
+          scanNetworkConnections,
+          noteNetworkSkip: vi.fn(),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      finishFirst(null);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(scanNetworkConnections).toHaveBeenCalledTimes(1);
+      finishStamp();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(scanNetworkConnections).toHaveBeenCalledTimes(1);
+      finishWorkingDirs();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(scanNetworkConnections).toHaveBeenCalledTimes(2);
+      expect(scanNetworkConnections.mock.calls[1][0]).toBe(newAgents);
+    });
+
+    it('rejects a weak PID owner even when a process scan republishes the same array', async () => {
+      const agents = [{ agent: 'A', pid: 100, instanceId: '100:1' }];
+      let finishNetwork;
+      const deps = makeDeps({
+        getLatestAgents: () => agents,
+        scanner: {
+          scanProcesses: vi.fn().mockResolvedValue({ agents, reliable: true, changed: false }),
+        },
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: vi.fn(
+            () =>
+              new Promise((resolve) => {
+                finishNetwork = resolve;
+              }),
+          ),
+          noteNetworkSkip: vi.fn(),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      finishNetwork([]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(deps.setLatestNetConnections).not.toHaveBeenCalled();
+    });
+
+    it('keeps a strong unchanged owner valid across a refreshed process publication', async () => {
+      const oldAgent = {
+        agent: 'A',
+        pid: 100,
+        instanceId: '100:1',
+        generationWitness: '42',
+        generationWitnessSource: 'sequence',
+      };
+      let current = [oldAgent];
+      let finishNetwork;
+      const deps = makeDeps({
+        getLatestAgents: () => current,
+        setAgents: (agents) => {
+          current = agents;
+        },
+        scanner: {
+          scanProcesses: vi.fn().mockResolvedValue({
+            agents: [{ ...oldAgent }],
+            reliable: true,
+            changed: false,
+          }),
+        },
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: vi.fn(
+            () =>
+              new Promise((resolve) => {
+                finishNetwork = resolve;
+              }),
+          ),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      finishNetwork([]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(deps.setLatestNetConnections).toHaveBeenCalledWith([]);
+    });
+
+    it('does not retry a valid strong-owner poll after routine process refreshes', async () => {
+      const owner = {
+        agent: 'A',
+        pid: 100,
+        instanceId: '100:1',
+        generationWitness: '42',
+        generationWitnessSource: 'sequence',
+      };
+      let current = [owner];
+      let running = false;
+      let finishNetwork;
+      const scanNetworkConnections = vi.fn(
+        () =>
+          new Promise((resolve) => {
+            finishNetwork = resolve;
+          }),
+      );
+      const deps = makeDeps({
+        getLatestAgents: () => current,
+        setAgents: (agents) => {
+          current = agents;
+        },
+        scanner: {
+          scanProcesses: vi
+            .fn()
+            .mockImplementation(() =>
+              Promise.resolve({ agents: [{ ...owner }], reliable: true, changed: false }),
+            ),
+        },
+        network: {
+          isNetworkScanRunning: () => running,
+          setNetworkScanRunning: (value) => {
+            running = value;
+          },
+          scanNetworkConnections,
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(30000);
+      expect(scanNetworkConnections).toHaveBeenCalledTimes(1);
+      finishNetwork([]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(scanNetworkConnections).toHaveBeenCalledTimes(1);
+      expect(deps.setLatestNetConnections).toHaveBeenCalledTimes(1);
+    });
+
+    it('gates new network scans while process identity stamping is pending', async () => {
+      const agents = [{ agent: 'A', pid: 100, instanceId: '100:1' }];
+      let finishStamp;
+      const deps = makeDeps({
+        getLatestAgents: () => agents,
+        scanner: {
+          scanProcesses: vi.fn().mockResolvedValue({ agents, reliable: true, changed: false }),
+        },
+        procUtil: {
+          enrichWithParentChains: vi.fn(
+            () =>
+              new Promise((resolve) => {
+                finishStamp = resolve;
+              }),
+          ),
+          annotateHostApps: vi.fn(),
+          annotateWorkingDirs: vi.fn().mockResolvedValue(),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      scanLoop.doNetworkScan();
+      expect(deps.network.scanNetworkConnections).not.toHaveBeenCalled();
+      finishStamp();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    it('discards an in-flight strong-owner scan while a new process observation is pending', async () => {
+      const agents = [
+        {
+          agent: 'A',
+          pid: 100,
+          instanceId: '100:1',
+          generationWitness: '42',
+          generationWitnessSource: 'sequence',
+        },
+      ];
+      let finishNetwork;
+      let finishProcess;
+      const deps = makeDeps({
+        getLatestAgents: () => agents,
+        scanner: {
+          scanProcesses: vi.fn(
+            () =>
+              new Promise((resolve) => {
+                finishProcess = resolve;
+              }),
+          ),
+        },
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: vi.fn(
+            () =>
+              new Promise((resolve) => {
+                finishNetwork = resolve;
+              }),
+          ),
+          noteNetworkSkip: vi.fn(),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(deps.network.scanNetworkConnections.mock.calls[0][1].isScopeCurrent()).toBe(false);
+      finishNetwork([]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(deps.setLatestNetConnections).not.toHaveBeenCalled();
+      finishProcess({ agents, reliable: true, changed: false });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    it('does not publish a monitor scope-unavailable result as an empty snapshot', async () => {
+      const deps = makeDeps({ getLatestAgents: () => [{ agent: 'A', pid: 100 }] });
+      deps.network.scanNetworkConnections.mockResolvedValue(null);
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(deps.setLatestNetConnections).not.toHaveBeenCalled();
+      expect(deps.sendToRenderer.mock.calls.some(([channel]) => channel === 'network-update')).toBe(
+        false,
+      );
+    });
+
+    it('invalidates a strong-owner network scan across stop and reinitialization', async () => {
+      const agents = [
+        {
+          agent: 'A',
+          pid: 100,
+          instanceId: '100:1',
+          generationWitness: '42',
+          generationWitnessSource: 'sequence',
+        },
+      ];
+      let finishNetwork;
+      const deps = makeDeps({
+        getLatestAgents: () => agents,
+        network: {
+          isNetworkScanRunning: vi.fn().mockReturnValue(false),
+          setNetworkScanRunning: vi.fn(),
+          scanNetworkConnections: vi.fn(
+            () =>
+              new Promise((resolve) => {
+                finishNetwork = resolve;
+              }),
+          ),
+          noteNetworkSkip: vi.fn(),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      scanLoop.stopScanIntervals();
+      const nextDeps = makeDeps({ getLatestAgents: () => [{ ...agents[0] }] });
+      scanLoop.init(nextDeps);
+      finishNetwork([]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(deps.setLatestNetConnections).not.toHaveBeenCalled();
+      expect(nextDeps.setLatestNetConnections).not.toHaveBeenCalled();
+    });
+
     it('B-S08: empty agents + unreliable process population logs process-unavailable skip', () => {
       const scanNet = vi.fn().mockResolvedValue([]);
       const noteSkip = vi.fn();

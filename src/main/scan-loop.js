@@ -49,6 +49,18 @@ let _lastTriggeredNetScan = 0;
 // C-02: reentrancy guard — block overlapping doProcessScan runs so a slow scan
 // can't be clobbered by the next interval tick (last-writer-wins on the snapshot).
 let processScanRunning = false;
+// A network poll may overlap process enumeration or the asynchronous identity
+// stamp. The old published list is not a trustworthy scope during that interval.
+let networkScopePending = false;
+// Increment before every process observation, including one that republishes the
+// same array. Weak PID/millisecond identities cannot survive that boundary.
+let networkScopeRevision = 0;
+// Unlike the per-process-pass revision, this invalidates even strong witnesses
+// across stop/reinit; old promises must not deliver into a new monitoring run.
+let networkScopeLifetime = 0;
+// One replacement scan for an in-flight poll invalidated by a newer process
+// observation. The retry waits for identity stamping and a reliable population.
+let networkRescanQueued = false;
 // One audit pair per continuous loss of the process population. Reset by init(),
 // not by each scan or timer restart; a paused loop has not observed a recovery.
 let processPopulationUnavailable = false;
@@ -233,6 +245,10 @@ function sequenceScoreFor(instanceId) {
 }
 
 function stopScanIntervals() {
+  networkScopePending = true;
+  networkScopeRevision++;
+  networkScopeLifetime++;
+  networkRescanQueued = false;
   deps.sequenceEngine?.observePopulation?.([], false);
   resourceScanGeneration++;
   resourceSampler.invalidate();
@@ -268,6 +284,49 @@ const SCOPE_UNAVAILABLE = 'process-observation-unavailable';
  * success, the same string `doNetworkScan` hands the network leaf (§10 B4).
  */
 const CONFIRMED_ZERO = 'confirmed-zero-agents';
+
+/** The primitive fields used by the network owner stamp, captured before TCP awaits. */
+function networkOwnerScope(agents) {
+  return agents
+    .filter((a) => Number.isInteger(a.pid) && a.pid > 0)
+    .map((a) => [
+      a.pid,
+      a.instanceId ?? null,
+      a.instanceIdSource ?? null,
+      a.generationWitness ?? null,
+      a.generationWitnessSource ?? null,
+      a.agent ?? null,
+      a.parentEditor ?? null,
+      a.cwd ?? null,
+      a.category ?? null,
+      a.process ?? null,
+    ]);
+}
+
+/** A precise generation witness can survive a new publication of the same process. */
+function hasStrongNetworkWitness(row) {
+  return (
+    typeof row[3] === 'string' &&
+    row[3].length > 0 &&
+    (row[4] === 'sequence' || row[4] === 'createTime100ns')
+  );
+}
+
+/** Start one queued replacement only after the new process scope is usable. */
+function flushQueuedNetworkRescan() {
+  if (!networkRescanQueued || networkScopePending) return;
+  const { network, scanner, logger } = deps;
+  try {
+    if (network.isNetworkScanRunning() || !isPopulationReliable(scanner)) return;
+    networkRescanQueued = false;
+    // This replacement is the process-triggered scan for the current scope;
+    // doProcessScan must not start a duplicate when it reaches its normal trigger.
+    _lastTriggeredNetScan = Date.now();
+    doNetworkScan();
+  } catch {
+    logger.error('main', 'Network scan scheduling failed', { error: 'network-schedule-failed' });
+  }
+}
 
 /**
  * Whether the agent population may be used as an observation scope right now.
@@ -338,7 +397,7 @@ function doNetworkScan() {
   // dead/recycled pids and stamp OS_TCP_OWNER_PID (`confirmed`) off an agent record
   // the process sensor cannot vouch for. The list is NOT cleared (§2.3 — clearing
   // re-creates B-S01); the consumer is gated instead.
-  if (!isPopulationReliable(scanner)) {
+  if (networkScopePending || !isPopulationReliable(scanner)) {
     logger.debug('scan', 'network-skip', { reason: SCOPE_UNAVAILABLE, agents: agents.length });
     if (typeof network.noteNetworkSkip === 'function') {
       network.noteNetworkSkip(SCOPE_UNAVAILABLE);
@@ -354,15 +413,55 @@ function doNetworkScan() {
     }
     return;
   }
+  const capturedScope = networkOwnerScope(agents);
+  const capturedRevision = networkScopeRevision;
+  const capturedLifetime = networkScopeLifetime;
+  const hasWeakOwner = capturedScope.some((row) => !hasStrongNetworkWitness(row));
+  const isScopeCurrent = () => {
+    try {
+      if (
+        networkScopeLifetime !== capturedLifetime ||
+        networkScopePending ||
+        !isPopulationReliable(scanner)
+      )
+        return false;
+      const currentAgents = getLatestAgents();
+      if (hasWeakOwner && (currentAgents !== agents || networkScopeRevision !== capturedRevision))
+        return false;
+      const currentScope = networkOwnerScope(currentAgents);
+      return (
+        currentScope.length === capturedScope.length &&
+        currentScope.every((row, i) => row.every((value, j) => value === capturedScope[i][j]))
+      );
+    } catch {
+      // A failed health or population read cannot validate an owner claim.
+      return false;
+    }
+  };
   network.setNetworkScanRunning(true);
   const t0 = performance.now();
   network
-    .scanNetworkConnections(agents)
+    .scanNetworkConnections(agents, { isScopeCurrent })
     .then(
       (connections) => {
         // This fulfillment proves the provider recovered even if a later
         // baseline, audit write or renderer delivery fails.
         auditNetworkProviderTransition(false, audit);
+        // A process scan can publish or restamp after the monitor's final check
+        // but before this continuation. Never publish a partial/empty stale scope.
+        if (connections === null || !isScopeCurrent()) {
+          if (connections !== null) network.noteNetworkSkip?.('population-changed-during-scan');
+          if (
+            networkScopeLifetime === capturedLifetime &&
+            networkScopeRevision !== capturedRevision
+          )
+            networkRescanQueued = true;
+          logger.debug('scan', 'network-skip', {
+            reason: 'population-changed-during-scan',
+            agents: agents.length,
+          });
+          return;
+        }
         deps.setLatestNetConnections(connections);
         for (const conn of connections) {
           if (conn.httpUnencrypted) {
@@ -453,6 +552,7 @@ function doNetworkScan() {
     })
     .finally(() => {
       network.setNetworkScanRunning(false);
+      if (networkScopeLifetime === capturedLifetime) flushQueuedNetworkRescan();
     });
 }
 
@@ -508,7 +608,10 @@ async function doProcessScan() {
   // bump activeScanCount, whose only decrement lives in the finally below.
   if (processScanRunning) return;
   processScanRunning = true;
+  networkScopePending = true;
+  networkScopeRevision++;
   const resourceGeneration = resourceScanGeneration;
+  let networkIdentityReady = false;
   updateScanStatus(true);
   const t0 = performance.now();
   try {
@@ -565,6 +668,7 @@ async function doProcessScan() {
       forceRefresh: result.changed === true,
       ...(result.processMap instanceof Map ? { processMap: result.processMap } : {}),
     });
+    networkIdentityReady = true;
     // The second half of the straddle witness — after the identity stamp, so a sleep
     // inside `enrichWithParentChains` is caught as well as one inside the enumeration.
     const gapStraddled =
@@ -686,6 +790,13 @@ async function doProcessScan() {
     // never reaches the UI, and unstamped synthetics poison instance-keyed maps
     // (baselines, risk, ack). Stamp is identify() space 2, same as injectDetectedExternalAgents.
     await enrichWithLocalModels(agents);
+    // The owner stamp and the fields a network connection exports are now settled.
+    // A replacement query started before CWD/host annotation could invalidate
+    // itself without another process revision to trigger a new retry.
+    if (resourceGeneration === resourceScanGeneration) {
+      networkScopePending = false;
+      flushQueuedNetworkRescan();
+    }
     tray.updateTrayIcon();
     const deviations = anomaly.checkDeviations();
     if (deviations.length > 0) {
@@ -832,6 +943,13 @@ async function doProcessScan() {
       ...(postGap ? { postGap } : {}),
     });
   } catch {
+    // A downstream annotation/delivery failure has stopped mutating this pass's
+    // already-stamped owners. Release the network gate on that stable snapshot;
+    // a failure before identity stamping keeps the gate closed.
+    if (networkIdentityReady && resourceGeneration === resourceScanGeneration) {
+      networkScopePending = false;
+      flushQueuedNetworkRescan();
+    }
     // Reached by BOTH a provider throw (rethrown above, health already owned by the inner
     // catch) and a downstream pipeline throw (health deliberately untouched — the
     // observation succeeded). Log only: no leaf here names delivery or persistence, and
@@ -1063,6 +1181,10 @@ function init(injected) {
   deps = injected;
   processPopulationUnavailable = false;
   networkProviderUnavailable = false;
+  networkScopePending = false;
+  networkScopeRevision = 0;
+  networkScopeLifetime++;
+  networkRescanQueued = false;
   deps.baselines?.init?.({
     isInstanceActive: (instanceId) =>
       sessionTracker.hasInstance(instanceId) ||
