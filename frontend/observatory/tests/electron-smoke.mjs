@@ -116,6 +116,11 @@ try {
     const stats = await window.aegis.getStats();
     return { agents: stats.currentAgents, health: stats.appHealth, gap: stats.observationGap };
   });
+  if (process.env.AEGIS_SMOKE_EXPECT_SIDECAR === '1') {
+    const snapshot = stats.health?.sensors?.byId?.['proc-snapshot'];
+    assert.equal(snapshot?.state, 'HEALTHY', 'native process snapshot sidecar is unavailable');
+    assert.equal(snapshot?.detail, 'class5', 'native process snapshot did not use class 5');
+  }
   const methods = await window.evaluate(() => Object.keys(window.aegis));
   // Current bridge: 46 invoke methods + 11 subscriptions, including Local security.
   assert.equal(methods.length, 57);
