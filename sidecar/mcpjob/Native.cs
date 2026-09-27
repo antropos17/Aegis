@@ -206,7 +206,9 @@ internal static class Native
     internal static Session Start(string executable, string cwd, string[] args,
         string environment, AppContainerProfile isolated = null,
         AppContainerInput.ImportedFile importedFile = null,
-        AppContainerExecutable.PinnedFile pinnedExecutable = null)
+        AppContainerExecutable.PinnedFile pinnedExecutable = null,
+        AppContainerWorkspace workspace = null,
+        AppContainerWorkspaceInventory inventory = null)
     {
         if (isolated != null && (pinnedExecutable == null || !pinnedExecutable.IsPinned ||
             !string.Equals(pinnedExecutable.Path, executable, StringComparison.Ordinal)))
@@ -296,6 +298,9 @@ internal static class Native
             Check(ControlOpen());
             if (isolated != null && !pinnedExecutable.IsPinned)
                 throw new InvalidDataException("executable-unpinned");
+            if (isolated != null && (workspace == null || inventory == null ||
+                !inventory.Revalidate(workspace)))
+                throw new InvalidDataException("workspace-inventory-unconfirmed");
             // Release the DELETE-capable owner handle only at the final launch
             // boundary. Ordinary child File.ReadAllText does not share DELETE.
             if (importedFile != null) importedFile.Dispose();

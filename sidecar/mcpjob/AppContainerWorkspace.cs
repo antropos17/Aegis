@@ -16,7 +16,16 @@ internal sealed class AppContainerWorkspace : IDisposable
     private const uint FILE_ATTRIBUTE_REPARSE_POINT = 0x00000400;
     private readonly List<IntPtr> pinned = new List<IntPtr>();
     private readonly string path;
-    private BY_HANDLE_FILE_INFORMATION identity;
+    private FILE_IDENTITY identity;
+#if APPCONTAINER_TEST
+    internal static bool FileIdUnavailableForTest;
+#endif
+
+    private struct FILE_IDENTITY
+    {
+        internal ulong volume;
+        internal byte[] id;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct SECURITY_ATTRIBUTES { public int length; public IntPtr descriptor; public int inherit; }
@@ -37,6 +46,9 @@ internal sealed class AppContainerWorkspace : IDisposable
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetFileInformationByHandle(IntPtr handle,
         out BY_HANDLE_FILE_INFORMATION information);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetFileInformationByHandleEx(IntPtr handle, int informationClass,
+        IntPtr information, uint informationSize);
     [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr handle);
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool ConvertStringSecurityDescriptorToSecurityDescriptor(
@@ -50,21 +62,12 @@ internal sealed class AppContainerWorkspace : IDisposable
 
     internal static AppContainerWorkspace Create(string selected, IntPtr appSid)
     {
-        if (string.IsNullOrEmpty(selected) || selected.Length > 32000 ||
-            selected.Length < 4 || !char.IsLetter(selected[0]) || selected[1] != ':' ||
-            selected[2] != '\\' || selected.IndexOf(':', 2) >= 0 ||
-            selected.StartsWith(@"\\") || selected.StartsWith(@"\\?\") ||
-            !string.Equals(Path.GetFullPath(selected), selected, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("workspace-path-invalid");
+#if APPCONTAINER_TEST
+        FileIdUnavailableForTest = Path.GetFileName(selected) ==
+            "inventory-fileid-unavailable-workspace";
+#endif
+        string[] parts = ValidatePath(selected);
         string root = Path.GetPathRoot(selected);
-        string[] parts = selected.Substring(root.Length).Split('\\');
-        if (parts.Length < 1 || parts[parts.Length - 1].Length == 0)
-            throw new InvalidOperationException("workspace-path-invalid");
-        foreach (string part in parts)
-            if (part.Length == 0 || part == "." || part == ".." ||
-                part.EndsWith(" ") || part.EndsWith("."))
-                throw new InvalidOperationException("workspace-path-invalid");
-
         AppContainerWorkspace result = new AppContainerWorkspace(selected);
         IntPtr descriptor = IntPtr.Zero, sidText = IntPtr.Zero;
         try
@@ -95,9 +98,7 @@ internal sealed class AppContainerWorkspace : IDisposable
             if (!CreateDirectory(selected, ref security))
                 throw new InvalidOperationException("workspace-create-failed");
             result.Pin(selected);
-            if (!GetFileInformationByHandle(result.pinned[result.pinned.Count - 1],
-                out result.identity))
-                throw new InvalidOperationException("workspace-identity-failed");
+            result.identity = ReadIdentity(result.pinned[result.pinned.Count - 1]);
             return result;
         }
         catch { result.Dispose(); throw; }
@@ -106,6 +107,57 @@ internal sealed class AppContainerWorkspace : IDisposable
             if (descriptor != IntPtr.Zero) LocalFree(descriptor);
             if (sidText != IntPtr.Zero) LocalFree(sidText);
         }
+    }
+
+    internal static string[] ValidatePath(string selected)
+    {
+        if (string.IsNullOrEmpty(selected) || selected.Length > 32000 ||
+            selected.Length < 4 || !char.IsLetter(selected[0]) || selected[1] != ':' ||
+            selected[2] != '\\' || selected.IndexOf(':', 2) >= 0 ||
+            selected.StartsWith(@"\\") || selected.StartsWith(@"\\?\") ||
+            !string.Equals(Path.GetFullPath(selected), selected, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("workspace-path-invalid");
+        string root = Path.GetPathRoot(selected);
+        string[] parts = selected.Substring(root.Length).Split('\\');
+        if (parts.Length < 1 || parts[parts.Length - 1].Length == 0)
+            throw new InvalidOperationException("workspace-path-invalid");
+        foreach (string part in parts)
+            if (part.Length == 0 || part == "." || part == ".." ||
+                part.EndsWith(" ") || part.EndsWith("."))
+                throw new InvalidOperationException("workspace-path-invalid");
+
+        return parts;
+    }
+
+    internal string IdentityToken()
+    {
+        if (!IsRetained()) throw new InvalidOperationException("workspace-identity-unavailable");
+        return identity.volume.ToString("x16", System.Globalization.CultureInfo.InvariantCulture) +
+            BitConverter.ToString(identity.id).Replace("-", "").ToLowerInvariant();
+    }
+
+    internal static string Inspect(string selected, string expected)
+    {
+        if (expected == null || expected.Length != 48) return "unknown";
+        try
+        {
+            string[] parts = ValidatePath(selected);
+            using (AppContainerWorkspace current = new AppContainerWorkspace(selected))
+            {
+                string at = Path.GetPathRoot(selected);
+                current.Pin(at);
+                foreach (string part in parts)
+                {
+                    at = Path.Combine(at, part);
+                    current.Pin(at);
+                }
+                current.identity = ReadIdentity(current.pinned[current.pinned.Count - 1]);
+                if (!current.IsRetained()) return "unknown";
+                return string.Equals(current.IdentityToken(), expected, StringComparison.Ordinal)
+                    ? "present" : "replaced";
+            }
+        }
+        catch { return "unknown"; }
     }
 
     private void Pin(string directory)
@@ -131,8 +183,13 @@ internal sealed class AppContainerWorkspace : IDisposable
         if (pinned.Count == 0) return false;
         IntPtr leaf = pinned[pinned.Count - 1];
         BY_HANDLE_FILE_INFORMATION now;
-        if (!GetFileInformationByHandle(leaf, out now) || !Same(identity, now) ||
-            (now.attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0) return false;
+        try
+        {
+            if (!GetFileInformationByHandle(leaf, out now) ||
+                (now.attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0 ||
+                !Same(identity, ReadIdentity(leaf))) return false;
+        }
+        catch { return false; }
         IntPtr check = CreateFile(path, FILE_READ_ATTRIBUTES, FILE_SHARE_READ_WRITE,
             IntPtr.Zero, OPEN_EXISTING,
             FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, IntPtr.Zero);
@@ -140,16 +197,49 @@ internal sealed class AppContainerWorkspace : IDisposable
         try
         {
             BY_HANDLE_FILE_INFORMATION atPath;
-            return GetFileInformationByHandle(check, out atPath) && Same(identity, atPath) &&
-                (atPath.attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0;
+            if (!GetFileInformationByHandle(check, out atPath) ||
+                (atPath.attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0) return false;
+            FILE_IDENTITY checkedIdentity = ReadIdentity(check);
+#if APPCONTAINER_TEST
+            // Simulate a ReFS identity whose upper 64 bits differ while the
+            // legacy truncated index remains unchanged.
+            if (Path.GetFileName(path) == "inventory-fileid-mismatch-workspace")
+                checkedIdentity.id[15] ^= 1;
+#endif
+            return Same(identity, checkedIdentity);
         }
+        catch { return false; }
         finally { CloseHandle(check); }
     }
 
-    private static bool Same(BY_HANDLE_FILE_INFORMATION a, BY_HANDLE_FILE_INFORMATION b)
+    private static FILE_IDENTITY ReadIdentity(IntPtr handle)
     {
-        return a.volume == b.volume && a.indexHigh == b.indexHigh &&
-            a.indexLow == b.indexLow && a.links == b.links;
+#if APPCONTAINER_TEST
+        if (FileIdUnavailableForTest)
+            throw new InvalidOperationException("workspace-file-id-unavailable");
+#endif
+        // FileIdInfo has a 64-bit volume serial and a 128-bit file ID. The
+        // older BY_HANDLE_FILE_INFORMATION index can truncate ReFS IDs.
+        IntPtr buffer = Marshal.AllocHGlobal(24);
+        try
+        {
+            if (!GetFileInformationByHandleEx(handle, 18, buffer, 24))
+                throw new InvalidOperationException("workspace-file-id-unavailable");
+            FILE_IDENTITY value = new FILE_IDENTITY();
+            value.volume = unchecked((ulong)Marshal.ReadInt64(buffer));
+            value.id = new byte[16];
+            Marshal.Copy(IntPtr.Add(buffer, 8), value.id, 0, value.id.Length);
+            return value;
+        }
+        finally { Marshal.FreeHGlobal(buffer); }
+    }
+
+    private static bool Same(FILE_IDENTITY a, FILE_IDENTITY b)
+    {
+        if (a.volume != b.volume || a.id == null || b.id == null ||
+            a.id.Length != 16 || b.id.Length != 16) return false;
+        for (int i = 0; i < 16; i++) if (a.id[i] != b.id[i]) return false;
+        return true;
     }
 
     public void Dispose()

@@ -54,6 +54,78 @@ internal sealed class AppContainerProfile : IDisposable
         name = profileName;
     }
 
+    internal sealed class WorkspaceJournalLease : IDisposable
+    {
+        internal readonly string DirectoryPath;
+        private readonly FileStream heldLock;
+        private readonly List<IntPtr> pins;
+        internal WorkspaceJournalLease(string directory, FileStream held, List<IntPtr> directories)
+        { DirectoryPath = directory; heldLock = held; pins = directories; }
+        public void Dispose()
+        {
+            heldLock.Dispose();
+            for (int i = pins.Count - 1; i >= 0; i--) CloseHandle(pins[i]);
+            pins.Clear();
+        }
+    }
+
+    // Uses the same owner/SYSTEM-only directory and non-reparse ancestor checks
+    // as the profile journal, but a separate lock and bounded record namespace.
+    internal static WorkspaceJournalLease OpenWorkspaceJournal(bool create)
+    {
+#if APPCONTAINER_TEST
+        string local = AppDomain.CurrentDomain.BaseDirectory;
+#else
+        string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+#endif
+        if (string.IsNullOrEmpty(local) || !Path.IsPathRooted(local))
+            throw new InvalidOperationException("workspace-journal-unavailable");
+        string ownerRoot = Path.Combine(local, "AEGIS");
+        string journal = Path.Combine(ownerRoot, "AppContainerWorkspaceJournal");
+        List<IntPtr> pins = new List<IntPtr>();
+        FileStream held = null;
+        try
+        {
+            PinAncestors(local, pins);
+            EnsurePrivateDirectory(ownerRoot, pins, create);
+            EnsurePrivateDirectory(journal, pins, create);
+            string lockPath = Path.Combine(journal, ".lock");
+            held = new FileStream(lockPath, create ? FileMode.OpenOrCreate : FileMode.Open,
+                FileAccess.ReadWrite,
+                FileShare.None);
+            ValidatePrivateJournalFile(lockPath);
+            return new WorkspaceJournalLease(journal, held, pins);
+        }
+        catch
+        {
+            if (held != null) held.Dispose();
+            for (int i = pins.Count - 1; i >= 0; i--) CloseHandle(pins[i]);
+            throw;
+        }
+    }
+
+    internal static void ValidatePrivateJournalFile(string selected)
+    {
+        FileAttributes attributes = File.GetAttributes(selected);
+        if ((attributes & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0)
+            throw new InvalidOperationException("workspace-journal-file-unsafe");
+        FileSecurity security = File.GetAccessControl(selected);
+        SecurityIdentifier owner = WindowsIdentity.GetCurrent().User;
+        if (!owner.Equals(security.GetOwner(typeof(SecurityIdentifier))))
+            throw new InvalidOperationException("workspace-journal-file-owner");
+        SecurityIdentifier system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        AuthorizationRuleCollection rules = security.GetAccessRules(true, true,
+            typeof(SecurityIdentifier));
+        foreach (FileSystemAccessRule rule in rules)
+        {
+            SecurityIdentifier sid = (SecurityIdentifier)rule.IdentityReference;
+            if (rule.AccessControlType != AccessControlType.Allow ||
+                (!sid.Equals(owner) && !sid.Equals(system)))
+                throw new InvalidOperationException("workspace-journal-file-acl");
+        }
+        if (rules.Count == 0) throw new InvalidOperationException("workspace-journal-file-acl");
+    }
+
     internal static AppContainerProfile Create()
     {
 #if APPCONTAINER_TEST
@@ -155,10 +227,12 @@ internal sealed class AppContainerProfile : IDisposable
         pins.Add(handle);
     }
 
-    private static void EnsurePrivateDirectory(string directory, List<IntPtr> pins)
+    private static void EnsurePrivateDirectory(string directory, List<IntPtr> pins,
+        bool create = true)
     {
         if (!Directory.Exists(directory))
         {
+            if (!create) throw new InvalidOperationException("workspace-journal-unavailable");
             DirectorySecurity acl = new DirectorySecurity();
             SecurityIdentifier owner = WindowsIdentity.GetCurrent().User;
             acl.SetOwner(owner);

@@ -184,6 +184,37 @@ malformed profile markers or unsafe journal paths fail closed. Failed cleanup re
 marker and cannot produce a successful receipt. No automatic workspace deletion
 is performed; retained output needs deliberate operator retention management.
 
+New isolated launches also write a bounded, private workspace inventory under
+`LocalAppData/AEGIS/AppContainerWorkspaceJournal`. A flushed intent precedes
+workspace creation; a flushed file identity is rechecked immediately before
+the suspended child resumes. After confirmed Job and profile cleanup, a final
+retained marker is flushed. A crash can leave an `intent` or `prepared` entry;
+these phases do not claim that a child started or that the path still exists.
+Corrupt, unsafe or full inventory storage prevents further isolated launches.
+An interrupted identity or retained transition can still expose its flushed
+intent path in the explicit list with uncertain presence; its temporary record
+blocks new launches until a separate, deliberate recovery workflow exists.
+The inventory is limited to 256 entries and 4 KiB of UTF-8 path data per entry;
+this release has no delete or pruning command. Once full, launches fail closed
+until a later explicit retention workflow is available.
+
+Run `--action-appcontainer-workspaces` explicitly in a private terminal to list
+AEGIS-tracked workspaces. It returns each entry's opaque ID, exact path, UTC
+creation time, phase and current identity result (`present`, `replaced` or
+`unknown`). `present` requires a fresh non-reparse path and matching native
+64-bit volume serial plus 128-bit `FileIdInfo` file identity. If Windows cannot
+provide that identity, the protected launch fails closed or listing says
+`unknown`. `present` does not certify contents or make the directory safe
+to delete. The command never traverses workspace contents. Earlier workspaces
+created before this inventory are absent. Before the first tracked launch, the
+read-only command reports inventory unavailable without creating journal files.
+The response includes `incompleteIntents`: recognized private temporary intents
+interrupted before commit. They are omitted from `workspaces` because no directory
+creation was allowed to begin for them; other entries remain visible. New launches
+still refuse a leftover temporary record.
+Ordinary action receipts and logs
+contain no workspace path or registry entry.
+
 The selected runtime must already be accessible under Windows AppContainer
 access checks. AEGIS does not grant installed software broader permissions to
 make it run. Native checks cover `whoami.exe`, installed Node, and an explicitly

@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -11,7 +11,8 @@ const require = createRequire(import.meta.url);
 const confirmation = require('../../src/main/action-confirmation');
 const runner = require('../../src/main/action-execution');
 const { handleActionExecutionCLI } = require('../../src/main/action-execution-cli');
-const { spawnActionInAppContainer } = require('../../src/main/mcp-gateway-windows-job');
+const adapter = require('../../src/main/mcp-gateway-windows-job');
+const { spawnActionInAppContainer, listAppContainerWorkspaces } = adapter;
 const project = path.resolve(import.meta.dirname, '../..');
 const scratch = path.resolve(process.env.AEGIS_APPCONTAINER_TEST_TMP || os.tmpdir());
 const csc = path.join(
@@ -151,7 +152,12 @@ async function nativeImportAttempt(input, directory = cwd) {
   });
   return peer;
 }
-async function nativeExecutableAttempt(executable, changes = {}, directory = cwd) {
+async function nativeExecutableAttempt(
+  executable,
+  changes = {},
+  directory = cwd,
+  nativeHelper = helper,
+) {
   const chosen = selected(executable, ['child', privateFile], directory);
   const launch = JSON.parse(fs.readFileSync(chosen.request, 'utf8')).action;
   const peer = spawnActionInAppContainer(
@@ -164,7 +170,7 @@ async function nativeExecutableAttempt(executable, changes = {}, directory = cwd
         ...changes,
       },
     },
-    helper,
+    nativeHelper,
   );
   peer.on('error', () => {});
   await new Promise((resolve, reject) => {
@@ -216,6 +222,7 @@ describe.skipIf(process.platform !== 'win32')('Windows AppContainer selected act
     approve();
   });
   afterEach(() => {
+    adapter._resetForTest();
     confirmation._resetForTest();
     runner._resetForTest();
     for (const pid of children) if (alive(pid)) process.kill(pid, 'SIGKILL');
@@ -302,6 +309,261 @@ describe.skipIf(process.platform !== 'win32')('Windows AppContainer selected act
     });
 
     expect(fs.existsSync(cwd)).toBe(true);
+  }, 15000);
+
+  it('lists only AEGIS-tracked paths on the explicit private command and rechecks identity', async () => {
+    const chosen = selected(probe, ['child', privateFile]);
+    const result = await confirmation.confirmSelectedAction(chosen.policy, chosen.request, {
+      appContainer: true,
+    });
+    expect(result.isolation.workspace).toBe('retained');
+    expect(JSON.stringify(result)).not.toContain(cwd);
+    const current = listAppContainerWorkspaces(helper).workspaces.find((row) => row.path === cwd);
+    expect(current).toMatchObject({ phase: 'retained', presence: 'present' });
+    const moved = cwd + '-moved';
+    fs.renameSync(cwd, moved);
+    fs.mkdirSync(cwd);
+    const replaced = listAppContainerWorkspaces(helper).workspaces.find((row) => row.path === cwd);
+    expect(replaced).toMatchObject({ id: current.id, phase: 'retained', presence: 'replaced' });
+    adapter._setDepsForTest({
+      spawnSync: (_selected, args, options) => spawnSync(helper, args, options),
+    });
+    const output = [];
+    expect(
+      await handleActionExecutionCLI(['--action-appcontainer-workspaces'], (value) =>
+        output.push(value),
+      ),
+    ).toBe(0);
+    expect(JSON.parse(output[0]).workspaces).toContainEqual(replaced);
+    expect(
+      await handleActionExecutionCLI(['--action-appcontainer-workspaces', cwd], () => {}),
+    ).toBe(1);
+  }, 15000);
+
+  it('keeps intent-only crash windows explicitly unknown', async () => {
+    const intentPath = path.join(root, 'inventory-intent-crash-workspace');
+    const first = await nativeExecutableAttempt(probe, {}, intentPath);
+    expect(first.cleanupConfirmed).toBe(false);
+    expect(fs.existsSync(intentPath)).toBe(false);
+    expect(
+      listAppContainerWorkspaces(helper).workspaces.find((row) => row.path === intentPath),
+    ).toMatchObject({ phase: 'intent', presence: 'unknown' });
+
+    const crashProbe = path.join(root, 'bin', 'inventory-create-crash-probe.exe');
+    fs.copyFileSync(probe, crashProbe);
+    acl(crashProbe, '(RX)');
+    const createdPath = path.join(root, 'inventory-created-workspace');
+    const second = await nativeExecutableAttempt(crashProbe, {}, createdPath);
+    expect(second.cleanupConfirmed).toBe(false);
+    expect(fs.existsSync(createdPath)).toBe(true);
+    expect(
+      listAppContainerWorkspaces(helper).workspaces.find((row) => row.path === createdPath),
+    ).toMatchObject({ phase: 'intent', presence: 'unknown' });
+    expect(fs.existsSync(path.join(createdPath, 'child.txt'))).toBe(false);
+  }, 20000);
+
+  it('keeps prior entries visible after a crash during uncommitted intent write', async () => {
+    const isolatedRoot = fs.mkdtempSync(path.join(scratch, 'aegis-inventory-intent-tmp-'));
+    try {
+      const isolatedHelper = path.join(isolatedRoot, 'aegis-mcpjob.exe');
+      fs.copyFileSync(helper, isolatedHelper);
+      const prior = path.join(root, 'inventory-prior-workspace');
+      const seed = await nativeExecutableAttempt(probe, {}, prior, isolatedHelper);
+      expect(seed.cleanupConfirmed).toBe(true);
+      const interrupted = path.join(root, 'inventory-intent-tmp-workspace');
+      const crashed = await nativeExecutableAttempt(probe, {}, interrupted, isolatedHelper);
+      expect(crashed.cleanupConfirmed).toBe(false);
+      expect(fs.existsSync(interrupted)).toBe(false);
+      const listed = listAppContainerWorkspaces(isolatedHelper);
+      expect(listed.incompleteIntents).toBe(1);
+      expect(listed.workspaces.find((row) => row.path === prior)).toMatchObject({
+        phase: 'retained',
+        presence: 'present',
+      });
+      expect(listed.workspaces.some((row) => row.path === interrupted)).toBe(false);
+      const next = path.join(root, 'after-uncommitted-intent');
+      const refused = await nativeExecutableAttempt(probe, {}, next, isolatedHelper);
+      expect(refused.cleanupConfirmed).toBe(false);
+      expect(fs.existsSync(next)).toBe(false);
+    } finally {
+      removeOwned(isolatedRoot);
+    }
+  }, 15000);
+
+  it('rejects an upper-half 128-bit workspace identity mismatch', async () => {
+    const mismatch = path.join(root, 'inventory-fileid-mismatch-workspace');
+    const result = await nativeExecutableAttempt(probe, {}, mismatch);
+    expect(result.cleanupConfirmed).toBe(false);
+    expect(fs.existsSync(mismatch)).toBe(true);
+    expect(fs.existsSync(path.join(mismatch, 'child.txt'))).toBe(false);
+    expect(
+      listAppContainerWorkspaces(helper).workspaces.find((row) => row.path === mismatch),
+    ).toMatchObject({ phase: 'intent', presence: 'unknown' });
+  }, 15000);
+
+  it('fails closed when 128-bit workspace file identity is unavailable', async () => {
+    const unavailable = path.join(root, 'inventory-fileid-unavailable-workspace');
+    const result = await nativeExecutableAttempt(probe, {}, unavailable);
+    expect(result.cleanupConfirmed).toBe(false);
+    expect(fs.existsSync(unavailable)).toBe(true);
+    expect(fs.existsSync(path.join(unavailable, 'child.txt'))).toBe(false);
+    expect(
+      listAppContainerWorkspaces(helper).workspaces.find((row) => row.path === unavailable),
+    ).toMatchObject({ phase: 'intent', presence: 'unknown' });
+  }, 15000);
+
+  it('fails closed on a corrupt, locked or full private workspace journal', async () => {
+    const isolatedRoot = fs.mkdtempSync(path.join(scratch, 'aegis-inventory-owner-'));
+    try {
+      const isolatedHelper = path.join(isolatedRoot, 'aegis-mcpjob.exe');
+      fs.copyFileSync(helper, isolatedHelper);
+      const journal = path.join(isolatedRoot, 'AEGIS', 'AppContainerWorkspaceJournal');
+      expect(() => listAppContainerWorkspaces(isolatedHelper)).toThrow();
+      expect(fs.existsSync(journal)).toBe(false);
+      const seed = await nativeExecutableAttempt(
+        probe,
+        {},
+        path.join(root, 'inventory-seed'),
+        isolatedHelper,
+      );
+      expect(seed.cleanupConfirmed).toBe(true);
+      expect(listAppContainerWorkspaces(isolatedHelper).workspaces).toHaveLength(1);
+      const bad = path.join(journal, `ws-${'1'.repeat(32)}.intent`);
+      fs.writeFileSync(bad, 'partial');
+      expect(() => listAppContainerWorkspaces(isolatedHelper)).toThrow();
+      const refused = await nativeExecutableAttempt(probe, {}, cwd, isolatedHelper);
+      expect(refused.cleanupConfirmed).toBe(false);
+      expect(fs.existsSync(cwd)).toBe(false);
+      fs.unlinkSync(bad);
+
+      const held = fs.openSync(path.join(journal, '.lock'), 'r');
+      try {
+        expect(() => listAppContainerWorkspaces(isolatedHelper)).toThrow();
+      } finally {
+        fs.closeSync(held);
+      }
+
+      for (let i = 0; i < 255; i++) {
+        const selectedPath = Buffer.from(path.join(root, `inventory-slot-${i}`), 'utf8');
+        const record = Buffer.alloc(17 + selectedPath.length);
+        record.write('AEGW1', 0, 'ascii');
+        record.writeBigInt64LE((BigInt(Date.now()) + 62135596800000n) * 10000n, 5);
+        record.writeInt32LE(selectedPath.length, 13);
+        selectedPath.copy(record, 17);
+        fs.writeFileSync(
+          path.join(journal, `ws-${i.toString(16).padStart(32, '0')}.intent`),
+          record,
+        );
+      }
+      expect(listAppContainerWorkspaces(isolatedHelper).workspaces).toHaveLength(256);
+      const full = await nativeExecutableAttempt(probe, {}, cwd, isolatedHelper);
+      expect(full.cleanupConfirmed).toBe(false);
+      expect(fs.existsSync(cwd)).toBe(false);
+    } finally {
+      removeOwned(isolatedRoot);
+    }
+  }, 30000);
+
+  it('refuses a journal with inherited ACLs or a reparse ancestor', async () => {
+    const isolatedRoot = fs.mkdtempSync(path.join(scratch, 'aegis-inventory-acl-'));
+    const linkedRoot = fs.mkdtempSync(path.join(scratch, 'aegis-inventory-link-'));
+    try {
+      const isolatedHelper = path.join(isolatedRoot, 'aegis-mcpjob.exe');
+      fs.copyFileSync(helper, isolatedHelper);
+      const seed = await nativeExecutableAttempt(
+        probe,
+        {},
+        path.join(root, 'acl-seed'),
+        isolatedHelper,
+      );
+      expect(seed.cleanupConfirmed).toBe(true);
+      const journal = path.join(isolatedRoot, 'AEGIS', 'AppContainerWorkspaceJournal');
+      execFileSync('icacls.exe', [journal, '/inheritance:e'], { windowsHide: true, stdio: 'pipe' });
+      expect(() => listAppContainerWorkspaces(isolatedHelper)).toThrow();
+      const refused = await nativeExecutableAttempt(probe, {}, cwd, isolatedHelper);
+      expect(refused.cleanupConfirmed).toBe(false);
+      expect(fs.existsSync(cwd)).toBe(false);
+
+      const linkedHelper = path.join(linkedRoot, 'aegis-mcpjob.exe');
+      fs.copyFileSync(helper, linkedHelper);
+      fs.symlinkSync(path.join(isolatedRoot, 'AEGIS'), path.join(linkedRoot, 'AEGIS'), 'junction');
+      expect(() => listAppContainerWorkspaces(linkedHelper)).toThrow();
+      expect(fs.existsSync(path.join(linkedRoot, 'AEGIS', 'AppContainerWorkspaceJournal'))).toBe(
+        true,
+      );
+    } finally {
+      removeOwned(linkedRoot);
+      removeOwned(isolatedRoot);
+    }
+  }, 15000);
+
+  it('refuses a registry record exposed by an extra ACL principal', async () => {
+    const isolatedRoot = fs.mkdtempSync(path.join(scratch, 'aegis-inventory-record-acl-'));
+    try {
+      const isolatedHelper = path.join(isolatedRoot, 'aegis-mcpjob.exe');
+      fs.copyFileSync(helper, isolatedHelper);
+      const seed = await nativeExecutableAttempt(
+        probe,
+        {},
+        path.join(root, 'record-acl-seed'),
+        isolatedHelper,
+      );
+      expect(seed.cleanupConfirmed).toBe(true);
+      const journal = path.join(isolatedRoot, 'AEGIS', 'AppContainerWorkspaceJournal');
+      const record = path.join(
+        journal,
+        fs.readdirSync(journal).find((name) => name.endsWith('.intent')),
+      );
+      acl(record, '(R)');
+      expect(() => listAppContainerWorkspaces(isolatedHelper)).toThrow();
+      const refused = await nativeExecutableAttempt(probe, {}, cwd, isolatedHelper);
+      expect(refused.cleanupConfirmed).toBe(false);
+      expect(fs.existsSync(cwd)).toBe(false);
+    } finally {
+      removeOwned(isolatedRoot);
+    }
+  }, 15000);
+
+  it('does not resume a child after committed inventory identity is corrupted', async () => {
+    const isolatedRoot = fs.mkdtempSync(path.join(scratch, 'aegis-inventory-commit-'));
+    try {
+      const isolatedHelper = path.join(isolatedRoot, 'aegis-mcpjob.exe');
+      fs.copyFileSync(helper, isolatedHelper);
+      const corruptProbe = path.join(root, 'bin', 'inventory-commit-corrupt-probe.exe');
+      fs.copyFileSync(probe, corruptProbe);
+      acl(corruptProbe, '(RX)');
+      const result = await nativeExecutableAttempt(corruptProbe, {}, cwd, isolatedHelper);
+      expect(result.cleanupConfirmed).toBe(false);
+      expect(fs.existsSync(cwd)).toBe(true);
+      expect(fs.existsSync(path.join(cwd, 'child.txt'))).toBe(false);
+      expect(() => listAppContainerWorkspaces(isolatedHelper)).toThrow();
+    } finally {
+      removeOwned(isolatedRoot);
+    }
+  }, 15000);
+
+  it('shows a flushed intent after a crash during the identity transition', async () => {
+    const isolatedRoot = fs.mkdtempSync(path.join(scratch, 'aegis-inventory-transition-'));
+    try {
+      const isolatedHelper = path.join(isolatedRoot, 'aegis-mcpjob.exe');
+      fs.copyFileSync(helper, isolatedHelper);
+      const crashProbe = path.join(root, 'bin', 'inventory-transition-crash-probe.exe');
+      fs.copyFileSync(probe, crashProbe);
+      acl(crashProbe, '(RX)');
+      const result = await nativeExecutableAttempt(crashProbe, {}, cwd, isolatedHelper);
+      expect(result.cleanupConfirmed).toBe(false);
+      expect(fs.existsSync(cwd)).toBe(true);
+      expect(fs.existsSync(path.join(cwd, 'child.txt'))).toBe(false);
+      expect(
+        listAppContainerWorkspaces(isolatedHelper).workspaces.find((row) => row.path === cwd),
+      ).toMatchObject({ phase: 'intent', presence: 'unknown' });
+      const next = path.join(root, 'after-transition-crash');
+      const refused = await nativeExecutableAttempt(probe, {}, next, isolatedHelper);
+      expect(refused.cleanupConfirmed).toBe(false);
+      expect(fs.existsSync(next)).toBe(false);
+    } finally {
+      removeOwned(isolatedRoot);
+    }
   }, 15000);
 
   it('refuses an executable changed during terminal review before the child starts', async () => {
@@ -672,6 +934,9 @@ describe.skipIf(process.platform !== 'win32')('Windows AppContainer selected act
     expect(fs.readFileSync(marker, 'utf8')).toBe('KEEP');
     expect(fs.readdirSync(cwd)).toEqual(['existing.txt']);
     expect(JSON.parse(output[0]).execution.state).not.toBe('exited');
+    expect(
+      listAppContainerWorkspaces(helper).workspaces.find((row) => row.path === cwd),
+    ).toMatchObject({ phase: 'intent', presence: 'unknown' });
   }, 15000);
 
   it('requires affirmative review before creating a workspace or launching a child', async () => {
@@ -762,6 +1027,9 @@ describe.skipIf(process.platform !== 'win32')('Windows AppContainer selected act
       await new Promise((resolve) => helperProcess.once('close', resolve));
       await vi.waitFor(() => expect(children.every((pid) => !alive(pid))).toBe(true));
       expect(markers()).toHaveLength(1);
+      expect(
+        listAppContainerWorkspaces(helper).workspaces.find((row) => row.path === cwd),
+      ).toMatchObject({ phase: 'prepared', presence: 'present' });
       const nextCwd = path.join(root, 'recovered-workspace');
       const recovery = selected(
         path.join(process.env.WINDIR || 'C:\\Windows', 'System32', 'whoami.exe'),

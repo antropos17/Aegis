@@ -9,6 +9,19 @@ const { actionReport } = require('./action-protected-execution');
  * @since v0.15.1
  */
 async function handleActionExecutionCLI(args, write) {
+  if (args[0] === '--action-appcontainer-workspaces') {
+    if (args.length !== 1) {
+      write(JSON.stringify({ error: 'expected-action-exec-arguments' }));
+      return 1;
+    }
+    try {
+      write(JSON.stringify(require('./mcp-gateway-windows-job').listAppContainerWorkspaces()));
+      return 0;
+    } catch {
+      write(JSON.stringify({ error: 'workspace-inventory-unavailable' }));
+      return 2;
+    }
+  }
   if (
     args.length !== (args[0] === '--action-exec-appcontainer-import-confirm' ? 4 : 3) ||
     ![
