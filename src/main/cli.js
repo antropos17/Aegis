@@ -39,6 +39,7 @@ Options:
   --action-exec-windows-job-confirm <policy.json> <request.json>  Confirm one launch with Windows Job cleanup; no file/network isolation
   --action-exec-appcontainer-confirm <policy.json> <request.json>  Confirm one Windows AppContainer launch in a new retained workspace
   --action-exec-appcontainer-import-confirm <policy.json> <request.json> <input-file>  Import one 64 KiB snapshot as input.bin before a confirmed isolated launch
+  --action-appcontainer-workspaces  Privately list AEGIS-tracked AppContainer workspaces and current identity status
   --action-policy-hook <policy.json>  Experimental Claude PreToolUse Bash decision hook
   --gemini-beforetool-hook <policy.json>  Opt-in Gemini BeforeTool exact shell deny hook
   --handoff-listen-json claude-code <port> <seconds>  Observe live hooks on loopback (opt-in)
@@ -163,7 +164,8 @@ async function handleCLI(argv) {
     flag === '--action-exec-windows-job-json' ||
     flag === '--action-exec-windows-job-confirm' ||
     flag === '--action-exec-appcontainer-confirm' ||
-    flag === '--action-exec-appcontainer-import-confirm'
+    flag === '--action-exec-appcontainer-import-confirm' ||
+    flag === '--action-appcontainer-workspaces'
   )
     return require('./action-execution-cli').handleActionExecutionCLI(args, write);
   if (flag === '--action-delete-file-confirm')

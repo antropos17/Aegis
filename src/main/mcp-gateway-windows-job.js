@@ -1,5 +1,5 @@
 'use strict';
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const { EventEmitter } = require('node:events');
 const { existsSync } = require('node:fs');
 const path = require('node:path');
@@ -217,6 +217,51 @@ function spawnActionInAppContainer(launch, helper = helperPath()) {
   );
 }
 
+/** Read the bounded native workspace inventory for an explicit private CLI request.
+ * @param {string} [helper] Explicit native test helper.
+ * @returns {object} Exact paths and revalidated lifecycle states. @since v0.17.0 */
+function listAppContainerWorkspaces(helper = helperPath()) {
+  const roots = Object.entries(process.env).filter(([name]) => name.toLowerCase() === 'systemroot');
+  if (process.platform !== 'win32' || roots.length !== 1 || !path.win32.isAbsolute(roots[0][1]))
+    throw Error('workspace-inventory-unavailable');
+  const result = (testDeps?.spawnSync || spawnSync)(helper, ['--workspace-list'], {
+    cwd: path.dirname(helper),
+    env: { SystemRoot: roots[0][1] },
+    windowsHide: true,
+    encoding: 'utf8',
+    timeout: 5000,
+    maxBuffer: 8 * 1024 * 1024,
+  });
+  if (result.status !== 0 || result.error || typeof result.stdout !== 'string')
+    throw Error('workspace-inventory-unavailable');
+  let parsed;
+  try {
+    parsed = JSON.parse(result.stdout);
+  } catch {
+    throw Error('workspace-inventory-unavailable');
+  }
+  if (
+    parsed?.schemaVersion !== 1 ||
+    !Number.isInteger(parsed.incompleteIntents) ||
+    parsed.incompleteIntents < 0 ||
+    parsed.incompleteIntents > 256 ||
+    !Array.isArray(parsed.workspaces) ||
+    parsed.workspaces.length > 256 ||
+    !parsed.workspaces.every(
+      (row) =>
+        /^[a-f0-9]{32}$/.test(row?.id) &&
+        typeof row.path === 'string' &&
+        Buffer.byteLength(row.path, 'utf8') <= 4096 &&
+        /^[a-zA-Z]:\\/.test(row.path) &&
+        typeof row.createdUtc === 'string' &&
+        ['intent', 'prepared', 'retained'].includes(row.phase) &&
+        ['unknown', 'present', 'replaced'].includes(row.presence),
+    )
+  )
+    throw Error('workspace-inventory-unavailable');
+  return parsed;
+}
+
 /** @param {object} deps Trusted native transport seam. @returns {void} @since v0.16.0 */
 function _setDepsForTest(deps) {
   testDeps = deps;
@@ -231,6 +276,7 @@ module.exports = {
   spawnInWindowsJob,
   spawnActionInWindowsJob,
   spawnActionInAppContainer,
+  listAppContainerWorkspaces,
   _setDepsForTest,
   _resetForTest,
 };

@@ -16,8 +16,18 @@ internal static class Program
     private const int MaxChildStderrBytes = 32768;
     private const int MaxActionOutputBytes = 65536;
 
-    private static int Main()
+    private static int Main(string[] arguments)
     {
+        if (arguments.Length == 1 && arguments[0] == "--workspace-list")
+        {
+            try {
+                Console.OutputEncoding = new UTF8Encoding(false);
+                Console.Out.WriteLine(AppContainerWorkspaceInventory.ListJson());
+                return 0;
+            }
+            catch { return 2; }
+        }
+        if (arguments.Length != 0) return 2;
         bool ready = false;
         try
         {
@@ -39,10 +49,21 @@ internal static class Program
             using (AppContainerExecutable.PinnedFile pinnedExecutable = isolated
                 ? AppContainerExecutable.Open(executable, executableSize, executableHash) : null)
             using (AppContainerProfile profile = isolated ? AppContainerProfile.Create() : null)
+            using (AppContainerWorkspaceInventory inventory = isolated
+                ? AppContainerWorkspaceInventory.Begin(cwd) : null)
             using (AppContainerWorkspace workspace = isolated
                 ? AppContainerWorkspace.Create(cwd, profile.Sid) : null)
             {
 #if APPCONTAINER_TEST
+            if (isolated && Path.GetFileName(executable) == "inventory-create-crash-probe.exe")
+                Environment.Exit(2);
+            if (isolated && Path.GetFileName(executable) == "inventory-transition-crash-probe.exe")
+                AppContainerWorkspaceInventory.CrashIdentityTransitionForTest = true;
+#endif
+            if (isolated) inventory.Commit(workspace);
+#if APPCONTAINER_TEST
+            if (isolated && Path.GetFileName(executable) == "inventory-commit-corrupt-probe.exe")
+                inventory.CorruptCommittedIdentityForTest();
             if (imported && Path.GetFileName(inputPath) == "mapped-source.bin")
                 AppContainerInput.DriveTypeForTest = delegate(string root) { return 4; };
 #endif
@@ -65,7 +86,7 @@ internal static class Program
             }
             Native.Session started;
             try { started = Native.Start(executable, cwd, args, environment, profile, importedFile,
-                pinnedExecutable); }
+                pinnedExecutable, workspace, inventory); }
             catch
             {
                 if (importedFile != null && !importedFile.Remove())
@@ -170,6 +191,8 @@ internal static class Program
                 try { drained = Task.WaitAll(new Task[] { output, error }, 200); } catch { }
                 bool workspaceRetained = isolated && workspace.IsRetained();
                 bool profileCleanup = isolated && profile.Cleanup();
+                if (confirmed && workspaceRetained && profileCleanup)
+                    workspaceRetained = inventory.MarkRetained(workspace);
                 Stream status = Console.OpenStandardError();
                 if (action)
                 {
