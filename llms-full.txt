@@ -30,7 +30,7 @@ Tracks 112 known AI agents (265 process-name signatures across their `names` arr
 Watches sensitive directories (.ssh, .aws, .gnupg, .env, cloud configs) and the 35 AI agent config paths registered in AGENT_CONFIG_PATHS for file activity. Database configPaths metadata does not register watch roots automatically.
 
 ### Network Activity
-Logs outbound TCP connections per agent PID with forward-confirmed reverse DNS and allowlisted, unknown or flagged endpoint verdicts. An unresolved endpoint is not assumed safe.
+Logs eligible observed TCP endpoints per detected agent PID with forward-confirmed reverse DNS and allowlisted, unknown or flagged verdicts. Provider outages and polling gaps limit coverage; an unresolved endpoint is not assumed safe.
 
 ### Behavioral Analysis
 Applies 73 detection rules across 8 categories (AI config, secrets, SSH, cloud, browser, devtools, crypto, certificates) with rolling 10-session baselines and 4-axis anomaly scoring (Network/FS/Process/Baseline).
@@ -42,7 +42,7 @@ Assigns real-time risk scores with trust grades (A+ through F) using time-decay 
 Radar overview, summary cards, filtered/grouped activity feeds, network panel, expandable agent/application cards and footer sensor health. Monitoring presets: Paranoid, Strict, Balanced, Developer. Presets do not enforce OS-level blocking.
 
 ### Export and Audit
-JSON, CSV, HTML reports, one-click ZIP archive and hash-chained JSONL audit logging with daily rotation and 30-day retention. Settings JSON exports can contain the plaintext API key; remove it before sharing. ZIP session exports remove API-key fields from their settings copy.
+JSON, CSV, HTML reports, one-click ZIP archive and hash-chained JSONL audit logging with daily rotation and 30-day retention. Settings JSON and diagnostic ZIP exports omit the configured API key. Paths, endpoints and agent metadata in exports remain sensitive.
 
 ### YAML Rulesets
 73 sensitive-path detection rules, validated against rules/_schema.json. Existing ruleset edits hot-reload in unpacked runs; packaged ASAR watchers are disabled. Extend by adding a .yaml to rules/ and reloading or restarting; sensitive-rule IDs must be unique and duplicates are skipped. Sequence correlations live separately in rules/sequences/: keep their IDs unique across files because the sequence loader currently does not reject cross-file duplicates.

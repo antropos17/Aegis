@@ -8,17 +8,18 @@ criteria. Work starts with a bounded local project inventory (A1), then proceeds
 to component analysis, action policies and protected Windows execution. Planned
 prevention capabilities must not be presented as already available.
 
-Baseline checked against `11215d4` on 2026-09-07; ETW status updated through
+The historical baseline was checked against `11215d4` on 2026-09-07; ETW status was updated through
 the completed live experiments, B3 (`cc47212`) and the isolated B4 lifecycle harness
-on 2026-09-08. Package version: `0.14.1-alpha`;
-locked Electron: `43.4.1`. Changes merged after a release are available in source,
-not automatically in an installed app.
+on 2026-09-08. That baseline used package version `0.14.1-alpha`. At this
+27 September 2026 documentation refresh, source is `0.17.0-alpha`, with Electron
+`43.4.1`. Changes merged after a release are available in source, not
+automatically in an installed app.
 
-This is the current development queue. Implementation and measurement history
-remain in [progress.md](memory-bank/progress.md). The separately developed frontend
-is user-owned. Application grouping is explicitly integrated into the current
-interface; broader renderer and design work remain separate. Plan IDs below are
-distinct from GitHub issue numbers.
+This queue was scoped from that dated baseline; recheck each item against current
+source before scheduling it. Implementation and measurement history remain in
+[progress.md](memory-bank/progress.md). The Observatory frontend and application
+grouping are integrated in the current interface. Plan IDs below are distinct from
+GitHub issue numbers.
 
 ## Completed baseline
 

@@ -23,6 +23,15 @@ monitoring does not automatically intercept or block commands.
 
 [Download](#download) · [Start with a task](#start-with-a-task) · [Documentation](docs/README.md) · [Local demo](#try-without-ai-agents) · [Known limits](#known-limits) · [Report a bug](https://github.com/antropos17/Aegis/issues/new?template=01-bug-report.yml)
 
+**Current source version**: 0.17.0-alpha <!-- x-release-please-version -->
+
+The [published release](https://github.com/antropos17/Aegis/releases) is built from its tag; later source changes require a new release.
+
+<p align="center">
+  <img src="docs/screenshots/01-monitoring.png" width="980" alt="AEGIS Observatory monitoring workspace with simulated agents and an instance radar">
+</p>
+<p align="center"><sub>Observatory preview with simulated data, captured from current source on 27 September 2026.</sub></p>
+
 ## Start with a task
 
 | What you want to do | Where to start |
@@ -39,11 +48,15 @@ request. File and action checks do not execute commands or establish safety.
 This describes current source; the published installer can contain an earlier UI.
 
 <details>
-<summary>Current interface preview</summary>
+<summary>More Observatory views</summary>
 
-![AEGIS task guide with distinct workspace icons](docs/images/observatory-guide.png)
+![AEGIS Start here guide](docs/images/observatory-guide.png)
 
-Current source preview with simulated data, captured 19 September 2026.
+![AEGIS local security workspace](docs/screenshots/04-local-security.png)
+
+![AEGIS selected-action workspace](docs/screenshots/05-action-control.png)
+
+These views use simulated preview data. [More screenshots](docs/screenshots/README.md).
 
 </details>
 
@@ -145,6 +158,7 @@ For the complete history, see [GitHub Releases](https://github.com/antropos17/Ae
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v0.17.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.17.0-alpha) | 2026-09-27 | Selected-action review and MCP route binding, local security reviews, API-key boundary and private-report hardening |
 | [v0.16.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.16.0-alpha) | 2026-09-26 | Windows setup wizard, monitoring performance work, scoped local security inventory, direct selected-action and MCP routes |
 | [v0.15.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.15.0-alpha) | 2026-09-12 | Observatory desktop, signed Windows updates, Linux process-generation identity and bounded ETW diagnostics |
 | [v0.14.1-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.14.1-alpha) | 2026-09-07 | Evidence-file watchers moved off the main thread; dependency maintenance |
