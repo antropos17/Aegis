@@ -18,28 +18,28 @@ AEGIS is an **Independent AI Oversight Layer** for local agent processes, file a
 │  │  ┌────────────────────────┐  │     │  ┌────────────────────────┐  │  │
 │  │  │  OBSERVABILITY LAYER   │  │     │  │   VISUALIZATION LAYER  │  │  │
 │  │  │                        │  │     │  │                        │  │  │
-│  │  │  process-scanner.js    │──┼──►  │  │  Radar.svelte (canvas) │  │  │
-│  │  │  file-watcher.js       │──┼──►  │  │  GroupedFeed.svelte    │  │  │
-│  │  │  network-monitor.js    │──┼──►  │  │  ActivityFeed.svelte   │  │  │
-│  │  │  baselines.js          │──┼──►  │  │  AgentPanel.svelte     │  │  │
-│  │  │  ai-analysis.js        │──┼──►  │  │  NetworkPanel.svelte   │  │  │
+│  │  │  process-scanner.js    │  │     │  │  Monitoring.svelte     │  │  │
+│  │  │  file-watcher.js       │  │     │  │  Agents.svelte         │  │  │
+│  │  │  network-monitor.js    │  │     │  │  Events.svelte         │  │  │
+│  │  │  baselines.js          │  │     │  │  LocalSecurity.svelte  │  │  │
+│  │  │  ai-analysis.js        │  │     │  │  Action.svelte         │  │  │
 │  │  │  audit-logger.js       │  │     │  │  Reports.svelte        │  │  │
 │  │  └────────────────────────┘  │     │  └────────────────────────┘  │  │
 │  │                              │     │                              │  │
 │  │  ┌────────────────────────┐  │     │  ┌────────────────────────┐  │  │
-│  │  │  INFRASTRUCTURE        │  │     │  │   INTELLIGENCE LAYER   │  │  │
+│  │  │  INFRASTRUCTURE        │  │     │  │    RUNTIME & MODELS    │  │  │
 │  │  │                        │  │     │  │                        │  │  │
-│  │  │  config-manager.js     │  │     │  │  ipc.ts (store)        │  │  │
-│  │  │  exports.js            │  │     │  │  risk.ts (store)       │  │  │
-│  │  │  tray-icon.js          │  │     │  │  theme.ts (store)      │  │  │
-│  │  │  logger.js             │  │     │  │  toast.ts (store)      │  │  │
-│  │  │  scoring-utils.js      │  │     │  │  demo-data.js (store)  │  │  │
+│  │  │  config-manager.js     │  │     │  │  runtime/host.ts       │  │  │
+│  │  │  exports.js            │  │     │  │  runtime/preview.ts    │  │  │
+│  │  │  tray-icon.js          │  │     │  │  runtime/radar.ts      │  │  │
+│  │  │  logger.js             │  │     │  │  runtime/activity.ts   │  │  │
+│  │  │  scoring-utils.js      │  │     │  │  runtime/navigation.ts │  │  │
 │  │  │  ipc-batcher.js        │  │     │  │                        │  │  │
 │  │  │  zip-writer.js         │  │     │  │                        │  │  │
 │  │  │  scan-loop.js          │  │     │  │                        │  │  │
 │  │  └────────────────────────┘  │     │  └────────────────────────┘  │  │
 │  │                              │     │                              │  │
-│  │          main.js             │     │       App.svelte              │  │
+│  │          main.js             │     │  Observatory App.svelte       │  │
 │  │       (orchestrator)         │     │    (root component)           │  │
 │  └───────────────┬──────────────┘     └──────────────┬───────────────┘  │
 │                  │          preload.js                │                  │
@@ -68,14 +68,14 @@ AEGIS is an **Independent AI Oversight Layer** for local agent processes, file a
 - **Coverage:** Undetected signatures and processes that start and exit between polls are blind spots. See [known limits](README.md#known-limits).
 
 #### 2. File & Data Access — `file-watcher.js` + `rule-loader.js`
-- **What it sees:** File create/modify/delete in sensitive directories, per-process file handles
+- **What it sees:** File create/modify/delete in configured sensitive directories and sampled per-process file handles
 - **How:** chokidar watchers on `.ssh`, `.aws`, `.gnupg`, `.kube`, `.docker`, `.azure`, `.env*`, the 35 directories in `AGENT_CONFIG_PATHS` (minus those already covered as sensitive dirs), and the project directory. Open-handle detection is per-platform: Windows uses the Restart Manager (`rstrtmgr.dll`), macOS/Linux use `lsof` / `/proc`.
-- **Depth:** 73 sensitive file rules (from `rules/*.yaml`) with severity classification. AI agent config directory protection (Hudson Rock threat vector). 2-second debounce per path.
+- **Depth:** 73 sensitive file rules (from `rules/*.yaml`) with severity classification. Agent config directories are observed; watching them does not prevent access. 2-second debounce per path.
 - **Limitation:** chokidar cannot attribute events to specific processes. Handle scanning provides per-process attribution but runs on a timer.
 
 #### 3. Network Intelligence — `network-monitor.js`
-- **What it sees:** All outbound TCP connections for detected agent PIDs
-- **How:** `Get-NetTCPConnection` via PowerShell, filtered by PID. Reverse DNS with 5-minute cache.
+- **What it sees:** Eligible observed TCP endpoints for detected agent PIDs; listeners, loopback and unspecified-address rows are filtered.
+- **How:** On Windows the native observer is preferred, with a direct CIM/PowerShell fallback. Reverse DNS has a 5-minute cache.
 - **Depth:** Endpoint verdicts are `allowlisted`, `unknown` (no usable resolved identity), or `flagged` (resolved outside the applicable allowlists). Allowlists use database vendor domains and shared patterns. An allowlist match does not establish safe behavior.
 - **Limitation:** Cannot inspect encrypted traffic. Sees endpoints but not payload.
 
@@ -108,7 +108,7 @@ AEGIS is an **Independent AI Oversight Layer** for local agent processes, file a
 |---|---|---|
 | **UI Awareness** | Cannot see what AI agents display or interact with in UI | Accessibility API monitoring (no screen capture) |
 | **Container/VM Detection** | Runtime process signatures and limited WSL discovery exist; this does not enumerate every container or its internal processes | Broader WSL, Docker and Podman discovery; see [roadmap](ROADMAP.md#a--discovery-coverage) |
-| **Sandbox Containment** | Monitor-only — cannot isolate or restrict agents | Non-goal: OS containment (Job Objects, AppContainer) is deliberately out of scope; pair AEGIS with external sandboxing |
+| **Sandbox Containment** | Default monitoring does not isolate agents. The opt-in Windows Job route controls the lifetime of ordinary descendants of a selected action after confirmed cleanup, without restricting file or network access | AppContainer-style isolation remains out of scope; pair AEGIS with external sandboxing when isolation is required |
 | **GPU Monitoring** | Per-PID NVIDIA VRAM samples exist; allocated memory does not establish active inference | Define and validate the missing inference signal; see [roadmap](ROADMAP.md#a--discovery-coverage) |
 | **Deep Packet Inspection** | Sees TCP endpoints but not encrypted payloads | Non-goal: TLS interception is deliberately out of scope; endpoints-only is the contract |
 | **Syscall Monitoring** | No kernel-level visibility into system calls | Kernel drivers (Minifilter/Endpoint Security/eBPF) are a non-goal; user-mode ETW telemetry is under evaluation |
@@ -142,14 +142,13 @@ process-scanner.js ◄──── config-manager.js
         │
         ▼ IPC via preload.js
         │
-     App.svelte (root component)
+      frontend/observatory/entry.ts → App.svelte
         │
-        ├──► stores/ (ipc.ts, risk.ts, theme.ts, toast.ts, demo-data.js)
-        ├──► ShieldTab → Radar, AgentPanel, SummaryCards, ActivityFeed/GroupedFeed
-        ├──► ActivityTab → ActivityFeed/GroupedFeed, NetworkPanel
-        ├──► RulesTab → Presets, Permissions, AgentDatabase
-        ├──► ReportsTab → Reports, AuditLog, ThreatAnalysis
-        └──► Settings, Header, Footer, Toast
+        ├──► runtime/host.ts → preload-backed telemetry and commands
+        ├──► runtime/preview.ts → isolated simulated browser data
+        ├──► Monitoring → Radar, ProtectionOverview, activity
+        ├──► Agents, Events, LocalSecurity, Action
+        └──► Rules, Reports, Settings and other workspaces
 ```
 
 ## Data Flow
@@ -294,8 +293,8 @@ OS-specific operations already live behind `src/main/platform/`, which picks an
 implementation at load time — so this is about filling gaps in an existing abstraction,
 not introducing one. Add to the platform module, never branch on `process.platform` in a
 caller:
-- `platform/win32.js` — `tasklist /FO CSV /NH`, `Get-CimInstance` for parent chains and
-  `startTime`, `Get-NetTCPConnection`, Restart Manager handle detection, suspend/resume
+- `platform/win32.js` — native process and TCP observations with CIM/PowerShell
+  fallbacks, Restart Manager handle detection, suspend/resume
   via `NtSuspendProcess`/`NtResumeProcess` P/Invoke
 - `platform/darwin.js`, `platform/linux.js` — `listProcesses()` via `ps`, with the shared
   POSIX pieces (including `SIGSTOP`/`SIGCONT` suspend/resume) in `platform/posix-shared.js`
@@ -341,6 +340,6 @@ AEGIS is designed with privacy as a core architectural constraint:
 - **No telemetry.** No analytics, no crash reporting, no usage tracking.
 - **Updates are opt-in.** Manual update actions or the saved automatic-update preference contact GitHub for public release files. These requests expose the normal network address to GitHub but do not send monitoring records, settings or API keys.
 - **No cloud sync.** There is no account system, no server, no cloud backend.
-- **AI analysis is opt-in.** An explicit request sends activity metadata to Anthropic, including agent/process names, PIDs, parent chains, sensitive paths, counts and network endpoints as applicable. The user provides the API key. Local key storage uses safeStorage when available and currently falls back to plaintext otherwise.
-- **Audit logs contain monitoring metadata.** File-monitoring events record paths and attribution, not the contents of sensitive files. Token accounting separately reads agent transcript JSONL to extract usage. Settings JSON exports currently include a configured API key; remove it before sharing.
+- **AI analysis is opt-in.** An explicit, natively confirmed request sends activity metadata to Anthropic, including agent/process names, PIDs, parent chains, sensitive paths, counts and network endpoints as applicable. New API keys require Electron safeStorage with a secure OS backend; when it is unavailable, saving a key fails. Older plaintext keys stay inactive until a secure migration succeeds.
+- **Audit logs contain monitoring metadata.** File-monitoring events record paths and attribution, not the contents of sensitive files. Token accounting separately reads agent transcript JSONL to extract usage. Settings JSON and diagnostic ZIP exports omit the configured API key; paths, endpoints and agent metadata still need care when sharing.
 - **Source review.** Monitoring, scoring and analysis implementations are available in the repository; see [SECURITY.md](SECURITY.md) for the security model and known limitations.

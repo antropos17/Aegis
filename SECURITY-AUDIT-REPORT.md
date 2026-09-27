@@ -5,11 +5,12 @@ on 8 March 2026 in `91766201bde10eed6b3042709e861e6604dc8a89`; it did not record
 the audited revision. Its original findings and measurements are retained below.
 
 A documentation check on 11 September 2026 against `17a3c0d` confirmed that
-`src/main/main.js` already enables sandboxing and guards navigation/window
-creation. The current new-file size target is 300 lines (`AGENTS.md`). Key
-storage uses safeStorage conditionally and still falls back to plaintext when
-encryption is unavailable or fails; see [current security limitations](SECURITY.md#security-architecture).
-CI runs a production dependency audit. These observations do not revalidate the
+`src/main/main.js` already enabled sandboxing and guarded navigation/window
+creation. At that checkpoint, API-key storage could fall back to plaintext. Current
+source requires a secure safeStorage backend for new keys and keeps an older plaintext
+key inactive until secure migration succeeds; see [current security limitations](SECURITY.md#security-architecture).
+The current new-file size target is 300 lines (`AGENTS.md`), and CI runs a production
+dependency audit. These observations do not revalidate the
 old coverage figures, dependency verdict or every finding below. A new security
 audit is required for a current release assessment.
 

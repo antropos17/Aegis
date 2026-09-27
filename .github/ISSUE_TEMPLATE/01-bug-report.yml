@@ -7,7 +7,7 @@ body:
     attributes:
       label: AEGIS version or source commit
       description: Include whether this is an installed build, a source checkout or the simulated preview.
-      placeholder: "e.g. 0.15.0-alpha installer, or source commit SHA"
+      placeholder: "e.g. installer version or source commit SHA"
     validations:
       required: true
   - type: dropdown

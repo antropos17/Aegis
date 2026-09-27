@@ -1,91 +1,87 @@
 /**
- * @file capture-screenshots.mjs
- * @description Captures fullscreen screenshots of every Aegis tab using Playwright Electron.
- *   Uses the demo build (dist/demo/) so all tabs have populated data.
- *   Run: node scripts/capture-screenshots.mjs
+ * Capture the current Observatory with simulated data for public documentation.
+ * Run: node scripts/capture-screenshots.mjs
+ * @since v0.17.0-alpha
  */
-import { _electron } from '@playwright/test';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
+import { chromium } from '@playwright/test';
+import { mkdir } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createServer } from 'vite';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, '..');
-const OUT_DIR = path.join(ROOT, 'docs', 'screenshots');
-const DEMO_HTML = path.join(ROOT, 'dist', 'demo', 'index.html');
-
-// Tabs to capture — id matches #tab-{id} selector in TabBar.svelte
-const TABS = [
-  { id: 'shield', filename: '01-shield-tab.png' },
-  { id: 'activity', filename: '02-activity-tab.png' },
-  { id: 'rules', filename: '03-rules-tab.png' },
-  { id: 'reports', filename: '04-reports-tab.png' },
-  { id: 'stats', filename: '05-stats-tab.png' },
+const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
+const captures = [
+  { view: 'overview', heading: 'Monitoring', file: 'docs/screenshots/01-monitoring.png' },
+  { view: 'agents', heading: 'Agents', file: 'docs/screenshots/02-agents.png' },
+  { view: 'events', heading: 'Events', file: 'docs/screenshots/03-events.png' },
+  {
+    view: 'local-security',
+    heading: 'Local security',
+    file: 'docs/screenshots/04-local-security.png',
+  },
+  {
+    view: 'action-control',
+    heading: 'Action control',
+    file: 'docs/screenshots/05-action-control.png',
+  },
+  { view: 'settings', heading: 'Settings', file: 'docs/screenshots/06-settings.png' },
+  { view: 'guide', heading: 'Start here', file: 'docs/images/observatory-guide.png' },
 ];
 
-async function main() {
-  // Ensure output directory exists
-  fs.mkdirSync(OUT_DIR, { recursive: true });
-
-  // Verify demo build exists
-  if (!fs.existsSync(DEMO_HTML)) {
-    console.error('Demo build not found. Run: npm run build:demo');
-    process.exit(1);
-  }
-
-  console.log('Launching Electron...');
-
-  // VS Code terminals set ELECTRON_RUN_AS_NODE=1 which prevents Electron GUI.
-  // Pass a clean env without it so Electron launches as a proper desktop app.
-  const cleanEnv = { ...process.env };
-  delete cleanEnv.ELECTRON_RUN_AS_NODE;
-
-  // Launch minimal Electron app via _screenshot-entry.cjs.
-  // The populated tabs come from the DEMO BUILD, not from the missing preload: the demo
-  // engine is gated on the build-time flag `npm run build:demo` sets. Pointing this at
-  // dist/renderer instead would show the bridge-unavailable state and empty panels.
-  const ENTRY = path.join(ROOT, 'scripts', '_screenshot-entry.cjs');
-  const electronApp = await _electron.launch({
-    args: ['--no-sandbox', ENTRY],
-    env: cleanEnv,
-  });
-
-  const page = await electronApp.firstWindow();
-  console.log('Window opened, waiting for demo data to populate...');
-
-  // Wait for DOM + demo mode to seed stores + Svelte to render
-  await page.waitForLoadState('domcontentloaded');
-  await page.waitForTimeout(4000);
-
-  // Capture each tab
-  for (const tab of TABS) {
-    console.log(`  Capturing: ${tab.id}...`);
-    await page.click(`#tab-${tab.id}`);
-    // Wait for slide animation (220ms) + extra buffer for rendering
-    await page.waitForTimeout(600);
-    await page.screenshot({
-      path: path.join(OUT_DIR, tab.filename),
-      fullPage: false,
-    });
-    console.log(`    -> ${tab.filename}`);
-  }
-
-  // Capture Settings overlay
-  console.log('  Capturing: settings...');
-  await page.keyboard.press('s');
-  await page.waitForTimeout(600);
-  await page.screenshot({
-    path: path.join(OUT_DIR, '06-settings.png'),
-    fullPage: false,
-  });
-  console.log('    -> 06-settings.png');
-
-  // Close
-  await electronApp.close();
-  console.log('\nDone! Screenshots saved to docs/screenshots/');
-}
-
-main().catch((err) => {
-  console.error('Screenshot capture failed:', err);
-  process.exit(1);
+const server = await createServer({
+  configFile: join(root, 'vite.frontend.config.ts'),
+  mode: 'preview',
+  logLevel: 'error',
+  server: { host: '127.0.0.1', port: 0, strictPort: false },
 });
+let browser;
+try {
+  await server.listen();
+  const address = server.httpServer?.address();
+  if (!address || typeof address === 'string') throw new Error('Preview port unavailable');
+  const base = `http://127.0.0.1:${address.port}`;
+  let launchError;
+  for (const options of [{}, { channel: 'chrome' }, { channel: 'msedge' }]) {
+    try {
+      browser = await chromium.launch({ headless: true, ...options });
+      break;
+    } catch (error) {
+      launchError = error;
+    }
+  }
+  if (!browser) throw launchError;
+  const page = await browser.newPage({
+    viewport: { width: 1200, height: 800 },
+    deviceScaleFactor: 1,
+    colorScheme: 'dark',
+  });
+  const pageErrors = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await mkdir(join(root, 'docs', 'screenshots'), { recursive: true });
+  await mkdir(join(root, 'docs', 'images'), { recursive: true });
+  for (const capture of captures) {
+    await page.goto(`${base}/?view=${encodeURIComponent(capture.view)}`);
+    await page.getByRole('heading', { level: 1, name: capture.heading }).waitFor();
+    await page.waitForFunction(() => !document.documentElement.dataset.transitionSurface);
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+    });
+    await page.waitForTimeout(350);
+    if (pageErrors.length) throw new Error(`Preview error: ${pageErrors.join('; ')}`);
+    await page.screenshot({ path: join(root, capture.file), animations: 'disabled' });
+    console.log(`Captured ${capture.file}`);
+  }
+  await page.setViewportSize({ width: 1280, height: 640 });
+  await page.goto(pathToFileURL(join(root, 'docs', 'social-preview.html')).href);
+  await page.waitForFunction(() =>
+    [...document.images].every((image) => image.complete && image.naturalWidth > 0),
+  );
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+  await page.screenshot({ path: join(root, 'docs', 'social-preview.png'), animations: 'disabled' });
+  console.log('Captured docs/social-preview.png');
+} finally {
+  await browser?.close();
+  await server.close();
+}
