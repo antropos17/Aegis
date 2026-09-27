@@ -1,0 +1,243 @@
+{
+  "schemaVersion": 1,
+  "kind": "windows-live-post-sprint",
+  "startedAt": "2026-09-27T22:38:07.049Z",
+  "measuredHead": "f19c2f03f10a671315d4552a457644035e303d1d",
+  "harness": "bench/cycle-profile/run.cjs",
+  "complete": true,
+  "runnerExitCode": 0,
+  "versions": {
+    "node": "24.18.1",
+    "electron": "43.4.1"
+  },
+  "configuredDurationMs": 1800000,
+  "elapsedMs": 1800010.74,
+  "warmupMs": 90000,
+  "steadyMinutes": 28.5,
+  "steadyProcessTicks": 171,
+  "sourceVerification": {
+    "fingerprintedFiles": 309,
+    "binaryHashesChecked": 3,
+    "mismatches": 0
+  },
+  "receipts": {
+    "reportSha256": "c07c9066c8cd33a63a09c386852f398380981f9e753a58e005fa80189e51bf6a",
+    "manifestSha256": "29d80725d3aa21a8457cd1811371137f62180e5c6e322154400785a2f06b9c4f"
+  },
+  "snapshotSources": {
+    "class5": 174
+  },
+  "tasklist": {
+    "steadyLaunches": 0,
+    "launchesPerSteadyMinute": 0
+  },
+  "wrapperFailureObservations": 0,
+  "processCycleDurationMs": {
+    "samples": 171,
+    "median": 12,
+    "p95": 359,
+    "min": 8,
+    "max": 386
+  },
+  "stages": [
+    {
+      "label": "getParentProcessMap",
+      "calls": 171,
+      "failures": 0,
+      "medianMs": 8.01,
+      "p95Ms": 11.91,
+      "sampled": 171,
+      "truncated": false
+    },
+    {
+      "label": "scanProcesses",
+      "calls": 171,
+      "failures": 0,
+      "medianMs": 8.5,
+      "p95Ms": 12.25,
+      "sampled": 171,
+      "truncated": false
+    },
+    {
+      "label": "annotateWorkingDirs",
+      "calls": 171,
+      "failures": 0,
+      "medianMs": 0.02,
+      "p95Ms": 348.81,
+      "sampled": 171,
+      "truncated": false
+    },
+    {
+      "label": "detectOllamaModels",
+      "calls": 171,
+      "failures": 0,
+      "medianMs": 1.28,
+      "p95Ms": 7.55,
+      "sampled": 171,
+      "truncated": false
+    },
+    {
+      "label": "detectLMStudioModels",
+      "calls": 171,
+      "failures": 0,
+      "medianMs": 1.18,
+      "p95Ms": 7.51,
+      "sampled": 171,
+      "truncated": false
+    },
+    {
+      "label": "scanHotFileHolders",
+      "calls": 171,
+      "failures": 0,
+      "medianMs": 235.66,
+      "p95Ms": 285.57,
+      "sampled": 171,
+      "truncated": false
+    },
+    {
+      "label": "getResourcesForPids",
+      "calls": 171,
+      "failures": 0,
+      "medianMs": 581.12,
+      "p95Ms": 643.75,
+      "sampled": 171,
+      "truncated": false
+    },
+    {
+      "label": "scanNetworkConnections",
+      "calls": 59,
+      "failures": 0,
+      "medianMs": 399.71,
+      "p95Ms": 567.59,
+      "sampled": 59,
+      "truncated": false
+    },
+    {
+      "label": "scanAllFileHandles",
+      "calls": 57,
+      "failures": 0,
+      "medianMs": 2259.05,
+      "p95Ms": 2504.61,
+      "sampled": 57,
+      "truncated": false
+    },
+    {
+      "label": "getProcessCwds",
+      "calls": 28,
+      "failures": 0,
+      "medianMs": 339.33,
+      "p95Ms": 373.67,
+      "sampled": 28,
+      "truncated": false
+    }
+  ],
+  "resources": {
+    "mainRssMiB": {
+      "samples": 343,
+      "median": 197.83,
+      "p95": 201.8,
+      "min": 184.4,
+      "max": 203.26,
+      "firstTenMinuteMedian": 188.96,
+      "lastTenMinuteMedian": 200.89
+    },
+    "mainHeapMiB": {
+      "samples": 343,
+      "median": 14.52,
+      "p95": 16.84,
+      "min": 12.03,
+      "max": 17.54,
+      "firstTenMinuteMedian": 14.26,
+      "lastTenMinuteMedian": 14.63
+    },
+    "electronWorkingSetMiB": {
+      "samples": 343,
+      "median": 480.65,
+      "p95": 487.86,
+      "min": 450.42,
+      "max": 489.14,
+      "firstTenMinuteMedian": 466.56,
+      "lastTenMinuteMedian": 486.41
+    },
+    "loopP99Ms": {
+      "samples": 342,
+      "median": 32.36,
+      "p95": 32.8,
+      "min": 32.03,
+      "max": 35.16,
+      "firstTenMinuteMedian": 32.36,
+      "lastTenMinuteMedian": 32.34
+    },
+    "loopMaxMs": {
+      "samples": 342,
+      "median": 32.71,
+      "p95": 37.13,
+      "min": 32.1,
+      "max": 44.86,
+      "firstTenMinuteMedian": 32.72,
+      "lastTenMinuteMedian": 32.7
+    },
+    "mainCpuPercentOneCore": 0.85,
+    "electronCpuPercentOneCore": 3.46
+  },
+  "queues": {
+    "activityEntries": {
+      "sampledMax": 103,
+      "finalSample": 103
+    },
+    "ipcBuffered": {
+      "sampledMax": 0,
+      "finalSample": 0
+    },
+    "ipcHighWater": {
+      "sampledMax": 12,
+      "finalSample": 12
+    },
+    "ipcEvicted": {
+      "sampledMax": 0,
+      "finalSample": 0
+    },
+    "sequenceOpen": {
+      "sampledMax": 0,
+      "finalSample": 0
+    },
+    "sequencePeak": {
+      "sampledMax": 0,
+      "finalSample": 0
+    },
+    "auditBuffered": {
+      "sampledMax": 48,
+      "finalSample": 0
+    },
+    "auditDropped": {
+      "sampledMax": 0,
+      "finalSample": 0
+    },
+    "auditBytes": {
+      "sampledMax": 1518781,
+      "finalSample": 1518781
+    }
+  },
+  "observationalComparator": {
+    "record": "docs/bench/windows-observer-final-2026-09-15.json",
+    "complete": false,
+    "steadyMinutes": 47.01,
+    "steadyProcessTicks": 282,
+    "tasklistSteadyLaunches": 70,
+    "tasklistLaunchesPerSteadyMinute": 1.49,
+    "scanProcesses": {
+      "calls": 282,
+      "failures": 0,
+      "medianMs": 11.5,
+      "p95Ms": 14.83
+    },
+    "mainRssMiB": {
+      "firstTenMinuteMedian": 217.98046875,
+      "lastTenMinuteMedian": 232.451171875,
+      "min": 198.8203125,
+      "max": 247.63671875
+    },
+    "mainCpuPercentOneCore": 4.37,
+    "electronCpuPercentOneCore": 10.68
+  }
+}
