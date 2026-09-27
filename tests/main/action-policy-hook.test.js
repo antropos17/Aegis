@@ -236,4 +236,27 @@ describe('action policy Node CLI', () => {
     expect(result.stderr).toBe('');
     expect(JSON.parse(result.stdout)).toEqual(deny);
   });
+
+  it.each(['PRIVATE_ARG', '--action-mcp-stdio'])(
+    'blocks a misplaced policy hook after %s through the real entry',
+    async (prefix) => {
+      const result = await launch(
+        [prefix, '--action-policy-hook', 'PRIVATE_POLICY_PATH'],
+        'PRIVATE',
+      );
+      expect(result.code).toBe(2);
+      expect(result.stderr).toBe('');
+      expect(JSON.parse(result.stdout)).toEqual(deny);
+    },
+  );
+
+  it.each([
+    { argv: ['--action-policy-hook', 'PRIVATE_POLICY_PATH', '--gemini-beforetool-hook'] },
+    { argv: ['--gemini-beforetool-hook', 'PRIVATE_POLICY_PATH', '--action-policy-hook'] },
+  ])('blocks an ambiguous hook invocation %# through the real entry', async ({ argv }) => {
+    const result = await launch(argv, 'PRIVATE');
+    expect(result.code).toBe(2);
+    expect(result.stderr).toBe('');
+    expect(JSON.parse(result.stdout)).toEqual(deny);
+  });
 });
