@@ -4,12 +4,10 @@ import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { checkResourceGeometry } from './resource-layer-check.mjs';
 const root = process.cwd();
-const out = resolve(
-  root,
-  process.env.AEGIS_SMOKE_EXECUTABLE ? 'dist/packaged-qa' : 'dist/electron-qa',
-);
+const defaultOutput = process.env.AEGIS_SMOKE_EXECUTABLE ? 'dist/packaged-qa' : 'dist/electron-qa';
+const out = resolve(process.env.AEGIS_SMOKE_OUT ?? resolve(root, defaultOutput));
 await mkdir(out, { recursive: true });
-const env = { ...process.env, TEMP: 'X:/tmp', TMP: 'X:/tmp' };
+const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 const launchOptions = {
   ...(process.env.AEGIS_SMOKE_EXECUTABLE
@@ -118,9 +116,14 @@ try {
     const stats = await window.aegis.getStats();
     return { agents: stats.currentAgents, health: stats.appHealth, gap: stats.observationGap };
   });
+  if (process.env.AEGIS_SMOKE_EXPECT_SIDECAR === '1') {
+    const snapshot = stats.health?.sensors?.byId?.['proc-snapshot'];
+    assert.equal(snapshot?.state, 'HEALTHY', 'native process snapshot sidecar is unavailable');
+    assert.equal(snapshot?.detail, 'class5', 'native process snapshot did not use class 5');
+  }
   const methods = await window.evaluate(() => Object.keys(window.aegis));
-  // Current bridge: 45 invoke methods + 11 subscriptions, including Local security.
-  assert.equal(methods.length, 56);
+  // Current bridge: 46 invoke methods + 11 subscriptions, including Local security.
+  assert.equal(methods.length, 57);
   assert(methods.includes('localSecurityReview'));
   for (const name of [
     'Agents',
