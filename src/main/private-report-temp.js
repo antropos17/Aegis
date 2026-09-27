@@ -59,8 +59,36 @@ function reportDirectory(tempRoot, create = false) {
   return checkedReportDirectory(tempRoot, create)?.directory ?? null;
 }
 
+function reportEntry(directory, entry) {
+  if (!REPORT_NAME.test(entry.name) || !entry.isFile() || entry.isSymbolicLink()) return null;
+  const target = path.join(directory, entry.name);
+  try {
+    const stat = fs.lstatSync(target);
+    return stat.isFile() && !stat.isSymbolicLink() && Number.isFinite(stat.mtimeMs)
+      ? { target, stat }
+      : null;
+  } catch (_) {
+    // A changed or inaccessible file is retried on a later sweep.
+    return null;
+  }
+}
+
+// Count a bounded page before pruning, so the size budget covers every owned file.
+function countReportBatch(directory, handle) {
+  let bytes = 0;
+  let scanned = 0;
+  while (scanned < MAX_SWEEP_ENTRIES) {
+    const entry = handle.readSync();
+    if (entry === null) return { bytes, atEnd: true };
+    scanned++;
+    const file = reportEntry(directory, entry);
+    if (file) bytes += file.stat.size;
+  }
+  return { bytes, atEnd: false };
+}
+
 // One bounded chunk of a directory enumeration; never consume entry 513 here.
-function pruneReportBatch(directory, handle, now, pending = null) {
+function pruneReportBatch(directory, handle, now, pending = null, knownTotalBytes = null) {
   const files = pending?.files ?? [];
   let scanned = 0;
   let atEnd = pending?.atEnd ?? false;
@@ -72,19 +100,13 @@ function pruneReportBatch(directory, handle, now, pending = null) {
         break;
       }
       scanned++;
-      if (!REPORT_NAME.test(entry.name) || !entry.isFile() || entry.isSymbolicLink()) continue;
-      const target = path.join(directory, entry.name);
-      try {
-        const stat = fs.lstatSync(target);
-        if (!stat.isFile() || stat.isSymbolicLink() || !Number.isFinite(stat.mtimeMs)) continue;
-        files.push({ target, stat });
-      } catch (_) {
-        // A changed or inaccessible file is retried on a later sweep.
-      }
+      const file = reportEntry(directory, entry);
+      if (file) files.push(file);
     }
     files.sort((a, b) => a.stat.mtimeMs - b.stat.mtimeMs);
   }
-  let bytes = pending?.bytes ?? files.reduce((total, file) => total + file.stat.size, 0);
+  let bytes =
+    pending?.bytes ?? knownTotalBytes ?? files.reduce((total, file) => total + file.stat.size, 0);
   let removed = 0;
   for (let index = 0; index < files.length; index++) {
     if (removed === MAX_SWEEP_DELETES) {
@@ -216,7 +238,11 @@ function startPrivateReportRetention(getTempRoot, onError = () => {}) {
   const closeActive = () => {
     const current = active;
     active = null;
-    current?.handle.closeSync();
+    current?.handle?.closeSync();
+  };
+  const scheduleContinuation = () => {
+    const next = setImmediate(continueSweep);
+    next.unref?.();
   };
   const continueSweep = () => {
     try {
@@ -229,11 +255,30 @@ function startPrivateReportRetention(getTempRoot, onError = () => {}) {
         checked.stat.birthtimeMs !== active.stat.birthtimeMs
       )
         throw new Error('Private report directory changed');
-      const result = pruneReportBatch(active.directory, active.handle, Date.now(), active.pending);
+      if (active.phase === 'count') {
+        const page = countReportBatch(active.directory, active.handle);
+        active.bytes += page.bytes;
+        if (page.atEnd) {
+          // Reopen only after a yield and a fresh directory-identity check.
+          active.handle.closeSync();
+          active.handle = null;
+          active.phase = 'prune';
+        }
+        scheduleContinuation();
+        return;
+      }
+      if (!active.handle) active.handle = fs.opendirSync(active.directory);
+      const result = pruneReportBatch(
+        active.directory,
+        active.handle,
+        Date.now(),
+        active.pending,
+        active.bytes,
+      );
+      active.bytes = result.bytes;
       active.pending = result.pending;
       if (result.truncated) {
-        const next = setImmediate(continueSweep);
-        next.unref?.();
+        scheduleContinuation();
       } else {
         closeActive();
       }
@@ -252,7 +297,14 @@ function startPrivateReportRetention(getTempRoot, onError = () => {}) {
       const tempRoot = getTempRoot();
       const checked = checkedReportDirectory(tempRoot);
       if (!checked) return;
-      active = { tempRoot, ...checked, handle: fs.opendirSync(checked.directory), pending: null };
+      active = {
+        tempRoot,
+        ...checked,
+        handle: fs.opendirSync(checked.directory),
+        phase: 'count',
+        bytes: 0,
+        pending: null,
+      };
       continueSweep();
     } catch (_) {
       onError();
