@@ -10,6 +10,31 @@ cannot be overridden.
 node src/main/main.js --action-exec-confirm /absolute/policy.json /absolute/request.json
 ```
 
+On Windows, choose `--action-exec-windows-job-confirm` to combine the same
+one-attempt terminal review with a private Windows Job for the selected process
+and ordinary member descendants:
+
+```powershell
+node src/main/main.js --action-exec-windows-job-confirm C:/selected/policy.json C:/selected/request.json
+```
+
+The Windows Job helper must be available (source checkouts: `npm run build:sidecar`).
+An approved action is assigned to its Job before it starts running. Cancellation,
+runtime expiry or ordinary completion requests cleanup of that Job. A missing
+helper or unsupported host refuses execution; this route never falls back to an
+ordinary child. Only confirmed cleanup, exit code zero and complete output
+accounting yield CLI exit zero. The protected report uses `control: windows-job`;
+`descendantControl` is `not-started`, `confirmed` or `unconfirmed` according to the
+observed outcome. A helper failure can leave the outcome unknown.
+
+This approval controls **whether the selected program starts**. Once allowed,
+the program retains the caller's file and network access. Job cleanup cannot
+undo reads, writes or transmissions already completed, and external process
+brokers may create processes outside the Job. The route supplies no file
+quarantine, read interception or OS sandbox. Ordinary agent launches, the MCP
+review broker and saved agent permission choices do not acquire this Job route
+automatically. See [the protected-launch plan](roadmap/protected-launch.md).
+
 Standard input and standard error must both be live TTY streams. Piped input,
 redirected review output and missing terminals refuse execution. Standard output
 contains only the redacted execution report. The standalone JSON CLI and direct
@@ -58,9 +83,10 @@ grant and binding when it finishes.
 Interrupt/termination signals, terminal EOF, terminal errors and owner
 cancellation remain connected through execution cleanup. Before launch they
 prevent a later allow from starting; after launch they request direct-child
-termination and wait for the existing bounded confirmation. Already completed
-side effects cannot be undone. Runtime, output and descendant limits remain those
-of the [direct-execution contract](ACTION-EXECUTION.md).
+termination on the ordinary route or Job cleanup on the Windows Job route.
+Both wait for bounded confirmation. Already completed side effects cannot be
+undone. Runtime, output and descendant limits remain those of the selected
+[execution route](ACTION-EXECUTION.md).
 
 An approved launch report has `decision: allow`,
 `authorization: operator-confirmed` and the original `policyDecision` (`ask` or
@@ -71,7 +97,7 @@ separately. The report contains no grant, private revision digest or preview.
 
 This route adds an explicit operator interaction for one selected action. It does
 not provide reusable approval, task-wide authorization,
-process-tree isolation or authenticated human presence. Revision checks are not
+file/network isolation or authenticated human presence. Revision checks are not
 continuous watchers and do not pin executable bytes, loaded libraries, scripts or
 cwd contents. Allowed executables retain the caller's account privileges.
 
@@ -82,3 +108,13 @@ ask confirmation, negative response, and Ctrl+C after child launch; the last cas
 reported confirmed direct-child termination and prevented its delayed marker.
 These automated interactions do not establish human presence. Verification and
 publication receipts belong to the implementation PR.
+
+The combined Windows Job route also has native fixture tests for approved ask
+and schema 3 review-required launches, refusal before a marker can be written,
+descendant cleanup after normal completion and cancellation of both running
+fixture processes. These tests substitute the terminal response at the existing
+confirmation seam; they exercise the real policy, grant and native Job helper,
+but do not establish a manual terminal interaction or installed-agent coverage.
+For a full Windows test run from a clean source checkout, build the sidecars
+first: other MCP suites need `build/sidecar/aegis-mcpjob.exe` and must not depend
+on a different native suite happening to build it earlier in the run.

@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { PassThrough } from 'node:stream';
 import { once } from 'node:events';
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -50,6 +51,30 @@ function setup(confirm, available = () => true) {
     watchTerminal: () => () => {},
     monitorInput: () => () => {},
   });
+}
+function protectedRunner() {
+  const ordinarySpawn = vi.fn();
+  const spawnProtected = vi.fn(() => {
+    const child = new EventEmitter();
+    child.stop = vi.fn();
+    queueMicrotask(() => {
+      child.cleanupConfirmed = true;
+      child.actionOutcome = {
+        exited: true,
+        exitCode: 0,
+        stdoutBytes: 0,
+        stderrBytes: 0,
+        outputComplete: true,
+      };
+      child.emit('close');
+    });
+    return child;
+  });
+  require('../../src/main/action-execution')._setDepsForTest({
+    spawn: ordinarySpawn,
+    spawnProtected,
+  });
+  return { ordinarySpawn, spawnProtected };
 }
 function notStarted(report, f) {
   expect(report.execution.state).toBe('not-started');
@@ -336,6 +361,175 @@ describe('terminal confirmation owner', () => {
     });
     expect(fs.readFileSync(f.sentinel, 'utf8')).toBe('once');
   });
+
+  it.skipIf(process.platform !== 'win32')(
+    'launches an approved ask through the protected owner once, without ordinary spawn',
+    async () => {
+      const f = fixture('ask');
+      const confirm = vi.fn(async () => true);
+      setup(confirm);
+      const { ordinarySpawn, spawnProtected } = protectedRunner();
+      const report = await api.confirmSelectedAction(f.policy, f.request, {
+        protectedDescendants: true,
+      });
+      expect(report).toMatchObject({
+        decision: 'allow',
+        policyDecision: 'ask',
+        authorization: 'operator-confirmed',
+        control: 'windows-job',
+        descendantControl: 'confirmed',
+        execution: { state: 'exited', exitCode: 0 },
+      });
+      expect(confirm).toHaveBeenCalledOnce();
+      expect(spawnProtected).toHaveBeenCalledOnce();
+      expect(ordinarySpawn).not.toHaveBeenCalled();
+      expect(fs.existsSync(f.sentinel)).toBe(false);
+    },
+  );
+
+  it.skipIf(process.platform !== 'win32')(
+    'requires fresh review for a protected schema 3 action and reports refusal before launch',
+    async () => {
+      const f = fixture('allow');
+      fs.writeFileSync(
+        f.policy,
+        JSON.stringify({
+          schemaVersion: 3,
+          defaultDecision: 'deny',
+          rules: [{ action: f.action, decision: 'allow' }],
+          reviewRequired: [f.action],
+        }),
+      );
+      const confirm = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+      setup(confirm);
+      const { ordinarySpawn, spawnProtected } = protectedRunner();
+      const refused = await api.confirmSelectedAction(f.policy, f.request, {
+        protectedDescendants: true,
+      });
+      notStarted(refused, f);
+      expect(refused).toMatchObject({
+        reason: 'confirmation-denied',
+        control: 'windows-job',
+        descendantControl: 'not-started',
+      });
+      const approved = await api.confirmSelectedAction(f.policy, f.request, {
+        protectedDescendants: true,
+      });
+      expect(approved).toMatchObject({
+        decision: 'allow',
+        policyDecision: 'ask',
+        authorization: 'operator-confirmed',
+        control: 'windows-job',
+        descendantControl: 'confirmed',
+      });
+      expect(confirm).toHaveBeenCalledTimes(2);
+      expect(spawnProtected).toHaveBeenCalledOnce();
+      expect(ordinarySpawn).not.toHaveBeenCalled();
+    },
+  );
+
+  it.skipIf(process.platform !== 'win32')(
+    'refuses protected review after a selected request change, without either spawn route',
+    async () => {
+      const f = fixture();
+      setup(async () => {
+        fs.appendFileSync(f.request, '\n');
+        return true;
+      });
+      const { ordinarySpawn, spawnProtected } = protectedRunner();
+      const report = await api.confirmSelectedAction(f.policy, f.request, {
+        protectedDescendants: true,
+      });
+      notStarted(report, f);
+      expect(report).toMatchObject({
+        control: 'windows-job',
+        descendantControl: 'not-started',
+      });
+      expect(spawnProtected).not.toHaveBeenCalled();
+      expect(ordinarySpawn).not.toHaveBeenCalled();
+    },
+  );
+
+  it('labels protected cancellation before review as never started', async () => {
+    const f = fixture();
+    const controller = new AbortController();
+    controller.abort();
+    const report = await api.confirmSelectedAction(f.policy, f.request, {
+      signal: controller.signal,
+      protectedDescendants: true,
+    });
+    notStarted(report, f);
+    expect(report).toMatchObject({
+      reason: 'action-cancelled',
+      control: 'windows-job',
+      descendantControl: 'not-started',
+    });
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'refuses protected mode on another platform before checking the terminal',
+    async () => {
+      const f = fixture();
+      const available = vi.fn(() => true);
+      const confirm = vi.fn(async () => true);
+      setup(confirm, available);
+      const report = await api.confirmSelectedAction(f.policy, f.request, {
+        protectedDescendants: true,
+      });
+      notStarted(report, f);
+      expect(report).toMatchObject({
+        reason: 'protected-runtime-unsupported',
+        control: 'windows-job',
+        descendantControl: 'not-started',
+      });
+      expect(available).not.toHaveBeenCalled();
+      expect(confirm).not.toHaveBeenCalled();
+    },
+  );
+
+  it.skipIf(process.platform !== 'win32')(
+    'never falls back to ordinary spawn when protected launch fails or delegation throws',
+    async () => {
+      const f = fixture();
+      setup(async () => true);
+      const ordinarySpawn = vi.fn();
+      const spawnProtected = vi.fn(() => {
+        throw Error('private helper failure');
+      });
+      require('../../src/main/action-execution')._setDepsForTest({
+        spawn: ordinarySpawn,
+        spawnProtected,
+      });
+      const denied = await api.confirmSelectedAction(f.policy, f.request, {
+        protectedDescendants: true,
+      });
+      expect(denied).toMatchObject({
+        decision: 'deny',
+        reason: 'protected-launch-unavailable',
+        control: 'windows-job',
+        descendantControl: 'not-started',
+      });
+      expect(ordinarySpawn).not.toHaveBeenCalled();
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      require('../../src/main/action-execution')._setDepsForTest({
+        spawn: ordinarySpawn,
+        spawnProtected: () => ({}),
+      });
+      const unknown = await api.confirmSelectedAction(f.policy, f.request, {
+        protectedDescendants: true,
+      });
+      expect(unknown).toMatchObject({
+        decision: 'unknown',
+        reason: 'execution-unavailable',
+        control: 'windows-job',
+        descendantControl: 'unconfirmed',
+        execution: { state: 'unknown', termination: 'unconfirmed' },
+      });
+      expect(ordinarySpawn).not.toHaveBeenCalled();
+      expect(JSON.stringify(unknown)).not.toContain('PRIVATE');
+      vi.clearAllTimers();
+    },
+  );
 
   it.each([false, undefined, 'true', 1])('rejects nonliteral affirmation %j', async (answer) => {
     const f = fixture();

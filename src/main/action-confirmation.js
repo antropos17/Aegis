@@ -11,7 +11,7 @@ const { executeAction } = require('./action-execution');
 const terminal = require('./action-confirmation-terminal');
 const LIMITS = Object.freeze({ prepareMs: 1500, reviewMs: 60000 });
 let testDeps = null;
-const refused = (reason) => ({
+const refused = (reason, protectedDescendants = false) => ({
   schemaVersion: 1,
   mode: 'action-exec',
   decision: 'deny',
@@ -24,8 +24,8 @@ const refused = (reason) => ({
     stderrBytes: 0,
     outputComplete: true,
   },
-  control: 'direct-child-only',
-  descendantControl: 'unsupported',
+  control: protectedDescendants ? 'windows-job' : 'direct-child-only',
+  descendantControl: protectedDescendants ? 'not-started' : 'unsupported',
 });
 
 async function bounded(work, ms, signal) {
@@ -48,23 +48,32 @@ async function bounded(work, ms, signal) {
 }
 
 /**
- * Review exact pinned files locally and authorize at most one direct launch.
+ * Review exact pinned files locally and authorize at most one launch.
  * Callback/TTY data stays private; the returned report contains fixed metadata.
  * @param {string} policyPath Selected schema 2 policy.
  * @param {string} requestPath Selected schema 1 request.
- * @param {{signal?: AbortSignal, binding?: object}} [options] Cancellation and optional borrowed owner binding.
+ * @param {{signal?: AbortSignal, binding?: object, protectedDescendants?: boolean}} [options] Cancellation, optional borrowed owner binding and Windows Job selection.
  * @returns {Promise<object>} Redacted execution outcome.
  * @since v0.15.1
  */
 async function confirmSelectedAction(policyPath, requestPath, options = {}) {
   const { signal, binding: borrowedBinding } = options;
   const borrowed = Object.hasOwn(options, 'binding');
-  if (signal?.aborted) return refused('action-cancelled');
+  const protectedDescendants = options.protectedDescendants === true;
+  if (
+    Object.hasOwn(options, 'protectedDescendants') &&
+    typeof options.protectedDescendants !== 'boolean'
+  )
+    return refused('protected-option-invalid', true);
+  const refuse = (reason) => refused(reason, protectedDescendants);
+  if (signal?.aborted) return refuse('action-cancelled');
   if (borrowed && !isExecutionBindingActive(borrowedBinding, policyPath, requestPath))
-    return refused('configuration-changed');
-  if (!isExecutionRuntimeSupported()) return refused('runtime-unsupported');
+    return refuse('configuration-changed');
+  if (protectedDescendants && process.platform !== 'win32')
+    return refuse('protected-runtime-unsupported');
+  if (!isExecutionRuntimeSupported()) return refuse('runtime-unsupported');
   const deps = testDeps || {};
-  if (!(deps.available || terminal.isTerminalAvailable)()) return refused('terminal-required');
+  if (!(deps.available || terminal.isTerminalAvailable)()) return refuse('terminal-required');
   const now = deps.now || (() => performance.now());
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -86,9 +95,9 @@ async function confirmSelectedAction(policyPath, requestPath, options = {}) {
       controller.signal,
     );
     if (!prepared || now() - started >= LIMITS.prepareMs || controller.signal.aborted)
-      return refused('preparation-unavailable');
+      return refuse('preparation-unavailable');
     if (!['allow', 'ask'].includes(prepared.decision) || !prepared.launch)
-      return refused('policy-deny');
+      return refuse('policy-deny');
     const launch = prepared.launch;
     Object.freeze(launch.args);
     Object.freeze(launch.env);
@@ -100,7 +109,7 @@ async function confirmSelectedAction(policyPath, requestPath, options = {}) {
       controller.signal,
     );
     if (confirmed !== true || now() - reviewStarted >= LIMITS.reviewMs || controller.signal.aborted)
-      return refused('confirmation-denied');
+      return refuse('confirmation-denied');
     stopReading = (deps.monitorInput || terminal.monitorTerminalInput)(abort);
     approval = require('./execution-approval').createExecutionApproval(binding);
     delegated = true;
@@ -108,6 +117,7 @@ async function confirmSelectedAction(policyPath, requestPath, options = {}) {
       binding,
       approval,
       signal: controller.signal,
+      protectedDescendants,
     });
   } catch {
     return delegated
@@ -117,10 +127,10 @@ async function confirmSelectedAction(policyPath, requestPath, options = {}) {
           decision: 'unknown',
           reason: 'execution-unavailable',
           execution: { state: 'unknown', exitCode: null, termination: 'unconfirmed' },
-          control: 'direct-child-only',
-          descendantControl: 'unsupported',
+          control: protectedDescendants ? 'windows-job' : 'direct-child-only',
+          descendantControl: protectedDescendants ? 'unconfirmed' : 'unsupported',
         }
-      : refused('confirmation-unavailable');
+      : refuse('confirmation-unavailable');
   } finally {
     controller.abort();
     if (approval) require('./execution-approval').revokeExecutionApproval(approval);

@@ -179,7 +179,12 @@ assigns it to a private Windows Job before it runs, and uses the Job to terminat
 ordinary member descendants on completion, cancellation or timeout. It accepts
 only a policy `allow`; `ask` and `reviewRequired` do not receive a terminal prompt
 through this command and do not launch. The original direct and confirmation
-commands keep their existing behavior.
+commands keep their existing behavior. The separate
+`--action-exec-windows-job-confirm <policy.json> <request.json>` route now combines
+Job cleanup with [fresh terminal confirmation](ACTION-CONFIRMATION.md) for every
+eligible `allow` or `ask` action, including schema 3 `reviewRequired` actions.
+Policy deny, refusal, timeout, missing terminal and configuration changes never
+authorize that launch. No GUI or MCP route is switched automatically.
 
 The JSON report marks `control: "windows-job"` and records
 `descendantControl` as `not-started`, `confirmed` or `unconfirmed`. Exit 0 requires

@@ -10,16 +10,21 @@
 async function handleActionExecutionCLI(args, write) {
   if (
     args.length !== 3 ||
-    !['--action-exec-json', '--action-exec-confirm', '--action-exec-windows-job-json'].includes(
-      args[0],
-    ) ||
+    ![
+      '--action-exec-json',
+      '--action-exec-confirm',
+      '--action-exec-windows-job-json',
+      '--action-exec-windows-job-confirm',
+    ].includes(args[0]) ||
     args.slice(1).some((arg) => typeof arg !== 'string' || !arg || arg.startsWith('--'))
   ) {
     write(JSON.stringify({ error: 'expected-action-exec-arguments' }));
     return 1;
   }
-  const interactive = args[0] === '--action-exec-confirm';
-  const protectedJob = args[0] === '--action-exec-windows-job-json';
+  const interactive =
+    args[0] === '--action-exec-confirm' || args[0] === '--action-exec-windows-job-confirm';
+  const protectedJob =
+    args[0] === '--action-exec-windows-job-json' || args[0] === '--action-exec-windows-job-confirm';
   const controller = new AbortController();
   const abort = () => controller.abort();
   if (interactive) {
@@ -31,6 +36,7 @@ async function handleActionExecutionCLI(args, write) {
     report = interactive
       ? await require('./action-confirmation').confirmSelectedAction(args[1], args[2], {
           signal: controller.signal,
+          ...(protectedJob ? { protectedDescendants: true } : {}),
         })
       : protectedJob
         ? await require('./action-execution').executeAction(args[1], args[2], {
