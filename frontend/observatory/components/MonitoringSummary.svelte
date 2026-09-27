@@ -49,13 +49,19 @@
     </p>
   </button>
   <div class="summary-stat">
-    <span>{$t('Events / min')}</span><strong
+    <span>{$t('Retained events / min')}</span><strong
       >{telemetry.ready && !telemetry.stale && recentCount !== null ? recentCount : '—'}</strong
     >
     <p>
       {#if telemetry.stale}{$t('Rate unavailable · retained events: {count}', {
           count: telemetry.events.length,
         })}{:else}{telemetry.events.length} {$t('retained events')}{/if}
+      {#if telemetry.evicted > 0}<br />{$t(
+          'Delivered file events excluded by display limit: {count}',
+          {
+            count: telemetry.evicted,
+          },
+        )}{/if}
     </p>
   </div>
   <button

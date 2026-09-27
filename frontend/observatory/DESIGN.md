@@ -10,6 +10,14 @@ may have appeared late during those overruns. It is separate from the sensor's
 provider health and observed event-loss counters; a skipped interval does not
 prove that a particular event was lost.
 
+## Monitoring event retention — 27 September 2026
+
+The overview's minute count names only file observations still retained in the
+renderer display history. When the 500-row display window evicts delivered
+observations, the same card names the cumulative display-history eviction count
+for this renderer window. The count does not infer which evictions happened within the
+last minute and does not describe audit-log loss.
+
 ## Rules, permissions and sensor clarity — 27 September 2026
 
 Permission targets use aligned fields and the save row follows the category rows
