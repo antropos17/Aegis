@@ -141,6 +141,7 @@ function main() {
       path.join(ROOT, 'sidecar', 'mcpjob', 'Native.cs'),
       path.join(ROOT, 'sidecar', 'mcpjob', 'AppContainerProfile.cs'),
       path.join(ROOT, 'sidecar', 'mcpjob', 'AppContainerWorkspace.cs'),
+      path.join(ROOT, 'sidecar', 'mcpjob', 'AppContainerInput.cs'),
     ],
     { stdio: 'inherit' },
   );

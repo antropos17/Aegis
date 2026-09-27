@@ -72,6 +72,24 @@ npm run build:sidecar
 node src/main/main.js --action-exec-appcontainer-confirm X:\work\policy.json X:\work\request.json
 ```
 
+To opt in to one exact local file snapshot, use the separate import route:
+
+```powershell
+node src/main/main.js --action-exec-appcontainer-import-confirm X:\work\policy.json X:\work\request.json X:\private\selected.bin
+```
+
+The terminal preview includes the selected path, byte count and copy operation
+alongside the exact action. A private SHA-256 digest binds the snapshot to this
+one launch and is not printed.
+The native owner reopens the source with write/delete sharing denied, rejects
+reparse points, UNC/device paths, alternate data streams, changed bytes and files
+over 64 KiB, and copies the approved bytes as `input.bin` into the new workspace
+before the child resumes. The source stays in place; its ACL is unchanged. The
+import broker injects no source path or handle into the child; an operator could
+still include the path in the separately approved action arguments. Other host
+files remain subject to the same AppContainer access checks. This is a short offline action with one imported
+file, not an interactive agent session or general filesystem broker.
+
 The preview includes the exact effective action and explains workspace creation
 and retention. Enter the displayed `RUN <challenge>` once. Piped input is refused.
 No desktop IPC or automatic application update is added by this feature.
@@ -107,6 +125,16 @@ The redacted report uses `control: "windows-appcontainer-job"` and separates:
 - `isolation.state`: verified, unknown, or not started.
 - `isolation.workspace`: retained, unknown, or not created.
 - `isolation.profileCleanup`: confirmed, unconfirmed, or not required.
+- `input`: imported, not-imported, or unknown. No source path, digest or bytes.
+
+For the import route, `not-imported` means the request stopped before the
+native owner attempted setup; `unknown` preserves uncertainty after helper or
+cleanup failure. A successful receipt requires `imported`.
+If cancellation is observed after copying but before process creation, the
+native owner removes only its pinned `input.bin` and leaves the workspace.
+An abort racing the final control-pipe check and `ResumeThread` may briefly
+start the child before Job cleanup; that outcome has an unknown receipt.
+Broader helper failure can leave workspace contents for inspection.
 
 CLI exit zero requires child exit zero, complete output accounting, confirmed
 Job cleanup, verified isolation, retained workspace and confirmed profile
@@ -141,6 +169,6 @@ granted disposable test runtime. A local listener accepted an unrestricted
 connection while the restricted probe timed out without connecting; this is a
 bounded loopback observation, not an independent public-network denial test.
 Compatibility with installed AI agents must be tested individually.
-This slice has no authenticated provider
-network broker, exact-file import broker, long-running agent session or desktop
-launch control. Those remain in the [protected-launch plan](roadmap/protected-launch.md).
+This slice has no authenticated provider network broker, arbitrary file broker,
+long-running agent session or desktop launch control. Those remain in the
+[protected-launch plan](roadmap/protected-launch.md).

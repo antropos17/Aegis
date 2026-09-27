@@ -8,11 +8,14 @@ after access. The selected-file delete operation must not be reused as quarantin
 ## Available CLI slice
 
 The [AppContainer launch route](../ACTION-APPCONTAINER.md) requires one fresh
-terminal confirmation for an exact action, creates an empty new workspace,
+terminal confirmation for an exact action, creates a new workspace,
 verifies a zero-capability AppContainer token before resuming the process, and
 assigns the process atomically to a Windows Job. Policy deny, failed setup and
 unavailable isolation never authorize an ordinary fallback. Retained workspace,
 Job cleanup and temporary-profile cleanup have separate receipt fields.
+An additional opt-in CLI route imports one approved local file of at most 64 KiB
+as `input.bin` before the selected process starts. Its public receipt reports only
+a fixed import state. The original source remains outside the workspace.
 
 The existing Windows Job confirmation route still supplies process lifetime
 cleanup with the caller's ordinary access rights. Neither route changes the
@@ -27,11 +30,10 @@ and [implementation guidance](https://learn.microsoft.com/en-us/windows/win32/se
 
 ## Remaining broker and desktop work
 
-An exact-file broker should show the selected path, operation and grant lifetime
-before supplying a bounded copied snapshot or opened validated handle. Changed
-inputs, replay, expired approval and broker disconnection must fail closed. File
-contents stay out of reports, telemetry and approval messages. This broker is not
-implemented by the initial empty-workspace route.
+The current one-file snapshot is supplied only during this short offline CLI
+launch. An agent-session broker would need later file operations, per-request
+grant lifetimes, disconnection behavior and revocation. File contents must stay
+out of reports and telemetry.
 
 Network remains restricted until a narrow provider broker is designed and tested.
 Ordinary account credentials must not be inherited to make an agent work. A

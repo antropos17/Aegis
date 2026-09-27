@@ -147,6 +147,15 @@ internal static class Native
 
     internal static IntPtr StandardInput() { return GetStdHandle(-10); }
 
+    // The owning Node process keeps stdin open until cancellation. A closed
+    // control pipe is a revoked launch, including during input preparation.
+    internal static bool ControlOpen()
+    {
+        uint available;
+        return PeekNamedPipe(StandardInput(), IntPtr.Zero, 0, IntPtr.Zero,
+            out available, IntPtr.Zero);
+    }
+
     // FileStream.CopyTo can wait for a full buffer on anonymous Windows pipes.
     // Peek first, then request only bytes already available to keep MCP RPC live.
     internal static int ReadAvailable(Stream stream, IntPtr pipe, byte[] buffer)
@@ -195,7 +204,8 @@ internal static class Native
     }
 
     internal static Session Start(string executable, string cwd, string[] args,
-        string environment, AppContainerProfile isolated = null)
+        string environment, AppContainerProfile isolated = null,
+        AppContainerInput.ImportedFile importedFile = null)
     {
         IntPtr inputRead = IntPtr.Zero, inputWrite = IntPtr.Zero;
         IntPtr outputRead = IntPtr.Zero, outputWrite = IntPtr.Zero;
@@ -275,6 +285,10 @@ internal static class Native
             File.WriteAllText(marker, process.dwProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
             Thread.Sleep(Timeout.Infinite);
 #endif
+            Check(ControlOpen());
+            // Release the DELETE-capable owner handle only at the final launch
+            // boundary. Ordinary child File.ReadAllText does not share DELETE.
+            if (importedFile != null) importedFile.Dispose();
             Check(ResumeThread(process.hThread) != uint.MaxValue);
             resumed = true;
             Close(ref process.hThread);

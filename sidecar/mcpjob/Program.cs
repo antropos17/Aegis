@@ -24,16 +24,48 @@ internal static class Program
             Stream controlIn = Console.OpenStandardInput();
             string executable, cwd, environment;
             string[] args;
-            bool action, isolated;
+            bool action, isolated, imported;
+            string inputPath, inputHash;
+            int inputSize;
             ReadLaunch(controlIn, out executable, out cwd, out args, out environment,
-                out action, out isolated);
+                out action, out isolated, out imported, out inputPath, out inputSize, out inputHash);
             using (AppContainerProfile profile = isolated ? AppContainerProfile.Create() : null)
             using (AppContainerWorkspace workspace = isolated
                 ? AppContainerWorkspace.Create(cwd, profile.Sid) : null)
-            using (Native.Session session = Native.Start(executable, cwd, args, environment, profile))
+            {
+#if APPCONTAINER_TEST
+            if (imported && Path.GetFileName(inputPath) == "mapped-source.bin")
+                AppContainerInput.DriveTypeForTest = delegate(string root) { return 4; };
+#endif
+            using (AppContainerInput.ImportedFile importedFile = imported
+                ? AppContainerInput.Copy(inputPath, inputSize, inputHash, workspace, cwd) : null)
+            {
+#if APPCONTAINER_TEST
+            // Fixture-only window for cancellation between copy and process creation.
+            if (imported && Path.GetFileName(inputPath) == "pause-source.bin")
+            {
+                File.WriteAllText(Path.Combine(cwd, "import-pause.txt"), "ready");
+                Thread.Sleep(1000);
+            }
+#endif
+            if (!Native.ControlOpen())
+            {
+                if (importedFile != null && !importedFile.Remove())
+                    throw new InvalidOperationException("input-cleanup-uncertain");
+                throw new InvalidOperationException("launch-cancelled");
+            }
+            Native.Session started;
+            try { started = Native.Start(executable, cwd, args, environment, profile, importedFile); }
+            catch
+            {
+                if (importedFile != null && !importedFile.Remove())
+                    throw new InvalidOperationException("input-cleanup-uncertain");
+                throw;
+            }
+            using (Native.Session session = started)
             {
                 Stream controlOut = Console.OpenStandardOutput();
-                controlOut.WriteByte((byte)(isolated ? 'S' : 'R'));
+                controlOut.WriteByte((byte)(imported ? 'I' : isolated ? 'S' : 'R'));
                 controlOut.Flush();
                 ready = true;
                 int stderrOverflow = 0;
@@ -133,7 +165,8 @@ internal static class Program
                 {
                     string frame = string.Format(System.Globalization.CultureInfo.InvariantCulture,
                         isolated
-                            ? "S,{0},{1},{2},{3},{4},{5},{6},{7},{8},{9}\n"
+                            ? (imported ? "I,{0},{1},{2},{3},{4},{5},{6},{7},{8},{9}\n" :
+                                "S,{0},{1},{2},{3},{4},{5},{6},{7},{8},{9}\n")
                             : "A,{0},{1},{2},{3},{4},{5},{6}\n", confirmed ? "C" : "U",
                         exitCode.HasValue ? "1" : "0",
                         exitCode.HasValue ? exitCode.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "-",
@@ -149,6 +182,8 @@ internal static class Program
                 status.Flush();
                 return confirmed && (!isolated ||
                     (session.IsolationVerified && workspaceRetained && profileCleanup)) ? 0 : 2;
+            }
+            }
             }
         }
         catch
@@ -166,7 +201,8 @@ internal static class Program
     }
 
     private static void ReadLaunch(Stream input, out string executable, out string cwd,
-        out string[] args, out string environment, out bool action, out bool isolated)
+        out string[] args, out string environment, out bool action, out bool isolated,
+        out bool imported, out string inputPath, out int inputSize, out string inputHash)
     {
         using (MemoryStream bytes = new MemoryStream())
         {
@@ -181,18 +217,35 @@ internal static class Program
             JavaScriptSerializer serializer = new JavaScriptSerializer();
             serializer.MaxJsonLength = MaxLaunchBytes;
             Dictionary<string, object> launch = serializer.DeserializeObject(json) as Dictionary<string, object>;
-            if (launch == null || (launch.Count != 4 && launch.Count != 5)) throw new InvalidDataException();
+            if (launch == null || (launch.Count != 4 && launch.Count != 5 && launch.Count != 6))
+                throw new InvalidDataException();
             action = false;
             isolated = false;
-            if (launch.Count == 5)
+            imported = false;
+            inputPath = null;
+            inputSize = 0;
+            inputHash = null;
+            if (launch.Count >= 5)
             {
                 object purpose;
                 if (!launch.TryGetValue("purpose", out purpose) ||
                     ((purpose as string) != "action" &&
-                     (purpose as string) != "appcontainer-action"))
+                     (purpose as string) != "appcontainer-action" &&
+                     (purpose as string) != "appcontainer-action-import"))
                     throw new InvalidDataException();
                 action = true;
-                isolated = (purpose as string) == "appcontainer-action";
+                isolated = (purpose as string) != "action";
+                imported = (purpose as string) == "appcontainer-action-import";
+                if (imported != (launch.Count == 6)) throw new InvalidDataException();
+                if (imported)
+                {
+                    Dictionary<string, object> descriptor = launch["input"] as Dictionary<string, object>;
+                    if (descriptor == null || descriptor.Count != 3 ||
+                        !(descriptor["size"] is int)) throw new InvalidDataException();
+                    inputPath = StringField(descriptor, "path");
+                    inputSize = (int)descriptor["size"];
+                    inputHash = StringField(descriptor, "sha256");
+                }
             }
             executable = StringField(launch, "executable");
             cwd = StringField(launch, "cwd");

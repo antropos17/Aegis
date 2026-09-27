@@ -32,6 +32,7 @@ function actionReport(decision, reason, execution = {}, options = {}) {
     descendantControl: protectedJob ? (unknown ? 'unconfirmed' : 'not-started') : 'unsupported',
     ...(isolated
       ? {
+          input: options.importInput && unknown ? 'unknown' : 'not-imported',
           isolation: {
             state: unknown ? 'unknown' : 'not-started',
             workspace: unknown ? 'unknown' : 'not-created',
@@ -104,6 +105,12 @@ function runProtectedAction(launch, signal, authorization, spawnProtected, limit
         descendantControl: confirmed ? 'confirmed' : 'unconfirmed',
         ...(options.appContainer
           ? {
+              input:
+                options.importInput && confirmed && outcome && child.isolationVerified
+                  ? 'imported'
+                  : options.importInput
+                    ? 'unknown'
+                    : 'not-imported',
               isolation: {
                 state: child.isolationVerified === true ? 'verified' : 'unknown',
                 workspace: outcome?.workspaceRetained === true ? 'retained' : 'unknown',

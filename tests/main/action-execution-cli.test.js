@@ -91,6 +91,30 @@ describe('explicit action execution Node entry', () => {
     expect(fs.existsSync(sentinel)).toBe(false);
   });
 
+  it('routes exact-file import through terminal confirmation with only fixed public input state', () => {
+    prepare('ask');
+    const source = path.join(root, 'PRIVATE_INPUT.bin');
+    fs.writeFileSync(source, 'PRIVATE_CONTENT');
+    const result = launch([
+      '--action-exec-appcontainer-import-confirm',
+      policyPath,
+      requestPath,
+      source,
+    ]);
+    expect(result.code).toBe(2);
+    expect(result.report).toMatchObject({
+      decision: 'deny',
+      input: 'not-imported',
+      control: 'windows-appcontainer-job',
+      execution: { state: 'not-started' },
+    });
+    expect(JSON.stringify(result.report)).not.toContain(source);
+    expect(fs.existsSync(sentinel)).toBe(false);
+    expect(
+      launch(['--action-exec-appcontainer-import-confirm', policyPath, requestPath]).code,
+    ).toBe(1);
+  });
+
   it.each(['confirmed', 'unconfirmed'])(
     'requires %s Job cleanup in the terminal confirmation route',
     async (descendantControl) => {

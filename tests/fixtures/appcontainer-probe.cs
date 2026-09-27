@@ -46,7 +46,8 @@ internal static class AppContainerProbe
         {
             File.WriteAllText(Path.Combine(cwd, "child.txt"),
                 "pid=" + Process.GetCurrentProcess().Id + "\nread=" + Read(privateFile) +
-                "\nwrite=" + Write(privateFile + ".child"));
+                "\nwrite=" + Write(privateFile + ".child") +
+                "\nimport=" + Read(Path.Combine(cwd, "input.bin")));
             return 0;
         }
         if (mode != "evidence" || args.Length != 3) return 4;
@@ -54,7 +55,8 @@ internal static class AppContainerProbe
         if (!int.TryParse(args[2], out port)) return 5;
         File.WriteAllText(Path.Combine(cwd, "parent.txt"),
             "pid=" + Process.GetCurrentProcess().Id + "\nread=" + Read(privateFile) +
-            "\nwrite=" + Write(privateFile + ".parent") + "\nnetwork=" + Connect(port));
+            "\nwrite=" + Write(privateFile + ".parent") + "\nnetwork=" + Connect(port) +
+            "\nimport=" + Read(Path.Combine(cwd, "input.bin")));
         ProcessStartInfo child = new ProcessStartInfo();
         child.FileName = Process.GetCurrentProcess().MainModule.FileName;
         child.Arguments = "child " + Quote(privateFile);

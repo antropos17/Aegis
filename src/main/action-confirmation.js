@@ -36,7 +36,7 @@ async function bounded(work, ms, signal) {
  * Callback/TTY data stays private; the returned report contains fixed metadata.
  * @param {string} policyPath Selected schema 2 policy.
  * @param {string} requestPath Selected schema 1 request.
- * @param {{signal?: AbortSignal, binding?: object, protectedDescendants?: boolean, appContainer?: boolean}} [options] Cancellation, optional borrowed owner binding and Windows Job selection.
+ * @param {{signal?: AbortSignal, binding?: object, protectedDescendants?: boolean, appContainer?: boolean, inputFile?: string}} [options] Cancellation, optional borrowed owner binding and Windows Job selection.
  * @returns {Promise<object>} Redacted execution outcome.
  * @since v0.15.1
  */
@@ -44,9 +44,13 @@ async function confirmSelectedAction(policyPath, requestPath, options = {}) {
   const { signal, binding: borrowedBinding } = options;
   const borrowed = Object.hasOwn(options, 'binding');
   const appContainer = options.appContainer === true;
+  const importInput = Object.hasOwn(options, 'inputFile');
+  const inputFile = options.inputFile;
   const protectedDescendants = appContainer || options.protectedDescendants === true;
-  const protection = { appContainer, protectedDescendants };
+  const protection = { appContainer, protectedDescendants, importInput };
   const refuse = (reason) => actionReport('deny', reason, {}, protection);
+  if (importInput && (!appContainer || typeof inputFile !== 'string'))
+    return refuse('input-unavailable');
   if (
     ['protectedDescendants', 'appContainer'].some(
       (key) => Object.hasOwn(options, key) && typeof options[key] !== 'boolean',
@@ -94,12 +98,27 @@ async function confirmSelectedAction(policyPath, requestPath, options = {}) {
     Object.freeze(launch.args);
     Object.freeze(launch.env);
     Object.freeze(launch);
+    const input = importInput
+      ? require('./action-input-snapshot').captureInputSnapshot(inputFile)
+      : null;
+    const preview = input
+      ? Object.freeze({
+          ...launch,
+          input: Object.freeze({
+            path: input.path,
+            size: input.size,
+            operation: 'copy-to-input.bin',
+          }),
+        })
+      : launch;
     const reviewStarted = now();
     const confirmed = await bounded(
       () =>
-        (deps.confirm || terminal.confirmInTerminal)(launch, {
+        (deps.confirm || terminal.confirmInTerminal)(preview, {
           signal: controller.signal,
-          ...(appContainer ? { kind: 'appcontainer-launch' } : {}),
+          ...(appContainer
+            ? { kind: importInput ? 'appcontainer-import' : 'appcontainer-launch' }
+            : {}),
         }),
       LIMITS.reviewMs,
       controller.signal,
@@ -107,7 +126,7 @@ async function confirmSelectedAction(policyPath, requestPath, options = {}) {
     if (confirmed !== true || now() - reviewStarted >= LIMITS.reviewMs || controller.signal.aborted)
       return refuse('confirmation-denied');
     stopReading = (deps.monitorInput || terminal.monitorTerminalInput)(abort);
-    approval = require('./execution-approval').createExecutionApproval(binding);
+    approval = require('./execution-approval').createExecutionApproval(binding, input);
     delegated = true;
     return await executeAction(policyPath, requestPath, {
       binding,
@@ -115,6 +134,7 @@ async function confirmSelectedAction(policyPath, requestPath, options = {}) {
       signal: controller.signal,
       protectedDescendants,
       ...(appContainer ? { appContainer } : {}),
+      ...(input ? { importInput: input } : {}),
     });
   } catch {
     return delegated
