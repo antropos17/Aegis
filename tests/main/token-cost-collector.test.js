@@ -162,3 +162,40 @@ it('routes a mixed scan to the matching adapter without losing instance attribut
     expect.objectContaining({ pid: 2, instanceId: '2:2000' }),
   ]);
 });
+
+it('reports a live macOS Claude Code measurement gap once without reading or attributing tokens', async () => {
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+  const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+  const readUsage = vi.fn(async () => [delta(42, 100)]);
+  tokenFeed._setAdaptersForTest([{ id: 'claude', agentNames: ['Claude Code'], readUsage }]);
+  Object.defineProperty(process, 'platform', { ...platform, value: 'darwin' });
+  try {
+    await expect(
+      collectTokenCosts([
+        {
+          ...agent(0, null, 'Claude Code'),
+          instanceId: '0:Claude Code',
+          instanceIdSource: 'synthetic',
+        },
+      ]),
+    ).resolves.toEqual([]);
+    expect(warn).not.toHaveBeenCalled();
+    const liveClaude = {
+      ...agent(42, null, 'Claude Code'),
+      instanceId: '42:u',
+      instanceIdSource: 'unknown',
+    };
+    await expect(collectTokenCosts([liveClaude])).resolves.toEqual([]);
+    await expect(collectTokenCosts([liveClaude])).resolves.toEqual([]);
+    expect(readUsage).not.toHaveBeenCalled();
+    expect(tokenTracker.getAllCosts()).toEqual([]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      'token',
+      'Live Claude Code agent skipped: OS birth-time unavailable, its token usage is unattributed',
+    );
+  } finally {
+    Object.defineProperty(process, 'platform', platform);
+    warn.mockRestore();
+  }
+});
