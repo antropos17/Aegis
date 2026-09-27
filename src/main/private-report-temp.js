@@ -20,16 +20,8 @@ const MAX_SWEEP_ENTRIES = 512;
 const MAX_SWEEP_DELETES = 128;
 let sweepTimer = null;
 
-/**
- * Check the exact AEGIS report directory without following a link or junction.
- * On POSIX an existing directory must belong to this user and exclude group/other access.
- * Windows ACLs are inherited; this check makes no Windows ACL guarantee.
- * @param {string} tempRoot Electron's temp path.
- * @param {boolean} create Whether to create the directory when absent.
- * @returns {string|null} Valid directory or null when absent and create is false.
- * @since v0.16.0-alpha
- */
-function reportDirectory(tempRoot, create = false) {
+// Keep the identity from the same lstat that validates the directory.
+function checkedReportDirectory(tempRoot, create = false) {
   if (typeof tempRoot !== 'string' || !path.isAbsolute(tempRoot))
     throw new Error('Private report directory unavailable');
   const directory = path.join(tempRoot, DIRECTORY_NAME);
@@ -51,30 +43,32 @@ function reportDirectory(tempRoot, create = false) {
     throw new Error('Private report directory unavailable');
   if (process.platform !== 'win32' && (stat.uid !== process.getuid() || (stat.mode & 0o077) !== 0))
     throw new Error('Private report directory unavailable');
-  return directory;
+  return { directory, stat };
 }
 
 /**
- * Remove only aged, regular AEGIS report files in the exact checked directory.
- * Recent files get at least a day for the external viewer to open. The size limit
- * is soft while newer files remain; locked files are skipped and retried later.
+ * Check the exact AEGIS report directory without following a link or junction.
+ * On POSIX an existing directory must belong to this user and exclude group/other access.
+ * Windows ACLs are inherited; this check makes no Windows ACL guarantee.
  * @param {string} tempRoot Electron's temp path.
- * @param {number} [now] Current epoch milliseconds (test seam).
- * @returns {{removed:number, bytes:number, scanned:number, truncated:boolean}} Bounded sweep results.
+ * @param {boolean} create Whether to create the directory when absent.
+ * @returns {string|null} Valid directory or null when absent and create is false.
  * @since v0.16.0-alpha
  */
-function prunePrivateReports(tempRoot, now = Date.now()) {
-  const directory = reportDirectory(tempRoot);
-  if (!directory) return { removed: 0, bytes: 0, scanned: 0, truncated: false };
-  const files = [];
+function reportDirectory(tempRoot, create = false) {
+  return checkedReportDirectory(tempRoot, create)?.directory ?? null;
+}
+
+// One bounded chunk of a directory enumeration; never consume entry 513 here.
+function pruneReportBatch(directory, handle, now, pending = null) {
+  const files = pending?.files ?? [];
   let scanned = 0;
-  let truncated = false;
-  const handle = fs.opendirSync(directory);
-  try {
-    let entry;
-    while ((entry = handle.readSync()) !== null) {
-      if (scanned === MAX_SWEEP_ENTRIES) {
-        truncated = true;
+  let atEnd = pending?.atEnd ?? false;
+  if (!pending) {
+    while (scanned < MAX_SWEEP_ENTRIES) {
+      const entry = handle.readSync();
+      if (entry === null) {
+        atEnd = true;
         break;
       }
       scanned++;
@@ -88,17 +82,21 @@ function prunePrivateReports(tempRoot, now = Date.now()) {
         // A changed or inaccessible file is retried on a later sweep.
       }
     }
-  } finally {
-    handle.closeSync();
+    files.sort((a, b) => a.stat.mtimeMs - b.stat.mtimeMs);
   }
-  files.sort((a, b) => a.stat.mtimeMs - b.stat.mtimeMs);
-  let bytes = files.reduce((total, file) => total + file.stat.size, 0);
+  let bytes = pending?.bytes ?? files.reduce((total, file) => total + file.stat.size, 0);
   let removed = 0;
-  for (const file of files) {
+  for (let index = 0; index < files.length; index++) {
     if (removed === MAX_SWEEP_DELETES) {
-      truncated = true;
-      break;
+      return {
+        removed,
+        bytes,
+        scanned,
+        truncated: true,
+        pending: { files: files.slice(index), bytes, atEnd },
+      };
     }
+    const file = files[index];
     const age = now - file.stat.mtimeMs;
     if (age < MIN_AGE_MS || (age < MAX_AGE_MS && bytes <= MAX_TOTAL_BYTES)) continue;
     try {
@@ -119,7 +117,33 @@ function prunePrivateReports(tempRoot, now = Date.now()) {
       // Sharing violations, access errors, and races are retried on a later sweep.
     }
   }
-  return { removed, bytes, scanned, truncated };
+  return { removed, bytes, scanned, truncated: !atEnd, pending: null };
+}
+
+/**
+ * Remove only aged, regular AEGIS report files in the exact checked directory.
+ * Recent files get at least a day for the external viewer to open. The size limit
+ * is soft while newer files remain; locked files are skipped and retried later.
+ * @param {string} tempRoot Electron's temp path.
+ * @param {number} [now] Current epoch milliseconds (test seam).
+ * @returns {{removed:number, bytes:number, scanned:number, truncated:boolean}} Bounded sweep results.
+ * @since v0.16.0-alpha
+ */
+function prunePrivateReports(tempRoot, now = Date.now()) {
+  const directory = reportDirectory(tempRoot);
+  if (!directory) return { removed: 0, bytes: 0, scanned: 0, truncated: false };
+  const handle = fs.opendirSync(directory);
+  try {
+    const result = pruneReportBatch(directory, handle, now);
+    return {
+      removed: result.removed,
+      bytes: result.bytes,
+      scanned: result.scanned,
+      truncated: result.truncated,
+    };
+  } finally {
+    handle.closeSync();
+  }
 }
 
 /**
@@ -188,10 +212,48 @@ function writePrivateReport(tempRoot, kind, html) {
  */
 function startPrivateReportRetention(getTempRoot, onError = () => {}) {
   if (sweepTimer) return;
-  const sweep = () => {
+  let active = null;
+  const closeActive = () => {
+    const current = active;
+    active = null;
+    current?.handle.closeSync();
+  };
+  const continueSweep = () => {
     try {
-      const result = prunePrivateReports(getTempRoot());
-      if (result.truncated) onError();
+      const checked = checkedReportDirectory(active.tempRoot);
+      if (
+        !checked ||
+        checked.directory !== active.directory ||
+        checked.stat.dev !== active.stat.dev ||
+        checked.stat.ino !== active.stat.ino ||
+        checked.stat.birthtimeMs !== active.stat.birthtimeMs
+      )
+        throw new Error('Private report directory changed');
+      const result = pruneReportBatch(active.directory, active.handle, Date.now(), active.pending);
+      active.pending = result.pending;
+      if (result.truncated) {
+        const next = setImmediate(continueSweep);
+        next.unref?.();
+      } else {
+        closeActive();
+      }
+    } catch (_) {
+      try {
+        closeActive();
+      } catch (_) {
+        // A failed close must not hide the original retention failure.
+      }
+      onError();
+    }
+  };
+  const sweep = () => {
+    if (active) return;
+    try {
+      const tempRoot = getTempRoot();
+      const checked = checkedReportDirectory(tempRoot);
+      if (!checked) return;
+      active = { tempRoot, ...checked, handle: fs.opendirSync(checked.directory), pending: null };
+      continueSweep();
     } catch (_) {
       onError();
     }

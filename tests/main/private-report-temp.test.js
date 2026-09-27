@@ -123,6 +123,173 @@ describe('private report temp storage', () => {
     expect(fs.existsSync(old)).toBe(true);
   });
 
+  it('continues past 512 foreign entries without deleting a report needed by a viewer', async () => {
+    vi.useFakeTimers();
+    const directory = reports.reportDirectory(root, true);
+    const now = Date.now();
+    const expired = path.join(directory, ownedName('report', 'a'));
+    const recent = path.join(directory, ownedName('report', 'b'));
+    fs.writeFileSync(expired, 'OLD PRIVATE');
+    fs.writeFileSync(recent, 'NEW PRIVATE');
+    fs.utimesSync(
+      expired,
+      new Date(now - reports.MAX_AGE_MS - 1000),
+      new Date(now - reports.MAX_AGE_MS - 1000),
+    );
+
+    const names = [
+      ...Array.from({ length: 512 }, (_, index) => `foreign-${index}.txt`),
+      path.basename(expired),
+      path.basename(recent),
+    ];
+    let reads = 0;
+    let closes = 0;
+    let opens = 0;
+    vi.spyOn(fs, 'opendirSync').mockImplementation(() => {
+      opens++;
+      let index = 0;
+      return {
+        readSync() {
+          reads++;
+          const name = names[index++];
+          return name ? { name, isFile: () => true, isSymbolicLink: () => false } : null;
+        },
+        closeSync() {
+          closes++;
+        },
+      };
+    });
+
+    const modulePath = require.resolve('../../src/main/private-report-temp.js');
+    const cached = require.cache[modulePath];
+    delete require.cache[modulePath];
+    try {
+      const isolated = require(modulePath);
+      const onError = vi.fn();
+      isolated.startPrivateReportRetention(() => root, onError);
+      const firstBatchReads = reads;
+      expect(fs.existsSync(expired)).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fs.existsSync(expired)).toBe(false);
+      expect(fs.existsSync(recent)).toBe(true);
+      expect(firstBatchReads).toBe(512);
+      expect(reads - firstBatchReads).toBeLessThanOrEqual(512);
+      expect(opens).toBe(1);
+      expect(closes).toBe(1);
+      expect(onError).not.toHaveBeenCalled();
+    } finally {
+      delete require.cache[modulePath];
+      require.cache[modulePath] = cached;
+    }
+  });
+
+  it('finishes eligible files left by the delete cap before reading the next page', async () => {
+    vi.useFakeTimers();
+    const directory = reports.reportDirectory(root, true);
+    const expired = Array.from({ length: 130 }, (_, index) =>
+      path.join(directory, `aegis-report-${index.toString(16).padStart(32, '0')}.html`),
+    );
+    for (const target of expired) {
+      fs.writeFileSync(target, 'OLD PRIVATE');
+      fs.utimesSync(target, new Date(0), new Date(0));
+    }
+    const names = [
+      ...expired.slice(0, 129).map((target) => path.basename(target)),
+      ...Array.from({ length: 383 }, (_, index) => `foreign-${index}.txt`),
+      path.basename(expired[129]),
+    ];
+    let reads = 0;
+    let closes = 0;
+    vi.spyOn(fs, 'opendirSync').mockImplementation(() => {
+      let index = 0;
+      return {
+        readSync() {
+          reads++;
+          const name = names[index++];
+          return name ? { name, isFile: () => true, isSymbolicLink: () => false } : null;
+        },
+        closeSync() {
+          closes++;
+        },
+      };
+    });
+
+    const modulePath = require.resolve('../../src/main/private-report-temp.js');
+    const cached = require.cache[modulePath];
+    delete require.cache[modulePath];
+    try {
+      const isolated = require(modulePath);
+      const onError = vi.fn();
+      isolated.startPrivateReportRetention(() => root, onError);
+      expect(reads).toBe(512);
+      expect(expired.filter((target) => fs.existsSync(target))).toHaveLength(2);
+
+      await vi.advanceTimersByTimeAsync(10);
+      expect(expired.filter((target) => fs.existsSync(target))).toEqual([]);
+      expect(closes).toBe(1);
+      expect(onError).not.toHaveBeenCalled();
+    } finally {
+      delete require.cache[modulePath];
+      require.cache[modulePath] = cached;
+    }
+  });
+
+  it('stops and closes a pending sweep when its report directory changes', async () => {
+    vi.useFakeTimers();
+    const directory = reports.reportDirectory(root, true);
+    const expired = path.join(directory, ownedName('report', 'c'));
+    fs.writeFileSync(expired, 'OLD PRIVATE');
+    fs.utimesSync(expired, new Date(0), new Date(0));
+
+    const names = [
+      ...Array.from({ length: 512 }, (_, index) => `foreign-${index}.txt`),
+      path.basename(expired),
+    ];
+    let reads = 0;
+    let closes = 0;
+    vi.spyOn(fs, 'opendirSync').mockImplementation(() => {
+      let index = 0;
+      return {
+        readSync() {
+          reads++;
+          const name = names[index++];
+          return name ? { name, isFile: () => true, isSymbolicLink: () => false } : null;
+        },
+        closeSync() {
+          closes++;
+        },
+      };
+    });
+    const lstat = fs.lstatSync;
+    let changed = false;
+    vi.spyOn(fs, 'lstatSync').mockImplementation((target, ...args) => {
+      const stat = lstat(target, ...args);
+      if (target === directory && changed) stat.ino = stat.ino === 0 ? 1 : 0;
+      return stat;
+    });
+
+    const modulePath = require.resolve('../../src/main/private-report-temp.js');
+    const cached = require.cache[modulePath];
+    delete require.cache[modulePath];
+    try {
+      const isolated = require(modulePath);
+      const onError = vi.fn();
+      isolated.startPrivateReportRetention(() => root, onError);
+      expect(reads).toBe(512);
+      changed = true;
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(reads).toBe(512);
+      expect(fs.existsSync(expired)).toBe(true);
+      expect(closes).toBe(1);
+      expect(onError).toHaveBeenCalledTimes(1);
+    } finally {
+      delete require.cache[modulePath];
+      require.cache[modulePath] = cached;
+    }
+  });
+
   it('rejects a linked report directory and leaves its target untouched', () => {
     const outside = path.join(root, 'outside');
     fs.mkdirSync(outside);
