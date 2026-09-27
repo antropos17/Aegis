@@ -15,16 +15,19 @@
 
 const fs = require('fs');
 const path = require('path');
+const logFiles = require('./log-files');
 
 let _logDir = '';
 let _isDev = false;
 let _minLevel = 0;
 let _buffer = [];
 let _flushTimer = null;
+let _cleanImmediate = null;
+let _seedGeneration = 0;
+let _seedDone = true;
 const FLUSH_INTERVAL = 5000;
 const FLUSH_THRESHOLD = 50;
 const RETENTION_DAYS = 30;
-const LOG_FILE_PATTERN = /^aegis-(\d{4}-\d{2}-\d{2})\.log$/;
 
 /** In-memory counter — avoids re-reading today's log file on every getStats() call */
 let _todayEntries = 0;
@@ -52,36 +55,53 @@ function init(opts) {
   }
   _seedTodayCount();
   _flushTimer = setInterval(flush, FLUSH_INTERVAL);
-  setImmediate(() => cleanOldLogs());
+  _cleanImmediate = setImmediate(() => {
+    _cleanImmediate = null;
+    cleanOldLogs();
+  });
 }
 
 /**
- * One-time read of today's log file to seed the in-memory entry count.
+ * Restore a small durable count, or stream legacy logs without blocking startup.
+ * @param {string} [day] Local date key.
  * @returns {void}
  */
-function _seedTodayCount() {
+function _seedTodayCount(day = logFiles.dateKey(new Date())) {
   _todayEntries = 0;
-  const d = new Date();
-  _todayDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  _todayDate = day;
+  _seedDone = false;
+  const generation = ++_seedGeneration;
   if (!_logDir) return;
-  const todayPath = getTodayLogPath();
   try {
-    if (fs.existsSync(todayPath)) {
-      const content = fs.readFileSync(todayPath, 'utf-8');
-      _todayEntries = content.split('\n').filter((l) => l.trim().length > 0).length;
+    const saved = logFiles.readCount(_logDir, day);
+    if (saved !== null) {
+      _todayEntries = saved;
+      _seedDone = true;
+      return;
     }
+    const hasLogs = logFiles.listLogFiles(_logDir).some((name) => name.startsWith(`aegis-${day}`));
+    if (!hasLogs) {
+      _seedDone = true;
+      return;
+    }
+    void logFiles
+      .scanCount(_logDir, day)
+      .then((count) => {
+        if (generation !== _seedGeneration || day !== _todayDate) return;
+        _todayEntries += count;
+        _seedDone = true;
+        try {
+          logFiles.writeCount(_logDir, day, _todayEntries);
+        } catch {
+          console.error('[logger] seed count persistence failed');
+        }
+      })
+      .catch(() => {
+        if (generation === _seedGeneration) console.error('[logger] seed today count failed');
+      });
   } catch {
     console.error('[logger] seed today count failed');
   }
-}
-
-/**
- * @returns {string} Path to today's log file.
- */
-function getTodayLogPath() {
-  const d = new Date();
-  const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  return path.join(_logDir, `aegis-${dateStr}.log`);
 }
 
 /**
@@ -94,23 +114,39 @@ function getTodayLogPath() {
 function _write(level, mod, message, meta) {
   if (LEVELS[level] < _minLevel) return;
 
-  const timestamp = new Date().toISOString();
+  const now = new Date();
+  const timestamp = now.toISOString();
   const entry = { timestamp, level, module: mod, message };
   if (meta !== undefined) entry.meta = meta;
+  let line;
+  try {
+    line = JSON.stringify(entry);
+  } catch {
+    line = '';
+  }
+  const omitted = !line || Buffer.byteLength(line, 'utf-8') + 1 > logFiles.MAX_ENTRY_BYTES;
+  if (omitted) {
+    line = JSON.stringify({
+      timestamp,
+      level,
+      module: 'logger',
+      message: 'Operational log entry omitted because it exceeded the size limit',
+    });
+  }
 
   if (_isDev) {
-    const metaStr = meta ? ' ' + JSON.stringify(meta) : '';
-    process.stderr.write(`[${timestamp}] ${LEVEL_LABELS[level]} [${mod}] ${message}${metaStr}\n`);
+    const metaStr = !omitted && meta ? ' ' + JSON.stringify(meta) : '';
+    process.stderr.write(
+      `[${timestamp}] ${LEVEL_LABELS[level]} [${omitted ? 'logger' : mod}] ${omitted ? 'Operational log entry omitted because it exceeded the size limit' : message}${metaStr}\n`,
+    );
   }
 
   if (!_logDir) return;
-  _buffer.push(entry);
-  // Reset counter on day rollover
-  const dateStr = timestamp.slice(0, 10);
+  const dateStr = logFiles.dateKey(now);
   if (dateStr !== _todayDate) {
-    _todayDate = dateStr;
-    _todayEntries = 0;
+    _seedTodayCount(dateStr);
   }
+  _buffer.push({ day: dateStr, line });
   _todayEntries++;
   if (_buffer.length >= FLUSH_THRESHOLD) flush();
 }
@@ -135,12 +171,23 @@ function error(mod, message, meta) {
 function flush() {
   if (_buffer.length === 0 || !_logDir) return;
   const entries = _buffer.splice(0);
-  const fp = getTodayLogPath();
+  const groups = new Map();
+  for (const entry of entries) {
+    if (!groups.has(entry.day)) groups.set(entry.day, []);
+    groups.get(entry.day).push(entry.line);
+  }
   try {
-    const lines = entries.map((e) => JSON.stringify(e)).join('\n') + '\n';
-    fs.appendFileSync(fp, lines, 'utf-8');
+    for (const [day, lines] of groups) logFiles.appendLines(_logDir, day, lines);
   } catch {
     console.error('[logger] flush write failed');
+    return;
+  }
+  if (groups.has(_todayDate) && _seedDone) {
+    try {
+      logFiles.writeCount(_logDir, _todayDate, _todayEntries);
+    } catch {
+      console.error('[logger] count persistence failed');
+    }
   }
 }
 
@@ -151,23 +198,7 @@ function flush() {
 function cleanOldLogs() {
   if (!_logDir) return;
   try {
-    const files = fs.readdirSync(_logDir).filter((f) => LOG_FILE_PATTERN.test(f));
-    const cutoff = Date.now() - RETENTION_DAYS * 86400000;
-    for (const f of files) {
-      const match = f.match(LOG_FILE_PATTERN);
-      if (match) {
-        const fileDate = new Date(match[1]).getTime();
-        if (fileDate < cutoff) {
-          try {
-            const filePath = path.join(_logDir, f);
-            const stat = fs.lstatSync(filePath);
-            if (stat.isFile() && !stat.isSymbolicLink()) fs.unlinkSync(filePath);
-          } catch {
-            console.error('[logger] unlink old log failed');
-          }
-        }
-      }
-    }
+    logFiles.cleanOldLogs(_logDir, RETENTION_DAYS);
   } catch {
     console.error('[logger] cleanOldLogs failed');
   }
@@ -178,6 +209,11 @@ function cleanOldLogs() {
  * @returns {void}
  */
 function shutdown() {
+  _seedGeneration++;
+  if (_cleanImmediate) {
+    clearImmediate(_cleanImmediate);
+    _cleanImmediate = null;
+  }
   if (_flushTimer) {
     clearInterval(_flushTimer);
     _flushTimer = null;
@@ -194,14 +230,10 @@ function getStats() {
   let totalFiles = 0;
   let recordingSince = '';
   try {
-    const files = fs
-      .readdirSync(_logDir)
-      .filter((f) => LOG_FILE_PATTERN.test(f))
-      .sort();
+    const files = logFiles.listLogFiles(_logDir);
     totalFiles = files.length;
     if (files.length > 0) {
-      const firstMatch = files[0].match(LOG_FILE_PATTERN);
-      if (firstMatch) recordingSince = firstMatch[1];
+      recordingSince = files[0].slice(6, 16);
     }
   } catch {
     console.error('[logger] getStats failed');
@@ -218,10 +250,7 @@ function exportAll() {
   const all = [];
   if (!_logDir) return all;
   try {
-    const files = fs
-      .readdirSync(_logDir)
-      .filter((f) => LOG_FILE_PATTERN.test(f))
-      .sort();
+    const files = logFiles.listLogFiles(_logDir);
     for (const f of files) {
       const content = fs.readFileSync(path.join(_logDir, f), 'utf-8');
       for (const line of content.split('\n')) {
