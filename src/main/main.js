@@ -400,6 +400,11 @@ function getSequenceStats() {
   return sequenceEngine ? sequenceEngine.getStats() : null;
 }
 
+/** @returns {{skippedProcessTicks: number, lastSkippedAt: number|null}} @since v0.17.0-alpha */
+function getScanCadenceStats() {
+  return scanLoop?.getScanCadence?.() ?? { skippedProcessTicks: 0, lastSkippedAt: null };
+}
+
 /**
  * Monitoring statistics.
  *
@@ -435,6 +440,7 @@ function getStats() {
       sequences: getSequenceStats(),
       monitoringPaused,
       observationGap: observationGap.snapshot(),
+      scanCadence: getScanCadenceStats(),
     };
   }
   const log = scanner.activityLog;
@@ -461,6 +467,7 @@ function getStats() {
     sequences: getSequenceStats(),
     monitoringPaused,
     observationGap: observationGap.snapshot(),
+    scanCadence: getScanCadenceStats(),
   };
 }
 

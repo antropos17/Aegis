@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from '../runtime/i18n';
 
-  import { record, records, type Telemetry, type RecordData } from '../runtime/host';
+  import { measured, record, records, type Telemetry, type RecordData } from '../runtime/host';
   import { statisticsValue } from '../runtime/statistics-metrics';
   import { fieldLabel } from '../runtime/detail-fields';
   import Icon from './Icon.svelte';
@@ -92,6 +92,9 @@
   }
   let { telemetry }: { telemetry: Telemetry } = $props();
   let health = $derived(record(telemetry.stats.appHealth));
+  let skippedProcessTicks = $derived(
+    measured(record(telemetry.stats.scanCadence).skippedProcessTicks),
+  );
   let sensors = $derived(
     Object.entries(record(record(health.sensors).byId)).map(
       ([id, value]): RecordData & { id: string } => ({
@@ -197,6 +200,15 @@
             </dd>
           </div>
         </dl>
+        {#if sensor.id === 'process' && skippedProcessTicks !== null && skippedProcessTicks > 0}
+          <p class="sensor-note">
+            {$t('Process scan intervals skipped in this app session: {count}. Last at {time}.', {
+              count: skippedProcessTicks,
+              time: time(record(telemetry.stats.scanCadence).lastSkippedAt),
+            })}
+            {$t('Agent changes may have appeared late during those overruns.')}
+          </p>
+        {/if}
         {#if sensor.detail || sensor.lastError}<p class="sensor-note">
             {$t(
               detailLabels[String(sensor.detail || sensor.lastError)] ??

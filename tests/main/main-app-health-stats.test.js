@@ -93,6 +93,10 @@ describe('getStats() — app health composition', () => {
     expect(health.watchPlan).toBeNull();
     expect(health.identityDegraded).toBe(false);
     expect(health.identityQuality).toBeNull();
+    expect(main.getStats().scanCadence).toEqual({
+      skippedProcessTicks: 0,
+      lastSkippedAt: null,
+    });
   });
 
   it('both getStats branches carry the same appHealth key set', () => {
@@ -131,6 +135,40 @@ describe('getStats() — app health composition', () => {
       'attribution',
     ]) {
       expect(stats, `missing legacy field ${key}`).toHaveProperty(key);
+    }
+  });
+
+  it('the loaded stats branch keeps cadence shape before scan-loop initialization', () => {
+    main._setScannerForTest({
+      activityLog: [],
+      monitoringStarted: Date.now(),
+      peakAgents: 0,
+      uniqueAgentNames: new Set(),
+      permissionDeniedScans: 0,
+    });
+    try {
+      expect(main.getStats().scanCadence).toEqual({ skippedProcessTicks: 0, lastSkippedAt: null });
+    } finally {
+      main._setScannerForTest(null);
+    }
+  });
+
+  it('delivers a nonzero cadence snapshot on both stats branches', () => {
+    const cadence = { skippedProcessTicks: 2, lastSkippedAt: 1_700_000_000_000 };
+    main._setScanLoopForTest({ getScanCadence: () => ({ ...cadence }) });
+    try {
+      expect(main.getStats().scanCadence).toEqual(cadence);
+      main._setScannerForTest({
+        activityLog: [],
+        monitoringStarted: Date.now(),
+        peakAgents: 0,
+        uniqueAgentNames: new Set(),
+        permissionDeniedScans: 0,
+      });
+      expect(main.getStats().scanCadence).toEqual(cadence);
+    } finally {
+      main._setScannerForTest(null);
+      main._setScanLoopForTest(undefined);
     }
   });
 });

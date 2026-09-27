@@ -1,5 +1,15 @@
 # AEGIS Observatory
 
+## Process scan cadence — 27 September 2026
+
+The Agent processes sensor card shows a historical count of scheduled process
+scans skipped while an earlier scan was still running, with the last skip time.
+The count is scoped to the app's monitoring session and remains visible after
+later successful scans or a pause. Its neutral note explains that agent changes
+may have appeared late during those overruns. It is separate from the sensor's
+provider health and observed event-loss counters; a skipped interval does not
+prove that a particular event was lost.
+
 ## Rules, permissions and sensor clarity — 27 September 2026
 
 Permission targets use aligned fields and the save row follows the category rows
