@@ -170,13 +170,13 @@ describe('private report temp storage', () => {
       const firstBatchReads = reads;
       expect(fs.existsSync(expired)).toBe(true);
 
-      await vi.advanceTimersByTimeAsync(1);
+      await vi.advanceTimersByTimeAsync(10);
       expect(fs.existsSync(expired)).toBe(false);
       expect(fs.existsSync(recent)).toBe(true);
       expect(firstBatchReads).toBe(512);
-      expect(reads - firstBatchReads).toBeLessThanOrEqual(512);
-      expect(opens).toBe(1);
-      expect(closes).toBe(1);
+      expect(reads).toBe(2 * (names.length + 1));
+      expect(opens).toBe(2);
+      expect(closes).toBe(2);
       expect(onError).not.toHaveBeenCalled();
     } finally {
       delete require.cache[modulePath];
@@ -201,6 +201,19 @@ describe('private report temp storage', () => {
     ];
     let reads = 0;
     let closes = 0;
+    let deletesSinceYield = 0;
+    let maxDeletes = 0;
+    const schedule = globalThis.setImmediate;
+    vi.spyOn(globalThis, 'setImmediate').mockImplementation((callback, ...args) => {
+      maxDeletes = Math.max(maxDeletes, deletesSinceYield);
+      deletesSinceYield = 0;
+      return schedule(callback, ...args);
+    });
+    const unlink = fs.unlinkSync;
+    vi.spyOn(fs, 'unlinkSync').mockImplementation((target) => {
+      unlink(target);
+      deletesSinceYield++;
+    });
     vi.spyOn(fs, 'opendirSync').mockImplementation(() => {
       let index = 0;
       return {
@@ -223,11 +236,84 @@ describe('private report temp storage', () => {
       const onError = vi.fn();
       isolated.startPrivateReportRetention(() => root, onError);
       expect(reads).toBe(512);
-      expect(expired.filter((target) => fs.existsSync(target))).toHaveLength(2);
+      expect(expired.filter((target) => fs.existsSync(target))).toHaveLength(130);
 
       await vi.advanceTimersByTimeAsync(10);
       expect(expired.filter((target) => fs.existsSync(target))).toEqual([]);
-      expect(closes).toBe(1);
+      expect(reads).toBe(2 * (names.length + 1));
+      expect(closes).toBe(2);
+      expect(Math.max(maxDeletes, deletesSinceYield)).toBeLessThanOrEqual(128);
+      expect(onError).not.toHaveBeenCalled();
+    } finally {
+      delete require.cache[modulePath];
+      require.cache[modulePath] = cached;
+    }
+  });
+
+  it('uses the full directory size before pruning older reports across batches', async () => {
+    vi.useFakeTimers();
+    const directory = reports.reportDirectory(root, true);
+    const now = Date.now();
+    const old = Array.from({ length: 8 }, (_, index) =>
+      path.join(directory, `aegis-report-${(index + 1).toString(16).padStart(32, '0')}.html`),
+    );
+    for (const target of old) {
+      fs.writeFileSync(target, '');
+      fs.truncateSync(target, 8 * 1024 * 1024);
+      fs.utimesSync(
+        target,
+        new Date(now - 2 * reports.MIN_AGE_MS),
+        new Date(now - 2 * reports.MIN_AGE_MS),
+      );
+    }
+    const recent = path.join(directory, ownedName('threat-report', '9'));
+    fs.writeFileSync(recent, 'x');
+    const names = [
+      ...old.map((target) => path.basename(target)),
+      ...Array.from({ length: 504 }, (_, index) => `foreign-${index}.txt`),
+      path.basename(recent),
+    ];
+    let reads = 0;
+    let opens = 0;
+    let closes = 0;
+    let readsSinceYield = 0;
+    let maxReads = 0;
+    const schedule = globalThis.setImmediate;
+    vi.spyOn(globalThis, 'setImmediate').mockImplementation((callback, ...args) => {
+      maxReads = Math.max(maxReads, readsSinceYield);
+      readsSinceYield = 0;
+      return schedule(callback, ...args);
+    });
+    vi.spyOn(fs, 'opendirSync').mockImplementation(() => {
+      opens++;
+      let index = 0;
+      return {
+        readSync() {
+          reads++;
+          readsSinceYield++;
+          const name = names[index++];
+          return name ? { name, isFile: () => true, isSymbolicLink: () => false } : null;
+        },
+        closeSync() {
+          closes++;
+        },
+      };
+    });
+
+    const modulePath = require.resolve('../../src/main/private-report-temp.js');
+    const cached = require.cache[modulePath];
+    delete require.cache[modulePath];
+    try {
+      const isolated = require(modulePath);
+      const onError = vi.fn();
+      isolated.startPrivateReportRetention(() => root, onError);
+      expect(reads).toBe(512);
+
+      await vi.advanceTimersByTimeAsync(10);
+      expect(old.filter((target) => fs.existsSync(target))).toHaveLength(7);
+      expect(fs.existsSync(recent)).toBe(true);
+      expect(Math.max(maxReads, readsSinceYield)).toBeLessThanOrEqual(512);
+      expect(opens).toBe(closes);
       expect(onError).not.toHaveBeenCalled();
     } finally {
       delete require.cache[modulePath];
@@ -290,6 +376,58 @@ describe('private report temp storage', () => {
     }
   });
 
+  it('does not reopen a replaced report directory between count and prune passes', async () => {
+    vi.useFakeTimers();
+    const directory = reports.reportDirectory(root, true);
+    const expired = path.join(directory, ownedName('report', 'd'));
+    fs.writeFileSync(expired, 'OLD PRIVATE');
+    fs.utimesSync(expired, new Date(0), new Date(0));
+    let opens = 0;
+    let closes = 0;
+    vi.spyOn(fs, 'opendirSync').mockImplementation(() => {
+      opens++;
+      let read = false;
+      return {
+        readSync() {
+          if (read) return null;
+          read = true;
+          return { name: path.basename(expired), isFile: () => true, isSymbolicLink: () => false };
+        },
+        closeSync() {
+          closes++;
+        },
+      };
+    });
+    const lstat = fs.lstatSync;
+    let changed = false;
+    vi.spyOn(fs, 'lstatSync').mockImplementation((target, ...args) => {
+      const stat = lstat(target, ...args);
+      if (target === directory && changed) stat.ino = stat.ino === 0 ? 1 : 0;
+      return stat;
+    });
+
+    const modulePath = require.resolve('../../src/main/private-report-temp.js');
+    const cached = require.cache[modulePath];
+    delete require.cache[modulePath];
+    try {
+      const isolated = require(modulePath);
+      const onError = vi.fn();
+      isolated.startPrivateReportRetention(() => root, onError);
+      expect(opens).toBe(1);
+      expect(closes).toBe(1);
+      changed = true;
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(opens).toBe(1);
+      expect(closes).toBe(1);
+      expect(fs.existsSync(expired)).toBe(true);
+      expect(onError).toHaveBeenCalledTimes(1);
+    } finally {
+      delete require.cache[modulePath];
+      require.cache[modulePath] = cached;
+    }
+  });
+
   it('rejects a linked report directory and leaves its target untouched', () => {
     const outside = path.join(root, 'outside');
     fs.mkdirSync(outside);
@@ -301,7 +439,7 @@ describe('private report temp storage', () => {
     expect(fs.readdirSync(outside)).toEqual([]);
   });
 
-  it('sweeps expired reports at startup and again while the app stays open', () => {
+  it('sweeps expired reports at startup and again while the app stays open', async () => {
     vi.useFakeTimers();
     const directory = reports.reportDirectory(root, true);
     const now = Date.now();
@@ -313,6 +451,7 @@ describe('private report temp storage', () => {
       new Date(now - reports.MAX_AGE_MS - 1000),
     );
     reports.startPrivateReportRetention(() => root);
+    await vi.advanceTimersByTimeAsync(10);
     expect(fs.existsSync(old)).toBe(false);
 
     const later = path.join(directory, ownedName('report', '8'));
@@ -322,7 +461,7 @@ describe('private report temp storage', () => {
       new Date(now - reports.MAX_AGE_MS - 1000),
       new Date(now - reports.MAX_AGE_MS - 1000),
     );
-    vi.advanceTimersByTime(6 * 60 * 60 * 1000);
+    await vi.advanceTimersByTimeAsync(6 * 60 * 60 * 1000 + 10);
     expect(fs.existsSync(later)).toBe(false);
     vi.useRealTimers();
   });
