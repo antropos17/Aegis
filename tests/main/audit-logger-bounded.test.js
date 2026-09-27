@@ -260,6 +260,60 @@ describe('audit-logger bounded buffer', () => {
     expect(auditLogger.verifyChain(todayFile()).valid).toBe(true);
   });
 
+  it('publishes settled delivery changes after failed writes, overflow, and recovery', () => {
+    const deliveries = [];
+    const onDeliveryChange = vi.fn((...args) => {
+      deliveries.push({ args, status: auditLogger.getDeliveryStatus() });
+    });
+    auditLogger.init({ userDataPath: tmpDir, bufferCap: 2, onDeliveryChange });
+    onDeliveryChange.mockClear();
+    deliveries.length = 0;
+
+    fs.rmSync(auditDir(), { recursive: true, force: true });
+    auditLogger.log('t', { agent: 'PRIVATE_AGENT_CANARY' });
+    auditLogger.flush();
+    expect(deliveries.at(-1)).toEqual({
+      args: [],
+      status: { droppedEntries: 0, bufferDepth: 1, writeFailed: true },
+    });
+
+    auditLogger.log('t', { agent: 'B' });
+    auditLogger.log('t', { agent: 'C' });
+    expect(deliveries.at(-1)).toEqual({
+      args: [],
+      status: { droppedEntries: 1, bufferDepth: 2, writeFailed: true },
+    });
+
+    fs.mkdirSync(auditDir(), { recursive: true });
+    auditLogger.flush();
+    expect(deliveries.at(-1)).toEqual({
+      args: [],
+      status: { droppedEntries: 1, bufferDepth: 0, writeFailed: false },
+    });
+    expect(JSON.stringify(deliveries)).not.toContain('PRIVATE_AGENT_CANARY');
+    expect(auditLogger.verifyChain(todayFile()).valid).toBe(true);
+  });
+
+  it('keeps a delivery observer that logs another record from recurring', () => {
+    let active = false;
+    let calls = 0;
+    auditLogger.init({
+      userDataPath: tmpDir,
+      onDeliveryChange: () => {
+        if (!active) return;
+        calls++;
+        if (calls === 1) auditLogger.log('t', { agent: 'nested' });
+      },
+    });
+    active = true;
+    auditLogger.log('t', { agent: 'outer' });
+    expect(calls).toBe(1);
+    active = false;
+    auditLogger.flush();
+    expect(readLines().map((line) => line.agent)).toEqual(['outer', 'nested']);
+    expect(auditLogger.verifyChain(todayFile()).valid).toBe(true);
+  });
+
   it('writes a pending marker when a READ triggers the flush', () => {
     // exportAll() and getEntriesBefore() both flush first, so opening the export dialog
     // is enough to land the marker — it is not only the 5s timer that writes it.

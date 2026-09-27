@@ -6,9 +6,11 @@
  * exercising it here is the point: it is the one path where the composer must answer
  * without a single leaf record existing.
  */
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect, afterAll, vi } from 'vitest';
 import Module from 'module';
 import os from 'os';
+import fs from 'fs';
+import path from 'path';
 import { createRequire } from 'module';
 import { APP_HEALTH_STATE } from '../../src/main/app-health.js';
 
@@ -51,6 +53,8 @@ process.argv = ['node', 'main.js'];
 // is a syntax error under an ESM transform but legal for the CJS loader.
 const require_ = createRequire(import.meta.url);
 const main = require_('../../src/main/main.js');
+const auditLogger = require_('../../src/main/audit-logger.js');
+const operationalLogger = require_('../../src/main/logger.js');
 
 afterAll(() => {
   Module._load = originalLoad;
@@ -169,6 +173,81 @@ describe('getStats() — app health composition', () => {
     } finally {
       main._setScannerForTest(undefined);
       main._setAuditForTest(undefined);
+    }
+  });
+
+  it('pushes failed, overflowed, and recovered audit delivery without a scan', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'setInterval', 'Date'] });
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-audit-live-'));
+    const auditDir = path.join(tmpDir, 'audit-logs');
+    const send = vi.fn();
+    const logError = vi.spyOn(operationalLogger, 'error').mockImplementation(() => {});
+    try {
+      main._setAuditForTest(auditLogger);
+      main._setMainWindowForTest({ isDestroyed: () => false, webContents: { send } });
+      auditLogger.init({
+        ...main._auditInitOptionsForTest(tmpDir),
+        bufferCap: 2,
+        loadSqlite: () => null,
+      });
+      await auditLogger._awaitIndexForTest();
+      vi.advanceTimersByTime(1000);
+      expect(send).toHaveBeenCalledWith(
+        'stats-update',
+        expect.objectContaining({
+          auditDelivery: { droppedEntries: 0, bufferDepth: 0, writeFailed: false },
+        }),
+      );
+      send.mockClear();
+
+      expect(path.dirname(auditDir)).toBe(tmpDir);
+      fs.rmSync(auditDir, { recursive: true, force: true });
+      auditLogger.log('file-access', { agent: 'PRIVATE_AGENT_CANARY' });
+      auditLogger.flush();
+      vi.advanceTimersByTime(1000);
+      expect(send).toHaveBeenCalledOnce();
+      expect(send.mock.calls[0][0]).toBe('stats-update');
+      expect(send.mock.calls[0][1].auditDelivery).toEqual({
+        droppedEntries: 0,
+        bufferDepth: 1,
+        writeFailed: true,
+      });
+      expect(JSON.stringify(send.mock.calls)).not.toContain('PRIVATE_AGENT_CANARY');
+
+      send.mockClear();
+      auditLogger.log('file-access', { agent: 'B' });
+      auditLogger.log('file-access', { agent: 'C' });
+      vi.advanceTimersByTime(1000);
+      expect(send).toHaveBeenCalledOnce();
+      expect(send.mock.calls[0][1].auditDelivery).toEqual({
+        droppedEntries: 1,
+        bufferDepth: 2,
+        writeFailed: true,
+      });
+
+      send.mockClear();
+      fs.mkdirSync(auditDir, { recursive: true });
+      auditLogger.flush();
+      vi.advanceTimersByTime(1000);
+      expect(send).toHaveBeenCalledOnce();
+      expect(send.mock.calls[0][1].auditDelivery).toEqual({
+        droppedEntries: 1,
+        bufferDepth: 0,
+        writeFailed: false,
+      });
+
+      send.mockClear();
+      main._setMainWindowForTest(undefined);
+      auditLogger.log('file-access', { agent: 'D' });
+      vi.advanceTimersByTime(1000);
+      expect(send).not.toHaveBeenCalled();
+    } finally {
+      auditLogger.shutdown();
+      main._setMainWindowForTest?.(undefined);
+      main._setAuditForTest(undefined);
+      logError.mockRestore();
+      vi.useRealTimers();
+      fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 

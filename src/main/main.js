@@ -497,6 +497,25 @@ const statsUpdateBatcher = createBatcher('stats-update', sendToRenderer, {
   mode: 'latest',
 });
 
+/**
+ * Route audit delivery changes through the existing one-second latest-value stats push.
+ * No audit entry, path, or error object crosses this boundary.
+ * @param {string} userDataPath
+ * @returns {Object} Audit logger initialization options.
+ * @since v0.17.0-alpha
+ */
+function auditInitOptions(userDataPath) {
+  return {
+    userDataPath,
+    onFlushError: () =>
+      logger.error('audit-logger', 'Flush failed', { code: 'audit-flush-failed' }),
+    onDeliveryChange: () => {
+      if (!isQuitting && mainWindow && !mainWindow.isDestroyed())
+        statsUpdateBatcher.pushLazy(getStats);
+    },
+  };
+}
+
 // ═══ WINDOW ═══
 
 function createWindow() {
@@ -935,11 +954,7 @@ function initDeferredSubsystems(userData) {
       return scores;
     },
   });
-  audit.init({
-    userDataPath: userData,
-    onFlushError: () =>
-      logger.error('audit-logger', 'Flush failed', { code: 'audit-flush-failed' }),
-  });
+  audit.init(auditInitOptions(userData));
   baselines.loadBaselines();
   startWatchersWhenLoaded(mainWindow.webContents);
   const ms = (config.getSettings().scanIntervalSec || 10) * 1000;
@@ -1173,6 +1188,17 @@ function _setAuditForTest(mod) {
   audit = mod;
 }
 
+/**
+ * Observe the production stats push without starting Electron.
+ * @param {Object|null|undefined} window
+ * @returns {void}
+ * @since v0.17.0-alpha
+ * @internal
+ */
+function _setMainWindowForTest(window) {
+  mainWindow = window;
+}
+
 /** @internal Clear startup and retry state and the registered watcher list (for tests). */
 function _resetWatchersForTest() {
   cancelFileWatchRetry();
@@ -1229,6 +1255,8 @@ module.exports = {
   _setScanLoopForTest,
   _setSequenceEngineForTest,
   _setAuditForTest,
+  _setMainWindowForTest,
+  _auditInitOptionsForTest: auditInitOptions,
   _resetWatchersForTest,
   _getWatchersForTest,
   _loadDeferredModulesForTest,
