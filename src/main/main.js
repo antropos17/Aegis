@@ -762,7 +762,12 @@ function onSequenceDetection(detection) {
       ...(detection.relationship ? { relationship: detection.relationship } : {}),
     },
   });
-  logger.info('sequence-engine', `Sequence ${detection.ruleId} detected`, detection);
+  // Operational diagnostics need only the rule summary. Detailed evidence,
+  // including sensitive file paths, belongs in the forensic audit record above.
+  logger.info('sequence-engine', 'Sequence detected', {
+    ruleId: detection.ruleId,
+    level: detection.level,
+  });
 }
 
 /**
