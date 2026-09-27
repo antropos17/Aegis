@@ -42,6 +42,7 @@ export default defineConfig({
         'frontend/observatory/App.svelte',
         'src/renderer/lib/utils/enrich-agents.ts',
         'src/main/logger.js',
+        'src/main/log-files.js',
         'src/main/agent-event-receiver.js',
         'src/main/action-policy.js',
         'src/main/action-policy-session.js',

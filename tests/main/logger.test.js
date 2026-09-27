@@ -117,6 +117,99 @@ describe('logger', () => {
     expect(stats.logDir).toBe(path.join(tmpDir, 'logs'));
   });
 
+  it('seeds an existing large daily log without reading the whole file synchronously', async () => {
+    const logDir = path.join(tmpDir, 'logs');
+    fs.mkdirSync(logDir);
+    const now = new Date();
+    const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayPath = path.join(logDir, `aegis-${day}.log`);
+    fs.writeFileSync(todayPath, '{"message":"existing entry"}\n'.repeat(50_000));
+    const read = vi.spyOn(fs, 'readFileSync');
+
+    try {
+      logger.init({ userDataPath: tmpDir });
+      expect(read.mock.calls.some(([file]) => file === todayPath)).toBe(false);
+      await vi.waitFor(() => expect(logger.getStats().todayEntries).toBe(50_000), {
+        timeout: 5000,
+      });
+    } finally {
+      read.mockRestore();
+    }
+  });
+
+  it('rotates closed daily files before they exceed the storage budget', () => {
+    logger.init({ userDataPath: tmpDir });
+    const payload = 'x'.repeat(50_000);
+    for (let i = 0; i < 300; i++) logger.info('rotation', `${i}:${payload}`);
+    logger.flush();
+
+    const logDir = path.join(tmpDir, 'logs');
+    const files = fs.readdirSync(logDir).filter((file) => file.endsWith('.log'));
+    expect(files.length).toBeGreaterThan(1);
+    expect(files.length).toBeLessThanOrEqual(4);
+    expect(
+      files.every((file) => fs.statSync(path.join(logDir, file)).size <= 2 * 1024 * 1024),
+    ).toBe(true);
+    const retained = logger.exportAll().map((entry) => Number(entry.message.split(':', 1)[0]));
+    expect(retained).toContain(299);
+    expect(retained).not.toContain(0);
+    expect(retained).toEqual([...retained].sort((a, b) => a - b));
+    expect(logger.getStats().todayEntries).toBe(300);
+  });
+
+  it('restores the durable daily count after rotation without opening log bodies', async () => {
+    logger.init({ userDataPath: tmpDir });
+    for (let i = 0; i < 300; i++) logger.info('rotation', `${i}:${'x'.repeat(50_000)}`);
+    logger.shutdown();
+
+    const read = vi.spyOn(fs, 'readFileSync');
+    try {
+      vi.resetModules();
+      logger = (await import('../../src/main/logger.js')).default;
+      logger.init({ userDataPath: tmpDir });
+      expect(logger.getStats().todayEntries).toBe(300);
+      expect(read.mock.calls.some(([file]) => String(file).endsWith('.log'))).toBe(false);
+    } finally {
+      read.mockRestore();
+    }
+  });
+
+  it('omits an oversized entry without retaining its private content', () => {
+    logger.init({ userDataPath: tmpDir });
+    logger.info('fixture', 'private-canary-' + 'x'.repeat(200_000));
+    logger.flush();
+    const [entry] = logger.exportAll();
+    expect(entry.message).toContain('omitted');
+    expect(JSON.stringify(entry)).not.toContain('private-canary');
+    const logName = fs.readdirSync(logger.getLogDir()).find((name) => name.endsWith('.log'));
+    expect(fs.statSync(path.join(logger.getLogDir(), logName)).size).toBeLessThan(64 * 1024);
+  });
+
+  it('counts malformed non-empty legacy lines without loading them all at once', async () => {
+    const logDir = path.join(tmpDir, 'logs');
+    fs.mkdirSync(logDir);
+    const now = new Date();
+    const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    fs.writeFileSync(path.join(logDir, `aegis-${day}.log`), '{"message":"ok"}\nnot-json\n\n');
+    logger.init({ userDataPath: tmpDir });
+    await vi.waitFor(() => expect(logger.getStats().todayEntries).toBe(2));
+    expect(logger.exportAll()).toEqual([{ message: 'ok' }]);
+  });
+
+  it('does not count or export a log filename that points outside the log directory', () => {
+    const logDir = path.join(tmpDir, 'logs');
+    fs.mkdirSync(logDir);
+    const outside = path.join(tmpDir, 'private.json');
+    fs.writeFileSync(outside, '{"private":"canary"}\n');
+    const now = new Date();
+    const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    fs.symlinkSync(outside, path.join(logDir, `aegis-${day}.log`), 'file');
+
+    logger.init({ userDataPath: tmpDir });
+    expect(logger.getStats().totalFiles).toBe(0);
+    expect(logger.exportAll()).toEqual([]);
+  });
+
   it('exportAll() reads and parses all log files', () => {
     logger.init({ userDataPath: tmpDir });
     logger.info('m', 'one');
@@ -137,6 +230,10 @@ describe('logger', () => {
     const oldStr = `${oldDate.getFullYear()}-${String(oldDate.getMonth() + 1).padStart(2, '0')}-${String(oldDate.getDate()).padStart(2, '0')}`;
     const oldFile = path.join(logDir, `aegis-${oldStr}.log`);
     fs.writeFileSync(oldFile, '{"test":"old"}\n');
+    const oldRotation = path.join(logDir, `aegis-${oldStr}.1.log`);
+    fs.writeFileSync(oldRotation, '{"test":"old rotation"}\n');
+    const oldCount = path.join(logDir, `aegis-${oldStr}.count`);
+    fs.writeFileSync(oldCount, '{"count":2,"bytes":42}');
     const backupFile = path.join(logDir, `aegis-${oldStr}.log.backup.log`);
     fs.writeFileSync(backupFile, '{"test":"backup"}\n');
 
@@ -153,6 +250,8 @@ describe('logger', () => {
     await new Promise((r) => setImmediate(r));
 
     expect(fs.existsSync(oldFile)).toBe(false);
+    expect(fs.existsSync(oldRotation)).toBe(false);
+    expect(fs.existsSync(oldCount)).toBe(false);
     expect(fs.existsSync(recentFile)).toBe(true);
     expect(fs.existsSync(backupFile)).toBe(true);
     expect(logger.getStats()).toMatchObject({ totalFiles: 1, recordingSince: recentStr });
