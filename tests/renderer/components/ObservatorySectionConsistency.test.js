@@ -1,10 +1,17 @@
 import { expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import Reports from '../../../frontend/observatory/components/Reports.svelte';
 import Monitoring from '../../../frontend/observatory/components/Monitoring.svelte';
 import StatsTokens from '../../../frontend/observatory/components/StatsTokens.svelte';
 import Statistics from '../../../frontend/observatory/components/Statistics.svelte';
 import { emptyTelemetry } from '../../../frontend/observatory/runtime/host';
+import { language } from '../../../frontend/observatory/runtime/i18n';
+import {
+  appendWithRetention,
+  EVENTS_CAPACITY,
+  fileEventRetain,
+} from '../../../src/renderer/lib/stores/events-retention';
 
 const agent = (pid) => ({
   agent: 'Codex',
@@ -50,7 +57,7 @@ it('Monitoring stops presenting a frozen event rate as live during an observatio
     inspect: vi.fn(),
   });
   const rate = [...container.querySelectorAll('.summary-stat')].find(
-    (el) => el.querySelector('span')?.textContent === 'Events / min',
+    (el) => el.querySelector('span')?.textContent === 'Retained events / min',
   );
   expect(rate.querySelector('strong')).toHaveTextContent('1');
 
@@ -65,6 +72,45 @@ it('Monitoring stops presenting a frozen event rate as live during an observatio
   await rerender({ telemetry: { ...current, events: [] } });
   expect(rate.querySelector('strong')).toHaveTextContent('0');
   expect(rate.querySelector('p')).toHaveTextContent('0 retained events');
+});
+
+it('discloses display evictions when a delivered recent event is absent from the retained minute', async () => {
+  const olderSensitive = Array.from({ length: EVENTS_CAPACITY }, (_, index) => ({
+    file: `X:/sensitive-${index}`,
+    timestamp: Date.now() - 120_000,
+    sensitive: true,
+  }));
+  const freshOrdinary = { file: 'X:/fresh', timestamp: Date.now() - 1000, sensitive: false };
+  const retained = appendWithRetention(
+    olderSensitive,
+    [freshOrdinary],
+    EVENTS_CAPACITY,
+    fileEventRetain,
+  );
+  expect(retained.evicted).toBe(1);
+  expect(retained.next).not.toContain(freshOrdinary);
+
+  const { container } = render(Monitoring, {
+    telemetry: { ...state(), events: retained.next, evicted: retained.evicted },
+    selected: null,
+    inspect: vi.fn(),
+  });
+  const rate = [...container.querySelectorAll('.summary-stat')].find(
+    (el) => el.querySelector('span')?.textContent === 'Retained events / min',
+  );
+  expect(rate.querySelector('strong')).toHaveTextContent('0');
+  expect(rate).toHaveTextContent('Delivered file events excluded by display limit: 1');
+  language.set('pt');
+  try {
+    await tick();
+    expect(rate.querySelector('span')).toHaveTextContent('Eventos retidos / min');
+    expect(rate).toHaveTextContent(
+      'Eventos de arquivo recebidos excluídos pelo limite de exibição: 1',
+    );
+  } finally {
+    language.set('en');
+    await tick();
+  }
 });
 
 it('the sensitive summary and its opened records use the same retained scope', async () => {
