@@ -56,6 +56,7 @@ process.argv = ['node', 'main.js'];
 // is a syntax error under an ESM transform but legal for the CJS loader.
 const require_ = createRequire(import.meta.url);
 const main = require_('../../src/main/main.js');
+const operationalLogger = require_('../../src/main/logger.js');
 
 const INSTANCE_ID = '4242:1717000000000';
 const CONFIRMED = { status: 'confirmed', evidence: ['handle-scan-pid'] };
@@ -128,6 +129,27 @@ afterAll(() => {
 });
 
 describe('main — onSequenceDetection writes the sequence-detection audit record', () => {
+  it('keeps a sensitive file path in forensic audit but out of operational diagnostics', () => {
+    const audit = { log: vi.fn() };
+    main._setAuditForTest(audit);
+    const logInfo = vi.spyOn(operationalLogger, 'info').mockImplementation(() => {});
+    const sensitivePath = 'C:\\fixture\\.ssh\\id_rsa';
+    const d = detection();
+    d.steps[0].path = sensitivePath;
+
+    try {
+      main.onSequenceDetection(d);
+      expect(audit.log.mock.calls[0][1].extra.steps[0].path).toBe(sensitivePath);
+      expect(logInfo).toHaveBeenCalledWith('sequence-engine', 'Sequence detected', {
+        ruleId: 'SEQ001',
+        level: 'high',
+      });
+      expect(JSON.stringify(logInfo.mock.calls)).not.toContain(sensitivePath);
+    } finally {
+      logInfo.mockRestore();
+    }
+  });
+
   it('preserves calibrated severity and evidence assessment in the audit record', () => {
     const audit = { log: vi.fn() };
     main._setAuditForTest(audit);
