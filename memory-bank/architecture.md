@@ -1,6 +1,6 @@
 # AEGIS Architecture
 
-## Main Process (src/main/) — 180 CommonJS modules (157 top-level + 21 platform/ + 2 token-adapters/)
+## Main Process (src/main/) — 181 CommonJS modules (158 top-level + 21 platform/ + 2 token-adapters/)
 
 Optional development ETW: main → platform/etw-file-runtime → etw-file-supervisor
 → normal `sidecar/etw-file` broker → authenticated elevated file collector.
@@ -16,7 +16,7 @@ Core modules:
 - scan-loop.js — periodic scan intervals, staggered startup, event dedup
 - ipc-batcher.js — batches high-frequency IPC events (append/latest modes)
 - ipc-handlers.js — all IPC handlers (invoke + listeners)
-- preload.js — IPC bridge (window.aegis via contextBridge, 46 invoke + 11 events = 57 channels)
+- preload.js — IPC bridge (window.aegis via contextBridge, 48 invoke + 11 events = 59 channels)
 - process-scanner.js — bundled and validated custom signatures over platform process snapshots
 - process-utils.js — parent chain resolution + editor annotation
 - file-watcher.js — watcher health, main-thread attribution + handle scanning

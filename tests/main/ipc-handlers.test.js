@@ -283,6 +283,45 @@ describe('ipc-handlers', () => {
     return { window, contents, frame, event: { sender: contents, senderFrame: frame } };
   }
 
+  it('limits sensitive alert reads and review writes to the owned top-level frame', async () => {
+    const journal = {
+      list: vi.fn(() => ({ success: true, status: 'ready', items: [] })),
+      setReviewed: vi.fn(async () => ({ success: true, status: 'ready' })),
+    };
+    const { event } = registerOwnedRenderer({ sensitiveAlertJournal: journal });
+    const list = getHandler('sensitive-alerts:list');
+    const review = getHandler('sensitive-alerts:set-reviewed');
+    const foreign = { ...event, senderFrame: {} };
+    expect(list(foreign)).toMatchObject({ success: false });
+    expect(await review(foreign, 'id', true)).toMatchObject({ success: false });
+    expect(journal.list).not.toHaveBeenCalled();
+    expect(journal.setReviewed).not.toHaveBeenCalled();
+    expect(list(event)).toMatchObject({ success: true, items: [] });
+    expect(await review(event, 'id', true, 'ignored private path')).toMatchObject({
+      success: true,
+    });
+    expect(journal.setReviewed).toHaveBeenCalledWith('id', true, expect.any(Function));
+  });
+
+  it('revokes a pending alert review when the owning frame is replaced', async () => {
+    let finish;
+    const journal = {
+      list: vi.fn(() => ({ success: true, status: 'ready', items: [] })),
+      setReviewed: vi.fn(
+        (_id, _reviewed, canComplete) =>
+          new Promise((resolve) => {
+            finish = () => resolve({ success: canComplete(), status: 'ready' });
+          }),
+      ),
+    };
+    const { event, frame } = registerOwnedRenderer({ sensitiveAlertJournal: journal });
+    const review = getHandler('sensitive-alerts:set-reviewed');
+    const pending = review(event, '00000000-0000-4000-8000-000000000001', true);
+    frame.isDestroyed.mockReturnValue(true);
+    finish();
+    expect(await pending).toMatchObject({ success: false, error: 'Renderer request denied' });
+  });
+
   function registerThreatRenderer() {
     threatTempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aegis-threat-report-test-'));
     mockElectron.app.getPath.mockReturnValue(threatTempRoot);

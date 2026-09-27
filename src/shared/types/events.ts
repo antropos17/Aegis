@@ -56,6 +56,8 @@ export interface Attribution {
 
 /** File access event from watcher or handle scan */
 export interface FileEvent {
+  /** Random UUID of this observation; absent on historical/demo records. */
+  readonly eventId?: string;
   /** Owning agent's display name, or `''` when the event is unattributed. */
   readonly agent: string;
   /**

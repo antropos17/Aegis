@@ -122,9 +122,14 @@ try {
     assert.equal(snapshot?.detail, 'class5', 'native process snapshot did not use class 5');
   }
   const methods = await window.evaluate(() => Object.keys(window.aegis));
-  // Current bridge: 46 invoke methods + 11 subscriptions, including Local security.
-  assert.equal(methods.length, 57);
+  // Current bridge: 48 invoke methods + 11 subscriptions, including alert review.
+  assert.equal(methods.length, 59);
   assert(methods.includes('localSecurityReview'));
+  assert(methods.includes('listSensitiveAlerts'));
+  assert(methods.includes('setSensitiveAlertReviewed'));
+  const alertJournal = await window.evaluate(() => window.aegis.listSensitiveAlerts());
+  assert.equal(alertJournal.success, true);
+  assert(Array.isArray(alertJournal.items));
   for (const name of [
     'Agents',
     'Events',

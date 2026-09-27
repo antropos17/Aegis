@@ -95,6 +95,8 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
 }
 
 const { app, BrowserWindow, globalShortcut } = require('electron');
+const { randomUUID } = require('node:crypto');
+const FILE_EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const path = require('path');
 const { pathToFileURL } = require('node:url');
 const { guardRendererNavigation } = require('./external-url-boundary');
@@ -125,6 +127,8 @@ const desktopShell = require('./platform/desktop-shell').createDesktopShell({
 });
 const tray = require('./tray-icon');
 const ipc = require('./ipc-handlers');
+const { createSensitiveAlertJournal } = require('./sensitive-alert-journal');
+let sensitiveAlertJournal;
 let updates;
 let etwFile;
 const { createBatcher } = require('./ipc-batcher');
@@ -501,6 +505,13 @@ const statsUpdateBatcher = createBatcher('stats-update', sendToRenderer, {
   mode: 'latest',
 });
 
+/** Preserve watcher UUIDs; stamp accepted legacy/test events before display or audit. */
+function recordAcceptedFileEvent(event) {
+  if (typeof event.eventId !== 'string' || !FILE_EVENT_ID.test(event.eventId))
+    event.eventId = randomUUID();
+  if (event.sensitive === true) sensitiveAlertJournal?.record(event);
+}
+
 /**
  * Route audit delivery changes through the existing one-second latest-value stats push.
  * No audit entry, path, or error object crosses this boundary.
@@ -744,6 +755,7 @@ function startWatchersWhenLoaded(webContents) {
 function onFileEvent(ev) {
   const deduped = scanLoop.dedupFileEvent(ev);
   if (!deduped) return;
+  recordAcceptedFileEvent(deduped);
   fileAccessBatcher.push(deduped);
   // An unattributed hit carries category 'other' (no agent to take it from),
   // so the ai-only gate would silence exactly the crown-jewel case: a secret
@@ -899,6 +911,7 @@ function initDeferredSubsystems(userData) {
     observationGap,
     sendToRenderer,
     fileAccessBatcher,
+    recordAcceptedFileEvent,
     statsUpdateBatcher,
     getStats,
     getResourceUsage,
@@ -985,6 +998,7 @@ app.whenReady().then(() => {
 
   // ── Critical startup: logger, config, window — fast path to visible UI ──
   const userData = app.getPath('userData');
+  sensitiveAlertJournal = createSensitiveAlertJournal(userData);
   logger.init({ userDataPath: userData, isDev: !app.isPackaged });
   logger.info('main', 'App starting', { version: app.getVersion(), platform: process.platform });
   config.loadSettings();
@@ -1081,6 +1095,7 @@ app.whenReady().then(() => {
     },
   });
   ipc.init({
+    sensitiveAlertJournal,
     updates,
     getWindow: () => mainWindow,
     getStats,
@@ -1106,7 +1121,46 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('before-quit', () => {
+let alertQuitDrainStarted = false;
+let alertQuitDrainFinished = false;
+app.on('before-quit', (event) => {
+  if (alertQuitDrainStarted && !alertQuitDrainFinished) {
+    event.preventDefault();
+    return;
+  }
+  if (!alertQuitDrainStarted && sensitiveAlertJournal?.hasPending()) {
+    event.preventDefault();
+    alertQuitDrainStarted = true;
+    isQuitting = true;
+    cancelFileWatchRetry();
+    if (scanLoop) scanLoop.stopScanIntervals();
+    // Give a normal restart a chance to save the final debounce window, with a
+    // finite bound if the filesystem stops answering during shutdown.
+    let timeout;
+    const drain = async () => {
+      try {
+        await watcher?.closeFileWatchers?.();
+      } catch {
+        // Continue draining accepted events even if a watcher refuses to close.
+      }
+      for (let attempt = 0; attempt < 3 && sensitiveAlertJournal.hasPending(); attempt++) {
+        if (!(await sensitiveAlertJournal.flush())) break;
+      }
+    };
+    Promise.race([
+      drain(),
+      new Promise((resolve) => {
+        timeout = setTimeout(resolve, 2000);
+      }),
+    ])
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(timeout);
+        alertQuitDrainFinished = true;
+        app.quit();
+      });
+    return;
+  }
   isQuitting = true;
   cancelFileWatchRetry();
   etwFile?.dispose();
@@ -1203,6 +1257,16 @@ function _setMainWindowForTest(window) {
   mainWindow = window;
 }
 
+/** @internal Inject an alert journal and reset the quit drain for lifecycle tests.
+ * @param {object|undefined} journal
+ * @returns {void}
+ */
+function _setSensitiveAlertJournalForTest(journal) {
+  sensitiveAlertJournal = journal;
+  alertQuitDrainStarted = false;
+  alertQuitDrainFinished = false;
+}
+
 /** @internal Clear startup and retry state and the registered watcher list (for tests). */
 function _resetWatchersForTest() {
   cancelFileWatchRetry();
@@ -1260,6 +1324,7 @@ module.exports = {
   _setSequenceEngineForTest,
   _setAuditForTest,
   _setMainWindowForTest,
+  _setSensitiveAlertJournalForTest,
   _auditInitOptionsForTest: auditInitOptions,
   _resetWatchersForTest,
   _getWatchersForTest,

@@ -1152,6 +1152,7 @@ async function doFileScan() {
     });
     const events = rawEvents.map(dedupFileEvent).filter(Boolean);
     if (events.length > 0) {
+      for (const ev of events) deps.recordAcceptedFileEvent?.(ev);
       for (const ev of events) deps.fileAccessBatcher.push(ev);
       tray.notifySensitive(events.filter((e) => e.sensitive && e.category === 'ai'));
       for (const ev of events) logAuditForFile(ev);
@@ -1204,6 +1205,7 @@ async function doHotReadScan() {
     const rawEvents = await watcher.scanHotFileHolders(agents);
     const events = rawEvents.map(dedupFileEvent).filter(Boolean);
     if (events.length > 0) {
+      for (const ev of events) deps.recordAcceptedFileEvent?.(ev);
       for (const ev of events) deps.fileAccessBatcher.push(ev);
       tray.notifySensitive(events.filter((e) => e.sensitive && e.category === 'ai'));
       for (const ev of events) logAuditForFile(ev);
