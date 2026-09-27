@@ -29,6 +29,7 @@ const { isReservedPermissionKey } = require('./settings-validation');
  * Accept a conservative regex subset for synchronous path matching.
  * Repeated groups, backreferences, lookarounds and multiple variable repetitions
  * are unsupported because observed paths must not cause excessive backtracking.
+ * Bound independent alternation choices, including repeated unquantified groups.
  * @param {string} pattern - Raw regex string
  * @returns {boolean} Whether the pattern is supported
  * @since v0.9.1
@@ -42,6 +43,7 @@ function isSafeRegex(pattern) {
   }
   let inClass = false;
   let variableRepeats = 0;
+  let alternationOperators = 0;
   let previousGroup = false;
   for (let index = 0; index < pattern.length; index++) {
     const char = pattern[index];
@@ -61,6 +63,9 @@ function isSafeRegex(pattern) {
       continue;
     }
     if (inClass) continue;
+    // Eight binary choices already permit 256 branch combinations. Escaped and
+    // character-class pipes are literals and never consume this budget.
+    if (char === '|' && ++alternationOperators > 8) return false;
     if (char === '(' && pattern[index + 1] === '?') {
       if (pattern[index + 2] !== ':') return false;
       index += 2;

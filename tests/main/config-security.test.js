@@ -305,6 +305,27 @@ describe('configuration persistence boundaries', () => {
   ])('rejects unsupported backtracking pattern %s', (pattern) => {
     expect(config.isSafeRegex(pattern)).toBe(false);
   });
+  it.each(['(a|aa)', '(?:a|aa)'])('bounds repeated ambiguous alternation for %s', (group) => {
+    expect(config.isSafeRegex('^.*' + group.repeat(20) + 'b$')).toBe(false);
+    expect(config.isSafeRegex('^.*' + group.repeat(9) + 'b$')).toBe(false);
+    expect(config.isSafeRegex('^.*' + group.repeat(8) + 'b$')).toBe(true);
+  });
+  it('does not count escaped or character-class pipes as alternation operators', () => {
+    const bounded = '^.*' + '(a|aa)'.repeat(8) + 'b$';
+    expect(config.isSafeRegex(String.raw`\|[|]` + bounded)).toBe(true);
+  });
+  it('rejects an ambiguous pattern on save and filters a persisted copy on load', () => {
+    const unsafe = '^.*' + '(a|aa)'.repeat(20) + 'b$';
+    expect(() => config.saveSettings({ customSensitivePatterns: [unsafe] })).toThrow(
+      'Unsafe or invalid regex pattern',
+    );
+    fs.writeFileSync(
+      file,
+      JSON.stringify({ customSensitivePatterns: [unsafe, String.raw`\.env$`] }),
+    );
+    config.loadSettings();
+    expect(config.getSettings().customSensitivePatterns).toEqual([String.raw`\.env$`]);
+  });
   it.each(['\\.env$', '[/\\\\]\\.ssh[/\\\\]', '(secret|password)', 'token[0-9]+$', 'key.{0,64}$'])(
     'retains supported path pattern %s',
     (pattern) => {
