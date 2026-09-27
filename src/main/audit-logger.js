@@ -38,6 +38,8 @@ let _indexTask = null;
 let _buffer = [];
 let _flushTimer = null;
 let _onFlushError = null;
+/** Last append attempt failed; session-only and cleared by a successful append. */
+let _writeFailed = false;
 const FLUSH_INTERVAL = 5000;
 const FLUSH_THRESHOLD = 50;
 const RETENTION_DAYS = 30;
@@ -137,6 +139,7 @@ let _persistedEntries = 0;
  */
 function init(opts) {
   _onFlushError = opts.onFlushError || null;
+  _writeFailed = false;
   if (opts.now) _now = opts.now;
   _bufferCap = opts.bufferCap != null ? opts.bufferCap : BUFFER_CAP;
   _loadSqlite = opts.loadSqlite;
@@ -427,6 +430,7 @@ function flush() {
   try {
     fs.appendFileSync(fp, text, 'utf-8');
     written = true;
+    _writeFailed = false;
     _prevHash = prevHash;
     _seq = seq;
     _chainDate = todayDate;
@@ -435,6 +439,7 @@ function flush() {
     _persistedEntries += entries.length;
     dropTracker.clearPending();
   } catch (err) {
+    _writeFailed = true;
     if (_onFlushError) _onFlushError(err);
     // Re-queue PRISTINE entries (no seq/hash baked in) and leave chain state
     // unadvanced so the retry produces an unbroken chain. Pending drops are
@@ -449,6 +454,22 @@ function flush() {
   // chain has advanced, outside the write's try/catch so it can neither fail this write nor
   // re-queue the batch, and it never touches the counters above.
   if (written) _indexAppend(fp, Buffer.byteLength(text, 'utf-8'), out);
+}
+
+/**
+ * Return only current-session delivery counters for the frequent stats push. No file
+ * reads, paths, event fields or index work enter this payload. Buffered records are
+ * pending, while dropped records have already been evicted from memory.
+ * @returns {{droppedEntries: number, bufferDepth: number, writeFailed: boolean}|null}
+ * @since v0.17.0-alpha
+ */
+function getDeliveryStatus() {
+  if (!_logDir) return null;
+  return {
+    droppedEntries: dropTracker.totalDropped(),
+    bufferDepth: _buffer.length,
+    writeFailed: _writeFailed,
+  };
 }
 
 /**
@@ -831,6 +852,7 @@ module.exports = {
   flush,
   shutdown,
   getStats,
+  getDeliveryStatus,
   exportAll,
   prepareExport,
   getEntriesBefore,
