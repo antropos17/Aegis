@@ -38,6 +38,8 @@ let _indexTask = null;
 let _buffer = [];
 let _flushTimer = null;
 let _onFlushError = null;
+let _onDeliveryChange = null;
+let _notifyingDelivery = false;
 /** Last append attempt failed; session-only and cleared by a successful append. */
 let _writeFailed = false;
 const FLUSH_INTERVAL = 5000;
@@ -129,6 +131,7 @@ let _persistedEntries = 0;
  * @param {Object} opts
  * @param {string} opts.userDataPath - Electron app.getPath('userData')
  * @param {function} [opts.onFlushError] - Called with the Error when a flush write fails
+ * @param {function} [opts.onDeliveryChange] - Path-free signal after delivery state changes
  * @param {function} [opts.now] - Test seam: returns the current Date (defaults to real clock)
  * @param {number} [opts.bufferCap] - Test seam: max buffered entries before drop-oldest
  *   eviction (defaults to {@link BUFFER_CAP})
@@ -139,6 +142,8 @@ let _persistedEntries = 0;
  */
 function init(opts) {
   _onFlushError = opts.onFlushError || null;
+  _onDeliveryChange = opts.onDeliveryChange || null;
+  _notifyingDelivery = false;
   _writeFailed = false;
   if (opts.now) _now = opts.now;
   _bufferCap = opts.bufferCap != null ? opts.bufferCap : BUFFER_CAP;
@@ -164,6 +169,20 @@ function init(opts) {
       resolve();
     }),
   );
+  notifyDeliveryChange();
+}
+
+/** Keep renderer delivery failures outside the audit write and hash-chain path. */
+function notifyDeliveryChange() {
+  if (!_onDeliveryChange || _notifyingDelivery) return;
+  _notifyingDelivery = true;
+  try {
+    _onDeliveryChange();
+  } catch (_) {
+    // The renderer is advisory; a failed notification must not lose audit records.
+  } finally {
+    _notifyingDelivery = false;
+  }
 }
 
 /**
@@ -342,6 +361,7 @@ function log(type, details) {
   if (!_lastEntry || entry.timestamp > _lastEntry) _lastEntry = entry.timestamp;
   _trimToCap();
   if (!atCapBefore && _buffer.length >= FLUSH_THRESHOLD) flush();
+  else notifyDeliveryChange();
 }
 
 /**
@@ -454,6 +474,7 @@ function flush() {
   // chain has advanced, outside the write's try/catch so it can neither fail this write nor
   // re-queue the batch, and it never touches the counters above.
   if (written) _indexAppend(fp, Buffer.byteLength(text, 'utf-8'), out);
+  notifyDeliveryChange();
 }
 
 /**
