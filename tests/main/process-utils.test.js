@@ -653,6 +653,33 @@ describe('process-utils', () => {
       expect(agent.projectName).toBeNull();
     });
 
+    it('does not attach a legacy Windows CWD path without a birth proof', async () => {
+      const birth = '133614736000000001';
+      processUtils._setPlatformForTest({ cwdGenerationProof: true });
+      mockGetParentProcessMap.mockResolvedValue(
+        new Map([
+          [
+            100,
+            {
+              name: 'claude.exe',
+              ppid: 0,
+              startTime: 1717000000000,
+              createTime100ns: birth,
+              witness: birth,
+              witnessSource: 'createTime100ns',
+            },
+          ],
+        ]),
+      );
+      mockGetProcessCwds.mockResolvedValue(new Map([[100, 'C:\\recycled-project']]));
+      const agent = { pid: 100, agent: 'Claude Code', process: 'claude.exe' };
+      await processUtils.enrichWithParentChains([agent]);
+      await processUtils.annotateWorkingDirs([agent]);
+
+      expect(agent.cwd).toBeNull();
+      expect(agent.projectName).toBeNull();
+    });
+
     it('accepts a CWD only when its exact creation ticks match the stamped process', async () => {
       const birth = '133614736000000001';
       processUtils._setPlatformForTest({ cwdGenerationProof: true });

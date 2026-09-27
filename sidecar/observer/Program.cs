@@ -22,7 +22,8 @@ public static class ObserverProgram {
         handle = OpenProcess(0x1000, false, pid); // PROCESS_QUERY_LIMITED_INFORMATION
         if (handle == IntPtr.Zero) return null;
         long birth, exit, kernel, user;
-        if (GetProcessTimes(handle, out birth, out exit, out kernel, out user) && birth > 0 && exit == 0)
+        // Exit time is undefined while the process is running; the held handle pins its PID.
+        if (GetProcessTimes(handle, out birth, out exit, out kernel, out user) && birth > 0)
             return birth.ToString(CultureInfo.InvariantCulture);
         CloseHandle(handle);
         handle = IntPtr.Zero;
