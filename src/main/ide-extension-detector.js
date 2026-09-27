@@ -159,6 +159,17 @@ function hasExtension(entries, idPrefix) {
   });
 }
 
+/**
+ * Use complete named snapshots; otherwise probe independently.
+ * @param {Map<number, {name: string}>|undefined} processMap
+ * @returns {string[]|null}
+ */
+function namesFromProcessMap(processMap) {
+  if (!(processMap instanceof Map) || processMap.size === 0) return null;
+  const names = [...processMap.values()].map((process) => process?.name);
+  return names.every((name) => typeof name === 'string' && name.length > 0) ? names : null;
+}
+
 // ═══ PUBLIC API ═══
 
 /**
@@ -167,25 +178,30 @@ function hasExtension(entries, idPrefix) {
  * extension is not an active agent. Each match becomes a synthetic agent with
  * `pid: 0` (it has no real OS process; pid 0 also keeps it inert for the
  * file-handle and TCP scanners, which guard `pid > 0`).
+ * @param {Map<number, {name: string}>} [processMap] Fresh, reliable scanner snapshot
  * @returns {Promise<Array<Object>>} Synthetic agent objects
  * @since v0.11.0-alpha
  */
-async function detectExtensionAgents() {
-  let procs;
-  try {
-    procs = await _listProcesses();
-  } catch (err) {
-    // B-S12: the observation is refused at its first step. With no process list there
-    // is no way to tell which editors are running, so nothing was learned about
-    // extension-hosted agents at all. The compatibility `[]` stays — it has never meant
-    // "no such agents", and the record is now what says so.
-    _health = sensorHealth.markFailed(_health, Date.now(), {
-      error: `process-list-unavailable:${errorCode(err)}`,
-      detail: 'process-list-unavailable',
-    });
-    return [];
+async function detectExtensionAgents(processMap) {
+  let names = namesFromProcessMap(processMap);
+  if (names === null) {
+    let procs;
+    try {
+      procs = await _listProcesses();
+    } catch (err) {
+      // B-S12: the observation is refused at its first step. With no process list there
+      // is no way to tell which editors are running, so nothing was learned about
+      // extension-hosted agents at all. The compatibility `[]` stays — it has never meant
+      // "no such agents", and the record is now what says so.
+      _health = sensorHealth.markFailed(_health, Date.now(), {
+        error: `process-list-unavailable:${errorCode(err)}`,
+        detail: 'process-list-unavailable',
+      });
+      return [];
+    }
+    names = procs.map((p) => p.name);
   }
-  const running = new Set(procs.map((p) => p.name.toLowerCase()));
+  const running = new Set(names.map((name) => name.toLowerCase()));
   const home = _homedir();
   const detected = [];
   const seenAgents = new Set();
@@ -244,14 +260,15 @@ async function detectExtensionAgents() {
  * background refresh when the cache is stale. Never blocks the caller — the hot
  * scan path reads cached results so a directory/process scan never delays the
  * batched IPC. First call returns `[]` until the first refresh completes.
+ * @param {Map<number, {name: string}>} [processMap] Fresh, reliable scanner snapshot
  * @returns {Array<Object>} Cached synthetic agents
  * @since v0.11.0-alpha
  */
-function getCachedExtensionAgents() {
+function getCachedExtensionAgents(processMap) {
   const now = Date.now();
   if (!_refreshing && (_lastRefresh === 0 || now - _lastRefresh > REFRESH_TTL_MS)) {
     _refreshing = true;
-    detectExtensionAgents()
+    detectExtensionAgents(processMap)
       .then((agents) => {
         _cache = agents;
       })

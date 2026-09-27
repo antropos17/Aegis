@@ -590,11 +590,13 @@ function doNetworkScan() {
  * so keying on it would collapse two distinct pid-0 agents onto one synthetic
  * key — the exact collision the synthetic space exists to prevent. The display
  * name IS the identity here, and it is what both detectors already dedup on.
- * @param {Array} agents @returns {void} @since v0.11.0-alpha
+ * @param {Array} agents
+ * @param {Map<number, {name: string}>} [processMap] Fresh, reliable process snapshot
+ * @returns {void} @since v0.11.0-alpha
  */
-function injectDetectedExternalAgents(agents) {
+function injectDetectedExternalAgents(agents, processMap) {
   const external = [
-    ...ideExtensionDetector.getCachedExtensionAgents(),
+    ...ideExtensionDetector.getCachedExtensionAgents(processMap),
     ...wslDetector.getCachedWslAgents(),
   ];
   for (const ext of external) {
@@ -827,7 +829,14 @@ async function doProcessScan() {
     await procUtil.annotateWorkingDirs(agents, { forceRefresh: result.changed === true });
     // Surface extension-only (Kilo/Cline) and WSL-inner (grok/opencode) agents
     // before the batch so the renderer sees them; cache-backed, non-blocking.
-    injectDetectedExternalAgents(agents);
+    // CWD lookup can also cross system sleep, after the session's earlier witness.
+    // Check freshness again before the IDE cache might accept the process map.
+    const snapshotCurrent =
+      gapBefore === null || deps.observationGap.snapshot().suspendCount === gapBefore.suspendCount;
+    injectDetectedExternalAgents(
+      agents,
+      result.reliable === true && snapshotCurrent ? result.processMap : undefined,
+    );
     // Local LLM runtimes (Ollama / LM Studio) MUST be attached and stamped BEFORE
     // scan-batch. Structured clone happens at sendToRenderer — a post-batch push
     // never reaches the UI, and unstamped synthetics poison instance-keyed maps

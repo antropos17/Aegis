@@ -586,6 +586,76 @@ describe('scan-loop', () => {
   // ── external-agent injection (IDE-extension + WSL) ──
 
   describe('external-agent injection into scan-batch', () => {
+    it('passes only a reliable current process map to the IDE detector', async () => {
+      const ide = require_('../../src/main/ide-extension-detector.js');
+      const wsl = require_('../../src/main/wsl-detector.js');
+      const origIde = ide.getCachedExtensionAgents;
+      const origWsl = wsl.getCachedWslAgents;
+      const getCachedExtensionAgents = vi.fn().mockReturnValue([]);
+      ide.getCachedExtensionAgents = getCachedExtensionAgents;
+      wsl.getCachedWslAgents = () => [];
+      try {
+        const processMap = new Map([[100, { name: 'Code.exe' }]]);
+        const deps = makeDeps({
+          scanner: {
+            scanProcesses: vi
+              .fn()
+              .mockResolvedValueOnce({ agents: [], changed: false, reliable: true, processMap })
+              .mockResolvedValueOnce({ agents: [], changed: false, reliable: false, processMap }),
+          },
+        });
+        scanLoop.init(deps);
+        scanLoop.startScanIntervals(5000);
+
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(getCachedExtensionAgents).toHaveBeenLastCalledWith(processMap);
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(getCachedExtensionAgents).toHaveBeenLastCalledWith(undefined);
+      } finally {
+        ide.getCachedExtensionAgents = origIde;
+        wsl.getCachedWslAgents = origWsl;
+      }
+    });
+
+    it.each([
+      ['during identity stamping', [0, 1, 1]],
+      ['during working-directory lookup', [0, 0, 1]],
+    ])('does not reuse a process map after system sleep %s', async (_phase, suspendCounts) => {
+      const ide = require_('../../src/main/ide-extension-detector.js');
+      const wsl = require_('../../src/main/wsl-detector.js');
+      const origIde = ide.getCachedExtensionAgents;
+      const origWsl = wsl.getCachedWslAgents;
+      const getCachedExtensionAgents = vi.fn().mockReturnValue([]);
+      ide.getCachedExtensionAgents = getCachedExtensionAgents;
+      wsl.getCachedWslAgents = () => [];
+      try {
+        const processMap = new Map([[100, { name: 'Code.exe' }]]);
+        let observation = 0;
+        const deps = makeDeps({
+          scanner: {
+            scanProcesses: vi
+              .fn()
+              .mockResolvedValue({ agents: [], changed: false, reliable: true, processMap }),
+          },
+          observationGap: {
+            snapshot: vi.fn(() => ({
+              suspendCount: suspendCounts[Math.min(observation++, suspendCounts.length - 1)],
+            })),
+            noteObserved: vi.fn(),
+          },
+        });
+        scanLoop.init(deps);
+        scanLoop.startScanIntervals(5000);
+
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(getCachedExtensionAgents).toHaveBeenCalledWith(undefined);
+      } finally {
+        ide.getCachedExtensionAgents = origIde;
+        wsl.getCachedWslAgents = origWsl;
+      }
+    });
+
     it('injects cached detector agents into the scan-batch payload before sending', async () => {
       const ide = require_('../../src/main/ide-extension-detector.js');
       const wsl = require_('../../src/main/wsl-detector.js');
