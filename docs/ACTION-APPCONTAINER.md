@@ -218,9 +218,9 @@ contain no workspace path or registry entry.
 The selected runtime must already be accessible under Windows AppContainer
 access checks. AEGIS does not grant installed software broader permissions to
 make it run. Native checks cover `whoami.exe`, installed Node, and an explicitly
-granted disposable test runtime. A local listener accepted an unrestricted
-connection while the restricted probe timed out without connecting; this is a
-bounded loopback observation, not an independent public-network denial test.
+granted disposable test runtime. A local listener accepted unrestricted parent
+and child connections while the restricted parent and child were denied; this is
+a bounded loopback observation, not an independent public-network denial test.
 Compatibility with installed AI agents must be tested individually.
 This slice has no authenticated provider network broker, arbitrary file broker,
 long-running agent session or desktop launch control. Those remain in the
