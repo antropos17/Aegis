@@ -475,9 +475,9 @@ ${findingsHtml}${recsHtml}
     const window = deps.getWindow?.();
     if (!stillOwned(event, window)) return denied();
     try {
-      const defaultName = `aegis-full-audit-${new Date().toISOString().slice(0, 10)}.json`;
+      const defaultName = `aegis-retained-audit-${new Date().toISOString().slice(0, 10)}.json`;
       const { filePath } = await dialog.showSaveDialog(window, {
-        title: 'Export Full Audit Log',
+        title: 'Export Retained Audit Records',
         defaultPath: path.join(app.getPath('downloads'), defaultName),
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
