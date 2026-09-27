@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/svelte';
 import App from '../../../frontend/observatory/App.svelte';
 
+// Mounting the full Observatory under full-suite coverage can exceed Vitest's 5s default on CI.
 it('shows live audit overflow and pending writes on every workspace without a healthy false alarm', async () => {
   const listeners = {};
   const health = { state: 'HEALTHY', populationReliable: true };
@@ -83,4 +84,4 @@ it('shows live audit overflow and pending writes on every workspace without a he
   ).toBeInTheDocument();
   expect(screen.getByRole('alert')).toHaveTextContent('Audit records lost from the buffer');
   expect(screen.getByRole('alert')).not.toHaveTextContent('last audit write failed');
-});
+}, 15_000);
