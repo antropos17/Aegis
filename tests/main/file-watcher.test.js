@@ -259,6 +259,12 @@ describe('file-watcher event handling', () => {
       for (const action of actions)
         fileWatcher.handleWatcherEvent(action, '/home/user/lifecycle.js');
       expect(state.activityLog.map((event) => event.action)).toEqual(actions);
+      const ids = state.activityLog.map((event) => event.eventId);
+      expect(new Set(ids).size).toBe(actions.length);
+      for (const id of ids)
+        expect(id).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+        );
       expect(state.onFileEvent).toHaveBeenCalledTimes(actions.length);
     });
 
@@ -787,6 +793,9 @@ describe('file-watcher scanFileHandles', () => {
       const agents = [{ pid: 100, agent: 'Claude Code', category: 'ai' }];
       const events = await fileWatcher.scanAllFileHandles(agents);
       expect(events[0].sensitive).toBe(true);
+      expect(events[0].eventId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
       expect(events[0].reason).toBe('SSH keys/config');
     });
 
@@ -922,6 +931,9 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
     expect(events[0].agent).toBe('Agent5'); // resolved from holder PID 105, not aiAgents[0]
     expect(events[0].pid).toBe(105);
     expect(events[0].action).toBe('holding'); // NOT 'accessed' / 'read' — it's a hold
+    expect(events[0].eventId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
     expect(events[0].file).toBe('/home/user/.ssh'); // the DIRECTORY group, not a fabricated file
     expect(events[0].sensitive).toBe(true);
     expect(events[0].reason).toBe('SSH keys/config');

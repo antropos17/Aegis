@@ -44,7 +44,7 @@ AEGIS is an **Independent AI Oversight Layer** for local agent processes, file a
 │  └───────────────┬──────────────┘     └──────────────┬───────────────┘  │
 │                  │          preload.js                │                  │
 │                  └─────── (IPC bridge) ───────────────┘                  │
-│              contextBridge API (57 channels: 46 invoke + 11 push)        │
+│              contextBridge API (59 channels: 48 invoke + 11 push)        │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -180,12 +180,14 @@ There are no standalone `scan-results`, `baseline-warnings` or `anomaly-scores` 
 
 ### Invoke (Renderer → Main → Response)
 
-The 46 invoke channels below are exposed through `src/main/preload.js`. Handlers are registered in `src/main/ipc-handlers.js`; update operations delegate to `src/main/app-updates.js`. The bridge exposes named operations rather than arbitrary IPC access.
+The 48 invoke channels below are exposed through `src/main/preload.js`. Handlers are registered in `src/main/ipc-handlers.js`; update operations delegate to `src/main/app-updates.js`. The bridge exposes named operations rather than arbitrary IPC access.
 
 | Channel | Module | Purpose |
 |---|---|---|
 | `local-security:review` | local-security-ipc + local-security-review | Dialog-selected local review, retained-report export and snapshot actions |
 | `get-stats` | main | File counts, agent counts, uptime, attribution counters |
+| `sensitive-alerts:list` | sensitive-alert-journal | Bounded saved sensitive alert summaries and journal status |
+| `sensitive-alerts:set-reviewed` | sensitive-alert-journal | Persist review state for one event UUID |
 | `get-resource-usage` | main | CPU, memory, heap metrics |
 | `get-settings` | config-manager | Read settings |
 | `save-settings` | config-manager + settings-validation | Validate, persist, restart watchers |

@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import type { FileEvent } from '../../../src/shared/types';
 import Notifications from '../../../frontend/observatory/components/Notifications.svelte';
 import AgentWorkspace from '../../../frontend/observatory/components/AgentWorkspace.svelte';
@@ -8,7 +8,9 @@ import {
   alertBasename,
   alertControlTarget,
   createSensitiveAlertTracker,
+  parseJournalAlerts,
 } from '../../../frontend/observatory/runtime/sensitive-alerts';
+import type { Host } from '../../../frontend/observatory/runtime/host';
 
 function event(id: number, overrides: Partial<FileEvent> = {}): FileEvent {
   return {
@@ -53,6 +55,105 @@ it('orders a mixed delivery by recorded observation time', () => {
   const tracker = createSensitiveAlertTracker();
   const delivery = tracker.ingest([event(3), event(1), event(2)]);
   expect(delivery.items.map((item) => item.event.timestamp)).toEqual([3, 2, 1]);
+});
+
+it('merges a late journal seed by UUID, keeps a new same-path event open, and preserves arrival capacity', () => {
+  const oldId = '00000000-0000-4000-8000-000000000001';
+  const newId = '00000000-0000-4000-8000-000000000002';
+  const tracker = createSensitiveAlertTracker(1);
+  const old = event(100, { eventId: oldId, file: 'C:/private/.env' });
+  tracker.ingest([old]);
+  tracker.setReviewed(oldId, true, true);
+  const staleSeed = [
+    {
+      eventId: oldId,
+      timestamp: 100,
+      basename: '.env',
+      action: 'accessed' as const,
+      agent: 'Claude',
+      attribution: 'confirmed' as const,
+      reviewed: false,
+    },
+  ];
+  expect(tracker.mergeJournal(staleSeed)[0].reviewed).toBe(true);
+  const newerArrival = event(1, { eventId: newId, file: old.file });
+  const delivery = tracker.ingest([old, newerArrival]);
+  expect(delivery.items).toHaveLength(1);
+  expect(delivery.items[0]).toMatchObject({ id: newId, reviewed: false });
+  expect(tracker.mergeJournal(staleSeed)[0].id).toBe(newId);
+  expect(parseJournalAlerts([{ ...staleSeed[0], basename: 'C:/private/.env' }])).toEqual([]);
+  expect(parseJournalAlerts([{ ...staleSeed[0], action: 'execute' }])).toEqual([]);
+});
+
+it('drops review overrides when an alert leaves the bounded list', () => {
+  const oldId = '00000000-0000-4000-8000-000000000011';
+  const newId = '00000000-0000-4000-8000-000000000012';
+  const tracker = createSensitiveAlertTracker(1);
+  tracker.ingest([event(1, { eventId: oldId })]);
+  tracker.setReviewed(oldId, true, true);
+  expect(tracker.ingest([event(2, { eventId: newId })]).items[0].id).toBe(newId);
+  expect(tracker.ingest([event(3, { eventId: oldId })]).items[0]).toMatchObject({
+    id: oldId,
+    reviewed: false,
+  });
+  expect(
+    tracker.mergeJournal([
+      {
+        eventId: oldId,
+        timestamp: 1,
+        basename: '.env-1',
+        action: 'accessed',
+        agent: 'Claude',
+        attribution: 'confirmed',
+        reviewed: false,
+      },
+    ])[0].reviewed,
+  ).toBe(false);
+});
+
+it('keeps a legacy event ID session-only', () => {
+  const tracker = createSensitiveAlertTracker();
+  const delivery = tracker.ingest([event(1, { eventId: 'legacy-path-derived-id' })]);
+  expect(delivery.items[0].id).toMatch(/^session-\d+$/);
+  expect(delivery.items[0].savedReview).toBe(false);
+});
+
+it('shows restored summaries and keeps review open after a failed durable write', async () => {
+  const id = '00000000-0000-4000-8000-000000000003';
+  const host = {
+    listSensitiveAlerts: vi.fn(async () => ({
+      success: true,
+      status: 'ready',
+      items: [
+        {
+          eventId: id,
+          timestamp: Date.now(),
+          basename: '.env',
+          action: 'accessed',
+          agent: 'Claude',
+          attribution: 'confirmed',
+          reviewed: false,
+        },
+      ],
+    })),
+    setSensitiveAlertReviewed: vi
+      .fn()
+      .mockResolvedValueOnce({ success: false, error: 'write failed' })
+      .mockResolvedValue({ success: true, status: 'ready' }),
+  } as unknown as Host;
+  render(Notifications, { telemetry: emptyTelemetry(), host });
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /1 need review/ })).toBeInTheDocument(),
+  );
+  await fireEvent.click(screen.getByRole('button', { name: /Sensitive activity review/ }));
+  const dialog = screen.getByRole('dialog', { name: 'Sensitive activity review' });
+  expect(within(dialog).getByText(/Saved summary/)).toBeInTheDocument();
+  expect(within(dialog).queryByRole('button', { name: 'Open evidence' })).toBeNull();
+  await fireEvent.click(within(dialog).getByRole('button', { name: 'Mark reviewed' }));
+  await waitFor(() => expect(within(dialog).getByText(/could not be saved/)).toBeInTheDocument());
+  expect(within(dialog).getByText('1 need review')).toBeInTheDocument();
+  await fireEvent.click(within(dialog).getByRole('button', { name: 'Mark reviewed' }));
+  await waitFor(() => expect(within(dialog).getByText('0 need review')).toBeInTheDocument());
 });
 
 it('offers process controls only for one live, confirmed, witness-bound identity', async () => {

@@ -102,6 +102,7 @@ describe('main — file-event tap into the sequence engine', () => {
 
   it('ingests the record that passed dedup — the very object the audit call received', () => {
     const ev = fileEvent();
+    ev.eventId = 'untrusted-legacy-id';
     main.onFileEvent(ev);
 
     expect(engine.ingest).toHaveBeenCalledTimes(1);
@@ -109,6 +110,10 @@ describe('main — file-event tap into the sequence engine', () => {
     // engine must see that object, not a copy taken before dedup.
     expect(engine.ingest.mock.calls[0][0]).toBe(ev);
     expect(ev.repeatCount).toBe(1);
+    expect(ev.eventId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(ev.eventId).not.toBe('untrusted-legacy-id');
     expect(auditLog).toHaveBeenCalledTimes(1);
     expect(auditLog.mock.calls[0][1].instanceId).toBe(ev.instanceId);
     // After the audit record, never before it.

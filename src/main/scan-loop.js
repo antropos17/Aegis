@@ -807,6 +807,14 @@ async function doProcessScan() {
     // to the dead process that held that pid. `cwd` is the field the renderer's
     // instance key is built from and the one CWD_CONTAINMENT attribution matches
     // on, so a stale value there poisons both.
+    // The local runtime HTTP probes are independent of CWD. Start them before
+    // the OS query, but defer every agents/latestLocalModels mutation until CWD
+    // settles. Handle early rejection now so a slow/failed CWD cannot leave an
+    // unhandled probe rejection behind.
+    const modelProbe = probeLocalModels().then(
+      (models) => ({ models }),
+      (error) => ({ error }),
+    );
     await procUtil.annotateWorkingDirs(agents, { forceRefresh: result.changed === true });
     // Surface extension-only (Kilo/Cline) and WSL-inner (grok/opencode) agents
     // before the batch so the renderer sees them; cache-backed, non-blocking.
@@ -815,7 +823,9 @@ async function doProcessScan() {
     // scan-batch. Structured clone happens at sendToRenderer — a post-batch push
     // never reaches the UI, and unstamped synthetics poison instance-keyed maps
     // (baselines, risk, ack). Stamp is identify() space 2, same as injectDetectedExternalAgents.
-    await enrichWithLocalModels(agents);
+    const modelResult = await modelProbe;
+    if ('error' in modelResult) throw modelResult.error;
+    attachLocalModels(agents, modelResult.models);
     // The owner stamp and the fields a network connection exports are now settled.
     // A replacement query started before CWD/host annotation could invalidate
     // itself without another process revision to trigger a new retry.
@@ -989,14 +999,23 @@ async function doProcessScan() {
 }
 
 /**
- * Probe Ollama/LM Studio APIs and enrich matching agents with localModels.
- * If runtime is responding but no matching agent in list, inject a synthetic agent.
- * Always runs before scan-batch so the payload (and latestAgents) include models + stamps.
- * @param {Array} agents @since v0.4.0
+ * Probe independent local runtime APIs while CWD enrichment runs.
+ * @returns {Promise<Array>} Ollama and LM Studio results in stable order.
+ * @since v0.17.0-alpha
  */
-async function enrichWithLocalModels(agents) {
+async function probeLocalModels() {
   const { detectOllamaModels, detectLMStudioModels } = require('./llm-runtime-detector');
-  const [ollama, lmstudio] = await Promise.all([detectOllamaModels(), detectLMStudioModels()]);
+  return Promise.all([detectOllamaModels(), detectLMStudioModels()]);
+}
+
+/** Attach completed probe results after CWD and before the one scan batch.
+ * A responding runtime with no matching process gets a stamped synthetic agent.
+ * @param {Array} agents Current scan population.
+ * @param {Array} models Ollama and LM Studio results in stable order.
+ * @returns {void}
+ * @since v0.17.0-alpha
+ */
+function attachLocalModels(agents, [ollama, lmstudio]) {
   latestLocalModels = { ollama, lmstudio };
   attachModels(agents, 'Ollama', ollama);
   attachModels(agents, 'LM Studio', lmstudio);
@@ -1133,6 +1152,7 @@ async function doFileScan() {
     });
     const events = rawEvents.map(dedupFileEvent).filter(Boolean);
     if (events.length > 0) {
+      for (const ev of events) deps.recordAcceptedFileEvent?.(ev);
       for (const ev of events) deps.fileAccessBatcher.push(ev);
       tray.notifySensitive(events.filter((e) => e.sensitive && e.category === 'ai'));
       for (const ev of events) logAuditForFile(ev);
@@ -1185,6 +1205,7 @@ async function doHotReadScan() {
     const rawEvents = await watcher.scanHotFileHolders(agents);
     const events = rawEvents.map(dedupFileEvent).filter(Boolean);
     if (events.length > 0) {
+      for (const ev of events) deps.recordAcceptedFileEvent?.(ev);
       for (const ev of events) deps.fileAccessBatcher.push(ev);
       tray.notifySensitive(events.filter((e) => e.sensitive && e.category === 'ai'));
       for (const ev of events) logAuditForFile(ev);

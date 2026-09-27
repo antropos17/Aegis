@@ -19,6 +19,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { randomUUID } = require('node:crypto');
 const chokidar = require('chokidar');
 const watchWorker = require('./watch-worker-client');
 const DEFAULT_APP_DIR = path.join(__dirname, '..', '..');
@@ -635,6 +636,7 @@ function handleWatcherEvent(action, filePath) {
   const selfAccess = reason !== null && evidence.includes(EVIDENCE.SELF_CONFIG_PATH);
   const skill = skillFromPath(filePath);
   const event = {
+    eventId: randomUUID(),
     agent: agent ? agent.agent : '',
     pid: agent ? agent.pid : null,
     // Follows attribution, never leads it: `agent` is exactly the object
@@ -971,6 +973,7 @@ async function scanFileHandles(agent, isAgentScopeCurrent) {
     if (selfAccess) evidence.push(EVIDENCE.SELF_CONFIG_PATH);
     const skill = skillFromPath(f);
     const event = {
+      eventId: randomUUID(),
       agent: agent.agent,
       pid,
       // The scan was run FOR this agent object, so the key is that object's own —
@@ -1263,6 +1266,7 @@ async function _scanRmHolders(agents, fetchHolders, fullScope) {
     const evidence = [EVIDENCE.RM_HOLDER_PID];
     if (selfAccess) evidence.push(EVIDENCE.SELF_CONFIG_PATH);
     const event = {
+      eventId: randomUUID(),
       agent: agent.agent,
       pid: h.pid,
       // From the current agent that matched this holder's PID and exact birth.

@@ -1045,8 +1045,14 @@ describe('scan-loop', () => {
       const llm = require_('../../src/main/llm-runtime-detector.js');
       const origO = llm.detectOllamaModels;
       const origL = llm.detectLMStudioModels;
-      llm.detectOllamaModels = async () => responses.ollama || { running: false, models: [] };
-      llm.detectLMStudioModels = async () => responses.lmstudio || { running: false, models: [] };
+      llm.detectOllamaModels =
+        typeof responses.ollama === 'function'
+          ? responses.ollama
+          : async () => responses.ollama || { running: false, models: [] };
+      llm.detectLMStudioModels =
+        typeof responses.lmstudio === 'function'
+          ? responses.lmstudio
+          : async () => responses.lmstudio || { running: false, models: [] };
       try {
         await body();
       } finally {
@@ -1054,6 +1060,143 @@ describe('scan-loop', () => {
         llm.detectLMStudioModels = origL;
       }
     }
+
+    it('starts both model probes during CWD enrichment and waits for one complete batch', async () => {
+      const deferred = () => {
+        let resolve;
+        const promise = new Promise((done) => {
+          resolve = done;
+        });
+        return { promise, resolve };
+      };
+      const cwd = deferred();
+      const ollama = deferred();
+      const studio = deferred();
+      const detectOllama = vi.fn(() => ollama.promise);
+      const detectStudio = vi.fn(() => studio.promise);
+      await withLlmDetectors({ ollama: detectOllama, lmstudio: detectStudio }, async () => {
+        const sendToRenderer = vi.fn();
+        const agents = [
+          {
+            agent: 'Ollama',
+            process: 'ollama.exe',
+            pid: 42,
+            instanceId: '42:birth',
+            instanceIdSource: 'os',
+          },
+        ];
+        const deps = makeDeps({
+          scanner: { scanProcesses: vi.fn().mockResolvedValue({ agents, changed: false }) },
+          procUtil: {
+            enrichWithParentChains: vi.fn().mockResolvedValue(),
+            annotateHostApps: vi.fn(),
+            annotateWorkingDirs: vi.fn(() => cwd.promise),
+          },
+          sendToRenderer,
+        });
+        scanLoop.init(deps);
+        scanLoop.startScanIntervals(5000);
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(deps.procUtil.annotateWorkingDirs).toHaveBeenCalledOnce();
+        expect(detectOllama).toHaveBeenCalledOnce();
+        expect(detectStudio).toHaveBeenCalledOnce();
+        expect(sendToRenderer.mock.calls.some(([channel]) => channel === 'scan-batch')).toBe(false);
+
+        ollama.resolve({ running: true, models: ['llama3'] });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(sendToRenderer.mock.calls.some(([channel]) => channel === 'scan-batch')).toBe(false);
+        cwd.resolve();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(sendToRenderer.mock.calls.some(([channel]) => channel === 'scan-batch')).toBe(false);
+        studio.resolve({ running: true, models: ['mistral'] });
+        await vi.advanceTimersByTimeAsync(0);
+        const batches = sendToRenderer.mock.calls.filter(([channel]) => channel === 'scan-batch');
+        expect(batches).toHaveLength(1);
+        expect(batches[0][1].agents.find((agent) => agent.agent === 'Ollama')).toMatchObject({
+          instanceId: '42:birth',
+          localModels: ['llama3'],
+        });
+        expect(batches[0][1].agents.find((agent) => agent.agent === 'LM Studio')).toMatchObject({
+          pid: 0,
+          instanceId: '0:lm-studio',
+          localModels: ['mistral'],
+        });
+      });
+    });
+
+    it('keeps an early probe failure out of the batch until CWD settles', async () => {
+      let finishCwd;
+      let failOllama;
+      const cwd = new Promise((resolve) => {
+        finishCwd = resolve;
+      });
+      const ollama = new Promise((_resolve, reject) => {
+        failOllama = reject;
+      });
+      await withLlmDetectors(
+        {
+          ollama: () => ollama,
+          lmstudio: async () => ({ running: false, models: [] }),
+        },
+        async () => {
+          const deps = makeDeps({
+            procUtil: {
+              enrichWithParentChains: vi.fn().mockResolvedValue(),
+              annotateHostApps: vi.fn(),
+              annotateWorkingDirs: vi.fn(() => cwd),
+            },
+          });
+          const previousModels = scanLoop.getLatestLocalModels();
+          scanLoop.init(deps);
+          scanLoop.startScanIntervals(5000);
+          await vi.advanceTimersByTimeAsync(5000);
+          failOllama(new Error('PRIVATE_PROBE_ERROR'));
+          await vi.advanceTimersByTimeAsync(0);
+          expect(deps.sendToRenderer.mock.calls.some(([channel]) => channel === 'scan-batch')).toBe(
+            false,
+          );
+          finishCwd();
+          await vi.advanceTimersByTimeAsync(0);
+          expect(deps.sendToRenderer.mock.calls.some(([channel]) => channel === 'scan-batch')).toBe(
+            false,
+          );
+          expect(scanLoop.getLatestLocalModels()).toBe(previousModels);
+          expect(deps.logger.error).toHaveBeenCalledWith('main', 'Process scan failed', {
+            error: 'process-scan-failed',
+          });
+          expect(JSON.stringify(deps.logger.error.mock.calls)).not.toContain('PRIVATE');
+        },
+      );
+    });
+
+    it('overlaps controlled 70 ms CWD and 50 ms model probe delays', async () => {
+      const wait = (ms, result) => new Promise((resolve) => setTimeout(() => resolve(result), ms));
+      await withLlmDetectors(
+        {
+          ollama: () => wait(50, { running: false, models: [] }),
+          lmstudio: () => wait(50, { running: true, models: ['mistral'] }),
+        },
+        async () => {
+          let batchAt = null;
+          const deps = makeDeps({
+            procUtil: {
+              enrichWithParentChains: vi.fn().mockResolvedValue(),
+              annotateHostApps: vi.fn(),
+              annotateWorkingDirs: vi.fn(() => wait(70)),
+            },
+            sendToRenderer: vi.fn((channel) => {
+              if (channel === 'scan-batch') batchAt = Date.now();
+            }),
+          });
+          scanLoop.init(deps);
+          scanLoop.startScanIntervals(5000);
+          await vi.advanceTimersByTimeAsync(5000);
+          const startedAt = Date.now();
+          await vi.advanceTimersByTimeAsync(120);
+          expect(batchAt - startedAt).toBe(70);
+        },
+      );
+    });
 
     it('includes a stamped Ollama synthetic in the scan-batch (not a post-send ghost)', async () => {
       await withLlmDetectors(
@@ -2724,7 +2867,11 @@ describe('scan-loop', () => {
     it('tap 2: doFileScan ingests each event that passed dedup and none that dedup dropped', async () => {
       const sequenceEngine = makeEngine();
       const raw = twoEventsOnePath();
+      const recordAcceptedFileEvent = vi.fn((ev) => {
+        ev.eventId = 'accepted-before-display';
+      });
       const deps = makeDeps({
+        recordAcceptedFileEvent,
         getLatestAgents: vi.fn().mockReturnValue([{ agent: 'Claude Code' }]),
         watcher: {
           pruneKnownHandles: vi.fn(),
@@ -2738,6 +2885,8 @@ describe('scan-loop', () => {
       await vi.advanceTimersByTimeAsync(8000);
 
       expect(sequenceEngine.ingest).toHaveBeenCalledTimes(1);
+      expect(recordAcceptedFileEvent).toHaveBeenCalledExactlyOnceWith(raw[0]);
+      expect(deps.fileAccessBatcher.push.mock.calls[0][0].eventId).toBe('accepted-before-display');
       // The SAME record the audit call received — dedup stamps `repeatCount` on it.
       expect(sequenceEngine.ingest).toHaveBeenCalledWith(raw[0]);
       expect(sequenceEngine.ingest).not.toHaveBeenCalledWith(raw[1]);
@@ -2783,7 +2932,11 @@ describe('scan-loop', () => {
     it('tap 2: doHotReadScan ingests the deduped hot-read events through the same tap', async () => {
       const sequenceEngine = makeEngine();
       const raw = twoEventsOnePath();
+      const recordAcceptedFileEvent = vi.fn((ev) => {
+        ev.eventId = 'accepted-before-display';
+      });
       const deps = makeDeps({
+        recordAcceptedFileEvent,
         getLatestAgents: vi.fn().mockReturnValue([{ agent: 'Claude Code' }]),
         watcher: {
           pruneKnownHandles: vi.fn(),
@@ -2802,6 +2955,8 @@ describe('scan-loop', () => {
 
       expect(deps.watcher.scanHotFileHolders).toHaveBeenCalledTimes(1);
       expect(sequenceEngine.ingest).toHaveBeenCalledTimes(1);
+      expect(recordAcceptedFileEvent).toHaveBeenCalledExactlyOnceWith(raw[0]);
+      expect(deps.fileAccessBatcher.push.mock.calls[0][0].eventId).toBe('accepted-before-display');
       expect(sequenceEngine.ingest).toHaveBeenCalledWith(raw[0]);
       expect(sequenceEngine.ingest).not.toHaveBeenCalledWith(raw[1]);
     });
