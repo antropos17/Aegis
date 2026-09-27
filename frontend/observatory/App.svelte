@@ -104,6 +104,10 @@
     sectionRequests.stats = { id: 'sensors', revision: ++sectionRevision };
     void navigate('stats');
   }
+  function openAuditDelivery() {
+    sectionRequests.audit = { id: 'delivery', revision: ++sectionRevision };
+    void navigate('audit');
+  }
   async function runCommand(entry: WorkspaceCommand) {
     if (entry.section)
       sectionRequests[entry.target] = { id: entry.section, revision: ++sectionRevision };
@@ -112,6 +116,13 @@
   }
   // Host deliveries replace immutable snapshots; deep proxies multiply work per record.
   let telemetry = $state.raw(emptyTelemetry());
+  let auditDelivery = $derived(record(telemetry.stats.auditDelivery));
+  function auditCount(value: unknown): number | null {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+  }
+  let auditDropped = $derived(auditCount(auditDelivery.droppedEntries));
+  let auditPending = $derived(auditCount(auditDelivery.bufferDepth));
+  let auditWriteFailed = $derived(auditDelivery.writeFailed === true);
   let paused = $state(false);
   let held = $state.raw(emptyTelemetry());
   let displayTelemetry = $derived(paused ? held : telemetry);
@@ -512,6 +523,23 @@
                 'Waiting for a reliable process observation. An empty screen does not establish that no agents are running.',
               )}
         </p>{/if}
+      {#if auditDropped !== null && auditDropped > 0}
+        <p role="alert" class="health-banner audit-loss-banner">
+          {$t('Audit records lost from the buffer in this session: {value0}.', {
+            value0: auditDropped,
+          })}
+          {#if auditPending !== null && auditPending > 0}
+            {$t('Records still pending disk write: {value0}.', { value0: auditPending })}
+          {/if}
+          {#if auditWriteFailed}
+            {$t('The last audit write failed; pending records may be lost if AEGIS stops.')}
+          {/if}
+        </p>
+      {:else if auditWriteFailed}
+        <p role="alert" class="health-banner">
+          {$t('The last audit write failed; pending records may be lost if AEGIS stops.')}
+        </p>
+      {/if}
       <SensorStatus health={record(telemetry.stats.appHealth)} />
       <div id="workspace-content" role="region" aria-labelledby="page-title">
         <div id="content" class:analysis-view={view === 'analysis'}>
@@ -684,6 +712,21 @@
         <b>{String(telemetry.own.memMB ?? '—')} {$t('MB')}</b>
         {$t('· heap')}
         <b>{String(telemetry.own.heapMB ?? '—')} {$t('MB')}</b></span
+      ><button
+        class="audit-delivery"
+        class:audit-loss={auditDropped !== null && auditDropped > 0}
+        class:audit-write-failed={auditWriteFailed}
+        onclick={openAuditDelivery}
+        ><Icon name="history" />{$t('Audit delivery')}
+        {#if auditDropped === null || auditPending === null}
+          {$t('status unavailable')}
+        {:else}
+          {$t('{value0} lost this session · {value1} pending write', {
+            value0: auditDropped,
+            value1: auditPending,
+          })}
+          {#if auditWriteFailed}{$t('· Last write failed')}{/if}
+        {/if}</button
       ><span
         >{telemetry.lastScan
           ? $t('Observed {value0}', { value0: new Date(telemetry.lastScan).toLocaleTimeString() })
@@ -721,5 +764,14 @@
   .lazy-workspace-state p {
     color: var(--muted);
     margin: 0 0 var(--space-3);
+  }
+  .audit-loss-banner {
+    border-color: var(--red);
+  }
+  footer .audit-delivery.audit-loss {
+    color: var(--red);
+  }
+  footer .audit-delivery.audit-write-failed:not(.audit-loss) {
+    color: var(--amber);
   }
 </style>

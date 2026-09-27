@@ -232,6 +232,34 @@ describe('audit-logger bounded buffer', () => {
     expect(s.droppedEntries + s.bufferDepth).toBe(s.totalEntries);
   });
 
+  it('reports current-session overflow separately from records pending a failed write', () => {
+    expect(auditLogger.getDeliveryStatus()).toBeNull();
+    auditLogger.init({ userDataPath: tmpDir, bufferCap: 2, onFlushError: vi.fn() });
+    expect(auditLogger.getDeliveryStatus()).toEqual({
+      droppedEntries: 0,
+      bufferDepth: 0,
+      writeFailed: false,
+    });
+
+    fs.rmSync(auditDir(), { recursive: true, force: true });
+    for (const agent of ['A', 'B', 'C']) auditLogger.log('t', { agent });
+    auditLogger.flush();
+    expect(auditLogger.getDeliveryStatus()).toEqual({
+      droppedEntries: 1,
+      bufferDepth: 2,
+      writeFailed: true,
+    });
+
+    fs.mkdirSync(auditDir(), { recursive: true });
+    auditLogger.flush();
+    expect(auditLogger.getDeliveryStatus()).toEqual({
+      droppedEntries: 1,
+      bufferDepth: 0,
+      writeFailed: false,
+    });
+    expect(auditLogger.verifyChain(todayFile()).valid).toBe(true);
+  });
+
   it('writes a pending marker when a READ triggers the flush', () => {
     // exportAll() and getEntriesBefore() both flush first, so opening the export dialog
     // is enough to land the marker — it is not only the 5s timer that writes it.

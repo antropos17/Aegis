@@ -153,6 +153,25 @@ describe('getStats() — app health composition', () => {
     }
   });
 
+  it('carries nonzero audit delivery in both normal stats branches', () => {
+    const delivery = { droppedEntries: 2, bufferDepth: 3, writeFailed: true };
+    main._setAuditForTest({ getDeliveryStatus: () => ({ ...delivery }) });
+    try {
+      expect(main.getStats().auditDelivery).toEqual(delivery);
+      main._setScannerForTest({
+        activityLog: [],
+        monitoringStarted: Date.now(),
+        peakAgents: 0,
+        uniqueAgentNames: new Set(),
+        permissionDeniedScans: 0,
+      });
+      expect(main.getStats().auditDelivery).toEqual(delivery);
+    } finally {
+      main._setScannerForTest(undefined);
+      main._setAuditForTest(undefined);
+    }
+  });
+
   it('delivers a nonzero cadence snapshot on both stats branches', () => {
     const cadence = { skippedProcessTicks: 2, lastSkippedAt: 1_700_000_000_000 };
     main._setScanLoopForTest({ getScanCadence: () => ({ ...cadence }) });

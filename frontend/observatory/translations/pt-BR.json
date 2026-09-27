@@ -1502,5 +1502,11 @@
   "Windows process snapshot provider is active.": "O provedor de instantâneos de processos do Windows está ativo.",
   "Using a fallback process snapshot provider.": "Usando um provedor alternativo de instantâneos de processos.",
   "Available on Windows only.": "Disponível apenas no Windows.",
-  "Diagnostic capture is unavailable in this build.": "A captura diagnóstica não está disponível nesta versão."
+  "Diagnostic capture is unavailable in this build.": "A captura diagnóstica não está disponível nesta versão.",
+  "Audit records lost from the buffer in this session: {value0}.": "Registros de auditoria perdidos do buffer nesta sessão: {value0}.",
+  "Records still pending disk write: {value0}.": "Registros ainda aguardando gravação em disco: {value0}.",
+  "The last audit write failed; pending records may be lost if AEGIS stops.": "A última gravação da auditoria falhou; os registros pendentes podem ser perdidos se o AEGIS parar.",
+  "{value0} lost this session · {value1} pending write": "{value0} perdidos nesta sessão · {value1} aguardando gravação",
+  "· Last write failed": "· Última gravação falhou",
+  "status unavailable": "status indisponível"
 }
