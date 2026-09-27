@@ -7,9 +7,35 @@ import { emptyTelemetry } from '../../../frontend/observatory/runtime/host';
 
 afterEach(() => language.set('en'));
 
-function telemetry(health) {
-  return { ...emptyTelemetry(), stats: { appHealth: health } };
+function telemetry(health, scanCadence) {
+  return { ...emptyTelemetry(), stats: { appHealth: health, scanCadence } };
 }
+
+it('shows process-scan overruns separately from observed event loss', async () => {
+  const health = {
+    state: 'HEALTHY',
+    sensors: { byId: { process: { state: 'HEALTHY', lossCount: 0 } } },
+  };
+  const mounted = render(StatsSensors, {
+    telemetry: telemetry(health, { skippedProcessTicks: 0, lastSkippedAt: null }),
+  });
+  expect(screen.queryByText(/Process scan intervals skipped/)).toBeNull();
+
+  await mounted.rerender({
+    telemetry: telemetry(health, { skippedProcessTicks: 2, lastSkippedAt: 1000 }),
+  });
+  const process = screen.getByRole('heading', { name: 'Agent processes' }).closest('article');
+  expect(process).toHaveTextContent('Healthy');
+  expect(process).toHaveTextContent('Observed loss');
+  expect(process).toHaveTextContent('Process scan intervals skipped in this app session: 2.');
+  expect(process).toHaveTextContent('Agent changes may have appeared late during those overruns.');
+
+  language.set('pt');
+  await tick();
+  expect(process).toHaveTextContent(
+    'Intervalos de varredura de processos ignorados nesta sessão do aplicativo: 2',
+  );
+});
 
 it('separates sensor identity, purpose, status and diagnostic details', async () => {
   const mounted = render(StatsSensors, {

@@ -49,6 +49,10 @@ let _lastTriggeredNetScan = 0;
 // C-02: reentrancy guard — block overlapping doProcessScan runs so a slow scan
 // can't be clobbered by the next interval tick (last-writer-wins on the snapshot).
 let processScanRunning = false;
+// A slow scan can span interval ticks. Count the scheduled observations that
+// could not start; this is cadence evidence, not a count of missed events.
+let skippedProcessTicks = 0;
+let lastSkippedAt = null;
 // A network poll may overlap process enumeration or the asynchronous identity
 // stamp. The old published list is not a trustworthy scope during that interval.
 let networkScopePending = false;
@@ -606,7 +610,13 @@ async function doProcessScan() {
   } = deps;
   // Early-return BEFORE updateScanStatus(true): a blocked re-entrant call must not
   // bump activeScanCount, whose only decrement lives in the finally below.
-  if (processScanRunning) return;
+  if (processScanRunning) {
+    skippedProcessTicks++;
+    lastSkippedAt = Date.now();
+    // The in-flight scan may remain pending, so publish the cadence change now.
+    deps.statsUpdateBatcher?.pushLazy?.(getStats);
+    return;
+  }
   processScanRunning = true;
   networkScopePending = true;
   networkScopeRevision++;
@@ -1179,6 +1189,8 @@ function init(injected) {
   resourceScanGeneration++;
   resourceSampler.invalidate();
   deps = injected;
+  skippedProcessTicks = 0;
+  lastSkippedAt = null;
   processPopulationUnavailable = false;
   networkProviderUnavailable = false;
   networkScopePending = false;
@@ -1192,6 +1204,11 @@ function init(injected) {
         (agent) => agent.pid <= 0 && agent.instanceId === instanceId,
       ),
   });
+}
+
+/** @returns {{skippedProcessTicks: number, lastSkippedAt: number|null}} @since v0.17.0-alpha */
+function getScanCadence() {
+  return { skippedProcessTicks, lastSkippedAt };
 }
 
 /** @returns {{ollama: {running:boolean,models:string[]}, lmstudio: {running:boolean,models:string[]}}} */
@@ -1208,4 +1225,5 @@ module.exports = {
   dedupFileEvent,
   logAuditForFile,
   getLatestLocalModels,
+  getScanCadence,
 };
