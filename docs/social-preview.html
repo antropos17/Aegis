@@ -1,99 +1,177 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>AEGIS Social Preview</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    width: 1280px;
-    height: 640px;
-    overflow: hidden;
-    background: #000000;
-    font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-  }
-
-  /* Subtle radial glow — barely visible, adds depth */
-  body::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 900px;
-    height: 500px;
-    background: radial-gradient(ellipse, rgba(255,255,255,0.03) 0%, transparent 70%);
-    pointer-events: none;
-  }
-
-  .container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0;
-    position: relative;
-    z-index: 1;
-  }
-
-  .title {
-    font-size: 96px;
-    font-weight: 800;
-    letter-spacing: 0.3em;
-    color: #ffffff;
-    text-indent: 0.3em; /* balance letter-spacing visually */
-    line-height: 1;
-    margin-bottom: 32px;
-  }
-
-  /* Thin horizontal divider */
-  .divider {
-    width: 120px;
-    height: 1px;
-    background: #222222;
-    margin-bottom: 32px;
-  }
-
-  .tagline {
-    font-size: 22px;
-    font-weight: 400;
-    color: #888888;
-    letter-spacing: 0.02em;
-    margin-bottom: 48px;
-  }
-
-  .pills {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .pill {
-    font-size: 13px;
-    font-weight: 500;
-    color: #666666;
-    border: 1px solid #333333;
-    border-radius: 20px;
-    padding: 6px 16px;
-    white-space: nowrap;
-  }
-</style>
-</head>
-<body>
-  <div class="container">
-    <div class="title">AEGIS</div>
-    <div class="divider"></div>
-    <div class="tagline">Agents execute code. We execute oversight.</div>
-    <div class="pills">
-      <span class="pill">112 agents</span>
-      <span class="pill">73 rules</span>
-      <span class="pill">MIT Licensed</span>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1280, initial-scale=1" />
+    <title>AEGIS social preview</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1280px;
+        height: 640px;
+        margin: 0;
+        overflow: hidden;
+      }
+      body {
+        position: relative;
+        background: #111316;
+        color: #f5f7f8;
+        font-family: 'Segoe UI', Arial, sans-serif;
+      }
+      body::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(
+            ellipse 620px 520px at 84% 44%,
+            rgba(63, 104, 138, 0.19),
+            transparent 72%
+          ),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+          linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+        background-size:
+          auto,
+          64px 64px,
+          64px 64px;
+      }
+      .accent {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 7px;
+        height: 100%;
+        background: #4a89c9;
+      }
+      .copy {
+        position: absolute;
+        top: 54px;
+        left: 72px;
+        width: 448px;
+        z-index: 1;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        height: 72px;
+      }
+      .brand img {
+        width: 52px;
+        height: 52px;
+        object-fit: contain;
+      }
+      .brand span {
+        font-size: 44px;
+        font-weight: 750;
+        letter-spacing: 0.11em;
+      }
+      .eyebrow {
+        margin-top: 74px;
+        color: #86b5e3;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+      }
+      h1 {
+        margin: 21px 0 20px;
+        font-size: 49px;
+        line-height: 1.09;
+        font-weight: 680;
+        letter-spacing: -0.035em;
+      }
+      .description {
+        margin: 0;
+        color: #bac4cd;
+        font-size: 21px;
+        line-height: 1.43;
+      }
+      .chips {
+        display: flex;
+        gap: 10px;
+        margin-top: 32px;
+      }
+      .chip {
+        border: 1px solid #4a535d;
+        border-radius: 999px;
+        padding: 8px 13px;
+        color: #dbe3e8;
+        font-size: 13px;
+        white-space: nowrap;
+      }
+      .version {
+        position: absolute;
+        left: 72px;
+        bottom: 37px;
+        color: #83929e;
+        font-size: 14px;
+        letter-spacing: 0.02em;
+      }
+      .window {
+        position: absolute;
+        top: 65px;
+        left: 545px;
+        width: 715px;
+        height: 510px;
+        overflow: hidden;
+        border: 1px solid #525b63;
+        border-radius: 12px;
+        background: #181a1d;
+        box-shadow:
+          0 32px 80px rgba(0, 0, 0, 0.55),
+          0 0 0 6px rgba(255, 255, 255, 0.025);
+      }
+      .window-head {
+        height: 34px;
+        padding: 0 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-bottom: 1px solid #393f45;
+        color: #c6d0d7;
+        font-size: 12px;
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #6ca4d6;
+      }
+      .window-head .preview {
+        margin-left: auto;
+        color: #89979f;
+        font-size: 10px;
+        letter-spacing: 0.1em;
+      }
+      .window img {
+        width: 713px;
+        height: auto;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="accent"></div>
+    <div class="copy">
+      <div class="brand"><img src="../assets/icon.png" alt="" /><span>AEGIS</span></div>
+      <div class="eyebrow">LOCAL AI AGENT OVERSIGHT</div>
+      <h1>Observe local<br />AI agent activity.</h1>
+      <p class="description">
+        Processes, files and TCP endpoints.<br />Local review for selected actions.
+      </p>
+      <div class="chips">
+        <span class="chip">Monitor first</span><span class="chip">Opt-in action control</span>
+      </div>
     </div>
-  </div>
-</body>
+    <div class="version">Open source · Windows desktop</div>
+    <div class="window">
+      <div class="window-head">
+        <span class="dot"></span>AEGIS Observatory<span class="preview">SIMULATED PREVIEW</span>
+      </div>
+      <img src="screenshots/01-monitoring.png" alt="" />
+    </div>
+  </body>
 </html>

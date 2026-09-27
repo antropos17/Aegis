@@ -9,6 +9,7 @@ check its [release tag](https://github.com/antropos17/Aegis/releases).
 | Task | Guide |
 | --- | --- |
 | Find a task or understand a result | [Guided Observatory workflows](OBSERVATORY-GUIDED-WORKFLOWS.md) |
+| See the current-source interface | [Observatory screenshots](screenshots/README.md) (simulated preview) |
 | Review local files and saved snapshots | [Local security workspace](LOCAL-SECURITY-UI.md) |
 | Check a selected action or action catalog | [Action control workspace](ACTION-COVERAGE-UI.md) |
 | Verify a downloaded installer | [Release verification](RELEASE-VERIFICATION.md) |

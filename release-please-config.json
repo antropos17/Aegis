@@ -8,6 +8,7 @@
       "prerelease": true,
       "prerelease-type": "alpha",
       "extra-files": [
+        { "type": "generic", "path": "README.md" },
         { "type": "generic", "path": "llms.txt" },
         { "type": "generic", "path": "llms-full.txt" }
       ]
