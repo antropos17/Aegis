@@ -2307,5 +2307,21 @@ describe('ipc-handlers', () => {
       expect(result.permissions).toBeDefined();
       expect(result.seenAgents).toBeDefined();
     });
+
+    it('resets permissions when legacy seen-agent names are reserved object keys', () => {
+      const { event } = registerOwnedRenderer();
+      mockConfig.getSettings.mockReturnValue({
+        anthropicApiKey: 'key',
+        agentPermissions: {},
+        seenAgents: ['__proto__', 'constructor', 'prototype', 'Claude'],
+      });
+      const result = getHandler('reset-permissions-to-defaults')(event);
+      expect(Object.getPrototypeOf(result.permissions)).toBe(Object.prototype);
+      expect(Object.keys(result.permissions)).toEqual(['Claude']);
+      expect(result.seenAgents).toEqual(['__proto__', 'constructor', 'prototype', 'Claude']);
+      expect(mockConfig.saveSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ agentPermissions: result.permissions }),
+      );
+    });
   });
 });

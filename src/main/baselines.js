@@ -37,7 +37,7 @@ function _setBaselinesPathForTest(p) {
   _baselinesPath = p;
 }
 const MAX_BASELINE_SESSIONS = 10;
-let baselines = { agents: {} };
+let baselines = { agents: Object.create(null) };
 /** @type {Object<string, Object>} Live session buckets, keyed by `instanceId`. */
 const sessionData = {};
 let isInstanceActive = null;
@@ -58,13 +58,15 @@ function loadBaselines() {
   try {
     if (fs.existsSync(baselinesPath())) {
       const raw = JSON.parse(fs.readFileSync(baselinesPath(), 'utf-8'));
-      if (raw && raw.agents) baselines = raw;
+      if (raw && raw.agents && typeof raw.agents === 'object' && !Array.isArray(raw.agents)) {
+        baselines = { ...raw, agents: Object.assign(Object.create(null), raw.agents) };
+      }
     }
   } catch {
     logger.warn('baselines', 'Failed to load baselines — starting fresh', {
       code: 'baseline-load-failed',
     });
-    baselines = { agents: {} };
+    baselines = { agents: Object.create(null) };
   }
 }
 
@@ -162,7 +164,7 @@ function recomputeAverages(agentBaseline) {
     sessions.reduce((s, x) => s + x.totalFiles, 0) / sessions.length;
   agentBaseline.averages.sensitivePerSession =
     sessions.reduce((s, x) => s + x.sensitiveFiles, 0) / sessions.length;
-  const dirCount = {};
+  const dirCount = Object.create(null);
   for (const sess of sessions)
     for (const d of sess.directories) dirCount[d] = (dirCount[d] || 0) + 1;
   agentBaseline.averages.typicalDirectories = Object.keys(dirCount).filter((d) => dirCount[d] >= 2);

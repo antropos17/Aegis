@@ -451,6 +451,34 @@ describe('ai-analysis', () => {
   });
 
   describe('analyzeSessionActivity', () => {
+    it('summarizes a custom agent named __proto__ without mutating Object.prototype', async () => {
+      setupState({
+        agents: [{ agent: '__proto__', pid: 105 }],
+        activityLog: [
+          {
+            agent: '__proto__',
+            sensitive: true,
+            reason: 'SSH key',
+            file: '/home/user/.ssh/id_rsa',
+            action: 'holding',
+          },
+        ],
+        getAnomalyScores: () => Object.fromEntries([['__proto__', 55]]),
+      });
+      const req = mockHttpSuccess({ content: [{ text: '{"summary":"ok"}' }] });
+      try {
+        const result = await analysis.analyzeSessionActivity();
+        expect(result.success).toBe(true);
+        expect(req.write.mock.calls[0][0]).toContain('__proto__: 1 files, 1 sensitive');
+        expect(req.write.mock.calls[0][0]).toContain('anomaly score: 55');
+        expect(Object.prototype).not.toHaveProperty('files');
+        expect(Object.prototype).not.toHaveProperty('sensitive');
+      } finally {
+        delete Object.prototype.files;
+        delete Object.prototype.sensitive;
+      }
+    });
+
     it('returns error when no API key', async () => {
       analysis.init({
         getSettings: () => ({}),

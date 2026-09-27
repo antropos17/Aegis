@@ -1487,6 +1487,7 @@ describe('scan-loop', () => {
     // Two instances of ONE agent name, plus a keyless pid-0 synthetic.
     const A = '1000:1700000000000';
     const B = '2000:1700000009999';
+    const PROTO_INSTANCE = '3000:1700000010000';
     // The LOUD instance (B, score 45) is deliberately first: with it last, a
     // last-writer-wins bug would also produce 45 and the max assertion below would pass
     // for the wrong reason.
@@ -1497,19 +1498,19 @@ describe('scan-loop', () => {
     ];
 
     /** @returns {Promise<{batch: Object, deps: Object}>} */
-    async function runScan() {
+    async function runScan(agents = AGENTS) {
       const deps = makeDeps({
         scanner: {
           scanProcesses: vi
             .fn()
-            .mockResolvedValue({ agents: AGENTS.map((a) => ({ ...a })), changed: false }),
+            .mockResolvedValue({ agents: agents.map((a) => ({ ...a })), changed: false }),
         },
         anomaly: {
           checkDeviations: vi.fn().mockReturnValue([]),
           // Scores by INSTANCE key. A name reaching this stub would score 0, which is
           // what makes the assertions below able to tell the two keyings apart.
           calculateAnomalyScore: vi.fn((key) => ({
-            score: key === A ? 10 : key === B ? 45 : 0,
+            score: key === A ? 10 : key === B ? 45 : key === PROTO_INSTANCE ? 55 : 0,
           })),
         },
       });
@@ -1537,6 +1538,19 @@ describe('scan-loop', () => {
       expect(batch.anomalyScores['Claude Code']).toBe(45);
       // A keyless agent still gets its name entry at 0 — the key set is unchanged.
       expect(batch.anomalyScores['Ollama']).toBe(0);
+    });
+
+    it('retains a score for a custom agent named __proto__', async () => {
+      const agent = {
+        agent: '__proto__',
+        pid: 3000,
+        instanceId: PROTO_INSTANCE,
+        category: 'ai',
+      };
+      const { batch } = await runScan([...AGENTS, agent]);
+      expect(Object.hasOwn(batch.anomalyScores, '__proto__')).toBe(true);
+      expect(batch.anomalyScores['__proto__']).toBe(55);
+      expect(batch.anomalyScoresByInstance[PROTO_INSTANCE]).toBe(55);
     });
 
     it('a keyless agent gets no per-instance entry', async () => {

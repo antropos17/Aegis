@@ -163,6 +163,20 @@ describe('baselines', () => {
     expect(ab.averages.hourHistogram).toHaveLength(24);
   });
 
+  it('counts a directory named __proto__ as data when averaging profiles', () => {
+    const session = {
+      totalFiles: 1,
+      sensitiveFiles: 0,
+      directories: ['__proto__'],
+      networkEndpoints: [],
+      sensitiveReasons: [],
+      activeHours: [],
+    };
+    const ab = { sessions: [session, session], averages: {} };
+    baselines.recomputeAverages(ab);
+    expect(ab.averages.typicalDirectories).toEqual(['__proto__']);
+  });
+
   it('finalizeSession() creates baseline, pushes session, caps at 10', () => {
     for (let i = 0; i < 12; i++) {
       const sd = baselines.getSessionData();
@@ -175,6 +189,23 @@ describe('baselines', () => {
     expect(bl.agents['Claude']).toBeDefined();
     expect(bl.agents['Claude'].sessions.length).toBeLessThanOrEqual(10);
     expect(bl.agents['Claude'].sessionCount).toBe(12);
+  });
+
+  it('persists and reloads a custom agent named __proto__ without prototype mutation', () => {
+    baselines.recordFileAccess(CLAUDE_A, '__proto__', '/private/example', true, 'credential');
+    try {
+      expect(() => baselines.finalizeSession()).not.toThrow();
+      expect(Object.hasOwn(baselines.getBaselines().agents, '__proto__')).toBe(true);
+      expect(baselines.getBaselines().agents['__proto__'].sessionCount).toBe(1);
+      expect(Object.prototype).not.toHaveProperty('sessionCount');
+      baselines.loadBaselines();
+      expect(baselines.getBaselines().agents['__proto__'].sessionCount).toBe(1);
+      baselines.recordFileAccess(CLAUDE_B, 'constructor', '/private/second', false);
+      expect(() => baselines.finalizeSession()).not.toThrow();
+      expect(Object.hasOwn(baselines.getBaselines().agents, 'constructor')).toBe(true);
+    } finally {
+      delete Object.prototype.sessionCount;
+    }
   });
 
   it('finalizeSession() skips agents with zero activity', () => {

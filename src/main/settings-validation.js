@@ -32,6 +32,17 @@ const SETTINGS_WHITELIST = new Set([
 ]);
 const PERMISSION_STATES = new Set(['allow', 'monitor', 'block']);
 const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * A display name may be shown and tracked, but cannot be a persisted permission
+ * object key because permission maps reject these names.
+ * @param {string} name
+ * @returns {boolean}
+ * @since 0.17.0
+ */
+function isReservedPermissionKey(name) {
+  return UNSAFE_KEYS.has(name);
+}
 const CATCHALL_PATTERNS = ['.*', '.+', '^.*$', '^.+$', '[\\s\\S]*', '[\\s\\S]+'];
 const AGENT_CATEGORIES = new Set([
   'coding-assistant',
@@ -108,7 +119,7 @@ function safeRegex(pattern) {
 function validatePermissions(value) {
   if (!plainObject(value)) return invalid('agentPermissions must be a plain object');
   for (const key of Reflect.ownKeys(value)) {
-    if (typeof key !== 'string' || !key.trim() || UNSAFE_KEYS.has(key))
+    if (typeof key !== 'string' || !key.trim() || isReservedPermissionKey(key))
       return invalid('agentPermissions contains an invalid agent key');
     const permissions = value[key];
     if (!plainObject(permissions))
@@ -293,6 +304,7 @@ function validateSettings(obj) {
 }
 
 module.exports = {
+  isReservedPermissionKey,
   validateSettings,
   validateFalsePositive,
   validateCustomAgent,

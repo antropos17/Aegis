@@ -910,7 +910,7 @@ function initDeferredSubsystems(userData) {
     getLatestAgents: () => latestAgents,
     getLatestNetConnections: () => latestNetConnections,
     getAnomalyScores: () => {
-      const scores = {};
+      const scores = Object.create(null);
       // Same name-keyed roll-up as the scan batch (scan-loop.js): the score is computed
       // per instance, and this prompt section is written per agent NAME, so the
       // highest-risk instance stands for its name. Keyless agents score 0, as before.

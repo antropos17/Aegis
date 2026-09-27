@@ -23,6 +23,7 @@ const { buildInstanceKey } = require('../shared/instance-key');
 const logger = require('./logger');
 const safeStore = require('./safe-storage');
 const { readBoundedConfigFile, MAX_CONFIG_BYTES } = require('./bounded-config-file');
+const { isReservedPermissionKey } = require('./settings-validation');
 
 /**
  * Accept a conservative regex subset for synchronous path matching.
@@ -484,7 +485,7 @@ function saveInstancePermissions(agentName, parentEditor, perms, cwd) {
 function trackSeenAgent(agentName) {
   if (!settings.seenAgents.includes(agentName)) {
     const agentPermissions = { ...settings.agentPermissions };
-    if (!agentPermissions[agentName])
+    if (!isReservedPermissionKey(agentName) && !Object.hasOwn(agentPermissions, agentName))
       agentPermissions[agentName] = getDefaultPermissions(agentName);
     try {
       saveSettings(

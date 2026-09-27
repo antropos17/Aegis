@@ -734,7 +734,7 @@ async function doProcessScan() {
     // risk store pick it up by instanceId with no channel of their own. Max, not sum: the
     // two scores are two claims about the same instance, and the louder one is the one
     // on screen.
-    const scores = {};
+    const scores = Object.create(null);
     const scoresByInstance = {};
     for (const a of agents) {
       const score = a.instanceId
