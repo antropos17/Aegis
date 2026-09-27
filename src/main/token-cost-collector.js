@@ -12,11 +12,11 @@
  *   HONESTY (empirical-gap #1). If a live Claude Code agent is present on the
  *   tick but had to be dropped because its birth-time was unreadable, its tokens
  *   go unattributed and the readout silently undercounts. We refuse to be silent
- *   about that: one `logger.warn` is emitted (once per process). It is gated to
- *   win32 — on darwin/linux `startTime` is `null` for EVERY agent (an expected
- *   platform limit, not an anomaly), so warning there would be pure noise. The
- *   warn is emitted BEFORE the empty-procs early return, because the dropped
- *   agent IS exactly the case that leaves `procs` empty.
+ *   about that: one `logger.warn` is emitted (once per AEGIS process) on every
+ *   platform. macOS does not currently supply birth times; Linux normally does,
+ *   but may lose them during an identity observation outage. The warn is emitted
+ *   BEFORE the empty-procs early return, because the dropped agent IS exactly
+ *   the case that leaves `procs` empty.
  *
  *   RELIABILITY (C-02). The feed read is wrapped in try/catch so a corrupt or
  *   locked transcript can never throw out of here, drop the scan tick, or block
@@ -63,8 +63,8 @@ async function collectTokenCosts(agents) {
   const list = Array.isArray(agents) ? agents : [];
 
   // C-01: build the procs batch ONLY from agents whose OS birth-time is a real
-  // epoch-ms number. The typeof check rejects both null (darwin/linux: not
-  // surfaced) and undefined (not yet enriched) in a single predicate.
+  // epoch-ms number. The typeof check rejects both null (macOS or an identity
+  // observation outage) and undefined (not yet enriched) in a single predicate.
   // identityByPid keeps the full agent object so the tracker can key the
   // accounting by process INSTANCE (agent.instanceId, stamped upstream by
   // enrichWithParentChains) instead of the recyclable bare pid.
@@ -75,18 +75,18 @@ async function collectTokenCosts(agents) {
     if (a && typeof a.startTime === 'number') {
       procs.push({ pid: a.pid, startTime: a.startTime, agent: a.agent });
       identityByPid.set(a.pid, a);
-    } else if (a && a.agent === CLAUDE_CODE_AGENT) {
+    } else if (a && a.agent === CLAUDE_CODE_AGENT && Number.isInteger(a.pid) && a.pid > 0) {
       droppedClaude = true;
     }
   }
 
-  // Honesty: surface a live-but-unattributable Claude Code agent once (win32
-  // only). Emitted before the early return — the dropped agent is the empty case.
-  if (droppedClaude && !_warnedBirthtime && process.platform === 'win32') {
+  // Honesty: surface a live-but-unattributable Claude Code agent once on every
+  // platform. Emitted before the early return — the dropped agent is the empty case.
+  if (droppedClaude && !_warnedBirthtime) {
     _warnedBirthtime = true;
     logger.warn(
       'token',
-      'Live Claude Code agent skipped: OS birth-time unread, its token usage is unattributed',
+      'Live Claude Code agent skipped: OS birth-time unavailable, its token usage is unattributed',
     );
   }
 

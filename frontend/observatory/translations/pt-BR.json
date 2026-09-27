@@ -676,6 +676,7 @@
   "Timeline offset in seconds": "Deslocamento da linha do tempo em segundos",
   "Toggle theme": "Alternar tema",
   "Tokens": "Tokens",
+  "Token usage for a Claude Code process is unavailable because its start time was not observed.": "O uso de tokens de um processo Claude Code está indisponível porque o horário de início do processo não foi observado.",
   "Total": "Total",
   "Try another agent or filter. An empty list does not establish that no activity occurred.": "Tente outro agente ou filtro. Uma lista vazia não comprova ausência de atividade.",
   "Try another filter or wait for activity. AEGIS may not observe every action.": "Tente outro filtro ou aguarde atividade. O AEGIS pode não observar todas as ações.",

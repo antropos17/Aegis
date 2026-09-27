@@ -23,6 +23,16 @@
         ...groupEvidence(g, telemetry),
         tokenUsage: measuredStatisticsTotal(groupState, telemetry.tokens, 'totalTokens'),
         costUsage: measuredStatisticsTotal(groupState, telemetry.tokens, 'costUsd'),
+        unobservedClaudeBirth:
+          telemetry.ready &&
+          !telemetry.stale &&
+          g.key === 'Claude Code' &&
+          telemetry.agents.some(
+            (agent) =>
+              agent.agent === 'Claude Code' &&
+              agent.pid > 0 &&
+              agent.instanceIdSource === 'unknown',
+          ),
       };
     }),
   );
@@ -63,7 +73,11 @@
                     : $t('From supported logs')}{group.estimated
                   ? $t(' · includes estimates')
                   : ''}</small
-              ></td
+              >{#if group.unobservedClaudeBirth}<small
+                  >{$t(
+                    'Token usage for a Claude Code process is unavailable because its start time was not observed.',
+                  )}</small
+                >{/if}</td
             ><td
               >{statisticsValue(group.costUsage.value, 'USD')}<small
                 >{group.costUsage.measured} / {group.costUsage.total}

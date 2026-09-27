@@ -100,6 +100,35 @@ it('StatsTokens shows a current measured subtotal and per-field coverage without
   expect(row).not.toHaveTextContent(/\$0[.,]25/);
 });
 
+it('StatsTokens explains an unwitnessed Claude Code cost gap only for a fresh population', async () => {
+  const unknown = {
+    ...agent(42),
+    agent: 'Claude Code',
+    process: 'claude',
+    instanceId: '42:u',
+    instanceIdSource: 'unknown',
+    startTime: null,
+  };
+  const unavailable =
+    'Token usage for a Claude Code process is unavailable because its start time was not observed.';
+  const s = { ...state(), agents: [unknown], tokens: [] };
+  const { rerender } = render(StatsTokens, { telemetry: s, inspect: vi.fn() });
+  expect(screen.getByRole('row', { name: /Claude Code/ })).toHaveTextContent(unavailable);
+
+  await rerender({
+    telemetry: {
+      ...s,
+      agents: [{ ...unknown, instanceId: '42:1000', instanceIdSource: 'os', startTime: 1000 }],
+      tokens: [{ instanceId: '42:1000', totalTokens: 50, costUsd: 0.03 }],
+    },
+  });
+  expect(screen.getByRole('row', { name: /Claude Code/ })).toHaveTextContent('50');
+  expect(screen.queryByText(unavailable)).toBeNull();
+
+  await rerender({ telemetry: { ...s, stale: true } });
+  expect(screen.queryByText(unavailable)).toBeNull();
+});
+
 it('Statistics Processes shows either comparison or table and retains table filters when switching', async () => {
   render(Statistics, { telemetry: state(), inspect: vi.fn() });
   await fireEvent.click(screen.getByRole('tab', { name: 'Processes', exact: true }));
