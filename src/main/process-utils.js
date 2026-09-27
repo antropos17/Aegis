@@ -12,7 +12,6 @@
 
 const { annotateApplicationGroups } = require('./application-groups');
 
-const path = require('path');
 const _platform = require('./platform');
 const { identify } = require('./process-identity');
 const { EDITORS } = require('../shared/constants');
@@ -660,7 +659,7 @@ async function annotateWorkingDirs(agents, opts = {}) {
     const cached = cwdCache.get(e.key);
     const cwd = cached ? cached.cwd : null;
     e.agent.cwd = cwd;
-    e.agent.projectName = cwd ? path.basename(cwd) : null;
+    e.agent.projectName = cwd ? cwd.split(/[/\\]/).filter(Boolean).pop() || null : null;
   }
 }
 
