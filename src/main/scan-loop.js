@@ -42,6 +42,8 @@ let latestLocalModels = {
 // Suppress equivalent observations of one stamped instance within 30s; track repeats.
 // F-E03: never key on display name / PID / empty agent (cross-instance + unattributed collapse).
 const eventDedupMap = new Map();
+// Conservative lower bound: a sweep cannot remove anything before this time is 60s old.
+let oldestEventDedupSentAt = Infinity;
 /** Dedup window for equivalent observations of one instance and path (ms). */
 const FILE_EVENT_DEDUP_WINDOW_MS = 30000;
 let activeScanCount = 0;
@@ -180,12 +182,19 @@ function dedupFileEvent(ev) {
   }
   ev.repeatCount = prev ? prev.count : 1;
   eventDedupMap.set(key, { lastSent: now, count: 1 });
-  if (eventDedupMap.size > 500) {
+  oldestEventDedupSentAt = Math.min(oldestEventDedupSentAt, now);
+  if (eventDedupMap.size > 500 && now - oldestEventDedupSentAt > 60000) {
+    let oldestRemaining = Infinity;
     for (const [k, v] of eventDedupMap) {
       if (now - v.lastSent > 60000) eventDedupMap.delete(k);
+      else oldestRemaining = Math.min(oldestRemaining, v.lastSent);
     }
+    oldestEventDedupSentAt = oldestRemaining;
   }
-  if (eventDedupMap.size > 1000) eventDedupMap.clear();
+  if (eventDedupMap.size > 1000) {
+    eventDedupMap.clear();
+    oldestEventDedupSentAt = Infinity;
+  }
   return ev;
 }
 

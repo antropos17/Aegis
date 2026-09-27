@@ -402,6 +402,33 @@ describe('scan-loop', () => {
       const result = scanLoop.dedupFileEvent({ agent: 'A', instanceId: 'id:A', file: 'trigger' });
       expect(result).not.toBeNull();
     });
+
+    it('preserves burst counts, expiry, clock rollback and the 1000-entry cap', () => {
+      vi.setSystemTime(1_000_000);
+      const event = (file) => ({ instanceId: 'burst:1', file, action: 'accessed' });
+      for (let i = 0; i < 501; i += 1) {
+        expect(scanLoop.dedupFileEvent(event(`burst-${i}`))?.repeatCount).toBe(1);
+      }
+      expect(scanLoop.dedupFileEvent(event('burst-0'))).toBeNull();
+
+      // At exactly 60s, expiry uses a strict greater-than comparison.
+      vi.setSystemTime(1_060_000);
+      expect(scanLoop.dedupFileEvent(event('boundary'))?.repeatCount).toBe(1);
+      expect(scanLoop.dedupFileEvent(event('burst-0'))?.repeatCount).toBe(2);
+      vi.setSystemTime(1_060_001);
+      expect(scanLoop.dedupFileEvent(event('expiry-trigger'))?.repeatCount).toBe(1);
+      expect(scanLoop.dedupFileEvent(event('burst-1'))?.repeatCount).toBe(1);
+
+      vi.setSystemTime(900_000);
+      expect(scanLoop.dedupFileEvent(event('burst-0'))?.repeatCount).toBe(1);
+      expect(scanLoop.dedupFileEvent(event('burst-0'))).toBeNull();
+
+      // A full unique burst still clears the map at the existing 1001-entry limit.
+      for (let i = 0; i < 1001; i += 1) {
+        expect(scanLoop.dedupFileEvent(event(`cap-${i}`))?.repeatCount).toBe(1);
+      }
+      expect(scanLoop.dedupFileEvent(event('cap-0'))?.repeatCount).toBe(1);
+    });
   });
 
   // ── logAuditForFile ──
