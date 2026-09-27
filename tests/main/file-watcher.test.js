@@ -622,6 +622,117 @@ describe('file-watcher scanFileHandles', () => {
       expect(state.knownHandles.size).toBe(1);
     });
 
+    it('reports a reused same-millisecond PID when fresh precise births differ', async () => {
+      const file = '/home/user/.ssh/id_rsa';
+      const old = {
+        pid: 100,
+        agent: 'Claude Code',
+        category: 'ai',
+        instanceId: '100:1717000000000',
+        createTime100ns: '133000000000000001',
+        generationWitness: '133000000000000001',
+        generationWitnessSource: 'createTime100ns',
+      };
+      const replacement = {
+        ...old,
+        createTime100ns: '133000000000000002',
+        generationWitness: '133000000000000002',
+      };
+      mockGetFileHandles.mockResolvedValue([file]);
+
+      expect(await fileWatcher.scanAllFileHandles([old])).toHaveLength(1);
+      fileWatcher.pruneKnownHandles([replacement], { previousAgents: [old] });
+      const freshEvents = await fileWatcher.scanAllFileHandles([replacement]);
+
+      expect(freshEvents.map((event) => event.file)).toEqual([file]);
+      expect(freshEvents[0].instanceId).toBe(old.instanceId);
+      expect(state.recordFileAccess).toHaveBeenCalledTimes(2);
+    });
+
+    it('preserves the handle history when the next record lacks a precise witness', async () => {
+      const file = '/home/user/.ssh/id_rsa';
+      const old = {
+        pid: 100,
+        agent: 'Claude Code',
+        category: 'ai',
+        instanceId: '100:1717000000000',
+        createTime100ns: '133000000000000001',
+        generationWitness: '133000000000000001',
+        generationWitnessSource: 'createTime100ns',
+      };
+      const fallback = {
+        ...old,
+        createTime100ns: null,
+        generationWitness: null,
+        generationWitnessSource: null,
+      };
+      mockGetFileHandles.mockResolvedValue([file]);
+
+      expect(await fileWatcher.scanAllFileHandles([old])).toHaveLength(1);
+      fileWatcher.pruneKnownHandles([fallback], { previousAgents: [old] });
+      expect(await fileWatcher.scanAllFileHandles([fallback])).toEqual([]);
+      fileWatcher.pruneKnownHandles([old], { previousAgents: [fallback] });
+      expect(await fileWatcher.scanAllFileHandles([old])).toEqual([]);
+      expect(state.recordFileAccess).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not compare different witness sources as if their values shared a scale', async () => {
+      const old = {
+        pid: 100,
+        agent: 'Claude Code',
+        category: 'ai',
+        instanceId: '100:1717000000000',
+        createTime100ns: '133000000000000001',
+        generationWitness: '42',
+        generationWitnessSource: 'sequence',
+      };
+      const sameProcess = {
+        ...old,
+        generationWitness: '133000000000000001',
+        generationWitnessSource: 'createTime100ns',
+      };
+      mockGetFileHandles.mockResolvedValue(['/home/user/.ssh/id_rsa']);
+
+      expect(await fileWatcher.scanAllFileHandles([old])).toHaveLength(1);
+      fileWatcher.pruneKnownHandles([sameProcess], { previousAgents: [old] });
+      expect(await fileWatcher.scanAllFileHandles([sameProcess])).toEqual([]);
+    });
+
+    it('invalidates only the witnessed recycled PID when a peer loses its witness', async () => {
+      const oldReused = {
+        pid: 100,
+        agent: 'Claude Code',
+        category: 'ai',
+        instanceId: '100:1717000000000',
+        generationWitness: '41',
+        generationWitnessSource: 'sequence',
+      };
+      const oldPeer = {
+        pid: 200,
+        agent: 'Cursor',
+        category: 'ai',
+        instanceId: '200:1717000000000',
+        generationWitness: '55',
+        generationWitnessSource: 'sequence',
+      };
+      const replacement = { ...oldReused, generationWitness: '42' };
+      const uncertainPeer = {
+        ...oldPeer,
+        generationWitness: null,
+        generationWitnessSource: null,
+      };
+      mockGetFileHandles.mockResolvedValue(['/home/user/.ssh/id_rsa']);
+
+      expect(await fileWatcher.scanAllFileHandles([oldReused, oldPeer])).toHaveLength(2);
+      fileWatcher.pruneKnownHandles([replacement, uncertainPeer], {
+        previousAgents: [oldReused, oldPeer],
+      });
+      const events = await fileWatcher.scanAllFileHandles([replacement, uncertainPeer]);
+
+      expect(events.map((event) => event.pid)).toEqual([100]);
+      expect(state.recordFileAccess).toHaveBeenCalledTimes(3);
+    });
+
     // PID reuse: a NEW process on a recycled pid must NOT inherit the dead
     // process's seen-set — its first sensitive access is a real event. Both
     // gens carry authoritative stamps (no local buildInstanceId fallback).

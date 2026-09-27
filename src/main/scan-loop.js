@@ -663,6 +663,19 @@ async function doProcessScan() {
     // transition here so downstream enrichment or renderer failures cannot be mistaken
     // for provider outages, and restoration precedes any inferred session exit.
     auditProcessPopulationTransition(result.reliable !== false, audit);
+    // Capture only the preceding publication's own stamps before setAgents replaces
+    // it. This local snapshot is compared with the new pass after enrichment; it is
+    // never a source of birth time for the new agents.
+    const publishedAgents = deps.getLatestAgents?.();
+    const previousAgents = Array.isArray(publishedAgents)
+      ? publishedAgents.map((agent) => ({
+          pid: agent.pid,
+          instanceId: agent.instanceId,
+          createTime100ns: agent.createTime100ns,
+          generationWitness: agent.generationWitness,
+          generationWitnessSource: agent.generationWitnessSource,
+        }))
+      : [];
     // Publish the fresh population before parent enrichment can await a slow OS
     // query. Timed sensors must not keep using an older agent after PID reuse.
     setAgents(result.agents);
@@ -787,7 +800,7 @@ async function doProcessScan() {
     // A partial identity pass can prune witnessed peers, but the unknown PID
     // cannot prove its former holder disappeared. A full outage proves neither.
     if (reliable && !identityDegraded && !gapStraddled)
-      watcher.pruneKnownHandles(agents, { preservePids: unwitnessedPids });
+      watcher.pruneKnownHandles(agents, { preservePids: unwitnessedPids, previousAgents });
     procUtil.annotateHostApps(agents);
     // Same `forceRefresh` contract as the identity stamp at the top of this scan:
     // a pid new to the set must not be annotated out of a cached entry belonging
