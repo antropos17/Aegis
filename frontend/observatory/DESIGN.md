@@ -1,5 +1,16 @@
 # AEGIS Observatory
 
+## AppContainer executable preflight — 27 September 2026
+
+The captured AppContainer check shows a fixed, path-free executable metadata
+observation in technical details. A known script wrapper or a file above the
+128 MiB limit receives a specific next step before any CLI launch; the policy
+decision stays separate. A timed-out metadata read keeps a completed policy
+decision and labels the executable observation unavailable. The preview marks
+metadata not checked because it reads no selected file. The existing neutral
+panel, native disclosure and English/Portuguese copy remain in place; no row
+claims ACL access, executable compatibility or verified isolation.
+
 ## Sensitive activity review — 27 September 2026
 
 A fixed Alerts entry opens a bounded review list of recent sensitive file

@@ -10,15 +10,31 @@ Action control can run a preflight for this route: choose **Single action**, the
 **Windows AppContainer CLI**, and select the policy and request JSON files. The
 captured report checks the selected policy decision and current AEGIS process's
 Windows runtime, interactive terminal and presence of the native helper at the
-same path the CLI uses. A valid policy decision does not mean the route is ready:
-the desktop process normally has no interactive terminal, while the separate CLI
-may have one. An unavailable terminal or missing helper prevents a readiness
-result for the checking process. File presence
-does not verify the helper's protocol or integrity. The preflight does not launch
+same path the CLI uses. For a selected allow or ask, it also observes whether
+the executable is a known script wrapper (`.cmd`, `.bat`, `.ps1`) or exceeds
+the 128 MiB byte limit used by the later snapshot step. The fixed
+`executableObservation` field reports
+`known-script-wrapper`, `executable-too-large`, `metadata-within-limit`,
+`unavailable`, or `not-checked`; the policy decision and reason stay separate.
+The CLI exits nonzero for a known wrapper, oversized file, or unavailable
+metadata. Policy deny does not inspect the executable and remains a completed
+check. The same 1.5-second preflight budget bounds the reported result; an OS
+metadata request that finishes after timeout or cancellation is ignored. The
+observation is not retained. If policy preparation has completed before a
+metadata timeout, its valid allow or ask decision remains visible with
+`executableObservation: "unavailable"`; cancellation still discards the check.
+
+A valid policy decision does not mean the route is ready. The desktop process
+normally has no interactive terminal, while the separate CLI may have one.
+An unavailable terminal or missing helper prevents a readiness result for the
+checking process. File presence does not verify the helper's protocol or
+integrity. The preflight does not launch
 the action, create its workspace, verify AppContainer isolation, test installed
-provider compatibility, or authorize later execution. It does not show private
-file paths or the effective launch command in the desktop renderer. Recheck in
-the intended terminal before using the separate CLI route.
+provider compatibility, read executable contents, or authorize later execution.
+The metadata result does not establish executable compatibility or ACL access.
+The report does not show private file paths or the effective launch command in
+the desktop renderer. Recheck in the intended terminal before using the
+separate CLI route.
 
 ## Select the action
 

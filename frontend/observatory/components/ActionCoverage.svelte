@@ -247,6 +247,10 @@
           {#if result.route === 'appcontainer'}<div>
               <dt>{$t('AppContainer helper file')}</dt>
               <dd>{$t(coverageLabels[result.report.helper])}</dd>
+            </div>
+            <div>
+              <dt>{$t('Selected executable metadata')}</dt>
+              <dd>{$t(coverageLabels[result.report.executableObservation])}</dd>
             </div>{/if}
           <div>
             <dt>{$t('Configuration observation')}</dt>
@@ -329,7 +333,7 @@
       <h3>{$t('Check a selected Windows AppContainer launch')}</h3>
       <p>
         {$t(
-          'Choose Windows AppContainer CLI below to check selected files, this Windows runtime, current-process terminal and helper file presence. Recheck in the intended interactive terminal; launch and installed provider compatibility remain untested.',
+          'Choose Windows AppContainer CLI below to check selected files and executable metadata, this Windows runtime, current-process terminal and helper file presence. Recheck in the intended interactive terminal; launch and installed provider compatibility remain untested.',
         )}
       </p>
       <button
