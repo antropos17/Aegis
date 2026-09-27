@@ -58,6 +58,9 @@ let networkScopeRevision = 0;
 // Unlike the per-process-pass revision, this invalidates even strong witnesses
 // across stop/reinit; old promises must not deliver into a new monitoring run.
 let networkScopeLifetime = 0;
+// One replacement scan for an in-flight poll invalidated by a newer process
+// observation. The retry waits for identity stamping and a reliable population.
+let networkRescanQueued = false;
 // One audit pair per continuous loss of the process population. Reset by init(),
 // not by each scan or timer restart; a paused loop has not observed a recovery.
 let processPopulationUnavailable = false;
@@ -245,6 +248,7 @@ function stopScanIntervals() {
   networkScopePending = true;
   networkScopeRevision++;
   networkScopeLifetime++;
+  networkRescanQueued = false;
   deps.sequenceEngine?.observePopulation?.([], false);
   resourceScanGeneration++;
   resourceSampler.invalidate();
@@ -306,6 +310,22 @@ function hasStrongNetworkWitness(row) {
     row[3].length > 0 &&
     (row[4] === 'sequence' || row[4] === 'createTime100ns')
   );
+}
+
+/** Start one queued replacement only after the new process scope is usable. */
+function flushQueuedNetworkRescan() {
+  if (!networkRescanQueued || networkScopePending) return;
+  const { network, scanner, logger } = deps;
+  try {
+    if (network.isNetworkScanRunning() || !isPopulationReliable(scanner)) return;
+    networkRescanQueued = false;
+    // This replacement is the process-triggered scan for the current scope;
+    // doProcessScan must not start a duplicate when it reaches its normal trigger.
+    _lastTriggeredNetScan = Date.now();
+    doNetworkScan();
+  } catch {
+    logger.error('main', 'Network scan scheduling failed', { error: 'network-schedule-failed' });
+  }
 }
 
 /**
@@ -431,6 +451,11 @@ function doNetworkScan() {
         // but before this continuation. Never publish a partial/empty stale scope.
         if (connections === null || !isScopeCurrent()) {
           if (connections !== null) network.noteNetworkSkip?.('population-changed-during-scan');
+          if (
+            networkScopeLifetime === capturedLifetime &&
+            networkScopeRevision !== capturedRevision
+          )
+            networkRescanQueued = true;
           logger.debug('scan', 'network-skip', {
             reason: 'population-changed-during-scan',
             agents: agents.length,
@@ -527,6 +552,7 @@ function doNetworkScan() {
     })
     .finally(() => {
       network.setNetworkScanRunning(false);
+      if (networkScopeLifetime === capturedLifetime) flushQueuedNetworkRescan();
     });
 }
 
@@ -585,6 +611,7 @@ async function doProcessScan() {
   networkScopePending = true;
   networkScopeRevision++;
   const resourceGeneration = resourceScanGeneration;
+  let networkIdentityReady = false;
   updateScanStatus(true);
   const t0 = performance.now();
   try {
@@ -641,9 +668,7 @@ async function doProcessScan() {
       forceRefresh: result.changed === true,
       ...(result.processMap instanceof Map ? { processMap: result.processMap } : {}),
     });
-    // stopScanIntervals invalidates the generation. A pre-stop scan finishing
-    // later must not reopen network attribution until a new process pass runs.
-    if (resourceGeneration === resourceScanGeneration) networkScopePending = false;
+    networkIdentityReady = true;
     // The second half of the straddle witness — after the identity stamp, so a sleep
     // inside `enrichWithParentChains` is caught as well as one inside the enumeration.
     const gapStraddled =
@@ -765,6 +790,13 @@ async function doProcessScan() {
     // never reaches the UI, and unstamped synthetics poison instance-keyed maps
     // (baselines, risk, ack). Stamp is identify() space 2, same as injectDetectedExternalAgents.
     await enrichWithLocalModels(agents);
+    // The owner stamp and the fields a network connection exports are now settled.
+    // A replacement query started before CWD/host annotation could invalidate
+    // itself without another process revision to trigger a new retry.
+    if (resourceGeneration === resourceScanGeneration) {
+      networkScopePending = false;
+      flushQueuedNetworkRescan();
+    }
     tray.updateTrayIcon();
     const deviations = anomaly.checkDeviations();
     if (deviations.length > 0) {
@@ -911,6 +943,13 @@ async function doProcessScan() {
       ...(postGap ? { postGap } : {}),
     });
   } catch {
+    // A downstream annotation/delivery failure has stopped mutating this pass's
+    // already-stamped owners. Release the network gate on that stable snapshot;
+    // a failure before identity stamping keeps the gate closed.
+    if (networkIdentityReady && resourceGeneration === resourceScanGeneration) {
+      networkScopePending = false;
+      flushQueuedNetworkRescan();
+    }
     // Reached by BOTH a provider throw (rethrown above, health already owned by the inner
     // catch) and a downstream pipeline throw (health deliberately untouched — the
     // observation succeeded). Log only: no leaf here names delivery or persistence, and
@@ -1145,6 +1184,7 @@ function init(injected) {
   networkScopePending = false;
   networkScopeRevision = 0;
   networkScopeLifetime++;
+  networkRescanQueued = false;
   deps.baselines?.init?.({
     isInstanceActive: (instanceId) =>
       sessionTracker.hasInstance(instanceId) ||

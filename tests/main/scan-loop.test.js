@@ -1461,6 +1461,126 @@ describe('scan-loop', () => {
       );
     });
 
+    it('retries once with the new PID scope after a busy stale poll settles', async () => {
+      const oldAgent = { agent: 'A', pid: 100, instanceId: '100:1' };
+      const newAgents = [oldAgent, { agent: 'B', pid: 200, instanceId: '200:2' }];
+      let current = [oldAgent];
+      let running = false;
+      let finishFirst;
+      const scanNetworkConnections = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishFirst = resolve;
+            }),
+        )
+        .mockResolvedValue([]);
+      const deps = makeDeps({
+        getLatestAgents: () => current,
+        setAgents: (agents) => {
+          current = agents;
+        },
+        scanner: {
+          scanProcesses: vi.fn().mockResolvedValue({
+            agents: newAgents,
+            reliable: true,
+            changed: true,
+          }),
+        },
+        network: {
+          isNetworkScanRunning: () => running,
+          setNetworkScanRunning: (value) => {
+            running = value;
+          },
+          scanNetworkConnections,
+          noteNetworkSkip: vi.fn(),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(scanNetworkConnections).toHaveBeenCalledTimes(1);
+      finishFirst(null);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(scanNetworkConnections).toHaveBeenCalledTimes(2);
+      expect(scanNetworkConnections.mock.calls[1][0]).toBe(newAgents);
+      expect(deps.setLatestNetConnections).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits for identity stamping before retrying a stale in-flight poll', async () => {
+      const oldAgent = { agent: 'A', pid: 100, instanceId: '100:1' };
+      const newAgents = [oldAgent, { agent: 'B', pid: 200, instanceId: '200:2' }];
+      let current = [oldAgent];
+      let running = false;
+      let finishFirst;
+      let finishStamp;
+      let finishWorkingDirs;
+      const scanNetworkConnections = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishFirst = resolve;
+            }),
+        )
+        .mockResolvedValue([]);
+      const deps = makeDeps({
+        getLatestAgents: () => current,
+        setAgents: (agents) => {
+          current = agents;
+        },
+        scanner: {
+          scanProcesses: vi.fn().mockResolvedValue({
+            agents: newAgents,
+            reliable: true,
+            changed: true,
+          }),
+        },
+        procUtil: {
+          enrichWithParentChains: vi.fn(
+            () =>
+              new Promise((resolve) => {
+                finishStamp = resolve;
+              }),
+          ),
+          annotateHostApps: vi.fn(),
+          annotateWorkingDirs: vi.fn(
+            () =>
+              new Promise((resolve) => {
+                finishWorkingDirs = () => {
+                  newAgents[0].cwd = '/new/project';
+                  resolve();
+                };
+              }),
+          ),
+        },
+        network: {
+          isNetworkScanRunning: () => running,
+          setNetworkScanRunning: (value) => {
+            running = value;
+          },
+          scanNetworkConnections,
+          noteNetworkSkip: vi.fn(),
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      finishFirst(null);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(scanNetworkConnections).toHaveBeenCalledTimes(1);
+      finishStamp();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(scanNetworkConnections).toHaveBeenCalledTimes(1);
+      finishWorkingDirs();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(scanNetworkConnections).toHaveBeenCalledTimes(2);
+      expect(scanNetworkConnections.mock.calls[1][0]).toBe(newAgents);
+    });
+
     it('rejects a weak PID owner even when a process scan republishes the same array', async () => {
       const agents = [{ agent: 'A', pid: 100, instanceId: '100:1' }];
       let finishNetwork;
@@ -1530,6 +1650,54 @@ describe('scan-loop', () => {
       finishNetwork([]);
       await vi.advanceTimersByTimeAsync(0);
       expect(deps.setLatestNetConnections).toHaveBeenCalledWith([]);
+    });
+
+    it('does not retry a valid strong-owner poll after routine process refreshes', async () => {
+      const owner = {
+        agent: 'A',
+        pid: 100,
+        instanceId: '100:1',
+        generationWitness: '42',
+        generationWitnessSource: 'sequence',
+      };
+      let current = [owner];
+      let running = false;
+      let finishNetwork;
+      const scanNetworkConnections = vi.fn(
+        () =>
+          new Promise((resolve) => {
+            finishNetwork = resolve;
+          }),
+      );
+      const deps = makeDeps({
+        getLatestAgents: () => current,
+        setAgents: (agents) => {
+          current = agents;
+        },
+        scanner: {
+          scanProcesses: vi
+            .fn()
+            .mockImplementation(() =>
+              Promise.resolve({ agents: [{ ...owner }], reliable: true, changed: false }),
+            ),
+        },
+        network: {
+          isNetworkScanRunning: () => running,
+          setNetworkScanRunning: (value) => {
+            running = value;
+          },
+          scanNetworkConnections,
+        },
+      });
+      scanLoop.init(deps);
+      scanLoop.doNetworkScan();
+      scanLoop.startScanIntervals(5000);
+      await vi.advanceTimersByTimeAsync(30000);
+      expect(scanNetworkConnections).toHaveBeenCalledTimes(1);
+      finishNetwork([]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(scanNetworkConnections).toHaveBeenCalledTimes(1);
+      expect(deps.setLatestNetConnections).toHaveBeenCalledTimes(1);
     });
 
     it('gates new network scans while process identity stamping is pending', async () => {
