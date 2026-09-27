@@ -58,12 +58,14 @@ function sanitizeField(value, maxLen) {
 }
 
 /**
- * Wrap untrusted telemetry data in XML tags so the LLM treats it as inert.
+ * Escape untrusted telemetry as XML text before adding the prompt's data tags.
  * @param {string} data - sanitized telemetry block
  * @returns {string} XML-wrapped string
+ * @since v0.17.0-alpha
  */
 function wrapAgentData(data) {
-  return `<agent_data>\n${data}\n</agent_data>`;
+  const escaped = data.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return `<agent_data>\n${escaped}\n</agent_data>`;
 }
 
 /** Anti-injection suffix appended to every system prompt */
