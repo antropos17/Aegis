@@ -99,7 +99,11 @@ function fileAccessCoalesceKey(value) {
   if (!isSegment(ev.instanceId)) return null;
   if (!isSegment(ev.file)) return null;
   if (!isSegment(ev.action)) return null;
-  return `${ev.instanceId}${KEY_SEP}${ev.file}${KEY_SEP}${ev.action}`;
+  const birth =
+    ev.action === 'holding' && isSegment(ev.createTime100ns)
+      ? `${KEY_SEP}${ev.createTime100ns}`
+      : '';
+  return `${ev.instanceId}${KEY_SEP}${ev.file}${KEY_SEP}${ev.action}${birth}`;
 }
 
 /**

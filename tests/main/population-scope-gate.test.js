@@ -439,6 +439,7 @@ describe('stale-population scope gate — file-watcher (step G′)', () => {
       category: 'ai',
       cwd: '/home/user/a',
       instanceId: '100:1700000000000',
+      createTime100ns: '133000000000000000',
     },
   ];
 
@@ -552,8 +553,12 @@ describe('stale-population scope gate — file-watcher (step G′)', () => {
     /** Install an RM holder source that would map onto the stale agent's pid. */
     function armRm() {
       fileWatcher._setDepsForTest({
-        getSensitiveHolders: vi.fn(async () => [{ pid: 100, group: '/home/user/.aws' }]),
-        getHotSensitiveHolders: vi.fn(async () => [{ pid: 100, group: '/home/user/.aws' }]),
+        getSensitiveHolders: vi.fn(async () => [
+          { pid: 100, createTime100ns: '133000000000000000', group: '/home/user/.aws' },
+        ]),
+        getHotSensitiveHolders: vi.fn(async () => [
+          { pid: 100, createTime100ns: '133000000000000000', group: '/home/user/.aws' },
+        ]),
       });
     }
 

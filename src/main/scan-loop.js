@@ -145,6 +145,7 @@ function dedupFileEvent(ev) {
     : (attribution?.evidence ?? null);
   const key = JSON.stringify([
     instanceId,
+    ev.action === 'holding' && typeof ev.createTime100ns === 'string' ? ev.createTime100ns : null,
     ev.file,
     ev.action,
     ev.sensitive,
@@ -182,6 +183,7 @@ function logAuditForFile(ev) {
     // Carried from the event, never re-derived: null means the event itself has no
     // key (unattributed, or an owner that was never stamped).
     instanceId: ev.instanceId ?? null,
+    ...(typeof ev.createTime100ns === 'string' ? { createTime100ns: ev.createTime100ns } : {}),
     action: ev.action,
     path: ev.file,
     severity: ev.sensitive ? 'sensitive' : 'normal',

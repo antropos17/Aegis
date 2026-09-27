@@ -185,6 +185,29 @@ describe('process-utils — generation witness', () => {
   });
 
   describe('the witness is not the identity', () => {
+    it('stamps exact creation ticks from this pass even when sequence is the stronger witness', async () => {
+      mockGetParentProcessMap
+        .mockResolvedValueOnce(
+          mapWith({
+            name: 'claude.exe',
+            ppid: 0,
+            startTime: MS,
+            createTime100ns: TICKS,
+            witness: '918273',
+            witnessSource: 'sequence',
+          }),
+        )
+        .mockResolvedValueOnce(mapWith({ name: 'claude.exe', ppid: 0, startTime: MS }));
+      const first = batch();
+      await processUtils.enrichWithParentChains(first);
+      expect(first[0].createTime100ns).toBe(TICKS);
+      expect(first[0].generationWitnessSource).toBe('sequence');
+
+      const second = batch();
+      await processUtils.enrichWithParentChains(second);
+      expect(second[0].createTime100ns).toBeNull();
+    });
+
     it('gates the cache off a sequence number while the identity degrades honestly', async () => {
       // Creation time unreadable, SequenceNumber readable: `<pid>:u` is the honest
       // identity, and the cache gate still has a real proof to work with.

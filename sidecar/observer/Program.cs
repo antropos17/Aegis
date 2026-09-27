@@ -99,7 +99,7 @@ public static class ObserverProgram {
             }
             // The SAME RM wrapper used by the PowerShell fallback is compiled in
             // by build-sidecar.js. Sessions remain sequential and close in finally.
-            rows.Add(new { index = index, pids = AegisRm.GetHolders(paths) });
+            rows.Add(new { index = index, holders = AegisRm.GetHolders(paths) });
         }
         return rows;
     }

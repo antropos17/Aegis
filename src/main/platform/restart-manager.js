@@ -33,7 +33,11 @@ const logger = require('../logger');
 const { getAllRules } = require('../rule-loader');
 const { AGENT_CONFIG_PATHS, SENSITIVE_AGENT_DIRS } = require('../../shared/constants');
 const { RM_CSHARP } = require('./rm-csharp');
-const { createWindowsObserver, parseNativeHolders } = require('./windows-observer');
+const {
+  createWindowsObserver,
+  parseNativeHolders,
+  validCreateTime100ns,
+} = require('./windows-observer');
 const observer = createWindowsObserver({ execFile });
 
 /**
@@ -73,7 +77,7 @@ const MAX_FILES_PER_GROUP = 64;
 /**
  * Compile-and-run PowerShell body. Reads the group list (JSON) from an env var to
  * dodge path-quoting/injection in the script, invokes AegisRm.GetHolders per group,
- * and emits a compact JSON array of { group, reason, pids } back on stdout.
+ * and emits a compact JSON array of { group, reason, holders } back on stdout.
  * @type {string}
  */
 const PS_BODY = [
@@ -83,8 +87,8 @@ const PS_BODY = [
   '$groups = $env:AEGIS_RM_GROUPS | ConvertFrom-Json',
   '$out = @()',
   'foreach ($g in $groups) {',
-  '  try { $pids = [AegisRm]::GetHolders([string[]]$g.files) } catch { $pids = @() }',
-  '  $out += [pscustomobject]@{ group = $g.group; reason = $g.reason; pids = @($pids) }',
+  '  $holders = [AegisRm]::GetHolders([string[]]$g.files)',
+  '  $out += [pscustomobject]@{ group = $g.group; reason = $g.reason; holders = @($holders) }',
   '}',
   'if ($out.Count -gt 0) { $out | ConvertTo-Json -Compress -Depth 4 } else { "[]" }',
 ].join('\n');
@@ -188,7 +192,7 @@ function logSpawnTax(spawn, t0) {
  * frequent spawn from flashing a console window every ~10s.
  * @param {string[]} [dirNames] - Directory basenames to scan (see buildSensitiveGroups).
  * @param {boolean} [includeEnv=true] - Whether to include ~/.env* groups.
- * @returns {Promise<Array<{pid: number, group: string, reason: string}>>}
+ * @returns {Promise<Array<{pid: number, createTime100ns: string, group: string, reason: string}>>}
  * @since v0.10.0
  */
 async function getSensitiveHolders(dirNames, includeEnv) {
@@ -201,7 +205,7 @@ async function getSensitiveHolders(dirNames, includeEnv) {
     (rows) => parseNativeHolders(rows, groups),
   );
   if (native !== null) return native;
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const t0 = performance.now();
     execFile(
       'powershell.exe',
@@ -214,10 +218,14 @@ async function getSensitiveHolders(dirNames, includeEnv) {
       (err, stdout) => {
         logSpawnTax('handle', t0);
         if (err) {
-          resolve([]);
+          reject(new Error('Restart Manager fallback failed'));
           return;
         }
-        resolve(parseHolders(stdout));
+        try {
+          resolve(parseHolders(stdout, groups));
+        } catch {
+          reject(new Error('Invalid Restart Manager fallback response'));
+        }
       },
     );
   });
@@ -228,7 +236,7 @@ async function getSensitiveHolders(dirNames, includeEnv) {
  * plus ~/.env*, for the ~10s read-detect poll that shrinks the 30s read-blind
  * window. Same RM mechanism and same HOLDS-AT-TICK honesty as getSensitiveHolders
  * — it catches a handle held at the tick, NEVER a transient open→read→close.
- * @returns {Promise<Array<{pid: number, group: string, reason: string}>>}
+ * @returns {Promise<Array<{pid: number, createTime100ns: string, group: string, reason: string}>>}
  * @since v0.11.0-alpha
  */
 function getHotSensitiveHolders() {
@@ -236,32 +244,49 @@ function getHotSensitiveHolders() {
 }
 
 /**
- * Parse the PowerShell JSON ({ group, reason, pids[] }[]) into a flat holder list.
+ * Parse the PowerShell JSON ({ group, reason, holders[] }[]) into a flat holder list.
  * @param {string} stdout
- * @returns {Array<{pid: number, group: string, reason: string}>}
+ * @param {Array<{group: string, reason?: string}>} [expectedGroups]
+ * @returns {Array<{pid: number, createTime100ns: string, group: string, reason: string}>}
  */
-function parseHolders(stdout) {
+function parseHolders(stdout, expectedGroups) {
   const raw = (stdout || '').trim();
-  if (!raw || raw === '[]') return [];
+  if (!raw) throw new Error('Empty Restart Manager response');
   let parsed;
   try {
     parsed = JSON.parse(raw);
-  } catch (_) {
-    return [];
+  } catch {
+    throw new Error('Invalid Restart Manager response');
   }
   if (!Array.isArray(parsed)) parsed = [parsed];
-  /** @type {Array<{pid: number, group: string, reason: string}>} */
+  if (expectedGroups && parsed.length !== expectedGroups.length)
+    throw new Error('Incomplete Restart Manager response');
+  /** @type {Array<{pid: number, createTime100ns: string, group: string, reason: string}>} */
   const holders = [];
-  for (const g of parsed) {
-    if (!g || !g.group) continue;
-    let pids = g.pids;
-    if (pids == null) continue;
-    if (!Array.isArray(pids)) pids = [pids];
-    for (const p of pids) {
-      const pid = Number(p);
-      if (Number.isInteger(pid) && pid > 0) {
-        holders.push({ pid, group: g.group, reason: g.reason || '' });
-      }
+  for (let i = 0; i < parsed.length; i++) {
+    const g = parsed[i];
+    if (!g || typeof g.group !== 'string' || !g.group)
+      throw new Error('Invalid Restart Manager group');
+    if (expectedGroups && g.group !== expectedGroups[i].group)
+      throw new Error('Unexpected Restart Manager group');
+    let groupHolders = g.holders;
+    if (groupHolders == null) throw new Error('Missing Restart Manager holders');
+    if (!Array.isArray(groupHolders)) groupHolders = [groupHolders];
+    for (const holder of groupHolders) {
+      if (
+        !holder ||
+        !Number.isInteger(holder.pid) ||
+        holder.pid <= 0 ||
+        holder.pid > 0xffffffff ||
+        !validCreateTime100ns(holder.createTime100ns)
+      )
+        throw new Error('Invalid Restart Manager holder identity');
+      holders.push({
+        pid: holder.pid,
+        createTime100ns: holder.createTime100ns,
+        group: g.group,
+        reason: expectedGroups ? expectedGroups[i].reason || '' : g.reason || '',
+      });
     }
   }
   return holders;

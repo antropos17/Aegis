@@ -16,6 +16,7 @@ afterAll(() => {
 
 describe('platform/restart-manager', () => {
   let rm;
+  const TICKS = '133000000000000001';
 
   beforeEach(async () => {
     vi.stubEnv('AEGIS_OBSERVER_PROVIDER', 'powershell');
@@ -26,35 +27,79 @@ describe('platform/restart-manager', () => {
   });
 
   describe('_parseHolders', () => {
-    it('flattens { group, reason, pids[] } groups into per-PID holders', () => {
+    it('preserves exact RM process creation ticks as decimal strings', () => {
+      const ticks = '133000000000000001';
+      const json = JSON.stringify({
+        group: '/home/u/.ssh',
+        reason: 'SSH',
+        holders: [{ pid: 105, createTime100ns: ticks }],
+      });
+      expect(rm._parseHolders(json)).toEqual([
+        { pid: 105, createTime100ns: ticks, group: '/home/u/.ssh', reason: 'SSH' },
+      ]);
+      expect(() =>
+        rm._parseHolders(
+          JSON.stringify({
+            group: '/home/u/.ssh',
+            holders: [{ pid: 105, createTime100ns: Number(ticks) }],
+          }),
+        ),
+      ).toThrow();
+    });
+
+    it('flattens { group, reason, holders[] } groups into per-PID holders', () => {
       const json = JSON.stringify([
-        { group: '/home/u/.ssh', reason: 'SSH keys/config', pids: [105, 200] },
-        { group: '/home/u/.aws', reason: 'AWS credentials', pids: [105] },
+        {
+          group: '/home/u/.ssh',
+          reason: 'SSH keys/config',
+          holders: [105, 200].map((pid) => ({ pid, createTime100ns: TICKS })),
+        },
+        {
+          group: '/home/u/.aws',
+          reason: 'AWS credentials',
+          holders: [{ pid: 105, createTime100ns: TICKS }],
+        },
       ]);
       expect(rm._parseHolders(json)).toEqual([
-        { pid: 105, group: '/home/u/.ssh', reason: 'SSH keys/config' },
-        { pid: 200, group: '/home/u/.ssh', reason: 'SSH keys/config' },
-        { pid: 105, group: '/home/u/.aws', reason: 'AWS credentials' },
+        { pid: 105, createTime100ns: TICKS, group: '/home/u/.ssh', reason: 'SSH keys/config' },
+        { pid: 200, createTime100ns: TICKS, group: '/home/u/.ssh', reason: 'SSH keys/config' },
+        { pid: 105, createTime100ns: TICKS, group: '/home/u/.aws', reason: 'AWS credentials' },
       ]);
     });
 
-    it('returns [] for "[]" / empty / unparseable output', () => {
+    it('distinguishes a reported empty result from missing or corrupt output', () => {
       expect(rm._parseHolders('[]')).toEqual([]);
-      expect(rm._parseHolders('')).toEqual([]);
-      expect(rm._parseHolders('not json')).toEqual([]);
+      expect(() => rm._parseHolders('')).toThrow();
+      expect(() => rm._parseHolders('not json')).toThrow();
+      expect(() => rm._parseHolders('[]', [{ group: '/home/u/.ssh' }])).toThrow();
     });
 
     it('wraps a single (non-array) group object', () => {
-      const json = JSON.stringify({ group: '/home/u/.ssh', reason: 'SSH', pids: 105 });
-      expect(rm._parseHolders(json)).toEqual([{ pid: 105, group: '/home/u/.ssh', reason: 'SSH' }]);
+      const json = JSON.stringify({
+        group: '/home/u/.ssh',
+        reason: 'SSH',
+        holders: { pid: 105, createTime100ns: TICKS },
+      });
+      expect(rm._parseHolders(json)).toEqual([
+        { pid: 105, createTime100ns: TICKS, group: '/home/u/.ssh', reason: 'SSH' },
+      ]);
     });
 
-    it('drops invalid PIDs and group-less entries', () => {
+    it('rejects invalid PIDs, birth times and group-less entries instead of claiming a clean scan', () => {
       const json = JSON.stringify([
-        { group: '/home/u/.ssh', reason: 'SSH', pids: [0, -1, 'x', 105] },
-        { reason: 'no group', pids: [300] },
+        {
+          group: '/home/u/.ssh',
+          reason: 'SSH',
+          holders: [0, -1, 'x']
+            .map((pid) => ({ pid, createTime100ns: TICKS }))
+            .concat([
+              { pid: 104, createTime100ns: Number(TICKS) },
+              { pid: 105, createTime100ns: TICKS },
+            ]),
+        },
+        { reason: 'no group', holders: [{ pid: 300, createTime100ns: TICKS }] },
       ]);
-      expect(rm._parseHolders(json)).toEqual([{ pid: 105, group: '/home/u/.ssh', reason: 'SSH' }]);
+      expect(() => rm._parseHolders(json)).toThrow();
     });
   });
 
@@ -80,17 +125,19 @@ describe('platform/restart-manager', () => {
       expect(rm.isRestartManagerAvailable()).toBe(false);
     });
 
-    // White-box honesty: the P/Invoke branches on the holder COUNT (pnProcInfoNeeded
-    // > 0), NOT on a 234/ERROR_MORE_DATA return code (which does not arrive here),
-    // and the RM source carries no "read"/"accessed" wording — it is a hold.
-    it('compiles a P/Invoke that branches on needed>0 and never says read/accessed', async () => {
+    // ERROR_MORE_DATA is expected for the sizing call; other failures must not
+    // become a healthy empty scan.
+    it('compiles a P/Invoke that checks RM failures and never says read/accessed', async () => {
       mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, 'OK'));
       await rm.probeRestartManager();
       const script = mockExecFile.mock.calls[0][1][3];
       expect(script).toMatch(/RmStartSession/);
       expect(script).toMatch(/RmGetList/);
+      expect(script).toMatch(/ProcessStartTime/);
+      expect(script).toMatch(/createTime100ns/);
       expect(script).toMatch(/needed > 0/);
-      expect(script).not.toMatch(/234/);
+      expect(script).toMatch(/firstResult != 0 && firstResult != 234/);
+      expect(script).toMatch(/RmRegisterResources failed/);
       expect(script).not.toMatch(/accessed|read/i);
     });
   });

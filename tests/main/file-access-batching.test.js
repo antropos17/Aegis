@@ -175,6 +175,13 @@ describe('fileAccessCoalesceKey', () => {
       expect(a).not.toBe(b);
     });
 
+    it('separates two RM holders born in the same millisecond', () => {
+      const base = selfChurn({ action: 'holding' });
+      const first = fileAccessCoalesceKey({ ...base, createTime100ns: '133000000000000000' });
+      const second = fileAccessCoalesceKey({ ...base, createTime100ns: '133000000000000001' });
+      expect(first).not.toBe(second);
+    });
+
     it('the separator cannot occur inside a segment, so no two field splits collide', () => {
       // A printable delimiter would let `<id>|<file>` and `<id>|<file2>` build one key
       // when a path happens to contain it. NUL is unavailable to every segment.

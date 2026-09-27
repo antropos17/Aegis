@@ -341,6 +341,13 @@ async function _stampFromFreshBirthTimes(agents, forceRefresh, observedMap) {
       a.parentChain = chain;
     }
     a.startTime = birthTime;
+    // RM reports this same raw FILETIME. Stamp it from this pass's map, never from
+    // the parent-chain cache, even when a sequence number wins the witness rank.
+    const createTime100ns = procMap.get(a.pid)?.createTime100ns;
+    a.createTime100ns =
+      typeof createTime100ns === 'string' && /^[1-9]\d{0,19}$/.test(createTime100ns)
+        ? createTime100ns
+        : null;
     a.generationWitness = witness ? witness.value : null;
     a.generationWitnessSource = witness ? witness.source : null;
   }
@@ -398,6 +405,7 @@ async function _stampFromCachedChains(agents, forceRefresh) {
     // platform makes no per-pass observation, and a birth time nobody observed this
     // pass is not a birth time this pass may stamp.
     a.startTime = null;
+    a.createTime100ns = null;
   }
 }
 

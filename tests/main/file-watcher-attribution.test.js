@@ -16,6 +16,7 @@ function makeMultiAgentState(overrides = {}) {
       category: 'ai',
       cwd: '/home/user/a',
       instanceId: '100:1700000000000',
+      createTime100ns: '133444736000000000',
     },
     {
       pid: 200,
@@ -23,6 +24,7 @@ function makeMultiAgentState(overrides = {}) {
       category: 'ai',
       cwd: '/home/user/b',
       instanceId: '200:1700000005000',
+      createTime100ns: '133444736050000000',
     },
   ];
   return {
@@ -238,7 +240,12 @@ describe('file-watcher attribution — confirmed (PID-backed) paths', () => {
   it('case 6: RM holder stamps confirmed / rm-holder-pid from the holder PID', async () => {
     fileWatcher._setDepsForTest({
       getSensitiveHolders: vi.fn(async () => [
-        { pid: 200, group: '/home/user/.ssh', reason: 'SSH keys/config' },
+        {
+          pid: 200,
+          createTime100ns: '133444736050000000',
+          group: '/home/user/.ssh',
+          reason: 'SSH keys/config',
+        },
       ]),
     });
 
@@ -255,7 +262,12 @@ describe('file-watcher attribution — confirmed (PID-backed) paths', () => {
   it('case 6b: RM holder on its OWN config dir carries both codes', async () => {
     fileWatcher._setDepsForTest({
       getSensitiveHolders: vi.fn(async () => [
-        { pid: 200, group: '/home/user/.opencode', reason: 'AI agent config — opencode' },
+        {
+          pid: 200,
+          createTime100ns: '133444736050000000',
+          group: '/home/user/.opencode',
+          reason: 'AI agent config — opencode',
+        },
       ]),
     });
 

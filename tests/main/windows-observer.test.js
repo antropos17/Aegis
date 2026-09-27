@@ -67,15 +67,17 @@ describe('one-shot Windows observer', () => {
   );
   it('uses bounded stdin transport, returns fresh empty observations and sends no paths in argv/env', async () => {
     const { client, execFile, inputs } = harness([
-      response([{ index: 0, pids: [42] }]),
-      response([{ index: 0, pids: [] }]),
+      response([{ index: 0, holders: [{ pid: 42, createTime100ns: '133000000000000001' }] }]),
+      response([{ index: 0, holders: [] }]),
     ]);
     const groups = [{ group: 'private-directory', reason: 'SSH', files: ['private-path'] }];
     const query = () =>
       client.tryRequest('holders', { groups: groups.map((g) => g.files) }, (rows) =>
         parseNativeHolders(rows, groups),
       );
-    expect(await query()).toEqual([{ pid: 42, group: 'private-directory', reason: 'SSH' }]);
+    expect(await query()).toEqual([
+      { pid: 42, createTime100ns: '133000000000000001', group: 'private-directory', reason: 'SSH' },
+    ]);
     expect(await query()).toEqual([]);
     expect(execFile.mock.calls[0].slice(0, 3)).toEqual([
       '/fixed/observer.exe',
@@ -83,6 +85,19 @@ describe('one-shot Windows observer', () => {
       { timeout: 10000, maxBuffer: 2097152, windowsHide: true },
     ]);
     expect(inputs[0]).toEqual({ text: '{"groups":[["private-path"]]}', encoding: 'utf8' });
+  });
+  it('keeps native RM birth ticks exact and rejects numeric truncation', () => {
+    const groups = [{ group: 'private-directory', reason: 'SSH' }];
+    const ticks = '133000000000000001';
+    expect(
+      parseNativeHolders([{ index: 0, holders: [{ pid: 42, createTime100ns: ticks }] }], groups),
+    ).toEqual([{ pid: 42, createTime100ns: ticks, group: 'private-directory', reason: 'SSH' }]);
+    expect(() =>
+      parseNativeHolders(
+        [{ index: 0, holders: [{ pid: 42, createTime100ns: Number(ticks) }] }],
+        groups,
+      ),
+    ).toThrow();
   });
   it.each([
     new Error('private OS error'),
@@ -172,10 +187,12 @@ describe('one-shot Windows observer', () => {
     ];
     expect(validateCwds(rows, [42, 43, 44])).toBe(rows);
   });
-  it.each([[], [{ index: 1, pids: [42] }], [{ index: 0, pids: [-1] }], [{ index: 0, pids: null }]])(
-    'rejects incomplete or invalid holder results (%j)',
-    (...rows) => {
-      expect(() => parseNativeHolders(rows, [{ group: 'x', reason: 'r' }])).toThrow();
-    },
-  );
+  it.each([
+    [],
+    [{ index: 1, holders: [{ pid: 42, createTime100ns: '133000000000000001' }] }],
+    [{ index: 0, holders: [{ pid: -1, createTime100ns: '133000000000000001' }] }],
+    [{ index: 0, holders: null }],
+  ])('rejects incomplete or invalid holder results (%j)', (...rows) => {
+    expect(() => parseNativeHolders(rows, [{ group: 'x', reason: 'r' }])).toThrow();
+  });
 });
