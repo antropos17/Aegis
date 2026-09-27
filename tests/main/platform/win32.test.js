@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import Module from 'module';
+import { execFile as realExecFile } from 'node:child_process';
 
 const mockExecFile = vi.fn();
 const cimRows = (rows) =>
@@ -308,12 +309,13 @@ describe('platform/win32', () => {
       expect(result).toEqual(['C:\\Users\\me\\file.js']);
     });
 
-    it('returns empty on error', async () => {
+    it('rejects when the handle query times out instead of reporting a clean empty scan', async () => {
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
-        cb(new Error('failed'));
+        expect(opts.timeout).toBe(15000);
+        cb(Object.assign(new Error('timed out'), { killed: true }));
       });
 
-      expect(await win32.getFileHandles(100)).toEqual([]);
+      await expect(win32.getFileHandles(100)).rejects.toThrow('handle-scan-failed');
     });
 
     it('returns empty for "[]" output', async () => {
@@ -324,13 +326,46 @@ describe('platform/win32', () => {
       expect(await win32.getFileHandles(100)).toEqual([]);
     });
 
-    it('returns empty for non-array parsed result', async () => {
-      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
-        cb(null, '{"not": "array"}');
-      });
+    it.skipIf(process.platform !== 'win32')(
+      'rejects when handle.exe disappears after the startup capability probe',
+      async () => {
+        mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+          // Run the generated query with Get-Command shadowed so no handle binary
+          // can be found, regardless of this machine's PATH.
+          const script = `function Get-Command { $null }\n${args[3]}`;
+          realExecFile(cmd, [...args.slice(0, 3), script], opts, cb);
+        });
 
-      expect(await win32.getFileHandles(100)).toEqual([]);
-    });
+        await expect(win32.getFileHandles(100)).rejects.toThrow('handle-scan-failed');
+      },
+    );
+
+    it.skipIf(process.platform !== 'win32')(
+      'keeps a successful empty handle query as a clean empty observation',
+      async () => {
+        mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+          const script = [
+            'function Invoke-EmptyHandle { param($p, $nobanner, $accepteula) }',
+            "function Get-Command { [pscustomobject]@{ Source = 'Invoke-EmptyHandle' } }",
+            args[3],
+          ].join('\n');
+          realExecFile(cmd, [...args.slice(0, 3), script], opts, cb);
+        });
+
+        await expect(win32.getFileHandles(100)).resolves.toEqual([]);
+      },
+    );
+
+    it.each(['', 'not-json', '{"not": "array"}', '[1]'])(
+      'rejects malformed query output %j instead of reporting a clean empty scan',
+      async (output) => {
+        mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+          cb(null, output);
+        });
+
+        await expect(win32.getFileHandles(100)).rejects.toThrow('handle-scan-failed');
+      },
+    );
 
     // PR-A honesty — A1: the PS script must not fall back to loaded modules.
     // White-box (the execFile mock can't simulate a real "binary absent" PS run,
