@@ -63,6 +63,16 @@ function spawnProtected(launch, helper, purpose) {
   const imported = purpose === 'appcontainer-action-import';
   const isolated = purpose === 'appcontainer-action' || imported;
   const action = purpose === 'action' || isolated;
+  if (
+    isolated &&
+    (!launch.executableSnapshot ||
+      launch.executableSnapshot.path !== launch.executable ||
+      !Number.isSafeInteger(launch.executableSnapshot.size) ||
+      launch.executableSnapshot.size < 1 ||
+      launch.executableSnapshot.size > 128 * 1024 * 1024 ||
+      !/^[a-f0-9]{64}$/.test(launch.executableSnapshot.sha256))
+  )
+    throw Error('gateway-protected-launch-unavailable');
   if (!existsSync(helper)) throw Error('gateway-protected-launch-unavailable');
   // The .NET Framework reads profiler controls before the helper's Main runs.
   // Never pass the parent process environment to this privileged launch boundary.
@@ -75,6 +85,7 @@ function spawnProtected(launch, helper, purpose) {
     args: launch.args,
     env: launch.env,
     ...(action ? { purpose } : {}),
+    ...(isolated ? { executableSnapshot: launch.executableSnapshot } : {}),
     ...(imported ? { input: launch.input } : {}),
   });
   if (Buffer.byteLength(frame) + 1 > MAX_LAUNCH_BYTES)

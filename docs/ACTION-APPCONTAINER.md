@@ -94,6 +94,28 @@ The preview includes the exact effective action and explains workspace creation
 and retention. Enter the displayed `RUN <challenge>` once. Piped input is refused.
 No desktop IPC or automatic application update is added by this feature.
 
+Before showing that challenge, AEGIS asynchronously hashes the selected local
+executable with a 128 MiB byte limit and a four-second deadline. The digest stays
+private. A stalled read can finish later, but the deadline rejects its approval
+attempt and it cannot launch a child. The native helper requires that descriptor for both AppContainer routes,
+opens a regular non-reparse executable and its non-reparse ancestors without
+write/delete sharing, and hashes the executable again before process creation.
+It keeps those handles until the child is created suspended and resumed. Before
+resuming, it also compares the created process image's native device path with
+the held file's native path; a changed drive-letter mapping or an unavailable
+comparison stops the child. The native hash is synchronous and adds to isolated
+startup time; the ten-second startup bound applies from the caller's launch.
+No existing host file or runtime ACL is broadened. A direct AppContainer API call
+without a one-use terminal approval is refused.
+
+This binds the selected executable file's bytes for one launch. It does not bind
+DLLs loaded later, scripts named in arguments, or other files a program opens.
+The same-account operator and system-wide Windows grants remain outside this
+boundary. File systems that cannot provide usable native file identity or path
+checks fail closed. The native path comparison is case-sensitive, so harmless
+case-only spelling differences and other alternate names for the same file may
+also be refused.
+
 ## Native boundary and receipt
 
 The helper registers a fresh random AppContainer profile with zero capabilities.

@@ -8,6 +8,11 @@ const adapter = require('../../src/main/mcp-gateway-windows-job');
 let helper;
 let spawn;
 let frame;
+const executableSnapshot = Object.freeze({
+  path: 'C:\\Windows\\System32\\cmd.exe',
+  size: 100,
+  sha256: 'a'.repeat(64),
+});
 beforeEach(() => {
   for (const name of Object.keys(process.env))
     if (name.toLowerCase() === 'systemroot') vi.stubEnv(name, undefined);
@@ -37,6 +42,7 @@ function start() {
   const child = adapter.spawnActionInAppContainer(
     {
       executable: 'C:\\Windows\\System32\\cmd.exe',
+      executableSnapshot,
       cwd: 'C:\\new-workspace',
       args: ['/d', '/c', 'exit 0'],
       env: { SystemRoot: 'C:\\Windows' },
@@ -50,6 +56,7 @@ function startImport() {
   const child = adapter.spawnActionInAppContainer(
     {
       executable: 'C:\\Windows\\System32\\cmd.exe',
+      executableSnapshot,
       cwd: 'C:\\new-workspace',
       args: ['/d', '/c', 'exit 0'],
       env: { SystemRoot: 'C:\\Windows' },
@@ -70,6 +77,7 @@ describe('distinct AppContainer native protocol', () => {
     const child = startImport();
     const request = JSON.parse(frame);
     expect(request.purpose).toBe('appcontainer-action-import');
+    expect(request.executableSnapshot).toEqual(executableSnapshot);
     expect(request.input).toEqual({
       path: 'C:\\private\\source.bin',
       size: 3,
@@ -91,6 +99,7 @@ describe('distinct AppContainer native protocol', () => {
   it('requests the isolated purpose with a clean helper environment and consumes fragmented receipts', () => {
     const child = start();
     expect(JSON.parse(frame).purpose).toBe('appcontainer-action');
+    expect(JSON.parse(frame).executableSnapshot).toEqual(executableSnapshot);
     expect(spawn.mock.calls[0][2].env).toEqual({ SystemRoot: 'C:\\Windows' });
     helper.stdout.write('S');
     helper.stderr.write('S,C,1,0,12,');
@@ -105,6 +114,23 @@ describe('distinct AppContainer native protocol', () => {
       stderrBytes: 3,
       exitCode: 0,
     });
+  });
+
+  it('refuses both isolated purposes without a bound executable descriptor', () => {
+    const launch = {
+      executable: executableSnapshot.path,
+      cwd: 'C:\\new-workspace',
+      args: [],
+      env: { SystemRoot: 'C:\\Windows' },
+    };
+    expect(() => adapter.spawnActionInAppContainer(launch, process.execPath)).toThrow();
+    expect(() =>
+      adapter.spawnActionInAppContainer(
+        { ...launch, input: { path: 'C:\\x', size: 1, sha256: 'a'.repeat(64) } },
+        process.execPath,
+      ),
+    ).toThrow();
+    expect(spawn).not.toHaveBeenCalled();
   });
 
   it('rejects legacy ready even with a plausible isolated final status', () => {

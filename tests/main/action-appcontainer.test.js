@@ -161,6 +161,22 @@ describe('AppContainer receipt boundary', () => {
     expect(prepare).not.toHaveBeenCalled();
   });
 
+  it.skipIf(process.platform !== 'win32')(
+    'refuses a direct AppContainer API call without one-use terminal approval',
+    async () => {
+      const prepare = vi.fn();
+      runner._setDepsForTest({ prepare });
+      expect(
+        await runner.executeAction('PRIVATE', 'PRIVATE', { appContainer: true }),
+      ).toMatchObject({
+        decision: 'deny',
+        reason: 'approval-unavailable',
+        execution: { state: 'not-started' },
+      });
+      expect(prepare).not.toHaveBeenCalled();
+    },
+  );
+
   it.skipIf(process.platform === 'win32')(
     'refuses unsupported hosts before preparing an action',
     async () => {

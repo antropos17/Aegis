@@ -103,6 +103,20 @@ describe('private one-use execution approval', () => {
     expect(grants.consumeExecutionApproval(approval, binding, input)).toBe(false);
   });
 
+  it('binds the exact executable snapshot for an isolated approval', () => {
+    const binding = {};
+    const executable = Object.freeze({
+      path: 'C:\\Windows\\System32\\whoami.exe',
+      size: 98304,
+      sha256: 'a'.repeat(64),
+    });
+    const approval = grants.createExecutionApproval(binding, null, executable);
+    expect(grants.consumeExecutionApproval(approval, binding)).toBe(false);
+    expect(grants.consumeExecutionApproval(approval, binding, null, { ...executable })).toBe(false);
+    expect(grants.consumeExecutionApproval(approval, binding, null, executable)).toBe(true);
+    expect(grants.consumeExecutionApproval(approval, binding, null, executable)).toBe(false);
+  });
+
   it.each([null, undefined, 1, 'PRIVATE', []])('rejects nonobject binding %#', (binding) => {
     expect(() => grants.createExecutionApproval(binding)).toThrow('approval-unavailable');
   });

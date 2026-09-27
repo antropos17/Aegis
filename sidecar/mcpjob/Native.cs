@@ -205,8 +205,12 @@ internal static class Native
 
     internal static Session Start(string executable, string cwd, string[] args,
         string environment, AppContainerProfile isolated = null,
-        AppContainerInput.ImportedFile importedFile = null)
+        AppContainerInput.ImportedFile importedFile = null,
+        AppContainerExecutable.PinnedFile pinnedExecutable = null)
     {
+        if (isolated != null && (pinnedExecutable == null || !pinnedExecutable.IsPinned ||
+            !string.Equals(pinnedExecutable.Path, executable, StringComparison.Ordinal)))
+            throw new InvalidDataException("executable-unpinned");
         IntPtr inputRead = IntPtr.Zero, inputWrite = IntPtr.Zero;
         IntPtr outputRead = IntPtr.Zero, outputWrite = IntPtr.Zero;
         IntPtr errorRead = IntPtr.Zero, errorWrite = IntPtr.Zero;
@@ -278,6 +282,10 @@ internal static class Native
                 env, cwd, ref startup, out process);
             Check(created);
             if (isolated != null) VerifyIsolatedProcess(process.hProcess, job, isolated.Sid);
+            // The DOS drive letter can be remapped independently of held file handles.
+            // Compare the created image's native device path before any child instruction runs.
+            if (isolated != null && !pinnedExecutable.MatchesProcessImage(process.hProcess))
+                throw new InvalidDataException("executable-image-changed");
 #if MCP_JOB_CRASH_TEST
             // Test-only stop at the former orphan window, before ResumeThread.
             string marker = Environment.GetEnvironmentVariable("AEGIS_MCPJOB_CRASH_MARKER");
@@ -286,6 +294,8 @@ internal static class Native
             Thread.Sleep(Timeout.Infinite);
 #endif
             Check(ControlOpen());
+            if (isolated != null && !pinnedExecutable.IsPinned)
+                throw new InvalidDataException("executable-unpinned");
             // Release the DELETE-capable owner handle only at the final launch
             // boundary. Ordinary child File.ReadAllText does not share DELETE.
             if (importedFile != null) importedFile.Dispose();
