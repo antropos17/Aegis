@@ -261,6 +261,7 @@ function leafRecord(sensorId, state, detail) {
  */
 export function createHarness(shims, opts = {}) {
   const { main, fakePlatform, watchers } = shims;
+  main._setLatestAgentsForTest([]);
   const t0 = T0 + harnessCount * 60_000;
   harnessCount += 1;
   vi.useFakeTimers();
@@ -273,8 +274,8 @@ export function createHarness(shims, opts = {}) {
   const scanner = require_(resolveSrc('process-scanner.js'));
   const listProcesses = vi.fn().mockResolvedValue(opts.processes || [CLAUDE]);
   scanner._resetForTest();
-  // `providesStartTime: false` is the linux/darwin steady state (`<pid>:u` keys, never
-  // identity-degraded). A case that wants the win32 shape installs a snapshot leaf.
+  // A platform without birth times uses `<pid>:u` as its steady state. A case that
+  // wants the witnessed shape installs a snapshot leaf.
   scanner._setPlatformForTest({ listProcesses, providesStartTime: false });
   scanner.init({ trackSeenAgent: vi.fn() });
   scanner.peakAgents = 0;
@@ -360,8 +361,14 @@ export function createHarness(shims, opts = {}) {
     watcher,
     observationGap: gap,
     procUtil: {
-      enrichWithParentChains: vi.fn(async (agents) => {
-        for (const a of agents) a.instanceId = `${a.pid}:u`;
+      enrichWithParentChains: vi.fn(async (agents, options = {}) => {
+        const { identify } = require_(resolveSrc('process-identity.js'));
+        for (const a of agents) {
+          a.startTime = options.processMap?.get(a.pid)?.startTime ?? null;
+          const identity = identify(a);
+          a.instanceId = identity.instanceId;
+          a.instanceIdSource = identity.instanceIdSource;
+        }
       }),
       annotateHostApps: vi.fn(),
       annotateWorkingDirs: vi.fn().mockResolvedValue(),
@@ -384,6 +391,7 @@ export function createHarness(shims, opts = {}) {
     getLatestAgents: () => latest,
     setAgents: (agents) => {
       latest = agents;
+      main._setLatestAgentsForTest(agents);
     },
     setLatestNetConnections: vi.fn(),
   };
@@ -498,10 +506,11 @@ export function createHarness(shims, opts = {}) {
    * shape. Returns a setter so a case can move the leaf between states.
    * @param {'HEALTHY'|'DEGRADED'|'FAILED'} state
    * @param {string|null} [detail]
-   * @returns {(state: string, detail?: string|null) => void}
+   * @returns {(state: string, detail?: string|null, withheldBirthPids?: number[]) => void}
    */
   function installSnapshotLeaf(state, detail = null) {
     let current = leafRecord('proc-snapshot', state, detail);
+    let withheldBirthPids = new Set();
     const read = () => current;
     scanner._setPlatformForTest({
       providesStartTime: true,
@@ -509,11 +518,21 @@ export function createHarness(shims, opts = {}) {
       getParentProcessMap: async () =>
         current.state === 'FAILED'
           ? new Map()
-          : new Map((await listProcesses()).map((row) => [row.pid, { name: row.name, ppid: 0 }])),
+          : new Map(
+              (await listProcesses()).map((row) => [
+                row.pid,
+                {
+                  name: row.name,
+                  ppid: 0,
+                  startTime: withheldBirthPids.has(row.pid) ? null : T0 + row.pid,
+                },
+              ]),
+            ),
     });
     fakePlatform.getSnapshotHealth = read;
-    return (next, nextDetail = null) => {
+    return (next, nextDetail = null, nextWithheldBirthPids = []) => {
       current = leafRecord('proc-snapshot', next, nextDetail);
+      withheldBirthPids = new Set(nextWithheldBirthPids);
     };
   }
 
@@ -557,6 +576,7 @@ export function createHarness(shims, opts = {}) {
     watcher._resetForTest();
     network._resetForTest();
     scanner._resetForTest();
+    main._setLatestAgentsForTest([]);
     delete fakePlatform.getSnapshotHealth;
   }
 

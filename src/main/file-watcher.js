@@ -1294,16 +1294,23 @@ async function scanAllFileHandles(agents) {
  * while a NEW process occupies the same pid — that new instance starts with a
  * clean seen-set and its first sensitive access fires.
  * @param {Array} activeAgents
+ * @param {{preservePids?: Set<number>}} [options] PIDs missing a birth witness this pass.
  * @returns {void} @since v0.1.0
  */
-function pruneKnownHandles(activeAgents) {
+function pruneKnownHandles(activeAgents, options = {}) {
   const activeKeys = new Set();
   for (const a of activeAgents) {
     const k = handleKey(a);
     if (k) activeKeys.add(k);
   }
   for (const key of _state.knownHandles.keys()) {
-    if (!activeKeys.has(key)) _state.knownHandles.delete(key);
+    if (activeKeys.has(key)) continue;
+    // An unknown generation cannot prove the old instance of this PID stopped
+    // holding a file. Preserve only that PID; prune unrelated stale generations.
+    const separator = key.indexOf(':');
+    const pid = separator > 0 ? Number(key.slice(0, separator)) : null;
+    if (options.preservePids?.has(pid)) continue;
+    _state.knownHandles.delete(key);
   }
 }
 

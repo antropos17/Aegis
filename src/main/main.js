@@ -165,6 +165,18 @@ let mainWindow = null;
 let latestAgents = [],
   latestAiAgents = [],
   latestOtherAgents = [];
+/**
+ * Publish the current process batch to every main-process reader. Identity stamps
+ * enrich these same objects after the population is published.
+ * @param {Array<Object>} agents
+ * @returns {void}
+ * @since v0.17.0
+ */
+function setLatestAgents(agents) {
+  latestAgents = agents;
+  latestAiAgents = agents.filter((a) => a.category === 'ai');
+  latestOtherAgents = agents.filter((a) => a.category === 'other');
+}
 let isQuitting = false,
   monitoringPaused = false;
 let oomIntervalId = null;
@@ -277,7 +289,7 @@ function getAppHealth() {
   }
   const capabilities = scanner.getProcessCapabilities();
   const watchPlan = watcher.getWatchPlan();
-  const identityDegraded = scanner.isIdentityDegraded() === true;
+  const identityDegraded = scanner.isIdentityDegraded(latestAgents) === true;
   const fsHealth = watcher.getFileSensorHealth();
   const llmHealth = llmDetector.getLlmRuntimeSensorHealth();
   // Every leaf that owns a record, RAW. Order is stable so the payload does not
@@ -849,11 +861,7 @@ function initDeferredSubsystems(userData) {
     getStats,
     getResourceUsage,
     getLatestAgents: () => latestAgents,
-    setAgents: (agents) => {
-      latestAgents = agents;
-      latestAiAgents = agents.filter((a) => a.category === 'ai');
-      latestOtherAgents = agents.filter((a) => a.category === 'other');
-    },
+    setAgents: setLatestAgents,
     setLatestNetConnections: (c) => {
       latestNetConnections = c;
     },
@@ -1198,6 +1206,7 @@ module.exports = {
   _setWatcherForTest,
   _setEtwFileForTest,
   _setScannerForTest,
+  _setLatestAgentsForTest: setLatestAgents,
   _setScanLoopForTest,
   _setSequenceEngineForTest,
   _setAuditForTest,

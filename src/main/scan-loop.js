@@ -314,6 +314,18 @@ function isIdentityDegraded(scanner) {
   return scanner.isIdentityDegraded() === true;
 }
 
+/**
+ * Read per-PID birth-time loss from the same stamped pass, if the scanner supports it.
+ * @param {Object|undefined} scanner
+ * @param {Array<Object>} agents
+ * @returns {Set<number>}
+ * @since 0.17.0
+ */
+function getUnwitnessedPids(scanner, agents) {
+  const pids = scanner?.getUnwitnessedPids?.(agents);
+  return pids instanceof Set ? pids : new Set();
+}
+
 function doNetworkScan() {
   const { network, baselines, audit, logger, getLatestAgents, sendToRenderer, scanner } = deps;
   const agents = getLatestAgents();
@@ -533,6 +545,8 @@ async function doProcessScan() {
     // transition here so downstream enrichment or renderer failures cannot be mistaken
     // for provider outages, and restoration precedes any inferred session exit.
     auditProcessPopulationTransition(result.reliable !== false, audit);
+    // Publish the fresh population before parent enrichment can await a slow OS
+    // query. Timed sensors must not keep using an older agent after PID reuse.
     setAgents(result.agents);
     const agents = result.agents;
     // Process IDENTITY first. This attaches the OS birth time and the derived
@@ -558,12 +572,18 @@ async function doProcessScan() {
     // read at the top of the tick it would report the PREVIOUS pass's provider, and
     // on the first tick a leaf that had never been written at all.
     const identityDegraded = isIdentityDegraded(scanner);
+    const unwitnessedPids = getUnwitnessedPids(scanner, agents);
     if (identityDegraded) {
       // A frozen reconcile emits nothing by design, so without this line an outage
       // is indistinguishable from a quiet machine in the log.
       logger.debug('scan', 'session-freeze', {
         reason: 'identity-degraded',
         agents: agents.length,
+      });
+    } else if (unwitnessedPids.size > 0) {
+      logger.debug('scan', 'session-partial-freeze', {
+        reason: 'birth-time-unavailable',
+        affectedPids: unwitnessedPids.size,
       });
     } else if (gapStraddled) {
       logger.debug('scan', 'session-freeze', {
@@ -584,17 +604,22 @@ async function doProcessScan() {
       reliable,
       identityDegraded,
       gapStraddled,
+      unwitnessedPids,
     });
     // The ONLY thing that clears a resumed observation gap: a tick whose reconcile was
     // not frozen. A permission-denied enumeration, a degraded identity or a straddled
     // tick ran, but observed nothing — the gap stays armed until something does. Placed
     // before the audit writes below so a downstream throw cannot leave a real
     // observation uncredited.
-    const observed = reliable && !identityDegraded && !gapStraddled;
-    deps.sequenceEngine?.observePopulation?.(
-      agents,
-      observed && resourceGeneration === resourceScanGeneration,
-    );
+    const observed = reliable && !identityDegraded && unwitnessedPids.size === 0 && !gapStraddled;
+    // The sequence engine ignores unwitnessed identities itself. Keep its witnessed
+    // peers live when one PID loses birth time, while the global gap stays armed.
+    const sequenceObserved =
+      reliable &&
+      !identityDegraded &&
+      !gapStraddled &&
+      resourceGeneration === resourceScanGeneration;
+    deps.sequenceEngine?.observePopulation?.(agents, sequenceObserved);
     if (observed && deps.observationGap) deps.observationGap.noteObserved(Date.now());
     // Reconcile alone decides exits. Outages/suspend produce none, so no baseline
     // is retired without reliable evidence. Persist once for the whole exit batch.
@@ -640,7 +665,10 @@ async function doProcessScan() {
       // offers as a step and then uses to close the instance's open states.
       ingestSequence(s);
     }
-    watcher.pruneKnownHandles(agents);
+    // A partial identity pass can prune witnessed peers, but the unknown PID
+    // cannot prove its former holder disappeared. A full outage proves neither.
+    if (reliable && !identityDegraded && !gapStraddled)
+      watcher.pruneKnownHandles(agents, { preservePids: unwitnessedPids });
     procUtil.annotateHostApps(agents);
     // Same `forceRefresh` contract as the identity stamp at the top of this scan:
     // a pid new to the set must not be annotated out of a cached entry belonging
