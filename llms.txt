@@ -2,7 +2,7 @@
 
 > Aegis is an open-source desktop app for local AI-agent monitoring, file reviews and selected-action policy checks. Monitoring combines polling with event-based file watchers; coverage and attribution have documented limits.
 
-Current source also provides opt-in exact-action execution policies and explicitly configured MCP action routes. Default monitoring does not intercept commands or isolate agents. A separate opt-in Windows Job route can bound the lifetime of ordinary descendants of one selected action after confirmed cleanup; it does not restrict file or network access. Installed builds contain only the features at their release tag.
+Current source also provides opt-in exact-action execution policies and explicitly configured MCP action routes. Default monitoring does not intercept commands or isolate agents. A separate opt-in Windows Job route can bound the lifetime of ordinary descendants of one selected action after confirmed cleanup; it does not restrict file or network access. The separate AppContainer confirmation CLI verifies a zero-capability Windows token and Job for one bounded action in a new retained workspace. Installed builds contain only the features at their release tag.
 
 ## Documentation
 
@@ -34,7 +34,7 @@ Current source also provides opt-in exact-action execution policies and explicit
 
 Local monitoring has no telemetry; endpoint naming uses DNS queries. Optional AI analysis sends activity metadata to Anthropic on request; update actions contact GitHub. AEGIS does not automatically enforce OS-level restrictions.
 
-Opt-in execution does not isolate file or network access. Allowed programs retain caller privileges; only the selected Windows Job route bounds ordinary member descendants. Private action previews can expose secrets in terminal scrollback; a TTY does not authenticate human presence. No client settings are changed automatically.
+Direct and Job-only execution retain caller file/network privileges. The explicit AppContainer confirmation route adds OS access checks, zero capabilities and Job cleanup, with separate receipts for isolation, retained workspace and temporary-profile cleanup. Installed agents and ordinary launches do not enter it automatically. Private action previews can expose secrets in terminal scrollback; a TTY does not authenticate human presence. No client settings are changed automatically.
 
 Generated client configuration intentionally includes local executable and selected-file paths. Keep it private; generation does not verify those files or a client's compatibility.
 
@@ -53,6 +53,7 @@ Generated client configuration intentionally includes local executable and selec
 - Documentation: https://github.com/antropos17/Aegis/blob/master/docs/README.md
 - Download prereleases: https://github.com/antropos17/Aegis/releases
 - Privacy and external requests: https://github.com/antropos17/Aegis/blob/master/SECURITY.md#privacy-architecture
+- Windows AppContainer launch: https://github.com/antropos17/Aegis/blob/master/docs/ACTION-APPCONTAINER.md
 - Exact execution contract: https://github.com/antropos17/Aegis/blob/master/docs/ACTION-EXECUTION.md
 - MCP catalog and review: https://github.com/antropos17/Aegis/blob/master/docs/ACTION-MCP-CATALOG.md
 - Nonexecuting checks: https://github.com/antropos17/Aegis/blob/master/docs/ACTION-ROUTE-CHECK.md

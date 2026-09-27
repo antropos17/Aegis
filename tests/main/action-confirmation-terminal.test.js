@@ -50,6 +50,18 @@ afterEach(() => {
 });
 
 describe('terminal-owned explicit action confirmation', () => {
+  it('explains creation and retention of the isolated workspace before confirmation', async () => {
+    const t = setup();
+    const pending = t.run(launch(), { kind: 'appcontainer-launch' });
+    await tick();
+    expect(t.preview()).toContain('Windows AppContainer');
+    expect(t.preview()).toContain('cwd must be NEW');
+    expect(t.preview()).toContain('retains its contents');
+    expect(t.preview()).not.toContain('keeps your account privileges');
+    t.input.emit('data', Buffer.from('RUN a1b2c3d4\n'));
+    expect(await pending).toBe(true);
+  });
+
   it('requires the deletion-specific challenge for an exact file operation', async () => {
     const t = setup();
     const operation = { kind: 'delete-file', path: 'X:/PRIVATE/file.txt' };

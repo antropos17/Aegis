@@ -79,6 +79,18 @@ function protectedPreload(helper) {
 }
 
 describe('explicit action execution Node entry', () => {
+  it('routes isolated confirmation before Electron and refuses piped input', () => {
+    prepare('ask');
+    const result = launch(['--action-exec-appcontainer-confirm', policyPath, requestPath]);
+    expect(result.code).toBe(2);
+    expect(result.report).toMatchObject({
+      decision: 'deny',
+      control: 'windows-appcontainer-job',
+      isolation: { state: 'not-started', workspace: 'not-created' },
+    });
+    expect(fs.existsSync(sentinel)).toBe(false);
+  });
+
   it.each(['confirmed', 'unconfirmed'])(
     'requires %s Job cleanup in the terminal confirmation route',
     async (descendantControl) => {
@@ -249,8 +261,10 @@ describe('explicit action execution Node entry', () => {
           '/warnaserror+',
           '/reference:System.Web.Extensions.dll',
           `/out:${helper}`,
-          path.join(project, 'sidecar', 'mcpjob', 'Program.cs'),
-          path.join(project, 'sidecar', 'mcpjob', 'Native.cs'),
+          ...fs
+            .readdirSync(path.join(project, 'sidecar', 'mcpjob'))
+            .filter((name) => name.endsWith('.cs'))
+            .map((name) => path.join(project, 'sidecar', 'mcpjob', name)),
         ],
         { cwd: project, stdio: 'pipe', timeout: 30000 },
       );

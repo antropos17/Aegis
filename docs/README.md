@@ -19,16 +19,19 @@ check its [release tag](https://github.com/antropos17/Aegis/releases).
 ## Configure selected actions
 
 For fresh approval before one Windows launch with Job-member cleanup, see
-[terminal confirmation](ACTION-CONFIRMATION.md). File/network isolation is tracked
-separately in the [protected-launch plan](roadmap/protected-launch.md).
+[terminal confirmation](ACTION-CONFIRMATION.md). The separate
+[Windows AppContainer route](ACTION-APPCONTAINER.md) restricts a reviewed action
+in a new retained workspace. Remaining agent integration is tracked in the
+[protected-launch plan](roadmap/protected-launch.md).
 
 These opt-in routes need explicit setup. They do not intercept every agent command
-or provide OS isolation. An action catalog contains executable actions; the
+automatically. OS isolation requires the explicit AppContainer route. An action catalog contains executable actions; the
 desktop's agent catalog contains recognition signatures.
 
 | Capability | Contract |
 | --- | --- |
 | Exact action policy and CLI execution | [Execution](ACTION-EXECUTION.md) |
+| Offline Windows isolation in a new workspace | [AppContainer launch](ACTION-APPCONTAINER.md) |
 | Fresh approval for one launch | [Terminal confirmation](ACTION-CONFIRMATION.md) |
 | Connect one selected action via MCP | [Selected-action MCP](ACTION-MCP.md) |
 | Connect several selected actions | [MCP action catalog](ACTION-MCP-CATALOG.md) |

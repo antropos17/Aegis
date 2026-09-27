@@ -7,7 +7,9 @@ const { PassThrough } = require('node:stream');
 
 const HELPER = 'aegis-mcpjob.exe';
 const STARTUP_MS = 1800;
+const ISOLATION_STARTUP_MS = 10000;
 const MAX_LAUNCH_BYTES = 131072;
+let testDeps = null;
 
 /** Find the shipped helper in the packaged or source checkout.
  * @param {object} [runtime] Process state, injectable for path tests.
@@ -18,11 +20,11 @@ function helperPath(runtime = process) {
     : path.resolve(__dirname, '..', '..', 'build', 'sidecar', HELPER);
 }
 
-function actionStatus(bytes) {
-  const match =
-    /^A,(C|U),([01]),(-|-?(?:0|[1-9]\d{0,9})),(\d{1,5}),(\d{1,5}),([01]),([01])\n$/.exec(
-      bytes.toString('ascii'),
-    );
+function actionStatus(bytes, isolated) {
+  const format = isolated
+    ? /^S,(C|U),([01]),(-|-?(?:0|[1-9]\d{0,9})),(\d{1,5}),(\d{1,5}),([01]),([01]),([01]),([01]),([01])\n$/
+    : /^A,(C|U),([01]),(-|-?(?:0|[1-9]\d{0,9})),(\d{1,5}),(\d{1,5}),([01]),([01])\n$/;
+  const match = format.exec(bytes.toString('utf8'));
   if (!match) return null;
   const exited = match[2] === '1';
   const exitCode = exited ? Number(match[3]) : null;
@@ -45,10 +47,19 @@ function actionStatus(bytes) {
     stderrBytes,
     outputComplete,
     outputLimit,
+    ...(isolated
+      ? {
+          isolationVerified: match[8] === '1',
+          workspaceRetained: match[9] === '1',
+          profileCleanup: match[10] === '1',
+        }
+      : {}),
   };
 }
 
 function spawnProtected(launch, helper, purpose) {
+  const isolated = purpose === 'appcontainer-action';
+  const action = purpose === 'action' || isolated;
   if (!existsSync(helper)) throw Error('gateway-protected-launch-unavailable');
   // The .NET Framework reads profiler controls before the helper's Main runs.
   // Never pass the parent process environment to this privileged launch boundary.
@@ -60,11 +71,11 @@ function spawnProtected(launch, helper, purpose) {
     cwd: launch.cwd,
     args: launch.args,
     env: launch.env,
-    ...(purpose === 'action' ? { purpose } : {}),
+    ...(action ? { purpose } : {}),
   });
   if (Buffer.byteLength(frame) + 1 > MAX_LAUNCH_BYTES)
     throw Error('gateway-protected-launch-unavailable');
-  const helperProcess = spawn(helper, [], {
+  const helperProcess = (testDeps?.spawn || spawn)(helper, [], {
     shell: false,
     windowsHide: true,
     cwd: path.dirname(helper),
@@ -76,6 +87,7 @@ function spawnProtected(launch, helper, purpose) {
   peer.stdout = new PassThrough();
   peer.stderr = new PassThrough();
   peer.cleanupConfirmed = false;
+  peer.isolationVerified = false;
   peer.actionOutcome = null;
   peer.stop = () => helperProcess.stdin.end();
   peer.kill = (signal) => helperProcess.kill(signal);
@@ -89,25 +101,30 @@ function spawnProtected(launch, helper, purpose) {
     protocolFailed = true;
     peer.emit('error', Error('gateway-protected-launch-unavailable'));
   };
-  const startup = setTimeout(() => {
-    if (ready) return;
-    fail();
-    helperProcess.kill('SIGKILL');
-  }, STARTUP_MS);
+  const startup = setTimeout(
+    () => {
+      if (ready) return;
+      fail();
+      helperProcess.kill('SIGKILL');
+    },
+    isolated ? ISOLATION_STARTUP_MS : STARTUP_MS,
+  );
   helperProcess.stdout.on('data', (chunk) => {
     if (!ready) {
-      if (chunk[0] !== 0x52) {
+      if (chunk[0] !== (isolated ? 0x53 : 0x52)) {
         clearTimeout(startup);
         fail();
         helperProcess.kill('SIGKILL');
         return;
       }
       ready = true;
+      peer.isolationVerified = isolated;
       clearTimeout(startup);
+      peer.emit('ready');
       chunk = chunk.subarray(1);
     }
     if (chunk.length) {
-      if (purpose === 'action') {
+      if (action) {
         fail();
         helperProcess.kill('SIGKILL');
       } else peer.stdout.write(chunk);
@@ -116,7 +133,7 @@ function spawnProtected(launch, helper, purpose) {
   helperProcess.stdout.on('end', () => peer.stdout.end());
   helperProcess.stderr.on('data', (chunk) => {
     // The selected process's stderr never enters this control channel.
-    if (purpose === 'action') {
+    if (action) {
       if (actionStatusBytes.length + chunk.length > 128) {
         fail();
         helperProcess.kill('SIGKILL');
@@ -141,8 +158,8 @@ function spawnProtected(launch, helper, purpose) {
   });
   helperProcess.on('close', (code, signal) => {
     clearTimeout(startup);
-    if (purpose === 'action') {
-      peer.actionOutcome = actionStatus(actionStatusBytes);
+    if (action) {
+      peer.actionOutcome = actionStatus(actionStatusBytes, isolated);
       statusSeen = !!peer.actionOutcome;
       peer.cleanupConfirmed = !!peer.actionOutcome?.cleanupConfirmed;
       actionStatusBytes.fill(0);
@@ -173,4 +190,28 @@ function spawnActionInWindowsJob(launch, helper = helperPath()) {
   return spawnProtected(launch, helper, 'action');
 }
 
-module.exports = { helperPath, spawnInWindowsJob, spawnActionInWindowsJob };
+/** Start an action in a zero-capability AppContainer and a Windows Job.
+ * @param {object} launch Exact authorized launch with a never-created cwd.
+ * @param {string} [helper] Explicit native test helper.
+ * @returns {object} Child-like control and verified isolation receipt. @since v0.16.0 */
+function spawnActionInAppContainer(launch, helper = helperPath()) {
+  return spawnProtected(launch, helper, 'appcontainer-action');
+}
+
+/** @param {object} deps Trusted native transport seam. @returns {void} @since v0.16.0 */
+function _setDepsForTest(deps) {
+  testDeps = deps;
+}
+/** @returns {void} @since v0.16.0 */
+function _resetForTest() {
+  testDeps = null;
+}
+
+module.exports = {
+  helperPath,
+  spawnInWindowsJob,
+  spawnActionInWindowsJob,
+  spawnActionInAppContainer,
+  _setDepsForTest,
+  _resetForTest,
+};

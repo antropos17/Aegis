@@ -77,7 +77,7 @@ function monitorTerminalInput(abort) {
  * Display an exact private launch only on a terminal, then require a fresh literal
  * challenge response. A terminal is not proof of human identity. Never log preview.
  * @param {object} launch Private effective executable/cwd/args/env descriptor.
- * @param {{signal?: AbortSignal, kind?: 'launch'|'delete-file'}} [options] Owning cancellation and operation kind.
+ * @param {{signal?: AbortSignal, kind?: 'launch'|'delete-file'|'appcontainer-launch'}} [options] Owning cancellation and operation kind.
  * @returns {Promise<boolean>} True only for the exact response before expiry.
  * @since v0.15.1
  */
@@ -98,7 +98,7 @@ async function confirmInTerminal(launch, { signal, kind = 'launch' } = {}) {
       /[\u007f-\uffff]/g,
       (char) => '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0'),
     );
-    if (!deletion && kind !== 'launch') return false;
+    if (!deletion && kind !== 'launch' && kind !== 'appcontainer-launch') return false;
     preview = deletion
       ? 'AEGIS terminal confirmation - ONE file deletion\n' +
         'The exact file path is displayed below. Terminal history may retain it.\n' +
@@ -109,7 +109,11 @@ async function confirmInTerminal(launch, { signal, kind = 'launch' } = {}) {
         ' to remove this file once within 60 seconds. Any other answer denies.\n> '
       : 'AEGIS terminal confirmation - ONE launch\n' +
         'Private arguments and environment are displayed below. Terminal history may retain them.\n' +
-        'The program keeps your account privileges; descendants are not isolated.\n' +
+        (kind === 'appcontainer-launch'
+          ? 'Windows AppContainer: no capabilities, network restricted, descendants in a Job.\n' +
+            'The cwd must be NEW: AEGIS creates it and retains its contents after exit.\n' +
+            'Existing projects are refused. Public Windows resources may remain readable.\n'
+          : 'The program keeps your account privileges; descendants are not isolated.\n') +
         'Exact effective action (JSON escapes are literal; no shell reconstruction):\n' +
         rendered +
         '\nType RUN ' +

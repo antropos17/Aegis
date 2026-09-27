@@ -52,16 +52,20 @@ function setup(confirm, available = () => true) {
     monitorInput: () => () => {},
   });
 }
-function protectedRunner() {
+function protectedRunner(isolated = false) {
   const ordinarySpawn = vi.fn();
   const spawnProtected = vi.fn(() => {
     const child = new EventEmitter();
     child.stop = vi.fn();
     queueMicrotask(() => {
       child.cleanupConfirmed = true;
+      child.isolationVerified = isolated;
       child.actionOutcome = {
         exited: true,
         exitCode: 0,
+        isolationVerified: isolated,
+        workspaceRetained: isolated,
+        profileCleanup: isolated,
         stdoutBytes: 0,
         stderrBytes: 0,
         outputComplete: true,
@@ -73,6 +77,7 @@ function protectedRunner() {
   require('../../src/main/action-execution')._setDepsForTest({
     spawn: ordinarySpawn,
     spawnProtected,
+    ...(isolated ? { spawnIsolated: spawnProtected } : {}),
   });
   return { ordinarySpawn, spawnProtected };
 }
@@ -94,6 +99,50 @@ afterEach(() => {
 });
 
 describe('terminal confirmation owner', () => {
+  it.skipIf(process.platform !== 'win32')(
+    'snapshots isolation through exact review and never chooses the ordinary runner',
+    async () => {
+      const f = fixture('ask');
+      const options = { appContainer: true };
+      const t = protectedRunner(true);
+      const confirm = vi.fn(async (_launch, review) => {
+        expect(review.kind).toBe('appcontainer-launch');
+        options.appContainer = false;
+        return true;
+      });
+      setup(confirm);
+      const result = await api.confirmSelectedAction(f.policy, f.request, options);
+      expect(result).toMatchObject({
+        decision: 'allow',
+        control: 'windows-appcontainer-job',
+        authorization: 'operator-confirmed',
+        isolation: { state: 'verified', workspace: 'retained', profileCleanup: 'confirmed' },
+      });
+      expect(t.ordinarySpawn).not.toHaveBeenCalled();
+      expect(t.spawnProtected).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.skipIf(process.platform !== 'win32').each(['deny', 'ask'])(
+    'refusal prevents isolated setup for policy %s',
+    async (decision) => {
+      const f = fixture(decision);
+      const t = protectedRunner(true);
+      const confirm = vi.fn(async () => false);
+      setup(confirm);
+      const result = await api.confirmSelectedAction(f.policy, f.request, { appContainer: true });
+      notStarted(result, f);
+      expect(result.isolation).toEqual({
+        state: 'not-started',
+        workspace: 'not-created',
+        profileCleanup: 'not-required',
+      });
+      expect(t.spawnProtected).not.toHaveBeenCalled();
+      expect(t.ordinarySpawn).not.toHaveBeenCalled();
+      expect(confirm).toHaveBeenCalledTimes(decision === 'deny' ? 0 : 1);
+    },
+  );
+
   it('aborts a pending terminal review through the reusable MCP transport and waits for cleanup', async () => {
     const f = fixture();
     const transport = require('../../src/main/action-mcp-stdio');

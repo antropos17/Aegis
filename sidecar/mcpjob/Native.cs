@@ -18,6 +18,7 @@ internal static class Native
     private const int JobObjectBasicAccountingInformation = 1;
     private static readonly IntPtr PROC_THREAD_ATTRIBUTE_HANDLE_LIST = new IntPtr(0x00020002);
     private static readonly IntPtr PROC_THREAD_ATTRIBUTE_JOB_LIST = new IntPtr(0x0002000D);
+    private static readonly IntPtr PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES = new IntPtr(0x00020009);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct SECURITY_ATTRIBUTES { public int nLength; public IntPtr lpSecurityDescriptor; public int bInheritHandle; }
@@ -32,6 +33,12 @@ internal static class Native
     }
     [StructLayout(LayoutKind.Sequential)]
     private struct STARTUPINFOEX { public STARTUPINFO StartupInfo; public IntPtr lpAttributeList; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SECURITY_CAPABILITIES
+    {
+        public IntPtr AppContainerSid, Capabilities;
+        public int CapabilityCount, Reserved;
+    }
     [StructLayout(LayoutKind.Sequential)]
     private struct PROCESS_INFORMATION { public IntPtr hProcess, hThread; public uint dwProcessId, dwThreadId; }
     [StructLayout(LayoutKind.Sequential)]
@@ -68,11 +75,15 @@ internal static class Native
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref JOBOBJECT_EXTENDED_LIMIT_INFORMATION info, int length);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool QueryInformationJobObject(IntPtr job, int infoClass, out JOBOBJECT_BASIC_ACCOUNTING_INFORMATION info, int length, IntPtr returned);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool TerminateJobObject(IntPtr job, uint exitCode);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool IsProcessInJob(IntPtr process, IntPtr job, out bool result);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool TerminateProcess(IntPtr process, uint exitCode);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetExitCodeProcess(IntPtr process, out uint exitCode);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern uint ResumeThread(IntPtr thread);
     [DllImport("kernel32.dll", SetLastError = true)] internal static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool CloseHandle(IntPtr handle);
+    [DllImport("advapi32.dll", SetLastError = true)] private static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+    [DllImport("advapi32.dll", SetLastError = true)] private static extern bool GetTokenInformation(IntPtr token, int kind, IntPtr buffer, int length, out int returned);
+    [DllImport("advapi32.dll", SetLastError = true)] private static extern bool EqualSid(IntPtr left, IntPtr right);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool CreatePipe(out IntPtr read, out IntPtr write, ref SECURITY_ATTRIBUTES attributes, uint size);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool SetHandleInformation(IntPtr handle, uint mask, uint flags);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool PeekNamedPipe(IntPtr pipe, IntPtr buffer, uint bufferSize, IntPtr read, out uint available, IntPtr left);
@@ -95,6 +106,45 @@ internal static class Native
         catch { safe.Dispose(); throw; }
     }
 
+    private static IntPtr TokenInformation(IntPtr token, int kind)
+    {
+        int length;
+        GetTokenInformation(token, kind, IntPtr.Zero, 0, out length);
+        if (length < 4 || length > 65536) throw new InvalidOperationException("token-information-invalid");
+        IntPtr buffer = Marshal.AllocHGlobal(length);
+        try
+        {
+            Check(GetTokenInformation(token, kind, buffer, length, out length));
+            return buffer;
+        }
+        catch { Marshal.FreeHGlobal(buffer); throw; }
+    }
+
+    private static void VerifyIsolatedProcess(IntPtr process, IntPtr job, IntPtr expectedSid)
+    {
+        bool assigned;
+        Check(IsProcessInJob(process, job, out assigned) && assigned);
+        IntPtr token = IntPtr.Zero;
+        Check(OpenProcessToken(process, 0x0008, out token));
+        try
+        {
+            IntPtr isApp = TokenInformation(token, 29);
+            try { Check(Marshal.ReadInt32(isApp) != 0); }
+            finally { Marshal.FreeHGlobal(isApp); }
+            IntPtr package = TokenInformation(token, 31);
+            try
+            {
+                IntPtr actualSid = Marshal.ReadIntPtr(package);
+                Check(actualSid != IntPtr.Zero && EqualSid(actualSid, expectedSid));
+            }
+            finally { Marshal.FreeHGlobal(package); }
+            IntPtr capabilities = TokenInformation(token, 30);
+            try { Check(Marshal.ReadInt32(capabilities) == 0); }
+            finally { Marshal.FreeHGlobal(capabilities); }
+        }
+        finally { Close(ref token); }
+    }
+
     internal static IntPtr StandardInput() { return GetStdHandle(-10); }
 
     // FileStream.CopyTo can wait for a full buffer on anonymous Windows pipes.
@@ -111,6 +161,7 @@ internal static class Native
     {
         internal IntPtr Job, Process;
         internal FileStream Input, Output, Error;
+        internal bool IsolationVerified;
 
         internal int ExitCode()
         {
@@ -143,12 +194,14 @@ internal static class Native
         }
     }
 
-    internal static Session Start(string executable, string cwd, string[] args, string environment)
+    internal static Session Start(string executable, string cwd, string[] args,
+        string environment, AppContainerProfile isolated = null)
     {
         IntPtr inputRead = IntPtr.Zero, inputWrite = IntPtr.Zero;
         IntPtr outputRead = IntPtr.Zero, outputWrite = IntPtr.Zero;
         IntPtr errorRead = IntPtr.Zero, errorWrite = IntPtr.Zero;
-        IntPtr list = IntPtr.Zero, handles = IntPtr.Zero, jobList = IntPtr.Zero, env = IntPtr.Zero;
+        IntPtr list = IntPtr.Zero, handles = IntPtr.Zero, jobList = IntPtr.Zero;
+        IntPtr securityCaps = IntPtr.Zero, env = IntPtr.Zero;
         IntPtr job = IntPtr.Zero;
         PROCESS_INFORMATION process = new PROCESS_INFORMATION();
         bool listReady = false, resumed = false;
@@ -172,10 +225,11 @@ internal static class Native
                 Marshal.SizeOf(typeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))));
 
             IntPtr size = IntPtr.Zero;
-            InitializeProcThreadAttributeList(IntPtr.Zero, 2, 0, ref size);
+            int attributeCount = isolated == null ? 2 : 3;
+            InitializeProcThreadAttributeList(IntPtr.Zero, attributeCount, 0, ref size);
             Check(size != IntPtr.Zero);
             list = Marshal.AllocHGlobal(size);
-            Check(InitializeProcThreadAttributeList(list, 2, 0, ref size));
+            Check(InitializeProcThreadAttributeList(list, attributeCount, 0, ref size));
             listReady = true;
             handles = Marshal.AllocHGlobal(IntPtr.Size * 3);
             Marshal.WriteIntPtr(handles, 0, inputRead);
@@ -189,6 +243,17 @@ internal static class Native
             Marshal.WriteIntPtr(jobList, job);
             Check(UpdateProcThreadAttribute(list, 0, PROC_THREAD_ATTRIBUTE_JOB_LIST, jobList,
                 new IntPtr(IntPtr.Size), IntPtr.Zero, IntPtr.Zero));
+            if (isolated != null)
+            {
+                SECURITY_CAPABILITIES caps = new SECURITY_CAPABILITIES();
+                caps.AppContainerSid = isolated.Sid;
+                securityCaps = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(SECURITY_CAPABILITIES)));
+                Marshal.StructureToPtr(caps, securityCaps, false);
+                Check(UpdateProcThreadAttribute(list, 0,
+                    PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, securityCaps,
+                    new IntPtr(Marshal.SizeOf(typeof(SECURITY_CAPABILITIES))),
+                    IntPtr.Zero, IntPtr.Zero));
+            }
             STARTUPINFOEX startup = new STARTUPINFOEX();
             startup.StartupInfo.cb = Marshal.SizeOf(typeof(STARTUPINFOEX));
             startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
@@ -197,10 +262,12 @@ internal static class Native
             startup.StartupInfo.hStdError = errorWrite;
             startup.lpAttributeList = list;
             env = Marshal.StringToHGlobalUni(environment);
-            Check(CreateProcess(executable, new StringBuilder(CommandLine(executable, args)),
+            bool created = CreateProcess(executable, new StringBuilder(CommandLine(executable, args)),
                 IntPtr.Zero, IntPtr.Zero, true,
                 CREATE_SUSPENDED | CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT,
-                env, cwd, ref startup, out process));
+                env, cwd, ref startup, out process);
+            Check(created);
+            if (isolated != null) VerifyIsolatedProcess(process.hProcess, job, isolated.Sid);
 #if MCP_JOB_CRASH_TEST
             // Test-only stop at the former orphan window, before ResumeThread.
             string marker = Environment.GetEnvironmentVariable("AEGIS_MCPJOB_CRASH_MARKER");
@@ -213,6 +280,7 @@ internal static class Native
             Close(ref process.hThread);
             Close(ref inputRead); Close(ref outputWrite); Close(ref errorWrite);
             Session session = new Session();
+            session.IsolationVerified = isolated != null;
             session.Job = job; job = IntPtr.Zero;
             session.Process = process.hProcess; process.hProcess = IntPtr.Zero;
             try
@@ -243,6 +311,7 @@ internal static class Native
             if (list != IntPtr.Zero) Marshal.FreeHGlobal(list);
             if (handles != IntPtr.Zero) Marshal.FreeHGlobal(handles);
             if (jobList != IntPtr.Zero) Marshal.FreeHGlobal(jobList);
+            if (securityCaps != IntPtr.Zero) Marshal.FreeHGlobal(securityCaps);
             if (env != IntPtr.Zero) Marshal.FreeHGlobal(env);
         }
     }

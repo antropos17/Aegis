@@ -24,12 +24,16 @@ internal static class Program
             Stream controlIn = Console.OpenStandardInput();
             string executable, cwd, environment;
             string[] args;
-            bool action;
-            ReadLaunch(controlIn, out executable, out cwd, out args, out environment, out action);
-            using (Native.Session session = Native.Start(executable, cwd, args, environment))
+            bool action, isolated;
+            ReadLaunch(controlIn, out executable, out cwd, out args, out environment,
+                out action, out isolated);
+            using (AppContainerProfile profile = isolated ? AppContainerProfile.Create() : null)
+            using (AppContainerWorkspace workspace = isolated
+                ? AppContainerWorkspace.Create(cwd, profile.Sid) : null)
+            using (Native.Session session = Native.Start(executable, cwd, args, environment, profile))
             {
                 Stream controlOut = Console.OpenStandardOutput();
-                controlOut.WriteByte((byte)'R');
+                controlOut.WriteByte((byte)(isolated ? 'S' : 'R'));
                 controlOut.Flush();
                 ready = true;
                 int stderrOverflow = 0;
@@ -122,22 +126,29 @@ internal static class Program
                 bool confirmed = session.TerminateAndVerify();
                 bool drained = false;
                 try { drained = Task.WaitAll(new Task[] { output, error }, 200); } catch { }
+                bool workspaceRetained = isolated && workspace.IsRetained();
+                bool profileCleanup = isolated && profile.Cleanup();
                 Stream status = Console.OpenStandardError();
                 if (action)
                 {
                     string frame = string.Format(System.Globalization.CultureInfo.InvariantCulture,
-                        "A,{0},{1},{2},{3},{4},{5},{6}\n", confirmed ? "C" : "U",
+                        isolated
+                            ? "S,{0},{1},{2},{3},{4},{5},{6},{7},{8},{9}\n"
+                            : "A,{0},{1},{2},{3},{4},{5},{6}\n", confirmed ? "C" : "U",
                         exitCode.HasValue ? "1" : "0",
                         exitCode.HasValue ? exitCode.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "-",
                         stdoutBytes, stderrBytes,
                         drained && Interlocked.CompareExchange(ref actionOutputOverflow, 0, 0) == 0 ? "1" : "0",
-                        Interlocked.CompareExchange(ref actionOutputOverflow, 0, 0) != 0 ? "1" : "0");
+                        Interlocked.CompareExchange(ref actionOutputOverflow, 0, 0) != 0 ? "1" : "0",
+                        session.IsolationVerified ? "1" : "0",
+                        workspaceRetained ? "1" : "0", profileCleanup ? "1" : "0");
                     byte[] bytes = Encoding.ASCII.GetBytes(frame);
                     status.Write(bytes, 0, bytes.Length);
                 }
                 else status.WriteByte((byte)(confirmed ? 'C' : 'U'));
                 status.Flush();
-                return confirmed ? 0 : 2;
+                return confirmed && (!isolated ||
+                    (session.IsolationVerified && workspaceRetained && profileCleanup)) ? 0 : 2;
             }
         }
         catch
@@ -155,7 +166,7 @@ internal static class Program
     }
 
     private static void ReadLaunch(Stream input, out string executable, out string cwd,
-        out string[] args, out string environment, out bool action)
+        out string[] args, out string environment, out bool action, out bool isolated)
     {
         using (MemoryStream bytes = new MemoryStream())
         {
@@ -172,12 +183,16 @@ internal static class Program
             Dictionary<string, object> launch = serializer.DeserializeObject(json) as Dictionary<string, object>;
             if (launch == null || (launch.Count != 4 && launch.Count != 5)) throw new InvalidDataException();
             action = false;
+            isolated = false;
             if (launch.Count == 5)
             {
                 object purpose;
-                if (!launch.TryGetValue("purpose", out purpose) || (purpose as string) != "action")
+                if (!launch.TryGetValue("purpose", out purpose) ||
+                    ((purpose as string) != "action" &&
+                     (purpose as string) != "appcontainer-action"))
                     throw new InvalidDataException();
                 action = true;
+                isolated = (purpose as string) == "appcontainer-action";
             }
             executable = StringField(launch, "executable");
             cwd = StringField(launch, "cwd");
@@ -188,12 +203,27 @@ internal static class Program
             Dictionary<string, object> rawEnv = launch["env"] as Dictionary<string, object>;
             if (rawEnv == null) throw new InvalidDataException();
             HashSet<string> names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, string> selectedEnv = new Dictionary<string, string>(
+                StringComparer.OrdinalIgnoreCase);
             StringBuilder block = new StringBuilder();
             foreach (string key in rawEnv.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
             {
                 if (key.Length == 0 || key.Contains("=") || key.IndexOf('\0') >= 0 || !names.Add(key))
                     throw new InvalidDataException();
-                block.Append(key).Append('=').Append(CheckedString(rawEnv[key])).Append('\0');
+                string value = CheckedString(rawEnv[key]);
+                selectedEnv.Add(key, value);
+                block.Append(key).Append('=').Append(value).Append('\0');
+            }
+            if (isolated)
+            {
+                string systemRoot = Environment.GetEnvironmentVariable("SystemRoot");
+                if (string.IsNullOrEmpty(systemRoot) || !Path.IsPathRooted(systemRoot) ||
+                    !Matches(selectedEnv, "SystemRoot", systemRoot) ||
+                    !Matches(selectedEnv, "WINDIR", systemRoot) ||
+                    !Matches(selectedEnv, "TEMP", cwd) || !Matches(selectedEnv, "TMP", cwd) ||
+                    !Matches(selectedEnv, "LOCALAPPDATA", cwd) ||
+                    !Matches(selectedEnv, "USERPROFILE", cwd))
+                    throw new InvalidDataException();
             }
             block.Append('\0');
             if (rawEnv.Count == 0) block.Append('\0');
@@ -206,6 +236,13 @@ internal static class Program
         object raw;
         if (!value.TryGetValue(name, out raw)) throw new InvalidDataException();
         return CheckedString(raw);
+    }
+
+    private static bool Matches(Dictionary<string, string> values, string name, string expected)
+    {
+        string actual;
+        return values.TryGetValue(name, out actual) &&
+            string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string CheckedString(object value)

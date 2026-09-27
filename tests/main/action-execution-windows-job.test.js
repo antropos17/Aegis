@@ -89,8 +89,10 @@ describe.skipIf(process.platform !== 'win32')('Windows selected-action Job lifet
         '/warnaserror+',
         '/reference:System.Web.Extensions.dll',
         `/out:${helperPath}`,
-        path.join(project, 'sidecar', 'mcpjob', 'Program.cs'),
-        path.join(project, 'sidecar', 'mcpjob', 'Native.cs'),
+        ...fs
+          .readdirSync(path.join(project, 'sidecar', 'mcpjob'))
+          .filter((name) => name.endsWith('.cs'))
+          .map((name) => path.join(project, 'sidecar', 'mcpjob', name)),
       ],
       {
         cwd: project,

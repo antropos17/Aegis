@@ -1,4 +1,5 @@
 'use strict';
+const { actionReport } = require('./action-protected-execution');
 
 /**
  * Execute only the explicitly selected request under its selected local policy.
@@ -15,16 +16,22 @@ async function handleActionExecutionCLI(args, write) {
       '--action-exec-confirm',
       '--action-exec-windows-job-json',
       '--action-exec-windows-job-confirm',
+      '--action-exec-appcontainer-confirm',
     ].includes(args[0]) ||
     args.slice(1).some((arg) => typeof arg !== 'string' || !arg || arg.startsWith('--'))
   ) {
     write(JSON.stringify({ error: 'expected-action-exec-arguments' }));
     return 1;
   }
+  const appContainer = args[0] === '--action-exec-appcontainer-confirm';
   const interactive =
-    args[0] === '--action-exec-confirm' || args[0] === '--action-exec-windows-job-confirm';
+    appContainer ||
+    args[0] === '--action-exec-confirm' ||
+    args[0] === '--action-exec-windows-job-confirm';
   const protectedJob =
-    args[0] === '--action-exec-windows-job-json' || args[0] === '--action-exec-windows-job-confirm';
+    appContainer ||
+    args[0] === '--action-exec-windows-job-json' ||
+    args[0] === '--action-exec-windows-job-confirm';
   const controller = new AbortController();
   const abort = () => controller.abort();
   if (interactive) {
@@ -36,7 +43,11 @@ async function handleActionExecutionCLI(args, write) {
     report = interactive
       ? await require('./action-confirmation').confirmSelectedAction(args[1], args[2], {
           signal: controller.signal,
-          ...(protectedJob ? { protectedDescendants: true } : {}),
+          ...(appContainer
+            ? { appContainer: true }
+            : protectedJob
+              ? { protectedDescendants: true }
+              : {}),
         })
       : protectedJob
         ? await require('./action-execution').executeAction(args[1], args[2], {
@@ -44,15 +55,15 @@ async function handleActionExecutionCLI(args, write) {
           })
         : await require('./action-execution').executeAction(args[1], args[2]);
   } catch {
-    report = {
-      schemaVersion: 1,
-      mode: 'action-exec',
-      decision: 'unknown',
-      reason: 'execution-unavailable',
-      execution: { state: 'unknown', exitCode: null, termination: 'unconfirmed' },
-      control: protectedJob ? 'windows-job' : 'direct-child-only',
-      descendantControl: protectedJob ? 'unconfirmed' : 'unsupported',
-    };
+    report = actionReport(
+      'unknown',
+      'execution-unavailable',
+      {
+        state: 'unknown',
+        termination: 'unconfirmed',
+      },
+      { appContainer, protectedDescendants: protectedJob },
+    );
   }
   if (interactive) {
     process.removeListener('SIGINT', abort);
@@ -64,7 +75,12 @@ async function handleActionExecutionCLI(args, write) {
     report.execution.exitCode === 0 &&
     report.execution.outputComplete === true &&
     (!protectedJob ||
-      (report.control === 'windows-job' && report.descendantControl === 'confirmed'))
+      (report.control === (appContainer ? 'windows-appcontainer-job' : 'windows-job') &&
+        report.descendantControl === 'confirmed')) &&
+    (!appContainer ||
+      (report.isolation?.state === 'verified' &&
+        report.isolation?.workspace === 'retained' &&
+        report.isolation?.profileCleanup === 'confirmed'))
     ? 0
     : 2;
 }
