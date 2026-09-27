@@ -108,6 +108,8 @@ async function handleCLI(argv) {
   if (args.length === 0) return null;
   const flag = args[0];
   // A misplaced hook flag is still a hook invocation: emit only its fixed JSON deny.
+  if (args.includes('--action-policy-hook'))
+    return require('./action-policy-hook').handleActionPolicyHook(args, write);
   if (args.includes('--gemini-beforetool-hook'))
     return require('./gemini-beforetool-hook').handleGeminiBeforeToolHook(args, write);
   if (['--mcp-gateway-stdio', '--mcp-gateway-http'].includes(flag))
@@ -160,8 +162,6 @@ async function handleCLI(argv) {
     return require('./action-execution-cli').handleActionExecutionCLI(args, write);
   if (flag === '--action-delete-file-confirm')
     return require('./action-delete-file').handleDeleteFileCLI(args, write);
-  if (flag === '--action-policy-hook')
-    return require('./action-policy-hook').handleActionPolicyHook(args, write);
   if (flag === '--handoff-listen-json' || flag === '--handoff-send')
     return require('./handoff-live-cli').handleHandoffLiveCLI(args, write);
   if (flag === '--handoff-import-json') {

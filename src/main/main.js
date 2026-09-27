@@ -47,6 +47,7 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
     .then(async (code) => {
       if (
         !process.argv.slice(2).includes('--gemini-beforetool-hook') &&
+        !process.argv.slice(2).includes('--action-policy-hook') &&
         [
           '--mcp-gateway-http',
           '--mcp-gateway-stdio',
@@ -63,8 +64,8 @@ if (process.argv.slice(2).some((a) => _cliFlags.has(a))) {
       }
       if (
         process.argv.slice(2).includes('--gemini-beforetool-hook') ||
+        process.argv.slice(2).includes('--action-policy-hook') ||
         [
-          '--action-policy-hook',
           '--action-exec-json',
           '--action-exec-confirm',
           '--action-exec-windows-job-json',
