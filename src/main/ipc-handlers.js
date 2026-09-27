@@ -19,7 +19,11 @@ const { writeAuditExport } = require('./audit-export-stream');
 const { getAllRules, reloadRules } = require('./rule-loader');
 const blocklist = require('./blocklist');
 const logger = require('./logger');
-const { validateSettings, validateFalsePositive } = require('./settings-validation');
+const {
+  isReservedPermissionKey,
+  validateSettings,
+  validateFalsePositive,
+} = require('./settings-validation');
 const { resolveProcessRequest } = require('../shared/process-request');
 const localSecurity = require('./local-security-ipc');
 const {
@@ -378,7 +382,9 @@ ${findingsHtml}${recsHtml}
       return { success: false, error: 'Renderer request denied' };
     const settings = config.getSettings();
     const newPerms = {};
-    for (const agent of settings.seenAgents) newPerms[agent] = config.getDefaultPermissions(agent);
+    for (const agent of settings.seenAgents) {
+      if (!isReservedPermissionKey(agent)) newPerms[agent] = config.getDefaultPermissions(agent);
+    }
     config.saveSettings({ ...settings, agentPermissions: newPerms });
     return { permissions: newPerms, seenAgents: settings.seenAgents };
   });

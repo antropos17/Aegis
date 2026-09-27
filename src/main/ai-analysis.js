@@ -284,7 +284,7 @@ function analyzeSessionActivity() {
     const anomalyScores = _state.getAnomalyScores ? _state.getAnomalyScores() : {};
 
     // Per-agent summary
-    const agentSummaries = {};
+    const agentSummaries = Object.create(null);
     for (const ev of allEvents) {
       // An unattributed event has no owner (agent ''), and an empty-keyed bucket
       // would ship a nameless "agent" into the prompt sent to the model.
@@ -303,7 +303,7 @@ function analyzeSessionActivity() {
     for (const [name, stats] of Object.entries(agentSummaries)) {
       const safeName = sanitizeField(name, FIELD_LIMITS.agentName);
       const agent = agents.find((a) => a.agent === name);
-      const score = anomalyScores[name] || 0;
+      const score = Object.hasOwn(anomalyScores, name) ? anomalyScores[name] : 0;
       agentSection += `  ${safeName}: ${stats.files} files, ${stats.sensitive} sensitive, ${stats.configAccess} config accesses, anomaly score: ${score}`;
       if (agent) {
         const chain =

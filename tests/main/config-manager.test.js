@@ -98,9 +98,13 @@ describe('config-manager', () => {
 
     expect(unlink).toHaveBeenCalledTimes(1);
     expect(JSON.parse(fs.readFileSync(settingsPath, 'utf8')).scanIntervalSec).toBe(20);
-    expect(warn).toHaveBeenCalledWith('config-manager', 'Could not remove settings temporary file', {
-      code: 'settings-temp-cleanup-failed',
-    });
+    expect(warn).toHaveBeenCalledWith(
+      'config-manager',
+      'Could not remove settings temporary file',
+      {
+        code: 'settings-temp-cleanup-failed',
+      },
+    );
     expect(JSON.stringify(warn.mock.calls)).not.toContain('PRIVATE_TEMP_PATH_CANARY');
   });
 
@@ -195,6 +199,18 @@ describe('config-manager', () => {
     configManager.trackSeenAgent('Claude');
     settings = configManager.getSettings();
     expect(settings.seenAgents.filter((a) => a === 'Claude')).toHaveLength(1);
+  });
+
+  it('tracks a reserved display name with implicit blocked permissions', () => {
+    configManager.init({ knownAgentNames: [] });
+    configManager.loadSettings();
+    configManager.trackSeenAgent('__proto__');
+
+    const settings = configManager.getSettings();
+    expect(settings.seenAgents).toContain('__proto__');
+    expect(Object.hasOwn(settings.agentPermissions, '__proto__')).toBe(false);
+    expect(configManager.getAgentPermissions('__proto__').filesystem).toBe('block');
+    expect(JSON.parse(fs.readFileSync(settingsPath, 'utf8')).seenAgents).toContain('__proto__');
   });
 
   it('retries a seen agent after a failed write without retaining it in memory or logging private data', () => {
