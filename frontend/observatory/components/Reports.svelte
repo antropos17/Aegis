@@ -142,7 +142,7 @@
     ['exportCsv', 'CSV activity log'],
     ['generateReport', 'HTML session report'],
     ['exportZip', 'Diagnostic ZIP'],
-    ['exportFullAudit', 'Complete audit export'],
+    ['exportFullAudit', 'Retained audit records'],
   ] as const;
 </script>
 
@@ -203,7 +203,7 @@
         action={async () => confirmed(await invoke(host, 'openAuditLogDir'))}
         ><Icon name="folder" />{$t('Audit folder')}</Action
       ><Action action={async () => confirmed(await invoke(host, 'exportFullAudit'))}
-        ><Icon name="download" />{$t('Export full audit')}</Action
+        ><Icon name="download" />{$t('Export retained audit records')}</Action
       >
     </div>
     {#if error}<p role="alert" class="notice">{error}</p>{/if}
@@ -351,7 +351,9 @@
           >{/each}
       </div>
       <div class="notice" style="margin:0 20px 20px">
-        <Icon name="file" />{$t('Exports exclude watched file contents and API keys.')}
+        <Icon name="file" />{$t(
+          'Exports omit watched file contents and the configured Anthropic API key. Paths, agent names and endpoints remain.',
+        )}
       </div>
     </div>
   </div>
