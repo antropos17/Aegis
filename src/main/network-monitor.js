@@ -36,6 +36,7 @@ const NETWORK_SENSOR_ID = 'network';
 let _networkHealth = sensorHealth.createSensorHealth(NETWORK_SENSOR_ID);
 
 const NETWORK_PROVIDER_ERROR = 'network-provider-failed';
+const NETWORK_SCOPE_CHANGED = 'population-changed-during-scan';
 
 /**
  * Plain serializable snapshot for future B6 — callers must not mutate.
@@ -47,16 +48,17 @@ function getNetworkSensorHealth() {
 }
 
 /**
- * Orchestration-only skip (TCP provider not invoked).
+ * Orchestration skip or late rejection of an in-flight scan's population scope.
  *
  * Sensor definition: agent-scoped network observation.
  * - `confirmed-zero-agents`: process HEALTHY + empty fleet → vacuous scope complete → HEALTHY
  * - `process-observation-unavailable`: cannot trust agent list → DEGRADED (not provider FAILED)
+ * - `population-changed-during-scan`: TCP completed, but its agent scope is stale → DEGRADED
  *
  * lastSuccessAt advances only on confirmed-zero (scoped semantic success), not on
  * process-unavailable skip.
  *
- * @param {'confirmed-zero-agents'|'process-observation-unavailable'|string} reason
+ * @param {'confirmed-zero-agents'|'process-observation-unavailable'|'population-changed-during-scan'|string} reason
  * @returns {void}
  * @since 0.11.0
  */
@@ -68,16 +70,12 @@ function noteNetworkSkip(reason) {
     });
     return;
   }
-  // process-observation-unavailable (and any unknown skip): must leave HEALTHY
+  // An unavailable scope must not turn a prior network success into a fresh one.
+  const scopeUnavailable =
+    reason === 'process-observation-unavailable' || reason === NETWORK_SCOPE_CHANGED;
   _networkHealth = sensorHealth.markDegraded(_networkHealth, now, {
-    error:
-      reason === 'process-observation-unavailable'
-        ? 'process-observation-unavailable'
-        : 'network-skip-unavailable',
-    detail:
-      reason === 'process-observation-unavailable'
-        ? 'process-observation-unavailable'
-        : 'network-skip',
+    error: scopeUnavailable ? reason : 'network-skip-unavailable',
+    detail: scopeUnavailable ? reason : 'network-skip',
   });
 }
 
@@ -510,14 +508,31 @@ function classifyConnection(ip, evidence = freshDnsEntry(ip)) {
  *   {@link noteNetworkSkip} so empty fleet is not confused with provider success
  *
  * @param {Array} agents
- * @returns {Promise<Array>} Enriched connection objects
+ * @param {{isScopeCurrent?: () => boolean}} [options] - current population check from the scan loop
+ * @returns {Promise<Array|null>} Enriched connections, or null when the queried scope changed
  * @since v0.1.0
  */
-async function scanNetworkConnections(agents) {
+async function scanNetworkConnections(agents, options = {}) {
   // Defensive: real empty-agent scheduling is scan-loop noteNetworkSkip.
   // Do not mark HEALTHY — no TCP provider observation occurred.
   if (agents.length === 0) return [];
   const now = Date.now();
+  // A process refresh can replace the PID population while TCP or DNS awaits.
+  // The scan loop owns the scope comparison; a failed check is incomplete coverage,
+  // not a TCP provider failure. Keep it out of the provider-failure catch below.
+  const scopeChanged = () => {
+    if (typeof options?.isScopeCurrent !== 'function') return false;
+    try {
+      if (options.isScopeCurrent() === true) return false;
+    } catch {
+      // A failed scope read cannot prove that the captured owners are still current.
+    }
+    _networkHealth = sensorHealth.markDegraded(_networkHealth, Date.now(), {
+      error: NETWORK_SCOPE_CHANGED,
+      detail: NETWORK_SCOPE_CHANGED,
+    });
+    return true;
+  };
   try {
     const pidMap = new Map();
     for (const a of agents) pidMap.set(a.pid, a);
@@ -525,6 +540,7 @@ async function scanNetworkConnections(agents) {
     if (!Array.isArray(raw)) {
       throw new Error('tcp-provider-invalid-response');
     }
+    if (scopeChanged()) return null;
     const seen = new Set();
     const deduped = raw.filter((c) => {
       if (isPrivateIp(c.ip)) return false;
@@ -559,6 +575,7 @@ async function scanNetworkConnections(agents) {
     const remoteIps = [...new Set(deduped.map((c) => normalizeIp(c.ip)))];
     const uniqueIps = remoteIps.filter((ip) => !isAllowlistedIp(ip));
     const resolved = await resolveScanIpEvidence(uniqueIps);
+    if (scopeChanged()) return null;
     // A verdict depends on the remote address and this scan's DNS evidence, not
     // the socket or owner. Keep it only for this scan; all socket fields stay separate.
     const verdicts = remoteIps.length < deduped.length ? new Map() : null;

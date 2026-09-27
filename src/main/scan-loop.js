@@ -49,6 +49,15 @@ let _lastTriggeredNetScan = 0;
 // C-02: reentrancy guard — block overlapping doProcessScan runs so a slow scan
 // can't be clobbered by the next interval tick (last-writer-wins on the snapshot).
 let processScanRunning = false;
+// A network poll may overlap process enumeration or the asynchronous identity
+// stamp. The old published list is not a trustworthy scope during that interval.
+let networkScopePending = false;
+// Increment before every process observation, including one that republishes the
+// same array. Weak PID/millisecond identities cannot survive that boundary.
+let networkScopeRevision = 0;
+// Unlike the per-process-pass revision, this invalidates even strong witnesses
+// across stop/reinit; old promises must not deliver into a new monitoring run.
+let networkScopeLifetime = 0;
 // One audit pair per continuous loss of the process population. Reset by init(),
 // not by each scan or timer restart; a paused loop has not observed a recovery.
 let processPopulationUnavailable = false;
@@ -233,6 +242,9 @@ function sequenceScoreFor(instanceId) {
 }
 
 function stopScanIntervals() {
+  networkScopePending = true;
+  networkScopeRevision++;
+  networkScopeLifetime++;
   deps.sequenceEngine?.observePopulation?.([], false);
   resourceScanGeneration++;
   resourceSampler.invalidate();
@@ -268,6 +280,33 @@ const SCOPE_UNAVAILABLE = 'process-observation-unavailable';
  * success, the same string `doNetworkScan` hands the network leaf (§10 B4).
  */
 const CONFIRMED_ZERO = 'confirmed-zero-agents';
+
+/** The primitive fields used by the network owner stamp, captured before TCP awaits. */
+function networkOwnerScope(agents) {
+  return agents
+    .filter((a) => Number.isInteger(a.pid) && a.pid > 0)
+    .map((a) => [
+      a.pid,
+      a.instanceId ?? null,
+      a.instanceIdSource ?? null,
+      a.generationWitness ?? null,
+      a.generationWitnessSource ?? null,
+      a.agent ?? null,
+      a.parentEditor ?? null,
+      a.cwd ?? null,
+      a.category ?? null,
+      a.process ?? null,
+    ]);
+}
+
+/** A precise generation witness can survive a new publication of the same process. */
+function hasStrongNetworkWitness(row) {
+  return (
+    typeof row[3] === 'string' &&
+    row[3].length > 0 &&
+    (row[4] === 'sequence' || row[4] === 'createTime100ns')
+  );
+}
 
 /**
  * Whether the agent population may be used as an observation scope right now.
@@ -338,7 +377,7 @@ function doNetworkScan() {
   // dead/recycled pids and stamp OS_TCP_OWNER_PID (`confirmed`) off an agent record
   // the process sensor cannot vouch for. The list is NOT cleared (§2.3 — clearing
   // re-creates B-S01); the consumer is gated instead.
-  if (!isPopulationReliable(scanner)) {
+  if (networkScopePending || !isPopulationReliable(scanner)) {
     logger.debug('scan', 'network-skip', { reason: SCOPE_UNAVAILABLE, agents: agents.length });
     if (typeof network.noteNetworkSkip === 'function') {
       network.noteNetworkSkip(SCOPE_UNAVAILABLE);
@@ -354,15 +393,50 @@ function doNetworkScan() {
     }
     return;
   }
+  const capturedScope = networkOwnerScope(agents);
+  const capturedRevision = networkScopeRevision;
+  const capturedLifetime = networkScopeLifetime;
+  const hasWeakOwner = capturedScope.some((row) => !hasStrongNetworkWitness(row));
+  const isScopeCurrent = () => {
+    try {
+      if (
+        networkScopeLifetime !== capturedLifetime ||
+        networkScopePending ||
+        !isPopulationReliable(scanner)
+      )
+        return false;
+      const currentAgents = getLatestAgents();
+      if (hasWeakOwner && (currentAgents !== agents || networkScopeRevision !== capturedRevision))
+        return false;
+      const currentScope = networkOwnerScope(currentAgents);
+      return (
+        currentScope.length === capturedScope.length &&
+        currentScope.every((row, i) => row.every((value, j) => value === capturedScope[i][j]))
+      );
+    } catch {
+      // A failed health or population read cannot validate an owner claim.
+      return false;
+    }
+  };
   network.setNetworkScanRunning(true);
   const t0 = performance.now();
   network
-    .scanNetworkConnections(agents)
+    .scanNetworkConnections(agents, { isScopeCurrent })
     .then(
       (connections) => {
         // This fulfillment proves the provider recovered even if a later
         // baseline, audit write or renderer delivery fails.
         auditNetworkProviderTransition(false, audit);
+        // A process scan can publish or restamp after the monitor's final check
+        // but before this continuation. Never publish a partial/empty stale scope.
+        if (connections === null || !isScopeCurrent()) {
+          if (connections !== null) network.noteNetworkSkip?.('population-changed-during-scan');
+          logger.debug('scan', 'network-skip', {
+            reason: 'population-changed-during-scan',
+            agents: agents.length,
+          });
+          return;
+        }
         deps.setLatestNetConnections(connections);
         for (const conn of connections) {
           if (conn.httpUnencrypted) {
@@ -508,6 +582,8 @@ async function doProcessScan() {
   // bump activeScanCount, whose only decrement lives in the finally below.
   if (processScanRunning) return;
   processScanRunning = true;
+  networkScopePending = true;
+  networkScopeRevision++;
   const resourceGeneration = resourceScanGeneration;
   updateScanStatus(true);
   const t0 = performance.now();
@@ -565,6 +641,9 @@ async function doProcessScan() {
       forceRefresh: result.changed === true,
       ...(result.processMap instanceof Map ? { processMap: result.processMap } : {}),
     });
+    // stopScanIntervals invalidates the generation. A pre-stop scan finishing
+    // later must not reopen network attribution until a new process pass runs.
+    if (resourceGeneration === resourceScanGeneration) networkScopePending = false;
     // The second half of the straddle witness — after the identity stamp, so a sleep
     // inside `enrichWithParentChains` is caught as well as one inside the enumeration.
     const gapStraddled =
@@ -1063,6 +1142,9 @@ function init(injected) {
   deps = injected;
   processPopulationUnavailable = false;
   networkProviderUnavailable = false;
+  networkScopePending = false;
+  networkScopeRevision = 0;
+  networkScopeLifetime++;
   deps.baselines?.init?.({
     isInstanceActive: (instanceId) =>
       sessionTracker.hasInstance(instanceId) ||
