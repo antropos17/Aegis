@@ -289,7 +289,10 @@ describe('stale-population scope gate — orchestration (step G′)', () => {
       scanLoop.doNetworkScan();
       await vi.advanceTimersByTimeAsync(0);
 
-      expect(deps.network.scanNetworkConnections).toHaveBeenCalledWith(STALE_AGENTS);
+      expect(deps.network.scanNetworkConnections).toHaveBeenCalledWith(STALE_AGENTS, {
+        isScopeCurrent: expect.any(Function),
+      });
+      expect(deps.network.scanNetworkConnections.mock.calls[0][1].isScopeCurrent()).toBe(true);
       expect(deps.network.noteNetworkSkip).not.toHaveBeenCalled();
     });
 
