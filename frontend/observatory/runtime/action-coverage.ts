@@ -3,6 +3,7 @@ export const actionRoutes = [
   { id: 'terminal', label: 'Terminal confirmation' },
   { id: 'mcp-stdio', label: 'Selected-action MCP stdio' },
   { id: 'mcp-review', label: 'MCP terminal review' },
+  { id: 'appcontainer', label: 'Windows AppContainer CLI' },
 ] as const;
 export type ActionRoute = (typeof actionRoutes)[number]['id'];
 export type ActionKind = 'single' | 'catalog';
@@ -25,6 +26,7 @@ export type ActionCheck = {
     reason: string;
     runtime: 'supported' | 'unsupported' | 'not-checked';
     terminal: 'available' | 'unavailable' | 'not-required' | 'not-checked';
+    helper: 'present' | 'missing' | 'not-checked' | 'not-required';
     actions: ActionRow[];
   };
 };
@@ -35,12 +37,19 @@ export const routeHelp: Record<ActionRoute, string> = {
     'Checks configuration for the selected-action MCP stdio owner (--action-mcp-stdio). A separate gateway handles third-party MCP servers.',
   'mcp-review':
     'MCP terminal review connects an agent while you approve each action in an interactive terminal.',
+  appcontainer:
+    'Checks selected policy and current Windows, terminal and AppContainer helper prerequisites for the separate CLI route. No launch or provider compatibility is tested.',
 };
 
 /** Explain a validated observation without implying execution or protection.
  * @param check Captured check. @returns Fixed summary and next-step text. @since 0.15.1 */
 export function actionCheckGuidance(check: ActionCheck): { summary: string; next: string } {
   const { configuration, policyDecision, runtime, terminal } = check.report;
+  if (check.route === 'appcontainer' && runtime === 'unsupported')
+    return {
+      summary: 'This Windows AppContainer CLI route is unavailable in the current runtime.',
+      next: 'Check again from AEGIS on Windows before considering a protected launch.',
+    };
   if (configuration === 'invalid')
     return {
       summary: 'The selected files need attention.',
@@ -62,18 +71,30 @@ export function actionCheckGuidance(check: ActionCheck): { summary: string; next
         : policyDecision === 'ask'
           ? 'The policy requires your confirmation. Nothing was run.'
           : 'The policy denies this selected action. No blocking test was run.';
+  if (check.route === 'appcontainer' && policyDecision === 'deny')
+    return {
+      summary,
+      next: 'Keep this policy if the action should remain denied. No AppContainer launch was attempted.',
+    };
   const next =
     runtime !== 'supported'
       ? 'Check again with the AEGIS command-line checker in the runtime you intend to use.'
-      : terminal === 'unavailable' || terminal === 'not-checked'
-        ? 'Check this review route from an interactive terminal before using it.'
-        : check.kind === 'catalog'
-          ? 'Review each action below before connecting the catalog to your agent.'
-          : policyDecision === 'deny'
-            ? 'Keep this policy if the action should remain denied. Edit it only if you intend to change that decision.'
-            : policyDecision === 'ask'
-              ? 'Use a confirmation route when you are ready to review and approve the action.'
-              : 'Review the selected command and policy before using the route with your agent.';
+      : check.route === 'appcontainer' && check.report.helper !== 'present'
+        ? 'Build or install the AppContainer helper, then check again. Launch and provider compatibility remain untested.'
+        : check.route === 'appcontainer' &&
+            (terminal === 'unavailable' || terminal === 'not-checked')
+          ? 'Recheck from the interactive terminal intended for the separate AppContainer CLI launch. This desktop observation does not establish CLI readiness.'
+          : terminal === 'unavailable' || terminal === 'not-checked'
+            ? 'Check this review route from an interactive terminal before using it.'
+            : check.kind === 'catalog'
+              ? 'Review each action below before connecting the catalog to your agent.'
+              : check.route === 'appcontainer'
+                ? 'Review the selected action in the separate AppContainer CLI route. Launch and provider compatibility remain untested.'
+                : policyDecision === 'deny'
+                  ? 'Keep this policy if the action should remain denied. Edit it only if you intend to change that decision.'
+                  : policyDecision === 'ask'
+                    ? 'Use a confirmation route when you are ready to review and approve the action.'
+                    : 'Review the selected command and policy before using the route with your agent.';
   return { summary, next };
 }
 const reasons = [
@@ -156,7 +177,7 @@ export function parseActionCheck(value: unknown): ActionCheck | null {
     route = value.route as ActionRoute,
     report = value.report;
   const catalog = kind === 'catalog',
-    terminalRoute = route === 'terminal' || route === 'mcp-review';
+    terminalRoute = route === 'terminal' || route === 'mcp-review' || route === 'appcontainer';
   if (catalog && !['mcp-stdio', 'mcp-review'].includes(route)) return null;
   const fixed: Record<string, unknown> = {
     schemaVersion: 1,
@@ -164,8 +185,8 @@ export function parseActionCheck(value: unknown): ActionCheck | null {
     route,
     terminalScope: 'checking-process-only',
     askBehavior: terminalRoute ? 'terminal-confirmation' : 'not-started',
-    control: 'direct-child-only',
-    descendantControl: 'unsupported',
+    control: route === 'appcontainer' ? 'not-started' : 'direct-child-only',
+    descendantControl: route === 'appcontainer' ? 'not-started' : 'unsupported',
     outsideRouteCoverage: 'unknown',
     connection: 'not-checked',
     blockingVerification: 'not-performed',
@@ -183,6 +204,7 @@ export function parseActionCheck(value: unknown): ActionCheck | null {
       'reason',
       'runtime',
       'terminal',
+      ...(route === 'appcontainer' ? ['helper'] : []),
       'gaps',
       ...(catalog ? ['actions'] : []),
     ]) ||
@@ -197,6 +219,8 @@ export function parseActionCheck(value: unknown): ActionCheck | null {
     !(terminalRoute ? ['available', 'unavailable', 'not-checked'] : ['not-required']).includes(
       report.terminal,
     ) ||
+    (route === 'appcontainer' &&
+      !['present', 'missing', 'not-checked'].includes(String(report.helper))) ||
     !Array.isArray(report.gaps) ||
     report.gaps.length !== gaps.length
   )
@@ -258,6 +282,10 @@ export function parseActionCheck(value: unknown): ActionCheck | null {
       reason: report.reason,
       runtime: report.runtime as ActionCheck['report']['runtime'],
       terminal: report.terminal as ActionCheck['report']['terminal'],
+      helper:
+        route === 'appcontainer'
+          ? (report.helper as ActionCheck['report']['helper'])
+          : 'not-required',
       actions,
     },
   };
@@ -275,6 +303,8 @@ export const coverageLabels: Record<string, string> = {
   supported: 'Supported',
   unsupported: 'Unsupported',
   available: 'Available',
+  present: 'File present (not verified)',
+  missing: 'File missing',
   'not-required': 'Not required',
   'policy-allow': 'Policy allows this action',
   'policy-ask': 'Policy requires confirmation',

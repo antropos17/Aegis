@@ -34,7 +34,7 @@ function valid(request) {
       keys.every((key) => ['action', 'route'].includes(key)) &&
       (request.action === 'check-catalog'
         ? ['mcp-stdio', 'mcp-review']
-        : ['direct', 'terminal', 'mcp-stdio', 'mcp-review']
+        : ['direct', 'terminal', 'mcp-stdio', 'mcp-review', 'appcontainer']
       ).includes(request.route)
     );
   if (request.action === 'run') {

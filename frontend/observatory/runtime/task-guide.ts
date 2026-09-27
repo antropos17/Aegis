@@ -111,6 +111,12 @@ export const setupGuides = [
     file: 'ACTION-EXECUTION.md',
   },
   {
+    title: 'Check a selected Windows AppContainer launch',
+    description:
+      'Review the separate CLI route, its new-workspace requirement and its limits before a protected launch.',
+    file: 'ACTION-APPCONTAINER.md',
+  },
+  {
     title: 'Route a third-party MCP server',
     description:
       'Read the separate stdio gateway setup and limits. Action control does not check gateway setup or live coverage.',

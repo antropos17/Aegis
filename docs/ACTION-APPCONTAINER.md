@@ -6,6 +6,20 @@ and an atomic Windows Job assignment. It is an offline, bounded CLI route.
 Ordinary agents, desktop permission choices and watched processes do not enter
 this route automatically.
 
+Action control can run a preflight for this route: choose **Single action**, then
+**Windows AppContainer CLI**, and select the policy and request JSON files. The
+captured report checks the selected policy decision and current AEGIS process's
+Windows runtime, interactive terminal and presence of the native helper at the
+same path the CLI uses. A valid policy decision does not mean the route is ready:
+the desktop process normally has no interactive terminal, while the separate CLI
+may have one. An unavailable terminal or missing helper prevents a readiness
+result for the checking process. File presence
+does not verify the helper's protocol or integrity. The preflight does not launch
+the action, create its workspace, verify AppContainer isolation, test installed
+provider compatibility, or authorize later execution. It does not show private
+file paths or the effective launch command in the desktop renderer. Recheck in
+the intended terminal before using the separate CLI route.
+
 ## Select the action
 
 Use the exact [execution policy](ACTION-EXECUTION.md) schemas: a schema 1 request

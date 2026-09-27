@@ -63,6 +63,34 @@ it('opens the opt-in Windows Job guide without presenting it as a checked action
   expect(localSecurityReview).not.toHaveBeenCalled();
 });
 
+it('shows the AppContainer preflight without claiming launch or provider compatibility', async () => {
+  const call = vi
+    .fn()
+    .mockResolvedValue(
+      await previewActionCoverage({ action: 'check-route', route: 'appcontainer' }),
+    );
+  render(ActionCoverage, { host: bridge(call) });
+  await fireEvent.change(screen.getByRole('combobox', { name: 'Execution route' }), {
+    target: { value: 'appcontainer' },
+  });
+  await start();
+  expect(call).toHaveBeenCalledWith({ action: 'check-route', route: 'appcontainer' });
+  const result = await screen.findByRole('region', { name: 'Action check result' });
+  expect(
+    within(result).getByText(
+      /Recheck from the interactive terminal intended for the separate AppContainer CLI launch/,
+    ),
+  ).toBeVisible();
+  expect(
+    within(result).getByText(
+      /launch, isolation, descendant cleanup and installed provider compatibility have not been tested/,
+    ),
+  ).toBeVisible();
+  await fireEvent.click(within(result).getByText('Technical details'));
+  expect(within(result).getByText('AppContainer helper file')).toBeVisible();
+  expect(within(result).getByText('Not started')).toBeVisible();
+});
+
 it('distinguishes the selected-action owner from the third-party gateway and opens its fixed guide', async () => {
   const localSecurityReview = vi.fn();
   const openExternalUrl = vi.fn().mockResolvedValue({ success: true });

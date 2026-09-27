@@ -33,6 +33,7 @@ describe('cli', () => {
     expect(output[0]).toContain('--scan-json');
     expect(output[0]).toContain('--version');
     expect(output[0]).toContain('--help');
+    expect(output[0]).toContain('mcp-review, appcontainer (this check grants no permission)');
   });
 
   it('--scan-json calls scan and outputs JSON', async () => {
