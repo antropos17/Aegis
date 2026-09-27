@@ -230,8 +230,10 @@ describe.skipIf(process.platform !== 'win32')('Windows stdio gateway Job Object'
         '/define:MCP_JOB_CRASH_TEST',
         '/reference:System.Web.Extensions.dll',
         `/out:${helper}`,
-        path.join(project, 'sidecar', 'mcpjob', 'Program.cs'),
-        path.join(project, 'sidecar', 'mcpjob', 'Native.cs'),
+        ...fs
+          .readdirSync(path.join(project, 'sidecar', 'mcpjob'))
+          .filter((name) => name.endsWith('.cs'))
+          .map((name) => path.join(project, 'sidecar', 'mcpjob', name)),
       ],
       { cwd: project, stdio: 'pipe', timeout: 30000 },
     );

@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('node:path');
+const { actionReport, runProtectedAction } = require('./action-protected-execution');
 const { spawn } = require('node:child_process');
 const { isExecutionRuntimeSupported } = require('./execution-runtime');
 const { isExecutionApprovalActive, consumeExecutionApproval } = require('./execution-approval');
@@ -10,118 +11,9 @@ const LIMITS = Object.freeze({
   outputBytes: 65536,
   cleanupMs: 1000,
   protectedCleanupMs: 2000,
+  isolationStartupMs: 10000,
 });
 let testDeps = null;
-
-function report(decision, reason, execution = {}) {
-  return {
-    schemaVersion: 1,
-    mode: 'action-exec',
-    decision,
-    reason,
-    execution: {
-      state: 'not-started',
-      exitCode: null,
-      termination: 'not-requested',
-      stdoutBytes: 0,
-      stderrBytes: 0,
-      outputComplete: true,
-      ...execution,
-    },
-    control: 'direct-child-only',
-    descendantControl: 'unsupported',
-  };
-}
-
-function protectedReport(decision, reason, execution = {}, descendantControl = 'not-started') {
-  return {
-    ...report(decision, reason, execution),
-    control: 'windows-job',
-    descendantControl,
-  };
-}
-
-function runProtectedAction(launch, signal, authorization, spawnProtected) {
-  let child;
-  try {
-    child = spawnProtected(launch);
-  } catch {
-    return Promise.resolve({
-      ...protectedReport('deny', 'protected-launch-unavailable', { state: 'not-started' }),
-      ...(authorization || {}),
-    });
-  }
-  return new Promise((resolve) => {
-    let settled = false;
-    let interrupted = false;
-    let interruptionReason = '';
-    let cleanupTimer;
-    const runtimeTimer = setTimeout(() => interrupt('runtime-timeout'), LIMITS.runtimeMs);
-    const finish = (decision, reason, state, confirmed, outcome) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(runtimeTimer);
-      clearTimeout(cleanupTimer);
-      signal?.removeEventListener('abort', onAbort);
-      child.stdin?.destroy();
-      child.stdout?.destroy();
-      child.stderr?.destroy();
-      if (!confirmed) child.unref?.();
-      resolve({
-        ...protectedReport(
-          decision,
-          reason,
-          {
-            state,
-            exitCode: state === 'exited' ? outcome.exitCode : null,
-            termination: !confirmed
-              ? 'unconfirmed'
-              : interrupted || state === 'interrupted'
-                ? 'confirmed'
-                : 'not-requested',
-            stdoutBytes: outcome?.stdoutBytes || 0,
-            stderrBytes: outcome?.stderrBytes || 0,
-            outputComplete: state === 'exited' && outcome.outputComplete,
-          },
-          confirmed ? 'confirmed' : 'unconfirmed',
-        ),
-        ...(authorization || {}),
-      });
-    };
-    const interrupt = (why) => {
-      if (settled || interrupted) return;
-      interrupted = true;
-      interruptionReason = why;
-      clearTimeout(runtimeTimer);
-      try {
-        child.stop();
-      } catch {
-        /* The close/status protocol confirms whether cleanup completed. */
-      }
-      cleanupTimer = setTimeout(() => {
-        try {
-          child.kill('SIGKILL');
-        } catch {
-          /* A missing cleanup receipt remains unconfirmed. */
-        }
-        finish('unknown', 'cleanup-unconfirmed', 'unknown', false);
-      }, LIMITS.protectedCleanupMs);
-    };
-    const onAbort = () => interrupt('action-cancelled');
-    child.on('error', () => interrupt('protected-launch-unavailable'));
-    child.once('close', () => {
-      const outcome = child.actionOutcome;
-      if (!child.cleanupConfirmed || !outcome)
-        return finish('unknown', 'cleanup-unconfirmed', 'unknown', false, outcome);
-      if (interrupted) return finish('allow', interruptionReason, 'interrupted', true, outcome);
-      if (outcome.outputLimit) return finish('allow', 'output-limit', 'interrupted', true, outcome);
-      if (outcome.exited) return finish('allow', 'child-exited', 'exited', true, outcome);
-      return finish('unknown', 'protected-interrupted', 'interrupted', true, outcome);
-    });
-    signal?.addEventListener('abort', onAbort, { once: true });
-    if (signal?.aborted) onAbort();
-  });
-}
 
 function ownLaunch(launch) {
   if (
@@ -158,23 +50,32 @@ function ownLaunch(launch) {
  * inherited environment is used. Child output is counted, never returned.
  * @param {string} policyPath Explicit selected policy file.
  * @param {string} requestPath Explicit selected request file.
- * @param {{signal?: AbortSignal, binding?: object, approval?: object, protectedDescendants?: boolean}} [options] Owned cancellation, revision, one-use approval and Windows Job opt-in.
+ * @param {{signal?: AbortSignal, binding?: object, approval?: object, protectedDescendants?: boolean, appContainer?: boolean}} [options] Owned cancellation, revision, one-use approval and Windows Job opt-in.
  * @returns {Promise<object>} Fixed decision and direct-child outcome metadata.
  * @since v0.15.1
  */
 async function executeAction(policyPath, requestPath, options = {}) {
   const { signal, binding, approval } = options;
-  const protectedJob = options.protectedDescendants === true;
-  const localReport = protectedJob ? protectedReport : report;
+  const appContainer = options.appContainer === true;
+  const protectedJob = appContainer || options.protectedDescendants === true;
+  const protection = { appContainer, protectedDescendants: protectedJob };
+  const localReport = (decision, reason, execution) =>
+    actionReport(decision, reason, execution, protection);
   const pinned = Object.hasOwn(options, 'binding');
   const approved = Object.hasOwn(options, 'approval');
   if (
-    Object.hasOwn(options, 'protectedDescendants') &&
-    typeof options.protectedDescendants !== 'boolean'
+    ['protectedDescendants', 'appContainer'].some(
+      (key) => Object.hasOwn(options, key) && typeof options[key] !== 'boolean',
+    )
   )
-    return protectedReport('deny', 'protected-option-invalid');
+    return actionReport(
+      'deny',
+      'protected-option-invalid',
+      {},
+      { ...protection, protectedDescendants: true },
+    );
   if (protectedJob && process.platform !== 'win32')
-    return protectedReport('deny', 'protected-runtime-unsupported');
+    return localReport('deny', 'protected-runtime-unsupported');
   if (signal?.aborted) return localReport('deny', 'action-cancelled');
   if (
     approved &&
@@ -252,7 +153,11 @@ async function executeAction(policyPath, requestPath, options = {}) {
       launch,
       signal,
       approved ? { authorization: 'operator-confirmed', policyDecision: prepared.decision } : null,
-      deps.spawnProtected || require('./mcp-gateway-windows-job').spawnActionInWindowsJob,
+      appContainer
+        ? deps.spawnIsolated || require('./mcp-gateway-windows-job').spawnActionInAppContainer
+        : deps.spawnProtected || require('./mcp-gateway-windows-job').spawnActionInWindowsJob,
+      LIMITS,
+      protection,
     );
 
   return new Promise((resolve) => {
@@ -278,7 +183,7 @@ async function executeAction(policyPath, requestPath, options = {}) {
       child?.stderr?.destroy();
       if (interrupted && !exitObserved) child?.unref?.();
       resolve({
-        ...report('allow', spawnFailed ? 'spawn-failed' : reason, {
+        ...localReport('allow', spawnFailed ? 'spawn-failed' : reason, {
           state: spawnFailed ? 'spawn-failed' : interrupted ? 'interrupted' : 'exited',
           exitCode,
           termination: interrupted ? (exitObserved ? 'confirmed' : 'unconfirmed') : 'not-requested',

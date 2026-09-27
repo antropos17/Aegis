@@ -90,8 +90,10 @@ describe.skipIf(process.platform !== 'win32')('confirmed Windows Job execution',
         '/warnaserror+',
         '/reference:System.Web.Extensions.dll',
         `/out:${helper}`,
-        path.join(project, 'sidecar', 'mcpjob', 'Program.cs'),
-        path.join(project, 'sidecar', 'mcpjob', 'Native.cs'),
+        ...fs
+          .readdirSync(path.join(project, 'sidecar', 'mcpjob'))
+          .filter((name) => name.endsWith('.cs'))
+          .map((name) => path.join(project, 'sidecar', 'mcpjob', name)),
       ],
       { cwd: project, windowsHide: true, stdio: 'pipe', timeout: 30000 },
     );

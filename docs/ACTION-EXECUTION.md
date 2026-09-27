@@ -1,5 +1,9 @@
 # Explicit policy-controlled direct execution (B1)
 
+For the separate Windows route with OS access restrictions and a new retained
+workspace, see [AppContainer launch](ACTION-APPCONTAINER.md). The direct and
+Job-only routes described below keep their existing access scope.
+
 `--action-exec-json <policy.json> <request.json>` is an opt-in execution owner:
 AEGIS reads both selected files, evaluates an exact operation and starts its own
 direct child only on allow. Deny, ask, invalid input, unavailable policy and

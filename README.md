@@ -75,7 +75,7 @@ The Observatory workspace provides a live instance radar, separate agent instanc
 
 ## Monitor-first
 
-Default monitoring observes and logs; it does not automatically block or contain agents. Kill, suspend and resume are manual actions. Monitoring presets and endpoint allowlists do not establish that an agent is safe. The opt-in routes below control only selected launches. The Windows Job route bounds the lifetime of its participating descendants; none of these routes restricts file or network access.
+Default monitoring observes and logs; it does not automatically block or contain agents. Kill, suspend and resume are manual actions. Monitoring presets and endpoint allowlists do not establish that an agent is safe. The opt-in routes below control only selected launches. The Windows Job route bounds the lifetime of its participating descendants. The separate AppContainer CLI route adds Windows access restrictions for one reviewed offline action in a new workspace; other execution routes retain caller privileges.
 
 The [sensitive-activity review list](docs/ALERTS-AND-PERMISSIONS.md) is scoped to the current desktop window; marking an alert reviewed does not quarantine its file or grant access.
 
@@ -89,6 +89,7 @@ environment, then route that action through AEGIS:
 | Capability | Implemented scope |
 | --- | --- |
 | [Exact execution policy](docs/ACTION-EXECUTION.md) | Explicit CLI launch on `allow`; `ask`, `deny` and preparation failures do not launch |
+| [Windows AppContainer launch](docs/ACTION-APPCONTAINER.md) | Explicit terminal approval for one bounded offline action in a new retained workspace; private-file access checks, zero capabilities and Job cleanup |
 | [Windows Job lifetime route](docs/ACTION-EXECUTION.md#opt-in-windows-job-lifetime-route) | An approved selected Windows action starts inside a private Job; confirmed cleanup ends ordinary Job-member descendants. External brokers and actions outside this route remain outside its control |
 | [Terminal confirmation](docs/ACTION-CONFIRMATION.md) | Review the complete effective action and confirm one launch attempt; policy deny cannot be overridden |
 | [Selected-action MCP catalog](docs/ACTION-MCP-CATALOG.md) | Up to eight operator-selected actions with empty tool arguments; optional [terminal review broker](docs/ACTION-MCP-REVIEW.md) requires fresh confirmation per eligible call |

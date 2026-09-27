@@ -1,5 +1,9 @@
 # One-attempt terminal confirmation (B1)
 
+For the separate Windows route with OS access restrictions and a new retained
+workspace, see [AppContainer launch](ACTION-APPCONTAINER.md). The direct and
+Job-only routes described below keep their existing access scope.
+
 `--action-exec-confirm <policy.json> <request.json>` lets an operator review one
 exact action before AEGIS-owned direct execution. It uses the schema 2 or 3 policy and
 schema 1 request from [ACTION-EXECUTION.md](ACTION-EXECUTION.md). Both `ask` and
