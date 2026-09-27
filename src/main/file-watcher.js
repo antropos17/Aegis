@@ -128,6 +128,9 @@ const DEFAULT_IGNORED_DIRS = [
  * @type {number}
  */
 const FILE_SCAN_CONCURRENCY = 5;
+const MAX_KNOWN_HANDLES_PER_INSTANCE = 500;
+const HANDLE_PATH_CAP_REASON = 'handle-path-cap-exceeded';
+const RM_HOLDER_CAP_REASON = 'rm-holder-cap-exceeded';
 
 let _getFileHandles = _platform.getFileHandles;
 // win32 exposes these (Restart Manager); darwin/linux do not → undefined, so the
@@ -141,6 +144,8 @@ const _isRmAvailable = _platform.isRestartManagerAvailable;
 // knownHandles dedup already prevents double-emit (JS is single-threaded); this
 // only avoids a redundant concurrent spawn when both ticks coincide.
 let _rmScanInFlight = false;
+// A hot RM poll cannot prove that overflow in the broader full scope recovered.
+let _rmFullCapExceeded = false;
 /** Optional test override for platform read-detection capability. */
 let _isReadDetectionAvailableOverride = undefined;
 /** Optional test override for Restart Manager availability (the probe's verdict). */
@@ -204,6 +209,7 @@ function createInitialFsHealth() {
 function _resetFsHealth() {
   _fsHealth = createInitialFsHealth();
   _inactiveReadLeaf = null;
+  _rmFullCapExceeded = false;
   resetWatchPlan();
 }
 
@@ -321,6 +327,7 @@ function _resetForTest() {
   _getSensitiveHolders = undefined; // tests opt into RM explicitly via _setDepsForTest
   _getHotSensitiveHolders = undefined;
   _rmScanInFlight = false;
+  _rmFullCapExceeded = false;
   _isReadDetectionAvailableOverride = undefined;
   _isRmAvailableOverride = undefined;
   // Same contract as the RM dep above: a test opts INTO the population gate via
@@ -890,7 +897,7 @@ function rmHolderKey(agent) {
  * Per-agent handle observation.
  * @param {Object} agent
  * @param {Function} [isAgentScopeCurrent] Validates the captured PID owner after the provider await.
- * @returns {Promise<{ok: boolean, events: Array, error?: string}>}
+ * @returns {Promise<{ok: boolean, events: Array, error?: string, capExceeded?: boolean}>}
  * @since v0.1.0
  */
 async function scanFileHandles(agent, isAgentScopeCurrent) {
@@ -913,18 +920,33 @@ async function scanFileHandles(agent, isAgentScopeCurrent) {
   }
   // Never mutate knownHandles or emit an owner claim from an obsolete PID scope.
   if (!scopeCurrent()) return { ok: false, events: [], error: SCOPE_CHANGED_REASON };
-  if (!Array.isArray(files) || files.length === 0) {
+  if (!Array.isArray(files)) {
     return { ok: true, events: [] };
   }
 
   const kh = _state.knownHandles;
   const key = handleKey(agent);
-  // Stamped key → durable seen-set. Unstamped → still emit events (no silent drop)
-  // but do not invent a knownHandles key (no second identity resolution).
+  // A successful empty observation closes the previous handle snapshot.
+  if (files.length === 0) {
+    if (key) kh.delete(key);
+    return { ok: true, events: [] };
+  }
+  // Keep still-open known paths first, independent of provider order. A path that
+  // closed frees a slot for a newly observed path on this tick. The bounded set
+  // tracks current handles, so a later reopen can produce a new access event.
+  // Unstamped agents still emit without inventing a dedup identity.
   let known = null;
+  let nextKnown = null;
+  let capExceeded = false;
   if (key) {
-    if (!kh.has(key)) kh.set(key, new Set());
-    known = kh.get(key);
+    known = kh.get(key) || new Set();
+    nextKnown = new Set();
+    for (const f of files) {
+      if (shouldIgnore(f) || !known.has(f) || nextKnown.has(f)) continue;
+      if (nextKnown.size < MAX_KNOWN_HANDLES_PER_INSTANCE) nextKnown.add(f);
+      else capExceeded = true;
+    }
+    kh.set(key, nextKnown);
   }
   const newAccess = [];
   // Event loop is outside getFileHandles try/catch so unexpected throws (e.g.
@@ -932,15 +954,15 @@ async function scanFileHandles(agent, isAgentScopeCurrent) {
   for (const f of files) {
     if (shouldIgnore(f)) continue;
     if (known && known.has(f)) continue;
-    if (known) {
-      known.add(f);
-      // Cap per-instance set at 500 — evict oldest entries
-      if (known.size > 500) {
-        const iter = known.values();
-        for (let i = 0; i < known.size - 500; i++) {
-          known.delete(iter.next().value);
-        }
+    if (nextKnown) {
+      if (nextKnown.has(f)) continue;
+      // Beyond the cap we miss new paths, including sensitive ones, until a slot
+      // opens; report incomplete coverage instead of repeated false activity.
+      if (nextKnown.size >= MAX_KNOWN_HANDLES_PER_INSTANCE) {
+        capExceeded = true;
+        continue;
       }
+      nextKnown.add(f);
     }
     const reason = classifySensitive(f);
     const selfAccess = reason !== null && isSelfAccess(agent.agent, f);
@@ -975,7 +997,7 @@ async function scanFileHandles(agent, isAgentScopeCurrent) {
     }
     _state.recordFileAccess(event.instanceId, agent.agent, f, event.sensitive, event.reason);
   }
-  return { ok: true, events: newAccess };
+  return { ok: true, events: newAccess, capExceeded };
 }
 
 /**
@@ -1063,10 +1085,15 @@ function resolveReadMechanism(now) {
  * any double-emit since JS is single-threaded).
  * @param {Array} agents
  * @param {Function} [fetchHolders] - Holder source (full or hot); defaults to full.
+ * @param {boolean} [fullScope] - Whether the source covers every RM group.
  * @returns {Promise<Array>}
  * @since v0.10.0
  */
-async function scanViaRestartManager(agents, fetchHolders = _getSensitiveHolders) {
+async function scanViaRestartManager(
+  agents,
+  fetchHolders = _getSensitiveHolders,
+  fullScope = true,
+) {
   // G′ invariant, not a scheduling decision: _scanRmHolders matches the holder's
   // PID and exact birth to an agent before stamping RM_HOLDER_PID as confirmed.
   // That stamp must be impossible against a population the process sensor cannot
@@ -1080,15 +1107,35 @@ async function scanViaRestartManager(agents, fetchHolders = _getSensitiveHolders
   if (_rmScanInFlight) return [];
   _rmScanInFlight = true;
   try {
-    const { events, degradedReason } = await _scanRmHolders(agents, fetchHolders);
+    const result = await _scanRmHolders(agents, fetchHolders, fullScope);
+    let { degradedReason } = result;
+    if (fullScope) {
+      if (degradedReason?.includes(RM_HOLDER_CAP_REASON)) _rmFullCapExceeded = true;
+      else if (!degradedReason) _rmFullCapExceeded = false;
+    }
+    if (_rmFullCapExceeded && !degradedReason?.includes(RM_HOLDER_CAP_REASON)) {
+      degradedReason = degradedReason
+        ? `${degradedReason};${RM_HOLDER_CAP_REASON}`
+        : RM_HOLDER_CAP_REASON;
+    }
     const completedAt = Date.now();
+    // One irrecoverable-loss unit per completed poll that actually omitted at
+    // least one holder. This is a lower bound, not a lifetime-unique path count;
+    // the inherited full-scope latch on a narrow hot poll adds no new loss.
+    const rec = result.capExceeded
+      ? sensorHealth.addLoss(_fsHealth[FS_SENSOR.RM], 1, completedAt, {
+          detail: RM_HOLDER_CAP_REASON,
+        })
+      : _fsHealth[FS_SENSOR.RM];
     _fsHealth[FS_SENSOR.RM] = degradedReason
-      ? sensorHealth.markDegraded(_fsHealth[FS_SENSOR.RM], completedAt, {
+      ? sensorHealth.markDegraded(rec, completedAt, {
           error: degradedReason,
           detail: degradedReason,
         })
-      : sensorHealth.markHealthy(_fsHealth[FS_SENSOR.RM], completedAt);
-    return events;
+      : sensorHealth.markHealthy(rec, completedAt, {
+          detail: rec.lossCount > 0 ? 'residual-loss' : null,
+        });
+    return result.events;
   } catch {
     _fsHealth[FS_SENSOR.RM] = sensorHealth.markFailed(_fsHealth[FS_SENSOR.RM], Date.now(), {
       error: 'rm-fetch-failed',
@@ -1107,9 +1154,10 @@ async function scanViaRestartManager(agents, fetchHolders = _getSensitiveHolders
  * it with the single-flight guard.
  * @param {Array} agents
  * @param {Function} fetchHolders - Holder source (full or hot).
- * @returns {Promise<{events: Array, degradedReason: string|null}>}
+ * @param {boolean} fullScope - Whether absent holders prove a previous group closed.
+ * @returns {Promise<{events: Array, degradedReason: string|null, capExceeded?: boolean}>}
  */
-async function _scanRmHolders(agents, fetchHolders) {
+async function _scanRmHolders(agents, fetchHolders, fullScope) {
   // Let fetch failures propagate so scanViaRestartManager can mark FAILED.
   const holders = await fetchHolders();
   // The process population may have failed or changed while RM was collecting.
@@ -1119,7 +1167,6 @@ async function _scanRmHolders(agents, fetchHolders) {
   const currentAgents = _state.getLatestAgents();
   if (!Array.isArray(currentAgents))
     return { events: [], degradedReason: SCOPE_UNAVAILABLE_REASON };
-  if (holders.length === 0) return { events: [], degradedReason: null };
   const toScan =
     _state && _state.isOtherPanelExpanded()
       ? currentAgents
@@ -1130,6 +1177,7 @@ async function _scanRmHolders(agents, fetchHolders) {
   const kh = _state.knownHandles;
   const newAccess = [];
   let identityUnverified = false;
+  const matched = [];
   for (const h of holders) {
     if (h.pid === process.pid) continue; // own-PID guard — never blame AEGIS itself
     const agent = pidToAgent.get(h.pid);
@@ -1147,19 +1195,61 @@ async function _scanRmHolders(agents, fetchHolders) {
       identityUnverified = true;
       continue;
     }
-    const group = h.group;
-    const key = rmHolderKey(agent);
-    const dedupKey = 'holding|' + group;
-    if (key) {
-      if (!kh.has(key)) kh.set(key, new Set());
-      const known = kh.get(key);
-      if (known.has(dedupKey)) continue;
-      known.add(dedupKey);
-      if (known.size > 500) {
-        const iter = known.values();
-        for (let i = 0; i < known.size - 500; i++) known.delete(iter.next().value);
+    matched.push({ h, agent, key: rmHolderKey(agent), dedupKey: 'holding|' + h.group });
+  }
+
+  // A full RM scan covers every registered group; its absent holders may free
+  // slots. The hot scan covers only a subset, so preserve other known groups
+  // until a full scan proves they closed. Both paths reserve still-held known
+  // groups before admitting new ones, avoiding order-dependent false activity.
+  const previousByKey = new Map();
+  const nextByKey = new Map();
+  let capExceeded = false;
+  function prepareKnown(key) {
+    if (!key || nextByKey.has(key)) return;
+    const previous = kh.get(key) || new Set();
+    const next = new Set();
+    previousByKey.set(key, previous);
+    nextByKey.set(key, next);
+    if (!fullScope) {
+      for (const group of previous) {
+        if (next.size < MAX_KNOWN_HANDLES_PER_INSTANCE) next.add(group);
+        else capExceeded = true;
       }
     }
+  }
+  if (fullScope) {
+    for (const agent of toScan) {
+      const key = rmHolderKey(agent);
+      if (key && kh.has(key)) prepareKnown(key);
+    }
+  }
+  for (const { key } of matched) prepareKnown(key);
+  if (fullScope) {
+    for (const { key, dedupKey } of matched) {
+      if (!key || !previousByKey.get(key).has(dedupKey)) continue;
+      const next = nextByKey.get(key);
+      if (next.has(dedupKey)) continue;
+      if (next.size < MAX_KNOWN_HANDLES_PER_INSTANCE) next.add(dedupKey);
+      else capExceeded = true;
+    }
+  }
+  for (const [key, next] of nextByKey) kh.set(key, next);
+
+  for (const { h, agent, key, dedupKey } of matched) {
+    if (key) {
+      const previous = previousByKey.get(key);
+      const next = nextByKey.get(key);
+      if (previous.has(dedupKey) || next.has(dedupKey)) continue;
+      // Beyond the cap new holders, including sensitive ones, are missed until
+      // a full scan frees a slot; report this with path-free sensor health.
+      if (next.size >= MAX_KNOWN_HANDLES_PER_INSTANCE) {
+        capExceeded = true;
+        continue;
+      }
+      next.add(dedupKey);
+    }
+    const group = h.group;
     // Rule/self-config patterns anchor on a separator AFTER the dir name (e.g.
     // `\.claude[\\/]`), but a group is a bare DIR path with no trailing separator.
     // Match against a separator-normalized variant so dir groups resolve, while
@@ -1200,7 +1290,11 @@ async function _scanRmHolders(agents, fetchHolders) {
   }
   return {
     events: newAccess,
-    degradedReason: identityUnverified ? 'rm-holder-identity-unverified' : null,
+    capExceeded,
+    degradedReason:
+      [identityUnverified && 'rm-holder-identity-unverified', capExceeded && RM_HOLDER_CAP_REASON]
+        .filter(Boolean)
+        .join(';') || null,
   };
 }
 
@@ -1229,7 +1323,7 @@ function isHotReadScanActive() {
 async function scanHotFileHolders(agents) {
   if (!isHotReadScanActive()) return [];
   resolveReadMechanism(Date.now());
-  return scanViaRestartManager(agents, _getHotSensitiveHolders);
+  return scanViaRestartManager(agents, _getHotSensitiveHolders, false);
 }
 
 /**
@@ -1315,7 +1409,7 @@ async function scanAllFileHandles(agents, options = {}) {
   // run at once (each spawns one powershell/handle.exe). Results are stored by
   // original index, so the returned array stays in agent order — per-event agent
   // attribution (C-01) is stamped inside scanFileHandles and never cross-wired.
-  /** @type {Array<{ok: boolean, events: Array, error?: string}>} */
+  /** @type {Array<{ok: boolean, events: Array, error?: string, capExceeded?: boolean}>} */
   const results = new Array(toScan.length);
   let next = 0;
   async function worker() {
@@ -1334,33 +1428,50 @@ async function scanAllFileHandles(agents, options = {}) {
   const allNew = [];
   let failCount = 0;
   let scopeChanged = false;
+  let capExceeded = false;
   for (const r of results) {
     if (!r) continue;
     if (!r.ok) {
       failCount += 1;
       if (r.error === SCOPE_CHANGED_REASON) scopeChanged = true;
     }
+    if (r.capExceeded) capExceeded = true;
     allNew.push(...(r.events || []));
   }
   const t = Date.now();
+  // Cap loss is counted per completed poll, even when several agents overflow.
+  // Repeated overflow polls are separate omitted observations, while the count
+  // stays a lower bound on unknown distinct accesses.
+  const rec = capExceeded
+    ? sensorHealth.addLoss(_fsHealth[FS_SENSOR.HANDLE], 1, t, {
+        detail: HANDLE_PATH_CAP_REASON,
+      })
+    : _fsHealth[FS_SENSOR.HANDLE];
   if (scopeChanged) {
-    _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.HANDLE], t, {
+    _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markDegraded(rec, t, {
       error: SCOPE_CHANGED_REASON,
       detail: SCOPE_CHANGED_REASON,
     });
   } else if (failCount === toScan.length) {
-    _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markFailed(_fsHealth[FS_SENSOR.HANDLE], t, {
+    _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markFailed(rec, t, {
       error: 'handle-scan-failed',
       detail: 'all-agents-failed',
     });
   } else if (failCount > 0) {
     // Partial: keep successful events; health is DEGRADED (B2).
-    _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markDegraded(_fsHealth[FS_SENSOR.HANDLE], t, {
+    _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markDegraded(rec, t, {
       error: 'partial-handle-scan',
-      detail: `failed-${failCount}-of-${toScan.length}`,
+      detail: `failed-${failCount}-of-${toScan.length}${capExceeded ? `;${HANDLE_PATH_CAP_REASON}` : ''}`,
+    });
+  } else if (capExceeded) {
+    _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markDegraded(rec, t, {
+      error: HANDLE_PATH_CAP_REASON,
+      detail: HANDLE_PATH_CAP_REASON,
     });
   } else {
-    _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markHealthy(_fsHealth[FS_SENSOR.HANDLE], t);
+    _fsHealth[FS_SENSOR.HANDLE] = sensorHealth.markHealthy(rec, t, {
+      detail: rec.lossCount > 0 ? 'residual-loss' : null,
+    });
   }
   return allNew;
 }
