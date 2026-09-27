@@ -34,7 +34,11 @@
   let guidePending = $state(false);
   let guideFeedback = $state('');
   let guideFailed = $state(false);
-  type GuideFile = 'ACTION-DELETE-FILE.md' | 'ACTION-EXECUTION.md' | 'MCP-STDIO-GATEWAY.md';
+  type GuideFile =
+    | 'ACTION-DELETE-FILE.md'
+    | 'ACTION-EXECUTION.md'
+    | 'ACTION-APPCONTAINER.md'
+    | 'MCP-STDIO-GATEWAY.md';
   let guideTarget = $state<GuideFile | null>(null);
   let result = $state.raw<ActionCheck | null>(null);
   let routeObservation = $state.raw<RouteObservation | null>(null);
@@ -154,7 +158,9 @@
         </div>{/if}
       <p class="muted">
         {$t(
-          'Agent connection has not been checked. Protection outside this route is unknown; control of processes started by the selected command is unsupported.',
+          result.route === 'appcontainer'
+            ? 'AppContainer launch, isolation, descendant cleanup and installed provider compatibility have not been tested. The check does not authorize execution.'
+            : 'Agent connection has not been checked. Protection outside this route is unknown; control of processes started by the selected command is unsupported.',
         )}
       </p>
       {#if result.kind === 'catalog'}
@@ -238,6 +244,10 @@
             <dt>{$t('Terminal in the checking process')}</dt>
             <dd>{$t(coverageLabels[result.report.terminal])}</dd>
           </div>
+          {#if result.route === 'appcontainer'}<div>
+              <dt>{$t('AppContainer helper file')}</dt>
+              <dd>{$t(coverageLabels[result.report.helper])}</dd>
+            </div>{/if}
           <div>
             <dt>{$t('Configuration observation')}</dt>
             <dd>{$t('Not retained as a binding or authorization')}</dd>
@@ -256,7 +266,7 @@
           </div>
           <div>
             <dt>{$t('Descendant control')}</dt>
-            <dd>{$t('Unsupported')}</dd>
+            <dd>{$t(result.route === 'appcontainer' ? 'Not started' : 'Unsupported')}</dd>
           </div>
         </dl>
       </details>
@@ -308,6 +318,27 @@
         >{$t('Open protected Windows action guide')}</button
       >
       {#if guideTarget === 'ACTION-EXECUTION.md'}<p
+          class="guide-feedback"
+          role={guideFailed ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          {$t(guideFeedback)}
+        </p>{/if}
+    </section>
+    <section class="protected-action-guide" aria-label={$t('Windows AppContainer setup')}>
+      <h3>{$t('Check a selected Windows AppContainer launch')}</h3>
+      <p>
+        {$t(
+          'Choose Windows AppContainer CLI below to check selected files, this Windows runtime, current-process terminal and helper file presence. Recheck in the intended interactive terminal; launch and installed provider compatibility remain untested.',
+        )}
+      </p>
+      <button
+        type="button"
+        class="button"
+        disabled={guidePending || preview || !host?.openExternalUrl}
+        onclick={() => openGuide('ACTION-APPCONTAINER.md')}>{$t('Open AppContainer guide')}</button
+      >
+      {#if guideTarget === 'ACTION-APPCONTAINER.md'}<p
           class="guide-feedback"
           role={guideFailed ? 'alert' : 'status'}
           aria-live="polite"

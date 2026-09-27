@@ -8,7 +8,7 @@ export async function previewActionCoverage(request: unknown): Promise<RecordDat
   const catalog = options.action === 'check-catalog';
   const routes = catalog
     ? ['mcp-stdio', 'mcp-review']
-    : ['direct', 'terminal', 'mcp-stdio', 'mcp-review'];
+    : ['direct', 'terminal', 'mcp-stdio', 'mcp-review', 'appcontainer'];
   if (
     !['check-route', 'check-catalog'].includes(String(options.action)) ||
     !routes.includes(String(options.route)) ||
@@ -16,7 +16,7 @@ export async function previewActionCoverage(request: unknown): Promise<RecordDat
   )
     return { success: false, error: 'invalid-review-request' };
   const route = String(options.route);
-  const terminal = ['terminal', 'mcp-review'].includes(route);
+  const terminal = ['terminal', 'mcp-review', 'appcontainer'].includes(route);
   return {
     success: true,
     check: {
@@ -35,8 +35,9 @@ export async function previewActionCoverage(request: unknown): Promise<RecordDat
         terminal: terminal ? 'unavailable' : 'not-required',
         terminalScope: 'checking-process-only',
         askBehavior: terminal ? 'terminal-confirmation' : 'not-started',
-        control: 'direct-child-only',
-        descendantControl: 'unsupported',
+        control: route === 'appcontainer' ? 'not-started' : 'direct-child-only',
+        descendantControl: route === 'appcontainer' ? 'not-started' : 'unsupported',
+        ...(route === 'appcontainer' ? { helper: 'present' } : {}),
         outsideRouteCoverage: 'unknown',
         connection: 'not-checked',
         blockingVerification: 'not-performed',

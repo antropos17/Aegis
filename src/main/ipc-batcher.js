@@ -9,6 +9,17 @@
 'use strict';
 
 /**
+ * @typedef {Object} BufferedEntry
+ * @property {unknown} value
+ * @property {string | null} key
+ * @property {boolean} keep
+ * @property {BufferedEntry | null} previous
+ * @property {BufferedEntry | null} next
+ * @property {BufferedEntry | null} previousPlain
+ * @property {BufferedEntry | null} nextPlain
+ */
+
+/**
  * @typedef {Object} BatcherOptions
  * @property {number} [intervalMs] - Flush interval in milliseconds (default 150)
  * @property {'append' | 'latest'} [mode] - Batching strategy (default 'append')
@@ -74,6 +85,9 @@ function createBatcher(channel, sendFn, options = {}) {
   const capacity = options.capacity;
   const coalesceKey = options.coalesceKey;
   const retain = options.retain;
+  // The bounded policy lane needs fast key lookup and middle eviction. Unbounded and
+  // simple append batchers keep their compact array representation.
+  const useEntries = mode === 'append' && capacity !== undefined && !!(coalesceKey || retain);
 
   if (capacity !== undefined) {
     if (mode !== 'append') throw new Error("ipc-batcher: capacity requires mode 'append'");
@@ -99,6 +113,17 @@ function createBatcher(channel, sendFn, options = {}) {
   let keys = coalesceKey ? [] : null;
   /** @type {boolean[] | null} */
   let retained = retain ? [] : null;
+  /** @type {BufferedEntry | null} */
+  let first = null;
+  /** @type {BufferedEntry | null} */
+  let last = null;
+  /** @type {BufferedEntry | null} */
+  let firstPlain = null;
+  /** @type {BufferedEntry | null} */
+  let lastPlain = null;
+  /** @type {Map<string, BufferedEntry> | null} */
+  let byKey = coalesceKey && useEntries ? new Map() : null;
+  let entryCount = 0;
   /**
    * A pending {@link pushLazy} producer, or null. Held in its own slot rather than in
    * `buffer` so a payload that happens to be a function is still a payload.
@@ -129,8 +154,76 @@ function createBatcher(channel, sendFn, options = {}) {
    * @returns {number}
    */
   function bufferedCount() {
-    if (mode === 'append') return /** @type {unknown[]} */ (buffer).length;
+    if (mode === 'append')
+      return useEntries ? entryCount : /** @type {unknown[]} */ (buffer).length;
     return buffer === undefined ? 0 : 1;
+  }
+
+  /** @param {BufferedEntry} entry */
+  function addPlain(entry) {
+    entry.previousPlain = lastPlain;
+    if (lastPlain !== null) lastPlain.nextPlain = entry;
+    else firstPlain = entry;
+    lastPlain = entry;
+  }
+
+  /** A replaced entry keeps its original age when it becomes evictable. @param {BufferedEntry} entry */
+  function insertPlainAtAge(entry) {
+    let before = entry.previous;
+    while (before !== null && before.keep) before = before.previous;
+    if (before === null) {
+      entry.nextPlain = firstPlain;
+      if (firstPlain !== null) firstPlain.previousPlain = entry;
+      else lastPlain = entry;
+      firstPlain = entry;
+    } else {
+      entry.previousPlain = before;
+      entry.nextPlain = before.nextPlain;
+      if (before.nextPlain !== null) before.nextPlain.previousPlain = entry;
+      else lastPlain = entry;
+      before.nextPlain = entry;
+    }
+  }
+
+  /** @param {BufferedEntry} entry */
+  function removePlain(entry) {
+    if (entry.previousPlain !== null) entry.previousPlain.nextPlain = entry.nextPlain;
+    else firstPlain = entry.nextPlain;
+    if (entry.nextPlain !== null) entry.nextPlain.previousPlain = entry.previousPlain;
+    else lastPlain = entry.previousPlain;
+    entry.previousPlain = null;
+    entry.nextPlain = null;
+  }
+
+  /** @param {BufferedEntry} entry */
+  function removeEntry(entry) {
+    if (entry.previous !== null) entry.previous.next = entry.next;
+    else first = entry.next;
+    if (entry.next !== null) entry.next.previous = entry.previous;
+    else last = entry.previous;
+    if (!entry.keep) removePlain(entry);
+    if (entry.key !== null && byKey !== null) byKey.delete(entry.key);
+    entryCount--;
+  }
+
+  /** @param {unknown} value @param {string | null} key @param {boolean} keep */
+  function appendEntry(value, key, keep) {
+    /** @type {BufferedEntry} */
+    const entry = {
+      value,
+      key,
+      keep,
+      previous: last,
+      next: null,
+      previousPlain: null,
+      nextPlain: null,
+    };
+    if (last !== null) last.next = entry;
+    else first = entry;
+    last = entry;
+    if (!keep) addPlain(entry);
+    if (key !== null && byKey !== null) byKey.set(key, entry);
+    entryCount++;
   }
 
   /**
@@ -154,6 +247,32 @@ function createBatcher(channel, sendFn, options = {}) {
       const key = coalesceKey ? coalesceKey(value) : null;
       const keep = retain ? retain(value) === true : false;
       pushed++;
+      if (useEntries) {
+        const mergeKey = typeof key === 'string' ? key : null;
+        const existing = mergeKey !== null && byKey !== null ? byKey.get(mergeKey) : undefined;
+        if (existing !== undefined) {
+          existing.value = value;
+          if (existing.keep !== keep) {
+            if (keep) removePlain(existing);
+            else insertPlainAtAge(existing);
+            existing.keep = keep;
+          }
+          coalesced++;
+        } else {
+          if (entryCount >= capacity) {
+            const victim = firstPlain || first;
+            if (victim === null) throw new Error('ipc-batcher: empty capacity buffer');
+            if (victim.keep) retainedEvicted++;
+            removeEntry(victim);
+            evicted++;
+            evictedSinceFlush++;
+          }
+          appendEntry(value, mergeKey, keep);
+        }
+        if (entryCount > highWater) highWater = entryCount;
+        scheduleFlush();
+        return;
+      }
       // Only a string merges. null, undefined, or anything else means this value must
       // never merge, and two such values both occupy their own slot.
       const at = typeof key === 'string' && keys !== null ? keys.indexOf(key) : -1;
@@ -231,6 +350,18 @@ function createBatcher(channel, sendFn, options = {}) {
       timer = null;
     }
     if (mode === 'append') {
+      if (useEntries) {
+        if (entryCount === 0) return;
+        /** @type {unknown[]} */
+        const snapshot = [];
+        for (let entry = first; entry !== null; entry = entry.next) snapshot.push(entry.value);
+        first = last = firstPlain = lastPlain = null;
+        entryCount = 0;
+        if (byKey !== null) byKey.clear();
+        evictedSinceFlush = 0;
+        sendFn(channel, snapshot);
+        return;
+      }
       const buf = /** @type {unknown[]} */ (buffer);
       if (buf.length === 0) return;
       buffer = [];
