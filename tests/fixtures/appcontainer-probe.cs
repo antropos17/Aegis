@@ -44,10 +44,13 @@ internal static class AppContainerProbe
         }
         if (mode == "child")
         {
+            int childPort;
+            string childNetwork = args.Length == 3 && int.TryParse(args[2], out childPort)
+                ? "\nnetwork=" + Connect(childPort) : "";
             File.WriteAllText(Path.Combine(cwd, "child.txt"),
                 "pid=" + Process.GetCurrentProcess().Id + "\nread=" + Read(privateFile) +
                 "\nwrite=" + Write(privateFile + ".child") +
-                "\nimport=" + Read(Path.Combine(cwd, "input.bin")));
+                "\nimport=" + Read(Path.Combine(cwd, "input.bin")) + childNetwork);
             return 0;
         }
         if (mode != "evidence" || args.Length != 3) return 4;
@@ -59,13 +62,13 @@ internal static class AppContainerProbe
             "\nimport=" + Read(Path.Combine(cwd, "input.bin")));
         ProcessStartInfo child = new ProcessStartInfo();
         child.FileName = Process.GetCurrentProcess().MainModule.FileName;
-        child.Arguments = "child " + Quote(privateFile);
+        child.Arguments = "child " + Quote(privateFile) + " " + port;
         child.UseShellExecute = false;
         child.CreateNoWindow = true;
         child.WorkingDirectory = cwd;
         using (Process process = Process.Start(child))
         {
-            if (process == null || !process.WaitForExit(1500)) return 6;
+            if (process == null || !process.WaitForExit(2200)) return 6;
             return process.ExitCode;
         }
     }

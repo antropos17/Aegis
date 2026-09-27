@@ -257,8 +257,12 @@ describe.skipIf(process.platform !== 'win32')('Windows AppContainer selected act
         write: 'write-succeeded',
         network: 'connected',
       });
-      expect(controlChild).toMatchObject({ read: 'secret-leaked', write: 'write-succeeded' });
-      expect(peer.connections()).toBe(2);
+      expect(controlChild).toMatchObject({
+        read: 'secret-leaked',
+        write: 'write-succeeded',
+        network: 'connected',
+      });
+      expect(peer.connections()).toBe(3);
       const chosen = selected(probe, ['evidence', privateFile, String(peer.port)]);
       const output = [];
       const code = await handleActionExecutionCLI(
@@ -283,7 +287,9 @@ describe.skipIf(process.platform !== 'win32')('Windows AppContainer selected act
       expect(['timeout', 'socket-10013']).toContain(parent.network);
       expect(child.read).toBe('UnauthorizedAccessException');
       expect(child.write).toBe('UnauthorizedAccessException');
-      expect(peer.connections()).toBe(2);
+      expect(['timeout', 'socket-10013']).toContain(child.network);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(peer.connections()).toBe(3);
       expect(fs.existsSync(privateFile + '.parent')).toBe(false);
       expect(fs.existsSync(privateFile + '.child')).toBe(false);
       expect(output[0]).not.toContain(privateFile);
