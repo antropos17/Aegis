@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const api = require('../../src/main/action-route-check');
+const { MAX_EXECUTABLE_BYTES } = require('../../src/main/action-executable-snapshot');
 
 const selected = {
   decision: 'allow',
@@ -18,6 +19,7 @@ function setup(overrides = {}) {
     runtime: vi.fn(() => true),
     terminal: vi.fn(() => true),
     prepare: vi.fn(async () => selected),
+    statExecutable: vi.fn(async () => ({ isFile: () => true, size: 1024 })),
     ...overrides,
   };
   api._setDepsForTest(deps);
@@ -52,10 +54,16 @@ it.each(api.ROUTES)(
       terminalScope: 'checking-process-only',
       configurationObservation: 'single-pass-not-retained',
     });
-    expect(deps.prepare).toHaveBeenCalledExactlyOnceWith('PRIVATE_POLICY', 'PRIVATE_REQUEST');
+    expect(deps.prepare).toHaveBeenCalledExactlyOnceWith(
+      'PRIVATE_POLICY',
+      'PRIVATE_REQUEST',
+      ...(route === 'appcontainer' ? [{ review: true }] : []),
+    );
     expect(JSON.stringify(report)).not.toMatch(/PRIVATE|launch/);
     expect(report).not.toHaveProperty('approval');
     expect(report.gaps).toContain('executable-content-binding');
+    if (route === 'appcontainer')
+      expect(report.executableObservation).toBe('metadata-within-limit');
   },
 );
 
@@ -81,6 +89,7 @@ it('checks AppContainer prerequisites without launching or exposing private inpu
     runtime: 'supported',
     terminal: 'available',
     helper: 'missing',
+    executableObservation: 'metadata-within-limit',
     askBehavior: 'terminal-confirmation',
     control: 'not-started',
     descendantControl: 'not-started',
@@ -88,6 +97,191 @@ it('checks AppContainer prerequisites without launching or exposing private inpu
   });
   expect(deps.helper).toHaveBeenCalledOnce();
   expect(JSON.stringify(report)).not.toMatch(/PRIVATE|launch/);
+});
+
+it.each(['.cmd', '.bat', '.ps1', '.CMD'])(
+  'rejects known AppContainer script wrapper %s without reading its metadata',
+  async (extension) => {
+    const statExecutable = vi.fn();
+    const deps = setup({
+      platform: 'win32',
+      helper: () => true,
+      statExecutable,
+      prepare: vi.fn(async () => ({
+        ...selected,
+        launch: { executable: `C:\\private\\selected${extension}` },
+      })),
+    });
+    const lines = [];
+    const code = await api.handleActionRouteCheckCLI(
+      ['--action-route-check-json', 'appcontainer', 'PRIVATE_POLICY', 'PRIVATE_REQUEST'],
+      (line) => lines.push(line),
+    );
+    expect(code).toBe(2);
+    expect(JSON.parse(lines[0])).toMatchObject({
+      configuration: 'valid',
+      policyDecision: 'allow',
+      reason: 'policy-allow',
+      executableObservation: 'known-script-wrapper',
+      executionPerformed: false,
+    });
+    expect(lines[0]).not.toMatch(/PRIVATE|selected|launch/i);
+    expect(statExecutable).not.toHaveBeenCalled();
+    expect(deps.prepare).toHaveBeenCalledExactlyOnceWith('PRIVATE_POLICY', 'PRIVATE_REQUEST', {
+      review: true,
+    });
+  },
+);
+
+it('observes the 128 MiB boundary anew and exits nonzero above it', async () => {
+  let size = MAX_EXECUTABLE_BYTES;
+  const statExecutable = vi.fn(async () => ({ isFile: () => true, size }));
+  setup({
+    platform: 'win32',
+    helper: () => true,
+    statExecutable,
+    prepare: async () => ({ ...selected, decision: 'ask', reason: 'policy-ask' }),
+  });
+  expect(await check('appcontainer')).toMatchObject({
+    policyDecision: 'ask',
+    reason: 'policy-ask',
+    executableObservation: 'metadata-within-limit',
+  });
+  size++;
+  const lines = [];
+  expect(
+    await api.handleActionRouteCheckCLI(
+      ['--action-route-check-json', 'appcontainer', 'PRIVATE_POLICY', 'PRIVATE_REQUEST'],
+      (line) => lines.push(line),
+    ),
+  ).toBe(2);
+  expect(JSON.parse(lines[0])).toMatchObject({
+    configuration: 'valid',
+    policyDecision: 'ask',
+    reason: 'policy-ask',
+    executableObservation: 'executable-too-large',
+    executionPerformed: false,
+  });
+  expect(lines[0]).not.toMatch(/PRIVATE|launch/);
+  expect(statExecutable).toHaveBeenCalledTimes(2);
+  expect(statExecutable).toHaveBeenCalledWith('PRIVATE_EXECUTABLE');
+});
+
+it('does not inspect executable metadata for AppContainer policy deny', async () => {
+  const statExecutable = vi.fn();
+  setup({
+    platform: 'win32',
+    helper: () => true,
+    statExecutable,
+    prepare: async () => ({ decision: 'deny', reason: 'policy-deny' }),
+  });
+  const lines = [];
+  expect(
+    await api.handleActionRouteCheckCLI(
+      ['--action-route-check-json', 'appcontainer', 'PRIVATE_POLICY', 'PRIVATE_REQUEST'],
+      (line) => lines.push(line),
+    ),
+  ).toBe(0);
+  expect(JSON.parse(lines[0])).toMatchObject({
+    configuration: 'valid',
+    policyDecision: 'deny',
+    reason: 'policy-deny',
+    executableObservation: 'not-checked',
+  });
+  expect(statExecutable).not.toHaveBeenCalled();
+});
+
+it('keeps a completed AppContainer deny even when the elapsed budget has ended', async () => {
+  const statExecutable = vi.fn();
+  setup({
+    platform: 'win32',
+    helper: () => true,
+    now: vi.fn().mockReturnValueOnce(0).mockReturnValue(api.LIMITS.checkMs),
+    prepare: async () => ({ decision: 'deny', reason: 'policy-deny' }),
+    statExecutable,
+  });
+  expect(await check('appcontainer')).toMatchObject({
+    configuration: 'valid',
+    policyDecision: 'deny',
+    reason: 'policy-deny',
+    executableObservation: 'not-checked',
+  });
+  expect(statExecutable).not.toHaveBeenCalled();
+});
+
+it('keeps the AppContainer policy decision when private launch metadata is unavailable', async () => {
+  const prepared = { decision: 'allow', reason: 'policy-allow' };
+  Object.defineProperty(prepared, 'launch', {
+    get() {
+      throw Error('PRIVATE_LAUNCH');
+    },
+  });
+  const statExecutable = vi.fn();
+  setup({ platform: 'win32', helper: () => true, prepare: async () => prepared, statExecutable });
+  const report = await check('appcontainer');
+  expect(report).toMatchObject({
+    configuration: 'valid',
+    policyDecision: 'allow',
+    reason: 'policy-allow',
+    executableObservation: 'unavailable',
+  });
+  expect(JSON.stringify(report)).not.toContain('PRIVATE');
+  expect(statExecutable).not.toHaveBeenCalled();
+});
+
+it.each(['allow', 'ask'])(
+  'keeps prepared %s policy when AppContainer metadata times out',
+  async (decision) => {
+    vi.useFakeTimers();
+    let finish;
+    setup({
+      platform: 'win32',
+      helper: () => true,
+      prepare: async () => ({ ...selected, decision, reason: `policy-${decision}` }),
+      statExecutable: () => new Promise((resolve) => (finish = resolve)),
+    });
+    const lines = [];
+    const waiting = api.handleActionRouteCheckCLI(
+      ['--action-route-check-json', 'appcontainer', 'PRIVATE_POLICY', 'PRIVATE_REQUEST'],
+      (line) => lines.push(line),
+    );
+    await vi.advanceTimersByTimeAsync(api.LIMITS.checkMs);
+    expect(await waiting).toBe(2);
+    const report = JSON.parse(lines[0]);
+    expect(report).toMatchObject({
+      configuration: 'valid',
+      policyDecision: decision,
+      executableObservation: 'unavailable',
+      reason: `policy-${decision}`,
+    });
+    expect(lines[0]).not.toMatch(/PRIVATE|launch/);
+    finish({ isFile: () => true, size: 1 });
+    await Promise.resolve();
+    expect(report.executableObservation).toBe('unavailable');
+    expect(vi.getTimerCount()).toBe(0);
+  },
+);
+
+it('cancels an in-flight AppContainer metadata observation without publishing it', async () => {
+  vi.useFakeTimers();
+  const controller = new AbortController();
+  let finish;
+  const statExecutable = vi.fn(() => new Promise((resolve) => (finish = resolve)));
+  setup({ platform: 'win32', helper: () => true, statExecutable });
+  const waiting = check('appcontainer', { signal: controller.signal });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(statExecutable).toHaveBeenCalledOnce();
+  controller.abort();
+  const report = await waiting;
+  expect(report).toMatchObject({
+    configuration: 'not-checked',
+    policyDecision: 'unknown',
+    executableObservation: 'not-checked',
+    reason: 'check-cancelled',
+  });
+  finish({ isFile: () => true, size: 1 });
+  await Promise.resolve();
+  expect(vi.getTimerCount()).toBe(0);
 });
 
 it('refuses AppContainer preflight off Windows before reading selected files or helper', async () => {
@@ -100,6 +294,7 @@ it('refuses AppContainer preflight off Windows before reading selected files or 
   });
   expect(deps.prepare).not.toHaveBeenCalled();
   expect(deps.helper).not.toHaveBeenCalled();
+  expect(deps.statExecutable).not.toHaveBeenCalled();
 });
 
 it.each(['terminal', 'mcp-review'])(

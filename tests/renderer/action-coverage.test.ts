@@ -29,8 +29,22 @@ it('accepts only fixed AppContainer preflight metadata', async () => {
     (await previewActionCoverage({ action: 'check-route', route: 'appcontainer' })).check,
   );
   const parsed = parseActionCheck(wire);
-  expect(parsed?.report).toMatchObject({ helper: 'present', terminal: 'unavailable' });
+  expect(parsed?.report).toMatchObject({
+    helper: 'present',
+    executableObservation: 'not-checked',
+    terminal: 'unavailable',
+  });
   const report = record(wire.report);
+  report.executableObservation = 'executable-too-large';
+  expect(parseActionCheck(wire)?.report.executableObservation).toBe('executable-too-large');
+  report.policyDecision = 'deny';
+  report.reason = 'policy-deny';
+  expect(parseActionCheck(wire)).toBeNull();
+  report.policyDecision = 'allow';
+  report.reason = 'policy-allow';
+  report.executableObservation = 'C:\\PRIVATE\\agent.exe';
+  expect(parseActionCheck(wire)).toBeNull();
+  report.executableObservation = 'not-checked';
   report.helper = 'PRIVATE_PATH';
   expect(parseActionCheck(wire)).toBeNull();
   report.helper = 'present';

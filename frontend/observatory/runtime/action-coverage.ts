@@ -9,6 +9,12 @@ export type ActionRoute = (typeof actionRoutes)[number]['id'];
 export type ActionKind = 'single' | 'catalog';
 export type Configuration = 'valid' | 'invalid' | 'unavailable' | 'not-checked';
 export type PolicyDecision = 'allow' | 'ask' | 'deny' | 'unknown';
+export type ExecutableObservation =
+  | 'not-checked'
+  | 'known-script-wrapper'
+  | 'executable-too-large'
+  | 'metadata-within-limit'
+  | 'unavailable';
 export type ActionRow = {
   name: string;
   configuration: Configuration;
@@ -27,6 +33,7 @@ export type ActionCheck = {
     runtime: 'supported' | 'unsupported' | 'not-checked';
     terminal: 'available' | 'unavailable' | 'not-required' | 'not-checked';
     helper: 'present' | 'missing' | 'not-checked' | 'not-required';
+    executableObservation: ExecutableObservation;
     actions: ActionRow[];
   };
 };
@@ -38,7 +45,7 @@ export const routeHelp: Record<ActionRoute, string> = {
   'mcp-review':
     'MCP terminal review connects an agent while you approve each action in an interactive terminal.',
   appcontainer:
-    'Checks selected policy and current Windows, terminal and AppContainer helper prerequisites for the separate CLI route. No launch or provider compatibility is tested.',
+    'Checks selected policy and executable metadata plus current Windows, terminal and AppContainer helper prerequisites for the separate CLI route. No launch or provider compatibility is tested.',
 };
 
 /** Explain a validated observation without implying execution or protection.
@@ -76,6 +83,24 @@ export function actionCheckGuidance(check: ActionCheck): { summary: string; next
       summary,
       next: 'Keep this policy if the action should remain denied. No AppContainer launch was attempted.',
     };
+  if (check.route === 'appcontainer') {
+    const executable = check.report.executableObservation;
+    if (executable === 'known-script-wrapper')
+      return {
+        summary,
+        next: 'The selected .cmd, .bat or .ps1 wrapper cannot be launched directly by this AppContainer route. Select a directly launchable executable and check again.',
+      };
+    if (executable === 'executable-too-large')
+      return {
+        summary,
+        next: "The selected executable exceeds this AppContainer route's 128 MiB limit. This route cannot launch it with the current limit.",
+      };
+    if (executable === 'unavailable')
+      return {
+        summary,
+        next: 'The selected executable metadata could not be checked. Verify the selected path and check again before launch.',
+      };
+  }
   const next =
     runtime !== 'supported'
       ? 'Check again with the AEGIS command-line checker in the runtime you intend to use.'
@@ -205,6 +230,7 @@ export function parseActionCheck(value: unknown): ActionCheck | null {
       'runtime',
       'terminal',
       ...(route === 'appcontainer' ? ['helper'] : []),
+      ...(route === 'appcontainer' ? ['executableObservation'] : []),
       'gaps',
       ...(catalog ? ['actions'] : []),
     ]) ||
@@ -221,6 +247,14 @@ export function parseActionCheck(value: unknown): ActionCheck | null {
     ) ||
     (route === 'appcontainer' &&
       !['present', 'missing', 'not-checked'].includes(String(report.helper))) ||
+    (route === 'appcontainer' &&
+      ![
+        'not-checked',
+        'known-script-wrapper',
+        'executable-too-large',
+        'metadata-within-limit',
+        'unavailable',
+      ].includes(String(report.executableObservation))) ||
     !Array.isArray(report.gaps) ||
     report.gaps.length !== gaps.length
   )
@@ -228,7 +262,10 @@ export function parseActionCheck(value: unknown): ActionCheck | null {
   const receivedGaps = report.gaps;
   if (
     !gaps.every((gap, i) => receivedGaps[i] === gap) ||
-    (report.runtime !== 'supported' && report.configuration !== 'not-checked')
+    (report.runtime !== 'supported' && report.configuration !== 'not-checked') ||
+    (route === 'appcontainer' &&
+      report.executableObservation !== 'not-checked' &&
+      !(report.configuration === 'valid' && ['allow', 'ask'].includes(report.policyDecision)))
   )
     return null;
   const actions: ActionRow[] = [];
@@ -286,6 +323,10 @@ export function parseActionCheck(value: unknown): ActionCheck | null {
         route === 'appcontainer'
           ? (report.helper as ActionCheck['report']['helper'])
           : 'not-required',
+      executableObservation:
+        route === 'appcontainer'
+          ? (report.executableObservation as ExecutableObservation)
+          : 'not-checked',
       actions,
     },
   };
@@ -306,6 +347,9 @@ export const coverageLabels: Record<string, string> = {
   present: 'File present (not verified)',
   missing: 'File missing',
   'not-required': 'Not required',
+  'known-script-wrapper': 'Script wrapper cannot launch directly',
+  'executable-too-large': 'Exceeds 128 MiB limit',
+  'metadata-within-limit': 'Metadata within 128 MiB limit; launch untested',
   'policy-allow': 'Policy allows this action',
   'policy-ask': 'Policy requires confirmation',
   'review-required': 'Review required for this selected action',

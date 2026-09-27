@@ -21,9 +21,9 @@ afterEach(() => {
   expect(fs.lstatSync(root).isSymbolicLink()).toBe(false);
   fs.rmSync(root, { recursive: true, force: true });
 });
-function prepare(decision = 'allow') {
+function prepare(decision = 'allow', executable = process.execPath) {
   const action = {
-    executable: process.execPath,
+    executable,
     cwd: root,
     args: ['-e', `require('node:fs').writeFileSync(${JSON.stringify(sentinel)},'PRIVATE_BODY')`],
     env: {
@@ -45,6 +45,25 @@ function prepare(decision = 'allow') {
   );
   return action;
 }
+
+it.skipIf(process.platform !== 'win32')(
+  'reports a selected script wrapper under ask without launching or leaking its path',
+  () => {
+    const wrapper = path.join(root, 'PRIVATE_SELECTED.cmd');
+    fs.writeFileSync(wrapper, '@echo off\r\n');
+    prepare('ask', wrapper);
+    const result = run(['--action-route-check-json', 'appcontainer', policy, request]);
+    expect(result.code).toBe(2);
+    expect(result.report).toMatchObject({
+      configuration: 'valid',
+      policyDecision: 'ask',
+      reason: 'policy-ask',
+      executableObservation: 'known-script-wrapper',
+      executionPerformed: false,
+    });
+    expect(fs.existsSync(sentinel)).toBe(false);
+  },
+);
 function run(args = ['--action-route-check-json', 'direct', policy, request], options = {}) {
   const result = spawnSync(
     process.execPath,

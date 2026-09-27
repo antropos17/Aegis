@@ -88,7 +88,27 @@ it('shows the AppContainer preflight without claiming launch or provider compati
   ).toBeVisible();
   await fireEvent.click(within(result).getByText('Technical details'));
   expect(within(result).getByText('AppContainer helper file')).toBeVisible();
+  expect(within(result).getByText('Selected executable metadata')).toBeVisible();
   expect(within(result).getByText('Not started')).toBeVisible();
+});
+
+it.each([
+  ['known-script-wrapper', 'selected .cmd, .bat or .ps1 wrapper cannot be launched directly'],
+  ['executable-too-large', 'selected executable exceeds this AppContainer route'],
+] as const)('explains AppContainer %s before a launch', async (observation, guidance) => {
+  const reply = await previewActionCoverage({ action: 'check-route', route: 'appcontainer' });
+  if (!reply.success || !('check' in reply)) throw Error('fixture unavailable');
+  const check = reply.check as { report: { executableObservation: string } };
+  check.report.executableObservation = observation;
+  render(ActionCoverage, { host: bridge(vi.fn().mockResolvedValue(reply)) });
+  await fireEvent.change(screen.getByRole('combobox', { name: 'Execution route' }), {
+    target: { value: 'appcontainer' },
+  });
+  await start();
+  const result = await screen.findByRole('region', { name: 'Action check result' });
+  expect(within(result).getByText(new RegExp(guidance))).toBeVisible();
+  expect(within(result).getByText(/Nothing was run/)).toBeVisible();
+  expect(document.body.textContent).not.toContain('PRIVATE');
 });
 
 it('distinguishes the selected-action owner from the third-party gateway and opens its fixed guide', async () => {

@@ -37,7 +37,9 @@ export async function previewActionCoverage(request: unknown): Promise<RecordDat
         askBehavior: terminal ? 'terminal-confirmation' : 'not-started',
         control: route === 'appcontainer' ? 'not-started' : 'direct-child-only',
         descendantControl: route === 'appcontainer' ? 'not-started' : 'unsupported',
-        ...(route === 'appcontainer' ? { helper: 'present' } : {}),
+        ...(route === 'appcontainer'
+          ? { helper: 'present', executableObservation: 'not-checked' }
+          : {}),
         outsideRouteCoverage: 'unknown',
         connection: 'not-checked',
         blockingVerification: 'not-performed',

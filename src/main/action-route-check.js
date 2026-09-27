@@ -4,10 +4,57 @@ const { prepareExecution } = require('./execution-policy');
 const { isExecutionRuntimeSupported } = require('./execution-runtime');
 const { isTerminalAvailable } = require('./action-confirmation-terminal');
 const { statSync } = require('node:fs');
+const { lstat: statFile } = require('node:fs/promises');
+const path = require('node:path');
+const { MAX_EXECUTABLE_BYTES } = require('./action-executable-snapshot');
 const { helperPath } = require('./mcp-gateway-windows-job');
 const ROUTES = Object.freeze(['direct', 'terminal', 'mcp-stdio', 'mcp-review', 'appcontainer']);
 const LIMITS = Object.freeze({ checkMs: 1500 });
+const SCRIPT_WRAPPERS = new Set(['.cmd', '.bat', '.ps1']);
 let testDeps = null;
+
+/** Inspect only selected executable metadata; this does not establish launch safety.
+ * @param {string|undefined} executable Selected private path, detached from launch.
+ * @param {(file: string) => Promise<import('node:fs').Stats>} statExecutable Metadata provider.
+ * @returns {Promise<string>} Fixed, path-free observation.
+ * @since v0.17.0-alpha */
+async function observeExecutable(executable, statExecutable) {
+  try {
+    if (typeof executable !== 'string' || executable.length === 0) return 'unavailable';
+    if (SCRIPT_WRAPPERS.has(path.win32.extname(executable).toLowerCase()))
+      return 'known-script-wrapper';
+    const info = await statExecutable(executable);
+    if (!info.isFile() || !Number.isSafeInteger(info.size) || info.size < 1) return 'unavailable';
+    return info.size > MAX_EXECUTABLE_BYTES ? 'executable-too-large' : 'metadata-within-limit';
+  } catch {
+    return 'unavailable';
+  }
+}
+
+/** Project only fixed policy fields before any optional metadata wait.
+ * @param {object|undefined} prepared Private preparation result.
+ * @returns {{configuration:string,policyDecision:string,reason:string}} Path-free result.
+ * @since v0.17.0-alpha */
+function projectPrepared(prepared) {
+  if (!prepared)
+    return { configuration: 'unavailable', policyDecision: 'unknown', reason: 'check-unavailable' };
+  if (
+    ['allow', 'ask', 'deny'].includes(prepared.decision) &&
+    (prepared.reason === `policy-${prepared.decision}` ||
+      (prepared.decision === 'ask' && prepared.reason === 'review-required'))
+  )
+    return { configuration: 'valid', policyDecision: prepared.decision, reason: prepared.reason };
+  if (
+    prepared.decision === 'deny' &&
+    ['request-invalid', 'policy-invalid'].includes(prepared.reason)
+  )
+    return { configuration: 'invalid', policyDecision: 'unknown', reason: prepared.reason };
+  return {
+    configuration: 'unavailable',
+    policyDecision: 'unknown',
+    reason: prepared.reason === 'input-unavailable' ? 'input-unavailable' : 'check-unavailable',
+  };
+}
 
 /** @param {string} route Selected route. @param {string} runtime Runtime observation.
  * @param {string} terminal Terminal observation. @returns {object} Fixed report baseline.
@@ -28,7 +75,9 @@ function baseReport(route, runtime, terminal) {
       : 'not-started',
     control: route === 'appcontainer' ? 'not-started' : 'direct-child-only',
     descendantControl: route === 'appcontainer' ? 'not-started' : 'unsupported',
-    ...(route === 'appcontainer' ? { helper: 'not-checked' } : {}),
+    ...(route === 'appcontainer'
+      ? { helper: 'not-checked', executableObservation: 'not-checked' }
+      : {}),
     outsideRouteCoverage: 'unknown',
     connection: 'not-checked',
     blockingVerification: 'not-performed',
@@ -92,15 +141,38 @@ async function checkActionRoute(route, policyPath, requestPath, { signal } = {})
   let timer;
   let abort;
   let outcome;
+  let preparedPublic = null;
   try {
     outcome = await Promise.race([
       Promise.resolve().then(async () => {
         if (signal?.aborted) return { kind: 'cancelled' };
         try {
-          return {
-            kind: 'prepared',
-            value: await (deps.prepare || prepareExecution)(policyPath, requestPath),
-          };
+          const prepare = deps.prepare || prepareExecution;
+          let value =
+            route === 'appcontainer'
+              ? await prepare(policyPath, requestPath, { review: true })
+              : await prepare(policyPath, requestPath);
+          const publicResult = projectPrepared(value);
+          preparedPublic = publicResult;
+          let executableObservation = 'not-checked';
+          if (
+            route === 'appcontainer' &&
+            publicResult.configuration === 'valid' &&
+            ['allow', 'ask'].includes(publicResult.policyDecision)
+          ) {
+            let executable;
+            try {
+              executable = value.launch?.executable;
+            } catch {
+              executable = undefined;
+            }
+            value = null;
+            executableObservation = await observeExecutable(
+              executable,
+              deps.statExecutable || statFile,
+            );
+          }
+          return { kind: 'prepared', publicResult, executableObservation };
         } catch {
           return { kind: 'unavailable' };
         }
@@ -118,32 +190,20 @@ async function checkActionRoute(route, policyPath, requestPath, { signal } = {})
   }
   if (signal?.aborted || outcome.kind === 'cancelled')
     return { ...report, reason: 'check-cancelled' };
-  if (outcome.kind === 'timeout' || now() - started >= LIMITS.checkMs)
+  if (outcome.kind === 'timeout' || now() - started >= LIMITS.checkMs) {
+    if (route === 'appcontainer' && preparedPublic?.configuration === 'valid')
+      return {
+        ...report,
+        ...preparedPublic,
+        executableObservation:
+          preparedPublic.policyDecision === 'deny' ? 'not-checked' : 'unavailable',
+      };
     return { ...report, configuration: 'unavailable', reason: 'check-timeout' };
-  const prepared = outcome.value;
-  if (outcome.kind !== 'prepared' || !prepared) return { ...report, configuration: 'unavailable' };
-  // Never spread or stringify the evaluator's private result, including launch.
-  if (
-    ['allow', 'ask', 'deny'].includes(prepared.decision) &&
-    (prepared.reason === `policy-${prepared.decision}` ||
-      (prepared.decision === 'ask' && prepared.reason === 'review-required'))
-  )
-    return {
-      ...report,
-      configuration: 'valid',
-      policyDecision: prepared.decision,
-      reason: prepared.reason,
-    };
-  if (
-    prepared.decision === 'deny' &&
-    ['request-invalid', 'policy-invalid'].includes(prepared.reason)
-  )
-    return { ...report, configuration: 'invalid', reason: prepared.reason };
-  return {
-    ...report,
-    configuration: 'unavailable',
-    reason: prepared.reason === 'input-unavailable' ? 'input-unavailable' : 'check-unavailable',
-  };
+  }
+  if (outcome.kind !== 'prepared') return { ...report, configuration: 'unavailable' };
+  if (route === 'appcontainer') report.executableObservation = outcome.executableObservation;
+  // Only fixed public policy fields are spread; the private launch was dropped earlier.
+  return { ...report, ...outcome.publicResult };
 }
 
 /**
@@ -185,7 +245,10 @@ async function handleActionRouteCheckCLI(args, write) {
   return result.configuration === 'valid' &&
     result.runtime === 'supported' &&
     ['available', 'not-required'].includes(result.terminal) &&
-    (result.route !== 'appcontainer' || result.helper === 'present')
+    (result.route !== 'appcontainer' ||
+      (result.helper === 'present' &&
+        (result.policyDecision === 'deny' ||
+          result.executableObservation === 'metadata-within-limit')))
     ? 0
     : 2;
 }
