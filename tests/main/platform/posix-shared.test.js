@@ -205,12 +205,67 @@ describe('posix-shared exec-based functions', () => {
       expect(files).toEqual(['/home/user/file.js', '/home/user/.env']);
     });
 
-    it('returns empty array on exec error', async () => {
+    it('rejects an exec error without exposing the command error text', async () => {
       mockExecFile.mockImplementation((cmd, args, opts, cb) => {
-        cb(new Error('lsof not found'));
+        cb(Object.assign(new Error('PRIVATE_LSOF_PATH_CANARY'), { code: 'ENOENT' }), '');
       });
-      const files = await posixShared.parseLsofFileHandles(100);
-      expect(files).toEqual([]);
+      await expect(posixShared.parseLsofFileHandles(100)).rejects.toThrow(
+        /^lsof-file-handles-failed$/,
+      );
+    });
+
+    it('treats lsof exit 1 as an empty observation only when the PID has exited', async () => {
+      const probe = vi.spyOn(process, 'kill').mockImplementation(() => {
+        throw Object.assign(new Error('gone'), { code: 'ESRCH' });
+      });
+      try {
+        mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+          cb(Object.assign(new Error('no matching PID'), { code: 1 }), '');
+        });
+        await expect(posixShared.parseLsofFileHandles(100)).resolves.toEqual([]);
+        expect(probe).toHaveBeenCalledWith(100, 0);
+      } finally {
+        probe.mockRestore();
+      }
+    });
+
+    it('rejects lsof exit 1 when the PID is still live or its status is unknown', async () => {
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+        cb(Object.assign(new Error('PRIVATE_LSOF_PATH_CANARY'), { code: 1 }), '');
+      });
+      const probe = vi.spyOn(process, 'kill');
+      try {
+        probe.mockReturnValueOnce(true).mockImplementationOnce(() => {
+          throw Object.assign(new Error('permission denied'), { code: 'EPERM' });
+        });
+        await expect(posixShared.parseLsofFileHandles(100)).rejects.toThrow(
+          /^lsof-file-handles-failed$/,
+        );
+        await expect(posixShared.parseLsofFileHandles(100)).rejects.toThrow(
+          /^lsof-file-handles-failed$/,
+        );
+        expect(probe).toHaveBeenCalledTimes(2);
+      } finally {
+        probe.mockRestore();
+      }
+    });
+
+    it('rejects a killed lsof command even if its exit code is 1', async () => {
+      const probe = vi.spyOn(process, 'kill');
+      try {
+        mockExecFile.mockImplementation((cmd, args, opts, cb) => {
+          cb(
+            Object.assign(new Error('timed out'), { code: 1, killed: true, signal: 'SIGTERM' }),
+            '',
+          );
+        });
+        await expect(posixShared.parseLsofFileHandles(100)).rejects.toThrow(
+          /^lsof-file-handles-failed$/,
+        );
+        expect(probe).not.toHaveBeenCalled();
+      } finally {
+        probe.mockRestore();
+      }
     });
 
     it('returns empty array when no file paths in output', async () => {
