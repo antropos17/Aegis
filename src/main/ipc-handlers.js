@@ -559,6 +559,10 @@ ${findingsHtml}${recsHtml}
     if (typeof filePath !== 'string' || !filePath) {
       return { success: false, error: 'Invalid path' };
     }
+    if (/^[\\/]{2}/.test(filePath)) {
+      logger.warn('ipc-handlers', 'reveal-in-explorer rejected: UNC or device path');
+      return { success: false, error: 'Path not allowed' };
+    }
     const normalized = path.resolve(filePath);
     if (normalized !== filePath && filePath.includes('..')) {
       logger.warn('ipc-handlers', 'reveal-in-explorer rejected: path traversal');
