@@ -106,14 +106,15 @@ check separately.
 
 ### Windows installer
 
-The latest published prerelease checked on 26 September 2026 is
-[0.16.0-alpha](https://github.com/antropos17/Aegis/releases/tag/aegis-v0.16.0-alpha).
-Its Windows `.exe`, `manifest.json` and `manifest.json.sig` are published together;
-follow [offline installer verification](docs/RELEASE-VERIFICATION.md) after download.
-The release includes signed Windows update support; when upgrading from
-0.14.1-alpha or older, install 0.15.0-alpha or newer manually first. Source
-changes merged after the 0.16.0-alpha tag, including the Windows Job lifetime
-route, are not in that installer.
+Get the current prerelease from [GitHub Releases](https://github.com/antropos17/Aegis/releases).
+A Windows release is ready to install when its `.exe`, `manifest.json` and
+`manifest.json.sig` are all available. Download them from the same release and
+follow [offline installer verification](docs/RELEASE-VERIFICATION.md). Check
+that release's notes for the features it contains; this README describes current
+source, which may be ahead of the installer.
+
+When upgrading from 0.14.1-alpha or older, install 0.15.0-alpha or newer
+manually before using signed in-app updates.
 
 ### From source
 
@@ -138,7 +139,9 @@ npm run dev
 The preview uses simulated data and an isolated host. It shares the desktop components, never calls the real preload, and disables native exports and provider requests. `npm run frontend:build:preview` creates a static preview; `npm run build:renderer` creates the desktop artifact without fixtures.
 
 <details>
-<summary>Release history</summary>
+<summary>Selected release milestones</summary>
+
+For the complete history, see [GitHub Releases](https://github.com/antropos17/Aegis/releases).
 
 | Version | Date | Highlights |
 |---------|------|------------|
