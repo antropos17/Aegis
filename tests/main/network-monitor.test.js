@@ -176,6 +176,35 @@ describe('network-monitor', () => {
     it(':: is private', () => {
       expect(networkMonitor.isPrivateIp('::')).toBe(true);
     });
+
+    it.each([
+      ['::ffff:127.0.0.1', true],
+      ['::ffff:10.1.2.3', true],
+      ['::ffff:172.16.0.1', true],
+      ['::ffff:192.168.1.1', true],
+      ['::ffff:7f00:1', true],
+      ['0:0:0:0:0:ffff:127.0.0.1', true],
+      ['::ffff:0.0.0.0', true],
+      ['fc00::1', true],
+      ['FD12:3456::1', true],
+      ['fdff:ffff::1', true],
+      ['fd12::1%12', true],
+      ['fe90::1', true],
+      ['fe80::1%12', true],
+      ['::ffff:8.8.8.8', false],
+      ['::ffff:808:808', false],
+      ['0:0:0:0:0:ffff:8.8.8.8', false],
+      ['::ffff:0:127.0.0.1', false],
+      ['::127.0.0.1', false],
+      ['fbff::1', false],
+      ['fe00::1', false],
+      ['127.000.0.1', false],
+      ['8.8.8.8%12', false],
+      ['::ffff:127.000.0.1', false],
+      ['fd12:::1', false],
+    ])('classifies %s as local=%s', (ip, local) => {
+      expect(networkMonitor.isPrivateIp(ip)).toBe(local);
+    });
   });
 });
 
@@ -493,6 +522,25 @@ describe('network-monitor DI tests', () => {
       const results = await networkMonitor.scanNetworkConnections(agents);
       expect(results).toHaveLength(1);
       expect(results[0].remoteIp).toBe('52.1.2.3');
+    });
+
+    it('filters mapped private and ULA sockets before DNS while retaining a public mapped socket', async () => {
+      mockGetRawTcp.mockResolvedValue([
+        { pid: 100, ip: '::ffff:127.0.0.1', port: 3000, state: 'ESTAB' },
+        { pid: 100, ip: '0:0:0:0:0:ffff:192.168.1.1', port: 8080, state: 'ESTAB' },
+        { pid: 100, ip: 'fd12:3456::1', port: 443, state: 'ESTAB' },
+        { pid: 100, ip: '::ffff:8.8.8.8', port: 443, state: 'ESTAB' },
+      ]);
+      mockDnsReverse.mockResolvedValue(['dns.google']);
+      mockDnsResolve.mockResolvedValue(['8.8.8.8']);
+
+      const results = await networkMonitor.scanNetworkConnections([
+        { pid: 100, agent: 'Claude Code', instanceId: '100:1', category: 'ai' },
+      ]);
+
+      expect(results.map((row) => row.remoteIp)).toEqual(['::ffff:8.8.8.8']);
+      expect(mockDnsReverse).toHaveBeenCalledExactlyOnceWith('8.8.8.8');
+      expect(mockDnsResolve).toHaveBeenCalledExactlyOnceWith('dns.google');
     });
 
     it('handles multiple agents', async () => {

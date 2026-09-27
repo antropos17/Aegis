@@ -287,6 +287,19 @@ function matchesCidr(bytes, range) {
   return true;
 }
 
+/** Private, loopback, unspecified and IPv6 link-local ranges excluded from remote TCP results. */
+const PRIVATE_IP_RANGES = [
+  ['0.0.0.0', 32],
+  ['10.0.0.0', 8],
+  ['127.0.0.0', 8],
+  ['172.16.0.0', 12],
+  ['192.168.0.0', 16],
+  ['::', 128],
+  ['::1', 128],
+  ['fe80::', 10],
+  ['fc00::', 7],
+].map(([address, bits]) => ({ bytes: ipToBytes(address), bits }));
+
 /**
  * Test whether an IP belongs to a private/loopback range.
  * @param {string} ip
@@ -294,7 +307,34 @@ function matchesCidr(bytes, range) {
  * @since v0.1.0
  */
 function isPrivateIp(ip) {
-  return /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.0\.0\.0|::1$|::$|fe80:)/i.test(ip);
+  const family = isIP(ip);
+  if (!family) return false;
+  let bytes = ipToBytes(ip);
+  if (!bytes && family === 6) {
+    // The shared parser handles ::ffff:dotted but not a fully written IPv6 address
+    // with a dotted tail. Convert that tail to two groups without changing DNS or
+    // allowlist normalization for other callers.
+    const address = normalizeIp(ip);
+    const lastColon = address.lastIndexOf(':');
+    const ipv4 = ipv4ToInt(address.slice(lastColon + 1));
+    if (ipv4 !== null) {
+      bytes = ipToBytes(
+        `${address.slice(0, lastColon + 1)}${(ipv4 >>> 16).toString(16)}:${(ipv4 & 0xffff).toString(16)}`,
+      );
+    }
+  }
+  if (!bytes) return false;
+  // An IPv4-mapped IPv6 address has exactly 80 zero bits followed by ffff.
+  // Only that prefix inherits the IPv4 private ranges; other embedded quads do not.
+  if (
+    bytes.length === 16 &&
+    bytes.slice(0, 10).every((byte) => byte === 0) &&
+    bytes[10] === 0xff &&
+    bytes[11] === 0xff
+  ) {
+    bytes = bytes.slice(12);
+  }
+  return PRIVATE_IP_RANGES.some((range) => range.bytes && matchesCidr(bytes, range));
 }
 
 /**
