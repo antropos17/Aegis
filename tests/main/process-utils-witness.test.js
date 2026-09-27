@@ -30,6 +30,7 @@ describe('process-utils — generation witness', () => {
       // Pinned, never inherited from the CI host: the witness only exists on a
       // platform that observes the process table per pass.
       providesStartTime: true,
+      cwdGenerationProof: false,
     });
   });
 

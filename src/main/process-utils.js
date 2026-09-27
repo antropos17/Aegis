@@ -29,6 +29,9 @@ let _getProcessCwds = _platform.getProcessCwds;
  * @type {boolean}
  */
 let _providesStartTime = _platform.providesStartTime === true;
+// Windows CWD rows carry their own process birth observation. Other platforms
+// retain their existing string-valued CWD contract.
+let _cwdGenerationProof = _platform.cwdGenerationProof === true;
 /** @internal Override platform functions AND the birth-time capability (for tests). */
 function _setPlatformForTest(overrides) {
   if (overrides.getParentProcessMap) _getParentProcessMap = overrides.getParentProcessMap;
@@ -37,12 +40,15 @@ function _setPlatformForTest(overrides) {
   // pin, so both paths are exercised without depending on the CI host's OS.
   if (typeof overrides.providesStartTime === 'boolean')
     _providesStartTime = overrides.providesStartTime;
+  if (typeof overrides.cwdGenerationProof === 'boolean')
+    _cwdGenerationProof = overrides.cwdGenerationProof;
 }
 /** @internal Clear caches and restore the real platform capability (for tests). */
 function _resetForTest() {
   parentChainCache.clear();
   cwdCache.clear();
   _providesStartTime = _platform.providesStartTime === true;
+  _cwdGenerationProof = _platform.cwdGenerationProof === true;
 }
 
 const parentChainCache = new Map();
@@ -521,7 +527,7 @@ const CWD_CACHE_TTL = 60000;
 /**
  * Annotate agents with their working directories.
  * Sets `agent.cwd` (full path) and `agent.projectName` (basename).
- * Uses batched platform call (single PowerShell spawn on Windows).
+ * Uses a batched platform call (native observer or PowerShell fallback on Windows).
  *
  * The cache is keyed by pid AND process name — the same {@link _cacheKey} the
  * parent-chain cache uses, and for the same reason. A bare pid was not enough:
@@ -533,9 +539,12 @@ const CWD_CACHE_TTL = 60000;
  * A same-name recycled pid produces the same key, so on a platform that supplies
  * birth times the entry additionally carries the GENERATION WITNESS it was fetched
  * under, and it is served only while that witness is still the one THIS agent record
- * carries from its own enrichment pass ({@link _recordWitness}). This function
- * performs NO observation of its own — it consumes the one the record already holds,
- * which is why scan-loop must keep running the identity stamp first.
+ * carries from its own enrichment pass ({@link _recordWitness}). Scan-loop stamps
+ * that identity before requesting CWD, and this function freezes it across the
+ * asynchronous lookup. On Windows, the second observation must also report a
+ * matching birth: exact FILETIME for a native stamp, or the same millisecond when
+ * the stamp only has CIM time. The latter remains inferred
+ * evidence because two births inside one millisecond cannot be distinguished.
  *
  * Three cases, and the middle one is the honest degradation:
  *   - a witness pair → the cwd must have been fetched under that same value AND
@@ -545,8 +554,8 @@ const CWD_CACHE_TTL = 60000;
  *     inherited from the old generation;
  *   - `undefined` (this record never passed through enrichment — every pid on
  *     darwin, pid ≤ 0, and any direct caller that skipped the stamp) → the
- *     record established no generation, so none is invented for it and the plain
- *     TTL contract applies exactly as it did before generations existed.
+ *     record established no generation, so none is invented for it. The plain TTL
+ *     contract applies on other platforms; Windows withholds CWD without a proof.
  * @param {Array} agents
  * @param {Object} [opts]
  * @param {boolean} [opts.forceRefresh=false] - when true, ignore cached entries and
@@ -570,8 +579,11 @@ async function annotateWorkingDirs(agents, opts = {}) {
   // the plain TTL contract.
   const entries = agents.map((a) => ({
     agent: a,
+    pid: a.pid,
     key: _cacheKey(a.pid, _agentName(a)),
     witness: _providesStartTime && a.pid > 0 ? _recordWitness(a) : undefined,
+    birthTicks: a.createTime100ns,
+    birthMs: a.startTime,
   }));
 
   // Pids with no live, generation-proven cache entry. Agents can share a pid (the
@@ -598,16 +610,52 @@ async function annotateWorkingDirs(agents, opts = {}) {
   // no longer reconstruct the cache key — and each entry is annotated in the same
   // pass, reading the value just written.
   for (const e of entries) {
-    if (batchResults && uncachedPids.has(e.agent.pid)) {
-      cwdCache.set(e.key, {
-        cwd: batchResults.get(e.agent.pid) || null,
-        // The witness this directory was read under. `undefined` (no generation
-        // established) stores as null, which no established witness ever matches
-        // — a value fetched without a proof never becomes one.
-        witness: e.witness ? e.witness.value : null,
-        witnessSource: e.witness ? e.witness.source : null,
-        timestamp: now,
-      });
+    const currentWitness = _recordWitness(e.agent);
+    const sameRecord =
+      e.agent.pid === e.pid &&
+      _cacheKey(e.agent.pid, _agentName(e.agent)) === e.key &&
+      e.agent.createTime100ns === e.birthTicks &&
+      e.agent.startTime === e.birthMs &&
+      currentWitness?.value === e.witness?.value &&
+      currentWitness?.source === e.witness?.source;
+    if (_cwdGenerationProof && !sameRecord) {
+      cwdCache.delete(e.key);
+      e.agent.cwd = null;
+      e.agent.projectName = null;
+      continue;
+    }
+    if (batchResults && uncachedPids.has(e.pid)) {
+      const observed = batchResults.get(e.pid);
+      const sameProcess =
+        !_cwdGenerationProof ||
+        (observed &&
+          typeof observed === 'object' &&
+          !Array.isArray(observed) &&
+          (e.witness?.source === 'createTime100ns' || e.witness?.source === 'sequence'
+            ? typeof e.birthTicks === 'string' && observed.createTime100ns === e.birthTicks
+            : e.witness?.source === 'startTimeMs' &&
+              Number.isSafeInteger(e.birthMs) &&
+              e.birthMs > 0 &&
+              observed.startTimeMs === e.birthMs));
+      if (_cwdGenerationProof && !sameProcess) {
+        // A later observation cannot prove the earlier PID generation. Drop any
+        // cached directory as well, so a following pass must fetch again.
+        cwdCache.delete(e.key);
+      } else {
+        cwdCache.set(e.key, {
+          cwd: _cwdGenerationProof
+            ? typeof observed.cwd === 'string'
+              ? observed.cwd
+              : null
+            : observed || null,
+          // The witness this directory was read under. `undefined` (no generation
+          // established) stores as null, which no established witness ever matches
+          // — a value fetched without a proof never becomes one.
+          witness: e.witness ? e.witness.value : null,
+          witnessSource: e.witness ? e.witness.source : null,
+          timestamp: now,
+        });
+      }
     }
     const cached = cwdCache.get(e.key);
     const cwd = cached ? cached.cwd : null;

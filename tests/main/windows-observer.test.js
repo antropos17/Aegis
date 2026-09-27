@@ -112,7 +112,11 @@ describe('one-shot Windows observer', () => {
   it('cools down per kind, retries after 60 seconds and never reuses a reading', async () => {
     let now = 0;
     const { client, execFile } = harness(
-      [new Error('failure'), response([]), response([{ ProcessId: 42, CommandLine: null }])],
+      [
+        new Error('failure'),
+        response([]),
+        response([{ ProcessId: 42, CommandLine: null, CreateTime100ns: '133000000000000001' }]),
+      ],
       { now: () => now },
     );
     expect(await client.tryRequest('cwd', { pids: [42] }, (r) => r)).toBeNull();
@@ -120,7 +124,7 @@ describe('one-shot Windows observer', () => {
     expect(await client.tryRequest('tcp', { pids: [42] }, (r) => r)).toEqual([]);
     now = 60000;
     expect(await client.tryRequest('cwd', { pids: [42] }, (r) => validateCwds(r, [42]))).toEqual([
-      { ProcessId: 42, CommandLine: null },
+      { ProcessId: 42, CommandLine: null, CreateTime100ns: '133000000000000001' },
     ]);
     expect(execFile).toHaveBeenCalledTimes(3);
   });
@@ -173,17 +177,22 @@ describe('one-shot Windows observer', () => {
     [{ ProcessId: 42 }],
     [{ ProcessId: 99, CommandLine: null }],
     [{ ProcessId: 42, CommandLine: 12 }],
+    [{ ProcessId: 42, CommandLine: null, CreateTime100ns: Number('133000000000000001') }],
     [
-      { ProcessId: 42, CommandLine: null },
-      { ProcessId: 42, CommandLine: null },
+      { ProcessId: 42, CommandLine: null, CreateTime100ns: '133000000000000001' },
+      { ProcessId: 42, CommandLine: null, CreateTime100ns: '133000000000000001' },
     ],
   ])('rejects malformed or out-of-scope CWD rows (%j)', (...rows) => {
     expect(() => validateCwds(rows, [42])).toThrow();
   });
   it('preserves null, Unicode and exited PID absence in command lines', () => {
     const rows = [
-      { ProcessId: 42, CommandLine: 'node --cwd "X:\\проект"' },
-      { ProcessId: 43, CommandLine: null },
+      {
+        ProcessId: 42,
+        CommandLine: 'node --cwd "X:\\проект"',
+        CreateTime100ns: '133000000000000001',
+      },
+      { ProcessId: 43, CommandLine: null, CreateTime100ns: null },
     ];
     expect(validateCwds(rows, [42, 43, 44])).toBe(rows);
   });
