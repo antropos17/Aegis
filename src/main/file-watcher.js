@@ -1482,10 +1482,54 @@ async function scanAllFileHandles(agents, options = {}) {
  * while a NEW process occupies the same pid — that new instance starts with a
  * clean seen-set and its first sensitive access fires.
  * @param {Array} activeAgents
- * @param {{preservePids?: Set<number>}} [options] PIDs missing a birth witness this pass.
+ * @param {{preservePids?: Set<number>, previousAgents?: Array}} [options] PIDs missing a birth witness and the preceding published population.
  * @returns {void} @since v0.1.0
  */
 function pruneKnownHandles(activeAgents, options = {}) {
+  // The instanceId stores milliseconds. Only two independently stamped, precise
+  // observations can prove a new generation when that key collides. These maps
+  // live for this prune call only; neither a missing witness nor a cached key is
+  // allowed to manufacture a birth observation.
+  const uniqueByKey = (agents) => {
+    const byKey = new Map();
+    for (const agent of Array.isArray(agents) ? agents : []) {
+      const key = handleKey(agent);
+      if (!key) continue;
+      byKey.set(key, byKey.has(key) ? null : agent);
+    }
+    return byKey;
+  };
+  const previousByKey = uniqueByKey(options.previousAgents);
+  const currentByKey = uniqueByKey(activeAgents);
+  for (const [key, current] of currentByKey) {
+    const previous = previousByKey.get(key);
+    if (
+      !previous ||
+      !current ||
+      !Number.isInteger(current.pid) ||
+      current.pid <= 0 ||
+      previous.pid !== current.pid ||
+      options.preservePids?.has(current.pid)
+    )
+      continue;
+    const source = previous.generationWitnessSource;
+    const comparableWitnesses =
+      source === current.generationWitnessSource &&
+      (source === 'sequence' || source === 'createTime100ns') &&
+      typeof previous.generationWitness === 'string' &&
+      previous.generationWitness.length > 0 &&
+      typeof current.generationWitness === 'string' &&
+      current.generationWitness.length > 0;
+    const changedWitness =
+      comparableWitnesses && previous.generationWitness !== current.generationWitness;
+    const changedRawBirth =
+      typeof previous.createTime100ns === 'string' &&
+      typeof current.createTime100ns === 'string' &&
+      /^[1-9]\d{0,19}$/.test(previous.createTime100ns) &&
+      /^[1-9]\d{0,19}$/.test(current.createTime100ns) &&
+      previous.createTime100ns !== current.createTime100ns;
+    if (changedWitness || changedRawBirth) _state.knownHandles.delete(key);
+  }
   const activeKeys = new Set();
   const birthPrecisionUnavailable = new Set();
   for (const a of activeAgents) {

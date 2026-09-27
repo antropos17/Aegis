@@ -107,7 +107,17 @@ describe('scan-loop', () => {
 
   it('publishes the fresh population before a slow identity stamp can leave stale PIDs', async () => {
     const agents = [{ agent: 'Claude Code', process: 'claude.exe', pid: 100 }];
-    let published = [{ agent: 'Old Agent', process: 'old.exe', pid: 100, instanceId: '100:old' }];
+    let published = [
+      {
+        agent: 'Old Agent',
+        process: 'old.exe',
+        pid: 100,
+        instanceId: '100:111',
+        createTime100ns: '133000000000000001',
+        generationWitness: '133000000000000001',
+        generationWitnessSource: 'createTime100ns',
+      },
+    ];
     let finishStamp;
     const deps = makeDeps({
       getLatestAgents: () => published,
@@ -124,6 +134,9 @@ describe('scan-loop', () => {
               finishStamp = () => {
                 agents[0].instanceId = '100:111';
                 agents[0].instanceIdSource = 'os';
+                agents[0].createTime100ns = '133000000000000002';
+                agents[0].generationWitness = '133000000000000002';
+                agents[0].generationWitnessSource = 'createTime100ns';
                 resolve();
               };
             }),
@@ -141,6 +154,18 @@ describe('scan-loop', () => {
     finishStamp();
     await vi.advanceTimersByTimeAsync(0);
     expect(published[0]).toMatchObject({ instanceId: '100:111', instanceIdSource: 'os' });
+    expect(deps.watcher.pruneKnownHandles).toHaveBeenCalledWith(agents, {
+      preservePids: new Set(),
+      previousAgents: [
+        {
+          pid: 100,
+          instanceId: '100:111',
+          createTime100ns: '133000000000000001',
+          generationWitness: '133000000000000001',
+          generationWitnessSource: 'createTime100ns',
+        },
+      ],
+    });
   });
 
   it('publishes lineage only after identity stamping and invalidates it on failed observations or stop', async () => {
@@ -971,6 +996,7 @@ describe('scan-loop', () => {
       expect(deps.watcher.pruneKnownHandles).toHaveBeenCalledTimes(3);
       expect(deps.watcher.pruneKnownHandles).toHaveBeenLastCalledWith(expect.any(Array), {
         preservePids: new Set([100]),
+        previousAgents: expect.any(Array),
       });
       expect(deps.scanner.getUnwitnessedPids).toHaveBeenLastCalledWith([
         expect.objectContaining({ pid: 100, instanceId: '100:u' }),
