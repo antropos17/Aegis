@@ -105,6 +105,44 @@ describe('scan-loop', () => {
     };
   }
 
+  it('publishes the fresh population before a slow identity stamp can leave stale PIDs', async () => {
+    const agents = [{ agent: 'Claude Code', process: 'claude.exe', pid: 100 }];
+    let published = [{ agent: 'Old Agent', process: 'old.exe', pid: 100, instanceId: '100:old' }];
+    let finishStamp;
+    const deps = makeDeps({
+      getLatestAgents: () => published,
+      setAgents: vi.fn((rows) => {
+        published = rows;
+      }),
+      scanner: {
+        scanProcesses: vi.fn().mockResolvedValue({ agents, reliable: true, changed: false }),
+      },
+      procUtil: {
+        enrichWithParentChains: vi.fn(
+          () =>
+            new Promise((resolve) => {
+              finishStamp = () => {
+                agents[0].instanceId = '100:111';
+                agents[0].instanceIdSource = 'os';
+                resolve();
+              };
+            }),
+        ),
+        annotateHostApps: vi.fn(),
+        annotateWorkingDirs: vi.fn().mockResolvedValue(),
+      },
+    });
+    scanLoop.init(deps);
+    scanLoop.startScanIntervals(5000);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(deps.procUtil.enrichWithParentChains).toHaveBeenCalledOnce();
+    expect(published[0].agent).toBe('Claude Code');
+    expect(published[0].instanceId).toBeUndefined();
+    finishStamp();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(published[0]).toMatchObject({ instanceId: '100:111', instanceIdSource: 'os' });
+  });
+
   it('publishes lineage only after identity stamping and invalidates it on failed observations or stop', async () => {
     const population = [{ agent: 'A', process: 'a', pid: 10 }];
     const sequenceEngine = { observePopulation: vi.fn() };
@@ -783,13 +821,17 @@ describe('scan-loop', () => {
         expect(degradedWith(true, SENSOR_HEALTH_STATE.DEGRADED)).toBe(false);
       });
 
-      it('linux/darwin are NEVER degraded, whatever the snapshot leaf says', () => {
+      it('platforms without birth times are NEVER degraded, whatever the snapshot says', () => {
         // `<pid>:u` is their steady state, not an outage. Reading their permanent
         // `identityQuality: 'unknown'` as degradation would freeze session tracking
         // on those platforms forever.
         expect(degradedWith(false, SENSOR_HEALTH_STATE.FAILED)).toBe(false);
         expect(degradedWith(false, SENSOR_HEALTH_STATE.STARTING)).toBe(false);
         expect(degradedWith(false, SENSOR_HEALTH_STATE.HEALTHY)).toBe(false);
+        expect(scanner.isIdentityDegraded([{ pid: 100, instanceIdSource: 'unknown' }])).toBe(false);
+        expect(scanner.getUnwitnessedPids([{ pid: 100, instanceIdSource: 'unknown' }])).toEqual(
+          new Set(),
+        );
       });
     });
 
@@ -818,6 +860,14 @@ describe('scan-loop', () => {
             reliable: true,
           })),
           isIdentityDegraded: vi.fn(() => state.map.size === 0),
+          getUnwitnessedPids: vi.fn(
+            (agents) =>
+              new Set(
+                agents
+                  .filter((agent) => agent.pid > 0 && agent.instanceIdSource !== 'os')
+                  .map((agent) => agent.pid),
+              ),
+          ),
         },
         procUtil: {
           enrichWithParentChains: vi.fn(async (agents) => {
@@ -865,8 +915,10 @@ describe('scan-loop', () => {
       state.map = new Map(); // the provider falls over
       await vi.advanceTimersByTimeAsync(5000); // tick 2 — keys would flip to :u
       await vi.advanceTimersByTimeAsync(5000); // tick 3 — grace 2 would fire here
+      expect(deps.watcher.pruneKnownHandles).toHaveBeenCalledTimes(1);
       state.map = LIVE_MAP(); // the provider comes back
       await vi.advanceTimersByTimeAsync(5000); // tick 4 — mirror pair would fire here
+      expect(deps.watcher.pruneKnownHandles).toHaveBeenCalledTimes(2);
 
       const entered = auditOf(deps, 'agent-enter');
       expect(auditOf(deps, 'agent-exit')).toHaveLength(0);
@@ -875,6 +927,47 @@ describe('scan-loop', () => {
         '100:1717000000000',
         '200:1717000100000',
       ]);
+    });
+
+    it('preserves holder history across partial birth-time loss and recovery', async () => {
+      require_('../../src/main/session-tracker.js')._resetForTest();
+      const state = { map: LIVE_MAP() };
+      const deps = makeOutageDeps(state);
+      deps.sequenceEngine = { observePopulation: vi.fn() };
+      scanLoop.init(deps);
+      scanLoop.startScanIntervals(5000);
+
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(deps.watcher.pruneKnownHandles).toHaveBeenCalledTimes(1);
+      state.map = new Map([
+        [100, null],
+        [200, 1717000100000],
+      ]);
+      await vi.advanceTimersByTimeAsync(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(deps.sequenceEngine.observePopulation).toHaveBeenLastCalledWith(
+        [
+          expect.objectContaining({ pid: 100, instanceIdSource: 'unknown' }),
+          expect.objectContaining({ pid: 200, instanceIdSource: 'os' }),
+        ],
+        true,
+      );
+      expect(deps.watcher.pruneKnownHandles).toHaveBeenCalledTimes(3);
+      expect(deps.watcher.pruneKnownHandles).toHaveBeenLastCalledWith(expect.any(Array), {
+        preservePids: new Set([100]),
+      });
+      expect(deps.scanner.getUnwitnessedPids).toHaveBeenLastCalledWith([
+        expect.objectContaining({ pid: 100, instanceId: '100:u' }),
+        expect.objectContaining({ pid: 200, instanceId: '200:1717000100000' }),
+      ]);
+      expect(deps.audit.log.mock.calls.filter((call) => call[0] === 'agent-enter')).toHaveLength(2);
+      expect(deps.audit.log.mock.calls.filter((call) => call[0] === 'agent-exit')).toHaveLength(0);
+
+      state.map = LIVE_MAP();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(deps.watcher.pruneKnownHandles).toHaveBeenCalledTimes(4);
+      expect(deps.audit.log.mock.calls.filter((call) => call[0] === 'agent-enter')).toHaveLength(2);
+      expect(deps.audit.log.mock.calls.filter((call) => call[0] === 'agent-exit')).toHaveLength(0);
     });
 
     it('the scan-batch still carries the honest degraded key while frozen', async () => {

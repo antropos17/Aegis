@@ -85,6 +85,56 @@ describe('shared Windows process observation', () => {
     expect(extraObserve).not.toHaveBeenCalled();
   });
 
+  it('keeps a partially unwitnessed PID frozen while reconciling witnessed peers', async () => {
+    let health = 'HEALTHY';
+    scanner._setPlatformForTest({ getSnapshotHealth: () => ({ state: health }) });
+    const two = (birth) =>
+      new Map([
+        [100, { name: 'claude.exe', ppid: 0, startTime: birth }],
+        [300, { name: 'cursor.exe', ppid: 0, startTime: 3000 }],
+      ]);
+    const one = (birth) => new Map([[100, { name: 'claude.exe', ppid: 0, startTime: birth }]]);
+    observe
+      .mockResolvedValueOnce(two(1000))
+      .mockResolvedValueOnce(two(null))
+      .mockResolvedValueOnce(one(null))
+      .mockResolvedValueOnce(one(null))
+      .mockResolvedValueOnce(one(1000));
+
+    const initial = await pass();
+    expect(initial.agents).toHaveLength(2);
+    expect(sessions.reconcile(initial.agents).entered).toHaveLength(2);
+
+    health = 'DEGRADED';
+    const partial = await pass();
+    expect(partial.agents.find((a) => a.pid === 100).instanceId).toBe('100:u');
+    expect(scanner.isIdentityDegraded()).toBe(false);
+    expect(scanner.isIdentityDegraded(partial.agents)).toBe(true);
+    expect(scanner.getUnwitnessedPids(partial.agents)).toEqual(new Set([100]));
+    expect(
+      sessions.reconcile(partial.agents, {
+        unwitnessedPids: scanner.getUnwitnessedPids(partial.agents),
+      }),
+    ).toEqual({ entered: [], exited: [] });
+
+    const missingCursor = await pass();
+    expect(
+      sessions.reconcile(missingCursor.agents, {
+        unwitnessedPids: scanner.getUnwitnessedPids(missingCursor.agents),
+      }),
+    ).toEqual({ entered: [], exited: [] });
+    const exited = sessions.reconcile((await pass()).agents, {
+      unwitnessedPids: new Set([100]),
+    }).exited;
+    expect(exited.map((session) => session.instanceId)).toEqual(['300:3000']);
+
+    health = 'HEALTHY';
+    const recovered = await pass();
+    expect(sessions.reconcile(recovered.agents)).toEqual({ entered: [], exited: [] });
+    expect(observe).toHaveBeenCalledTimes(5);
+    expect(extraObserve).not.toHaveBeenCalled();
+  });
+
   it('uses the ordinary list on a platform without birth-time observations', async () => {
     scanner._setPlatformForTest({ providesStartTime: false });
     const result = await scanner.scanProcesses({ sharedObservation: true });

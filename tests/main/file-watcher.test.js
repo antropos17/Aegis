@@ -474,6 +474,22 @@ describe('file-watcher event handling', () => {
       expect(state.knownHandles.has('100:222')).toBe(true);
       expect(state.knownHandles.has('100:111')).toBe(false);
     });
+
+    it('preserves an unwitnessed PID without retaining stale witnessed peers', () => {
+      state.knownHandles.set('100:111', new Set(['holding|/home/user/.ssh']));
+      state.knownHandles.set('100:u', new Set(['holding|/home/user/.ssh']));
+      state.knownHandles.set('200:222', new Set(['/old']));
+      state.knownHandles.set('300:333', new Set(['/gone']));
+      state.knownHandles.set('1000:111', new Set(['/different-pid']));
+      fileWatcher.pruneKnownHandles(
+        [
+          { pid: 100, instanceId: '100:u' },
+          { pid: 200, instanceId: '200:444' },
+        ],
+        { preservePids: new Set([100]) },
+      );
+      expect([...state.knownHandles.keys()].sort()).toEqual(['100:111', '100:u']);
+    });
   });
 });
 

@@ -155,23 +155,43 @@ function getIdentityQuality() {
  *
  * On such a platform `unknown` means the provider fell over between one tick and the
  * next, so every live agent's key silently changes from `<pid>:<birthMs>` to
- * `<pid>:u`. That is a SPLIT, not an exit — the failure process-identity.js's header
- * names as the opposite of a merge — and it forks the session, the dedup set, the
- * baselines and the token ledger along with the key.
+ * `<pid>:u`. A nonempty observation can also omit one agent's birth time; the stamped
+ * agents argument detects that narrower loss without reading a prior birth from cache.
  *
  * `birth-time` (the CIM fallback) is NOT degradation here: the keys still form in
- * the same space with the same values, so nothing splits. Only a total loss of the
- * observation counts.
+ * the same space with the same values, so nothing splits. A missing birth for any
+ * real process does count, whether the provider lost all births or just one.
  *
- * SCOPE OF THE GATE: unlike `identityQuality`, which is annotation and gates nothing
- * (design §3), this IS acted on — by session reconciliation alone, and only to
- * FREEZE state. It never suppresses an observation and never fabricates one: the
- * scan batch keeps carrying the honest `<pid>:u` it observed.
+ * SCOPE OF THE GATE: this is acted on by session reconciliation and app health. It
+ * never suppresses a file or network observation: the scan batch still carries the
+ * honest `<pid>:u` it observed. A partial loss freezes only affected PIDs in the
+ * session tracker; a complete provider loss still freezes the whole pass.
+ * @param {Array<{pid?:number,instanceIdSource?:string}>} [agents] Already stamped agents from this pass.
  * @returns {boolean}
  * @since 0.12.0
  */
-function isIdentityDegraded() {
-  return _providesStartTime === true && getIdentityQuality() === 'unknown';
+function isIdentityDegraded(agents) {
+  return (
+    _providesStartTime === true &&
+    (getIdentityQuality() === 'unknown' || getUnwitnessedPids(agents).size > 0)
+  );
+}
+
+/**
+ * PIDs whose current stamp lacks the birth time this platform normally supplies.
+ * An absent stamp is also uncertain. Synthetic PID-zero identities do not need one.
+ * @param {Array<{pid?:number,instanceIdSource?:string}>} [agents] Current stamped agents.
+ * @returns {Set<number>} Unwitnessed real process IDs.
+ * @since 0.17.0
+ */
+function getUnwitnessedPids(agents) {
+  const pids = new Set();
+  if (_providesStartTime !== true || !Array.isArray(agents)) return pids;
+  for (const agent of agents) {
+    if (agent && Number.isInteger(agent.pid) && agent.pid > 0 && agent.instanceIdSource !== 'os')
+      pids.add(agent.pid);
+  }
+  return pids;
 }
 
 /**
@@ -452,6 +472,7 @@ module.exports = {
   // that struct is the POPULATION contract every agent-scoped sensor gates on, and
   // this answers a different question for exactly one consumer.
   isIdentityDegraded,
+  getUnwitnessedPids,
   noteProcessScanHardFailure,
   PROCESS_SENSOR_ID,
   _setPlatformForTest,

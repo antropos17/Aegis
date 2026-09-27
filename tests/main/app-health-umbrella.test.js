@@ -418,6 +418,26 @@ describe('app-health umbrella (B8)', () => {
       expect(health.sensors.projections).toHaveLength(1);
       expect(h.freezeLogs()).toEqual([]);
     });
+
+    it('S7. a CIM fallback with a missing birth time remains visibly degraded', async () => {
+      const setSnapshot = h.installSnapshotLeaf(S.DEGRADED, 'cim-fallback');
+      const base = await h.bringUp();
+      expect(base.state).toBe(A.HEALTHY);
+      expect(h.sessionTracker.activeCount()).toBe(1);
+
+      setSnapshot(S.DEGRADED, 'cim-fallback', [CLAUDE.pid]);
+      await h.tickProcess();
+      const health = h.health();
+      expect(h.latest()[0].instanceId).toBe(`${CLAUDE.pid}:u`);
+      expect(h.latest()[0].instanceIdSource).toBe('unknown');
+      expect(h.scanner.isIdentityDegraded(h.latest())).toBe(true);
+      expect(health.identityQuality).toBe('birth-time');
+      expect(health.identityDegraded).toBe(true);
+      expect(health.state).toBe(A.DEGRADED);
+      expect(health.sensors.projections).toEqual([]);
+      expect(h.sessionTracker.activeCount()).toBe(1);
+      expect(nonNetworkAudit(h)).toEqual(['agent-enter']);
+    });
   });
 
   describe('S8 — only a reconciled process tick clears a resumed gap', () => {

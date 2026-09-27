@@ -21,6 +21,8 @@
  *     `<pid>:u`) or the time (`gapStraddled: true`, a list read before an OS sleep
  *     and reconciled after it). All are absences of evidence, and an absence of
  *     evidence must not be written into the audit log as a fleet-wide exit.
+ *   - If only some process births are unavailable, those PIDs are frozen while
+ *     witnessed peers continue to enter and exit normally.
  *
  *   Identity is `instanceId + process name`, where `instanceId` binds the pid to
  *   the OS process-creation time (process-identity.js). The snapshot scanner
@@ -144,6 +146,9 @@ function sessionKey(agent) {
  *   `firstSeen` stamped here would place a pre-sleep sighting after the gap. Handled
  *   EXACTLY like the two flags above — no enter, no exit, no aging — and for the same
  *   reason: absence of evidence is not evidence of an exit.
+ * @param {Set<number>} [opts.unwitnessedPids] - real PIDs whose birth time was not
+ *   observed on this pass. Do not create or age sessions for these PIDs, while still
+ *   reconciling witnessed peers. The scan batch retains their honest unknown keys.
  * @param {number} [opts.now] - injectable timestamp (ms) for tests.
  * @param {number} [opts.grace=DEFAULT_EXIT_GRACE] - consecutive reliable misses
  *   before a session is reported as exited.
@@ -155,6 +160,7 @@ function reconcile(agents, opts = {}) {
   const reliable = opts.reliable !== false;
   const identityDegraded = opts.identityDegraded === true;
   const gapStraddled = opts.gapStraddled === true;
+  const unwitnessedPids = opts.unwitnessedPids instanceof Set ? opts.unwitnessedPids : null;
   const now = opts.now != null ? opts.now : Date.now();
   const grace = opts.grace != null ? opts.grace : DEFAULT_EXIT_GRACE;
 
@@ -175,6 +181,7 @@ function reconcile(agents, opts = {}) {
   const seenKeys = new Set();
 
   for (const a of agents) {
+    if (unwitnessedPids?.has(a.pid)) continue;
     const key = sessionKey(a);
     if (!key) continue; // unstamped — no fabricated session identity
     const instanceId = readInstanceId(a);
@@ -206,6 +213,7 @@ function reconcile(agents, opts = {}) {
 
   const exited = [];
   for (const [key, s] of activeSessions) {
+    if (unwitnessedPids?.has(s.pid)) continue;
     if (seenKeys.has(key)) continue;
     s.missed += 1;
     if (s.missed >= grace) {
