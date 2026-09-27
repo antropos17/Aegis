@@ -1731,9 +1731,40 @@ describe('ipc-handlers', () => {
       // Use a path that exists (the test file itself)
       const existingPath = path.resolve(__dirname, '../../package.json');
       const result = handler(event, existingPath);
-      expect(mockElectron.shell.showItemInFolder).toHaveBeenCalled();
-      expect(result.success).toBe(true);
+      expect(mockElectron.shell.showItemInFolder).toHaveBeenCalledExactlyOnceWith(existingPath);
+      expect(result).toEqual({ success: true });
       expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      String.raw`\\server\share\file`,
+      '//server/share/file',
+      String.raw`\/server/share/file`,
+      String.raw`/\server\share\file`,
+      String.raw`\\?\C:\file`,
+      String.raw`\\.\C:\file`,
+    ])('rejects UNC or device path before filesystem access: %s', (filePath) => {
+      const { event } = registerOwnedRenderer();
+      const resolveSpy = vi.spyOn(path, 'resolve');
+      const existsSpy = vi.spyOn(fs, 'existsSync').mockReturnValue(false);
+      let result;
+      let resolveCalls;
+      let existsCalls;
+      try {
+        result = getHandler('reveal-in-explorer')(event, filePath);
+        resolveCalls = resolveSpy.mock.calls.length;
+        existsCalls = existsSpy.mock.calls.length;
+      } finally {
+        resolveSpy.mockRestore();
+        existsSpy.mockRestore();
+      }
+
+      expect(result).toEqual({ success: false, error: 'Path not allowed' });
+      expect(resolveCalls).toBe(0);
+      expect(existsCalls).toBe(0);
+      expect(mockElectron.app.getPath).not.toHaveBeenCalled();
+      expect(mockElectron.shell.showItemInFolder).not.toHaveBeenCalled();
+      expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(filePath);
     });
 
     it('keeps a missing watched secret path out of persistent rejection diagnostics', () => {
