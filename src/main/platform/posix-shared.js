@@ -128,14 +128,27 @@ function parseLsofOutput(stdout, pidSet) {
 function parseLsofFileHandles(pid) {
   pid = Number(pid);
   if (!isValidPid(pid)) return Promise.resolve([]);
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     _execFile(
       'lsof',
       ['-p', String(pid), '-F', 'n'],
       { timeout: 15000, maxBuffer: 4 * 1024 * 1024 },
       (err, stdout) => {
         if (err) {
-          resolve([]);
+          // Exit 1 can mean no matching PID. Only a confirmed exit is a clean empty scan.
+          if (err.code === 1 && !err.killed && !err.signal) {
+            try {
+              process.kill(pid, 0);
+            } catch (probeErr) {
+              if (probeErr && probeErr.code === 'ESRCH') {
+                resolve([]);
+                return;
+              }
+            }
+          }
+          // An unconfirmed provider read is not proof that the process holds no files.
+          // Keep command diagnostics (which may contain private paths) out of health.
+          reject(new Error('lsof-file-handles-failed'));
           return;
         }
         const files = [];

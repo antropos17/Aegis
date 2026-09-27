@@ -4,6 +4,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fileWatcher from '../../src/main/file-watcher.js';
 import { SENSOR_HEALTH_STATE, aggregateSensorHealth } from '../../src/main/sensor-health.js';
+import posixShared from '../../src/main/platform/posix-shared.js';
 
 function makeState(overrides = {}) {
   return {
@@ -35,6 +36,55 @@ describe('file-watcher health (B2)', () => {
   });
 
   describe('fs-handle', () => {
+    it('a POSIX lsof execution failure does not turn an unread handle scan into HEALTHY', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      const start = 1700000000000;
+      let providerState = 'available';
+      posixShared._setExecFileForTest((_cmd, _args, _opts, cb) => {
+        if (providerState === 'unavailable') {
+          cb(Object.assign(new Error('PRIVATE_LSOF_PATH_CANARY'), { code: 'ENOENT' }), '');
+        } else if (providerState === 'exited') {
+          cb(Object.assign(new Error('PID exited'), { code: 1 }), '');
+        } else {
+          cb(null, 'p1\n');
+        }
+      });
+      const probe = vi.spyOn(process, 'kill').mockImplementation(() => {
+        throw Object.assign(new Error('PID exited'), { code: 'ESRCH' });
+      });
+      try {
+        fileWatcher._setDepsForTest({
+          getFileHandles: posixShared.parseLsofFileHandles,
+          isReadDetectionAvailable: true,
+        });
+        const agents = [{ pid: 1, agent: 'Claude Code', category: 'ai', instanceId: '1:u' }];
+        vi.setSystemTime(start);
+        expect(await fileWatcher.scanAllFileHandles(agents)).toEqual([]);
+        expect(fileWatcher.getFileSensorHealth()['fs-handle'].lastSuccessAt).toBe(start);
+
+        providerState = 'unavailable';
+        vi.setSystemTime(start + 5000);
+        expect(await fileWatcher.scanAllFileHandles(agents)).toEqual([]);
+        const health = fileWatcher.getFileSensorHealth()['fs-handle'];
+        expect(health.state).toBe(SENSOR_HEALTH_STATE.FAILED);
+        expect(health.lastAttemptAt).toBe(start + 5000);
+        expect(health.lastSuccessAt).toBe(start);
+        expect(JSON.stringify(health)).not.toContain('PRIVATE_LSOF_PATH_CANARY');
+
+        providerState = 'exited';
+        vi.setSystemTime(start + 10000);
+        expect(await fileWatcher.scanAllFileHandles(agents)).toEqual([]);
+        const recovered = fileWatcher.getFileSensorHealth()['fs-handle'];
+        expect(recovered.state).toBe(SENSOR_HEALTH_STATE.HEALTHY);
+        expect(recovered.lastSuccessAt).toBe(start + 10000);
+        expect(probe).toHaveBeenCalledWith(1, 0);
+      } finally {
+        probe.mockRestore();
+        posixShared._setExecFileForTest(null);
+        vi.useRealTimers();
+      }
+    });
+
     it('successful empty observation is HEALTHY (not FAILED)', async () => {
       fileWatcher._setDepsForTest({
         getFileHandles: vi.fn().mockResolvedValue([]),
