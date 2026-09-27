@@ -14,9 +14,11 @@ const mockTrayConstructor = vi.fn(function () {
 });
 const mockBuildFromTemplate = vi.fn((template) => template);
 const mockNotificationInstance = { show: vi.fn() };
+const mockNotificationIsSupported = vi.fn(() => true);
 const mockNotificationConstructor = vi.fn(function () {
   return mockNotificationInstance;
 });
+mockNotificationConstructor.isSupported = mockNotificationIsSupported;
 const mockCreateFromBuffer = vi.fn((buf) => ({ buffer: buf, isNativeImage: true }));
 
 const fakeElectron = {
@@ -48,6 +50,7 @@ describe('tray-icon', () => {
     mockTrayConstructor.mockClear();
     mockBuildFromTemplate.mockClear();
     mockNotificationConstructor.mockClear();
+    mockNotificationIsSupported.mockReset().mockReturnValue(true);
     mockNotificationInstance.show.mockClear();
     mockCreateFromBuffer.mockClear();
 
@@ -141,14 +144,15 @@ describe('tray-icon', () => {
       expect(tooltip).toContain('[PAUSED]');
     });
 
-    it('tooltip shows sensitive alert count', () => {
+    it('tooltip identifies a retained observation count rather than a threat severity', () => {
       const state = initTray({
         activityLog: [{ sensitive: true }, { sensitive: true }, { sensitive: false }],
       });
       state.tray = { setImage: vi.fn(), setToolTip: vi.fn(), setContextMenu: vi.fn() };
       tray.updateTrayIcon();
       const tooltip = state.tray.setToolTip.mock.calls[0][0];
-      expect(tooltip).toContain('2 sensitive alerts');
+      expect(tooltip).toContain('2 retained sensitive observations');
+      expect(tooltip).not.toContain('Critical');
     });
   });
 
@@ -197,7 +201,8 @@ describe('tray-icon', () => {
       tray.notifySensitive(events);
       expect(mockNotificationConstructor).toHaveBeenCalledTimes(1);
       const notifArgs = mockNotificationConstructor.mock.calls[0][0];
-      expect(notifArgs.title).toContain('Sensitive File Access');
+      expect(notifArgs.title).toContain('Sensitive File Activity');
+      expect(notifArgs.urgency).toBe('normal');
       expect(notifArgs.body).toContain('Claude');
       expect(notifArgs.body).toContain('id_rsa');
     });
@@ -242,6 +247,75 @@ describe('tray-icon', () => {
       expect(body.startsWith(' ')).toBe(false);
       expect(body).toContain('id_rsa');
     });
+
+    it('labels path-inferred ownership instead of presenting it as confirmed', () => {
+      initTray();
+      tray.notifySensitive([
+        {
+          sensitive: true,
+          agent: 'Claude',
+          action: 'read',
+          file: '/home/user/.ssh/id_rsa',
+          reason: 'SSH key',
+          attribution: { status: 'inferred', evidence: ['cwd-containment'] },
+        },
+      ]);
+      expect(mockNotificationConstructor.mock.calls[0][0].body).toContain('Claude (inferred)');
+    });
+
+    it('uses Unknown source when attribution says unattributed even if a stale agent name exists', () => {
+      initTray();
+      tray.notifySensitive([
+        {
+          sensitive: true,
+          agent: 'Claude',
+          action: 'read',
+          file: '/home/user/.ssh/id_rsa',
+          reason: 'SSH key',
+          attribution: { status: 'unattributed', evidence: ['no-owner-match'] },
+        },
+      ]);
+      const body = mockNotificationConstructor.mock.calls[0][0].body;
+      expect(body).toContain('Unknown source');
+      expect(body).not.toContain('Claude');
+    });
+
+    it('skips unsupported native notifications without consuming the throttle window', () => {
+      const state = initTray();
+      const events = [{ sensitive: true, agent: 'A', file: '/f', reason: 'r' }];
+      mockNotificationIsSupported.mockReturnValueOnce(false);
+      expect(() => tray.notifySensitive(events)).not.toThrow();
+      expect(mockNotificationConstructor).not.toHaveBeenCalled();
+      expect(state.lastNotificationTime).toBe(0);
+      tray.notifySensitive(events);
+      expect(mockNotificationConstructor).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['support probe', 'constructor', 'show'])(
+      'does not interrupt monitoring or consume the throttle when native %s throws',
+      (failure) => {
+        const state = initTray();
+        const events = [{ sensitive: true, agent: 'A', file: '/f', reason: 'r' }];
+        if (failure === 'support probe') {
+          mockNotificationIsSupported.mockImplementationOnce(() => {
+            throw new Error('native notification unavailable');
+          });
+        } else if (failure === 'constructor') {
+          mockNotificationConstructor.mockImplementationOnce(function () {
+            throw new Error('native notification unavailable');
+          });
+        } else {
+          mockNotificationInstance.show.mockImplementationOnce(() => {
+            throw new Error('native notification unavailable');
+          });
+        }
+        expect(() => tray.notifySensitive(events)).not.toThrow();
+        expect(state.lastNotificationTime).toBe(0);
+        tray.notifySensitive(events);
+        expect(mockNotificationInstance.show).toHaveBeenCalled();
+        expect(state.lastNotificationTime).toBeGreaterThan(0);
+      },
+    );
 
     it('shows (+N more) for multiple sensitive events', () => {
       initTray();

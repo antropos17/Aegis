@@ -1,5 +1,17 @@
 # AEGIS Observatory
 
+## Sensitive activity review — 27 September 2026
+
+A fixed Alerts entry opens a bounded, session-local review list of sensitive
+file observations delivered to this renderer window. New deliveries show a
+brief bottom toast with a basename and qualified source attribution; initial
+retained events enter the list quietly. The review panel uses the Observatory's
+neutral surface, semantic alert border, stationary controls and native focus
+order. Escape closes it and returns focus to Alerts. Captured evidence remains
+inspectable after a row is marked reviewed, while no review decision is shown as
+file isolation, access blocking or selected-action approval. Settings identifies
+its Notifications toggle as desktop-popup only.
+
 ## Process scan cadence — 27 September 2026
 
 The Agent processes sensor card shows a historical count of scheduled process

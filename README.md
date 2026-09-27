@@ -37,6 +37,7 @@ The [published release](https://github.com/antropos17/Aegis/releases) is built f
 | What you want to do | Where to start |
 | --- | --- |
 | See running agents and review their activity | **Monitoring**, then an agent's processes, files or connections |
+| Review a sensitive-file alert | **Alerts** in Observatory, then [inspect the captured evidence](docs/ALERTS-AND-PERMISSIONS.md) |
 | Check a project, skill or agent profile before use | [**Local security**](docs/LOCAL-SECURITY-UI.md): static review, inventory, comparison and offline report import |
 | Check how a selected action matches a policy | [**Action control**](docs/ACTION-COVERAGE-UI.md): choose files and review the captured outcome |
 | Connect selected actions to an agent | [MCP setup](docs/ACTION-MCP-CONFIG.md), explicitly configured from a terminal |
@@ -75,6 +76,8 @@ The Observatory workspace provides a live instance radar, separate agent instanc
 ## Monitor-first
 
 Default monitoring observes and logs; it does not automatically block or contain agents. Kill, suspend and resume are manual actions. Monitoring presets and endpoint allowlists do not establish that an agent is safe. The opt-in routes below control only selected launches. The Windows Job route bounds the lifetime of its participating descendants; none of these routes restricts file or network access.
+
+The [sensitive-activity review list](docs/ALERTS-AND-PERMISSIONS.md) is scoped to the current desktop window; marking an alert reviewed does not quarantine its file or grant access.
 
 AEGIS is alpha software. This README describes current source; installed builds contain the features available at their [release tag](https://github.com/antropos17/Aegis/releases).
 

@@ -2,7 +2,7 @@
  * @file tray-icon.js
  * @module main/tray-icon
  * @description System-tray Observatory shield artwork,
- *   colour-coded threat updates, tray context menu, and native notifications.
+ *   colour-coded retained-activity updates, tray context menu, and native notifications.
  * @requires electron
  * @requires fs
  * @requires path
@@ -57,9 +57,13 @@ function updateTrayIcon() {
     _state.currentTrayColor = color;
     _state.tray.setImage(createTrayIconImage(color));
   }
-  const labels = { green: 'Clear', yellow: 'Elevated', red: 'Critical' };
+  const labels = {
+    green: 'No retained alerts',
+    yellow: 'Sensitive activity',
+    red: 'High alert volume',
+  };
   const agentCount = typeof _state.getAgentCount === 'function' ? _state.getAgentCount() : 0;
-  const tooltip = `AEGIS \u2014 ${labels[color]}${_state.isMonitoringPaused() ? ' [PAUSED]' : ''} | ${agentCount} agents | ${total} sensitive alerts`;
+  const tooltip = `AEGIS \u2014 ${labels[color]}${_state.isMonitoringPaused() ? ' [PAUSED]' : ''} | ${agentCount} agents | ${total} retained sensitive observations`;
   if (lastTooltip?.tray !== _state.tray || lastTooltip.value !== tooltip) {
     _state.tray.setToolTip(tooltip);
     lastTooltip = { tray: _state.tray, value: tooltip };
@@ -77,17 +81,26 @@ function notifySensitive(events) {
   if (se.length === 0) return;
   const now = Date.now();
   if (now - _state.lastNotificationTime < 30000) return;
-  _state.lastNotificationTime = now;
   const f = se[0],
     more = se.length > 1 ? ` (+${se.length - 1} more)` : '';
-  // An unattributed event carries an empty agent name; without a label the body
-  // would open with a bare space and read as a formatting bug.
-  const source = f.agent || UNKNOWN_SOURCE_LABEL;
-  new Notification({
-    title: 'AEGIS \u2014 Sensitive File Access',
-    body: `${source} ${f.action || 'accessed'}: ${path.basename(f.file)}${more}\n${f.reason}`,
-    urgency: 'critical',
-  }).show();
+  // The attribution stamp takes precedence over any stale display name. A path
+  // heuristic is a possible owner, not PID-backed proof of the process involved.
+  let source = f.attribution?.status === 'unattributed' ? UNKNOWN_SOURCE_LABEL : f.agent;
+  if (!source) source = UNKNOWN_SOURCE_LABEL;
+  else if (f.attribution?.status === 'inferred') source += ' (inferred)';
+  try {
+    if (!Notification.isSupported()) return;
+    new Notification({
+      title: 'AEGIS \u2014 Sensitive File Activity',
+      body: `${source} ${f.action || 'accessed'}: ${path.basename(f.file)}${more}\n${f.reason}`,
+      urgency: 'normal',
+    }).show();
+    // Notification delivery is optional. Its native API must not prevent the
+    // caller from writing the audit record or retrying after a failed attempt.
+    _state.lastNotificationTime = now;
+  } catch {
+    // A native notification failure must not interrupt file-event processing.
+  }
 }
 
 /** @returns {void} @since v0.1.0 */
