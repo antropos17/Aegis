@@ -558,6 +558,56 @@ describe('file-watcher scanFileHandles', () => {
       expect(state.activityLog.length).toBe(firstLen);
     });
 
+    it('bounds 501 observed paths without repeating activity and admits a replacement after closure', async () => {
+      const paths = Array.from({ length: 501 }, (_, i) => `/home/user/project/f-${i}.js`);
+      const agent = { pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:u' };
+      const onActivityPush = vi.fn();
+      state.onActivityPush = onActivityPush;
+      mockGetFileHandles.mockResolvedValue(paths);
+
+      const first = await fileWatcher.scanAllFileHandles([agent]);
+      expect(first).toHaveLength(500);
+      expect(state.knownHandles.get('100:u').size).toBe(500);
+      expect(fileWatcher.getFileSensorHealth()['fs-handle']).toMatchObject({
+        state: 'DEGRADED',
+        detail: 'handle-path-cap-exceeded',
+        lossCount: 1,
+      });
+
+      const second = await fileWatcher.scanAllFileHandles([agent]);
+      expect(second).toEqual([]); // no false downstream audit or sequence input
+      expect(state.activityLog).toHaveLength(500);
+      expect(state.recordFileAccess).toHaveBeenCalledTimes(500);
+      expect(onActivityPush).toHaveBeenCalledTimes(500);
+      expect(fileWatcher.getFileSensorHealth()['fs-handle'].lossCount).toBe(2);
+
+      mockGetFileHandles.mockResolvedValue([...paths].reverse());
+      expect(await fileWatcher.scanAllFileHandles([agent])).toEqual([]);
+      expect(state.activityLog).toHaveLength(500);
+      expect(fileWatcher.getFileSensorHealth()['fs-handle'].lossCount).toBe(3);
+
+      // The omitted 501st path may disappear before any later scan can emit it.
+      mockGetFileHandles.mockResolvedValue(paths.slice(0, 500));
+      expect(await fileWatcher.scanAllFileHandles([agent])).toEqual([]);
+      expect(fileWatcher.getFileSensorHealth()['fs-handle']).toMatchObject({
+        state: 'DEGRADED',
+        detail: 'residual-loss',
+        lossCount: 3,
+      });
+
+      mockGetFileHandles.mockResolvedValue(paths.slice(1)); // old f-0 closed
+      const recovered = await fileWatcher.scanAllFileHandles([agent]);
+      expect(recovered.map((event) => event.file)).toEqual([paths[500]]);
+      expect(state.knownHandles.get('100:u').size).toBe(500);
+      expect(fileWatcher.getFileSensorHealth()['fs-handle']).toMatchObject({
+        state: 'DEGRADED',
+        detail: 'residual-loss',
+        lastError: null,
+        lossCount: 3,
+      });
+      expect(fileWatcher.getFileSensorHealth()['fs-handle'].lastSuccessAt).toBeTypeOf('number');
+    });
+
     it('keeps a handle-pool seen-set through raw-birth precision loss', async () => {
       mockGetFileHandles.mockResolvedValue(['/home/user/.ssh/id_rsa']);
       const agent = { pid: 100, agent: 'Claude Code', category: 'ai', instanceId: '100:111' };
@@ -815,6 +865,51 @@ describe('file-watcher Restart Manager (RM) holder path', () => {
     expect(second).toHaveLength(0); // sustained hold → one event, not one-per-scan
   });
 
+  it('bounds 501 held groups without a repeated wave and recovers on the next full scan', async () => {
+    const groups = Array.from({ length: 501 }, (_, i) => `/home/user/.env.${i}`);
+    const agent = {
+      pid: 105,
+      agent: 'Agent5',
+      category: 'ai',
+      instanceId: '105:u',
+    };
+    const holders = groups.map((group) => ({ pid: 105, group, reason: 'Environment variables' }));
+    mockGetSensitiveHolders.mockResolvedValue(holders);
+
+    const first = await scanRm(state, [agent]);
+    expect(fileWatcher.getFileSensorHealth()['fs-rm'].lossCount).toBe(1);
+    const second = await scanRm(state, [agent]);
+    expect(first).toHaveLength(500);
+    expect(second).toEqual([]);
+    expect(state.activityLog).toHaveLength(500);
+    expect(state.recordFileAccess).toHaveBeenCalledTimes(500);
+    expect(state.knownHandles.get(`105:u|${RM_TEST_BIRTH}`).size).toBe(500);
+    expect(fileWatcher.getFileSensorHealth()['fs-rm']).toMatchObject({
+      state: 'DEGRADED',
+      detail: 'rm-holder-cap-exceeded',
+      lossCount: 2,
+    });
+
+    mockGetSensitiveHolders.mockResolvedValue(holders.slice(0, 500));
+    expect(await scanRm(state, [agent])).toEqual([]); // omitted group closed unseen
+    expect(fileWatcher.getFileSensorHealth()['fs-rm']).toMatchObject({
+      state: 'DEGRADED',
+      detail: 'residual-loss',
+      lossCount: 2,
+    });
+
+    mockGetSensitiveHolders.mockResolvedValue(holders.slice(1));
+    const recovered = await scanRm(state, [agent]);
+    expect(recovered.map((event) => event.file)).toEqual([groups[500]]);
+    expect(fileWatcher.getFileSensorHealth()['fs-rm']).toMatchObject({
+      state: 'DEGRADED',
+      detail: 'residual-loss',
+      lastError: null,
+      lossCount: 2,
+    });
+    expect(fileWatcher.getFileSensorHealth()['fs-rm'].lastSuccessAt).toBeTypeOf('number');
+  });
+
   // PID reuse under the RM path: a recycled pid holding the same group is a NEW
   // instance — its hold must fire again, not be swallowed by the dead process's
   // holding-dedup key.
@@ -1043,6 +1138,38 @@ describe('file-watcher hot read-detect cycle (cross-cycle dedup)', () => {
     const second = await fileWatcher.scanHotFileHolders(AGENTS);
     expect(first).toHaveLength(1);
     expect(second).toHaveLength(0);
+  });
+
+  it('a narrow hot scan cannot clear full-scan holder-cap coverage loss', async () => {
+    const fullHolders = withRmBirth(
+      Array.from({ length: 501 }, (_, i) => ({
+        pid: 105,
+        group: `/home/user/.env.${i}`,
+        reason: 'Environment variables',
+      })),
+    );
+    mockFull.mockResolvedValue(fullHolders);
+    mockHot.mockResolvedValue(fullHolders.slice(0, 1));
+
+    await fileWatcher.scanAllFileHandles(AGENTS);
+    expect(fileWatcher.getFileSensorHealth()['fs-rm']).toMatchObject({
+      detail: 'rm-holder-cap-exceeded',
+      lossCount: 1,
+    });
+    await fileWatcher.scanHotFileHolders(AGENTS);
+    expect(fileWatcher.getFileSensorHealth()['fs-rm']).toMatchObject({
+      state: 'DEGRADED',
+      detail: 'rm-holder-cap-exceeded',
+      lossCount: 1,
+    });
+
+    mockFull.mockResolvedValue(fullHolders.slice(1));
+    await fileWatcher.scanAllFileHandles(AGENTS);
+    expect(fileWatcher.getFileSensorHealth()['fs-rm']).toMatchObject({
+      state: 'DEGRADED',
+      detail: 'residual-loss',
+      lossCount: 1,
+    });
   });
 
   // Capability gate: with no hot holder source wired (darwin/linux), the hot scan
