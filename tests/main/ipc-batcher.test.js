@@ -555,6 +555,81 @@ describe('ipc-batcher', () => {
   // ── coalescing × capacity ──
 
   describe('coalescing and capacity together', () => {
+    it('matches the ordered reference policy across a long mixed burst and a second window', () => {
+      const sent = [];
+      const b = createBatcher('ch', (_channel, payload) => sent.push(payload), {
+        intervalMs: 100,
+        capacity: 1000,
+        coalesceKey: (v) => (v.merge ? v.key : null),
+        retain: (v) => v.sensitive,
+      });
+      let expectedEvicted = 0;
+      let expectedCoalesced = 0;
+      let expectedRetainedEvicted = 0;
+
+      for (const count of [3000, 1000]) {
+        const expected = [];
+        for (let i = 0; i < count; i++) {
+          const value = {
+            key: `k${i % 157}`,
+            merge: i % 3 === 0,
+            sensitive: i % 17 === 0,
+            window: sent.length,
+            i,
+          };
+          b.push(value);
+          const at = value.merge
+            ? expected.findIndex((entry) => entry.merge && entry.key === value.key)
+            : -1;
+          if (at !== -1) {
+            expected[at] = value;
+            expectedCoalesced++;
+          } else {
+            if (expected.length === 1000) {
+              const firstPlain = expected.findIndex((entry) => !entry.sensitive);
+              const victim = firstPlain === -1 ? 0 : firstPlain;
+              if (expected[victim].sensitive) expectedRetainedEvicted++;
+              expected.splice(victim, 1);
+              expectedEvicted++;
+            }
+            expected.push(value);
+          }
+        }
+        b.flush();
+        expect(sent.at(-1)).toEqual(expected);
+      }
+      expect(b.getStats()).toMatchObject({
+        pushed: 4000,
+        coalesced: expectedCoalesced,
+        evicted: expectedEvicted,
+        retainedEvicted: expectedRetainedEvicted,
+        buffered: 0,
+      });
+      b.destroy();
+    });
+
+    it('preserves the original eviction age when a merged key loses retention', () => {
+      const sent = [];
+      const b = createBatcher('ch', (_channel, payload) => sent.push(payload), {
+        capacity: 3,
+        coalesceKey: (value) => value.key,
+        retain: (value) => value.keep,
+      });
+      b.push({ key: 'a', keep: true, n: 1 });
+      b.push({ key: 'b', keep: false, n: 2 });
+      b.push({ key: 'c', keep: false, n: 3 });
+      b.push({ key: 'a', keep: false, n: 4 });
+      b.push({ key: 'd', keep: false, n: 5 });
+      b.flush();
+      expect(sent[0]).toEqual([
+        { key: 'b', keep: false, n: 2 },
+        { key: 'c', keep: false, n: 3 },
+        { key: 'd', keep: false, n: 5 },
+      ]);
+      expect(b.getStats()).toMatchObject({ coalesced: 1, evicted: 1, retainedEvicted: 0 });
+      b.destroy();
+    });
+
     it('a coalesced push does NOT evict, even at full capacity', () => {
       const send = vi.fn();
       const b = createBatcher('ch', send, {
