@@ -90,6 +90,11 @@
       ><Icon name="bell" />{$t('Test')}</Action
     >
   </div>
+  <p class="notification-scope">
+    {$t(
+      'This switch controls desktop popups. Sensitive activity review remains available in the app.',
+    )}
+  </p>
 </SettingsGroup>
 <SettingsGroup
   title={$t('File coverage')}
@@ -136,5 +141,10 @@
   .interval-number {
     width: 110px;
     min-width: 0;
+  }
+  .notification-scope {
+    margin: 0 0 var(--space-3);
+    color: var(--muted);
+    font-size: var(--text-caption);
   }
 </style>
